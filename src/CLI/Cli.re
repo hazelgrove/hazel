@@ -41,8 +41,9 @@ let format_hazel = (implicit_hole: string, width, path) => {
   /* Parse to a zipper (not just a segment) so we recover manual refractors
      produced by `^^probe(...)` / `^^statics(...)` triggers in the input.
      The refractors are then passed to Printer.of_segment so they round-trip
-     back to their trigger syntax. Both convex and concave Grout are rendered
-     with `implicit_hole` so the marker survives a decode|format|encode pipe. */
+     back to their trigger syntax. Convex Grout renders as `implicit_hole`;
+     concave Grout gets its own marker (an operator hole has no operand
+     spelling), so a decode|format|encode pipe stays fast-parseable. */
   switch (parse_to_zipper(program)) {
   | None => failwith("Failed to parse: " ++ path)
   | Some(zipper) =>
@@ -50,9 +51,10 @@ let format_hazel = (implicit_hole: string, width, path) => {
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
     let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
     let output =
+      /* no ~indent: prettify output is self-indented (level_map) */
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
-        ~concave_holes=implicit_hole,
+        ~concave_holes=Haz3lcore.Token.concave_hole_marker,
         ~indent=" ",
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
@@ -347,7 +349,11 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
 
     /* Probe ids up front — statics needs them too, since instrumentation
        (e.g. the livelit view fold-in) happens during elaboration */
-    let base_probe_ids = Haz3lcore.CachedStatics.probe_ids_of_zipper(zipper);
+    let base_probe_ids =
+      Haz3lcore.CachedStatics.probe_ids_of_zipper(
+        ~projectors=make_term_result.projectors,
+        zipper,
+      );
 
     /* Run statics to get info_map and the (instrumented) elaboration */
     let (info_map, elaborated) =
@@ -531,8 +537,8 @@ let format_cmd = {
     structured formatting.
   |};
   let width_arg = {
-    let doc = "Target line width in columns (default: 60).";
-    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+    let doc = "Target line width in columns (default: 80).";
+    Arg.(value & opt(int, 80) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
   Cmd.v(

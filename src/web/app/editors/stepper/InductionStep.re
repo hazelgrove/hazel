@@ -197,7 +197,7 @@ module F =
       );
     let elab_scrut_raw =
       Calc.set(
-        ~eq=Exp.fast_equal,
+        ~eq=Exp.fast_equal_with_lexemes,
         CodeEditable.Model.get_statics(scrut).elaborated,
         elab_scrut_raw,
       );
@@ -261,7 +261,7 @@ module F =
       );
     let join_exp =
       Calc.set(
-        ~eq=Exp.fast_equal,
+        ~eq=Exp.fast_equal_with_lexemes,
         new_join_exp |> Option.value(~default=Exp.fresh(EmptyHole)),
         join_exp,
       );
@@ -379,6 +379,7 @@ module F =
           EditMode.Editable({
             inject: x => inject(ScrutUpdate(x)),
             escape: _ => Ui_effect.Ignore,
+            escape_vertical: None,
             take_focus: _ => Ui_effect.Ignore,
             focus:
               switch (focus) {

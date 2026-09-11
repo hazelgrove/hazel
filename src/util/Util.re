@@ -14,6 +14,8 @@ module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
+module PerfTimer = PerfTimer;
+module AgentPulse = AgentPulse;
 module Tree = Tree;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
@@ -42,7 +44,9 @@ module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
 module FloatingElement = FloatingElement;
+module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
+module GraphLayout = GraphLayout;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

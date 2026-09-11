@@ -260,4 +260,4 @@ let editor_effects =
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
   |> resolve_pending_probe_cursor(~dynamics, ~syntax, ~info_map)
-  |> ProbePerform.maybe_reset_cursor;
+  |> ProbePerform.maybe_reset_cursor_live(~dynamics);

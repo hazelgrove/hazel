@@ -212,6 +212,35 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
 let crack_siblings = ((pre, suf): Siblings.t): Siblings.t =>
   TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
 
+/* Repair-scope crack: also explode incomplete multi-delimiter tiles
+   into shard singletons (children interleaved) — rescan only matches
+   singletons, so a two-shard remnant can never pair otherwise. Gated
+   fallback only: exploding on the fast path would make every
+   mid-entry state pay a rescan. */
+let rec explode_incomplete = (seg: Segment.t): Segment.t =>
+  List.concat_map(
+    fun
+    | Piece.Tile(tile)
+        when
+          !Tile.is_complete(tile)
+          && is_multidelimiter_label(tile.label)
+          && List.length(tile.shards) > 1 =>
+      Aba.mk(
+        shard_pieces(tile),
+        List.map(explode_incomplete, tile.children),
+      )
+      |> Aba.join(piece => [piece], Fun.id)
+      |> List.flatten
+    | Piece.Tile(tile) => [
+        Piece.Tile({
+          ...tile,
+          children: List.map(explode_incomplete, tile.children),
+        }),
+      ]
+    | piece => [piece],
+    seg,
+  );
+
 /* Give fresh IDs to ancestor shard pieces on the right side.
    This prevents duplicate (id, shard_index) after rescan converts
    a newly-inserted delimiter to the ancestor's ID. The left-side
@@ -340,8 +369,13 @@ let repair_fresh_ids =
    re-associate delimiters left-to-right, then restore any freshened ids that
    rescan did not actually displace. */
 let crack_rescan_repair =
-    (~fresh_map=Id.Map.empty, siblings: Siblings.t): Siblings.t =>
-  crack_siblings(siblings) |> Siblings.rescan |> repair_fresh_ids(fresh_map);
+    (~explode=false, ~fresh_map=Id.Map.empty, siblings: Siblings.t)
+    : Siblings.t => {
+  let cracked = crack_siblings(siblings);
+  let cracked =
+    explode ? TupleUtil.map2(explode_incomplete, cracked) : cracked;
+  cracked |> Siblings.rescan |> repair_fresh_ids(fresh_map);
+};
 
 /* Acceptance */
 
@@ -596,7 +630,8 @@ let flatten_and_repair = (z: t): t => {
     } else {
       let (flattened, affected_ancestors, outer_ancestors, fresh_map) =
         flatten_to_depth(depth, z.relatives.siblings, z.relatives.ancestors);
-      let candidate_siblings = crack_rescan_repair(~fresh_map, flattened);
+      let candidate_siblings =
+        crack_rescan_repair(~explode=true, ~fresh_map, flattened);
       let result =
         accept_candidate(
           ~base_scope={
@@ -609,7 +644,9 @@ let flatten_and_repair = (z: t): t => {
         );
       result !== z ? result : ascend(depth + 1);
     };
-  ascend(1);
+  /* depth 0 = the sibling scope: the orphan's match can be a sibling
+     (top level has no ancestors to flatten) */
+  ascend(0);
 };
 
 /* Entry point. Run the cheap request-driven path first; only if it makes no

@@ -34,6 +34,7 @@
   ezjs_min
   ezjs_idb
   workerServer
+  str
   bonsai
   bonsai.web
   virtual_dom.input_widgets
@@ -41,7 +42,10 @@
   ppx_yojson_conv.expander
   haz3lcore
   b2t2
+  mvu
+  livelitdemos
   docslides
+  constellation
   omd)
  (js_of_ocaml)
  (preprocess

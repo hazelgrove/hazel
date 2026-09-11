@@ -10,8 +10,12 @@ type cursor('update) = {
   redo_action: option('update),
   /* Global statics summary for status indicator */
   error_ids: list(Util.Id.t),
-  /* Context-sensitive actions for command palette and keyboard shortcuts */
+  /* Context-sensitive actions for command palette and keyboard shortcuts.
+   * The eager list carries item hotkeys, so it must be registered with
+   * ninja-keys every render; the lazy list is computed only when the
+   * palette opens (refactoring gating walks the syntax). */
   contextual_actions: list(ContextualAction.t),
+  contextual_actions_lazy: unit => list(ContextualAction.t),
 };
 
 let map = (f: 'a => 'b, cursor) => {
@@ -20,6 +24,7 @@ let map = (f: 'a => 'b, cursor) => {
   undo_action: cursor.undo_action |> Option.map(f),
   redo_action: cursor.redo_action |> Option.map(f),
   contextual_actions: cursor.contextual_actions,
+  contextual_actions_lazy: cursor.contextual_actions_lazy,
 };
 
 let map_opt = (f: 'a => option('b), cursor) => {
@@ -28,6 +33,7 @@ let map_opt = (f: 'a => option('b), cursor) => {
   undo_action: cursor.undo_action |> Option.bind(_, f),
   redo_action: cursor.redo_action |> Option.bind(_, f),
   contextual_actions: cursor.contextual_actions,
+  contextual_actions_lazy: cursor.contextual_actions_lazy,
 };
 
 let empty = {
@@ -42,11 +48,17 @@ let empty = {
   redo_action: None,
   error_ids: [],
   contextual_actions: [],
+  contextual_actions_lazy: () => [],
 };
 
 let with_actions = (actions: list(ContextualAction.t), cursor) => {
   ...cursor,
   contextual_actions: cursor.contextual_actions @ actions,
+};
+
+let with_lazy_actions = (actions: unit => list(ContextualAction.t), cursor) => {
+  ...cursor,
+  contextual_actions_lazy: () => cursor.contextual_actions_lazy() @ actions(),
 };
 
 let (let+) = (cursor, f) => map(f, cursor);

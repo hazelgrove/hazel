@@ -154,6 +154,7 @@ and exp =
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
+  | BinHole(exp, exp) /* concave grout: an operator hole (the `⧖` marker) */
   | Filter(filter_action, exp, exp)
   | BuiltinFun(string)
   | Undefined
@@ -215,11 +216,27 @@ let nonascii_name_suffix: QCheck.Gen.t(string) =
  * ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
  */
 // TODO handle full constructor ident including nums and '
+/* Names of the builtin constructors, so generated ones can avoid them. A
+   generated name that collides doesn't test what these properties mean to
+   test — it resolves to the builtin, e.g. `A` is HTML's anchor tag, whose
+   type expands to thousands of nodes and dominated the suite's runtime. */
+let builtin_ctr_names: list(string) =
+  Language.Builtins.ctx_init(None).entries
+  |> List.filter_map((entry: Language.Ctx.entry) =>
+       switch (entry) {
+       | ConstructorEntry({name, _}) => Some(name)
+       | _ => None
+       }
+     );
+
+let avoids_builtin = (name: string): bool =>
+  !List.mem(name, builtin_ctr_names);
+
 let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
   (~minimal_idents) =>
     QCheck.Gen.(
       if (minimal_idents) {
-        oneof([pure("A"), pure("B")]);
+        oneof([pure("Aa"), pure("Bb")]);
       } else {
         let* leading = char_range('A', 'Z');
         let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
@@ -227,6 +244,8 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let ident = String.make(1, leading) ++ tail ++ suffix;
         if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
           "Keyword";
+        } else if (!avoids_builtin(ident)) {
+          ident ++ "z";
         } else {
           ident;
         };
@@ -506,9 +525,10 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             TyAlias(tp, t, e);
           },
           {
-            /* Module literal bound by a let. Members are value and type
-               items. */
+            /* Module literal bound by a let — plain or livelit (^name)
+               binder. Members are value and type items. */
 
+            let* is_livelit = bool;
             let* name = gen_ident;
             let* sizes = gen_sized_array((n - 1) / 2);
             let* items =
@@ -531,11 +551,15 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
                 ),
               );
             let+ body = self((n - 1) / 2);
-            Let(VarPat(name), Module(Array.to_list(items)), body);
+            Let(
+              VarPat(is_livelit ? "^" ++ name : name),
+              Module(Array.to_list(items)),
+              body,
+            );
           },
           {
-            /* Builtin-livelit name in expression position: ^name —
-               combines with the existing Ap/Dot generators for uses. */
+            /* Livelit name in expression position: ^name — combines with
+               the existing Ap/Dot generators for uses and member access. */
 
             let+ name = gen_ident;
             LivelitName("^" ++ name);
@@ -1030,6 +1054,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e2);
             return(Filter(fa, e1, shrunk));
+          }
+        | BinHole(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(BinHole(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(BinHole(e1, shrunk));
           }
         | Seq(e1, e2) =>
           {

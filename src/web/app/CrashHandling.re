@@ -227,6 +227,11 @@ module View = {
       | exn =>
         set_last_exception(exn);
         let msg = Printexc.to_string(exn);
+        /* also to the console, where it lands next to the app's own log
+           lines (the crash screen shows only the message) */
+        Js_of_ocaml.Firebug.console##error(
+          Js_of_ocaml.Js.string("Exception during view: " ++ msg),
+        );
         set_current_exception(View(msg));
         hsod_view(
           ~title="Exception during View",

@@ -56,16 +56,19 @@ let rec any_to_info_map =
   }
 and multi =
     (~ctx, ~ancestors, ~probe_ids: Id.Map.t(unit)=Id.Map.empty, m, tms)
-    : (list(CoCtx.t), list(Any.t), Map.t) =>
-  List.fold_left(
-    ((co_ctxs, tms_elab, m), any) => {
-      let (co_ctx, any_elab, m) =
-        any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
-      (co_ctxs @ [co_ctx], tms_elab @ [any_elab], m);
-    },
-    ([], [], m),
-    tms,
-  )
+    : (list(CoCtx.t), list(Any.t), Map.t) => {
+  let (co_ctxs, tms_elab, m) =
+    List.fold_left(
+      ((co_ctxs, tms_elab, m), any) => {
+        let (co_ctx, any_elab, m) =
+          any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
+        ([co_ctx, ...co_ctxs], [any_elab, ...tms_elab], m);
+      },
+      ([], [], m),
+      tms,
+    );
+  (List.rev(co_ctxs), List.rev(tms_elab), m);
+}
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -385,26 +388,50 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
-      add(
-        ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([e1.probe_targets, e2.probe_targets]),
-        m,
-      );
     | MultiHole(tms) =>
-      let (co_ctxs, tms_elab, m) =
-        multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+      /* Elaborate MultiHole as right-associative Seq through all Exp children;
+       * non-Exp children still get info-mapped but are dropped from elaboration. */
+      let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
+        List.fold_left(
+          ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+            switch (any) {
+            | Exp(e) =>
+              let (e_info, e_elab, m) = go(~ana=syn, e, m);
+              (
+                co_ctxs @ [e_info.co_ctx],
+                probe_targets @ [e_info.probe_targets],
+                elabs @ [e_elab],
+                m,
+              );
+            | _ =>
+              let (co_ctx, _any_elab, m) =
+                any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, any, m);
+              (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+            },
+          ([], [], [], m),
+          tms,
+        );
+      let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
+        switch (exps) {
+        | [] => EmptyHole |> rewrap
+        | [e] => e
+        | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+        };
+      /* An unknown-infix multihole (operator token recorded as the
+         lexeme, two exp kids) is a stuck application, not transient
+         juxtaposition: elaborate it to a MultiHole, which the dynamics
+         treats as Indet, instead of evaluating to the last kid. */
+      let elab_term =
+        switch (uexp.annotation.lexeme, exp_elabs) {
+        | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+        | _ => nest_seqs(exp_elabs)
+        };
       add(
-        ~elab_term=MultiHole(tms_elab) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union(co_ctxs),
+        ~co_ctx=CoCtx.union(exp_co_ctxs),
+        ~probe_targets=SubexpProbeTargets.union_all(exp_probe_targets),
         m,
       );
     | Asc(e, t2) =>
@@ -415,7 +442,9 @@ and uexp_to_info_map =
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
-        ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
+        ~elab_term=
+          Asc(e_elab, ConstructorStaticsHelpers.normalize_ctr_type(ctx, t2))
+          |> rewrap,
         ~elab_syn_ty=t_ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([e.co_ctx, typ_refs]),
@@ -504,7 +533,8 @@ and uexp_to_info_map =
         ~elab_term=LivelitName(name) |> rewrap,
         ~elab_syn_ty=syn_lit,
         ~marks=marks_lit,
-        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        /* caret-prefixed to match the `let ^name` binder's Var entry */
+        ~co_ctx=CoCtx.singleton("^" ++ name, Exp.rep_id(uexp), ana),
         m,
       );
     | ListLit(es) =>
@@ -701,6 +731,31 @@ and uexp_to_info_map =
       );
     | Projector(data, e) =>
       let (e, e_elab, m) = go(~ana, e, m);
+      /* A probed livelit projector also computes view(model) in this run,
+         sampled at the projector's id for the projector to render */
+      let e_elab =
+        switch (
+          data.kind,
+          Id.Map.mem(Exp.rep_id(uexp), probe_ids),
+          UserLivelit.use_parts(ctx, e.user_term),
+        ) {
+        | (Livelit, true, Some((name, model))) =>
+          /* the view gets the ELABORATED model (located inside the
+             expansion by the surface model's id) — a committed transition's
+             surface form is not evaluable */
+          let model =
+            Option.value(
+              Exp.find_by_id(Exp.rep_id(model), e_elab),
+              ~default=model,
+            );
+          UserLivelit.instrument_view(
+            ~projector_id=Exp.rep_id(uexp),
+            ~name,
+            ~model,
+            e_elab,
+          );
+        | _ => e_elab
+        };
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -958,7 +1013,7 @@ and uexp_to_info_map =
                   e_info,
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
+              ([e_info, ...es], [elab, ...es_elab], m);
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
@@ -1054,7 +1109,7 @@ and uexp_to_info_map =
                   ~warnings=[],
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
+              ([e_info, ...es], [elab, ...es_elab], m);
             | _ =>
               let (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
@@ -1063,12 +1118,13 @@ and uexp_to_info_map =
                   e_info,
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
+              ([e_info, ...es], [elab, ...es_elab], m);
             },
           ([], [], m),
           ana_tys,
           List.combine(inferred, es),
         );
+      let (es', es_elab) = (List.rev(es'), List.rev(es_elab));
 
       let ty_list = List.map((e: Info.exp) => e.elab_syn_ty, es');
 
@@ -1251,6 +1307,46 @@ and uexp_to_info_map =
         m,
       );
 
+    | Dot(
+        {term: LivelitName(ll_name), _} as e1,
+        {term: Label(member), _} as e2,
+      )
+        when UserLivelit.is_user_livelit(ctx, ll_name) =>
+      /* Member access on a user-defined livelit: the name denotes its
+         definition record at runtime, so elaborate through the binding.
+         This is also the form interactions commit (^name.update(m, a)). */
+      let (info_e1, _, m) = go(~ana=syn, e1, m);
+      let (info_e2, elab_e2, m) =
+        add(
+          ~user_term=e2,
+          ~elab_term=e2,
+          ~ancestors=ancestors_inclusive,
+          ~ctx,
+          ~ana=syn,
+          ~elab_syn_ty=Label(member) |> Typ.temp,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          ~label_inference=None,
+          ~inferred_label=None,
+          ~dot_labels=[],
+          ~label_sort=true,
+          ~warnings=[],
+          m,
+        );
+      let (_, e1_rewrap) = Exp.unwrap(e1);
+      let binding = e1_rewrap(Var("^" ++ ll_name));
+      add(
+        ~elab_term=Dot(binding, elab_e2) |> rewrap,
+        ~elab_syn_ty=UserLivelit.member_ty(ctx, ll_name, member),
+        ~marks=[],
+        ~co_ctx=CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            info_e1.probe_targets,
+            info_e2.probe_targets,
+          ]),
+        m,
+      );
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
       /* Dot looks through one List level (column projection over a list
@@ -1537,8 +1633,17 @@ and uexp_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_res, marks_res) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
-      switch (marks_res) {
-      | [FreeConstructor(name)] =>
+      /* a capitalized name bound as a VARIABLE more recently than any
+         constructor of that name (a module shadowing a builtin
+         constructor such as HTML's `Text`) is that variable */
+      let shadowing_var =
+        switch (ty, Ctx.newest_var_or_ctr(ctx, ctr)) {
+        | (None, Some(`Var(v))) => Some(v)
+        | _ => None
+        };
+      switch (marks_res, shadowing_var) {
+      | ([FreeConstructor(name)], _)
+      | (_, Some({name, _})) =>
         /* If not a known constructor, try looking up as a variable.
            This supports capitalized module names like M.x where M is
            parsed as Constructor but is actually a variable binding. */
@@ -1569,7 +1674,9 @@ and uexp_to_info_map =
           );
         }
       | _ =>
-        let ctor_ty = fixed_typ(ctx, ana, syn_res) |> Typ.normalize(ctx);
+        let ctor_ty =
+          fixed_typ(ctx, ana, syn_res)
+          |> ConstructorStaticsHelpers.normalize_ctr_type(ctx);
         let elab_term = Constructor(ctr, Some(Some(ctor_ty))) |> rewrap;
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
@@ -1593,12 +1700,19 @@ and uexp_to_info_map =
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
-        | Some({expansion_t, model_t, expand, _}) =>
+        | Some({expansion_t, model_t, expand, user_def, _}) =>
           let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
+          /* A user-defined livelit's expansion embeds the model, so give it
+             the ELABORATED model — the surface form of e.g. a committed
+             ^name.update(m, a) transition is not evaluable. Builtins match
+             on surface shapes and keep the user term. */
+          let model_for_expand =
+            Option.is_some(user_def) ? arg_elab : arg.user_term;
+
           // try to expand
-          switch (expand(arg.user_term)) {
+          switch (expand(model_for_expand)) {
           | Some(expanded) =>
             let (info, elab, m) =
               add(
@@ -1664,19 +1778,29 @@ and uexp_to_info_map =
           };
 
         /* This logic lets us treat constructors differently to functions in
-           terms of error localization */
+           terms of error localization.
+           Optimization: When the constructor already has a type annotation
+           (e.g., from elaboration in post-eval statics), use it directly as
+           fn_ana. This avoids the expensive ctr_ana_typ path which unrolls
+           Rec types, causing O(n) meets where n = number of sum constructors.
+           For unannotated constructors (pre-eval), the original ctr_ana_typ
+           path is used for proper error localization. */
         let fn_ana =
-          switch (Exp.ctr_name(fn)) {
-          | Some(name) =>
-            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-            | Some(ty_ana) =>
-              switch (MatchedTyp.arrow(ctx, ty_ana)) {
-              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+          switch (fn.term) {
+          | Constructor(_, Some(Some(ty))) => ty
+          | _ =>
+            switch (Exp.ctr_name(fn)) {
+            | Some(name) =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty_ana) =>
+                switch (MatchedTyp.arrow(ctx, ty_ana)) {
+                | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+                | None => Arrow(syn, syn) |> Typ.temp
+                }
               | None => Arrow(syn, syn) |> Typ.temp
               }
             | None => Arrow(syn, syn) |> Typ.temp
             }
-          | None => Arrow(syn, syn) |> Typ.temp
           };
         let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
@@ -1764,20 +1888,23 @@ and uexp_to_info_map =
         | _ => None
         };
 
-      /* This logic lets us treat constructors differently to functions in
-         terms of error localization */
+      /* Same optimization as Ap: use constructor annotation directly when available */
       let fn_ana =
-        switch (Exp.ctr_name(fn)) {
-        | Some(name) =>
-          switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) =>
-            switch (MatchedTyp.arrow(ctx, ty_ana)) {
-            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+        switch (fn.term) {
+        | Constructor(_, Some(Some(ty))) => ty
+        | _ =>
+          switch (Exp.ctr_name(fn)) {
+          | Some(name) =>
+            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+            | Some(ty_ana) =>
+              switch (MatchedTyp.arrow(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None => Arrow(syn, syn) |> Typ.temp
+              }
             | None => Arrow(syn, syn) |> Typ.temp
             }
           | None => Arrow(syn, syn) |> Typ.temp
           }
-        | None => Arrow(syn, syn) |> Typ.temp
         };
       let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
 
@@ -2112,6 +2239,27 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
+      /* Bind a livelit: `let ^name = (init, update, view, expand) in ...`
+         additionally puts a LivelitEntry in the body's context. The
+         definition also remains an ordinary binding of `^name`, which the
+         expansion of each use references at runtime. */
+      let (p_ana_ctx, livelit_marks) =
+        switch (UserLivelit.binder_name(p)) {
+        | Some(ll_name) =>
+          switch (
+            UserLivelit.mk(
+              ~name=ll_name,
+              ~id=Pat.rep_id(p),
+              ~def_user=def.user_term,
+              ~def_elab,
+              ~def_ty=def.ty,
+            )
+          ) {
+          | Ok(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), [])
+          | Error(e) => (p_ana_ctx, [Mark.InvalidLivelitDef(e)])
+          }
+        | None => (p_ana_ctx, [])
+        };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
@@ -2194,7 +2342,7 @@ and uexp_to_info_map =
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_let,
-        ~marks=marks_let,
+        ~marks=livelit_marks @ marks_let,
         ~co_ctx=
           CoCtx.union([
             def.co_ctx,
@@ -2376,11 +2524,12 @@ and uexp_to_info_map =
         List.fold_left2(
           ((es, elabs, m), e, ctx) =>
             go(~ctx, ~ana, e, m)
-            |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
+            |> (((e, elab, m)) => ([e, ...es], [elab, ...elabs], m)),
           ([], [], m),
           es,
           p_ctxs,
         );
+      let (es, es_elabs) = (List.rev(es), List.rev(es_elabs));
 
       let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
@@ -2400,13 +2549,14 @@ and uexp_to_info_map =
               go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
 
             let p_constraint = Info.pat_constraint(info);
-            ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
+            ([p_constraint, ...constraints], [p_elab, ...ps_elabs], m);
           },
           ([], [], m),
           List.combine(ps, e_co_ctxs),
         );
 
       let constraints = List.rev(constraints);
+      let ps_elabs = List.rev(ps_elabs);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
@@ -3333,11 +3483,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
@@ -3458,11 +3608,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab_tl],
+                [info, ...info_all],
+                [elab_tl, ...elabs],
               );
             | _ =>
               let (info, elab, m) =
@@ -3482,17 +3632,23 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             },
           (ctx, [], [], m, [], []),
           List.combine(inferred, ps),
           modes,
         );
+      let (tys, cons, info_pats, ps_elabs) = (
+        List.rev(tys),
+        List.rev(cons),
+        List.rev(info_pats),
+        List.rev(ps_elabs),
+      );
       let constraint_ = Coverage.Constraint.Tuple(cons);
 
       let malformed_labels =
@@ -3570,9 +3726,12 @@ and upat_to_info_map =
           ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
           Ctx.lookup_ctr(ctx, ctr),
         ) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+        | (Some(ana_ty), _) =>
+          Some(ConstructorStaticsHelpers.normalize_ctr_type(ctx, ana_ty))
         | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(Typ.normalize(ctx, elab_syn_ty))
+          Some(
+            ConstructorStaticsHelpers.normalize_ctr_type(ctx, elab_syn_ty),
+          )
         | _ => None
         };
       add(
@@ -3623,7 +3782,12 @@ and upat_to_info_map =
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
-        ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
+        ~elab_term=
+          Asc(
+            p_elab,
+            ConstructorStaticsHelpers.normalize_ctr_type(ctx, ann.user_term),
+          )
+          |> rewrap,
         ~elab_syn_ty=ann_ty,
         ~marks=[],
         ~ctx=p.ctx,
@@ -4310,38 +4474,82 @@ and mpat_to_info_map =
   };
 };
 
-let mk =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
-      let (_, elab, m) =
-        uexp_to_info_map(
-          ~ana,
-          ~ctx,
-          ~ancestors=[],
-          ~probe_ids,
-          e,
-          Id.Map.empty,
+let mk_impl = ((ana, ctx, e, probe_ids)) => {
+  let (_, elab, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], ~probe_ids, e, Id.Map.empty);
+  /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
+     Ensure they all resolve to the same info entry for cursor features. */
+  let m_ref = ref(m);
+  let _ =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        let info_opt = List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
+        switch (info_opt) {
+        | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+        | None => ()
+        };
+        ();
+      },
+      e,
+    );
+  (m_ref^, elab);
+};
+
+/* Memo on the TERM'S PHYSICAL identity, small and bounded. The old
+   Core.Memo.general(~cache_size_bound=1000) with polymorphic hash+eq
+   was measured (Test_BenchStatics memo probe): every id-stable edit
+   version of a program collides into one hash bucket, and — worse —
+   up to 1000 entries each retain a whole (term, ctx) key plus a whole
+   (info_map, elaborated) result, a memory trap on large programs. All
+   hits that actually occur are physically-identical terms (MakeTerm's
+   own memo keeps terms pointer-stable between edits), so a K-entry
+   pointer-keyed LRU keeps every real hit. The small components (ana,
+   probe_ids) are rebuilt per call, so they compare structurally. */
+let mk_cache:
+  ref(list(((Typ.t, Ctx.t, Exp.t, Id.Map.t(unit)), (Map.t, Exp.t)))) =
+  ref([]);
+let mk_cache_max = 16;
+
+let mk = ((ana, ctx, e, probe_ids) as key) => {
+  let key_eq = ((ana', ctx', e', probe_ids')) =>
+    e' === e
+    && ctx' === ctx
+    && compare(ana', ana) == 0
+    && compare(probe_ids', probe_ids) == 0;
+  switch (List.find_opt(((k, _)) => key_eq(k), mk_cache^)) {
+  | Some((k, r)) =>
+    mk_cache :=
+      [(k, r), ...List.filter(((k', _)) => !(k' === k), mk_cache^)];
+    r;
+  | None =>
+    let rec take = (n, l) =>
+      n <= 0
+        ? []
+        : (
+          switch (l) {
+          | [] => []
+          | [x, ...xs] => [x, ...take(n - 1, xs)]
+          }
         );
-      /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
-         Ensure they all resolve to the same info entry for cursor features. */
-      let m_ref = ref(m);
-      let _ =
-        Grammar.map_exp_annotation(
-          ({ids, _}: IdTagged.IdTag.t) => {
-            let info_opt =
-              List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
-            switch (info_opt) {
-            | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
-            | None => ()
-            };
-            ();
-          },
-          e,
-        );
-      (m_ref^, elab);
-    },
-  );
+    let r = mk_impl(key);
+    mk_cache := [(key, r), ...take(mk_cache_max - 1, mk_cache^)];
+    r;
+  };
+};
+
+/* For callers that manage their own caching (DefStatics): skips the
+   memo so per-item calls don't churn its small LRU. */
+let mk_unmemoized =
+    (
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~probe_ids=Id.Map.empty,
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) =>
+  core.statics
+    ? mk_impl((ana, ctx, exp, probe_ids))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));
 
 let mk =
     (

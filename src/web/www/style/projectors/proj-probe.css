@@ -1058,6 +1058,17 @@
   }
 }
 
+/* ---- rich html renderer: a sample value rendered as its actual DOM ---- */
+.rich-html-view {
+  /* inert display: handler attrs in the value never fire */
+  pointer-events: none;
+  overflow: auto;
+  max-height: 100%;
+  background: white;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+
 /* rich content embedded in a sample chip: inert, so the chip's own
    interactions (dropdown, capture, dbl-click toggle) stay in charge */
 /* a chip holding rich content centers it as a flex box — as an inline

@@ -92,6 +92,7 @@ let handle_llm_response =
         {
           model: step.model,
           is_edit: acc.is_edit || step.is_edit,
+          save: acc.save || step.save,
           recalculate: acc.recalculate || step.recalculate,
           scroll_active: acc.scroll_active || step.scroll_active,
           logged: acc.logged || step.logged,
@@ -129,6 +130,13 @@ let handle_llm_response =
           (model_idle, cell_editor |> Updated.return_quiet);
         };
       | tool_calls =>
+        /* the canvas trajectory: this reply's tool calls, for replay */
+        CanvasTrajectory.reply(
+          List.map(
+            (tc: OpenRouter.Reply.Model.tool_call) => (tc.name, tc.args),
+            tool_calls,
+          ),
+        );
         let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
           List.fold_left(
             ((m, ce_model, msgs, ce_updated, prior_failed), tc) =>
@@ -137,6 +145,7 @@ let handle_llm_response =
                 let msg = Message.Utils.mk_tool_result_message(skipped);
                 (m, ce_model, [msg, ...msgs], ce_updated, true);
               } else {
+                let t_tool = CanvasBuffer.now();
                 let (m2, step_u, msg) =
                   AgentToolExec.execute_one_tool_call(
                     ~tool_call=tc,
@@ -145,11 +154,113 @@ let handle_llm_response =
                     ~settings,
                     ~chat_id,
                   );
+                {
+                  /* each applied call is its own canvas beat: the whole
+                     multi-tool reply is ONE app action, so intermediate
+                     states must be captured here or never seen */
+
+                  let ms = CanvasBuffer.now() -. t_tool;
+                  if (ms > 100.) {
+                    CanvasLog.log(
+                      Printf.sprintf("slow: tool %s %.0fms", tc.name, ms),
+                    );
+                  };
+                  /* the phases inside this call (the editor's own
+                     recompute lands in the 5-second perf line) */
+                  CanvasLog.log(
+                    Printf.sprintf(
+                      "perf-tool: %s %.0fms — %s",
+                      tc.name,
+                      ms,
+                      PerfTimer.take_summary(),
+                    ),
+                  );
+                };
+                /* the tool's snapshot carries its OWN statics (computed
+                   here, synchronously) so the beat shows exactly this
+                   tool's change and never borrows the next one's */
+                let snap = {
+                  let ed = step_u.model.editor;
+                  if (Haz3lcore.Id.Map.is_empty(ed.statics.info_map)) {
+                    let t0 = CanvasBuffer.now();
+                    let statics =
+                      PerfTimer.time("snapshot-statics", () =>
+                        Haz3lcore.CachedStatics.init_compositional(
+                          ~settings=settings.core,
+                          ~stitch=x => x,
+                          ~root=ed.editor.root,
+                          ed.editor.state.zipper,
+                        )
+                      );
+                    let ms = CanvasBuffer.now() -. t0;
+                    if (ms > 30.) {
+                      CanvasLog.log(
+                        Printf.sprintf("snapshot statics: %.0fms", ms),
+                      );
+                    };
+                    {
+                      ...ed,
+                      statics,
+                    };
+                  } else {
+                    ed;
+                  };
+                };
+                CanvasBuffer.push_snapshot(
+                  ~label=tc.name,
+                  /* capture the tool's work site NOW so the avatar hops
+                     with this beat (see CanvasBuffer.beat) */
+                  ~avatar={
+                    switch (msg.role) {
+                    | ToolResult(tr) when !tr.skipped =>
+                      let ed = snap;
+                      let node_map =
+                        PerfTimer.time("summary-nodemap", () =>
+                          Haz3lcore.HighLevelNodeMap.build_for(
+                            ed.editor.state.zipper,
+                            ed.statics,
+                          )
+                        );
+                      ToolCallSummary.of_tool_call(tr.tool_call)
+                      |> Util.OptUtil.and_then((summary: ToolCallSummary.t) =>
+                           ToolResultView.first_resolving_id(
+                             ~node_map,
+                             summary.jump_paths,
+                           )
+                         )
+                      |> Option.map(id => (id, tr.success ? "edit" : "err"));
+                    | _ => None
+                    };
+                  },
+                  snap,
+                );
                 let failed =
                   switch (msg.role) {
                   | ToolResult(tr) => !tr.skipped && !tr.success
                   | _ => false
                   };
+                /* the journal is the truth: every tool's verdict lands in
+                   it, so a replay (or a real run) shows WHY nothing changed */
+                switch (msg.role) {
+                | ToolResult(tr) =>
+                  CanvasLog.log(
+                    Printf.sprintf(
+                      "tool %s -> %s",
+                      tc.name,
+                      tr.skipped
+                        ? "skipped"
+                        : tr.success
+                            ? "ok"
+                            : "ERR "
+                              ++ String.sub(
+                                   tr.content,
+                                   0,
+                                   min(700, String.length(tr.content)),
+                                 ),
+                    ),
+                  )
+                | _ => ()
+                };
                 (
                   m2,
                   step_u.model,
@@ -175,10 +286,9 @@ let handle_llm_response =
             tool_msgs,
           );
         (
-          AgentSend.dispatch_follow_up_llm(
+          AgentSend.defer_follow_up_llm(
             model_with_tool_msgs,
             chat_id,
-            settings,
             schedule_action,
           ),
           cell_editor_updated,

@@ -110,6 +110,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -121,6 +122,7 @@ let view_any = (~globals, any: Any.t) =>
 
 let view_type = (~globals, typ: Typ.t) =>
   typ
+  |> Typ.abstract_rec_types
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
@@ -262,6 +264,7 @@ let core_mark_err_view =
     | LabelNotFound(_)
     | BadOperator(_)
     | BadLivelitModel(_)
+    | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
     | ExpectedConstructor
@@ -730,6 +733,22 @@ let exp_mark_err_view =
       ...List.map(label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
+  | InvalidLivelitDef(DefNotTuple) =>
+    div_err([
+      text("Livelit definition should be a module with members "),
+      code("init, update, view, expand"),
+    ])
+  | InvalidLivelitDef(DefBadArity(n)) =>
+    div_err([
+      text("Livelit definition should have fields "),
+      code("(init, update, view, expand)"),
+      text(", got " ++ string_of_int(n)),
+    ])
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    div_err([
+      text("Livelit definition is missing members: "),
+      ...List.map(code, missing),
+    ])
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),

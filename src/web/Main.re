@@ -5,6 +5,59 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
+/* console: window.__incrCounters() — MakeTerm.Incr observability
+   (fell_back should stay 0; analyzed ~1 per stacked edit) */
+/* console: window.__normCounters() — sparse remold/regrout regime
+   observability (fallbacks fire on structure-entering edits; a hot
+   fallback rate is the "forgotten spike" signal, ledger §17) */
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__normCounters",
+    Js_of_ocaml.Js.wrap_callback(() =>
+      Js_of_ocaml.Js.string(
+        Printf.sprintf(
+          "sparse_hits=%d sparse_fallbacks=%d",
+          Haz3lcore.Zipper.sparse_hits^,
+          Haz3lcore.Zipper.sparse_fallbacks^,
+        ),
+      )
+    ),
+  );
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__incrCountersReset",
+    Js_of_ocaml.Js.wrap_callback(() => {
+      Haz3lcore.MakeTerm.Incr.fell_back := 0;
+      Haz3lcore.MakeTerm.Incr.full_analyzed := 0;
+      Haz3lcore.MakeTerm.Incr.analyzed := 0;
+      Haz3lcore.MakeTerm.Incr.incr_calls := 0;
+      Haz3lcore.MakeTerm.Incr.incr_hits := 0;
+      Haz3lcore.MakeTerm.Incr.incr_misses := 0;
+    }),
+  );
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__incrCounters",
+    Js_of_ocaml.Js.wrap_callback(() =>
+      Js_of_ocaml.Js.string(
+        Printf.sprintf(
+          "fell_back=%d full_analyzed=%d analyzed=%d calls=%d hits=%d misses=%d neq=%d nokey=%d",
+          Haz3lcore.MakeTerm.Incr.fell_back^,
+          Haz3lcore.MakeTerm.Incr.full_analyzed^,
+          Haz3lcore.MakeTerm.Incr.analyzed^,
+          Haz3lcore.MakeTerm.Incr.incr_calls^,
+          Haz3lcore.MakeTerm.Incr.incr_hits^,
+          Haz3lcore.MakeTerm.Incr.incr_misses^,
+          Haz3lcore.MakeTerm.Incr.incr_miss_neq^,
+          Haz3lcore.MakeTerm.Incr.incr_miss_nokey^,
+        ),
+      )
+    ),
+  );
+
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
@@ -61,25 +114,77 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
+  /* the action's constructor path, by hand: serializing the whole
+     action (its sexp) hung the page on evaluation results — closure
+     environments in streamed values serialize exponentially */
+  let kind = (action: CrashHandling.Update.t): string =>
+    switch (action) {
+    | Globals(Set(CanvasTick)) => "Globals/Set/CanvasTick"
+    | Globals(Set(Sidebar(_))) => "Globals/Set/Sidebar"
+    | Globals(Set(_)) => "Globals/Set"
+    | Globals(ActiveEditor(_)) => "Globals/ActiveEditor"
+    | Globals(SelectTile(_) | JumpToTile(_)) => "Globals/Jump"
+    | Globals(SetAgentGlobals(_)) => "Globals/SetAgentGlobals"
+    | Globals(AppViewMsg(_)) => "Globals/AppViewMsg"
+    | Globals(Undo | Redo) => "Globals/Undo"
+    | Globals(_) => "Globals/other"
+    | Editors(Scratch(CellAction(MainEditor(_)))) => "Editors/CellAction/MainEditor"
+    | Editors(Scratch(CellAction(ResultAction(_)))) => "Editors/CellAction/Result"
+    | Editors(Scratch(StackBody(_) | StackHeader(_))) => "Editors/Stack"
+    | Editors(Scratch(AgentAction(_))) => "Editors/AgentAction"
+    | Editors(
+        Scratch(FocusDef(_) | FocusToggle(_) | FocusEnsure(_) | UnfocusDef),
+      ) => "Editors/Focus"
+    | Editors(Scratch(_)) => "Editors/Scratch/other"
+    | Editors(_) => "Editors/other"
+    | ExplainThis(_) => "ExplainThis"
+    | MakeActive(_) => "MakeActive"
+    | Benchmark(_) => "Benchmark"
+    | Refresh => "Refresh"
+    | Start => "Start"
+    | Save => "Save"
+    };
+  let t_upd = Util.PerfTimer.now();
   let updated: Updated.t(CrashHandling.Model.t) =
-    CrashHandling.Update.update(
-      ~import_log=Log.import,
-      ~get_log_and=Log.get_and,
-      ~schedule_action,
-      action,
-      model,
+    Util.PerfTimer.time("app/update", () =>
+      CrashHandling.Update.update(
+        ~import_log=Log.import,
+        ~get_log_and=Log.get_and,
+        ~schedule_action,
+        action,
+        model,
+      )
     );
-  // ---------- CALCULATE PHASE ----------
-  let model' =
-    CrashHandling.Update.calculate(
-      ~schedule_action,
-      ~is_edited=updated.is_edit,
-      ~dynamics=true,
-      model,
-      updated.model,
-    );
-
+  if (Util.PerfTimer.now() -. t_upd > 100.) {
+    Util.PerfTimer.record("slow-update/" ++ kind(action), 0.);
+  };
+  /* every action, by kind: the perf journal's re-render census (a score
+     ran the app at 4 Hz with the agent idle — who was ticking?) */
+  Util.PerfTimer.record("action/" ++ kind(action), 0.);
+  /* which actions count as edits (each one costs a statics/eval recompute):
+     the perf journal names them */
   if (updated.is_edit) {
+    Util.PerfTimer.record("edit-action/" ++ kind(action), 0.);
+  };
+  // ---------- CALCULATE PHASE ----------
+  let t_calc = Util.PerfTimer.now();
+  let model' =
+    Util.PerfTimer.time("app/calculate", () =>
+      CrashHandling.Update.calculate(
+        ~schedule_action,
+        ~is_edited=updated.is_edit,
+        ~dynamics=true,
+        model,
+        updated.model,
+      )
+    );
+  /* a calculate phase over 100 ms is a stall the journal should name by
+     its action (eval results landing, agent tool results, edits) */
+  if (Util.PerfTimer.now() -. t_calc > 100.) {
+    Util.PerfTimer.record("slow-calc/" ++ kind(action), 0.);
+  };
+
+  if (updated.save) {
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
@@ -97,6 +202,9 @@ let apply =
   };
   model';
 };
+
+/* route core parse-fallback telemetry into the constellation journal */
+Haz3lcore.CompositionGo.fallback_notice := Some(CanvasLog.log);
 
 let start = default_model => {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
@@ -182,6 +290,96 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_clipboard_shim();
+    /* canvas trajectory replay: a recorded reply's tool calls go through
+       the real agent handler; the agent reads as busy for the avatar */
+    CanvasTrajectory.dispatch_reply :=
+      (
+        calls =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.ReplayToolCalls(
+                    List.mapi(
+                      (i, (name, args)) =>
+                        OpenRouter.Reply.Model.{
+                          id: "replay-" ++ string_of_int(i),
+                          name,
+                          args,
+                        },
+                      calls,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+      );
+    CanvasTrajectory.dispatch_begin :=
+      (
+        label =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.ReplayBegin(label),
+                ),
+              ),
+            ),
+          )
+      );
+    CanvasTrajectory.dispatch_new_slide :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(ScratchMode.Update.AddSlide),
+            ),
+          )
+      );
+    CanvasTrajectory.dispatch_paste :=
+      (
+        text =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.CellAction(
+                  CellEditor.Update.MainEditor(
+                    CodeEditable.Update.Perform(
+                      Haz3lcore.Action.Paste(text),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+      );
+    CanvasTrajectory.on_change :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Globals(
+              Globals.Update.Set(Settings.Update.CanvasTick),
+            ),
+          )
+      );
+    CanvasTrajectory.dispatch_tick :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.ReplayStreamTick,
+                ),
+              ),
+            ),
+          )
+      );
+    CanvasTrajectory.set_busy :=
+      (b => CanvasBuffer.fake_busy_until := b ? CanvasBuffer.now() +. 1e9 : 0.);
+    CanvasTrajectory.install_testers();
+    Animation.slow_hook := CanvasLog.log;
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to
@@ -197,8 +395,6 @@ let start = default_model => {
         ),
       );
     });
-    /* Setup scroll listener for floating elements (backpack) */
-    FloatingElement.setup_scroll_listener();
     // Sync log count from database
     Log.sync_count();
   };
@@ -226,7 +422,7 @@ let start = default_model => {
       () => {
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
+          CaretReveal.reveal();
         } else {
           ();
         };
@@ -242,13 +438,6 @@ let start = default_model => {
         let zipper = editor.state.zipper;
         let measured = editor.syntax.measured;
         let font_metrics = model.model.current.current.globals.font_metrics;
-        ScrollWidth.update(
-          ~measured,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~font_metrics,
-          ~visible_rows=model.model.current.current.globals.visible_rows,
-        );
         RefractorShift.update(
           ~editor_key=
             Editors.Model.editor_key(model.model.current.current.editors),
@@ -260,12 +449,30 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        /* measure AFTER the shift/stagger patches so the published scroll
+           width includes displays pushed right by staggering */
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_rows=editor.syntax.refractor_rows,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
+        );
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
+        /* Play any pending code-movement ghosts (see CodeFlip.re) */
+        try({
+          let page = model.model.current.current;
+          let syntax = Page.Update.get_editor(page).editor.syntax;
+          IdWatch.check(syntax.segment);
+          CodeFlip.go(~syntax, ~font_metrics=page.globals.font_metrics);
+        }) {
+        | _ => ()
+        };
       },
       (),
     );
@@ -276,10 +483,12 @@ let start = default_model => {
   let%arr app_model = app_model
   and app_inject = app_inject;
   try(
-    CrashHandling.View.view(
-      ~get_log_and=Log.get_and,
-      ~inject=app_inject,
-      app_model,
+    Util.PerfTimer.time("app/view", () =>
+      CrashHandling.View.view(
+        ~get_log_and=Log.get_and,
+        ~inject=app_inject,
+        app_model,
+      )
     )
   ) {
   | exc =>

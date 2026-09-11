@@ -15,6 +15,11 @@ let render_segment =
   view_segment(~globals, segment');
 };
 
+/* diff text re-parsed for display: the same syntax rendering as before,
+   from the persisted text form */
+let render_text = (~globals: Globals.t, text: string): Node.t =>
+  render_segment(~globals, AgentToolResult.segment_of_text(text));
+
 let render_pretty_args = (args: API.Json.t): Node.t => {
   let rec render_value = (json: API.Json.t): Node.t =>
     switch (json) {
@@ -240,11 +245,11 @@ let view =
                             ~attrs=[clss(["tool-call-diff-label"])],
                             [text("Before:")],
                           ),
-                          render_segment(~globals, diff.old_segment),
+                          render_text(~globals, diff.old_text),
                         ],
                       ),
-                      switch (diff.new_segment) {
-                      | Some(new_segment) =>
+                      switch (diff.new_text) {
+                      | Some(new_text) =>
                         div(
                           ~attrs=[
                             clss(["tool-call-diff-segment", "new-segment"]),
@@ -254,7 +259,7 @@ let view =
                               ~attrs=[clss(["tool-call-diff-label"])],
                               [text("After:")],
                             ),
-                            render_segment(~globals, new_segment),
+                            render_text(~globals, new_text),
                           ],
                         )
                       | None => div(~attrs=[], [])

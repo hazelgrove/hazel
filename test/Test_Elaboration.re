@@ -598,13 +598,13 @@ module PlainTests = {
     ),
     test_case("Livelit elaborates to expanded term", `Quick, () =>
       alco_check(
-        "^slider(50)",
-        Exp.int(50),
-        dhexp_of_uexp(parse_exp("^slider(50)")),
+        "^js use elaborates to its result string",
+        Exp.string("2"),
+        dhexp_of_uexp(parse_exp("^js(\"1+1\", \"2\")")),
       )
     ),
     test_case("Livelit elaboration ids are in statics map", `Quick, () =>
-      assert_elab_ids_present(parse_exp("^emotion(50)"))
+      assert_elab_ids_present(parse_exp("^js(\"1+1\", \"2\")"))
     ),
     test_case(
       "Singleton labeled argument function application with known type",

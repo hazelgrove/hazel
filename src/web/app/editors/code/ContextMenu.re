@@ -68,6 +68,7 @@ module Shortcuts = {
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
+  let placement = () => Os.is_mac^ ? "⌥S" : "Alt+S";
   let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
   let cut = () => Os.is_mac^ ? "⌘X" : "Ctrl+X";
@@ -175,6 +176,65 @@ let jump_to_binding_data =
     ]
   | _ => []
   };
+
+/* Gesture-bound refactorings show their chord, resolved against the
+   CURRENT context by the same dispatcher the keys use (Refactor.
+   gesture) — the hint names exactly what the press would do, and a
+   ladder's lower rungs stay unhinted when a higher rung preempts
+   them. The shift layer (Explode/Implode) is direct-bound, so those
+   hint statically. */
+let refactor_data =
+    (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, z: Zipper.t)
+    : list(Menu.item(command)) => {
+  let chord = glyph => (Os.is_mac^ ? "⌘⌃" : "Ctrl+Alt+") ++ glyph;
+  let shift_chord = glyph =>
+    (Os.is_mac^ ? "⌘⌃⇧" : "Ctrl+Alt+Shift+") ++ glyph;
+  let resolved: list((Action.refactor, string)) =
+    [
+      (Action.Gesture.Up, "↑"),
+      (Down, "↓"),
+      (Left, "←"),
+      (Right, "→"),
+      (Step, "⏎"),
+      (Bind, "="),
+    ]
+    |> List.filter_map(((g, glyph)) =>
+         Refactor.gesture(~info_map, ~term, g, z)
+         |> Option.map(k => (k, glyph))
+       );
+  let hint = (kind: Action.refactor): option(string) =>
+    switch (kind) {
+    | Explode => Some(shift_chord("↑"))
+    | Implode => Some(shift_chord("↓"))
+    /* insist gestures: the same press twice */
+    | HoistCarry
+    | LiftFunction => Some(chord("↑↑"))
+    | _ =>
+      let glyphs =
+        resolved |> List.filter(((k, _)) => k == kind) |> List.map(snd);
+      let has = g => List.mem(g, glyphs);
+      switch (glyphs) {
+      | [] => None
+      | _ when has("↑") && has("↓") => Some(chord("↕"))
+      | _ when has("←") && has("→") => Some(chord("↔"))
+      | [g, ..._] => Some(chord(g))
+      };
+    };
+  /* gesture-bound entries gather at the top (stable within groups) */
+  let (spatial, rest) =
+    Refactor.menu_items(~info_map, ~term, z)
+    |> List.partition(((kind, _, _)) => hint(kind) != None);
+  spatial
+  @ rest
+  |> List.map(((kind, label, tooltip)) =>
+       action_item(
+         ~shortcut=?hint(kind),
+         ~tooltip,
+         label,
+         Action.Refactor(kind),
+       )
+     );
+};
 
 let introduce_data =
     (ci: option(Language.Info.t)): list(Menu.item(command)) =>
@@ -312,6 +372,30 @@ module Projectors = {
     };
   };
 
+  let indicated_placement = (z: Zipper.t): option(ProjectorCore.Placement.t) => {
+    let* {piece, _} = Indicated.for_index(z);
+    switch (piece) {
+    | Projector({placement, _}) => Some(placement)
+    | _ => None
+    };
+  };
+
+  /* Dock/undock the indicated projector's primary UI to the sidebar */
+  let placement_data = (z: Zipper.t): list(Menu.item(command)) =>
+    switch (indicated_placement(z)) {
+    | None => []
+    | Some(placement) => [
+        action_item(
+          ~shortcut=Shortcuts.placement(),
+          switch (placement) {
+          | Inline => "Move to sidebar"
+          | Sidebar => "Move inline"
+          },
+          Action.Project(TogglePlacement),
+        ),
+      ]
+    };
+
   let shortcut_of =
       (
         ~chosen_livelit: option(ProjectorCore.Kind.t),
@@ -337,6 +421,7 @@ module Projectors = {
     | Csv => "CSV"
     | Table => "Table"
     | Livelit => "Livelit"
+    | HTML => "HTML"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 
@@ -393,7 +478,7 @@ module Projectors = {
       );
     };
 
-    List.map(make_item, kinds);
+    List.map(make_item, kinds) @ placement_data(z);
   };
 };
 
@@ -424,6 +509,7 @@ let refractor_actions_data =
 let get_sections =
     (
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.Exp.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
@@ -435,7 +521,7 @@ let get_sections =
     /* Section 2: Clipboard */
     clipboard_data(z),
     /* Section 3: Refactoring */
-    introduce_data(ci),
+    introduce_data(ci) @ refactor_data(~info_map, ~term, z),
     /* Section 4: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
     /* Section 5: Projectors (fold, livelits) */
@@ -461,11 +547,12 @@ let flatten_sections =
 let get_all_items =
     (
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.Exp.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
     : list(Menu.item(command)) =>
-  flatten_sections(get_sections(~info_map, ~elaborated, z));
+  flatten_sections(get_sections(~info_map, ~term, ~elaborated, z));
 
 /* ============================================================
  * Update + keyboard
@@ -490,6 +577,7 @@ module WithContext = {
   let handle_listener_key =
       (
         ~info_map: Language.Statics.Map.t,
+        ~term: Language.Exp.t,
         ~elaborated: Language.Exp.t,
         ~zipper: Zipper.t,
         ~dispatch_menu: Menu.action => Ui_effect.t(unit),
@@ -498,7 +586,7 @@ module WithContext = {
         key_str: string,
       )
       : option(Ui_effect.t(unit)) => {
-    let items = get_all_items(~info_map, ~elaborated, zipper);
+    let items = get_all_items(~info_map, ~term, ~elaborated, zipper);
     Menu.key_dispatcher(
       ~items,
       ~dispatch_menu,
@@ -554,6 +642,7 @@ let view =
       ~inject_menu: Menu.action => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.Exp.t,
       ~elaborated: Language.Exp.t,
       ~font_metrics: FontMetrics.t,
       ~model: Menu.t,
@@ -561,7 +650,7 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let items = get_all_items(~info_map, ~elaborated, z);
+  let items = get_all_items(~info_map, ~term, ~elaborated, z);
   let menu_items =
     Menu.render(
       ~inject_action=inject,

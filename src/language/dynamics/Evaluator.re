@@ -1,6 +1,14 @@
 open Transition;
 open Trampoline.Syntax;
 
+/* Initialize Ascriptions with the builtin context at module-load time,
+   so every entry point into ascription transitions (stepper,
+   PatternMatch, Unboxing, projectors) sees it — not just paths that go
+   through `evaluate`. The ref lives in Ascriptions because the direct
+   dependency is cyclic (Ascriptions → Builtins → … → Ascriptions); it
+   is constant after this. */
+let () = Ascriptions.set_ctx(Builtins.ctx_init(None));
+
 module EvaluatorEVMode: {
   type status =
     | Final
@@ -425,6 +433,7 @@ let rec evaluate =
           prev_probe_targets,
           value: final_value,
           state: replay_state(state^),
+          seq: EvaluatorState.get_step_count(state^),
         };
 
         switch (outbox) {
@@ -492,6 +501,10 @@ let prepare_evaluation =
       ~eval_info: EvalInfo.t,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map),
+      /* the reuse pre-pass for THIS request, when the caller already ran
+         it (the worker posts it as the reuse plan): the pass is a full
+         walk of the program and was costing as much as the evaluation */
+      ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=None,
       ~outbox,
       d: DHExp.t,
     )
@@ -519,7 +532,13 @@ let prepare_evaluation =
       ? Id.Map.empty
       : Id.Map.map(
           _ => (),
-          ReusePass.reuse_pass(~prev, ~eval_info, ~env, ~reuse_map, d).
+          (
+            switch (reuse_stream) {
+            | Some(stream) => stream
+            | None =>
+              ReusePass.reuse_pass(~prev, ~eval_info, ~env, ~reuse_map, d)
+            }
+          ).
             entries,
         );
   let result =
@@ -581,6 +600,7 @@ let start_yielding_evaluation =
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map)=?,
+      ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=?,
       d: DHExp.t,
     )
     : yielding_evaluation => {
@@ -591,6 +611,7 @@ let start_yielding_evaluation =
       ~eval_info,
       ~env,
       ~reuse_map,
+      ~reuse_stream,
       ~outbox=Some(outbox),
       d,
     );

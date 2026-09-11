@@ -3,6 +3,23 @@ open Haz3lcore;
 open AgentResult;
 open AgentModel;
 
+/* an exception escaping a tool is a bug in OUR code: with the js-error
+   build its JS stack names the OCaml function, so print it */
+let report_tool_exn = (tool: string, exn: exn): unit =>
+  Js_of_ocaml.(
+    switch (Js_error.of_exn(exn)) {
+    | Some(e) =>
+      Firebug.console##error_2(
+        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string(Option.value(~default="", Js_error.stack(e))),
+      )
+    | None =>
+      Firebug.console##error(
+        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+      )
+    }
+  );
+
 module Utils = AgentUtils;
 module ToolCallHandler = AgentToolCallHandler;
 
@@ -44,6 +61,7 @@ let add_tool_result_to_active_subtask =
 
 let mk_diff =
     (
+      ~settings: Settings.t,
       ~old_editor: Editor.t,
       ~new_editor: Editor.t,
       action: CompositionActions.action,
@@ -51,20 +69,24 @@ let mk_diff =
     : option(AgentToolResult.diff) => {
   switch (action) {
   | EditorAction(edit_action) =>
+    /* per-item statics: DefStatics memoizes per program, so the passes
+       the tool path already ran for both programs are reused here */
     switch (
-      CompositionGo.Local.get_diff(
+      CompositionGo.Public.get_diff(
+        ~settings=settings.core,
         old_editor.state.zipper,
         new_editor.state.zipper,
         edit_action,
-        CompositionGo.Public.mk_statics,
-        old_editor.syntax,
+        ~old_syntax=old_editor.syntax,
+        ~new_syntax=new_editor.syntax,
       )
     ) {
     | Some((old_segment, new_segment)) =>
       Some(
         AgentToolResult.{
-          old_segment,
-          new_segment,
+          old_text: CompositionView.Public.print_segment(old_segment),
+          new_text:
+            Option.map(CompositionView.Public.print_segment, new_segment),
         },
       )
     | None => None
@@ -81,8 +103,8 @@ let mk_diff =
     } else {
       Some(
         AgentToolResult.{
-          old_segment,
-          new_segment: Some(new_segment),
+          old_text: old_s,
+          new_text: Some(new_s),
         },
       );
     };
@@ -96,18 +118,81 @@ let mk_segment_snapshots =
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
-    : (option(Segment.t), option(Segment.t)) => {
+    : (option(string), option(string)) => {
   switch (action) {
   | EditorAction(_)
   | InsertAtProgramBoundary(_)
   | ProbeAction(_)
   | StaticsAction(_)
   | SyntaxProjectorAction(_) =>
-    let old_segment = Select.all(old_editor.state.zipper).selection.content;
-    let new_segment = Select.all(new_editor.state.zipper).selection.content;
-    (Some(old_segment), Some(new_segment));
+    let text = (ed: Editor.t) =>
+      PersistentZipper.to_string(ed.state.zipper) ++ "\n";
+    (Some(text(old_editor)), Some(text(new_editor)));
   | _ => (None, None)
   };
+};
+
+/** Run one edit tool outside the chat loop (canvas authoring). Same
+    action decoding and ToolCallHandler guardrails as chat-driven tools;
+    failures leave state untouched. */
+let execute_direct =
+    (
+      ~tool_name: string,
+      ~args: API.Json.t,
+      ~model: Model.t,
+      ~cell_editor: CellEditor.Model.t,
+      ~settings: Settings.t,
+      ~chat_id: Id.t,
+    )
+    : (Model.t, Updated.t(CellEditor.Model.t)) => {
+  CanvasBuffer.stage_beat(~lead=false, ());
+  /* a manual canvas gesture, not agent activity: don't trip pacing */
+  CanvasBuffer.suppress_stamp := true;
+  let result =
+    switch (CompositionUtils.Public.action_of(~tool_name, ~args)) {
+    | Action(action) =>
+      switch (
+        try(
+          ToolCallHandler.update(
+            ~settings,
+            action,
+            model,
+            cell_editor.editor,
+            chat_id,
+          )
+        ) {
+        | Failure(msg) as exn =>
+          report_tool_exn(tool_name, exn);
+          Error(Failure.Info(msg));
+        | exn =>
+          report_tool_exn(tool_name, exn);
+          Error(Failure.Info(Printexc.to_string(exn)));
+        }
+      ) {
+      | Ok((model, editor)) => (
+          model,
+          {
+            ...cell_editor,
+            editor,
+          }
+          |> Updated.return,
+        )
+      | Error(Failure.Info(msg)) =>
+        Js_of_ocaml.Firebug.console##warn(
+          Js_of_ocaml.Js.string("[canvas DirectEdit] tool failed: " ++ msg),
+        );
+        (model, cell_editor |> Updated.return_quiet);
+      }
+    | _ =>
+      Js_of_ocaml.Firebug.console##warn(
+        Js_of_ocaml.Js.string(
+          "[canvas DirectEdit] could not decode tool: " ++ tool_name,
+        ),
+      );
+      (model, cell_editor |> Updated.return_quiet);
+    };
+  CanvasBuffer.suppress_stamp := false;
+  result;
 };
 
 /** Run one tool; returns chat message to append (caller batches append + one LLM request). */
@@ -120,6 +205,9 @@ let execute_one_tool_call =
       ~chat_id: Id.t,
     )
     : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
+  /* Stage canvas FLIP: measure graph-element boxes before the edit lands
+     (agent edits bypass CodeEditable's staging site). */
+  CanvasBuffer.stage_beat(~lead=true, ());
   switch (
     CompositionUtils.Public.action_of(
       ~tool_name=tool_call.name,
@@ -129,45 +217,52 @@ let execute_one_tool_call =
   | Action(action) =>
     switch (
       try(
-        ToolCallHandler.update(
-          ~settings,
-          action,
-          model,
-          cell_editor.editor,
-          chat_id,
+        Util.PerfTimer.time("tool/handler", () =>
+          ToolCallHandler.update(
+            ~settings,
+            action,
+            model,
+            cell_editor.editor,
+            chat_id,
+          )
         )
       ) {
-      | Failure(msg) => Error(Failure.Info(msg))
+      | Failure(msg) as exn =>
+        report_tool_exn(tool_call.name, exn);
+        Error(Failure.Info(msg));
       | exn =>
         /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
-        Error(Failure.Info(Printexc.to_string(exn)))
+        report_tool_exn(tool_call.name, exn);
+        Error(Failure.Info(Printexc.to_string(exn)));
       }
     ) {
     | Ok((model, editor)) =>
-      let model =
-        Utils.update_context(
-          ~session_mode=settings.agent_globals.session_mode,
-          model,
-          editor,
-          chat_id,
-        );
+      /* the context the agent reads is rebuilt right before each send
+         (AgentSend); rebuilding it after every tool as well was most of
+         a tool call's cost (statics + fold + print of the whole program)
+         and nothing read it in between */
       let success_message =
         "The "
         ++ tool_call.name
         ++ " tool call was successful and has been applied to the model.";
-      let (before_segment, after_segment) =
-        mk_segment_snapshots(
-          ~old_editor=cell_editor.editor.editor,
-          ~new_editor=editor.editor,
-          action,
+      let (before_text, after_text) =
+        Util.PerfTimer.time("tool/snapshots", () =>
+          mk_segment_snapshots(
+            ~old_editor=cell_editor.editor.editor,
+            ~new_editor=editor.editor,
+            action,
+          )
         );
       let diff_result =
         try(
           Ok(
-            mk_diff(
-              ~old_editor=cell_editor.editor.editor,
-              ~new_editor=editor.editor,
-              action,
+            Util.PerfTimer.time("tool/diff", () =>
+              mk_diff(
+                ~settings,
+                ~old_editor=cell_editor.editor.editor,
+                ~new_editor=editor.editor,
+                action,
+              )
             ),
           )
         ) {
@@ -183,13 +278,16 @@ let execute_one_tool_call =
           skipped: false,
           expanded: false,
           diff: None,
-          before_segment:
+          before_text:
             Some(
-              Select.all(cell_editor.editor.editor.state.zipper).selection.
-                content,
+              PersistentZipper.to_string(
+                cell_editor.editor.editor.state.zipper,
+              )
+              ++ "\n",
             ),
-          after_segment: None,
+          after_text: None,
           content: msg,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -210,9 +308,10 @@ let execute_one_tool_call =
           skipped: false,
           expanded: false,
           diff,
-          before_segment,
-          after_segment,
+          before_text,
+          after_text,
           content: success_message,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -234,12 +333,14 @@ let execute_one_tool_call =
     | Error(error) =>
       switch (error) {
       | Failure.Info(msg) =>
-        let before_segment =
+        let before_text =
           switch (action) {
           | EditorAction(_) =>
             Some(
-              Select.all(cell_editor.editor.editor.state.zipper).selection.
-                content,
+              PersistentZipper.to_string(
+                cell_editor.editor.editor.state.zipper,
+              )
+              ++ "\n",
             )
           | _ => None
           };
@@ -249,9 +350,10 @@ let execute_one_tool_call =
           skipped: false,
           expanded: false,
           diff: None,
-          before_segment,
-          after_segment: None,
+          before_text,
+          after_text: None,
           content: msg,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -267,6 +369,35 @@ let execute_one_tool_call =
         );
       }
     }
+  | DocsRequest(topic) =>
+    /* Answered from the DocPacks registry; no editor change */
+    let (success, content) =
+      switch (DocPacks.lookup(topic)) {
+      | Some(pack) => (true, pack.body)
+      | None => (
+          false,
+          "Unknown docs topic \""
+          ++ topic
+          ++ "\". Available topics:\n"
+          ++ DocPacks.topic_lines,
+        )
+      };
+    let tool_result: AgentToolResult.tool_result = {
+      tool_call,
+      success,
+      skipped: false,
+      expanded: false,
+      diff: None,
+      before_text: None,
+      after_text: None,
+      content,
+      content_is_payload: true,
+    };
+    (
+      model,
+      cell_editor |> Updated.return_quiet,
+      Message.Utils.mk_tool_result_message(tool_result),
+    );
   | Failure(msg) =>
     let tool_result: AgentToolResult.tool_result = {
       tool_call,
@@ -274,9 +405,10 @@ let execute_one_tool_call =
       skipped: false,
       expanded: false,
       diff: None,
-      before_segment: None,
-      after_segment: None,
+      before_text: None,
+      after_text: None,
       content: msg,
+      content_is_payload: false,
     };
     // Do not add unparseable tool calls to subtask tool results for now
     (

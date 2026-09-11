@@ -150,8 +150,9 @@ module Local = {
     let zipper_for_agent_context =
         (editor: Editor.t, agent_context: AgentContext.Model.t): Zipper.t => {
       let z = editor.state.zipper;
+      /* per-item statics, memoized per program by DefStatics */
       let info_map = CompositionGo.Public.mk_statics(z);
-      switch (HighLevelNodeMap.build(z, info_map)) {
+      switch (CompositionGo.Public.node_map_of(z)) {
       | None => z
       | Some(node_map) =>
         let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);

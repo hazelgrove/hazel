@@ -49,6 +49,26 @@ let has_no_probes = (z: Zipper.t): bool =>
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleFocusPerform.reset(z) : z;
 
+/* Per-calculate cursor liveness follows SAMPLES, not probe presence (cf.
+   pin liveness): the canvas focus strip captures sample focus at anchors
+   that carry samples but no refractor, and a no-probes reset here would
+   revert every such capture on the next calculate. The probe-removal
+   paths keep the stricter probe-presence reset. */
+let maybe_reset_cursor_live =
+    (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t => {
+  let anchor_live =
+    switch (z.refractors.sample_focus.anchor) {
+    | Some(a) =>
+      switch (Id.Map.find_opt(a.probe_id, dynamics)) {
+      | Some([_, ..._]) => true
+      | _ => false
+      }
+    | None => false
+    };
+
+  has_no_probes(z) && !anchor_live ? SampleFocusPerform.reset(z) : z;
+};
+
 let rm_multi =
     (
       ~drill: bool=true,
@@ -141,8 +161,11 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
       [],
     );
 
-  /* 3. Remove colliding probes */
-  rm_manual(ids_to_remove, z);
+  /* 3. Remove colliding probes. Empty removal must be a strict no-op:
+     rm_manual unconditionally applies its no-probes cursor reset, and this
+     runs every calculate — it was wiping sample-focus captures made at
+     un-refractored anchors (the canvas wells) on the next frame. */
+  ids_to_remove == [] ? z : rm_manual(ids_to_remove, z);
 };
 
 let add_manual_targets =

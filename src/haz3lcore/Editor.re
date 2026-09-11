@@ -28,7 +28,7 @@ module Model = {
       zipper,
       col_target: None,
     },
-    syntax: CachedSyntax.init(zipper),
+    syntax: CachedSyntax.init(~root, zipper),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -107,6 +107,7 @@ module Update = {
   let clear_buffer =
       (
         ~settings: Language.CoreSettings.t,
+        ~root: Sort.t,
         ~old_zipper: Zipper.t,
         ~old_statics: CachedStatics.t,
         ~old_dynamics: Dynamics.Map.t,
@@ -123,6 +124,7 @@ module Update = {
              will be looking for tiles inside the buffer, for example if we try
              to click or move down to dismiss a completion.*/
           CachedSyntax.calculate(
+            ~root,
             state.zipper,
             old_statics.info_map,
             old_dynamics,
@@ -158,6 +160,7 @@ module Update = {
     let (state, syntax) =
       clear_buffer(
         ~settings,
+        ~root,
         ~old_zipper=state.zipper,
         ~old_statics,
         ~old_dynamics,
@@ -172,6 +175,17 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+
+    /* Layout-level edits (projector SetModel) are run through `calculate`
+     * with is_edited=false so statics/evaluation are reused, but the
+     * syntax cache must still be rebuilt: the model lives in the segment
+     * and feeds placeholder shapes/measured. Mark it old here so
+     * CachedSyntax.calculate takes the full-rebuild path. */
+    let syntax =
+      switch (Action.recompute_level(a)) {
+      | Layout => CachedSyntax.mark_old(syntax)
+      | Full => syntax
+      };
 
     Model.{
       root,
@@ -214,12 +228,15 @@ module Update = {
      * update — so callers don't need to plumb "statics changed" signals. */
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
-      CachedSyntax.calculate(
-        zipper,
-        statics.info_map,
-        new_dynamics,
-        ~elaborated=Some(statics.elaborated),
-        syntax,
+      PerfTimer.time("editor-syntax", () =>
+        CachedSyntax.calculate(
+          ~root,
+          zipper,
+          statics.info_map,
+          new_dynamics,
+          ~elaborated=Some(statics.elaborated),
+          syntax,
+        )
       );
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,

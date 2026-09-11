@@ -329,3 +329,41 @@
 #top-bar #editor-mode select:hover {
   background-color: var(--SAND);
 }
+
+/* Multi-way setting (e.g. Cmd+S Format) in the settings submenu */
+#top-bar .submenu .group .contents .segmented-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.1em 0.3em;
+}
+#top-bar .submenu .group .contents .segmented-setting .segmented-name {
+  white-space: nowrap;
+}
+#top-bar .submenu .group .contents .segmented-setting .segmented-control {
+  display: flex;
+  border: 1px solid var(--BR1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#top-bar .submenu .group .contents .segmented-setting .segment {
+  flex: 1;
+  text-align: center;
+  padding: 0.15em 0.4em;
+  cursor: pointer;
+  font-size: 0.85em;
+  border-right: 1px solid var(--BR1);
+  user-select: none;
+  white-space: nowrap;
+}
+#top-bar .submenu .group .contents .segmented-setting .segment:last-child {
+  border-right: none;
+}
+#top-bar .submenu .group .contents .segmented-setting .segment.active {
+  background-color: var(--Y1);
+  color: var(--BR4);
+  font-weight: 500;
+}
+#top-bar .submenu .group .contents .segmented-setting .segment:hover:not(.active) {
+  background-color: var(--Y0);
+}

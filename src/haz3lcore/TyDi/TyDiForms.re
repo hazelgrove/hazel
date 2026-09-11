@@ -1,7 +1,7 @@
 open Language;
 
 /* This module generates TyDi suggestions which depend
- * neither on the typing context or the backpack */
+ * neither on the typing context nor the missing shards */
 
 let leading_expander = " ";
 

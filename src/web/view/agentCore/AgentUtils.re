@@ -110,6 +110,21 @@ let llm_context_snapshot_text =
   );
 };
 
+/* (zipper, dynamics, agent view) -> (printed program, error list) */
+let context_memo:
+  ref(
+    option(
+      (
+        Zipper.t,
+        Language.Dynamics.Map.t,
+        AgentContext.Model.t,
+        string,
+        string,
+      ),
+    ),
+  ) =
+  ref(None);
+
 let update_context =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
@@ -120,18 +135,54 @@ let update_context =
     )
     : Model.t => {
   let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-  let agent_editor_view_string =
-    CompositionView.Public.print(
-      ~probe_map=editor.dynamics,
-      editor.editor,
-      curr_chat.agent_view,
-    );
-  let static_errors_info_string =
-    ErrorPrint.all(
-      CompositionGo.Public.mk_statics(editor.editor.state.zipper),
-    )
-    |> String.concat("\n");
+  let t_start = CanvasLog.now();
+  /* the printed program and its error list depend only on the zipper,
+     the probe values and the agent's collapse state: the same
+     (physically identical) inputs give the same strings, and a reply's
+     tools followed by its send ask several times for one program */
+  let (agent_editor_view_string, static_errors_info_string, cached) =
+    switch (context_memo^) {
+    | Some((z, dyn, view, printed, errs))
+        when
+          z === editor.editor.state.zipper
+          && dyn === editor.dynamics
+          && view == curr_chat.agent_view => (
+        printed,
+        errs,
+        true,
+      )
+    | _ =>
+      /* the statics the editor already computed for this program */
+      let info_map = editor.statics.info_map;
+      let printed =
+        CompositionView.Public.print(
+          ~probe_map=editor.dynamics,
+          editor.editor,
+          curr_chat.agent_view,
+        );
+      let errs = ErrorPrint.all(info_map) |> String.concat("\n");
+      context_memo :=
+        Some((
+          editor.editor.state.zipper,
+          editor.dynamics,
+          curr_chat.agent_view,
+          printed,
+          errs,
+        ));
+      (printed, errs, false);
+    };
+  let t_errs = CanvasLog.now();
   let test_results_info_string = test_results_for_context(test_results);
+  /* the cost of the context the agent reads */
+  if (t_errs -. t_start > 4. || cached) {
+    CanvasLog.log(
+      Printf.sprintf(
+        "perf: agent context %.0fms%s",
+        t_errs -. t_start,
+        cached ? " (memo)" : "",
+      ),
+    );
+  };
   let chat_system =
     ChatSystem.Update.update(
       ChatSystem.Update.Action.ChatAction(

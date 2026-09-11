@@ -69,6 +69,24 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let canvas_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Canvas,
+    ~cls=["canvas-button"],
+    ~icon=Icons.star,
+    ~tooltip="Switch to Constellation Canvas",
+    ~globals,
+  );
+
+let projectors_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Projectors,
+    ~cls=["projectors-button"],
+    ~icon=Icons.library,
+    ~tooltip="Switch to Projectors Panel",
+    ~globals,
+  );
+
 let log_control_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=LogControl,
@@ -163,6 +181,8 @@ let persistent_view =
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
+          canvas_tab(~globals),
+          projectors_tab(~globals),
           problems_tab(~globals, ~counts),
         ]
         @ (
@@ -225,8 +245,9 @@ let resetElementStyles = () => {
   );
 };
 
-let resize_handle = (): Node.t => {
+let resize_handle = (~globals: Globals.t): Node.t => {
   let isResizing = ref(false);
+  let dragged_width = ref(None: option(int));
 
   let rec handle_mousemove = event => {
     if (isResizing^) {
@@ -235,6 +256,7 @@ let resize_handle = (): Node.t => {
       let persistent_width = 38.9;
       let new_width =
         max(400, window_width - current_x - int_of_float(persistent_width));
+      dragged_width := Some(new_width);
       updateElementStyles(new_width);
     };
     ();
@@ -244,6 +266,16 @@ let resize_handle = (): Node.t => {
     let doc = Js.Unsafe.coerce(Dom_html.document);
     let _ = doc##removeEventListener("mousemove", handle_mousemove);
     let _ = doc##removeEventListener("mouseup", handle_mouseup);
+    /* One action per drag: persist the width and trigger a re-render so
+       width-dependent panels (the canvas) re-layout. Dispatched out-of-band
+       since this is a raw document listener, not a vdom handler. */
+    switch (dragged_width^) {
+    | Some(w) =>
+      Effect.Expert.handle_non_dom_event_exn(
+        globals.inject_global(Set(Sidebar(SetWidth(w)))),
+      )
+    | None => ()
+    };
     ();
   };
 
@@ -305,9 +337,18 @@ let view =
   let sub =
     globals.settings.sidebar.show
       ? div(
-          ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
+          ~attrs=
+            [Attr.id("side-bar"), Attr.tabindex(1)]
+            @ (
+              switch (globals.settings.sidebar.width) {
+              | Some(w) => [
+                  Attr.create("style", Printf.sprintf("width: %dpx;", w)),
+                ]
+              | None => []
+              }
+            ),
           [
-            resize_handle(),
+            resize_handle(~globals),
             switch (globals.settings.sidebar.panel) {
             | LanguageDocumentation =>
               ExplainThis.view(
@@ -328,6 +369,61 @@ let view =
                 ~cursor,
                 ~editor,
               )
+            | Canvas =>
+              globals.settings.canvas_main
+                /* constellation MAIN mode: the canvas IS the main area */
+                ? div(
+                    ~attrs=[clss(["canvas-split-note"])],
+                    [
+                      text(
+                        "The canvas is the main area (constellation mode).",
+                      ),
+                      div(
+                        ~attrs=[
+                          clss(["canvas-split-btn"]),
+                          Attr.on_click(_ =>
+                            Effect.Many([
+                              globals.inject_global(Set(ToggleCanvasMain)),
+                              editors_inject(
+                                Editors.Update.Scratch(
+                                  ScratchMode.Update.UnfocusDef,
+                                ),
+                              ),
+                            ])
+                          ),
+                        ],
+                        [text({js|⇱ leave constellation mode|js})],
+                      ),
+                    ],
+                  )
+                : globals.settings.canvas_split
+                    /* the canvas lives in the main-area split; avoid a second
+                       instance (duplicate DOM ids would break FLIP/jumps) */
+                    ? div(
+                        ~attrs=[clss(["canvas-split-note"])],
+                        [
+                          text(
+                            "The canvas is in split view beside the editor.",
+                          ),
+                          div(
+                            ~attrs=[
+                              clss(["canvas-split-btn"]),
+                              Attr.on_click(_ =>
+                                globals.inject_global(Set(ToggleCanvasSplit))
+                              ),
+                            ],
+                            [text({js|⇱ dock it back here|js})],
+                          ),
+                        ],
+                      )
+                    : CanvasSidebar.view(
+                        ~globals,
+                        ~editors,
+                        ~editors_inject,
+                        ~editor,
+                        (),
+                      )
+            | Projectors => ProjectorPanel.view(~globals, ~editor)
             | LogControl =>
               LogSidebar.view(
                 ~globals,

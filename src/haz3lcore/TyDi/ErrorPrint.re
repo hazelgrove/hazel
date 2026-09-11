@@ -14,18 +14,7 @@ let remove_projectors = (segment: Segment.t) =>
 module Print = {
   let seg = (~holes, segment: Segment.t): string => {
     let segment = remove_projectors(segment);
-    Printer.of_segment(
-      ~holes,
-      ~measured=
-        Measured.of_segment(
-          segment,
-          ProjectorCore.Shape.Map.empty,
-          Id.Map.empty,
-        ),
-      ~caret=None,
-      ~indent=" ",
-      segment,
-    );
+    Printer.of_segment(~holes, ~caret=None, segment);
   };
 
   let term = (term: Any.t): string => {
@@ -140,6 +129,17 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
+  | InvalidLivelitDef(DefNotTuple) => "Livelit definition should be a module with members init, update, view, expand"
+  | InvalidLivelitDef(DefBadArity(n)) =>
+    prn(
+      "Livelit definition should have fields (init, update, view, expand), got %d",
+      n,
+    )
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    prn(
+      "Livelit definition is missing members: %s",
+      String.concat(", ", missing),
+    )
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"

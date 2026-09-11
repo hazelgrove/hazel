@@ -40,6 +40,7 @@ let display_settings: ExpToSegment.Settings.t = {
   show_ascriptions: false,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -188,7 +189,7 @@ let eval_incr_with =
       ~env=Language.Builtins.env_init,
       elab,
     );
-  (result, Language.EvaluatorState.get_incr_eval(state));
+  (result, (state: Language.EvaluatorState.t).incr_eval);
 };
 
 /* Id-preserving use-site rename (mirrors a Zipper token edit: only the
@@ -364,7 +365,7 @@ let eval_incr_probes =
   (
     result,
     Language.EvaluatorState.get_probes(state),
-    Language.EvaluatorState.get_incr_eval(state),
+    (state: Language.EvaluatorState.t).incr_eval,
   );
 };
 
@@ -811,12 +812,12 @@ let fidelity_tests = [
     action_fidelity_case(
       "select+del+retype+del",
       [
-        Action.Destruct(Left),
+        Action.Destruct(Local(Left, ByChar)),
         Action.Insert("c"),
         Action.Insert("o"),
         Action.Insert("l"),
-        Action.Destruct(Left),
-        Action.Destruct(Left),
+        Action.Destruct(Local(Left, ByChar)),
+        Action.Destruct(Local(Left, ByChar)),
       ],
     )
   ),
