@@ -118,10 +118,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (LabeledTupleEntries, Tuple(ds)) =>
       let unbox_tup_label =
           (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
-        switch (
-          snd(Ascriptions.transition_multiple(~targets=Sample.no_targets, d)).
-            term
-        ) {
+        switch (Ascriptions.transition_multiple(d).term) {
         // TODO Think about whether we should transition here
         | TupLabel({term: Label(l), _}, e) => Some((Some(l), e))
         | _ => Some((None, d))

@@ -69,19 +69,7 @@ let match_pattern =
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
-    /* no_targets, not the real targets: the scrutinee reached matching
-       already final, so any probe under its ascriptions has fired, at the
-       call stack where evaluation actually passed through it. Collecting
-       samples again here would record the same values a second time under
-       whatever stack the match happens to run on. */
-    let d' =
-      snd(
-        Ascriptions.transition_multiple(
-          ~targets=Sample.no_targets,
-          Asc(d, t1) |> DHExp.fresh,
-        ),
-      );
-    recur(p, d');
+    recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };
 
 /* Record a sample closure if this pattern is targeted and matched */
@@ -122,10 +110,7 @@ let rec matches_inner =
           d: DHExp.t,
         )
         : match_result => {
-  /* See the Asc case in match_pattern for why these samples are not
-     collected. */
-  let d =
-    snd(Ascriptions.transition_multiple(~targets=Sample.no_targets, d));
+  let d = Ascriptions.transition_multiple(d);
   let pat_id = Pat.rep_id(dp);
   let maybe_spec = Id.Map.find_opt(pat_id, targets);
   let recur = matches_inner(targets, sample_closures);

@@ -1236,45 +1236,36 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, d);
       Indet;
     | Asc(d', t) =>
-      let (samples, stepped) = Ascriptions.transition(~targets, d);
-      switch (stepped) {
+      switch (Ascriptions.transition(d)) {
       | Some(d') =>
         let. _ = otherwise(env, d);
         Step({
           expr: d',
-          side_effects:
-            List.map(x => EvaluatorState.RecordAscriptionProbe(x), samples),
+          side_effects: [],
           kind: Ascription,
           is_value: false,
         });
       | None =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        /* Peek to see whether the ascription makes any progress. If so, use
-         * transition_multiple to fully resolve all Asc layers in one step,
-         * and is_value: true to prevent re-evaluation (probes inside d' have
-         * already fired via req_final above; re-evaluation would double-count
-         * samples at a different call_stack). We still collect any ascription
-         * samples produced while distributing the ascription. */
-        let (_peek_samples, peek) =
-          Ascriptions.transition(~targets, Asc(d', t) |> rewrap);
-        switch (peek) {
+        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
         | Some(_) =>
-          let (samples, expr) =
-            Ascriptions.transition_multiple(~targets, Asc(d', t) |> rewrap);
+          /* Use transition_multiple to fully resolve all Asc layers in one
+           * step, and is_value: true to prevent re-evaluation. This is critical
+           * because d' was already fully evaluated by req_final above — probes
+           * inside d' have already fired. Without this, the distributed Asc
+           * wrappers would cause sub-expressions to be re-evaluated, hitting
+           * probe targets a second time with a different (shorter) call_stack,
+           * producing duplicate samples that bypass dedup. */
           Step({
-            expr,
-            side_effects:
-              List.map(
-                x => EvaluatorState.RecordAscriptionProbe(x),
-                samples,
-              ),
+            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
+            side_effects: [],
             kind: Ascription,
             is_value: true,
-          });
+          })
         | None => Constructor
         };
-      };
+      }
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
