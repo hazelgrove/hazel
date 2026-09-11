@@ -73,6 +73,9 @@ module Outer : {module Inner : {let x : Int; let y : Int}} = {
 # 20b. Error: a destructured member with the wrong type #
 module P : {let a : Int; let b : Int} = {let (a, b) = (1, "s")} in
 
+# 20c. A hole binder may still bind the missing member: nothing is reported #
+module M : {let x : Int; let y : Int} = {let x = 1; let ? = 2} in
+
 # 21. Error: empty module missing all members #
 module M : {
   let x : Int;
