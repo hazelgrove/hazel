@@ -146,6 +146,14 @@ let core_mark_err_view =
         text("but expected label"),
         code(an_label),
       ]
+    | _ when Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana)) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("is wider than expected type"),
+        view_type(ana) |> code_box_container,
+        text("; an ascription seals the extra members"),
+      ]
     | _ =>
       colon_prefix(show_type_colon)
       @ [
