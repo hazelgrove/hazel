@@ -11,8 +11,8 @@ let table_of =
   switch (any) {
   | Exp(exp) =>
     parse_table(exp)
-    |> Option.bind(_, ((headers, rows)) =>
-         OptUtil.traverse(Fun.id, headers) |> Option.map(hs => (hs, rows))
+    |> Option.bind(_, ~f=((headers, rows)) =>
+         OptUtil.traverse(Fn.id, headers) |> Option.map(~f=hs => (hs, rows))
        )
   | _ => None
   };
@@ -36,8 +36,8 @@ let table =
       ~view_seg: (Sort.t, Segment.t) => Node.t,
     ) =>
   table_view(
-    ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
-    ~rows=List.map(row_cells(info.utility, view_seg), rows),
+    ~header_cells=List.map(~f=h => Node.th([Node.text(h)]), headers),
+    ~rows=List.map(~f=row_cells(info.utility, view_seg), rows),
   );
 
 module M: Projector = {
@@ -63,7 +63,7 @@ module M: Projector = {
     switch (get(info)) {
     | None =>
       let s = info.utility.seg_to_string(info.syntax);
-      let lines = String.split_on_char('\n', s);
+      let lines = String.split(s, ~on='\n');
       let n_lines = List.length(lines);
       let max_width = Unicode.Width.max_columns(lines);
       /* +1 vertical line reserved for the inline error banner
@@ -86,19 +86,19 @@ module M: Projector = {
 
       let header_row_chars =
         header
-        |> List.map(Unicode.Width.columns_of_string)
-        |> List.fold_left((+), 0);
+        |> List.map(~f=Unicode.Width.columns_of_string)
+        |> List.fold_left(~f=(+), ~init=0);
       let widest_row_chars =
         rows
-        |> List.map(row =>
+        |> List.map(~f=row =>
              row
-             |> List.map(e =>
+             |> List.map(~f=e =>
                   Abbreviate.abbreviate_exp(~available=max_column_length, e)
                   |> snd
                 )
-             |> List.fold_left((+), 0, _)
+             |> List.fold_left(~f=(+), ~init=0, _)
            )
-        |> List.fold_left(max, 0, _);
+        |> List.fold_left(~f=max, ~init=0, _);
       let content_chars = max(header_row_chars, widest_row_chars);
 
       let num_rows = List.length(rows);

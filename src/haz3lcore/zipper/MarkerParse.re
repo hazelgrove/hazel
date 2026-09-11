@@ -1,3 +1,4 @@
+open Poly;
 /* BOTH halves of the `¿` convention: Grout (the editor's implicit
    holes) has no textual form, so [to_text] renders it with a marker
    token, and [of_text] turns marked text back into real Grout.
@@ -72,12 +73,13 @@ let rec find_marker = (~implicit_hole: string, seg: Segment.t): option(Id.t) => 
     switch (p) {
     | Tile(t) =>
       List.fold_left(
-        (acc, child) =>
-          switch (acc) {
-          | Some(_) => acc
-          | None => find_marker(~implicit_hole, child)
-          },
-        None,
+        ~f=
+          (acc, child) =>
+            switch (acc) {
+            | Some(_) => acc
+            | None => find_marker(~implicit_hole, child)
+            },
+        ~init=None,
         t.children,
       )
     | Projector(_) =>

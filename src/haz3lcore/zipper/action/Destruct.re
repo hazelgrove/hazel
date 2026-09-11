@@ -1,6 +1,7 @@
 open Zipper;
 open Util;
 open OptUtil.Syntax;
+open Poly;
 
 /* Captures the UUID of a single grout or tile about to be deleted
  * so as to transfer that id to its replacement if possible. See
@@ -14,7 +15,7 @@ let capture = (z): t => {
           List.length(Tile.effective_label(t)) == 1
           && !
                List.exists(
-                 (tt: Tile.t) => tt.id == t.id,
+                 ~f=(tt: Tile.t) => tt.id == t.id,
                  Relatives.local_missing_shards(z.relatives),
                ) =>
       /* Don't want to capture the UUID if there are other shards
@@ -38,7 +39,7 @@ let delete = (d: Direction.t, z: t): option(t) => {
  * its content character-by-character, as if the user had typed it.
  * This is the inverse of selection wrapping for quote delimiters. */
 let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
-  let content = String.sub(t, 1, String.length(t) - 2);
+  let content = String.sub(t, ~pos=1, ~len=String.length(t) - 2);
   let+ z = delete(d, z);
   if (String.length(content) == 0) {
     z;
@@ -46,12 +47,13 @@ let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
     let result =
       Token.to_list(content)
       |> List.fold_left(
-           (z_opt, c) =>
-             switch (z_opt) {
-             | None => None
-             | Some(z) => Insert.go(c, z, ~root)
-             },
-           Some(z),
+           ~f=
+             (z_opt, c) =>
+               switch (z_opt) {
+               | None => None
+               | Some(z) => Insert.go(c, z, ~root)
+               },
+           ~init=Some(z),
          );
     switch (result) {
     | Some(z) => z

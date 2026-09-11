@@ -3,6 +3,7 @@ open Node;
 open ProjectorBase;
 open Language;
 open Util;
+open Poly;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {

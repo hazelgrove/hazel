@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 exception Empty_segment;
 
@@ -13,14 +14,15 @@ let concat = List.concat;
  * stdlib List.fold_right's per-element recursion overflows the JS stack
  * (regrout_affix folds over the whole segment). */
 let fold_right = (f, xs, acc) =>
-  List.fold_left((acc, x) => f(x, acc), acc, List.rev(xs));
+  List.fold_left(~f=(acc, x) => f(x, acc), ~init=acc, List.rev(xs));
 let rev = List.rev;
 
 let incomplete_tiles =
   List.filter_map(
-    fun
-    | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
-    | _ => None,
+    ~f=
+      fun
+      | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
+      | _ => None,
   );
 
 /* Stack-safe accumulator traversal (preserves traversal order): segments can
@@ -31,39 +33,42 @@ let rec incomplete_tiles_deep = (seg: t) =>
   List.rev(incomplete_tiles_deep_acc([], seg))
 and incomplete_tiles_deep_acc = (acc, seg: t) =>
   List.fold_left(
-    (acc, p) =>
-      switch (p) {
-      | Piece.Tile(t) =>
-        let acc = !Tile.is_complete(t) ? [t, ...acc] : acc;
-        List.fold_left(
-          (acc, child) => incomplete_tiles_deep_acc(acc, child),
-          acc,
-          t.children,
-        );
-      | _ => acc
-      },
-    acc,
+    ~f=
+      (acc, p) =>
+        switch (p) {
+        | Piece.Tile(t) =>
+          let acc = !Tile.is_complete(t) ? [t, ...acc] : acc;
+          List.fold_left(
+            ~f=(acc, child) => incomplete_tiles_deep_acc(acc, child),
+            ~init=acc,
+            t.children,
+          );
+        | _ => acc
+        },
+    ~init=acc,
     seg,
   );
 
 let incomplete_tiles_to_missing_shards = seg =>
-  seg |> List.map(Tile.missing_shards) |> List.concat;
+  seg |> List.map(~f=Tile.missing_shards) |> List.concat;
 
 let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
 let tiles =
   List.filter_map(
-    fun
-    | Piece.Tile(t) => Some(t)
-    | _ => None,
+    ~f=
+      fun
+      | Piece.Tile(t) => Some(t)
+      | _ => None,
   );
 
 let convex_grout =
   List.filter_map(
-    fun
-    | Piece.Grout(g) when g.shape == Convex => Some(g)
-    | _ => None,
+    ~f=
+      fun
+      | Piece.Grout(g) when g.shape == Convex => Some(g)
+      | _ => None,
   );
 
 let snoc = (tiles, tile) => tiles @ [tile];
@@ -80,7 +85,7 @@ let shape_affix =
       let shape =
         switch (Piece.shapes(p)) {
         | Some(shapes) =>
-          shapes |> (d == Left ? TupleUtil.swap : Fun.id) |> fst
+          shapes |> (d == Left ? TupleUtil.swap : Fn.id) |> fst
         | None => s
         };
       switch (p) {
@@ -93,7 +98,7 @@ let shape_affix =
       | Tile(_) => (empty_wgw, shape, tl)
       };
     };
-  go((d == Left ? List.rev : Fun.id)(affix), r);
+  go((d == Left ? List.rev : Fn.id)(affix), r);
 };
 
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
@@ -116,7 +121,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     | None => None
     | Some(molds) =>
       molds
-      |> List.map(mold =>
+      |> List.map(~f=mold =>
            {
              ...t,
              mold,
@@ -126,25 +131,28 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         fun
         | [_] as ts => ts
         | ts =>
-          ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+          ts
+          |> List.filter(~f=t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
       )
       |> ListUtil.hd_opt
     };
   let children =
     List.fold_right(
-      ((l, child, r), children) => {
-        let child =
-          if (l
-              + 1 == r
-              && List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)) {
-            remold(child, List.nth(remolded.mold.in_, l));
-          } else {
-            child;
-          };
-        [child, ...children];
-      },
+      ~f=
+        ((l, child, r), children) => {
+          let child =
+            if (l
+                + 1 == r
+                && List.nth_exn(remolded.mold.in_, l)
+                != List.nth_exn(t.mold.in_, l)) {
+              remold(child, List.nth_exn(remolded.mold.in_, l));
+            } else {
+              child;
+            };
+          [child, ...children];
+        },
+      ~init=[],
       Aba.aba_triples(Aba.mk(remolded.shards, remolded.children)),
-      [],
     );
   {
     ...remolded,
@@ -181,7 +189,7 @@ and remold_template = (sort: Sort.t, shape, seg: t): t => {
       | None => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
       | Some(t) =>
         switch (Tile.nibs(t)) {
-        | (_, {shape, sort}) when List.mem(sort, subsort) =>
+        | (_, {shape, sort}) when List.mem(subsort, sort, ~equal=Poly.equal) =>
           let (remolded, shape, rest) = remold_template_uni(sort, shape, tl);
           [Piece.Tile(t), ...remolded] @ remold(shape, rest);
         | _ => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
@@ -212,7 +220,7 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
         ([Tile(t), ...remolded], shape, []);
       | Some(t) =>
         switch (Tile.nibs(t)) {
-        | (_, {shape, sort}) when List.mem(sort, subsort) =>
+        | (_, {shape, sort}) when List.mem(subsort, sort, ~equal=Poly.equal) =>
           let (remolded, shape, rest) = remold_template_uni(sort, shape, tl);
           let (remolded_rest, shape, rest) = remold_uni(shape, rest);
           ([Piece.Tile(t), ...remolded] @ remolded_rest, shape, rest);
@@ -266,10 +274,11 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           when
             t.label == [";"]
             && List.exists(
-                 fun
-                 | Sort.Mod
-                 | Sort.Sig => true
-                 | _ => false,
+                 ~f=
+                   fun
+                   | Sort.Mod
+                   | Sort.Sig => true
+                   | _ => false,
                  parent_sorts,
                ) => (
           [],
@@ -286,7 +295,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           when
             t.label == Form.get(CommaTyp).label
             || t.label == Form.get(TypPlus).label
-            && List.exists((==)(Sort.Exp), parent_sorts) => (
+            && List.exists(~f=y => Sort.equal(Sort.Exp, y), parent_sorts) => (
           [],
           shape,
           seg,
@@ -450,7 +459,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       | Some(t)
           when
             t.label == Form.get(CellJoin).label
-            && List.exists((==)(Sort.Mod), parent_sorts) => (
+            && List.exists(~f=y => Sort.equal(Sort.Mod, y), parent_sorts) => (
           [],
           shape,
           seg,
@@ -733,8 +742,8 @@ and remold_mpat = (shape, seg: t): t =>
    are low. Revisit with profiling data if performance is a concern. */
 let skel = (~sort=Sort.Exp, seg) => {
   seg
-  |> List.mapi((i, p) => (i, p))
-  |> List.filter(((_, p)) => !Piece.is_secondary(p))
+  |> List.mapi(~f=(i, p) => (i, p))
+  |> List.filter(~f=((_, p)) => !Piece.is_secondary(p))
   |> Skel.mk(~sort);
 };
 
@@ -744,7 +753,7 @@ module Trim = {
 
   let empty = Aba.mk([[]], []);
 
-  let rev = Aba.rev(List.rev, Fun.id);
+  let rev = Aba.rev(List.rev, Fn.id);
 
   let cons_w = (w: Secondary.t, (wss, gs)) => {
     // safe bc Aba always has at least one A element
@@ -760,7 +769,7 @@ module Trim = {
       | Some(w) => [w]
       | None => []
       };
-    List.(map(Piece.secondary, concat(wss) @ extra));
+    List.(map(concat(wss) @ extra, ~f=Piece.secondary));
   };
 
   /* Like ws, but keeps the result a trim (for re-adding grout). */
@@ -806,7 +815,7 @@ module Trim = {
 
   let to_seg = (trim: t) =>
     trim
-    |> Aba.join(List.map(Piece.secondary), g => [Piece.Grout(g)])
+    |> Aba.join(List.map(~f=Piece.secondary), g => [Piece.Grout(g)])
     |> List.concat;
 };
 
@@ -825,19 +834,20 @@ and regrout_affix =
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Projector(pr) =>
           let (l', r') =
-            ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
+            ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fn.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
             List.fold_right(
-              (hd, tl) => {
-                let tl = tl;
-                let hd = regrout(Nib.Shape.(concave(), concave()), hd);
-                [hd, ...tl];
-              },
+              ~f=
+                (hd, tl) => {
+                  let tl = tl;
+                  let hd = regrout(Nib.Shape.(concave(), concave()), hd);
+                  [hd, ...tl];
+                },
+              ~init=[],
               t.children,
-              [],
             );
           let p =
             Piece.Tile({
@@ -845,12 +855,12 @@ and regrout_affix =
               children,
             });
           let (l', r') =
-            Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
+            Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fn.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         }
       },
-      (d == Left ? List.rev : Fun.id)(affix),
+      (d == Left ? List.rev : Fn.id)(affix),
       (Aba.mk([[]], []), r, empty),
     );
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
@@ -864,7 +874,7 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
   );
 
 let inner_regrout = (children: list(t)): list(t) =>
-  List.map(regrout((Nib.Shape.concave(), Nib.Shape.concave())), children);
+  List.map(~f=regrout((Nib.Shape.concave(), Nib.Shape.concave())), children);
 
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {
@@ -874,7 +884,7 @@ let rec reassemble = (seg: t): t =>
     | None => seg
     | Some((seg_l, match, seg_r)) =>
       let t = Tile.reassemble(match);
-      let children = List.map(reassemble, t.children);
+      let children = List.map(~f=reassemble, t.children);
       let children = inner_regrout(children);
       let p =
         Tile.to_piece({
@@ -905,44 +915,47 @@ let rec reassemble = (seg: t): t =>
 let presplit_orphans = (seg: t): t =>
   seg
   |> List.concat_map(
-       fun
-       | Piece.Tile(t) when !Tile.is_complete(t) && List.length(t.shards) > 1 => {
-           let rec interleave = (shards, children) =>
-             switch (shards) {
-             | [] => []
-             | [s] => [
-                 Piece.Tile({
-                   ...t,
-                   shards: [s],
-                   children: [],
-                 }),
-               ]
-             | [s, ...rest_s] =>
-               let singleton =
-                 Piece.Tile({
-                   ...t,
-                   shards: [s],
-                   children: [],
-                 });
-               switch (children) {
-               | [c, ...rest_c] =>
-                 [singleton, ...c] @ interleave(rest_s, rest_c)
-               | [] => [singleton, ...interleave(rest_s, [])]
+       ~f=
+         fun
+         | Piece.Tile(t)
+             when !Tile.is_complete(t) && List.length(t.shards) > 1 => {
+             let rec interleave = (shards, children) =>
+               switch (shards) {
+               | [] => []
+               | [s] => [
+                   Piece.Tile({
+                     ...t,
+                     shards: [s],
+                     children: [],
+                   }),
+                 ]
+               | [s, ...rest_s] =>
+                 let singleton =
+                   Piece.Tile({
+                     ...t,
+                     shards: [s],
+                     children: [],
+                   });
+                 switch (children) {
+                 | [c, ...rest_c] =>
+                   [singleton, ...c] @ interleave(rest_s, rest_c)
+                 | [] => [singleton, ...interleave(rest_s, [])]
+                 };
                };
-             };
-           interleave(t.shards, t.children);
-         }
-       | p => [p],
+             interleave(t.shards, t.children);
+           }
+         | p => [p],
      );
 
 let rescan = (seg: t): t => {
   let has_incomplete =
     List.exists(
-      p =>
-        switch (p) {
-        | Piece.Tile(t) => !Tile.is_complete(t)
-        | _ => false
-        },
+      ~f=
+        p =>
+          switch (p) {
+          | Piece.Tile(t) => !Tile.is_complete(t)
+          | _ => false
+          },
       seg,
     );
   if (!has_incomplete) {
@@ -960,7 +973,7 @@ let rescan = (seg: t): t => {
      * `if 1 else 2 then`. */
     let missing_entries = (t: Tile.t): list((Token.t, Tile.t)) =>
       Tile.right_missing_shards(t)
-      |> List.filter_map((shard: Tile.t) =>
+      |> List.filter_map(~f=(shard: Tile.t) =>
            switch (Tile.effective_label(shard)) {
            | [tok] => Some((tok, shard))
            | _ => None
@@ -991,12 +1004,13 @@ let rescan = (seg: t): t => {
              * This handles both fresh standalone tokens (label length 1)
              * and orphaned shards from deleted forms (label length > 1),
              * enabling cross-form re-association (e.g. fix reusing fun's ->). */
-            let tok = List.hd(Tile.effective_label(t));
-            switch (List.assoc_opt(tok, entries)) {
+            let tok = List.hd_exn(Tile.effective_label(t));
+            switch (List.Assoc.find(entries, tok, ~equal=Poly.equal)) {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
               let converted = Piece.Tile(target_shard);
-              let entries = List.filter(((k, _)) => k != tok, entries);
+              let entries =
+                List.filter(~f=((k, _)) => !String.equal(k, tok), entries);
               /* If this frame is exhausted, pop to previous frame */
               let (frame, stack) =
                 switch (entries, stack) {
@@ -1051,26 +1065,27 @@ let trim_secondary: (Direction.t, t) => t =
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
   let trimmed = trim_secondary(d, ps);
   switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
-  | (Right, _, Some(p)) => p |> Piece.shapes |> Option.map(snd)
-  | (Left, Some(p), _) => p |> Piece.shapes |> Option.map(fst)
+  | (Right, _, Some(p)) => p |> Piece.shapes |> Option.map(~f=snd)
+  | (Left, Some(p), _) => p |> Piece.shapes |> Option.map(~f=fst)
   | _ => None
   };
 };
 
 let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
-  Option.map(Nib.Shape.absolute(d), edge_shape_of(d, ps));
+  Option.map(~f=Nib.Shape.absolute(d), edge_shape_of(d, ps));
 
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
-    fun
-    | Piece.Secondary(_)
-    | Projector(_) => []
-    | Tile(t) => List.concat_map(holes, t.children)
-    | Grout(g) => [g],
+    ~f=
+      fun
+      | Piece.Secondary(_)
+      | Projector(_) => []
+      | Tile(t) => List.concat_map(~f=holes, t.children)
+      | Grout(g) => [g],
     segment,
   );
 
-let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
+let rec ids = (s: t): list(Id.t) => List.concat_map(~f=ids_of_piece, s)
 and ids_of_piece = (p: Piece.t): list(Id.t) =>
   switch (p) {
   | Tile(t) => [Piece.id(p), ...ids(List.concat(t.children))]
@@ -1085,7 +1100,7 @@ let first_string =
   | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
   | [Piece.Projector(_), ..._] => "PROJECTOR"
   | [Piece.Grout(_), ..._] => "?"
-  | [Piece.Tile(t), ..._] => t.label |> List.hd;
+  | [Piece.Tile(t), ..._] => t.label |> List.hd_exn;
 
 let last_string =
   fun
@@ -1099,14 +1114,17 @@ let last_string =
     };
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
-  Skel.root(skel) |> Aba.first_a |> List.nth(seg) |> Piece.sort |> fst;
+  Skel.root(skel) |> Aba.first_a |> List.nth_exn(seg) |> Piece.sort |> fst;
 
 let root_id = (skel: Skel.t, seg: t): Id.t =>
-  skel |> Skel.root |> Util.Aba.first_a |> List.nth(seg) |> Piece.id;
+  skel |> Skel.root |> Util.Aba.first_a |> List.nth_exn(seg) |> Piece.id;
 
 let rec deep_tile_complete = (seg: t): bool =>
   List.for_all(
-    t => Tile.is_complete(t) && List.for_all(deep_tile_complete, t.children),
+    ~f=
+      t =>
+        Tile.is_complete(t)
+        && List.for_all(~f=deep_tile_complete, t.children),
     tiles(seg),
   );
 
@@ -1149,14 +1167,14 @@ let is_padded = (seg: t): bool =>
 
 module IDs = {
   /* Assign new ids for every piece in segment */
-  let rec replace = (seg: t): t => List.map(replace_piece, seg)
+  let rec replace = (seg: t): t => List.map(~f=replace_piece, seg)
   and replace_piece = (~id=?, p: Piece.t): Piece.t => {
     let id = Option.value(~default=Id.mk(), id);
     switch (p) {
     | Tile(t) =>
       Tile({
         ...t,
-        children: List.map(replace, t.children),
+        children: List.map(~f=replace, t.children),
         id,
       })
     | Grout(grout) =>
@@ -1182,11 +1200,11 @@ module IDs = {
   };
 
   /* Get all piece ids in the segment */
-  let rec all = (seg: t): list(Id.t) => List.concat_map(all_piece, seg)
+  let rec all = (seg: t): list(Id.t) => List.concat_map(~f=all_piece, seg)
   and all_piece = (p: Piece.t): list(Id.t) => {
     let id = Piece.id(p);
     switch (p) {
-    | Tile(t) => [id, ...List.concat_map(all, t.children)]
+    | Tile(t) => [id, ...List.concat_map(~f=all, t.children)]
     | Grout(_)
     | Secondary(_) => [id]
     | Projector(p) => [id, ...all_piece(p.syntax)]
@@ -1209,7 +1227,7 @@ module SecondaryCollection = {
       if (i < 0) {
         acc;
       } else {
-        switch (List.nth(seg, i)) {
+        switch (List.nth_exn(seg, i)) {
         | Piece.Secondary(s) => go(i - 1, [s, ...acc])
         | _ => acc
         };
@@ -1224,7 +1242,7 @@ module SecondaryCollection = {
       if (i >= len) {
         List.rev(acc);
       } else {
-        switch (List.nth(seg, i)) {
+        switch (List.nth_exn(seg, i)) {
         | Piece.Secondary(s) => go(i + 1, [s, ...acc])
         | _ => List.rev(acc)
         };
@@ -1234,7 +1252,7 @@ module SecondaryCollection = {
 
   /* Get the representative ID for a piece (used as the key in the map) */
   let piece_id = (seg: t, idx: int): option(Id.t) =>
-    switch (List.nth_opt(seg, idx)) {
+    switch (List.nth(seg, idx)) {
     | Some(Piece.Tile(t)) => Some(t.id)
     | Some(Piece.Projector(p)) => Some(p.id)
     | Some(Piece.Grout(g)) => Some(g.id)
@@ -1251,37 +1269,41 @@ module SecondaryCollection = {
       if (idx >= List.length(seg)) {
         List.rev(pieces_acc);
       } else {
-        switch (List.nth(seg, idx)) {
+        switch (List.nth_exn(seg, idx)) {
         | Piece.Secondary(_) => find_pieces(idx + 1, pieces_acc)
         | _ =>
-          find_pieces(idx + 1, [(idx, List.nth(seg, idx)), ...pieces_acc])
+          find_pieces(
+            idx + 1,
+            [(idx, List.nth_exn(seg, idx)), ...pieces_acc],
+          )
         };
       };
 
     let pieces = find_pieces(0, []);
     List.fold_left(
-      (acc, (idx, piece)) => {
-        let before = collect_before(seg, idx);
-        let after = collect_after(seg, idx);
-        switch (piece) {
-        | Piece.Tile({id, children, _}) =>
-          /* Add secondary for this tile and recurse into children */
-          let acc = Id.Map.add(id, (before, after), acc);
-          List.fold_left(
-            (acc, child_seg) => collect_from_seg(child_seg, acc),
-            acc,
-            children,
-          );
-        | Piece.Projector({id, syntax, _}) =>
-          /* Add secondary for projector and recurse into its content */
-          let acc = Id.Map.add(id, (before, after), acc);
-          let inner_seg = Piece.unparenthesize(syntax);
-          collect_from_seg(inner_seg, acc);
-        | Piece.Grout({id, _}) => Id.Map.add(id, (before, after), acc)
-        | _ => acc
-        };
-      },
-      acc,
+      ~f=
+        (acc, (idx, piece)) => {
+          let before = collect_before(seg, idx);
+          let after = collect_after(seg, idx);
+          switch (piece) {
+          | Piece.Tile({id, children, _}) =>
+            /* Add secondary for this tile and recurse into children */
+            let acc = Id.Map.add(id, (before, after), acc);
+            List.fold_left(
+              ~f=(acc, child_seg) => collect_from_seg(child_seg, acc),
+              ~init=acc,
+              children,
+            );
+          | Piece.Projector({id, syntax, _}) =>
+            /* Add secondary for projector and recurse into its content */
+            let acc = Id.Map.add(id, (before, after), acc);
+            let inner_seg = Piece.unparenthesize(syntax);
+            collect_from_seg(inner_seg, acc);
+          | Piece.Grout({id, _}) => Id.Map.add(id, (before, after), acc)
+          | _ => acc
+          };
+        },
+      ~init=acc,
       pieces,
     );
   }
@@ -1330,7 +1352,7 @@ module SecondaryCollection = {
     let root = Skel.root(skel);
     let root_indices = Aba.get_as(root);
     let acc =
-      switch (List.nth_opt(root_indices, 0)) {
+      switch (List.nth(root_indices, 0)) {
       | Some(first_idx) =>
         switch (piece_id(seg, first_idx)) {
         | Some(id) => Id.Map.add(id, (before, after), acc)
@@ -1345,22 +1367,23 @@ module SecondaryCollection = {
        those segments too. */
     let acc =
       List.fold_left(
-        (acc, idx) =>
-          switch (List.nth_opt(seg, idx)) {
-          | Some(Piece.Tile({children, _})) =>
-            List.fold_left(
-              (acc, child_seg) => collect_from_seg(child_seg, acc),
-              acc,
-              children,
-            )
-          | Some(Piece.Projector({syntax, _})) =>
-            /* Projectors wrap their content in parentheses. Extract the inner
-               segment and recursively collect secondary from it. */
-            let inner_seg = Piece.unparenthesize(syntax);
-            collect_from_seg(inner_seg, acc);
-          | _ => acc
-          },
-        acc,
+        ~f=
+          (acc, idx) =>
+            switch (List.nth(seg, idx)) {
+            | Some(Piece.Tile({children, _})) =>
+              List.fold_left(
+                ~f=(acc, child_seg) => collect_from_seg(child_seg, acc),
+                ~init=acc,
+                children,
+              )
+            | Some(Piece.Projector({syntax, _})) =>
+              /* Projectors wrap their content in parentheses. Extract the inner
+                 segment and recursively collect secondary from it. */
+              let inner_seg = Piece.unparenthesize(syntax);
+              collect_from_seg(inner_seg, acc);
+            | _ => acc
+            },
+        ~init=acc,
         root_indices,
       );
 
@@ -1368,8 +1391,8 @@ module SecondaryCollection = {
     let children = Aba.get_bs(root);
     let acc =
       List.fold_left(
-        (acc, child) => collect_from_skel(seg, child, acc),
-        acc,
+        ~f=(acc, child) => collect_from_skel(seg, child, acc),
+        ~init=acc,
         children,
       );
 

@@ -2,6 +2,7 @@ open Util;
 open HighLevelNodeMap.Public;
 open Language;
 open OptUtil.Syntax;
+open Poly;
 
 type node_map = HighLevelNodeMap.t;
 type node = HighLevelNodeMap.node;
@@ -182,7 +183,7 @@ module Local = {
       if (List.length(new_errors) > List.length(initial_errors)) {
         Some(
           "Not applying the action you requested as it would have the following static error(s): "
-          ++ String.concat(", ", new_errors),
+          ++ String.concat(~sep=", ", new_errors),
         );
       } else {
         None;
@@ -207,7 +208,7 @@ module Local = {
           let* shard =
             d == Left
               ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
-          List.nth_opt(t.label, shard);
+          List.nth(t.label, shard);
         };
       let outer_token = (d: Direction.t): option(Token.t) => {
         let (l_sibs, r_sibs) = z.relatives.siblings;
@@ -221,7 +222,7 @@ module Local = {
             d == Left
               ? ListUtil.last_opt(fst(a.shards))
               : ListUtil.hd_opt(snd(a.shards));
-          List.nth_opt(a.label, shard);
+          List.nth(a.label, shard);
         };
       };
       let fuses = (l: option(Token.t), r: option(Token.t)): bool =>
@@ -263,7 +264,8 @@ module Local = {
        to term ids. */
     let is_linebreak = (p: Piece.t): bool =>
       switch (p) {
-      | Secondary({content: Whitespace(s), _}) => s == Token.linebreak
+      | Secondary({content: Whitespace(s), _}) =>
+        String.equal(s, Token.linebreak)
       | _ => false
       };
     let is_binding_tile = (p: Piece.t): bool =>
@@ -281,14 +283,15 @@ module Local = {
          run's immediately bounding tokens decide its normalized count. */
       let items =
         List.fold_right(
-          (p, acc) =>
-            switch (is_linebreak(p), acc) {
-            | (true, [`Run(n), ...rest]) => [`Run(n + 1), ...rest]
-            | (true, _) => [`Run(1), ...acc]
-            | (false, _) => [`Tok(p), ...acc]
-            },
+          ~f=
+            (p, acc) =>
+              switch (is_linebreak(p), acc) {
+              | (true, [`Run(n), ...rest]) => [`Run(n + 1), ...rest]
+              | (true, _) => [`Run(1), ...acc]
+              | (false, _) => [`Tok(p), ...acc]
+              },
+          ~init=[],
           seg,
-          [],
         );
       let rec go = (prev_tok: option(Piece.t), items) =>
         switch (items) {
@@ -325,7 +328,7 @@ module Local = {
     /* Form delimiters that lex like identifiers; using one as a variable
        name makes the surrounding code misparse. */
     let reserved_words: list(Token.t) =
-      List.filter(Token.is_var, Form.delims);
+      List.filter(~f=Token.is_var, Form.delims);
 
     let identifier_words = (s: string): list(string) => {
       let is_id_char = c =>
@@ -335,33 +338,32 @@ module Local = {
         && c <= 'Z'
         || c >= '0'
         && c <= '9'
-        || c == '_'
-        || c == '\'';
+        || Char.equal(c, '_')
+        || Char.equal(c, '\'');
       let (words, last) =
-        String.fold_left(
-          ((words, cur), c) =>
-            is_id_char(c)
-              ? (words, cur ++ String.make(1, c))
-              : cur == "" ? (words, "") : ([cur, ...words], ""),
-          ([], ""),
-          s,
+        String.fold(s, ~init=([], ""), ~f=((words, cur), c) =>
+          is_id_char(c)
+            ? (words, cur ++ String.make(1, c))
+            : String.equal(cur, "") ? (words, "") : ([cur, ...words], "")
         );
-      List.rev(last == "" ? words : [last, ...words]);
+      List.rev(String.equal(last, "") ? words : [last, ...words]);
     };
 
     /* Reserved word in binder position (after let/fun/type), or as the
        entire code string: the misuse behind most agent paste failures,
        e.g. `let eval = ...` where `eval` opens a filter form. */
     let find_reserved_binder = (code: string): option(string) => {
-      let reserved = w => List.mem(w, reserved_words);
-      let trimmed = String.trim(code);
+      let reserved = w => List.mem(reserved_words, w, ~equal=Poly.equal);
+      let trimmed = String.strip(code);
       if (reserved(trimmed)) {
         Some(trimmed);
       } else {
         let rec scan = words =>
           switch (words) {
           | [intro, w, ..._]
-              when List.mem(intro, ["let", "fun", "type"]) && reserved(w) =>
+              when
+                List.mem(["let", "fun", "type"], intro, ~equal=Poly.equal)
+                && reserved(w) =>
             Some(w)
           | [_, ...rest] => scan(rest)
           | [] => None
@@ -633,11 +635,11 @@ module Local = {
                   "Cannot rewrite use sites: the old pattern binds "
                   ++ string_of_int(List.length(old_names))
                   ++ " name(s) ("
-                  ++ String.concat(", ", old_names)
+                  ++ String.concat(~sep=", ", old_names)
                   ++ ") but the new pattern binds "
                   ++ string_of_int(List.length(new_names))
                   ++ " ("
-                  ++ String.concat(", ", new_names)
+                  ++ String.concat(~sep=", ", new_names)
                   ++ "). Keep the same number of bound names, or update the definition and body references explicitly.",
                 ),
               );
@@ -647,14 +649,18 @@ module Local = {
                  occur anywhere in this binding's scope. Conservative:
                  over-rejects some shadow-safe cases. */
               let added_names =
-                List.filter(n => !List.mem(n, old_names), new_names);
+                List.filter(
+                  ~f=n => !List.mem(old_names, n, ~equal=Poly.equal),
+                  new_names,
+                );
               let scope_root = id_of(initial_node);
               let taken_name =
-                List.find_opt(
-                  GeneralTreeUtils.name_occurs_within(
-                    ~root_id=scope_root,
-                    ~info_map=initial_info_map,
-                  ),
+                List.find(
+                  ~f=
+                    GeneralTreeUtils.name_occurs_within(
+                      ~root_id=scope_root,
+                      ~info_map=initial_info_map,
+                    ),
                   added_names,
                 );
               switch (taken_name) {
@@ -693,7 +699,7 @@ module Local = {
                   Error(
                     Action.Failure.Composition_action_failure(
                       "Not applying the rename: rewriting the use sites would introduce new static error(s): "
-                      ++ String.concat(", ", final_errors),
+                      ++ String.concat(~sep=", ", final_errors),
                     ),
                   );
                 } else {
@@ -756,7 +762,7 @@ module Local = {
           Error(
             Action.Failure.Composition_action_failure(
               "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors)
+              ++ String.concat(~sep=", ", new_errors)
               ++ PerformUtils.reserved_word_note(code),
             ),
           );
@@ -785,7 +791,7 @@ module Local = {
           Error(
             Action.Failure.Composition_action_failure(
               "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors)
+              ++ String.concat(~sep=", ", new_errors)
               ++ PerformUtils.reserved_word_note(code),
             ),
           );
