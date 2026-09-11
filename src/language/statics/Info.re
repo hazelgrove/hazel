@@ -138,6 +138,7 @@ type secondary = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoDrv(DrvInfo.t)
+  | InfoBb(BbInfo.t)
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
@@ -152,6 +153,7 @@ type t =
 let sort_of: t => Sort.t =
   fun
   | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
+  | InfoBb(bb) => Bb(BbInfo.sort_of(bb))
   | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
@@ -176,17 +178,26 @@ let refine_sort_from_mold =
     | Some(InfoDrv(drv)) => Drv(DrvInfo.sort_of(drv))
     | _ => mold_out
     }
+  /* Blackboard molds are all Bb(Term); statics refines them to Bb(Assumed)
+     or Bb(Constructed) so a block can be tinted by its modality. */
+  | Bb(_) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(InfoBb(bb)) => Bb(BbInfo.sort_of(bb))
+    | _ => mold_out
+    }
   | _ => mold_out
   };
 
 let class_of: t => string =
   fun
   | InfoDrv(drv) => DrvInfo.sort_of(drv) |> DrvSort.class_of
+  | InfoBb(bb) => BbInfo.sort_of(bb) |> BbSort.class_of
   | _ as i => sort_of(i) |> Sort.show;
 
 let cls_of: t => Cls.t =
   fun
   | InfoDrv(drv) => DrvInfo.cls_of(drv)
+  | InfoBb(bb) => BbInfo.cls_of(bb)
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
@@ -212,6 +223,7 @@ let cls_label = (info: t): string =>
 let any_of: t => option(Any.t) =
   fun
   | InfoDrv({term, _}) => Some(Drv(term))
+  | InfoBb({term, _}) => Some(Bb(term))
   | InfoExp({user_term, _}) => Some(Exp(user_term))
   | InfoPat({user_term, _}) => Some(Pat(user_term))
   | InfoTyp({user_term, _}) => Some(Typ(user_term))
@@ -223,7 +235,8 @@ let any_of: t => option(Any.t) =
 
 let ctx_of: t => Ctx.t =
   fun
-  | InfoDrv(_) => Ctx.empty_pre_elaboration
+  | InfoDrv(_)
+  | InfoBb(_) => Ctx.empty_pre_elaboration
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
@@ -236,6 +249,7 @@ let ctx_of: t => Ctx.t =
 let ancestors_of: t => ancestors =
   fun
   | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
+  | InfoBb(bb) => BbInfo.ancestors_of(bb)
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
@@ -251,6 +265,7 @@ let parent_id_of: t => option(Id.t) =
 let id_of: t => Id.t =
   fun
   | InfoDrv(drv) => DrvInfo.id_of(drv)
+  | InfoBb(bb) => BbInfo.id_of(bb)
   | InfoExp(i) => Exp.rep_id(i.user_term)
   | InfoPat(i) => Pat.rep_id(i.user_term)
   | InfoTyp(i) => Typ.rep_id(i.user_term)
@@ -267,6 +282,7 @@ let marks_of: t => list(Mark.t) =
   | InfoTyp({marks, _})
   | InfoTPat({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
+  | InfoBb(_) /* Likewise Blackboard, via BbInfo.error_of. */
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
@@ -277,6 +293,7 @@ let marks_of: t => list(Mark.t) =
 let is_error = (ci: t): bool =>
   switch (ci) {
   | InfoDrv(drv) => DrvInfo.is_error(drv)
+  | InfoBb(bb) => BbInfo.is_error(bb)
   | _ => marks_of(ci) != []
   };
 
@@ -287,6 +304,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoTyp({warnings, _})
   | InfoTPat({warnings, _}) => warnings
   | InfoDrv(_)
+  | InfoBb(_)
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
@@ -314,6 +332,7 @@ let is_typable_term: option(t) => bool =
     ) =>
     false
   | Some(InfoExp(_) | InfoPat(_)) => true
+  | Some(_)
   | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;

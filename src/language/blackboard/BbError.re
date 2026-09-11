@@ -42,3 +42,13 @@ let to_string = (e: t): string => {
 
 let located_to_string = ({entry, err}: located): string =>
   entry ++ ": " ++ to_string(err);
+
+/* The subterm an error is about, when there is one. The editor uses this to
+   place the error on the tile the user got wrong rather than on the whole
+   entry. */
+let subject: t => option(BbTerm.t) =
+  fun
+  | Unbound(_) => None
+  | NotAType(t, _)
+  | NotAFunction(t, _) => Some(t)
+  | ArgumentMismatch(_, a, _, _) => Some(a);

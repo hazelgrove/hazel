@@ -1547,6 +1547,18 @@ let decide =
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
     DrvSyntax(syntax, msg);
+  | Some(InfoBb(i)) =>
+    switch (BbInfo.modality_of(i)) {
+    | Some(Assume) =>
+      Prose(
+        "An assumption block postulates names. Its only obligation is that each declared type is a type.",
+      )
+    | Some(Construct) =>
+      Prose(
+        "A construction block claims a conservative extension: the signature must be shown inhabited, and the witness is then discarded.",
+      )
+    | None => Prose("A Blackboard term")
+    }
   | Some(Secondary(s)) =>
     switch (s.cls) {
     | Secondary(Whitespace) => Prose("A semantic void, pervading but inert")

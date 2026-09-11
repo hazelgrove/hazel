@@ -11,6 +11,164 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* BLACKBOARD STATICS
+
+   The Blackboard sort contains no Hazel subterms, so this does not take
+   part in the mutual recursion below.
+
+   Checking is per entry, not per document. A document that is half written,
+   or that has one malformed entry, must still report what it can about the
+   rest: an all-or-nothing check goes silent exactly when the user has just
+   made a mistake. So each signature entry is read and checked on its own,
+   in the context of the entries before it, and produces either a syntax
+   error (it could not be read as an entry at all) or the checker's errors.
+
+   Errors land on the name the user got wrong where that name is
+   identifiable, and on the entry otherwise. */
+let bb_to_info_map = (b: Bb.Term.t, m: Map.t, ~ancestors): Map.t => {
+  let statuses: ref(Id.Map.t(BbInfo.status)) = ref(Id.Map.empty);
+  let mark = (id, st) => statuses := Id.Map.add(id, st, statuses^);
+
+  /* Put an unbound-name error on every occurrence of that name. */
+  let rec mark_var = (t: Bb.Term.t, x: string, st) => {
+    switch (Bb.Term.term_of(t)) {
+    | Var(y) when y == x => mark(Bb.Term.rep_id(t), st)
+    | Var(_)
+    | Type
+    | Hole(Invalid(_) | EmptyHole) => ()
+    | Parens(a) => mark_var(a, x, st)
+    | Mem(a, b)
+    | Arrow(a, b)
+    | Ap(a, b) =>
+      mark_var(a, x, st);
+      mark_var(b, x, st);
+    | Tuple(ts)
+    | Seq(ts)
+    | Hole(MultiHole(ts)) => List.iter(t => mark_var(t, x, st), ts)
+    | Assume(a, b)
+    | Construct(a, b) =>
+      mark_var(a, x, st);
+      mark_var(b, x, st);
+    };
+  };
+
+  /* Check one entry in ctx, recording its errors; return the extended ctx. */
+  let check_entry = (item: Bb.Term.t, ctx: BbCheck.ctx): BbCheck.ctx =>
+    switch (Bb.rotate_entry(item)) {
+    | None =>
+      mark(
+        Bb.Term.rep_id(item),
+        BbInfo.InHole(
+          Malformed("a signature entry has the form  name : type"),
+        ),
+      );
+      ctx;
+    | Some((name, ty_term)) =>
+      switch (Bb.term_to_kernel(ty_term)) {
+      | Error({id, message}) =>
+        mark(id, BbInfo.InHole(Malformed(message)));
+        ctx;
+      | Ok(ty) =>
+        List.iter(
+          (err: BbError.t) =>
+            switch (err) {
+            | Unbound(x) => mark_var(ty_term, x, BbInfo.InHole(Check(err)))
+            | _ =>
+              let on =
+                switch (BbError.subject(err)) {
+                | Some(sub) =>
+                  /* place it on the subterm that is wrong, when we can find
+                     it; otherwise on the entry */
+                  let found = ref(None);
+                  let rec search = (t: Bb.Term.t) =>
+                    if (found^ == None) {
+                      switch (Bb.term_to_kernel(t)) {
+                      | Ok(k) when BbTerm.alpha_eq(k, sub) =>
+                        found := Some(Bb.Term.rep_id(t))
+                      | _ =>
+                        switch (Bb.Term.term_of(t)) {
+                        | Parens(a) => search(a)
+                        | Mem(a, b)
+                        | Arrow(a, b)
+                        | Ap(a, b) =>
+                          search(a);
+                          search(b);
+                        | Tuple(ts)
+                        | Seq(ts)
+                        | Hole(MultiHole(ts)) => List.iter(search, ts)
+                        | _ => ()
+                        }
+                      };
+                    };
+                  search(ty_term);
+                  Option.value(found^, ~default=Bb.Term.rep_id(item));
+                | None => Bb.Term.rep_id(item)
+                };
+              mark(on, BbInfo.InHole(Check(err)));
+            },
+          BbCheck.is_type(ctx, ty),
+        );
+        [(name, ty), ...ctx];
+      }
+    };
+
+  /* Walk the document, threading the context across blocks so a construct
+     block sees the names an earlier assume block introduced. */
+  let check_block = (blk: Bb.Term.t, ctx: BbCheck.ctx): BbCheck.ctx =>
+    switch (Bb.Term.term_of(blk)) {
+    | Assume(entries, _)
+    | Construct(entries, _) =>
+      List.fold_left(
+        (ctx, item) => check_entry(item, ctx),
+        ctx,
+        Bb.items_of(entries),
+      )
+    /* Not a block: nothing to check here. A bare term is a legitimate
+       thing to be holding mid-edit. */
+    | _ => ctx
+    };
+  let _ =
+    List.fold_left(
+      (ctx, blk) => check_block(blk, ctx),
+      [],
+      Bb.items_of(b),
+    );
+
+  /* Second pass: give every node an info entry, so the cursor inspector has
+     something to say anywhere, and attach the statuses found above. */
+  let rec go = (t: Bb.Term.t, m: Map.t, ~modality, ~ancestors): Map.t => {
+    let term = Bb.Term.term_of(t);
+    let status =
+      Id.Map.find_opt(Bb.Term.rep_id(t), statuses^)
+      |> Option.value(~default=BbInfo.NotInHole);
+    let info = BbInfo.derived(t, ~ancestors, ~modality, ~status);
+    let anc = [Bb.Term.rep_id(t), ...ancestors];
+    let child = (x, m) => go(x, m, ~modality, ~ancestors=anc);
+    let block = (entries, tactic, mod_, m) =>
+      m
+      |> go(entries, ~modality=Some(mod_), ~ancestors=anc)
+      |> go(tactic, ~modality=Some(mod_), ~ancestors=anc);
+    let m =
+      switch (term) {
+      | Hole(MultiHole(ts)) => List.fold_left((m, x) => child(x, m), m, ts)
+      | Hole(_)
+      | Var(_)
+      | Type => m
+      | Parens(x) => child(x, m)
+      | Mem(a, b)
+      | Arrow(a, b)
+      | Ap(a, b) => m |> child(a) |> child(b)
+      | Tuple(ts)
+      | Seq(ts) => List.fold_left((m, x) => child(x, m), m, ts)
+      | Assume(entries, tactic) => block(entries, tactic, BbInfo.Assume, m)
+      | Construct(entries, tactic) =>
+        block(entries, tactic, BbInfo.Construct, m)
+      };
+    add_info(Bb.Term.ids(t), InfoBb(info), m);
+  };
+  go(b, m, ~modality=None, ~ancestors);
+};
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -48,7 +206,7 @@ let rec any_to_info_map =
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
   /* Blackboard statics arrive with the next milestone. */
-  | Bb(b) => (CoCtx.empty, Bb(b), m)
+  | Bb(b) => (CoCtx.empty, Bb(b), bb_to_info_map(b, m, ~ancestors))
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
@@ -476,13 +634,14 @@ and uexp_to_info_map =
        no interesting Hazel type yet.  Checking the document itself, and a
        type that reflects it, arrive with the Blackboard statics. */
     | BbQuote(b) =>
+      let m = bb_to_info_map(b, m, ~ancestors=ancestors_inclusive);
       add(
         ~elab_term=BbQuote(b) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
-      )
+      );
     | Atom(c) =>
       // Replace literal if necessary due to `use` or ana
       let c =

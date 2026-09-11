@@ -65,6 +65,7 @@ let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
       : (
         switch (Info.sort_of(ci)) {
         | Drv(s) => DrvSort.to_string_short(s)
+        | Bb(s) => BbSort.to_string_short(s)
         | s => Sort.to_string(s)
         }
       );
@@ -1058,6 +1059,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoTPat({cls, marks, message, _}) =>
     wrapper(tpat_view(~globals, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
+  | InfoBb(ci) => wrapper(BbCursorInspector.bb_view(~globals, ci))
   };
 };
 

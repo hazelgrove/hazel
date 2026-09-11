@@ -116,6 +116,17 @@
   --token-typ: var(--TYP);
   --token-drv: var(--DRV);
   --token-bb: var(--BB);
+  /* Block modality tints. Faint enough to read through, distinct enough to
+     show a block's extent -- and so, its indentation -- at a glance.
+     Assumed is taken on trust; constructed still owes a witness.
+
+     Two constraints beyond looking right. The hues stay clear of the error
+     hole's warm fill (--ERRHOLE, hue 47) so an error inside a block is not
+     camouflaged by the block. And both are translucent, because the error
+     fill is an SVG shard painted behind the token: an opaque tint would
+     hide it however well the hue were chosen. */
+  --bb-assume-bg: oklch(68% 0.1 205 / 0.16);
+  --bb-construct-bg: oklch(58% 0.13 305 / 0.16);
   --token-tpat: var(--TPAT);
   --token-mod: var(--MOD);
   --token-sig: var(--SIG);

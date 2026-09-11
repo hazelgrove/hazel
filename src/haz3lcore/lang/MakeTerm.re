@@ -317,7 +317,9 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       | TPat => TPat(drv_tpat(unsorted(Drv(TPat), skel, seg)))
       },
     )
-  | Bb(Term) => Bb(bb(unsorted(Bb(Term), skel, seg)))
+  /* Bb(Assumed) and Bb(Constructed) are display-only refinements produced by
+     statics; nothing is ever molded or parsed in them. */
+  | Bb(_) => Bb(bb(unsorted(Bb(Term), skel, seg)))
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))

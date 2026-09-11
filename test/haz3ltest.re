@@ -80,6 +80,7 @@ let (suite, exit_with_test_status) =
     @ [Test_Blackboard.tests]
     @ [Test_BlackboardEditor.tests]
     @ [Test_BlackboardSlides.tests]
+    @ [Test_BlackboardStatics.tests]
     @ Test_DerivationCase.tests
     @ Test_PromptFactory.tests
     @ [Test_ExplainThis.tests],
