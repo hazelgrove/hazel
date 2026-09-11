@@ -10,19 +10,23 @@ let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
     ~attrs=
       Attr.[
         create("viewBox", view),
-        create("width", Printf.sprintf("%fpx", icon_size)),
-        create("height", Printf.sprintf("%fpx", icon_size)),
+        create("width", Stdlib.Printf.sprintf("%fpx", icon_size)),
+        create("height", Stdlib.Printf.sprintf("%fpx", icon_size)),
         create("preserveAspectRatio", "none"),
       ],
     List.map(
-      d =>
-        Node.create_svg(
-          "path",
-          ~attrs=
-            [Attr.create("d", d)]
-            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
-          [],
-        ),
+      ~f=
+        d =>
+          Node.create_svg(
+            "path",
+            ~attrs=
+              [Attr.create("d", d)]
+              @ (
+                String.equal(transform, "")
+                  ? [] : [Attr.create("transform", transform)]
+              ),
+            [],
+          ),
       ds,
     ),
   );
@@ -113,10 +117,10 @@ module Path = {
     | H_({dx}) => H_({dx: scale_x *. dx})
     | V_({dy}) => V_({dy: scale_y *. dy});
 
-  let scale_x = s => List.map(scale_cmd(~scale_x=s));
-  let scale_y = s => List.map(scale_cmd(~scale_y=s));
+  let scale_x = s => List.map(~f=scale_cmd(~scale_x=s));
+  let scale_y = s => List.map(~f=scale_cmd(~scale_y=s));
 
-  let reverse = List.rev_map(scale_cmd(~scale_x=-1., ~scale_y=-1.));
+  let reverse = List.rev_map(~f=scale_cmd(~scale_x=-1., ~scale_y=-1.));
 
   let string_of_flag =
     fun
@@ -126,16 +130,16 @@ module Path = {
   let string_of_command =
     fun
     | Z => "Z"
-    | M({x, y}) => Printf.sprintf("M %f %f", x, y)
-    | M_({dx, dy}) => Printf.sprintf("m %f %f", dx, dy)
-    | L({x, y}) => Printf.sprintf("L %f %f", x, y)
-    | L_({dx, dy}) => Printf.sprintf("l %f %f", dx, dy)
-    | H({x}) => Printf.sprintf("H %f", x)
-    | H_({dx}) => Printf.sprintf("h %f", dx)
-    | V({y}) => Printf.sprintf("V %f", y)
-    | V_({dy}) => Printf.sprintf("v %f", dy)
+    | M({x, y}) => Stdlib.Printf.sprintf("M %f %f", x, y)
+    | M_({dx, dy}) => Stdlib.Printf.sprintf("m %f %f", dx, dy)
+    | L({x, y}) => Stdlib.Printf.sprintf("L %f %f", x, y)
+    | L_({dx, dy}) => Stdlib.Printf.sprintf("l %f %f", dx, dy)
+    | H({x}) => Stdlib.Printf.sprintf("H %f", x)
+    | H_({dx}) => Stdlib.Printf.sprintf("h %f", dx)
+    | V({y}) => Stdlib.Printf.sprintf("V %f", y)
+    | V_({dy}) => Stdlib.Printf.sprintf("v %f", dy)
     | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, dx, dy}) =>
-      Printf.sprintf(
+      Stdlib.Printf.sprintf(
         "a %f %f %f %s %s %f %f",
         rx,
         ry,
@@ -149,7 +153,7 @@ module Path = {
   let view = (~attrs: Attrs.t, path: t): Node.t => {
     let buffer = Buffer.create(List.length(path) * 20);
     path
-    |> List.iter(cmd => {
+    |> List.iter(~f=cmd => {
          Buffer.add_string(buffer, string_of_command(cmd));
          Buffer.add_string(buffer, " ");
        });
