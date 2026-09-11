@@ -1763,7 +1763,35 @@ let pad_ids_tests = (
   ],
 );
 
+/* `:` is an operator character: printed flush against a following operator
+   character the two lex as one token (`:+` is no form), so should_add_space
+   keeps them apart. `$` is a name character and still needs the gap. */
+let spacing_tests = (
+  "Ascription spacing",
+  [
+    test_case(
+      "`:` stays apart from a following operator character",
+      `Quick,
+      () => {
+        check(
+          bool,
+          ": then +",
+          true,
+          ExpToSegment.should_add_space(":", "+"),
+        );
+        check(
+          bool,
+          ": then $",
+          true,
+          ExpToSegment.should_add_space(":", "$"),
+        );
+      },
+    ),
+  ],
+);
+
 let all = [
+  spacing_tests,
   tests,
   pad_ids_tests,
   roundtrip_tests,
