@@ -5,6 +5,8 @@
   --main-base: hsl(281, 80%, 95%);
   --main-shadow: hsl(281, 40%, 25%);
   --main-indicated: var(--TYP);
+  /* The green probe samples are drawn in (proj-probe.css --exp-indicated). */
+  --dynamic-token: var(--G0);
 }
 
 /* BACKING */
@@ -101,9 +103,12 @@
   color: white;
 }
 
-/* The parts of the type that came from runtime values. */
-.dynamic > .token.Typ {
-  color: green;
+/* The parts of the type that came from runtime values. Every token of the
+   marked tile, not just the ones classed Typ: a hole is classed explicit-hole
+   and a label string-lit (see Code.of_delim'). Must stay below the
+   explicit-hole rule above, which it ties with on specificity. */
+.projector.statics .offside .code .dynamic > .token {
+  color: var(--dynamic-token);
 }
 
 /* REFRACTOR MODE */
