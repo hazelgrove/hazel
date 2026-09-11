@@ -917,9 +917,9 @@ let subst_captures_tests = {
   );
 };
 
-/* ana_meet: exact meet first, then signature width subtyping and
-   contravariant function domains, only at analysis positions. */
-let ana_meet_tests = {
+/* coercion: the meet, or a wider signature sealed to the one it is coerced
+   to; nothing else is directional. */
+let coercion_tests = {
   module F = IdTagged.FreshGrammar;
   let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
   let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
@@ -929,16 +929,16 @@ let ana_meet_tests = {
   let tu = F.Typ.unknown(Internal);
   let ctx = Builtins.ctx_init(None);
   let opt_typ = option(typ);
-  let ana_meet = (ana, syn) => Typ.ana_meet(ctx, ~ana, ~syn);
+  let coercion = (to_, from) => Typ.coercion(ctx, ~from, ~to_);
   (
-    "Typ.AnaMeet",
+    "Typ.Coercion",
     [
       test_case("wider module fits a narrower signature", `Quick, () =>
         check(
           opt_typ,
           "sealed to ana",
           Some(sg([sv("x", ti)])),
-          ana_meet(sg([sv("x", ti)]), sg([sv("x", ti), sv("y", tb)])),
+          coercion(sg([sv("x", ti)]), sg([sv("x", ti), sv("y", tb)])),
         )
       ),
       test_case("narrower module does not fit a wider signature", `Quick, () =>
@@ -946,7 +946,7 @@ let ana_meet_tests = {
           opt_typ,
           "missing member",
           None,
-          ana_meet(sg([sv("x", ti), sv("y", tb)]), sg([sv("x", ti)])),
+          coercion(sg([sv("x", ti), sv("y", tb)]), sg([sv("x", ti)])),
         )
       ),
       test_case("member types must fit", `Quick, () =>
@@ -954,7 +954,7 @@ let ana_meet_tests = {
           opt_typ,
           "wrong member type",
           None,
-          ana_meet(sg([sv("x", ti)]), sg([sv("x", tb)])),
+          coercion(sg([sv("x", ti)]), sg([sv("x", tb)])),
         )
       ),
       test_case("unknown member type refines, extras dropped", `Quick, () =>
@@ -962,7 +962,7 @@ let ana_meet_tests = {
           opt_typ,
           "refined",
           Some(sg([sv("x", tu)])),
-          ana_meet(sg([sv("x", tu)]), sg([sv("x", ti), sv("y", tb)])),
+          coercion(sg([sv("x", tu)]), sg([sv("x", ti), sv("y", tb)])),
         )
       ),
       test_case(
@@ -973,7 +973,7 @@ let ana_meet_tests = {
             opt_typ,
             "same manifest",
             Some(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
-            ana_meet(
+            coercion(
               sg([st("T", ti), sv("x", F.Typ.var("T"))]),
               sg([st("T", ti), sv("x", F.Typ.var("T")), sv("y", tb)]),
             ),
@@ -982,7 +982,7 @@ let ana_meet_tests = {
             opt_typ,
             "different manifest",
             None,
-            ana_meet(sg([st("T", ti)]), sg([st("T", tb), sv("y", tb)])),
+            coercion(sg([st("T", ti)]), sg([st("T", tb), sv("y", tb)])),
           );
         },
       ),
@@ -995,13 +995,13 @@ let ana_meet_tests = {
             opt_typ,
             "sig vs prod",
             None,
-            ana_meet(sg([sv("x", ti)]), prod),
+            coercion(sg([sv("x", ti)]), prod),
           );
           check(
             opt_typ,
             "prod vs sig",
             None,
-            ana_meet(prod, sg([sv("x", ti)])),
+            coercion(prod, sg([sv("x", ti)])),
           );
         },
       ),
@@ -1013,45 +1013,52 @@ let ana_meet_tests = {
             opt_typ,
             "? ana",
             Some(sg([sv("x", ti)])),
-            ana_meet(tu, sg([sv("x", ti)])),
+            coercion(tu, sg([sv("x", ti)])),
           );
           check(
             opt_typ,
             "? syn",
             Some(sg([sv("x", ti)])),
-            ana_meet(sg([sv("x", ti)]), tu),
+            coercion(sg([sv("x", ti)]), tu),
           );
         },
       ),
       test_case(
-        "functions are contravariant in their domain",
+        "seals through tuple components",
         `Quick,
         () => {
           let narrow = sg([sv("x", ti)]);
           let wide = sg([sv("x", ti), sv("y", ti)]);
           check(
             opt_typ,
-            "wide -> Int expected, narrow -> Int given",
-            Some(F.Typ.arrow(wide, ti)),
-            ana_meet(F.Typ.arrow(wide, ti), F.Typ.arrow(narrow, ti)),
+            "componentwise, holes refined",
+            Some(F.Typ.prod([ti, narrow])),
+            coercion(F.Typ.prod([tu, narrow]), F.Typ.prod([ti, wide])),
           );
           check(
             opt_typ,
-            "narrow -> Int expected, wide -> Int given",
+            "arity must agree",
             None,
-            ana_meet(F.Typ.arrow(narrow, ti), F.Typ.arrow(wide, ti)),
+            coercion(F.Typ.prod([narrow]), F.Typ.prod([ti, wide])),
           );
         },
       ),
       test_case(
-        "agrees with meet away from signatures",
+        "agrees with meet unless the expected type is a signature",
         `Quick,
         () => {
+          let narrow = sg([sv("x", ti)]);
+          let wide = sg([sv("x", ti), sv("y", ti)]);
           let pairs = [
             (ti, ti),
             (ti, tb),
             (F.Typ.list(ti), F.Typ.list(tu)),
             (F.Typ.arrow(ti, tb), F.Typ.arrow(ti, tb)),
+            /* no contravariance: function types match exactly */
+            (F.Typ.arrow(wide, ti), F.Typ.arrow(narrow, ti)),
+            (F.Typ.arrow(narrow, ti), F.Typ.arrow(wide, ti)),
+            /* no depth through lists */
+            (F.Typ.list(narrow), F.Typ.list(wide)),
             (
               F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]),
               F.Typ.prod([
@@ -1066,7 +1073,7 @@ let ana_meet_tests = {
                 opt_typ,
                 "same as meet",
                 Typ.meet(ctx, a, b),
-                ana_meet(a, b),
+                coercion(a, b),
               ),
             pairs,
           );
@@ -1083,5 +1090,5 @@ let tests = [
   sig_tests,
   cyclic_path_tests,
   subst_captures_tests,
-  ana_meet_tests,
+  coercion_tests,
 ];
