@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 let tests = (
   "PatternMatch",
@@ -54,8 +55,8 @@ let tests = (
           | (Matches(env1), Matches(env2)) =>
             List.equal(
               Environment.equal_binding(Language.Exp.fast_equal),
-              List.sort(compare, env1),
-              List.sort(compare, env2),
+              List.sort(~compare, env1),
+              List.sort(~compare, env2),
             )
           | _ => false
           };

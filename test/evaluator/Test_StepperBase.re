@@ -104,12 +104,12 @@ module InductionCaseHelpers = {
       elab_pattern: Calc.Pending,
       inner_exp:
         inner_exp
-        |> Option.map(exp => Calc.Calculated(exp))
+        |> Option.map(~f=exp => Calc.Calculated(exp))
         |> Option.value(~default=Calc.Pending),
       step: step |> Option.value(~default=StepperBase.init_step),
       last_exp:
         last_exp
-        |> Option.map(exp => Calc.Calculated(exp))
+        |> Option.map(~f=exp => Calc.Calculated(exp))
         |> Option.value(~default=Calc.Pending),
       inner_ctx: Calc.Pending,
       hypotheses: Calc.Pending,
@@ -629,7 +629,7 @@ let tests = (
           );
 
           // Verify inductive hypothesis IS generated
-          let inductive_case = List.nth(cases, 1);
+          let inductive_case = List.nth_exn(cases, 1);
           let hypotheses =
             inductive_case.Web.InductionCase.hypotheses
             |> Calc.get_saved_opt
@@ -644,7 +644,7 @@ let tests = (
 
           let has_ih =
             List.exists(
-              ((binding, _)) => binding.Binding.name == "ih",
+              ~f=((binding, _)) => String.equal(binding.Binding.name, "ih"),
               hypotheses,
             );
           check(bool, "should have 'ih' hypothesis", true, has_ih);

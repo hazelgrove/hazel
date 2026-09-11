@@ -1,3 +1,4 @@
+open Poly;
 /** Unit tests for coding-agent UX: slash commands, compaction dialogue slicing,
     CompactionPrompt assembly, OpenRouter chat response parsing, context-meter math,
     workbench completion semantics.
@@ -25,7 +26,7 @@ let slash_command_tests = [
     `Quick,
     () => {
       let xs = ChatSlashCommands.filtered("");
-      let names = List.map(fst, xs);
+      let names = List.map(~f=fst, xs);
       check(
         list(string),
         "alphabetical order",
@@ -41,8 +42,9 @@ let slash_command_tests = [
         names,
       );
       List.iter(
-        ((_, desc)) =>
-          check_bool("desc non-empty", true, String.length(desc) > 0),
+        ~f=
+          ((_, desc)) =>
+            check_bool("desc non-empty", true, String.length(desc) > 0),
         xs,
       );
     },
@@ -52,7 +54,7 @@ let slash_command_tests = [
     `Quick,
     () => {
       let xs = ChatSlashCommands.filtered("c");
-      let names = List.map(fst, xs);
+      let names = List.map(~f=fst, xs);
       check(list(string), "c-prefix", ["compact"], names);
     },
   ),
@@ -95,10 +97,10 @@ let slash_command_tests = [
       let p = ChatSlashCommands.help_payload();
       let names =
         List.map(
-          (e: Message.Model.help_entry) => e.help_name,
+          ~f=(e: Message.Model.help_entry) => e.help_name,
           p.help_entries,
         );
-      let has = needle => List.mem(needle, names);
+      let has = needle => List.mem(names, needle, ~equal=Poly.equal);
       check_bool("compact listed", true, has("compact"));
       check_bool("session-usage listed", true, has("session-usage"));
       check_bool("account-usage listed", true, has("account-usage"));
@@ -214,11 +216,11 @@ let dialogue_slice_tests = [
       let chat = Chat.Utils.append(u, chat);
       let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "one message", 1, List.length(slice));
-      switch (List.hd(slice).role) {
+      switch (List.hd_exn(slice).role) {
       | User => ()
       | _ => fail("expected User")
       };
-      check_string("content", "hello", List.hd(slice).content);
+      check_string("content", "hello", List.hd_exn(slice).content);
     },
   ),
   test_case(
@@ -236,7 +238,7 @@ let dialogue_slice_tests = [
       let chat = Chat.Utils.append(u, chat);
       let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "summary + post-summary", 2, List.length(slice));
-      switch (List.hd(slice).role) {
+      switch (List.hd_exn(slice).role) {
       | Message.Model.System(Message.Model.CompactionSummary(m)) =>
         check_string("method", "test-method", m)
       | _ => fail("expected CompactionSummary first in slice")
@@ -244,12 +246,12 @@ let dialogue_slice_tests = [
       check_string(
         "prior body",
         "prior summary body",
-        List.hd(slice).content,
+        List.hd_exn(slice).content,
       );
       check_string(
         "after content",
         "after compact",
-        List.nth(slice, 1).content,
+        List.nth_exn(slice, 1).content,
       );
     },
   ),
@@ -385,7 +387,7 @@ let agent_workbench_tests = [
         bool,
         "both subtasks completed",
         true,
-        List.for_all(AgentWorkbench.Utils.SubtaskUtils.is_completed, subs),
+        List.for_all(~f=AgentWorkbench.Utils.SubtaskUtils.is_completed, subs),
       );
       check(
         bool,
@@ -412,25 +414,27 @@ let chat_messages_for_openrouter_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("post"), chat);
       let ms = Chat.Utils.messages_for_openrouter(chat);
       check(int, "prompt+dev+suffix", 4, List.length(ms));
-      switch (List.nth(ms, 0).role) {
+      switch (List.nth_exn(ms, 0).role) {
       | Message.Model.System(Message.Model.Prompt) => ()
       | _ => fail("expected Prompt first")
       };
-      switch (List.nth(ms, 1).role) {
+      switch (List.nth_exn(ms, 1).role) {
       | Message.Model.System(Message.Model.DeveloperNotes) => ()
       | _ => fail("expected DeveloperNotes second")
       };
       let has_compact =
         List.exists(
-          (m: Message.Model.t) =>
-            switch (m.role) {
-            | Message.Model.System(Message.Model.CompactionSummary(_)) => true
-            | _ => false
-            },
+          ~f=
+            (m: Message.Model.t) =>
+              switch (m.role) {
+              | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+                true
+              | _ => false
+              },
           ms,
         );
       check_bool("includes compaction summary", true, has_compact);
-      check_string("post user last", "post", List.nth(ms, 3).content);
+      check_string("post user last", "post", List.nth_exn(ms, 3).content);
     },
   ),
   test_case(
@@ -442,7 +446,7 @@ let chat_messages_for_openrouter_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("only"), chat);
       let ms = Chat.Utils.messages_for_openrouter(chat);
       check(int, "three messages", 3, List.length(ms));
-      check_string("user tail", "only", List.nth(ms, 2).content);
+      check_string("user tail", "only", List.nth_exn(ms, 2).content);
     },
   ),
 ];
@@ -519,7 +523,7 @@ let count_substring = (needle: string, hay: string): int => {
   let rec go = (i, acc) =>
     if (nlen == 0 || i > hlen - nlen) {
       acc;
-    } else if (String.sub(hay, i, nlen) == needle) {
+    } else if (String.equal(String.sub(hay, ~pos=i, ~len=nlen), needle)) {
       go(i + nlen, acc + 1);
     } else {
       go(i + 1, acc);
@@ -614,20 +618,20 @@ let prompt_caching_tests = [
       };
       let msgs = Chat.Utils.api_messages_for_openrouter(chat);
       check_int("prompt+dev+user+snapshot", 4, List.length(msgs));
-      /* Dev-notes (index 1) keeps its floor anchor; the user message (index 2,
+      /* Dev-notes (index 1) keeps its Stdlib.floor anchor; the user message (index 2,
          just before the snapshot) gets the advancing anchor; the snapshot
          (index 3) stays unmarked. */
       let anchored_count =
         List.length(
           List.filter(
-            (m: OpenRouter.Message.Model.t) => m.cache_anchor,
+            ~f=(m: OpenRouter.Message.Model.t) => m.cache_anchor,
             msgs,
           ),
         );
       check_int("two anchors", 2, anchored_count);
-      let snapshot = List.nth(msgs, 3);
+      let snapshot = List.nth_exn(msgs, 3);
       check_bool("snapshot unanchored", false, snapshot.cache_anchor);
-      let history = List.nth(msgs, 2);
+      let history = List.nth_exn(msgs, 2);
       check_bool("history message anchored", true, history.cache_anchor);
     },
   ),
@@ -988,7 +992,11 @@ let toolcall_handler_tests = [
         )
       | Error(AgentResult.Failure.Info(msg)) =>
         let unknown = "Unknown error occured when trying to apply tool request to editor";
-        check_bool("not the old opaque message", false, msg == unknown);
+        check_bool(
+          "not the old opaque message",
+          false,
+          String.equal(msg, unknown),
+        );
         check_bool(
           "includes Action.Failure.show text (Cant_derive or similar)",
           true,
@@ -1053,7 +1061,7 @@ let context_llm_snapshot_tests = [
         ErrorPrint.all(
           CompositionGo.Public.mk_statics(cws.editor.state.zipper),
         )
-        |> String.concat("\n");
+        |> String.concat(~sep="\n");
       let tests =
         Agent.Utils.test_results_for_context(
           EvalResult.Model.test_results(eval_result),
@@ -1230,7 +1238,7 @@ let tool_call_summary_tests = [
       check_bool(
         "display_name='insert'",
         true,
-        ToolCallSummary.display_name_for(tc) == "insert",
+        String.equal(ToolCallSummary.display_name_for(tc), "insert"),
       );
     },
   ),
@@ -1246,7 +1254,7 @@ let tool_call_summary_tests = [
       check_bool(
         "display_name unchanged when path present",
         true,
-        ToolCallSummary.display_name_for(tc) == "insert_before",
+        String.equal(ToolCallSummary.display_name_for(tc), "insert_before"),
       );
     },
   ),
@@ -1341,7 +1349,10 @@ let tool_call_summary_tests = [
           "ends with ellipsis",
           true,
           String.length(sig_) > 1
-          && String.sub(sig_, String.length(sig_) - 3, 3) == {|…|},
+          && String.equal(
+               String.sub(sig_, ~pos=String.length(sig_) - 3, ~len=3),
+               {|…|},
+             ),
         );
       | None => fail("expected signifier")
       };
@@ -1676,7 +1687,7 @@ let streaming_markdown_tests = [
       let is_code_tail =
         switch (List.rev(blocks)) {
         | [Omd.Code_block(_, _, body), ..._] =>
-          String.trim(body) == "let x = 1"
+          String.equal(String.strip(body), "let x = 1")
         | _ => false
         };
       check_bool("tail is code block", true, is_code_tail);
@@ -1692,7 +1703,9 @@ let streaming_markdown_tests = [
       let rec go = i =>
         if (i <= n) {
           ignore(
-            AgentMessageMarkdown.view_streaming(String.sub(full, 0, i)),
+            AgentMessageMarkdown.view_streaming(
+              String.sub(full, ~pos=0, ~len=i),
+            ),
           );
           go(i + 1);
         };

@@ -64,7 +64,8 @@ let eval_incr =
 let replace_int_lit = (~from: int, ~to_: int, ~to_id=?, exp: Exp.t): Exp.t => {
   let f_exp = (continue, e: Exp.t): Exp.t =>
     switch (e.term) {
-    | Atom(Int(n)) when Bigint.to_string(n) == string_of_int(from) =>
+    | Atom(Int(n))
+        when String.equal(Bigint.to_string(n), Stdlib.string_of_int(from)) =>
       let new_term: Exp.term = Atom(Int(Bigint.of_int(to_)));
       {
         annotation: Option.value(~default=e.annotation, to_id),
@@ -95,7 +96,11 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
       | Let(_, def, body)
           when
             switch (def.term) {
-            | Atom(Int(n)) => Bigint.to_string(n) == string_of_int(rhs_val)
+            | Atom(Int(n)) =>
+              String.equal(
+                Bigint.to_string(n),
+                Stdlib.string_of_int(rhs_val),
+              )
             | _ => false
             } =>
         go(body)
@@ -267,7 +272,8 @@ let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
       switch (e.term) {
       | BinOp(Operators.Int(Operators.Plus), lhs, rhs) =>
         switch (lhs.term, rhs.term) {
-        | (Var("u"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+        | (Var("u"), Atom(Int(n)))
+            when String.equal(Bigint.to_string(n), "1") =>
           changed := true;
           lhs;
         | _ => continue(e)
@@ -622,7 +628,7 @@ in
       switch (e.term) {
       | Ap(_, _, arg) =>
         switch (arg.term) {
-        | Atom(Int(n)) when Bigint.to_string(n) == "20" =>
+        | Atom(Int(n)) when String.equal(Bigint.to_string(n), "20") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -973,11 +979,12 @@ let c = {
       switch (items) {
       | [_first, ...rest] =>
         List.filter_map(
-          (item: Mod.t) =>
-            switch (item.term) {
-            | ModLet(_, _) => Some(Mod.rep_id(item))
-            | _ => None
-            },
+          ~f=
+            (item: Mod.t) =>
+              switch (item.term) {
+              | ModLet(_, _) => Some(Mod.rep_id(item))
+              | _ => None
+              },
           rest,
         )
       | [] => []
@@ -996,7 +1003,11 @@ let c = {
    * expand that to the elab-descendant closure by walking cached prev_elab
    * (in `incr.entries`) and union all rep_ids. */
   let frozen = frozen_ids_for(~prev=incr1, exp2);
-  let missing = List.filter(id => !List.mem(id, frozen), c_inner_modlet_ids);
+  let missing =
+    List.filter(
+      ~f=id => !List.mem(frozen, id, ~equal=Poly.equal),
+      c_inner_modlet_ids,
+    );
   check(
     int,
     "all inner ModLet ids of module c land in the frozen set",
@@ -1028,7 +1039,7 @@ let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
       }
     | _ => []
     };
-  let ids = List.map(Exp.rep_id, rhs_tuple_elts);
+  let ids = List.map(~f=Exp.rep_id, rhs_tuple_elts);
   check(
     int,
     "RHS tuple has 2 elements after elaboration",
@@ -1130,18 +1141,23 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
     };
   let (_, _, incr1) = eval_incr(exp1);
   let frozen = frozen_ids_for(~prev=incr1, exp2);
-  check(bool, "Atom 0 is in frozen set", true, List.mem(zero_id, frozen));
+  check(
+    bool,
+    "Atom 0 is in frozen set",
+    true,
+    List.mem(frozen, zero_id, ~equal=Poly.equal),
+  );
   check(
     bool,
     "Module {} is in frozen set",
     true,
-    List.mem(module_id, frozen),
+    List.mem(frozen, module_id, ~equal=Poly.equal),
   );
   check(
     bool,
     "Tuple ({}, 0) is in frozen set",
     true,
-    List.mem(tuple_id, frozen),
+    List.mem(frozen, tuple_id, ~equal=Poly.equal),
   );
 };
 
@@ -1281,7 +1297,7 @@ f(8)|};
       switch (e.term) {
       | Ap(_, _, arg) =>
         switch (arg.term) {
-        | Atom(Int(n)) when Bigint.to_string(n) == "8" =>
+        | Atom(Int(n)) when String.equal(Bigint.to_string(n), "8") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1346,7 +1362,9 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
         | (Atom(Int(a)), Atom(Int(b)))
-            when Bigint.to_string(a) == "1" && Bigint.to_string(b) == "2" =>
+            when
+              String.equal(Bigint.to_string(a), "1")
+              && String.equal(Bigint.to_string(b), "2") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1374,7 +1392,11 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
     bool,
     "Run 2: `1 + 2` is in frozen_ids (subsumed by a reused ancestor)",
     true,
-    List.mem(plus_1_2_id, frozen_ids_for(~prev=incr1, exp2)),
+    List.mem(
+      frozen_ids_for(~prev=incr1, exp2),
+      plus_1_2_id,
+      ~equal=Poly.equal,
+    ),
   );
   /* The actual bug: on run 3, `(1+2)+3` becomes `(1+2)+4` so its parent
    * (and the parent's parent) must be recalculated. The evaluator descends
@@ -1449,7 +1471,11 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
     bool,
     "Body `x` is frozen on run 2 (resolves to inner let, not edited outer)",
     true,
-    List.mem(body_x_id, frozen_ids_for(~prev=incr1, exp2)),
+    List.mem(
+      frozen_ids_for(~prev=incr1, exp2),
+      body_x_id,
+      ~equal=Poly.equal,
+    ),
   );
 };
 
@@ -1495,7 +1521,8 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
       switch (e.term) {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
-        | (Var("x"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+        | (Var("x"), Atom(Int(n)))
+            when String.equal(Bigint.to_string(n), "1") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }

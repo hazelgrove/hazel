@@ -7,8 +7,8 @@ open IdTagged.FreshGrammar;
    string_sub consumes. */
 
 let imp_of = (name: string): (DHExp.t => option(DHExp.t)) => {
-  let named = (f: BuiltinsUtil.fn) => f.name == name;
-  switch (List.find_opt(named, BuiltinsBase.string_fns)) {
+  let named = (f: BuiltinsUtil.fn) => String.equal(f.name, name);
+  switch (List.find(~f=named, BuiltinsBase.string_fns)) {
   | Some(f) => f.imp
   | None => failwith("unknown string builtin: " ++ name)
   };
@@ -31,7 +31,7 @@ let as_int = (d: option(DHExp.t)): int =>
   switch (d) {
   | Some(d) =>
     switch (DHExp.term_of(d)) {
-    | Atom(Int(i)) => Bigint.to_int(i) |> Option.get
+    | Atom(Int(i)) => Bigint.to_int(i) |> Option.value_exn
     | _ => failwith("expected an Int result, got " ++ DHExp.show(d))
     }
   | None => failwith("builtin did not reduce")
@@ -51,7 +51,7 @@ let as_strings = (d: option(DHExp.t)): list(string) =>
   switch (d) {
   | Some(d) =>
     switch (DHExp.term_of(d)) {
-    | ListLit(ds) => List.map(d => as_string(Some(d)), ds)
+    | ListLit(ds) => List.map(~f=d => as_string(Some(d)), ds)
     | _ => failwith("expected a list result, got " ++ DHExp.show(d))
     }
   | None => failwith("builtin did not reduce")

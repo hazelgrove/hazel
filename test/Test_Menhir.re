@@ -43,7 +43,7 @@ let strip_wrap =
 let make_term_parse = (s: string) =>
   strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.Parser.to_zipper(s, ~root=Exp)),
+      Option.value_exn(Haz3lcore.Parser.to_zipper(s, ~root=Exp)),
       ~root=Exp,
     ).
       term,
@@ -172,7 +172,7 @@ let qcheck_menhir_maketerm_equivalent_test =
       | exception (Failure(msg)) =>
         print_endline("Error: " ++ msg);
         print_endline("Serialized: " ++ serialized);
-        msg == "Sum type has non-unique constructors";
+        String.equal(msg, "Sum type has non-unique constructors");
       };
     },
   );

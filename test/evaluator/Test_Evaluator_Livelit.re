@@ -14,28 +14,29 @@ let tests = (
   [
     test_case("Ensure evaluation of livelit is as expected", `Quick, () => {
       List.iter(
-        (livelit: LivelitCtx.raw_livelit) => {
-          let model = livelit.model_default;
-          let expected_eval =
-            switch (livelit.name) {
-            | "slider" => sint(50)
-            | "emotion" => string("neutral")
-            | "js" => string("")
-            | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
-            };
+        ~f=
+          (livelit: LivelitCtx.raw_livelit) => {
+            let model = livelit.model_default;
+            let expected_eval =
+              switch (livelit.name) {
+              | "slider" => sint(50)
+              | "emotion" => string("neutral")
+              | "js" => string("")
+              | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
+              };
 
-          let model_string =
-            switch (model) {
-            | {term: Tuple(_), _} =>
-              Printer.of_segment(exp_to_segment(model))
-            | _ => "(" ++ Printer.of_segment(exp_to_segment(model)) ++ ")"
-            };
+            let model_string =
+              switch (model) {
+              | {term: Tuple(_), _} =>
+                Printer.of_segment(exp_to_segment(model))
+              | _ => "(" ++ Printer.of_segment(exp_to_segment(model)) ++ ")"
+              };
 
-          parse_and_evaluate_test(
-            Printer.of_segment(exp_to_segment(expected_eval)),
-            "^" ++ livelit.name ++ model_string,
-          );
-        },
+            parse_and_evaluate_test(
+              Printer.of_segment(exp_to_segment(expected_eval)),
+              "^" ++ livelit.name ++ model_string,
+            );
+          },
         Livelit.livelits,
       )
     }),
