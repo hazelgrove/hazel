@@ -167,6 +167,282 @@ module Option = {
   ];
 };
 
+// Event data types for keyboard and mouse events.
+// Labeled so handlers can use projection (e.key, e.ctrl) instead of
+// positional destructuring.
+module Event = {
+  let field = (name: string, ty: Typ.t): Typ.t =>
+    tup_label(label(name), ty);
+
+  // KeyEvent: (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+  let key: Typ.t =
+    prod([
+      field("key", string()),
+      field("code", string()),
+      field("ctrl", bool()),
+      field("shift", bool()),
+      field("alt", bool()),
+      field("meta", bool()),
+    ]);
+
+  // MouseEvent: (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+  // button: 0=left, 1=middle, 2=right
+  let mouse: Typ.t =
+    prod([
+      field("x", float()),
+      field("y", float()),
+      field("button", int()),
+      field("ctrl", bool()),
+      field("shift", bool()),
+      field("alt", bool()),
+      field("meta", bool()),
+    ]);
+};
+
+module HTML = {
+  // Helper for elements with attrs and children: (List(Attr), List(HTML))
+  let elem_body = () => prod([list(var("Attr")), list(var("HTML"))]);
+  // Helper for elements with attrs only: List(Attr)
+  let attrs_only = () => list(var("Attr"));
+
+  let t: Typ.t =
+    IdTagged.FreshGrammar.Typ.rec_(
+      IdTagged.FreshGrammar.TPat.var("HTML"),
+      sum_type([
+        // === Text content ===
+        ("Text", Some(string())),
+        // === Primitive value display (convenience) ===
+        ("Bool", Some(bool())),
+        ("Int", Some(int())),
+        ("Float", Some(float())),
+        // === Structural elements ===
+        ("Div", Some(elem_body())),
+        ("Span", Some(elem_body())),
+        ("P", Some(elem_body())),
+        ("Pre", Some(elem_body())),
+        ("Code", Some(elem_body())),
+        ("Blockquote", Some(elem_body())),
+        // === Headings ===
+        ("H1", Some(elem_body())),
+        ("H2", Some(elem_body())),
+        ("H3", Some(elem_body())),
+        ("H4", Some(elem_body())),
+        ("H5", Some(elem_body())),
+        ("H6", Some(elem_body())),
+        // === Lists ===
+        ("Ul", Some(elem_body())),
+        ("Ol", Some(elem_body())),
+        ("Li", Some(elem_body())),
+        // === Forms ===
+        ("Form", Some(elem_body())),
+        ("Label", Some(elem_body())),
+        ("Input", Some(attrs_only())),
+        ("TextArea", Some(prod([attrs_only(), string()]))), // attrs, content
+        ("Button", Some(elem_body())), // Changed: now takes children too
+        ("Select", Some(elem_body())),
+        ("Option", Some(prod([attrs_only(), string()]))), // attrs, label text
+        // === Links and media ===
+        ("A", Some(elem_body())),
+        ("Img", Some(attrs_only())),
+        // === Tables ===
+        ("Table", Some(elem_body())),
+        ("Thead", Some(elem_body())),
+        ("Tbody", Some(elem_body())),
+        ("Tr", Some(elem_body())),
+        ("Th", Some(elem_body())),
+        ("Td", Some(elem_body())),
+        // === Semantic sections ===
+        ("Header", Some(elem_body())),
+        ("Footer", Some(elem_body())),
+        ("Nav", Some(elem_body())),
+        ("Main", Some(elem_body())),
+        ("Section", Some(elem_body())),
+        ("Article", Some(elem_body())),
+        ("Aside", Some(elem_body())),
+        // === Utility elements ===
+        ("Br", None),
+        ("Hr", Some(attrs_only())),
+        // === Generic element (escape hatch) ===
+        // Node(tagName, attrs, children)
+        ("Node", Some(prod([string(), attrs_only(), list(var("HTML"))]))),
+      ]),
+    );
+
+  let attr: Typ.t =
+    sum_type([
+      // === Identity ===
+      ("Id", Some(string())),
+      ("Class", Some(string())),
+      ("Classes", Some(list(string()))),
+      // === Common properties ===
+      ("Disabled", Some(bool())),
+      ("Placeholder", Some(string())),
+      ("Value", Some(string())),
+      ("Checked", Some(bool())),
+      ("Selected", Some(bool())),
+      ("ReadOnly", Some(bool())),
+      ("Required", Some(bool())),
+      ("AutoFocus", Some(bool())),
+      // === Links/media ===
+      ("Href", Some(string())),
+      ("Src", Some(string())),
+      ("Alt", Some(string())),
+      ("Title", Some(string())),
+      ("Target", Some(string())),
+      // === Input specifics ===
+      ("Type", Some(string())),
+      ("Name", Some(string())),
+      ("Min", Some(string())),
+      ("Max", Some(string())),
+      ("Step", Some(string())),
+      ("MaxLength", Some(int())),
+      ("Pattern", Some(string())),
+      // === Layout ===
+      ("Width", Some(string())),
+      ("Height", Some(string())),
+      ("ColSpan", Some(int())),
+      ("RowSpan", Some(int())),
+      // === Styling ===
+      ("Style", Some(list(prod([string(), string()])))),
+      // === Data attributes ===
+      ("Data", Some(prod([string(), string()]))), // data-{name}={value}
+      // === Event handlers (Elm-style: handlers produce messages) ===
+      // Simple events: handler IS the msg value (Unknown)
+      ("OnClick", Some(unknown(Internal))),
+      ("OnDoubleClick", Some(unknown(Internal))),
+      ("OnMouseEnter", Some(unknown(Internal))),
+      ("OnMouseLeave", Some(unknown(Internal))),
+      ("OnFocus", Some(unknown(Internal))),
+      ("OnBlur", Some(unknown(Internal))),
+      ("OnSubmit", Some(unknown(Internal))),
+      // Events with mouse data: MouseEvent -> msg
+      ("OnMouseDown", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      ("OnMouseUp", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      ("OnMouseMove", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      // Mouse events with element-relative position: (x, y) in px -> msg
+      ("OnClickAt", Some(arrow(prod([int(), int()]), unknown(Internal)))),
+      (
+        "OnMouseDownAt",
+        Some(arrow(prod([int(), int()]), unknown(Internal))),
+      ),
+      (
+        "OnMouseMoveAt",
+        Some(arrow(prod([int(), int()]), unknown(Internal))),
+      ),
+      (
+        "OnMouseUpAt",
+        Some(arrow(prod([int(), int()]), unknown(Internal))),
+      ),
+      // Wheel with element-relative position: (x, y, dx, dy) -> msg
+      (
+        "OnWheelAt",
+        Some(
+          arrow(prod([int(), int(), float(), float()]), unknown(Internal)),
+        ),
+      ),
+      // Events with key data: KeyEvent -> msg
+      ("OnKeyDown", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+      ("OnKeyUp", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+      ("OnKeyPress", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+      // Events with string data: String -> msg
+      ("OnInput", Some(arrow(string(), unknown(Internal)))),
+      ("OnChange", Some(arrow(string(), unknown(Internal)))),
+      // === Generic attribute escape hatches ===
+      ("Create", Some(prod([string(), string()]))), // generic attr(name, value)
+      ("BoolAttr", Some(prod([string(), bool()]))) // generic bool attr
+    ]);
+};
+
+// Command type for side effects (fire-and-forget)
+module Cmd = {
+  let t: Typ.t =
+    IdTagged.FreshGrammar.Typ.rec_(
+      IdTagged.FreshGrammar.TPat.var("Cmd"),
+      sum_type([
+        // === No-op ===
+        ("CmdNone", None),
+        // === Batch multiple commands ===
+        ("CmdBatch", Some(list(var("Cmd")))),
+        // === DOM manipulation ===
+        ("Focus", Some(string())), // element id
+        ("Blur", Some(string())), // element id
+        ("ScrollIntoView", Some(string())), // element id
+        ("ScrollTo", Some(prod([string(), float(), float()]))), // id, x, y
+        // === Clipboard ===
+        ("CopyToClipboard", Some(string())),
+        // === Time-delayed message dispatch ===
+        ("Delay", Some(prod([float(), unknown(Internal)]))), // ms, msg
+        // === Sound ===
+        ("PlayTone", Some(prod([float(), float()]))), // freq Hz, duration ms
+        // === Speech ===
+        ("Say", Some(string())),
+        // === Randomness (Elm-style: drawn at the boundary, not in eval) ===
+        ("Random", Some(arrow(float(), unknown(Internal)))), // [0,1) -> msg
+        // === Debugging ===
+        ("Log", Some(string())),
+      ]),
+    );
+};
+
+// Subscription type for event sources (continuous events)
+module Sub = {
+  let t: Typ.t =
+    IdTagged.FreshGrammar.Typ.rec_(
+      IdTagged.FreshGrammar.TPat.var("Sub"),
+      sum_type([
+        // === No-op ===
+        ("SubNone", None),
+        // === Batch multiple subscriptions ===
+        ("SubBatch", Some(list(var("Sub")))),
+        // === Window events ===
+        // OnResize: (Int, Int) -> msg
+        (
+          "OnResize",
+          Some(arrow(prod([int(), int()]), unknown(Internal))),
+        ),
+        // OnVisibilityChange: Bool -> msg
+        ("OnVisibilityChange", Some(arrow(bool(), unknown(Internal)))),
+        // === Global keyboard (document level) ===
+        // OnDocumentKeyDown: KeyEvent -> msg
+        (
+          "OnDocumentKeyDown",
+          Some(arrow(var("KeyEvent"), unknown(Internal))),
+        ),
+        // OnDocumentKeyUp: KeyEvent -> msg
+        (
+          "OnDocumentKeyUp",
+          Some(arrow(var("KeyEvent"), unknown(Internal))),
+        ),
+        // === Time-based ===
+        // Every: (interval ms, Float -> msg)
+        (
+          "Every",
+          Some(prod([float(), arrow(float(), unknown(Internal))])),
+        ),
+        // AnimationFrame: Float -> msg
+        ("AnimationFrame", Some(arrow(float(), unknown(Internal)))),
+      ]),
+    );
+};
+
+// App type for full applications with Elm-style MVU architecture
+// App = (init_model, update, view, subs) where
+//   update: (msg, model) -> model, or (msg, model) -> (model, Cmd)
+//   view: model -> HTML
+//   subs: model -> Sub
+module App = {
+  let t: Typ.t =
+    prod([
+      unknown(Internal), // init_model
+      arrow(
+        prod([unknown(Internal), unknown(Internal)]), // update: (msg, model) ->
+        unknown(Internal),
+      ), //   model (or (model, Cmd))
+      arrow(unknown(Internal), var("HTML")), // view: model -> HTML
+      arrow(unknown(Internal), var("Sub")) // subs: model -> Sub
+    ]);
+};
+
 module JSON = {
   /* Self-reference for the recursive type */
   let self: Typ.t = var("JSON");
@@ -195,10 +471,18 @@ module JSON = {
 };
 
 // List of type aliases to add to the context
+// Some are sum types (with constructors), others are product types (no constructors)
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
+  ("KeyEvent", Event.key),
+  ("MouseEvent", Event.mouse),
+  ("HTML", HTML.t),
+  ("Attr", HTML.attr),
+  ("Cmd", Cmd.t),
+  ("Sub", Sub.t),
+  ("App", App.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),
 ];
@@ -214,21 +498,20 @@ let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
 let types: list(Ctx.entry) =
   List.map(((name, typ)) => create_type_alias(name, typ), type_aliases);
 
-// Add constructors for type aliases to the context
+// Add constructors for sum type aliases to the context
+// Product types (like KeyEvent, MouseEvent) have no constructors
 let constructors: Ctx.t = {
   List.fold_left(
     (ctx, (name, typ)) => {
-      let cons_map =
-        switch (Typ.term_of(typ)) {
-        | Sum(cons_map) => cons_map
-        | Rec(_, tbody) =>
-          switch (Typ.term_of(tbody)) {
-          | Sum(cons_map) => cons_map
-          | _ => failwith("Type alias must be a sum type")
-          }
-        | _ => failwith("Type alias must be a sum type")
-        };
-      Ctx.add_ctrs(ctx, name, cons_map);
+      switch (Typ.term_of(typ)) {
+      | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
+      | Rec(_, tbody) =>
+        switch (Typ.term_of(tbody)) {
+        | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
+        | _ => ctx
+        }
+      | _ => ctx // Product types have no constructors to add
+      }
     },
     Ctx.empty,
     type_aliases,

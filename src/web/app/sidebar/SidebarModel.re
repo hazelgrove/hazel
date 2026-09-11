@@ -6,6 +6,7 @@ module Settings = {
     | LanguageDocumentation
     | HelpfulAssistant
     | Probes
+    | Projectors
     | LogControl
     | Problems
     | DebugInfo;

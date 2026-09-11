@@ -56,6 +56,7 @@ let registry: list((string, entry)) = {
       names,
     );
   entries("View", Ungated, ["expand", "collapse"])
+  @ entries("Docs", Ungated, ["read_docs"])
   @ entries(
       "View",
       OverlayGated,
