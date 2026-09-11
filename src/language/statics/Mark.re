@@ -78,6 +78,12 @@ type t =
       members: list(Var.t),
       type_member: bool,
     })
+  /* A signature declares member [name] more than once; on the later item.
+     Values and modules share a namespace, type members have their own. */
+  | SigDuplicateMember({
+      name: Var.t,
+      type_member: bool,
+    })
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
