@@ -33,6 +33,11 @@ type exp =
       name: Var.t,
       members: list(Var.t),
     })
+  /* `t.y` where the labeled tuple has no label y: likewise. */
+  | TupleLabelNotFound({
+      name: LabeledTuple.label,
+      labels: list(LabeledTuple.label),
+    })
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
