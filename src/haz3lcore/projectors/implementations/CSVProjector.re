@@ -74,7 +74,6 @@ module M: Projector = {
 
     switch (
       info.utility.lift_syntax(
-        ~inline=true,
         fun
         | Exp(any) =>
           Exp({
@@ -82,6 +81,7 @@ module M: Projector = {
             term: exp,
           })
         | _any => failwith("csv: put: not string literal"),
+        Inline.Block,
         info.syntax,
       )
     ) {

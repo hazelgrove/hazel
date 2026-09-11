@@ -764,7 +764,7 @@ module View = {
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(
                  ~settings=
-                   Settings.of_core(~inline=false, globals.settings.core),
+                   Settings.of_core(~inline=Block, globals.settings.core),
                )
              )
           |> Haz3lcore.PrettySegment.prettify

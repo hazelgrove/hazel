@@ -8,7 +8,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   secondary: AutoFormat,
   parenthesization: Defensive,
   label_format: QuoteWhenNecessary,
-  inline: true,
+  inline: Inline,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
@@ -518,7 +518,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   secondary: PreserveExact,
   parenthesization: Structural, /* Don't add defensive parens for round-tripping */
   label_format: QuoteWhenNecessary, /* Only quote labels that need it */
-  inline: true, /* ignored when secondary = PreserveExact */
+  inline: Inline, /* ignored when secondary = PreserveExact */
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,

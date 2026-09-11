@@ -462,7 +462,7 @@ let attempt =
         );
       let settings =
         ExpToSegment.Settings.{
-          ...ExpToSegment.Settings.editable(~inline=true),
+          ...ExpToSegment.Settings.editable(~inline=Inline.Inline),
           secondary: PreserveExact,
           parenthesization: Structural,
           /* a source `?` lands as the explicit hole TILE; `¿` (the

@@ -14,7 +14,7 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   secondary: AutoFormat,
   parenthesization: Defensive,
   label_format: QuoteWhenNecessary,
-  inline: true,
+  inline: Inline,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
@@ -31,7 +31,7 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
    keep code_settings so each `name : type` row stays on one line. */
 let code_settings_ml: Haz3lcore.ExpToSegment.Settings.t = {
   ...code_settings,
-  inline: false,
+  inline: Block,
 };
 
 /* Pretty-print a type to the text the rendered view displays, with empty

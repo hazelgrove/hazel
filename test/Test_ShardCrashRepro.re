@@ -33,7 +33,7 @@ let display_settings: ExpToSegment.Settings.t = {
   secondary: AutoFormat,
   parenthesization: Defensive,
   label_format: QuoteWhenNecessary,
-  inline: true,
+  inline: Inline,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
@@ -280,7 +280,7 @@ let tests = {
  * adopted fragments can carry the same ids. */
 
 let projector_display_settings = {
-  ...ExpToSegment.Settings.of_core(~inline=true, Language.CoreSettings.off),
+  ...ExpToSegment.Settings.of_core(~inline=Inline, Language.CoreSettings.off),
   show_unknown_as_hole: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
@@ -595,7 +595,7 @@ let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
  * unrolling duplicates source ids inside ONE printed segment. */
 
 let drawer_settings = {
-  ...ExpToSegment.Settings.of_core(~inline=false, Language.CoreSettings.off),
+  ...ExpToSegment.Settings.of_core(~inline=Block, Language.CoreSettings.off),
   show_unknown_as_hole: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,

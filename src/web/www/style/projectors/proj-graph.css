@@ -1,0 +1,182 @@
+/* Graph Projector */
+
+.projector.graph {
+  width: -webkit-fill-available;
+  height: -webkit-fill-available;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* width: 95%; */
+}
+
+/* .projector.graph.indicated > svg {
+  fill: var(--G2);
+} */
+
+.projector.graph .graph-projector {
+  width: 93%;
+  /* height: 100%; */
+}
+.graph-projector {
+  margin: 0.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  border-radius: 0.5em;
+  position: relative;
+}
+
+.graph-projector.graph-error {
+  /* color: var(--R2); */
+}
+
+.graph-projector.graph-has-data {
+  gap: 0.4em;
+}
+
+.graph-chart {
+  width: calc(100% - 12px);
+  height: auto;
+}
+
+.graph-warning-indicator {
+  position: absolute;
+  top: 0.35em;
+  right: 0.45em;
+  font-size: 0.9em;
+  line-height: 1;
+  color: var(--warning-color, var(--Y2));
+  cursor: help;
+}
+
+.graph-projector.graph-error .graph-warning-indicator {
+  color: var(--R2);
+}
+
+.graph-chart .graph-background {
+  fill: var(--SAND);
+  /* stroke: var(--BR3);
+  stroke-width: 0.5px; */
+}
+
+.graph-axis {
+  stroke: var(--BR2);
+  stroke-width: 1px;
+}
+
+.graph-axis-tick {
+  stroke: var(--BR3);
+  stroke-width: 0.75px;
+}
+
+.graph-axis-label,
+.graph-axis-caption,
+.graph-title,
+.graph-legend-label {
+  font-family: var(--ui-font);
+  fill: var(--FG0);
+}
+
+.graph-axis-label {
+  font-size: 9px;
+}
+
+.graph-axis-caption {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.graph-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.graph-series-line {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.graph-legend {
+  font-size: 10px;
+}
+
+.graph-legend-swatch {
+  stroke: var(--BR3);
+  stroke-width: 0.5px;
+}
+
+/* Observable Plot specific layout overrides */
+.projector.ObservablePlot {
+  --ObservablePlot-outer-padding: 0.55rem;
+  --ObservablePlot-inner-padding: 0.6rem;
+  --ObservablePlot-chart-padding: 0.5rem;
+
+  width: 100%;
+  height: 100%;
+  /* padding: var(--ObservablePlot-outer-padding); */
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.projector.ObservablePlot .graph-projector {
+  margin: 0.5em;
+  /* width: 100%;
+  height: 100%; */
+  padding: var(--ObservablePlot-inner-padding);
+  box-sizing: border-box;
+  border-radius: 0.65rem;
+  background-color: white;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+}
+
+.projector.ObservablePlot .graph-projector.graph-has-data {
+  gap: 0;
+}
+
+.projector.ObservablePlot .graph-projector .ObservablePlot-shell {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: var(--ObservablePlot-chart-padding);
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.projector.ObservablePlot .graph-projector .ObservablePlot-chart {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.projector.ObservablePlot .graph-projector .ObservablePlot-chart > figure {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.projector.ObservablePlot .graph-projector .ObservablePlot-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.25) 50%);
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  border-left: 1px solid rgba(0, 0, 0, 0.15);
+  border-top-left-radius: 2px;
+}
+
+.projector.ObservablePlot .graph-chart {
+  width: 100%;
+  height: 100%;
+}

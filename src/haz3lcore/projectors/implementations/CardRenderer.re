@@ -59,8 +59,8 @@ let update: (m, a) => m =
 
 let put = (info: info, card: card): option(Base.segment) =>
   info.utility.lift_syntax(
-    ~inline=true,
     _: Any.t => Exp(CardSyntax.card_to_exp(card)),
+    Inline.Block,
     info.syntax,
   );
 

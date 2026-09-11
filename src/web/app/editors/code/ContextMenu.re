@@ -338,24 +338,25 @@ module Projectors = {
     | Table => "Table"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
+    | Graph => "Graph"
+    | ObservablePlot => "Plot"
+    | Exo(exo_kind) => Exo.name(exo_kind)
     };
 
+  /* Get applicable projector kinds - iterates over all projectors */
   let applicable_kinds =
       (
         z: Zipper.t,
         info_map: Language.Statics.Map.t,
         ~elaborated: Language.Exp.t,
       )
-      : list(ProjectorCore.Kind.t) => {
-    let fold_applicable =
-      is_applicable(z, info_map, ~elaborated, Fold) |> Option.to_list;
-    let livelit_applicable =
+      : list(ProjectorCore.Kind.t) =>
+    ListUtil.dedup(
       List.filter_map(
         is_applicable(z, info_map, ~elaborated),
-        ProjectorCore.Kind.livelit_projectors,
-      );
-    ListUtil.dedup(fold_applicable @ livelit_applicable);
-  };
+        ProjectorCore.Kind.projectors,
+      ),
+    );
 
   let actions_data =
       (

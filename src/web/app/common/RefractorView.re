@@ -54,7 +54,7 @@ let mk_data =
       (),
     )
     : list(ProjectorView.Model.projector_data) => {
-  let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+  let {measured, term_data, selection_ids, shape_map, _}: CachedSyntax.t = syntax;
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   Id.Map.bindings(refractors)
@@ -103,6 +103,7 @@ let mk_data =
              p,
              ~sort=TermData.sort(id, term_data),
              ~editor_active,
+             ~shape_map,
              ~indicated,
              ~selection_ids,
              ~info,

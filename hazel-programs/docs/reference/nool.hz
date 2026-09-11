@@ -1,0 +1,12 @@
+type Nool = + Atom(String) + Comp([Nool]) in
+let a: Nool =
+^^ExoNool(Comp([Atom("➕"), Atom("🌑"), Comp([Atom("➕"), Atom("☁️"), Comp([Atom("➕"), Comp([Atom("➕"), Atom("🍄"), Atom("🌑")]), Atom("🌑")])])]))
+in
+let count = fun node ->
+case node
+| Atom(_) => 1
+| Comp(ns) => fold_left( ns, 
+fun (acc, ^^probe(n)) ->
+acc + count(n), 0) end
+in
+^^probe(count(a))
