@@ -236,6 +236,14 @@ let uncoloured_tiles_test = (name: string, code: string) =>
   );
 
 let dynamic_id_tests = [
+  /* Statics puts one alias body in every position that mentions the alias,
+     so the two components share the `type T` declaration's ids. Before
+     PreparedTyp.prepare made them distinct the second sum rendered under
+     freshly minted ids and stayed uncoloured. */
+  uncoloured_tiles_test(
+    "An alias repeated in a tuple",
+    {|type T = A + B in ^^probe((A, A))|},
+  ),
   uncoloured_tiles_test("Tuple", {|^^probe((1, 2))|}),
   uncoloured_tiles_test("List", {|^^probe([1, 2, 3])|}),
   uncoloured_tiles_test("Nested tuple", {|^^probe((1, ("a", true)))|}),

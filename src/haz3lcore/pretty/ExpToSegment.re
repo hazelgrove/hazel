@@ -1250,6 +1250,32 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
   pad_variant_anns(ty);
 };
 
+/* Make every id in the type name one node. Types built from source repeat
+   ids -- statics puts one alias body in every position that mentions the
+   alias, and Typ.replace_temp only rewrites the Id.invalid sentinel -- and a
+   repeat renders as two tiles that uniquify_repeated_tiles then tells apart
+   by minting an id no type holds, leaving that tile unnameable. */
+let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
+  let seen = ref(Id.Set.empty);
+  let distinct = id => {
+    let id = Id.Set.mem(id, seen^) ? Id.mk() : id;
+    seen := Id.Set.add(id, seen^);
+    id;
+  };
+  Typ.map_term(
+    ~f_typ=
+      (cont, ty) =>
+        cont({
+          ...ty,
+          annotation: {
+            ...ty.annotation,
+            ids: List.map(distinct, ty.annotation.ids),
+          },
+        }),
+    ty,
+  );
+};
+
 /* Save standard list concatenation before we shadow @ */
 let list_append = (@);
 
@@ -3254,9 +3280,10 @@ let exp_to_segment =
 };
 
 /* A type the token layout can be computed from: Sig desugared to labeled
-   tuples, parens inserted as real nodes, and every node's ids padded to the
-   counts above. Buildable only by [prepare], so holding one is evidence all
-   three ran, and it carries the settings they ran under.
+   tuples, parens inserted as real nodes, every node's ids padded to the
+   counts above, and every id made to name one node. Buildable only by
+   [prepare], so holding one is evidence all four ran, and it carries the
+   settings they ran under.
 
    Preparing adds nodes, and those nodes carry tokens -- so the ids naming a
    rendered token are a prepared type's, and anything reasoning about them
@@ -3285,7 +3312,8 @@ module PreparedTyp: {
            ~show_filters=settings.show_filters,
            ~show_ascriptions=settings.show_ascriptions,
          )
-      |> pad_typ_ids,
+      |> pad_typ_ids
+      |> uniquify_typ_ids,
     settings,
   };
   let to_segment = ({typ, settings}) =>
