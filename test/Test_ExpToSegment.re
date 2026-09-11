@@ -756,6 +756,21 @@ in f(42)|},
       {|(`hello world`=42)|},
     ),
     roundtrip_test({|QuotedLabel: empty works|}, {|(``=1)|}),
+    /* Keywords pass Token.is_var but can't lex as identifiers in label
+       position, so they must keep their backticks (#2512). */
+    roundtrip_test({|QuotedLabel: keyword label in exp|}, {|(`type`=3)|}),
+    roundtrip_test(
+      {|QuotedLabel: keyword label in projection|},
+      {|let t = (`fun`=3) in t.`fun`|},
+    ),
+    roundtrip_test(
+      {|QuotedLabel: keyword label in pattern|},
+      {|fun `let`=n -> n|},
+    ),
+    roundtrip_test(
+      {|QuotedLabel: keyword label in type|},
+      {|let t : (`if`=Int) = (`if`=1) in t|},
+    ),
     /* Float power operator (**.) - using normalized float format */
     roundtrip_test({|FPower: standard|}, {|2.000000 **. 3.000000|}),
     roundtrip_test({|FPower: compact|}, {|2.000000**.3.000000|}),
