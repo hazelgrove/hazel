@@ -1,0 +1,86 @@
+/* Player refractor - audio controls in offside */
+
+.player-offside {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--T2);
+  border-radius: 0.3em;
+  /* overflow: hidden; */
+  font-size: 0.85em;
+  border: 1px solid var(--BR2);
+}
+
+.player-btn {
+  border: none;
+  cursor: pointer;
+  transition: filter 0.1s, background-color 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8em;
+  padding: 0;
+  font-size: 1em;
+  background: var(--G0);
+  color: white;
+  border-radius: 0.25em;
+}
+
+.player-btn:hover {
+  filter: brightness(1.15);
+}
+
+.player-btn:active {
+  filter: brightness(0.9);
+}
+
+.player-btn.playing {
+  background: var(--R2);
+  /* animation: player-pulse 1s ease-in-out infinite; */
+}
+
+.player-btn.playing:hover {
+  filter: brightness(1.15);
+}
+
+.player-btn.disabled {
+  background: var(--BR2);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.player-btn.disabled:hover {
+  filter: none;
+}
+
+/* Speaker icon indicator */
+.player-speaker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.4em;
+  color: var(--STONE);
+  font-size: 0.9em;
+}
+
+.player-speaker.playing {
+  pointer-events: none;
+  color: var(--R2);
+  animation: player-pulse 1s ease-in-out infinite;
+}
+
+.player-speaker.no-sound {
+  color: var(--BR3);
+  opacity: 0.5;
+}
+
+/* Pulsing animation for playing state */
+@keyframes player-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(2.6);
+  }
+}

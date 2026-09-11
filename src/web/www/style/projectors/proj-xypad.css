@@ -1,0 +1,106 @@
+/* XY Pad projector - modular synth 2D control surface */
+
+.xypad-projector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
+  cursor: crosshair;
+  user-select: none;
+  padding: 4px;
+  box-sizing: border-box;
+  height: 148px; /* TODO(andrew): hack, integrate size into projector measure on view */
+}
+
+.xypad-projector:hover {
+  border-color: var(--BR3);
+}
+
+.xypad-projector.dragging {
+  cursor: none;
+  border-color: var(--G0);
+  box-shadow: 0 0 8px oklch(from var(--G0) l c h / 0.3);
+}
+
+.xypad-svg {
+  width: 100%;
+  height: calc(100% - 16px);
+  background: var(--T1);
+  border-radius: 2px;
+  border: 1px solid var(--BR2);
+}
+
+.xypad-grid {
+  stroke: var(--BR2);
+  stroke-width: 1;
+  stroke-dasharray: 2, 4;
+  opacity: 0.5;
+}
+
+.xypad-crosshair {
+  stroke: var(--BR3);
+  stroke-width: 0.5;
+  opacity: 0.4;
+}
+
+.xypad-projector:hover .xypad-crosshair {
+  opacity: 0.6;
+}
+
+.xypad-projector.dragging .xypad-crosshair {
+  stroke: var(--G0);
+  opacity: 0.7;
+}
+
+.xypad-cursor {
+  fill: var(--G0);
+  stroke: white;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 1px 2px oklch(0% 0 0 / 0.2));
+}
+
+.xypad-glow {
+  fill: oklch(from var(--G0) l c h / 0.25);
+  pointer-events: none;
+}
+
+.xypad-projector:hover .xypad-cursor {
+  filter: drop-shadow(0 0 3px oklch(from var(--G0) l c h / 0.5));
+}
+
+.xypad-projector.dragging .xypad-cursor {
+  fill: var(--G1);
+  filter: drop-shadow(0 0 4px oklch(from var(--G0) l c h / 0.7));
+}
+
+.xypad-projector.dragging .xypad-glow {
+  fill: oklch(from var(--G0) l c h / 0.35);
+  animation: xypad-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes xypad-pulse {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
+
+.xypad-value {
+  font-family: var(--code-font);
+  font-size: 9px;
+  color: var(--STONE);
+  margin-top: 2px;
+  text-align: center;
+}
+
+.xypad-projector.dragging .xypad-value {
+  color: var(--G0);
+  font-weight: 600;
+}

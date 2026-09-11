@@ -38,7 +38,15 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     )
   | Fold
   | Probe
-  | Statics => None
+  | Statics
+  /* strudel widgets: no agent-prompt copy */
+  | Player
+  | Knob
+  | NotePicker
+  | RhythmGrid
+  | XYPad
+  | SamplePicker
+  | ScalePicker => None
   };
 
 let uniq_livelit_lines: list(string) = {

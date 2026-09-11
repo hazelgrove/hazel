@@ -1,0 +1,99 @@
+/* Note Picker Projector Styles */
+
+.note-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.3em;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
+  transition: border-color 0.15s;
+}
+
+.note-picker:hover {
+  border-color: var(--BR3);
+}
+
+.note-picker .piano-keys {
+  display: flex;
+  position: relative;
+  height: 4.2em;
+  width: 11em;
+  /* Contain the absolutely positioned black keys */
+  overflow: hidden;
+  border-radius: 0 0 0.3em 0.3em;
+}
+
+.note-picker .note-key {
+  cursor: pointer;
+  transition: background-color 0.1s, transform 0.05s, box-shadow 0.1s;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.3em;
+  font-size: 0.7em;
+  font-family: var(--ui-font);
+  font-weight: 500;
+  user-select: none;
+}
+
+.note-picker .note-key.white {
+  flex: 1;
+  /* height: 100%; */
+  background: white;
+  border: 1px solid var(--BR3);
+  border-radius: 0 0 0.35em 0.35em;
+  color: var(--BR4);
+  z-index: 1;
+}
+
+.note-picker .note-key.white:not(:first-child) {
+  border-left: none;
+}
+
+.note-picker .note-key.white:hover {
+  background: var(--T1);
+  border-color: var(--BR2);
+}
+
+.note-picker .note-key.white.active {
+  background: var(--G1);
+  color: white;
+  border-color: var(--G0);
+  box-shadow: 0 0 4px oklch(from var(--G0) l c h / 0.4);
+}
+
+.note-picker .note-key.black {
+  position: absolute;
+  width: 9%;
+  height: 58%;
+  background: var(--BR4);
+  border: 1px solid var(--BR4);
+  border-radius: 0 0 0.2em 0.2em;
+  z-index: 2;
+  color: transparent; /* hide text on black keys */
+}
+
+.note-picker .note-key.black:hover {
+  background: var(--BR3);
+}
+
+.note-picker .note-key.black.active {
+  background: var(--G0);
+  border-color: var(--G0);
+  box-shadow: 0 0 4px oklch(from var(--G0) l c h / 0.5);
+}
+
+.note-picker .pattern-text {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  color: var(--STONE);
+  padding: 0.35em 0.5em;
+  background: var(--T1);
+  border-radius: 0.2em;
+  border: 1px solid var(--BR2);
+  text-align: center;
+  min-height: 1.5em;
+  word-break: break-word;
+}

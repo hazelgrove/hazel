@@ -1,0 +1,102 @@
+/* Knob projector - modular synth rotary dial */
+
+.knob-projector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
+  cursor: crosshair;
+  user-select: none;
+  padding: 4px;
+  box-sizing: border-box;
+  height: 120px; /* TODO(andrew): hack, integrate size into projector measure on view */
+}
+
+.knob-projector:hover {
+  border-color: var(--BR3);
+}
+
+.knob-projector.dragging {
+  cursor: grabbing;
+  border-color: var(--G0);
+  box-shadow: 0 0 6px oklch(from var(--G0) l c h / 0.3);
+}
+
+.knob-svg {
+  width: 100%;
+  height: calc(100% - 16px);
+  max-width: 60px;
+  max-height: 60px;
+}
+
+.knob-ring {
+  fill: none;
+  stroke: var(--BR2);
+  stroke-width: 2;
+}
+
+.knob-body {
+  fill: var(--T1);
+  stroke: var(--BR3);
+  stroke-width: 1.5;
+}
+
+.knob-projector:hover .knob-body {
+  fill: white;
+}
+
+.knob-indicator {
+  fill: var(--G0);
+  filter: drop-shadow(0 0 2px oklch(from var(--G0) l c h / 0.6));
+}
+
+.knob-projector:hover .knob-indicator {
+  filter: drop-shadow(0 0 4px oklch(from var(--G0) l c h / 0.8));
+}
+
+.knob-projector.dragging .knob-indicator {
+  fill: var(--G1);
+  filter: drop-shadow(0 0 5px oklch(from var(--G0) l c h / 1));
+}
+
+.knob-center {
+  fill: var(--BR4);
+}
+
+.knob-value {
+  font-family: var(--code-font);
+  font-size: 9px;
+  color: var(--STONE);
+  margin-top: 2px;
+  text-align: center;
+}
+
+.knob-projector.dragging .knob-value {
+  color: var(--G0);
+  font-weight: 600;
+}
+
+/* Debug line from center to indicator (shown when dragging) */
+.knob-debug-line {
+  stroke: var(--G0);
+  stroke-width: 1.5;
+  stroke-dasharray: 3, 3;
+  opacity: 0.5;
+}
+
+/* Tick marks at min/max positions */
+.knob-tick {
+  stroke: var(--BR3);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.knob-tick.active {
+  stroke: var(--G0);
+  filter: drop-shadow(0 0 3px oklch(from var(--G0) l c h / 0.6));
+}

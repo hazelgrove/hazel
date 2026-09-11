@@ -8,15 +8,22 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   switch (kind) {
   | Fold => (module Cook(FoldProj.M))
   | Statics => (module Cook(TypeProj.M))
+  | Player => (module Cook(PlayerProj.M))
   | Probe => (module Cook(ProbeProj.M))
   | Slider => (module Cook(SliderProj.M))
   | SliderF => (module Cook(SliderFProj.M))
+  | Knob => (module Cook(KnobProj.M))
   | Checkbox => (module Cook(CheckboxProj.M))
   | TextArea => (module Cook(TextAreaProj.M))
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
+  | NotePicker => (module Cook(NotePickerProj.M))
+  | RhythmGrid => (module Cook(RhythmGridProj.M))
+  | XYPad => (module Cook(XYPadProj.M))
+  | SamplePicker => (module Cook(SamplePickerProj.M))
+  | ScalePicker => (module Cook(ScalePickerProj.M))
   };
 
 let init =

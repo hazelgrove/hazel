@@ -1,0 +1,283 @@
+open Util;
+open Virtual_dom.Vdom;
+open ProjectorBase;
+
+/* A rhythm grid (step sequencer) projector for Strudel drum patterns.
+ * Shows a grid where rows are drum sounds and columns are steps.
+ *
+ * Supported subset:
+ * - Space-separated tokens
+ * - Each token is either a drum name (bd, sd, hh, cp) or rest (~)
+ * - Examples: "bd ~ sd ~", "bd bd sd sd", ""
+ *
+ * Not supported (projector won't be applicable):
+ * - Repetition: "bd*4"
+ * - Grouping: "[bd sd]"
+ * - Alternation: "<bd sd>"
+ * - Sample variations: "hh:0 hh:1"
+ * - Parallel: "[bd, hh]"
+ * - Speed modifiers: "bd/2"
+ * - Any other mini-notation syntax */
+
+module M: Projector = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = {steps: int};
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    | SetSteps(int);
+
+  /* Drum sound abbreviations and display names */
+  let drums = [
+    ("bd", "BD"), /* Bass drum */
+    ("sd", "SD"), /* Snare */
+    ("hh", "HH"), /* Hi-hat */
+    ("cp", "CP") /* Clap */
+  ];
+
+  /* All valid tokens (drum names + rest) */
+  let valid_tokens = ["bd", "sd", "hh", "cp", "~"];
+
+  let default_steps = 8;
+
+  /* Check if a pattern contains only valid tokens (no special syntax) */
+  let validate_pattern = (pattern: string): bool => {
+    let tokens =
+      pattern
+      |> String.split_on_char(' ')
+      |> List.filter(s => String.length(s) > 0);
+
+    /* Empty pattern is valid */
+    if (List.length(tokens) == 0) {
+      true;
+    } else {
+      /* Check each token is valid */
+      List.for_all(
+        token => List.mem(token, valid_tokens),
+        tokens,
+      );
+    };
+  };
+
+  /* Extract string from Note or Sample constructor application */
+  let string_of = (any: Language.Any.t): option(string) =>
+    switch (any) {
+    | Exp({
+        term: Ap(_, {term: Constructor("Note" | "Sample", _), _}, arg),
+        _,
+      }) =>
+      switch (arg.term) {
+      | Atom(String(s)) => Some(s)
+      | _ => None
+      }
+    | _ => None
+    };
+
+  let init = (any: Language.Any.t) =>
+    switch (string_of(any)) {
+    | Some(s) when validate_pattern(s) => Some({steps: default_steps})
+    | _ => None
+    };
+
+  let get = (info: info): string =>
+    switch (
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(string_of)
+    ) {
+    | Some(s) => s
+    | None => ""
+    };
+
+  let put = (info: info, v: string): Base.segment =>
+    switch (
+      info.utility.lift_syntax(
+        ~inline=true,
+        fun
+        | Exp({term: Ap(dir, ctor, arg), _} as t) =>
+          Exp({
+            ...t,
+            term:
+              Ap(
+                dir,
+                ctor,
+                {
+                  ...arg,
+                  term: Atom(String(v)),
+                },
+              ),
+          })
+        | _ => failwith("RhythmGrid: Put: not Note/Sample constructor"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("RhythmGrid: Put: lift failed")
+    };
+
+  let focusable = Focusable.non;
+  let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
+  /* Rhythm grid needs ~6 rows: controls + 4 drum rows + padding */
+  let placeholder = ({steps, _}, _) => {
+    ProjectorShape.horizontal: steps * 2 + 8,
+    vertical: Tab(6),
+  };
+  let update = (_model, _, action) =>
+    switch (action) {
+    | SetSteps(n) => {steps: max(4, min(16, n))}
+    };
+
+  /* Parse pattern into a map of (drum -> list of step indices) */
+  let parse_pattern =
+      (pattern: string, steps: int): list((string, list(int))) => {
+    /* Parse mini-notation: "bd ~ sd ~" means bd on step 0, sd on step 2 */
+    let tokens =
+      pattern
+      |> String.split_on_char(' ')
+      |> List.filter(s => String.length(s) > 0);
+    let per_step = max(1, List.length(tokens)) / steps;
+    List.map(
+      ((drum, _)) => {
+        let active_steps =
+          List.mapi(
+            (i, token) =>
+              if (token == drum) {
+                Some(i / max(1, per_step));
+              } else {
+                None;
+              },
+            tokens,
+          )
+          |> List.filter_map(x => x);
+        (drum, active_steps);
+      },
+      drums,
+    );
+  };
+
+  /* Generate pattern string from grid state */
+  let generate_pattern =
+      (grid: list((string, list(int))), steps: int): string => {
+    let pattern = Array.make(steps, "~");
+    List.iter(
+      ((drum, active_steps)) =>
+        List.iter(
+          step =>
+            if (step >= 0 && step < steps) {
+              pattern[step] = drum;
+            },
+          active_steps,
+        ),
+      grid,
+    );
+    Array.to_list(pattern) |> String.concat(" ");
+  };
+
+  /* Toggle a step for a drum */
+  let toggle_step =
+      (pattern: string, drum: string, step: int, steps: int): string => {
+    let grid = parse_pattern(pattern, steps);
+    let new_grid =
+      List.map(
+        ((d, active)) =>
+          if (d == drum) {
+            if (List.mem(step, active)) {
+              (d, List.filter(s => s != step, active));
+            } else {
+              (d, [step, ...active]);
+            };
+          } else {
+            (d, active);
+          },
+        grid,
+      );
+    generate_pattern(new_grid, steps);
+  };
+
+  /* Check if a step is active for a drum */
+  let is_active =
+      (grid: list((string, list(int))), drum: string, step: int): bool =>
+    switch (List.find_opt(((d, _)) => d == drum, grid)) {
+    | Some((_, active)) => List.mem(step, active)
+    | None => false
+    };
+
+  /* Create a grid cell */
+  let grid_cell = (~pattern, ~parent, ~info, ~steps, drum, step, grid) => {
+    let active = is_active(grid, drum, step);
+    Node.div(
+      ~attrs=[
+        Attr.classes([
+          "grid-cell",
+          active ? "active" : "inactive",
+          step mod 4 == 0 ? "beat-start" : "",
+        ]),
+        Attr.on_click(_ => {
+          let new_pattern = toggle_step(pattern, drum, step, steps);
+          parent(SetSyntax(put(info, new_pattern)));
+        }),
+      ],
+      [],
+    );
+  };
+
+  /* Create a row for a drum */
+  let drum_row = (~pattern, ~parent, ~info, ~steps, drum, label, grid) =>
+    Node.div(
+      ~attrs=[Attr.classes(["grid-row"])],
+      [
+        Node.span(
+          ~attrs=[Attr.classes(["drum-label"])],
+          [Node.text(label)],
+        ),
+        Node.div(
+          ~attrs=[Attr.classes(["grid-cells"])],
+          List.init(steps, step =>
+            grid_cell(~pattern, ~parent, ~info, ~steps, drum, step, grid)
+          ),
+        ),
+      ],
+    );
+
+  let view =
+      ({model: {steps}, info, parent, local, _}: View.args(model, action)) => {
+    let pattern = get(info);
+    let grid = parse_pattern(pattern, steps);
+    let rows =
+      List.map(
+        ((drum, label)) =>
+          drum_row(~pattern, ~parent, ~info, ~steps, drum, label, grid),
+        drums,
+      );
+    View.mk(
+      Node.div(
+        ~attrs=[Attr.classes(["rhythm-grid"])],
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["grid-controls"])],
+            [
+              Node.button(
+                ~attrs=[
+                  Attr.classes(["step-btn"]),
+                  Attr.on_click(_ => local(SetSteps(steps - 1))),
+                ],
+                [Node.text("-")],
+              ),
+              Node.span(
+                ~attrs=[Attr.classes(["step-count"])],
+                [Node.text(string_of_int(steps))],
+              ),
+              Node.button(
+                ~attrs=[
+                  Attr.classes(["step-btn"]),
+                  Attr.on_click(_ => local(SetSteps(steps + 1))),
+                ],
+                [Node.text("+")],
+              ),
+            ],
+          ),
+          Node.div(~attrs=[Attr.classes(["grid-rows"])], rows),
+        ],
+      ),
+    );
+  };
+};
