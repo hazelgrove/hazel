@@ -67,12 +67,14 @@ module Eval = Transition(EvaluatorEVMode);
 
 /* A declared delegation: a delegating administrative step (cast
  * distribution rebuilding a redex under its own id — see
- * Transition.provenance_of_kind) pushes the redex's span key here, and a
- * nested evaluation matching it CONTINUES the enclosing observation span
+ * Transition.provenance_of_kind) pushes the redex's id here, and a
+ * nested evaluation of that id CONTINUES the enclosing observation span
  * instead of opening its own (the delegation law; consumed in
- * eval_3_record_probe_sample). Keys are (syntax id, call-stack instance
- * as ids); genuine re-entry (recursion) always differs in stack. */
-type delegation = (Id.t, list(Id.t));
+ * eval_3_record_probe_sample). The list is scoped to one call-stack
+ * instance: a step that pushes a frame starts the callee with an empty
+ * list, so every live entry was declared at the current stack and the id
+ * alone names the span. Genuine re-entry (recursion) lands in a new frame. */
+type delegation = Id.t;
 
 let rec evaluate =
         // Constants
@@ -221,7 +223,7 @@ let rec evaluate =
         env,
         exp: DHExp.t,
       ) => {
-    let.trampoline (is_finished, call_stack, body_reuse_map, kind, next) =
+    let.trampoline (is_finished, call_stack', body_reuse_map, kind, next) =
       eval_1_effects(
         ~reuse_map,
         ~in_closure?,
@@ -240,10 +242,16 @@ let rec evaluate =
        * second span. Populated by the dynamics' own provenance — not
        * inferred — so an undeclared same-id re-evaluation now surfaces
        * as a visible duplicate sample instead of a silent suppression. */
+      /* A step that pushed a frame starts the callee with no delegations:
+       * none of the caller's can match inside it, and a recursive call
+       * re-evaluates the caller's ids at a new stack, which must open
+       * their own spans. add_entry is the only way the stack changes and
+       * it conses, so physical equality is exact. */
+      let delegations = call_stack' === call_stack ? delegations : [];
       let delegations =
         switch (Option.map(provenance_of_kind, kind)) {
         | Some(Administrative({may_delegate: true})) => [
-            (DHExp.rep_id(exp), CallStack.ids_of_stack(call_stack)),
+            DHExp.rep_id(exp),
             ...delegations,
           ]
         | _ => delegations
@@ -253,7 +261,7 @@ let rec evaluate =
           evaluate(
             ~reuse_map=body_reuse_map,
             ~in_closure?,
-            ~call_stack,
+            ~call_stack=call_stack',
             ~delegations,
             ~parent_state=state,
             ~current_top_id,
@@ -286,8 +294,9 @@ let rec evaluate =
 
     /* Delegation law: at most one observation span per (source id,
      * call-stack instance). A delegating administrative step declares the
-     * continuation (see eval_2); an evaluation matching a declared key
-     * CONTINUES that span — no second SpanOpen, no second sample. The
+     * continuation (see eval_2); an evaluation of a declared id in the
+     * same frame CONTINUES that span — no second SpanOpen, no second
+     * sample. The
      * span-opening evaluation mints on close: full step range, post-cast
      * value, enter-data attached to the open span by the trace fold.
      * (The different-stack flavor of this smear is still handled
@@ -298,8 +307,7 @@ let rec evaluate =
     let continues_delegated_span =
       switch (is_target) {
       | None => false
-      | Some(_) =>
-        List.mem((expr_id, CallStack.ids_of_stack(call_stack)), delegations)
+      | Some(_) => List.mem(expr_id, delegations)
       };
     switch (is_target) {
     | Some(_) when !continues_delegated_span =>
