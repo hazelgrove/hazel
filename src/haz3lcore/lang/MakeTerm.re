@@ -102,6 +102,7 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.flatten
   | SigLet(_)
   | SigType(_, _)
+  | SigTypeAbstract(_)
   | SigModule(_)
   | EmptyHole
   | Invalid(_) => [s]
@@ -1368,6 +1369,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
+  /* SigTypeAbstract: type T - an abstract type member */
+  | Pre(([(_id, (["type"], []))], []), TPat(tp)) =>
+    ret(SigTypeAbstract(tp))
   /* SigModule: module m : S - the module name pattern is the body */
   | Pre(([(_id, (["module"], []))], []), MPat(mp)) =>
     ret(SigModule(mp))

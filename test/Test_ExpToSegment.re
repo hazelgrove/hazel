@@ -844,6 +844,14 @@ end|}),
       {|Sig: module member|},
       {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
     ),
+    roundtrip_test(
+      {|Sig: abstract type member|},
+      {|let m : { type T; let x : T } = { type T = Int; let x = 1 } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: abstract type member last|},
+      {|type S = { let x : Int; type T } in 1|},
+    ),
   ],
 );
 

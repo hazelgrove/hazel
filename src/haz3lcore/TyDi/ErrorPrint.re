@@ -191,6 +191,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantProduct(_)
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
+  | TypAbstractMemberOfSignature(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -256,7 +257,21 @@ let typ_mark_string: Mark.t => string =
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
-    prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+    switch (ty.term) {
+    | Atom(_) =>
+      prn(
+        "%s is a base type, not a module; a module with the name of a type cannot start a type path",
+        Print.typ(ty),
+      )
+    | _ =>
+      prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+    }
+  | TypAbstractMemberOfSignature(name) =>
+    prn(
+      "%s is an abstract member of a signature, not of a module; name it through a module of that signature, as M.%s",
+      name,
+      name,
+    )
   | ModuleTypeMemberNotFound({name, members, submodule}) => {
       let what = submodule ? "sub-module" : "type member";
       switch (members) {

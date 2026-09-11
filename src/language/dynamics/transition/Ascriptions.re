@@ -62,18 +62,24 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       )
     | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
       /* Sealing: keep the signature's value members, in signature order,
-         ascribing each to its declared type. Type members have no runtime
-         content. A member the module lacks leaves the ascription stuck;
-         statics has already marked it. */
+         ascribing each to its declared type with the signature's own type
+         members substituted: a manifest member by its definition, an
+         abstract one by `?` (abstract types have no runtime content, so the
+         cast is a no-op). A member the module lacks leaves the ascription
+         stuck; statics has already marked it. */
       let members =
-        Sig.members(sig_items)
-        |> Sig.dedup_last
-        |> List.filter_map((m: Sig.member) =>
+        Typ.sig_members_closed(sig_items)
+        |> List.filter_map(((m: Sig.member, ty)) =>
              switch (m) {
-             | Val(x, ty) => Some((x, ty))
-             | TypeManifest(_) => None
+             | Val(x, _) => Some((x, ty))
+             | TypeManifest(_)
+             | TypeAbstract(_) => None
              }
-           );
+           )
+        /* Last declaration of a name wins. */
+        |> List.rev
+        |> Util.ListUtil.dedup_f(((x, _), (y, _)) => x == y)
+        |> List.rev;
       let picked =
         members
         |> List.map(((x, ty)) =>
