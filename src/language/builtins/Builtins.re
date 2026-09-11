@@ -14,7 +14,8 @@ let builtins =
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
-  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
+  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
+  @ BuiltinsModules.builtins;
 
 let builtins =
   List.sort(
@@ -27,7 +28,8 @@ let builtins =
 let _ = to_map(builtins);
 
 let ctx_entries =
-  List.map(ctx_entry_of_builtin, builtins)
+  BuiltinsModules.signature_entries
+  @ List.map(ctx_entry_of_builtin, builtins)
   @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
   @ BuiltinsADT.constructor_entries;
 
