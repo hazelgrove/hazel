@@ -523,9 +523,20 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   };
 };
 
+let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
+  text("Type member "),
+  code(name),
+  text(" is defined as "),
+  view_type(actual),
+  text(" but its signature declares "),
+  view_type(expected),
+];
+
 let typ_mark_err_view = (~globals, m: Mark.t) => {
   let view_type = view_type(~globals);
   switch (m) {
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_view(~view_type, name, ~expected, ~actual)
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
@@ -797,14 +808,7 @@ let exp_mark_err_view =
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    div_err([
-      text("Type member "),
-      code(name),
-      text(" is defined as "),
-      view_type(actual),
-      text(" but its signature declares "),
-      view_type(expected),
-    ])
+    div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([
