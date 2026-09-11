@@ -29,7 +29,13 @@ let _ = to_map(builtins);
 let ctx_entries =
   List.map(ctx_entry_of_builtin, builtins)
   @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
-  @ BuiltinsADT.constructor_entries;
+  @ BuiltinsADT.constructor_entries
+  /* Product types, so they get no constructors -- just names the config
+     slide can annotate with. */
+  @ List.map(
+      ((name, typ)) => BuiltinsADT.create_type_alias(name, typ),
+      BuiltinsColorScheme.type_aliases,
+    );
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {

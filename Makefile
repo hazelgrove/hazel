@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check lint-css dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check lint-css update-css-defaults dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -94,6 +94,12 @@ coverage:
 # checkout. Do not point this at a bisect_ppx-instrumented build.
 lint-css:
 	python3 scripts/lint_css_roles.py
+
+# Rewrites the generated block of variables.css from the Colors slide's light
+# scheme, so a default is byte-identical to the value the theme will set. Read
+# the diff: an unexplained line in it is the bug.
+update-css-defaults:
+	UPDATE_CSS_DEFAULTS=1 ./run_tests test 'ColorConfiguration' -q
 
 dead-code:
 	dune build @ocaml-index --profile dev

@@ -289,7 +289,7 @@
   color: var(--text-error-strong) !important;
 }
 #cursor-inspector.warning .divider {
-  color: var(--O1) !important;
+  color: var(--warning-hole-stroke) !important;
 }
 #cursor-inspector .Pat .divider {
   color: var(--token-pat);

@@ -51,7 +51,7 @@
 }
 
 /* #probe-sidebar .probe-entry .live-offside .code .code-text .token {
-  color: var(--G2) !important;
+  color: var(--success-muted) !important;
 } */
 
 #probe-sidebar .probe-view .live-env {
@@ -318,7 +318,7 @@ body:not(:has(.live-offside:focus))
 }
 
 /* #probe-sidebar .code {
-  outline: 1px solid var(--T1);
+  outline: 1px solid var(--surface-1);
 } */
 
 #probe-sidebar .code .code-text:after {
@@ -832,5 +832,5 @@ body:not(:has(.live-offside:focus))
 
 .context-actions + .environment-section .live-env,
 .call-display + .environment-section .live-env {
-  border-top: 1px solid var(--BR1);
+  border-top: 1px solid var(--frame-1);
 }

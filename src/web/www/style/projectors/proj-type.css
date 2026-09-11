@@ -1,12 +1,5 @@
 /* PROJECTOR: INFO */
 
-:root {
-  --code-text: var(--token-exp);
-  --main-base: hsl(281, 80%, 95%);
-  --main-shadow: hsl(281, 40%, 25%);
-  --main-indicated: var(--text-typ);
-}
-
 /* BACKING */
 
 .projector.statics > svg {

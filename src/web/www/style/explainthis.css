@@ -171,7 +171,7 @@
 }
 
 .highlight-code-a {
-  fill: var(--text-highlight-a);
+  fill: var(--text-doc-1);
 }
 
 .highlight-b {
@@ -179,7 +179,7 @@
 }
 
 .highlight-code-b {
-  fill: var(--text-highlight-b);
+  fill: var(--text-doc-2);
 }
 
 .highlight-c {
@@ -187,29 +187,29 @@
 }
 
 .highlight-code-c {
-  fill: var(--text-highlight-c);
+  fill: var(--text-doc-3);
 }
 
 .highlight-d {
-  background-color: var(--highlight-d);
+  background-color: var(--surface-highlight-d);
 }
 
 .highlight-code-d {
-  fill: var(--highlight-d);
+  fill: var(--text-doc-4);
 }
 
 .highlight-e {
-  background-color: var(--highlight-e);
+  background-color: var(--surface-highlight-e);
 }
 
 .highlight-code-e {
-  fill: var(--highlight-e);
+  fill: var(--text-doc-5);
 }
 
 .highlight-f {
-  background-color: var(--highlight-f);
+  background-color: var(--surface-highlight-f);
 }
 
 .highlight-code-f {
-  fill: var(--highlight-f);
+  fill: var(--text-doc-6);
 }
