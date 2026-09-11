@@ -303,5 +303,6 @@ used only for mispositioned items.
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
-| `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide                         |
+| `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
+| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide; split off because one slide's `let` chain hit the evaluator stack limit in the Web Worker |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
