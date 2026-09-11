@@ -39,6 +39,36 @@ module Print = {
 
 let prn = Printf.sprintf;
 
+/* A tuple that has the wrong number of elements or the wrong labels, by
+   shape rather than by both full types. */
+let tuple_shape_string =
+    (sm: LabeledTupleStaticsHelpers.shape_mismatch): string => {
+  let count = l => {
+    let n = List.length(l);
+    prn("%d element%s", n, n == 1 ? "" : "s");
+  };
+  let labels = l =>
+    switch (List.filter_map(Fun.id, l)) {
+    | [] => ""
+    | names => prn(" with labels %s", String.concat(", ", names))
+    };
+  let extra = (what, names) =>
+    switch (names) {
+    | [] => ""
+    | [n] => prn("; %s label %s", what, n)
+    | ns => prn("; %s labels %s", what, String.concat(", ", ns))
+    };
+  prn(
+    "Expecting a tuple of %s%s but got %s%s%s%s",
+    count(sm.expected_labels),
+    labels(sm.expected_labels),
+    count(sm.actual_labels),
+    labels(sm.actual_labels),
+    extra("missing", sm.missing_labels),
+    extra("unexpected", sm.unexpected_labels),
+  );
+};
+
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
@@ -59,7 +89,11 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | CompareFun(ty) =>
     prn("values of type %s cannot be compared", Print.typ(ty))
   | FreeConstructor(_name) => prn("Constructor is not defined")
-  | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
+  | ExpectationMismatch({ana, syn}) =>
+    switch (LabeledTupleStaticsHelpers.shape_mismatch(ctx, ~ana, ~syn)) {
+    | Some(sm) => tuple_shape_string(sm)
+    | None => expectation(ana, syn)
+    }
   | NoMeet(PolyEq, tys)
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
     prn(

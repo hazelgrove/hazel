@@ -140,12 +140,45 @@ let core_mark_err_view =
   let view_any = view_any(~globals);
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
-    switch (syn.term, ana.term) {
-    | (Label(syn_l), Label(an_label)) => [
+    switch (
+      syn.term,
+      ana.term,
+      LabeledTupleStaticsHelpers.shape_mismatch(ctx, ~ana, ~syn),
+    ) {
+    | (Label(syn_l), Label(an_label), _) => [
         code(syn_l),
         text("but expected label"),
         code(an_label),
       ]
+    | (_, _, Some(sm)) =>
+      /* The wrong number of elements or the wrong labels: say which,
+         rather than showing both full types. */
+      let count = l => {
+        let n = List.length(l);
+        text(Printf.sprintf("%d element%s", n, n == 1 ? "" : "s"));
+      };
+      let labels = l =>
+        switch (List.filter_map(Fun.id, l)) {
+        | [] => []
+        | names => [
+            text("with labels"),
+            ...ListUtil.join(text(","), List.map(label_view, names)),
+          ]
+        };
+      let extra = (what, names) =>
+        switch (names) {
+        | [] => []
+        | names => [
+            text(what ++ (List.length(names) == 1 ? " label" : " labels")),
+            ...ListUtil.join(text(","), List.map(label_view, names)),
+          ]
+        };
+      [text("Expecting a tuple of"), count(sm.expected_labels)]
+      @ labels(sm.expected_labels)
+      @ [text("but got"), count(sm.actual_labels)]
+      @ labels(sm.actual_labels)
+      @ extra("missing", sm.missing_labels)
+      @ extra("unexpected", sm.unexpected_labels);
     | _ =>
       colon_prefix(show_type_colon)
       @ [
