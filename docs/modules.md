@@ -72,7 +72,10 @@ defined as the declared type. A member's type error is reported on its
 definition; missing members (`ModuleMissingMembers`) and, until width
 subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
 module; a differing type member is reported on its definition type
-(`ModuleTypeMemberMismatch`).
+(`ModuleTypeMemberMismatch`). When one of the items is a hole (a hole item,
+or a binder with a hole where a member could be bound) it may still become the
+missing members, so they are assumed rather than reported and the module has
+the signature's type.
 
 ### Member Access and `module`
 

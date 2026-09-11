@@ -262,6 +262,79 @@ let test_type_member_mismatch_with_wrong_definition =
     },
   );
 
+/* ===== HOLE BINDERS ===== */
+
+/* A hole among the items could still become the members the signature
+   declares and the module lacks, so they are assumed rather than reported;
+   a wildcard binds nothing and assumes nothing. */
+let test_hole_binder_assumes_missing_members =
+  fully_consistent_typecheck(
+    "A hole binder stands in for the missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; let ? = 2 } in M.y|},
+    Some(int()),
+  );
+
+let test_hole_item_assumes_missing_members =
+  fully_consistent_typecheck(
+    "A hole item stands in for the missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
+    Some(int()),
+  );
+
+let test_hole_in_destructuring_binder_assumes_missing_members =
+  fully_consistent_typecheck(
+    "A hole inside a destructuring binder stands in for the missing members",
+    {|module M : { let x : Int; let y : Int } = { let (x, ?) = (1, 2) } in M.y|},
+    Some(int()),
+  );
+
+let test_hole_item_assumes_missing_type_member =
+  fully_consistent_typecheck(
+    "A hole item stands in for a missing type member",
+    {|module M : { type T = Int; let x : Int } = { let x = 1; ? } in let y : M.T = 3 in y + 1|},
+    Some(int()),
+  );
+
+let test_error_wildcard_binder_does_not_assume =
+  has_mark_test(
+    "A wildcard binder does not stand in for missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; let _ = 2 } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+/* Only a hole where a member could be bound counts: not one in a definition
+   or in a type annotation. */
+let test_error_non_binder_holes_do_not_assume =
+  Alcotest.test_case(
+    "Holes in a definition or an annotation do not stand in for members",
+    `Quick,
+    () => {
+      let missing_y = src =>
+        List.exists(
+          fun
+          | Language.Mark.ModuleMissingMembers(["y"]) => true
+          | _ => false,
+          statics(parse_exp(src)) |> errors |> List.concat_map(snd),
+        );
+      Alcotest.(check(bool))(
+        "definition hole",
+        true,
+        missing_y(
+          {|module M : { let x : Int; let y : Int } = { let x = ? } in M|},
+        ),
+      );
+      Alcotest.(check(bool))(
+        "annotation hole",
+        true,
+        missing_y(
+          {|module M : { let x : Int; let y : Int } = { let x : ? = 1 } in M|},
+        ),
+      );
+    },
+  );
+
 /* ===== NESTED EXPECTATIONS ===== */
 
 /* The signature's expectations reach sub-modules and the variables inside
@@ -1382,6 +1455,12 @@ let tests = (
     test_unknown_typed_root_is_not_an_error,
     test_type_member_mismatch_single_error,
     test_type_member_mismatch_on_the_definition,
+    test_hole_binder_assumes_missing_members,
+    test_hole_item_assumes_missing_members,
+    test_hole_in_destructuring_binder_assumes_missing_members,
+    test_hole_item_assumes_missing_type_member,
+    test_error_wildcard_binder_does_not_assume,
+    test_error_non_binder_holes_do_not_assume,
     test_type_member_mismatch_with_wrong_definition,
     /* Nested expectations */
     test_nested_missing_member_localized,

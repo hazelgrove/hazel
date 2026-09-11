@@ -2713,13 +2713,25 @@ and uexp_to_info_map =
       let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
       let (m, mismatched_types) =
         ModuleHelpers.check_ana_type_members(~ana_items, items, m);
+      /* A hole among the items may still bind the members the signature
+         declares and the module lacks: they are assumed, not reported. Only a
+         hole where a member could be bound counts. */
+      let (sig_ty, missing_marks) =
+        switch (ModuleHelpers.missing_items(~ana_items, sig_ty)) {
+        | [] => (sig_ty, [])
+        | missing when ModuleHelpers.has_hole_binder(items) => (
+            ModuleHelpers.assume_members(sig_ty, missing),
+            [],
+          )
+        | missing => (
+            sig_ty,
+            [
+              Mark.ModuleMissingMembers(ModuleHelpers.member_names(missing)),
+            ],
+          )
+        };
       let marks =
-        (
-          switch (ModuleHelpers.missing_members(~ana_items, sig_ty)) {
-          | [] => []
-          | names => [Mark.ModuleMissingMembers(names)]
-          }
-        )
+        missing_marks
         @ (
           switch (ModuleHelpers.extra_members(~ana_items, sig_ty)) {
           | [] => []
