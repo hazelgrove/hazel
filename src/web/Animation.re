@@ -47,10 +47,13 @@ module Js = {
   };
 
   let client_height = (): float =>
-    Js.Optdef.get(
-      Js.Unsafe.get(Dom_html.document, "documentElement")##.clientHeight, _ =>
-      0.0
-    );
+    try(
+      JsUtil.cached_client_height(
+        Js.Unsafe.get(Dom_html.document, "documentElement"),
+      )
+    ) {
+    | _ => 0.0
+    };
 
   let inner_height = (): float =>
     Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
@@ -169,6 +172,20 @@ let go = (): unit =>
     tracked_elems^ |> filter_visible_elements |> List.iter(animate_elem);
     tracked_elems := [];
   };
+
+/* the caret glide is 125ms (Actions.move); a new request while the
+   previous glide is still in flight reads as decoration lag */
+let last_caret_glide: ref(float) = ref(0.);
+let caret_glide_available = (): bool => {
+  let now: float = Js_of_ocaml.Js.Unsafe.global##.Date##now();
+  if (now -. last_caret_glide^ > 170.) {
+    last_caret_glide := now;
+    true;
+  } else {
+    last_caret_glide := now; /* keep suppressing until input pauses */
+    false;
+  };
+};
 
 /* Request animations. Call this during the MVU update */
 let request = (transitions: list(transition)): unit => {

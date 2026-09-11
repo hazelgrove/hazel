@@ -28,7 +28,7 @@ module Model = {
       zipper,
       col_target: None,
     },
-    syntax: CachedSyntax.init(zipper),
+    syntax: CachedSyntax.init(~root, zipper),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -107,6 +107,7 @@ module Update = {
   let clear_buffer =
       (
         ~settings: Language.CoreSettings.t,
+        ~root: Sort.t,
         ~old_zipper: Zipper.t,
         ~old_statics: CachedStatics.t,
         ~old_dynamics: Dynamics.Map.t,
@@ -123,6 +124,7 @@ module Update = {
              will be looking for tiles inside the buffer, for example if we try
              to click or move down to dismiss a completion.*/
           CachedSyntax.calculate(
+            ~root,
             state.zipper,
             old_statics.info_map,
             old_dynamics,
@@ -158,6 +160,7 @@ module Update = {
     let (state, syntax) =
       clear_buffer(
         ~settings,
+        ~root,
         ~old_zipper=state.zipper,
         ~old_statics,
         ~old_dynamics,
@@ -215,6 +218,7 @@ module Update = {
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
       CachedSyntax.calculate(
+        ~root,
         zipper,
         statics.info_map,
         new_dynamics,

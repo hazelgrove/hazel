@@ -42,6 +42,7 @@ module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
 module FloatingElement = FloatingElement;
+module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
 
 // Used by [@deriving sexp, yojson)]

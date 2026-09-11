@@ -154,6 +154,7 @@ and exp =
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
+  | BinHole(exp, exp) /* concave grout: an operator hole (the `⧖` marker) */
   | Filter(filter_action, exp, exp)
   | BuiltinFun(string)
   | Undefined
@@ -1030,6 +1031,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e2);
             return(Filter(fa, e1, shrunk));
+          }
+        | BinHole(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(BinHole(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(BinHole(e1, shrunk));
           }
         | Seq(e1, e2) =>
           {

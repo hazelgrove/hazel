@@ -425,6 +425,7 @@ let rec evaluate =
           prev_probe_targets,
           value: final_value,
           state: replay_state(state^),
+          seq: EvaluatorState.get_step_count(state^),
         };
 
         switch (outbox) {

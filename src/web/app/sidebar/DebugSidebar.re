@@ -278,14 +278,14 @@ let co_ctx_entry_node =
 };
 
 let co_ctx_view_rendered = (~globals, co_ctx: CoCtx.t): Node.t =>
-  switch (co_ctx) {
+  switch (CoCtx.to_list(co_ctx)) {
   | [] => div(~attrs=[clss(["debug-ctx-empty"])], [text("(empty)")])
-  | _ =>
+  | pairs =>
     div(
       ~attrs=[clss(["debug-coctx"])],
       List.map(
         ((name, entries)) => co_ctx_entry_node(~globals, name, entries),
-        co_ctx,
+        pairs,
       ),
     )
   };
@@ -311,9 +311,9 @@ let ctx_to_text = (ctx: Ctx.t): string =>
   };
 
 let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
-  switch (co_ctx) {
+  switch (CoCtx.to_list(co_ctx)) {
   | [] => "(empty)"
-  | _ =>
+  | pairs =>
     String.concat(
       "\n",
       List.map(
@@ -328,7 +328,7 @@ let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
                  entries,
                ),
              ),
-        co_ctx,
+        pairs,
       ),
     )
   };

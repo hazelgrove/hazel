@@ -35,7 +35,10 @@ let seg_to_text =
     (~implicit_hole=default_implicit_hole, ~refractors=[], segment): string =>
   Printer.of_segment(
     ~holes=implicit_hole,
-    ~concave_holes=implicit_hole,
+    /* concave grout is an OPERATOR hole: it gets its own marker so
+       printed text is unambiguous and fast-parseable (`1 ¿ 2` lexes
+       as three operands and rejects; `1 ⧖ 2` parses) */
+    ~concave_holes=Token.concave_hole_marker,
     ~indent="",
     ~refractors,
     segment,
@@ -119,5 +122,13 @@ let of_text =
   | Some(z) =>
     let refractors = z.refractors;
     let z = strip_implicit_holes(~implicit_hole, ~root, z);
+    /* the concave marker destructs the same way: Destruct leaves
+       grout, and normalization derives the shape from context */
+    let z =
+      strip_implicit_holes(
+        ~implicit_hole=Token.concave_hole_marker,
+        ~root,
+        z,
+      );
     Some(ZipperBase.update_refractors(z, _ => refractors));
   };
