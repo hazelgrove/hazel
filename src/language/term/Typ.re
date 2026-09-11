@@ -589,69 +589,75 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+/* Out of fuel the type comes back unreduced -- stuck, which is what this
+   function already returns for anything else it cannot reduce -- so a type
+   with no weak head normal form is a type error where it is used, not a crash
+   of the whole analysis. A signature can name itself through a same-named
+   outer binding (`let m : { type T = m.T } = ...` with an `m` already in
+   scope), and path_sig hands `m.T` straight back here. */
+let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
-    failwith("weak_head_normalize exceeded 1000 recursive calls");
-  };
-  switch (term_of(ty)) {
-  | Parens(t)
-  | Projector(_, t) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-    | None => ty
-    }
-  | TupLabel({term: ExplicitNonlabel, _}, ty) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-  | ProdProjection(t, label) =>
-    let (_, rewrap) = unwrap(ty);
-    let default = Unknown(Internal) |> rewrap;
-    switch (label.term) {
-    | Label(l) =>
-      switch (path_sig(~rec_counter=rec_counter + 1, ctx, t)) {
-      | Some(items) =>
-        /* `M.T`: type member of a module path or of a signature alias. */
-        switch (sig_project_type(items, l)) {
-        | Some(ty') =>
-          weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
-        | None => default
-        }
-      | None =>
-        /* `P.x`: label of a labeled tuple type. */
-        let normalized_t =
-          weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t);
-        switch (normalized_t.term) {
-        | Prod(tys) => project_type(tys, l) |> Option.value(~default)
-        | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
-        };
+    ty;
+  } else {
+    switch (term_of(ty)) {
+    | Parens(t)
+    | Projector(_, t) =>
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+    | Var(x) =>
+      switch (Ctx.lookup_alias(ctx, x)) {
+      | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+      | None => ty
       }
-    | _ => default
-    };
-  | Prod(ts) =>
-    let (_, rewrap) = unwrap(ty);
-    let duplicate_labels =
-      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
-    if (List.is_empty(duplicate_labels)) {
-      ty;
-    } else {
-      let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
-      Prod(cleaned_ts) |> rewrap;
-    };
-  | ProdExtension(t1, t2) =>
-    let (_, rewrap) = unwrap(ty);
+    | TupLabel({term: ExplicitNonlabel, _}, ty) =>
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | ProdProjection(t, label) =>
+      let (_, rewrap) = unwrap(ty);
+      let default = Unknown(Internal) |> rewrap;
+      switch (label.term) {
+      | Label(l) =>
+        switch (path_sig(~rec_counter=rec_counter + 1, ctx, t)) {
+        | Some(items) =>
+          /* `M.T`: type member of a module path or of a signature alias. */
+          switch (sig_project_type(items, l)) {
+          | Some(ty') =>
+            weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
+          | None => default
+          }
+        | None =>
+          /* `P.x`: label of a labeled tuple type. */
+          let normalized_t =
+            weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t);
+          switch (normalized_t.term) {
+          | Prod(tys) => project_type(tys, l) |> Option.value(~default)
+          | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
+          };
+        }
+      | _ => default
+      };
+    | Prod(ts) =>
+      let (_, rewrap) = unwrap(ty);
+      let duplicate_labels =
+        LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+      if (List.is_empty(duplicate_labels)) {
+        ty;
+      } else {
+        let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
+        Prod(cleaned_ts) |> rewrap;
+      };
+    | ProdExtension(t1, t2) =>
+      let (_, rewrap) = unwrap(ty);
 
-    let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
-    let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
-    switch (t1.term, t2.term) {
-    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
-    | _ =>
-      // It would be better to do this via a more direct error recovery mechanism in statics
-      Unknown(Internal) |> rewrap
+      let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+      let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
+      switch (t1.term, t2.term) {
+      | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+      | _ =>
+        // It would be better to do this via a more direct error recovery mechanism in statics
+        Unknown(Internal) |> rewrap
+      };
+    | _ => ty
     };
-  | _ => ty
-  };
-}
+  }
 /* The signature items a module path denotes, if any. A path is a variable
    naming a module (looked up in the value namespace once it is not a type
    alias) or a projection of a value member out of another path. A type
