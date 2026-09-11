@@ -43,6 +43,9 @@
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
   --DRV: oklch(60% 0.1 126);
+  /* Blackboard: indigo, dark enough to read on the sand background, and
+     clear of TYP (300), DRV (126) and PAT (225). */
+  --BB: oklch(48% 0.13 265);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
   --MOD: var(--STONE); /* Module sort oklch(0.65 0.05 165)  */
@@ -112,6 +115,7 @@
   --token-pat: var(--PAT);
   --token-typ: var(--TYP);
   --token-drv: var(--DRV);
+  --token-bb: var(--BB);
   --token-tpat: var(--TPAT);
   --token-mod: var(--MOD);
   --token-sig: var(--SIG);
@@ -136,6 +140,7 @@
   --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
   --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
   --shard-caret-drv: oklch(from var(--token-drv) 95% calc(c/4) h);
+  --shard-caret-bb: oklch(from var(--token-bb) 95% calc(c/4) h);
   --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
   --shard-caret-mod: oklch(from var(--token-mod) 95% calc(c/4) h);
   --shard-caret-sig: oklch(from var(--token-sig) 95% calc(c/4) h);
@@ -143,6 +148,7 @@
   --shard-pat: var(--shard-caret-pat);
   --shard-typ: var(--shard-caret-typ);
   --shard-drv: var(--shard-caret-drv);
+  --shard-bb: var(--shard-caret-bb);
   --shard-tpat: var(--shard-caret-tpat);
   --shard-mod: var(--shard-caret-mod);
   --shard-sig: var(--shard-caret-sig);

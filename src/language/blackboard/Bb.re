@@ -97,6 +97,30 @@ let binder_of = (dom: Term.t): option((string, Term.t)) =>
   | _ => None
   };
 
+/* `;` is right-associative and `,` may group either way, so a list of
+   three or more arrives nested. Both read as flat lists. */
+let rec flatten = (of_term, t: Term.t): list(Term.t) =>
+  switch (of_term(t)) {
+  | Some(items) => List.concat_map(flatten(of_term), items)
+  | None => [t]
+  };
+
+let flatten_tuple =
+  flatten(t =>
+    switch (Term.term_of(t)) {
+    | Tuple(items) => Some(items)
+    | _ => None
+    }
+  );
+
+let flatten_seq =
+  flatten(t =>
+    switch (Term.term_of(t)) {
+    | Seq(items) => Some(items)
+    | _ => None
+    }
+  );
+
 let rec term_to_kernel = (t: Term.t): result(BbTerm.t, problem) =>
   switch (Term.term_of(t)) {
   | Var(x) => Ok(BbTerm.Var(x))
@@ -118,11 +142,7 @@ let rec term_to_kernel = (t: Term.t): result(BbTerm.t, problem) =>
     };
   | Ap(f, arg) =>
     let* f = term_to_kernel(f);
-    let args =
-      switch (Term.term_of(arg)) {
-      | Tuple(args) => args
-      | _ => [arg]
-      };
+    let args = flatten_tuple(arg);
     List.fold_left(
       (acc, a) => {
         let* acc = acc;
@@ -145,8 +165,8 @@ let rec term_to_kernel = (t: Term.t): result(BbTerm.t, problem) =>
 
 let items_of = (t: Term.t): list(Term.t) =>
   switch (Term.term_of(t)) {
-  | Seq(items) => items
   | Hole(EmptyHole) => []
+  | Seq(_) => flatten_seq(t)
   | _ => [t]
   };
 

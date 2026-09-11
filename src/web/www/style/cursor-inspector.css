@@ -75,6 +75,10 @@
   background-color: var(--token-drv);
 }
 
+#cursor-inspector .Bb .gamma {
+  background-color: var(--token-bb);
+}
+
 #cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
@@ -180,6 +184,10 @@
   background-color: var(--token-drv);
 }
 
+#cursor-inspector .ci-header.ok.Bb .toggle-switch.active {
+  background-color: var(--token-bb);
+}
+
 #cursor-inspector .ci-header.ok.TPat .toggle-switch.active {
   background-color: var(--token-tpat);
 }
@@ -210,6 +218,10 @@
 
 #cursor-inspector .ci-header.ok.Drv .toggle-switch .toggle-knob {
   color: var(--token-drv);
+}
+
+#cursor-inspector .ci-header.ok.Bb .toggle-switch .toggle-knob {
+  color: var(--token-bb);
 }
 
 #cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
@@ -252,6 +264,11 @@
 #cursor-inspector .ci-header.ok.Drv {
   background-color: var(--shard-drv);
   color: var(--token-drv);
+}
+
+#cursor-inspector .ci-header.ok.Bb {
+  background-color: var(--shard-bb);
+  color: var(--token-bb);
 }
 
 #cursor-inspector .ci-header.ok.TPat {

@@ -30,8 +30,8 @@ by tychk;
 # Only the signature carries meaning. #
 
 construct
-  false : type;
-  false-eq : eq(type, false, (X : type) -> X)
+  falsity : type;
+  falsity_eq : eq(type, falsity, (X : type) -> X)
 by definition
 
 end

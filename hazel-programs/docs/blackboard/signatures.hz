@@ -25,8 +25,8 @@ by tychk
 
 ; construct
   eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
-  succ-pred : (x : int) -> eq(int, succ(pred(x)), x);
-  pred-succ : (x : int) -> eq(int, pred(succ(x)), x)
+  succ_pred : (x : int) -> eq(int, succ(pred(x)), x);
+  pred_succ : (x : int) -> eq(int, pred(succ(x)), x)
 by quotient
 
 end

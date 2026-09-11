@@ -15,7 +15,7 @@ blackboard
 
 assume
   absurd : type;
-  absurd-eq : (X : type) -> X
+  absurd_eq : (X : type) -> X
 by tychk
 
 end

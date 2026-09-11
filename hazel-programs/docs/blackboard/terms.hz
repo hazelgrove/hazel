@@ -3,6 +3,9 @@
 # Every Blackboard term is built from five forms. Put the cursor on any #
 # part of a term to see what the checker makes of it. #
 
+# One deviation from the paper: Hazel names cannot contain a hyphen, #
+# so `subtype-eq` is written `subtype_eq` here. #
+
 blackboard
 
 assume
@@ -16,14 +19,14 @@ assume
   # For `t : T` to be a type, T must be a type and t must have SOME #
   # type. It need NOT already have type T -- that is the point. #
   a : A;
-  witness : a : A;
+  witness : (a : A);
 
   # 3. FUNCTION TYPES. Non-dependent: #
   f : A -> A;
 
   # 4. DEPENDENT function types bind a name in the domain. #
   # The binder is written as a parenthesized membership. #
-  id-ty : (X : type) -> X -> X;
+  id_ty : (X : type) -> X -> X;
 
   # 5. APPLICATION. Several arguments are written f(a, b), which #
   # means f applied to a, then to b. #
@@ -39,7 +42,7 @@ by tychk;
 
 construct
   subtype : (A : type) -> (B : type) -> type;
-  subtype-eq :
+  subtype_eq :
     (A : type) -> (B : type) ->
     eq(type, subtype(A, B), (x : A) -> x : B)
 by definition

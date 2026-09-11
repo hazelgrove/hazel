@@ -101,6 +101,9 @@
 .code .token.Drv {
   color: var(--token-drv);
 }
+.code .token.Bb {
+  color: var(--token-bb);
+}
 .code .token.Rul {
   color: var(--token-rul);
 }
@@ -248,6 +251,9 @@ svg.shard.indicated.Typ {
 svg.shard.indicated.Drv {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-drv));
 }
+svg.shard.indicated.Bb {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-bb));
+}
 svg.shard.indicated.Rul {
   filter: drop-shadow(
     var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
@@ -280,6 +286,9 @@ svg.shard.indicated.Typ > path {
 }
 svg.shard.indicated.Drv > path {
   fill: var(--shard-drv);
+}
+svg.shard.indicated.Bb > path {
+  fill: var(--shard-bb);
 }
 svg.shard.indicated.Rul > path {
   fill: var(--shard-rul);
@@ -495,6 +504,9 @@ svg:has(.child-line) {
 }
 .child-line.Drv {
   stroke: var(--token-drv);
+}
+.child-line.Bb {
+  stroke: var(--token-bb);
 }
 .child-line.Rul {
   stroke: var(--shard-lines-rul);
