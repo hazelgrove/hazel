@@ -460,22 +460,36 @@ let check_ana_type_members =
                   Typ.count_unknowns(expected) == 0
                   && Typ.count_unknowns(def) == 0
                   && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
+              let mark =
+                Mark.ModuleTypeMemberMismatch({
+                  name,
+                  expected,
+                  actual: def,
+                });
+              /* The definition type carries the mark; the item only if the
+                 type has no info of its own. */
               let m =
-                StaticsBase.Map.add_info(
-                  IdTagged.ids(item),
-                  Info.InfoExp({
-                    ...info,
-                    marks: [
-                      Mark.ModuleTypeMemberMismatch({
-                        name,
-                        expected,
-                        actual: def,
-                      }),
-                      ...info.marks,
-                    ],
-                  }),
-                  m,
-                );
+                switch (StaticsBase.Map.lookup_typ(IdTagged.rep_id(def), m)) {
+                | Some(ti) =>
+                  StaticsBase.Map.add_info(
+                    IdTagged.ids(def),
+                    Info.InfoTyp({
+                      ...ti,
+                      marks: [mark, ...ti.marks],
+                      message: None,
+                    }),
+                    m,
+                  )
+                | None =>
+                  StaticsBase.Map.add_info(
+                    IdTagged.ids(item),
+                    Info.InfoExp({
+                      ...info,
+                      marks: [mark, ...info.marks],
+                    }),
+                    m,
+                  )
+                };
               (m, [name, ...marked]);
             | _ => (m, marked)
             }
