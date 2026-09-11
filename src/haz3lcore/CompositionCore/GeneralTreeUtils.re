@@ -161,11 +161,23 @@ let subtree_of =
         body_map;
 
       | _ =>
-        raise(
-          Failure(
-            "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
-          ),
-        )
+        /* Bare expression line node (e.g. test, standalone expr in Seq).
+           No pat/def/body decomposition — just check the expression itself. */
+        let exp_info = exp_to_exp(term, orig_info_map);
+        of_def || of_body
+          ? {
+            let (_, _, map) =
+              Statics.uexp_to_info_map(
+                ~ctx=exp_info.ctx,
+                ~ana=exp_info.ana,
+                ~is_in_filter=false,
+                ~ancestors=exp_info.ancestors,
+                term,
+                Statics.Map.empty,
+              );
+            map;
+          }
+          : Statics.Map.empty;
       }
     | _ => raise(Failure("Current node is not an expression"))
     };

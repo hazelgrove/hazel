@@ -171,6 +171,7 @@ module Utils = {
   let update_context =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
+        ~cursor_context: string="",
         agent_editor_view: string,
         static_errors_info: string,
         test_results_info: string,
@@ -180,6 +181,7 @@ module Utils = {
     let workbench =
       Message.Utils.mk_context_message(
         ~session_mode,
+        ~cursor_context_content=cursor_context,
         agent_editor_view,
         static_errors_info,
         test_results_info,
@@ -353,6 +355,14 @@ module Utils = {
 };
 
 module Update = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type context_snapshot = {
+    agent_editor_view: string,
+    static_errors: string,
+    test_results: string,
+    cursor_context: string,
+  };
+
   module Action = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
@@ -361,7 +371,7 @@ module Update = {
       | BranchOff(Id.t)
       | AgentContextAction(AgentContext.Update.action)
       | WorkbenchAction(AgentWorkbench.Update.Action.action)
-      | UpdateContext(AgentGlobals.Model.session_mode, string, string, string)
+      | UpdateContext(AgentGlobals.Model.session_mode, context_snapshot)
       | AppendToMessageContent(Id.t, string)
       | OverwriteMessage(Id.t, Message.Model.t)
       | SwitchView(Model.current_view)
@@ -404,16 +414,15 @@ module Update = {
       };
     | UpdateContext(
         session_mode,
-        agent_editor_view,
-        static_errors_info,
-        test_results_info,
+        {agent_editor_view, static_errors, test_results, cursor_context},
       ) =>
       Ok(
         Utils.update_context(
           ~session_mode,
+          ~cursor_context,
           agent_editor_view,
-          static_errors_info,
-          test_results_info,
+          static_errors,
+          test_results,
           model,
         ),
       )
