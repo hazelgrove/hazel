@@ -993,8 +993,12 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=":") => false
   | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
+    /* `:` is an operator character, so anything glued to it that also starts
+       with one lexes as a single operator token -- `let _ :+ T` in a sig came
+       back as `:+`, which is no form at all. `$` is a name character but still
+       needs the gap. */
     String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
+    || Token.begins_with_potential_operator(s2)
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
