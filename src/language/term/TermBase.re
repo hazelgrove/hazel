@@ -349,6 +349,18 @@ and Pat: {
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
+        | Implicit(mp) =>
+          Implicit(
+            MPat.map_term(
+              ~f_exp,
+              ~f_pat,
+              ~f_typ,
+              ~f_tpat,
+              ~f_rul,
+              ~f_any,
+              mp,
+            ),
+          )
         },
     };
     x |> f_pat(rec_call);
@@ -459,6 +471,18 @@ and Typ: {
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
+        | Implicit(mp) =>
+          Implicit(
+            MPat.map_term(
+              ~f_exp,
+              ~f_pat,
+              ~f_typ,
+              ~f_tpat,
+              ~f_rul,
+              ~f_any,
+              mp,
+            ),
+          )
         | ProofOf(e) => ProofOf(exp_map_term(e))
         | Sig(items) =>
           Sig(

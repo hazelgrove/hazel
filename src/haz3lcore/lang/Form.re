@@ -428,7 +428,10 @@ type compound_form =
      it (Insert.upgrade_bare_sig_type). */
   | SigTypeAbstract
   | SigType
-  | SigModule;
+  | SigModule
+  // IMPLICIT MODULE BINDERS
+  | ImplicitPat
+  | ImplicitTyp;
 
 let get: compound_form => t =
   fun
@@ -469,11 +472,11 @@ let get: compound_form => t =
   | TupleLabeledPat => mk_infix("=", Pat, P.lab)
   | TupleLabeledTyp => mk_infix("=", Typ, P.lab)
   | DotExp => mk_infix(".", Exp, P.dot)
-  | DotTyp => mk_infix(".", Typ, P.dot)
+  | DotTyp => mk_infix(".", Typ, P.type_dot)
   | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
   | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
-  | ProdProjection => mk_infix(".", Typ, P.dot)
+  | ProdProjection => mk_infix(".", Typ, P.type_dot)
   | ProdExtension => mk_infix("...", Typ, P.ap)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
@@ -543,7 +546,15 @@ let get: compound_form => t =
   | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
   | SigTypeAbstract => mk_pre_c'(L, ["type"], P.let_, Sig, [], TPat)
   | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ)
-  | SigModule => mk_pre_c'(L, ["module"], P.let_, Sig, [], MPat);
+  | SigModule => mk_pre_c'(L, ["module"], P.let_, Sig, [], MPat)
+  /* `implicit S : SIG` as a component of a function parameter: the MPat
+     body (`S` or `S : SIG`) ends at `,`, `=` or `->`. */
+  | ImplicitPat => mk_pre_c'(L, ["implicit"], P.implicit_pat, Pat, [], MPat)
+  /* The same as a component of an arrow domain. The type-level `,` binds
+     tighter than the MPat's `:`, so here the `:` is the tile's own shard
+     and the signature is the body, bounded by the tile's precedence. */
+  | ImplicitTyp =>
+    mk_pre_c(L, ["implicit", ":"], P.type_implicit, Typ, [MPat]);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);

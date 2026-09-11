@@ -27,5 +27,6 @@ let tests =
     Test_Evaluator_Properties.tests,
     Test_Evaluator_Performance.tests,
     Test_Evaluator_Modules.tests,
+    Test_Evaluator_Implicits.tests,
     Test_Evaluator_Incremental.tests,
   ];

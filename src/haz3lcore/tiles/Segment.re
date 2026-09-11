@@ -263,7 +263,15 @@ and remold_typ = (shape, seg: t): t =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
         [Tile(t), ...remolded];
-      | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        /* The MPat body of `implicit S : SIG`. */
+        | (_, {shape, sort: MPat}) =>
+          let (remolded, shape, rest) =
+            remold_mpat_uni(shape, tl, [Sort.Typ]);
+          [Piece.Tile(t), ...remolded] @ remold_typ(shape, rest);
+        | _ => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+        }
       }
     }
   }
@@ -315,9 +323,19 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           seg,
         )
       | Some(t) =>
-        let (remolded, shape, rest) =
-          remold_typ_uni(snd(Tile.shapes(t)), tl, parent_sorts);
-        ([Tile(t), ...remolded], shape, rest);
+        switch (Tile.nibs(t)) {
+        /* The MPat body of `implicit S : SIG`. */
+        | (_, {shape, sort: MPat}) =>
+          let (remolded_mpat, shape, rest) =
+            remold_mpat_uni(shape, tl, [Sort.Typ, ...parent_sorts]);
+          let (remolded_typ, shape, rest) =
+            remold_typ_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_mpat] @ remolded_typ, shape, rest);
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_typ_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+          ([Tile(t), ...remolded], shape, rest);
+        }
       }
     }
   }
@@ -350,6 +368,13 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           let (remolded_pat, shape, rest) =
             remold_pat_uni(shape, rest, parent_sorts);
           ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+        /* The MPat body of `implicit S : SIG`. */
+        | (_, {shape, sort: MPat}) =>
+          let (remolded_mpat, shape, rest) =
+            remold_mpat_uni(shape, tl, [Sort.Pat, ...parent_sorts]);
+          let (remolded_pat, shape, rest) =
+            remold_pat_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_mpat] @ remolded_pat, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_pat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
@@ -378,6 +403,11 @@ and remold_pat = (shape, seg: t): t =>
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) =
             remold_typ_uni(shape, tl, [Sort.Pat]);
+          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
+        /* The MPat body of `implicit S : SIG`. */
+        | (_, {shape, sort: MPat}) =>
+          let (remolded, shape, rest) =
+            remold_mpat_uni(shape, tl, [Sort.Pat]);
           [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
         }

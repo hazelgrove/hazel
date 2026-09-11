@@ -131,6 +131,37 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       n1 == n2 && Typ.fast_equal(e1, e2) && Typ.fast_equal(a1, a2)
     | (EscapedType({path: p1, side: s1}), EscapedType({path: p2, side: s2})) =>
       p1 == p2 && s1 == s2
+    | (
+        ImplicitNotFound({
+          binder: b1,
+          signature: s1,
+          constraints: r1,
+          candidates: c1,
+        }),
+        ImplicitNotFound({
+          binder: b2,
+          signature: s2,
+          constraints: r2,
+          candidates: c2,
+        }),
+      ) =>
+      b1 == b2
+      && Typ.fast_equal(s1, s2)
+      && List.length(r1) == List.length(r2)
+      && List.for_all2(
+           ((n1, t1), (n2, t2)) => n1 == n2 && Typ.fast_equal(t1, t2),
+           r1,
+           r2,
+         )
+      && c1 == c2
+    | (
+        ImplicitAmbiguous({binder: b1, signature: s1, candidates: c1}),
+        ImplicitAmbiguous({binder: b2, signature: s2, candidates: c2}),
+      ) =>
+      b1 == b2 && Typ.fast_equal(s1, s2) && c1 == c2
+    | (ImplicitBinderNotModule(t1), ImplicitBinderNotModule(t2)) =>
+      Typ.fast_equal(t1, t2)
+    | (ImplicitBinderPosition, ImplicitBinderPosition) => true
     | (BadOperator(s1), BadOperator(s2)) => s1 == s2
     | (BadLivelitModel(t1), BadLivelitModel(t2)) => Typ.fast_equal(t1, t2)
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
@@ -333,3 +364,34 @@ module FTemp =
     type t = IdTagged.IdTag.t;
     let default_value = (): IdTagged.IdTag.t => IdTagged.IdTag.temp();
   });
+
+/* Assert that some mark in the program satisfies [pred]. */
+let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(name, true, List.exists(pred, marks));
+    },
+  );
+
+/* Exactly one mark in the whole program, and it satisfies [pred]. */
+let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        name,
+        true,
+        switch (marks) {
+        | [m] => pred(m)
+        | _ => false
+        },
+      );
+    },
+  );

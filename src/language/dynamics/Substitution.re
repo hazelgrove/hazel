@@ -187,19 +187,28 @@ and in_pat =
       p: Pat.t,
     )
     : (Environment.t(Exp.t), Pat.t) => {
-  switch (p |> Pat.term_of) {
-  // Variables: special case
-  | Var(x) =>
+  /* A bound variable is renamed when it would capture. */
+  let bind_var = (x: Var.t): (Environment.t(Exp.t), Var.t) => {
     let x' = Environment.free_name(x, env_acc);
     if (x == x') {
-      (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), p);
+      (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), x');
     } else {
       (
         env_acc
         |> Environment.extend(_, (x, Exp.fresh(Var(x'))))
         |> Environment.extend(_, (x', Exp.fresh(Var(x')))),
-        Var(x') |> Pat.fresh,
+        x',
       );
+    };
+  };
+  switch (p |> Pat.term_of) {
+  // Variables: special case
+  | Var(x) =>
+    let (env', x') = bind_var(x);
+    if (x == x') {
+      (env', p);
+    } else {
+      (env', Var(x') |> Pat.fresh);
     };
 
   // Atomic forms
@@ -257,6 +266,15 @@ and in_pat =
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Asc(p1', t') |> Pat.fresh);
+  | Implicit(mp) =>
+    /* Binds its name like a variable; its annotation is a type. */
+    let mp = MPat.map_typ(in_typ(env_outer), mp);
+    switch (MPat.name(mp)) {
+    | Some(x) =>
+      let (env', x') = bind_var(x);
+      (env', Implicit(x == x' ? mp : MPat.rename(mp, x')) |> Pat.fresh);
+    | None => (env_acc, Implicit(mp) |> Pat.fresh)
+    };
   };
 }
 
@@ -291,7 +309,8 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Escaped(_)
         | DrvQuoteTy(_) => cont(t)
         // Signature items carry patterns, which this traversal cannot visit
-        | Sig(_) => t
+        | Sig(_)
+        | Implicit(_) => t
         };
       },
     typ,

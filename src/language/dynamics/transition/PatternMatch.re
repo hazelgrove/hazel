@@ -70,6 +70,7 @@ let match_pattern =
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+  | Implicit(mp) => recur(Pat.of_mpat(mp), d)
   };
 
 /* Record a sample closure if this pattern is targeted and matched */

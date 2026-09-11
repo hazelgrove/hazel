@@ -885,6 +885,22 @@ end|}),
       {|Fun: module-typed parameter|},
       {|fun (m : { type T; let x : T }) -> m.x|},
     ),
+    roundtrip_test(
+      {|Implicit: parameter component|},
+      {|fun (implicit S : SHOW, x : S.T) -> S.show(x)|},
+    ),
+    roundtrip_test(
+      {|Implicit: whole parameter|},
+      {|fun implicit S : SHOW -> S.show|},
+    ),
+    roundtrip_test(
+      {|Implicit: unannotated instance|},
+      {|let implicit m = { type T = Int; let x = 1 } in m.x|},
+    ),
+    roundtrip_test(
+      {|Implicit: arrow domain|},
+      {|let f : (implicit S : SHOW, S.T) -> S.T = fun (implicit S : SHOW, x : S.T) -> x in f|},
+    ),
   ],
 );
 
