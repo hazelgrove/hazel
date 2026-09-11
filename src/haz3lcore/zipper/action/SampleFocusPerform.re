@@ -179,10 +179,44 @@ let set_index = (z: Zipper.t, i: int): Zipper.t =>
     },
   );
 
+let toggle_anti_pin = (z: Zipper.t, depth: int): Zipper.t =>
+  update(z, sample_focus =>
+    {
+      ...sample_focus,
+      anti_pin:
+        switch (sample_focus.anti_pin) {
+        | Some(existing) when existing == depth => None
+        | _ => Some(depth)
+        },
+    }
+  );
+
+/* Directly set call_stack and index, bypassing suffix-preservation.
+ * Used by tree view navigation (switch_sibling) where we know exactly
+ * what the sightline should be and don't want Capture's heuristics.
+ *
+ * Clears `anchor`: display is reference-first (Sample.most_aligned_index),
+ * so a stale anchor from an earlier click would keep the clicked probe
+ * pinned to a sample in the branch we just navigated AWAY from. An
+ * explicit sightline set is a deliberate re-aim, so it drops the
+ * reference and lets the stack tiers pick the sample. */
+let set_sightline =
+    (z: Zipper.t, call_stack: CallStack.t, index: int): Zipper.t =>
+  update(z, sample_focus =>
+    {
+      ...sample_focus,
+      call_stack,
+      index,
+      anchor: None,
+    }
+  );
+
 let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
   | TogglePin(call_stack, capture) => toggle_pin_call(z, call_stack, capture)
+  | ToggleAntiPin(depth) => toggle_anti_pin(z, depth)
   | SetIndex(i) => set_index(z, i)
+  | SetSightline(call_stack, index) => set_sightline(z, call_stack, index)
   | Reset => reset(z)
   };
