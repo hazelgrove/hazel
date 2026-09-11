@@ -75,3 +75,7 @@ AGENTS.md
 # Python bytecode (scripts/ helpers get imported by ad-hoc tooling)
 __pycache__/
 *.pyc
+
+# Written by the FumolaPrint test group, for scripts/check-fumola-roundtrip.sh
+fumola-corpus.txt
+fumola-corpus-explicit.txt
