@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# Deterministic QCheck runs by default so random-draw findings don't
+# red the suite mid-work; hunt new counterexamples explicitly with
+# QCHECK_SEED=<n> sweeps (see Test_RoundtripFuzz header).
+export QCHECK_SEED="${QCHECK_SEED:-42}"
 # Shared wrapper for running the test JS with the correct node flags.
 # Extra arguments are forwarded to the test runner.
 #

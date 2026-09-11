@@ -62,6 +62,38 @@ let fast_equal =
     exp;
 let equal = fast_equal;
 
+/* In-order trace of annotation lexemes. Paired with fast_equal (which
+   guarantees aligned structure), comparing traces detects lexeme-only
+   differences — e.g. editing an unknown operator @@ -> @@@ changes
+   display and stuck-application semantics but not term structure. */
+let lexeme_trace = (e: t): list(option(string)) => {
+  let acc = ref([]);
+  let f = (continue, t: IdTagged.t(_)) => {
+    acc := [t.annotation.lexeme, ...acc^];
+    continue(t);
+  };
+  let _ =
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+      e,
+    );
+  acc^;
+};
+
+/* fast_equal plus lexeme comparison. fast_equal ignores annotations, but
+   lexemes carry display and semantics (hole flavor, stuck unknown-op
+   applications), so recompute/caching gates must use this variant or
+   lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
+let fast_equal_with_lexemes = (a: t, b: t): bool =>
+  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+
 let temp: term => t =
   term => {
     term,
@@ -435,7 +467,14 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+        annotation: {
+          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+             so re-idded results still display faithfully. Secondary and
+             shard provenance stay dropped: display of results is
+             AutoFormat and the tile-id references are invalidated. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: exp.annotation.lexeme,
+        },
       }
       |> continue;
   (

@@ -15,6 +15,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
 };
@@ -57,6 +58,8 @@ module TempGrammar =
       () => {
         ids: [Id.invalid],
         secondary: IdTagged.IdTag.empty_secondary,
+        incomplete: [],
+        lexeme: None,
       };
   });
 let tests = (
@@ -364,6 +367,48 @@ let tests = (
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
+    test_case(
+      "Rul term prints its content",
+      `Quick,
+      () => {
+        /* any_to_pretty used to print Rul as a bare convex grout,
+           destroying the rules' content */
+        let rul: Language.Rul.t =
+          IdTagged.FreshGrammar.(
+            IdTagged.fresh(
+              Grammar.Rules(
+                Exp.int(1),
+                [(Pat.constructor("A", None), Exp.int(2))],
+              ),
+            )
+          );
+        let seg =
+          ExpToSegment.any_to_segment(
+            ~settings=exp_to_segment_settings,
+            Rul(rul),
+          );
+        check(string, "rule content", "1 | A => 2", print_seg(seg));
+      },
+    ),
+    test_case("Shard provenance reaches term annotations", `Quick, () => {
+      switch (Parser.to_segment("let x = 1 ", ~root=Exp)) {
+      | None => Alcotest.fail("parse failed")
+      | Some(seg) =>
+        let result =
+          CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+        let masks =
+          CanonicalCompletion.masks_of_records(result.shard_records);
+        let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
+        /* The completed root should be a Let whose annotation records
+           the let tile with originally-present shards [0, 1] */
+        let found =
+          term.annotation.incomplete
+          |> List.exists(((_, mask: IdTagged.IdTag.incomplete_mask)) =>
+               mask.present == [0, 1]
+             );
+        check(bool, "let tile provenance recorded", true, found);
+      }
+    }),
     test_case("Unit pattern", `Quick, () => {
       check(
         string,
@@ -525,6 +570,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
 };
@@ -532,18 +578,79 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
 let exp_to_segment_roundtrip =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_roundtrip_settings);
 
-/* Test that a string round-trips through segment → term → segment */
-let roundtrip_test = (name: string, input: string) =>
+/* Text-only roundtrip: for forms with known segment-level infidelities
+   (drv printers hardcode child sorts, e.g. Truth printed at Drv Prop where
+   the parser molded it Drv Exp) where secondary preservation is still
+   worth pinning. */
+let roundtrip_text_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
-    switch (
-      Parser.to_term(input, ~root=Exp),
-      Parser.to_segment(input, ~root=Exp),
-    ) {
-    | (Some(term), Some(seg)) =>
+    switch (Parser.to_term(input, ~root=Exp)) {
+    | Some(term) =>
+      let input2 = print_seg(exp_to_segment_roundtrip(term));
+      check(string, {|Round-trip text|}, input, input2);
+    | None => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
+/* Test that a string round-trips through segment → term → segment */
+/* known_equiv_gap: strict mod-grout equivalence finding not yet fixed —
+   an explicit worklist, not an acceptance. Empty as of 2026-07-02: the
+   original families (TupleExtension, DeferredAp comma id, quoted
+   labels) are all fixed. */
+let roundtrip_test = (~known_equiv_gap=false, name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_segment(input, ~root=Exp)) {
+    | Some(seg) =>
+      /* term from the SAME parse — a second Parser.to_term call would
+         mint fresh ids and defeat the strict equivalence check */
+      let term = MakeTerm.go(seg).term;
       let seg' = exp_to_segment_roundtrip(term);
       let input' = print_seg(seg');
       check(string, {|Round-trip text|}, input, input');
       check(segment, {|Round-trip segments|}, seg, seg');
+      if (!known_equiv_gap) {
+        check(
+          bool,
+          {|Round-trip equiv (strict mod grout)|},
+          true,
+          Segment.equiv_mod_grout(seg, seg'),
+        );
+      };
+    | None => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
+/* Tile ids must survive the roundtrip. The `segment` testable is
+   id-ignoring, so id-fidelity regressions (e.g. the sum ctor-ap id swap)
+   need this explicit check. Grout/secondary ids are excluded: grout is
+   ephemeral by design. */
+let rec tile_ids = (seg: Segment.t): list(string) =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         [List.nth(t.label, 0) ++ ":" ++ Id.to_string(t.id)]
+         @ List.concat_map(tile_ids, t.children)
+       | Secondary(_)
+       | Grout(_) => []
+       | Projector(pr) => ["PROJ:" ++ Id.to_string(pr.id)]
+       }
+     );
+
+let roundtrip_ids_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    /* Term must come from the SAME parse as the reference segment —
+       Parser.to_term would re-parse and mint entirely fresh ids. */
+    switch (Parser.to_segment(input, ~root=Exp)) {
+    | Some(seg) =>
+      let term = MakeTerm.go(seg).term;
+      let seg' = exp_to_segment_roundtrip(term);
+      check(
+        list(string),
+        {|Round-trip tile ids|},
+        tile_ids(seg),
+        tile_ids(seg'),
+      );
     | _ => Alcotest.fail({|Failed to parse|})
     }
   });
@@ -553,6 +660,24 @@ let roundtrip_tests = (
   [
     /* Simple atoms */
     roundtrip_test({|Integer literal|}, {|42|}),
+    /* Lexeme preservation: non-canonical spellings and hole tokens
+       survive via IdTag.lexeme (audit classes B and A4) */
+    roundtrip_test({|Int: leading zeros|}, {|007|}),
+    roundtrip_test({|Float: short|}, {|3.14|}),
+    roundtrip_test({|Float: exponent|}, {|1e3|}),
+    roundtrip_test({|Float: trailing dot|}, {|2.|}),
+    roundtrip_test({|Explicit hole|}, {|?|}),
+    roundtrip_test({|Explicit hole operand|}, {|1 + ?|}),
+    roundtrip_test({|LLM hole|}, {|1 + ??|}),
+    roundtrip_test({|Float pattern|}, {|fun 3.14 -> 1|}),
+    roundtrip_test({|Label: unnecessary backticks|}, {|(`a`=1)|}),
+    roundtrip_test({|Label: backticked dot|}, {|x.`a`|}),
+    roundtrip_test({|Label: backticked pat|}, {|fun (`a`=x) -> x|}),
+    roundtrip_test({|Label: backticked typ|}, {|1 : (`a`=Int)|}),
+    /* Unknown infix operators survive as MultiHole + op lexeme */
+    roundtrip_test({|Unknown op|}, {|1 @@@ 2|}),
+    roundtrip_test({|Unknown op: chained|}, {|1 @@@ 2 @@@ 3|}),
+    roundtrip_test({|Unknown op: spaced|}, {|1  @@@  2|}),
     roundtrip_test({|Negative int|}, {|-42|}),
     roundtrip_test({|Variable|}, {|x|}),
     roundtrip_test({|String literal|}, {|"hello"|}),
@@ -684,6 +809,11 @@ else 2|}),
     roundtrip_test({|Nested: deeply nested ops|}, {|((1 + 2) * (3 - 4))|}),
     /* Application */
     roundtrip_test({|Application: standard|}, {|f(x)|}),
+    /* Nullary ap is a distinct single-token postfix form, flagged by
+       Id.nullary_ap_flag on the Tuple([]) arg — must not print as f(()) */
+    roundtrip_test({|Application: nullary|}, {|f()|}),
+    roundtrip_test({|Application: nullary in pattern|}, {|fun C() -> 1|}),
+    roundtrip_test({|Application: literal unit arg|}, {|f(())|}),
     roundtrip_test({|Application: multiple args|}, {|f(x, y, z)|}),
     roundtrip_test({|Deferred Application: standard|}, {|f(_ , y)|}),
     roundtrip_test(
@@ -717,26 +847,22 @@ in f(42)|},
     roundtrip_test({|Sum type: single constructor|}, {|type T = +A in T|}),
     roundtrip_test({|Sum type: two constructors|}, {|type T = +A + B in T|}),
     roundtrip_test({|Sum type: with args|}, {|type T = +A(Int) + B in T|}),
+    roundtrip_ids_test(
+      {|Sum type: ctor-ap ids stable|},
+      {|type T = +A(Int) + B in T|},
+    ),
+    roundtrip_ids_test(
+      {|Ids stable: let/fun/case|},
+      {|let f = fun x -> case x | A => 1 end in f(2)|},
+    ),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
-    /* Sum type without leading + prefix - KNOWN LIMITATION
-       Both `A + B` and `+A + B` parse to the same Sum term.
-       ExpToSegment always emits the prefixed form.
-       See plans/secondary-in-terms-v2.md "Sum type leading + prefix" for options. */
-    test_case(
-      "Sum type: no leading prefix (SKIP)",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        let input = {|type T = A + B in T|};
-        switch (Parser.to_term(input, ~root=Exp)) {
-        | Some(term) =>
-          let seg' = exp_to_segment_roundtrip(term);
-          let output = print_seg(seg');
-          check(string, {|Round-trip text|}, input, output);
-        | None => Alcotest.fail({|Failed to parse|})
-        };
-      },
+    /* Bare sums: the parse's id count distinguishes `A + B` from
+       `+A + B` (n-1 separator ids vs n with the leading + tile) */
+    roundtrip_test({|Sum type: no leading prefix|}, {|type T = A + B in T|}),
+    roundtrip_test(
+      {|Sum type: no leading prefix, args|},
+      {|type T = A(Int) + B in T|},
     ),
     /* Filter expressions (hide/eval/pause/debug ... in) and unquote ($) */
     roundtrip_test({|Filter: hide|}, {|hide 1 in 2|}),
@@ -747,6 +873,13 @@ in f(42)|},
     roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
     roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
     roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
+    /* Drv (of_* end) forms: drv builders/printers thread secondary; without
+       this, PreserveExact printed glommed unparseable text (of_propTruthend) */
+    roundtrip_text_test({|Drv: of_prop|}, {|of_prop Truth end|}),
+    roundtrip_text_test(
+      {|Drv: of_alfa_exp spaced|},
+      {|of_alfa_exp 1  +  2 end|},
+    ),
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},
@@ -808,6 +941,11 @@ end|}),
     roundtrip_test({|Module: single let|}, {|{ let x = 1 }|}),
     roundtrip_test({|Module: multiple lets|}, {|{ let x = 1; let y = 2 }|}),
     roundtrip_test({|Module: compact spacing|}, {|{let x = 1}|}),
+    /* Bare-expression items: ModExp shares its rep id with the inner exp;
+       these caught a double-emission of the shared secondary. */
+    roundtrip_test({|Module: bare exp item|}, {|{ 1 }|}),
+    roundtrip_test({|Module: bare exp items|}, {|{ 1; 2 }|}),
+    roundtrip_test({|Module: let then bare exp|}, {|{ let x = 1; x }|}),
     roundtrip_test(
       {|Module: with type alias|},
       {|{ type T = Int; let x = 1 }|},
@@ -1161,6 +1299,180 @@ let roundtrip_grout_text_test = (name: string, input: string) =>
     }
   });
 
+/* Roundtrip for INCOMPLETE inputs via the canonical-completion path:
+   visible segment -> complete (recording shard provenance) -> term ->
+   print (strip pass truncates completed tiles back to original shards).
+   Text compared with grout hidden on both sides (regrout normalizes). */
+let check_incomplete_roundtrip = (seg: Segment.t): unit => {
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+  let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
+  let seg2 = exp_to_segment_roundtrip(term);
+  let print_g =
+    Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[]);
+  check(
+    string,
+    "roundtrip text (grout hidden)",
+    print_g(seg),
+    print_g(seg2),
+  );
+  /* id fidelity: the visible tiles keep their ids through completion,
+     parsing, printing, and stripping */
+  check(list(string), "roundtrip tile ids", tile_ids(seg), tile_ids(seg2));
+  check(
+    bool,
+    "roundtrip equiv (strict mod grout)",
+    true,
+    Segment.equiv_mod_grout(seg, seg2),
+  );
+};
+
+let roundtrip_incomplete_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_segment(input, ~root=Exp)) {
+    | None => Alcotest.fail("parse failed")
+    | Some(seg) => check_incomplete_roundtrip(seg)
+    }
+  });
+
+let result_display_test =
+  test_case(
+    "Result display: hole flavor, canonical literals, stuck ops",
+    `Quick,
+    () => {
+      /* Mirror the browser result pipeline: evaluate, replace_all_ids (as
+         evaluate_and_limit does), print with of_core display settings. */
+      let display = (e: Language.Exp.t) =>
+        print_seg(
+          PrettySegment.prettify(
+            ExpToSegment.exp_to_segment(
+              ~settings=
+                ExpToSegment.Settings.of_core(~inline=false, CoreSettings.on),
+              e,
+            ),
+          ),
+        );
+      let run = src =>
+        Test_Evaluator_Prelude.(evaluate(elaborate(parse_exp(src))))
+        |> Language.Exp.replace_all_ids;
+      /* hole flavor survives evaluation and re-idding (B8) */
+      check(string, "explicit hole", "1 + ?", display(run("1 + ?")));
+      check(string, "llm hole", "1 + ??", display(run("1 + ??")));
+      /* hole flavor also survives VarLookup's fast_copy */
+      check(
+        string,
+        "hole via lookup",
+        "??",
+        display(run("let x = ?? in x")),
+      );
+      /* unknown ops are stuck, not evaluated-to-last (B9) */
+      check(string, "stuck op", "1 @@@ 2", display(run("1 @@@ 2")));
+      /* plain juxtaposition (no op lexeme) keeps eval-to-last semantics */
+      check(
+        string,
+        "juxtaposition evals to last",
+        "2",
+        display(run("1 2")),
+      );
+      check(
+        string,
+        "juxtaposition chain evals to last",
+        "3",
+        display(run("1 2 3")),
+      );
+      /* literals canonicalize consistently in result views (B7) */
+      check(
+        string,
+        "literal via let",
+        "7",
+        display(run("let x = 007 in x")),
+      );
+      check(string, "literal direct", "7", display(run("007")));
+    },
+  );
+
+let roundtrip_incomplete_tests = (
+  "Round-Trip: Incomplete (completion provenance)",
+  [
+    result_display_test,
+    roundtrip_incomplete_test({|Let missing in|}, {|let x = 1 |}),
+    roundtrip_incomplete_test({|If missing else|}, {|if true then 1 |}),
+    roundtrip_incomplete_test({|Fun missing arrow|}, {|fun x |}),
+    roundtrip_incomplete_test({|Unclosed parens|}, {|(1, 2|}),
+    roundtrip_incomplete_test({|Case missing end|}, {|case x | A => 1 |}),
+    roundtrip_incomplete_test(
+      {|Nested incomplete lets|},
+      {|let a = 1 in let b = 2 |},
+    ),
+    /* Module/Sig items: masks land on Mod/Sig terms, exercised via the
+       f_mod/f_sig map_term hooks */
+    roundtrip_incomplete_test({|Module: incomplete ModLet|}, {|{ type T }|}),
+    roundtrip_incomplete_test(
+      {|Module: incomplete item + brace|},
+      {|{ let x = 1; let y |},
+    ),
+    roundtrip_incomplete_test(
+      {|Sig: incomplete SigType|},
+      {|1 : { type T }|},
+    ),
+    /* Typed bare rules are standalone |, => token tiles (real rule
+       tiles only form inside a case), so these roundtrip via the
+       unknown-op lexeme machinery, not the case wrap. Edit-derived
+       orphan chains (real rule tiles) are wrapped — see the golden
+       tests in Test_CanonicalCompletion. */
+    roundtrip_incomplete_test({|Orphaned rule|}, {|1 | A => 2|}),
+    roundtrip_incomplete_test(
+      {|Orphaned rules, two clauses|},
+      {|1 | A => 2 | B => 3|},
+    ),
+    roundtrip_incomplete_test({|Orphaned rule, no scrutinee|}, {|| A => 1|}),
+    roundtrip_incomplete_test(
+      {|Orphaned rule, compound scrutinee|},
+      {|1 + 2 | A => 3|},
+    ),
+    roundtrip_incomplete_test(
+      {|Orphaned rule inside parens|},
+      {|(1 | A => 2) + 3|},
+    ),
+    /* Leading-shard loss: closing delimiters without openers; completion
+       prepends the missing openers at partition start (reverse order so
+       the later closer opens outermost).
+       NOTE: a typed lone `end` does NOT expand into a case shard the way
+       `)` expands into a paren shard — inserting it remolds rule tiles
+       apart into standalone token tiles. Keyword-form leading loss
+       (missing case/let) only arises from destructive edits; testing it
+       needs editing actions, not Parser typing. */
+    roundtrip_incomplete_test({|Unopened parens|}, {|1, 2)|}),
+    roundtrip_incomplete_test({|Unopened bracket|}, {|1, 2]|}),
+    roundtrip_incomplete_test({|Two unopened parens|}, {|1) + 2)|}),
+    /* Middle-missing shards: targeted put-down strands the interior
+       delimiter in the backpack, leaving e.g. a let tile with shards
+       [0,2]; completion fills the gap in place with a hole */
+    roundtrip_incomplete_test({|Let missing equals|}, {|let x in 2|}),
+    roundtrip_incomplete_test({|If missing then|}, {|if true else 2|}),
+    /* Keyword-form leading loss is only reachable via destructive edits:
+       select and destruct the case opener, then roundtrip the resulting
+       segment (case tile with shards [1]) */
+    test_case(
+      "Leading loss via edit: deleted case opener",
+      `Quick,
+      () => {
+        let z = Test_Editing.mk_zipper({|§case ¦x | A => 1 end|});
+        let z =
+          [Action.Destruct(Local(Right, ByChar))]
+          |> Test_Editing.perform(z);
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        check_incomplete_roundtrip(seg);
+      },
+    ),
+    roundtrip_incomplete_test({|Complete control|}, {|let x = 1 in x|}),
+    roundtrip_incomplete_test(
+      {|Complete case control|},
+      {|case x | A => 1 | B => 2 end|},
+    ),
+  ],
+);
+
 let roundtrip_grout_string_tests = (
   "Round-Trip: Grout (String)",
   [
@@ -1182,6 +1494,11 @@ let roundtrip_grout_string_tests = (
       {|1  2  3|},
     ),
     roundtrip_grout_text_test({|Incomplete: var then int|}, {|x 1|}),
+    /* NOTE: top-level orphaned rules (`1 | A => 2`) do not roundtrip
+       through the PLAIN parse path (MakeTerm's generic hole path drops
+       the tile tokens at Exp sort) — but they DO roundtrip through the
+       canonical-completion path, which wraps them in a synthesized
+       case/end; see "Orphaned rule" in roundtrip_incomplete_tests. */
   ],
 );
 
@@ -1240,11 +1557,203 @@ let roundtrip_projector_tests = (
   ],
 );
 
+/* P2: segment fixpoint. Render a generated exp to text, parse it to a
+   parser-canonical segment, and check MakeTerm . PreserveExact-print is
+   the identity on it: text always; tile ids only for hole-free renders
+   (explicit-hole tiles print back as grout — audit class A4, hole
+   flavor not yet in terms). */
+let arb_segment_fixpoint =
+  QCheck.Test.make(
+    ~name="ExpToSegment: PreserveExact segment fixpoint on generated exps",
+    ~count=50,
+    QCheck_Util.arb_exp(~minimal_idents=true, 5),
+    exp => {
+      let text =
+        exp
+        |> ExpToSegment.exp_to_segment(
+             ~settings=ExpToSegment.Settings.editable(~inline=true),
+             _,
+           )
+        |> Printer.of_segment(~holes="?", ~refractors=[], _);
+      switch (Parser.to_segment(text, ~root=Exp)) {
+      | None => true /* unparseable render: out of scope for P2 */
+      | Some(seg) =>
+        let term = MakeTerm.go(seg).term;
+        let seg2 = exp_to_segment_roundtrip(term);
+        print_seg(seg) == print_seg(seg2)
+        && tile_ids(seg) == tile_ids(seg2)
+        && Segment.equiv_mod_grout(seg, seg2)
+        /* P3 closure: reparsing the print gives the same term */
+        && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
+      };
+    },
+  );
+
+/* Deterministically vary whitespace outside string literals: multi-space
+   runs, newlines, and comments in place of single spaces. Strings are
+   skipped (no escapes in Hazel; quote parity tracks in-string state). */
+let perturb_spaces = (seed: int, text: string): string => {
+  let out = ref([]);
+  let emit = piece => out := [piece, ...out^];
+  let in_string = ref(false);
+  let k = ref(seed land 0xffff);
+  let next = () => {
+    k := (k^ * 1103515245 + 12345) land 0x3fffffff;
+    k^ mod 6;
+  };
+  String.iter(
+    c => {
+      if (c == '"') {
+        in_string := ! in_string^;
+      };
+      if (c == ' ' && ! in_string^) {
+        switch (next()) {
+        | 0 => emit("  ")
+        | 1 => emit("\n")
+        | 2 => emit(" \n ")
+        | 3 => emit(" #c# ")
+        | _ => emit(" ")
+        };
+      } else {
+        emit(String.make(1, c));
+      };
+    },
+    text,
+  );
+  String.concat("", List.rev(out^));
+};
+
+let arb_perturbed_fixpoint =
+  QCheck.Test.make(
+    ~name=
+      "ExpToSegment: secondary-perturbed segment fixpoint on generated exps",
+    ~count=50,
+    QCheck.pair(
+      QCheck_Util.arb_exp(~minimal_idents=true, 5),
+      QCheck.small_nat,
+    ),
+    ((exp, seed)) => {
+      let text =
+        exp
+        |> ExpToSegment.exp_to_segment(
+             ~settings=ExpToSegment.Settings.editable(~inline=true),
+             _,
+           )
+        |> Printer.of_segment(~holes="?", ~refractors=[], _);
+      let text = perturb_spaces(seed, text);
+      switch (Parser.to_segment(text, ~root=Exp)) {
+      | None => true
+      | Some(seg) =>
+        let term = MakeTerm.go(seg).term;
+        let seg2 = exp_to_segment_roundtrip(term);
+        print_seg(seg) == print_seg(seg2)
+        && tile_ids(seg) == tile_ids(seg2)
+        && Segment.equiv_mod_grout(seg, seg2)
+        /* P3 closure: reparsing the print gives the same term */
+        && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
+      };
+    },
+  );
+
+let property_tests = (
+  "Round-Trip: Property",
+  [
+    QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_segment_fixpoint),
+    QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_perturbed_fixpoint),
+  ],
+);
+
+/* pad_ids: padding/replacement ids must be derived, not minted —
+   printing is a pure function of the term */
+let pad_ids_tests = (
+  "ExpToSegment.PadIds",
+  [
+    Alcotest.test_case(
+      "padding is deterministic",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        Alcotest.(check(bool))(
+          "two pads agree",
+          true,
+          ExpToSegment.pad_ids(3, [base])
+          == ExpToSegment.pad_ids(3, [base]),
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "duplicate replacement is deterministic and distinct",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        let a = ExpToSegment.pad_ids(2, [base, base]);
+        let b = ExpToSegment.pad_ids(2, [base, base]);
+        Alcotest.(check(bool))("stable", true, a == b);
+        Alcotest.(check(bool))(
+          "no dups",
+          true,
+          List.length(List.sort_uniq(Id.compare, a)) == 2,
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "derived stream avoids Id.next chains",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        let padded = ExpToSegment.pad_ids(4, [base]) |> List.tl;
+        let nexts = [
+          Id.next(base),
+          Id.next(Id.next(base)),
+          Id.next(Id.next(Id.next(base))),
+        ];
+        Alcotest.(check(bool))(
+          "disjoint from next chain",
+          true,
+          List.for_all(id => !List.mem(id, nexts), padded),
+        );
+      },
+    ),
+    /* Terms carrying a single id (as evaluation produces) have an empty ids
+       tail, so call sites must pass ~base explicitly: falling back to
+       Id.invalid made every case's k-th rule tile derive the same id. */
+    Alcotest.test_case(
+      "rule tile ids differ across single-id cases",
+      `Quick,
+      () => {
+        let int_lit = n => Exp.fresh(Atom(Int(Util.Bigint.of_int(n))));
+        let case = (a, b) =>
+          Exp.fresh(
+            Match(
+              int_lit(0),
+              [
+                (Pat.fresh(Wild), int_lit(a)),
+                (Pat.fresh(Wild), int_lit(b)),
+              ],
+            ),
+          );
+        let ids =
+          Exp.fresh(Tuple([case(1, 2), case(3, 4)]))
+          |> exp_to_segment
+          |> tile_ids;
+        Alcotest.(check(int))(
+          "no duplicate tile ids",
+          List.length(ids),
+          List.length(List.sort_uniq(compare, ids)),
+        );
+      },
+    ),
+  ],
+);
+
 let all = [
   tests,
+  pad_ids_tests,
   roundtrip_tests,
+  roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,
+  property_tests,
 ];

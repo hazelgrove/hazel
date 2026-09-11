@@ -177,7 +177,7 @@ let indicated =
 };
 
 /* For visual decoration (caret side, arms, projector/refractor highlighting).
-   Ignores secondary. Used by CaretDec, Arms, CodeEditable, Backpack. */
+   Ignores secondary. Used by CaretDec, Arms, CodeEditable. */
 let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
 
 /* For identity/direction queries that always need an answer, even in
@@ -272,6 +272,11 @@ let ci_for_completion =
     : option(Language.Statics.Info.t) =>
   switch (Siblings.neighbor(Left, z.relatives.siblings)) {
   | Some(p) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
-    Id.Map.find_opt(Piece.id(p), info_map)
+    switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+    | Some(_) as ci => ci
+    /* completion may have consumed the neighbor token (witness
+       prefix), leaving no info at its id — fall back to indication */
+    | None => ci_of(z, info_map)
+    }
   | _ => ci_of(z, info_map)
   };
