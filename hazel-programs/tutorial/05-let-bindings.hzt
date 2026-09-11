@@ -1,0 +1,62 @@
+@title
+Let Bindings
+
+@flags
+show_report version=6 id=a0000005-0005-0005-0005-000000000005
+
+@prompt
+A `let` expression binds a variable to a value within a body expression.
+
+The syntax is:
+```hazelnostatics
+let x = expr in
+body
+```
+
+where `x` is available for use in `body`.
+
+Example:
+```hazel
+let h = "Hello" in
+let w = "World" in
+let space = " " in
+h ++ space ++ w
+```
+
+# Task
+
+The editor below calculates the total cost of a meal, where the tip should be 20% of the price. The `tip` variable is currently undefined — define it as 20% of `price`.
+
+@hint
+Use floating point multiplication and a let binding to add the tip
+
+@reference
+### Let Expression
+```hazel
+let x = 5 in
+let y = x + 1 in
+y
+```
+
+Variables bound by `let` are available in the body after `in`.
+
+### Float Arithmetic
+- `2.0 +. 3.0` — addition
+- `5.0 -. 1.0` — subtraction
+- `3.0 *. 2.0` — multiplication
+- `6.0 /. 3.0` — division
+
+Float literals need a decimal point: `0.`, `1.0`, `3.14`
+
+@hints
+tip should be 10.
+total should be 60.
+
+@code
+let price : Float = 50. in
+let total = price +. tip in
+total
+
+@test
+test tip ==. 10. end;
+test total ==. 60. end

@@ -1,0 +1,74 @@
+@title
+Labeled Tuple Projection
+
+@flags
+show_report version=1 id=a89174ca-034d-43d7-b478-330388a2d712
+
+@prompt
+Hazel's labeled tuples support record-style projection:
+
+```hazel
+let pet = (name="Fido", age=4, species="dog") in
+pet.name
+```
+
+# Task
+
+Implement a function:
+```hazelnostatics
+greeting : Person -> String
+```
+
+The greeting should be of the form `Hello {first_name} {last_name}!`. Use `++` to concatenate strings.
+
+**Example:**
+```hazelnostatics
+greeting((first_name="Jane", last_name="Smith", age=20))
+== "Hello Jane Smith!"
+```
+
+@hint
+Define a function and use projection with string concatenation to build the string
+
+@reference
+### Function Definition
+```hazel
+fun n -> n + 1 # Increments n by 1 #
+```
+
+### Binding and Calling a Function
+```hazel
+let inc : Int -> Int =
+fun n -> n + 1
+in
+inc(1)
+```
+
+### Labeled Tuple Projection
+Access a field of a labeled tuple with `.`:
+```hazel
+let pet =
+(name="Fido", 
+age=4, 
+species="dog") in
+pet.name
+```
+
+
+### String Concatenation
+```hazel
+"hello" ++ " world"
+```
+
+@hints
+Don't forget spaces
+Don't forget the exclamation point!
+
+@code
+type Person = (first_name=String, last_name=String, age=Int) in
+let greeting : (Person -> String) = ¿ in
+greeting((first_name="George", last_name="Garcia", age=12))
+
+@test
+test greeting((first_name="Jane", last_name="Smith",age=20)) == "Hello Jane Smith!" end;
+test greeting((first_name="John", last_name="Baker", age=25)) == "Hello John Baker!" end

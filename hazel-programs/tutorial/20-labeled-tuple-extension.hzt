@@ -1,0 +1,89 @@
+@title
+Labeled Tuple Extension
+
+@flags
+show_report version=1 id=fd42ef8a-11ce-4e7b-9993-e50f2bb096e7
+
+@prompt
+To easily update and extend labeled tuples, Hazel provides an extension operator (`...`).
+
+This binary operator takes two labeled tuples and merges them: it updates the left-hand tuple using the fields from the right-hand tuple. Existing fields are overwritten with the new values, and entirely new fields are appended to the end of the tuple.
+
+**Example:**
+
+```hazel
+let pet = (name="Spot", age=7, species="Dog") in
+pet ... (age=8, breed="Pug")
+```
+
+# Task
+
+Implement a function `update_person` that takes a person tuple and:
+
+- increases the `age` field by 1.
+- adds a new `name` field that combines the first and last names (e.g. `"Thor Odinson"`).
+
+```hazelnostatics
+update_person((first="Thor", age=30, last="Odinson"))
+==
+(first="Thor", age=31, last="Odinson", name="Thor Odinson")
+```
+
+@hint
+Use tuple extension `(...)` to update the `age` field and the `name` field
+
+@reference
+### Tuple Extension
+Use `...` to update or add fields to a labeled tuple:
+```hazel
+let pet = (name="Spot", age=7) in
+pet ... (age=8, breed="Pug")
+```
+
+
+### Labeled Tuple Projection
+Access a field of a labeled tuple with `.`:
+```hazel
+let pet =
+(name="Fido", 
+age=4, 
+species="dog") in
+pet.name
+```
+
+
+### String Concatenation
+```hazel
+"hello" ++ " world"
+```
+
+### Integer Arithmetic
+- `2 + 3` — addition
+- `5 - 1` — subtraction
+- `4 * 3` — multiplication
+- `10 / 3` — integer division
+
+@hints
+Example input output matches
+age field
+name field
+tuple order is correct
+
+@code
+type Person = (first=String, age=Int, last=String) in
+let update_person = fun (p : Person) ->
+¿
+in
+update_person((first="Thor", age=30, last="Odinson"))
+
+@test
+test update_person((first="Thor", age=30, last="Odinson")) 
+== 
+(first="Thor", age=31, last="Odinson", name="Thor Odinson")
+end;
+let p = (first="f", age=3, last="l") in
+let u = update_person(p) in
+
+test u.age == 4 end;
+test u.name == "f l" end;
+test to_lvs(u).label == ["first", "age", "last", "name"] end

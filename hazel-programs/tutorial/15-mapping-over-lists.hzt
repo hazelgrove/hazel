@@ -1,0 +1,54 @@
+@title
+Mapping Over Lists
+
+@flags
+show_report version=15 id=a0000014-0014-0014-0014-000000000014
+
+@prompt
+The built-in function `map` applies a function to every element of a list and returns a new list of the results. It has the signature `map : ([T], T -> U) -> [U]`.
+
+For example:
+```hazel
+map([1, 2, 3], fun x -> x + 1)
+```
+
+## Task
+
+Implement a function `double_all` of type `[Int] -> [Int]` that doubles every element of a list using `map`.
+
+@hint
+Use map with a function that doubles each element
+
+@reference
+### map
+```hazelnostatics
+map : ([T], T -> U) -> [U]
+```
+
+---
+
+Apply a function to each element:
+```hazel
+map([1, 2, 3], fun x -> x + 1)
+```
+
+
+### Integer Arithmetic
+- `2 + 3` — addition
+- `5 - 1` — subtraction
+- `4 * 3` — multiplication
+- `10 / 3` — integer division
+
+@hints
+double_all([1, 2, 3]) should be [2, 4, 6]
+double_all([]) should be []
+double_all([5]) should be [10]
+
+@code
+let double_all : [Int] -> [Int] = ¿ in
+double_all([1, 2, 3])
+
+@test
+test double_all([1, 2, 3]) == [2, 4, 6] end;
+test double_all([]) == [] end;
+test double_all([5]) == [10] end
