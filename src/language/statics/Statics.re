@@ -3871,15 +3871,20 @@ and utyp_to_info_map =
         | ty_n =>
           switch (utyp.term) {
           | Var(name) when Ctx.lookup_tvar(ctx, name) == None =>
-            /* A value variable that is not a module. */
+            /* A value variable: a module root only if its type is a
+               signature, or unknown (it may be a module). */
             switch (Ctx.lookup_var(ctx, name)) {
             | Some({typ, _}) =>
-              err(
-                TypWantModule({
-                  name,
-                  typ,
-                }),
-              )
+              switch (Typ.weak_head_normalize(ctx, typ).term) {
+              | Unknown(_) => ok(Message.Type(typ))
+              | _ =>
+                err(
+                  TypWantModule({
+                    name,
+                    typ,
+                  }),
+                )
+              }
             | None => err(TypWantProduct(ty_n))
             }
           | _ => err(TypWantProduct(ty_n))

@@ -163,6 +163,20 @@ let test_value_used_as_module_path_mark =
     | _ => false,
   );
 
+/* A root whose type is unknown may be a module, so `n.T` is not an error. */
+let test_unknown_typed_root_is_not_an_error =
+  Alcotest.test_case(
+    "A root of unknown type may be a module: its type path is not an error",
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp({|let n : ? = 1 in let y : n.T = 2 in y|}))
+        |> errors
+        |> List.concat_map(snd);
+      Alcotest.(check(bool))("no marks", true, List.is_empty(marks));
+    },
+  );
+
 /* A differing manifest type member is reported once, on the type item: the
    members are checked against the module's own definition of T, and the
    module is not reported a second time. */
@@ -1325,6 +1339,7 @@ let tests = (
     test_no_type_members_mark,
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
+    test_unknown_typed_root_is_not_an_error,
     test_type_member_mismatch_single_error,
     test_type_member_mismatch_with_wrong_definition,
     /* Nested expectations */
