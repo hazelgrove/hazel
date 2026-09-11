@@ -2084,6 +2084,19 @@ let rec seg_has_incomplete = (seg: Segment.t): bool =>
 let zip_has_incomplete = (z: Zipper.t): bool =>
   seg_has_incomplete(Zipper.zip(z));
 
+/* Check that a tile with the given label exists (complete) anywhere
+ * in the segment, recursing into children. */
+let rec seg_has_tile = (label: Label.t, seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) =>
+      t.label == label
+      && Tile.is_complete(t)
+      || List.exists(seg_has_tile(label), t.children)
+    | _ => false,
+    seg,
+  );
+
 /* Test helper that checks printer output AND absence of incomplete tiles. */
 let test_complete = (~name, ~acts, ~goal): test_case(_) =>
   test_case(
@@ -2195,6 +2208,89 @@ let rescan_tests = [
       @ mv_r(6)  /* fun (a, b) -> )¦ */
       @ [Destruct(Left)], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
+  ),
+  /* PHASE 3 (reforge): Sort-aware child normalization.
+   * Type `x | a => 0 end` (no case context, so | and => stay standalone),
+   * then type `case ` before. Rescan matches case with end, but the
+   * child segment has standalone | and => that should form a Rule tile.
+   * This requires reforge to re-expand tokens in the new Rul sort. */
+  test_case(
+    "Reforge: case/end child remolding creates Rule tiles",
+    `Quick,
+    () => {
+      let z =
+        mk({|¦x | a => 0 end|})
+        @ string_to_ltr_actions("case ")
+        |> perform(Zipper.init());
+      let printed = printer(z);
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        {|case ¦x | a => 0 end|},
+        printed,
+      );
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail("Incomplete tiles remain");
+      };
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "No complete Rule tile [|, =>] found — "
+          ++ "| and => are standalone tokens instead of a Rule form",
+        );
+      };
+    },
+  ),
+  /* TODO: Sort demotion — the reverse of Phase 3's sort-aware expansion.
+   * When a case expression breaks, Rule tiles (|,=>) should be demoted
+   * to standalone tokens since they have no valid mold in Exp sort.
+   * Requires deciding when/how to trigger reforge after edits;
+   * see delimiter-reassociation-case branch for exploration. */
+  test_case(
+    "Reforge: breaking case demotes Rule tiles to standalone tokens",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      let z =
+        mk({|¦case x | a => 0 end|})
+        @ [Destruct(Right)]
+        |> perform(Zipper.init());
+      if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Complete Rule tile [|, =>] still exists — "
+          ++ "should have been demoted to standalone tokens",
+        );
+      };
+    },
+  ),
+  /* TODO: Round-trip — breaking and reforming case should be reversible.
+   * Currently Insert and Destruct have asymmetric reforge behavior,
+   * so this round-trip doesn't work yet. */
+  test_case(
+    "Reforge: breaking and reforming case round-trips Rule tiles",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      /* Start with complete syntax, caret before x */
+      let z = mk({|case ¦x | a => 0 end|}) |> perform(Zipper.init());
+      /* Verify Rule tile exists initially */
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail("Rule tile [|, =>] should exist in initial state");
+      };
+      /* Backspace: delete space, merges case+x, breaks tile */
+      let z = [Destruct(Left)] |> perform(z);
+      if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Rule tile [|, =>] should be demoted after breaking case",
+        );
+      };
+      /* Reinsert space: should split casex, reform case tile + rules */
+      let z = [Insert(" ")] |> perform(z);
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Rule tile [|, =>] should reform after reinserting space",
+        );
+      };
+    },
   ),
   /* #2446: completing `use _ in` remolds the following `-` from infix
    * back to prefix; the convex grout inserted for the infix reading must
