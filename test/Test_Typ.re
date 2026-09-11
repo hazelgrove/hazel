@@ -395,4 +395,40 @@ let sig_tests = {
   );
 };
 
-let tests = [meet_tests, fast_equal_tests, sig_tests];
+/* A signature that names a same-named outer binding,
+     let m = { type T = Int } in let m : { type T = m.T } = ... in ... m.T ...
+   has no weak head normal form: normalizing `m.T` asks path_sig what `m`
+   denotes, finds the inner `m`, whose signature defines `T` as `m.T`, and is
+   back where it started. Out of fuel the type has to come back unreduced so
+   statics reports a type error, instead of the whole analysis dying on
+   Failure("weak_head_normalize exceeded 1000 recursive calls"). */
+let cyclic_path_tests = {
+  module F = IdTagged.FreshGrammar;
+  let m_t = F.Typ.prod_projection(F.Typ.var("m"), F.Typ.label("T"));
+  let self_sig = F.Typ.sig_([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
+  let ctx =
+    Ctx.extend(
+      Builtins.ctx_init(None),
+      VarEntry({
+        name: "m",
+        id: Id.invalid,
+        typ: self_sig,
+        custom_statics: None,
+      }),
+    );
+  (
+    "Typ.CyclicPath",
+    [
+      test_case(
+        "a member path through a same-named binding normalizes without raising",
+        `Quick,
+        () => {
+          ignore(Typ.weak_head_normalize(ctx, m_t));
+          check(bool, "returned", true, true);
+        },
+      ),
+    ],
+  );
+};
+
+let tests = [meet_tests, fast_equal_tests, sig_tests, cyclic_path_tests];
