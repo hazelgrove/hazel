@@ -1,0 +1,81 @@
+@flags
+show_report version=1 id=b0000014-0014-0014-0014-000000000014
+
+@prompt
+There is a 🐛 (bug) in the garden data. A `make_label` unit test is failing because of it. But with ten `make_label` calls feeding every probe in that function, there are many irrelevant samples.
+
+**Pin** helps cut through the noise by filtering every probe's samples to those created under a single function call. It also keeps your view *stable*: clicking around samples shifts which call is shown, and a pin stops it from drifting while you work. Only one pin can be active at a time.
+
+# Tasks
+
+1. Find the failing test near the end (look for the red ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press **P**; now in the Quick Reference). Pinning works on *function applications*, so the probe must be on a call, as it is here.
+2. Back inside `make_label`, every probe now shows just that call's run. Read the `header` sample. Pinned samples wear a small red pin icon in the corner, a reminder that a pin is filtering your view.
+3. Fix the plant data so the test passes.
+4. Finally, note the **⍟** symbol on some of the other probes. This is used to show that samples are collected by that probe, but are hidden by your pin. Clicking it removes the pin. This is handy if you've forgotten there's a pin somewhere. Try this now. (If you remove a pin by accident, **Cmd/Ctrl+Z** brings it back. Probe state is part of the undo stack, though it may take a couple of presses in some cases.)
+
+Samples on *any expression other than a function call* offer **Pin enclosing call** instead: it pins whichever call (of the enclosing function definition) produced that sample. This can be useful when you want to apply the filter but you're already at the definition site.
+
+@hint
+Rose should have icon 🌹.
+
+@reference
+### Pin
+- **Pin this call** (P, on a call's sample): lock every probe to that call.
+- **Pin enclosing call** (P, on a sample inside a function): pin the call that produced it.
+- Pinning is done on a function call: probe a call, then pin.
+- Red pin icon on a sample: your view is pinned.
+- **⍟**: samples here are hidden by your pin; click to remove the pin.
+- Pins are on the undo stack (Cmd/Ctrl+Z).
+
+@hints
+fern label, 7 days
+fern label, 14 days
+orchid label, 5 days
+orchid label, 10 days
+cactus label, 7 days
+cactus label, 14 days
+lily label, 7 days
+lily label, 3 days
+daisy label, 7 days
+rose label, 7 days
+
+@code
+type Plant = (
+  name = String,
+  icon = String,
+  water = Int
+) in
+
+let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
+let rose: Plant = (name = "Rose", icon = "🐛", water = 190) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
+
+let make_label: (Plant, Int) -> String =
+  fun (plant, days) ->
+    let header = plant.icon ++ " " ++ plant.name in
+    let total = plant.water * days in
+    let amount =
+      string_of_int(total) ++ "ml/"
+      ++ string_of_int(days) ++ "d" in
+    header ++ ": " ++ amount
+in
+
+test make_label(fern, 7) == "🌿 Fern: 1750ml/7d" end;
+test make_label(fern, 14) == "🌿 Fern: 3500ml/14d" end;
+test make_label(orchid, 5) == "🌸 Orchid: 900ml/5d" end;
+test make_label(orchid, 10) == "🌸 Orchid: 1800ml/10d" end;
+test make_label(cactus, 7) == "🍄 Cactus: 350ml/7d" end;
+test make_label(cactus, 14) == "🍄 Cactus: 700ml/14d" end;
+test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
+test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
+test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
+test
+  make_label(rose, 7)
+  == "🌹 Rose: 1330ml/7d"
+end
+
+@test
+0

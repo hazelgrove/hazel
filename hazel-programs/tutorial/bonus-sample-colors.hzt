@@ -1,0 +1,58 @@
+@flags
+version=1 id=b0000022-0022-0022-0022-000000000022
+
+@prompt
+# Sample colors
+
+When you click a sample, other samples take on colors showing how their run relates to the focussed one: **green** is the focus's own run, **pink** ran before, **blue** ran after, gray is unrelated. We switched this slide to the full color scheme so they show; the **legend** at the bottom of the Task Reference sidebar explains them (and lets you switch schemes).
+
+One nuance worth having seen once: a call that *contains* the focus started before it (so it shows **pink**), and a call running *inside* the focus finishes after it (so it shows **blue**). Containment reads as before/after. Containment relations are distinguished from before/after by text color, as seen in the legend. Containment can be used to spot the sample of the function call that led to the currently focussed sample, and conversely can distinguish samples coming from a foccused call.
+
+**Try this**
+1. `first`, `second`, and `third` are probed. Click `second`'s sample: `first` is pink (ran before), `third` is blue (ran after).
+2. In the watering section, click a call's sample: its `adj` is green (same run); a call that started before it is pink, after is blue.
+3. The recursion example shows examples of all relations inside the function body. Probe samples line up oldest to newest, so `fact`'s samples *descend* as the recursion unwinds. In *Many* mode, click a sample in the middle: everything on the way down is pink, everything on the way back up is blue. Click the base case's sample: why is every other `x` pink? Focus an inner call sample and see how the other inner samples under that call are distinguished. These are precisely the samples that would stay if you pinned that call.
+
+@reference
+### Colors
+- **green**: the focus's own run
+- **pink**: started before the focus (including calls that contain it, distinguished by font color)
+- **blue**: started after the focus (including calls inside it, distinguished by font color)
+- **gray**: a different, unrelated call
+
+@code
+let first = 1 + 2 in
+let second = 3 * 4 in
+let third = 5 + 6 in
+
+type MoonPhase = New + Waxing + Full + Waning in
+let daily_water(base: Int, phase: MoonPhase): Int =
+  let adj =
+    case phase
+    | New => 50
+    | Full => 0 - 30
+    | _ => 0
+    end
+  in
+  base + adj
+in
+daily_water(250, Full);
+daily_water(50, New);
+
+let fact(x: Int): Int =
+  case x
+  | 1 => 1
+  | _ => x * fact(x - 1)
+  end
+in
+fact(5);
+
+type Plant = (name = String, water = Int) in
+let bed_labels(bed: [Plant]): [String] =
+  map(bed, fun p -> p.name ++ ": " ++ string_of_int(p.water) ++ "ml")
+in
+let fern: Plant = (name = "fern", water = 250) in
+let orchid: Plant = (name = "orchid", water = 180) in
+let cactus: Plant = (name = "cactus", water = 50) in
+bed_labels([fern, orchid]);
+bed_labels([cactus])

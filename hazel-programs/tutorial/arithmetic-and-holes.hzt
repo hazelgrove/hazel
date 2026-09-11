@@ -1,0 +1,34 @@
+@flags
+wrapper show_report version=1 id=b0000001-0001-0001-0001-000000000001
+
+@prompt
+Hazel is a live environment. Every edit maintains program structure, and type checking and evaluation proceed *around* holes (the little hexagons) and type errors. This means every expression typically has results to look at, which may be values or partially evaluated expressions.
+
+Below we'll learn how to add probes to see these results. As we go, new probe commands will be listed in the **Quick Reference** at the top of the sidebar to the right; new ones are circled in green.
+
+# Tasks
+
+A nightshade plant drinks 125 ml twice a day, plus a 50 ml weekly top-up. 
+
+1. Check on the below program's evaluation with a **probe**: put your caret on the `+` token and press **Cmd/Ctrl+E** (or right-click, *Add probe*). A sample value appears at the end of the line. Note what it shows: the complete subexpression `2 * 125` has evaluated, while the `*` next to the hole is stuck. Evaluation goes exactly as far as the holes allow.
+
+2. Fill the hole with the number of days in a week. You don't have to select it; just type into it. Watch the probe; it should read **1800**.
+
+@hint
+A week is 7 days.
+
+@reference
+### Holes
+Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
+
+### Integer operations
+`(+ - * /)`
+
+@hints
+Fill the hole appropriately.
+
+@code
+2 * 125 * ¿ + 50
+
+@test
+test answer == 1800 end

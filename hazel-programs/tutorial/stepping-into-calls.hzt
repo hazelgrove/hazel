@@ -1,0 +1,34 @@
+@flags
+version=1 id=b0000015-0015-0015-0015-000000000015
+
+@prompt
+
+**Step into** combines three actions. It jumps your caret to the function's definition, puts a multi probe on the definition, and pins the call you came from. The effect is that you 'step into' the function, seeing exactly the values evoked by the call you came from, so your dynamic context comes with you. Like pin, it works on function applications.
+
+# Tasks
+This slide starts with auto-probe off, so you can watch step into do its work.
+
+1. Probe the `total_water(shade)` call at the bottom (caret on `total_water`, **Cmd/Ctrl+E**). Its sample reads `610`.
+2. Right-click the sample and choose **Step into** (or click it and press **Enter**).
+3. Your caret jumps inside `total_water`, a multi-probe appears on the definition, and the samples are pinned to that call.
+4. `total_water` scans through the list of plants, adding each one's water amount to a running total. As review from before, try to check the intermediate totals. Break the fold open across lines so that the fold callback arguments and body each get their own probe, then read them off in *Many* mode.
+
+@hint
+Right-click a call's sample and choose *Step into*, or click it and press Enter.
+
+@code
+type Plant = (name = String, water = Int) in
+let total_water(plants: [Plant]): Int =
+  fold_left(plants, fun (acc, p) -> acc + p.water, 0)
+in
+let shade = [
+  (name = "fern", water = 250),
+  (name = "lily", water = 200),
+  (name = "daisy", water = 160)
+] in
+let sun = [
+  (name = "orchid", water = 180),
+  (name = "cactus", water = 50)
+] in
+total_water(shade);
+total_water(sun)

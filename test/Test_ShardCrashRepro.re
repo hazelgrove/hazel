@@ -1,24 +1,19 @@
 /**
- * Red test for the study "tile-shard crash" family:
- *   - Failure("Tile.reassemble: out-of-order shards [0,1,2,0,1,2,...]")
- *     ("Exception during Calculate"; sessions P02/P04/P05/P07/P08/P09)
- *   - Failure("Highlight.of_tile: shard mismatch...") (same corruption,
- *     detected in View instead)
+ * Displayed values can carry duplicated source ids: with probes/samples
+ * showing values, a mid-edit program containing a free variable can
+ * evaluate to an indet result in which the SAME source subterm (a lambda
+ * body, applied once per element) appears several times, all copies
+ * carrying the SAME ids. Pretty-printing that value (ExpToSegment) and
+ * building an editor from it makes Segment.reassemble group the
+ * duplicated tiles by id into one Aba match and die
+ * (Failure("Tile.reassemble: out-of-order shards"), or the same
+ * corruption caught in Highlight.of_tile).
  *
- * Field trigger (study/bug-tile-shard-dossier.md): with probes/samples
- * displaying values, a mid-edit program containing a free variable (e.g.
- * `row` deleted, `col` half-typed) evaluates to an indet result in which
- * the SAME source subterm (a lambda body, applied once per element)
- * appears several times, all copies carrying the SAME source ids. The
- * result display then pretty-prints that value (ExpToSegment) and builds
- * an editor from it; Segment.reassemble groups the duplicated tiles by id
- * into one Aba match and dies.
+ * ExpToSegment.pad_ids dedups ids WITHIN one term's id list; duplicates
+ * ACROSS SIBLING subterms are what these tests exercise
+ * (ExpToSegment.uniquify_repeated_tiles is the guard).
  *
- * ExpToSegment.pad_ids already dedups ids WITHIN one term's id list
- * (HACK[Matt] comment), but duplicates ACROSS SIBLING subterms of the
- * printed value are not prevented, which is what these tests exercise.
- *
- * These tests are the core-level mirror of the production path
+ * Core-level mirror of the production path
  * EvalResult -> CodeSelectable.Model.mk_from_exp -> ExpToSegment ->
  * (editor init) -> Segment.reassemble.
  */
