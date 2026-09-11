@@ -192,6 +192,7 @@ and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
       ~ana=syn,
+      ~coercible=false,
       ~is_in_filter=false,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
@@ -222,7 +223,7 @@ and uexp_to_info_map =
       )
       : (Info.exp, Exp.t, Map.t) => {
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (expectation_mismatch_mark(~coercible, ctx, ana, elab_syn_ty)) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -233,12 +234,14 @@ and uexp_to_info_map =
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
           | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+            Message.Exp(
+              Common(syn_ana_ok_common(~coercible, ctx, ana, elab_syn_ty)),
+            )
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = fixed_typ(~coercible, ctx, ana, elab_syn_ty);
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
@@ -273,6 +276,7 @@ and uexp_to_info_map =
       (
         ~ctx=ctx,
         ~ana=syn,
+        ~coercible=false,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
@@ -282,6 +286,7 @@ and uexp_to_info_map =
     uexp_to_info_map(
       ~ctx,
       ~ana,
+      ~coercible,
       ~is_in_filter,
       ~ancestors,
       ~probe_ids,
@@ -376,7 +381,7 @@ and uexp_to_info_map =
     switch (term) {
     | Closure(env, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -410,7 +415,7 @@ and uexp_to_info_map =
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       let t_ty = t.user_term;
-      let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let (e, e_elab, m) = go(~ana=t_ty, ~coercible=true, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -679,7 +684,7 @@ and uexp_to_info_map =
         m,
       );
     | DynamicErrorHole(e, err) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -689,7 +694,7 @@ and uexp_to_info_map =
         m,
       );
     | Parens(e) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -699,7 +704,7 @@ and uexp_to_info_map =
         m,
       );
     | Projector(data, e) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -950,7 +955,7 @@ and uexp_to_info_map =
           ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) =>
             switch (e.term) {
             | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (e_info, elab, m) = go(~ana, e, m);
+              let (e_info, elab, m) = go(~ana, ~coercible, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -961,7 +966,8 @@ and uexp_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+              let (value_info, value_elab, m) =
+                go(~ana=val_mode, ~coercible, value, m);
               let (lab_name, label_invalid, m) =
                 switch (label.term) {
                 | Label(name) =>
@@ -1055,7 +1061,7 @@ and uexp_to_info_map =
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | _ =>
-              let (e_info, elab, m) = go(~ana, e, m);
+              let (e_info, elab, m) = go(~ana, ~coercible, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1124,7 +1130,7 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
-      let (e, elab_inner, m) = go(~ana, e, m);
+      let (e, elab_inner, m) = go(~ana, ~coercible, e, m);
       /* Add info for the ExplicitNonlabel directly */
       let (_, elab_label, m) =
         add(
@@ -1155,7 +1161,7 @@ and uexp_to_info_map =
     | TupLabel(label, e) =>
       let (labmode, val_mode) =
         LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-      let (e, elab_child, m) = go(~ana=val_mode, e, m);
+      let (e, elab_child, m) = go(~ana=val_mode, ~coercible, e, m);
       let (lab_name, m) =
         switch (label.term) {
         | Label(name) =>
@@ -1582,7 +1588,7 @@ and uexp_to_info_map =
       );
     | Filter(Filter({pat: cond, act}), body) =>
       let (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
-      let (body, body_elab, m) = go(~ana, body, m);
+      let (body, body_elab, m) = go(~ana, ~coercible, body, m);
       add(
         ~elab_term=
           Filter(
@@ -1604,7 +1610,7 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Residue(i, act), body) =>
-      let (body, body_elab, m) = go(~ana, body, m);
+      let (body, body_elab, m) = go(~ana, ~coercible, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
         ~elab_syn_ty=body.elab_syn_ty,
@@ -1790,7 +1796,7 @@ and uexp_to_info_map =
           )
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
-          let (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
+          let (arg, arg_elab, m) = go(~ana=ty_in, ~coercible=true, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
           let probe_targets_ap =
@@ -2109,7 +2115,10 @@ and uexp_to_info_map =
           |> def_rewrap
         | (_, _) => def
         };
-      let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+      /* The definition is coerced to the binder's annotation: every analysis
+         of it below is a coercion site. */
+      let (def_rec_probe, _, _) =
+        go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
       let rec_check_ty =
         switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
         | Unknown(SynSwitch) => def_rec_probe.ty
@@ -2118,7 +2127,8 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+          let (def, def_elab, m) =
+            go(~ana=p_syn.ty, ~coercible=true, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
@@ -2130,7 +2140,8 @@ and uexp_to_info_map =
             );
           (def, def_elab, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+          let (def_base, _, _) =
+            go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _, _) =
@@ -2142,7 +2153,8 @@ and uexp_to_info_map =
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
+          let (def_base2, _, _) =
+            go(~ctx=def_ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
             Typ.term_of(ty_p) == Unknown(SynSwitch)
             && !Typ.equal(ty_fn1, ty_fn2)
@@ -2160,7 +2172,8 @@ and uexp_to_info_map =
             | ((_, _), _) =>
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
             };
-          let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+          let (def, def_elab, m) =
+            go(~ctx=def_ctx, ~ana, ~coercible=true, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
         };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
@@ -2713,11 +2726,11 @@ and uexp_to_info_map =
       let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
       let (m, mismatched_types) =
         ModuleHelpers.check_ana_type_members(~ana_items, items, m);
-      /* Extra members are fine: the signature seals them away (width
-         subtyping, see Typ.ana_meet). A hole among the items may still bind
-         the members the signature declares and the module lacks: they are
-         assumed, not reported. Only a hole where a member could be bound
-         counts. */
+      /* Extra members are not marked here: the module's own add() seals them
+         away at a coercion site (Typ.coercion) and reports the mismatch
+         anywhere else. A hole among the items may still bind the members the
+         signature declares and the module lacks: they are assumed, not
+         reported. Only a hole where a member could be bound counts. */
       let (sig_ty, marks) =
         switch (ModuleHelpers.missing_items(~ana_items, sig_ty)) {
         | [] => (sig_ty, [])
@@ -2782,7 +2795,8 @@ and uexp_to_info_map =
         | Asc(_, typ) => typ
         | _ => syn
         };
-      let (_, def_elab_direct, m) = go(~ana=def_ana, def, m);
+      let (_, def_elab_direct, m) =
+        go(~ana=def_ana, ~coercible=true, def, m);
       let moduleexp_elab =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
@@ -2854,7 +2868,7 @@ and upat_to_info_map =
       if (marks != []) {
         marks;
       } else {
-        switch (expectation_mismatch_mark_pat(ctx, ana, elab_syn_ty)) {
+        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
         | None => marks
         | Some(m) => marks @ [m]
         };
@@ -2865,12 +2879,11 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ =>
-              Message.Common(syn_ana_ok_common_pat(ctx, ana, elab_syn_ty))
+            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ_pat(ctx, ana, elab_syn_ty);
+    let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let warning_acc =
       warnings
       @ (

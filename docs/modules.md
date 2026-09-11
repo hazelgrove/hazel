@@ -75,25 +75,29 @@ or a binder with a hole where a member could be bound) it may still become the
 missing members, so they are assumed rather than reported and the module has
 the signature's type.
 
-### Width subtyping
+### Sealing
 
-Where an expression is analyzed against a signature (a `let` or `module`
-annotation, an ascription, a function argument, a pattern), the module may
-export more members than the signature declares. The extra members are
-sealed away: the binder has exactly the signature's type, `m.y` on a member
+At a coercion site the module may export more members than the signature
+declares. The sites are an ascription `(e : S)`, an annotated binder
+(`let m : S = e`, `module M : S = e`, a module item under a signature) and an
+application argument whose parameter type is a signature. The extra members
+are sealed away: the binder has exactly the signature's type, `m.y` on a member
 the signature omits is an error, and at runtime the module value keeps only
-the signature's members. Value members may themselves be wider than declared,
-and a function expecting a narrower module fits where one expecting a wider
-module is required (contravariant domain).
+the signature's members. Sub-module members may themselves be wider than
+declared, and the coercion is structural through tuples (`f(m, x)` is an
+application with two arguments). The site's operand is found through
+parentheses and the components of a tuple literal.
 
 ```
 let m : { let x : Int } = { let x = 1; let y = 2 } in m.x    -- 1; m.y is an error
 let f = fun (m : { let x : Int }) -> m.x in f({ let x = 1; let y = 2 })
 ```
 
-Consistency itself stays exact: `if` branches and other joins require the
-same members, and `{ let x : Int }` is not consistent with
-`{ let x : Int; let y : Int }`; ascribe the join if you need sealing there.
+Everywhere else signatures match exactly, as in OCaml: a wider module as a
+list element, in an `if` branch, under a pattern annotation, or reached
+through a variable of list or function type is a mismatch, and the message
+says an ascription seals it. Function types are not contravariant; eta-expand
+instead.
 
 ### Member Access and `module`
 
@@ -136,7 +140,7 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 | ------------------------------------ | ------ |
 | Module syntax (`{ let ... }`)        | Works  |
 | Signature types (distinct from Prod) | Works  |
-| Width subtyping at analysis positions | Works |
+| Sealing at coercion sites            | Works  |
 | Type members in signatures (checked) | Works  |
 | Member access via `.`                | Works  |
 | Module values at runtime             | Works  |
@@ -202,14 +206,16 @@ earlier type members by name, so:
   same type-member names (order-insensitive) and meets members pairwise in a
   context extended with the type members. A signature is inconsistent with
   every other type constructor, including `Prod`.
-- `Typ.ana_meet(ctx, ~ana, ~syn)` is used wherever an expression is analyzed
-  against a type (`StaticsBase.fixed_typ`, `expectation_mismatch_mark`,
-  `syn_ana_ok_common`, and their `_pat` variants with the roles of the
-  provided and required types swapped). It tries `meet` first; failing that,
-  a signature fits a signature that declares a subset of its members
-  (`Typ.sig_sub`, which opens the wider signature's type members under fresh
-  names), and functions are contravariant in their domain. It returns `ana`
-  when a subtyping step was needed, which is what seals the binder's type.
+- `Typ.coercion(ctx, ~from, ~to_)` is coercive subtyping, checked only where
+  the subsumption step runs with `~coercible` set: `Asc`, `Let` and `Ap` set
+  it on their operand, and the transparent forms (parentheses, projectors,
+  filters, closures) and tuple-literal components pass it on
+  (`StaticsBase.subsume`, used by `fixed_typ`, `expectation_mismatch_mark`
+  and `syn_ana_ok_common`). It tries `meet` first; failing that, structurally
+  through tuple components, a signature fits a signature that declares a
+  subset of its members (`Typ.sig_sub`, which opens the wider signature's type
+  members under fresh names). It returns the sealed signature, which is what
+  seals the binder's type.
 - `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
   items: a type alias first, then a value variable whose type is a signature.
   `weak_head_normalize` uses it for `ProdProjection`, falling back to the
@@ -239,7 +245,8 @@ After checking:
   `type T = ...` item that differs from the signature's
   (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_members` produces `Mark.ModuleMissingMembers` on
-  the module node; extra members are sealed away by `ana_meet`.
+  the module node; extra members are sealed away by `Typ.coercion` at a
+  coercion site and are a mismatch elsewhere.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
   annotations are stripped, type items are dropped.
@@ -307,7 +314,7 @@ used only for mispositioned items.
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
 | `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
-| `src/language/statics/StaticsBase.re`   | `fixed_typ`/mismatch hooks routed through `Typ.ana_meet`           |
+| `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
@@ -332,5 +339,6 @@ used only for mispositioned items.
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
 | `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
-| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide; split off because one slide's `let` chain hit the evaluator stack limit in the Web Worker |
+| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
+| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide; the three slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
