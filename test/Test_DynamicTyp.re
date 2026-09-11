@@ -74,22 +74,29 @@ let group_regions =
   go(fragments) |> List.filter(((text, _)) => text != "");
 };
 
-/* The colouring, as DynamicTypInfer does it: normalize both types with the
-   renderer's own pass, diff the NORMALIZED forms, and render that same
-   normalized dynamic type once. Normalizing first is what lets the dynamic_ids
-   name the parens -- they are nodes only after normalization -- and the
-   single render matters because normalize_typ mints a fresh id per added
-   Parens. */
+/* A type written as source, so a test reads as the type it is about. Not for
+   types whose construction carries something the parser cannot express --
+   constructor annotations, ids shared with a context. */
+let typ = (src: string): Typ.t =>
+  switch (
+    Parser.to_segment(src, ~root=Typ) |> Option.map(MakeTerm.for_projection)
+  ) {
+  | Some(Some(Typ(t))) => t
+  | _ => Alcotest.failf("could not parse the type `%s`", src)
+  };
+
+/* The colouring, as DynamicTypInfer does it. */
 let dynamic_ids_and_render =
     (~ctx: option(Ctx.t)=?, static_typ: Typ.t, dynamic_typ: Typ.t)
     : (Id.t => list(string), Segment.t) => {
-  let static_n = ExpToSegment.normalize_typ(~settings, static_typ);
-  let dynamic_n = ExpToSegment.normalize_typ(~settings, dynamic_typ);
-  let dynamic_ids = Typ.diff(~ctx?, static_n, dynamic_n) |> Id.Set.of_list;
-  (
-    id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [],
-    ExpToSegment.normalized_typ_to_segment(~settings, dynamic_n),
-  );
+  let (segment, dynamic_ids) =
+    ExpToSegment.typ_to_segment_with_diff_ids(
+      ~settings,
+      ~ctx?,
+      ~against=static_typ,
+      dynamic_typ,
+    );
+  (id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [], segment);
 };
 
 /* Given static and dynamic types, return grouped regions of (text, classes) */
@@ -191,21 +198,7 @@ let prod_partial_diff_test =
     "Product type — partially different ((Int, ?) vs (Int, String))",
     `Quick,
     () => {
-      let result =
-        classify_regions(
-          Typ.fresh(
-            Prod([
-              Typ.fresh(Atom(Atom.Int)),
-              Typ.fresh(Unknown(Internal)),
-            ]),
-          ),
-          Typ.fresh(
-            Prod([
-              Typ.fresh(Atom(Atom.Int)),
-              Typ.fresh(Atom(Atom.String)),
-            ]),
-          ),
-        );
+      let result = classify_regions(typ("(Int, ?)"), typ("(Int, String)"));
       check(
         list(region),
         "Int static, String dynamic",
@@ -220,21 +213,7 @@ let arrow_diff_codomain_test =
     "Arrow type — different codomain (Int -> ? vs Int -> String)",
     `Quick,
     () => {
-      let result =
-        classify_regions(
-          Typ.fresh(
-            Arrow(
-              Typ.fresh(Atom(Atom.Int)),
-              Typ.fresh(Unknown(Internal)),
-            ),
-          ),
-          Typ.fresh(
-            Arrow(
-              Typ.fresh(Atom(Atom.Int)),
-              Typ.fresh(Atom(Atom.String)),
-            ),
-          ),
-        );
+      let result = classify_regions(typ("Int -> ?"), typ("Int -> String"));
       check(
         list(region),
         "Int and -> static, String dynamic",
@@ -264,15 +243,10 @@ let alias_exact_match_test =
           {
             name: "MyList",
             id: Id.mk(),
-            kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+            kind: Singleton(typ("[Int]")),
           },
         );
-      let result =
-        classify_regions_ctx(
-          ~ctx,
-          Typ.fresh(Var("MyList")),
-          Typ.fresh(List(Typ.fresh(Atom(Atom.Int)))),
-        );
+      let result = classify_regions_ctx(~ctx, typ("MyList"), typ("[Int]"));
       check(list(region), "all static", [s("[Int]")], result);
     },
   );
@@ -288,28 +262,11 @@ let alias_partial_diff_test =
           {
             name: "Pair",
             id: Id.mk(),
-            kind:
-              Singleton(
-                Typ.fresh(
-                  Prod([
-                    Typ.fresh(Atom(Atom.Int)),
-                    Typ.fresh(Unknown(Internal)),
-                  ]),
-                ),
-              ),
+            kind: Singleton(typ("(Int, ?)")),
           },
         );
       let result =
-        classify_regions_ctx(
-          ~ctx,
-          Typ.fresh(Var("Pair")),
-          Typ.fresh(
-            Prod([
-              Typ.fresh(Atom(Atom.Int)),
-              Typ.fresh(Atom(Atom.String)),
-            ]),
-          ),
-        );
+        classify_regions_ctx(~ctx, typ("Pair"), typ("(Int, String)"));
       check(
         list(region),
         "Int static, String dynamic",
@@ -353,15 +310,10 @@ let alias_on_dynamic_side_test =
           {
             name: "MyList",
             id: Id.mk(),
-            kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+            kind: Singleton(typ("[Int]")),
           },
         );
-      let result =
-        classify_regions_ctx(
-          ~ctx,
-          Typ.fresh(List(Typ.fresh(Atom(Atom.Int)))),
-          Typ.fresh(Var("MyList")),
-        );
+      let result = classify_regions_ctx(~ctx, typ("[Int]"), typ("MyList"));
       /* Rendered as the alias name, but no dynamic highlighting since
          the alias expands to the same type */
       check(list(region), "all static", [s("MyList")], result);

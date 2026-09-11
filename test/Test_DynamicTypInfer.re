@@ -222,9 +222,8 @@ let uncoloured_tiles_test = (name: string, code: string) =>
         };
       let (seg, dynamic_ids) =
         DynamicTypInfer.displayed_segment_and_dynamic_ids(
-          ~normalize=ProjectorInfo.utility.normalize_typ(~inline=true),
-          ~render_normalized=
-            ProjectorInfo.utility.render_normalized_typ(~inline=true),
+          ~render_with_diff_ids=
+            ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
           ~ctx,
           ~static_typ=Typ.fresh(Unknown(Internal)),
           ~samples,

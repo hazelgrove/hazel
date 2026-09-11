@@ -26,25 +26,31 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
 
 /* The segment to display in Dynamic mode, and the ids of its tokens that
    came from runtime. Rendered here rather than by the caller because the
-   dynamic_ids only describe this one render -- see DynamicTypInfer. */
+   dynamic_ids only describe this one render -- see DynamicTypInfer.
+
+   Takes the ctx rather than defaulting one, because inference needs the
+   expression's own: the types a sample mentions are the ones in scope where
+   it was sampled, and a stand-in context reports them as something else. */
 let get_dynamic_segment =
-    (utility: utility, info: info): (Base.segment, Id.Set.t) => {
-  let ctx =
-    Option.map(Info.ctx_of, info.statics)
-    |> Option.value(~default=Builtins.ctx_init(Some(Int)));
+    (utility: utility, info: info, ~ctx: Ctx.t): (Base.segment, Id.Set.t) => {
   let static_typ =
     Option.value(
       ~default=Typ.fresh(Unknown(Internal)),
       self_ty(info.statics),
     );
-  let normalize = utility.normalize_typ(~inline=true);
-  let render_normalized = utility.render_normalized_typ(~inline=true);
   switch (info.dynamics) {
-  | None => (render_normalized(normalize(static_typ)), Id.Set.empty)
+  /* Nothing ran, so nothing is runtime-derived: rendered against itself,
+     which is how an empty id set is produced rather than asserted. */
+  | None =>
+    utility.typ_to_seg_with_diff_ids(
+      ~inline=true,
+      ~ctx,
+      ~against=static_typ,
+      static_typ,
+    )
   | Some(d: Dynamics.Info.t) =>
     DynamicTypInfer.displayed_segment_and_dynamic_ids(
-      ~normalize,
-      ~render_normalized,
+      ~render_with_diff_ids=utility.typ_to_seg_with_diff_ids(~inline=true),
       ~ctx,
       ~static_typ,
       ~samples=d.samples,
@@ -112,26 +118,34 @@ module M: Projector = {
     /* Every arm yields the segment to display, so Dynamic can hand over the
        exact segment its dynamic_ids were computed from. */
     let render = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
-    let (classes, seg) =
-      switch (model) {
-      | Dynamic =>
-        let (seg, dynamic_ids) = get_dynamic_segment(utility, info);
-        ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
-      | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
-          (_ => []),
-          render(self_ty(info.statics) |> totalize_ty),
-        )
-      | Expected => (
-          (_ => []),
-          render(expected_ty(info.statics) |> totalize_ty),
-        )
-      | Self => ((_ => []), render(self_ty(info.statics) |> totalize_ty))
-      };
-
-    div(
-      ~attrs=[Attr.classes(["type-cell"])],
-      [seg |> view_seg(~single_line=true, ~classes, Sort.Typ)],
-    );
+    let cell = contents =>
+      div(~attrs=[Attr.classes(["type-cell"])], contents);
+    switch (info.statics) {
+    /* Statics are absent when the user has turned them off, and briefly
+       while an edit is being checked. There is no type to report, and no
+       context to infer one in -- say so rather than showing `?`, which
+       would claim the type is unknown when what is unknown is whether we
+       looked. */
+    | None => cell([text("no type information")])
+    | Some(statics) =>
+      let (classes, seg) =
+        switch (model) {
+        | Dynamic =>
+          let (seg, dynamic_ids) =
+            get_dynamic_segment(utility, info, ~ctx=Info.ctx_of(statics));
+          ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
+        | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
+            (_ => []),
+            render(self_ty(info.statics) |> totalize_ty),
+          )
+        | Expected => (
+            (_ => []),
+            render(expected_ty(info.statics) |> totalize_ty),
+          )
+        | Self => ((_ => []), render(self_ty(info.statics) |> totalize_ty))
+        };
+      cell([seg |> view_seg(~single_line=true, ~classes, Sort.Typ)]);
+    };
   };
 
   let update = (model, info, a: action) => {

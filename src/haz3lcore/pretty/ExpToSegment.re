@@ -1131,7 +1131,7 @@ let pad_ids =
    beside the `pad_ids(n, ...)` calls that spend them, because it mirrors the
    token layout below -- kept anywhere else it is a second copy that silently
    drifts. Counts must match the `pad_ids` argument in typ_to_pretty exactly;
-   `typ_ids_sufficient` below is how that is checked. */
+   `PreparedTyp.ids_sufficient` below is how that is checked. */
 let necessary_ids: Typ.t => int =
   ty =>
     switch (ty.term) {
@@ -3259,62 +3259,96 @@ let exp_to_segment =
   p |> PrettySegment.select |> uniquify_repeated_tiles;
 };
 
-/* The type the token layout is actually computed from: Sig desugared to
-     labeled tuples, parens inserted (as real Parens NODES, not synthesized
-     tokens), and ids padded to the counts above.
-   *
-   * Exposed because a caller that wants to reason about the ids in a rendered
-   * segment has to reason about THIS type, not the one it passed in: the parens
-   * and the padded id slots are nodes that only exist after normalization, and
-   * their ids are what the renderer puts on tokens. Diffing the un-normalized
-   * type cannot name them.
-   *
-   * Not idempotent: parenthesize_typ mints a fresh id for each Parens it adds,
-   * so normalizing twice yields two different types. Normalize once, then pass
-   * the result to normalized_typ_to_segment. */
-let normalize_typ = (~settings: Settings.t, typ: Typ.t): Typ.t =>
-  typ
-  |> Typ.desugar_sig(Ctx.empty)
-  |> parenthesize_typ(
-       ~parenthesization=settings.parenthesization,
-       ~show_filters=settings.show_filters,
-       ~show_ascriptions=settings.show_ascriptions,
-     )
-  |> pad_typ_ids;
+/* A type the token layout can be computed from: Sig desugared to labeled
+   tuples, parens inserted (as real Parens NODES, not synthesized tokens),
+   and every node's ids padded to the counts above. Abstract, and buildable
+   only by [prepare], so holding one is evidence all three ran.
 
-/* Whether every node of a type already carries the ids its rendering will
-     consume, so the renderer never has to mint one.
-   *
-   * This is the invariant the dynamic-type marking rests on: an id minted
-     during rendering is in the DOM but in no type, so nothing can name it, and
-     the token it labels can never be coloured. normalize_typ is supposed to
-     guarantee it -- this is how that is checked, over generated types, rather
-     than by a flag on these settings that only fired on whatever input a test
-     happened to render. */
-let typ_ids_sufficient = (typ: Typ.t): bool => {
-  let ok = ref(true);
-  let _ =
-    Typ.map_term(
-      ~f_typ=
-        (cont, ty) => {
-          if (List.length(ty.annotation.ids) < necessary_ids(ty)) {
-            ok := false;
-          };
-          cont(ty);
-        },
-      typ,
-    );
-  ok^;
+   The ids a rendered token can be named by are the ids of the PREPARED
+   type, not of the type [prepare] was given: the parens and the padded id
+   slots are nodes that exist only afterwards. So a caller that marks
+   rendered tokens has to compare prepared types -- see
+   [typ_to_segment_with_diff_ids], which is the only way to do that from
+   outside this module.
+
+   A prepared type carries the settings it was prepared for, because the
+   render has to agree with them, and preparing is not idempotent:
+   parenthesize_typ mints a fresh id per Parens it inserts. */
+module PreparedTyp: {
+  type t;
+  let prepare: (~settings: Settings.t, Typ.t) => t;
+  let to_segment: t => Segment.t;
+  /* The ids of the nodes of [t] that [against] does not account for. Both
+     sides must be prepared: an unprepared type has no id for a paren it
+     does not yet contain, so it can neither claim nor disclaim one. */
+  let diff_ids: (~ctx: Ctx.t=?, ~against: t, t) => Id.Set.t;
+  /* Whether every node carries the ids its rendering will consume, so the
+     renderer never has to mint one. [prepare] is supposed to guarantee this;
+     exposed so it can be checked over generated types, rather than by a flag
+     on the settings that only fired on whatever a test happened to render. */
+  let ids_sufficient: t => bool;
+} = {
+  type t = {
+    typ: Typ.t,
+    settings: Settings.t,
+  };
+  let prepare = (~settings: Settings.t, typ: Typ.t) => {
+    typ:
+      typ
+      |> Typ.desugar_sig(Ctx.empty)
+      |> parenthesize_typ(
+           ~parenthesization=settings.parenthesization,
+           ~show_filters=settings.show_filters,
+           ~show_ascriptions=settings.show_ascriptions,
+         )
+      |> pad_typ_ids,
+    settings,
+  };
+  let to_segment = ({typ, settings}) =>
+    typ_to_pretty(~settings, typ)
+    |> PrettySegment.select
+    |> uniquify_repeated_tiles;
+  let diff_ids = (~ctx=?, ~against: t, t: t) =>
+    Typ.diff(~ctx?, against.typ, t.typ) |> Id.Set.of_list;
+  let ids_sufficient = ({typ, _}) => {
+    let ok = ref(true);
+    let _ =
+      Typ.map_term(
+        ~f_typ=
+          (cont, ty) => {
+            if (List.length(ty.annotation.ids) < necessary_ids(ty)) {
+              ok := false;
+            };
+            cont(ty);
+          },
+        typ,
+      );
+    ok^;
+  };
 };
 
-/* Render a type that has already been through normalize_typ. */
-let normalized_typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
-  typ_to_pretty(~settings, typ)
-  |> PrettySegment.select
-  |> uniquify_repeated_tiles;
-
 let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
-  normalized_typ_to_segment(~settings, normalize_typ(~settings, typ));
+  PreparedTyp.prepare(~settings, typ) |> PreparedTyp.to_segment;
+
+/* Render [typ], and report which of the rendered tokens are ones [against]
+   does not account for. The segment returned is the single render those ids
+   describe: preparing mints a fresh id per paren it inserts, so a second
+   render would carry ids these do not name. */
+let typ_to_segment_with_diff_ids =
+    (
+      ~settings: Settings.t,
+      ~ctx: option(Ctx.t)=?,
+      ~against: Typ.t,
+      typ: Typ.t,
+    )
+    : (Segment.t, Id.Set.t) => {
+  let prepared = PreparedTyp.prepare(~settings, typ);
+  let against = PreparedTyp.prepare(~settings, against);
+  (
+    PreparedTyp.to_segment(prepared),
+    PreparedTyp.diff_ids(~ctx?, ~against, prepared),
+  );
+};
 
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {

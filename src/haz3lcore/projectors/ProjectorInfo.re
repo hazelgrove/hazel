@@ -7,9 +7,8 @@ open Language;
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  /* One settings value for every rendering here, so a caller that
-     normalizes with these settings and renders with them cannot end up
-     with a segment whose ids came from a different configuration. */
+  /* One settings value for every rendering here, so two renderings cannot
+     end up with ids that came from different configurations. */
   let seg_settings = (inline): ExpToSegment.Settings.t => {
     ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
     show_unknown_as_hole: false,
@@ -19,11 +18,11 @@ let utility: ProjectorBase.utility = {
   };
   let term_to_seg = (inline, any) =>
     ExpToSegment.any_to_segment(~settings=seg_settings(inline), any);
-  let normalize_typ = (inline, typ) =>
-    ExpToSegment.normalize_typ(~settings=seg_settings(inline), typ);
-  let render_normalized_typ = (inline, typ) =>
-    ExpToSegment.normalized_typ_to_segment(
+  let typ_to_seg_with_diff_ids = (inline, ctx, against, typ) =>
+    ExpToSegment.typ_to_segment_with_diff_ids(
       ~settings=seg_settings(inline),
+      ~ctx,
+      ~against,
       typ,
     );
   let lift_syntax =
@@ -52,9 +51,8 @@ let utility: ProjectorBase.utility = {
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
-    normalize_typ: (~inline, typ) => normalize_typ(inline, typ),
-    render_normalized_typ: (~inline, typ) =>
-      render_normalized_typ(inline, typ),
+    typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>
+      typ_to_seg_with_diff_ids(inline, ctx, against, typ),
     seg_to_term,
     lift_syntax: (~inline) => lift_syntax(inline),
     seg_to_string,

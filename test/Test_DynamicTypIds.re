@@ -5,9 +5,9 @@
    alone: an id in the set but never emitted colours nothing, and a tile emitted
    for a runtime-derived part but left out stays the static colour.
 
-   Both used to fail. Parens are the reason: normalization inserts them as
-   real nodes and the renderer emits them as tiles, so a comparison of the
-   un-normalized types could not name them. */
+   Both used to fail. Parens are the reason: preparing a type for rendering
+   inserts them as real nodes and the renderer emits them as tiles, so a
+   comparison of the types as passed could not name them. */
 
 open Alcotest;
 open Haz3lcore;
@@ -24,29 +24,31 @@ let settings: ExpToSegment.Settings.t = {
   project_tables: false,
 };
 
-let normalize = ExpToSegment.normalize_typ(~settings);
-let render_normalized = ExpToSegment.normalized_typ_to_segment(~settings);
+/* The dynamic ids, and the one render they describe, reported two ways.
+   The id sets are deliberately different: `emitted` includes Grout and
+   Secondary, because a runtime-derived node can legitimately render as Grout
+   -- an Unknown does, with show_unknown_as_hole off -- and including it is
+   harmless. `tiles` is what Code.re actually colours, so it is the right set
+   to require full coverage of. */
+type rendered = {
+  dynamic_ids: Id.Set.t,
+  emitted: Id.Set.t,
+  tiles: Id.Set.t,
+};
 
-/* The dynamic_ids, and the one render they describe, reported two ways. Mirrors
-   DynamicTypInfer.displayed_segment_and_dynamic_ids: normalize both, diff the
-   normalized forms, render the normalized dynamic type once.
-
-   The two id sets are deliberately different. `all` includes Grout and
-   Secondary, because a runtime-derived node can legitimately render as Grout --
-   an Unknown does, with show_unknown_as_hole off -- and including it is harmless.
-   `tiles` is what Code.re actually colours, so it is the right set to
-   require full coverage of. */
 let dynamic_ids_and_rendered =
-    (~static_typ: Typ.t, ~dynamic_typ: Typ.t): (Id.Set.t, Id.Set.t, Id.Set.t) => {
-  let static_n = normalize(static_typ);
-  let dynamic_n = normalize(dynamic_typ);
-  let dynamic_ids = Typ.diff(static_n, dynamic_n) |> Id.Set.of_list;
-  let seg = render_normalized(dynamic_n);
-  (
+    (~static_typ: Typ.t, ~dynamic_typ: Typ.t): rendered => {
+  let (seg, dynamic_ids) =
+    ExpToSegment.typ_to_segment_with_diff_ids(
+      ~settings,
+      ~against=static_typ,
+      dynamic_typ,
+    );
+  {
     dynamic_ids,
-    Segment.ids(seg) |> Id.Set.of_list,
-    Segment.tile_ids(seg) |> Id.Set.of_list,
-  );
+    emitted: Segment.ids(seg) |> Id.Set.of_list,
+    tiles: Segment.tile_ids(seg) |> Id.Set.of_list,
+  };
 };
 
 /* SOUNDNESS. Every id in the set must appear somewhere in the render. An id that
@@ -61,9 +63,9 @@ let qcheck_dynamic_ids_are_emitted =
       QCheck_Util.arb_typ(~minimal_idents=false, 12),
     ),
     ((static_typ, dynamic_typ)) => {
-      let (dynamic_ids, all, _tiles) =
+      let {dynamic_ids, emitted, _} =
         dynamic_ids_and_rendered(~static_typ, ~dynamic_typ);
-      Id.Set.subset(dynamic_ids, all);
+      Id.Set.subset(dynamic_ids, emitted);
     },
   );
 
@@ -84,7 +86,7 @@ let qcheck_fully_dynamic_colours_everything =
         | _ => true
         },
       );
-      let (dynamic_ids, _all, tiles) =
+      let {dynamic_ids, tiles, _} =
         dynamic_ids_and_rendered(
           ~static_typ=Typ.fresh(Unknown(Internal)),
           ~dynamic_typ,
@@ -100,13 +102,13 @@ let qcheck_identical_colours_nothing =
     ~count=300,
     QCheck_Util.arb_typ(~minimal_idents=false, 12),
     typ => {
-      let (dynamic_ids, _, _) =
+      let {dynamic_ids, _} =
         dynamic_ids_and_rendered(~static_typ=typ, ~dynamic_typ=typ);
       Id.Set.is_empty(dynamic_ids);
     },
   );
 
-/* The invariant the whole scheme rests on: a normalized type already carries
+/* The invariant the whole scheme rests on: a prepared type already carries
    every id its rendering consumes, so the renderer never mints one. An id
    minted during rendering is in the DOM but in no type, so nothing can name
    it and the token it labels can never be coloured.
@@ -115,15 +117,13 @@ let qcheck_identical_colours_nothing =
    property over generated types it covers far more than that flag did --
    it only fired on whatever input a test happened to render, and its single
    `true` lived in a test while eight production modules carried a `false`. */
-let qcheck_normalized_ids_are_sufficient =
+let qcheck_prepared_ids_are_sufficient =
   QCheck.Test.make(
-    ~name="a normalized type carries every id its rendering consumes",
+    ~name="a prepared type carries every id its rendering consumes",
     ~count=500,
     QCheck_Util.arb_typ(~minimal_idents=false, 20),
     typ =>
-    ExpToSegment.typ_ids_sufficient(
-      ExpToSegment.normalize_typ(~settings, typ),
-    )
+    ExpToSegment.PreparedTyp.(prepare(~settings, typ) |> ids_sufficient)
   );
 
 /* Unit pins for the id counts, which mirror the pad_ids calls in
@@ -182,7 +182,7 @@ let tests = [
       QCheck_alcotest.to_alcotest(qcheck_dynamic_ids_are_emitted),
       QCheck_alcotest.to_alcotest(qcheck_fully_dynamic_colours_everything),
       QCheck_alcotest.to_alcotest(qcheck_identical_colours_nothing),
-      QCheck_alcotest.to_alcotest(qcheck_normalized_ids_are_sufficient),
+      QCheck_alcotest.to_alcotest(qcheck_prepared_ids_are_sufficient),
     ],
   ),
 ];

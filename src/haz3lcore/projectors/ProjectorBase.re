@@ -34,14 +34,15 @@ type utility = {
   seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
   term_to_seg: (~inline: bool, Any.t) => Base.segment,
-  /* The two halves of term_to_seg for types, split apart. A caller that
-   * needs to reason about the ids in a rendered segment must normalize
-   * first and reason about the NORMALIZED type: parens are inserted as
-   * real nodes and id slots are padded during normalization, and those are
-   * the ids the renderer puts on tokens. Normalization is not idempotent,
-   * so normalize once and render that. */
-  normalize_typ: (~inline: bool, Typ.t) => Typ.t,
-  render_normalized_typ: (~inline: bool, Typ.t) => Base.segment,
+  /* Render a type, reporting the ids of the rendered tokens that [against]
+   * does not account for -- for a projector that colours the parts of a
+   * type some other type did not supply. Rendering inserts parens and pads
+   * ids, and it is those nodes the returned ids name, so the comparison
+   * cannot be done on the types as passed and the segment returned is the
+   * one render the ids describe. */
+  typ_to_seg_with_diff_ids:
+    (~inline: bool, ~ctx: Ctx.t, ~against: Typ.t, Typ.t) =>
+    (Base.segment, Id.Set.t),
   seg_to_string: Base.segment => string,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
