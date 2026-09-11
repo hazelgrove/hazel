@@ -39,7 +39,7 @@ let settings_group = (~globals: Globals.t, name: string, ts) => {
     "group",
     [
       div_c("name", [text(name)]),
-      div_c("contents", List.map(toggle, ts)),
+      div_c("contents", List.map(~f=toggle, ts)),
     ],
   );
 };

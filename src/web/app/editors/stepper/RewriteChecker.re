@@ -10,7 +10,7 @@ let name_other = (): (Exp.t => string) => {
       | Some(name) => name
       | None =>
         let new_name =
-          "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000);
+          "unknown_" ++ string_of_int(Stdlib.Hashtbl.hash(exp) mod 100000);
         names := [(exp, new_name)] @ names^;
         new_name;
       };
@@ -53,7 +53,7 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
 
 let checkEquality = (expr1, expr2): bool => {
   let algebrite = Js.Unsafe.global##.Algebrite;
-  let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
+  let diffExpr = Stdlib.Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
   let algebrite_result = algebrite##run(Js.string(diffExpr));
   switch (Js.to_string(algebrite_result)) {
   | "0" => true
@@ -79,7 +79,7 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   print_endline("To:   " ++ right_str);
   print_endline("e1: " ++ Exp.show(from_));
   print_endline("e2: " ++ Exp.show(to_));
-  if (left_str == "Unknown" || right_str == "Unknown") {
+  if (String.equal(left_str, "Unknown") || String.equal(right_str, "Unknown")) {
     false;
   } else {
     checkEquality(left_str, right_str);

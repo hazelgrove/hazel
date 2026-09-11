@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,14 +95,14 @@ module Settings = {
   };
 
   let is_collapsed = (label, cat, settings) =>
-    List.mem((label, cat), settings.collapsed);
+    List.mem(settings.collapsed, (label, cat), ~equal=Poly.equal);
 
   let toggle_collapsed = (label, cat, settings) =>
     if (is_collapsed(label, cat, settings)) {
       {
         ...settings,
         collapsed:
-          List.filter(pair => pair != (label, cat), settings.collapsed),
+          List.filter(~f=pair => pair != (label, cat), settings.collapsed),
       };
     } else {
       {
@@ -111,14 +112,17 @@ module Settings = {
     };
 
   let is_editor_collapsed = (label, settings) =>
-    List.mem(label, settings.collapsed_editors);
+    List.mem(settings.collapsed_editors, label, ~equal=String.equal);
 
   let toggle_editor_collapsed = (label, settings) =>
     if (is_editor_collapsed(label, settings)) {
       {
         ...settings,
         collapsed_editors:
-          List.filter(l => l != label, settings.collapsed_editors),
+          List.filter(
+            ~f=l => !String.equal(l, label),
+            settings.collapsed_editors,
+          ),
       };
     } else {
       {
@@ -127,13 +131,14 @@ module Settings = {
       };
     };
 
-  let is_expanded = (id, settings) => List.mem(id, settings.expanded);
+  let is_expanded = (id, settings) =>
+    List.mem(settings.expanded, id, ~equal=Poly.equal);
 
   let toggle_expanded = (id, settings) =>
     if (is_expanded(id, settings)) {
       {
         ...settings,
-        expanded: List.filter(i => !Id.equal(i, id), settings.expanded),
+        expanded: List.filter(~f=i => !Id.equal(i, id), settings.expanded),
       };
     } else {
       {
@@ -170,13 +175,17 @@ module Settings = {
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
-    List.mem(key, settings.debug_collapsed);
+    List.mem(settings.debug_collapsed, key, ~equal=String.equal);
 
   let toggle_debug_collapsed = (key: string, settings: t): t =>
     if (is_debug_collapsed(key, settings)) {
       {
         ...settings,
-        debug_collapsed: List.filter(k => k != key, settings.debug_collapsed),
+        debug_collapsed:
+          List.filter(
+            ~f=k => !String.equal(k, key),
+            settings.debug_collapsed,
+          ),
       };
     } else {
       {
@@ -186,13 +195,14 @@ module Settings = {
     };
 
   let is_encoding_enabled = (e: WorkerServer.encoding, settings: t) =>
-    List.mem(e, settings.worker_encodings);
+    List.mem(settings.worker_encodings, e, ~equal=Poly.equal);
 
   let toggle_encoding = (e: WorkerServer.encoding, settings: t): t =>
     if (is_encoding_enabled(e, settings)) {
       {
         ...settings,
-        worker_encodings: List.filter(x => x != e, settings.worker_encodings),
+        worker_encodings:
+          List.filter(~f=x => x != e, settings.worker_encodings),
       };
     } else {
       {

@@ -16,7 +16,7 @@ let poly_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
   colorings: poly_typ_coloring_ids(~tpat_id, ~tbody_id),
   expandable_id: Some((Piece.id(tpat), [typ_arg])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This poly type classifies polymorphic values varying over [*type variable*](%s) with [*instantiated type*](%s).",
       Id.to_string(tpat_id),
       Id.to_string(tbody_id),

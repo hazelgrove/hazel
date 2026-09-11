@@ -26,14 +26,15 @@ let evaluate_term = (term: Exp.t): option(Exp.t) => {
 /* Count (correct, total) nodes across every tree in the verified proof.
    Total includes every node; correct counts only nodes with res = Correct. */
 let count_verified_tree = (verified: DrvGrading.VerifiedTree.t): (int, int) => {
-  let all_nodes = verified |> List.concat_map(Util.Tree.flatten);
+  let all_nodes = verified |> List.concat_map(~f=Util.Tree.flatten);
   List.fold_left(
-    ((c, t), info: DrvGrading.VerifiedTree.info) =>
-      switch (info.res) {
-      | Correct => (c + 1, t + 1)
-      | _ => (c, t + 1)
-      },
-    (0, 0),
+    ~f=
+      ((c, t), info: DrvGrading.VerifiedTree.info) =>
+        switch (info.res) {
+        | Correct => (c + 1, t + 1)
+        | _ => (c, t + 1)
+        },
+    ~init=(0, 0),
     all_nodes,
   );
 };
@@ -74,7 +75,7 @@ let grade_derivation =
   let (correct, total) = count_verified_tree(verified);
   let (earned, max) = score_of_verified_tree(spec, verified);
   let summary =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Derivation: %.1f/%.1f (%d/%d nodes correct)\n",
       earned,
       max,
@@ -91,7 +92,7 @@ let grade_theorem = (spec: TheoremExercise.spec, _persistent_state): report => {
   let max = float_of_int(spec.max_points);
   {
     summary:
-      Printf.sprintf(
+      Stdlib.Printf.sprintf(
         "Theorem: manual grading required (%.0f points possible)\n",
         max,
       ),

@@ -30,17 +30,18 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
       div(
         ~attrs=[clss(["arg-list"])],
         List.mapi(
-          (i, item) =>
-            div(
-              ~attrs=[clss(["arg-list-item"])],
-              [
-                span(
-                  ~attrs=[clss(["arg-list-index"])],
-                  [text(string_of_int(i + 1) ++ ".")],
-                ),
-                render_value(item),
-              ],
-            ),
+          ~f=
+            (i, item) =>
+              div(
+                ~attrs=[clss(["arg-list-item"])],
+                [
+                  span(
+                    ~attrs=[clss(["arg-list-index"])],
+                    [text(string_of_int(i + 1) ++ ".")],
+                  ),
+                  render_value(item),
+                ],
+              ),
           items,
         ),
       )
@@ -48,14 +49,15 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
       div(
         ~attrs=[clss(["arg-object"])],
         List.map(
-          ((key, value)) =>
-            div(
-              ~attrs=[clss(["arg-field"])],
-              [
-                span(~attrs=[clss(["arg-field-key"])], [text(key)]),
-                render_value(value),
-              ],
-            ),
+          ~f=
+            ((key, value)) =>
+              div(
+                ~attrs=[clss(["arg-field"])],
+                [
+                  span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+                  render_value(value),
+                ],
+              ),
           pairs,
         ),
       )
@@ -67,14 +69,15 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
     div(
       ~attrs=[clss(["tool-call-args-pretty"])],
       List.map(
-        ((key, value)) =>
-          div(
-            ~attrs=[clss(["arg-field"])],
-            [
-              span(~attrs=[clss(["arg-field-key"])], [text(key)]),
-              render_value(value),
-            ],
-          ),
+        ~f=
+          ((key, value)) =>
+            div(
+              ~attrs=[clss(["arg-field"])],
+              [
+                span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+                render_value(value),
+              ],
+            ),
         pairs,
       ),
     )
@@ -106,7 +109,7 @@ let first_resolving_id =
   | None => None
   | Some(nm) =>
     List.find_map(
-      (p: string) => HighLevelNodeMap.Public.path_to_id_opt(nm, p),
+      ~f=(p: string) => HighLevelNodeMap.Public.path_to_id_opt(nm, p),
       jump_paths,
     )
   };
@@ -131,14 +134,14 @@ let view =
   let summary_opt = ToolCallSummary.of_tool_call(tool_result.tool_call);
   let resolved_id: option(Id.t) =
     switch (summary_opt) {
-    | Some(s) when s.jump_paths != [] =>
+    | Some(s) when !List.is_empty(s.jump_paths) =>
       first_resolving_id(~node_map, s.jump_paths)
     | _ => None
     };
   let is_stale: bool =
     switch (summary_opt) {
-    | Some(s) when s.persists && s.jump_paths != [] =>
-      resolved_id == None && node_map != None
+    | Some(s) when s.persists && !List.is_empty(s.jump_paths) =>
+      Option.is_none(resolved_id) && Option.is_some(node_map)
     | _ => false
     };
   let category_node: Node.t =

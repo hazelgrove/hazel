@@ -53,7 +53,7 @@ let case_exp = (~scrut_id: Id.t): form => {
   colorings: case_exp_coloring_ids(~scrut_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%s), evaluates to the corresponding *clause*.",
       Id.to_string(scrut_id),
     ),

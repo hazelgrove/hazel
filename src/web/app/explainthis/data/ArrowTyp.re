@@ -12,7 +12,7 @@ let arrow_typ_coloring_ids =
 let arrow_typ_id: form_id = ArrowTyp;
 let arrow_typ_form = [typ_arg, space(), arrow(), space(), typ_out];
 let arrow_typ_explanation = (~arg_id: Id.t, ~result_id: Id.t): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "This arrow type classifies functions with [*argument type*](%s) and [*output type*](%s).",
     Id.to_string(arg_id),
     Id.to_string(result_id),
@@ -57,7 +57,7 @@ let arrow3_typ = (~arg1_id: Id.t, ~arg2_id: Id.t, ~result_id: Id.t): form => {
       [typ("ty_arg2"), arrow(), typ("ty_out")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This arrow type classifies functions with [*first argument type*](%s), [*second argument type*](%s), and [*output type*](%s).",
       Id.to_string(arg1_id),
       Id.to_string(arg2_id),

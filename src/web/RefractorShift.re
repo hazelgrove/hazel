@@ -67,9 +67,11 @@ let update =
    * the same physical map while refractor shapes are unchanged. Cloning
    * or rebuilding the map elsewhere would silently defeat the gate. */
   | Some((key, prev_rows))
-      when key == editor_key && prev_rows === refractor_rows =>
+      when
+        String.equal(key, editor_key)
+        && phys_equal(prev_rows, refractor_rows) =>
     ()
-  | Some((key, prev_rows)) when key == editor_key =>
+  | Some((key, prev_rows)) when String.equal(key, editor_key) =>
     let caret_row = Zipper.Caret.point(measured, z).row;
     let delta_rows =
       above_locus_delta_rows(

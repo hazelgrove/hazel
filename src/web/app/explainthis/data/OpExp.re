@@ -214,7 +214,7 @@ let unop_exp_coloring_ids =
 /* Takes the explanation as a format *literal*, so the number of `%s`
    placeholders is checked against the supplied ids at compile time. */
 let unop_explanation = (~exp_id: Id.t, fmt): string =>
-  Printf.sprintf(fmt, Id.to_string(exp_id));
+  Stdlib.Printf.sprintf(fmt, Id.to_string(exp_id));
 let e = exp("e");
 let bool_unary_not_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
   unop_exp_coloring_ids(Piece.id(e), ~exp_id);
@@ -251,7 +251,7 @@ let binop_exp_coloring_ids =
 };
 /* As `unop_explanation`, but for the two-operand forms. */
 let binop_explanation = (~left_id: Id.t, ~right_id: Id.t, fmt): string =>
-  Printf.sprintf(fmt, Id.to_string(left_id), Id.to_string(right_id));
+  Stdlib.Printf.sprintf(fmt, Id.to_string(left_id), Id.to_string(right_id));
 let exp1 = exp("e1");
 let exp2 = exp("e2");
 let int_plus_exp_coloring_ids =
