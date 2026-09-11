@@ -53,4 +53,10 @@ let all: list((string, string)) = [
     [%blob "24-table-column-projection.hzt"],
   ),
   ("25-rich-probes.hzt", [%blob "25-rich-probes.hzt"]),
+  ("26-gradebook-midterm-mean.hzt", [%blob "26-gradebook-midterm-mean.hzt"]),
+  (
+    "27-gradebook-overall-grade.hzt",
+    [%blob "27-gradebook-overall-grade.hzt"],
+  ),
+  ("28-gradebook-tidy-term.hzt", [%blob "28-gradebook-tidy-term.hzt"]),
 ];

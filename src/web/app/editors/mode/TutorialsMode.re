@@ -33,11 +33,18 @@ module Model = {
     };
   };
   let get_current = (m: t) => List.nth(m.exercises, m.current);
+  /* The raw title, never return_title -- that one appends " ✔". */
+  let paths = (m: t): list(SlidePath.t) =>
+    List.map(
+      (e: TutorialMode.Model.t) => Tutorial.path_of(e.editors),
+      m.exercises,
+    );
 };
 module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
+    /* Lesson 0, so keep "Basics / Holes" first in Slides.re. */
     let default = () =>
       List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
@@ -206,8 +213,11 @@ module Update = {
       WorkerClient.cancel();
       Model.{
         current:
-          (model.current + 1 + List.length(model.exercises))
-          mod List.length(model.exercises),
+          SlidePath.step_in_folder(
+            ~current=model.current,
+            ~by=1,
+            Model.paths(model),
+          ),
         exercises: model.exercises,
       }
       |> return(~historic=false);
@@ -215,8 +225,11 @@ module Update = {
       WorkerClient.cancel();
       Model.{
         current:
-          (model.current - 1 + List.length(model.exercises))
-          mod List.length(model.exercises),
+          SlidePath.step_in_folder(
+            ~current=model.current,
+            ~by=-1,
+            Model.paths(model),
+          ),
         exercises: model.exercises,
       }
       |> return(~historic=false);
@@ -311,11 +324,16 @@ module View = {
 
   let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
     let current = List.nth(model.exercises, model.current);
+    /* First/last within the current lesson's folder, not the whole list: the
+       arrows walk one folder and the last lesson of a folder shows the
+       completion message instead of a next arrow. */
+    let {index_in_folder, folder_size}: SlidePath.folder_position =
+      SlidePath.folder_position(~current=model.current, Model.paths(model));
     TutorialMode.View.view(
       ~globals,
       ~inject=a => inject(Update.Tutorial(a)),
-      ~is_first=model.current == 0,
-      ~is_last=model.current == List.length(model.exercises) - 1,
+      ~is_first=index_in_folder == 0,
+      ~is_last=index_in_folder == folder_size - 1,
       current,
     );
   };
@@ -444,15 +462,21 @@ module View = {
           | Previous =>
             inject(
               Update.SwitchExercise(
-                (model.current - 1 + List.length(model.exercises))
-                mod List.length(model.exercises),
+                SlidePath.step_in_folder(
+                  ~current=model.current,
+                  ~by=-1,
+                  Model.paths(model),
+                ),
               ),
             )
           | Next =>
             inject(
               Update.SwitchExercise(
-                (model.current + 1 + List.length(model.exercises))
-                mod List.length(model.exercises),
+                SlidePath.step_in_folder(
+                  ~current=model.current,
+                  ~by=1,
+                  Model.paths(model),
+                ),
               ),
             )
           | Add
@@ -462,7 +486,7 @@ module View = {
           EditorModeView.indicator_select(
             ~signal=i => inject(SwitchExercise(i)),
             model.current,
-            titles,
+            List.map(SlidePath.of_string, titles),
           ),
         (),
       );

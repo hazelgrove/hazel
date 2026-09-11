@@ -168,7 +168,7 @@ let starts_with_digit = (s: string): bool =>
 /* Fallback title when a slide has no `@title`: "01-holes" -> "01 - Holes";
    a category token ("task"/"extra") right after the number gets its own
    " - ": "26-task-grove-name" -> "26 - Task - Grove Name". Directory
-   segments become " / "-joined prefixes. */
+   segments become the SlidePath folders the title sits in. */
 let is_category = (s: string): bool => s == "task" || s == "extra";
 let cap_join = (words: list(string)): string =>
   words
@@ -197,9 +197,9 @@ let title_of = (rel: string): string => {
         num ++ " - " ++ cap_join(rest)
       | _ => cap_words(last)
       };
-    let prefix =
-      List.rev(rev_dirs) |> List.map(cap_words) |> String.concat(" / ");
-    prefix == "" ? file_title : prefix ++ " / " ++ file_title;
+    let folders =
+      List.rev(rev_dirs) |> List.map(cap_words) |> List.filter(f => f != "");
+    SlidePath.mk(~folders, file_title) |> SlidePath.to_string;
   };
 };
 

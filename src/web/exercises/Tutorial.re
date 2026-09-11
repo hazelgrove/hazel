@@ -55,6 +55,12 @@ let id_of = p => {
   p.id;
 };
 
+/* A lesson's title carries its folder as a SlidePath prefix, the same
+   convention Documentation-mode slide names use: "Basics / Holes" is the
+   lesson "Holes" in the "Basics" folder. Keep every lesson at exactly one
+   folder segment, and never let one title be a proper prefix of another. */
+let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
   | YourImpl
