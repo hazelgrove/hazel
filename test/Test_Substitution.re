@@ -73,5 +73,50 @@ let tests = (
         check(exp, "f -> g, g -> h in fix f. f", expected, result);
       },
     ),
+    /* A module member's name is its label, so it must not be renamed away
+       from capture the way an ordinary binder is: `M.x` would stop finding
+       it. The substitution shadows for the items that follow instead. This
+       bites through the stepper, which substitutes the whole builtin
+       environment, so a member named after any builtin would break. */
+    test_case(
+      "a module member is shadowed, not renamed",
+      `Quick,
+      () => {
+        let env =
+          Environment.of_list([("x", Exp.var("x")), ("y", Exp.var("x"))]);
+        let expr =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("y")),
+          ]);
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        check(exp, "member x keeps its name", expected, result);
+      },
+    ),
+    /* And a later item sees the member, not the substitution. */
+    test_case(
+      "a later item sees the member it follows",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(9))]);
+        let expr =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        check(exp, "x is the member, not 9", expected, result);
+      },
+    ),
   ],
 );

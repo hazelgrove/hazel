@@ -476,16 +476,18 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
     }
   });
 
-let incremental_literal_edit_known_bug_test =
+/* #2457's counterexample no longer reproduces here, so the pin is flipped to
+   assert agreement. The QCheck property above stays disabled: whether the bug
+   is gone in general needs a longer run than CI does. */
+let incremental_literal_edit_test =
   test_case(
-    "Known bug #2457: incremental eval disagrees with fresh after a literal edit",
+    "#2457 counterexample: incremental eval agrees with fresh after a literal edit",
     `Quick,
     () =>
     check_incremental_against_fresh_after_edit(
       ~literal_index=0,
-      ~testable=neg(testable_core_exp),
-      ~msg=
-        "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
+      ~testable=testable_core_exp,
+      ~msg="Incremental eval and fresh eval agree",
       ~require_comparison=true,
       parse_exp("{ let x = (); let _ = 4; let true = A }"),
     )
@@ -782,7 +784,7 @@ let tests = (
     stepper_confluence_known_bug_test,
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
     qcheck_incremental_matches_fresh_after_edit_disabled,
-    incremental_literal_edit_known_bug_test,
+    incremental_literal_edit_test,
     /* Preservation does not currently hold: stepping can produce a type that
        is not more precise than the original. */
     test_case("Preservation of types (disabled)", `Quick, () => {

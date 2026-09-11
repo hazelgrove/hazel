@@ -111,8 +111,31 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
-  let+ remolded =
+  /* A label with no form in this sort: an incomplete tile whose present
+     shards spell a complete compound form of the sort takes that form, so
+     `let y = 2` still owed its `in` becomes the module item once a `;` puts
+     it in a module body. Compound only: a lone keyword shard must not
+     become a variable. */
+  let (t, molds) =
     switch (Form.Molds.try_get(s, t.label)) {
+    | Some(_) as molds => (t, molds)
+    | None when Tile.is_complete(t) => (t, None)
+    | None =>
+      let label = Tile.effective_label(t);
+      switch (Form.Molds.try_get_compound(s, label)) {
+      | Some(_) as molds => (
+          {
+            ...t,
+            label,
+            shards: List.init(List.length(t.shards), Fun.id),
+          },
+          molds,
+        )
+      | None => (t, None)
+      };
+    };
+  let+ remolded =
+    switch (molds) {
     | None => None
     | Some(molds) =>
       molds
@@ -691,7 +714,51 @@ and remold_sig = (shape, seg: t): t =>
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
+        | (_, {shape, sort: MPat}) =>
+          let (remolded, shape, rest) =
+            remold_mpat_uni(shape, tl, [Sort.Sig]);
+          [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | _ => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
+/* The MPat body of a `module m : S` signature item: a name, optionally
+   followed by a `:` ascription whose right operand is a type. */
+and remold_mpat_uni =
+    (shape, seg: t, parent_sorts: list(Sort.t)): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_mpat_uni(shape, tl, parent_sorts);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_mpat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      switch (remold_tile(MPat, shape, t)) {
+      | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded_typ, shape, rest) =
+            remold_typ_uni(shape, tl, [Sort.MPat, ...parent_sorts]);
+          let (remolded_mpat, shape, rest) =
+            remold_mpat_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_typ] @ remolded_mpat, shape, rest);
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_mpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+          ([Tile(t), ...remolded], shape, rest);
         }
       }
     }
