@@ -524,9 +524,10 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             TyAlias(tp, t, e);
           },
           {
-            /* Module literal bound by a let. Members are value and type
-               items. */
+            /* Module literal bound by a let — plain or livelit (^name)
+               binder. Members are value and type items. */
 
+            let* is_livelit = bool;
             let* name = gen_ident;
             let* sizes = gen_sized_array((n - 1) / 2);
             let* items =
@@ -549,11 +550,15 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
                 ),
               );
             let+ body = self((n - 1) / 2);
-            Let(VarPat(name), Module(Array.to_list(items)), body);
+            Let(
+              VarPat(is_livelit ? "^" ++ name : name),
+              Module(Array.to_list(items)),
+              body,
+            );
           },
           {
-            /* Builtin-livelit name in expression position: ^name —
-               combines with the existing Ap/Dot generators for uses. */
+            /* Livelit name in expression position: ^name — combines with
+               the existing Ap/Dot generators for uses and member access. */
 
             let+ name = gen_ident;
             LivelitName("^" ++ name);

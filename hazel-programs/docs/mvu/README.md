@@ -19,11 +19,13 @@ To work from the file instead:
 From the command line: `./hazel run <file>.hz` evaluates the app, and
 `./hazel test <file>.hz` runs its inline test suite.
 
-## Editing the slides
+## These files ARE the slides
 
-These files ARE the slides: `src/mvu/Slides.re` embeds them at compile time
-and the load path parses them, so an edit here changes the slide on the next
-build. There is no encoding step.
+The `MVU / ...` documentation slides embed these files at compile time
+(`src/mvu/Slides.re`, ppx_blob) and parse them at load — there is no
+encode step, so an edit here ships on the next build. `Test_FastParseCorpus`
+keeps every file on the fast parse path; `DocSlides.ReparseBackuptext`
+checks both parsers reproduce the text exactly.
 
 Two conventions the slides rely on:
 
@@ -83,10 +85,14 @@ Note the naming is deliberately asymmetric: `Action` is the name in Hazel
 programs, while the OCaml implementation says `msg`, because `action` is already
 taken there by both `HTMLProj`'s own action type and `Haz3lcore.Action`.
 
-### Legacy self-modifying (inline HTML projector)
+### Self-modifying HTML (inline HTML projector, syntax commit)
 
-The inline HTML projector still supports the old self-modifying pattern where
-handlers are `model -> model` functions. These run in "legacy mode" automatically.
+A bare HTML expression (not an app 4-tuple) projected inline commits to
+syntax rather than state: handlers emit `Html -> Html` transforms, and each
+event evaluates the transform applied to the projected expression and
+splices the result back into the program text. The expression must be
+closed HTML — the transform evaluates outside the program, so free
+variables have no definitions there.
 
 ## Examples
 

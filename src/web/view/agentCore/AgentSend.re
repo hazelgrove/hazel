@@ -27,6 +27,30 @@ let pending_main_stream_handle: ref(option(API.streaming_handle)) =
 let defer_dispatch_send: ref((unit => unit) => unit) =
   ref(thunk => JsUtil.delay(0.0, thunk));
 
+/* --- Eval-settled gating for phase-2 dispatch ---------------------------
+   The send-time context renders probe values and test results from the
+   WORKER evaluation, which is asynchronous: a round that just placed a
+   probe (or edited code) would otherwise compose its context before any
+   sample lands — the model reads `∅` and learns that probes are useless.
+   DispatchSend re-defers until the cell's evaluation settles or the
+   attempt budget (~10s) runs out; the LLM round-trip dwarfs the wait.
+   Heavy probe/sample programs can stream for several seconds; the
+   worker's own eval_timeout_ms (20s) settles divergent programs as
+   ResultFail(Timeout), so the budget only needs to cover honest work. */
+let eval_wait_interval_ms = 150.0;
+let max_eval_wait_attempts: ref(int) = ref(67);
+let eval_wait_attempts: ref(int) = ref(0);
+/* Tests override to run the thunk synchronously. */
+let defer_eval_wait: ref((float, unit => unit) => unit) =
+  ref((ms, thunk) => JsUtil.delay(ms, thunk));
+
+let eval_settled = (result: EvalResult.Model.t): bool =>
+  switch (Calc.get_value(result.result)) {
+  | Language.ProgramResult.ResultOk(_)
+  | ResultFail(_) => true
+  | ResultPending(_) => false
+  };
+
 let abort_main_stream_handle = (): unit =>
   switch (pending_main_stream_handle^) {
   | Some(h) =>
@@ -285,81 +309,25 @@ let dispatch_send =
   };
 };
 
-/** Start the next model turn after tool result messages are already on the chat (no extra append). */
-let dispatch_follow_up_llm =
-    (
-      model: Model.t,
-      chat_id: Id.t,
-      settings: Settings.t,
-      schedule_action: Action.t => unit,
-    )
-    : Model.t => {
+/** Start the next model turn after tool results are on the chat: route
+    through the deferred phase-2 dispatch (DispatchSend) so the context
+    refresh waits for evaluation to settle — probe values and test
+    results from the tool round's edits are present, not `∅`/stale. */
+let defer_follow_up_llm =
+    (model: Model.t, chat_id: Id.t, schedule_action: Action.t => unit)
+    : Model.t =>
   switch (model.compaction_in_progress) {
   | Some(_) => model
   | None =>
-    switch (
-      settings.agent_globals.api_key,
-      AgentGlobals.get_active_llm_id(settings.agent_globals),
-    ) {
-    | (None, _) => {
-        ...
-          Utils.append_message(
-            ~chat_id,
-            Message.Utils.mk_api_failure_message(
-              "An API key is required. Please set an API key in the settings.",
-            ),
-            model,
-          ),
-        awaiting_response: None,
-      }
-    | (_, None) => {
-        ...
-          Utils.append_message(
-            ~chat_id,
-            Message.Utils.mk_api_failure_message(
-              "LLM ID is required. Please select an LLM in the settings.",
-            ),
-            model,
-          ),
-        awaiting_response: None,
-      }
-    | (Some(api_key), Some(llm_id)) =>
-      let main_flight_seq = model.main_llm_seq + 1;
-      send_llm_request(
-        ~api_key,
-        ~payload=
-          OpenRouter.Payload.Utils.mk_default(
-            ~model_id=llm_id,
-            ~messages=
-              Chat.Utils.api_messages_for_openrouter(
-                ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-              ),
-            ~session_id=Some(Id.to_string(chat_id)),
-            ~tools=
-              enabled_tools(
-                ~mode=settings.agent_globals.session_mode,
-                model.prompting,
-              ),
-            ~reasoning=?
-              Option.map(
-                e => OpenRouter.Payload.Model.Effort(e),
-                settings.agent_globals.reasoning_effort,
-              ),
-            (),
-          ),
-        ~schedule_action,
-        ~chat_id,
-        ~retry_attempt=0,
-        ~main_flight_seq,
-      );
-      {
-        ...model,
-        awaiting_response: Some(chat_id),
-        main_llm_seq: main_flight_seq,
-      };
-    }
+    eval_wait_attempts := 0;
+    defer_dispatch_send^(() =>
+      schedule_action(Action.DispatchSend(chat_id))
+    );
+    {
+      ...model,
+      pending_dispatch_send: Some(chat_id),
+    };
   };
-};
 
 let schedule_flush_pending_if_idle_for_chat =
     (model_after: Model.t, chat_id: Id.t, schedule_action: Action.t => unit)
@@ -402,6 +370,7 @@ let send_message =
       ...Utils.append_message(~chat_id, message, model),
       pending_dispatch_send: Some(chat_id),
     };
+    eval_wait_attempts := 0;
     defer_dispatch_send^(() =>
       schedule_action(Action.DispatchSend(chat_id))
     );
@@ -420,7 +389,20 @@ let handle_dispatch_send =
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) =>
   switch (model.pending_dispatch_send) {
+  | Some(pending_chat_id)
+      when
+        pending_chat_id == chat_id
+        && settings.core.dynamics
+        && !eval_settled(editor.result)
+        && eval_wait_attempts^ < max_eval_wait_attempts^ =>
+    /* keep the pending flag; look again once evaluation has had a beat */
+    incr(eval_wait_attempts);
+    defer_eval_wait^(eval_wait_interval_ms, () =>
+      schedule_action(Action.DispatchSend(chat_id))
+    );
+    (model, editor |> Updated.return_quiet);
   | Some(pending_chat_id) when pending_chat_id == chat_id =>
+    eval_wait_attempts := 0;
     let model = {
       ...model,
       pending_dispatch_send: None,
