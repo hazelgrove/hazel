@@ -134,8 +134,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
       imp: (d: DHExp.t) => {
         let-unbox x = (Atom(k1), d);
         switch (f(x)) {
-        | L(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
-        | R(_) => None
+        | Ok(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
+        | Error(_) => None
         };
       },
       custom_statics: None,
@@ -157,8 +157,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
             let-unbox x = (Atom(k1), x);
             let-unbox y = (Atom(k2), y);
             switch (f(x, y)) {
-            | L(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
-            | R(_) => None
+            | Ok(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
+            | Error(_) => None
             };
           }
         ),

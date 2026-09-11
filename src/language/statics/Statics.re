@@ -479,7 +479,7 @@ and uexp_to_info_map =
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
       switch (c) {
-      | L(c) =>
+      | Ok(c) =>
         let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
         add(
           ~elab_term=Atom(c) |> rewrap,
@@ -488,7 +488,7 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.empty,
           m,
         );
-      | R(BadInt(str)) =>
+      | Error(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -1811,7 +1811,7 @@ and uexp_to_info_map =
         let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
-        | L(ty_ins) =>
+        | Ok(ty_ins) =>
           let ((args_infos, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx =
             CoCtx.union(List.map(~f=Info.exp_co_ctx, args_infos));
@@ -1840,7 +1840,7 @@ and uexp_to_info_map =
               ]),
             m,
           );
-        | R(expected) =>
+        | Error(expected) =>
           let ty_ins =
             List.init(num_args, ~f=_ => Unknown(Internal) |> Typ.temp);
           let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
@@ -2969,7 +2969,7 @@ and upat_to_info_map =
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
       switch (c) {
-      | L(Nat(nat)) =>
+      | Ok(Nat(nat)) =>
         add(
           ~elab_term=Atom(Nat(nat)) |> rewrap,
           ~elab_syn_ty=Atom(Nat) |> Typ.temp,
@@ -2978,7 +2978,7 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.BigInt(nat),
           m,
         )
-      | L(Int(int)) =>
+      | Ok(Int(int)) =>
         add(
           ~elab_term=Atom(Int(int)) |> rewrap,
           ~elab_syn_ty=Atom(Int) |> Typ.temp,
@@ -2987,7 +2987,7 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.BigInt(int),
           m,
         )
-      | L(SInt(int)) =>
+      | Ok(SInt(int)) =>
         add(
           ~elab_term=Atom(SInt(int)) |> rewrap,
           ~elab_syn_ty=Atom(SInt) |> Typ.temp,
@@ -2996,7 +2996,7 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.SInt(int),
           m,
         )
-      | L(Float(float)) =>
+      | Ok(Float(float)) =>
         add(
           ~elab_term=Atom(Float(float)) |> rewrap,
           ~elab_syn_ty=Atom(Float) |> Typ.temp,
@@ -3005,7 +3005,7 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.Float(float),
           m,
         )
-      | L(Bool(bool)) =>
+      | Ok(Bool(bool)) =>
         add(
           ~elab_term=Atom(Bool(bool)) |> rewrap,
           ~elab_syn_ty=Atom(Bool) |> Typ.temp,
@@ -3015,7 +3015,7 @@ and upat_to_info_map =
             bool ? Coverage.Constraint.true_ : Coverage.Constraint.false_,
           m,
         )
-      | L(String(string)) =>
+      | Ok(String(string)) =>
         add(
           ~elab_term=Atom(String(string)) |> rewrap,
           ~elab_syn_ty=Atom(String) |> Typ.temp,
@@ -3024,7 +3024,7 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.String(string),
           m,
         )
-      | R(BadInt(str)) =>
+      | Error(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,

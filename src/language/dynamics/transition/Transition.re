@@ -929,10 +929,10 @@ module Transition = (EV: EV_MODE) => {
         let-unbox n = (Atom(in_ty), d1');
         let expr =
           switch (f(n)) {
-          | Either.L(return_value) =>
+          | Ok(return_value) =>
             // operator was successful
             generated(Atom(Atom.repack(out_ty, return_value)))
-          | Either.R(error) =>
+          | Error(error) =>
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
           };
@@ -1011,10 +1011,10 @@ module Transition = (EV: EV_MODE) => {
         let-unbox n2 = (Atom(in_ty2), d2);
         let expr =
           switch (f(n1, n2)) {
-          | Either.L(return_value) =>
+          | Ok(return_value) =>
             // operator was successful
             generated(Atom(Atom.repack(out_ty, return_value)))
-          | Either.R(error) =>
+          | Error(error) =>
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
           };
