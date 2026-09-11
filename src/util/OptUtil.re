@@ -7,11 +7,10 @@ let map2 = (f, o1, o2) => Option.map2(o1, o2, ~f);
 let some_if = (cond, a) => Option.some_if(cond, a);
 
 let zip = (o1, o2) => Option.both(o1, o2);
-let unzip = (o: option(('a, 'b))): (option('a), option('b)) =>
-  switch (o) {
-  | None => (None, None)
-  | Some((a, b)) => (Some(a), Some(b))
-  };
+let unzip = (o: option(('a, 'b))): (option('a), option('b)) => (
+  Option.map(o, ~f=fst),
+  Option.map(o, ~f=snd),
+);
 let sequence = (l: list(option('a))): option(list('a)) => Option.all(l);
 
 let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>

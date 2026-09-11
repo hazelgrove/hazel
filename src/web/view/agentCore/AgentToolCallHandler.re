@@ -78,7 +78,7 @@ let apply_overlay_action =
         ~init=(z, [], 0, []),
         paths,
       );
-    if (List.length(paths) > 0 && n_changed == 0) {
+    if (!List.is_empty(paths) && n_changed == 0) {
       let unresolved_sfx =
         switch (unresolved) {
         | [] => ""
@@ -101,7 +101,7 @@ let apply_overlay_action =
       let new_cws =
         CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
-      if (List.length(paths_to_expand) > 0) {
+      if (!List.is_empty(paths_to_expand)) {
         let expand_action = AgentContext.Update.Expand(paths_to_expand);
         let chat_system =
           ChatSystem.Update.update(

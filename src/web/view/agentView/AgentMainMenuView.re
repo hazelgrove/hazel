@@ -281,7 +281,7 @@ let view =
               );
             };
 
-            if (List.length(agent_globals.available_llms) == 0) {
+            if (List.is_empty(agent_globals.available_llms)) {
               div(
                 ~attrs=[clss(["llm-list-container"])],
                 [
@@ -336,7 +336,7 @@ let view =
               div(
                 ~attrs=[clss(["llm-sections"])],
                 (
-                  List.length(recommended) == 0
+                  List.is_empty(recommended)
                     ? []
                     : [
                       section_header("Recommended by the FP Lab"),
@@ -432,7 +432,7 @@ let view =
                       ]),
                     ],
                     [
-                      List.length(master_filtered) == 0
+                      List.is_empty(master_filtered)
                         ? div(
                             ~attrs=[clss(["llm-empty"])],
                             [
