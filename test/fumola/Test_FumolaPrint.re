@@ -14,10 +14,9 @@ open FumolaGrammar;
    verified only against our own expectations would agree with itself about a
    grammar it had misread. */
 
-let e = (t: exp_term(IdTagged.IdTag.t)): FumolaTermBase.t =>
-  IdTagged.fresh(t);
-let d = (t): FumolaGrammar.dec(IdTagged.IdTag.t) => IdTagged.fresh(t);
-let p = (t): FumolaGrammar.pat(IdTagged.IdTag.t) => IdTagged.fresh(t);
+let e = (t: FumolaTermBase.exp_term): FumolaTermBase.t => IdTagged.fresh(t);
+let d = (t): FumolaTermBase.dec => IdTagged.fresh(t);
+let p = (t): FumolaTermBase.pat => IdTagged.fresh(t);
 
 let v = x => e(Var(x));
 let n = i => e(Lit(Nat(string_of_int(i))));
@@ -271,42 +270,37 @@ let write_corpus = () => {
   let oc = open_out(corpus_path);
   corpus
   |> List.iter(((_, term, _)) =>
-       output_string(oc, FumolaPrint.of_exp(term) ++ "\n")
+       output_string(oc, Fumola.of_exp(term) ++ "\n")
      );
   close_out(oc);
   let oc = open_out(explicit_corpus_path);
   corpus
   |> List.iter(((_, term, _)) =>
-       output_string(oc, FumolaPrint.of_exp(~explicit=true, term) ++ "\n")
+       output_string(oc, Fumola.of_exp(~explicit=true, term) ++ "\n")
      );
   close_out(oc);
 };
 
 let test_print = ((name, term, expected)) =>
   test_case(name, `Quick, () =>
-    check(string, name, expected, FumolaPrint.of_exp(term))
+    check(string, name, expected, Fumola.of_exp(term))
   );
 
 /* A term with a hole has no Fumola spelling, and the caller has to know
    before it prints rather than after the runtime rejects it. */
 let test_has_hole = () => {
-  check(
-    bool,
-    "a plain term has no hole",
-    false,
-    FumolaPrint.has_hole(n(1)),
-  );
+  check(bool, "a plain term has no hole", false, Fumola.has_hole(n(1)));
   check(
     bool,
     "a hole nested in an operator is found",
     true,
-    FumolaPrint.has_hole(e(Bin(n(1), Add, e(Hole(EmptyHole))))),
+    Fumola.has_hole(e(Bin(n(1), Add, e(Hole(EmptyHole))))),
   );
   check(
     bool,
     "a hole nested in a block is found",
     true,
-    FumolaPrint.has_hole(
+    Fumola.has_hole(
       e(Thunk([d(DLet(p(PVar("x")), e(Hole(EmptyHole))))])),
     ),
   );

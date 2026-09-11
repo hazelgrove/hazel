@@ -375,6 +375,7 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       }
     | (["(", ")"], [Fumola(body)]) => ret(Paren(body))
     | (["{", "}"], [Fumola(body)]) => ret(Block(fumola_decs(body)))
+    | (["hazel", "end"], [Exp(e)]) => ret(Hazel(e))
     | _ => ret(hole(tm))
     }
   | Pre(([(_id, (["let", "="], [Fumola(p)]))], []), Fumola(body)) =>

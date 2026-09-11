@@ -164,6 +164,13 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     | Typ => [Drv(Pat)]
     | TPat => [Drv(Typ), Typ]
     }
+  /* `hazel … end` reopens Hazel inside a Fumola program, so Exp is a subsort
+     here: without it the template keeps remolding in Fumola past the escape,
+     and a Hazel tuple written inside one comes back molded as a Fumola tuple
+     wrapped in a hole. Fumola is still closed to Hazel's *forms* -- see
+     Insert.effective_sort -- and this is the one door. */
+  | Fumola(Exp) => [Exp]
+  | Fumola(Name) => []
   | _ => []
   }
 

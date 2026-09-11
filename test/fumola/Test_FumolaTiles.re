@@ -109,6 +109,35 @@ let corpus: list((string, string, string, string)) = [
     "store",
     "#tag 1 + 2",
   ),
+  /* `hazel … end` is the way back in: a Hazel expression standing where a
+     Fumola term does. The livelit could carry one value, at the boundary of
+     an opaque string; here it is a tile subtree, and there can be several,
+     anywhere in the program. FumolaSource renders each as Fumola source. */
+  ("a hazel expression", "fumola store in hazel 1 end end", "store", "(1)"),
+  (
+    "a hazel expression inside an operator",
+    "fumola store in hazel 1 end + 2 end",
+    "store",
+    "(1) + 2",
+  ),
+  (
+    "a hazel tuple crosses as a fumola tuple",
+    "fumola store in hazel (1, true) end end",
+    "store",
+    "((1, true))",
+  ),
+  (
+    "two of them, which the livelit's single input slot could not do",
+    "fumola store in hazel 1 end + hazel 2 end end",
+    "store",
+    "(1) + (2)",
+  ),
+  (
+    "a hazel expression as the argument of a force",
+    "fumola store in force hazel 1 end end",
+    "store",
+    "force (1)",
+  ),
 ];
 
 let test_parses = ((name, src, instance, _)) =>
@@ -116,13 +145,20 @@ let test_parses = ((name, src, instance, _)) =>
     switch (find_fumola(parse(src))) {
     | None => fail("no fumola term: " ++ src)
     | Some((n, body)) =>
+      /* Report what could not be written, rather than only that something
+         could not: the reason is the whole content of the failure. */
       check(
-        bool,
+        string,
         "the instance and the program are both complete",
-        false,
-        FumolaPrint.has_hole(n) || FumolaPrint.has_hole(body),
+        "complete",
+        Fumola.has_hole(n) || Fumola.has_hole(body)
+          ? Option.value(
+              ~default="incomplete",
+              Fumola.why_unprintable(body),
+            )
+          : "complete",
       );
-      check(string, "instance", instance, FumolaPrint.of_exp(n));
+      check(string, "instance", instance, Fumola.of_exp(n));
     }
   });
 
@@ -131,7 +167,7 @@ let test_prints = ((name, src, _, expected)) =>
     switch (find_fumola(parse(src))) {
     | None => fail("no fumola term: " ++ src)
     | Some((_, body)) =>
-      check(string, "fumola source", expected, FumolaPrint.of_exp(body))
+      check(string, "fumola source", expected, Fumola.of_exp(body))
     }
   });
 
@@ -145,7 +181,7 @@ let test_closed = () =>
       string,
       "the program is Fumola's, not Hazel's",
       "x",
-      FumolaPrint.of_exp(body),
+      Fumola.of_exp(body),
     )
   };
 
@@ -163,12 +199,9 @@ let write_corpus = () => {
   corpus
   |> List.iter(((_, src, _, _)) =>
        switch (find_fumola(parse(src))) {
-       | Some((_, body)) when !FumolaPrint.has_hole(body) =>
-         output_string(oc, FumolaPrint.of_exp(body) ++ "\n");
-         output_string(
-           oc_x,
-           FumolaPrint.of_exp(~explicit=true, body) ++ "\n",
-         );
+       | Some((_, body)) when !Fumola.has_hole(body) =>
+         output_string(oc, Fumola.of_exp(body) ++ "\n");
+         output_string(oc_x, Fumola.of_exp(~explicit=true, body) ++ "\n");
        | _ => ()
        }
      );

@@ -33,6 +33,13 @@
 
 open FumolaGrammar;
 
+/* Every entry point takes `~hazel`, which renders an embedded host term as
+   Fumola source. Fumola's own printer knows nothing about Hazel: the caller
+   supplies the bridge, which for Hazel is FumolaSource.of_exp applied to the
+   value the expression evaluated to. Rendering can fail -- a hole, or a value
+   with no Fumola counterpart -- and a failure reads as a hole here, which
+   has_hole then refuses to print. */
+
 /* The precedence ladder, loosest first, mirroring the ExpBin0..ExpBin9 chain
    of parser.lalrpop. The numbers have no meaning beyond their order, but the
    order is the grammar's and must not be tidied. */
@@ -129,39 +136,44 @@ let parens = s => "(" ++ s ++ ")";
    term both ways and evaluating both is what gives the round-trip script the
    power to catch a wrong precedence level. Without it the script can only ask
    whether the source parses, and a misgrouped program parses fine. */
-let rec exp = (~explicit=false, ~prec as ctx: int, e: exp('a)): string => {
-  let (level, text) = exp_at(~explicit, e);
+let rec exp =
+        (~hazel, ~explicit=false, ~prec as ctx: int, e: exp('h, 'a)): string => {
+  let (level, text) = exp_at(~hazel, ~explicit, e);
   level < ctx || explicit && level < p_atom ? parens(text) : text;
 }
 
 /* The level a term sits at, and its text with no outer parentheses. */
-and exp_at = (~explicit, e: exp('a)): (int, string) =>
+and exp_at = (~hazel, ~explicit, e: exp('h, 'a)): (int, string) =>
   switch (Annotated.term_of(e)) {
   | Hole(h) => (p_atom, hole(h))
+  /* An embedded host term stands where a Fumola atom does; the renderer's
+     output is parenthesized so that whatever it produces cannot regroup the
+     Fumola around it. */
+  | Hazel(h) => (p_atom, parens(hazel(h)))
 
   /* --- atoms --- */
   | Var(x) => (p_atom, x)
   | Lit(l) => (p_atom, lit_token(l))
-  | Paren(e) => (p_atom, parens(exp(~explicit, ~prec=p_stmt, e)))
+  | Paren(e) => (p_atom, parens(exp(~hazel, ~explicit, ~prec=p_stmt, e)))
   | Tuple(es) => (
       p_atom,
       parens(
         es
-        |> List.map(x => exp(~explicit, ~prec=p_stmt, x))
+        |> List.map(x => exp(~hazel, ~explicit, ~prec=p_stmt, x))
         |> String.concat(", "),
       ),
     )
   /* A brace block is only a block in a nest position; anywhere else bare
      braces read as an object literal, so it goes out as `do { … }`. That is
      an ExpNonDec, hence p_stmt and hence parenthesized inside any operator. */
-  | Block(ds) => (p_stmt, "do " ++ block(~explicit, ds))
+  | Block(ds) => (p_stmt, "do " ++ block(~hazel, ~explicit, ds))
   | Array(is_var, es) => (
       p_atom,
       "["
       ++ (is_var ? "var " : "")
       ++ (
         es
-        |> List.map(x => exp(~explicit, ~prec=p_stmt, x))
+        |> List.map(x => exp(~hazel, ~explicit, ~prec=p_stmt, x))
         |> String.concat(", ")
       )
       ++ "]",
@@ -173,34 +185,37 @@ and exp_at = (~explicit, e: exp('a)): (int, string) =>
      `f (g x)` keeps its parentheses and `f g x` means `(f g) x`. --- */
   | Ap(f, a) => (
       p_post,
-      exp(~explicit, ~prec=p_post, f)
+      exp(~hazel, ~explicit, ~prec=p_post, f)
       ++ " "
-      ++ exp(~explicit, ~prec=p_atom, a),
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, a),
     )
   | Proj(e, field) => (
       p_post,
-      exp(~explicit, ~prec=p_post, e) ++ "." ++ field,
+      exp(~hazel, ~explicit, ~prec=p_post, e) ++ "." ++ field,
     )
   | Index(e, i) => (
       p_post,
-      exp(~explicit, ~prec=p_post, e)
+      exp(~hazel, ~explicit, ~prec=p_post, e)
       ++ "["
-      ++ exp(~explicit, ~prec=p_stmt, i)
+      ++ exp(~hazel, ~explicit, ~prec=p_stmt, i)
       ++ "]",
     )
-  | Bang(e) => (p_post, exp(~explicit, ~prec=p_post, e) ++ "!")
+  | Bang(e) => (p_post, exp(~hazel, ~explicit, ~prec=p_post, e) ++ "!")
 
   /* --- ExpUn. A variant's payload is an ExpNullary, unlike the other
      unary forms, whose operand is another ExpUn. --- */
   | Variant(tag, None) => (p_un, "#" ++ tag)
   | Variant(tag, Some(e)) => (
       p_un,
-      "#" ++ tag ++ " " ++ exp(~explicit, ~prec=p_atom, e),
+      "#" ++ tag ++ " " ++ exp(~hazel, ~explicit, ~prec=p_atom, e),
     )
-  | Opt(e) => (p_un, "?" ++ exp(~explicit, ~prec=p_un, e))
-  | Un(u, e) => (p_un, un_token(u) ++ exp(~explicit, ~prec=p_un, e))
-  | Not(e) => (p_un, "not " ++ exp(~explicit, ~prec=p_un, e))
-  | Unquote(e) => (p_un, "~" ++ exp(~explicit, ~prec=p_un, e))
+  | Opt(e) => (p_un, "?" ++ exp(~hazel, ~explicit, ~prec=p_un, e))
+  | Un(u, e) => (
+      p_un,
+      un_token(u) ++ exp(~hazel, ~explicit, ~prec=p_un, e),
+    )
+  | Not(e) => (p_un, "not " ++ exp(~hazel, ~explicit, ~prec=p_un, e))
+  | Unquote(e) => (p_un, "~" ++ exp(~hazel, ~explicit, ~prec=p_un, e))
 
   /* --- the binary chain. Every level is left-recursive in the grammar, so
      the left operand sits at the operator's own level and the right operand
@@ -212,134 +227,140 @@ and exp_at = (~explicit, e: exp('a)): (int, string) =>
     let (lp, rp) = p == p_shift ? (p + 1, p + 1) : (p, p + 1);
     (
       p,
-      exp(~explicit, ~prec=lp, l)
+      exp(~hazel, ~explicit, ~prec=lp, l)
       ++ " "
       ++ bin_token(op)
       ++ " "
-      ++ exp(~explicit, ~prec=rp, r),
+      ++ exp(~hazel, ~explicit, ~prec=rp, r),
     );
   | Rel(l, op, r) => (
       p_rel,
-      exp(~explicit, ~prec=p_rel, l)
+      exp(~hazel, ~explicit, ~prec=p_rel, l)
       ++ " "
       ++ rel_token(op)
       ++ " "
-      ++ exp(~explicit, ~prec=p_rel + 1, r),
+      ++ exp(~hazel, ~explicit, ~prec=p_rel + 1, r),
     )
   | And(l, r) => (
       p_and,
-      exp(~explicit, ~prec=p_and, l)
+      exp(~hazel, ~explicit, ~prec=p_and, l)
       ++ " and "
-      ++ exp(~explicit, ~prec=p_and + 1, r),
+      ++ exp(~hazel, ~explicit, ~prec=p_and + 1, r),
     )
   | Or(l, r) => (
       p_or,
-      exp(~explicit, ~prec=p_or, l)
+      exp(~hazel, ~explicit, ~prec=p_or, l)
       ++ " or "
-      ++ exp(~explicit, ~prec=p_or + 1, r),
+      ++ exp(~hazel, ~explicit, ~prec=p_or + 1, r),
     )
 
   /* --- ExpNonDec. Everything below is looser than every operator above. --- */
   | If(c, t, None) => (
       p_stmt,
       "if "
-      ++ exp(~explicit, ~prec=p_atom, c)
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, c)
       ++ " "
-      ++ exp_nest(~explicit, t),
+      ++ exp_nest(~hazel, ~explicit, t),
     )
   | If(c, t, Some(f)) => (
       p_stmt,
       "if "
-      ++ exp(~explicit, ~prec=p_atom, c)
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, c)
       ++ " "
-      ++ exp_nest(~explicit, t)
+      ++ exp_nest(~hazel, ~explicit, t)
       ++ " else "
-      ++ exp_nest(~explicit, f),
+      ++ exp_nest(~hazel, ~explicit, f),
     )
   | Switch(e, cases) => (
       p_stmt,
       "switch "
-      ++ exp(~explicit, ~prec=p_atom, e)
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, e)
       ++ " { "
-      ++ (cases |> List.map(x => case(~explicit, x)) |> String.concat("; "))
+      ++ (
+        cases
+        |> List.map(x => case(~hazel, ~explicit, x))
+        |> String.concat("; ")
+      )
       ++ " }",
     )
-  | Assert(e) => (p_stmt, "assert " ++ exp_nest(~explicit, e))
-  | Ignore(e) => (p_stmt, "ignore " ++ exp_nest(~explicit, e))
+  | Assert(e) => (p_stmt, "assert " ++ exp_nest(~hazel, ~explicit, e))
+  | Ignore(e) => (p_stmt, "ignore " ++ exp_nest(~hazel, ~explicit, e))
   | Return(None) => (p_stmt, "return")
   | Return(Some(e)) => (
       p_stmt,
-      "return " ++ exp(~explicit, ~prec=p_stmt, e),
+      "return " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e),
     )
 
   /* --- the adapton core --- */
-  | Thunk(ds) => (p_stmt, "thunk " ++ block(~explicit, ds))
-  | Force(e) => (p_stmt, "force " ++ exp(~explicit, ~prec=p_atom, e))
-  | Get(e) => (p_stmt, "@ " ++ exp(~explicit, ~prec=p_atom, e))
+  | Thunk(ds) => (p_stmt, "thunk " ++ block(~hazel, ~explicit, ds))
+  | Force(e) => (p_stmt, "force " ++ exp(~hazel, ~explicit, ~prec=p_atom, e))
+  | Get(e) => (p_stmt, "@ " ++ exp(~hazel, ~explicit, ~prec=p_atom, e))
   /* `:=` takes an ExpBin0 on the left and a whole Exp on the right, which
      makes it right-associative and lets `a := b := c` stand. */
   | Put(l, r) => (
       p_stmt,
-      exp(~explicit, ~prec=p_or, l)
+      exp(~hazel, ~explicit, ~prec=p_or, l)
       ++ " := "
-      ++ exp(~explicit, ~prec=p_stmt, r),
+      ++ exp(~hazel, ~explicit, ~prec=p_stmt, r),
     )
   | DoPutForce(e1, e2) => (
       p_stmt,
       "do @ "
-      ++ exp(~explicit, ~prec=p_atom, e1)
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, e1)
       ++ " "
-      ++ exp_nest(~explicit, e2),
+      ++ exp_nest(~hazel, ~explicit, e2),
     )
   | DoNav(nav, dim, e, ds) => (
       p_stmt,
       "do "
       ++ nav_token(nav)
       ++ " "
-      ++ exp(~explicit, ~prec=p_atom, dim)
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, dim)
       ++ " "
-      ++ exp(~explicit, ~prec=p_atom, e)
+      ++ exp(~hazel, ~explicit, ~prec=p_atom, e)
       ++ " "
-      ++ block(~explicit, ds),
+      ++ block(~hazel, ~explicit, ds),
     )
   }
 
 /* An ExpNest position: the one place bare braces are a block. Never
    parenthesized, because `({ x })` is a parenthesized object, not a block. */
-and exp_nest = (~explicit, e: exp('a)): string =>
+and exp_nest = (~hazel, ~explicit, e: exp('h, 'a)): string =>
   switch (Annotated.term_of(e)) {
-  | Block(ds) => block(~explicit, ds)
-  | _ => exp(~explicit, ~prec=p_stmt, e)
+  | Block(ds) => block(~hazel, ~explicit, ds)
+  | _ => exp(~hazel, ~explicit, ~prec=p_stmt, e)
   }
 
-and block = (~explicit, ds: list(dec('a))): string =>
+and block = (~hazel, ~explicit, ds: list(dec('h, 'a))): string =>
   switch (ds) {
   | [] => "{ }"
   | ds =>
     "{ "
-    ++ (ds |> List.map(x => dec(~explicit, x)) |> String.concat("; "))
+    ++ (
+      ds |> List.map(x => dec(~hazel, ~explicit, x)) |> String.concat("; ")
+    )
     ++ " }"
   }
 
-and dec = (~explicit, d: dec('a)): string =>
+and dec = (~hazel, ~explicit, d: dec('h, 'a)): string =>
   switch (Annotated.term_of(d)) {
   | DHole(h) => hole(h)
-  | DExp(e) => exp(~explicit, ~prec=p_stmt, e)
+  | DExp(e) => exp(~hazel, ~explicit, ~prec=p_stmt, e)
   | DLet(p, e) =>
-    "let " ++ pat(p) ++ " = " ++ exp(~explicit, ~prec=p_stmt, e)
+    "let " ++ pat(p) ++ " = " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e)
   | DVar(p, e) =>
-    "var " ++ pat(p) ++ " = " ++ exp(~explicit, ~prec=p_stmt, e)
+    "var " ++ pat(p) ++ " = " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e)
   | DFunc(name, p, ds) =>
-    "func " ++ name ++ pat_plain(p) ++ " " ++ block(~explicit, ds)
+    "func " ++ name ++ pat_plain(p) ++ " " ++ block(~hazel, ~explicit, ds)
   }
 
-and case = (~explicit, c: case('a)): string =>
+and case = (~hazel, ~explicit, c: case('h, 'a)): string =>
   "case "
   ++ pat_nullary(c.pat)
   ++ " "
-  ++ exp(~explicit, ~prec=p_stmt, c.body)
+  ++ exp(~hazel, ~explicit, ~prec=p_stmt, c.body)
 
-and pat = (p: pat('a)): string =>
+and pat = (p: pat('h, 'a)): string =>
   switch (Annotated.term_of(p)) {
   | PHole(h) => hole(h)
   | PVar(x) => x
@@ -354,7 +375,7 @@ and pat = (p: pat('a)): string =>
 
 /* A function's parameter is a PatPlain -- a parenthesized or tuple pattern --
    so a bare name has to be wrapped to stand there. */
-and pat_plain = (p: pat('a)): string =>
+and pat_plain = (p: pat('h, 'a)): string =>
   switch (Annotated.term_of(p)) {
   | PParen(_)
   | PTuple(_) => pat(p)
@@ -362,7 +383,7 @@ and pat_plain = (p: pat('a)): string =>
   }
 
 /* A case's pattern and a variant's payload are PatNullary: an atom. */
-and pat_nullary = (p: pat('a)): string =>
+and pat_nullary = (p: pat('h, 'a)): string =>
   switch (Annotated.term_of(p)) {
   | PVariant(_, Some(_))
   | POpt(_) => parens(pat(p))
@@ -381,17 +402,20 @@ and hole =
   | MultiHole(_) => "?\u{25a1}";
 
 /* The whole program, as the runtime is handed it. */
-let program = (~explicit=false, ds: list(dec('a))): string =>
-  ds |> List.map(x => dec(~explicit, x)) |> String.concat("; ");
+let program = (~hazel, ~explicit=false, ds: list(dec('h, 'a))): string =>
+  ds |> List.map(x => dec(~hazel, ~explicit, x)) |> String.concat("; ");
 
-let of_exp = (~explicit=false, e: exp('a)): string =>
-  exp(~explicit, ~prec=p_stmt, e);
+let of_exp = (~hazel, ~explicit=false, e: exp('h, 'a)): string =>
+  exp(~hazel, ~explicit, ~prec=p_stmt, e);
 
 /* Does this term contain a hole? A term that does cannot be printed as
    Fumola source, and the caller should say so rather than send it. */
-let rec has_hole = (e: exp('a)): bool =>
+let rec has_hole = (~hazel_has_hole, e: exp('h, 'a)): bool => {
+  let has_hole = has_hole(~hazel_has_hole);
+  let has_hole_dec = has_hole_dec(~hazel_has_hole);
   switch (Annotated.term_of(e)) {
   | Hole(_) => true
+  | Hazel(h) => hazel_has_hole(h)
   | Var(_)
   | Lit(_)
   | QuotedId(_)
@@ -431,13 +455,76 @@ let rec has_hole = (e: exp('a)): bool =>
     has_hole(e) || List.exists(c => has_hole(c.body), cases)
   | DoNav(_, dim, e, ds) =>
     has_hole(dim) || has_hole(e) || List.exists(has_hole_dec, ds)
-  }
+  };
+}
 
-and has_hole_dec = (d: dec('a)): bool =>
+and has_hole_dec = (~hazel_has_hole, d: dec('h, 'a)): bool => {
+  let has_hole = has_hole(~hazel_has_hole);
+  let has_hole_dec = has_hole_dec(~hazel_has_hole);
   switch (Annotated.term_of(d)) {
   | DHole(_) => true
   | DExp(e)
   | DLet(_, e)
   | DVar(_, e) => has_hole(e)
   | DFunc(_, _, ds) => List.exists(has_hole_dec, ds)
+  };
+};
+
+/* The immediate subterms, for traversals that do not care about form. */
+let rec children = (e: exp('h, 'a)): list(exp('h, 'a)) => {
+  let of_dec = (d: dec('h, 'a)) =>
+    switch (Annotated.term_of(d)) {
+    | DHole(_) => []
+    | DExp(e)
+    | DLet(_, e)
+    | DVar(_, e) => [e]
+    | DFunc(_, _, ds) => List.concat_map(dec_children, ds)
+    };
+  switch (Annotated.term_of(e)) {
+  | Hole(MultiHole(es)) => es
+  | Hole(_)
+  | Hazel(_)
+  | Var(_)
+  | Lit(_)
+  | QuotedId(_)
+  | Prim(_)
+  | Variant(_, None)
+  | Return(None) => []
+  | Paren(e)
+  | Opt(e)
+  | Un(_, e)
+  | Not(e)
+  | Unquote(e)
+  | Bang(e)
+  | Proj(e, _)
+  | Assert(e)
+  | Ignore(e)
+  | Force(e)
+  | Get(e)
+  | Return(Some(e))
+  | Variant(_, Some(e)) => [e]
+  | Tuple(es)
+  | Array(_, es) => es
+  | Block(ds)
+  | Thunk(ds) => List.concat_map(of_dec, ds)
+  | Ap(a, b)
+  | Index(a, b)
+  | Bin(a, _, b)
+  | Rel(a, _, b)
+  | And(a, b)
+  | Or(a, b)
+  | Put(a, b)
+  | DoPutForce(a, b) => [a, b]
+  | If(c, t, f) => [c, t] @ Option.to_list(f)
+  | Switch(e, cases) => [e, ...List.map(c => c.body, cases)]
+  | DoNav(_, dim, e, ds) => [dim, e] @ List.concat_map(of_dec, ds)
+  };
+}
+and dec_children = (d: dec('h, 'a)): list(exp('h, 'a)) =>
+  switch (Annotated.term_of(d)) {
+  | DHole(_) => []
+  | DExp(e)
+  | DLet(_, e)
+  | DVar(_, e) => [e]
+  | DFunc(_, _, ds) => List.concat_map(dec_children, ds)
   };

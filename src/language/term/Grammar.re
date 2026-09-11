@@ -20,7 +20,7 @@ type any_t('a) =
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
   | Drv(DrvGrammar.any_t('a))
-  | Fumola(FumolaGrammar.exp('a))
+  | Fumola(FumolaGrammar.exp(exp_t('a), 'a))
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
@@ -37,7 +37,10 @@ and exp_term('a) =
   /* fumola <instance> in <program> end: the instance names the Fumola VM
      the program runs against, and is a Fumola-sorted identifier rather than
      a Hazel binder. See FumolaSort. */
-  | FumolaQuote(FumolaGrammar.exp('a), FumolaGrammar.exp('a))
+  | FumolaQuote(
+      FumolaGrammar.exp(exp_t('a), 'a),
+      FumolaGrammar.exp(exp_t('a), 'a),
+    )
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -191,9 +194,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | FumolaQuote(n, b) =>
+          /* The Fumola term carries embedded Hazel expressions, so mapping
+             its annotations maps theirs too. */
           FumolaQuote(
-            FumolaGrammar.map_annotation(f, n),
-            FumolaGrammar.map_annotation(f, b),
+            FumolaGrammar.map_annotation((map_exp_annotation(f), f), n),
+            FumolaGrammar.map_annotation((map_exp_annotation(f), f), b),
           )
         | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
@@ -322,7 +327,8 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
     | Drv(d) => Drv(DrvGrammar.map_any_annotation(f, d))
-    | Fumola(e) => Fumola(FumolaGrammar.map_annotation(f, e))
+    | Fumola(e) =>
+      Fumola(FumolaGrammar.map_annotation((map_exp_annotation(f), f), e))
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
@@ -557,7 +563,9 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
   module FumolaGrammar = {
-    let placeholder = (~ann=?, ()): FumolaGrammar.exp(DefaultAnnotation.t) => {
+    let placeholder =
+        (~ann=?, ())
+        : FumolaGrammar.exp(exp_t(DefaultAnnotation.t), DefaultAnnotation.t) => {
       term: FumolaGrammar.Hole(EmptyHole),
       annotation: default_annotation(ann),
     };

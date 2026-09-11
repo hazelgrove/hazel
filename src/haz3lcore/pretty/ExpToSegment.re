@@ -3154,6 +3154,11 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     let+ tag = text_to_pretty(id, Sort.Fumola(Exp), "$" ++ tag)
     and+ e = go(e);
     tag @ [mk_form(Form.Fumola(FumolaAp), id, [e])];
+  /* An embedded Hazel expression renders through Hazel's own printer, which
+     is the point: inside `hazel … end` the editor is editing Hazel. */
+  | Hazel(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    [mk_form(Form.Fumola(FumolaHazel), id, [e])];
   | Force(e) => prefix(FumolaForce, e)
   | Get(e) => prefix(FumolaGet, e)
   /* No M1 tile builds these, so MakeTerm never produces one. Rendering a

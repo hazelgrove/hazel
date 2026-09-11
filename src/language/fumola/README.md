@@ -68,6 +68,41 @@ declaration of one. Hazel's `+` infix declares the arms of a sum *type*, which
 is a different level and belongs with the type sublanguage, if that ever
 arrives.
 
+## Hazel inside Fumola (`hazel … end`)
+
+`fumola <instance> in … end` takes Hazel into Fumola; `hazel … end` takes it
+back. Inside a Fumola program it is a Fumola form whose child is sort `Exp`, so
+what is written there is Hazel, edited as Hazel, with Hazel's statics and
+completion. `FumolaSource` renders the value as Fumola source on the way out.
+
+This is what the livelit's `input` was, with two differences that follow from
+being a form rather than a model slot. The livelit carried one value, at the
+boundary of a string Hazel could not see into. A `hazel … end` is a tile
+subtree, it can stand anywhere a Fumola term can, and a program can have as
+many as it likes:
+
+```
+fumola store in hazel 1 end + hazel 2 end end     -->  (1) + (2)
+fumola store in force hazel 1 end end             -->  force (1)
+```
+
+The rendered value is always parenthesized, so that whatever it produces
+cannot regroup the Fumola around it.
+
+Two things had to give way for this to work:
+
+- **`Exp` is a subsort of `Fumola(Exp)`** in `Segment.subsort_of`. Without it
+  the remolding template keeps going in Fumola past the escape, and a Hazel
+  tuple written inside one comes back as a *Fumola* tuple wrapped in a hole --
+  which type-checks, prints, and is the wrong program. Blackboard never needed
+  this, because `blackboard … end` only goes one way.
+- **`FumolaGrammar` is generic in the host term it embeds.** Hazel's `Grammar`
+  already names `FumolaGrammar`, so naming `Grammar` here would close a cycle;
+  instead the AST takes the host expression as a type parameter and `Grammar`
+  supplies its own `exp_t`. `FumolaPrint` correspondingly takes the function
+  that renders one. `Fumola.re` is where Hazel joins the two, and is what
+  callers in Hazel should use.
+
 ## How the contract is checked
 
 Two checks, because agreeing with ourselves is not evidence.

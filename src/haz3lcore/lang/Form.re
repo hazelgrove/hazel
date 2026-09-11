@@ -207,6 +207,7 @@ type drv_compound_form =
 [@deriving enumerate]
 type fumola_compound_form =
   | FumolaOf
+  | FumolaHazel
   | FumolaParens
   | FumolaBlock
   | FumolaAp
@@ -241,6 +242,11 @@ let fumola_get: fumola_compound_form => t =
      survives an edit; see docs/fumola-tiles-design.md. */
   | FumolaOf =>
     mk_op_c(L, ["fumola", "in", "end"], Exp, [Fumola(Name), Fumola(Exp)])
+  /* The way back in: a Hazel expression standing where a Fumola term does,
+     anywhere inside the program. This is what the livelit's single `input`
+     slot was, except that it is a real tile subtree with Hazel's statics and
+     completion, and there can be as many as the program wants. */
+  | FumolaHazel => mk_op_c(L, ["hazel", "end"], Fumola(Exp), [Exp])
   | FumolaParens => mk_parens(Fumola(Exp))
   | FumolaBlock => mk_op_c(LT, ["{", "}"], Fumola(Exp), [Fumola(Exp)])
   | FumolaAp =>
