@@ -180,6 +180,35 @@ let tests = (
         equivalent_to_make_term({|(x=1, y=2)|});
       },
     ),
+    test_case(
+      "Colon and a leading-plus sum stay apart",
+      `Quick,
+      () => {
+        /* An unparenthesized sum only reaches a `:` as a sig member's
+           ascription. Printed as `:+` the two lex as a single operator token,
+           so MakeTerm read the member back as a hole while Menhir still saw
+           the ascription. The second check pins idempotence: a Sig used to
+           gain another paren layer on every trip. */
+        let src = {|type T = { let _ : + Adid } in ?|};
+        let expected = {|type T = ({ let _: + Adid }) in ?|};
+        switch (Parser.to_term(src, ~root=Exp)) {
+        | None => Alcotest.fail("failed to parse " ++ src)
+        | Some(exp) =>
+          let once = print_seg(exp_to_segment(exp));
+          check(string, "`:` and `+` stay apart", expected, once);
+          switch (Parser.to_term(once, ~root=Exp)) {
+          | None => Alcotest.fail("failed to reparse " ++ once)
+          | Some(exp') =>
+            check(
+              string,
+              "printing a Sig is idempotent",
+              once,
+              print_seg(exp_to_segment(exp')),
+            )
+          };
+        };
+      },
+    ),
     test_case("Labels in types with single quotes", `Quick, () => {
       equivalent_to_make_term({|type t = (``=Int, ab=String) in 7|})
     }),
@@ -851,6 +880,10 @@ end|}),
     roundtrip_test(
       {|Sig: abstract type member last|},
       {|type S = { let x : Int; type T } in 1|},
+    ),
+    roundtrip_test(
+      {|Fun: module-typed parameter|},
+      {|fun (m : { type T; let x : T }) -> m.x|},
     ),
   ],
 );

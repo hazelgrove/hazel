@@ -563,10 +563,45 @@ let qcheck_elab_term_id_in_user_term_stats = () => {
   );
 };
 
+/* Property: no binder inside a program leaks into its type. Every module
+   path in the root type (`m.T`) must be rooted at a name the program does
+   not bind: a builtin, or a variable free in the program. A name that is
+   bound by some pattern and also free elsewhere (present in the root
+   co-context) cannot be told apart, so it is allowed. */
+let qcheck_root_type_is_closed =
+  QCheck.Test.make(
+    ~name="Root type mentions no internal binder",
+    ~count=2000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    exp =>
+    switch (safe_statics(exp)) {
+    | `Skip => true
+    | `Ok(m, _) =>
+      switch (Statics.Map.lookup_exp(Exp.rep_id(exp), m)) {
+      | None => true
+      | Some(root) =>
+        let bound =
+          Id.Map.fold(
+            (_, info: Info.t, acc) =>
+              switch (info) {
+              | InfoPat({user_term, _}) => Pat.bound_vars(user_term) @ acc
+              | _ => acc
+              },
+            m,
+            [],
+          );
+        let free = List.map(fst, root.co_ctx);
+        Typ.path_roots(root.ty)
+        |> List.for_all(x => !List.mem(x, bound) || List.mem(x, free));
+      }
+    }
+  );
+
 let tests = (
   "Statics.Properties",
   [
     QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash),
+    QCheck_alcotest.to_alcotest(qcheck_root_type_is_closed),
     Alcotest.test_case(
       "Elaboration preserves type (stats only)",
       `Slow,

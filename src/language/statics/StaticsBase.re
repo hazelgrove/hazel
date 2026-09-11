@@ -353,12 +353,39 @@ let expectation_mismatch_mark =
     switch (subsume(~coercible, ctx, ana', syn')) {
     | Some(_) => None
     | None =>
-      Some(
-        Mark.ExpectationMismatch({
-          ana: ana',
-          syn: syn',
-        }),
-      )
+      let whnf = ty => Typ.term_of(Typ.weak_head_normalize(ctx, ty));
+      switch (whnf(ana'), whnf(syn')) {
+      /* One side is an abstract type that outlived the module it came from:
+         say that, rather than naming a type the reader cannot construct. */
+      | (Escaped(e), Escaped(other)) =>
+        Some(
+          Mark.EscapedType({
+            path: e.label,
+            side: Grammar.escaped_equal(e, other) ? Required : TwoDifferent,
+          }),
+        )
+      | (Escaped({label, _}), _) =>
+        Some(
+          Mark.EscapedType({
+            path: label,
+            side: Required,
+          }),
+        )
+      | (_, Escaped({label, _})) =>
+        Some(
+          Mark.EscapedType({
+            path: label,
+            side: Supplied,
+          }),
+        )
+      | _ =>
+        Some(
+          Mark.ExpectationMismatch({
+            ana: ana',
+            syn: syn',
+          }),
+        )
+      };
     }
   };
 };

@@ -214,6 +214,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
+  /* Prints as the path it escaped from: one atom. */
+  | Escaped(_)
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
@@ -723,6 +725,7 @@ and parenthesize_typ =
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Atom(_)
+  | Escaped(_)
   | DrvQuoteTy(_) => typ
 
   // Other forms
@@ -2646,6 +2649,18 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   switch (typ |> Typ.term_of) {
   | Unknown(Hole(Invalid(s))) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s))
+  /* An escaped abstract type shows the path it came from. It is not surface
+     syntax, so this text does not re-parse to the same type; only inferred
+     types contain one. */
+  | Escaped(e) =>
+    wrap(
+      typ,
+      text_to_pretty(
+        typ |> Typ.rep_id,
+        Sort.Typ,
+        Language.Grammar.escaped_label(e),
+      ),
+    )
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole)) =>

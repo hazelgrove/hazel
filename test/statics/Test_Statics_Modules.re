@@ -335,6 +335,31 @@ let test_error_non_binder_holes_do_not_assume =
     },
   );
 
+/* The type recorded for the sub-expression whose term satisfies [pred];
+   the sub-expressions matching it must all have the same type. */
+let subexp_type_test =
+    (name, source, pred: Language.Exp.term => bool, expected) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let s = statics(parse_exp(source));
+      let found =
+        Language.Id.Map.fold(
+          (_, info: Language.Info.t, acc) =>
+            switch (info) {
+            | InfoExp({user_term, ty, _}) when pred(user_term.term) =>
+              List.exists(Language.Typ.fast_equal(ty), acc)
+                ? acc : [ty, ...acc]
+            | _ => acc
+            },
+          s,
+          [],
+        );
+      Alcotest.(check(list(testable_typ)))(name, [expected], found);
+    },
+  );
+
 /* ===== NESTED EXPECTATIONS ===== */
 
 /* The signature's expectations reach sub-modules and the variables inside
@@ -1345,19 +1370,33 @@ let test_abstract_member_wellformed =
   );
 
 /* A module variable names its own abstract types: M's signature is seen as
-   `{ type T = M.T; let x : T }`. */
+   `{ type T = M.T; let x : T }` inside M's scope. Outside it, M's type
+   cannot mention M, so T is abstract again (Typ.avoid). */
 let test_sealed_module_type =
-  fully_consistent_typecheck(
+  subexp_type_test(
     "A sealed module names its abstract member by the path M.T",
     sealed_m ++ {|M|},
-    Some(sig_([type_("T", path("M", "T")), val_("x", var("T"))])),
+    fun
+    | Constructor("M", _) => true
+    | _ => false,
+    sig_([type_("T", path("M", "T")), val_("x", var("T"))]),
+  );
+
+let test_sealed_module_leaves_scope_abstract =
+  fully_consistent_typecheck(
+    "Outside its binding a sealed module's type has T abstract again",
+    sealed_m ++ {|M|},
+    Some(sig_([abs_("T"), val_("x", var("T"))])),
   );
 
 let test_sealed_member_has_path_type =
-  fully_consistent_typecheck(
+  subexp_type_test(
     "A member of abstract type has the path type",
     sealed_m ++ {|M.x|},
-    Some(path("M", "T")),
+    fun
+    | Dot(_, {term: Label("x"), _}) => true
+    | _ => false,
+    path("M", "T"),
   );
 
 let test_error_sealed_representation_hidden =
@@ -1375,9 +1414,9 @@ let test_abstract_member_used_through_interface =
 
 let test_abstract_path_annotation =
   fully_consistent_typecheck(
-    "An abstract path annotates a binding",
+    "An abstract path annotates a binding; it does not leave M's scope",
     sealed_m ++ {|let q : M.T = M.x in q|},
-    Some(path("M", "T")),
+    Some(escaped("M.T")),
   );
 
 let test_error_distinct_sealings =
@@ -1399,14 +1438,14 @@ let test_module_alias_shares_abstract_type =
   fully_consistent_typecheck(
     "module N = M shares M's abstract type",
     sealed_m ++ {|module N = M in let y : N.T = M.x in y|},
-    Some(path("N", "T")),
+    Some(escaped("M.T")),
   );
 
 let test_variable_alias_shares_abstract_type =
   fully_consistent_typecheck(
     "let m = M shares M's abstract type",
     sealed_m ++ {|let m = M in let z : m.T = m.x in z|},
-    Some(path("m", "T")),
+    Some(escaped("M.T")),
   );
 
 let test_manifest_member_stays_transparent =
@@ -1505,11 +1544,14 @@ let test_error_forward_reference_in_sig =
   );
 
 let test_sealing_through_abstract_path =
-  fully_consistent_typecheck(
+  subexp_type_test(
     "A module may realize its abstract type by another module's path",
     sealed_m
     ++ {|module N : { type U; let y : U } = { type U = M.T; let y = M.x } in N.y|},
-    Some(path("N", "U")),
+    fun
+    | Dot(_, {term: Label("y"), _}) => true
+    | _ => false,
+    path("N", "U"),
   );
 
 /* A signature alias names no module, so it cannot name an abstract member:
@@ -1586,6 +1628,214 @@ let test_match_on_abstract_list =
     "Matching on a list of an abstract type is checked for coverage",
     {|fun (m : { type T; let xs : [T] }) -> case m.xs | [] => 0 | y::rest => 1 end|},
     Some(arrow(sig_([abs_("T"), val_("xs", list(var("T")))]), int())),
+  );
+
+/* ===== MODULE-TYPED FUNCTIONS ===== */
+
+/* A module path rooted at a binder cannot leave the binder's scope. Leaving
+   a function body, a let or a case arm it becomes `?`; a signature member
+   defined as it becomes abstract instead (generativity). */
+let s_tx = sig_([abs_("T"), val_("x", var("T"))]);
+let generative = {|let f = fun () -> ({ type U = Int; let y = 1 } : { type U; let y : U }) in |};
+
+let test_module_typed_parameter_interface =
+  fully_consistent_typecheck(
+    "A function uses its module parameter through its interface",
+    {|fun (m : { type T; let x : T; let f : T -> Int }) -> m.f(m.x)|},
+    Some(
+      arrow(
+        sig_([
+          abs_("T"),
+          val_("x", var("T")),
+          val_("f", arrow(var("T"), int())),
+        ]),
+        int(),
+      ),
+    ),
+  );
+
+let test_parameter_member_has_path_type_inside =
+  subexp_type_test(
+    "Inside the body a parameter's member has the path type",
+    {|fun (m : { type T; let x : T }) -> m.x|},
+    fun
+    | Dot(_, {term: Label("x"), _}) => true
+    | _ => false,
+    path("m", "T"),
+  );
+
+let test_escaping_member_type_escapes =
+  fully_consistent_typecheck(
+    "A member of abstract type cannot escape its function parameter",
+    {|fun (m : { type T; let x : T }) -> m.x|},
+    Some(arrow(s_tx, escaped("m.T"))),
+  );
+
+let test_escaping_path_nested_escapes =
+  fully_consistent_typecheck(
+    "An escaping path nested in a larger type escapes there too",
+    {|fun (m : { type T; let x : T }) -> (m.x, 1)|},
+    Some(arrow(s_tx, prod([escaped("m.T"), int()]))),
+  );
+
+let test_returning_parameter_is_generative =
+  fully_consistent_typecheck(
+    "Returning the module parameter yields the signature again",
+    {|fun (m : { type T; let x : T }) -> m|},
+    Some(arrow(s_tx, s_tx)),
+  );
+
+let test_signature_identity_function =
+  fully_consistent_typecheck(
+    "S -> S accepts the identity",
+    {|type S = { type T; let x : T } in let f : S -> S = fun m -> m in 1|},
+    Some(int()),
+  );
+
+let test_escaping_into_module_becomes_abstract =
+  fully_consistent_typecheck(
+    "A module defining a type as an escaping path exports it abstract",
+    {|fun (m : { type T; let x : T }) -> { type V = m.T; let w = m.x }|},
+    Some(arrow(s_tx, sig_([abs_("V"), val_("w", var("V"))]))),
+  );
+
+let test_module_typed_argument_application =
+  fully_consistent_typecheck(
+    "Applying a module-typed function to a module literal",
+    {|let f = fun (m : { type T; let x : T; let show : T -> Int }) -> m.show(m.x) in f({ type T = Int; let x = 2; let show = fun t -> t * 10 })|},
+    Some(int()),
+  );
+
+let test_generative_result_wellformed =
+  fully_consistent_typecheck(
+    "A generative function's result has usable abstract members",
+    generative ++ {|let m = f() in let z : m.U = m.y in 1|},
+    Some(int()),
+  );
+
+let test_generative_result_escapes =
+  fully_consistent_typecheck(
+    "A path rooted at a let binder escapes outside the let",
+    generative ++ {|let m = f() in m.y|},
+    Some(escaped("m.U")),
+  );
+
+let test_error_generative_distinct_calls =
+  inconsistent_typecheck(
+    "Two calls of a generative function have distinct abstract types",
+    generative
+    ++ {|let a = f() in let b = f() in let z : a.U = b.y in z|}
+    |> parse_exp,
+  );
+
+let test_match_binder_path_inside_arm =
+  subexp_type_test(
+    "Inside a case arm a binder's member has the path type",
+    generative ++ {|case f() | n => n.y end|},
+    fun
+    | Dot(_, {term: Label("y"), _}) => true
+    | _ => false,
+    path("n", "U"),
+  );
+
+let test_match_binder_path_escapes =
+  fully_consistent_typecheck(
+    "A path rooted at a case binder escapes outside the case",
+    generative ++ {|case f() | n => n.y end|},
+    Some(escaped("n.U")),
+  );
+
+let test_sealed_let_member_escapes =
+  fully_consistent_typecheck(
+    "A sealed module's member type escapes outside the module's let",
+    sealed_m ++ {|M.x|},
+    Some(escaped("M.T")),
+  );
+
+/* An escaped abstract type is still a type: it may be bound and passed
+   where nothing concrete is required, and using it at a concrete type is an
+   error that says the type escaped its module's scope. */
+let boxed = {|type BOX = {type T; let x : T} in
+module B : BOX = {type T = Int; let x = 1} in
+let get = fun (m : BOX) -> m.x in
+|};
+
+let test_escaped_value_is_not_concrete =
+  single_mark_test(
+    "An escaped abstract type cannot be used where a concrete type is required",
+    boxed ++ {|get(B) + 1|},
+    fun
+    | Language.Mark.EscapedType({path, side}) =>
+      path == "m.T" && side == Supplied
+    | _ => false,
+  );
+
+let test_escaped_value_flows_into_unknown =
+  fully_consistent_typecheck(
+    "An escaped abstract type still fits an unannotated binding",
+    boxed ++ {|let id = fun y -> y in let z : ? = get(B) in id(z)|},
+    Some(unknown(SynSwitch)),
+  );
+
+/* Generativity: each application site escapes its own abstract type, so two
+   calls yield types that do not join, while one call's value joins with
+   itself. */
+let test_escapes_are_generative_per_call =
+  has_mark_test(
+    "Two calls escape two different abstract types",
+    boxed ++ {|if true then get(B) else get(B)|},
+    fun
+    | Language.Mark.NoMeet(_, _) => true
+    | _ => false,
+  );
+
+let test_escape_joins_with_itself =
+  fully_consistent_typecheck(
+    "One call's escaped type joins with itself",
+    boxed ++ {|let y = get(B) in if true then y else y|},
+    Some(escaped("m.T")),
+  );
+
+/* A parameter annotated with an earlier component's member is closed the
+   same way, so the caller's argument is checked against an escaped type
+   rather than against nothing. */
+let test_dependent_parameter_escapes =
+  has_mark_test(
+    "A parameter annotated with a sibling module parameter's member escapes",
+    {|type SHOW = {type T; let show : T -> String} in
+module ShowInt : SHOW = {type T = Int; let show = string_of_int} in
+let dup = fun (m : SHOW, x : m.T) -> (x, x) in
+dup(ShowInt, 3)|},
+    fun
+    | Language.Mark.EscapedType({path, side}) =>
+      path == "m.T" && side == Required
+    | _ => false,
+  );
+
+/* Sibling members: a member typed by another member's abstract type
+   projects through the module (`M.y : M.Inner.T`). */
+let test_sibling_member_path_projects_through_module =
+  fully_consistent_typecheck(
+    "A member typed by a sibling's abstract type projects through the module",
+    {|module M = { module Inner : { type T; let x : T } = { type T = Int; let x = 1 }; let y = Inner.x } in let z : M.Inner.T = M.y in 1|},
+    Some(int()),
+  );
+
+let test_error_sibling_member_path_is_abstract =
+  inconsistent_typecheck(
+    "A member typed by a sibling's abstract type is not an Int",
+    {|module M = { module Inner : { type T; let x : T } = { type T = Int; let x = 1 }; let y = Inner.x } in let z : Int = M.y in z|}
+    |> parse_exp,
+  );
+
+/* A signature alias substituted away leaves `{ type T = Int }.T`, which
+   still projects. */
+let test_written_out_signature_projection =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A projection out of a written-out signature reduces",
+    {|type S = { type T = Int } in let x : S.T = 1 in x|},
+    Some(int()),
   );
 
 /* ===== MODULE KEYWORD TESTS ===== */
@@ -2088,6 +2338,7 @@ let tests = (
     /* Abstract type members */
     test_abstract_member_wellformed,
     test_sealed_module_type,
+    test_sealed_module_leaves_scope_abstract,
     test_sealed_member_has_path_type,
     test_error_sealed_representation_hidden,
     test_abstract_member_used_through_interface,
@@ -2116,6 +2367,29 @@ let tests = (
     test_abstract_member_through_module_of_alias_ok,
     test_error_missing_member_through_alias,
     test_error_unknown_member_on_sealed,
+    /* Module-typed functions */
+    test_module_typed_parameter_interface,
+    test_parameter_member_has_path_type_inside,
+    test_escaping_member_type_escapes,
+    test_escaping_path_nested_escapes,
+    test_returning_parameter_is_generative,
+    test_signature_identity_function,
+    test_escaping_into_module_becomes_abstract,
+    test_module_typed_argument_application,
+    test_generative_result_wellformed,
+    test_generative_result_escapes,
+    test_error_generative_distinct_calls,
+    test_match_binder_path_inside_arm,
+    test_match_binder_path_escapes,
+    test_sealed_let_member_escapes,
+    test_escaped_value_is_not_concrete,
+    test_escaped_value_flows_into_unknown,
+    test_escapes_are_generative_per_call,
+    test_escape_joins_with_itself,
+    test_dependent_parameter_escapes,
+    test_sibling_member_path_projects_through_module,
+    test_error_sibling_member_path_is_abstract,
+    test_written_out_signature_projection,
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,

@@ -26,7 +26,8 @@ type cls =
   | ProofOf
   | ProdProjection
   | ProdExtension
-  | Sig;
+  | Sig
+  | Escaped;
 
 include TermBase.Typ;
 
@@ -101,7 +102,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
-  | Sig(_) => Sig;
+  | Sig(_) => Sig
+  | Escaped(_) => Escaped;
 
 let show_cls: cls => string =
   fun
@@ -128,7 +130,8 @@ let show_cls: cls => string =
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
-  | Sig => "Signature type";
+  | Sig => "Signature type"
+  | Escaped => "Escaped abstract type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -150,7 +153,8 @@ let rec is_arrow = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | Sig(_) => false
+  | Sig(_)
+  | Escaped(_) => false
   };
 };
 
@@ -190,6 +194,7 @@ let rec has_fun = (typ: t) =>
         },
       Sig.members(items),
     )
+  | Escaped(_) => false
   };
 
 let is_void = (typ: t) =>
@@ -259,6 +264,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
+  /* The label is provenance, not a type: the binder it names is gone. */
+  | Escaped(_) => []
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -330,6 +337,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Escaped(_) => 0
   | Sig(items) =>
     List.fold_left(
       (acc, m: Sig.member) =>
@@ -396,6 +404,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | ProdExtension(t1, t2) =>
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProofOf(e) => ProofOf(e) |> rewrap
+    | Escaped(e) => Escaped(e) |> rewrap
     | Sig(items) =>
       /* Type members bind their name for later items and cannot be renamed
          (member names are labels and `M.T` keys), so on capture we fall
@@ -472,11 +481,13 @@ let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): t =>
     sigma,
   );
 
-/* What an abstract type member [name] stands for outside its signature:
-   the path `self.T` when the signature is that of a module path, `?` when it
-   is not (a non-path expression's abstract types cannot be named), or its own
-   bare name when [keep_local] (the enclosing module body binds it). */
-let abstract_replacement =
+/* What a member [name] stands for outside its signature when later members
+   mention it: an abstract type member `T`, or a value member `x` whose own
+   type members a later member names (`x.T`). The path `self.T` when the
+   signature is that of a module path, `?` when it is not (a non-path
+   expression's members cannot be named), or its own bare name when
+   [keep_local name] (the enclosing module body binds it). */
+let member_replacement =
     (~self: option(t), ~keep_local: Var.t => bool, name: Var.t): option(t) =>
   switch (self, keep_local(name)) {
   | (_, true) => None
@@ -497,16 +508,21 @@ let sig_members_closed =
     List.fold_left(
       ((sigma, acc), item) =>
         switch (Sig.member_of_item(item)) {
-        | Some(Val(_, ty) as m) => (
-            sigma,
-            [(m, apply_sig_subst(sigma, ty)), ...acc],
-          )
+        | Some(Val(x, ty) as m) =>
+          let ty = apply_sig_subst(sigma, ty);
+          /* A later member may name a sibling's type member (`x.T`). */
+          let sigma =
+            switch (member_replacement(~self, ~keep_local, x)) {
+            | Some(r) => [(x, r), ...sigma]
+            | None => sigma
+            };
+          (sigma, [(m, ty), ...acc]);
         | Some(TypeManifest(name, def) as m) =>
           let def = apply_sig_subst(sigma, def);
           let sigma = keep_local(name) ? sigma : [(name, def), ...sigma];
           (sigma, [(m, def), ...acc]);
         | Some(TypeAbstract(name) as m) =>
-          switch (abstract_replacement(~self, ~keep_local, name)) {
+          switch (member_replacement(~self, ~keep_local, name)) {
           | Some(ty) => ([(name, ty), ...sigma], [(m, ty), ...acc])
           | None => (sigma, [(m, Var(name) |> temp), ...acc])
           }
@@ -638,9 +654,11 @@ let remove_duplicate_labels =
 /* Out of fuel the type comes back unreduced -- stuck, which is what this
    function already returns for anything else it cannot reduce -- so a type
    with no weak head normal form is a type error where it is used, not a crash
-   of the whole analysis. A signature can name itself through a same-named
-   outer binding (`let m : { type T = m.T } = ...` with an `m` already in
-   scope), and path_sig hands `m.T` straight back here. */
+   of the whole analysis. Two ways to build one: a signature can name itself
+   through a same-named outer binding (`let m : { type T = m.T } = ...` with an
+   `m` already in scope), and path_sig hands `m.T` straight back here; and a
+   cyclic alias `type x = x.a` expands to itself forever once as_sig unrolls
+   the Rec that TyAlias wraps it in. */
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
     ty;
@@ -753,7 +771,10 @@ and path_sig =
       | Some((_, None))
       | None => None
       }
-    | _ => None
+    /* A signature written out (`{ type T = Int }.T`, as left behind when a
+       type alias is substituted away): its members, with no path to name
+       abstract ones. */
+    | _ => as_sig(~rec_counter, ctx, t) |> Option.map(items => (items, None))
     };
   }
 and as_sig = (~rec_counter, ctx: Ctx.t, ty: t): option(list(Sig.t)) => {
@@ -806,6 +827,212 @@ let strengthen = (ctx: Ctx.t, ty: t, ~path: t): t => {
   };
 };
 
+/* The variable a module path is rooted at (`m` for `m.P.T`), if any. */
+let rec path_root = (ty: t): option(Var.t) =>
+  switch (term_of(ty)) {
+  | Var(x) => Some(x)
+  | Parens(ty) => path_root(ty)
+  | ProdProjection(p, {term: Label(_), _}) => path_root(p)
+  | _ => None
+  };
+
+/* The roots of every module path in a type. */
+let rec path_roots = (ty: t): list(Var.t) =>
+  switch (term_of(ty)) {
+  | ProdProjection(p, {term: Label(_), _}) =>
+    switch (path_root(ty)) {
+    | Some(x) => [x]
+    | None => path_roots(p)
+    }
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ProofOf(_)
+  | ExplicitNonlabel
+  /* Closed: an escaped type names no binder. */
+  | Escaped(_)
+  | Label(_) => []
+  | Arrow(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) => path_roots(t1) @ path_roots(t2)
+  | Prod(tys) => List.concat_map(path_roots, tys)
+  | Sum(sm) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.BadEntry(_) => []
+      | Variant(_, _, ty) => Option.fold(~none=[], ~some=path_roots, ty),
+      sm,
+    )
+  | Rec(_, ty)
+  | List(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | Poly(_, ty)
+  | TupLabel(_, ty) => path_roots(ty)
+  | Sig(items) =>
+    List.concat_map(
+      (m: Sig.member) =>
+        switch (m) {
+        | Val(_, ty)
+        | TypeManifest(_, ty) => path_roots(ty)
+        | TypeAbstract(_) => []
+        },
+      Sig.members(items),
+    )
+  };
+
+/* Avoidance: [ty] is the type of a body whose binders [escaping] go out of
+   scope. A module path rooted at one of them (`m.T`) is first reduced in
+   [ctx], the body's context, where the binder is still in scope; one that
+   stays stuck is an abstract type that nothing outside can name. Inside a
+   signature, a manifest member defined as such a path becomes abstract and
+   later mentions of the path use its name, so `fun (m : S) -> m` has type
+   `S -> S` (generativity); anywhere else it becomes what [escape_to] says:
+   an escaped abstract type identified by that site and the path, or plain
+   unknown. Identity on types without escaping paths. */
+/* What an escaping abstract path becomes where nothing names it: an escaped
+   abstract type whose identity comes from a site, or plain unknown, which is
+   what a failed implicit resolution wants, since the failure is already
+   reported and opacity would only cascade. */
+type escape_to =
+  | EscapesAt(Id.t)
+  | ErasesToUnknown;
+
+/* `m.Inner.T` as text: the label an escaped type keeps for display. */
+let rec path_label = (ty: t): string =>
+  switch (term_of(ty)) {
+  | Var(x) => x
+  | Parens(ty)
+  | Projector(_, ty) => path_label(ty)
+  | ProdProjection(p, {term: Label(l), _}) => path_label(p) ++ "." ++ l
+  | _ => "?"
+  };
+
+let avoid =
+    (ctx: Ctx.t, ~escape_to: escape_to, ~escaping: list(Var.t), ty: t): t => {
+  let escapes = (ty: t) =>
+    switch (path_root(ty)) {
+    | Some(x) => List.mem(x, escaping) && Ctx.lookup_tvar(ctx, x) == None
+    | None => false
+    };
+  /* [names]: escaping paths already named by an enclosing signature's type
+     member, innermost first. */
+  let named = (names, w) =>
+    List.find_opt(((p, _)) => fast_equal(p, w), names) |> Option.map(snd);
+  let shadow = (names, name) => List.filter(((_, n)) => n != name, names);
+  let shadow_tpat = (names, tp) =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(name) => shadow(names, name)
+    | None => names
+    };
+  let rec go = (names: list((t, Var.t)), ty: t): t => {
+    let rewrap = (term: term): t => {
+      ...ty,
+      term,
+    };
+    switch (term_of(ty)) {
+    | ProdProjection(_, {term: Label(_), _}) when escapes(ty) =>
+      let w = weak_head_normalize(ctx, ty);
+      if (is_stuck_path_term(w) && escapes(w)) {
+        switch (named(names, w)) {
+        | Some(name) => Var(name) |> temp
+        /* Nothing outside names this abstract type any more, so it becomes
+           an escaped one rather than `?`: still abstract, still consistent
+           with `?`, and no longer consistent with a concrete type. The id is
+           derived from [site] and the path, so the same escape at the same
+           site is the same type on every pass. */
+        | None =>
+          switch (escape_to) {
+          | ErasesToUnknown => Unknown(Internal) |> temp
+          | EscapesAt(site) =>
+            let label = path_label(w);
+            Escaped({
+              id: Id.mk_str(Id.to_string(site) ++ "!" ++ label),
+              label,
+            })
+            |> temp;
+          }
+        };
+      } else {
+        go(names, w);
+      };
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Var(_)
+    | ProofOf(_)
+    | ExplicitNonlabel
+    /* Already escaped: it cannot escape again. */
+    | Escaped(_)
+    | Label(_) => ty
+    | Arrow(t1, t2) => rewrap(Arrow(go(names, t1), go(names, t2)))
+    | Prod(tys) => rewrap(Prod(List.map(go(names), tys)))
+    | Sum(sm) =>
+      rewrap(Sum(ConstructorMap.map(Option.map(go(names)), sm)))
+    | Rec(tp, t) => rewrap(Rec(tp, go(shadow_tpat(names, tp), t)))
+    | Poly(tp, t) => rewrap(Poly(tp, go(shadow_tpat(names, tp), t)))
+    | List(t) => rewrap(List(go(names, t)))
+    | Parens(t) => rewrap(Parens(go(names, t)))
+    | Projector(d, t) => rewrap(Projector(d, go(names, t)))
+    | TupLabel(l, t) => rewrap(TupLabel(l, go(names, t)))
+    | ProdProjection(t1, t2) =>
+      rewrap(ProdProjection(go(names, t1), go(names, t2)))
+    | ProdExtension(t1, t2) =>
+      rewrap(ProdExtension(go(names, t1), go(names, t2)))
+    | Sig(items) =>
+      let (_, rev) =
+        List.fold_left(
+          ((names, acc), item: Sig.t) =>
+            switch (item.term, Sig.member_of_item(item)) {
+            | (SigType(tp, def), Some(TypeManifest(name, _)))
+                when escapes(def) =>
+              let names = shadow(names, name);
+              let w = weak_head_normalize(ctx, def);
+              if (is_stuck_path_term(w) && escapes(w)) {
+                switch (named(names, w)) {
+                | Some(other) => (
+                    names,
+                    [
+                      {
+                        ...item,
+                        term: (SigType(tp, Var(other) |> temp): Sig.term),
+                      },
+                      ...acc,
+                    ],
+                  )
+                | None => (
+                    [(w, name), ...names],
+                    [
+                      {
+                        ...item,
+                        term: (SigTypeAbstract(tp): Sig.term),
+                      },
+                      ...acc,
+                    ],
+                  )
+                };
+              } else {
+                (names, [Sig.map_typ(go(names), item), ...acc]);
+              };
+            | (_, Some(TypeManifest(name, _) | TypeAbstract(name))) =>
+              let names = shadow(names, name);
+              (names, [Sig.map_typ(go(names), item), ...acc]);
+            | (_, Some(Val(_))) => (
+                names,
+                [Sig.map_typ(go(names), item), ...acc],
+              )
+            | (_, None) => (names, [item, ...acc])
+            },
+          (names, []),
+          items,
+        );
+      rewrap(Sig(List.rev(rev)));
+    };
+  };
+  go([], ty);
+};
+
 /* Value members of a signature whose own type is a signature: the
    sub-modules a type-level path may continue through (`M.P.T`). */
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) =>
@@ -817,6 +1044,30 @@ let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) =>
        | None => false
        }
      );
+
+/* Give every distinct escaped abstract type in [ty] an id derived from
+   [site] and its old id, so each application site sees its own abstract
+   types (the generative reading: two calls of the same function return
+   incomparable types) while the same site stays stable across statics
+   passes, which is what keeps re-checking an elaboration type-equal. */
+let freshen_escaped = (~site: Id.t, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (cont, ty) =>
+        switch (term_of(ty)) {
+        | Escaped({id, label}) => {
+            ...ty,
+            term:
+              Escaped({
+                id:
+                  Id.mk_str(Id.to_string(site) ++ ":" ++ Id.to_string(id)),
+                label,
+              }),
+          }
+        | _ => cont(ty)
+        },
+    ty,
+  );
 
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member
@@ -838,6 +1089,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Atom(_)
   | DrvQuoteTy(_)
   | ExplicitNonlabel
+  | Escaped(_)
   | Label(_) => ty
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
@@ -925,6 +1177,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
         | Atom(_)
         | DrvQuoteTy(_)
         | Label(_)
+        | Escaped(_)
         | ExplicitNonlabel => false
         | Sig(items) =>
           items
@@ -1247,6 +1500,11 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       Sig(items) |> temp;
     };
   | (Sig(_), _) => None
+  /* An escaped abstract type is consistent with itself and, through the
+     Unknown cases above, with `?`. Nothing else. */
+  | (Escaped(e1), Escaped(e2)) =>
+    Grammar.escaped_equal(e1, e2) ? Some(ty1) : None
+  | (Escaped(_), _) => None
   };
 };
 
@@ -1390,7 +1648,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Rec(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
-  | (ProdExtension(_), _) => t1
+  | (ProdExtension(_), _)
+  | (Escaped(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -1494,6 +1753,7 @@ let rec is_syn = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | ExplicitNonlabel
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -1517,6 +1777,7 @@ let rec is_ana_atom = (ty: t) =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Sum(_)
+  | Escaped(_)
   | Sig(_) => None
   };
 
@@ -1541,6 +1802,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Sum(_)
   | ProdProjection(_)
   | ProdExtension(_)
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -1576,6 +1838,7 @@ let rec needs_parens = (ty: t): bool =>
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   | Sig(_) => false /* already wrapped in {} */
+  | Escaped(_) => false /* one atom: the path it came from */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -1672,6 +1935,7 @@ let rec pretty_print = (ty: t): string =>
       | MultiHole(_) => "?"
       };
     "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
+  | Escaped(e) => Grammar.escaped_label(e)
   }
 and ctr_pretty_print =
   fun

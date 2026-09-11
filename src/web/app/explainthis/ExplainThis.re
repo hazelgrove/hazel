@@ -1527,6 +1527,9 @@ let decide =
       Prose(
         "`DrvTPat` is the type of ALFA type patterns, used in binding positions within ALFA type abstractions.",
       )
+    /* Not surface syntax: no node of the user's program is one, so this arm
+       is unreachable. */
+    | Escaped(_) => NoDoc
     };
   | Some(InfoTPat(info)) =>
     switch (info.user_term.term) {

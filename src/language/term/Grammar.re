@@ -12,6 +12,29 @@ type deferral_position_t =
   | InAp
   | OutsideAp;
 
+/* An abstract type whose path lost the binder it was rooted at (Typ.avoid).
+   [id] is its identity: two escaped types are the same type only when their
+   ids are equal. [label] is the printed form of the path it came from
+   (`m.T`), provenance for display only: it is never traversed as a type, so
+   the binder it names does not count as free. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type escaped = {
+  id: Id.t,
+  label: string,
+};
+
+/* How an escaped type shows in a type: the path it came from plus a short
+   tag of its identity, since two escapes of the same path are different
+   types and would otherwise print alike. */
+let escaped_label = (e: escaped): string => e.label ++ "~" ++ Id.str3(e.id);
+
+/* Two escaped types are the same type when their ids agree. Id.invalid is a
+   wildcard matched by label, which only a hand-written (test) type uses:
+   avoidance always derives its ids from the term whose scope closed. */
+let escaped_equal = (a: escaped, b: escaped): bool =>
+  Id.compare(a.id, Id.invalid) == 0 || Id.compare(b.id, Id.invalid) == 0
+    ? String.equal(a.label, b.label) : Id.compare(a.id, b.id) == 0;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
@@ -116,6 +139,9 @@ and typ_term('a) =
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(list(sig_t('a)))
+  /* An abstract type that outlived the scope of its root (see [escaped]).
+     Not surface syntax: only Typ.avoid produces it. */
+  | Escaped(escaped)
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -399,6 +425,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
             map_typ_annotation(f, t2),
           )
         | Sig(items) => Sig(List.map(map_sig_annotation(f), items))
+        | Escaped(e) => Escaped(e)
         },
       annotation: new_annotation,
     };
@@ -937,6 +964,17 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let sig_ = (~ann=?, items): typ_t(DefaultAnnotation.t) => {
       term: Sig(items),
+      annotation: default_annotation(ann),
+    };
+    /* [id] defaults to Id.invalid, which type equality matches against any
+       escaped type with the same label: only a test writes one of these, as
+       the real ids are derived from the term whose scope closed. */
+    let escaped = (~ann=?, ~id=Id.invalid, label): typ_t(DefaultAnnotation.t) => {
+      term:
+        Escaped({
+          id,
+          label,
+        }),
       annotation: default_annotation(ann),
     };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {

@@ -124,6 +124,8 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
         ModuleTypeMemberMismatch({name: n2, expected: e2, actual: a2}),
       ) =>
       n1 == n2 && Typ.fast_equal(e1, e2) && Typ.fast_equal(a1, a2)
+    | (EscapedType({path: p1, side: s1}), EscapedType({path: p2, side: s2})) =>
+      p1 == p2 && s1 == s2
     | (BadOperator(s1), BadOperator(s2)) => s1 == s2
     | (BadLivelitModel(t1), BadLivelitModel(t2)) => Typ.fast_equal(t1, t2)
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
