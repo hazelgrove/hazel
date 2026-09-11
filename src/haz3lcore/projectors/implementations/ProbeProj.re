@@ -2367,52 +2367,6 @@ module M: Projector = {
     };
   };
 
-  let modal_overlay =
-      (
-        ~settings,
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent,
-        ~view_seg,
-        ~sort,
-      )
-      : list(Node.t) => {
-    switch (
-      rich_content(~settings, model, info, ~local, ~parent, ~view_seg, ~sort)
-    ) {
-    | None => []
-    | Some(content) => [
-        div(
-          ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
-          [
-            div(
-              ~attrs=[
-                Attr.classes(["modal"]),
-                Attr.on_click(_ => Effect.Stop_propagation),
-              ],
-              (
-                model.active_renderer != None
-                  ? [
-                    div(
-                      ~attrs=[
-                        Attr.classes(["modal-close-btn"]),
-                        Attr.title("Close"),
-                        Attr.on_click(_ => local(ToggleModal(None))),
-                      ],
-                      [text("×")],
-                    ),
-                  ]
-                  : []
-              )
-              @ [content],
-            ),
-          ],
-        ),
-      ]
-    };
-  };
-
   let error = (_, _): option(ProjectorBase.error) => None;
 
   let view =
@@ -2456,8 +2410,7 @@ module M: Projector = {
         }
       );
     /* In drawer mode an active rich renderer replaces the sample view in
-     * the drawer itself; the anchored modal overlay is inline-mode only
-     * (anchored to the nav-bar stub, it renders detached/clipped). */
+     * the drawer itself; inline mode embeds small rich views in the chip. */
     let rich_drawer =
       drawer
       && (
@@ -2486,21 +2439,10 @@ module M: Projector = {
                )
              )
         : None;
-    /* the anchored modal is retired: small rich views replace the
-       offside row, big ones live in the drawer */
-    let modal_nodes = [];
-    let _unused_modal = modal_overlay;
-    /* Wrap in a div only when the modal is open, to avoid an extra DOM level
-     * around the positioned .live-offside otherwise. */
-    let offside_node =
-      switch (modal_nodes) {
-      | [] => offside_main
-      | _ => div([offside_main] @ modal_nodes)
-      };
     View.{
       inline: Node.div([]),
       overlay: None,
-      offside: Some(offside_node),
+      offside: Some(offside_main),
       below:
         switch (data_opt, drawer) {
         | (Some(data), true) =>
