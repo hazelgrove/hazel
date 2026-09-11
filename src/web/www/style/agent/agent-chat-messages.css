@@ -2501,72 +2501,13 @@
 }
 
 /* Prompt and Developer Notes Display */
-.prompt-display,
-.developer-notes-display {
+.prompt-display {
   margin-bottom: 0.5em;
 }
 
 .editor-view-display,
 .static-errors-display {
   margin-top: 0.5em;
-}
-
-/* View Icon Buttons Bar */
-.view-buttons-bar {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  padding: 0.5em;
-  justify-content: center;
-  align-items: center;
-  border-bottom: 0.6px solid var(--BR2);
-  background-color: var(--T1);
-}
-
-.view-icon-button {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.4em;
-  cursor: pointer;
-  transition: background-color 0.15s ease-in-out, transform 0.1s ease-in-out;
-  padding: 0.25em;
-}
-
-.view-icon-button:hover {
-  background-color: var(--menu-item-hover-bkg);
-  transform: scale(1.1);
-}
-
-.view-icon-button svg {
-  fill: var(--menu-icon);
-  width: 18px;
-  height: 18px;
-  transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
-}
-
-.view-icon-button:hover svg {
-  transform: scale(1.15);
-  filter: brightness(1.2);
-  animation: jello 0.6s ease 0s 1 normal forwards;
-}
-
-.view-icon-button.disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.view-icon-button.disabled:hover {
-  transform: scale(1);
-  background-color: transparent;
-}
-
-.view-icon-button.disabled:hover svg {
-  transform: scale(1);
-  filter: none;
-  animation: none;
 }
 
 /* Full Screen Views */
