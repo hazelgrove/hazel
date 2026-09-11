@@ -394,20 +394,67 @@ let module_sig_type =
 };
 
 /* Members the analyzed signature requires that the module does not export. */
-let missing_members =
-    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
+/* The analyzed signature's items the module does not define. */
+let missing_items =
+    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Sig.t) =>
   switch (ana_items, sig_ty.term) {
   | (Some(ana_items), Sig(items)) =>
     let have = Sig.members(items);
-    let want = Sig.members(ana_items);
-    let missing_values =
-      Sig.value_names(want)
-      |> List.filter(x => Sig.find_value(have, x) == None);
-    let missing_types =
-      Sig.type_names(want)
-      |> List.filter(t => Sig.find_type_def(have, t) == None);
-    missing_values @ missing_types;
+    ana_items
+    |> List.filter(item =>
+         switch (Sig.member_of_item(item)) {
+         | Some(Val(x, _)) => Option.is_none(Sig.find_value(have, x))
+         | Some(TypeManifest(t, _)) =>
+           Option.is_none(Sig.find_type_def(have, t))
+         | None => false
+         }
+       );
   | _ => []
+  };
+
+let member_names = (items: list(Sig.t)): list(Var.t) => {
+  let ms = Sig.members(items);
+  Sig.value_names(ms) @ Sig.type_names(ms);
+};
+
+let rec mpat_has_hole = (mp: MPat.t): bool =>
+  switch (mp.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | Asc(inner, _) => mpat_has_hole(inner)
+  | Var(_)
+  | Invalid(_) => false
+  };
+
+/* Whether an item has a hole where a member could be bound: a hole item, a
+   hole in a binding position of a `let` pattern, or a hole module or type
+   name. Holes in definitions and annotations do not count. */
+let has_hole_binder = (items: list(Mod.t)): bool =>
+  List.exists(
+    (item: Mod.t) =>
+      switch (item.term) {
+      | EmptyHole
+      | MultiHole(_) => true
+      | ModLet(pat, _) => Pat.has_hole_binder(pat)
+      | ModuleMod(mp, _) => mpat_has_hole(mp)
+      | ModType({term: EmptyHole | MultiHole(_), _}, _) => true
+      | ModType(_)
+      | ModExp(_)
+      | ModVal(_)
+      | Invalid(_) => false
+      },
+    items,
+  );
+
+/* The module's signature with [items] appended: what the module provides
+   once a hole among its items binds them. */
+let assume_members = (sig_ty: Typ.t, items: list(Sig.t)): Typ.t =>
+  switch (sig_ty.term) {
+  | Sig(have) => {
+      ...sig_ty,
+      term: Sig(have @ items),
+    }
+  | _ => sig_ty
   };
 
 /* Members the module exports that the analyzed signature does not declare.
