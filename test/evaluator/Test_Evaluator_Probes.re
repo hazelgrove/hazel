@@ -848,6 +848,21 @@ in f([1, 2])|},
  * 2. Ascription distribution through typed functions re-evaluated inner
  *    compound elements at a deeper call_stack */
 let duplicate_prevention_tests = [
+  /* StuckDestructure rewraps the Let under its own id and re-evaluates
+   * it; declared as a delegating step (Transition.provenance_of_kind) so
+   * the re-evaluation continues the probe's span instead of minting a
+   * second sample. */
+  probe_count_test(
+    "Stuck destructure: probed let records one sample",
+    {|^^probe(let (a, b) = ? in a)|},
+    [(0, 1)],
+  ),
+  probe_count_test(
+    "Stuck destructure: probed fun-ap records one sample",
+    {|let f = fun (a, b) -> a in
+^^probe(f(?))|},
+    [(1, 1)],
+  ),
   /* Dot projection: extracting from a probed tuple must not duplicate.
    * Without is_value:true on the Dot transition, the projected value
    * gets re-evaluated, recording a second sample at the same call_stack. */
@@ -1000,6 +1015,32 @@ in
 let _ = quicksort([7, 3, 9, 5, 10])
 in quicksort([5, 0, 9, 3, 1])|},
     [(6, 2)],
+  ),
+  /* Stuck-destructure of a probed scrutinee must not inflate counts.
+   * `pat_proj` produces N syntactic copies of the scrutinee; without
+   * freshening their IDs, a probe on the scrutinee (here, the hole
+   * returned from the inner recursive call) records N extra samples
+   * per rewrite. With Exp.replace_all_ids on each copy, the probe on
+   * `?` inside the body fires exactly once per body evaluation —
+   * deeper recursion levels see stuck scrutinees (not Closure; bare
+   * `?`) and do destructure, but each body runs its probe exactly
+   * once. */
+  probe_count_test(
+    "Stuck-destructure of probed hole scrut: no sample inflation",
+    {|let partition_at : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = partition_at(tl, x) in
+      ^^probe(hd)
+    end
+in partition_at([7, 3, 9, 5, 10], 7)|},
+    /* Probe on `hd` inside the recursive body. Body runs at every
+     * recursion level that reaches a non-[] scrutinee, i.e. 5 times
+     * for a list of length 5. Without ID freshening on pat_proj
+     * copies, the count would be inflated by the duplication factor. */
+    [(6, 5)],
   ),
 ];
 

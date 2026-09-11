@@ -201,6 +201,40 @@ let parens_edge_case = (char: string, z: t): bool =>
   | _ => false
   };
 
+/* Detect chained positional tuple access: when inserting `.` and the
+ * left-sibling is a pure int token that itself follows a `.` operator,
+ * block the left-append merge. Without this guard, typing `x.0.1`
+ * would greedy-merge `0` + `.` into `0.`, then into `0.1` (float), and
+ * the chain collapses into `x . 0.1` instead of the intended
+ * `x . 0 . 1`. Merging for a fresh float literal (`0.5` typed from
+ * scratch) is still allowed because there's no `.` operator two tiles
+ * back. */
+let chained_dot_edge_case = (char: string, z: t): bool =>
+  if (char != ".") {
+    false;
+  } else {
+    switch (Siblings.neighbor(Left, z.relatives.siblings)) {
+    | Some(Tile(t))
+        when
+          Tile.is_complete(t)
+          && List.length(t.label) == 1
+          && (
+            switch (t.label) {
+            | [tok] => Token.is_int(tok)
+            | _ => false
+            }
+          ) =>
+      let (left_sibs, _) = z.relatives.siblings;
+      let without_int = List.rev(List.tl(List.rev(left_sibs)));
+      let trimmed = Segment.trim_secondary(Right, without_int);
+      switch (ListUtil.last_opt(trimmed)) {
+      | Some(Tile(t2)) when t2.label == ["."] => true
+      | _ => false
+      };
+    | _ => false
+    };
+  };
+
 /* Check if the RIGHT sibling (without disassembly) is a complete
  * multi-shard tile. Only block rightward merges (where a new token
  * would steal the leading delimiter of the complete tile and cause
@@ -220,12 +254,14 @@ let sibling_appendability = (char: string, z: t): appendability =>
   | (Some(t), _)
       when
         Token.is_potential_token(Token.append(t, char))
-        && !parens_edge_case(char, z) =>
+        && !parens_edge_case(char, z)
+        && !chained_dot_edge_case(char, z) =>
     Some((Left, Token.append(t, char)))
   | (_, Some(t))
       when
         Token.is_potential_token(Token.append(char, t))
         && !parens_edge_case(char, z)
+        && !chained_dot_edge_case(char, z)
         && !has_complete_multishard_right_sibling(z) =>
     Some((Right, Token.append(char, t)))
   | _ => None

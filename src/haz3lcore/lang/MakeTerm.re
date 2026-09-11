@@ -933,6 +933,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
+            /* Integer literal RHS = positional tuple access (x.0, x.1, ...) */
+            | Atom(Int(_)) => Dot(l, r)
+            /* No Parens passthrough: keeping MakeTerm in lockstep with
+               the Menhir reference parser (see MenhirParser fuzz test).
+               Users who want an explicit-index form can write `x . 0`
+               with whitespace; the chained-dot edge case in
+               Insert.re already handles `x.0.1` without parens. */
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
 
