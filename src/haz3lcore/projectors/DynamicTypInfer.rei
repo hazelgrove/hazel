@@ -8,9 +8,10 @@
 
 open Language;
 
-/* The meet of the types of every sample, or None if a sample fails to
-   type-check or the samples disagree. [ctx] is the source context, so that
-   user-defined types are visible. */
+/* The meet of the types of every sample: None when there are no samples, or
+   when the sample types disagree. Statics is total, so a sample it marks
+   still reports the type it recovered rather than nothing. [ctx] is the
+   source context, so that user-defined types are visible. */
 let dynamic_typ_of_samples: (~ctx: Ctx.t, list(Sample.t)) => option(Typ.t);
 
 /* Rendering a type and naming the tokens of it that some other type does not
@@ -23,7 +24,8 @@ type render_with_diff_ids =
 /* The segment to show in the type probe's Dynamic mode, and the ids of its
    tokens that came from runtime rather than from [static_typ]. Rendering is
    done here rather than left to the caller because the ids describe that one
-   render and no other. Falls back to Unknown when nothing can be inferred. */
+   render and no other. Shows [static_typ], marking nothing, when nothing can
+   be inferred. */
 let displayed_segment_and_dynamic_ids:
   (
     ~render_with_diff_ids: render_with_diff_ids,

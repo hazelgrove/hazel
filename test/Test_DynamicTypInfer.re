@@ -137,11 +137,22 @@ in [f(true), f(false)]|},
 in [f(true), f(false)]|},
     None,
   ),
-  dynamic_typ_test(
-    "No samples from unevaluated branch",
-    {|if false then ^^probe(42) else 0|},
-    Some("?"),
-  ),
+  test_case("No samples infers nothing", `Quick, () => {
+    /* The projector reaches this whenever nothing ran -- an unevaluated
+       branch records no probe entry at all. Meeting no types would report
+       `?`, which reads as runtime having found the type to be unknown
+       rather than as runtime not having run. */
+    check(
+      option(testable_typ_string),
+      "no samples infers nothing",
+      None,
+      DynamicTypInfer.dynamic_typ_of_samples(
+        ~ctx=Builtins.ctx_init(Some(Int)),
+        [],
+      )
+      |> Option.map(typ_to_string),
+    )
+  }),
 ];
 
 /* === User-defined type tests === */

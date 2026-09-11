@@ -29,31 +29,21 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
    mentions are the ones in scope where it was sampled, and a stand-in
    context reports them as something else. */
 let get_dynamic_segment =
-    (utility: utility, info: info, ~ctx: Ctx.t): (Base.segment, Id.Set.t) => {
-  let static_typ =
-    Option.value(
-      ~default=Typ.fresh(Unknown(Internal)),
-      self_ty(info.statics),
-    );
-  switch (info.dynamics) {
-  /* Nothing ran, so nothing is runtime-derived -- rendered against itself
-     so the empty id set falls out rather than being asserted. */
-  | None =>
-    utility.typ_to_seg_with_diff_ids(
-      ~inline=true,
-      ~ctx,
-      ~against=static_typ,
-      static_typ,
-    )
-  | Some(d: Dynamics.Info.t) =>
-    DynamicTypInfer.displayed_segment_and_dynamic_ids(
-      ~render_with_diff_ids=utility.typ_to_seg_with_diff_ids(~inline=true),
-      ~ctx,
-      ~static_typ,
-      ~samples=d.samples,
-    )
-  };
-};
+    (utility: utility, info: info, ~ctx: Ctx.t): (Base.segment, Id.Set.t) =>
+  DynamicTypInfer.displayed_segment_and_dynamic_ids(
+    ~render_with_diff_ids=utility.typ_to_seg_with_diff_ids(~inline=true),
+    ~ctx,
+    ~static_typ=
+      Option.value(
+        ~default=Typ.fresh(Unknown(Internal)),
+        self_ty(info.statics),
+      ),
+    ~samples=
+      switch (info.dynamics) {
+      | None => []
+      | Some(d: Dynamics.Info.t) => d.samples
+      },
+  );
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
