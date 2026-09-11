@@ -1103,6 +1103,32 @@ let test_shorthand_member_mismatch_on_definition =
     },
   );
 
+/* ===== CYCLIC MEMBER PATHS ===== */
+
+/* A signature that names a same-named outer binding has no weak head normal
+   form: `m.T` inside the inner `m`'s own signature resolves to the inner `m`.
+   Normalizing it used to abort the whole analysis with
+   Failure("weak_head_normalize exceeded 1000 recursive calls"); the stuck path
+   is now an ordinary type error on the member that fails to match it. */
+let is_type_member_mismatch_on_t: Language.Mark.t => bool =
+  fun
+  | ModuleTypeMemberMismatch({name: "T", _}) => true
+  | _ => false;
+
+let test_cyclic_member_path_let =
+  single_mark_test(
+    "A signature naming a same-named outer binding is a type error, not a crash",
+    {|let m = { type T = Int } in let m : { type T = m.T } = { type T = Int } in let y : m.T = 1 in y|},
+    is_type_member_mismatch_on_t,
+  );
+
+let test_cyclic_member_path_module =
+  single_mark_test(
+    "The module form of a self-referential signature is a type error, not a crash",
+    {|module M = { type T = Int } in module M : { type T = M.T } = { type T = Int } in let y : M.T = 1 in y|},
+    is_type_member_mismatch_on_t,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1236,5 +1262,8 @@ let tests = (
     test_shorthand_member_shadowed,
     test_shorthand_parameter_not_member,
     test_shorthand_member_mismatch_on_definition,
+    /* Cyclic member paths */
+    test_cyclic_member_path_let,
+    test_cyclic_member_path_module,
   ],
 );
