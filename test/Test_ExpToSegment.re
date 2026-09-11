@@ -1264,6 +1264,28 @@ let spacing_tests = (
         );
       },
     ),
+    test_case(
+      "printing a parenthesized bare sum is idempotent",
+      `Quick,
+      () => {
+        let src = {|type T = + Adid in ?|};
+        switch (Parser.to_term(src, ~root=Exp)) {
+        | None => fail("failed to parse " ++ src)
+        | Some(exp) =>
+          let once = print_seg(exp_to_segment(exp));
+          switch (Parser.to_term(once, ~root=Exp)) {
+          | None => fail("failed to reparse " ++ once)
+          | Some(exp') =>
+            check(
+              string,
+              "second print equals the first",
+              once,
+              print_seg(exp_to_segment(exp')),
+            )
+          };
+        };
+      },
+    ),
   ],
 );
 

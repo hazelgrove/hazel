@@ -727,11 +727,11 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    /* No defensive parens on the content: the wrapper we are emitting is
+       already the protection, and adding another made printing
+       non-idempotent for every type whose precedence IS min -- a Sig, a bare
+       sum, a multihole -- which gained a paren layer on every trip. */
+    Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
