@@ -67,35 +67,46 @@ Hazel, parsed by the Rust parser in CI, compared structurally. A
 pretty-printer that quietly drops a parenthesis is a class of bug the livelit
 route could not have.
 
-**3. The runtime instance needs a home, and a tile tree has no model.** This
-is the sharpest open question, and it does not have a Blackboard precedent,
-because `blackboard … end` is inert: unknown type, checker run only from
-tests. Fumola is not inert. Its whole point is the adapton store that
-survives edits.
+**3. The VM instance needs a home, and a tile tree has no model.** A Fumola
+program runs against a **Fumola VM instance** — "instance" for short. The word
+is not new here: the wasm API already types its handle as `FumolaInstanceId`,
+and `fumola_create` / `fumola_has` / `fumola_drop` / `fumola_instance_count`
+are all about instances. This document uses the boundary's own term.
+
+The instance is where the adapton store lives, so it is the thing that has to
+survive an edit. There is no Blackboard precedent, because `blackboard … end`
+is inert: unknown type, checker run only from tests. Fumola is not inert.
 
 On `fumola-livelit-mvp` the livelit model carries `instance_id` (a key into
 the runtime's `sigma`) and `thunk_name`, and both persist across edits, which
-is what lets a thunk keep its history. A `fumola … end` expression in the
-tile tree has no model to carry them, and deriving a name from the
-expression's `Id` reintroduces exactly the failure the livelit comment warns
-about: a name taken from a Hazel id starts a new thunk whenever that id
-changes, losing the history the thunk exists to keep.
+is what lets a thunk keep its history. A `fumola … end` expression in the tile
+tree has no model to carry them, and deriving a name from the expression's
+`Id` reintroduces exactly the failure the livelit comment warns about: a name
+taken from a Hazel id starts a new thunk whenever that id changes, losing the
+history the thunk exists to keep.
 
-Options, to decide before M1:
+**Decided: name the instance in the syntax.** The program says which instance
+it runs against, and says it in text the programmer wrote:
 
-- **Name it in the syntax.** `fumola @store { … }`, where the name is a
-  Fumola term the programmer writes. Stable by construction, visible,
-  and it makes sharing a store between two Fumola blocks expressible.
-  Costs a form and an explicit step.
-- **Keep a livelit for the runtime, tiles for the program.** `fumola_new`
-  already declares a runtime and expands to its id; a `fumola … end`
-  expression could take that id as an argument. Reuses working machinery,
-  at the price of two integration mechanisms in one feature.
-- **One runtime per editor.** Simplest, and wrong as soon as two blocks want
-  separate stores.
+```
+fumola store in
+  thunk { ... }
+end
+```
 
-Recommendation: the first. It is the one that says what it means in the
-program text, which is also what makes it survivable across a reload.
+Stable by construction, visible in the program, survivable across a reload,
+and it makes two blocks sharing one instance expressible — which the
+alternatives (a livelit that owns the runtime, or one instance per editor)
+either complicate or forbid.
+
+Two spellings are still open and are cheap to change later:
+
+- the middle delimiter, `in`, chosen to parallel Hazel's `let … in` and
+  `use … in`. The form is then
+  `mk_op_c(L, ["fumola", "in", "end"], Exp, [_, Fumola(Exp)])`.
+- the sort of the instance name. `Pat` reuses existing tiles and TyDi and
+  reads as a name, at the cost of looking like a binder it is not; a
+  Fumola-sorted identifier tile is more honest and costs a form.
 
 ## What the Rust toolchain costs to iterate on
 
@@ -170,8 +181,8 @@ the real `fumola_parser`. This is the piece everything else depends on and
 the piece that can be tested hardest.
 
 **M1 — the sort and its tiles.** `FumolaSort`, forms in `Form.re`,
-precedences, `MakeTerm` and `ExpToSegment` cases, `fumola … end` as an
-expression form, closed under `Insert.effective_sort`. Subset:
+precedences, `MakeTerm` and `ExpToSegment` cases, `fumola <instance> in …
+end` as an expression form, closed under `Insert.effective_sort`. Subset:
 
 - literals, variables, tuples, parens
 - `#tag` and `#tag e`; `?e`
@@ -187,8 +198,10 @@ Deferred: modules, classes, actors, `import`, attributes, the type
 sublanguage, quoted ASTs, async. (`import` and `module` come back in M3 if we
 want to load the existing `.fumola` corpus.)
 
-**M2 — evaluation and the value bridge.** `fumola … end` prints its program,
-hands it to the shim, and gets a value back. `FumolaValue.re` and
+**M2 — evaluation and the value bridge.** `fumola <instance> in … end` prints
+its program, hands it to the shim against the named instance, and gets a value
+back. The instance is created on first use and looked up by name thereafter,
+so the store survives every edit that leaves the name alone. `FumolaValue.re` and
 `FumolaSource.re` port over from `fumola-livelit-mvp` unchanged — they are
 about values, not livelits, and carry no livelit dependency. Statics: give
 the expression a type rather than leaving it `Unknown`, which is where
@@ -209,7 +222,9 @@ want (`FumolaValue.re`, `FumolaSource.re`, and the `window.fumola` shim in
 
 ## Open questions
 
-1. Where the runtime instance lives (above). Blocks M1.
+1. Which spelling for the instance name — the middle delimiter, and whether
+   the name is `Pat` or a Fumola-sorted identifier (above). Does not block
+   M0.
 2. Does `fumola … end` evaluate eagerly at every keystroke, as the livelit
    did, or on demand? The livelit's answer was "every edit, and suppress
    syntax errors as noise". Here there are no syntax errors to suppress, so
