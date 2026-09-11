@@ -126,6 +126,14 @@
   position: absolute;
 }
 
+/* Every result row is an isolated stacking context. Raise the active proof
+ * row (and any containing result rows) so later placeholder/target siblings
+ * cannot paint over its controls or an open assumptions/rewrite panel. */
+.cell-result:has(.missing-step-overlay-align) {
+  position: relative;
+  z-index: var(--context-inspector-z);
+}
+
 .proof-context-box {
   position: absolute;
   top: calc(100% + 0.5em);
