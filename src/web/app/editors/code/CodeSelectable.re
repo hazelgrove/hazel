@@ -42,6 +42,8 @@ module Update = {
         Structural(_) |
         Probe(_) |
         Format(_) |
+        Refactor(_) |
+        RefactorGesture(_) |
         AdjustIndent(_, _) |
         ApplyCompletion(_) |
         Introduce |
