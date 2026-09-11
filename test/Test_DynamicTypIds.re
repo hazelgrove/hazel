@@ -117,8 +117,7 @@ let qcheck_prepared_ids_are_sufficient =
     ExpToSegment.PreparedTyp.(prepare(~settings, typ) |> ids_sufficient)
   );
 
-/* Unit pins for the id counts, which mirror the pad_ids calls in
-   typ_to_pretty and are checked against nothing else. */
+/* Unit pins for the id counts typ_to_pretty pads from. */
 let count_tests =
   IdTagged.FreshGrammar.Typ.[
     test_case(

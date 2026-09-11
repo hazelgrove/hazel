@@ -1127,9 +1127,9 @@ let pad_ids =
   List.map(replace, truncated);
 };
 
-/* How many ids each type constructor's rendering consumes. Must match the
-   `pad_ids(n, ...)` argument in typ_to_pretty exactly, and lives beside those
-   calls because nothing checks the two against each other. */
+/* How many ids each type constructor's rendering consumes. typ_to_pretty
+   pads from this rather than from a count of its own, so the renderer and
+   anything preparing ids for it cannot disagree. */
 let necessary_ids: Typ.t => int =
   ty =>
     switch (ty.term) {
@@ -2804,8 +2804,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(MultiHole(es))) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(typ) |> pad_ids(necessary_ids(typ));
     let seg =
       switch (es) {
       | [] => []
@@ -2859,7 +2858,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       @ List.flatten(
           List.map2(
             (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-            IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+            IdTagged.ids(typ) |> pad_ids(necessary_ids(typ)),
             ts,
           ),
         ),
@@ -2974,7 +2973,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go_constructor(t);
     wrap(typ, [mk_form(TypSumSingle, id, [])] @ t);
   | Sum([t, ...ts]) =>
-    let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
+    let ids = IdTagged.ids(typ) |> pad_ids(necessary_ids(typ));
     let id = List.hd(ids);
     let ids = List.tl(ids);
     let+ t = go_constructor(t)
@@ -2992,7 +2991,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
   | Sig(items) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
-    let id = typ |> Typ.rep_id;
+    let ids = IdTagged.ids(typ) |> pad_ids(necessary_ids(typ));
+    let id = List.hd(ids);
+    let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
@@ -3035,8 +3036,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
          )
       |> all;
     /* Join items with semicolons and wrap in braces */
-    let ids =
-      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
