@@ -984,10 +984,11 @@ let test_module_tuple_equality_rejected =
     {|test (x=1) == { let x = 1 } end|} |> parse_exp,
   );
 
-/* ===== WIDTH SUBTYPING AT ANALYSIS POSITIONS ===== */
-/* A module may export more than its signature declares where it is analyzed
-   against that signature; the extras are sealed away and the binder has
-   exactly the signature's type. */
+/* ===== SEALING AT COERCION SITES ===== */
+/* At an ascription, an annotated binder or an application argument a module
+   may export more than the signature declares; the extras are sealed away and
+   the binder has exactly the signature's type. Everywhere else signatures
+   match exactly. */
 let test_width_empty_sig =
   fully_consistent_typecheck(
     "Extra member is sealed away by an empty signature",
@@ -1024,35 +1025,35 @@ let test_sealed_member_inaccessible =
 
 let test_width_in_asc =
   fully_consistent_typecheck(
-    "Width subtyping at an ascription",
+    "Sealing at an ascription",
     {|({ let x = 1; let y = 2 } : { let x : Int })|},
     Some(sig_([val_("x", int())])),
   );
 
 let test_width_in_module_keyword =
   fully_consistent_typecheck(
-    "Width subtyping with the module keyword",
+    "Sealing with the module keyword",
     {|module M : { let x : Int } = { let x = 1; let y = 2 } in M|},
     Some(sig_([val_("x", int())])),
   );
 
 let test_width_function_argument_literal =
   fully_consistent_typecheck(
-    "Width subtyping for a module literal argument",
+    "Sealing a module literal argument",
     {|let f = fun (m : { let x : Int }) -> m.x in f({ let x = 1; let y = 2 })|},
     Some(int()),
   );
 
 let test_width_function_argument_variable =
   fully_consistent_typecheck(
-    "Width subtyping for a module variable argument",
+    "Sealing a module variable argument",
     {|let big = { let x = 1; let y = 2 } in let f = fun (m : { let x : Int }) -> m.x in f(big)|},
     Some(int()),
   );
 
 let test_width_bound_variable =
   fully_consistent_typecheck(
-    "Width subtyping when binding a module variable",
+    "Sealing when binding a module variable",
     {|let big = { let x = 1; let y = 2 } in let m : { let x : Int } = big in m|},
     Some(sig_([val_("x", int())])),
   );
@@ -1066,16 +1067,18 @@ let test_width_hole_member =
 
 let test_width_depth =
   fully_consistent_typecheck(
-    "Width subtyping through a nested module member",
+    "Sealing through a nested module member",
     {|let n : { let m : { let x : Int } } = { let m = { let x = 1; let y = 2 } } in n|},
     Some(sig_([val_("m", sig_([val_("x", int())]))])),
   );
 
-let test_width_contravariant_domain =
-  fully_consistent_typecheck(
-    "A function on a narrower module accepts a wider one",
-    {|let g : { let x : Int; let y : Int } -> Int = fun (m : { let x : Int }) -> m.x in g|},
-    Some(arrow(sig_([val_("x", int()), val_("y", int())]), int())),
+/* Function types match exactly: a function on a narrower module is not
+   coerced to one on a wider module (eta-expand instead). */
+let test_error_width_no_contravariance =
+  inconsistent_typecheck(
+    "A function on a narrower module is not coerced to a wider domain",
+    {|let g : { let x : Int; let y : Int } -> Int = fun (m : { let x : Int }) -> m.x in g|}
+    |> parse_exp,
   );
 
 let test_error_width_covariant_domain =
@@ -1092,11 +1095,31 @@ let test_error_width_not_in_if =
     {|if true then { let x = 1 } else { let x = 1; let y = 2 }|} |> parse_exp,
   );
 
+/* If branches are not coercion sites: under an annotation the wider branch
+   itself carries the mismatch. */
 let test_error_width_not_in_if_annotated =
-  inconsistent_typecheck(
-    "Width does not apply across if branches even under an annotation",
-    {|let m : { let x : Int } = if true then { let x = 1 } else { let x = 1; let y = 2 } in m|}
-    |> parse_exp,
+  Alcotest.test_case(
+    "Under an annotation a wider if branch is marked on the branch",
+    `Quick,
+    () => {
+      let marks =
+        subexp_marks(
+          {|let m : { let x : Int } = if true then { let x = 1 } else { let x = 1; let y = 2 } in m|},
+          fun
+          | Module(items) => List.length(items) == 2
+          | _ => false,
+        );
+      Alcotest.(check(bool))(
+        "wider branch marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ExpectationMismatch(_) => true
+          | _ => false,
+          marks,
+        ),
+      );
+    },
   );
 
 let test_if_identical_sigs =
@@ -1108,11 +1131,11 @@ let test_if_identical_sigs =
 
 let test_width_not_for_tuples =
   inconsistent_typecheck(
-    "Width subtyping does not apply to labeled tuples",
+    "Labeled tuples are not sealed by width",
     {|let t : (x=Int) = (x=1, y=2) in t|} |> parse_exp,
   );
 
-/* Slide examples: width subtyping in use */
+/* Slide examples: sealing in use */
 let test_width_interface_function =
   fully_consistent_typecheck(
     "A function over any module with the members it needs",
@@ -1166,6 +1189,118 @@ let test_width_if_branch_ascribed =
     "Ascribing the wider branch seals it so the branches agree",
     {|let pick = fun b -> if b then { let x = 1 } else ({ let x = 1; let y = 2 } : { let x : Int }) in pick(true).x|},
     Some(int()),
+  );
+
+/* Non-sites: the same wider module is a mismatch anywhere but under an
+   ascription, an annotated binder or in argument position, up to parentheses
+   and tuple structure. */
+let test_error_sealing_not_in_list =
+  inconsistent_typecheck(
+    "A wider module is not sealed as a list element",
+    {|let wide = { let x = 1; let y = 2 } in let l : [{ let x : Int }] = [wide] in l|}
+    |> parse_exp,
+  );
+
+let test_sealing_in_list_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing a list element seals it",
+    {|let wide = { let x = 1; let y = 2 } in let l : [{ let x : Int }] = [(wide : { let x : Int })] in l|},
+    Some(list(sig_([val_("x", int())]))),
+  );
+
+let test_error_sealing_module_literal_in_list =
+  has_mark_test(
+    "A module literal with extra members as a list element is a mismatch",
+    {|let l : [{ let x : Int }] = [{ let x = 1; let y = 2 }] in l|},
+    fun
+    | Language.Mark.ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
+let test_sealing_tuple_argument =
+  fully_consistent_typecheck(
+    "Each component of a tuple argument is sealed",
+    {|let f = fun (m : { let x : Int }, n : Int) -> m.x + n in
+let wide = { let x = 1; let y = 2 } in
+f(wide, 1)|},
+    Some(int()),
+  );
+
+let test_sealing_tuple_literal_annotated =
+  fully_consistent_typecheck(
+    "An annotation seals the components of a tuple literal",
+    {|let wide = { let x = 1; let y = 2 } in let p : (Int, { let x : Int }) = (1, wide) in p|},
+    Some(prod([int(), sig_([val_("x", int())])])),
+  );
+
+let test_sealing_labeled_tuple_component =
+  fully_consistent_typecheck(
+    "An annotation seals a labeled tuple component",
+    {|let wide = { let x = 1; let y = 2 } in let p : (m={ let x : Int }, n=Int) = (m=wide, n=1) in p.n|},
+    Some(int()),
+  );
+
+/* The coercion is structural through tuples, so a variable of tuple type is
+   coerced componentwise at a site too. */
+let test_sealing_tuple_variable =
+  fully_consistent_typecheck(
+    "A variable of tuple type is coerced componentwise at a site",
+    {|let wide = { let x = 1; let y = 2 } in let q = (1, wide) in let p : (Int, { let x : Int }) = q in p|},
+    Some(prod([int(), sig_([val_("x", int())])])),
+  );
+
+let test_error_sealing_not_in_case_pattern =
+  inconsistent_typecheck(
+    "A pattern annotation narrower than the scrutinee is a mismatch",
+    {|let wide = { let x = 1; let y = 2 } in case wide | (m : { let x : Int }) => m.x end|}
+    |> parse_exp,
+  );
+
+let test_sealing_scrutinee_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing the scrutinee seals it",
+    {|let wide = { let x = 1; let y = 2 } in case (wide : { let x : Int }) | m => m.x end|},
+    Some(int()),
+  );
+
+let test_sealing_through_parens =
+  fully_consistent_typecheck(
+    "Parentheses do not block sealing",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = ((wide)) in n|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_error_sealing_not_through_let_body =
+  inconsistent_typecheck(
+    "A let body is not a coercion site",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = (let h = 1 in wide) in n|}
+    |> parse_exp,
+  );
+
+let test_error_sealing_not_in_if_branches =
+  inconsistent_typecheck(
+    "If branches are not coercion sites",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = if true then wide else wide in n|}
+    |> parse_exp,
+  );
+
+let test_sealing_constructor_argument =
+  fully_consistent_typecheck(
+    "A constructor argument is sealed like any application argument",
+    {|type Box = Wrap({ let x : Int }) + Empty in
+let b : Box = Wrap({ let x = 1; let y = 2 }) in
+case b | Wrap(m) => m.x | Empty => 0 end|},
+    Some(int()),
+  );
+
+let test_error_sealing_not_through_sum_variable =
+  inconsistent_typecheck(
+    "A variable of a wider sum type is not coerced",
+    {|type Box = Wrap({ let x : Int }) + Empty in
+type Wide = Wrap({ let x : Int; let y : Int }) + Empty in
+let w : Wide = Wrap({ let x = 1; let y = 2 }) in
+let b : Box = w in b|}
+    |> parse_exp,
   );
 
 /* A hole-named signature member is not a required member, and the module's
@@ -1639,7 +1774,7 @@ let tests = (
     test_empty_module_is_not_unit,
     test_unit_is_not_empty_module,
     test_module_tuple_equality_rejected,
-    /* Width subtyping at analysis positions */
+    /* Sealing at coercion sites */
     test_width_empty_sig,
     test_width_extra_member,
     test_width_narrower_sig,
@@ -1652,7 +1787,7 @@ let tests = (
     test_width_bound_variable,
     test_width_hole_member,
     test_width_depth,
-    test_width_contravariant_domain,
+    test_error_width_no_contravariance,
     test_error_width_covariant_domain,
     test_error_width_not_in_if,
     test_error_width_not_in_if_annotated,
@@ -1663,6 +1798,21 @@ let tests = (
     test_error_width_hidden_helper,
     test_width_nested_member_wider,
     test_width_if_branch_ascribed,
+    /* Non-sites */
+    test_error_sealing_not_in_list,
+    test_sealing_in_list_ascribed,
+    test_error_sealing_module_literal_in_list,
+    test_sealing_tuple_argument,
+    test_sealing_tuple_literal_annotated,
+    test_sealing_labeled_tuple_component,
+    test_sealing_tuple_variable,
+    test_error_sealing_not_in_case_pattern,
+    test_sealing_scrutinee_ascribed,
+    test_sealing_through_parens,
+    test_error_sealing_not_through_let_body,
+    test_error_sealing_not_in_if_branches,
+    test_sealing_constructor_argument,
+    test_error_sealing_not_through_sum_variable,
     test_hole_named_member_matches_any,
     test_label_mismatch_hole,
     /* Module keyword tests */
