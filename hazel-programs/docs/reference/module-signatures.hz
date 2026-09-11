@@ -1,0 +1,104 @@
+# MODULE SIGNATURES #
+
+# Continues the Modules slide: signature types and their errors. #
+
+
+# C. MODULE SIGNATURES #
+
+# Signatures use curly-brace syntax in type position: #
+# { let name : Type; type T = Type; module Name : Signature } #
+
+# 12. Module matching its signature #
+module M : {let x : Int} = {let x = 42} in
+
+# 13. Empty signature #
+module M : {} = {} in
+
+# 14. Type members in a signature are checked #
+module M : {
+  type T = Int;
+  let x : T
+} = {
+  type T = Int;
+  let x = 4
+} in
+
+# 15. Nested module declared in a signature #
+module Outer : {
+  module Inner : {let x : Int};
+  let y : Int
+} = {
+  module Inner = {let x = 1};
+  let y = 2
+} in
+let v = Outer.Inner.x + Outer.y in
+
+# 16. Lowercase nested module in a signature #
+let outer : {let inner : {let x : Int}} = {let inner = {let x = 1}} in
+
+# 17. Signature bound to a type alias #
+type MT = {let x : Int} in
+let m : MT = {let x = 4} in
+
+
+# D. SIGNATURE ERRORS #
+
+# 18. Error: member type doesn't match signature #
+module M : {let x : Int} = {let x = true} in
+
+# 19. Error: one matching, one non-matching member #
+module M : {
+  let x : Int;
+  let y : Bool
+} = {
+  let x = 1;
+  let y = 2
+} in
+
+# 20. Error: module is missing a required member #
+module M : {
+  let x : Int;
+  let y : Bool;
+  let z : String
+} = {
+  let x = 1;
+  let y = true
+} in
+
+# 20a. Error: a nested module missing a member #
+module Outer : {module Inner : {let x : Int; let y : Int}} = {
+  module Inner = {let x = 1}
+} in
+
+# 20b. Error: a destructured member with the wrong type #
+module P : {let a : Int; let b : Int} = {let (a, b) = (1, "s")} in
+
+# 21. Error: empty module missing all members #
+module M : {
+  let x : Int;
+  let y : Bool
+} = {} in
+
+# 22. Error: type member differs from the signature's #
+module M : {
+  type T = Int;
+  let x : T
+} = {
+  type T = Bool;
+  let x = true
+} in
+
+# No width subtyping yet: signatures must be precise. #
+
+# 23. Error: extra member not declared by the signature #
+module M : {let x : Int} = {
+  let x = 1;
+  let y = 2
+} in
+
+# 24. Error: extra member not allowed by empty signature #
+module M : {} = {let x = 1} in
+
+# 25. Error: a hole-typed member is still required #
+let m : {let x : ?} = {let y = 1} in
+¿
