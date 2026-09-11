@@ -441,6 +441,15 @@ let test_nested_user_annotation_kept =
     },
   );
 
+/* With width subtyping the annotation the user wrote may be wider than the
+   expectation, and it is still the one the definition is checked against. */
+let test_nested_user_wider_annotation_kept =
+  fully_consistent_typecheck(
+    "A sub-module's own wider annotation is kept",
+    {|module M : { module Inner : { let x : Int } } = { module Inner : { let x : Int; let y : Int } = { let x = 1; let y = 2 } } in M.Inner.x|},
+    Some(int()),
+  );
+
 let test_error_nested_module_sealed =
   inconsistent_typecheck(
     "A sub-module is sealed by the outer signature",
@@ -2275,6 +2284,7 @@ let tests = (
     test_nested_type_member_mismatch_localized,
     test_nested_definition_mismatch_localized,
     test_nested_user_annotation_kept,
+    test_nested_user_wider_annotation_kept,
     test_error_nested_module_sealed,
     test_tuple_binder_mismatch_localized,
     test_tuple_binder_ok,
@@ -2284,6 +2294,17 @@ let tests = (
     test_missing_members_on_variable,
     test_missing_members_on_argument,
     test_missing_type_member_on_variable,
+    /* Nested expectations */
+    test_nested_missing_member_localized,
+    test_nested_type_member_mismatch_localized,
+    test_nested_definition_mismatch_localized,
+    test_nested_user_annotation_kept,
+    test_error_nested_module_sealed,
+    test_tuple_binder_mismatch_localized,
+    test_tuple_binder_ok,
+    test_labeled_tuple_binder_ok,
+    test_nested_tuple_binder_mismatch_localized,
+    test_cons_binder_mismatch_localized,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,
