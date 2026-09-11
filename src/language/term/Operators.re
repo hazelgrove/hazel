@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -499,7 +500,7 @@ let op_name = (op: op_bin): string =>
 let builtins = {
   Atom.(
     all_of_op_bin
-    |> List.filter_map(op =>
+    |> List.filter_map(~f=op =>
          switch (semantics_of_bin_op(op)) {
          | Undefined(_) => None
          | DefinedPoly(_) => None

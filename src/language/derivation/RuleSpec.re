@@ -1105,7 +1105,7 @@ let of_spec: Rule.t => t =
       | MatchedArrow(t1, t2) => MatchedArrow(tag_typ(t1), tag_typ(t2))
       | MatchedProd(t1, t2) => MatchedProd(tag_typ(t1), tag_typ(t2))
       | MatchedSum(t1, t2) => MatchedSum(tag_typ(t1), tag_typ(t2))
-      | Ctx(es) => Ctx(List.map(tag_exp, es))
+      | Ctx(es) => Ctx(List.map(~f=tag_exp, es))
       | Cons(e1, e2) => Cons(tag_exp(e1), tag_exp(e2))
       | Concat(e1, e2) => Concat(tag_exp(e1), tag_exp(e2))
       | Type(t) => Type(tag_typ(t))
@@ -1117,7 +1117,7 @@ let of_spec: Rule.t => t =
       | Impl(e1, e2) => Impl(tag_exp(e1), tag_exp(e2))
       | Truth => Truth
       | Falsity => Falsity
-      | Tuple(es) => Tuple(List.map(tag_exp, es))
+      | Tuple(es) => Tuple(List.map(~f=tag_exp, es))
       | NumLit(n) => NumLit(n)
       | Neg(e) => Neg(tag_exp(e))
       | BinOp(op, e1, e2) => BinOp(op, tag_exp(e1), tag_exp(e2))
@@ -1181,7 +1181,7 @@ let of_spec: Rule.t => t =
     let Spec.{concl, prems, tests} = of_spec(rule);
     {
       concl: tag_exp(concl),
-      prems: List.map(tag_exp, prems),
-      tests: List.map(RuleFormula.M_Id.tag, tests),
+      prems: List.map(~f=tag_exp, prems),
+      tests: List.map(~f=RuleFormula.M_Id.tag, tests),
     };
   };

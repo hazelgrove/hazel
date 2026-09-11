@@ -22,4 +22,4 @@ type site = {
 };
 
 let variable_names = (bindings: s): list(string) =>
-  List.map((b: t) => b.name, bindings);
+  List.map(~f=(b: t) => b.name, bindings);

@@ -20,13 +20,13 @@ let validate_label_name =
     )
     : (Typ.t, list(Mark.t), bool) =>
   switch (expected_labels) {
-  | Some(expected) when !List.mem(name, expected) => (
+  | Some(expected) when !List.mem(expected, name, ~equal=String.equal) => (
       SynTy.unknown_internal(),
       [Mark.InvalidLabel(name, expected)],
       true,
     )
   | _ =>
-    List.mem(name, duplicate_labels)
+    List.mem(duplicate_labels, name, ~equal=String.equal)
       ? (
         Label(name) |> Typ.temp,
         [Mark.DuplicateLabel(name, Label(name) |> Typ.temp)],
@@ -61,7 +61,7 @@ let tup_label_self_type =
             typ: labeled_syn,
           }),
         ]
-        : List.mem(name, duplicate_labels)
+        : List.mem(duplicate_labels, name, ~equal=String.equal)
             ? [
               Mark.TupleLabelError({
                 malformed_labels: [],
@@ -125,7 +125,10 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
   switch (Typ.weak_head_normalize(ctx, ana).term) {
   | Prod(ts) =>
     Some(
-      List.filter_map(t => Typ.match_tup_label(t) |> Option.map(fst), ts),
+      List.filter_map(
+        ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst),
+        ts,
+      ),
     )
   | _ => None
   };
@@ -139,11 +142,14 @@ let expand_duplicate_labels =
     )
     : list(string) =>
   List.filter_map(
-    item =>
-      switch (match_tup_label(item)) {
-      | Some((name, _)) when List.mem(name, unique_duplicates) => Some(name)
-      | _ => None
-      },
+    ~f=
+      item =>
+        switch (match_tup_label(item)) {
+        | Some((name, _))
+            when List.mem(unique_duplicates, name, ~equal=String.equal) =>
+          Some(name)
+        | _ => None
+        },
     items,
   );
 
@@ -159,11 +165,14 @@ let compute_invalid_labels =
   | None => []
   | Some(expected) =>
     List.filter_map(
-      item =>
-        switch (match_tup_label(item)) {
-        | Some((name, _)) when !List.mem(name, expected) => Some(name)
-        | _ => None
-        },
+      ~f=
+        item =>
+          switch (match_tup_label(item)) {
+          | Some((name, _))
+              when !List.mem(expected, name, ~equal=String.equal) =>
+            Some(name)
+          | _ => None
+          },
       items,
     )
   };
@@ -177,13 +186,14 @@ let collect_malformed_labels =
     )
     : list(Any.t) =>
   List.fold_left(
-    (acc, info) =>
-      switch (has_tup_label(info), Mark.highest(get_marks(info))) {
-      | (true, Some(Mark.TupleLabelError({malformed_labels, _}))) =>
-        acc @ malformed_labels
-      | _ => acc
-      },
-    [],
+    ~f=
+      (acc, info) =>
+        switch (has_tup_label(info), Mark.highest(get_marks(info))) {
+        | (true, Some(Mark.TupleLabelError({malformed_labels, _}))) =>
+          acc @ malformed_labels
+        | _ => acc
+        },
+    ~init=[],
     infos,
   );
 

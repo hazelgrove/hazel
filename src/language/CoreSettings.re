@@ -82,19 +82,21 @@ let on: t = {
 };
 
 let eq_ignoring_stepper_modals = (a: t, b: t) =>
-  {
-    ...a,
-    evaluation: {
-      ...a.evaluation,
-      stepper_history: false,
-      show_settings: false,
-    },
-  }
-  == {
-       ...b,
-       evaluation: {
-         ...b.evaluation,
-         stepper_history: false,
-         show_settings: false,
-       },
-     };
+  Poly.(
+    {
+      ...a,
+      evaluation: {
+        ...a.evaluation,
+        stepper_history: false,
+        show_settings: false,
+      },
+    }
+    == {
+         ...b,
+         evaluation: {
+           ...b.evaluation,
+           stepper_history: false,
+           show_settings: false,
+         },
+       }
+  );

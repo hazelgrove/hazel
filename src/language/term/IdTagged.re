@@ -91,7 +91,7 @@ let unwrap = (x: t('a)) => (
   },
 );
 let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
-  List.hd(ids);
+  List.hd_exn(ids);
 
 /* Copy term with a new id, discarding secondary.
    Note: This discards secondary (formatting) information. If preserving
@@ -112,7 +112,7 @@ let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 let replace_temp = ({term, annotation: {ids, secondary}}: t('a)): t('a) => {
   term,
   annotation: {
-    ids: ids == [Id.invalid] ? [Id.mk()] : ids,
+    ids: List.equal(Id.equal, ids, [Id.invalid]) ? [Id.mk()] : ids,
     secondary,
   },
 };
