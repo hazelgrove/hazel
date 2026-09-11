@@ -64,6 +64,22 @@ let tests = (
       )
     ),
     test_case(
+      "a declaration inside a binder may itself be an arrow",
+      `Quick,
+      () =>
+      /* `(P : A -> type)` arrives as `Arrow(Mem(P, A), type)`, because the
+         colon binds tighter than the arrow; without the same rotation the
+         entry reader does, P would not be bound at all. */
+      check(
+        list(pair(string, string)),
+        "no errors",
+        [],
+        errors_of(
+          "blackboard assume A : type; f : (P : A -> type) -> (x : A) -> P(x) by tychk end",
+        ),
+      )
+    ),
+    test_case(
       "an unbound name is reported on the name itself",
       `Quick,
       () => {

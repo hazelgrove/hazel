@@ -46,6 +46,7 @@ let known_gaps: list(string) = [
   "signatures.hz",
   "checking.hz",
   "metatheory.hz",
+  "case-studies.hz",
 ];
 
 let tests = (

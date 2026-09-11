@@ -84,19 +84,6 @@ let problem = (t: Term.t, message: string) =>
     message,
   });
 
-/* `(x : A)` used as the domain of an arrow is a binder.  This is the same
-   convention as BbParse and BbTerm.to_string: a non-dependent arrow whose
-   domain is a membership must be written with a `_` binder. */
-let binder_of = (dom: Term.t): option((string, Term.t)) =>
-  switch (Term.term_of(dom)) {
-  | Parens(inner) =>
-    switch (Term.term_of(inner)) {
-    | Mem({term: Var(x), _}, a) => Some((x, a))
-    | _ => None
-    }
-  | _ => None
-  };
-
 /* `;` is right-associative and `,` may group either way, so a list of
    three or more arrives nested. Both read as flat lists. */
 let rec flatten = (of_term, t: Term.t): list(Term.t) =>
@@ -120,6 +107,42 @@ let flatten_seq =
     | _ => None
     }
   );
+
+/* In a signature entry the colon is a declaration, not a membership: it is
+   looser than everything to its right.  The membership tile binds tighter
+   than the arrow (as it must inside a type, so that `(x : A) -> x : B`
+   reads as the paper writes it), so `f : A -> B` arrives here as
+   `Arrow(Mem(f, A), B)` and the spine has to be rotated back. */
+let rec rotate_entry = (t: Term.t): option((string, Term.t)) =>
+  switch (Term.term_of(t)) {
+  | Mem({term: Var(name), _}, ty) => Some((name, ty))
+  | Arrow(l, r) =>
+    switch (rotate_entry(l)) {
+    | Some((name, dom)) =>
+      Some((
+        name,
+        Term.fresh(Arrow(dom, r)) |> IdTagged.fast_copy(Term.rep_id(t)),
+      ))
+    | None => None
+    }
+  | _ => None
+  };
+
+/* `(x : A)` used as the domain of an arrow is a binder.  This is the same
+   convention as BbParse and BbTerm.to_string: a non-dependent arrow whose
+   domain is a membership must be written with a `_` binder.
+
+   The declaration inside may itself be an arrow -- `(P : A -> type)` -- and
+   arrives rotated, for the reason rotate_entry explains; it is the same
+   rotation, so the same function reads it.  A parenthesized membership on
+   the left, as in `((h : (x : A)) -> P x -> M)`, does not rotate: there the
+   arrow is the type, not the declaration, which is what tells the two
+   apart. */
+let binder_of = (dom: Term.t): option((string, Term.t)) =>
+  switch (Term.term_of(dom)) {
+  | Parens(inner) => rotate_entry(inner)
+  | _ => None
+  };
 
 let rec term_to_kernel = (t: Term.t): result(BbTerm.t, problem) =>
   switch (Term.term_of(t)) {
@@ -168,26 +191,6 @@ let items_of = (t: Term.t): list(Term.t) =>
   | Hole(EmptyHole) => []
   | Seq(_) => flatten_seq(t)
   | _ => [t]
-  };
-
-/* In a signature entry the colon is a declaration, not a membership: it is
-   looser than everything to its right.  The membership tile binds tighter
-   than the arrow (as it must inside a type, so that `(x : A) -> x : B`
-   reads as the paper writes it), so `f : A -> B` arrives here as
-   `Arrow(Mem(f, A), B)` and the spine has to be rotated back. */
-let rec rotate_entry = (t: Term.t): option((string, Term.t)) =>
-  switch (Term.term_of(t)) {
-  | Mem({term: Var(name), _}, ty) => Some((name, ty))
-  | Arrow(l, r) =>
-    switch (rotate_entry(l)) {
-    | Some((name, dom)) =>
-      Some((
-        name,
-        Term.fresh(Arrow(dom, r)) |> IdTagged.fast_copy(Term.rep_id(t)),
-      ))
-    | None => None
-    }
-  | _ => None
   };
 
 let entry_to_kernel = (t: Term.t): result(BbTerm.entry, problem) =>
