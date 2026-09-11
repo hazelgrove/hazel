@@ -71,7 +71,7 @@ signature's own type members substituted), and each type member must be
 defined as the declared type. A member's type error is reported on its
 definition; missing members (`ModuleMissingMembers`) and, until width
 subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
-module; a differing type member is reported on the `type` item
+module; a differing type member is reported on its definition type
 (`ModuleTypeMemberMismatch`).
 
 ### Member Access and `module`
@@ -209,8 +209,9 @@ After checking:
 - `ModuleHelpers.module_sig_type` reads the module's signature back from the
   recorded pattern infos, in source order, keeping exported type members
   compact and inlining only shadowed ones.
-- `ModuleHelpers.check_ana_type_members` marks a `type T = ...` item whose
-  definition differs from the signature's (`Mark.ModuleTypeMemberMismatch`).
+- `ModuleHelpers.check_ana_type_members` marks the definition type of a
+  `type T = ...` item that differs from the signature's
+  (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_members` / `extra_members` produce
   `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
