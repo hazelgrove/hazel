@@ -177,9 +177,9 @@ let test_unknown_typed_root_is_not_an_error =
     },
   );
 
-/* A differing manifest type member is reported once, on the type item: the
-   members are checked against the module's own definition of T, and the
-   module is not reported a second time. */
+/* A differing manifest type member is reported once, on the member's
+   definition type: the members are checked against the module's own
+   definition of T, and the module is not reported a second time. */
 let test_type_member_mismatch_single_error =
   single_mark_test(
     "A differing type member is the module's only error",
@@ -187,6 +187,46 @@ let test_type_member_mismatch_single_error =
     fun
     | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
     | _ => false,
+  );
+
+/* The marks on the type whose term satisfies [pred]. */
+let subtyp_marks =
+    (source, pred: Language.Typ.term => bool): list(Language.Mark.t) =>
+  Language.Id.Map.fold(
+    (_, info: Language.Info.t, acc) =>
+      switch (acc, info) {
+      | (None, InfoTyp({user_term, marks, _})) when pred(user_term.term) =>
+        Some(marks)
+      | _ => acc
+      },
+    statics(parse_exp(source)),
+    None,
+  )
+  |> Option.value(~default=[]);
+
+let test_type_member_mismatch_on_the_definition =
+  Alcotest.test_case(
+    "A differing type member is marked on its definition type",
+    `Quick,
+    () => {
+      let marks =
+        subtyp_marks(
+          {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|},
+          fun
+          | Atom(Bool) => true
+          | _ => false,
+        );
+      Alcotest.(check(bool))(
+        "Bool marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+          | _ => false,
+          marks,
+        ),
+      );
+    },
   );
 
 let test_type_member_mismatch_with_wrong_definition =
@@ -1341,6 +1381,7 @@ let tests = (
     test_value_used_as_module_path_mark,
     test_unknown_typed_root_is_not_an_error,
     test_type_member_mismatch_single_error,
+    test_type_member_mismatch_on_the_definition,
     test_type_member_mismatch_with_wrong_definition,
     /* Nested expectations */
     test_nested_missing_member_localized,

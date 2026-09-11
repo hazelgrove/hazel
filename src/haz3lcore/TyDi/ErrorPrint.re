@@ -39,6 +39,14 @@ module Print = {
 
 let prn = Printf.sprintf;
 
+let type_member_mismatch_string = (name, ~expected, ~actual) =>
+  prn(
+    "Type member %s is %s but its signature declares %s",
+    name,
+    Print.typ(actual),
+    Print.typ(expected),
+  );
+
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
@@ -168,12 +176,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       };
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    prn(
-      "Type member %s is %s but its signature declares %s",
-      name,
-      Print.typ(actual),
-      Print.typ(expected),
-    )
+    type_member_mismatch_string(name, ~expected, ~actual)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -269,6 +272,8 @@ let typ_mark_string: Mark.t => string =
     }
   | TypWantModule({name, typ}) =>
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
