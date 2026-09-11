@@ -1678,6 +1678,48 @@ n|};
   );
 };
 
+/* Replace every type node [from] by [to_] in [exp], preserving every other
+ * id: an ascription edited in place. */
+let retype = (~from: Typ.term, ~to_: Typ.term, exp: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    Typ.fast_equal(
+      t,
+      {
+        ...t,
+        term: from,
+      },
+    )
+      ? {
+        ...t,
+        term: to_,
+      }
+      : continue(t);
+  TermBase.Exp.map_term(~f_typ, exp);
+};
+
+/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
+ * bound as `x : Bool` it is the failed cast, so editing the annotation must
+ * invalidate the cached use of `x` rather than hand back the old `1`. */
+let test_asc_edit_invalidates_binding = () => {
+  let exp1 = parse_exp({|let x : Int = 1 in x|});
+  let exp2 = retype(~from=Atom(Int), ~to_=Atom(Bool), exp1);
+  check(
+    bool,
+    "retype actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1880,6 +1922,11 @@ let tests = (
       "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
       `Quick,
       test_builtin_call_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "ASCRIPTION: retyping `x : Int` as `x : Bool` in place invalidates the cached x",
+      `Quick,
+      test_asc_edit_invalidates_binding,
     ),
   ],
 );
