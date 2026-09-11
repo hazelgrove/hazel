@@ -177,9 +177,25 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
-  let+ remolded =
+  /* A label with no form in this sort: an incomplete tile whose present
+     shards spell a complete compound form of the sort takes that form, so
+     `let y = 2` still owed its `in` becomes the module item once a `;` puts
+     it in a module body. Compound only: a lone keyword shard must not
+     become a variable. */
+  let candidates =
     switch (Form.remold_candidates(Tile.label(t), s)) {
-    | [] => None
+    | [] when Tile.is_complete(t) => []
+    | [] =>
+      let shards = List.init(List.length(t.shards), Fun.id);
+      Form.compound_remold_candidates(Tile.effective_label(t), s)
+      |> List.map(((form, sort)) =>
+           {
+             ...t,
+             form,
+             sort,
+             shards,
+           }
+         );
     | forms =>
       forms
       |> List.map(((form, sort)) =>
@@ -189,14 +205,16 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
              sort,
            }
          )
-      |> (
-        fun
-        | [_] as ts => ts
-        | ts =>
-          ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-      )
-      |> ListUtil.hd_opt
     };
+  let+ remolded =
+    candidates
+    |> (
+      fun
+      | [_] as ts => ts
+      | ts =>
+        ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+    )
+    |> ListUtil.hd_opt;
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
   let children =
