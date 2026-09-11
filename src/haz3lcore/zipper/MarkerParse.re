@@ -48,9 +48,12 @@ let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
     Zipper.unselect_and_zip(~erase_buffer=true, z),
   );
 
+/* Deliberately a label check, not a form match: the marker is
+   caller-configurable (CLI --implicit-hole), and a non-default marker
+   classifies as whatever form its token spells. */
 let is_marker = (~implicit_hole: string, p: piece): bool =>
   switch (p) {
-  | Tile(t) => t.label == [implicit_hole]
+  | Tile(t) => Tile.has_label(t, [implicit_hole])
   | _ => false
   };
 

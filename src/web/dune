@@ -29,7 +29,8 @@
   (:standard \ Main)
   \
   Worker
-  WorkerServer)
+  WorkerServer
+  Migrate_exercises)
  (libraries
   ezjs_min
   ezjs_idb
@@ -75,6 +76,24 @@
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
+
+; Example-module exporter (dev tool, not shipped): regenerates the example
+; exercise modules' persistent literals. Run under node; see the header of
+; Migrate_exercises.re.
+
+(executable
+ (name migrate_exercises)
+ (modules Migrate_exercises)
+ (libraries ppx_yojson_conv.expander web)
+ (modes js)
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   bonsai.ppx_bonsai)))
 
 (env
  (dev

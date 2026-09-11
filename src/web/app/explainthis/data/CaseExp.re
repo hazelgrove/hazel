@@ -41,9 +41,9 @@ let case_exp_case =
       space(),
       exp("e1"),
       linebreak(),
-      mk_rule([[space(), pat("..."), space()]]),
+      mk_rule([[space(), pat("…"), space()]]),
       space(),
-      exp("..."),
+      exp("…"),
       linebreak(),
     ],
   ]);

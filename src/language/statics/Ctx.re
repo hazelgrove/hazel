@@ -282,22 +282,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
-/* Keep in sync with Token.base_typs */
-let is_base_typ = (name: string): bool =>
-  name == "Bool"
-  || name == "Float"
-  || name == "Int"
-  || name == "Nat"
-  || name == "SInt"
-  || name == "String"
-  || name == "Void"
-  || name == "DrvJdmt"
-  || name == "DrvCtx"
-  || name == "DrvProp"
-  || name == "ALFAExp"
-  || name == "DrvPat"
-  || name == "ALFATyp"
-  || name == "DrvTPat";
+let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
