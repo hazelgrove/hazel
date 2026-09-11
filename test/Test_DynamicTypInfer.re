@@ -7,7 +7,7 @@ open Language;
    DynamicTypInfer.dynamic_typ_of_samples with the real program context. */
 let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
   switch (Parser.to_zipper(~root=Exp, code)) {
-  | None => (Sample.Map.empty, Statics.Map.empty)
+  | None => failf("did not parse: %s", code)
   | Some(z) =>
     let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let probe_ids =
@@ -42,11 +42,21 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
   };
 };
 
-let first_probe_samples = (probes: Sample.Map.t): list(Sample.t) =>
+/* The samples the first probe in [code] recorded, and the context it was
+   sampled in. Both are assertions: a program that stopped parsing or stopped
+   carrying a probe would otherwise report no samples, and a type met from no
+   samples passes the tests that expect None. */
+let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
+  let (probes, info_map) = evaluate_probes(code);
   switch (Id.Map.bindings(probes)) {
-  | [(_, samples), ..._] => samples
-  | [] => []
+  | [] => failf("no probe recorded anything in: %s", code)
+  | [(probe_id, samples), ..._] =>
+    switch (Statics.Map.lookup(probe_id, info_map)) {
+    | None => failf("probe carries no statics in: %s", code)
+    | Some(info) => (samples, Info.ctx_of(info))
+    }
   };
+};
 
 /* Types appear in failure messages as source, not as a term dump. */
 let typ_to_string = (ty: Typ.t): string => {
@@ -74,23 +84,14 @@ let typ_to_string = (ty: Typ.t): string => {
 let testable_typ_string = testable(Fmt.string, String.equal);
 
 /* Check the dynamic type inferred from a probe's samples. `expected` is
-   None when the sample types are inconsistent and refuse to meet. */
+   None when the probe recorded nothing, or when the sample types are
+   inconsistent and refuse to meet. */
 let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
   test_case(
     name,
     `Quick,
     () => {
-      let (probes, info_map) = evaluate_probes(code);
-      let samples = first_probe_samples(probes);
-      let ctx =
-        switch (Id.Map.bindings(probes)) {
-        | [(probe_id, _), ..._] =>
-          switch (Statics.Map.lookup(probe_id, info_map)) {
-          | Some(info) => Info.ctx_of(info)
-          | None => Builtins.ctx_init(Some(Int))
-          }
-        | [] => Builtins.ctx_init(Some(Int))
-        };
+      let (samples, ctx) = first_probe_samples_and_ctx(code);
       let result = DynamicTypInfer.dynamic_typ_of_samples(~ctx, samples);
       check(
         option(testable_typ_string),
@@ -216,17 +217,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
     name,
     `Quick,
     () => {
-      let (probes, info_map) = evaluate_probes(code);
-      let samples = first_probe_samples(probes);
-      let ctx =
-        switch (Id.Map.bindings(probes)) {
-        | [(probe_id, _), ..._] =>
-          switch (Statics.Map.lookup(probe_id, info_map)) {
-          | Some(info) => Info.ctx_of(info)
-          | None => Builtins.ctx_init(Some(Int))
-          }
-        | [] => Builtins.ctx_init(Some(Int))
-        };
+      let (samples, ctx) = first_probe_samples_and_ctx(code);
       let (seg, dynamic_ids) =
         DynamicTypInfer.displayed_segment_and_dynamic_ids(
           ~render_with_diff_ids=

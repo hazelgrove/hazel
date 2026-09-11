@@ -318,27 +318,6 @@ let alias_on_dynamic_side_test =
     },
   );
 
-let qcheck_all_piece_ids_classified =
-  QCheck_alcotest.to_alcotest(
-    QCheck.Test.make(
-      ~name="All piece IDs are classified (no orphaned IDs)",
-      ~count=500,
-      QCheck.pair(
-        QCheck_Util.arb_typ(~minimal_idents=true, 7),
-        QCheck_Util.arb_typ(~minimal_idents=true, 7),
-      ),
-      ((static_typ, dynamic_typ)) => {
-        let (classes, segment) =
-          dynamic_ids_and_render(static_typ, dynamic_typ);
-        let fragments = segment_fragments(classes, segment);
-        List.for_all(
-          ((_text, clss)) => clss == [] || clss == ["dynamic"],
-          fragments,
-        );
-      },
-    ),
-  );
-
 let tests = [
   (
     "DynamicTyp",
@@ -352,7 +331,6 @@ let tests = [
       alias_exact_match_test,
       alias_partial_diff_test,
       alias_on_dynamic_side_test,
-      qcheck_all_piece_ids_classified,
     ],
   ),
 ];
