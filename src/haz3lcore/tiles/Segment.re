@@ -111,8 +111,31 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
-  let+ remolded =
+  /* A label with no form in this sort: an incomplete tile whose present
+     shards spell a complete compound form of the sort takes that form, so
+     `let y = 2` still owed its `in` becomes the module item once a `;` puts
+     it in a module body. Compound only: a lone keyword shard must not
+     become a variable. */
+  let (t, molds) =
     switch (Form.Molds.try_get(s, t.label)) {
+    | Some(_) as molds => (t, molds)
+    | None when Tile.is_complete(t) => (t, None)
+    | None =>
+      let label = Tile.effective_label(t);
+      switch (Form.Molds.try_get_compound(s, label)) {
+      | Some(_) as molds => (
+          {
+            ...t,
+            label,
+            shards: List.init(List.length(t.shards), Fun.id),
+          },
+          molds,
+        )
+      | None => (t, None)
+      };
+    };
+  let+ remolded =
+    switch (molds) {
     | None => None
     | Some(molds) =>
       molds

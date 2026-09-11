@@ -2429,6 +2429,27 @@ let module_tests = [
       ],
     ~goal={|let m = §{ let a = 1; let b = 2; let c = 3 }¦ in m|},
   ),
+  /* A second item typed before its predecessor's `;` is an expression
+     `let` owed an `in`; adding the `;` puts it in the module body, where
+     its shards spell the item form, so no `in` stays in the backpack. */
+  test_complete(
+    ~name="Module: a let typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{¦}|})
+      @ string_to_ltr_actions("let x = 1 let y = 2")
+      @ mv_l(10)
+      @ [Insert(";")],
+    ~goal={|{let x = 1 ;¦let y = 2}|},
+  ),
+  test_complete(
+    ~name="Module: a type typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{¦}|})
+      @ string_to_ltr_actions("let x = 1 type T = Int")
+      @ mv_l(13)
+      @ [Insert(";")],
+    ~goal={|{let x = 1 ;¦type T = Int}|},
+  ),
 ];
 
 /* ===== SHARD THEFT / PREPEND EDITING TESTS =====

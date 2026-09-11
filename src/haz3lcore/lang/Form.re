@@ -743,6 +743,14 @@ module Molds = {
     filtered == [] ? None : Some(filtered);
   };
 
+  /* Like try_get, but compound forms only: a single token never resolves
+     to an atomic mold (a variable) here. */
+  let try_get_compound =
+      (sort: Sort.t, label: Label.t): option(list(Mold.t)) =>
+    compound(label)
+    |> Option.map(List.filter((m: Mold.t) => m.out == sort))
+    |> Option.bind(_, molds => molds == [] ? None : Some(molds));
+
   /* Get mold for insertion: permissive sort filtering with fallback
      to Any-sorted default molds for undefined tokens. */
   let get = (sort: Sort.t, label: Label.t): Mold.t =>
