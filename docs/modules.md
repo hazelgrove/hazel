@@ -86,7 +86,9 @@ the signature omits is an error, and at runtime the module value keeps only
 the signature's members. Sub-module members may themselves be wider than
 declared, and the coercion is structural through tuples (`f(m, x)` is an
 application with two arguments). The site's operand is found through
-parentheses and the components of a tuple literal.
+parentheses, the components of a tuple literal, and a function literal's
+body, which is sealed to the expected codomain the way a functor body is to
+its result signature; the parameter is matched exactly.
 
 ```
 let m : { let x : Int } = { let x = 1; let y = 2 } in m.x    -- 1; m.y is an error
