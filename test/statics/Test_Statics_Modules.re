@@ -1263,6 +1263,16 @@ let test_sealing_scrutinee_ascribed =
     Some(int()),
   );
 
+/* A function literal's body is its result: under an expected arrow type it
+   is sealed to the codomain, like a functor body to its result signature.
+   The parameter is still matched exactly (no contravariance). */
+let test_sealing_function_body =
+  fully_consistent_typecheck(
+    "A function body is sealed to the expected codomain",
+    {|let f : { let x : Int } -> { let x : Int } = fun m -> { let x = m.x; let y = 1 } in f({ let x = 1 })|},
+    Some(sig_([val_("x", int())])),
+  );
+
 let test_sealing_through_parens =
   fully_consistent_typecheck(
     "Parentheses do not block sealing",
@@ -1808,6 +1818,7 @@ let tests = (
     test_sealing_tuple_variable,
     test_error_sealing_not_in_case_pattern,
     test_sealing_scrutinee_ascribed,
+    test_sealing_function_body,
     test_sealing_through_parens,
     test_error_sealing_not_through_let_body,
     test_error_sealing_not_in_if_branches,

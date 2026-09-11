@@ -1965,7 +1965,10 @@ and uexp_to_info_map =
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      /* The body is the function's result: at a coercion site it is sealed
+         to the expected codomain, as a functor body is to its result
+         signature. The parameter stays exact. */
+      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, ~coercible, e, m);
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
          Use `p'.ty` (the ana-meet'd type) rather than `p'.elab_syn_ty`.
          For bare `Var`/`EmptyHole` patterns `elab_syn_ty` is `?`, which
@@ -1974,7 +1977,13 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      /* At a coercion site the body's checked type is the codomain, and the
+         elaborated body carries the sealing cast. */
+      let e_elab =
+        coercible
+          ? fresh_ascription(ctx, e_elab, e.elab_syn_ty, Some(e.ty)) : e_elab;
+      let syn_ty_fun =
+        Arrow(p.ty, coercible ? e.ty : e.elab_syn_ty) |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
