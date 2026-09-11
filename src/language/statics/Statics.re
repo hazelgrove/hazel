@@ -47,6 +47,8 @@ let rec any_to_info_map =
   | Drv(drv) =>
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
+  /* Blackboard statics arrive with the next milestone. */
+  | Bb(b) => (CoCtx.empty, Bb(b), m)
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
@@ -470,6 +472,17 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.empty,
         m,
       );
+    /* A Blackboard document is inert in an expression: it has no value and
+       no interesting Hazel type yet.  Checking the document itself, and a
+       type that reflects it, arrive with the Blackboard statics. */
+    | BbQuote(b) =>
+      add(
+        ~elab_term=BbQuote(b) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      )
     | Atom(c) =>
       // Replace literal if necessary due to `use` or ana
       let c =

@@ -438,6 +438,8 @@ let equality =
     | (ModuleExp(_, _, _), _) => false
     | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
     | (DrvQuote(_, _), _) => false
+    | (BbQuote(b1), BbQuote(b2)) => b1 == b2
+    | (BbQuote(_), _) => false
     };
   }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -884,6 +886,8 @@ let equality =
     | (Any (), _) => false
     | (Drv(d1), Drv(d2)) => d1 == d2
     | (Drv(_), _) => false
+    | (Bb(b1), Bb(b2)) => b1 == b2
+    | (Bb(_), _) => false
     };
   };
 

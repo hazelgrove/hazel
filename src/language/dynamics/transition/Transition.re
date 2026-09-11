@@ -828,6 +828,10 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
+    /* A Blackboard document does not evaluate; it is already a value. */
+    | BbQuote(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
     | DrvQuote(_) =>
       let. _ = otherwise(env, d);
       let d' = drv_transition(env, d);

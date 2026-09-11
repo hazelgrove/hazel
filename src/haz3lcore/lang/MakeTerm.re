@@ -57,6 +57,8 @@ let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
+let is_tuple_bb = is_nary(Any.is_bb, ",");
+let is_seq_bb = is_nary(Any.is_bb, ";");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
 let is_sig_seq = is_nary(Any.is_sig, ";");
@@ -315,6 +317,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       | TPat => TPat(drv_tpat(unsorted(Drv(TPat), skel, seg)))
       },
     )
+  | Bb(Term) => Bb(bb(unsorted(Bb(Term), skel, seg)))
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
@@ -331,6 +334,65 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       go_s(sort, skel, seg);
     };
   }
+and bb = unsorted => {
+  let (term, inner_ids) = bb_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    b => Bb(b),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+/* Blackboard tiles map one for one onto BbGrammar; see Form.bb_get.  The
+   dependent arrow and the reading of `x : T` as a signature entry happen
+   later, in Bb.to_kernel. */
+and bb_term: unsorted => (BbTermBase.term, list(Id.t)) = {
+  let ret = (tm: BbTermBase.term) => (tm, []);
+  let hole: unsorted => BbTermBase.term =
+    unsorted => Hole(Any.bb_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([t], []) =>
+      switch (t) {
+      | "type" => ret(Type)
+      | _ when Token.is_wild(t) => ret(Var("_"))
+      | _ when Token.is_typ_var(t) => ret(Var(t))
+      | _ => ret(hole(tm))
+      }
+    | (["(", ")"], [Bb(body)]) => ret(Parens(body))
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(_id, (labels, [Bb(entries)]))], []), Bb(tactic)) as tm =>
+    switch (labels) {
+    | ["assume", "by"] => ret(Assume(entries, tactic))
+    | ["construct", "by"] => ret(Construct(entries, tactic))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Bb(l), ([(_id, ([t], []))], []), Bb(r)) as tm =>
+    switch (t) {
+    | ":" => ret(Mem(l, r))
+    | "->" => ret(Arrow(l, r))
+    | "," => ret(Tuple([l, r]))
+    | ";" => ret(Seq([l, r]))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Bb(l), tiles, Bb(r)) as tm =>
+    switch (is_tuple_bb(tiles), is_seq_bb(tiles)) {
+    | (Some(between), _) => ret(Tuple([l] @ between @ [r]))
+    | (_, Some(between)) => ret(Seq([l] @ between @ [r]))
+    | _ => ret(hole(tm))
+    }
+  | Post(Bb(l), ([(_id, t)], [])) as tm =>
+    switch (t) {
+    | (["(", ")"], [Bb(r)]) => ret(Ap(l, r))
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
 and drv_exp = unsorted => {
   let (term, inner_ids) = drv_exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -721,6 +783,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(DrvQuote(Pat(p), Pat))
       | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvQuote(TPat(tp), TPat))
+      /* [blackboard] / [end] lift a Blackboard document up to sort Exp. */
+      | (["blackboard", "end"], [Bb(b)]) => ret(BbQuote(b))
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
@@ -1590,6 +1654,11 @@ let for_projection =
           switch (drv_exp(unsorted)) {
           | {term: Tuple(_), _} => None
           | _ => Some(Grammar.Drv(Exp(drv_exp(unsorted))))
+          }
+        | Bb(_) =>
+          switch (bb(unsorted)) {
+          | {term: Tuple(_) | Seq(_), _} => None
+          | b => Some(Grammar.Bb(b))
           }
         | Exp =>
           switch (exp(unsorted)) {

@@ -16,6 +16,13 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
+    /* Blackboard: an experiment embedding the core logic of the
+       Blackboard proof assistant as its own sort. */
+    ("Blackboard / 0. Overview", [%blob "overview.hz"]),
+    ("Blackboard / 1. Terms", [%blob "terms.hz"]),
+    ("Blackboard / 2. Signatures", [%blob "signatures.hz"]),
+    ("Blackboard / 3. Checking", [%blob "checking.hz"]),
+    ("Blackboard / 4. Metatheory", [%blob "metatheory.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

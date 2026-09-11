@@ -38,6 +38,18 @@ let type_binder = 15;
 // poly t -> _____
 // rec t -> _____
 
+// ===== BLACKBOARD (its own sort; only the relative order matters) =====
+// f(_____)
+let bb_ap = 17;
+// _____ : T
+let bb_mem = 18 |> left_associative;
+// A -> _____
+let bb_arrow = 20 |> right_associative;
+// (x : A) -> _____
+/* Blocks must bind tighter than the `;` that separates them, so that a
+   block's tactic does not swallow the following block. */
+let bb_block = 30;
+
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 

@@ -30,11 +30,23 @@ let read_file = (path: string): string => {
    agents/users write falls back to the quadratic typing parser — fix
    FastParse or the printer rather than tolerating it. Skips silently
    when the corpus is unreachable (sandboxed dune runtest). */
-/* Empty as of 2026-08-08: every .hz in the repo takes the fast path.
-   A new entry here means a construct regressed off it — fix the
-   grammar/printer rather than ledgering, unless the file is a
-   deliberately-invalid or delimiter-incomplete exhibit. */
-let known_gaps: list(string) = [];
+/* A new entry here means a construct regressed off the fast path — fix
+   the grammar/printer rather than ledgering, unless the file is a
+   deliberately-invalid or delimiter-incomplete exhibit, or belongs to a
+   sub-language the menhir parser does not cover at all.
+
+   The Blackboard slides are the latter: `blackboard ... end` and the
+   Bb-sorted forms inside it have no menhir productions, as with the ALFA
+   derivation sub-language, so these files load through the typing parser.
+   Their fidelity is pinned by DocSlides.ReparseBackuptext. Remove these
+   entries if Blackboard gains menhir support. */
+let known_gaps: list(string) = [
+  "overview.hz",
+  "terms.hz",
+  "signatures.hz",
+  "checking.hz",
+  "metatheory.hz",
+];
 
 let tests = (
   "FastParseCorpus",

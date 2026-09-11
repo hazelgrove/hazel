@@ -432,6 +432,7 @@ let rec replace_exp =
         | Deferral(_)
         | Atom(_)
         | DrvQuote(_, _)
+        | BbQuote(_)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)

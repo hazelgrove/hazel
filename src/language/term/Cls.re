@@ -1,6 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type t =
   | Drv(Drv.Any.cls)
+  | Bb(Bb.Term.cls)
   | Exp(Exp.cls)
   | Pat(Pat.cls)
   | Typ(Typ.cls)
@@ -14,6 +15,7 @@ type t =
 let show = (cls: t) =>
   switch (cls) {
   | Drv(cls) => "ALFA " ++ Drv.Any.show_cls(cls)
+  | Bb(cls) => "Blackboard " ++ Bb.Term.show_cls(cls)
   | Exp(cls) => Exp.show_cls(cls)
   | Pat(cls) => Pat.show_cls(cls)
   | Typ(cls) => Typ.show_cls(cls)

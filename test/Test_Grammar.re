@@ -44,6 +44,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(String) => string("hello")
       | Atom(Nat) => nat(Bigint.one)
       | DrvQuote => drv_exp(DrvGrammar.placeholder(), DrvSort.Jdmt)
+      | BbQuote => bb_exp(BbGrammar.placeholder())
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)

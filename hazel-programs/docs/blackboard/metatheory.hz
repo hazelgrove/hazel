@@ -1,0 +1,48 @@
+# BLACKBOARD: METATHEORY #
+
+# The rules in these slides are not taken on trust. They are formalized #
+# in Rocq, in the repository under mech/Blackboard.v, and every theorem #
+# below is machine-checked with no axioms. #
+
+# The file covers BOTH versions of the rules at once: the figure as #
+# first written, and the corrected one whose arrow-introduction rule #
+# also demands that the domain be a type. A flag selects between them. #
+
+# THEOREM 1: THE CORE LOGIC IS CONSISTENT #
+# There is no closed proof of the empty type. #
+
+blackboard
+
+assume
+  absurd : type;
+  absurd-eq : (X : type) -> X
+by tychk
+
+end
+
+# The proof is a two-point model: read every type as true or false, #
+# read `t : T` as T, read an arrow as implication, and check that all #
+# eight rules preserve truth. `(X : type) -> X` reads as `for all b, b`, #
+# which is false, so it is not derivable. #
+
+# THEOREM 2: CONSTRUCTION BLOCKS ARE CONSERVATIVE #
+# If a construct block meets its obligation, anything it lets you prove #
+# that does not mention the new names was already provable. Proved for #
+# a signature of any length. #
+
+# WHAT THE MODELS DO NOT SETTLE #
+# The two-point model says nothing about the assumptions in these #
+# slides, because it makes every equation true. A five-point model gets #
+# further -- it proves the first version of the rules is NOT regular, #
+# since it derives an inhabited arrow whose domain is not a type -- but #
+# it still cannot validate the rule that transports along an equation. #
+
+# THE OPEN PROBLEM #
+# Consistency of the assumptions used in practice -- equality with #
+# transport, refinement, intersection, quotients, a small universe -- #
+# is open. The obstacle is that the meaning of `(X : type) -> X` is #
+# defined in terms of itself, which is the semantic face of Type:Type. #
+# The promising route is a stratification theorem: show that any #
+# derivation can be assigned universe levels after the fact. That would #
+# be the precise form of the claim that abstraction, not Type:Type, is #
+# what has to be restrained. #

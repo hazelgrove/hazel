@@ -33,6 +33,24 @@ let drv_hole = (tms: list(TermBase.Any.t)): DrvTermBase.type_hole =>
     | tms => DrvGrammar.MultiHole(tms)
   );
 
+let is_bb: t => option(BbTermBase.t) =
+  fun
+  | Bb(b) => Some(b)
+  | _ => None;
+
+let bb_hole = (tms: list(TermBase.Any.t)): BbTermBase.hole =>
+  tms
+  |> List.filter_map(
+       fun
+       | Grammar.Bb(b) => Some(b)
+       | _ => None,
+     )
+  |> (
+    fun
+    | [] => BbGrammar.EmptyHole
+    | tms => BbGrammar.MultiHole(tms)
+  );
+
 let is_mod: t => option(TermBase.Mod.t) =
   fun
   | Mod(m) => Some(m)
@@ -51,6 +69,7 @@ let rec ids: TermBase.any_t => list(Id.t) =
   | TPat(tm) => IdTagged.ids(tm)
   | Rul(tm) => Rul.ids(~any_ids=ids, tm)
   | Drv(tm) => Drv.Any.ids(tm)
+  | Bb(tm) => IdTagged.ids(tm)
   | Mod(tm) => IdTagged.ids(tm)
   | Sig(tm) => IdTagged.ids(tm)
   | MPat(tm) => IdTagged.ids(tm)
@@ -75,6 +94,7 @@ let rep_id =
   | TPat(tm) => TPat.rep_id(tm)
   | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
   | Drv(tm) => Drv.Any.rep_id(tm)
+  | Bb(tm) => IdTagged.rep_id(tm)
   | Mod(tm) => IdTagged.rep_id(tm)
   | Sig(tm) => IdTagged.rep_id(tm)
   | MPat(tm) => IdTagged.rep_id(tm)

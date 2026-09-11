@@ -20,6 +20,7 @@ type any_t('a) =
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
   | Drv(DrvGrammar.any_t('a))
+  | Bb(BbGrammar.t('a))
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
@@ -33,6 +34,7 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
+  | BbQuote(BbGrammar.t('a))
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -185,6 +187,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Undefined => Undefined
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
+        | BbQuote(b) => BbQuote(BbGrammar.map_annotation(f, b))
         | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
@@ -312,6 +315,7 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
     | Drv(d) => Drv(DrvGrammar.map_any_annotation(f, d))
+    | Bb(b) => Bb(BbGrammar.map_annotation(f, b))
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
@@ -545,6 +549,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
+  module BbGrammar = {
+    let placeholder = (~ann=?, ()): BbGrammar.t(DefaultAnnotation.t) => {
+      term: BbGrammar.Hole(EmptyHole),
+      annotation: default_annotation(ann),
+    };
+  };
   module DrvGrammar = {
     let placeholder = (~ann=?, ()): DrvGrammar.any_t(DefaultAnnotation.t) =>
       DrvGrammar.Exp({
@@ -606,6 +616,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(Nat(i)),
+      annotation: default_annotation(ann),
+    };
+    let bb_exp = (~ann=?, b): exp_t(DefaultAnnotation.t) => {
+      term: BbQuote(b),
       annotation: default_annotation(ann),
     };
     let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {

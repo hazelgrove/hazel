@@ -1,0 +1,43 @@
+# BLACKBOARD: OVERVIEW #
+
+# Blackboard is a proof assistant designed for expressiveness with very #
+# few primitive concepts: four term formers and eight inference rules. #
+# This is an early experiment embedding its core logic in Hazel. #
+
+# The core logic has ONE syntactic class. A term may be: #
+#   a name             x #
+#   the type of types  type #
+#   a membership       t : T #
+#   a function type    (x : A) -> B #
+#   an application     f(a) #
+
+# There is no lambda. Functions are postulated, never introduced. That #
+# is what lets Blackboard keep a self-containing type of types without #
+# becoming inconsistent: the paradoxes need abstraction, not Type:Type. #
+
+blackboard
+
+# A document is a sequence of blocks. An `assume` block postulates #
+# names; its only obligation is that each declared type IS a type. #
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  refl : (A : type) -> (a : A) -> eq(A, a, a)
+by tychk;
+
+# A `construct` block instead claims a conservative extension: the #
+# signature must be shown inhabited, and the witness is then discarded. #
+# Only the signature carries meaning. #
+
+construct
+  false : type;
+  false-eq : eq(type, false, (X : type) -> X)
+by definition
+
+end
+
+# WHERE TO GO NEXT #
+# 1. Terms       the five forms, and how they nest #
+# 2. Signatures  assume, construct, and what `by` means #
+# 3. Checking    what the editor checks, and what it cannot #
+# 4. Metatheory  the machine-checked proofs behind the rules #

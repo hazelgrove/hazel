@@ -426,6 +426,7 @@ module rec Exp: {
        converting core DrvQuote values back to the menhir AST is not
        meaningful. */
     | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
+    | BbQuote(_) => raise(Failure("BbQuote not supported"))
     | Projector(_, e) => of_core(e)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>

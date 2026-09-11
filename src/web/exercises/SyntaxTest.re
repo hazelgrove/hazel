@@ -132,6 +132,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | BbQuote(_)
   | ExplicitNonlabel
   | LivelitName(_)
   | Constructor(_)
@@ -195,6 +196,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | BbQuote(_)
   | ExplicitNonlabel
   | Constructor(_)
   | Undefined
@@ -285,6 +287,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | BbQuote(_)
   | ExplicitNonlabel
   | Constructor(_)
   | Undefined
@@ -405,6 +408,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | BbQuote(_)
   | Constructor(_)
   | Undefined
   | Var(_)
