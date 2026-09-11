@@ -68,36 +68,48 @@ module M: Projector = {
   let elaborate_syntax = false;
   let focusable = Focusable.non;
 
-  let display_mode = (model: model, statics: option(Language.Info.t)): string => {
-    switch (model) {
-    | Dynamic => "⇓"
-    /* ↔ not ⇔: the bundled font has no bidirectional double arrow, and a
-       fallback renders differently per browser (see proj-type.css). */
-    | _ when self_ty(statics) == expected_ty(statics) => "↔"
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
-    | Self => "⇒"
-    | Expected => "⇐"
-    };
-  };
-  let mode_description =
-      (model: model, statics: option(Language.Info.t)): string => {
-    switch (model) {
-    | Dynamic => "Dynamic type (from runtime values)"
-    | _ when self_ty(statics) == expected_ty(statics) => "Self type matches expected type"
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "Self type"
-    | Self => "Self type"
-    | Expected => "Expected type"
-    };
+  /* The arrow and the tooltip describe the same reading, so one cascade
+     decides both. The model says which reading was asked for; this says
+     which it came to, since Expected falls back to Self where there is no
+     expectation, and either reads as agreement where the two coincide. */
+  type mode = {
+    glyph: string,
+    description: string,
   };
 
-  let mode_view = (model, info) =>
+  let mode = (model: model, statics: option(Language.Info.t)): mode =>
+    switch (model) {
+    | Dynamic => {
+        glyph: "⇓",
+        description: "Dynamic type (from runtime values)",
+      }
+    /* ↔ not ⇔: the bundled font has no bidirectional double arrow, and a
+       fallback renders differently per browser (see proj-type.css). */
+    | _ when self_ty(statics) == expected_ty(statics) => {
+        glyph: "↔",
+        description: "Self type matches expected type",
+      }
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => {
+        glyph: "⇒",
+        description: "Self type",
+      }
+    | Self => {
+        glyph: "⇒",
+        description: "Self type",
+      }
+    | Expected => {
+        glyph: "⇐",
+        description: "Expected type",
+      }
+    };
+
+  let mode_view = (model, info) => {
+    let {glyph, description} = mode(model, info);
     div(
-      ~attrs=[
-        Attr.classes(["mode"]),
-        Attr.title(mode_description(model, info)),
-      ],
-      [text(display_mode(model, info))],
+      ~attrs=[Attr.classes(["mode"]), Attr.title(description)],
+      [text(glyph)],
     );
+  };
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
     /* Every arm yields its own segment, so Dynamic can hand over the exact
