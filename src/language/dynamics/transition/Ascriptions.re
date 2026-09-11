@@ -32,11 +32,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) =>
-        /* Collapse under e's id, per ID PRESERVATION above: the evaluator
-           opens an observation span for a target id and closes it on the
-           final value (Evaluator.eval_3_record_probe_sample), so keeping the
-           id here is what gets this ascription a sample. Minting one at
-           collapse time instead would capture the operand unevaluated. */
         Some(
           recur(
             IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
