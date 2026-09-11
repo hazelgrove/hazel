@@ -211,10 +211,6 @@ module type Projector = {
    * caret & keyboard handlers? If so, provide handlers
    * here (see Focusable for more information) */
   let focusable: Focusable.t;
-  /* If dynamics is true, this projector will be
-   * instrumented with a probe to collect dynamic
-   * information during evaluation */
-  let dynamics: bool;
   /* Whether this projector needs type-elaborated syntax.
    *
    * Some projectors (e.g. TableProj) require syntactic features
@@ -276,7 +272,6 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
   let init = any => C.init(any) |> Option.map(serialize_m);
   let focusable = C.focusable;
-  let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
   let view = (args: View.args(model, action)) =>
     C.view({
