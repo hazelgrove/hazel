@@ -79,3 +79,6 @@ __pycache__/
 # Written by the FumolaPrint test group, for scripts/check-fumola-roundtrip.sh
 fumola-corpus.txt
 fumola-corpus-explicit.txt
+
+fumola-tiles-corpus.txt
+fumola-tiles-corpus-explicit.txt

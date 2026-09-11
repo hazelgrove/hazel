@@ -108,6 +108,7 @@ module Utils = {
     | Module(_) => []
     | ModuleExp(_, def, body) => [def, body]
     | DrvQuote(_) => []
+    | FumolaQuote(_) => []
     };
   };
 

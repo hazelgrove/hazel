@@ -46,6 +46,28 @@ against the real parser rather than read off the `.lalrpop` and believed:
    position — a block elsewhere goes out as `do { … }`, which is a block
    wherever it stands.
 
+## Where the tile surface differs from Fumola's (M1)
+
+The tile spelling is not always Fumola's spelling, because Hazel's tokenizer
+forbids some of it. The printer translates, and the round-trip script is what
+holds the translation honest.
+
+| Fumola writes | the tile is | why |
+|---|---|---|
+| `#tag`, `#tag e` | `$tag`, `$tag(e)` | `#` is Hazel's comment delimiter, so `#tag` is neither an operand nor an operator token and cannot be a tile at all. `$` is a name character here and is unused in Fumola's grammar. |
+| `f a` | `f(a)` | tiles need a token for every form, and juxtaposition has none. Fumola reads `f(a)` as application to a parenthesized argument, so the two mean the same thing. |
+| `{ … }` as a block | `{ … }` | same spelling, but only a block in a nest position; see above. |
+
+Checked, not assumed: `#tag` is `neither` to `Token.is_potential_operand` and
+`is_potential_operator`, while `$tag`, `'tag`, `?tag` and `^tag` are all
+operands. `?` and `^` are already spoken for -- holes, and the livelit and
+projector prefixes -- which leaves `$` and `'`.
+
+Note that Fumola's `#tag` is a *value*, an injection into a variant, not a
+declaration of one. Hazel's `+` infix declares the arms of a sum *type*, which
+is a different level and belongs with the type sublanguage, if that ever
+arrives.
+
 ## How the contract is checked
 
 Two checks, because agreeing with ourselves is not evidence.

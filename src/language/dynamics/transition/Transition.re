@@ -828,6 +828,11 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
+    /* A Fumola program does not evaluate here; the tile tree is a value,
+       and running it against its instance is M2's job. */
+    | FumolaQuote(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
     | DrvQuote(_) =>
       let. _ = otherwise(env, d);
       let d' = drv_transition(env, d);

@@ -149,3 +149,106 @@ module M =
 
 module M_Annotated = M(Annotated);
 include M_Annotated;
+
+
+let rec map_annotation: type a b. (a => b, exp(a)) => exp(b) =
+  (f, e) => {
+    let go = x => map_annotation(f, x);
+    let go_ds = ds => List.map(map_dec_annotation(f), ds);
+    let term: exp_term(b) =
+      switch (e.term) {
+      | Hole(h) => Hole(map_hole_annotation(f, h))
+      | Var(x) => Var(x)
+      | Lit(l) => Lit(l)
+      | Paren(e) => Paren(go(e))
+      | Tuple(es) => Tuple(List.map(go, es))
+      | Block(ds) => Block(go_ds(ds))
+      | Array(v, es) => Array(v, List.map(go, es))
+      | QuotedId(x) => QuotedId(x)
+      | Prim(s) => Prim(s)
+      | Ap(a, b) => Ap(go(a), go(b))
+      | Proj(e, x) => Proj(go(e), x)
+      | Index(a, b) => Index(go(a), go(b))
+      | Bang(e) => Bang(go(e))
+      | Variant(t, e) => Variant(t, Option.map(go, e))
+      | Opt(e) => Opt(go(e))
+      | Un(u, e) => Un(u, go(e))
+      | Not(e) => Not(go(e))
+      | Unquote(e) => Unquote(go(e))
+      | Bin(a, o, b) => Bin(go(a), o, go(b))
+      | Rel(a, o, b) => Rel(go(a), o, go(b))
+      | And(a, b) => And(go(a), go(b))
+      | Or(a, b) => Or(go(a), go(b))
+      | If(c, t, f') => If(go(c), go(t), Option.map(go, f'))
+      | Switch(e, cs) =>
+        Switch(go(e), List.map(map_case_annotation(f), cs))
+      | Assert(e) => Assert(go(e))
+      | Ignore(e) => Ignore(go(e))
+      | Return(e) => Return(Option.map(go, e))
+      | Thunk(ds) => Thunk(go_ds(ds))
+      | Force(e) => Force(go(e))
+      | Put(a, b) => Put(go(a), go(b))
+      | Get(e) => Get(go(e))
+      | DoPutForce(a, b) => DoPutForce(go(a), go(b))
+      | DoNav(n, d, e, ds) => DoNav(n, go(d), go(e), go_ds(ds))
+      };
+    {
+      term,
+      annotation: f(e.annotation),
+    };
+  }
+
+and map_dec_annotation: type a b. (a => b, dec(a)) => dec(b) =
+  (f, d) => {
+    let term: dec_term(b) =
+      switch (d.term) {
+      | DHole(h) => DHole(map_hole_annotation(f, h))
+      | DExp(e) => DExp(map_annotation(f, e))
+      | DLet(p, e) => DLet(map_pat_annotation(f, p), map_annotation(f, e))
+      | DVar(p, e) => DVar(map_pat_annotation(f, p), map_annotation(f, e))
+      | DFunc(n, p, ds) =>
+        DFunc(
+          n,
+          map_pat_annotation(f, p),
+          List.map(map_dec_annotation(f), ds),
+        )
+      };
+    {
+      term,
+      annotation: f(d.annotation),
+    };
+  }
+
+and map_case_annotation: type a b. (a => b, case(a)) => case(b) =
+  (f, c) => {
+    pat: map_pat_annotation(f, c.pat),
+    body: map_annotation(f, c.body),
+  }
+
+and map_pat_annotation: type a b. (a => b, pat(a)) => pat(b) =
+  (f, p) => {
+    let go = x => map_pat_annotation(f, x);
+    let term: pat_term(b) =
+      switch (p.term) {
+      | PHole(h) => PHole(map_hole_annotation(f, h))
+      | PVar(x) => PVar(x)
+      | PWild => PWild
+      | PLit(l) => PLit(l)
+      | PParen(p) => PParen(go(p))
+      | PTuple(ps) => PTuple(List.map(go, ps))
+      | PVariant(t, p) => PVariant(t, Option.map(go, p))
+      | POpt(p) => POpt(go(p))
+      };
+    {
+      term,
+      annotation: f(p.annotation),
+    };
+  }
+
+and map_hole_annotation: type a b. (a => b, hole(a)) => hole(b) =
+  (f, h) =>
+    switch (h) {
+    | Invalid(s) => Invalid(s)
+    | EmptyHole => EmptyHole
+    | MultiHole(es) => MultiHole(List.map(map_annotation(f), es))
+    };

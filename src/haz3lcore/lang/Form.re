@@ -95,6 +95,8 @@ let mk_parens = (sort: Sort.t) =>
 type atomic_form =
   | Var
   | DrvVar
+  | FumolaVar
+  | FumolaTag
   | ExplicitHole
   | ImplicitHoleMarker
   | LLMHole
@@ -193,6 +195,82 @@ type drv_compound_form =
   | ParenExp
   | ParenPat
   | ParenTyp;
+
+/* Fumola forms.  One sort, Fumola(Exp), for expressions, declarations and
+   blocks, plus Fumola(Name) for the instance the program runs against.
+
+   The ladder of infix operators is fumola_parser's, and its order is not the
+   one intuition suggests: `|`, `&` and `^` bind tighter than `+` and `*`, and
+   the prefix forms below (`thunk`, `force`, `@`) are looser than every one of
+   them, so `force x + 1` does not parse in Fumola at all.  See
+   src/language/fumola/README.md. */
+[@deriving enumerate]
+type fumola_compound_form =
+  | FumolaOf
+  | FumolaParens
+  | FumolaBlock
+  | FumolaAp
+  | FumolaIndex
+  | FumolaComma
+  | FumolaSemi
+  | FumolaLet
+  | FumolaPut
+  | FumolaOr
+  | FumolaAnd
+  | FumolaEq
+  | FumolaNeq
+  | FumolaLt
+  | FumolaGt
+  | FumolaLeq
+  | FumolaGeq
+  | FumolaPlus
+  | FumolaMinus
+  | FumolaTimes
+  | FumolaDivide
+  | FumolaMod
+  | FumolaPow
+  | FumolaBitOr
+  | FumolaBitAnd
+  | FumolaThunk
+  | FumolaForce
+  | FumolaGet;
+
+let fumola_get: fumola_compound_form => t =
+  fun
+  /* The instance is named in the program text so that the adapton store
+     survives an edit; see docs/fumola-tiles-design.md. */
+  | FumolaOf =>
+    mk_op_c(L, ["fumola", "in", "end"], Exp, [Fumola(Name), Fumola(Exp)])
+  | FumolaParens => mk_parens(Fumola(Exp))
+  | FumolaBlock => mk_op_c(LT, ["{", "}"], Fumola(Exp), [Fumola(Exp)])
+  | FumolaAp =>
+    mk_post_c(LT, ["(", ")"], P.fum_post, Fumola(Exp), [Fumola(Exp)])
+  | FumolaIndex =>
+    mk_post_c(LT, ["[", "]"], P.fum_post, Fumola(Exp), [Fumola(Exp)])
+  | FumolaComma => mk_infix(",", Fumola(Exp), P.fum_comma)
+  | FumolaSemi => mk_infix(";", Fumola(Exp), P.fum_semi)
+  | FumolaLet =>
+    mk_pre_c(L, ["let", "="], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
+  | FumolaPut => mk_infix(":=", Fumola(Exp), P.fum_stmt)
+  | FumolaOr => mk_infix("or", Fumola(Exp), P.fum_or)
+  | FumolaAnd => mk_infix("and", Fumola(Exp), P.fum_and)
+  | FumolaEq => mk_infix("==", Fumola(Exp), P.fum_rel)
+  | FumolaNeq => mk_infix("!=", Fumola(Exp), P.fum_rel)
+  | FumolaLt => mk_infix("<", Fumola(Exp), P.fum_rel)
+  | FumolaGt => mk_infix(">", Fumola(Exp), P.fum_rel)
+  | FumolaLeq => mk_infix("<=", Fumola(Exp), P.fum_rel)
+  | FumolaGeq => mk_infix(">=", Fumola(Exp), P.fum_rel)
+  | FumolaPlus => mk_infix("+", Fumola(Exp), P.fum_add)
+  | FumolaMinus => mk_infix("-", Fumola(Exp), P.fum_add)
+  | FumolaTimes => mk_infix("*", Fumola(Exp), P.fum_mul)
+  | FumolaDivide => mk_infix("/", Fumola(Exp), P.fum_mul)
+  | FumolaMod => mk_infix("%", Fumola(Exp), P.fum_mul)
+  | FumolaPow => mk_infix("**", Fumola(Exp), P.fum_pow)
+  | FumolaBitOr => mk_infix("|", Fumola(Exp), P.fum_bitor)
+  | FumolaBitAnd => mk_infix("&", Fumola(Exp), P.fum_bitand)
+  | FumolaThunk => mk_prefix("thunk", Fumola(Exp), P.fum_stmt)
+  | FumolaForce => mk_prefix("force", Fumola(Exp), P.fum_stmt)
+  | FumolaGet => mk_prefix("@", Fumola(Exp), P.fum_stmt);
 
 /* let all_of_drv_compound_form: list(_) = []; */
 
@@ -405,6 +483,8 @@ type compound_form =
   | Use
   // Drv
   | Drv(drv_compound_form)
+  // Fumola
+  | Fumola(fumola_compound_form)
   // TRIPLE DELIMITERS
   | Let
   | Theorem
@@ -514,6 +594,8 @@ let get: compound_form => t =
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
+  // Fumola
+  | Fumola(fumola_compound_form) => fumola_get(fumola_compound_form)
   // Theorem Capture
   | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
@@ -685,8 +767,13 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Type => (Token.is_base_typ, [op(Typ)])
   | DrvVar => (
       Token.is_typ_var,
-      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(Typ)), op(Drv(TPat))],
-    );
+      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(TPat)), op(Drv(Typ))],
+    )
+  /* An identifier is a Fumola variable, and in the instance position it is
+     the name of the Fumola VM instance the program runs against. */
+  | FumolaVar => (Token.is_typ_var, [op(Fumola(Exp)), op(Fumola(Name))])
+  /* `$tag`, which prints as Fumola's `#tag`; see Token.is_fumola_tag. */
+  | FumolaTag => (Token.is_fumola_tag, [op(Fumola(Exp))]);
 
 module Molds = {
   let atomics: list((Token.t => bool, list(Mold.t))) =

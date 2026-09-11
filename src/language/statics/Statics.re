@@ -47,6 +47,8 @@ let rec any_to_info_map =
   | Drv(drv) =>
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
+  /* Fumola statics arrive with M2, together with running the program. */
+  | Fumola(f) => (CoCtx.empty, Fumola(f), m)
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
@@ -456,6 +458,18 @@ and uexp_to_info_map =
       add(
         ~elab_term=Undefined |> rewrap,
         ~elab_syn_ty=Unknown(Hole(EmptyHole)) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      )
+    /* A Fumola program is inert in an expression for now: the tile tree is
+       built and printed, but nothing runs it and nothing gives it a Hazel
+       type. Handing it to the instance it names, and the type of what comes
+       back, are M2. */
+    | FumolaQuote(name, body) =>
+      add(
+        ~elab_term=FumolaQuote(name, body) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,

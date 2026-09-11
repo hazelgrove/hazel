@@ -129,6 +129,8 @@ module rec Any: {
       /* Drv terms have their own traversal machinery in DrvTermBase; the
          generic Any.map_term doesn't descend into them. */
       | Drv(x) => Drv(x)
+      /* Fumola terms likewise: FumolaGrammar carries its own traversal. */
+      | Fumola(x) => Fumola(x)
       | Mod(x) =>
         Mod(Mod.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Sig(x) =>
@@ -207,6 +209,7 @@ and Exp: {
         | Invalid(_)
         | Atom(_)
         | DrvQuote(_)
+        | FumolaQuote(_)
         | Constructor(_)
         | Label(_)
         | ExplicitNonlabel

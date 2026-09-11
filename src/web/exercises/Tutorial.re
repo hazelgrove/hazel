@@ -193,6 +193,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Deferral(_)
   | Atom(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)

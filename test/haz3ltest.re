@@ -18,6 +18,7 @@ let (suite, exit_with_test_status) =
     "HazelTests",
     [
       Test_FumolaPrint.tests,
+      Test_FumolaTiles.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,

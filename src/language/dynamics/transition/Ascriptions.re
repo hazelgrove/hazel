@@ -282,6 +282,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     // These are handled above and must have the wrong type
     | (Atom(_), _)
     | (DrvQuote(_), _)
+    | (FumolaQuote(_), _)
     | (ListLit(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)

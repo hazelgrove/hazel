@@ -737,6 +737,10 @@ let decide =
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp = (term): decision =>
       switch ((term: Exp.term)) {
+      | FumolaQuote(_) =>
+        Markdown(
+          "A Fumola program, running against the Fumola VM instance named after `fumola`. The instance is named in the program text rather than derived, so the adapton store it holds survives an edit.",
+        )
       | DrvQuote(_) =>
         Markdown(
           "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",

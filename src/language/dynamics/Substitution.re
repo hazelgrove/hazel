@@ -77,6 +77,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Deferral(_)
         | Atom(_)
         | DrvQuote(_)
+        | FumolaQuote(_)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)

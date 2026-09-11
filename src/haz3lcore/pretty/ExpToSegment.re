@@ -122,6 +122,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Invalid(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | DrvQuote(_)
+  | FumolaQuote(_)
   | EmptyHole
   | Deferral(_)
   | ExplicitNonlabel
@@ -356,6 +357,7 @@ let rec parenthesize =
   | Invalid(_)
   | Atom(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
   | EmptyHole
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
@@ -976,6 +978,7 @@ and parenthesize_any =
      Pretty-printing produces the term as-is; this is sound (never adds
      invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
+  | Fumola(_) => any
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
@@ -1776,6 +1779,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | TPat => OfAlfaTPat
       };
     [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
+  | FumolaQuote(name, body) =>
+    let+ name = fumola_to_pretty(~settings, name)
+    and+ body = fumola_to_pretty(~settings, body);
+    [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [name, body])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -3026,6 +3033,151 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
 and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
   p_just(mpat_to_seg(~settings, mp));
 }
+/* Fumola terms print as the tiles they came from; see Form.fumola_get. The
+   parentheses come from Paren nodes in the term, not from precedence: the
+   precedence-driven parenthesization lives in FumolaPrint, which is what the
+   runtime sees, and this is only the editor's rendering. */
+and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = fumola_to_pretty(~settings);
+  let id = f |> IdTagged.rep_id;
+  let infix = (form, l, r) => {
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Form.Fumola(form), id, [])] @ r;
+  };
+  let prefix = (form, e) => {
+    let+ e = go(e);
+    [mk_form(Form.Fumola(form), id, [])] @ e;
+  };
+  let rec sep = (form, ts) =>
+    switch (ts) {
+    | [] => p_just([])
+    | [t] => go(t)
+    | [t, ...rest] =>
+      let+ t = go(t)
+      and+ rest = sep(form, rest);
+      t @ [mk_form(Form.Fumola(form), id, [])] @ rest;
+    };
+  let dec_to_exp = (d: FumolaTermBase.dec): FumolaTermBase.t =>
+    switch (d.term) {
+    | DExp(e) => e
+    | DHole(h) => {
+        term: Hole(h),
+        annotation: d.annotation,
+      }
+    /* let, var and func have no Fumola-sorted expression to stand for them
+       here; M1 renders only what its tiles can build. */
+    | DLet(_, e)
+    | DVar(_, e) => e
+    | DFunc(_, _, _) => {
+        term: Hole(EmptyHole),
+        annotation: d.annotation,
+      }
+    };
+  let block_of = ds => sep(FumolaSemi, List.map(dec_to_exp, ds));
+  let unbuildable = () =>
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ]);
+  switch (f.term) {
+  | Hole(Invalid(s)) => text_to_pretty(id, Sort.Fumola(Exp), s)
+  | Hole(EmptyHole) =>
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ])
+  | Hole(MultiHole(ts)) => sep(FumolaSemi, ts)
+  | Var(x) => text_to_pretty(id, Sort.Fumola(Exp), x)
+  | Lit(l) => text_to_pretty(id, Sort.Fumola(Exp), FumolaPrint.lit_token(l))
+  | Paren(t) =>
+    let+ t = go(t);
+    [mk_form(Form.Fumola(FumolaParens), id, [t])];
+  | Block(ds) =>
+    let+ b = block_of(ds);
+    [mk_form(Form.Fumola(FumolaBlock), id, [b])];
+  | Tuple(ts) => sep(FumolaComma, ts)
+  | Ap(f, a) =>
+    let+ f = go(f)
+    and+ a = go(a);
+    f @ [mk_form(Form.Fumola(FumolaAp), id, [a])];
+  | Index(e, i) =>
+    let+ e = go(e)
+    and+ i = go(i);
+    e @ [mk_form(Form.Fumola(FumolaIndex), id, [i])];
+  | Put(l, r) => infix(FumolaPut, l, r)
+  | Or(l, r) => infix(FumolaOr, l, r)
+  | And(l, r) => infix(FumolaAnd, l, r)
+  | Rel(l, op, r) =>
+    infix(
+      switch (op) {
+      | Eq => FumolaEq
+      | Neq => FumolaNeq
+      | Lt => FumolaLt
+      | Gt => FumolaGt
+      | Le => FumolaLeq
+      | Ge => FumolaGeq
+      },
+      l,
+      r,
+    )
+  | Bin(l, op, r) =>
+    switch (op) {
+    | Add => infix(FumolaPlus, l, r)
+    | Sub => infix(FumolaMinus, l, r)
+    | Mul => infix(FumolaTimes, l, r)
+    | Div => infix(FumolaDivide, l, r)
+    | Mod => infix(FumolaMod, l, r)
+    | Pow => infix(FumolaPow, l, r)
+    | BitOr => infix(FumolaBitOr, l, r)
+    | BitAnd => infix(FumolaBitAnd, l, r)
+    /* No M1 tile spells these yet, and rendering them as some other
+       operator would be a lie the editor could not be talked out of. */
+    | Cat
+    | Xor
+    | ShL
+    | ShR
+    | RotL
+    | RotR => unbuildable()
+    }
+  | Thunk(ds) =>
+    let+ b = block_of(ds);
+    [mk_form(Form.Fumola(FumolaThunk), id, [])]
+    @ [mk_form(Form.Fumola(FumolaBlock), id, [b])];
+  | Variant(tag, None) => text_to_pretty(id, Sort.Fumola(Exp), "$" ++ tag)
+  | Variant(tag, Some(e)) =>
+    let+ tag = text_to_pretty(id, Sort.Fumola(Exp), "$" ++ tag)
+    and+ e = go(e);
+    tag @ [mk_form(Form.Fumola(FumolaAp), id, [e])];
+  | Force(e) => prefix(FumolaForce, e)
+  | Get(e) => prefix(FumolaGet, e)
+  /* No M1 tile builds these, so MakeTerm never produces one. Rendering a
+     nearest printable part -- an `if` as its condition, say -- would drop
+     program structure silently, so they render as a hole instead, which the
+     editor and FumolaPrint.has_hole both treat as incomplete. */
+  | Array(_, _)
+  | Opt(_)
+  | Un(_, _)
+  | Not(_)
+  | Unquote(_)
+  | Bang(_)
+  | Proj(_, _)
+  | Assert(_)
+  | Ignore(_)
+  | Return(_)
+  | QuotedId(_)
+  | Prim(_)
+  | If(_, _, _)
+  | Switch(_, _)
+  | DoPutForce(_, _)
+  | DoNav(_, _, _, _) => unbuildable()
+  };
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
@@ -3033,6 +3185,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Drv(d) => drv_to_pretty(~settings: Settings.t, d, ~sort=Jdmt)
+  | Fumola(f) => fumola_to_pretty(~settings, f)
   | Mod(m) => mod_to_pretty(~settings, m)
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)
