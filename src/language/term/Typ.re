@@ -1268,12 +1268,11 @@ let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
    to be marked to show how [ty'] differs. Ids in either type must be
    distinct, or the result names the wrong nodes.
 
-   PRECONDITION: [ctx] holds no alias cycle whose bodies are all Var, Parens
-   or Projector (`type A = (B) in type B = (A)`). [expanded_aliases] stops the
-   bare `type A = B in type B = A` cycle, but only the Var cases thread it
-   through, so a cycle passing through a Parens or Projector expands forever
-   -- and the calls are in tail position, so it spins rather than
-   overflowing. */
+   [expanded_aliases] names the aliases already expanded on the way here, so
+   a cycle through the context (`type A = (B) in type B = (A)`) stops rather
+   than expanding forever. Only the arms that see the same position again --
+   alias expansion and the nodes that carry no meaning of their own -- thread
+   it; descending into a component starts over. */
 let rec diff =
         (
           ~ctx: option(Ctx.t)=?,
@@ -1290,20 +1289,22 @@ let rec diff =
       ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
     };
   switch (term_of(ty), term_of(ty')) {
-  | (Parens(t1), _) => diff(~ctx?, t1, ty')
-  | (_, Projector(_, t2)) => diff(~ctx?, ty, t2)
-  | (Projector(_, t1), _) => diff(~ctx?, t1, ty')
+  | (Parens(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  | (_, Projector(_, t2)) => diff(~ctx?, ~expanded_aliases, ty, t2)
+  | (Projector(_, t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
   /* Parens carry no meaning of their own, so they take the verdict of the
      node they wrap: marked when that node is itself replaced, unmarked when
      it merely contains something that changed. `(Int, ?)` vs `(Int, String)`
      leaves the parens alone -- still the same tuple, one component differs --
      while `?` vs `(a=Int)` marks them, the tuple being wholly new. */
   | (_, Parens(t2)) =>
-    let inner = diff(~ctx?, ty, t2);
+    let inner = diff(~ctx?, ~expanded_aliases, ty, t2);
     let wrapped_replaced =
       IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
     wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
-  | (Unknown(_), Unknown(_)) => []
+  /* Runtime knowing less than statics is not something runtime supplied:
+     `?` on the right is unmarked whatever stands on the left. */
+  | (_, Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []
   | (Atom(_), _) => get_ids()

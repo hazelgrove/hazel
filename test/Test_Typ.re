@@ -224,6 +224,31 @@ let diff_tests = (
       },
     ),
     test_case(
+      "diff Unknown on the dynamic side",
+      `Quick,
+      () => {
+        /* Runtime can know less than statics -- a closure's domain reads as
+           `?` -- and what it did not supply is not marked. */
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let unknown = Typ.fresh(Unknown(Internal));
+        check(
+          list(testable_id),
+          "`?` against a concrete type marks nothing",
+          [],
+          Typ.diff(int_typ, unknown),
+        );
+        check(
+          list(testable_id),
+          "and nothing inside an arrow either",
+          [],
+          Typ.diff(
+            Typ.fresh(Arrow(int_typ, int_typ)),
+            Typ.fresh(Arrow(unknown, int_typ)),
+          ),
+        );
+      },
+    ),
+    test_case(
       "diff arrow different codomain",
       `Quick,
       () => {
@@ -387,7 +412,7 @@ let diff_tests = (
                   Typ.fresh(
                     Prod([
                       Typ.fresh(Atom(Atom.Int)),
-                      Typ.fresh(Unknown(Internal)),
+                      Typ.fresh(Atom(Atom.Bool)),
                     ]),
                   ),
                 ),
@@ -397,7 +422,7 @@ let diff_tests = (
         let static_typ =
           Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
         let dynamic_typ = Typ.fresh(Var("Pair"));
-        /* The Unknown in Pair's expansion differs from String, so the alias
+        /* The Bool in Pair's expansion differs from String, so the alias
            differs -- but it renders as the single token `Pair`, so the ids
            are that node's, not the expansion's, which appear nowhere. */
         check(
@@ -459,6 +484,42 @@ let diff_tests = (
           "on the right, the alias token's own id",
           [Typ.rep_id(var_a)],
           Typ.diff(~ctx, Typ.fresh(List(int_typ)), var_a),
+        );
+      },
+    ),
+    test_case(
+      "diff terminates on a cyclic alias chain through parens",
+      `Quick,
+      () => {
+        /* `type A = (B) in type B = (A)` -- the same cycle with a node that
+           carries no meaning of its own in the way. */
+        let extend = (ctx, name, kind) =>
+          Ctx.extend_tvar(
+            ctx,
+            {
+              name,
+              id: Id.mk(),
+              kind,
+            },
+          );
+        let ctx =
+          Ctx.empty
+          |> extend(
+               _,
+               "A",
+               Singleton(Typ.fresh(Parens(Typ.fresh(Var("B"))))),
+             )
+          |> extend(
+               _,
+               "B",
+               Singleton(Typ.fresh(Parens(Typ.fresh(Var("A"))))),
+             );
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        check(
+          list(testable_id),
+          "an unexpandable alias on the left marks the whole right side",
+          [Typ.rep_id(int_typ)],
+          Typ.diff(~ctx, Typ.fresh(Var("A")), int_typ),
         );
       },
     ),
