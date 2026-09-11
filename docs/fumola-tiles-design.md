@@ -97,38 +97,52 @@ Options, to decide before M1:
 Recommendation: the first. It is the one that says what it means in the
 program text, which is also what makes it survivable across a reload.
 
-## Cost of iterating on the grammar
+## What the Rust toolchain costs to iterate on
 
-Measured on this laptop, 2026-09-11, caches warm in both cases.
+This was measured to inform the decision, not to justify it. The case for
+tiles is the editing affordances above; these numbers are context for how the
+day-to-day feels, and they are worth writing down because the difference is
+larger than it feels from inside either workflow.
+
+Measured on this laptop, 2026-09-11, caches warm throughout. A no-op build of
+the wasm target is 0.1 s, so each figure is work the edit caused.
 
 | Change | Command | Wall |
 |---|---|---|
 | Fumola grammar, parser crate only | touch `parser.lalrpop`; `cargo build -p fumola_parser` | **89.7 s** |
-| Fumola grammar, through to the wasm artifact Hazel loads | touch `parser.lalrpop`; `cargo build --release --target wasm32-unknown-unknown -p fumola_wasm` | **104.1 s** |
+| Fumola grammar, through to the wasm artifact Hazel loads | touch `parser.lalrpop`; release wasm build of `fumola_wasm` | **104.1 s** |
+| **A new prim** — one arm in `PrimFunction::resolve`, grammar untouched | same release wasm build | **109.5 s** |
 | Hazel form table, rippling downstream | new binding in `Form.re`; `dune build src --profile dev` | **21.6 s** |
 | Hazel, change confined to a module body | comment in `Form.re`; same | **0.66 s** |
 
-The 89.7 s is lalrpop regenerating an LR table for an 834-line grammar and
-rustc compiling the result; it is the floor for *any* change to Fumola's
-surface syntax, including a one-token one. The 104.1 s is what actually has
-to happen before a browser sees the change, and `wasm-bindgen` and copying
-the artifacts into `src/web/www/fumola` come after it. A no-op build of the
-same target, for comparison, is 0.1 s — so the whole 104 s is work the
-grammar edit caused, not a cold cache.
+The prim row is the one that matters, because it is the edit that actually
+happens — roughly weekly — while Fumola's *syntax* stays mostly put. Adding a
+prim does not touch `parser.lalrpop` at all, and lalrpop does not regenerate
+its table: `build.rs` sets `rerun-if-changed` on the grammar file only. But
+`fumola_parser` still recompiles, because it depends on `fumola_syntax`, and
+what it recompiles is the generated LR code for an 834-line grammar. So a
+one-line prim addition pays essentially the full grammar-edit price: 109.5 s,
+reproduced on the revert.
 
-Two honest caveats:
+### The human factor
 
-- This compares **iterating on the grammar**, not running programs. Both
-  routes need the wasm runtime to evaluate anything, and that build cost does
-  not go away. What goes away is having to touch the Rust grammar in order to
-  change what Hazel can *express* and *edit*.
-- Hazel's 21.6 s is a dev-profile incremental build. A `dune build @src/fmt`
-  and the test suite cost more.
+Two minutes is not a number you feel as two minutes. It is long enough to
+lose the thread and go read something else, and short enough that you sit
+there. Paid once it is nothing; paid on every iteration of a prim you are
+designing by trying, it is the thing that quietly decides how many variations
+you try. Sub-second turnaround on the Reason side changes what kind of
+exploration is practical — not because the total time is smaller, but because
+it stays under the threshold where attention survives.
 
-So the claim to make is narrow and defensible: **a new Fumola form costs
-~22 s of Hazel build instead of ~104 s of Rust build**, and the Hazel one is
-the one you pay while designing the surface syntax, which is when you pay it
-most often.
+This cuts differently for agent-driven work, where nobody is losing a train of
+thought and a two-minute build is a two-minute build. So this is a real
+consideration, but a human-workflow one, and it is worth being clear about
+which of the two is doing the work at the time.
+
+Two things this does *not* claim. It does not compare running programs — both
+routes need the wasm runtime, and that cost does not go away. And Hazel's
+21.6 s is a dev-profile incremental build; `dune build @src/fmt` and the test
+suite cost more.
 
 ## Scope: which Fumola
 
