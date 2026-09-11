@@ -112,7 +112,7 @@
 }
 
 .cell.deselected + .cell-item {
-  border-left: 1px solid var(--BR2);
+  border-left: 1px solid var(--border-default);
 }
 
 .cell-item.cell-result:has(.fail),
@@ -122,7 +122,7 @@
 
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
-  color: var(--BLACK);
+  color: var(--text-black);
 }
 
 .cell-result .icon:hover svg {
@@ -133,12 +133,12 @@
 
 .cell-result .icon {
   cursor: pointer;
-  color: var(--BR2);
+  color: var(--text-muted);
   height: 20px;
 }
 
 .cell-result .icon svg {
-  fill: var(--BR2);
+  fill: var(--text-muted);
 }
 
 .cell-result .icon.disabled {

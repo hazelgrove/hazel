@@ -10,5 +10,5 @@
 }
 .projector.slider:not(.indicated):not(:hover) > svg,
 .projector.sliderf:not(.indicated):not(:hover) > svg {
-  fill: var(--NONE);
+  fill: var(--text-none);
 }

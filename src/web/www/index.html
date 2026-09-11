@@ -8,6 +8,29 @@
 
     <title>hazel</title>
     <link rel="stylesheet" href="style.css">
+
+    <!-- The saved colour theme, applied before the first paint so the loading
+         screen below is themed too (it consumes --ui-bkg, --nut-menu and
+         friends). Parser-blocking on purpose: bundled.js is a module and so
+         deferred, and the theme's real home is IndexedDB, which only opens
+         asynchronously — either way the spinner would paint light first.
+         ConfigurationMode writes this cache and re-validates it on startup;
+         see apply_theme_at_startup. Newline-delimited: key, then name/value
+         pairs, names stored bare. -->
+    <script>
+      try {
+        var hazelTheme = localStorage.getItem("HAZEL_THEME");
+        if (hazelTheme) {
+          var hazelDecls = hazelTheme.split("\n");
+          for (var i = 1; i + 1 < hazelDecls.length; i += 2) {
+            document.documentElement.style.setProperty(
+              "--" + hazelDecls[i],
+              hazelDecls[i + 1]
+            );
+          }
+        }
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/svg" href = "img/hazelnut.svg">
     <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
     <link

@@ -10,13 +10,13 @@
 
 #top-bar .wrap:has(#title) {
   height: 100%;
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 #top-bar .wrap:has(.nut-icon) {
   background-color: var(--primary-accent);
 }
 #top-bar .wrap:has(.nut-icon):hover {
-  outline: 0.6px solid var(--GB1);
+  outline: 0.6px solid var(--border-info);
 }
 #top-bar .wrap:has(#editor-mode) {
   height: 100%;
@@ -119,7 +119,7 @@
   > .submenu-icon
   > .icon
   > svg {
-  fill: var(--GB1);
+  fill: var(--text-info-strong);
 }
 
 #top-bar .nut-menu:hover,
@@ -201,7 +201,7 @@
 
 #top-bar .icon {
   cursor: pointer;
-  color: var(--BR2);
+  color: var(--text-muted);
   height: 20px;
 }
 #top-bar .icon:hover {
@@ -209,7 +209,7 @@
 }
 
 #top-bar .icon svg {
-  fill: var(--BR2);
+  fill: var(--text-muted);
 }
 
 #top-bar .icon.disabled {
@@ -222,7 +222,7 @@
 }
 
 #top-bar .nut-menu .toggle-switch {
-  border: solid 1px var(--BR1);
+  border: solid 1px var(--border-soft);
 }
 
 #top-bar .nut-menu .toggle-switch.active {
@@ -241,9 +241,9 @@
   gap: 0.5em;
   padding: 0 0.75em;
   border-radius: 0 0 1em 0;
-  background-color: var(--T3);
-  color: var(--BR2);
-  border-right: 0.6px solid var(--BR2);
+  background-color: var(--surface-sunken);
+  color: var(--text-muted);
+  border-right: 0.6px solid var(--border-default);
   position: relative;
 }
 #top-bar #editor-mode #slide-navigation {
@@ -297,7 +297,7 @@
 #top-bar #editor-mode .icon:hover {
   scale: unset;
   border-radius: 1em;
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
 }
 
 #top-bar #editor-mode .icon:hover svg {
@@ -327,5 +327,5 @@
 }
 
 #top-bar #editor-mode select:hover {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
 }

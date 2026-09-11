@@ -5,6 +5,11 @@
  (deps
   (source_tree www)))
 
+; The Colors config slide is committed Hazel text, embedded at compile time
+; the way the documentation slides are. See ColorConfiguration.re.
+
+(copy_files ../../hazel-programs/config/*.hz)
+
 (library
  (name workerServer)
  (modules WorkerServer)
@@ -52,7 +57,10 @@
    ppx_deriving.show
    ppx_yojson_conv
    ppx_enumerate
-   bonsai.ppx_bonsai)))
+   ppx_blob
+   bonsai.ppx_bonsai))
+ (preprocessor_deps
+  (glob_files_rec *.hz)))
 
 (executable
  (name main)

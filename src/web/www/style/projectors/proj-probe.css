@@ -1,17 +1,17 @@
 /* Probe Projector */
 :root {
   --code-text: var(--token-exp);
-  --live-env-bkg: var(--T3);
+  --live-env-bkg: var(--surface-sunken);
 
-  --num-samples: var(--Y1);
-  --num-samples-indicated: var(--R1);
+  --num-samples: var(--surface-highlight);
+  --num-samples-indicated: var(--surface-error);
 
   --exp-ap: hsl(265, 75%, 80%);
   --pat-ap: hsl(220, 75%, 80%);
 
-  --exp-indicated: var(--G0);
-  --pat-indicated: var(--PAT);
-  --exp-ap-indicated: var(--TYP);
+  --exp-indicated: var(--text-success);
+  --pat-indicated: var(--text-pat);
+  --exp-ap-indicated: var(--text-typ);
 
   --exp-base: hsl(120, 40%, 85%);
   --pat-base: hsl(170, 40%, 85%);
@@ -35,6 +35,8 @@
   --sample-above-shadow: oklch(0.85 0.08 355); /* pinkish/magenta */
   --sample-below-shadow: oklch(0.8 0.09 230); /* blue */
 
+  /* Samples off the cursor's call stack. Defaults only: the Colors slide
+     emits all three as roles and overrides these. */
   --sample-off-text: oklch(0.72 0.09 150);
   --sample-off-bg: oklch(0.95 0.03 150);
   --sample-off-shadow: oklch(0.85 0.06 150);
@@ -89,22 +91,22 @@
   display: none;
 }
 .code-deco .refractors svg path.child-line {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
 }
 /* Kind-based colors for refractor arms: probe = green, type = purple */
 .code-deco .refractors svg path.child-line.probe {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
 }
 .code-deco .refractors svg path.child-line.statics {
   stroke: #bd92cf !important;
 }
 .code-deco .refractors svg path.child-line.repl {
-  stroke: var(--BR3) !important;
+  stroke: var(--border-strong) !important;
   /* stroke-dasharray: 0.5 2.5; */
   opacity: 0.25;
 }
 .code-deco .refractors svg path.child-line.repl-indicated {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
   stroke-dasharray: none;
 }
 
@@ -117,7 +119,7 @@
 }
 
 .code-deco .refractors svg.shard.indicated {
-  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-success));
 }
 
 .refractors .projector.probe .sample .code {
@@ -214,8 +216,8 @@
 }
 
 .projector.probe.indicated .live-offside .num-samples {
-  background-color: var(--R1);
-  color: var(--SAND);
+  background-color: var(--surface-error);
+  color: var(--text-inverse);
 }
 
 .below-wrapper .live-offside .num-samples {
@@ -234,7 +236,7 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(../../img/noun-pinned-1560993.svg) var(--surface-error);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -250,7 +252,7 @@
   height: 0.7em;
   width: 0.7em;
   border-radius: 1em;
-  background: var(--R1);
+  background: var(--surface-error);
   transform-origin: top right;
   scale: 0.6;
 }
@@ -302,7 +304,7 @@
 .live-offside .nav-bar .nav-left:hover .visual,
 .live-offside .nav-bar .nav-right:hover .visual,
 .live-offside .nav-bar .drawer-mode-toggle:hover .visual {
-  fill: var(--R1);
+  fill: var(--text-error);
 }
 
 /* stays clickable to swallow the click (blocks fallthrough to the editor below) */
@@ -525,7 +527,7 @@
 @keyframes flash-border {
   0%,
   50% {
-    border-bottom-color: var(--R1);
+    border-bottom-color: var(--border-error);
   }
   51%,
   100% {
@@ -533,7 +535,7 @@
   }
 }
 .projector.probe:not(.indicated) .sample:hover .value {
-  outline: 1px dotted var(--R1);
+  outline: 1px dotted var(--border-error);
   animation: flash-border 1s infinite;
 }
 
@@ -550,11 +552,11 @@
   .live-offside:focus
   .sample:has(.value.focus)
   .value {
-  outline: 1.5px solid var(--R1);
+  outline: 1.5px solid var(--border-error);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
 .projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
-  outline: 1.5px solid var(--G0);
+  outline: 1.5px solid var(--border-success);
 }
 
 /* inset on `.value` (outline-offset doesn't inherit) to clear the drawer/cell clippers */
@@ -599,7 +601,7 @@
 /* TOKENS */
 
 /* .live-offside .value.indet.focus .code-text .token {
-  color: var(--BR2) !important;
+  color: var(--text-muted) !important;
 } */
 
 .live-offside .value .token.explicit-hole {
@@ -655,7 +657,7 @@
 }
 .live-offside.Many .value.related-after .code-text .token,
 .live-offside.Single .value.related-after .code-text .token {
-  color: var(--PAT);
+  color: var(--text-pat);
 }
 
 /* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
@@ -690,7 +692,7 @@
 }
 
 .action-item:hover {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 .action-item .shortcut {
@@ -698,20 +700,20 @@
   padding: 0 0.3em;
   font-size: 0.8em;
   opacity: 0.5;
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
   border-radius: 0.2em;
 }
 
 .action-item.pinned .pin-icon,
 .action-item:hover .pin-icon {
-  background-color: var(--R1);
+  background-color: var(--surface-error);
 }
 
 .action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(../../img/noun-pinned-1560993.svg) var(--surface-error);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -737,7 +739,7 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background-color: var(--LABEL);
+  background-color: var(--surface-label);
   scale: 0.75;
 }
 
@@ -758,7 +760,7 @@
 /* below-line drawer stripe; negative margin + padding align it flush to the cell edges */
 .below-wrapper {
   pointer-events: auto;
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
   /* border-box is global, so min-width is the outer width (padding included) */
   min-width: var(--main-scroll-width, 100ch);
   width: max-content;
@@ -780,7 +782,7 @@
 }
 
 .below-wrapper::-webkit-scrollbar-thumb {
-  background-color: var(--BR2);
+  background-color: var(--surface-shard-strong);
   border-radius: 4px;
 }
 
@@ -788,7 +790,7 @@
 @supports (-moz-appearance: none) {
   .below-wrapper {
     scrollbar-width: thin;
-    scrollbar-color: var(--BR2) transparent;
+    scrollbar-color: var(--surface-shard-strong) transparent;
   }
 }
 
@@ -856,14 +858,14 @@
   text-align: center;
   font-size: 16px;
   font-weight: 600;
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   z-index: calc(var(--projector-z) + 10);
 }
 
 .below-wrapper .rich-drawer .rich-drawer-close:hover {
-  color: var(--R1);
+  color: var(--text-error);
 }
 
 /* line-numbers zero .code-editor padding-left, so keep the stripe at col 0 */
@@ -928,7 +930,7 @@
   background-color: var(--live-env-bkg);
   font-family: var(--code-font);
   font-size: var(--base-font-size);
-  color: var(--GB0);
+  color: var(--text-info);
   white-space: nowrap;
 }
 
@@ -967,7 +969,7 @@
   flex-direction: row;
   white-space: pre;
   align-items: baseline;
-  color: var(--GB0);
+  color: var(--text-info);
   font-family: var(--code-font);
   font-size: var(--base-font-size);
 }
@@ -977,19 +979,19 @@
 .context-actions + .call-display,
 .context-actions + .environment-section .live-env,
 .call-display + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
+  border-top: 0.6px solid var(--border-strong);
 }
 
 /* --- Dropdown chrome: hover-triggered, absolute-positioned, hidden by default --- */
 
 .live-offside .sample-context-menu {
   border-radius: 0 0.2em 0.2em 0.2em;
-  background-color: var(--BR1);
+  background-color: var(--surface-shard);
   display: none;
   position: absolute;
   left: 3px;
   transform-origin: top left;
-  border-bottom: 1px solid var(--BR2);
+  border-bottom: 1px solid var(--border-default);
 }
 
 /* Show the sample context menu purely via the JS-managed dropdown-active

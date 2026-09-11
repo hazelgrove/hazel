@@ -12,6 +12,8 @@
 @import "proj-table.css";
 @import "proj-table-probe.css";
 @import "proj-csv.css";
+@import "proj-keybinding.css";
+@import "proj-color.css";
 
 /* Default projector styles */
 
@@ -20,7 +22,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  color: var(--BR2);
+  color: var(--text-muted);
   z-index: var(--projector-z);
 }
 
@@ -42,7 +44,7 @@
 
 .projector.error:not(.selected) > svg path {
   stroke-dasharray: 1, 1;
-  stroke: var(--R1);
+  stroke: var(--border-error);
   stroke-width: 0.75px;
   fill: var(--error-hole-fill);
 }
