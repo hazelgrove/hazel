@@ -118,15 +118,19 @@ module M: Projector = {
     /* Every arm yields the segment to display, so Dynamic can hand over the
        exact segment its dynamic_ids were computed from. */
     let render = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
-    let cell = contents =>
-      div(~attrs=[Attr.classes(["type-cell"])], contents);
+    let cell = (~attrs=[], contents) =>
+      div(~attrs=[Attr.classes(["type-cell"]), ...attrs], contents);
     switch (info.statics) {
     /* Statics are absent when the user has turned them off, and briefly
        while an edit is being checked. There is no type to report, and no
        context to infer one in -- say so rather than showing `?`, which
        would claim the type is unknown when what is unknown is whether we
-       looked. */
-    | None => cell([text("no type information")])
+       looked. One word, because this sits where a type goes. */
+    | None =>
+      cell(
+        ~attrs=[Attr.title("No type information for this expression")],
+        [text("unavailable")],
+      )
     | Some(statics) =>
       let (classes, seg) =
         switch (model) {
