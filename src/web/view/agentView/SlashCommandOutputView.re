@@ -82,6 +82,17 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
     | None => "—"
     | Some(c) => format_usd(c)
     };
+  let billed_value =
+    switch (p.cost_billed_credits) {
+    | None => "—"
+    | Some(c) => format_usd(c)
+    };
+  let saved_value =
+    switch (p.cost_saved_credits) {
+    | None => "—"
+    | Some(c) => format_usd(c)
+    };
+  let cached_value = format_int_commas(p.cost_cached_tokens);
   let footer =
     div(
       ~attrs=[clss(["slash-card-footer"])],
@@ -107,7 +118,14 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
           ~value=format_int_commas(p.cost_output_tokens),
           (),
         ),
-        stat_tile(~label="estimated", ~value=cost_value, ~accent=true, ()),
+        stat_tile(~label="cached tokens", ~value=cached_value, ()),
+        stat_tile(~label="at list price", ~value=cost_value, ()),
+        /* Billed is the accented tile because it is the only figure here that
+           is a fact rather than a projection: it is the sum of the per-request
+           charges OpenRouter reported. "At list price" is the counterfactual it
+           is measured against, and "saved" is the difference between them. */
+        stat_tile(~label="billed", ~value=billed_value, ~accent=true, ()),
+        stat_tile(~label="saved by caching", ~value=saved_value, ()),
       ],
     );
   card(
@@ -129,7 +147,9 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
           ~attrs=[clss(["slash-card-note"])],
           [
             text(
-              "Cost uses the currently-selected model's pricing across all turns.",
+              "Billed is what OpenRouter charged. At list price is the same turns "
+              ++ "priced at the selected model's published rate with no cache "
+              ++ "discount; saved is the difference.",
             ),
           ],
         ),

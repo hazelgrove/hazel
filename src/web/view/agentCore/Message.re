@@ -11,7 +11,21 @@ module Model = {
     cost_model: string, // "" if no model selected
     cost_input_tokens: int,
     cost_output_tokens: int,
-    cost_estimated_usd: option(float) // None when no model selected
+    cost_estimated_usd: option(float), // None when no model selected
+    /* Sum of the per-request [cost] OpenRouter actually billed, in credits.
+       Unlike [cost_estimated_usd] — which multiplies token counts by list
+       price and so ignores every cache discount — this is the real charge.
+       None when no message in the chat carries a cost (e.g. chats recorded
+       before cost capture existed). */
+    [@yojson.default None] [@sexp.default None]
+    cost_billed_credits: option(float),
+    /* Total tokens served from cache across the chat, and what those turns
+       would have cost at full list rate. Both are shown so the saving is
+       checkable rather than asserted. */
+    [@yojson.default 0] [@sexp.default 0]
+    cost_cached_tokens: int,
+    [@yojson.default None] [@sexp.default None]
+    cost_saved_credits: option(float),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
