@@ -262,11 +262,20 @@ let map_m2 = (f, xs, ys, m: Map.t) =>
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
+/* The relation the subsumption step checks between the expectation and the
+   synthesized type: consistency, or at a coercion site (`coercible`, set by
+   an ascription, an annotated binder or an application argument on its
+   operand) coercive subtyping, which seals a wider module. */
+let subsume = (~coercible, ctx: Ctx.t, ana: Typ.t, syn: Typ.t): option(Typ.t) =>
+  coercible
+    ? Typ.coercion(ctx, ~from=syn, ~to_=ana) : Typ.meet(ctx, ana, syn);
+
 /* Type after hole fixing: best type consistent with analysis expectation and
-   statics synthetic type (Typ.meet). On meet failure, prefer syn under
-   synthesis and ana under analysis. */
-let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
-  switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+   statics synthetic type. On failure, prefer syn under synthesis and ana
+   under analysis. */
+let fixed_typ =
+    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
+  switch (subsume(~coercible, ctx, ana, elab_syn_ty)) {
   | Some(ty) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
@@ -313,12 +322,13 @@ let should_emit_nomeet_mark =
   };
 
 let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
+    (~coercible=false, ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t)
+    : Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
-    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+    switch (subsume(~coercible, ctx, ana, elab_syn_ty)) {
     | None => Message.Syn(elab_syn_ty)
     | Some(meet) =>
       Message.Ana(
@@ -333,13 +343,14 @@ let syn_ana_ok_common =
 };
 
 let expectation_mismatch_mark =
-    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
+    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t)
+    : option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
   let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (Typ.meet(ctx, ana', syn')) {
+    switch (subsume(~coercible, ctx, ana', syn')) {
     | Some(_) => None
     | None =>
       Some(

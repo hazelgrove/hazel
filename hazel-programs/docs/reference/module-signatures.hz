@@ -91,17 +91,6 @@ module M : {
   let x = true
 } in
 
-# No width subtyping yet: signatures must be precise. #
-
-# 23. Error: extra member not declared by the signature #
-module M : {let x : Int} = {
-  let x = 1;
-  let y = 2
-} in
-
-# 24. Error: extra member not allowed by empty signature #
-module M : {} = {let x = 1} in
-
-# 25. Error: a hole-typed member is still required #
+# 23. Error: a hole-typed member is still required #
 let m : {let x : ?} = {let y = 1} in
 ¿
