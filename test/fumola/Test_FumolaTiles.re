@@ -562,6 +562,38 @@ let test_info_map_by_piece = () =>
     },
   );
 
+/* Typing a program passes through every prefix of it, and Parser.to_segment
+   inserts character by character down the same path the editor uses. A
+   prefix that raises is a crash a reader would hit mid-word -- which no
+   whole-program test can see. */
+let test_prefixes = () =>
+  test_case(
+    "every prefix of every tile program parses",
+    `Quick,
+    () => {
+      let sources = List.map(((_, src, _, _)) => src, corpus);
+      let failures =
+        sources
+        |> List.concat_map(src => {
+             let n = String.length(src);
+             List.init(n, i => String.sub(src, 0, i + 1));
+           })
+        |> List.filter_map(prefix =>
+             switch (Haz3lcore.Parser.to_segment(prefix, ~root=Exp)) {
+             | _ => None
+             | exception exn =>
+               Some(prefix ++ " -> " ++ Printexc.to_string(exn))
+             }
+           );
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "prefixes that raise",
+        [],
+        failures,
+      );
+    },
+  );
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -593,6 +625,7 @@ let tests = (
     test_case("fumola is a closed sub-language", `Quick, test_closed),
     test_info_map(),
     test_info_map_by_piece(),
+    test_prefixes(),
     test_case(
       "the instance's mode is read from the syntax",
       `Quick,
