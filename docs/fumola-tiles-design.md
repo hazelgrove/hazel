@@ -224,9 +224,19 @@ the runtime in the worker -- the only way to let a `hazel … end` carry a
 behind a worker round trip, and shape this panel's whole design around it.
 That trade is written up in src/language/fumola/README.md.
 
-**M4 — reading existing Fumola.** A text parser, `FumolaParse.re`, so the
-`.fumola` corpus can be opened as tiles. Only worth doing once M0's printer
-is trusted, because parse-then-print is the round trip that proves both.
+**M4 — reading Fumola back.** `FumolaParse.re`: a lexer and a
+precedence-climbing parser over the M1 subset, sharing the printer's ladder.
+Its value is the round trip -- `print(parse(s)) == s` and `parse(print(t)) ==
+t` -- which checks *structure*, where the script against the real Fumola
+parser checks grammaticality and meaning. Because the ladder is shared, the
+round trip cannot see a wrong precedence level; only the script can. Neither
+replaces the other.
+
+Reading the shipped `.fumola` corpus turns out not to be a parser problem.
+All fourteen files begin `module` or `import` and are made of `public func`s
+with type annotations, and modules, imports, attributes and the type
+sublanguage are all absent from this AST by design. That waits on types,
+which is a decision of its own rather than a milestone.
 
 ## Branch
 

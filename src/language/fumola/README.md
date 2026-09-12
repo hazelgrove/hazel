@@ -227,6 +227,39 @@ Two things worth knowing:
   instance in the editor is still the one meant. With more than one it stays
   quiet rather than guessing.
 
+## Reading Fumola back (M4)
+
+`FumolaParse` reads Fumola concrete syntax into editor terms -- a lexer and a
+precedence-climbing parser over the M1 subset. It exists for the round trip,
+which is the strongest check on the printer:
+
+| check | what it compares | what it catches |
+|---|---|---|
+| `Test_FumolaPrint` | a term against a string we wrote | the printer disagreeing with our expectations |
+| `check-fumola-roundtrip.sh` | our source against the real Fumola parser | ungrammatical output, and a **wrong precedence level** |
+| `Test_FumolaParse` | `print(parse(s))` against `s`, and `parse(print(t))` against `t` | **structure**: association, nesting, a form read as the wrong constructor |
+
+The third is the new one, and the important thing about it is the line it
+cannot cross. The parser and the printer share one precedence ladder on
+purpose, so a level changed in either place changes both -- which means a
+*wrong* level stays invisible to this test, because both sides move together.
+Only the script, which asks Fumola itself, can see that. The two checks are
+complementary and neither replaces the other.
+
+Verified to have power rather than assumed: making application
+right-associative in the parser turns `f a b` into `f (a b)` and both
+directions fail.
+
+The parser also reads two things no tile can spell -- `#tag` and juxtaposed
+application -- which is what lets it read Fumola as Fumola writes it rather
+than as Hazel must.
+
+**What it does not read is the shipped corpus.** All fourteen `.fumola` files
+begin `module` or `import`, and their contents are `public func`s with type
+annotations. Modules, imports, attributes and the type sublanguage are all
+absent from this AST by design. Opening that corpus as tiles is not a parser
+problem; it waits on types.
+
 ## How the contract is checked
 
 Two checks, because agreeing with ourselves is not evidence.
