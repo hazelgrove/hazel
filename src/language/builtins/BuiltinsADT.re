@@ -41,6 +41,62 @@ module Either = {
     Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
 };
 
+/* Adapton spaces and times, shaped as Fumola defines them.
+
+   Each is mostly just a symbol -- a name for a place, or for a moment -- with
+   one case that is not: `here` and `now` are relative to where evaluation is,
+   and name nothing. A symbol arrives in Hazel as its text, so that is what
+   the Symbol case carries.
+
+   Fumola's Space has a third case, an expression rather than a name. It is
+   left out: nothing on this side has a use for it, and a value carrying one
+   fails to translate rather than arriving mis-shapen. */
+/* Fumola symbols, as Hazel data.
+
+   A symbol is Fumola's notion of a name, and they are first-order: a number
+   is a symbol, an identifier is a symbol, and they compose. Recursive through
+   its own alias name, the way `type MyList = Nil + Cons(Int, MyList)` is.
+
+   A symbol also arrives as plain text where a String is expected. Which one
+   you get is decided by the type asked for, so the text form -- the only way
+   to produce a String from a livelit, since a Hazel string literal cannot
+   contain a quote -- stays available. */
+module Symbol = {
+  /* The alias refers to itself; a Hazel type alias is an implicit least
+     fixed point on its own name. */
+  let self: Typ.t = Typ.fresh(Var("Symbol"));
+
+  /* Wrapped in Rec, the way statics wraps a user-written recursive alias:
+     `type X = ... X ...` becomes Rec(X, ...) precisely so that unfolding it
+     terminates. Registering the bare sum instead makes Typ.normalize unfold
+     Var("Symbol") forever -- "normalize exceeded 1000 recursive calls". */
+  let t: Typ.t =
+    Typ.fresh(
+      Rec(
+        IdTagged.FreshGrammar.TPat.var("Symbol"),
+        sum_type([
+          ("Num", Some(Typ.fresh(Atom(Int)))),
+          ("Name", Some(Typ.fresh(Atom(String)))),
+          ("Call", Some(Typ.fresh(Prod([self, self])))),
+          ("Dot", Some(Typ.fresh(Prod([self, self])))),
+        ]),
+      ),
+    );
+};
+
+module Space = {
+  let t: Typ.t =
+    sum_type([
+      ("Symbol", Some(Typ.fresh(Atom(String)))),
+      ("Here", None),
+    ]);
+};
+
+module Time = {
+  let t: Typ.t =
+    sum_type([("Symbol", Some(Typ.fresh(Atom(String)))), ("Now", None)]);
+};
+
 module Option = {
   let t: Typ.t =
     sum_type([
@@ -198,6 +254,9 @@ module JSON = {
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
+  ("Symbol", Symbol.t),
+  ("Space", Space.t),
+  ("Time", Time.t),
   ("Either", Either.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),

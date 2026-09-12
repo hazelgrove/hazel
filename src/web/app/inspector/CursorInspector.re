@@ -263,6 +263,7 @@ let core_mark_err_view =
     | FumolaFailed(_)
     | BadOperator(_)
     | BadLivelitModel(_)
+    | LivelitNeedsAnnotation(_)
     | BadTheorem(_)
     | Redundant
     | ExpectedConstructor
@@ -732,6 +733,14 @@ let exp_mark_err_view =
       ...List.map(label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
+  | LivelitNeedsAnnotation(name) =>
+    div_err([
+      text(
+        "The "
+        ++ name
+        ++ " livelit needs a type annotation saying what it should expand to",
+      ),
+    ])
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),

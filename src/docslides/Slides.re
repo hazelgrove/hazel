@@ -16,6 +16,21 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
+    /* Fumola through livelits, as a series in successive complexity: the map first, then
+       what values are, then
+       how they are named, then the state that makes editing incremental,
+       then the runtime itself -- and finally the examples from the Fumola
+       repo that have something to run. Each stands alone, so each opens with
+       the same brief reminder of the four livelits. */
+    ("Fumola (Livelits) / 0. Big picture", [%blob "fumola-0-overview.hz"]),
+    ("Fumola (Livelits) / 1. Values", [%blob "fumola-1-values.hz"]),
+    ("Fumola (Livelits) / 2. Symbols", [%blob "fumola-2-symbols.hz"]),
+    ("Fumola (Livelits) / 3. Cells", [%blob "fumola-3-cells.hz"]),
+    ("Fumola (Livelits) / 4. Thunks", [%blob "fumola-4-thunks.hz"]),
+    ("Fumola (Livelits) / 5. Input", [%blob "fumola-5-input.hz"]),
+    ("Fumola (Livelits) / 6. Runtimes", [%blob "fumola-6-runtimes.hz"]),
+    ("Fumola (Livelits) / 7. Gcd", [%blob "fumola-7-gcd.hz"]),
+    ("Fumola (Livelits) / 8. Delayed put", [%blob "fumola-8-delayed-put.hz"]),
     /* Fumola, integrated as a sort in the tile grammar. Named apart from the
        livelit integration -- "Fumola (Livelits)" on fumola-livelit-mvp -- so
        that the two can sit in one deck when they meet. */

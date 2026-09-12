@@ -68,6 +68,9 @@ type t =
      every keystroke, and the editor already says so better than a mark. */
   | FumolaFailed(string)
   | BadLivelitModel(Typ.t)
+  /* A livelit that only expands in checking mode, used with no expected
+     type. It cannot know what to produce, so it says so. */
+  | LivelitNeedsAnnotation(string)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,

@@ -98,7 +98,8 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
      it. Fumola accepts a capitalised tag, so the capitalisation that
      translation adds on the way in survives the way out. */
   /* Recased on the way out, as FumolaValue recases on the way in: without
-     this a value read as `#leaf` went back as `#Leaf`. See FumolaCase. */
+     this a value read from Fumola as `#leaf` went back as `#Leaf`, a
+     different tag. See FumolaCase. */
   | Constructor(name, _) => Ok("#" ++ FumolaCase.to_fumola(name))
   | Ap(Forward, {term: Constructor(name, _), _}, payload) =>
     switch (of_exp(payload)) {
@@ -110,7 +111,7 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   | Invalid(_) => unsupported("an invalid expression")
   | Fun(_)
   | TypFun(_) => unsupported("a function")
-  /* FumolaPeek was a livelit form; the tile route has no counterpart. */
+  | FumolaPeek(_) => unsupported("a reference into a Fumola runtime")
   | _ => unsupported("this expression")
   };
 }

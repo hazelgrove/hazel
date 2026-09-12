@@ -71,6 +71,11 @@ let ( let* ) = (x: unboxed('a), f: 'a => unboxed('b)): unboxed('b) =>
 let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
+    /* A reference unboxes as the value it denotes, so a peek of a tuple
+       still destructures and a peek of an Int is still consumed as one.
+       Without this, evaluation would stop at every reference. */
+    | (request, FumolaPeek({value, _})) => unbox(request, value)
+
     /* $e and $v could have any type, but are indet */
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch

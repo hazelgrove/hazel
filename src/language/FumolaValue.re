@@ -43,7 +43,8 @@ let element_anas =
   };
 
 /* The expected type of a list's elements. */
-let element_ana = (~tools: FumolaTools.t, ana: TermBase.Typ.t): TermBase.Typ.t =>
+let element_ana =
+    (~tools: FumolaTools.t, ana: TermBase.Typ.t): TermBase.Typ.t =>
   switch (tools.normalize(ana).term) {
   | List(ty) => ty
   | _ => unknown()
@@ -60,7 +61,8 @@ let element_ana = (~tools: FumolaTools.t, ana: TermBase.Typ.t): TermBase.Typ.t =
  *
  * Visible immediately in a table view, whose columns are the fields in the
  * order they arrive. */
-let field_order = (~tools: FumolaTools.t, ana: TermBase.Typ.t): list(string) =>
+let field_order =
+    (~tools: FumolaTools.t, ana: TermBase.Typ.t): list(string) =>
   switch (tools.normalize(ana).term) {
   | Prod(tys) =>
     List.filter_map(
@@ -95,7 +97,8 @@ let order_fields =
 
 /* The expected type of a record field, by label. */
 let field_ana =
-    (~tools: FumolaTools.t, ana: TermBase.Typ.t, name: string): TermBase.Typ.t => {
+    (~tools: FumolaTools.t, ana: TermBase.Typ.t, name: string)
+    : TermBase.Typ.t => {
   let labelled = (ty: TermBase.Typ.t) =>
     switch (ty.term) {
     | TupLabel({term: Label(l), _}, ty) when l == name => Some(ty)
@@ -357,7 +360,11 @@ let wants_symbol = (~tools: FumolaTools.t, ana: TermBase.Typ.t): bool => {
    constructors are the ones the expected type declares rather than invented
    here. */
 let rec symbol_exp =
-        (~tools: FumolaTools.t, ~ana: TermBase.Typ.t, json: Yojson.Safe.t)
+        (
+          ~tools: FumolaTools.t,
+          ~ana: TermBase.Typ.t,
+          json: Yojson.Safe.t,
+        )
         : result(TermBase.Exp.t, string) => {
   let applied = (name, payload) => {
     let (ctr, payload_ana) = constructor(~tools, ~ana, name);
@@ -426,6 +433,7 @@ let rec describe_value = (e: TermBase.Exp.t): string =>
   | Constructor(c, _) => c
   | Ap(Forward, {term: Constructor(c, _), _}, arg) =>
     c ++ "(" ++ describe_value(arg) ++ ")"
+  | FumolaPeek({reads, holds, _}) => reads == "" ? holds : reads
   | Projector(_, e) => describe_value(e)
   | EmptyHole => "?"
   | _ => "..."
@@ -516,13 +524,17 @@ and exp_of_tagged =
      A value, not an error. Hazel cannot represent it, but that is a limit of
      the boundary rather than a mistake in anyone's program, and showing
      "@thunk ({ 1 + 3 })" where the thunk is says more than a red mark. */
-  /* A Fumola value with no Hazel counterpart -- a thunk, a function. On
-     fumola-livelit-mvp this became a widget showing the source Fumola prints
-     for it, which said more than a hole. The widget was a livelit-era term
-     and the tile route has no counterpart yet, so for now this reports what
-     it is rather than showing it. */
   | ("Opaque", `String(shows)) =>
-    Error("the program produced " ++ shows ++ ", which has no Hazel form")
+    Ok(
+      DHExp.fresh(
+        FumolaPeek({
+          instance_id,
+          reads: "",
+          value: DHExp.fresh(EmptyHole),
+          holds: shows,
+        }),
+      ),
+    )
   /* A pointer becomes the livelit that reads it: the same Fumola instance,
      running get(<the name it points at>).
 
@@ -545,7 +557,16 @@ and exp_of_tagged =
          followed forever; a repeat yields a hole, whose type is Unknown. */
       let reads = reading_shown(source);
       if (List.mem(source, seen)) {
-        Error(reads ++ " is a cell that points to itself");
+        Ok(
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value: DHExp.fresh(EmptyHole),
+              holds: "a cell that points to itself",
+            }),
+          ),
+        );
       } else {
         /* Either a Hazel value, or -- when the cell holds something Hazel
            cannot represent -- what the runtime says is in there. A thunk
@@ -577,10 +598,16 @@ and exp_of_tagged =
             (DHExp.fresh(EmptyHole), message);
           | _ => (DHExp.fresh(EmptyHole), "")
           };
-        /* The value in the cell. The reference itself is no longer shown --
-           see the note on Opaque -- so a cell Hazel cannot read reports why
-           rather than rendering as an empty widget. */
-        holds == "" ? Ok(value) : Error(reads ++ " holds " ++ holds);
+        Ok(
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value,
+              holds,
+            }),
+          ),
+        );
       };
     | _ => Error("Fumola pointer has no source text")
     }

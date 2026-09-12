@@ -42,23 +42,24 @@ hotkeys.filter = event => {
   };
 
 // ---------------------------------------------------------------------------
-// Fumola runtime.
+// Fumola runtime, shared by both integrations.
 //
-// This is the external store a `fumola <instance> in ... end` names:
+// This is the external store that a livelit's model names, and that a
+// `fumola <mode> as <instance> in ... end` names by its instance:
 //
 //     sigma : FumolaInstanceId -> FumolaRuntimeState
 //
 // The store itself lives inside the Fumola wasm module (see
 // crates/fumola_wasm in the Fumola repo); what lives here is the glue that
 // loads that module and presents a *synchronous* interface to Hazel, since
-// elaboration and rendering are both synchronous.
+// elaboration, livelit expansion and rendering are all synchronous.
 //
 // Instantiating wasm is unavoidably asynchronous, so calls made before the
 // module has loaded answer "Pending" rather than blocking. Once loaded, every
 // call is synchronous.
 //
 // The wasm artifacts are generated, not checked in. Build them with
-// scripts/build-fumola-wasm.sh. Without them a fumola expression degrades to a clear
+// scripts/build-fumola-wasm.sh. Without them both integrations degrade to a
 // message instead of breaking the Hazel build.
 window.fumola = (() => {
   let wasm = null;

@@ -27,4 +27,76 @@ let slider_val = ^^livelit(^slider(85)) in
 #                if value > 70 then "happy"                     #
 #                otherwise "neutral"                            #
 # Internal Model: Int                                           #
-let current_mood = ^^livelit(^emotion(0)) in¿
+let current_mood = ^^livelit(^emotion(0)) in
+
+# 3. ^fumola_new #
+# Expansion Type: Int -- the id naming the runtime                          #
+# Model: (Int, + Simple + Graphical) -- instance, semantics                 #
+#                                                                           #
+# Declares a runtime and the Adapton semantics it runs. The other two       #
+# attach to whatever runtime their id names, so this is where a program     #
+# says which semantics it wants, once, where the runtime is made.           #
+#                                                                           #
+# Runtimes default to "simple", which keeps no graph, so the graph          #
+# introspection needs "graphical". Asking for the semantics a runtime       #
+# already runs does nothing; asking for a different one resets it.          #
+
+# 4. ^fumola_put_force #
+# Expansion Type: whatever the annotation says; it needs one               #
+# Model: (Int, String, String) -- instance, thunk name, program            #
+#                                                                          #
+# Wraps its program as force(<name> := thunk { ... }). That is what makes   #
+# an edit incremental: re-forcing the same name reuses the thunk's history, #
+# so state written in one edit is there in the next. Write `1 := 2` in one  #
+# edit, then `get(1)` in the next, and the result is 2.                     #
+#                                                                          #
+# The thunk name is Fumola source for a symbol, parsed by Fumola itself, so #
+# `myThunk, 7 and `a(`b) all work. Two thunks in one runtime must not share #
+# a name, or each overwrites the other.                                     #
+#                                                                          #
+# 5. ^fumola_eval #
+# Expansion Type: whatever the annotation says; it needs one               #
+# Model: (Int, String) -- instance, program                                #
+#                                                                          #
+# Evaluates at the top level, with no thunk. No reuse, but bindings outlive #
+# the program, and Adapton.reset() and Adapton.peekForce work -- they       #
+# cannot run inside a force. Strictly more expressive than                  #
+# ^fumola_put_force: you can write the force(... := thunk { ... })          #
+# yourself.                                                                 #
+#                                                                          #
+# Same instance id means the same runtime, so an editor can set up state    #
+# that a thunk reads.                                                       #
+#                                                                          #
+# 6. The peek value (not a livelit) #
+# A program returning a pointer produces a value carrying the reference     #
+# and what it points at: 1 := 2 gives a reference shown as                  #
+# peek(1) = Some(2). The option is peek's own, spelled Hazel's way.         #
+# Evaluation continues through it, so a reference to an Int is usable as an #
+# Int, while the reference stays visible.                                   #
+#                                                                          #
+# Always in scope: pointer(s), get(s), peek(s), since Hazel strings cannot  #
+# contain the quotes the adapton primitives need. `:=` turns its left side  #
+# into a pointer but `@` does not, so read a cell back with get(s).         #
+#                                                                          #
+# A symbol arrives in Hazel as its text: `x becomes "x".                    #
+#                                                                          #
+# The Fumola module library is bound at the top level, so Gcd.gcd(12, 18)   #
+# works with no import:                                                     #
+#   Adapton  List  LazyList  PureList  LevelTree  HashMap                   #
+#   Counters  RandomInput  MergeSort  Gcd  DelayedPut                       #
+# Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.        #
+# An example of the three together. All three name instance 0, so they      #
+# share one Fumola runtime.                                                 #
+#                                                                          #
+# The thunk writes a cell and returns 137. The first editor asks for a      #
+# pointer to that cell, which comes back as a peek value showing both the   #
+# reference and what it holds -- and typing as Int, so the annotation is    #
+# satisfied and evaluation continues through it. The second editor forces   #
+# the thunk the first livelit made, by its name `t, which is why naming a   #
+# thunk explicitly matters: you can refer to it from somewhere else.        #
+#                                                                          #
+# The result is (137, peek(`x) = Some(274), 137).                           #
+let x : Int = ^fumola_put_force(0, "`t", "`x := 137 + 137; 137") in
+let x_ : Int = ^fumola_eval(0, "pointer(`x)") in
+let y : Int = ^fumola_eval(0, "force(pointer(`t))") in
+(x, x_, y)

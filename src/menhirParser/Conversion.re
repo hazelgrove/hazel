@@ -428,6 +428,10 @@ module rec Exp: {
     | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
     | FumolaQuote(_) => raise(Failure("FumolaQuote not supported"))
     | Projector(_, e) => of_core(e)
+    /* A reference has no concrete syntax -- it is only ever produced by
+       translating a Fumola result, never written or parsed -- so it converts
+       as the value it denotes. */
+    | FumolaPeek({value, _}) => of_core(value)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
       ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
