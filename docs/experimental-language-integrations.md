@@ -196,6 +196,15 @@ Every one of these cost a test run or a shipped mistake.
   locally and not on CI; twelve further local runs with fresh seeds gave zero
   failures. Establish the rate before chasing one.
 
+## Extending the tiling system
+
+`docs/extending-the-tile-grammar.md` is the companion to this document: what
+it costs to put another language's concrete syntax into the tile grammar,
+which walls are real (all of them so far have been the shared tokenizer, not
+the grammar), and the decisions taken while acting on
+[#2538](https://github.com/hazelgrove/hazel/issues/2538). Written for anyone
+adding the next sub-language.
+
 ## Open
 
 - The two Fumola decks still need their cross-references written, beyond the
