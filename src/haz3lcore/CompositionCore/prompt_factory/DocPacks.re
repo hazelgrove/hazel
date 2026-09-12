@@ -19,36 +19,55 @@ A Hazel program can end in a live, interactive app. An app is a 4-tuple
 `(init, update, view, subs)` rendered by the `html` projector:
 
 - `init : Model` — the starting model
-- `update : (Model, Action) -> (Model, Cmd)` — model first. If no update
+- `update : (Model, Action) -> (Model, Cmd.T)` — model first. If no update
   issues commands, write `update : (Model, Action) -> Model` and lift it
   with the `noCmd` helper shown below.
-- `view : Model -> HTML` — event handlers emit Actions
-- `subs : Model -> Sub` — `SubNone` unless you need timers/keyboard
+- `view : Model -> Html.T` — event handlers emit Actions
+- `subs : Model -> Sub.T` — `Sub.none` unless you need timers/keyboard
 
 ## HTML and events
 
-Elements are constructors: `Div([attrs], [children])`, `Button`, `Span`,
-`Input([attrs])`, `Text(str)`, `Int(n)`, `Float(x)`, and
-`Node(tag, attrs, children)` for anything else.
-Attributes: `Class(str)`, `Style([(prop, value)])`, `Type`, `Value`,
-`Min`, `Max`, `Step`, `Placeholder`, `Disabled`, ...
-Handlers produce Actions: `OnClick(action)`, `OnInput(fun s -> action)`,
-`OnKeyDown(fun e -> action)`. For pointer position relative to the element
-(in px): `OnClickAt(fun (x, y) -> action)`, and likewise `OnMouseDownAt`,
-`OnMouseMoveAt`, `OnMouseUpAt`; `OnWheelAt(fun (x, y, dx, dy) -> action)`
-for zoom/pan. Sound, randomness, and math: read_docs("creative").
+The substrate is four builtin modules, not global names: `Html`, `Attr`,
+`Cmd`, `Sub`. Nothing is in scope unqualified, so a program's own `App`,
+`Value` or `Text` cannot collide with it.
+
+Elements are `Html` members: `Html.div([attrs], [children])`,
+`Html.button`, `Html.span`, `Html.input([attrs])`, `Html.text(str)`,
+`Html.int(n)`, `Html.float(x)`, and `Html.node(tag, attrs, children)` for
+anything else.
+Attributes are `Attr` members: `Attr.class(str)`,
+`Attr.style([(prop, value)])`, `Attr.type_`, `Attr.value`, `Attr.min`,
+`Attr.max`, `Attr.step`, `Attr.placeholder`, `Attr.disabled`, ...
+Handlers produce Actions: `Attr.on_click(action)`,
+`Attr.on_input(fun s -> action)`, `Attr.on_key_down(fun e -> action)`. For
+pointer position relative to the element (in px):
+`Attr.on_click_at(fun (x, y) -> action)`, and likewise
+`Attr.on_mouse_down_at`, `Attr.on_mouse_move_at`, `Attr.on_mouse_up_at`;
+`Attr.on_wheel_at(fun (x, y, dx, dy) -> action)` for zoom/pan. Sound,
+randomness, and math: read_docs("creative").
+
+The member name is the old constructor name in snake_case: `OnClickAt`
+became `on_click_at`, `H1` became `h1`, `CmdNone` and `SubNone` became
+`Cmd.none` and `Sub.none`, and `Type` became `type_` because `type` is a
+keyword.
+
+Types come from the modules too: `Html.T`, `Attr.T`, `Cmd.T`, `Sub.T`,
+`Html.App`, `Attr.KeyEvent`, `Attr.MouseEvent`.
 
 ## Drawing (SVG)
 
-`Node` covers SVG: tags like svg, circle, rect, line, path, polygon, g,
-text render in the SVG namespace automatically. SVG attributes go through
-`Create`:
+`Html.node` covers SVG: tags like svg, circle, rect, line, path, polygon,
+g, text render in the SVG namespace automatically. SVG attributes go
+through `Attr.create`:
 
 ```
-Node("svg", [Create("viewBox", "0 0 200 100"), Width("200"), Height("100")], [
-Node("circle", [Create("cx", "50"), Create("cy", "50"), Create("r", "20"),
-Create("fill", "teal")], []),
-Node("text", [Create("x", "80"), Create("y", "55")], [Text("a node")])
+Html.node("svg",
+[Attr.create("viewBox", "0 0 200 100"), Attr.width("200"), Attr.height("100")],
+[
+Html.node("circle", [Attr.create("cx", "50"), Attr.create("cy", "50"),
+Attr.create("r", "20"), Attr.create("fill", "teal")], []),
+Html.node("text", [Attr.create("x", "80"), Attr.create("y", "55")],
+[Html.text("a node")])
 ])
 ```
 
@@ -71,17 +90,18 @@ case a
 end in
 let view(m) =
 let (x, y, held) = m in
-Node("svg",
-[Create("viewBox", "0 0 200 100"), Width("200"), Height("100"),
-OnMouseMoveAt(fun (nx, ny) -> MoveTo(nx, ny)),
-OnMouseUpAt(fun p -> Release)],
-[Node("circle",
-[Create("cx", string_of_int(x)), Create("cy", string_of_int(y)),
-Create("r", "12"), Create("fill", if held then "coral" else "teal"),
-OnMouseDownAt(fun p -> Press)],
+Html.node("svg",
+[Attr.create("viewBox", "0 0 200 100"), Attr.width("200"),
+Attr.height("100"),
+Attr.on_mouse_move_at(fun (nx, ny) -> MoveTo(nx, ny)),
+Attr.on_mouse_up_at(fun p -> Release)],
+[Html.node("circle",
+[Attr.create("cx", string_of_int(x)), Attr.create("cy", string_of_int(y)),
+Attr.create("r", "12"), Attr.create("fill", if held then "coral" else "teal"),
+Attr.on_mouse_down_at(fun p -> Press)],
 [])]) in
-let subs(m) = SubNone in
-let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
+let subs(m) = Sub.none in
+let noCmd(f) = fun (m, a) -> (f((m, a)), Cmd.none) in
 ^^html((init, noCmd(update), view, subs))
 ```
 
@@ -93,13 +113,13 @@ type Action = Int in
 let init : Model = 0 in
 let update(m: Model, a: Action) = m + a in
 let view(m: Model) =
-Div([], [
-Button([OnClick(-1)], [Text("-")]),
-Int(m),
-Button([OnClick(1)], [Text("+")])
+Html.div([], [
+Html.button([Attr.on_click(-1)], [Html.text("-")]),
+Html.int(m),
+Html.button([Attr.on_click(1)], [Html.text("+")])
 ]) in
-let subs(m: Model) = SubNone in
-let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
+let subs(m: Model) = Sub.none in
+let noCmd(f) = fun (m, a) -> (f((m, a)), Cmd.none) in
 ^^html((init, noCmd(update), view, subs))
 ```
 
@@ -114,7 +134,7 @@ let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
 - You cannot click the app yourself. Verify `update` with tests
   (`test update((0, 1)) == 1 end`) and probes; the user interacts with
   the rendered app.
-- Style with `Style([...])` inline CSS; keep it modest.
+- Style with `Attr.style([...])` inline CSS; keep it modest.
 |},
 };
 
@@ -135,10 +155,11 @@ type Expansion = Int;
 let init : Model = 50;
 let update(m: Model, a: Action) = a;
 let view(m: Model) =
-Div([], [
-Input([Type("range"), Min("0"), Max("100"), Value(string_of_int(m)),
-OnInput(fun s -> int_of_string(s))]),
-Text(string_of_int(m))
+Html.div([], [
+Html.input([Attr.type_("range"), Attr.min("0"), Attr.max("100"),
+Attr.value(string_of_int(m)),
+Attr.on_input(fun s -> int_of_string(s))]),
+Html.text(string_of_int(m))
 ]);
 let expand(m: Model) = m
 } in
@@ -158,7 +179,7 @@ and the four value members:
 
 - `init : Model` — the model a fresh use starts with
 - `update : (Model, Action) -> Model` — no commands, unlike apps
-- `view : Model -> HTML` — same HTML/handler vocabulary as apps
+- `view : Model -> Html.T` — same Html/Attr vocabulary as apps
   (see read_docs("mvu")); handlers emit Actions
 - `expand : Model -> Expansion` — `^pct(25)` evaluates to `expand(25)`
 
@@ -178,14 +199,15 @@ and the four value members:
   continuing on the TOP line beside the widget (good for compact
   square-ish widgets used inline). Default Inline(24). The view mounts
   centered in a content box just inside the chevron end-caps and is
-  CLIPPED to it. Prefer views that FILL the box — Width/Height "100%",
+  CLIPPED to it. Prefer views that FILL the box — Attr.width/Attr.height
+  "100%",
   svg scaled via viewBox — so any reasonable footprint looks right.
   Views needing exact pixels (coordinate click math) should size
   snugly (a line is ~25px); overshoot clips, it never overlaps code.
 - Models and Actions must be first-order data (ints, strings, tuples,
   constructors) — they live in the program text.
 - Member access is ordinary syntax: `^pct.expand(25)` works anywhere.
-- `Create("data-hint", "drag me")` on a view element shows an instant
+- `Attr.create("data-hint", "drag me")` on a view element shows an instant
   tooltip on hover — advertise non-obvious gestures this way.
 - When the user operates the widget, the argument is rewritten to the
   transition `^name.update(prev, action)` — this is expected; it
@@ -196,7 +218,7 @@ and the four value members:
   up, click, ...) commits once. So a drag is smooth and lands as a
   single undo step — but a model changed only by down/move never
   commits until some committing event fires: give every gesture a
-  mouse-up handler. OnInput streams work the same way: each input
+  mouse-up handler. `Attr.on_input` streams work the same way: each input
   event previews and the release/blur commits once, so a slider scrub
   is also a single edit. Updates that return the model unchanged
   commit nothing, so a stray click can't pollute history.
@@ -224,11 +246,11 @@ These build on the app machinery from read_docs("mvu").
 
 ## Sound
 
-`PlayTone(freq_hz, duration_ms)` is a Cmd: return it from `update` to play
+`Cmd.play_tone(freq_hz, duration_ms)` plays a sine beep: return it from `update` to
 a sine beep. Browsers unlock audio on the first user gesture, so give the
 app a start button — tones fired before any click are silently dropped.
 
-A four-note loop (`Every` drives ticks only while running):
+A four-note loop (`Sub.every` drives ticks only while running):
 
 ```
 type SeqAction = Tick + Toggle in
@@ -236,28 +258,29 @@ let notes = [262., 330., 392., 523.] in
 let update(m, a) =
 let (i, on) = m in
 case a
-| Toggle => ((i, if on then false else true), CmdNone)
+| Toggle => ((i, if on then false else true), Cmd.none)
 | Tick =>
 if on
-then ((int_mod(i + 1, 4), on), PlayTone(nth(notes, i), 120.))
-else (m, CmdNone)
+then ((int_mod(i + 1, 4), on), Cmd.play_tone(nth(notes, i), 120.))
+else (m, Cmd.none)
 end in
 let view(i, on) =
-Div([], [
-Button([OnClick(Toggle)], [Text(if on then "stop" else "play")]),
-Int(i)]) in
+Html.div([], [
+Html.button([Attr.on_click(Toggle)],
+[Html.text(if on then "stop" else "play")]),
+Html.int(i)]) in
 let subs(i, on) =
-if on then Every(250., fun t -> Tick) else SubNone in
+if on then Sub.every(250., fun t -> Tick) else Sub.none in
 ^^html(((0, false), update, view, subs))
 ```
 
-`Say(text)` is a Cmd that speaks a string aloud.
+`Cmd.say(text)` speaks a string aloud.
 
 ## Randomness
 
 Evaluation is deterministic — there is no random() function. Two idioms:
 
-- `Random(fun f -> action)` is a Cmd: a fresh draw f in [0,1) arrives as
+- `Cmd.random(fun f -> action)`: a fresh draw f in [0,1) arrives as
   an action, like Elm's Random.generate. Return it from `update` whenever
   you need a roll.
 - For reproducible generative art, thread a seed through the model:
@@ -270,7 +293,7 @@ unit_float(next(42))
 
 ## Zoom / pan
 
-`OnWheelAt(fun (x, y, dx, dy) -> action)`: element-relative pointer
+`Attr.on_wheel_at(fun (x, y, dx, dy) -> action)`: element-relative pointer
 position (px ints) plus scroll deltas (floats). Default scrolling is
 prevented on that element. Zoom about the pointer by scaling coordinates
 around (x, y).
