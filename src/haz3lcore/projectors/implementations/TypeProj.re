@@ -56,6 +56,20 @@ module M: Projector = {
     | Some(ty) => !Typ.is_syn(ty)
     };
 
+  /* Whether the two readings are the same type. Not (==): that compares ids
+     too, and statics builds types with Typ.temp, so two types it built
+     compare equal on the Id.invalid sentinel while a written annotation --
+     carrying its own tokens' ids -- never equals its synthesized twin. An
+     expression with no expectation has nothing to agree with. */
+  let readings_agree = (statics: option(Info.t)): bool =>
+    has_expected(statics)
+    && (
+      switch (self_ty(statics), expected_ty(statics)) {
+      | (Some(self), Some(expected)) => Typ.fast_equal(self, expected)
+      | _ => false
+      }
+    );
+
   /* What the cell shows: the model says which reading was asked for, this
      says which it came to. Runtime carries no type -- its segment is built
      from the samples and comes with the ids to colour. */
@@ -85,7 +99,7 @@ module M: Projector = {
       }
     /* ↔ not ⇔: the bundled font has no bidirectional double arrow, and a
        fallback renders differently per browser (see proj-type.css). */
-    | _ when self_ty(statics) == expected_ty(statics) => {
+    | _ when readings_agree(statics) => {
         glyph: "↔",
         description: "Self type matches expected type",
         content: OfTyp(self_ty(statics) |> totalize_ty),
