@@ -4,6 +4,25 @@
 # expression, and that is the whole point: the adapton store it holds #
 # survives every edit that leaves the name alone. #
 
+# WHAT THE NAME AFTER `as` IS #
+
+# It reads like a variable and it is not one.  Nothing in the Hazel #
+# program around it binds `store`, and nothing in the Fumola program #
+# inside it binds `store` either -- put the cursor on it and Hazel says #
+# `Instance Name`, not `Variable Reference`. #
+
+# It is a key written into the program text.  The runtime keeps a table of #
+# VM instances; the name is looked up in that table, and an instance is #
+# created the first time a name is seen and found by that name ever after. #
+# So the same name in two programs means one instance and one store, a #
+# different name means a different store, and nothing an edit does to the #
+# program around it can change which store the program is talking to. #
+
+# That is the difference from a variable worth holding onto: a variable #
+# denotes whatever its binder currently says, so editing the binder #
+# changes it.  This name denotes the same instance until you retype the #
+# name itself. #
+
 # `:=` puts a value at a name and hands back a POINTER to it.  `@` reads a #
 # pointer.  So a put and a read are two steps, and the pointer is what #
 # joins them: #

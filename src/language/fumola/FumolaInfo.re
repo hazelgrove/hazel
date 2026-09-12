@@ -63,18 +63,23 @@ let mk = (~id, ~ancestors, ~status=NotInHole, cls: FumolaCls.t): t => {
   status,
 };
 
-let of_exp = (~ancestors, e: FumolaTermBase.t): t => {
+/* [instance_name] is set for the term in the `as` slot of `fumola … end`.
+   That position reads as a Fumola variable and is not one: it is neither
+   bound in the Hazel program around it nor by anything in the Fumola program
+   inside it. It names a VM instance, which is a key the runtime looks up --
+   so the cursor should say so rather than call it a reference. */
+let of_exp = (~ancestors, ~instance_name=false, e: FumolaTermBase.t): t => {
   let status =
     switch (e.term) {
     | Hole(h) => status_of_hole(h)
     | _ => NotInHole
     };
-  mk(
-    ~id=IdTagged.rep_id(e),
-    ~ancestors,
-    ~status,
-    FumolaCls.of_exp_term(e.term),
-  );
+  let cls =
+    switch (instance_name, e.term) {
+    | (true, Var(_)) => FumolaCls.InstanceName
+    | _ => FumolaCls.of_exp_term(e.term)
+    };
+  mk(~id=IdTagged.rep_id(e), ~ancestors, ~status, cls);
 };
 
 let of_dec = (~ancestors, d: FumolaTermBase.dec): t => {

@@ -240,12 +240,18 @@ and multi =
    uexp_to_info_map already visits them with a context and a type, and
    overwriting those entries with class-only ones would lose the statics that
    make the embedded expression worth having. */
-and fumola_to_info_map = (f: FumolaTermBase.t, m: Map.t, ~ancestors): Map.t => {
-  let rec go = (~ancestors, e: FumolaTermBase.t, m: Map.t): Map.t => {
+/* [instance_name] applies to the ROOT of this traversal only, which is how
+   the `as` slot is told apart from a Fumola variable that happens to spell
+   the same name inside the program. */
+and fumola_to_info_map =
+    (~instance_name=false, f: FumolaTermBase.t, m: Map.t, ~ancestors): Map.t => {
+  let rec go =
+          (~ancestors, ~instance_name=false, e: FumolaTermBase.t, m: Map.t)
+          : Map.t => {
     let m =
       add_info(
         IdTagged.ids(e),
-        InfoFumola(FumolaInfo.of_exp(~ancestors, e)),
+        InfoFumola(FumolaInfo.of_exp(~ancestors, ~instance_name, e)),
         m,
       );
     let ancestors = [IdTagged.rep_id(e), ...ancestors];
@@ -348,7 +354,7 @@ and fumola_to_info_map = (f: FumolaTermBase.t, m: Map.t, ~ancestors): Map.t => {
       Option.fold(~none=m, ~some=p => pat(~ancestors, p, m), p)
     };
   };
-  go(~ancestors, f, m);
+  go(~ancestors, ~instance_name, f, m);
 }
 
 and drv_to_info_map =
@@ -764,10 +770,15 @@ and uexp_to_info_map =
          runs even when the program cannot run, which is when a reader most
          wants to know what is under the cursor. */
       let m =
-        [name, mode, body]
+        [(true, name), (false, mode), (false, body)]
         |> List.fold_left(
-             (m, f) =>
-               fumola_to_info_map(f, m, ~ancestors=ancestors_inclusive),
+             (m, (instance_name, f)) =>
+               fumola_to_info_map(
+                 ~instance_name,
+                 f,
+                 m,
+                 ~ancestors=ancestors_inclusive,
+               ),
              m,
            );
       /* Closures rather than the context itself, because the Fumola modules

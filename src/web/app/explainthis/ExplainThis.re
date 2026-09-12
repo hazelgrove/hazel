@@ -717,11 +717,20 @@ let decide =
      the form, and this says so rather than showing Hazel's docs for a
      same-named Hazel form. */
   | Some(InfoFumola(fi)) =>
-    Prose(
-      "Fumola "
-      ++ FumolaCls.show(FumolaInfo.cls_of(fi))
-      ++ ". No documentation available.",
-    )
+    switch (FumolaInfo.cls_of(fi)) {
+    | InstanceName =>
+      Markdown(
+        "The name of the Fumola VM instance this program runs against. It reads like a variable and is not one: nothing in the Hazel program around it binds this name, and nothing in the Fumola program inside it does either. It is a key, written into the program text, that the runtime looks up -- so the same name in two programs means one instance and one adapton store, and changing the name means a different store.\n\nThat is why the name is written rather than derived: the store survives every edit that leaves the name alone.",
+      )
+    | Hazel =>
+      Markdown(
+        "A Hazel expression standing where a Fumola term does. It is a real tile subtree, edited as Hazel, and it can appear anywhere a Fumola term can, as many times as the program wants.\n\nIt carries a value written in place, not a variable bound outside it: a Fumola program runs during elaboration, before anything has been substituted. For a program that needs a bound Hazel variable, see the `Fumola (Livelits) / 5. Input` slide -- that integration has one input slot and it takes an ordinary Hazel expression.",
+      )
+    | cls =>
+      Prose(
+        "Fumola " ++ FumolaCls.show(cls) ++ ". No documentation available.",
+      )
+    }
   | Some(InfoMod({cls, _})) =>
     switch (cls) {
     | Mod(ModLet) => message_single(ModLetDecl.single)

@@ -16,6 +16,7 @@ type t =
   | Invalid
   | Hazel
   /* atoms */
+  | InstanceName
   | Var
   | Int
   | Float
@@ -83,6 +84,7 @@ let show: t => string =
   | MultiHole => "Multi Hole"
   | Invalid => "Invalid Token"
   | Hazel => "Hazel Expression"
+  | InstanceName => "Instance Name"
   | Var => "Variable Reference"
   | Int => "Integer Literal"
   | Float => "Float Literal"

@@ -514,7 +514,17 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
-      | FumolaQuote(_, _, _) => Invalid("<fumola program>")
+      /* A Fumola program reaching a value display did not evaluate, so what
+         a reader wants from it is which instance it was going to run
+         against -- the one thing about it that is not on screen beside it.
+         `<fumola program>` said only that it is one. */
+      | FumolaQuote(name, _, _) =>
+        Invalid(
+          switch (FumolaRun.name_of(name)) {
+          | Some(instance) => "<fumola instance, " ++ instance ++ ">"
+          | None => "<fumola instance, unnamed>"
+          },
+        )
       | BbQuote(_) => Invalid("<blackboard document>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
