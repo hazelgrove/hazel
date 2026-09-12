@@ -194,7 +194,15 @@ module Update = {
         streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
         pending_eval_ids:
-          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+          /* The pending sweep feeds only the (default-off) incremental
+             deco, and clearing it walks every reused elaboration subtree
+             — skip the walk when nothing will read it. */
+          settings.show_incremental_deco
+            ? EvalWorklist.remove_streamed_ids(
+                stream,
+                model.pending_eval_ids,
+              )
+            : [],
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
@@ -208,7 +216,12 @@ module Update = {
           Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
         streaming_state: Calc.Pending,
         pending_eval_ids:
-          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+          settings.show_incremental_deco
+            ? EvalWorklist.remove_streamed_ids(
+                stream,
+                model.pending_eval_ids,
+              )
+            : [],
       }
       |> Updated.return_quiet;
     };
@@ -373,7 +386,38 @@ module Update = {
         and.calc streaming_state = streaming_state;
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
-          Some(dynamics_of_state(state))
+          let fresh = dynamics_of_state(state);
+          /* Streaming restarts with empty results on every eval, so for
+             short evaluations test marks blink out and probe/livelit
+             samples drop to nothing (livelits then dim to their
+             last-good view). Keep the previous run's entries for
+             anything the stream hasn't reached yet — fresh results win
+             per id, and entries for deleted ids are harmless (nothing
+             looks them up) and are replaced wholesale at ResultOk. */
+          switch (dynamics |> Calc.get_saved(None)) {
+          | Some(old) =>
+            let fresh_ids =
+              List.map(fst, fresh.Dynamics.test_results.test_map);
+            let carried =
+              List.filter(
+                ((id, _)) => !List.mem(id, fresh_ids),
+                old.Dynamics.test_results.test_map,
+              );
+            Some({
+              ...fresh,
+              test_results:
+                TestResults.mk_results(
+                  fresh.Dynamics.test_results.test_map @ carried,
+                ),
+              probe_map:
+                Id.Map.union(
+                  (_, fresh_samples, _old) => Some(fresh_samples),
+                  fresh.Dynamics.probe_map,
+                  old.Dynamics.probe_map,
+                ),
+            });
+          | None => Some(fresh)
+          };
         | (ProgramResult.ResultPending(_), None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)

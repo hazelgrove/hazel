@@ -1009,13 +1009,11 @@ let module_tests = [
     {|let m = { let x = ^^probe(1 + 2) } in m.x|},
     [(0, ["3"])],
   ),
-  /* ^^probe({ let x = 1 }) captures the module's value (x=1). The elaborator
-     places the Module's ID on the labeled tuple so the evaluator records
-     samples under the correct ID. */
+  /* ^^probe(m) captures the module's value, a module literal. */
   probe_line_test(
     "Probe on module value via variable",
     {|let m = { let x = 5 } in ^^probe(m)|},
-    [(0, ["(x=5)"])],
+    [(0, ["{ let x = 5 }"])],
   ),
   probe_line_test(
     "Probe on module dot access",
@@ -1044,7 +1042,32 @@ in m.f(5)|},
   probe_line_test(
     "Probe on module expression collects sample",
     {|let m = ^^probe({ let x = 5 }) in m.x|},
-    [(0, ["(x=5)"])],
+    [(0, ["{ let x = 5 }"])],
+  ),
+  probe_line_test(
+    "Probe inside a sealed module body fires",
+    {|module M : { let x : Int } = { let x = ^^probe(1 + 2); let y = 3 } in M.x|},
+    [(0, ["3"])],
+  ),
+  probe_line_test(
+    "Probe on a sealed module shows the sealed value",
+    {|module M : { let x : Int } = { let x = 1; let y = 2 } in ^^probe(M)|},
+    [(0, ["{ let x = 1 }"])],
+  ),
+  probe_line_test(
+    "Probe inside a sealed-away member still fires",
+    {|module M : { let x : Int } = { let x = 1; let y = ^^probe(2) } in M.x|},
+    [(0, ["2"])],
+  ),
+  probe_line_test(
+    "Probed literal member samples once",
+    {|let m = { let y = ^^probe(2); type T = Int } in m.y|},
+    [(0, ["2"])],
+  ),
+  probe_line_test(
+    "Probed literal member next to a function member samples once",
+    {|let m = { let y = ^^probe(2); let f = fun x -> x } in m.f(m.y)|},
+    [(0, ["2"])],
   ),
 ];
 

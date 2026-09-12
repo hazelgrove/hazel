@@ -41,6 +41,8 @@
   ppx_yojson_conv.expander
   haz3lcore
   b2t2
+  mvu
+  livelitdemos
   docslides
   omd)
  (js_of_ocaml)

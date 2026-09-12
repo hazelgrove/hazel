@@ -96,17 +96,70 @@ let make_problem_context =
      own term so problems don't leak across groups. */
   let id_in_this_editor = id =>
     TermData.root_piece(id, syntax.term_data) != None;
+  /* One error, one row. A transparent wrapper re-states the marks of the
+     term it wraps (`Parens` and `Projector` in Statics pass `~marks`
+     straight through), so a single error occupies a chain of nested ids:
+     `(y)` carries the free-variable mark on the variable AND on the
+     parens, and a projected livelit use carries the expansion mark on
+     `^name(model)` AND on the projector around it. Statics hands the
+     wrapper the child's mark list itself, so physical equality picks out
+     exactly the ids that inherited a mark and never two equal-looking
+     marks on unrelated terms. */
+  let inherits_marks = (marks: list(Mark.t), id: Id.t): bool =>
+    switch (Statics.Map.lookup(id, info_map)) {
+    | Some(anc) => Info.marks_of(anc) === marks
+    | None => false
+    };
+  let wrappers_of = (id: Id.t): list(Id.t) =>
+    switch (Option.map(Info.marks_of, Statics.Map.lookup(id, info_map))) {
+    /* An error reported without marks (Drv) has no chain to collapse;
+       [] is physically equal to every other [], so never compare it. */
+    | None
+    | Some([]) => []
+    | Some(marks) =>
+      Statics.Map.ancestors_of(id, info_map)
+      |> List.filter(inherits_marks(marks))
+    };
+  /* The innermost id of a chain owns the mark; the wrappers above it are
+     the ones to drop. */
+  let inherited =
+    List.fold_left(
+      (acc, id) =>
+        List.fold_left(
+          (acc, anc) => Id.Set.add(anc, acc),
+          acc,
+          wrappers_of(id),
+        ),
+      Id.Set.empty,
+      statics.error_ids,
+    );
+  /* Ids under a projector are invisible — absent from `measured` — so
+     when the owner of a mark is hidden, report the innermost wrapper the
+     user can actually see instead of the owner itself. */
+  let reported_id = (id: Id.t): Id.t =>
+    switch (Measured.find_by_id(id, measured)) {
+    | Some(_) => id
+    | None =>
+      wrappers_of(id)
+      |> List.find_opt(anc => Measured.find_by_id(anc, measured) != None)
+      |> Option.value(~default=id)
+    };
   /* Partition error_ids into syntax and static in a single pass */
   let (syntax_error_ids, static_error_ids) =
     List.fold_right(
       (id, (syn, stat)) =>
         switch (Statics.Map.lookup(id, info_map)) {
-        | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
+        | Some(ci)
+            when
+              Info.is_error(ci)
+              && id_in_this_editor(id)
+              && !Id.Set.mem(id, inherited) =>
+          let id = reported_id(id);
           if (Info.is_syntax_error(ci)) {
             ([(id, ci), ...syn], stat);
           } else {
             (syn, [(id, ci), ...stat]);
-          }
+          };
         | _ => (syn, stat)
         },
       statics.error_ids,

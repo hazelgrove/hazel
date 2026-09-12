@@ -81,6 +81,7 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | ModType(_, _)
   | ModExp(_)
   | ModuleMod(_, _)
+  | ModVal(_, _)
   | EmptyHole
   | Invalid(_) => [m]
   };
@@ -101,6 +102,7 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.flatten
   | SigLet(_)
   | SigType(_, _)
+  | SigModule(_)
   | EmptyHole
   | Invalid(_) => [s]
   };
@@ -983,6 +985,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
+      /* Livelit binder `let ^name = ...`: reuse Var, keeping the caret.
+         No var token can contain `^`, so the name is unambiguous. */
+      | ([t], []) when Token.is_livelit(t) => ret(Var(t))
       | ([t], []) when Token.is_wild(t) => ret(Wild)
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Pat(body)]) => ret(Parens(body))
@@ -1366,6 +1371,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
+  /* SigModule: module m : S - the module name pattern is the body */
+  | Pre(([(_id, (["module"], []))], []), MPat(mp)) =>
+    ret(SigModule(mp))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 and mpat = unsorted => {

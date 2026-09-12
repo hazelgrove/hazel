@@ -1,0 +1,74 @@
+# An Emotion Livelit #
+
+# A draggable face whose EXPANSION is a String naming a mood: the #
+# face itself is the control -- drag it up or down to change it. #
+
+let ^mood = {
+  # (value, anchor): anchor is -1 except mid-drag. It stores #
+  # 200 + value - 2 * grab-y (the bias keeps it positive). #
+  type Model = (Int, Int);
+  type Action = + Down(Int) + MoveTo(Int) + Up;
+  type Expansion = String;
+
+  let init : Model = (50, -1);
+
+  let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
+
+  # dragging DOWN pulls the mouth into a smile (2 mood per px); #
+  # moves only count while held #
+  let update = fun ((v, anchor), a) : (Model, Action) ->
+    case a
+    | Down(y) => (v, 200 + v - 2 * y)
+    | MoveTo(y) => if anchor == -1 then (v, anchor)
+                   else (clamp(anchor - 200 + 2 * y), anchor)
+    | Up => (v, -1)
+    end;
+
+  let word = fun (v, anchor) : Model ->
+    if v < 40 then "sad" else if v > 70 then "happy" else "neutral";
+
+  # the mouth is a curve whose bend follows the value #
+  let mouth = fun v ->
+    "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
+
+  let view = fun (v, anchor) : Model ->
+    Html.div(
+      [Attr.create("data-hint", "drag up/down"),
+       Attr.style([("cursor", "ns-resize")])],
+      [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 200 200"),
+           Attr.width("92"), Attr.height("92"),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(y)),
+           Attr.on_mouse_up_at(fun p -> Up)],
+          [
+            Html.node("circle",
+              [Attr.create("cx", "100"), Attr.create("cy", "100"), Attr.create("r", "90"),
+               Attr.create("fill", "gold"), Attr.create("stroke", "black")], []),
+            Html.node("circle",
+              [Attr.create("cx", "65"), Attr.create("cy", "80"), Attr.create("r", "10")], []),
+            Html.node("circle",
+              [Attr.create("cx", "135"), Attr.create("cy", "80"), Attr.create("r", "10")], []),
+            Html.node("path",
+              [Attr.create("d", mouth(v)), Attr.create("stroke", "black"),
+               Attr.create("fill", "transparent"), Attr.create("stroke-width", "5")], [])
+          ])
+      ]
+    );
+
+  let expand = fun m : Model -> word(m);
+
+  let shape = Tab(10, 4)
+} in
+
+# A use means its EXPANSION: the mood word, not the number behind it. #
+
+let greeting = fun mood : String ->
+  case mood
+  | "happy" => "What a day!"
+  | "sad" => "Hang in there."
+  | _ => "Steady on."
+  end in
+
+greeting(^^livelit(^mood(85, -1)))

@@ -17,6 +17,7 @@ let (suite, exit_with_test_status) =
     ~argv=Sys.argv,
     "HazelTests",
     [
+      Test_AgentPersist.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
@@ -66,10 +67,12 @@ let (suite, exit_with_test_status) =
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
+      Test_MVU.tests,
       Test_TableCore.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
+    @ Test_UserLivelits.tests
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]

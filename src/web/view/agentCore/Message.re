@@ -238,13 +238,17 @@ module Utils = {
     let sanitized_content = String.trim(tool_result.content);
 
     let msg =
-      tool_result.success
-        ? "The "
-          ++ tool_result.tool_call.name
-          ++ " tool call with the following arguments was successful and has been applied to the model. "
-          ++ " Arguments: "
-          ++ Yojson.Safe.to_string(tool_result.tool_call.args)
-        : sanitized_content;
+      switch (tool_result.success, tool_result.content_is_payload) {
+      /* the content IS the result (e.g. a read_docs guide) — deliver it */
+      | (true, true) => sanitized_content
+      | (true, false) =>
+        "The "
+        ++ tool_result.tool_call.name
+        ++ " tool call with the following arguments was successful and has been applied to the model. "
+        ++ " Arguments: "
+        ++ Yojson.Safe.to_string(tool_result.tool_call.args)
+      | (false, _) => sanitized_content
+      };
     {
       // This is a message from our backend.
       // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents

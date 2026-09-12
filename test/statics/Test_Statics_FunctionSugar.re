@@ -50,18 +50,22 @@ let info_map_preserves_ids = (name, src) =>
     },
   );
 
-/* Locate the sugar's binder pattern in a parsed expression and return
-   the ids of (a) the optional outer `Asc` wrapper and (b) the inner
+/* Locate the sugar's binder pattern in a parsed expression (a top-level
+   `let`, or the first item of a top-level module body) and return the ids
+   of (a) the optional outer `Asc` wrapper and (b) the inner
    `Ap(Var(f), args)` wrapper. */
-let binder_wrapper_ids = (exp: Exp.t): (option(Id.t), Id.t) =>
-  switch (IdTagged.term_of(exp)) {
-  | Let(p, _, _) =>
+let binder_wrapper_ids = (exp: Exp.t): (option(Id.t), Id.t) => {
+  let of_binder = (p: Language.Pat.t) =>
     switch (IdTagged.term_of(p)) {
     | Asc(inner, _) => (Some(IdTagged.rep_id(p)), IdTagged.rep_id(inner))
     | _ => (None, IdTagged.rep_id(p))
-    }
-  | _ => Alcotest.fail("expected a top-level Let")
+    };
+  switch (IdTagged.term_of(exp)) {
+  | Let(p, _, _) => of_binder(p)
+  | Module([{term: ModLet(p, _), _}, ..._]) => of_binder(p)
+  | _ => Alcotest.fail("expected a top-level Let or module body")
   };
+};
 
 /* Check that the info entries at the sugar-introduced pattern wrappers
    carry the arrow type directly (so the cursor inspector renders
@@ -151,6 +155,26 @@ let tests = (
       "let inc(x) = x + 1 in let double(x) = x * 2 in double(inc(3))",
       Some(int()),
     ),
+    /* ===== Module members: funlet exports the head name =====
+       Regression: value_exports used Pat.bound_vars, which descends an
+       Ap pattern's argument — the module exported the PARAMETERS
+       instead of the function ("Label not found" at m.g, unbound
+       parameter vars in the export tuple). */
+    fully_consistent_typecheck(
+      "module member in funlet form is exported by name",
+      "let m = { let g(x: Int): Int = x + 1 } in m.g(2)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "funlet member sees earlier members",
+      "let m = { let a = 10; let g(x) = x + a } in m.g(2)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "funlet member shadowing keeps the later binding",
+      "let m = { let g(x) = x + 1; let g(x) = x + 2 } in m.g(1)",
+      Some(int()),
+    ),
     /* ===== Error surfaces: inconsistent return-type annotation =====
        `f(...) : Int = "nope"` must produce at least one static error. */
     inconsistent_typecheck(
@@ -193,6 +217,32 @@ let tests = (
     binder_info_shape(
       "binder info: Asc wrapper with return type",
       "let f(x: Int, y: Int): Int = x + y in f(3, 4)",
+      arrow(prod([int(), int()]), int()),
+    ),
+    /* ===== Module bodies =====
+       A shorthand item is lowered to a `let` and desugared by the same
+       code; a signature's expected type is ascribed to the function name. */
+    fully_consistent_typecheck(
+      "module member: the sugar yields the arrow type",
+      "{ let f(x: Int, y: Int): Int = x + y }.f",
+      Some(arrow(prod([int(), int()]), int())),
+    ),
+    fully_consistent_typecheck(
+      "module member: ascribed by its signature",
+      "module M : { let f : (Int, Int) -> Int } = { let f(x, y) = x + y } in M.f(3, 4)",
+      Some(int()),
+    ),
+    info_map_preserves_ids(
+      "ids preserved: module member",
+      "{ let f(x: Int, y: Int) = x + y }.f(3, 4)",
+    ),
+    info_map_preserves_ids(
+      "ids preserved: module member with return type, under a signature",
+      "module M : { let f : (Int, Int) -> Int } = { let f(x, y): Int = x + y } in M.f(3, 4)",
+    ),
+    binder_info_shape(
+      "binder info: module member",
+      "{ let f(x: Int, y: Int): Int = x + y }",
       arrow(prod([int(), int()]), int()),
     ),
   ],
