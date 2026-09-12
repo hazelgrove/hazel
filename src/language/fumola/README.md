@@ -194,6 +194,39 @@ pointer or an opaque value in place. Those were livelit-era terms with no tile
 counterpart, so a pointer now yields the value it points at, and an opaque
 value reports what it is instead of showing it.
 
+## The event list (M3)
+
+`FumolaEvents` reads an instance's adapton event list, and
+`src/web/app/sidebar/FumolaSidebar.re` shows it beside the editor, in the
+panel that holds errors and probes. With the cursor inside a `fumola … end`
+it lists that instance's events; with the cursor elsewhere, and no single
+instance to mean, it says what an instance is and how to write one.
+
+```
+Events of store
+ 1  node added       Symbol `t Now 1
+ 1  edge added       edgeId 1001
+ 2  edge added       edgeId 1002
+ 2  force begins     edgeId 1002
+ 3  force ends       edgeId 1002
+ 3  edge realigned   edgeId 1002
+```
+
+The names are this project's: a force has a Begin and an End, and an edge is
+*realigned* rather than "updated".
+
+Two things worth knowing:
+
+- **No wasm export was added.** The history is already reachable as a prim, so
+  the panel runs `prim "adaptonPeekHistory" ()` in the instance through the
+  existing shim. The boundary stays source text, and a change to what the
+  panel shows costs a Hazel build rather than a Rust one.
+- **A cursor on whitespace names no term**, since secondary pieces are not in
+  the term at all. Without a fallback the panel emptied itself every time the
+  caret crossed a space, which is most of the time while typing, so a single
+  instance in the editor is still the one meant. With more than one it stays
+  quiet rather than guessing.
+
 ## How the contract is checked
 
 Two checks, because agreeing with ourselves is not evidence.

@@ -314,6 +314,10 @@ let prev = Node.text("⮕");
 
 let infoIcon = Node.text("❖");
 
+/* The Fumola panel's tab: a node with edges leaving it, which is what the
+   event list is about. */
+let fumolaIcon = Node.text("⬡");
+
 /* Entailment turnstile (⊢), drawn to match `new_buffer` so the two icons
    sit side-by-side in the scratch toolbar with identical stroke width,
    bar length, and vertical extent. Two rounded rectangles:

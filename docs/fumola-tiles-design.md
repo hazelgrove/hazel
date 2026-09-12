@@ -207,7 +207,24 @@ about values, not livelits, and carry no livelit dependency. Statics: give
 the expression a type rather than leaving it `Unknown`, which is where
 Blackboard stopped.
 
-**M3 — reading existing Fumola.** A text parser, `FumolaParse.re`, so the
+**M3 — the event list.** A section of the right-hand panel, beside errors and
+probes, showing the adapton event list of the instance the cursor is in --
+`addNode`, `addEdge`, `updateEdge`, `removeEdge`, and the Begin and End of
+each force -- and, when the cursor is not in one, how to make one.
+
+The events are fetched by running `prim "adaptonPeekHistory" ()` in the
+instance through the shim that is already there, rather than by adding a wasm
+export. That keeps the boundary source text, as everything else here does,
+and avoids the ~110 s Rust turnaround measured above for what is a UI change.
+
+This is why the Fumola runtime stays on the main thread: the panel is a
+main-thread view of an instance, and it can ask the runtime directly. Putting
+the runtime in the worker -- the only way to let a `hazel … end` carry a
+*bound* variable rather than a value written in place -- would put the store
+behind a worker round trip, and shape this panel's whole design around it.
+That trade is written up in src/language/fumola/README.md.
+
+**M4 — reading existing Fumola.** A text parser, `FumolaParse.re`, so the
 `.fumola` corpus can be opened as tiles. Only worth doing once M0's printer
 is trusted, because parse-then-print is the round trip that proves both.
 

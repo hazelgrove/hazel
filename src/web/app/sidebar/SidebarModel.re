@@ -8,6 +8,7 @@ module Settings = {
     | Probes
     | LogControl
     | Problems
+    | Fumola
     | DebugInfo;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]

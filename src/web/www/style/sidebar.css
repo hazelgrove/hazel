@@ -771,3 +771,59 @@
   font-style: italic;
   margin: 0.2em 0;
 }
+
+/* --- The Fumola panel: the adapton event list of the instance in focus --- */
+
+.fumola-panel {
+  padding: 0.5em;
+  overflow-y: auto;
+}
+
+.fumola-section-header {
+  font-weight: bold;
+  padding: 0.5em 0.5em 0.25em;
+  user-select: none;
+}
+
+.fumola-blurb {
+  padding: 0.25em 0.5em;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.fumola-example {
+  font-family: var(--code-font), monospace;
+  padding: 0.5em;
+  margin: 0.5em;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 5%);
+  white-space: pre-wrap;
+}
+
+/* One row per event, oldest first: when, what, and to what. The meta-time
+   column repeats across a run of events that share one, which is how a
+   realignment reads as a single step rather than several. */
+.fumola-event-table {
+  display: flex;
+  flex-direction: column;
+  margin: 0.25em 0.5em;
+  font-family: var(--code-font), monospace;
+}
+
+.fumola-event {
+  display: grid;
+  grid-template-columns: 3em 9em 1fr;
+  gap: 0.5em;
+  padding: 0.15em 0.25em;
+  border-bottom: 1px solid rgb(0 0 0 / 6%);
+}
+
+.fumola-event-time {
+  text-align: right;
+  opacity: 0.6;
+}
+
+.fumola-event-subject {
+  overflow-wrap: anywhere;
+  opacity: 0.8;
+}
