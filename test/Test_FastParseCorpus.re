@@ -52,12 +52,12 @@ let known_gaps: list(string) = [
   "fumola-tiles-leveltree.hz",
   "fumola-tiles-hazel-inside.hz",
   "fumola-tiles-roundtrip.hz",
-  "overview.hz",
-  "terms.hz",
-  "signatures.hz",
-  "checking.hz",
-  "metatheory.hz",
-  "case-studies.hz",
+  "blackboard-overview.hz",
+  "blackboard-terms.hz",
+  "blackboard-signatures.hz",
+  "blackboard-checking.hz",
+  "blackboard-metatheory.hz",
+  "blackboard-case-studies.hz",
 ];
 
 let tests = (
