@@ -70,9 +70,24 @@ module Eval = Transition(EvaluatorEVMode);
  * Transition.provenance_of_kind) pushes the redex's span key here, and a
  * nested evaluation matching it CONTINUES the enclosing observation span
  * instead of opening its own (the delegation law; consumed in
- * eval_3_record_probe_sample). Keys are (syntax id, call-stack instance
- * as ids); genuine re-entry (recursion) always differs in stack. */
-type delegation = (Id.t, list(Id.t));
+ * eval_3_record_probe_sample). Keys are (syntax id, call-stack instance);
+ * genuine re-entry (recursion) always differs in stack. The stack is
+ * kept by reference, not projected to ids: projecting is O(depth) per
+ * delegating step, which made an ascription inside deep recursion
+ * quadratic (#2524). Only probe targets are declared, since only a
+ * target's key is ever looked up. */
+type delegation = (Id.t, CallStack.t);
+
+let continues_delegation =
+    (expr_id: Id.t, call_stack: CallStack.t, delegations: list(delegation))
+    : bool =>
+  List.exists(
+    ((id, stack): delegation) =>
+      Id.equal(id, expr_id)
+      /* the continuation runs on the very stack value that was declared */
+      && (stack === call_stack || CallStack.equal(stack, call_stack)),
+    delegations,
+  );
 
 let rec evaluate =
         // Constants
@@ -242,8 +257,9 @@ let rec evaluate =
        * as a visible duplicate sample instead of a silent suppression. */
       let delegations =
         switch (Option.map(provenance_of_kind, kind)) {
-        | Some(Administrative({may_delegate: true})) => [
-            (DHExp.rep_id(exp), CallStack.ids_of_stack(call_stack)),
+        | Some(Administrative({may_delegate: true}))
+            when Id.Map.mem(DHExp.rep_id(exp), eval_info.targets) => [
+            (DHExp.rep_id(exp), call_stack),
             ...delegations,
           ]
         | _ => delegations
@@ -298,8 +314,7 @@ let rec evaluate =
     let continues_delegated_span =
       switch (is_target) {
       | None => false
-      | Some(_) =>
-        List.mem((expr_id, CallStack.ids_of_stack(call_stack)), delegations)
+      | Some(_) => continues_delegation(expr_id, call_stack, delegations)
       };
     switch (is_target) {
     | Some(_) when !continues_delegated_span =>
