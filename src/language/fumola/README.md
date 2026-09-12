@@ -136,6 +136,33 @@ already have **resets it**, discarding the store: `ensureMode(id, m)` answers
 different one. So an expression that names no mode must not set one, or it
 would silently discard what another expression had been building.
 
+### Where the runtime lives, and why it decides the rest
+
+Measured, not assumed: a cell's result is computed **in a web worker**, and
+the worker has no `window.fumola`. Instrumenting the evaluator reports
+
+```
+FUMOLA-PROBE: reached; runtime=absent  ctx=worker        <- the shown result
+FUMOLA-PROBE: reached; runtime=present ctx=main-thread
+```
+
+so a Fumola program run during *evaluation* finds no runtime and leaves
+itself unevaluated, while one run during *elaboration* -- which is on the
+main thread -- runs. (`async_evaluation: false` does not mean "no worker";
+the worker computes the result either way.)
+
+This is why running happens at elaboration, and it is the constraint behind
+the limitation below. Moving it to evaluation, so that substitution has
+happened before the escapes are rendered, means putting the shim in the
+worker -- which also moves the adapton store there, out of reach of anything
+on the main thread that might want to show it. Two consequences worth
+weighing together:
+
+- the program would otherwise run in *both* contexts, so `:=` and every other
+  adapton effect would happen twice, in two separate stores;
+- a main-thread view of an instance -- an event list beside the editor, say --
+  could no longer ask the runtime directly, and would have to ask the worker.
+
 **A mode can be written but not yet referred to.** `hazel Graphical end` is
 read; `let m = Graphical in … hazel m end` is not, and says so rather than
 quietly leaving the mode alone. The reason is where running happens: during

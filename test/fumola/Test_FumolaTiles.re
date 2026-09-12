@@ -311,6 +311,57 @@ let test_mode_resolves = () => {
   );
 };
 
+/* Substitution reaches a Hazel expression embedded in a Fumola program. It
+   did not until the traversals in TermBase were taught to enter a Fumola
+   term: a variable bound outside the program never reached the escape that
+   named it, so `hazel m end` rendered the *expression* `m`, which has no
+   Fumola source.
+
+   This is the half of the escape that works without deciding where the
+   Fumola runtime lives. Actually *using* a bound variable also needs the
+   program to run after substitution rather than during elaboration, which
+   is the open question in docs/fumola-tiles-design.md. */
+let test_substitution = () => {
+  let printed = (body: FumolaTermBase.t) =>
+    Fumola.has_hole(body)
+      ? Option.value(~default="incomplete", Fumola.why_unprintable(body))
+      : Fumola.of_exp(body);
+  switch (find_fumola(parse("fumola s as ? in hazel m end end"))) {
+  | None => fail("no fumola term")
+  | Some({body, _}) =>
+    check(
+      string,
+      "before substitution the escape holds the variable, which has no source",
+      "no Fumola source for this expression",
+      printed(body),
+    );
+    let bound =
+      Substitution.in_exp(
+        Environment.extend(
+          Environment.Empty,
+          ("m", DHExp.fresh(Atom(Int(Bigint.of_int(1))))),
+        ),
+        IdTagged.fresh(
+          Grammar.FumolaQuote(
+            IdTagged.fresh(FumolaGrammar.Var("s")),
+            IdTagged.fresh(FumolaGrammar.Hole(EmptyHole)),
+            body,
+          ),
+        ),
+      );
+    switch (bound.term) {
+    | FumolaQuote(_, _, body) =>
+      check(
+        string,
+        "after substitution it holds the value",
+        "(1)",
+        printed(body),
+      )
+    | _ => fail("not a fumola quote")
+    };
+  };
+};
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -350,6 +401,7 @@ let tests = (
       `Quick,
       test_mode_resolves,
     ),
+    test_case("substitution reaches the escape", `Quick, test_substitution),
   ]
   @ List.map(test_parses, corpus)
   @ List.map(test_prints, corpus),
