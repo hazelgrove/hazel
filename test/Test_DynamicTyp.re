@@ -86,7 +86,7 @@ let typ = (src: string): Typ.t =>
   };
 
 /* The colouring, as DynamicTypInfer does it. */
-let dynamic_ids_and_render =
+let dynamic_ids_and_segment =
     (~ctx: option(Ctx.t)=?, static_typ: Typ.t, dynamic_typ: Typ.t)
     : (Id.t => list(string), Segment.t) => {
   let (segment, dynamic_ids) =
@@ -101,7 +101,7 @@ let dynamic_ids_and_render =
 
 let classify_regions =
     (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, list(string))) => {
-  let (classes, segment) = dynamic_ids_and_render(static_typ, dynamic_typ);
+  let (classes, segment) = dynamic_ids_and_segment(static_typ, dynamic_typ);
   segment_fragments(classes, segment) |> group_regions;
 };
 
@@ -226,7 +226,7 @@ let classify_regions_ctx =
     (~ctx: Ctx.t, static_typ: Typ.t, dynamic_typ: Typ.t)
     : list((string, list(string))) => {
   let (classes, segment) =
-    dynamic_ids_and_render(~ctx, static_typ, dynamic_typ);
+    dynamic_ids_and_segment(~ctx, static_typ, dynamic_typ);
   segment_fragments(classes, segment) |> group_regions;
 };
 
@@ -312,7 +312,7 @@ let alias_on_dynamic_side_test =
           },
         );
       let result = classify_regions_ctx(~ctx, typ("[Int]"), typ("MyList"));
-      /* Rendered as the alias name, but no dynamic highlighting since
+      /* Printed as the alias name, but no dynamic highlighting since
          the alias expands to the same type */
       check(list(region), "all static", [s("MyList")], result);
     },

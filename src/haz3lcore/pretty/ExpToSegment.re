@@ -3039,7 +3039,7 @@ and label_to_pretty =
 
 /* Types built from source repeat ids -- statics puts one alias body in every position that mentions the
    alias, and Typ.replace_temp only rewrites the Id.invalid sentinel -- and a
-   repeat renders as two tiles that uniquify_repeated_tiles below then tells apart
+   repeat prints as two tiles that uniquify_repeated_tiles below then tells apart
    by minting an id no type holds, leaving that tile unnameable. */
 let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
   let seen = ref(Id.Set.empty);

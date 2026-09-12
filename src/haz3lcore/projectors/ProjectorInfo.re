@@ -7,8 +7,8 @@ open Language;
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  /* One settings value for every rendering here, so two renderings cannot
-     end up with ids that came from different configurations. */
+  /* One settings value for everything converted here, so two segments
+     cannot end up with ids that came from different configurations. */
   let seg_settings = (inline): ExpToSegment.Settings.t => {
     ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
     show_unknown_as_hole: false,

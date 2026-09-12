@@ -41,23 +41,23 @@ let pad_ids =
 let necessary_ids: Typ.t => int =
   ty =>
     switch (ty.term) {
-    /* "()", "Void" and "{}" render from rep_id */
+    /* "()", "Void" and "{}" print from rep_id */
     | Prod([]) => 1
     | Sum([]) => 1
     | Sig([]) => 1
     /* one id per separator */
     | Prod(tys) => List.length(tys) - 1
-    /* one id per variant; the single-variant form renders from rep_id */
+    /* one id per variant; the single-variant form prints from rep_id */
     | Sum(tys) => max(1, List.length(tys))
     /* rep_id for the braces, then one id per `;` between items */
     | Sig(items) => max(1, List.length(items))
     /* one grout id between entries */
     | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
-    /* every other form renders from rep_id alone */
+    /* every other form prints from rep_id alone */
     | _ => 1
     };
 
-/* Ids a rendered variant consumes. */
+/* Ids a printed variant consumes. */
 let necessary_variant_ann_ids: ConstructorMap.variant(Typ.t) => int =
   fun
   | Variant(_, _, Some(_)) => 2 /* parens ID + constructor name ID */

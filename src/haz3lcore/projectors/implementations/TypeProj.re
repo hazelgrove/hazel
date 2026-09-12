@@ -31,7 +31,7 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
 let get_dynamic_segment =
     (utility: utility, info: info, ~ctx: Ctx.t): (Base.segment, Id.Set.t) =>
   DynamicTypInfer.displayed_segment_and_dynamic_ids(
-    ~render_with_diff_ids=utility.typ_to_seg_with_diff_ids(~inline=true),
+    ~typ_to_seg_with_diff_ids=utility.typ_to_seg_with_diff_ids(~inline=true),
     ~ctx,
     ~static_typ=
       Option.value(
@@ -114,7 +114,7 @@ module M: Projector = {
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
     /* Every arm yields its own segment, so Dynamic can hand over the exact
        one its ids were computed from. */
-    let render = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
+    let to_seg = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
     let cell = (~attrs=[], contents) =>
       div(~attrs=[Attr.classes(["type-cell"]), ...attrs], contents);
     switch (info.statics) {
@@ -136,13 +136,13 @@ module M: Projector = {
           ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
         | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
             (_ => []),
-            render(self_ty(info.statics) |> totalize_ty),
+            to_seg(self_ty(info.statics) |> totalize_ty),
           )
         | Expected => (
             (_ => []),
-            render(expected_ty(info.statics) |> totalize_ty),
+            to_seg(expected_ty(info.statics) |> totalize_ty),
           )
-        | Self => ((_ => []), render(self_ty(info.statics) |> totalize_ty))
+        | Self => ((_ => []), to_seg(self_ty(info.statics) |> totalize_ty))
         };
       cell([seg |> view_seg(~single_line=true, ~classes, Sort.Typ)]);
     };

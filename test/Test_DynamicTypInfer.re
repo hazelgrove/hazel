@@ -202,13 +202,13 @@ in [f(true), f(false)]|},
   ),
 ];
 
-/* === Colouring the rendered dynamic type === */
+/* === Colouring the printed dynamic type === */
 
 /* When statics knew nothing, the whole type came from runtime, so every tile
-   of the rendered segment must be green.
+   of the printed segment must be green.
 
    Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility,
-   the composition the projector runs, because the ids that reach the renderer
+   the composition the projector runs, because the ids that reach the printer
    come from statics -- which stamps every node with the same Id.invalid.
    QCheck_Util.arb_typ mints a distinct id per node, so a generator cannot
    reach this; it takes a real program. */
@@ -220,7 +220,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
       let (samples, ctx) = first_probe_samples_and_ctx(code);
       let (seg, dynamic_ids) =
         DynamicTypInfer.displayed_segment_and_dynamic_ids(
-          ~render_with_diff_ids=
+          ~typ_to_seg_with_diff_ids=
             ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
           ~ctx,
           ~static_typ=Typ.fresh(Unknown(Internal)),
@@ -240,7 +240,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
 let dynamic_id_tests = [
   /* Statics puts one alias body in every position that mentions the alias,
      so the two components share the `type T` declaration's ids. Before
-     TypToSegment.prepare made them distinct the second sum rendered under
+     TypToSegment.prepare made them distinct the second sum printed under
      freshly minted ids and stayed uncoloured. */
   uncoloured_tiles_test(
     "An alias repeated in a tuple",

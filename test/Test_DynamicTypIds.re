@@ -1,16 +1,16 @@
 /* Colouring the runtime-derived parts of a type in the type probe's Dynamic
    mode. Code.re colours a tile when its id is in the set, so the ids have to
-   line up with the tiles the renderer actually emits. Two ways that can fail,
+   line up with the tiles the printer actually emits. Two ways that can fail,
    neither caught by checking the padding alone: an id in the set but never
    emitted colours nothing, and a tile emitted for a runtime-derived part but
    left out stays the static colour. Parens are where both bite -- preparing
-   for rendering inserts them as real nodes that the renderer emits. */
+   for printing inserts them as real nodes that the printer emits. */
 
 open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* The settings the projector renders with -- ProjectorInfo.utility, not a
+/* The settings the projector prints with -- ProjectorInfo.utility, not a
    hand-written record. Testing any other configuration would test something
    the projector never runs. */
 let settings: ExpToSegment.Settings.t = {
@@ -21,20 +21,20 @@ let settings: ExpToSegment.Settings.t = {
   project_tables: false,
 };
 
-/* The dynamic ids, and the one render they describe, reported two ways.
+/* The dynamic ids, and the one segment they describe, reported two ways.
    The id sets are deliberately different: `emitted` includes Grout and
-   Secondary, because a runtime-derived node can legitimately render as Grout
+   Secondary, because a runtime-derived node can legitimately print as Grout
    -- an Unknown does, with show_unknown_as_hole off -- and including it is
    harmless. `tiles` is what Code.re actually colours, so it is the right set
    to require full coverage of. */
-type rendered = {
+type printed = {
   dynamic_ids: Id.Set.t,
   emitted: Id.Set.t,
   tiles: Id.Set.t,
 };
 
-let dynamic_ids_and_rendered =
-    (~static_typ: Typ.t, ~dynamic_typ: Typ.t): rendered => {
+let dynamic_ids_and_printed =
+    (~static_typ: Typ.t, ~dynamic_typ: Typ.t): printed => {
   let (seg, dynamic_ids) =
     TypToSegment.typ_to_segment_with_diff_ids(
       ~settings,
@@ -48,12 +48,12 @@ let dynamic_ids_and_rendered =
   };
 };
 
-/* SOUNDNESS. Every id in the set must appear somewhere in the render. An id that
+/* SOUNDNESS. Every id in the set must appear somewhere in the segment. An id that
    appears nowhere describes nothing, and means the dynamic_ids and the segment were
    computed from different types. */
 let qcheck_dynamic_ids_are_emitted =
   QCheck.Test.make(
-    ~name="every dynamic id appears in the rendered segment",
+    ~name="every dynamic id appears in the printed segment",
     ~count=300,
     QCheck.pair(
       QCheck_Util.arb_typ(~minimal_idents=false, 12),
@@ -61,7 +61,7 @@ let qcheck_dynamic_ids_are_emitted =
     ),
     ((static_typ, dynamic_typ)) => {
       let {dynamic_ids, emitted, _} =
-        dynamic_ids_and_rendered(~static_typ, ~dynamic_typ);
+        dynamic_ids_and_printed(~static_typ, ~dynamic_typ);
       Id.Set.subset(dynamic_ids, emitted);
     },
   );
@@ -83,7 +83,7 @@ let qcheck_fully_dynamic_colours_everything =
         },
       );
       let {dynamic_ids, tiles, _} =
-        dynamic_ids_and_rendered(
+        dynamic_ids_and_printed(
           ~static_typ=Typ.fresh(Unknown(Internal)),
           ~dynamic_typ,
         );
@@ -99,18 +99,18 @@ let qcheck_identical_colours_nothing =
     QCheck_Util.arb_typ(~minimal_idents=false, 12),
     typ => {
       let {dynamic_ids, _} =
-        dynamic_ids_and_rendered(~static_typ=typ, ~dynamic_typ=typ);
+        dynamic_ids_and_printed(~static_typ=typ, ~dynamic_typ=typ);
       Id.Set.is_empty(dynamic_ids);
     },
   );
 
 /* The invariant the whole scheme rests on: a prepared type already carries
-   every id its rendering consumes, so the renderer never mints one. An id
-   minted during rendering is in the DOM but in no type, so nothing can name
+   every id printing it consumes, so the printer never mints one. An id
+   minted while printing is in the DOM but in no type, so nothing can name
    it and the token it labels can never be coloured. */
 let qcheck_prepared_ids_are_sufficient =
   QCheck.Test.make(
-    ~name="a prepared type carries every id its rendering consumes",
+    ~name="a prepared type carries every id printing it consumes",
     ~count=500,
     QCheck_Util.arb_typ(~minimal_idents=false, 20),
     typ =>
@@ -126,7 +126,7 @@ let count_tests =
       () => {
         let check_count = (name, expected, typ) =>
           check(Alcotest.int, name, expected, PadIds.necessary_ids(typ));
-        check_count("unit renders from rep_id", 1, Prod([]) |> Typ.temp);
+        check_count("unit prints from rep_id", 1, Prod([]) |> Typ.temp);
         check_count(
           "a pair needs one separator",
           1,
@@ -137,16 +137,16 @@ let count_tests =
           2,
           Prod([int(), bool(), string()]) |> Typ.temp,
         );
-        check_count("Void renders from rep_id", 1, Sum([]) |> Typ.temp);
-        check_count("Int renders from rep_id", 1, int());
+        check_count("Void prints from rep_id", 1, Sum([]) |> Typ.temp);
+        check_count("Int prints from rep_id", 1, int());
         check_count(
-          "an empty sig renders from rep_id",
+          "an empty sig prints from rep_id",
           1,
           Sig([]) |> Typ.temp,
         );
         let sig_item = (): Sig.t => Sig.temp(EmptyHole);
         check_count(
-          "a one-item sig renders from rep_id",
+          "a one-item sig prints from rep_id",
           1,
           Sig([sig_item()]) |> Typ.temp,
         );

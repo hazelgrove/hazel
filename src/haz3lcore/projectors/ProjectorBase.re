@@ -34,10 +34,10 @@ type utility = {
   seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
   term_to_seg: (~inline: bool, Any.t) => Base.segment,
-  /* Render a type, reporting the ids of the rendered tokens that [against]
-   * does not account for -- for a projector that colours the parts of a type
-   * some other type did not supply. The two come together because the ids
-   * name nodes rendering adds, and describe that one segment. */
+  /* Convert a type to a segment, reporting the ids of the tokens that
+   * [against] does not account for -- for a projector that colours the parts
+   * of a type some other type did not supply. The two come together because
+   * the ids name nodes preparing adds, and describe that one segment. */
   typ_to_seg_with_diff_ids:
     (~inline: bool, ~ctx: Ctx.t, ~against: Typ.t, Typ.t) =>
     (Base.segment, Id.Set.t),

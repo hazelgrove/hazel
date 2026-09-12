@@ -31,12 +31,12 @@ let dynamic_typ_of_samples =
     )
   };
 
-type render_with_diff_ids =
+type typ_to_seg_with_diff_ids =
   (~ctx: Ctx.t, ~against: Typ.t, Typ.t) => (Base.segment, Id.Set.t);
 
 let displayed_segment_and_dynamic_ids =
     (
-      ~render_with_diff_ids: render_with_diff_ids,
+      ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,
       ~ctx: Ctx.t,
       ~static_typ: Typ.t,
       ~samples: list(Sample.t),
@@ -48,9 +48,9 @@ let displayed_segment_and_dynamic_ids =
     dynamic_typ_of_samples(~ctx, samples)
     |> Option.value(~default=static_typ);
   /* Statics builds types with Typ.temp, so every node shares the Id.invalid
-     sentinel. Distinct ids are a precondition of naming rendered tokens, so
-     they are minted here, where the type becomes something to render. */
-  render_with_diff_ids(
+     sentinel. Distinct ids are a precondition of naming printed tokens, so
+     they are minted here, where the type becomes something to print. */
+  typ_to_seg_with_diff_ids(
     ~ctx,
     ~against=static_typ,
     Typ.replace_temp(displayed),

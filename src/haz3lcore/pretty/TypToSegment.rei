@@ -1,19 +1,19 @@
-/* Rendering a type, and naming the tokens of that render.
+/* Printing a type as a segment, and naming the tokens it printed as.
 
-   A type is first put into the form its rendering takes -- Sig desugared to
-   labeled tuples, parens inserted as real nodes, every node carrying the ids
-   PadIds says its rendering consumes, each naming one node. Preparing adds
-   nodes, and those nodes carry tokens, so the ids naming a rendered token
-   belong to the prepared form and nothing outside this module can hold one. */
+   A type is first put into the form it prints in -- Sig desugared to labeled
+   tuples, parens inserted as real nodes, every node carrying the ids PadIds
+   says printing it consumes, each naming one node. Preparing adds nodes that
+   carry tokens of their own, so the ids here name that form, not the type
+   passed in. */
 
 open Language;
 
 let typ_to_segment:
   (~settings: ExpToSegment.Settings.t, Typ.t) => Base.segment;
 
-/* Render [typ], and report which of its rendered tokens [against] does not
-   account for. The segment is the one render those ids describe: preparing
-   mints fresh paren ids, so re-rendering would not answer to them. */
+/* Print [typ], and report which of its tokens [against] does not account
+   for. The segment is the one printing those ids describe: preparing mints
+   fresh paren ids, so printing again would not answer to them. */
 let typ_to_segment_with_diff_ids:
   (
     ~settings: ExpToSegment.Settings.t,
@@ -23,7 +23,6 @@ let typ_to_segment_with_diff_ids:
   ) =>
   (Base.segment, Id.Set.t);
 
-/* Whether preparing [typ] gives every node the ids its rendering consumes,
-   so the renderer never mints one. Preparing guarantees this; exposed so it
-   can be checked over generated types. */
+/* Whether preparing [typ] gives every node the ids printing it consumes, so
+   the printer never mints one. Preparing guarantees this. */
 let ids_sufficient: (~settings: ExpToSegment.Settings.t, Typ.t) => bool;

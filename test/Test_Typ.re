@@ -423,7 +423,7 @@ let diff_tests = (
           Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
         let dynamic_typ = Typ.fresh(Var("Pair"));
         /* The Bool in Pair's expansion differs from String, so the alias
-           differs -- but it renders as the single token `Pair`, so the ids
+           differs -- but it prints as the single token `Pair`, so the ids
            are that node's, not the expansion's, which appear nowhere. */
         check(
           list(testable_id),
@@ -437,7 +437,7 @@ let diff_tests = (
       "diff both sides parenthesized",
       `Quick,
       () => {
-        /* Preparing for rendering parenthesizes both sides. The wrapped node is
+        /* Preparing for printing parenthesizes both sides. The wrapped node is
            wholly replaced, so the parens go with it. */
         let int_typ = Typ.fresh(Atom(Atom.Int));
         let dynamic_typ = Typ.fresh(Parens(int_typ));

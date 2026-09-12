@@ -1326,7 +1326,7 @@ let rec diff =
       )
     | None => get_ids()
     }
-  /* An alias renders as one token carrying the Var node's own ids, so the
+  /* An alias prints as one token carrying the Var node's own ids, so the
      expansion decides only WHETHER it differs; the ids returned are the
      Var's, and the verdict is all-or-nothing. */
   | (_, Var(name)) =>
