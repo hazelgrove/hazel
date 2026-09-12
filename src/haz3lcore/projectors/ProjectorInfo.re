@@ -19,7 +19,7 @@ let utility: ProjectorBase.utility = {
   let term_to_seg = (inline, any) =>
     ExpToSegment.any_to_segment(~settings=seg_settings(inline), any);
   let typ_to_seg_with_diff_ids = (inline, ctx, against, typ) =>
-    ExpToSegment.typ_to_segment_with_diff_ids(
+    TypToSegment.typ_to_segment_with_diff_ids(
       ~settings=seg_settings(inline),
       ~ctx,
       ~against,

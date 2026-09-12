@@ -36,7 +36,7 @@ type rendered = {
 let dynamic_ids_and_rendered =
     (~static_typ: Typ.t, ~dynamic_typ: Typ.t): rendered => {
   let (seg, dynamic_ids) =
-    ExpToSegment.typ_to_segment_with_diff_ids(
+    TypToSegment.typ_to_segment_with_diff_ids(
       ~settings,
       ~against=static_typ,
       dynamic_typ,
@@ -114,7 +114,7 @@ let qcheck_prepared_ids_are_sufficient =
     ~count=500,
     QCheck_Util.arb_typ(~minimal_idents=false, 20),
     typ =>
-    ExpToSegment.PreparedTyp.(prepare(~settings, typ) |> ids_sufficient)
+    TypToSegment.ids_sufficient(~settings, typ)
   );
 
 /* Unit pins for the id counts typ_to_pretty pads from. */
@@ -125,12 +125,7 @@ let count_tests =
       `Quick,
       () => {
         let check_count = (name, expected, typ) =>
-          check(
-            Alcotest.int,
-            name,
-            expected,
-            ExpToSegment.necessary_ids(typ),
-          );
+          check(Alcotest.int, name, expected, PadIds.necessary_ids(typ));
         check_count("unit renders from rep_id", 1, Prod([]) |> Typ.temp);
         check_count(
           "a pair needs one separator",

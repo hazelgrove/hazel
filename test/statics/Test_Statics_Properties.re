@@ -148,7 +148,7 @@ let show_exp = exp =>
 
 let show_typ = typ =>
   typ
-  |> Haz3lcore.ExpToSegment.typ_to_segment(
+  |> Haz3lcore.TypToSegment.typ_to_segment(
        ~settings=
          Haz3lcore.ExpToSegment.Settings.of_core(
            ~inline=true,

@@ -17,7 +17,7 @@ let builtin_typ: BuiltinsUtil.builtin => Typ.t =
 let typ_to_string: Typ.t => string =
   (typ: Typ.t) => {
     let segment: Segment.t =
-      ExpToSegment.typ_to_segment(~settings=builtin_printer_settings, typ);
+      TypToSegment.typ_to_segment(~settings=builtin_printer_settings, typ);
     Printer.of_segment(~holes="?", ~indent="", segment);
   };
 

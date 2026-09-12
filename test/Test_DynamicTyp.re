@@ -90,7 +90,7 @@ let dynamic_ids_and_render =
     (~ctx: option(Ctx.t)=?, static_typ: Typ.t, dynamic_typ: Typ.t)
     : (Id.t => list(string), Segment.t) => {
   let (segment, dynamic_ids) =
-    ExpToSegment.typ_to_segment_with_diff_ids(
+    TypToSegment.typ_to_segment_with_diff_ids(
       ~settings,
       ~ctx?,
       ~against=static_typ,

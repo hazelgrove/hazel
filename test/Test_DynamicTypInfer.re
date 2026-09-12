@@ -61,7 +61,7 @@ let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
 /* Types appear in failure messages as source, not as a term dump. */
 let typ_to_string = (ty: Typ.t): string => {
   let seg =
-    ExpToSegment.typ_to_segment(
+    TypToSegment.typ_to_segment(
       ~settings={
         secondary: AutoFormat,
         parenthesization: Defensive,
@@ -240,7 +240,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
 let dynamic_id_tests = [
   /* Statics puts one alias body in every position that mentions the alias,
      so the two components share the `type T` declaration's ids. Before
-     PreparedTyp.prepare made them distinct the second sum rendered under
+     TypToSegment.prepare made them distinct the second sum rendered under
      freshly minted ids and stayed uncoloured. */
   uncoloured_tiles_test(
     "An alias repeated in a tuple",
