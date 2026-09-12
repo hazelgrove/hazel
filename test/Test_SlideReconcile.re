@@ -121,7 +121,15 @@ let tests = (
       () => {
         let shipped =
           List.map(fst, snd(Lazy.force(Init.startup).documentation));
-        let stale = List.filter(n => n != "Fumola / 0. Big picture", shipped);
+        /* Named for the deck it belongs to: adding the tiles deck renamed
+           this one from "Fumola / ..." to "Fumola (Livelits) / ...", and a
+           filter that removes nothing makes this test vacuous rather than
+           failing loudly -- which is what the check below is for. */
+        let stale =
+          List.filter(
+            n => n != "Fumola (Livelits) / 0. Big picture",
+            shipped,
+          );
         check(
           bool,
           "the stale list really is missing it",

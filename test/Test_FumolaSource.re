@@ -72,11 +72,21 @@ let tests = (
       ]),
       "[(`b, 2), (`a, 1)]",
     ),
-    /* Other constructors are variant tags, as Hazel spells them: Fumola
-       accepts a capitalised tag, so the capital that translation adds on the
-       way in survives the way out. */
-    renders("a bare variant", ctr("Circle"), "#Circle"),
-    renders("an applied variant", ap("Circle", int(3)), "#Circle(3)"),
+    /* Other constructors are variant tags, recased on the way out: Hazel's
+       `Circle` is Fumola's `#circle`.
+
+       This expectation used to be `#Circle`, on the reasoning that Fumola
+       accepts a capitalised tag so the capital added on the way IN could
+       survive the way out. It is grammatical and it is not a round trip: a
+       value read from Fumola as `#circle` came back as `#Circle`, a
+       different tag, silently. The tiles integration found that and put the
+       convention in one place, FumolaCase, which both directions now go
+       through -- so merging the two integrations changed this answer, and
+       this test is where that shows up. See FumolaCase.round_trips for the
+       names that still do not survive: a Fumola tag that already begins
+       upper-case is lossy in exactly this way. */
+    renders("a bare variant", ctr("Circle"), "#circle"),
+    renders("an applied variant", ap("Circle", int(3)), "#circle(3)"),
     /* Refused rather than guessed at. */
     refuses("a hole", DHExp.fresh(EmptyHole)),
     refuses(
