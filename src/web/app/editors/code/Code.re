@@ -75,8 +75,12 @@ let whitespace_token =
     String.make(row, '\n') ++ String.make(col, ' ')
   );
 
+/* The extra classes a tile carries, by id. */
+let no_classes = (_: Id.t) => [];
+
 let view =
     (
+      ~classes=no_classes,
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
@@ -193,7 +197,10 @@ let view =
               ();
             | None => ()
             };
-          nodes;
+          switch (classes(t.id)) {
+          | [] => nodes
+          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
+          };
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]

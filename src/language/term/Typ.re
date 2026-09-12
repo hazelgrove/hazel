@@ -1206,3 +1206,204 @@ and paren_pretty_print = typ =>
  * @return A product type representing the combination of the input types
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
+
+/* Every id in a type, including the variant_ann ids on Sum constructors. */
+let all_ids = (ty: t): list(Id.t) => {
+  let ids = ref([]);
+  let _ =
+    Grammar.map_typ_annotation(
+      (t: IdTagged.IdTag.t) => {
+        ids := t.ids @ ids^;
+        t;
+      },
+      ty: t,
+    );
+  let rec collect_ann_ids = (ty: t) => {
+    switch (term_of(ty)) {
+    | Sum(variants) =>
+      List.iter(
+        fun
+        | ConstructorMap.Variant(_, ann, opt) => {
+            ids := ann.ids @ ids^;
+            Option.iter(collect_ann_ids, opt);
+          }
+        | BadEntry(t) => collect_ann_ids(t),
+        variants,
+      )
+    | Arrow(t1, t2)
+    | TupLabel(t1, t2)
+    | ProdExtension(t1, t2)
+    | ProdProjection(t1, t2) =>
+      collect_ann_ids(t1);
+      collect_ann_ids(t2);
+    | List(t)
+    | Parens(t)
+    | Projector(_, t)
+    | Rec(_, t)
+    | Poly(_, t) => collect_ann_ids(t)
+    | Prod(ts) => List.iter(collect_ann_ids, ts)
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Sig(_) => ()
+    };
+  };
+  collect_ann_ids(ty);
+  ids^;
+};
+
+/* Every id in one constructor variant. */
+let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
+  switch (v) {
+  | Variant(_, ann, Some(t)) => ann.ids @ all_ids(t)
+  | Variant(_, ann, None) => ann.ids
+  | BadEntry(t) => all_ids(t)
+  };
+
+/* The ids of the nodes of [ty'] that [ty] does not account for -- what has
+   to be marked to show how [ty'] differs. Ids in either type must be
+   distinct, or the result names the wrong nodes.
+
+   [expanded_aliases] names the aliases already expanded on the way here, so
+   a cycle through the context (`type A = (B) in type B = (A)`) stops rather
+   than expanding forever. Only the arms that see the same position again --
+   alias expansion and the nodes that carry no meaning of their own -- thread
+   it; descending into a component starts over. */
+let rec diff =
+        (
+          ~ctx: option(Ctx.t)=?,
+          ~expanded_aliases: list(string)=[],
+          ty: t,
+          ty': t,
+        )
+        : list(Id.t) => {
+  let get_ids = () => all_ids(ty');
+  let expand = name =>
+    if (List.exists(String.equal(name), expanded_aliases)) {
+      None;
+    } else {
+      ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
+    };
+  switch (term_of(ty), term_of(ty')) {
+  | (Parens(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  | (_, Projector(_, t2)) => diff(~ctx?, ~expanded_aliases, ty, t2)
+  | (Projector(_, t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  /* Parens carry no meaning of their own, so they take the verdict of the
+     node they wrap: marked when that node is itself replaced, unmarked when
+     it merely contains something that changed. `(Int, ?)` vs `(Int, String)`
+     leaves the parens alone -- still the same tuple, one component differs --
+     while `?` vs `(a=Int)` marks them, the tuple being wholly new. */
+  | (_, Parens(t2)) =>
+    let inner = diff(~ctx?, ~expanded_aliases, ty, t2);
+    let wrapped_replaced =
+      IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
+    wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
+  /* Runtime knowing less than statics is not something runtime supplied:
+     `?` on the right is unmarked whatever stands on the left. */
+  | (_, Unknown(_)) => []
+  | (Unknown(_), _) => get_ids()
+  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(_), _) => get_ids()
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => []
+  | (DrvQuoteTy(_), _) => get_ids()
+  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
+  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(name), _) =>
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        expanded,
+        ty',
+      )
+    | None => get_ids()
+    }
+  /* An alias prints as one token carrying the Var node's own ids, so the
+     expansion decides only WHETHER it differs; the ids returned are the
+     Var's, and the verdict is all-or-nothing. */
+  | (_, Var(name)) =>
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        ty,
+        expanded,
+      )
+      == []
+        ? [] : get_ids()
+    | None => get_ids()
+    }
+  | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (Rec(_), _) => get_ids()
+  | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (Poly(_), _) => get_ids()
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.syntactic.exp(e1, e2) ? [] : get_ids()
+  | (ProofOf(_), _) => get_ids()
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) =>
+    diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
+  | (Arrow(_), _) => get_ids()
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
+  | (Prod(_), _) => get_ids()
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
+    diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
+  | (TupLabel(_, _), _) => get_ids()
+  | (List(t1), List(t2)) => diff(~ctx?, t1, t2)
+  | (List(_), _) => get_ids()
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | (Sum(sm1), Sum(sm2)) =>
+    let (inter, left, right) =
+      ConstructorMap.venn_regions(
+        ConstructorMap.same_constructor(fast_equal),
+        sm1,
+        sm2,
+      );
+    if (left != []) {
+      /* A constructor missing on the right makes the whole Sum different. */
+      get_ids();
+    } else {
+      let matched_ids =
+        List.concat_map(
+          ((v1, v2)) =>
+            switch (v1, v2) {
+            | (
+                ConstructorMap.Variant(_, _, Some(t1)),
+                ConstructorMap.Variant(_, _, Some(t2)),
+              ) =>
+              diff(~ctx?, t1, t2)
+            | (
+                ConstructorMap.Variant(_, _, None),
+                ConstructorMap.Variant(_, _, None),
+              ) =>
+              []
+            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+              diff(~ctx?, t1, t2)
+            | (_, v2) => variant_all_ids(v2)
+            },
+          inter,
+        );
+      let right_ids = List.concat_map(variant_all_ids, right);
+      matched_ids @ right_ids;
+    };
+  | (Sum(_), _) => get_ids()
+  | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
+  | (Sig(_), _) => get_ids()
+  };
+};

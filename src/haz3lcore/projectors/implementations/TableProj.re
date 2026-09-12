@@ -57,7 +57,6 @@ module M: Projector = {
       pointer: None,
       keyboard: None,
     };
-  let dynamics = false;
   let elaborate_syntax = true;
   let placeholder = (_, info) =>
     switch (get(info)) {

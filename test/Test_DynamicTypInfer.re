@@ -1,0 +1,256 @@
+open Alcotest;
+open Haz3lcore;
+open Language;
+
+/* Pipeline: parse code with probes → statics → elaborate → evaluate → get samples.
+   Returns (samples_by_probe_id, info_map) so tests can exercise
+   DynamicTypInfer.dynamic_typ_of_samples with the real program context. */
+let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => failf("did not parse: %s", code)
+  | Some(z) =>
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+      );
+    let (info_map, elaborated) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    let targets: Sample.targets =
+      Id.Map.fold(
+        (id, (), acc) => {
+          let refs =
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
+            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
+            | _ => []
+            };
+          Id.Map.add(id, Sample.{refs: refs}, acc);
+        },
+        probe_ids,
+        Id.Map.empty,
+      );
+    let (_, state) =
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
+    (EvaluatorState.get_probes(state), info_map);
+  };
+};
+
+/* The samples the first probe in [code] recorded, and the context it was
+   sampled in. Both are assertions: a program that stopped parsing or stopped
+   carrying a probe would otherwise report no samples, and a type met from no
+   samples passes the tests that expect None. */
+let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
+  let (probes, info_map) = evaluate_probes(code);
+  switch (Id.Map.bindings(probes)) {
+  | [] => failf("no probe recorded anything in: %s", code)
+  | [(probe_id, samples), ..._] =>
+    switch (Statics.Map.lookup(probe_id, info_map)) {
+    | None => failf("probe carries no statics in: %s", code)
+    | Some(info) => (samples, Info.ctx_of(info))
+    }
+  };
+};
+
+/* Types appear in failure messages as the projector would show them, not as
+   a term dump. */
+let typ_to_string = (ty: Typ.t): string =>
+  TypToSegment.typ_to_segment(
+    ~settings=ProjectorInfo.seg_settings(~inline=true),
+    ty,
+  )
+  |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true);
+
+let testable_typ_string = testable(Fmt.string, String.equal);
+
+/* Check the dynamic type inferred from a probe's samples. `expected` is
+   None when the probe recorded nothing, or when the sample types are
+   inconsistent and refuse to meet. */
+let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (samples, ctx) = first_probe_samples_and_ctx(code);
+      let result = DynamicTypInfer.dynamic_typ_of_samples(~ctx, samples);
+      check(
+        option(testable_typ_string),
+        name,
+        expected,
+        Option.map(typ_to_string, result),
+      );
+    },
+  );
+
+/* === Basic type inference tests === */
+
+let basic_tests = [
+  dynamic_typ_test("Int literal", {|^^probe(42)|}, Some("Int")),
+  dynamic_typ_test("String literal", {|^^probe("hello")|}, Some("String")),
+  dynamic_typ_test("Bool literal", {|^^probe(true)|}, Some("Bool")),
+  dynamic_typ_test("List of ints", {|^^probe([1, 2, 3])|}, Some("[Int]")),
+  dynamic_typ_test("Tuple", {|^^probe((1, "a"))|}, Some("(Int, String)")),
+  dynamic_typ_test(
+    "Arrow via function",
+    {|let f = fun x -> x + 1 in ^^probe(f)|},
+    Some("? -> Int"),
+  ),
+];
+
+/* === Multiple sample tests (meet behavior) === */
+
+let meet_tests = [
+  dynamic_typ_test(
+    "Multiple int samples meet to Int",
+    {|let f = fun x -> ^^probe(x * 2)
+in [f(1), f(2), f(3)]|},
+    Some("Int"),
+  ),
+  dynamic_typ_test(
+    "Samples from conditional branches",
+    {|let f = fun b -> ^^probe(if b then 1 else 2)
+in [f(true), f(false)]|},
+    Some("Int"),
+  ),
+  dynamic_typ_test(
+    "Inconsistent sample types return None",
+    {|let f = fun b -> ^^probe(if b then 1 else "hi")
+in [f(true), f(false)]|},
+    None,
+  ),
+  test_case("No samples infers nothing", `Quick, () => {
+    /* The projector reaches this whenever nothing ran -- an unevaluated
+       branch records no probe entry at all. Meeting no types would report
+       `?`, which reads as runtime having found the type to be unknown
+       rather than as runtime not having run. */
+    check(
+      option(testable_typ_string),
+      "no samples infers nothing",
+      None,
+      DynamicTypInfer.dynamic_typ_of_samples(
+        ~ctx=Builtins.ctx_init(Some(Int)),
+        [],
+      )
+      |> Option.map(typ_to_string),
+    )
+  }),
+];
+
+/* === User-defined type tests === */
+
+let user_type_tests = [
+  dynamic_typ_test(
+    "User-defined ADT constructor",
+    {|type T = A + B in ^^probe(A)|},
+    Some("+ A + B"),
+  ),
+  dynamic_typ_test(
+    "User-defined ADT with payload",
+    {|type T = Some(Int) + None in ^^probe(Some(42))|},
+    Some("+ Some(Int) + None"),
+  ),
+  dynamic_typ_test(
+    "User-defined ADT through function",
+    {|type T = Leaf(Int) + Node(T, T)
+in let f = fun x -> ^^probe(Leaf(x))
+in f(1)|},
+    /* Defensive parenthesization brackets the sum body of a rec: it shares
+       low precedence with the `->` trailing delimiter (see the settings notes
+       in Test_ExpToSegment). Non-recursive sums above stay unparenthesized. */
+    Some("rec T -> (+ Leaf(Int) + Node((T, T)))"),
+  ),
+  dynamic_typ_test(
+    "User-defined type alias in context",
+    {|type Pair = (Int, String)
+in let p : Pair = (1, "a")
+in ^^probe(p)|},
+    Some("(Int, String)"),
+  ),
+  dynamic_typ_test(
+    "Multiple samples with user-defined ADT",
+    {|type T = A(Int) + B(String)
+in let f = fun n -> ^^probe(A(n))
+in [f(1), f(2)]|},
+    Some("+ A(Int) + B(String)"),
+  ),
+  dynamic_typ_test(
+    "Meeting multiple ADT branches",
+    {|type T = A(Int) + B(Int)
+in let f = fun b -> ^^probe(if b then A(1) else B(2))
+in [f(true), f(false)]|},
+    Some("+ A(Int) + B(Int)"),
+  ),
+];
+
+/* === Colouring the printed dynamic type === */
+
+/* When statics knew nothing, the whole type came from runtime, so every tile
+   of the printed segment must be green.
+
+   Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility,
+   the composition the projector runs, because the ids that reach the printer
+   come from statics -- which stamps every node with the same Id.invalid.
+   QCheck_Util.arb_typ mints a distinct id per node, so a generator cannot
+   reach this; it takes a real program. */
+let uncoloured_tiles_test = (name: string, code: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (samples, ctx) = first_probe_samples_and_ctx(code);
+      let (seg, dynamic_ids) =
+        DynamicTypInfer.displayed_segment_and_dynamic_ids(
+          ~typ_to_seg_with_diff_ids=
+            ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
+          ~ctx,
+          ~static_typ=Typ.fresh(Unknown(Internal)),
+          ~samples,
+        );
+      check(
+        list(string),
+        "tiles of a wholly runtime-derived type left uncoloured",
+        [],
+        Test_TypToSegment.tile_ids(seg)
+        |> List.filter(id => !Id.Set.mem(id, dynamic_ids))
+        |> List.map(id => Id.str8(id)),
+      );
+    },
+  );
+
+let dynamic_id_tests = [
+  /* Statics puts one alias body in every position that mentions the alias,
+     so the two components share the `type T` declaration's ids. Before
+     TypToSegment.prepare made them distinct the second sum printed under
+     freshly minted ids and stayed uncoloured. */
+  uncoloured_tiles_test(
+    "An alias repeated in a tuple",
+    {|type T = A + B in ^^probe((A, A))|},
+  ),
+  uncoloured_tiles_test("Tuple", {|^^probe((1, 2))|}),
+  uncoloured_tiles_test("List", {|^^probe([1, 2, 3])|}),
+  uncoloured_tiles_test("Nested tuple", {|^^probe((1, ("a", true)))|}),
+  uncoloured_tiles_test("Arrow", {|let f = fun x -> x + 1 in ^^probe(f)|}),
+  uncoloured_tiles_test(
+    "User-defined ADT",
+    {|type T = Some(Int) + None in ^^probe(Some(42))|},
+  ),
+  uncoloured_tiles_test(
+    "Type alias",
+    {|type Pair = (Int, String)
+in let p : Pair = (1, "a")
+in ^^probe(p)|},
+  ),
+];
+
+let tests = [
+  ("DynamicTypInfer.Basic", basic_tests),
+  ("DynamicTypInfer.Meet", meet_tests),
+  ("DynamicTypInfer.UserTypes", user_type_tests),
+  ("DynamicTypInfer.DynamicIds", dynamic_id_tests),
+];

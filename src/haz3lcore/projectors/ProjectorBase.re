@@ -34,6 +34,13 @@ type utility = {
   seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
   term_to_seg: (~inline: bool, Any.t) => Base.segment,
+  /* Convert a type to a segment, reporting the ids of the tokens that
+   * [against] does not account for -- for a projector that colours the parts
+   * of a type some other type did not supply. The two come together because
+   * the ids name nodes preparing adds, and describe that one segment. */
+  typ_to_seg_with_diff_ids:
+    (~inline: bool, ~ctx: Ctx.t, ~against: Typ.t, Typ.t) =>
+    (Base.segment, Id.Set.t),
   seg_to_string: Base.segment => string,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
@@ -138,6 +145,7 @@ module View = {
     (
       ~single_line: bool=?,
       ~background: bool=?,
+      ~classes: Id.t => list(string)=?,
       ~text_only: bool=?,
       Sort.t,
       list(syntax)
@@ -203,10 +211,6 @@ module type Projector = {
    * caret & keyboard handlers? If so, provide handlers
    * here (see Focusable for more information) */
   let focusable: Focusable.t;
-  /* If dynamics is true, this projector will be
-   * instrumented with a probe to collect dynamic
-   * information during evaluation */
-  let dynamics: bool;
   /* Whether this projector needs type-elaborated syntax.
    *
    * Some projectors (e.g. TableProj) require syntactic features
@@ -268,7 +272,6 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
   let init = any => C.init(any) |> Option.map(serialize_m);
   let focusable = C.focusable;
-  let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
   let view = (args: View.args(model, action)) =>
     C.view({

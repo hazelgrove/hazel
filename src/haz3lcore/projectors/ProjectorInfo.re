@@ -3,20 +3,28 @@ open Language;
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 
-/* Gather utility functions/values to be sspaed to the projector.
+/* The settings every projector converts with, so two segments cannot end up
+   with ids that came from different configurations. */
+let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
+  ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
+  show_unknown_as_hole: false,
+  hole_tiles: false,
+  fold_fn_bodies: `NoFold,
+  project_tables: false,
+};
+
+/* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
   let term_to_seg = (inline, any) =>
-    ExpToSegment.any_to_segment(
-      ~settings={
-        ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
-        show_unknown_as_hole: false,
-        hole_tiles: false,
-        fold_fn_bodies: `NoFold,
-        project_tables: false,
-      },
-      any,
+    ExpToSegment.any_to_segment(~settings=seg_settings(~inline), any);
+  let typ_to_seg_with_diff_ids = (inline, ctx, against, typ) =>
+    TypToSegment.typ_to_segment_with_diff_ids(
+      ~settings=seg_settings(~inline),
+      ~ctx,
+      ~against,
+      typ,
     );
   let lift_syntax =
       (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
@@ -44,6 +52,8 @@ let utility: ProjectorBase.utility = {
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
+    typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>
+      typ_to_seg_with_diff_ids(inline, ctx, against, typ),
     seg_to_term,
     lift_syntax: (~inline) => lift_syntax(inline),
     seg_to_string,
