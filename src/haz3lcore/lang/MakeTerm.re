@@ -378,24 +378,40 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     | (["(", ")"], [Fumola(body)]) => ret(Paren(body))
-    | (["{", "}"], [Fumola(body)]) => ret(Block(fumola_decs(body)))
+    | (["{", "}"], [Fumola(body)]) =>
+      let (ds, ids) = fumola_decs(body);
+      (Block(ds), ids);
     | (["hazel", "end"], [Exp(e)]) => ret(Hazel(e))
     | _ => ret(hole(tm))
     }
-  | Pre(([(_id, (["let", "="], [Fumola(p)]))], []), Fumola(body)) =>
-    ret(Block([fumola_dec_of(Some(p), body)]))
-  | Pre(([(_id, (["import", "="], [Fumola(p)]))], []), Fumola(body)) =>
+  /* The declaration takes the tile's own id, not the body's. Two nodes come
+     out of one tile -- the block and the declaration inside it -- and the
+     info map is keyed by id, so sharing the body's id would make the body's
+     entry overwrite the declaration's and the cursor would never name a
+     `let`. */
+  | Pre(([(id, (["let", "="], [Fumola(p)]))], []), Fumola(body)) =>
+    ret(
+      Block([
+        {
+          term: DLet(fumola_pat_of(p), body),
+          annotation: fumola_dec_annotation(id),
+        },
+      ]),
+    )
+  | Pre(([(id, (["import", "="], [Fumola(p)]))], []), Fumola(body)) =>
     ret(
       Block([
         {
           term: DImport(fumola_pat_of(p), body),
-          annotation: body.annotation,
+          annotation: fumola_dec_annotation(id),
         },
       ]),
     )
   | Pre(([(_id, ([t], []))], []), Fumola(r)) as tm =>
     switch (t) {
-    | "thunk" => ret(Thunk(fumola_decs(r)))
+    | "thunk" =>
+      let (ds, ids) = fumola_decs(r);
+      (Thunk(ds), ids);
     | "force" => ret(Force(r))
     | "@" => ret(Get(r))
     | _ => ret(hole(tm))
@@ -429,14 +445,26 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
     | "|" => ret(Bin(l, BitOr, r))
     | "&" => ret(Bin(l, BitAnd, r))
     | "," => ret(Tuple([l, r]))
-    | ";" => ret(Block(fumola_decs(l) @ fumola_decs(r)))
+    | ";" =>
+      let (ds_l, ids_l) = fumola_decs(l);
+      let (ds_r, ids_r) = fumola_decs(r);
+      (Block(ds_l @ ds_r), ids_l @ ids_r);
     | _ => ret(hole(tm))
     }
   | Bin(Fumola(l), tiles, Fumola(r)) as tm =>
     switch (is_tuple_fumola(tiles), is_seq_fumola(tiles)) {
     | (Some(between), _) => ret(Tuple([l] @ between @ [r]))
     | (_, Some(between)) =>
-      ret(Block(List.concat_map(fumola_decs, [l] @ between @ [r])))
+      let (ds, ids) =
+        List.fold_left(
+          ((ds, ids), e) => {
+            let (ds', ids') = fumola_decs(e);
+            (ds @ ds', ids @ ids');
+          },
+          ([], []),
+          [l] @ between @ [r],
+        );
+      (Block(ds), ids);
     | _ => ret(hole(tm))
     }
   | Post(Fumola(l), ([(_id, t)], [])) as tm =>
@@ -445,7 +473,9 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
        the tag, which is not a thing Fumola has. */
     | (["(", ")"], [Fumola(r)]) =>
       switch (l.term) {
-      | Variant(tag, None) => ret(Variant(tag, Some(r)))
+      /* The tag node is consumed here, so its id comes with it: without
+         that, the cursor on `$tag` would find nothing in the info map. */
+      | Variant(tag, None) => (Variant(tag, Some(r)), IdTagged.ids(l))
       | _ => ret(Ap(l, r))
       }
     | (["[", "]"], [Fumola(r)]) => ret(Index(l, r))
@@ -454,12 +484,20 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
   | _ as tm => ret(hole(tm));
 }
 /* A brace block and a `;` chain both hold declarations; everything that is
-   not a `let` is a declaration whose body is an expression. */
-and fumola_decs = (e: FumolaTermBase.t): list(FumolaTermBase.dec) =>
+   not a `let` is a declaration whose body is an expression.
+
+   Destructuring a nested block drops that block's node, so its ids are
+   returned alongside the declarations and land on whichever node replaces
+   it. Otherwise the `;` a chain was written with would name no term, and
+   the cursor on it would report nothing. */
+and fumola_decs =
+    (e: FumolaTermBase.t): (list(FumolaTermBase.dec), list(Id.t)) =>
   switch (e.term) {
-  | Block(ds) => ds
-  | _ => [fumola_dec_of(None, e)]
+  | Block(ds) => (ds, IdTagged.ids(e))
+  | _ => ([fumola_dec_of(None, e)], [])
   }
+and fumola_dec_annotation = (id: Id.t): IdTagged.IdTag.t =>
+  IdTagged.IdTag.mk([id], IdTagged.IdTag.empty_secondary)
 and fumola_dec_of =
     (p: option(FumolaTermBase.t), e: FumolaTermBase.t): FumolaTermBase.dec => {
   let annotation = e.annotation;

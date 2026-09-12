@@ -47,8 +47,15 @@ let rec any_to_info_map =
   | Drv(drv) =>
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
-  /* Fumola statics arrive with M2, together with running the program. */
-  | Fumola(f) => (CoCtx.empty, Fumola(f), m)
+  /* Fumola has no statics in Hazel -- no types, one closed sort -- but the
+     info map is also what the cursor inspector reads, and an id missing from
+     it reports as whitespace. So the traversal here is for the inspector's
+     sake: it names the form at every id and says nothing else. */
+  | Fumola(f) => (
+      CoCtx.empty,
+      Fumola(f),
+      fumola_to_info_map(f, m, ~ancestors),
+    )
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
@@ -68,6 +75,122 @@ and multi =
     ([], [], m),
     tms,
   )
+/* One entry per node, carrying its syntactic class and its ancestry. The
+   embedded `hazel … end` terms are deliberately not descended into here:
+   uexp_to_info_map already visits them with a context and a type, and
+   overwriting those entries with class-only ones would lose the statics that
+   make the embedded expression worth having. */
+and fumola_to_info_map = (f: FumolaTermBase.t, m: Map.t, ~ancestors): Map.t => {
+  let rec go = (~ancestors, e: FumolaTermBase.t, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(e),
+        InfoFumola(FumolaInfo.of_exp(~ancestors, e)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(e), ...ancestors];
+    let go = go(~ancestors);
+    let go_ds = (ds, m) =>
+      List.fold_left((m, d) => dec(~ancestors, d, m), m, ds);
+    switch (e.term) {
+    | Hole(EmptyHole)
+    | Hole(Invalid(_))
+    | Var(_)
+    | Lit(_)
+    | QuotedId(_)
+    | Prim(_)
+    /* Descending would overwrite the statics uexp_to_info_map put there. */
+    | Hazel(_) => m
+    | Hole(MultiHole(es))
+    | Tuple(es)
+    | Array(_, es) => List.fold_left((m, e) => go(e, m), m, es)
+    | Paren(e)
+    | Proj(e, _)
+    | Bang(e)
+    | Opt(e)
+    | Un(_, e)
+    | Not(e)
+    | Unquote(e)
+    | Assert(e)
+    | Ignore(e)
+    | Force(e)
+    | Get(e) => go(e, m)
+    | Return(e) => Option.fold(~none=m, ~some=e => go(e, m), e)
+    | Variant(_, e) => Option.fold(~none=m, ~some=e => go(e, m), e)
+    | Ap(a, b)
+    | Index(a, b)
+    | Bin(a, _, b)
+    | Rel(a, _, b)
+    | And(a, b)
+    | Or(a, b)
+    | Put(a, b)
+    | DoPutForce(a, b) => m |> go(a) |> go(b)
+    | If(c, t, f) =>
+      let m = m |> go(c) |> go(t);
+      Option.fold(~none=m, ~some=e => go(e, m), f);
+    | Switch(e, cs) =>
+      List.fold_left(
+        (m, c: FumolaGrammar.case(_, _)) =>
+          m |> pat(~ancestors, c.pat) |> go(c.body),
+        go(e, m),
+        cs,
+      )
+    | Block(ds)
+    | Thunk(ds) => go_ds(ds, m)
+    | DoNav(_, d, e, ds) => m |> go(d) |> go(e) |> go_ds(ds)
+    };
+  }
+  and dec = (~ancestors, d: FumolaTermBase.dec, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(d),
+        InfoFumola(FumolaInfo.of_dec(~ancestors, d)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(d), ...ancestors];
+    switch (d.term) {
+    | DHole(EmptyHole)
+    | DHole(Invalid(_)) => m
+    | DHole(MultiHole(es)) =>
+      List.fold_left((m, e) => go(~ancestors, e, m), m, es)
+    | DExp(e) => go(~ancestors, e, m)
+    | DLet(p, e)
+    | DVar(p, e)
+    | DImport(p, e) => m |> pat(~ancestors, p) |> go(~ancestors, e)
+    | DFunc(_, p, ds) =>
+      List.fold_left(
+        (m, d) => dec(~ancestors, d, m),
+        pat(~ancestors, p, m),
+        ds,
+      )
+    };
+  }
+  and pat = (~ancestors, p: FumolaTermBase.pat, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(p),
+        InfoFumola(FumolaInfo.of_pat(~ancestors, p)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(p), ...ancestors];
+    switch (p.term) {
+    | PHole(EmptyHole)
+    | PHole(Invalid(_))
+    | PVar(_)
+    | PWild
+    | PLit(_) => m
+    | PHole(MultiHole(es)) =>
+      List.fold_left((m, e) => go(~ancestors, e, m), m, es)
+    | PParen(p)
+    | POpt(p) => pat(~ancestors, p, m)
+    | PTuple(ps) => List.fold_left((m, p) => pat(~ancestors, p, m), m, ps)
+    | PVariant(_, p) =>
+      Option.fold(~none=m, ~some=p => pat(~ancestors, p, m), p)
+    };
+  };
+  go(~ancestors, f, m);
+}
+
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -474,6 +597,18 @@ and uexp_to_info_map =
        which a half-written program produces on nearly every keystroke and
        which the editor already shows better than a mark would. */
     | FumolaQuote(name, mode, body) =>
+      /* The three Fumola children first, whatever the run does with them:
+         the info map is what the cursor inspector reads, and an id missing
+         from it reports as whitespace rather than as the form it is. This
+         runs even when the program cannot run, which is when a reader most
+         wants to know what is under the cursor. */
+      let m =
+        [name, mode, body]
+        |> List.fold_left(
+             (m, f) =>
+               fumola_to_info_map(f, m, ~ancestors=ancestors_inclusive),
+             m,
+           );
       /* Closures rather than the context itself, because the Fumola modules
          sit below Ctx and cannot name it. */
       let tools: FumolaTools.t = {

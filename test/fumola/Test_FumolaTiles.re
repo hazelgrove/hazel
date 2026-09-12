@@ -479,6 +479,89 @@ let test_source_recases = () => {
   );
 };
 
+/* The cursor inspector reads the info map, and an id missing from it reports
+   as whitespace -- which is what every Fumola subterm did before there was a
+   traversal to put them there. This checks the map itself rather than the
+   panel: for each id in the program, an InfoFumola entry naming the form. */
+let test_info_map = () =>
+  test_case(
+    "every Fumola subterm is in the info map",
+    `Quick,
+    () => {
+      let e = parse("fumola ? as store in {let x = 1; $tag(x)} end");
+      let (m, _) =
+        Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), e);
+      let classes =
+        Id.Map.bindings(m)
+        |> List.filter_map(((_, info)) =>
+             switch ((info: Info.t)) {
+             | InfoFumola(f) => Some(FumolaCls.show(FumolaInfo.cls_of(f)))
+             | _ => None
+             }
+           );
+      let has = c =>
+        Alcotest.check(
+          Alcotest.bool,
+          c ++ " is reported",
+          true,
+          List.mem(c, classes),
+        );
+      has("Variant");
+      has("Let Declaration");
+      has("Pattern Variable");
+      has("Integer Literal");
+      has("Variable Reference");
+      has("Block");
+    },
+  );
+
+/* The editor looks an info up by the id of the *piece* under the cursor
+   (Indicated.ci_of), so entries filed under some other id never reach the
+   panel. This walks the segment the editor would hold and asks for each
+   tile by its own id. */
+let test_info_map_by_piece = () =>
+  test_case(
+    "every Fumola tile's own id has an info",
+    `Quick,
+    () => {
+      let src = "fumola ? as store in {let x = 1; $tag(x)} end";
+      let seg =
+        switch (Haz3lcore.Parser.to_segment(src, ~root=Exp)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("failed to parse: " ++ src)
+        };
+      /* The term has to come from this same segment: two parses of one string
+         mint different ids, and the ids are the whole point here. */
+      let term =
+        Haz3lcore.MakeTerm.from_zip_for_sem(
+          Haz3lcore.Zipper.unzip(seg),
+          ~root=Exp,
+        ).
+          term;
+      let (m, _) =
+        Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), term);
+      let rec tiles = (seg: Haz3lcore.Segment.t) =>
+        seg
+        |> List.concat_map((p: Haz3lcore.Piece.t) =>
+             switch (p) {
+             | Tile(t) => [t, ...List.concat_map(tiles, t.children)]
+             | _ => []
+             }
+           );
+      let missing =
+        tiles(seg)
+        |> List.filter_map((t: Haz3lcore.Tile.t) =>
+             Id.Map.mem(t.id, m) ? None : Some(String.concat("", t.label))
+           );
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "tiles with no info",
+        [],
+        missing,
+      );
+    },
+  );
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -508,6 +591,8 @@ let tests = (
   [
     test_case("write the tile corpus", `Quick, () => write_corpus()),
     test_case("fumola is a closed sub-language", `Quick, test_closed),
+    test_info_map(),
+    test_info_map_by_piece(),
     test_case(
       "the instance's mode is read from the syntax",
       `Quick,
