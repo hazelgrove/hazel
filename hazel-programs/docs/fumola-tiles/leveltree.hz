@@ -1,0 +1,30 @@
+# A LEVEL TREE, BUILT IN THE STORE #
+
+# This is the shape of levelTree.fromList from the Fumola repo, cut down to #
+# what the tiles can build today.  The real one takes a generic List<X>, #
+# destructures a record, and is written with type annotations -- none of #
+# which these tiles have yet.  What survives the cut is the part that makes #
+# it incremental: every node is a named cell, so re-running touches only #
+# what changed. #
+
+# Three leaves, each put at its own name: #
+let leaves = fumola tree as $graphical in
+  { 1 := $leaf(1); 2 := $leaf(2); 3 := $leaf(3) }
+end in
+
+# A binary node above two of them.  Reading a cell with @ is what records #
+# the edge from this node to the ones it read: #
+let node = fumola tree as $graphical in
+  4 := $bin(((@ 1), (@ 2)))
+end in
+
+# And a thunk, whose force is the traversal the event list shows as a #
+# Begin and an End: #
+let total = fumola tree as $graphical in
+  { let t = 5 := thunk { (@ 1) + (@ 2) }; force t }
+end in
+
+# Open the Fumola panel (the tab below Problems) with the cursor inside any #
+# of these to see what `tree` recorded. #
+
+(leaves, node, total)

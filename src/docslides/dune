@@ -2,6 +2,8 @@
 
 (copy_files ../../hazel-programs/docs/reference/*.hz)
 
+(copy_files ../../hazel-programs/docs/fumola-tiles/*.hz)
+
 (library
  (name docslides)
  (libraries haz3lcore)

@@ -1,0 +1,29 @@
+# HAZEL INSIDE FUMOLA #
+
+# `fumola ... end` takes Hazel into Fumola.  `hazel ... end` takes it back: #
+# inside a Fumola program it is a Fumola form whose child is Hazel, edited #
+# as Hazel, with Hazel's types and completion. #
+
+let sum = fumola store as $graphical in
+  hazel 1 end + hazel 2 end
+end in
+
+# The Hazel value is rendered as Fumola source on the way in, so the two #
+# above reach the runtime as (1) + (2).  Anything with a written Fumola #
+# form can cross: numbers, booleans, tuples, lists, constructors. #
+
+let pair = fumola store as $graphical in
+  hazel (1, true) end
+end in
+
+# The mode slot takes one too, so an instance can be configured in Hazel's #
+# own words rather than Fumola's: #
+
+let configured = fumola store as hazel Graphical end in 1 end in
+
+# One limit worth knowing: the escape carries a value written in place, not #
+# a variable bound outside.  `let m = Graphical in ... hazel m end` says so #
+# rather than guessing, because a Fumola program runs before anything has #
+# been substituted. #
+
+(sum, pair, configured)

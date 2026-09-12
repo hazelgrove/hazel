@@ -16,6 +16,13 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
+    /* Fumola, integrated as a sort in the tile grammar. Named apart from the
+       livelit integration -- "Fumola (Livelits)" on fumola-livelit-mvp -- so
+       that the two can sit in one deck when they meet. */
+    ("Fumola (Tiles) / Overview", [%blob "overview.hz"]),
+    ("Fumola (Tiles) / Instance and mode", [%blob "instance.hz"]),
+    ("Fumola (Tiles) / A level tree", [%blob "leveltree.hz"]),
+    ("Fumola (Tiles) / Hazel inside", [%blob "hazel-inside.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
