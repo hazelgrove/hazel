@@ -3120,39 +3120,60 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     let+ e = go(e);
     [mk_form(Form.Fumola(form), id, [])] @ e;
   };
-  let rec sep = (form, ts) =>
-    switch (ts) {
-    | [] => p_just([])
-    | [t] => go(t)
-    | [t, ...rest] =>
-      let+ t = go(t)
-      and+ rest = sep(form, rest);
-      t @ [mk_form(Form.Fumola(form), id, [])] @ rest;
-    };
-  let dec_to_exp = (d: FumolaTermBase.dec): FumolaTermBase.t =>
-    switch (d.term) {
-    | DExp(e) => e
-    | DHole(h) => {
-        term: Hole(h),
-        annotation: d.annotation,
-      }
-    /* let, var and func have no Fumola-sorted expression to stand for them
-       here; M1 renders only what its tiles can build. */
-    | DLet(_, e)
-    | DVar(_, e) => e
-    | DFunc(_, _, _) => {
-        term: Hole(EmptyHole),
-        annotation: d.annotation,
-      }
-    };
-  let block_of = ds => sep(FumolaSemi, List.map(dec_to_exp, ds));
-  let unbuildable = () =>
+  let hole_at = id =>
     p_just([
       Grout({
         id,
         shape: Convex,
       }),
     ]);
+  let unbuildable = () => hole_at(id);
+  let rec sep_pretty = (form, ps) =>
+    switch (ps) {
+    | [] => p_just([])
+    | [x] => x
+    | [x, ...rest] =>
+      let+ x = x
+      and+ rest = sep_pretty(form, rest);
+      x @ [mk_form(Form.Fumola(form), id, [])] @ rest;
+    };
+  let sep = (form, ts) => sep_pretty(form, List.map(go, ts));
+  /* A binder position holds a Fumola pattern, and the only patterns the M1
+     tiles build there are a name and a wildcard. */
+  let pat_pretty = (p: FumolaTermBase.pat): pretty => {
+    let pid = p |> IdTagged.rep_id;
+    switch (p.term) {
+    | PVar(x) => text_to_pretty(pid, Sort.Fumola(Exp), x)
+    | PWild => text_to_pretty(pid, Sort.Fumola(Exp), "_")
+    | _ => hole_at(pid)
+    };
+  };
+  /* `let` and `import` are prefix forms with the binder as their interior
+     child, so both parts of the declaration survive the rendering.  `var`
+     and `func` have no tile at all and render as a hole rather than as the
+     nearest printable part of themselves, which would drop the binding
+     silently. */
+  let dec_pretty = (d: FumolaTermBase.dec): pretty => {
+    let did = d |> IdTagged.rep_id;
+    let binder = (form, p, e) => {
+      let+ p = pat_pretty(p)
+      and+ e = go(e);
+      [mk_form(Form.Fumola(form), did, [p])] @ e;
+    };
+    switch (d.term) {
+    | DExp(e) => go(e)
+    | DHole(h) =>
+      go({
+        term: Hole(h),
+        annotation: d.annotation,
+      })
+    | DLet(p, e) => binder(FumolaLet, p, e)
+    | DImport(p, e) => binder(FumolaImport, p, e)
+    | DVar(_, _)
+    | DFunc(_, _, _) => hole_at(did)
+    };
+  };
+  let block_of = ds => sep_pretty(FumolaSemi, List.map(dec_pretty, ds));
   switch (f.term) {
   | Hole(Invalid(s)) => text_to_pretty(id, Sort.Fumola(Exp), s)
   | Hole(EmptyHole) =>
@@ -3235,13 +3256,18 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
      nearest printable part -- an `if` as its condition, say -- would drop
      program structure silently, so they render as a hole instead, which the
      editor and FumolaPrint.has_hole both treat as incomplete. */
+  /* The projected name is a token in the right operand position, which is
+     how MakeTerm reads it back. */
+  | Proj(e, x) =>
+    let+ e = go(e)
+    and+ x = text_to_pretty(id, Sort.Fumola(Exp), x);
+    e @ [mk_form(Form.Fumola(FumolaProj), id, [])] @ x;
   | Array(_, _)
   | Opt(_)
   | Un(_, _)
   | Not(_)
   | Unquote(_)
   | Bang(_)
-  | Proj(_, _)
   | Assert(_)
   | Ignore(_)
   | Return(_)

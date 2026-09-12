@@ -366,6 +366,15 @@ and parse_dec = (st: state): FumolaTermBase.dec =>
     let p = parse_pat(st);
     eat(st, "=");
     node(DVar(p, parse_exp(st)));
+  /* Fumola's LetImport marks the `=` as sugar and accepts it either way;
+     the printer always writes it, so the parser only has to allow it. */
+  | Ident("import") =>
+    advance(st);
+    let p = parse_pat(st);
+    if (looking_at(st, "=")) {
+      eat(st, "=");
+    };
+    node(DImport(p, parse_exp(st)));
   | Ident("func") =>
     advance(st);
     let name =
@@ -470,6 +479,7 @@ and starts_atom = (st: state): bool =>
           "in",
           "let",
           "var",
+          "import",
           "func",
           "do",
           "if",

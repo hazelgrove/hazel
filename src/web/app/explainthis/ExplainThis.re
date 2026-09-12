@@ -713,6 +713,15 @@ let decide =
   };
 
   switch (info) {
+  /* Fumola forms have no ExplainThis entries yet; the cursor inspector names
+     the form, and this says so rather than showing Hazel's docs for a
+     same-named Hazel form. */
+  | Some(InfoFumola(fi)) =>
+    Prose(
+      "Fumola "
+      ++ FumolaCls.show(FumolaInfo.cls_of(fi))
+      ++ ". No documentation available.",
+    )
   | Some(InfoMod({cls, _})) =>
     switch (cls) {
     | Mod(ModLet) => message_single(ModLetDecl.single)

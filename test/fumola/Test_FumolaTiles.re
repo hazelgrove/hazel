@@ -139,6 +139,57 @@ let corpus: list((string, string, string, string)) = [
      Fumola term does. The livelit could carry one value, at the boundary of
      an opaque string; here it is a tile subtree, and there can be several,
      anywhere in the program. FumolaSource renders each as Fumola source. */
+  /* Fumola spells a string as Hazel does, so unlike `#tag` the token needs
+     no respelling: it carries its quotes from the tile into Lit(Text) and
+     out through the printer unchanged. */
+  (
+    "a string literal",
+    "fumola ? as store in \"abc\" end",
+    "store",
+    "\"abc\"",
+  ),
+  (
+    "a path with slashes in it, which is what imports need one for",
+    "fumola ? as store in \"fumola/collections/levelTree\" end",
+    "store",
+    "\"fumola/collections/levelTree\"",
+  ),
+  /* The `=` is sugar in Fumola's own LetImport production, which accepts it
+     either way; the tile is shaped like `let`, so it is always written. */
+  (
+    "an import",
+    "fumola ? as store in import Seq = \"fumola/collections/levelTree\" end",
+    "store",
+    "do { import Seq = \"fumola/collections/levelTree\" }",
+  ),
+  (
+    "an import and a use of what it binds",
+    "fumola ? as store in {import Seq = \"fumola/collections/levelTree\"; Seq} end",
+    "store",
+    "do { import Seq = \"fumola/collections/levelTree\"; Seq }",
+  ),
+  /* Projection is what makes an import worth having: it is how the module
+     the import binds is reached. */
+  ("a projection", "fumola ? as store in e.x end", "store", "e.x"),
+  (
+    "a projection chains to the left",
+    "fumola ? as store in e.x.y end",
+    "store",
+    "e.x.y",
+  ),
+  (
+    "a numeric projection, which is the same node",
+    "fumola ? as store in e.0 end",
+    "store",
+    "e.0",
+  ),
+  (
+    "a projection applied, which is how a library function is called",
+    "fumola ? as store in Seq.fromList(l) end",
+    "store",
+    "Seq.fromList l",
+  ),
+  ("unit", "fumola ? as store in () end", "store", "()"),
   (
     "a hazel expression",
     "fumola ? as store in hazel 1 end end",
@@ -428,6 +479,121 @@ let test_source_recases = () => {
   );
 };
 
+/* The cursor inspector reads the info map, and an id missing from it reports
+   as whitespace -- which is what every Fumola subterm did before there was a
+   traversal to put them there. This checks the map itself rather than the
+   panel: for each id in the program, an InfoFumola entry naming the form. */
+let test_info_map = () =>
+  test_case(
+    "every Fumola subterm is in the info map",
+    `Quick,
+    () => {
+      let e = parse("fumola ? as store in {let x = 1; $tag(x)} end");
+      let (m, _) =
+        Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), e);
+      let classes =
+        Id.Map.bindings(m)
+        |> List.filter_map(((_, info)) =>
+             switch ((info: Info.t)) {
+             | InfoFumola(f) => Some(FumolaCls.show(FumolaInfo.cls_of(f)))
+             | _ => None
+             }
+           );
+      let has = c =>
+        Alcotest.check(
+          Alcotest.bool,
+          c ++ " is reported",
+          true,
+          List.mem(c, classes),
+        );
+      has("Variant");
+      has("Let Declaration");
+      has("Pattern Variable");
+      has("Integer Literal");
+      has("Variable Reference");
+      has("Block");
+    },
+  );
+
+/* The editor looks an info up by the id of the *piece* under the cursor
+   (Indicated.ci_of), so entries filed under some other id never reach the
+   panel. This walks the segment the editor would hold and asks for each
+   tile by its own id. */
+let test_info_map_by_piece = () =>
+  test_case(
+    "every Fumola tile's own id has an info",
+    `Quick,
+    () => {
+      let src = "fumola ? as store in {let x = 1; $tag(x)} end";
+      let seg =
+        switch (Haz3lcore.Parser.to_segment(src, ~root=Exp)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("failed to parse: " ++ src)
+        };
+      /* The term has to come from this same segment: two parses of one string
+         mint different ids, and the ids are the whole point here. */
+      let term =
+        Haz3lcore.MakeTerm.from_zip_for_sem(
+          Haz3lcore.Zipper.unzip(seg),
+          ~root=Exp,
+        ).
+          term;
+      let (m, _) =
+        Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), term);
+      let rec tiles = (seg: Haz3lcore.Segment.t) =>
+        seg
+        |> List.concat_map((p: Haz3lcore.Piece.t) =>
+             switch (p) {
+             | Tile(t) => [t, ...List.concat_map(tiles, t.children)]
+             | _ => []
+             }
+           );
+      let missing =
+        tiles(seg)
+        |> List.filter_map((t: Haz3lcore.Tile.t) =>
+             Id.Map.mem(t.id, m) ? None : Some(String.concat("", t.label))
+           );
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "tiles with no info",
+        [],
+        missing,
+      );
+    },
+  );
+
+/* Typing a program passes through every prefix of it, and Parser.to_segment
+   inserts character by character down the same path the editor uses. A
+   prefix that raises is a crash a reader would hit mid-word -- which no
+   whole-program test can see. */
+let test_prefixes = () =>
+  test_case(
+    "every prefix of every tile program parses",
+    `Quick,
+    () => {
+      let sources = List.map(((_, src, _, _)) => src, corpus);
+      let failures =
+        sources
+        |> List.concat_map(src => {
+             let n = String.length(src);
+             List.init(n, i => String.sub(src, 0, i + 1));
+           })
+        |> List.filter_map(prefix =>
+             switch (Haz3lcore.Parser.to_segment(prefix, ~root=Exp)) {
+             | _ => None
+             | exception exn =>
+               Some(prefix ++ " -> " ++ Printexc.to_string(exn))
+             }
+           );
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "prefixes that raise",
+        [],
+        failures,
+      );
+    },
+  );
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -457,6 +623,9 @@ let tests = (
   [
     test_case("write the tile corpus", `Quick, () => write_corpus()),
     test_case("fumola is a closed sub-language", `Quick, test_closed),
+    test_info_map(),
+    test_info_map_by_piece(),
+    test_prefixes(),
     test_case(
       "the instance's mode is read from the syntax",
       `Quick,

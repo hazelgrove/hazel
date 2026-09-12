@@ -49,7 +49,9 @@ let type_binder = 15;
 // is not the order intuition suggests: `|`, `&` and `^` bind TIGHTER than `+`
 // and `*`. See src/language/fumola/FumolaPrint.re.
 // f(_____), _____.x, _____[i]
-let fum_post = 4;
+/* Left-associative so that `a.b.c` and `f(x)(y)` chain.  Level 4 is Fumola's
+   alone, so marking it here gives no Hazel operator an associativity. */
+let fum_post = 4 |> left_associative;
 // #_____, ?_____, not _____, -_____
 let fum_un = 5;
 let fum_pow = 6 |> left_associative;

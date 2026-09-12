@@ -84,6 +84,7 @@ and erase_dec = (d: FumolaTermBase.dec): FumolaTermBase.dec => {
     | DExp(e) => DExp(erase(e))
     | DLet(p, e) => DLet(erase_pat(p), erase(e))
     | DVar(p, e) => DVar(erase_pat(p), erase(e))
+    | DImport(p, e) => DImport(erase_pat(p), erase(e))
     | DFunc(n, p, ds) => DFunc(n, erase_pat(p), List.map(erase_dec, ds))
     };
   {
@@ -177,6 +178,10 @@ let corpus = [
   "do { let x = 1 }",
   "do { let x = 1; x }",
   "do { func f(x) { x } }",
+  /* The `=` is optional in Fumola's own grammar and always printed here, so
+     the round trip fixes on the spelling with it. */
+  "do { import Seq = \"fumola/collections/levelTree\" }",
+  "do { import Seq = \"fumola/collections/levelTree\"; Seq }",
   "if (b == 0) { a } else { let y = 1; y }",
   "switch x { case (#some y) y; case _ 0 }",
   "assert ((@ cell) == null)",

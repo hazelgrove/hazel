@@ -65,6 +65,9 @@ let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
       : (
         switch (Info.sort_of(ci)) {
         | Drv(s) => DrvSort.to_string_short(s)
+        /* Same reason: Sort.to_string gives "FumolaExp", which reads as one
+           word in the header. */
+        | Fumola(s) => FumolaSort.to_string_short(s)
         | s => Sort.to_string(s)
         }
       );
@@ -1069,6 +1072,17 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoTPat({cls, marks, message, _}) =>
     wrapper(tpat_view(~globals, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
+  /* Fumola has no statics in Hazel, so there is no type to show beside the
+     form -- only the form itself, and whether it is a hole. */
+  | InfoFumola(fi) =>
+    wrapper(
+      switch (FumolaInfo.error_of(fi)) {
+      | None => div_ok([text(FumolaCls.show(FumolaInfo.cls_of(fi)))])
+      | Some(BadToken(token)) =>
+        div_err([text("Not a Fumola token: "), text(token)])
+      | Some(MultiHole) => div_err([text("Fumola: incomplete term")])
+      },
+    )
   };
 };
 

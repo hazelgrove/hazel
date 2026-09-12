@@ -212,9 +212,11 @@ type fumola_compound_form =
   | FumolaBlock
   | FumolaAp
   | FumolaIndex
+  | FumolaProj
   | FumolaComma
   | FumolaSemi
   | FumolaLet
+  | FumolaImport
   | FumolaPut
   | FumolaOr
   | FumolaAnd
@@ -267,10 +269,21 @@ let fumola_get: fumola_compound_form => t =
     mk_post_c(LT, ["(", ")"], P.fum_post, Fumola(Exp), [Fumola(Exp)])
   | FumolaIndex =>
     mk_post_c(LT, ["[", "]"], P.fum_post, Fumola(Exp), [Fumola(Exp)])
+  /* `e.x` and `e.0` alike: the printer only has to put the text back, so the
+     right operand is read for its token rather than as an expression.  This
+     is what lets an imported module be reached -- `Seq.fromList` -- which is
+     the whole point of having `import`. */
+  | FumolaProj => mk_infix(".", Fumola(Exp), P.fum_post)
   | FumolaComma => mk_infix(",", Fumola(Exp), P.fum_comma)
   | FumolaSemi => mk_infix(";", Fumola(Exp), P.fum_semi)
   | FumolaLet =>
     mk_pre_c(L, ["let", "="], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
+  /* `import Seq = <path>`, the path being a string literal.  Shaped like
+     `let`, which is not a liberty: Fumola's own LetImport production takes
+     an optional `=` between the name and the path, so this prints as
+     grammatical Fumola without any respelling. */
+  | FumolaImport =>
+    mk_pre_c(L, ["import", "="], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
   | FumolaPut => mk_infix(":=", Fumola(Exp), P.fum_stmt)
   | FumolaOr => mk_infix("or", Fumola(Exp), P.fum_or)
   | FumolaAnd => mk_infix("and", Fumola(Exp), P.fum_and)
@@ -765,7 +778,12 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
-  | String => (Token.is_string, [op(Exp), op(Pat)])
+  /* Fumola spells strings with double quotes as Hazel does, so the token
+     carries straight through: MakeTerm reads it as Lit(Text) with its quotes
+     still on, and FumolaPrint puts it back unchanged.  No `$tag`-style
+     respelling is needed here, because the double quote collides with
+     nothing in Hazel, the way `#` does. */
+  | String => (Token.is_string, [op(Exp), op(Pat), op(Fumola(Exp))])
   | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
   | IntLit => (
       Token.is_int,
@@ -780,9 +798,11 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | BoolLit => (Token.is_bool, [op(Exp), op(Pat), op(Drv(Exp))])
   | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat), op(Drv(Exp))])
+  /* Fumola's unit is `()` as Hazel's is, and calling a Fumola function of no
+     arguments needs it. */
   | EmptyTuple => (
       Token.is_empty_tuple,
-      [op(Exp), op(Pat), op(Typ), op(Drv(Exp))],
+      [op(Exp), op(Pat), op(Typ), op(Drv(Exp)), op(Fumola(Exp))],
     )
   | EmptyModule => (Token.is_empty_module, [op(Exp), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])
