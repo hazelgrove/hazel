@@ -63,13 +63,11 @@ let tests = (
         ),
       )
     ),
+    /* `(P : A -> type)` arrives as `Arrow(Mem(P, A), type)`, because the colon
+       binds tighter than the arrow; without the same rotation the entry reader
+       does, P would not be bound at all. */
     test_case(
-      "a declaration inside a binder may itself be an arrow",
-      `Quick,
-      () =>
-      /* `(P : A -> type)` arrives as `Arrow(Mem(P, A), type)`, because the
-         colon binds tighter than the arrow; without the same rotation the
-         entry reader does, P would not be bound at all. */
+      "a declaration inside a binder may itself be an arrow", `Quick, () =>
       check(
         list(pair(string, string)),
         "no errors",
