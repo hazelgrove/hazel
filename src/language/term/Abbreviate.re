@@ -514,7 +514,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
-      | FumolaQuote(_, _) => Invalid("<fumola program>")
+      | FumolaQuote(_, _, _) => Invalid("<fumola program>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {

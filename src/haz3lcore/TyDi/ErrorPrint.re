@@ -103,6 +103,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let common_from_core = () => core_mark_string(ctx, ana, m);
   switch (m) {
   | Free(name) => "Variable " ++ name ++ " is not bound"
+  | FumolaFailed(message) => "Fumola: " ++ message
   | InexhaustiveMatch(_) => "Match is not exhaustive"
   | IsDeferral(InAp) => "(internal)"
   | IsDeferral(_) => "Unused deferral"

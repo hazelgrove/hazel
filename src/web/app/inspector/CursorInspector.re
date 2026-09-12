@@ -260,6 +260,7 @@ let core_mark_err_view =
     | DotOperatorRequiresTuple
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
+    | FumolaFailed(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -722,6 +723,7 @@ let exp_mark_err_view =
       div_err([text("(internal) livelit should not surface as error")])
     }
   | BadOperator(msg) => div_err([text("Invalid operator: "), text(msg)])
+  | FumolaFailed(msg) => div_err([text("Fumola: "), text(msg)])
   | LabelNotFound(name, labels) =>
     div_err([
       text("Label "),

@@ -28,17 +28,27 @@ let parse = (s: string): Exp.t =>
   | None => Alcotest.fail("failed to parse: " ++ s)
   };
 
-/* Pull the Fumola program out of a `fumola <instance> in … end`. */
-let fumola_of = (e: Exp.t): option((FumolaTermBase.t, FumolaTermBase.t)) =>
+/* Pull the instance, the mode and the program out of a `fumola … end`. */
+type parsed = {
+  instance: FumolaTermBase.t,
+  mode: FumolaTermBase.t,
+  body: FumolaTermBase.t,
+};
+
+let fumola_of = (e: Exp.t): option(parsed) =>
   switch (e.term) {
-  | FumolaQuote(name, body) => Some((name, body))
+  | FumolaQuote(instance, mode, body) =>
+    Some({
+      instance,
+      mode,
+      body,
+    })
   | _ => None
   };
 
 /* Every source here puts the form at the top level, so looking through the
    wrappers a whole-program parse can add is all that is needed. */
-let rec find_fumola =
-        (e: Exp.t): option((FumolaTermBase.t, FumolaTermBase.t)) =>
+let rec find_fumola = (e: Exp.t): option(parsed) =>
   switch (fumola_of(e)) {
   | Some(p) => Some(p)
   | None =>
@@ -53,59 +63,75 @@ let rec find_fumola =
 
 /* (name, what is typed into the editor, the instance, the Fumola source) */
 let corpus: list((string, string, string, string)) = [
-  ("a bare variable", "fumola store in x end", "store", "x"),
-  ("a literal", "fumola store in 1 end", "store", "1"),
-  ("an instance named something else", "fumola other in x end", "other", "x"),
-  ("addition", "fumola store in 1 + 2 end", "store", "1 + 2"),
+  /* The instance's adapton semantics, written beside its name. Changing it
+     resets the instance, so it is not something a program sets in passing;
+     leaving it out asks for no mode rather than for the default, so that one
+     expression cannot reset an instance another has configured. */
+  (
+    "an instance with a mode",
+    "fumola store as $graphical in 1 end",
+    "store",
+    "1",
+  ),
+  ("simple mode", "fumola store as $simple in 1 end", "store", "1"),
+  ("a bare variable", "fumola store as ? in x end", "store", "x"),
+  ("a literal", "fumola store as ? in 1 end", "store", "1"),
+  (
+    "an instance named something else",
+    "fumola other as ? in x end",
+    "other",
+    "x",
+  ),
+  ("addition", "fumola store as ? in 1 + 2 end", "store", "1 + 2"),
   (
     "multiplication binds tighter",
-    "fumola store in 1 + 2 * 3 end",
+    "fumola store as ? in 1 + 2 * 3 end",
     "store",
     "1 + 2 * 3",
   ),
   (
     "bitor binds tighter than addition, as the grammar has it",
-    "fumola store in 1 | 2 + 3 end",
+    "fumola store as ? in 1 | 2 + 3 end",
     "store",
     "1 | 2 + 3",
   ),
   (
     "and parentheses come back where they are needed",
-    "fumola store in 1 | (2 + 3) end",
+    "fumola store as ? in 1 | (2 + 3) end",
     "store",
     "1 | (2 + 3)",
   ),
-  ("comparison", "fumola store in a == b end", "store", "a == b"),
-  ("a put", "fumola store in 0 := 1 end", "store", "0 := 1"),
-  ("a get", "fumola store in @ cell end", "store", "@ cell"),
-  ("a force", "fumola store in force t end", "store", "force t"),
+  ("comparison", "fumola store as ? in a == b end", "store", "a == b"),
+  ("a put", "fumola store as ? in 0 := 1 end", "store", "0 := 1"),
+  ("a get", "fumola store as ? in @ cell end", "store", "@ cell"),
+  ("a force", "fumola store as ? in force t end", "store", "force t"),
   (
     "a get inside an operator, which Fumola rejects without parentheses",
-    "fumola store in (@ c) + 1 end",
+    "fumola store as ? in (@ c) + 1 end",
     "store",
     "(@ c) + 1",
   ),
-  ("application", "fumola store in f(a) end", "store", "f a"),
-  ("a block", "fumola store in {x} end", "store", "do { x }"),
+  ("application", "fumola store as ? in f(a) end", "store", "f a"),
+  ("a block", "fumola store as ? in {x} end", "store", "do { x }"),
   /* Fumola spells a variant `#tag`, which Hazel cannot tokenize because `#`
      is its comment delimiter. The tile is `$tag` and the printer puts the
      `#` back; see Token.is_fumola_tag. */
-  ("a variant", "fumola store in $tag end", "store", "#tag"),
+  ("a variant", "fumola store as ? in $tag end", "store", "#tag"),
   (
     "a variant with a payload",
-    "fumola store in $tag(1) end",
+    "fumola store as ? in $tag(1) end",
     "store",
     "#tag 1",
   ),
   (
     "a variant payload that is not an atom keeps its parentheses",
-    "fumola store in $tag(1 + 2) end",
+    "fumola store as ? in $tag(1 + 2) end",
     "store",
     "#tag (1 + 2)",
   ),
   (
     "a variant is tighter than an operator",
-    "fumola store in $tag(1) + 2 end",
+    "fumola store as ? in $tag(1) + 2 end",
     "store",
     "#tag 1 + 2",
   ),
@@ -113,28 +139,33 @@ let corpus: list((string, string, string, string)) = [
      Fumola term does. The livelit could carry one value, at the boundary of
      an opaque string; here it is a tile subtree, and there can be several,
      anywhere in the program. FumolaSource renders each as Fumola source. */
-  ("a hazel expression", "fumola store in hazel 1 end end", "store", "(1)"),
+  (
+    "a hazel expression",
+    "fumola store as ? in hazel 1 end end",
+    "store",
+    "(1)",
+  ),
   (
     "a hazel expression inside an operator",
-    "fumola store in hazel 1 end + 2 end",
+    "fumola store as ? in hazel 1 end + 2 end",
     "store",
     "(1) + 2",
   ),
   (
     "a hazel tuple crosses as a fumola tuple",
-    "fumola store in hazel (1, true) end end",
+    "fumola store as ? in hazel (1, true) end end",
     "store",
     "((1, true))",
   ),
   (
     "two of them, which the livelit's single input slot could not do",
-    "fumola store in hazel 1 end + hazel 2 end end",
+    "fumola store as ? in hazel 1 end + hazel 2 end end",
     "store",
     "(1) + (2)",
   ),
   (
     "a hazel expression as the argument of a force",
-    "fumola store in force hazel 1 end end",
+    "fumola store as ? in force hazel 1 end end",
     "store",
     "force (1)",
   ),
@@ -144,7 +175,7 @@ let test_parses = ((name, src, instance, _)) =>
   test_case(name ++ " [parses]", `Quick, () => {
     switch (find_fumola(parse(src))) {
     | None => fail("no fumola term: " ++ src)
-    | Some((n, body)) =>
+    | Some({instance: n, body, _}) =>
       /* Report what could not be written, rather than only that something
          could not: the reason is the whole content of the failure. */
       check(
@@ -166,7 +197,7 @@ let test_prints = ((name, src, _, expected)) =>
   test_case(name ++ " [prints]", `Quick, () => {
     switch (find_fumola(parse(src))) {
     | None => fail("no fumola term: " ++ src)
-    | Some((_, body)) =>
+    | Some({body, _}) =>
       check(string, "fumola source", expected, Fumola.of_exp(body))
     }
   });
@@ -174,9 +205,9 @@ let test_prints = ((name, src, _, expected)) =>
 /* Fumola is a closed sub-language: a Hazel form written inside it must not
    expand into Hazel's own, or `let` would become `let _ = _ in`. */
 let test_closed = () =>
-  switch (find_fumola(parse("fumola store in x end"))) {
+  switch (find_fumola(parse("fumola store as ? in x end"))) {
   | None => fail("no fumola term")
-  | Some((_, body)) =>
+  | Some({body, _}) =>
     check(
       string,
       "the program is Fumola's, not Hazel's",
@@ -184,6 +215,101 @@ let test_closed = () =>
       Fumola.of_exp(body),
     )
   };
+
+/* The mode is read from the syntax, and only $simple and $graphical are it. */
+let test_mode = () => {
+  let mode_of = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({mode, _}) =>
+      Fumola.has_hole(mode) ? "none" : Fumola.of_exp(mode)
+    };
+  check(
+    string,
+    "no mode written",
+    "none",
+    mode_of("fumola s as ? in 1 end"),
+  );
+  check(
+    string,
+    "graphical",
+    "#graphical",
+    mode_of("fumola s as $graphical in 1 end"),
+  );
+  check(
+    string,
+    "simple",
+    "#simple",
+    mode_of("fumola s as $simple in 1 end"),
+  );
+  /* A mode can come from Hazel, so an instance's configuration can be written
+     once in Hazel's own terms rather than repeated in Fumola's. */
+  check(
+    string,
+    "a mode written in Hazel",
+    "(#Graphical)",
+    mode_of("fumola s as hazel Graphical end in 1 end"),
+  );
+};
+
+/* What the runtime is actually asked for, which is where a Hazel-written mode
+   and a Fumola-written one have to agree. */
+let test_mode_resolves = () => {
+  let resolved = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({mode, _}) =>
+      switch (FumolaRun.mode_of(mode)) {
+      | Ok(None) => "leave it alone"
+      | Ok(Some(m)) => FumolaRun.mode_source(m)
+      | Error(message) => "error: " ++ message
+      }
+    };
+  check(
+    string,
+    "hole",
+    "leave it alone",
+    resolved("fumola s as ? in 1 end"),
+  );
+  check(
+    string,
+    "fumola's spelling",
+    "graphical",
+    resolved("fumola s as $graphical in 1 end"),
+  );
+  check(
+    string,
+    "hazel's spelling",
+    "graphical",
+    resolved("fumola s as hazel Graphical end in 1 end"),
+  );
+  check(
+    string,
+    "simple, from hazel",
+    "simple",
+    resolved("fumola s as hazel Simple end in 1 end"),
+  );
+  /* A variable bound to a mode cannot be read here: the program runs during
+     elaboration, before anything is substituted. The message says so rather
+     than silently leaving the mode alone. */
+  check(
+    bool,
+    "a bound variable says why it cannot be read",
+    true,
+    switch (
+      find_fumola(
+        parse("let m = Graphical in fumola s as hazel m end in 1 end"),
+      )
+    ) {
+    | Some({mode, _}) =>
+      switch (FumolaRun.mode_of(mode)) {
+      | Error(message) => String.length(message) > 0
+      | _ => false
+      }
+    | None => false
+    },
+  );
+};
 
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
@@ -199,7 +325,7 @@ let write_corpus = () => {
   corpus
   |> List.iter(((_, src, _, _)) =>
        switch (find_fumola(parse(src))) {
-       | Some((_, body)) when !Fumola.has_hole(body) =>
+       | Some({body, _}) when !Fumola.has_hole(body) =>
          output_string(oc, Fumola.of_exp(body) ++ "\n");
          output_string(oc_x, Fumola.of_exp(~explicit=true, body) ++ "\n");
        | _ => ()
@@ -214,6 +340,16 @@ let tests = (
   [
     test_case("write the tile corpus", `Quick, () => write_corpus()),
     test_case("fumola is a closed sub-language", `Quick, test_closed),
+    test_case(
+      "the instance's mode is read from the syntax",
+      `Quick,
+      test_mode,
+    ),
+    test_case(
+      "the mode resolves to what the runtime is asked for",
+      `Quick,
+      test_mode_resolves,
+    ),
   ]
   @ List.map(test_parses, corpus)
   @ List.map(test_prints, corpus),

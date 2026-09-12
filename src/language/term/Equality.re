@@ -438,8 +438,9 @@ let equality =
     | (ModuleExp(_, _, _), _) => false
     | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
     | (DrvQuote(_, _), _) => false
-    | (FumolaQuote(n1, b1), FumolaQuote(n2, b2)) => n1 == n2 && b1 == b2
-    | (FumolaQuote(_, _), _) => false
+    | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
+      n1 == n2 && m1 == m2 && b1 == b2
+    | (FumolaQuote(_, _, _), _) => false
     };
   }
   /* Compare patterns with literal variable names (no alpha-renaming).

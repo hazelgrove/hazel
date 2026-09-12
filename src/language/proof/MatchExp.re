@@ -185,7 +185,8 @@ let rec match_exp =
       List.combine(es1, es2),
     );
   | (DeferredAp(_, _), _) => None
-  | (FumolaQuote(n1, b1), FumolaQuote(n2, b2)) when n1 == n2 && b1 == b2 =>
+  | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2))
+      when n1 == n2 && m1 == m2 && b1 == b2 =>
     Some([])
   | (FumolaQuote(_), _) => None
   | (DrvQuote(e1, _), DrvQuote(e2, _))

@@ -863,8 +863,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(DrvQuote(TPat(tp), TPat))
       /* [fumola] / [in] / [end] lift a Fumola program up to sort Exp, and
          name the instance it runs against. */
-      | (["fumola", "in", "end"], [Fumola(name), Fumola(body)]) =>
-        ret(FumolaQuote(name, body))
+      | (
+          ["fumola", "as", "in", "end"],
+          [Fumola(name), Fumola(mode), Fumola(body)],
+        ) =>
+        ret(FumolaQuote(name, mode, body))
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))

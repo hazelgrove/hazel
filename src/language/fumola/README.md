@@ -103,6 +103,70 @@ Two things had to give way for this to work:
   that renders one. `Fumola.re` is where Hazel joins the two, and is what
   callers in Hazel should use.
 
+## Running a program (M2)
+
+`fumola <instance> in … end` prints its program, hands it to the Fumola wasm
+module through the `window.fumola` shim, and elaborates to the Hazel value
+that comes back.
+
+| Module | Role |
+|---|---|
+| `FumolaRun` | the shim boundary: claim the instance, run the program, read the result |
+| `FumolaValue` | a Fumola result as a Hazel value, shaped by the expected type |
+| `FumolaSource` | a Hazel value as Fumola source, for `hazel … end` |
+| `FumolaTools` | the two things reading a value back needs to know about Hazel's types |
+
+**The instance is claimed by name.** `claim(0, "store")` answers with the same
+runtime every time, so the adapton store survives every edit that leaves the
+name alone -- which is the whole reason the name is written in the program
+rather than derived from a Hazel id. Two different names get two different
+runtimes. Checked against the real shim, not assumed.
+
+**The mode is a slot of the form**, `fumola <instance> as <mode> in … end`,
+written either Fumola's way (`$graphical`, `$simple`) or Hazel's, through the
+escape (`hazel Graphical end`). It is a slot rather than something optional
+because only one form can expand from the token `fumola` -- `Form.Expansion`
+resolves a token and sort with `find_opt` -- so a short form and a long one
+cannot both be reachable by typing.
+
+A **hole** in the mode slot means *leave this instance's mode alone*, which is
+not the same as asking for the default. Setting a mode an instance does not
+already have **resets it**, discarding the store: `ensureMode(id, m)` answers
+`reset: false` for the mode an instance already has and `reset: true` for a
+different one. So an expression that names no mode must not set one, or it
+would silently discard what another expression had been building.
+
+**A mode can be written but not yet referred to.** `hazel Graphical end` is
+read; `let m = Graphical in … hazel m end` is not, and says so rather than
+quietly leaving the mode alone. The reason is where running happens: during
+elaboration, before anything is substituted, so the escape holds the
+*expression* `m` and not its value. The same limit applies to every `hazel …
+end`, not just the mode -- a literal or a constructor crosses, a bound
+variable does not. Lifting it means running the program during evaluation
+instead, where substitution has happened; that also needs `Substitution` to
+descend into a Fumola term to reach the escapes inside it, which it currently
+does not.
+
+**Running happens during elaboration**, as livelit expansion did: it is the
+one pass that already reruns on every edit and has the expected type in hand,
+and that type is what decides the shape a Fumola result takes on the way into
+Hazel. So a Fumola expression is evaluated on every keystroke. Whether that is
+the right answer is still open; see docs/fumola-tiles-design.md.
+
+A program that cannot run elaborates to itself with an unknown type and a
+`FumolaFailed` mark carrying what the runtime said -- except when the failure
+was a syntax error, which gets no mark. A half-written program is a syntax
+error on nearly every keystroke and the editor already says so better. Worth
+noting that the tile route should produce far fewer of them than the livelit
+did: Hazel's own parser builds the program now, so a syntax error means
+`FumolaPrint` emitted something Fumola rejects, which is a bug here rather
+than in anyone's program.
+
+Not carried over from the livelit route: the widget that showed a Fumola
+pointer or an opaque value in place. Those were livelit-era terms with no tile
+counterpart, so a pointer now yields the value it points at, and an opaque
+value reports what it is instead of showing it.
+
 ## How the contract is checked
 
 Two checks, because agreeing with ourselves is not evidence.

@@ -462,18 +462,61 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.empty,
         m,
       )
-    /* A Fumola program is inert in an expression for now: the tile tree is
-       built and printed, but nothing runs it and nothing gives it a Hazel
-       type. Handing it to the instance it names, and the type of what comes
-       back, are M2. */
-    | FumolaQuote(name, body) =>
-      add(
-        ~elab_term=FumolaQuote(name, body) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[],
-        ~co_ctx=CoCtx.empty,
-        m,
-      )
+    /* A Fumola program runs against the instance it names, and elaborates
+       to the Hazel value that comes back. This happens here, during
+       elaboration, for the same reason livelit expansion did: it is the one
+       pass that already reruns on every edit and has the expected type in
+       hand, which is what decides the shape a Fumola result takes on the way
+       into Hazel.
+
+       A program that cannot run elaborates to itself with an unknown type
+       and a mark saying why -- except when the reason is a syntax error,
+       which a half-written program produces on nearly every keystroke and
+       which the editor already shows better than a mark would. */
+    | FumolaQuote(name, mode, body) =>
+      /* Closures rather than the context itself, because the Fumola modules
+         sit below Ctx and cannot name it. */
+      let tools: FumolaTools.t = {
+        resolve_ctr: (~ana, ctr_name) =>
+          switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr_name)) {
+          | Some(ty) => Some(ty)
+          | None =>
+            switch (Ctx.lookup_ctr(ctx, ctr_name)) {
+            | Some({typ, _}) => Some(typ)
+            | None => None
+            }
+          },
+        normalize: ty => Typ.normalize(ctx, ty),
+      };
+      switch (FumolaRun.run(~ana, ~tools, name, mode, body)) {
+      | Ok(value) =>
+        /* The value stands in for the expression, the way a livelit
+           expansion did. Its type is whatever the value turned out to be. */
+        let (value_info, value_elab, m) = go(~ana, value, m);
+        add(
+          ~elab_term=value_elab,
+          ~elab_syn_ty=value_info.elab_syn_ty,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
+      | Error({syntax: true, _}) =>
+        add(
+          ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      | Error({message, _}) =>
+        add(
+          ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~marks=[FumolaFailed(message)],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      };
     | DrvQuote(term, sort) =>
       let m =
         drv_to_info_map(term, m, ~ctx, ~ancestors=ancestors_inclusive, ~sort);

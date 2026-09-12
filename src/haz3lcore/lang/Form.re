@@ -240,8 +240,18 @@ let fumola_get: fumola_compound_form => t =
   fun
   /* The instance is named in the program text so that the adapton store
      survives an edit; see docs/fumola-tiles-design.md. */
+  /* The mode is a slot rather than an option: only one form can expand from
+     the token `fumola` (Form.Expansion resolves a token and sort with
+     find_opt), so a short form and a long one cannot both be reachable by
+     typing. A hole in the mode slot means "leave this instance's mode
+     alone". */
   | FumolaOf =>
-    mk_op_c(L, ["fumola", "in", "end"], Exp, [Fumola(Name), Fumola(Exp)])
+    mk_op_c(
+      L,
+      ["fumola", "as", "in", "end"],
+      Exp,
+      [Fumola(Name), Fumola(Exp), Fumola(Exp)],
+    )
   /* The way back in: a Hazel expression standing where a Fumola term does,
      anywhere inside the program. This is what the livelit's single `input`
      slot was, except that it is a real tile subtree with Hazel's statics and

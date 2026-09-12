@@ -34,10 +34,21 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
-  /* fumola <instance> in <program> end: the instance names the Fumola VM
-     the program runs against, and is a Fumola-sorted identifier rather than
-     a Hazel binder. See FumolaSort. */
+  /* fumola <instance> as <mode> in <program> end.
+
+     The instance names the Fumola VM the program runs against, and is a
+     Fumola-sorted identifier rather than a Hazel binder; see FumolaSort.
+
+     The mode is the adapton semantics that instance runs, written as Fumola
+     writes it: $simple or $graphical, printed #simple / #graphical. It is a
+     slot of the form rather than something optional, because changing an
+     instance's mode resets it -- discarding the adapton store the instance
+     exists to keep -- so it belongs somewhere stable and visible. A hole
+     there means "leave this instance's mode alone", which is not the same as
+     asking for the default: one expression must not silently reset an
+     instance another has configured. */
   | FumolaQuote(
+      FumolaGrammar.exp(exp_t('a), 'a),
       FumolaGrammar.exp(exp_t('a), 'a),
       FumolaGrammar.exp(exp_t('a), 'a),
     )
@@ -193,11 +204,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Undefined => Undefined
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
-        | FumolaQuote(n, b) =>
+        | FumolaQuote(n, mode, b) =>
           /* The Fumola term carries embedded Hazel expressions, so mapping
              its annotations maps theirs too. */
           FumolaQuote(
             FumolaGrammar.map_annotation((map_exp_annotation(f), f), n),
+            FumolaGrammar.map_annotation((map_exp_annotation(f), f), mode),
             FumolaGrammar.map_annotation((map_exp_annotation(f), f), b),
           )
         | LivelitName(s) => LivelitName(s)
@@ -633,8 +645,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
-    let fumola_exp = (~ann=?, n, b): exp_t(DefaultAnnotation.t) => {
-      term: FumolaQuote(n, b),
+    let fumola_exp = (~ann=?, n, mode, b): exp_t(DefaultAnnotation.t) => {
+      term: FumolaQuote(n, mode, b),
       annotation: default_annotation(ann),
     };
     let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {

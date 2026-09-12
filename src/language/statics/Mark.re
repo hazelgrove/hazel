@@ -61,6 +61,12 @@ type t =
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | BadOperator(string)
+  /* A Fumola program that could not produce a Hazel value: the runtime is
+     missing, the program went wrong, or what it produced has no Hazel form.
+     Carries what the runtime said, which is the only useful thing to show.
+     Not used for a syntax error -- a half-written program is one on nearly
+     every keystroke, and the editor already says so better than a mark. */
+  | FumolaFailed(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
   | IsLivelitName({

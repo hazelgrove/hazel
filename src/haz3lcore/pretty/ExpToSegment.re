@@ -1779,10 +1779,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | TPat => OfAlfaTPat
       };
     [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
-  | FumolaQuote(name, body) =>
+  | FumolaQuote(name, mode, body) =>
     let+ name = fumola_to_pretty(~settings, name)
+    and+ mode = fumola_to_pretty(~settings, mode)
     and+ body = fumola_to_pretty(~settings, body);
-    [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [name, body])];
+    [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [name, mode, body])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
