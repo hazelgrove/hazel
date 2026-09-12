@@ -97,11 +97,14 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   /* Any other constructor is a Fumola variant tag, written as Hazel spells
      it. Fumola accepts a capitalised tag, so the capitalisation that
      translation adds on the way in survives the way out. */
-  | Constructor(name, _) => Ok("#" ++ name)
+  /* Recased on the way out, as FumolaValue recases on the way in: without
+     this a value read as `#leaf` went back as `#Leaf`. See FumolaCase. */
+  | Constructor(name, _) => Ok("#" ++ FumolaCase.to_fumola(name))
   | Ap(Forward, {term: Constructor(name, _), _}, payload) =>
     switch (of_exp(payload)) {
     | Error(e) => Error(e)
-    | Ok(payload) => Ok("#" ++ name ++ "(" ++ payload ++ ")")
+    | Ok(payload) =>
+      Ok("#" ++ FumolaCase.to_fumola(name) ++ "(" ++ payload ++ ")")
     }
   | EmptyHole => unsupported("a hole")
   | Invalid(_) => unsupported("an invalid expression")

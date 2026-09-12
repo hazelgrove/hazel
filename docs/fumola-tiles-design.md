@@ -172,6 +172,26 @@ worth naming now because they shape the subset:
 - **`" << "` is a token with literal spaces in it** — a lexer hack with no
   tile equivalent.
 
+### Milestones: the plan, and what happened
+
+All five landed. What each cost, and what it turned up, since the surprises
+are the part worth keeping:
+
+| | what it took | what it turned up |
+|---|---|---|
+| **M0** | `FumolaGrammar`, `FumolaTermBase`, `FumolaPrint`, 56 tests, a round-trip script | three grammar facts intuition gets wrong (above); and a first version of the script that compared each program *to itself* and so proved nothing |
+| **M1** | a sort, a form table, a precedence ladder, `MakeTerm`, `ExpToSegment`, 55 tests | `#tag` is untokenizable; application has no token; only one form per opening keyword; `fumola` shadowed `fun` in completions |
+| **M2** | `FumolaRun`, `FumolaValue`, `FumolaSource`, `FumolaTools`, the wasm shim | instance-by-name verified against the real shim; changing a mode resets the store; the livelit's pointer widget has no tile counterpart and was dropped |
+| **M2.5** | attempted: run during evaluation so escapes carry bound variables | **abandoned.** The worker computes the result and has no shim. The traversal fix it needed was kept; the move was not |
+| **M3** | `FumolaEvents`, `FumolaSidebar`, a panel, CSS | history reachable as a prim, so no wasm export; a cursor on whitespace names no term, which emptied the panel while typing |
+| **M4** | `FumolaParse`, 107 tests | the round trip checks *structure* but is blind to a wrong precedence level, because parser and printer share the ladder; the corpus needs types, not a parser |
+| **docs** | four slides, a `Fumola (Tiles)` deck | two slides shipped Fumola that had never been run; a third broke on `#` inside a Hazel comment |
+
+Three things were reverted or redone rather than shipped: the M2.5 move, a
+pretty-printer that rendered unbuildable forms as their nearest printable
+part (an `if` as its condition), and a round-trip check with no power. Each
+is recorded where it happened rather than tidied away.
+
 ### Milestones
 
 **M0 — kernel and printer, no tiles.** `FumolaGrammar` (the editor AST,
@@ -246,6 +266,129 @@ Off `dev` rather than off `fumola-livelit-mvp`: that branch carries ~950
 lines of livelit changes this feature does not want, and the two pieces we do
 want (`FumolaValue.re`, `FumolaSource.re`, and the `window.fumola` shim in
 `prebundle.js`) are self-contained and can be cherry-picked in M2.
+
+## Implementation notes
+
+Things that were not visible from the design, found while building it. Each
+was measured or checked against the real thing, not reasoned out.
+
+### Fumola's grammar, where intuition is wrong
+
+- **`|`, `&` and `^` bind tighter than `+` and `*`.** The chain is
+  `or < and < rel < add < mul < bitor < bitand < xor < shift < pow`, so
+  `1 | 2 + 3` is `(1 | 2) + 3`. C says the opposite.
+- **The adapton forms are looser than every operator.** `force e`, `@ e`,
+  `thunk { … }`, `e := e` and the `do` family live at `ExpNonDec`, below the
+  whole binary chain — so `force x + 1` is a *syntax error*, not a misparse,
+  and parentheses there are required for the program to parse at all.
+- **`{ … }` means two different things by position.** A block after
+  `if`/`else`/`thunk`/`do`/`func`; an object literal everywhere else, so
+  `let x = 5; { x }` is the record `{x = 5}`. Both parse. Only evaluating
+  them tells them apart.
+- **`:=` returns a pointer, and `@` reads one.** `@ 0` is a type error; a put
+  and a read are two steps joined by the pointer the put hands back. Two
+  documentation slides had this wrong because they were written and not run.
+
+### What Hazel's tokenizer forbids
+
+- **`#tag` cannot be a tile.** `#` is Hazel's comment delimiter, so `#tag` is
+  neither an operand nor an operator token. Measured against
+  `Token.is_potential_operand`: `$tag`, `'tag`, `?tag` and `^tag` are
+  operands; `#tag`, `@tag` and `+tag` are not. `?` and `^` are already holes
+  and the livelit prefix, which leaves `$`. The printer puts the `#` back.
+- **The same delimiter bites the documentation.** A Hazel comment is
+  delimited by `#`, so a Fumola tag cannot be written inside one — which
+  broke a slide that tried to explain tags.
+- **Application is juxtaposition, which has no token to hang a tile on.** The
+  tile is `f(a)`; Fumola reads that as application to a parenthesized
+  argument, so it means the same thing.
+- **Only one form can expand from a token.** `Form.Expansion` resolves a
+  token and sort with `find_opt`, so `fumola … in … end` and
+  `fumola … as … in … end` cannot both be reachable by typing. That is why
+  the mode is a slot rather than an option.
+- **A new keyword can shadow a Hazel one.** `fumola` sorts before `fun`, so
+  typing `fu` completed to `fumola` until the Fumola keyword was kept out of
+  Hazel's completions. The full suite caught this; nothing else would have.
+
+### Case conversion, which is a boundary problem and not a detail
+
+Fumola inherits Motoko's convention — a variant tag is lowerCamelCase,
+`#leaf`, `#addNode`, `#forceBegin` — and Hazel's constructors are
+UpperCamelCase, `Leaf`, `AddNode`, `ForceBegin`. So every value crossing the
+boundary is recased, and that has to happen in **both** directions or the
+crossing is not a round trip.
+
+It did not. `FumolaValue` capitalised on the way in and `FumolaSource` left
+the name alone on the way out, so a value read from Fumola as `#leaf`, shown
+in Hazel as `Leaf`, went back as `#Leaf` — a different tag, silently. Neither
+direction was tested against the other, so nothing caught it. `FumolaCase` is
+now the one place the convention lives, and both directions go through it.
+
+This is the narrowest instance of a friction that recurs wherever these
+languages meet — Motoko, Rust and Fumola have three conventions between them
+(lowerCamel, UpperCamel, snake_case) and no single answer about which
+crossings are lossless. What makes *this* crossing tractable is that only the
+first letter moves. `FumolaCase.round_trips` says when even that is lossy: a
+Fumola tag that already begins upper-case (`#Leaf`) comes back as `#leaf`,
+and a caller that cares should ask rather than assume.
+
+A related case is visible in the editor rather than the bridge: a Fumola
+value arriving as `Leaf(1)` is marked *unbound constructor* unless a Hazel
+type in scope declares it. Declaring `type Tree = + Leaf(Int) + Bin((Tree,
+Tree))` both silences the mark and tells the bridge which sum to build, since
+the expected type is what `resolve_ctr` consults.
+
+### Where things run, and what that costs
+
+- **A cell's result is computed in a web worker**, which has no
+  `window.fumola`. Instrumenting the evaluator reports `runtime=absent
+  ctx=worker` for the shown result and `runtime=present ctx=main-thread`
+  beside it. `async_evaluation: false` does not mean "no worker".
+- So a Fumola program runs during **elaboration**, on the main thread. The
+  cost is that a `hazel … end` carries a value written in place and not a
+  bound variable, since nothing has been substituted yet. The benefit is one
+  runtime, on the thread where the event panel can ask it.
+- **The traversals had to be taught to enter a Fumola term.** `TermBase`
+  skipped them, so substitution never reached the Hazel expressions inside a
+  `hazel … end`. That is fixed independently of where running happens.
+- **Changing an instance's mode resets it**, discarding the store:
+  `ensureMode` answers `reset: false` for the mode an instance already has
+  and `reset: true` for a different one. A hole in the mode slot therefore
+  means *leave this instance alone*, not *apply the default*.
+
+### The library is reachable, and the tiles cannot reach it yet
+
+The wasm runtime ships **18 modules**, `fumola/collections/levelTree` among
+them, and `import L "fumola/collections/levelTree"` works through the shim
+today — `L.fromList` builds a real level tree from random input. What the
+tiles lack is the syntax to say it: `import`, string literals, and `.`
+projection are not tile forms. That gap, not the runtime, is what stands
+between the documentation and real library examples.
+
+### Build costs, for choosing where to put a change
+
+| change | wall |
+|---|---|
+| a new Fumola prim (grammar untouched) → wasm | 109.5 s |
+| `parser.lalrpop` → wasm | 104.1 s |
+| Hazel `Form.re`, rippling downstream | 21.6 s |
+| Hazel, change confined to a module body | 0.66 s |
+
+This is why the event panel fetches history by running
+`prim "adaptonPeekHistory" ()` through the existing shim rather than by
+adding a wasm export.
+
+### Smaller traps
+
+- **CSS: one rule per sort, and a missing one is invisible.** Fumola had no
+  rule, so its tokens inherited the ground's near-white and an indicated
+  shard filled **black** — an SVG `path` with no `fill` is black.
+- **`python -m http.server` sends no cache headers**, so a browser will not
+  revalidate a changed stylesheet. Editing CSS and reloading shows the old
+  one.
+- **Doc slides are cached in IndexedDB by name.** A changed slide keeps
+  serving its old text until the `doc:` keys are deleted — including
+  `doc:_meta`, which is what hides newly added slides.
 
 ## Open questions
 

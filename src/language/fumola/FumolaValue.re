@@ -126,8 +126,9 @@ let field_ana =
  * That costs nothing today, since nothing translates Hazel variants back
  * into Fumola, but a round trip would have to carry the original spelling
  * rather than recover it from this. */
-let constructor_name = (name: string): string =>
-  String.capitalize_ascii(name);
+/* See FumolaCase: the boundary's one naming convention, so that this
+   direction and FumolaSource's cannot disagree. */
+let constructor_name = (name: string): string => FumolaCase.to_hazel(name);
 
 let constructor =
     (~tools: FumolaTools.t, ~ana: TermBase.Typ.t, name: string)

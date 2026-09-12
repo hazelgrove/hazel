@@ -246,8 +246,10 @@ let test_mode = () => {
      once in Hazel's own terms rather than repeated in Fumola's. */
   check(
     string,
+    /* Recased on the way out, so a mode written Hazel's way reaches the
+       runtime spelled Fumola's way. See FumolaCase. */
     "a mode written in Hazel",
-    "(#Graphical)",
+    "(#graphical)",
     mode_of("fumola hazel Graphical end as s in 1 end"),
   );
 };
@@ -362,6 +364,70 @@ let test_substitution = () => {
   };
 };
 
+/* The naming convention on the boundary, in both directions.
+
+   Nothing tested this before, which is how the two directions came to
+   disagree: FumolaValue capitalised on the way in and FumolaSource left the
+   name alone on the way out, so `#leaf` came back as `#Leaf`. A test that
+   only ever went one way could not see it. */
+let test_case_conversion = () => {
+  check(string, "fumola to hazel", "Leaf", FumolaCase.to_hazel("leaf"));
+  check(string, "hazel to fumola", "leaf", FumolaCase.to_fumola("Leaf"));
+  check(
+    string,
+    "a camelCase tag keeps its humps",
+    "AddNode",
+    FumolaCase.to_hazel("addNode"),
+  );
+  check(
+    string,
+    "and gets them back",
+    "addNode",
+    FumolaCase.to_fumola("AddNode"),
+  );
+  /* The whole point: a tag that goes out must come back as itself. */
+  List.iter(
+    tag =>
+      check(
+        string,
+        "round trip of " ++ tag,
+        tag,
+        FumolaCase.to_fumola(FumolaCase.to_hazel(tag)),
+      ),
+    ["leaf", "bin", "addNode", "forceBegin", "x"],
+  );
+  /* And the one shape that cannot: a tag already upper-case. Said plainly
+     rather than left for a caller to discover. */
+  check(
+    bool,
+    "a lower-case tag round trips",
+    true,
+    FumolaCase.round_trips("leaf"),
+  );
+  check(
+    bool,
+    "an upper-case tag does not",
+    false,
+    FumolaCase.round_trips("Leaf"),
+  );
+};
+
+/* The bridge itself, not just the convention: a Hazel constructor must reach
+   Fumola as the tag Fumola would write. */
+let test_source_recases = () => {
+  let rendered = (e: Exp.t) =>
+    switch (FumolaSource.of_exp(e)) {
+    | Ok(s) => s
+    | Error(m) => "error: " ++ m
+    };
+  check(
+    string,
+    "a nullary constructor",
+    "#leaf",
+    rendered(DHExp.fresh(Constructor("Leaf", None))),
+  );
+};
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -402,6 +468,16 @@ let tests = (
       test_mode_resolves,
     ),
     test_case("substitution reaches the escape", `Quick, test_substitution),
+    test_case(
+      "names recase in both directions",
+      `Quick,
+      test_case_conversion,
+    ),
+    test_case(
+      "the bridge recases on the way out",
+      `Quick,
+      test_source_recases,
+    ),
   ]
   @ List.map(test_parses, corpus)
   @ List.map(test_prints, corpus),

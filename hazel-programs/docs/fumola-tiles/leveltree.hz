@@ -7,10 +7,21 @@
 # incremental: every node is a cell, so re-running touches only what #
 # changed. #
 
+# Declaring the Hazel type is what makes the result typecheck.  A Fumola #
+# variant crosses as a Hazel constructor of the same name, capitalised, so #
+# the leaf tag arrives as Leaf(1).  Without a type in scope that names it, #
+# Hazel has every right to call it unbound -- and did.  With one, the #
+# expected type also tells the bridge which sum to build. #
+
+# (Note for anyone editing this slide: a Hazel comment is delimited by the #
+# hash, so a Fumola tag cannot be written inside one.) #
+
+type Tree = + Leaf(Int) + Bin((Tree, Tree)) in
+
 # Two leaves and a binary node above them.  Reading a cell with `@` is what #
 # records the edge from this node to the ones it read: #
 
-let tree = fumola $graphical as tree in
+let shape: Tree = fumola $graphical as trees in
   { let a = 1 := $leaf(1);
     let b = 2 := $leaf(2);
     let n = 3 := $bin((@ a, @ b));
@@ -20,7 +31,7 @@ end in
 # A thunk instead.  Forcing it is the traversal the event list shows as a #
 # Begin and an End, with an edge to each cell the thunk read: #
 
-let total = fumola $graphical as tree in
+let total: Int = fumola $graphical as trees in
   { let a = 1 := 10;
     let b = 2 := 20;
     let t = 3 := thunk { (@ a) + (@ b) };
@@ -28,6 +39,6 @@ let total = fumola $graphical as tree in
 end in
 
 # Open the Fumola panel -- the tab below Problems -- with the cursor inside #
-# either program to see what `tree` recorded. #
+# either program to see what `trees` recorded. #
 
-(tree, total)
+(shape, total)
