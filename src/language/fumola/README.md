@@ -256,9 +256,10 @@ The parser also reads two things no tile can spell -- `#tag` and juxtaposed
 application -- which is what lets it read Fumola as Fumola writes it rather
 than as Hazel must.
 
-**What it does not read is the shipped corpus.** All fourteen `.fumola` files
-begin `module` or `import`, and their contents are `public func`s with type
-annotations. Modules, imports, attributes and the type sublanguage are all
+**What it does not read is the shipped corpus.** All seventeen `.fumola`
+files are a `module` of `public func`s with type annotations -- three of them
+open with a doc comment before the `module`, the rest with `module` or
+`import` outright. Modules, imports, attributes and the type sublanguage are all
 absent from this AST by design. Opening that corpus as tiles is not a parser
 problem; it waits on types.
 

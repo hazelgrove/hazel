@@ -185,7 +185,7 @@ are the part worth keeping:
 | **M2.5** | attempted: run during evaluation so escapes carry bound variables | **abandoned.** The worker computes the result and has no shim. The traversal fix it needed was kept; the move was not |
 | **M3** | `FumolaEvents`, `FumolaSidebar`, a panel, CSS | history reachable as a prim, so no wasm export; a cursor on whitespace names no term, which emptied the panel while typing |
 | **M4** | `FumolaParse`, 107 tests | the round trip checks *structure* but is blind to a wrong precedence level, because parser and printer share the ladder; the corpus needs types, not a parser |
-| **docs** | four slides, a `Fumola (Tiles)` deck | two slides shipped Fumola that had never been run; a third broke on `#` inside a Hazel comment |
+| **docs** | five slides, a `Fumola (Tiles)` deck | two slides shipped Fumola that had never been run; a third broke on `#` inside a Hazel comment |
 
 Three things were reverted or redone rather than shipped: the M2.5 move, a
 pretty-printer that rendered unbuildable forms as their nearest printable
@@ -253,9 +253,11 @@ round trip cannot see a wrong precedence level; only the script can. Neither
 replaces the other.
 
 Reading the shipped `.fumola` corpus turns out not to be a parser problem.
-All fourteen files begin `module` or `import` and are made of `public func`s
-with type annotations, and modules, imports, attributes and the type
-sublanguage are all absent from this AST by design. That waits on types,
+All seventeen files -- 3 in `examples/`, 8 in `collections/`, 5 in `system/`,
+plus `mergeSort` -- are a `module` of `public func`s with type annotations
+(three of them open with a doc comment before the `module`), and modules,
+imports, attributes and the type sublanguage are all absent from this AST by
+design. That waits on types,
 which is a decision of its own rather than a milestone.
 
 ## Branch
