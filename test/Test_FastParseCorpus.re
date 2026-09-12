@@ -45,6 +45,7 @@ let known_gaps: list(string) = [
   "fumola-tiles-instance.hz",
   "fumola-tiles-leveltree.hz",
   "fumola-tiles-hazel-inside.hz",
+  "fumola-tiles-roundtrip.hz",
 ];
 
 let tests = (
