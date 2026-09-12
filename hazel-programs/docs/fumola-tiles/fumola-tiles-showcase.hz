@@ -1,0 +1,102 @@
+# TWO GRAMMARS, ONE DOCUMENT #
+
+# Everything below is one Hazel program.  The parts inside #
+# `fumola ... end` are tiles of a DIFFERENT grammar -- Fumola's -- with #
+# their own forms, their own precedence, their own colour, and their own #
+# cursor inspector.  They are not strings, and they are not a projector #
+# drawing over a hole.  They are tiles, and you can edit them as tiles. #
+
+# Put the cursor anywhere below and watch the bar at the bottom left: it #
+# says FUMOLA where Fumola's grammar is in force and EXP where Hazel's is. #
+
+type Tree = + Leaf(Int) + Bin((Tree, Tree)) in
+
+# THE ADAPTON CORE #
+
+# `:=` puts a value and hands back a pointer, `@` reads one, `thunk` #
+# suspends, `force` runs.  None of these is Hazel syntax. #
+
+let cells = fumola $graphical as demo in
+  { let a = 1 := 41;
+    let b = 2 := 1;
+    let t = 3 := thunk { (@ a) + (@ b) };
+    force t }
+end in
+
+# AN OPERATOR LADDER THAT IS NOT HAZEL'S #
+
+# Fumola binds `|` and `&` TIGHTER than `+`, which is the opposite of C #
+# and of Hazel.  So this means 1 | (2 + 3) would in Hazel, and does not #
+# here -- the parentheses below are the ones Fumola needs, not the ones #
+# a Hazel reader expects. #
+
+# The two cells below are written and never read, on purpose: this #
+# runtime leaves `|` and `**` symbolic rather than reducing them, so #
+# reading one back would hand Hazel an expression instead of a value. #
+# The tiles are the point here; the arithmetic is `%`. #
+
+let ladder = fumola $graphical as demo in
+  { let x = 4 := 1 | 2 + 3;
+    let y = 5 := 2 ** 3 ** 2;
+    let z = 6 := 7 % 4;
+    @ z }
+end in
+
+# ARRAYS, INDEXING, CONCATENATION #
+
+# Fumola spells concatenation with a hash, which is Hazel's comment #
+# delimiter -- so a hash cannot appear in this sentence, and the tile #
+# says `++` instead.  The printer puts the hash back on the way out. #
+# Same trick as the variant tags below. #
+
+let arrays = fumola $graphical as demo in
+  { let xs = 7 := [10, 20, 30];
+    let ys = 8 := [40, 50];
+    let both = 9 := (@ xs) ++ (@ ys);
+    ((@ both)[0], (@ both)[4]) }
+end in
+
+# VARIANTS, WHICH HAZEL CANNOT SPELL #
+
+# A Fumola variant is a hash followed by a name.  Hazel's comment #
+# delimiter is that same hash, so the tile is `$tag` and the printer puts #
+# the hash back on the way out.  The value returns as a Hazel constructor #
+# of the same name, capitalised. #
+
+let tree: Tree = fumola $graphical as demo in
+  { let l = 10 := $leaf(1);
+    let r = 11 := $leaf(2);
+    let n = 12 := $bin(((@ l), (@ r)));
+    @ n }
+end in
+
+# CONDITIONALS AND NEGATION #
+
+# `if c then t else e` is the tile spelling; Fumola has no `then`, and the #
+# printer emits `if (c) t else e`.  The parentheses are not decoration: #
+# Fumola's condition must be an atom, so the printer adds them. #
+
+let exotic = fumola $graphical as demo in
+  { let cond = 13 := if 1 < 2 then 10 else 20;
+    let neg = 15 := not (1 == 2);
+    ((@ cond), (@ neg)) }
+end in
+
+# HAZEL INSIDE FUMOLA INSIDE HAZEL #
+
+# `hazel ... end` is a form of the FUMOLA grammar whose child is a Hazel #
+# expression -- a real tile subtree, edited as Hazel, with Hazel's types. #
+# So the nesting goes both ways, as many times as the program wants. #
+
+let nested = fumola $graphical as demo in
+  { let p = 16 := hazel 20 end + hazel 22 end;
+    @ p }
+end in
+
+# ONE STORE, MANY PROGRAMS #
+
+# Every program above names the same instance, `demo`, so they share one #
+# adapton store.  Put the cursor inside any of them and open the Fumola #
+# panel -- the tab below Problems -- to see what the store recorded. #
+
+(cells, ladder, arrays, tree, exotic, nested)

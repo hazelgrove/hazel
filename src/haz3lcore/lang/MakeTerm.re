@@ -376,6 +376,10 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       /* The token keeps its quotes, which is what Lit(Text) holds and what
          FumolaPrint prints: Fumola's string syntax is Hazel's. */
       | _ when Token.is_string(t) => ret(Lit(Text(t)))
+      /* `` `t `` keeps its backticks in the token and loses them here: the
+         printer puts one back on the front, as Fumola spells it. */
+      | _ when Token.is_quoted_label(t) =>
+        ret(QuotedId(Token.strip_quotes(~quote="`", t)))
       /* `$tag` is Hazel's spelling of Fumola's `#tag`; the `#` goes back on
          in FumolaPrint, because Hazel reserves `#` for comments. */
       | _ when Token.is_fumola_tag(t) =>
@@ -385,6 +389,18 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     | (["(", ")"], [Fumola(body)]) => ret(Paren(body))
+    /* `[a, b]` holds a comma chain, which reads as a tuple; the array's
+       elements are that tuple flattened. `[e]` is a one-element array. */
+    | (["[", "]"], [Fumola(body)]) =>
+      ret(
+        Array(
+          false,
+          switch (body.term) {
+          | Tuple(es) => es
+          | _ => [body]
+          },
+        ),
+      )
     | (["{", "}"], [Fumola(body)]) =>
       let (ds, ids) = fumola_decs(body);
       (Block(ds), ids);
@@ -405,6 +421,11 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
         },
       ]),
     )
+  | Pre(
+      ([(_id, (["if", "then", "else"], [Fumola(c), Fumola(t)]))], []),
+      Fumola(e),
+    ) =>
+    ret(If(c, t, Some(e)))
   | Pre(([(id, (["import", "="], [Fumola(p)]))], []), Fumola(body)) =>
     ret(
       Block([
@@ -419,6 +440,18 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
     | "thunk" =>
       let (ds, ids) = fumola_decs(r);
       (Thunk(ds), ids);
+    | "not" => ret(Not(r))
+    | "-" => ret(Un(Neg, r))
+    | "assert" => ret(Assert(r))
+    | "ignore" => ret(Ignore(r))
+    | "return" => ret(Return(Some(r)))
+    /* `prim "adaptonNow"`: the operand is read for its text, since a prim is
+       named by a string and not by an expression. */
+    | "prim" =>
+      switch (r.term) {
+      | Lit(Text(t)) => ret(Prim(Token.strip_quotes(t)))
+      | _ => ret(hole(tm))
+      }
     | "force" => ret(Force(r))
     | "@" => ret(Get(r))
     | _ => ret(hole(tm))
@@ -434,6 +467,7 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       | Lit(Nat(i)) => ret(Proj(l, i))
       | _ => ret(hole(tm))
       }
+    | "++" => ret(Bin(l, Cat, r))
     | ":=" => ret(Put(l, r))
     | "or" => ret(Or(l, r))
     | "and" => ret(And(l, r))
@@ -486,6 +520,7 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       | _ => ret(Ap(l, r))
       }
     | (["[", "]"], [Fumola(r)]) => ret(Index(l, r))
+    | (["!"], []) => ret(Bang(l))
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));

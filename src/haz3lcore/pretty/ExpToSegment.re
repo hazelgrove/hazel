@@ -3262,9 +3262,13 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     | Pow => infix(FumolaPow, l, r)
     | BitOr => infix(FumolaBitOr, l, r)
     | BitAnd => infix(FumolaBitAnd, l, r)
-    /* No M1 tile spells these yet, and rendering them as some other
-       operator would be a lie the editor could not be talked out of. */
-    | Cat
+    /* Spelled `++` in tiles and `#` in Fumola; see Form.FumolaCat. */
+    | Cat => infix(FumolaCat, l, r)
+    /* No tile spells these yet, and rendering them as some other operator
+       would be a lie the editor could not be talked out of. `>>` and `<>>`
+       are blocked by more than effort: Token.is_potential_token restricts
+       every token beginning with `>` to a fixed list, to keep type
+       application unambiguous. */
     | Xor
     | ShL
     | ShR
@@ -3297,18 +3301,36 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     let+ e = go(e)
     and+ x = text_to_pretty(id, Sort.Fumola(Exp), x);
     e @ [mk_form(Form.Fumola(FumolaProj), id, [])] @ x;
-  | Array(_, _)
+  | Array(false, es) =>
+    let+ es = sep(FumolaComma, es);
+    [mk_form(Form.Fumola(FumolaArray), id, [es])];
+  | Bang(e) =>
+    let+ e = go(e);
+    e @ [mk_form(Form.Fumola(FumolaBang), id, [])];
+  | Not(e) => prefix(FumolaNot, e)
+  | Un(Neg, e) => prefix(FumolaNeg, e)
+  | Assert(e) => prefix(FumolaAssert, e)
+  | Ignore(e) => prefix(FumolaIgnore, e)
+  | Return(Some(e)) => prefix(FumolaReturn, e)
+  /* The name is a token in the operand position, as the projection's is. */
+  | Prim(name) =>
+    let+ name =
+      text_to_pretty(id, Sort.Fumola(Exp), Token.string_quote(name));
+    [mk_form(Form.Fumola(FumolaPrim), id, [])] @ name;
+  | QuotedId(x) =>
+    text_to_pretty(id, Sort.Fumola(Exp), Token.label_quote(x))
+  | If(c, t, Some(e)) =>
+    let+ c = go(c)
+    and+ t = go(t)
+    and+ e = go(e);
+    [mk_form(Form.Fumola(FumolaIf), id, [c, t])] @ e;
+  /* `[var …]`, a bare `return`, and an `if` with no else have no tile. */
+  | Array(true, _)
+  | Return(None)
+  | If(_, _, None)
   | Opt(_)
   | Un(_, _)
-  | Not(_)
   | Unquote(_)
-  | Bang(_)
-  | Assert(_)
-  | Ignore(_)
-  | Return(_)
-  | QuotedId(_)
-  | Prim(_)
-  | If(_, _, _)
   | Switch(_, _)
   | DoPutForce(_, _)
   | DoNav(_, _, _, _) => unbuildable()

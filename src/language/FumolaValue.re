@@ -189,8 +189,32 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
       | (_, Error(e)) => Error(e)
       | (Ok(l), Ok(r)) => Ok(l ++ "." ++ r)
       }
+    /* An operator Fumola did not reduce -- `1 | 2 + 3` stays symbolic -- so
+       this is reachable from ordinary arithmetic, not just from a corner.
+
+       Always parenthesized, and deliberately not by precedence: this text is
+       how a symbol becomes a NAME, so two different symbols must not render
+       alike. Unparenthesized, `(1 | 2) + 3` and `1 | (2 + 3)` would both read
+       `1 | 2 + 3` and two distinct cells would collide on one name. Injective
+       beats pretty here. */
+    | (Some(`String("BinOp")), _) =>
+      switch (List.assoc_opt("op", obj)) {
+      | Some(`String(op)) =>
+        switch (sub("left", obj), sub("right", obj)) {
+        | (Error(e), _)
+        | (_, Error(e)) => Error(e)
+        | (Ok(l), Ok(r)) => Ok("(" ++ l ++ " " ++ op ++ " " ++ r ++ ")")
+        }
+      | _ => Error("Fumola symbol is missing field `op`")
+      }
     | (Some(`String(tag)), _) =>
-      Error("Fumola symbol form `" ++ tag ++ "` has no text yet")
+      Error(
+        "This Fumola value cannot be shown in Hazel yet: it is a symbol built
+         with `"
+        ++ tag
+        ++ "`, and only names, numbers, calls, dots and operators have a
+            written form. The program itself is fine.",
+      )
     | _ => Error("Fumola symbol has no tag")
     }
   | _ => Error("Fumola symbol is not an object")

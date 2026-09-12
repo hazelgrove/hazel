@@ -236,6 +236,16 @@ type fumola_compound_form =
   | FumolaPow
   | FumolaBitOr
   | FumolaBitAnd
+  | FumolaArray
+  | FumolaCat
+  | FumolaBang
+  | FumolaNot
+  | FumolaNeg
+  | FumolaAssert
+  | FumolaIgnore
+  | FumolaReturn
+  | FumolaPrim
+  | FumolaIf
   | FumolaThunk
   | FumolaForce
   | FumolaGet;
@@ -303,6 +313,37 @@ let fumola_get: fumola_compound_form => t =
   | FumolaPow => mk_infix("**", Fumola(Exp), P.fum_pow)
   | FumolaBitOr => mk_infix("|", Fumola(Exp), P.fum_bitor)
   | FumolaBitAnd => mk_infix("&", Fumola(Exp), P.fum_bitand)
+  /* `[e, …]`; the comma form makes the contents a tuple, which MakeTerm
+     flattens into the array's elements. `[var …]` has no tile yet. */
+  | FumolaArray => mk_op_c(LT, ["[", "]"], Fumola(Exp), [Fumola(Exp)])
+  /* Fumola spells concatenation `#`, which is Hazel's comment delimiter, so
+     the tile needs another spelling and the printer puts the `#` back -- the
+     same trick as `$tag` for `#tag`.  `$` was the obvious candidate and does
+     not work: `$` is not in Token.ascii_operator_chars, so a bare `$` cannot
+     lex as an operator at all, and adding it there would change how every
+     Hazel token lexes.  `++` is free, reads as concatenation, and is shared
+     with Hazel's own `++` the way `+` already is -- forms resolve by token
+     AND sort, so a closed sort may reuse a spelling. */
+  | FumolaCat => mk_infix("++", Fumola(Exp), P.fum_add)
+  | FumolaBang => mk_post_c(LT, ["!"], P.fum_post, Fumola(Exp), [])
+  | FumolaNot => mk_prefix("not", Fumola(Exp), P.fum_un)
+  | FumolaNeg => mk_prefix("-", Fumola(Exp), P.fum_un)
+  | FumolaAssert => mk_prefix("assert", Fumola(Exp), P.fum_stmt)
+  | FumolaIgnore => mk_prefix("ignore", Fumola(Exp), P.fum_stmt)
+  | FumolaReturn => mk_prefix("return", Fumola(Exp), P.fum_stmt)
+  | FumolaPrim => mk_prefix("prim", Fumola(Exp), P.fum_post)
+  /* Spelled `if c then t else e`, as Hazel spells its own, and printed as
+     Fumola's `if c { t } else { e }`. Fumola has no `then`; the tile needs a
+     token between the condition and the first branch, and borrowing Hazel's
+     is less to explain than inventing one. */
+  | FumolaIf =>
+    mk_pre_c(
+      L,
+      ["if", "then", "else"],
+      P.fum_stmt,
+      Fumola(Exp),
+      [Fumola(Exp), Fumola(Exp)],
+    )
   | FumolaThunk => mk_prefix("thunk", Fumola(Exp), P.fum_stmt)
   | FumolaForce => mk_prefix("force", Fumola(Exp), P.fum_stmt)
   | FumolaGet => mk_prefix("@", Fumola(Exp), P.fum_stmt);
@@ -831,7 +872,12 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
      respelling is needed here, because the double quote collides with
      nothing in Hazel, the way `#` does. */
   | String => (Token.is_string, [op(Exp), op(Pat), op(Fumola(Exp))])
-  | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
+  /* `` `t `` is Fumola's quoted name, which the adapton navigation forms use
+     as a dimension. Hazel's quoted-label token is spelled the same way. */
+  | QuotedLabel => (
+      Token.is_quoted_label,
+      [op(Exp), op(Pat), op(Typ), op(Fumola(Exp))],
+    )
   | IntLit => (
       Token.is_int,
       [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],

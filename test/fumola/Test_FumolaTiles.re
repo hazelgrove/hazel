@@ -190,6 +190,59 @@ let corpus: list((string, string, string, string)) = [
     "Seq.fromList l",
   ),
   ("unit", "fumola ? as store in () end", "store", "()"),
+  /* --- forms landed while acting on #2538 --- */
+  ("an array", "fumola ? as store in [1, 2, 3] end", "store", "[1, 2, 3]"),
+  ("a one-element array", "fumola ? as store in [1] end", "store", "[1]"),
+  (
+    "an index into an array literal",
+    "fumola ? as store in [1, 2][0] end",
+    "store",
+    "[1, 2][0]",
+  ),
+  /* `#` is Hazel's comment delimiter, so the tile says `++`. */
+  (
+    "concatenation, which Fumola spells with a hash",
+    "fumola ? as store in a ++ b end",
+    "store",
+    "a # b",
+  ),
+  (
+    "concatenation binds as addition does",
+    "fumola ? as store in a ++ b * c end",
+    "store",
+    "a # b * c",
+  ),
+  ("unwrap", "fumola ? as store in x! end", "store", "x!"),
+  ("negation", "fumola ? as store in not b end", "store", "not b"),
+  ("subtraction", "fumola ? as store in a - b end", "store", "a - b"),
+  ("assert", "fumola ? as store in assert b end", "store", "assert b"),
+  ("ignore", "fumola ? as store in ignore b end", "store", "ignore b"),
+  ("return", "fumola ? as store in return 1 end", "store", "return 1"),
+  (
+    "a prim, named by a string",
+    "fumola ? as store in prim \"adaptonNow\" end",
+    "store",
+    "prim \"adaptonNow\"",
+  ),
+  /* A quoted name, which the adapton navigation forms use as a dimension. */
+  /* Fumola writes a quoted name with ONE backtick, which Hazel cannot lex:
+     an unclosed backtick swallows the rest of the line. The tile is Hazel's
+     quoted label, `t`, with both, and the printer drops the closing one. */
+  ("a quoted name", "fumola ? as store in `t` end", "store", "`t"),
+  /* Spelled with `then`, which Fumola has not got; printed as Fumola's
+     braces. */
+  (
+    "if and else",
+    "fumola ? as store in if b then 1 else 2 end",
+    "store",
+    "if b 1 else 2",
+  ),
+  (
+    "an if whose condition is an operator, which Fumola needs parenthesized",
+    "fumola ? as store in if 1 < 2 then 10 else 20 end",
+    "store",
+    "if (1 < 2) 10 else 20",
+  ),
   (
     "a hazel expression",
     "fumola ? as store in hazel 1 end end",
