@@ -70,16 +70,22 @@ let tree: Tree = fumola $graphical as demo in
     @ n }
 end in
 
-# CONDITIONALS AND NEGATION #
+# CONDITIONALS, QUOTED NAMES, NEGATION #
 
 # `if c then t else e` is the tile spelling; Fumola has no `then`, and the #
 # printer emits `if (c) t else e`.  The parentheses are not decoration: #
 # Fumola's condition must be an atom, so the printer adds them. #
 
+# A quoted name is a Fumola symbol.  Fumola writes it with one leading #
+# backtick; Hazel cannot lex that -- an unclosed backtick swallows the #
+# rest of the line -- so the tile is Hazel's quoted label, with two, and #
+# the printer drops the closing one. #
+
 let exotic = fumola $graphical as demo in
   { let cond = 13 := if 1 < 2 then 10 else 20;
+    let sym = 14 := `dimension`;
     let neg = 15 := not (1 == 2);
-    ((@ cond), (@ neg)) }
+    ((@ cond), (@ sym), (@ neg)) }
 end in
 
 # HAZEL INSIDE FUMOLA INSIDE HAZEL #
