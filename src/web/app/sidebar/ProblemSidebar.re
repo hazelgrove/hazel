@@ -66,6 +66,19 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
      defer entirely to the cursor inspector's drv_view rather than building
      a generic problem-row from cls/marks/message like the cases above. */
   | InfoDrv(ci) => DrvCursorInspector.drv_view(~globals, ci)
+  /* Blackboard likewise defers to its own renderer. */
+  | InfoBb(ci) => BbCursorInspector.bb_view(~globals, ci)
+  /* Likewise Fumola: no marks, and the only error it reports is a hole. */
+  | InfoFumola(fi) =>
+    span(
+      ~attrs=[clss(["problem-description"])],
+      [
+        text(
+          "Fumola "
+          ++ Language.FumolaCls.show(Language.FumolaInfo.cls_of(fi)),
+        ),
+      ],
+    )
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _}) =>

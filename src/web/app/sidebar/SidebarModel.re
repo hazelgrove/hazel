@@ -9,6 +9,7 @@ module Settings = {
     | Projectors
     | LogControl
     | Problems
+    | Fumola
     | DebugInfo;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]

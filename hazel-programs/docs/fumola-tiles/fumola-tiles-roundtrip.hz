@@ -1,0 +1,71 @@
+# THE ROUND TRIP #
+
+# A value leaves Hazel, becomes Fumola source, runs in the instance, and #
+# comes back as a Hazel value.  Every let below carries a probe, so the #
+# value at each step is visible without running anything by hand. #
+
+# Probes are written into this slide as ^^probe(...); you do not have to #
+# add them.  To put one somewhere else, place the caret to the left of an #
+# expression and press ctrl/cmd-E. #
+
+type Tree = + Leaf(Int) + Bin((Tree, Tree)) in
+
+# OUT AND BACK, ONE STEP #
+
+# 41 is Hazel's.  It crosses as Fumola source, the instance stores it, and #
+# `@ p` reads it back.  The probe shows what returned, not what was sent. #
+
+let ^^probe(one) = fumola $graphical as trip in
+  { let p = 0 := hazel 41 end; @ p }
+end in
+
+# WHAT SURVIVES THE CROSSING #
+
+# Anything with a written Fumola form can go out: numbers, booleans, #
+# tuples, constructors.  A tuple goes out as a Fumola tuple and comes back #
+# as a Hazel tuple, which the probe shows as the pair it started as. #
+
+let ^^probe(pair) = fumola $graphical as trip in
+  { let p = 1 := hazel (1, true) end; @ p }
+end in
+
+# COMING BACK AS A TYPE HAZEL KNOWS #
+
+# A Fumola variant crosses as a Hazel constructor of the same name, #
+# capitalised.  The Tree declared above is what makes `Leaf(1)` typecheck #
+# rather than read as unbound -- and the expected type is also what tells #
+# the bridge which sum to build. #
+
+let ^^probe(leaf): Tree = fumola $graphical as trip in
+  { let p = 2 := $leaf(1); @ p }
+end in
+
+# A ROUND TRIP THAT IS NOT ONE #
+
+# The crossing recases: a lower-case Fumola tag arrives capitalised, and #
+# a Hazel constructor goes out lower-cased.  Only the first letter moves, #
+# so a tag that already begins upper-case does not survive being sent and #
+# read back.  Send the value that came back and the probe shows the same #
+# Leaf(1) returning. #
+# (A Fumola tag cannot be written in this sentence: a Hazel comment is #
+# delimited by the same hash the tag begins with.) #
+
+let ^^probe(again): Tree = fumola $graphical as trip in
+  { let p = 3 := hazel leaf end; @ p }
+end in
+
+# BOTH DIRECTIONS IN ONE PROGRAM #
+
+# The escape is a tile subtree, not a slot, so a program can cross the #
+# boundary as many times as it wants.  Here two Hazel values go out, are #
+# added by the Fumola runtime, and the sum comes back. #
+
+let ^^probe(sum) = fumola $graphical as trip in
+  { let p = 4 := hazel 20 end + hazel 22 end; @ p }
+end in
+
+# The instance is named `trip` throughout, so all five programs share one #
+# adapton store.  Put the caret inside any of them and open the Fumola #
+# panel -- the tab below Problems -- to see what it recorded. #
+
+(one, pair, leaf, again, sum)

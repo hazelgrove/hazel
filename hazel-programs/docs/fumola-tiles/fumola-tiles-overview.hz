@@ -1,0 +1,13 @@
+# FUMOLA, AS TILES #
+
+# Fumola is a language for incremental computation. A Fumola program lives #
+# inside a Hazel expression, written with tiles of its own: #
+
+let answer = fumola $graphical as store in 1 + 2 end in
+
+# Read the form as three parts.  `store` names the Fumola VM instance the #
+# program runs against.  `$graphical` is the adapton semantics that instance #
+# runs.  Between `in` and `end` is the program itself. #
+
+# The result comes back as a Hazel value, so it is an Int here: #
+answer + 1

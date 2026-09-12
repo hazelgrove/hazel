@@ -106,6 +106,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Dot(_)
           | Match(_)
           | LivelitName(_)
+          | FumolaPeek(_)
           | DynamicErrorHole(_)
           | Filter(_)
           | If(_)
@@ -116,6 +117,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Var(_)
           | Atom(_)
           | DrvQuote(_)
+          | FumolaQuote(_)
+          | BbQuote(_)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
@@ -134,6 +137,10 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
 
 let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
+  /* A reference is comparable as the value it denotes. These come first, so
+     that a peek is not rejected merely for being a reference. */
+  | (FumolaPeek({value, _}), _) => ty_comparable(value, d2)
+  | (_, FumolaPeek({value, _})) => ty_comparable(d1, value)
   | (Invalid(_), _)
   | (EmptyHole, _)
   | (MultiHole(_), _)
@@ -191,6 +198,11 @@ let rec ty_comparable = (d1, d2) => {
   | (Atom(_), _) => false
   | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
   | (DrvQuote(_, _), _) => false
+  | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
+    n1 == n2 && m1 == m2 && b1 == b2
+  | (FumolaQuote(_, _, _), _) => false
+  | (BbQuote(b1), BbQuote(b2)) => b1 == b2
+  | (BbQuote(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
@@ -238,6 +250,10 @@ let rec ty_comparable = (d1, d2) => {
 let rec poly_equal = (d1, d2): option(bool) => {
   // With assumption that the types are consistent and have no arrow type
   switch (term_of(d1), term_of(d2)) {
+  /* Compared by the value denoted, not by the reference: two peeks of
+     different cells holding the same value are equal. */
+  | (FumolaPeek({value, _}), _) => poly_equal(value, d2)
+  | (_, FumolaPeek({value, _})) => poly_equal(d1, value)
   // If either is indet or incomparable, return None
   | (Invalid(_), _)
   | (EmptyHole, _)
@@ -304,6 +320,11 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
     Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
   | (DrvQuote(_, _), _) => None
+  | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
+    (n1 == n2 && m1 == m2 && b1 == b2) |> Option.some
+  | (FumolaQuote(_, _, _), _) => None
+  | (BbQuote(b1), BbQuote(b2)) => b1 == b2 |> Option.some
+  | (BbQuote(_), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None
   | (ExplicitNonlabel, ExplicitNonlabel) => Some(true)

@@ -898,12 +898,26 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* A value: it carries its result rather than stepping to one, so that a
+       reference stays visible in the output instead of collapsing into the
+       thing it refers to. Its carried value is already a value, having been
+       built by translation. */
+    | FumolaPeek(_)
     | Atom(_)
     | LivelitName(_)
     | Label(_)
     | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    /* A Fumola program does not evaluate here; the tile tree is a value,
+       and running it against its instance is M2's job. */
+    | FumolaQuote(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    /* A Blackboard document does not evaluate; it is already a value. */
+    | BbQuote(_) =>
       let. _ = otherwise(env, d);
       Constructor;
     | DrvQuote(_) =>

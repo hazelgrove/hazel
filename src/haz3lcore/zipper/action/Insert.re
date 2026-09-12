@@ -65,7 +65,17 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
     | None =>
       /* In Mod context, try Exp since bare expressions are valid module items.
          This mirrors remold_mod which also falls back to Exp. */
-      if (local_sort == Sort.Mod) {
+      /* Fumola is a closed sub-language: no Hazel form is valid inside it, so
+         a token with no Fumola expansion stays a monotile rather than
+         expanding into the enclosing sort's form. Without this, `let` inside
+         a fumola block expands to Hazel's `let _ = _ in`. */
+      /* Blackboard is a closed sub-language: no Hazel form is valid inside
+         it, so a token with no Blackboard expansion must stay a monotile
+         rather than expanding into the enclosing sort's form.  Without this,
+         `type` inside a blackboard block expands to Hazel's `type _ = _ in`. */
+      if (Sort.is_fumola(local_sort) || Sort.is_bb(local_sort)) {
+        local_sort;
+      } else if (local_sort == Sort.Mod) {
         switch (Form.Expansion.try_get(Exp, t)) {
         | Some(_) => Exp
         | None => parent_sort

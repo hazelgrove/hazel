@@ -129,6 +129,21 @@ module rec Any: {
       /* Drv terms have their own traversal machinery in DrvTermBase; the
          generic Any.map_term doesn't descend into them. */
       | Drv(x) => Drv(x)
+      /* Blackboard terms likewise. */
+      | Bb(x) => Bb(x)
+      /* Fumola terms carry their own traversal, but it has to be entered:
+         a `hazel … end` embeds Hazel expressions, and a traversal that
+         stopped here would leave them untouched. */
+      | Fumola(x) =>
+        Fumola(
+          FumolaGrammar.map_annotation(
+            (
+              Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any),
+              Fun.id,
+            ),
+            x,
+          ),
+        )
       | Mod(x) =>
         Mod(Mod.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Sig(x) =>
@@ -207,6 +222,7 @@ and Exp: {
         | Invalid(_)
         | Atom(_)
         | DrvQuote(_)
+        | BbQuote(_)
         | Constructor(_)
         | Label(_)
         | ExplicitNonlabel
@@ -214,9 +230,23 @@ and Exp: {
         | Var(_)
         | LivelitName(_)
         | Undefined => term
+        /* Entered rather than skipped, for the reason above: the Hazel
+           expressions a `hazel … end` embeds are mapped here, which is what
+           lets substitution reach a variable used inside one. */
+        | FumolaQuote(name, mode, body) =>
+          let go_fumola =
+            FumolaGrammar.map_annotation((exp_map_term, Fun.id));
+          FumolaQuote(go_fumola(name), go_fumola(mode), go_fumola(body));
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
+        | FumolaPeek({instance_id, reads, value, holds}) =>
+          FumolaPeek({
+            instance_id,
+            reads,
+            value: exp_map_term(value),
+            holds,
+          })
         | Fun(p, e, t, f) =>
           Fun(
             pat_map_term(p),

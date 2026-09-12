@@ -123,6 +123,9 @@ let view =
          strict sort equality with the statics-refined sort would spuriously
          flag judgments/contexts/propositions as inconsistent. */
       | (Drv(_), _) => true
+      /* Likewise Blackboard: molds are all Bb(Term), and statics refines
+         them to Bb(Assumed)/Bb(Constructed) purely for display. */
+      | (Bb(_), _) => true
       | _ => sort == data.sort
       }
     };

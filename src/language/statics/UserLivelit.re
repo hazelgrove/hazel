@@ -223,7 +223,22 @@ let default_shape: ProjectorShape.t = {
    form, so typing it consults the definition's ACTUAL expand member rather
    than the interface `member_ty` advertises — which is what makes the
    use-site expansion check below non-vacuous. */
-let mk_expand_dot = (~name: string, model: TermBase.Exp.t) => {
+/* The three labelled arguments are the builtin livelits' expansion context
+   -- the occurrence's id, the expected type, and the type tools for
+   resolving constructors -- and a user-defined livelit needs none of them:
+   it expands by applying its own `expand` member to the model, and whatever
+   that member needs it takes from the program's own scope. They are accepted
+   and ignored so that user-defined and builtin livelits share one `expand`
+   contract, which is what lets a Fumola livelit (which does use all three)
+   sit in the same table. */
+let mk_expand_dot =
+    (
+      ~name: string,
+      ~id as _: Id.t,
+      ~ana as _: TermBase.Typ.t,
+      ~tools as _: LivelitCtx.type_tools,
+      model: TermBase.Exp.t,
+    ) => {
   IdTagged.FreshGrammar.(
     Some(
       Exp.ap(
@@ -348,9 +363,19 @@ let mk =
       model_default: Exp.replace_all_ids(List.assoc("init", members)),
       expansion_t,
       expand: mk_expand_dot(~name),
+      /* False: a user-defined livelit's expansion is whatever its own
+         `expand` member returns, so it has something to produce whether or
+         not an expected type is in scope. The flag exists for livelits that
+         cannot know their expansion without one -- the Fumola livelits,
+         which shape a runtime value by the type it is being read at. */
+      requires_annotation: false,
       action_t,
       update: (_action, model) => model,
-      view: (_model, _send) =>
+      /* A placeholder: a user-defined livelit's real view comes from its own
+         `view` member, rendered by LivelitProj rather than from here. `~id`
+         is the occurrence's id, which the Fumola livelits use to tell two
+         live uses apart; this one has no use for it. */
+      view: (~id as _, _model, _send) =>
         Virtual_dom.Vdom.Node.text("user-defined livelit"),
       shape:
         switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {

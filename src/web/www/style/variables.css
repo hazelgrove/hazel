@@ -43,6 +43,14 @@
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
   --DRV: oklch(60% 0.1 126);
+  /* Fumola: a hue of its own, away from DRV's green, and dark enough to read
+     on the editor's ground. Without these every Fumola token inherited a
+     colour and every indicated Fumola shard filled black, since an SVG path
+     with no fill is black. */
+  --FUMOLA: oklch(52% 0.14 300);
+  /* Blackboard: indigo, dark enough to read on the sand background, and
+     clear of TYP (300), DRV (126) and PAT (225). */
+  --BB: oklch(48% 0.13 265);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
   --MOD: var(--STONE); /* Module sort oklch(0.65 0.05 165)  */
@@ -112,6 +120,21 @@
   --token-pat: var(--PAT);
   --token-typ: var(--TYP);
   --token-drv: var(--DRV);
+  --token-fumola: var(--FUMOLA);
+  /* The instance name reads as a name rather than as a keyword. */
+  --token-fumola-name: oklch(from var(--FUMOLA) calc(l + 0.08) calc(c / 2) h);
+  --token-bb: var(--BB);
+  /* Block modality tints. Faint enough to read through, distinct enough to
+     show a block's extent -- and so, its indentation -- at a glance.
+     Assumed is taken on trust; constructed still owes a witness.
+
+     Two constraints beyond looking right. The hues stay clear of the error
+     hole's warm fill (--ERRHOLE, hue 47) so an error inside a block is not
+     camouflaged by the block. And both are translucent, because the error
+     fill is an SVG shard painted behind the token: an opaque tint would
+     hide it however well the hue were chosen. */
+  --bb-assume-bg: oklch(68% 0.1 205 / 0.16);
+  --bb-construct-bg: oklch(58% 0.13 305 / 0.16);
   --token-tpat: var(--TPAT);
   --token-mod: var(--MOD);
   --token-sig: var(--SIG);
@@ -136,6 +159,8 @@
   --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
   --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
   --shard-caret-drv: oklch(from var(--token-drv) 95% calc(c/4) h);
+  --shard-caret-fumola: oklch(from var(--token-fumola) 95% calc(c/4) h);
+  --shard-caret-bb: oklch(from var(--token-bb) 95% calc(c/4) h);
   --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
   --shard-caret-mod: oklch(from var(--token-mod) 95% calc(c/4) h);
   --shard-caret-sig: oklch(from var(--token-sig) 95% calc(c/4) h);
@@ -143,6 +168,8 @@
   --shard-pat: var(--shard-caret-pat);
   --shard-typ: var(--shard-caret-typ);
   --shard-drv: var(--shard-caret-drv);
+  --shard-fumola: var(--shard-caret-fumola);
+  --shard-bb: var(--shard-caret-bb);
   --shard-tpat: var(--shard-caret-tpat);
   --shard-mod: var(--shard-caret-mod);
   --shard-sig: var(--shard-caret-sig);

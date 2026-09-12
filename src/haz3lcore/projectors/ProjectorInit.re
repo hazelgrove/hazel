@@ -18,6 +18,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | HTML => (module Cook(HTMLProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
+  | FumolaPeek => (module Cook(FumolaPeekProj.M))
   };
 
 let init =

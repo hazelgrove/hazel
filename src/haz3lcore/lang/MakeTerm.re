@@ -57,6 +57,10 @@ let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
+let is_tuple_fumola = is_nary(Any.is_fumola, ",");
+let is_seq_fumola = is_nary(Any.is_fumola, ";");
+let is_tuple_bb = is_nary(Any.is_bb, ",");
+let is_seq_bb = is_nary(Any.is_bb, ";");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
 let is_sig_seq = is_nary(Any.is_sig, ";");
@@ -317,6 +321,12 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       | TPat => TPat(drv_tpat(unsorted(Drv(TPat), skel, seg)))
       },
     )
+  /* Fumola(Name) is the instance position; it reads as an ordinary Fumola
+     term, and only the mold keeps anything but an identifier out of it. */
+  | Fumola(_) => Fumola(fumola(unsorted(Fumola(Exp), skel, seg)))
+  /* Bb(Assumed) and Bb(Constructed) are display-only refinements produced by
+     statics; nothing is ever molded or parsed in them. */
+  | Bb(_) => Bb(bb(unsorted(Bb(Term), skel, seg)))
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
@@ -333,6 +343,295 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       go_s(sort, skel, seg);
     };
   }
+and fumola = unsorted => {
+  let (term, inner_ids) = fumola_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    f => Fumola(f),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+/* Fumola tiles map onto FumolaGrammar; see Form.fumola_get. Two readings are
+   not one-for-one, because tiles have no token for juxtaposition: `f(a)` is
+   the application form, and a brace block holds a sequence that the printer
+   splits back into declarations. */
+and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
+  let ret = (tm: FumolaTermBase.exp_term) => (tm, []);
+  let hole: unsorted => FumolaTermBase.exp_term =
+    unsorted => Hole(Any.fumola_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([t], []) =>
+      switch (t) {
+      | "true" => ret(Lit(Bool(true)))
+      | "false" => ret(Lit(Bool(false)))
+      | "null" => ret(Lit(Null))
+      | _ when Token.is_empty_tuple(t) => ret(Lit(Unit))
+      | _ when Token.is_int(t) => ret(Lit(Nat(t)))
+      /* The token keeps its quotes, which is what Lit(Text) holds and what
+         FumolaPrint prints: Fumola's string syntax is Hazel's. */
+      | _ when Token.is_string(t) => ret(Lit(Text(t)))
+      /* `` `t `` keeps its backticks in the token and loses them here: the
+         printer puts one back on the front, as Fumola spells it. */
+      | _ when Token.is_quoted_label(t) =>
+        ret(QuotedId(Token.strip_quotes(~quote="`", t)))
+      /* `$tag` is Hazel's spelling of Fumola's `#tag`; the `#` goes back on
+         in FumolaPrint, because Hazel reserves `#` for comments. */
+      | _ when Token.is_fumola_tag(t) =>
+        ret(Variant(String.sub(t, 1, String.length(t) - 1), None))
+      | _ when Token.is_wild(t) => ret(Var("_"))
+      | _ when Token.is_typ_var(t) => ret(Var(t))
+      | _ => ret(hole(tm))
+      }
+    | (["(", ")"], [Fumola(body)]) => ret(Paren(body))
+    /* `[a, b]` holds a comma chain, which reads as a tuple; the array's
+       elements are that tuple flattened. `[e]` is a one-element array. */
+    | (["[", "]"], [Fumola(body)]) =>
+      ret(
+        Array(
+          false,
+          switch (body.term) {
+          | Tuple(es) => es
+          | _ => [body]
+          },
+        ),
+      )
+    | (["{", "}"], [Fumola(body)]) =>
+      let (ds, ids) = fumola_decs(body);
+      (Block(ds), ids);
+    | (["hazel", "end"], [Exp(e)]) => ret(Hazel(e))
+    | _ => ret(hole(tm))
+    }
+  /* The declaration takes the tile's own id, not the body's. Two nodes come
+     out of one tile -- the block and the declaration inside it -- and the
+     info map is keyed by id, so sharing the body's id would make the body's
+     entry overwrite the declaration's and the cursor would never name a
+     `let`. */
+  | Pre(([(id, (["let", "="], [Fumola(p)]))], []), Fumola(body)) =>
+    ret(
+      Block([
+        {
+          term: DLet(fumola_pat_of(p), body),
+          annotation: fumola_dec_annotation(id),
+        },
+      ]),
+    )
+  | Pre(
+      ([(_id, (["if", "then", "else"], [Fumola(c), Fumola(t)]))], []),
+      Fumola(e),
+    ) =>
+    ret(If(c, t, Some(e)))
+  | Pre(([(id, (["import", "="], [Fumola(p)]))], []), Fumola(body)) =>
+    ret(
+      Block([
+        {
+          term: DImport(fumola_pat_of(p), body),
+          annotation: fumola_dec_annotation(id),
+        },
+      ]),
+    )
+  | Pre(([(_id, ([t], []))], []), Fumola(r)) as tm =>
+    switch (t) {
+    | "thunk" =>
+      let (ds, ids) = fumola_decs(r);
+      (Thunk(ds), ids);
+    | "not" => ret(Not(r))
+    | "-" => ret(Un(Neg, r))
+    | "assert" => ret(Assert(r))
+    | "ignore" => ret(Ignore(r))
+    | "return" => ret(Return(Some(r)))
+    /* `prim "adaptonNow"`: the operand is read for its text, since a prim is
+       named by a string and not by an expression. */
+    | "prim" =>
+      switch (r.term) {
+      | Lit(Text(t)) => ret(Prim(Token.strip_quotes(t)))
+      | _ => ret(hole(tm))
+      }
+    | "force" => ret(Force(r))
+    | "@" => ret(Get(r))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Fumola(l), ([(_id, ([t], []))], []), Fumola(r)) as tm =>
+    switch (t) {
+    /* The right operand of a projection is read for its text: `e.x` and
+       `e.0` are the same node, since the printer only puts the token back.
+       Anything that is not a name or a number is not a projection. */
+    | "." =>
+      switch (r.term) {
+      | Var(x) => ret(Proj(l, x))
+      | Lit(Nat(i)) => ret(Proj(l, i))
+      | _ => ret(hole(tm))
+      }
+    | "++" => ret(Bin(l, Cat, r))
+    | ":=" => ret(Put(l, r))
+    | "or" => ret(Or(l, r))
+    | "and" => ret(And(l, r))
+    | "==" => ret(Rel(l, Eq, r))
+    | "!=" => ret(Rel(l, Neq, r))
+    | "<" => ret(Rel(l, Lt, r))
+    | ">" => ret(Rel(l, Gt, r))
+    | "<=" => ret(Rel(l, Le, r))
+    | ">=" => ret(Rel(l, Ge, r))
+    | "+" => ret(Bin(l, Add, r))
+    | "-" => ret(Bin(l, Sub, r))
+    | "*" => ret(Bin(l, Mul, r))
+    | "/" => ret(Bin(l, Div, r))
+    | "%" => ret(Bin(l, Mod, r))
+    | "**" => ret(Bin(l, Pow, r))
+    | "|" => ret(Bin(l, BitOr, r))
+    | "&" => ret(Bin(l, BitAnd, r))
+    | "," => ret(Tuple([l, r]))
+    | ";" =>
+      let (ds_l, ids_l) = fumola_decs(l);
+      let (ds_r, ids_r) = fumola_decs(r);
+      (Block(ds_l @ ds_r), ids_l @ ids_r);
+    | _ => ret(hole(tm))
+    }
+  | Bin(Fumola(l), tiles, Fumola(r)) as tm =>
+    switch (is_tuple_fumola(tiles), is_seq_fumola(tiles)) {
+    | (Some(between), _) => ret(Tuple([l] @ between @ [r]))
+    | (_, Some(between)) =>
+      let (ds, ids) =
+        List.fold_left(
+          ((ds, ids), e) => {
+            let (ds', ids') = fumola_decs(e);
+            (ds @ ds', ids @ ids');
+          },
+          ([], []),
+          [l] @ between @ [r],
+        );
+      (Block(ds), ids);
+    | _ => ret(hole(tm))
+    }
+  | Post(Fumola(l), ([(_id, t)], [])) as tm =>
+    switch (t) {
+    /* `$tag(e)` is the variant with a payload rather than an application of
+       the tag, which is not a thing Fumola has. */
+    | (["(", ")"], [Fumola(r)]) =>
+      switch (l.term) {
+      /* The tag node is consumed here, so its id comes with it: without
+         that, the cursor on `$tag` would find nothing in the info map. */
+      | Variant(tag, None) => (Variant(tag, Some(r)), IdTagged.ids(l))
+      | _ => ret(Ap(l, r))
+      }
+    | (["[", "]"], [Fumola(r)]) => ret(Index(l, r))
+    | (["!"], []) => ret(Bang(l))
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
+/* A brace block and a `;` chain both hold declarations; everything that is
+   not a `let` is a declaration whose body is an expression.
+
+   Destructuring a nested block drops that block's node, so its ids are
+   returned alongside the declarations and land on whichever node replaces
+   it. Otherwise the `;` a chain was written with would name no term, and
+   the cursor on it would report nothing. */
+and fumola_decs =
+    (e: FumolaTermBase.t): (list(FumolaTermBase.dec), list(Id.t)) =>
+  switch (e.term) {
+  | Block(ds) => (ds, IdTagged.ids(e))
+  | _ => ([fumola_dec_of(None, e)], [])
+  }
+and fumola_dec_annotation = (id: Id.t): IdTagged.IdTag.t =>
+  IdTagged.IdTag.mk([id], IdTagged.IdTag.empty_secondary)
+and fumola_dec_of =
+    (p: option(FumolaTermBase.t), e: FumolaTermBase.t): FumolaTermBase.dec => {
+  let annotation = e.annotation;
+  switch (p) {
+  | None => {
+      term: DExp(e),
+      annotation,
+    }
+  | Some(p) => {
+      term: DLet(fumola_pat_of(p), e),
+      annotation,
+    }
+  };
+}
+/* The binding position of a `let` is a Fumola term that reads as a pattern.
+   Anything that is not a name is a hole, which the printer refuses. */
+and fumola_pat_of = (e: FumolaTermBase.t): FumolaTermBase.pat => {
+  let annotation = e.annotation;
+  switch (e.term) {
+  | Var("_") => {
+      term: PWild,
+      annotation,
+    }
+  | Var(x) => {
+      term: PVar(x),
+      annotation,
+    }
+  | _ => {
+      term: PHole(EmptyHole),
+      annotation,
+    }
+  };
+}
+and bb = unsorted => {
+  let (term, inner_ids) = bb_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    b => Bb(b),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+/* Blackboard tiles map one for one onto BbGrammar; see Form.bb_get.  The
+   dependent arrow and the reading of `x : T` as a signature entry happen
+   later, in Bb.to_kernel. */
+and bb_term: unsorted => (BbTermBase.term, list(Id.t)) = {
+  let ret = (tm: BbTermBase.term) => (tm, []);
+  let hole: unsorted => BbTermBase.term =
+    unsorted => Hole(Any.bb_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([t], []) =>
+      switch (t) {
+      | "type" => ret(Type)
+      | _ when Token.is_wild(t) => ret(Var("_"))
+      | _ when Token.is_typ_var(t) => ret(Var(t))
+      | _ => ret(hole(tm))
+      }
+    | (["(", ")"], [Bb(body)]) => ret(Parens(body))
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(_id, (labels, [Bb(entries)]))], []), Bb(tactic)) as tm =>
+    switch (labels) {
+    | ["assume", "by"] => ret(Assume(entries, tactic))
+    | ["construct", "by"] => ret(Construct(entries, tactic))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Bb(l), ([(_id, ([t], []))], []), Bb(r)) as tm =>
+    switch (t) {
+    | ":" => ret(Mem(l, r))
+    | "->" => ret(Arrow(l, r))
+    | "," => ret(Tuple([l, r]))
+    | ";" => ret(Seq([l, r]))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Bb(l), tiles, Bb(r)) as tm =>
+    switch (is_tuple_bb(tiles), is_seq_bb(tiles)) {
+    | (Some(between), _) => ret(Tuple([l] @ between @ [r]))
+    | (_, Some(between)) => ret(Seq([l] @ between @ [r]))
+    | _ => ret(hole(tm))
+    }
+  | Post(Bb(l), ([(_id, t)], [])) as tm =>
+    switch (t) {
+    | (["(", ")"], [Bb(r)]) => ret(Ap(l, r))
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
 and drv_exp = unsorted => {
   let (term, inner_ids) = drv_exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -723,6 +1022,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(DrvQuote(Pat(p), Pat))
       | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvQuote(TPat(tp), TPat))
+      /* [fumola] / [in] / [end] lift a Fumola program up to sort Exp, and
+         name the instance it runs against. */
+      /* The syntax writes the mode first and the instance after `as`; the
+         term keeps the instance first, since that is its subject. */
+      | (
+          ["fumola", "as", "in", "end"],
+          [Fumola(mode), Fumola(name), Fumola(body)],
+        ) =>
+        ret(FumolaQuote(name, mode, body))
+      /* [blackboard] / [end] lift a Blackboard document up to sort Exp. */
+      | (["blackboard", "end"], [Bb(b)]) => ret(BbQuote(b))
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
@@ -1598,6 +1908,16 @@ let for_projection =
           switch (drv_exp(unsorted)) {
           | {term: Tuple(_), _} => None
           | _ => Some(Grammar.Drv(Exp(drv_exp(unsorted))))
+          }
+        | Fumola(_) =>
+          switch (fumola(unsorted)) {
+          | {term: Tuple(_) | Block(_), _} => None
+          | f => Some(Grammar.Fumola(f))
+          }
+        | Bb(_) =>
+          switch (bb(unsorted)) {
+          | {term: Tuple(_) | Seq(_), _} => None
+          | b => Some(Grammar.Bb(b))
           }
         | Exp =>
           switch (exp(unsorted)) {

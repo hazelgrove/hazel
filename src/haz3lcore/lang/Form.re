@@ -95,6 +95,10 @@ let mk_parens = (sort: Sort.t) =>
 type atomic_form =
   | Var
   | DrvVar
+  | FumolaVar
+  | FumolaTag
+  | BbVar
+  | BbType
   | ExplicitHole
   | ImplicitHoleMarker
   | LLMHole
@@ -193,6 +197,188 @@ type drv_compound_form =
   | ParenExp
   | ParenPat
   | ParenTyp;
+
+/* Fumola forms.  One sort, Fumola(Exp), for expressions, declarations and
+   blocks, plus Fumola(Name) for the instance the program runs against.
+
+   The ladder of infix operators is fumola_parser's, and its order is not the
+   one intuition suggests: `|`, `&` and `^` bind tighter than `+` and `*`, and
+   the prefix forms below (`thunk`, `force`, `@`) are looser than every one of
+   them, so `force x + 1` does not parse in Fumola at all.  See
+   src/language/fumola/README.md. */
+[@deriving enumerate]
+type fumola_compound_form =
+  | FumolaOf
+  | FumolaHazel
+  | FumolaParens
+  | FumolaBlock
+  | FumolaAp
+  | FumolaIndex
+  | FumolaProj
+  | FumolaComma
+  | FumolaSemi
+  | FumolaLet
+  | FumolaImport
+  | FumolaPut
+  | FumolaOr
+  | FumolaAnd
+  | FumolaEq
+  | FumolaNeq
+  | FumolaLt
+  | FumolaGt
+  | FumolaLeq
+  | FumolaGeq
+  | FumolaPlus
+  | FumolaMinus
+  | FumolaTimes
+  | FumolaDivide
+  | FumolaMod
+  | FumolaPow
+  | FumolaBitOr
+  | FumolaBitAnd
+  | FumolaArray
+  | FumolaCat
+  | FumolaBang
+  | FumolaNot
+  | FumolaNeg
+  | FumolaAssert
+  | FumolaIgnore
+  | FumolaReturn
+  | FumolaPrim
+  | FumolaIf
+  | FumolaThunk
+  | FumolaForce
+  | FumolaGet;
+
+let fumola_get: fumola_compound_form => t =
+  fun
+  /* The instance is named in the program text so that the adapton store
+     survives an edit; see docs/fumola-tiles-design.md. */
+  /* `fumola <mode> as <instance> in <program> end`.
+
+     `as` introduces the binding, the way `let … as …` does elsewhere: what
+     follows it is the name the instance is known by, and what precedes it is
+     how that instance runs. The mode is a slot rather than an option because
+     only one form can expand from the token `fumola` (Form.Expansion
+     resolves a token and sort with find_opt), so a short form and a long one
+     cannot both be reachable by typing. A hole in the mode slot means "leave
+     this instance's mode alone". */
+  | FumolaOf =>
+    mk_op_c(
+      L,
+      ["fumola", "as", "in", "end"],
+      Exp,
+      [Fumola(Exp), Fumola(Name), Fumola(Exp)],
+    )
+  /* The way back in: a Hazel expression standing where a Fumola term does,
+     anywhere inside the program. This is what the livelit's single `input`
+     slot was, except that it is a real tile subtree with Hazel's statics and
+     completion, and there can be as many as the program wants. */
+  | FumolaHazel => mk_op_c(L, ["hazel", "end"], Fumola(Exp), [Exp])
+  | FumolaParens => mk_parens(Fumola(Exp))
+  | FumolaBlock => mk_op_c(LT, ["{", "}"], Fumola(Exp), [Fumola(Exp)])
+  | FumolaAp =>
+    mk_post_c(LT, ["(", ")"], P.fum_post, Fumola(Exp), [Fumola(Exp)])
+  | FumolaIndex =>
+    mk_post_c(LT, ["[", "]"], P.fum_post, Fumola(Exp), [Fumola(Exp)])
+  /* `e.x` and `e.0` alike: the printer only has to put the text back, so the
+     right operand is read for its token rather than as an expression.  This
+     is what lets an imported module be reached -- `Seq.fromList` -- which is
+     the whole point of having `import`. */
+  | FumolaProj => mk_infix(".", Fumola(Exp), P.fum_post)
+  | FumolaComma => mk_infix(",", Fumola(Exp), P.fum_comma)
+  | FumolaSemi => mk_infix(";", Fumola(Exp), P.fum_semi)
+  | FumolaLet =>
+    mk_pre_c(L, ["let", "="], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
+  /* `import Seq = <path>`, the path being a string literal.  Shaped like
+     `let`, which is not a liberty: Fumola's own LetImport production takes
+     an optional `=` between the name and the path, so this prints as
+     grammatical Fumola without any respelling. */
+  | FumolaImport =>
+    mk_pre_c(L, ["import", "="], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
+  | FumolaPut => mk_infix(":=", Fumola(Exp), P.fum_stmt)
+  | FumolaOr => mk_infix("or", Fumola(Exp), P.fum_or)
+  | FumolaAnd => mk_infix("and", Fumola(Exp), P.fum_and)
+  | FumolaEq => mk_infix("==", Fumola(Exp), P.fum_rel)
+  | FumolaNeq => mk_infix("!=", Fumola(Exp), P.fum_rel)
+  | FumolaLt => mk_infix("<", Fumola(Exp), P.fum_rel)
+  | FumolaGt => mk_infix(">", Fumola(Exp), P.fum_rel)
+  | FumolaLeq => mk_infix("<=", Fumola(Exp), P.fum_rel)
+  | FumolaGeq => mk_infix(">=", Fumola(Exp), P.fum_rel)
+  | FumolaPlus => mk_infix("+", Fumola(Exp), P.fum_add)
+  | FumolaMinus => mk_infix("-", Fumola(Exp), P.fum_add)
+  | FumolaTimes => mk_infix("*", Fumola(Exp), P.fum_mul)
+  | FumolaDivide => mk_infix("/", Fumola(Exp), P.fum_mul)
+  | FumolaMod => mk_infix("%", Fumola(Exp), P.fum_mul)
+  | FumolaPow => mk_infix("**", Fumola(Exp), P.fum_pow)
+  | FumolaBitOr => mk_infix("|", Fumola(Exp), P.fum_bitor)
+  | FumolaBitAnd => mk_infix("&", Fumola(Exp), P.fum_bitand)
+  /* `[e, …]`; the comma form makes the contents a tuple, which MakeTerm
+     flattens into the array's elements. `[var …]` has no tile yet. */
+  | FumolaArray => mk_op_c(LT, ["[", "]"], Fumola(Exp), [Fumola(Exp)])
+  /* Fumola spells concatenation `#`, which is Hazel's comment delimiter, so
+     the tile needs another spelling and the printer puts the `#` back -- the
+     same trick as `$tag` for `#tag`.  `$` was the obvious candidate and does
+     not work: `$` is not in Token.ascii_operator_chars, so a bare `$` cannot
+     lex as an operator at all, and adding it there would change how every
+     Hazel token lexes.  `++` is free, reads as concatenation, and is shared
+     with Hazel's own `++` the way `+` already is -- forms resolve by token
+     AND sort, so a closed sort may reuse a spelling. */
+  | FumolaCat => mk_infix("++", Fumola(Exp), P.fum_add)
+  | FumolaBang => mk_post_c(LT, ["!"], P.fum_post, Fumola(Exp), [])
+  | FumolaNot => mk_prefix("not", Fumola(Exp), P.fum_un)
+  | FumolaNeg => mk_prefix("-", Fumola(Exp), P.fum_un)
+  | FumolaAssert => mk_prefix("assert", Fumola(Exp), P.fum_stmt)
+  | FumolaIgnore => mk_prefix("ignore", Fumola(Exp), P.fum_stmt)
+  | FumolaReturn => mk_prefix("return", Fumola(Exp), P.fum_stmt)
+  | FumolaPrim => mk_prefix("prim", Fumola(Exp), P.fum_post)
+  /* Spelled `if c then t else e`, as Hazel spells its own, and printed as
+     Fumola's `if c { t } else { e }`. Fumola has no `then`; the tile needs a
+     token between the condition and the first branch, and borrowing Hazel's
+     is less to explain than inventing one. */
+  | FumolaIf =>
+    mk_pre_c(
+      L,
+      ["if", "then", "else"],
+      P.fum_stmt,
+      Fumola(Exp),
+      [Fumola(Exp), Fumola(Exp)],
+    )
+  | FumolaThunk => mk_prefix("thunk", Fumola(Exp), P.fum_stmt)
+  | FumolaForce => mk_prefix("force", Fumola(Exp), P.fum_stmt)
+  | FumolaGet => mk_prefix("@", Fumola(Exp), P.fum_stmt);
+
+/* Blackboard forms.  One sort, Bb(Term), for terms, signature entries and
+   blocks; see BbSort.  Signature entries are membership terms `x : T`,
+   separated by `;`; blocks are `assume … by … end` and `construct … by …
+   end` operands, separated by `;`; the dependent arrow `(x : A) -> B` is
+   the infix arrow with a parenthesized membership on its left, recovered
+   in MakeTerm.  `blackboard … end` embeds a document in an expression. */
+[@deriving enumerate]
+type bb_compound_form =
+  | BbOf
+  | BbMem
+  | BbArrow
+  | BbAp
+  | BbComma
+  | BbSeq
+  | BbParens
+  | BbAssume
+  | BbConstruct;
+
+let bb_get: bb_compound_form => t =
+  fun
+  | BbOf => mk_op_c(L, ["blackboard", "end"], Exp, [Bb(Term)])
+  | BbMem => mk_infix(":", Bb(Term), P.bb_mem)
+  | BbArrow => mk_infix("->", Bb(Term), P.bb_arrow)
+  | BbAp => mk_post_c(LT, ["(", ")"], P.bb_ap, Bb(Term), [Bb(Term)])
+  | BbComma => mk_infix(",", Bb(Term), P.comma)
+  | BbSeq => mk_infix(";", Bb(Term), P.semi)
+  | BbParens => mk_parens(Bb(Term))
+  | BbAssume =>
+    mk_pre_c(L, ["assume", "by"], P.bb_block, Bb(Term), [Bb(Term)])
+  | BbConstruct =>
+    mk_pre_c(L, ["construct", "by"], P.bb_block, Bb(Term), [Bb(Term)]);
 
 /* let all_of_drv_compound_form: list(_) = []; */
 
@@ -405,6 +591,10 @@ type compound_form =
   | Use
   // Drv
   | Drv(drv_compound_form)
+  // Fumola
+  | Fumola(fumola_compound_form)
+  // Blackboard
+  | Bb(bb_compound_form)
   // TRIPLE DELIMITERS
   | Let
   | Theorem
@@ -515,6 +705,10 @@ let get: compound_form => t =
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
+  // Fumola
+  | Fumola(fumola_compound_form) => fumola_get(fumola_compound_form)
+  // Blackboard
+  | Bb(bb_compound_form) => bb_get(bb_compound_form)
   // Theorem Capture
   | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
@@ -657,16 +851,33 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [
+        op(Exp),
+        op(Pat),
+        op(Typ),
+        op(TPat),
+        op(Drv(Typ)),
+        op(Bb(Term)),
+      ],
     )
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
-  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
-  | String => (Token.is_string, [op(Exp), op(Pat)])
-  | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
+  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp)), op(Bb(Term))])
+  /* Fumola spells strings with double quotes as Hazel does, so the token
+     carries straight through: MakeTerm reads it as Lit(Text) with its quotes
+     still on, and FumolaPrint puts it back unchanged.  No `$tag`-style
+     respelling is needed here, because the double quote collides with
+     nothing in Hazel, the way `#` does. */
+  | String => (Token.is_string, [op(Exp), op(Pat), op(Fumola(Exp))])
+  /* `` `t `` is Fumola's quoted name, which the adapton navigation forms use
+     as a dimension. Hazel's quoted-label token is spelled the same way. */
+  | QuotedLabel => (
+      Token.is_quoted_label,
+      [op(Exp), op(Pat), op(Typ), op(Fumola(Exp))],
+    )
   | IntLit => (
       Token.is_int,
       [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
@@ -680,9 +891,11 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | BoolLit => (Token.is_bool, [op(Exp), op(Pat), op(Drv(Exp))])
   | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat), op(Drv(Exp))])
+  /* Fumola's unit is `()` as Hazel's is, and calling a Fumola function of no
+     arguments needs it. */
   | EmptyTuple => (
       Token.is_empty_tuple,
-      [op(Exp), op(Pat), op(Typ), op(Drv(Exp))],
+      [op(Exp), op(Pat), op(Typ), op(Drv(Exp)), op(Fumola(Exp))],
     )
   | EmptyModule => (Token.is_empty_module, [op(Exp), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])
@@ -694,8 +907,15 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Type => (Token.is_base_typ, [op(Typ)])
   | DrvVar => (
       Token.is_typ_var,
-      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(Typ)), op(Drv(TPat))],
-    );
+      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(TPat)), op(Drv(Typ))],
+    )
+  /* An identifier is a Fumola variable, and in the instance position it is
+     the name of the Fumola VM instance the program runs against. */
+  | FumolaVar => (Token.is_typ_var, [op(Fumola(Exp)), op(Fumola(Name))])
+  /* `$tag`, which prints as Fumola's `#tag`; see Token.is_fumola_tag. */
+  | FumolaTag => (Token.is_fumola_tag, [op(Fumola(Exp))])
+  | BbVar => ((t => t != "type" && Token.is_typ_var(t)), [op(Bb(Term))])
+  | BbType => ((t => t == "type"), [op(Bb(Term))]);
 
 module Molds = {
   let atomics: list((Token.t => bool, list(Mold.t))) =
