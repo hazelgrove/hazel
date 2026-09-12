@@ -365,6 +365,9 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       | "false" => ret(Lit(Bool(false)))
       | "null" => ret(Lit(Null))
       | _ when Token.is_int(t) => ret(Lit(Nat(t)))
+      /* The token keeps its quotes, which is what Lit(Text) holds and what
+         FumolaPrint prints: Fumola's string syntax is Hazel's. */
+      | _ when Token.is_string(t) => ret(Lit(Text(t)))
       /* `$tag` is Hazel's spelling of Fumola's `#tag`; the `#` goes back on
          in FumolaPrint, because Hazel reserves `#` for comments. */
       | _ when Token.is_fumola_tag(t) =>
@@ -380,6 +383,15 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
     }
   | Pre(([(_id, (["let", "="], [Fumola(p)]))], []), Fumola(body)) =>
     ret(Block([fumola_dec_of(Some(p), body)]))
+  | Pre(([(_id, (["import", "="], [Fumola(p)]))], []), Fumola(body)) =>
+    ret(
+      Block([
+        {
+          term: DImport(fumola_pat_of(p), body),
+          annotation: body.annotation,
+        },
+      ]),
+    )
   | Pre(([(_id, ([t], []))], []), Fumola(r)) as tm =>
     switch (t) {
     | "thunk" => ret(Thunk(fumola_decs(r)))
@@ -389,6 +401,15 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
     }
   | Bin(Fumola(l), ([(_id, ([t], []))], []), Fumola(r)) as tm =>
     switch (t) {
+    /* The right operand of a projection is read for its text: `e.x` and
+       `e.0` are the same node, since the printer only puts the token back.
+       Anything that is not a name or a number is not a projection. */
+    | "." =>
+      switch (r.term) {
+      | Var(x) => ret(Proj(l, x))
+      | Lit(Nat(i)) => ret(Proj(l, i))
+      | _ => ret(hole(tm))
+      }
     | ":=" => ret(Put(l, r))
     | "or" => ret(Or(l, r))
     | "and" => ret(And(l, r))

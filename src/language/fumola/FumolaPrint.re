@@ -350,6 +350,8 @@ and dec = (~hazel, ~explicit, d: dec('h, 'a)): string =>
     "let " ++ pat(p) ++ " = " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e)
   | DVar(p, e) =>
     "var " ++ pat(p) ++ " = " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e)
+  | DImport(p, e) =>
+    "import " ++ pat(p) ++ " = " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e)
   | DFunc(name, p, ds) =>
     "func " ++ name ++ pat_plain(p) ++ " " ++ block(~hazel, ~explicit, ds)
   }
@@ -465,7 +467,8 @@ and has_hole_dec = (~hazel_has_hole, d: dec('h, 'a)): bool => {
   | DHole(_) => true
   | DExp(e)
   | DLet(_, e)
-  | DVar(_, e) => has_hole(e)
+  | DVar(_, e)
+  | DImport(_, e) => has_hole(e)
   | DFunc(_, _, ds) => List.exists(has_hole_dec, ds)
   };
 };
@@ -477,7 +480,8 @@ let rec children = (e: exp('h, 'a)): list(exp('h, 'a)) => {
     | DHole(_) => []
     | DExp(e)
     | DLet(_, e)
-    | DVar(_, e) => [e]
+    | DVar(_, e)
+    | DImport(_, e) => [e]
     | DFunc(_, _, ds) => List.concat_map(dec_children, ds)
     };
   switch (Annotated.term_of(e)) {
@@ -525,6 +529,7 @@ and dec_children = (d: dec('h, 'a)): list(exp('h, 'a)) =>
   | DHole(_) => []
   | DExp(e)
   | DLet(_, e)
-  | DVar(_, e) => [e]
+  | DVar(_, e)
+  | DImport(_, e) => [e]
   | DFunc(_, _, ds) => List.concat_map(dec_children, ds)
   };

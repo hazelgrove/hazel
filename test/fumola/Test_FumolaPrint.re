@@ -203,6 +203,11 @@ let corpus: list((string, FumolaTermBase.t, string)) = [
   ),
   ("empty block", e(Block([])), "do { }"),
   (
+    "an import, whose sugared `=` the printer always writes",
+    e(Block([d(DImport(p(PVar("Seq")), e(Lit(Text("\"a/b\"")))))])),
+    "do { import Seq = \"a/b\" }",
+  ),
+  (
     "a block inside an operator needs parens too",
     e(Bin(n(1), Add, e(Block([d(DExp(n(2)))])))),
     "1 + (do { 2 })",

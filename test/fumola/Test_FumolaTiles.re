@@ -139,6 +139,61 @@ let corpus: list((string, string, string, string)) = [
      Fumola term does. The livelit could carry one value, at the boundary of
      an opaque string; here it is a tile subtree, and there can be several,
      anywhere in the program. FumolaSource renders each as Fumola source. */
+  /* Fumola spells a string as Hazel does, so unlike `#tag` the token needs
+     no respelling: it carries its quotes from the tile into Lit(Text) and
+     out through the printer unchanged. */
+  (
+    "a string literal",
+    "fumola ? as store in \"abc\" end",
+    "store",
+    "\"abc\"",
+  ),
+  (
+    "a path with slashes in it, which is what imports need one for",
+    "fumola ? as store in \"fumola/collections/levelTree\" end",
+    "store",
+    "\"fumola/collections/levelTree\"",
+  ),
+  /* The `=` is sugar in Fumola's own LetImport production, which accepts it
+     either way; the tile is shaped like `let`, so it is always written. */
+  (
+    "an import",
+    "fumola ? as store in import Seq = \"fumola/collections/levelTree\" end",
+    "store",
+    "do { import Seq = \"fumola/collections/levelTree\" }",
+  ),
+  (
+    "an import and a use of what it binds",
+    "fumola ? as store in {import Seq = \"fumola/collections/levelTree\"; Seq} end",
+    "store",
+    "do { import Seq = \"fumola/collections/levelTree\"; Seq }",
+  ),
+  /* Projection is what makes an import worth having: it is how the module
+     the import binds is reached. */
+  (
+    "a projection",
+    "fumola ? as store in e.x end",
+    "store",
+    "e.x",
+  ),
+  (
+    "a projection chains to the left",
+    "fumola ? as store in e.x.y end",
+    "store",
+    "e.x.y",
+  ),
+  (
+    "a numeric projection, which is the same node",
+    "fumola ? as store in e.0 end",
+    "store",
+    "e.0",
+  ),
+  (
+    "a projection applied, which is how a library function is called",
+    "fumola ? as store in Seq.fromList(l) end",
+    "store",
+    "Seq.fromList l",
+  ),
   (
     "a hazel expression",
     "fumola ? as store in hazel 1 end end",

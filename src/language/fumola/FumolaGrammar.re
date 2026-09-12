@@ -143,6 +143,10 @@ module M =
     | DLet(pat('h, 'a), exp('h, 'a)) /* let p = e */
     | DVar(pat('h, 'a), exp('h, 'a)) /* var p = e */
     | DFunc(string, pat('h, 'a), list(dec('h, 'a))) /* func f p { … } */
+    /* Dec::LetImport: `import P "path"`, with the `=` that Fumola's grammar
+       marks as sugar and accepts either way.  We always print it, because
+       the tile that builds one is shaped like `let`. */
+    | DImport(pat('h, 'a), exp('h, 'a))
   and dec('h, 'a) = W.t(dec_term('h, 'a), 'a)
   and pat_term('h, 'a) =
     | PHole(hole('h, 'a))
@@ -232,6 +236,8 @@ and map_dec_annotation:
           map_pat_annotation(fs, p),
           List.map(map_dec_annotation(fs), ds),
         )
+      | DImport(p, e) =>
+        DImport(map_pat_annotation(fs, p), map_annotation(fs, e))
       };
     {
       term,
