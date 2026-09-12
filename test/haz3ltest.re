@@ -35,6 +35,7 @@ let (suite, exit_with_test_status) =
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
+      Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,

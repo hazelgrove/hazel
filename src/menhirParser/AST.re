@@ -77,6 +77,7 @@ type typ_provenance =
 type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
+  | BinHoleTPat(tpat, tpat) /* concave grout (the `⧖` marker) */
   | VarTPat(string);
 
 [@deriving (show({with_path: false}), sexp, eq)]
@@ -94,6 +95,7 @@ type typ =
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
+  | BinHoleTyp(typ, typ) /* concave grout (the `⧖` marker) */
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
@@ -115,6 +117,7 @@ and pat =
   | ParenPat(pat)
   | AscPat(pat, typ)
   | EmptyHolePat
+  | BinHolePat(pat, pat) /* concave grout (the `⧖` marker) */
   | WildPat
   | AtomPat(Language.Atom.t)
   | VarPat(string)
@@ -154,6 +157,7 @@ and exp =
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
+  | BinHole(exp, exp) /* concave grout: an operator hole (the `⧖` marker) */
   | Filter(filter_action, exp, exp)
   | BuiltinFun(string)
   | Undefined
@@ -1031,6 +1035,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e2);
             return(Filter(fa, e1, shrunk));
           }
+        | BinHole(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(BinHole(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(BinHole(e1, shrunk));
+          }
         | Seq(e1, e2) =>
           {
             of_list([e1, e2]);
@@ -1251,6 +1267,18 @@ and shrink_pat: QCheck.Shrink.t(pat) =
             let* shrunk = shrink_pat(p2);
             return(ConsPat(p1, shrunk));
           }
+        | BinHolePat(p1, p2) =>
+          {
+            of_list([p1, p2]);
+          }
+          <+> {
+            let* shrunk = shrink_pat(p1);
+            return(BinHolePat(shrunk, p2));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p2);
+            return(BinHolePat(p1, shrunk));
+          }
         | TupLabelPat(p1, p2) =>
           {
             return(
@@ -1333,6 +1361,16 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk2 = shrink_typ(t2);
             return(ArrowType(t1, shrunk2));
+          }
+        | BinHoleTyp(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(BinHoleTyp(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(BinHoleTyp(t1, shrunk2));
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
