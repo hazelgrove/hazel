@@ -594,6 +594,71 @@ let test_prefixes = () =>
     },
   );
 
+/* Every Fumola program in every shipped slide must at least be PRINTABLE:
+   `fumola ... end` is rendered to Fumola source before it runs, and an
+   escape holding something with no Fumola form -- a bound variable, say --
+   makes the printer refuse and the program carry a mark instead of a value.
+
+   This does not need the wasm shim, which the test runner has not got: the
+   printer's refusal happens before the runtime is consulted, and it reports
+   a different message from anything the runtime can say. So a slide that
+   cannot run for THIS reason is caught here, where a slide that merely has
+   no runtime is not.
+
+   Written after shipping a slide whose fourth example escaped a bound
+   variable. The text round-trip test passed, because the text was fine;
+   what was broken was what the text meant. */
+let test_slides_printable = () =>
+  test_case(
+    "every slide's Fumola programs are printable",
+    `Quick,
+    () => {
+      let unprintable =
+        Docslides.Slides.all_slides
+        |> List.concat_map(((title, z: Haz3lcore.PersistentZipper.t)) => {
+             let src = z.backup_text;
+             switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+             | None => []
+             | Some(e) =>
+               let (m, _) =
+                 Language.Statics.mk(
+                   CoreSettings.on,
+                   Builtins.ctx_init(None),
+                   e,
+                 );
+               Id.Map.bindings(m)
+               |> List.concat_map(((_, i)) =>
+                    switch ((i: Info.t)) {
+                    | InfoExp({marks, _}) =>
+                      List.filter_map(
+                        (mk: Language.Mark.t) =>
+                          switch (mk) {
+                          | FumolaFailed(msg)
+                              when
+                                Util.StringUtil.plain_match(
+                                  "no Fumola source",
+                                  msg,
+                                ) =>
+                            Some(title ++ ": " ++ msg)
+                          | _ => None
+                          },
+                        marks,
+                      )
+                    | _ => []
+                    }
+                  );
+             };
+           })
+        |> List.sort_uniq(compare);
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "slides whose Fumola programs cannot be printed",
+        [],
+        unprintable,
+      );
+    },
+  );
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -626,6 +691,7 @@ let tests = (
     test_info_map(),
     test_info_map_by_piece(),
     test_prefixes(),
+    test_slides_printable(),
     test_case(
       "the instance's mode is read from the syntax",
       `Quick,
