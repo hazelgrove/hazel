@@ -12,6 +12,7 @@ let builtin_typ: BuiltinsUtil.builtin => Typ.t =
     | BuiltinsUtil.Fn({arg, ret, _})
     | BuiltinsUtil.HazelFn({arg, ret, _}) =>
       BuiltinsUtil.Fresh.Typ.arrow(Typ.temp(arg), Typ.temp(ret))
+    | BuiltinsUtil.HazelModule(m) => BuiltinsUtil.module_typ(m)
     };
 
 let typ_to_string: Typ.t => string =

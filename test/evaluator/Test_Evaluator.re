@@ -11,6 +11,7 @@ let tests =
     Test_Evaluator_Builtins.tests,
     Test_Evaluator_Builtins_Lists.tests,
     Test_Evaluator_Builtins_OptionType.tests,
+    Test_Evaluator_BuiltinsJq.tests,
     Test_Evaluator_Match.tests,
     Test_Evaluator_Function.tests,
     Test_Evaluator_Fixpoint.tests,
