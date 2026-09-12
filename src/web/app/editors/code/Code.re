@@ -75,9 +75,12 @@ let whitespace_token =
     String.make(row, '\n') ++ String.make(col, ' ')
   );
 
+/* The extra classes a tile carries, by id. */
+let no_classes = (_: Id.t) => [];
+
 let view =
     (
-      ~classes=(_: Id.t) => [],
+      ~classes=no_classes,
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
