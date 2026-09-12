@@ -20,6 +20,7 @@ type any_t('a) =
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
   | Drv(DrvGrammar.any_t('a))
+  | Fumola(FumolaGrammar.exp(exp_t('a), 'a))
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
@@ -33,6 +34,24 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
+  /* fumola <instance> as <mode> in <program> end.
+
+     The instance names the Fumola VM the program runs against, and is a
+     Fumola-sorted identifier rather than a Hazel binder; see FumolaSort.
+
+     The mode is the adapton semantics that instance runs, written as Fumola
+     writes it: $simple or $graphical, printed #simple / #graphical. It is a
+     slot of the form rather than something optional, because changing an
+     instance's mode resets it -- discarding the adapton store the instance
+     exists to keep -- so it belongs somewhere stable and visible. A hole
+     there means "leave this instance's mode alone", which is not the same as
+     asking for the default: one expression must not silently reset an
+     instance another has configured. */
+  | FumolaQuote(
+      FumolaGrammar.exp(exp_t('a), 'a),
+      FumolaGrammar.exp(exp_t('a), 'a),
+      FumolaGrammar.exp(exp_t('a), 'a),
+    )
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -47,6 +66,28 @@ and exp_term('a) =
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
+  /* The translation of a Fumola pointer: the instance it lives in, the
+     program that reads it, and the value that program produced.
+
+     A value, not something that steps to one. It carries its result so that
+     evaluation continues through it -- a pointer to an Int is usable as an
+     Int -- while keeping the reference, so a reader can still see which cell
+     the value came from.
+
+     The carried value is a snapshot, and that is only sound because it is
+     regenerated on every expansion. It must never be persisted into a saved
+     model, where it would silently disagree with the runtime. */
+  | FumolaPeek({
+      instance_id: int,
+      reads: string,
+      value: exp_t('a),
+      /* What the cell holds, when Hazel has no value for it: a thunk prints
+         itself, so this is text like "@thunk ({ 1 + 3 })". Empty when
+         [value] is the real thing, which is the ordinary case. Kept beside
+         the value rather than in it so that a cell Hazel cannot represent
+         still shows as a hole rather than as an error. */
+      holds: string,
+    })
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
@@ -191,7 +232,22 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Undefined => Undefined
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
+        | FumolaQuote(n, mode, b) =>
+          /* The Fumola term carries embedded Hazel expressions, so mapping
+             its annotations maps theirs too. */
+          FumolaQuote(
+            FumolaGrammar.map_annotation((map_exp_annotation(f), f), n),
+            FumolaGrammar.map_annotation((map_exp_annotation(f), f), mode),
+            FumolaGrammar.map_annotation((map_exp_annotation(f), f), b),
+          )
         | LivelitName(s) => LivelitName(s)
+        | FumolaPeek({instance_id, reads, value, holds}) =>
+          FumolaPeek({
+            instance_id,
+            reads,
+            value: map_exp_annotation(f, value),
+            holds,
+          })
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -318,6 +374,8 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
     | Drv(d) => Drv(DrvGrammar.map_any_annotation(f, d))
+    | Fumola(e) =>
+      Fumola(FumolaGrammar.map_annotation((map_exp_annotation(f), f), e))
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
@@ -553,6 +611,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
+  module FumolaGrammar = {
+    let placeholder =
+        (~ann=?, ())
+        : FumolaGrammar.exp(exp_t(DefaultAnnotation.t), DefaultAnnotation.t) => {
+      term: FumolaGrammar.Hole(EmptyHole),
+      annotation: default_annotation(ann),
+    };
+  };
   module DrvGrammar = {
     let placeholder = (~ann=?, ()): DrvGrammar.any_t(DefaultAnnotation.t) =>
       DrvGrammar.Exp({
@@ -616,6 +682,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
+    let fumola_exp = (~ann=?, n, mode, b): exp_t(DefaultAnnotation.t) => {
+      term: FumolaQuote(n, mode, b),
+      annotation: default_annotation(ann),
+    };
     let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {
       term: DrvQuote(d, s),
       annotation: default_annotation(ann),
@@ -666,6 +736,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let livelit_name = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: LivelitName(s),
+      annotation: default_annotation(ann),
+    };
+    let fumola_peek =
+        (~ann=?, ~instance_id, ~reads, ~holds="", value)
+        : exp_t(DefaultAnnotation.t) => {
+      term:
+        FumolaPeek({
+          instance_id,
+          reads,
+          value,
+          holds,
+        }),
       annotation: default_annotation(ann),
     };
     let livelit_ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {

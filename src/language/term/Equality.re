@@ -361,6 +361,12 @@ let equality =
       | (Label(_), _) => false
       | (LivelitName(s1), LivelitName(s2)) => s1 == s2
       | (LivelitName(_), _) => false
+      /* Two references to the same cell of the same instance are the same
+         reference; the carried value is a snapshot of that cell, so comparing
+         it too would make a peek unequal to itself across a re-read. */
+      | (FumolaPeek(p1), FumolaPeek(p2)) =>
+        p1.instance_id == p2.instance_id && p1.reads == p2.reads
+      | (FumolaPeek(_), _) => false
       | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
         List.equal(exp', xs1, xs2)
       | (Tuple(_), _) => false
@@ -454,6 +460,9 @@ let equality =
       | (ModuleExp(_, _, _), _) => false
       | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
       | (DrvQuote(_, _), _) => false
+      | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
+        n1 == n2 && m1 == m2 && b1 == b2
+      | (FumolaQuote(_, _, _), _) => false
       };
     }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -932,6 +941,8 @@ let equality =
     | (Any (), _) => false
     | (Drv(d1), Drv(d2)) => d1 == d2
     | (Drv(_), _) => false
+    | (Fumola(f1), Fumola(f2)) => f1 == f2
+    | (Fumola(_), _) => false
     };
   };
 

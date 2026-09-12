@@ -1,6 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type t =
   | Drv(Drv.Any.cls)
+  | Fumola(FumolaCls.t)
   | Exp(Exp.cls)
   | Pat(Pat.cls)
   | Typ(Typ.cls)
@@ -14,6 +15,11 @@ type t =
 let show = (cls: t) =>
   switch (cls) {
   | Drv(cls) => "ALFA " ++ Drv.Any.show_cls(cls)
+  /* No "Fumola" prefix, unlike ALFA above: Fumola is one sort, so the
+     inspector's sort chip beside this already says FUMOLA and a prefix here
+     would read as "FUMOLA / Fumola Variant". Callers that show the class on
+     its own add the prefix themselves. */
+  | Fumola(cls) => FumolaCls.show(cls)
   | Exp(cls) => Exp.show_cls(cls)
   | Pat(cls) => Pat.show_cls(cls)
   | Typ(cls) => Typ.show_cls(cls)

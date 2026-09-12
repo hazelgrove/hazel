@@ -122,6 +122,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Invalid(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | DrvQuote(_)
+  | FumolaQuote(_)
   | EmptyHole
   | Deferral(_)
   | ExplicitNonlabel
@@ -130,6 +131,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Label(_)
   | Constructor(_)
   | LivelitName(_)
+  | FumolaPeek(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -356,8 +358,10 @@ let rec parenthesize =
   | Invalid(_)
   | Atom(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
   | EmptyHole
   | LivelitName(_)
+  | FumolaPeek(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | ExplicitNonlabel
@@ -976,6 +980,7 @@ and parenthesize_any =
      Pretty-printing produces the term as-is; this is sound (never adds
      invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
+  | Fumola(_) => any
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
@@ -1776,6 +1781,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | TPat => OfAlfaTPat
       };
     [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
+  | FumolaQuote(name, mode, body) =>
+    let+ name = fumola_to_pretty(~settings, name)
+    and+ mode = fumola_to_pretty(~settings, mode)
+    and+ body = fumola_to_pretty(~settings, body);
+    [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [mode, name, body])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -1920,6 +1930,73 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | LivelitName(s) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s))
+  /* Shows both halves: the cell being referenced, and what it holds.
+
+     There is no concrete syntax for this form -- it is only ever produced by
+     translating a Fumola result, never written or parsed -- so the rendering
+     is free to be whatever reads best, and this is a first cut rather than a
+     settled choice. */
+  | FumolaPeek({reads, value, holds, _}) =>
+    let id = exp |> Exp.rep_id;
+    let+ value_seg = go(value);
+    /* The widget is drawn by emitting a projector HERE, at rendering time,
+       rather than by wrapping the value in a Projector term. Evaluation
+       strips a Projector -- it steps to its body -- so a wrapper never
+       reaches a result, and a result is exactly where these values are seen.
+       Building it during rendering means there is nothing to strip.
+
+       The syntax underneath is the text form, so unprojecting still reads. */
+    let text = str =>
+      Piece.Tile({
+        id: Id.mk(),
+        label: [str],
+        mold: Mold.mk_op(Sort.Exp, []),
+        shards: [0],
+        children: [],
+      });
+    /* peek answers an option, so a value that was found reads as Some of it.
+       When Hazel has no value for what the cell holds, the runtime's own
+       description stands in -- a thunk prints itself -- and it is still Some,
+       since the cell is occupied. A hole with nothing to say about it is left
+       bare: Some of a hole would claim more than is known. */
+    /* No reference means an opaque value: it is just what it holds, and it
+       needs no parentheses, being a single token already. Everything else
+       reads "<reference> = <value>", which does: bare, a multi-part value
+       sitting in a comma-separated list would look like several. */
+    let opaque = reads == "" && holds != "";
+    let shown_seg =
+      switch (value.term, holds) {
+      | (EmptyHole, holds) when opaque => [text(holds)]
+      | (EmptyHole, holds) when holds != "" => [
+          text(reads ++ " = Some(" ++ holds ++ ")"),
+        ]
+      | (EmptyHole, _) => [text(reads ++ " = "), ...value_seg]
+      | _ => [text(reads ++ " = Some(")] @ value_seg @ [text(")")]
+      };
+    let syntax =
+      switch (shown_seg) {
+      | [only] when opaque => only
+      | _ => Segment.parenthesize(shown_seg)
+      };
+    let model =
+      Language.FumolaPeekModel.serialize({
+        reads,
+        shown:
+          opaque ? holds : Language.FumolaValue.shown_value(~holds, value),
+      });
+    wrap(
+      exp,
+      [
+        Piece.Projector(
+          ProjectorCore.mk(
+            ~id,
+            Language.ProjectorKind.FumolaPeek,
+            syntax,
+            model,
+          ),
+        ),
+      ],
+    );
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -3055,6 +3132,182 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
 and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
   p_just(mpat_to_seg(~settings, mp));
 }
+/* Fumola terms print as the tiles they came from; see Form.fumola_get. The
+   parentheses come from Paren nodes in the term, not from precedence: the
+   precedence-driven parenthesization lives in FumolaPrint, which is what the
+   runtime sees, and this is only the editor's rendering. */
+and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = fumola_to_pretty(~settings);
+  let id = f |> IdTagged.rep_id;
+  let infix = (form, l, r) => {
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Form.Fumola(form), id, [])] @ r;
+  };
+  let prefix = (form, e) => {
+    let+ e = go(e);
+    [mk_form(Form.Fumola(form), id, [])] @ e;
+  };
+  let hole_at = id =>
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ]);
+  let unbuildable = () => hole_at(id);
+  let rec sep_pretty = (form, ps) =>
+    switch (ps) {
+    | [] => p_just([])
+    | [x] => x
+    | [x, ...rest] =>
+      let+ x = x
+      and+ rest = sep_pretty(form, rest);
+      x @ [mk_form(Form.Fumola(form), id, [])] @ rest;
+    };
+  let sep = (form, ts) => sep_pretty(form, List.map(go, ts));
+  /* A binder position holds a Fumola pattern, and the only patterns the M1
+     tiles build there are a name and a wildcard. */
+  let pat_pretty = (p: FumolaTermBase.pat): pretty => {
+    let pid = p |> IdTagged.rep_id;
+    switch (p.term) {
+    | PVar(x) => text_to_pretty(pid, Sort.Fumola(Exp), x)
+    | PWild => text_to_pretty(pid, Sort.Fumola(Exp), "_")
+    | _ => hole_at(pid)
+    };
+  };
+  /* `let` and `import` are prefix forms with the binder as their interior
+     child, so both parts of the declaration survive the rendering.  `var`
+     and `func` have no tile at all and render as a hole rather than as the
+     nearest printable part of themselves, which would drop the binding
+     silently. */
+  let dec_pretty = (d: FumolaTermBase.dec): pretty => {
+    let did = d |> IdTagged.rep_id;
+    let binder = (form, p, e) => {
+      let+ p = pat_pretty(p)
+      and+ e = go(e);
+      [mk_form(Form.Fumola(form), did, [p])] @ e;
+    };
+    switch (d.term) {
+    | DExp(e) => go(e)
+    | DHole(h) =>
+      go({
+        term: Hole(h),
+        annotation: d.annotation,
+      })
+    | DLet(p, e) => binder(FumolaLet, p, e)
+    | DImport(p, e) => binder(FumolaImport, p, e)
+    | DVar(_, _)
+    | DFunc(_, _, _) => hole_at(did)
+    };
+  };
+  let block_of = ds => sep_pretty(FumolaSemi, List.map(dec_pretty, ds));
+  switch (f.term) {
+  | Hole(Invalid(s)) => text_to_pretty(id, Sort.Fumola(Exp), s)
+  | Hole(EmptyHole) =>
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ])
+  | Hole(MultiHole(ts)) => sep(FumolaSemi, ts)
+  | Var(x) => text_to_pretty(id, Sort.Fumola(Exp), x)
+  | Lit(l) => text_to_pretty(id, Sort.Fumola(Exp), FumolaPrint.lit_token(l))
+  | Paren(t) =>
+    let+ t = go(t);
+    [mk_form(Form.Fumola(FumolaParens), id, [t])];
+  | Block(ds) =>
+    let+ b = block_of(ds);
+    [mk_form(Form.Fumola(FumolaBlock), id, [b])];
+  | Tuple(ts) => sep(FumolaComma, ts)
+  | Ap(f, a) =>
+    let+ f = go(f)
+    and+ a = go(a);
+    f @ [mk_form(Form.Fumola(FumolaAp), id, [a])];
+  | Index(e, i) =>
+    let+ e = go(e)
+    and+ i = go(i);
+    e @ [mk_form(Form.Fumola(FumolaIndex), id, [i])];
+  | Put(l, r) => infix(FumolaPut, l, r)
+  | Or(l, r) => infix(FumolaOr, l, r)
+  | And(l, r) => infix(FumolaAnd, l, r)
+  | Rel(l, op, r) =>
+    infix(
+      switch (op) {
+      | Eq => FumolaEq
+      | Neq => FumolaNeq
+      | Lt => FumolaLt
+      | Gt => FumolaGt
+      | Le => FumolaLeq
+      | Ge => FumolaGeq
+      },
+      l,
+      r,
+    )
+  | Bin(l, op, r) =>
+    switch (op) {
+    | Add => infix(FumolaPlus, l, r)
+    | Sub => infix(FumolaMinus, l, r)
+    | Mul => infix(FumolaTimes, l, r)
+    | Div => infix(FumolaDivide, l, r)
+    | Mod => infix(FumolaMod, l, r)
+    | Pow => infix(FumolaPow, l, r)
+    | BitOr => infix(FumolaBitOr, l, r)
+    | BitAnd => infix(FumolaBitAnd, l, r)
+    /* No M1 tile spells these yet, and rendering them as some other
+       operator would be a lie the editor could not be talked out of. */
+    | Cat
+    | Xor
+    | ShL
+    | ShR
+    | RotL
+    | RotR => unbuildable()
+    }
+  | Thunk(ds) =>
+    let+ b = block_of(ds);
+    [mk_form(Form.Fumola(FumolaThunk), id, [])]
+    @ [mk_form(Form.Fumola(FumolaBlock), id, [b])];
+  | Variant(tag, None) => text_to_pretty(id, Sort.Fumola(Exp), "$" ++ tag)
+  | Variant(tag, Some(e)) =>
+    let+ tag = text_to_pretty(id, Sort.Fumola(Exp), "$" ++ tag)
+    and+ e = go(e);
+    tag @ [mk_form(Form.Fumola(FumolaAp), id, [e])];
+  /* An embedded Hazel expression renders through Hazel's own printer, which
+     is the point: inside `hazel … end` the editor is editing Hazel. */
+  | Hazel(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    [mk_form(Form.Fumola(FumolaHazel), id, [e])];
+  | Force(e) => prefix(FumolaForce, e)
+  | Get(e) => prefix(FumolaGet, e)
+  /* No M1 tile builds these, so MakeTerm never produces one. Rendering a
+     nearest printable part -- an `if` as its condition, say -- would drop
+     program structure silently, so they render as a hole instead, which the
+     editor and FumolaPrint.has_hole both treat as incomplete. */
+  /* The projected name is a token in the right operand position, which is
+     how MakeTerm reads it back. */
+  | Proj(e, x) =>
+    let+ e = go(e)
+    and+ x = text_to_pretty(id, Sort.Fumola(Exp), x);
+    e @ [mk_form(Form.Fumola(FumolaProj), id, [])] @ x;
+  | Array(_, _)
+  | Opt(_)
+  | Un(_, _)
+  | Not(_)
+  | Unquote(_)
+  | Bang(_)
+  | Assert(_)
+  | Ignore(_)
+  | Return(_)
+  | QuotedId(_)
+  | Prim(_)
+  | If(_, _, _)
+  | Switch(_, _)
+  | DoPutForce(_, _)
+  | DoNav(_, _, _, _) => unbuildable()
+  };
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
@@ -3062,6 +3315,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Drv(d) => drv_to_pretty(~settings: Settings.t, d, ~sort=Jdmt)
+  | Fumola(f) => fumola_to_pretty(~settings, f)
   | Mod(m) => mod_to_pretty(~settings, m)
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)

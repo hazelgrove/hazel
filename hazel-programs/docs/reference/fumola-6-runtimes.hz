@@ -1,0 +1,85 @@
+# FUMOLA: RUNTIMES AND THE EVENT LOG #
+# A runtime is declared, and with it the Adapton semantics it runs.         #
+# The graphical semantics keeps a graph of what it did, and that graph      #
+# can be read back -- as a table, since it is a list of records.            #
+#                                                                           #
+# The four livelits, in brief:                                              #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# Each is annotated, and the annotation is what the translation             #
+# produces -- change one and Hazel will tell you.                           #
+
+# DECLARING A RUNTIME #
+# ^fumola_new(id, mode) declares a runtime and the Adapton semantics it     #
+# runs, and expands to the id that names it. A handle, in spirit --         #
+# Hazel has no way to seal the type, so it really is an Int.                #
+#                                                                           #
+# The other two livelits attach to whatever runtime their id names, and     #
+# make one with the default semantics if none exists yet. This is how a     #
+# program says which semantics it wants, once, where the runtime is         #
+# made, so that every livelit sharing that id talks to a runtime whose      #
+# mode was declared rather than inherited by accident.                      #
+#                                                                           #
+# Runtimes default to the simple semantics: predictable, but it keeps no    #
+# graph. The graph introspection needs the graphical one, so runtime 7      #
+# asks for it below. Runtime 0, which every other livelit on this slide     #
+# uses, stays simple -- ask it for an event count and it fails, since       #
+# there is no graph there to count.                                         #
+let myRuntime : Int =
+  ^fumola_new(7, Graphical) in
+
+# The put_force and eval livelits name that runtime by its id.              #
+let onThatRuntime : Int =
+  ^fumola_put_force(7, "`g", "1 + 2") in
+
+# A cell can hold something Hazel has no value for -- a thunk, say, which   #
+# is not a value at all. The reference still shows, and says what is in     #
+# there, because a thunk can print its own source. Better than a bare       #
+# hole, which would say only that something went unsaid.                    #
+let thunkPointer : Int =
+  ^fumola_put_force(7, "`h", "1 + 3; pointer(`h)") in
+
+let eventCount : Int =
+  ^fumola_eval(7, "Adapton.peekEvents().size()") in
+
+# THE EVENT LOG, AS A TABLE #
+# A graphical runtime records what it did, and peekEvents reports it: a     #
+# list of records, which is exactly the shape Hazel's table projector       #
+# draws. So the adapton event log can be read as a table.                   #
+#                                                                           #
+# The types below are the log's own shape. Fumola writes its event tags     #
+# in lower case, and they arrive capitalised, since that is how Hazel       #
+# spells a constructor.                                                     #
+type EdgeId = + EdgeId(Int) in
+type Event =
+  + AddNode((Space, Time, Int))
+  + AddEdge(EdgeId)
+  + UpdateEdge(EdgeId)
+  + ForceBegin((EdgeId, Option))
+  + ForceEnd(EdgeId) in
+type EventRow = (metaTime=Int, event=Event) in
+
+# The annotation is what lets the livelit expand -- it runs only in         #
+# checking mode -- and it is also the log's type written out, which is      #
+# worth reading on its own.                                                 #
+#                                                                           #
+# A list of records is what a table wants, so the log reads as one:         #
+# ^^probe_table pins a probe here and draws its samples as a table.         #
+# Columns come out in the order EventRow lists its fields, which is why     #
+# metaTime is written first.                                                #
+let events : [EventRow] =
+  ^fumola_eval(7, "Adapton.peekEvents()") in
+
+^^probe_table(events);
+
+(
+  myRuntime,
+  onThatRuntime,
+  thunkPointer,
+  eventCount,
+  events
+)

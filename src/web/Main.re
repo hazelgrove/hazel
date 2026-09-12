@@ -197,6 +197,25 @@ let start = default_model => {
         ),
       );
     });
+    /* A program elaborated before the Fumola runtime arrives says so instead
+     * of showing a value, and would keep saying so until the page was
+     * reloaded -- an edit does not help, because statics are only rebuilt
+     * for an edit and the syntax did not change.
+     *
+     * So force the rebuild the way the modes do for RefreshStatics: the flag
+     * makes the next calculate pass StaticsForce, and Refresh is what makes
+     * a calculate pass happen. Setting the flag here rather than sending one
+     * mode's action keeps this working whichever mode is open. */
+    JsUtil.on_fumola_ready(() => {
+      /* Three things have to happen, and each is necessary: the elaboration
+       * memo has to be told its answers may have changed (it is keyed on the
+       * term, which did not change), the next calculate pass has to be told
+       * to rebuild statics (it rebuilds only for an edit, and there was no
+       * edit), and something has to make a calculate pass happen at all. */
+      Language.Statics.invalidate();
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      schedule_action(Page.Update.Refresh);
+    });
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
     // Sync log count from database

@@ -98,6 +98,7 @@ module Utils = {
     | Atom(_)
     | Constructor(_, _)
     | LivelitName(_)
+    | FumolaPeek(_)
     | TyAlias(_)
     | ExplicitNonlabel
     | Theorem(_, _, _)
@@ -108,6 +109,7 @@ module Utils = {
     | Module(_) => []
     | ModuleExp(_, def, body) => [def, body]
     | DrvQuote(_) => []
+    | FumolaQuote(_) => []
     };
   };
 

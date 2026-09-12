@@ -1,0 +1,36 @@
+# THE INSTANCE, AND ITS MODE #
+
+# The instance is named in the program text rather than derived from the #
+# expression, and that is the whole point: the adapton store it holds #
+# survives every edit that leaves the name alone. #
+
+# `:=` puts a value at a name and hands back a POINTER to it.  `@` reads a #
+# pointer.  So a put and a read are two steps, and the pointer is what #
+# joins them: #
+
+let a = fumola $graphical as store in
+  { let p = 0 := 41; @ p }
+end in
+
+# A second program naming `store` runs against the same instance, so this #
+# put lands on the cell the first one made rather than on a fresh cell. #
+# The Fumola panel shows that as a realignment, not a new node: #
+
+let b = fumola $graphical as store in
+  { let q = 0 := 42; @ q }
+end in
+
+# A different name is a different instance, with nothing in it: #
+
+let elsewhere = fumola $graphical as other in
+  { let r = 0 := 1; @ r }
+end in
+
+# The mode is $graphical or $simple.  Only a $graphical instance records the #
+# events the panel shows; a $simple one keeps no graph. #
+
+# Changing a mode RESETS the instance, discarding the store.  That is why #
+# the mode is written beside the name, and why leaving the slot as a hole #
+# means "leave this instance alone" rather than "use the default". #
+
+(a, b, elsewhere)

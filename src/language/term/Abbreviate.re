@@ -514,6 +514,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
+      | FumolaQuote(_, _, _) => Invalid("<fumola program>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {
@@ -523,6 +524,15 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | ExplicitNonlabel => ExplicitNonlabel
       | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
+      /* Abbreviated by the value it denotes: the reference text is
+         incidental to reading a shortened result. */
+      | FumolaPeek({instance_id, reads, value, holds}) =>
+        FumolaPeek({
+          instance_id,
+          reads,
+          value: abbreviate_exp(value),
+          holds,
+        })
 
       // Other atomic cases
       | EmptyHole =>
@@ -1809,6 +1819,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
   | Drv(_) => any
+  | Fumola(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))

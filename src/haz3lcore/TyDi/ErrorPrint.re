@@ -103,6 +103,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let common_from_core = () => core_mark_string(ctx, ana, m);
   switch (m) {
   | Free(name) => "Variable " ++ name ++ " is not bound"
+  | FumolaFailed(message) => "Fumola: " ++ message
   | InexhaustiveMatch(_) => "Match is not exhaustive"
   | IsDeferral(InAp) => "(internal)"
   | IsDeferral(_) => "Unused deferral"
@@ -140,6 +141,10 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
+  /* A livelit that sets requires_annotation, asked to expand with no
+     expected type in scope. The Fumola livelits are the ones that do. */
+  | LivelitNeedsAnnotation(name) =>
+    prn("Livelit %s needs a type annotation to expand", name)
   | BadLivelitExpansion({declared, actual}) =>
     prn(
       "Livelit expands to type %s, but declares Expansion = %s",
@@ -336,6 +341,7 @@ let term_string_of: Info.t => string =
   | InfoMod({user_term, _}) => Print.term(Mod(user_term))
   | InfoSig({user_term, _}) => Print.term(Sig(user_term))
   | InfoMPat({user_term, _}) => Print.term(MPat(user_term))
+  | InfoFumola(_) => failwith("ChatLSP: term_string_of: InfoFumola")
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
 let all = (info_map: Statics.Map.t): list(string) => {
