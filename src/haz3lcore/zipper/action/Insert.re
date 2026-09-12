@@ -69,7 +69,11 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
          a token with no Fumola expansion stays a monotile rather than
          expanding into the enclosing sort's form. Without this, `let` inside
          a fumola block expands to Hazel's `let _ = _ in`. */
-      if (Sort.is_fumola(local_sort)) {
+      /* Blackboard is a closed sub-language: no Hazel form is valid inside
+         it, so a token with no Blackboard expansion must stay a monotile
+         rather than expanding into the enclosing sort's form.  Without this,
+         `type` inside a blackboard block expands to Hazel's `type _ = _ in`. */
+      if (Sort.is_fumola(local_sort) || Sort.is_bb(local_sort)) {
         local_sort;
       } else if (local_sort == Sort.Mod) {
         switch (Form.Expansion.try_get(Exp, t)) {

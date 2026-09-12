@@ -1,0 +1,438 @@
+# BLACKBOARD: THE PAPER'S CASE STUDIES, AS DOCUMENTS #
+
+# An appendix. Section 4 of the draft gives four extended examples. #
+# Each is transcribed below, as close to the paper as this editor can #
+# hold it, so you can put the cursor in one and see what checks. #
+
+# FOUR NOTATIONAL SUBSTITUTIONS #
+# The paper uses four things the MVP grammar does not have yet, so #
+# every listing below is rewritten the same way throughout: #
+#   `syntax (A <: B) (subtype A B)` -- no user-defined notation yet, #
+#      so an operator is always written applied: `subtype(A, B)`. #
+#   `{X : U} ->` -- no implicit arguments, so every one is explicit. #
+#   `a = b` -- equality is not primitive; the paper assumes it in #
+#      Section 3, so here it is assumed as `eq(T, a, b)` and applied. #
+#   `(A B : type) ->` -- one binder per arrow: `(A : type) -> (B : type) ->`. #
+# Hyphens are not name characters in Hazel, so `refine-intro` is #
+# `refine_intro`, as on the Terms slide. #
+
+# WHAT TO EXPECT #
+# 4.1 checks clean. The other three report errors, and every one of #
+# them has the same cause: Blackboard's typing is extensional, so a #
+# step may go through an EQUATION, and the editor has none yet. Each #
+# listing is followed by a note naming the equation it wanted. #
+
+# 4.1 SUBTYPING, INTERSECTIONS, AND REFINEMENTS #
+# The point of this one is that subtyping is DEFINED, not built in: #
+# `A <: B` is just the type of proofs that everything in A is in B, #
+# which you can only write down if membership is an internal type. #
+
+blackboard
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type
+by tychk
+
+; construct
+  subtype : (A : type) -> (B : type) -> type;
+  subtype_eq :
+    (A : type) ->
+    (B : type) ->
+    eq(type, subtype(A, B), (x : A) -> x : B)
+by definition
+
+; assume
+  type_ext :
+    (A : type) ->
+    (B : type) ->
+    subtype(A, B) ->
+    subtype(B, A) ->
+    eq(type, A, B)
+by tychk
+
+; assume
+  refine : (A : type) -> (P : A -> type) -> type;
+  refine_intro :
+    (A : type) ->
+    (P : A -> type) ->
+    (x : A) ->
+    P(x) ->
+    x : refine(A, P);
+  refine_elim :
+    (A : type) ->
+    (M : type) ->
+    (P : A -> type) ->
+    (x : refine(A, P)) ->
+    ((h : (x : A)) -> P(x) -> M) ->
+    M
+by tychk
+
+; assume
+  intersect : (A : type) -> (B : type) -> type;
+  intersect_intro :
+    (A : type) ->
+    (B : type) ->
+    (x : A) ->
+    (h : (x : B)) ->
+    x : intersect(A, B);
+  intersect_elim :
+    (A : type) ->
+    (B : type) ->
+    (M : type) ->
+    (x : intersect(A, B)) ->
+    ((h1 : (x : A)) -> (h2 : (x : B)) -> M) ->
+    M
+by tychk
+
+; construct
+  refinement_subtype_1 :
+    (A : type) ->
+    (P : A -> type) ->
+    subtype(refine(A, P), A);
+  refinement_subtype_2 :
+    (A : type) ->
+    (P1 : A -> type) ->
+    (P2 : A -> type) ->
+    ((x : A) -> P1(x) -> P2(x)) ->
+    subtype(refine(A, P1), refine(A, P2));
+  intersect_subtype_1 :
+    (A : type) ->
+    (B : type) ->
+    subtype(intersect(A, B), A);
+  intersect_subtype_2 :
+    (A : type) ->
+    (B : type) ->
+    subtype(intersect(A, B), B);
+  intersect_subtype_3 :
+    (A : type) ->
+    (B : type) ->
+    (C : type) ->
+    subtype(C, A) ->
+    subtype(C, B) ->
+    subtype(C, intersect(A, B))
+by proof
+
+end;
+
+# WHAT THE EDITOR SAYS ABOUT 4.1 #
+# Nothing: every entry above is well formed, and the parts the paper #
+# leaves to a tactic -- `by definition`, `by proof` -- are recorded as #
+# obligations rather than checked. The interesting content is in the #
+# TYPES, and those the editor does check, in order, each in the #
+# context of the entries before it. #
+
+# 4.2 QUOTIENT TYPES #
+# Quotients are postulated, then the integers are built as a quotient #
+# inductive type. This is the example where the construct/assume #
+# distinction earns its keep: the integers are CONSTRUCTED, so the #
+# von Neumann encoding underneath them never becomes visible. #
+
+blackboard
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  eq_rel : (A : type) -> type
+by tychk
+
+; construct
+  prod : (A : type) -> (B : type) -> type;
+  prod_eq :
+    (A : type) ->
+    (B : type) ->
+    eq(type, prod(A, B), (M : type) -> A -> B -> M)
+by definition
+
+; assume
+  quot : (A : type) -> (R : eq_rel(A)) -> type;
+  quot_intro :
+    (A : type) ->
+    (R : eq_rel(A)) ->
+    A ->
+    quot(A, R);
+  quot_eq :
+    (A : type) ->
+    (R : eq_rel(A)) ->
+    (a1 : A) ->
+    (a2 : A) ->
+    eq(type,
+       eq(quot(A, R), quot_intro(A, R, a1), quot_intro(A, R, a2)),
+       R(a1, a2));
+  quot_elim :
+    (A : type) ->
+    (R : eq_rel(A)) ->
+    (M : quot(A, R) -> type) ->
+    (f : (a : A) -> M(quot_intro(A, R, a))) ->
+    (inv :
+       (a1 : A) ->
+       (a2 : A) ->
+       R(a1, a2) ->
+       eq(M(quot_intro(A, R, a1)), f(a1), f(a2))) ->
+    (x : quot(A, R)) ->
+    M(x);
+  quot_comp :
+    (A : type) ->
+    (R : eq_rel(A)) ->
+    (M : quot(A, R) -> type) ->
+    (f : (a : A) -> M(quot_intro(A, R, a))) ->
+    (inv :
+       (a1 : A) ->
+       (a2 : A) ->
+       R(a1, a2) ->
+       eq(M(quot_intro(A, R, a1)), f(a1), f(a2))) ->
+    (a : A) ->
+    eq(M(quot_intro(A, R, a)),
+       quot_elim(A, R, M, f, inv, quot_intro(A, R, a)),
+       f(a))
+by tychk
+
+end;
+
+# TWO THINGS THE EDITOR REPORTS HERE, AND WHY #
+# `R is applied, but it has type eq_rel A, not an arrow`. True: #
+# applying R needs `eq_rel(A) = A -> A -> type`, which the paper #
+# leaves implicit and the editor cannot use. #
+# And in `inv`, `f a2 has type M (quot_intro A R a2)` where the #
+# equation is stated at `M (quot_intro A R a1)`; only the hypothesis #
+# `R a1 a2` bridges them, again by an equation. #
+# Both are the Checking slide's limit, not new mistakes. #
+
+# THE INTEGERS #
+# `int_elim` and `int_comp` in the paper disagree about whether the #
+# successor case takes its index: `int_elim` declares #
+# `s : (x : int) -> M x -> M (succ x)` but then writes `s(p h)`, with #
+# one argument, which is only well formed under `int_comp`'s implicit #
+# `{x : int}`. Written out explicitly, as below, the index is passed. #
+
+blackboard
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  prod : (A : type) -> (B : type) -> type
+by tychk
+
+; construct
+  int : type;
+  zero : int;
+  succ : int -> int;
+  pred : int -> int;
+  succ_pred : (x : int) -> eq(int, succ(pred(x)), x);
+  pred_succ : (x : int) -> eq(int, pred(succ(x)), x);
+  int_elim :
+    (M : int -> type) ->
+    (z : M(zero)) ->
+    (s : (x : int) -> M(x) -> M(succ(x))) ->
+    (p : (x : int) -> M(x) -> M(pred(x))) ->
+    (sp : (x : int) -> (h : M(x)) -> eq(M(x), s(pred(x), p(x, h)), h)) ->
+    (ps : (x : int) -> (h : M(x)) -> eq(M(x), p(succ(x), s(x, h)), h)) ->
+    (x : int) ->
+    M(x);
+  int_comp :
+    (M : int -> type) ->
+    (z : M(zero)) ->
+    (s : (x : int) -> M(x) -> M(succ(x))) ->
+    (p : (x : int) -> M(x) -> M(pred(x))) ->
+    (sp : (x : int) -> (h : M(x)) -> eq(M(x), s(pred(x), p(x, h)), h)) ->
+    (ps : (x : int) -> (h : M(x)) -> eq(M(x), p(succ(x), s(x, h)), h)) ->
+    prod(
+      eq(M(zero), int_elim(M, z, s, p, sp, ps, zero), z),
+      prod(
+        (x : int) ->
+          eq(M(succ(x)),
+             int_elim(M, z, s, p, sp, ps, succ(x)),
+             s(x, int_elim(M, z, s, p, sp, ps, x))),
+        (x : int) ->
+          eq(M(pred(x)),
+             int_elim(M, z, s, p, sp, ps, pred(x)),
+             p(x, int_elim(M, z, s, p, sp, ps, x)))))
+by quotient
+
+end;
+
+# `s(pred(x), p(x, h))` inhabits `M(succ(pred(x)))`, and the equation #
+# is stated at `M(x)`. Those are the same type only by `succ_pred`. #
+# The editor reports the mismatch for the reason slide 3 gives: it #
+# compares terms up to renaming, and cannot yet use an equation. #
+
+# PATTERN MATCHING #
+# A construction whose signature is a set of equations. The paper #
+# notes these must be TRUE equations, not first-match: the tactic owes #
+# a proof that the branches respect the constructor equations, so the #
+# clauses have to be order-independent. #
+
+blackboard
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  int : type;
+  zero : int;
+  succ : int -> int;
+  pred : int -> int
+by tychk
+
+; construct
+  negative : int -> int;
+  negative_zero : eq(int, negative(zero), zero);
+  negative_succ :
+    (x : int) -> eq(int, negative(succ(x)), pred(negative(x)));
+  negative_pred :
+    (x : int) -> eq(int, negative(pred(x)), succ(negative(x)))
+by pattern_matching
+
+end;
+
+# 4.3 SMALL TYPES AND ABSTRACTION #
+# A universe of small types, from a smallness predicate and a #
+# refinement, plus combinators to build functions over it. This is #
+# the case study to read alongside the Metatheory slide: `U` is #
+# assumed SMALL-free on purpose. Assuming `small(U)` as well would #
+# put the universe in itself, which is the shape of Girard's paradox. #
+
+blackboard
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  refine : (A : type) -> (P : A -> type) -> type
+by tychk
+
+; assume
+  small : type -> type;
+  U : type;
+  U_eq : eq(type, U, refine(type, small));
+  arrow_small :
+    (A : U) ->
+    (B : A -> U) ->
+    small((a : A) -> B(a));
+  abs_const :
+    (X : U) ->
+    (A : U) ->
+    (a : A) ->
+    (x : X) ->
+    A;
+  abs_const_comp :
+    (X : U) ->
+    (A : U) ->
+    (a : A) ->
+    (x : X) ->
+    eq(A, abs_const(X, A, a, x), a);
+  abs_id :
+    (X : U) ->
+    (x : X) ->
+    X;
+  abs_id_comp :
+    (X : U) ->
+    (x : X) ->
+    eq(X, abs_id(X, x), x);
+  abs_ap :
+    (X : U) ->
+    (A : X -> U) ->
+    (B : (x : X) -> A(x) -> U) ->
+    (f : (x : X) -> (a : A(x)) -> B(x, a)) ->
+    (a : (x : X) -> A(x)) ->
+    (x : X) ->
+    B(x, a(x));
+  abs_ap_comp :
+    (X : U) ->
+    (A : X -> U) ->
+    (B : (x : X) -> A(x) -> U) ->
+    (f : (x : X) -> (a : A(x)) -> B(x, a)) ->
+    (a : (x : X) -> A(x)) ->
+    (x : X) ->
+    eq(B(x, a(x)), abs_ap(X, A, B, f, a, x), f(x, a(x)));
+  N : type;
+  N_small : small(N)
+by tychk
+
+; construct
+  apply_twice : (N -> N) -> (N -> N);
+  apply_twice_eq :
+    (f : N -> N) ->
+    (n : N) ->
+    eq(N, apply_twice(f, n), f(f(n)))
+by abstraction
+
+end;
+
+# `(A : U)` USED AS A TYPE #
+# The editor reports `A is used as a type, but it has type U`, nine #
+# times over. It is right that this needs an argument: `A : U` binds #
+# A as an ELEMENT of U, and `B : A -> U` then puts A in type #
+# position. What licenses that is `U_eq`, which says U is the type #
+# refined from `type`, so its elements are types. That is an assumed #
+# equation, and the editor has none. #
+# This is also the `small U` question from the second reading. The #
+# combinators are sound here only because `U` itself is never #
+# assumed small; `small(U)` would put the universe in itself. #
+
+# 4.4 LINEAR ABSTRACTIONS #
+# Linearity as a refinement of the function type, with its own #
+# combinators. `A -o B` is written `linear_arrow(A, B)` here. #
+
+blackboard
+
+assume
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  refine : (A : type) -> (P : A -> type) -> type;
+  N : type
+by tychk
+
+; assume
+  linear : (A : type) -> (B : type) -> (A -> B) -> type;
+  linear_arrow : (A : type) -> (B : type) -> type;
+  linear_arrow_eq :
+    (A : type) ->
+    (B : type) ->
+    eq(type, linear_arrow(A, B), refine(A -> B, linear(A, B)));
+  labs_id : (X : type) -> linear_arrow(X, X);
+  labs_id_eq :
+    (X : type) ->
+    (x : X) ->
+    eq(X, labs_id(X, x), x);
+  labs_lap :
+    (X : type) ->
+    (A : type) ->
+    (B : type) ->
+    (f : linear_arrow(X, A -> B)) ->
+    (a : A) ->
+    linear_arrow(X, B);
+  labs_lap_eq :
+    (X : type) ->
+    (A : type) ->
+    (B : type) ->
+    (f : linear_arrow(X, A -> B)) ->
+    (a : A) ->
+    (x : X) ->
+    eq(B, labs_lap(X, A, B, f, a, x), f(x, a));
+  labs_rap :
+    (X : type) ->
+    (A : type) ->
+    (B : type) ->
+    (f : linear_arrow(A, B)) ->
+    (a : linear_arrow(X, A)) ->
+    linear_arrow(X, B);
+  labs_rap_eq :
+    (X : type) ->
+    (A : type) ->
+    (B : type) ->
+    (f : linear_arrow(A, B)) ->
+    (a : linear_arrow(X, A)) ->
+    (x : X) ->
+    eq(B, labs_rap(X, A, B, f, a, x), f(a(x)))
+by tychk
+
+; construct
+  swapped_apply :
+    linear_arrow(N, linear_arrow(linear_arrow(N, N), N));
+  swapped_apply_eq :
+    (n : N) ->
+    (f : linear_arrow(N, N)) ->
+    eq(N, swapped_apply(n, f), f(n))
+by linear_abstraction
+
+end
+
+# THE SAME SHAPE AS 4.3 #
+# `labs_id is applied, but it has type linear_arrow X X, not an #
+# arrow`, and three more like it. Applying a linear function is well #
+# typed only through `linear_arrow_eq` and the refinement: an element #
+# of `(A -> B | linear A B)` is an element of `A -> B`. Every error #
+# reported in this document traces back to that one step. #

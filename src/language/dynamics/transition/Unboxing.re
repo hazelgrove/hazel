@@ -191,7 +191,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
-        Atom(_) | DrvQuote(_) | FumolaQuote(_) | Label(_) | Constructor(_) |
+        Atom(_) | DrvQuote(_) | FumolaQuote(_) | BbQuote(_) | Label(_) |
+        Constructor(_) |
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |

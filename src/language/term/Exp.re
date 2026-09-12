@@ -9,6 +9,7 @@ type cls =
   | Atom(Atom.cls)
   | DrvQuote
   | FumolaQuote
+  | BbQuote
   | ListLit
   | Constructor
   | Fun
@@ -103,6 +104,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Atom(c) => Atom(Atom.cls_of_t(c))
   | DrvQuote(_) => DrvQuote
   | FumolaQuote(_) => FumolaQuote
+  | BbQuote(_) => BbQuote
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
@@ -166,6 +168,7 @@ let show_cls: cls => string =
   | Atom(SInt) => "System integer literal"
   | DrvQuote => "Derivation-Mode Quotation"
   | FumolaQuote => "Fumola Program"
+  | BbQuote => "Blackboard Document"
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
@@ -265,6 +268,7 @@ let rec is_fun = (e: t) => {
   | Atom(_)
   | DrvQuote(_)
   | FumolaQuote(_)
+  | BbQuote(_)
   | Label(_)
   | ExplicitNonlabel
   | ListLit(_)
@@ -334,6 +338,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Atom(_)
     | DrvQuote(_)
     | FumolaQuote(_)
+    | BbQuote(_)
     | Label(_)
     | ExplicitNonlabel
     | ListLit(_)
@@ -437,6 +442,7 @@ let rec get_num_of_functions = (e: t) =>
     | ModuleExp(_)
     | DrvQuote(_) => None
     | FumolaQuote(_) => None
+    | BbQuote(_) => None
     };
   };
 

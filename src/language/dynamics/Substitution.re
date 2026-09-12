@@ -144,6 +144,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Atom(_)
         | DrvQuote(_)
         | FumolaQuote(_)
+        | BbQuote(_)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)

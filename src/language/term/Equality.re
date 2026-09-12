@@ -463,6 +463,8 @@ let equality =
       | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
         n1 == n2 && m1 == m2 && b1 == b2
       | (FumolaQuote(_, _, _), _) => false
+      | (BbQuote(b1), BbQuote(b2)) => b1 == b2
+      | (BbQuote(_), _) => false
       };
     }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -943,6 +945,8 @@ let equality =
     | (Drv(_), _) => false
     | (Fumola(f1), Fumola(f2)) => f1 == f2
     | (Fumola(_), _) => false
+    | (Bb(b1), Bb(b2)) => b1 == b2
+    | (Bb(_), _) => false
     };
   };
 

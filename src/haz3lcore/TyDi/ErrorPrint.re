@@ -301,6 +301,11 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
     | Some(err) => drv_error(err)
     | None => "(static error)"
     }
+  | InfoBb(bb) =>
+    switch (BbInfo.error_of(bb)) {
+    | Some(err) => BbInfo.message(err)
+    | None => "(static error)"
+    }
   | InfoExp({ctx, ana, _}) =>
     switch (Mark.highest(marks)) {
     | Some(m) => exp_mark_to_string(ctx, ana, m)
@@ -334,6 +339,7 @@ let format_error = (term, error) =>
 let term_string_of: Info.t => string =
   fun
   | InfoDrv({term, _}) => Print.term(Drv(term))
+  | InfoBb({term, _}) => Print.term(Bb(term))
   | InfoExp({user_term, _}) => Print.term(Exp(user_term))
   | InfoPat({user_term, _}) => Print.term(Pat(user_term))
   | InfoTyp({user_term, _}) => Print.term(Typ(user_term))

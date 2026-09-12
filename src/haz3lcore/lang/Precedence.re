@@ -73,6 +73,36 @@ let fum_stmt = 21;
 let fum_semi = 38 |> right_associative;
 let fum_comma = 40;
 
+// ======= BLACKBOARD =======
+// Blackboard is its own sort, but unlike Fumola it is not a closed one:
+// BbSeq and BbComma reuse Hazel's `semi` and `comma` (see Form.re), so these
+// levels are placed against the Hazel ladder as well as against each other.
+//
+// This ladder was written against 17, 18 and 20, back when 16-21 were free.
+// Fumola holds those now, and sharing one is not harmless: associativity is
+// keyed by level number across every sort, and a duplicate key resolves to
+// whichever `let` comes FIRST in this file. Level 20 is fum_or above, marked
+// left, so a shared 20 would silently have made `A -> B -> C` parse as
+// `(A -> B) -> C`. The three infix levels therefore move down to 1-3, the
+// only levels left free and tighter than everything else here. Nothing about
+// how Blackboard parses changes: the order among these is the order they
+// had, and each form keeps the associativity it had.
+// f(_____)
+let bb_ap = 1;
+// _____ : T
+let bb_mem = 2 |> left_associative;
+// A -> _____
+let bb_arrow = 3 |> right_associative;
+// (x : A) -> _____
+/* Blocks must bind tighter than the `;` that separates them, so that a
+   block's tactic does not swallow the following block. */
+/* That `;` is Hazel's `semi` (35), which is what pins this level to the Hazel
+   ladder: bb_block has to stay under 35, and 4-34 is now full, so it stays
+   where it was and shares `concat`'s level. The two never meet in a segment
+   -- `@` is an Exp form and cannot appear in a Bb term -- and the Right that
+   30 carries from `concat` is what a prefix form wants anyway. */
+let bb_block = 30;
+
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 

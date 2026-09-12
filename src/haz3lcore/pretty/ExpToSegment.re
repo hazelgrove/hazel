@@ -123,6 +123,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | DrvQuote(_)
   | FumolaQuote(_)
+  | BbQuote(_)
   | EmptyHole
   | Deferral(_)
   | ExplicitNonlabel
@@ -359,6 +360,7 @@ let rec parenthesize =
   | Atom(_)
   | DrvQuote(_)
   | FumolaQuote(_)
+  | BbQuote(_)
   | EmptyHole
   | LivelitName(_)
   | FumolaPeek(_)
@@ -981,6 +983,7 @@ and parenthesize_any =
      invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
   | Fumola(_) => any
+  | Bb(_) => any
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
@@ -1786,6 +1789,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ mode = fumola_to_pretty(~settings, mode)
     and+ body = fumola_to_pretty(~settings, body);
     [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [mode, name, body])];
+  | BbQuote(b) =>
+    let+ b = bb_to_pretty(~settings, b);
+    [mk_form(Bb(BbOf), exp |> Exp.rep_id, [b])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -3308,6 +3314,60 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
   | DoNav(_, _, _, _) => unbuildable()
   };
 }
+/* Blackboard terms print as the tiles they came from; see Form.bb_get.
+   Precedence-driven parenthesization is not yet defined for this sort, so
+   Parens nodes in the term are the only source of parentheses. */
+and bb_to_pretty = (~settings: Settings.t, b: Bb.Term.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = bb_to_pretty(~settings);
+  let id = b |> Bb.Term.rep_id;
+  let infix = (form, l, r) => {
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Form.Bb(form), id, [])] @ r;
+  };
+  let rec sep = (form, ts) =>
+    switch (ts) {
+    | [] => p_just([])
+    | [t] => go(t)
+    | [t, ...rest] =>
+      let+ t = go(t)
+      and+ rest = sep(form, rest);
+      t @ [mk_form(Form.Bb(form), id, [])] @ rest;
+    };
+  switch (b |> Bb.Term.term_of) {
+  | Hole(Invalid(s)) => text_to_pretty(id, Sort.Bb(Term), s)
+  | Hole(EmptyHole) =>
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ])
+  | Hole(MultiHole(ts)) => sep(BbSeq, ts)
+  | Var(x) => text_to_pretty(id, Sort.Bb(Term), x)
+  | Type => text_to_pretty(id, Sort.Bb(Term), "type")
+  | Parens(t) =>
+    let+ t = go(t);
+    [mk_form(Form.Bb(BbParens), id, [t])];
+  | Mem(l, r) => infix(BbMem, l, r)
+  | Arrow(l, r) => infix(BbArrow, l, r)
+  | Tuple(ts) => sep(BbComma, ts)
+  | Seq(ts) => sep(BbSeq, ts)
+  | Ap(f, a) =>
+    let+ f = go(f)
+    and+ a = go(a);
+    f @ [mk_form(Form.Bb(BbAp), id, [a])];
+  | Assume(entries, tactic) =>
+    let+ entries = go(entries)
+    and+ tactic = go(tactic);
+    [mk_form(Form.Bb(BbAssume), id, [entries])] @ tactic;
+  | Construct(entries, tactic) =>
+    let+ entries = go(entries)
+    and+ tactic = go(tactic);
+    [mk_form(Form.Bb(BbConstruct), id, [entries])] @ tactic;
+  };
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
@@ -3316,6 +3376,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Drv(d) => drv_to_pretty(~settings: Settings.t, d, ~sort=Jdmt)
   | Fumola(f) => fumola_to_pretty(~settings, f)
+  | Bb(b) => bb_to_pretty(~settings, b)
   | Mod(m) => mod_to_pretty(~settings, m)
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)

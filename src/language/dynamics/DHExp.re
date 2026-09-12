@@ -118,6 +118,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Atom(_)
           | DrvQuote(_)
           | FumolaQuote(_)
+          | BbQuote(_)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
@@ -200,6 +201,8 @@ let rec ty_comparable = (d1, d2) => {
   | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
     n1 == n2 && m1 == m2 && b1 == b2
   | (FumolaQuote(_, _, _), _) => false
+  | (BbQuote(b1), BbQuote(b2)) => b1 == b2
+  | (BbQuote(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
@@ -320,6 +323,8 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (FumolaQuote(n1, m1, b1), FumolaQuote(n2, m2, b2)) =>
     (n1 == n2 && m1 == m2 && b1 == b2) |> Option.some
   | (FumolaQuote(_, _, _), _) => None
+  | (BbQuote(b1), BbQuote(b2)) => b1 == b2 |> Option.some
+  | (BbQuote(_), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None
   | (ExplicitNonlabel, ExplicitNonlabel) => Some(true)

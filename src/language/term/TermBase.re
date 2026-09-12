@@ -129,6 +129,8 @@ module rec Any: {
       /* Drv terms have their own traversal machinery in DrvTermBase; the
          generic Any.map_term doesn't descend into them. */
       | Drv(x) => Drv(x)
+      /* Blackboard terms likewise. */
+      | Bb(x) => Bb(x)
       /* Fumola terms carry their own traversal, but it has to be entered:
          a `hazel … end` embeds Hazel expressions, and a traversal that
          stopped here would leave them untouched. */
@@ -220,6 +222,7 @@ and Exp: {
         | Invalid(_)
         | Atom(_)
         | DrvQuote(_)
+        | BbQuote(_)
         | Constructor(_)
         | Label(_)
         | ExplicitNonlabel

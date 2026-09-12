@@ -754,6 +754,10 @@ let decide =
         Markdown(
           "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
         )
+      | BbQuote(_) =>
+        Markdown(
+          "A `blackboard ... end` block embeds a Blackboard document into a regular expression. A document is a sequence of `assume` and `construct` blocks, separated by `;`.",
+        )
       | Invalid(_) => Prose("Not a valid expression")
       | DynamicErrorHole(_)
       | Closure(_) => Prose("Internal expression")
@@ -1562,6 +1566,18 @@ let decide =
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
     DrvSyntax(syntax, msg);
+  | Some(InfoBb(i)) =>
+    switch (BbInfo.modality_of(i)) {
+    | Some(Assume) =>
+      Prose(
+        "An assumption block postulates names. Its only obligation is that each declared type is a type.",
+      )
+    | Some(Construct) =>
+      Prose(
+        "A construction block claims a conservative extension: the signature must be shown inhabited, and the witness is then discarded.",
+      )
+    | None => Prose("A Blackboard term")
+    }
   | Some(Secondary(s)) =>
     switch (s.cls) {
     | Secondary(Whitespace) => Prose("A semantic void, pervading but inert")

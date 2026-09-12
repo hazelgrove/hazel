@@ -377,6 +377,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Atom(_), _)
     | (DrvQuote(_), _)
     | (FumolaQuote(_), _)
+    | (BbQuote(_), _)
     | (ListLit(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)

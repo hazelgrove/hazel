@@ -42,6 +42,14 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Fumola (Tiles) / A level tree", [%blob "fumola-tiles-leveltree.hz"]),
     ("Fumola (Tiles) / Hazel inside", [%blob "fumola-tiles-hazel-inside.hz"]),
     ("Fumola (Tiles) / The round trip", [%blob "fumola-tiles-roundtrip.hz"]),
+    /* Blackboard: an experiment embedding the core logic of the
+       Blackboard proof assistant as its own sort. */
+    ("Blackboard / 0. Overview", [%blob "overview.hz"]),
+    ("Blackboard / 1. Terms", [%blob "terms.hz"]),
+    ("Blackboard / 2. Signatures", [%blob "signatures.hz"]),
+    ("Blackboard / 3. Checking", [%blob "checking.hz"]),
+    ("Blackboard / 4. Metatheory", [%blob "metatheory.hz"]),
+    ("Blackboard / 5. Case Studies", [%blob "case-studies.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

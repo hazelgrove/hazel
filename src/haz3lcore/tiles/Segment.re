@@ -100,6 +100,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
   | Fumola(_) => remold_template(s, shape, seg)
+  | Bb(_) => remold_template(s, shape, seg)
   | Any => seg
   | Typ => remold_typ(shape, seg)
   | Pat => remold_pat(shape, seg)

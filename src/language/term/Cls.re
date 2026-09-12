@@ -2,6 +2,7 @@
 type t =
   | Drv(Drv.Any.cls)
   | Fumola(FumolaCls.t)
+  | Bb(Bb.Term.cls)
   | Exp(Exp.cls)
   | Pat(Pat.cls)
   | Typ(Typ.cls)
@@ -20,6 +21,7 @@ let show = (cls: t) =>
      would read as "FUMOLA / Fumola Variant". Callers that show the class on
      its own add the prefix themselves. */
   | Fumola(cls) => FumolaCls.show(cls)
+  | Bb(cls) => "Blackboard " ++ Bb.Term.show_cls(cls)
   | Exp(cls) => Exp.show_cls(cls)
   | Pat(cls) => Pat.show_cls(cls)
   | Typ(cls) => Typ.show_cls(cls)

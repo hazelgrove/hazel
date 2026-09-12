@@ -107,6 +107,28 @@
 .code .token.FumolaName {
   color: var(--token-fumola-name);
 }
+.code .token.Bb,
+.code .token.BbAssume,
+.code .token.BbConstruct {
+  color: var(--token-bb);
+}
+
+/* A Blackboard block is tinted by its modality, so its extent is visible
+   and indentation reads as structure. The tint is vertical padding only:
+   the editor places glyphs at measured columns, so horizontal padding
+   overlaps the neighbouring token and clips it. */
+.code .token.BbAssume,
+.code .token.BbConstruct {
+  padding: 0.12em 0;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.code .token.BbAssume {
+  background: var(--bb-assume-bg);
+}
+.code .token.BbConstruct {
+  background: var(--bb-construct-bg);
+}
 .code .token.Rul {
   color: var(--token-rul);
 }
@@ -260,6 +282,14 @@ svg.shard.indicated.FumolaName {
     var(--off-x) var(--off-y) var(--blur) var(--token-fumola)
   );
 }
+/* The indicated shard must name every Blackboard sort class: statics
+   refines Bb to BbAssume/BbConstruct, and a shard whose class has no fill
+   rule falls back to black over the token it sits under. */
+svg.shard.indicated.Bb,
+svg.shard.indicated.BbAssume,
+svg.shard.indicated.BbConstruct {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-bb));
+}
 svg.shard.indicated.Rul {
   filter: drop-shadow(
     var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
@@ -298,6 +328,11 @@ svg.shard.indicated.Drv > path {
 svg.shard.indicated.Fumola > path,
 svg.shard.indicated.FumolaName > path {
   fill: var(--shard-fumola);
+}
+svg.shard.indicated.Bb > path,
+svg.shard.indicated.BbAssume > path,
+svg.shard.indicated.BbConstruct > path {
+  fill: var(--shard-bb);
 }
 svg.shard.indicated.Rul > path {
   fill: var(--shard-rul);
@@ -560,6 +595,11 @@ svg:has(.child-line) {
 .child-line.Fumola,
 .child-line.FumolaName {
   stroke: var(--token-fumola);
+}
+.child-line.Bb,
+.child-line.BbAssume,
+.child-line.BbConstruct {
+  stroke: var(--token-bb);
 }
 .child-line.Rul {
   stroke: var(--shard-lines-rul);

@@ -50,6 +50,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           FumolaGrammar.placeholder(),
           FumolaGrammar.placeholder(),
         )
+      | BbQuote => bb_exp(BbGrammar.placeholder())
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)

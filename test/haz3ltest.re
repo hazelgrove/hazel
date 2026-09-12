@@ -93,6 +93,10 @@ let (suite, exit_with_test_status) =
     ]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]
+    @ [Test_Blackboard.tests]
+    @ [Test_BlackboardEditor.tests]
+    @ [Test_BlackboardSlides.tests]
+    @ [Test_BlackboardStatics.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests

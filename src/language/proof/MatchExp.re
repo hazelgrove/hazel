@@ -196,6 +196,8 @@ let rec match_exp =
       when DrvTermBase.Any.eq(e1, e2, ~skip_hole=false) =>
     Some(ctx)
   | (DrvQuote(_), _) => None
+  | (BbQuote(b1), BbQuote(b2)) when b1 == b2 => Some([])
+  | (BbQuote(_), _) => None
   | (If(e1, e2, e3), If(e4, e5, e6)) =>
     let* ctx = match_exp(alphas, ctx, e1, e4);
     let* ctx = match_exp(alphas, ctx, e2, e5);
