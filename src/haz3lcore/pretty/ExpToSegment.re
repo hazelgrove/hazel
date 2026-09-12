@@ -1783,7 +1783,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ name = fumola_to_pretty(~settings, name)
     and+ mode = fumola_to_pretty(~settings, mode)
     and+ body = fumola_to_pretty(~settings, body);
-    [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [name, mode, body])];
+    [mk_form(Fumola(FumolaOf), exp |> Exp.rep_id, [mode, name, body])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();

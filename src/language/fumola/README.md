@@ -122,12 +122,14 @@ name alone -- which is the whole reason the name is written in the program
 rather than derived from a Hazel id. Two different names get two different
 runtimes. Checked against the real shim, not assumed.
 
-**The mode is a slot of the form**, `fumola <instance> as <mode> in … end`,
+**The mode is a slot of the form**, `fumola <mode> as <instance> in … end`,
 written either Fumola's way (`$graphical`, `$simple`) or Hazel's, through the
-escape (`hazel Graphical end`). It is a slot rather than something optional
-because only one form can expand from the token `fumola` -- `Form.Expansion`
-resolves a token and sort with `find_opt` -- so a short form and a long one
-cannot both be reachable by typing.
+escape (`hazel Graphical end`). `as` introduces the binding, the way
+`let … as …` does elsewhere: what follows it is the name the instance is
+known by, and what precedes it is how that instance runs. It is a slot rather
+than something optional because only one form can expand from the token
+`fumola` -- `Form.Expansion` resolves a token and sort with `find_opt` -- so a
+short form and a long one cannot both be reachable by typing.
 
 A **hole** in the mode slot means *leave this instance's mode alone*, which is
 not the same as asking for the default. Setting a mode an instance does not

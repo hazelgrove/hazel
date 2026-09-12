@@ -1,6 +1,6 @@
 /* The adapton event list of the Fumola instance the cursor is in.
 
-   A `fumola <instance> as $graphical in … end` runs against a VM instance
+   A `fumola $graphical as <instance> in … end` runs against a VM instance
    that keeps an adapton store, and the store records what it did: nodes and
    edges added, edges realigned or removed, and the Begin and End of every
    force. That list is the thing worth watching while editing an incremental
@@ -146,7 +146,7 @@ let view =
         ),
         div(
           ~attrs=[clss(["fumola-example"])],
-          [text("fumola store as $graphical in 0 := 41 end")],
+          [text("fumola $graphical as store in 0 := 41 end")],
         ),
         div(
           ~attrs=[clss(["fumola-blurb"])],

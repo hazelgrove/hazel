@@ -198,7 +198,7 @@ Deferred: modules, classes, actors, `import`, attributes, the type
 sublanguage, quoted ASTs, async. (`import` and `module` come back in M3 if we
 want to load the existing `.fumola` corpus.)
 
-**M2 — evaluation and the value bridge.** `fumola <instance> in … end` prints
+**M2 — evaluation and the value bridge.** `fumola <mode> as <instance> in … end` prints
 its program, hands it to the shim against the named instance, and gets a value
 back. The instance is created on first use and looked up by name thereafter,
 so the store survives every edit that leaves the name alone. `FumolaValue.re` and

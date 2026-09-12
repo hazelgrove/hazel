@@ -69,69 +69,69 @@ let corpus: list((string, string, string, string)) = [
      expression cannot reset an instance another has configured. */
   (
     "an instance with a mode",
-    "fumola store as $graphical in 1 end",
+    "fumola $graphical as store in 1 end",
     "store",
     "1",
   ),
-  ("simple mode", "fumola store as $simple in 1 end", "store", "1"),
-  ("a bare variable", "fumola store as ? in x end", "store", "x"),
-  ("a literal", "fumola store as ? in 1 end", "store", "1"),
+  ("simple mode", "fumola $simple as store in 1 end", "store", "1"),
+  ("a bare variable", "fumola ? as store in x end", "store", "x"),
+  ("a literal", "fumola ? as store in 1 end", "store", "1"),
   (
     "an instance named something else",
-    "fumola other as ? in x end",
+    "fumola ? as other in x end",
     "other",
     "x",
   ),
-  ("addition", "fumola store as ? in 1 + 2 end", "store", "1 + 2"),
+  ("addition", "fumola ? as store in 1 + 2 end", "store", "1 + 2"),
   (
     "multiplication binds tighter",
-    "fumola store as ? in 1 + 2 * 3 end",
+    "fumola ? as store in 1 + 2 * 3 end",
     "store",
     "1 + 2 * 3",
   ),
   (
     "bitor binds tighter than addition, as the grammar has it",
-    "fumola store as ? in 1 | 2 + 3 end",
+    "fumola ? as store in 1 | 2 + 3 end",
     "store",
     "1 | 2 + 3",
   ),
   (
     "and parentheses come back where they are needed",
-    "fumola store as ? in 1 | (2 + 3) end",
+    "fumola ? as store in 1 | (2 + 3) end",
     "store",
     "1 | (2 + 3)",
   ),
-  ("comparison", "fumola store as ? in a == b end", "store", "a == b"),
-  ("a put", "fumola store as ? in 0 := 1 end", "store", "0 := 1"),
-  ("a get", "fumola store as ? in @ cell end", "store", "@ cell"),
-  ("a force", "fumola store as ? in force t end", "store", "force t"),
+  ("comparison", "fumola ? as store in a == b end", "store", "a == b"),
+  ("a put", "fumola ? as store in 0 := 1 end", "store", "0 := 1"),
+  ("a get", "fumola ? as store in @ cell end", "store", "@ cell"),
+  ("a force", "fumola ? as store in force t end", "store", "force t"),
   (
     "a get inside an operator, which Fumola rejects without parentheses",
-    "fumola store as ? in (@ c) + 1 end",
+    "fumola ? as store in (@ c) + 1 end",
     "store",
     "(@ c) + 1",
   ),
-  ("application", "fumola store as ? in f(a) end", "store", "f a"),
-  ("a block", "fumola store as ? in {x} end", "store", "do { x }"),
+  ("application", "fumola ? as store in f(a) end", "store", "f a"),
+  ("a block", "fumola ? as store in {x} end", "store", "do { x }"),
   /* Fumola spells a variant `#tag`, which Hazel cannot tokenize because `#`
      is its comment delimiter. The tile is `$tag` and the printer puts the
      `#` back; see Token.is_fumola_tag. */
-  ("a variant", "fumola store as ? in $tag end", "store", "#tag"),
+  ("a variant", "fumola ? as store in $tag end", "store", "#tag"),
   (
     "a variant with a payload",
-    "fumola store as ? in $tag(1) end",
+    "fumola ? as store in $tag(1) end",
     "store",
     "#tag 1",
   ),
   (
     "a variant payload that is not an atom keeps its parentheses",
-    "fumola store as ? in $tag(1 + 2) end",
+    "fumola ? as store in $tag(1 + 2) end",
     "store",
     "#tag (1 + 2)",
   ),
   (
     "a variant is tighter than an operator",
-    "fumola store as ? in $tag(1) + 2 end",
+    "fumola ? as store in $tag(1) + 2 end",
     "store",
     "#tag 1 + 2",
   ),
@@ -141,31 +141,31 @@ let corpus: list((string, string, string, string)) = [
      anywhere in the program. FumolaSource renders each as Fumola source. */
   (
     "a hazel expression",
-    "fumola store as ? in hazel 1 end end",
+    "fumola ? as store in hazel 1 end end",
     "store",
     "(1)",
   ),
   (
     "a hazel expression inside an operator",
-    "fumola store as ? in hazel 1 end + 2 end",
+    "fumola ? as store in hazel 1 end + 2 end",
     "store",
     "(1) + 2",
   ),
   (
     "a hazel tuple crosses as a fumola tuple",
-    "fumola store as ? in hazel (1, true) end end",
+    "fumola ? as store in hazel (1, true) end end",
     "store",
     "((1, true))",
   ),
   (
     "two of them, which the livelit's single input slot could not do",
-    "fumola store as ? in hazel 1 end + hazel 2 end end",
+    "fumola ? as store in hazel 1 end + hazel 2 end end",
     "store",
     "(1) + (2)",
   ),
   (
     "a hazel expression as the argument of a force",
-    "fumola store as ? in force hazel 1 end end",
+    "fumola ? as store in force hazel 1 end end",
     "store",
     "force (1)",
   ),
@@ -205,7 +205,7 @@ let test_prints = ((name, src, _, expected)) =>
 /* Fumola is a closed sub-language: a Hazel form written inside it must not
    expand into Hazel's own, or `let` would become `let _ = _ in`. */
 let test_closed = () =>
-  switch (find_fumola(parse("fumola store as ? in x end"))) {
+  switch (find_fumola(parse("fumola ? as store in x end"))) {
   | None => fail("no fumola term")
   | Some({body, _}) =>
     check(
@@ -228,19 +228,19 @@ let test_mode = () => {
     string,
     "no mode written",
     "none",
-    mode_of("fumola s as ? in 1 end"),
+    mode_of("fumola ? as s in 1 end"),
   );
   check(
     string,
     "graphical",
     "#graphical",
-    mode_of("fumola s as $graphical in 1 end"),
+    mode_of("fumola $graphical as s in 1 end"),
   );
   check(
     string,
     "simple",
     "#simple",
-    mode_of("fumola s as $simple in 1 end"),
+    mode_of("fumola $simple as s in 1 end"),
   );
   /* A mode can come from Hazel, so an instance's configuration can be written
      once in Hazel's own terms rather than repeated in Fumola's. */
@@ -248,7 +248,7 @@ let test_mode = () => {
     string,
     "a mode written in Hazel",
     "(#Graphical)",
-    mode_of("fumola s as hazel Graphical end in 1 end"),
+    mode_of("fumola hazel Graphical end as s in 1 end"),
   );
 };
 
@@ -269,25 +269,25 @@ let test_mode_resolves = () => {
     string,
     "hole",
     "leave it alone",
-    resolved("fumola s as ? in 1 end"),
+    resolved("fumola ? as s in 1 end"),
   );
   check(
     string,
     "fumola's spelling",
     "graphical",
-    resolved("fumola s as $graphical in 1 end"),
+    resolved("fumola $graphical as s in 1 end"),
   );
   check(
     string,
     "hazel's spelling",
     "graphical",
-    resolved("fumola s as hazel Graphical end in 1 end"),
+    resolved("fumola hazel Graphical end as s in 1 end"),
   );
   check(
     string,
     "simple, from hazel",
     "simple",
-    resolved("fumola s as hazel Simple end in 1 end"),
+    resolved("fumola hazel Simple end as s in 1 end"),
   );
   /* A variable bound to a mode cannot be read here: the program runs during
      elaboration, before anything is substituted. The message says so rather
@@ -298,7 +298,7 @@ let test_mode_resolves = () => {
     true,
     switch (
       find_fumola(
-        parse("let m = Graphical in fumola s as hazel m end in 1 end"),
+        parse("let m = Graphical in fumola hazel m end as s in 1 end"),
       )
     ) {
     | Some({mode, _}) =>
@@ -326,7 +326,7 @@ let test_substitution = () => {
     Fumola.has_hole(body)
       ? Option.value(~default="incomplete", Fumola.why_unprintable(body))
       : Fumola.of_exp(body);
-  switch (find_fumola(parse("fumola s as ? in hazel m end end"))) {
+  switch (find_fumola(parse("fumola ? as s in hazel m end end"))) {
   | None => fail("no fumola term")
   | Some({body, _}) =>
     check(

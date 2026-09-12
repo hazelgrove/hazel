@@ -1,4 +1,4 @@
-/* Running a `fumola <instance> in … end` against its instance.
+/* Running a `fumola <mode> as <instance> in … end` against its instance.
 
    The shape is the one fumola-livelit-mvp established: print the program,
    hand it to the Fumola wasm module through the `window.fumola` shim, and

@@ -10,7 +10,7 @@
 # Two leaves and a binary node above them.  Reading a cell with `@` is what #
 # records the edge from this node to the ones it read: #
 
-let tree = fumola tree as $graphical in
+let tree = fumola $graphical as tree in
   { let a = 1 := $leaf(1);
     let b = 2 := $leaf(2);
     let n = 3 := $bin((@ a, @ b));
@@ -20,7 +20,7 @@ end in
 # A thunk instead.  Forcing it is the traversal the event list shows as a #
 # Begin and an End, with an edge to each cell the thunk read: #
 
-let total = fumola tree as $graphical in
+let total = fumola $graphical as tree in
   { let a = 1 := 10;
     let b = 2 := 20;
     let t = 3 := thunk { (@ a) + (@ b) };

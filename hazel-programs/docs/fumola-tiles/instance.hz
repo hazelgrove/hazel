@@ -8,7 +8,7 @@
 # pointer.  So a put and a read are two steps, and the pointer is what #
 # joins them: #
 
-let a = fumola store as $graphical in
+let a = fumola $graphical as store in
   { let p = 0 := 41; @ p }
 end in
 
@@ -16,13 +16,13 @@ end in
 # put lands on the cell the first one made rather than on a fresh cell. #
 # The Fumola panel shows that as a realignment, not a new node: #
 
-let b = fumola store as $graphical in
+let b = fumola $graphical as store in
   { let q = 0 := 42; @ q }
 end in
 
 # A different name is a different instance, with nothing in it: #
 
-let elsewhere = fumola other as $graphical in
+let elsewhere = fumola $graphical as other in
   { let r = 0 := 1; @ r }
 end in
 

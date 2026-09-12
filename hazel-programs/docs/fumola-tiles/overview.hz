@@ -3,7 +3,7 @@
 # Fumola is a language for incremental computation. A Fumola program lives #
 # inside a Hazel expression, written with tiles of its own: #
 
-let answer = fumola store as $graphical in 1 + 2 end in
+let answer = fumola $graphical as store in 1 + 2 end in
 
 # Read the form as three parts.  `store` names the Fumola VM instance the #
 # program runs against.  `$graphical` is the adapton semantics that instance #
