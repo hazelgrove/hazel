@@ -163,6 +163,9 @@ let sole_hole_cases = [
   sole_hole_case(~name="sole parenthesized", "(¿)"),
   sole_hole_case(~name="sole argument", "f(¿)"),
   sole_hole_case(~name="list with hole and element", "[¿, 1]"),
+  /* the concave marker takes the same swap, as an operator hole */
+  sole_hole_case(~name="concave operator hole", "1 ⧖ 2"),
+  sole_hole_case(~name="concave hole in a let body", "let x = 1 in x ⧖ 2"),
 ];
 
 /* Render an arbitrary `Exp.t` to source text (same path

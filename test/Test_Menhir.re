@@ -354,17 +354,24 @@ let concave_marker_tests = [
     "pat: keyword constructor",
     "let Bool = 1 in 2",
   ),
+  /* An unparenthesized `x : Int ⧖ Bool` is the neighbour-sort-tag
+     class above: MarkerParse keeps the parser's molding, which lets the
+     type absorb the hole (`Bool` stays a type), while Menhir reads a
+     pattern-level hole with a constructor on its right. Parenthesizing
+     the ascription pins the pattern-level reading on both sides. */
   concave_marker_equivalent_test(
-    "pat: ascription tighter, keyword constructor right",
-    "let x : Int " ++ h ++ " Bool = 1 in 2",
+    "pat: parenthesized ascription, keyword constructor right",
+    "let (x : Int) " ++ h ++ " Bool = 1 in 2",
   ),
   concave_marker_equivalent_test(
-    "pat: ascribed arrow, keyword constructor right",
-    "let x : Int -> Bool " ++ h ++ " String = 1 in 2",
+    "pat: parenthesized ascribed arrow, keyword constructor right",
+    "let (x : Int -> Bool) " ++ h ++ " String = 1 in 2",
   ),
+  /* (`fun (x : Int) ⧖ Bool -> x` is a Menhir gap: the fun-parameter
+     grammar has no parenthesized-ascription-then-hole production.) */
   concave_marker_equivalent_test(
-    "pat: fun parameter ascription tighter",
-    "fun x : Int " ++ h ++ " Bool -> x",
+    "pat: fun parameter, keyword constructor right",
+    "fun x " ++ h ++ " Bool -> x",
   ),
   concave_marker_equivalent_test(
     "pat: cons tighter",
