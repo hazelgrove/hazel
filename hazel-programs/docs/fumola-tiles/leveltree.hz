@@ -2,29 +2,32 @@
 
 # This is the shape of levelTree.fromList from the Fumola repo, cut down to #
 # what the tiles can build today.  The real one takes a generic List<X>, #
-# destructures a record, and is written with type annotations -- none of #
-# which these tiles have yet.  What survives the cut is the part that makes #
-# it incremental: every node is a named cell, so re-running touches only #
-# what changed. #
+# destructures a record, and carries type annotations -- none of which #
+# these tiles have.  What survives the cut is the part that makes it #
+# incremental: every node is a cell, so re-running touches only what #
+# changed. #
 
-# Three leaves, each put at its own name: #
-let leaves = fumola tree as $graphical in
-  { 1 := $leaf(1); 2 := $leaf(2); 3 := $leaf(3) }
+# Two leaves and a binary node above them.  Reading a cell with `@` is what #
+# records the edge from this node to the ones it read: #
+
+let tree = fumola tree as $graphical in
+  { let a = 1 := $leaf(1);
+    let b = 2 := $leaf(2);
+    let n = 3 := $bin((@ a, @ b));
+    @ n }
 end in
 
-# A binary node above two of them.  Reading a cell with @ is what records #
-# the edge from this node to the ones it read: #
-let node = fumola tree as $graphical in
-  4 := $bin(((@ 1), (@ 2)))
-end in
+# A thunk instead.  Forcing it is the traversal the event list shows as a #
+# Begin and an End, with an edge to each cell the thunk read: #
 
-# And a thunk, whose force is the traversal the event list shows as a #
-# Begin and an End: #
 let total = fumola tree as $graphical in
-  { let t = 5 := thunk { (@ 1) + (@ 2) }; force t }
+  { let a = 1 := 10;
+    let b = 2 := 20;
+    let t = 3 := thunk { (@ a) + (@ b) };
+    force t }
 end in
 
-# Open the Fumola panel (the tab below Problems) with the cursor inside any #
-# of these to see what `tree` recorded. #
+# Open the Fumola panel -- the tab below Problems -- with the cursor inside #
+# either program to see what `tree` recorded. #
 
-(leaves, node, total)
+(tree, total)

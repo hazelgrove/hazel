@@ -101,6 +101,12 @@
 .code .token.Drv {
   color: var(--token-drv);
 }
+.code .token.Fumola {
+  color: var(--token-fumola);
+}
+.code .token.FumolaName {
+  color: var(--token-fumola-name);
+}
 .code .token.Rul {
   color: var(--token-rul);
 }
@@ -248,6 +254,12 @@ svg.shard.indicated.Typ {
 svg.shard.indicated.Drv {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-drv));
 }
+svg.shard.indicated.Fumola,
+svg.shard.indicated.FumolaName {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--token-fumola)
+  );
+}
 svg.shard.indicated.Rul {
   filter: drop-shadow(
     var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
@@ -280,6 +292,12 @@ svg.shard.indicated.Typ > path {
 }
 svg.shard.indicated.Drv > path {
   fill: var(--shard-drv);
+}
+/* Without a fill an SVG path is black, which is what made an indicated
+   Fumola tile a black box with unreadable text in it. */
+svg.shard.indicated.Fumola > path,
+svg.shard.indicated.FumolaName > path {
+  fill: var(--shard-fumola);
 }
 svg.shard.indicated.Rul > path {
   fill: var(--shard-rul);
@@ -495,6 +513,10 @@ svg:has(.child-line) {
 }
 .child-line.Drv {
   stroke: var(--token-drv);
+}
+.child-line.Fumola,
+.child-line.FumolaName {
+  stroke: var(--token-fumola);
 }
 .child-line.Rul {
   stroke: var(--shard-lines-rul);

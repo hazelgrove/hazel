@@ -4,19 +4,33 @@
 # expression, and that is the whole point: the adapton store it holds #
 # survives every edit that leaves the name alone. #
 
-let a = fumola store as $graphical in 0 := 41 end in
-let b = fumola store as $graphical in @ 0 end in
+# `:=` puts a value at a name and hands back a POINTER to it.  `@` reads a #
+# pointer.  So a put and a read are two steps, and the pointer is what #
+# joins them: #
 
-# Two programs naming `store` share one store.  A different name is a #
-# different instance, with nothing in it: #
+let a = fumola store as $graphical in
+  { let p = 0 := 41; @ p }
+end in
 
-let elsewhere = fumola other as $graphical in @ 0 end in
+# A second program naming `store` runs against the same instance, so this #
+# put lands on the cell the first one made rather than on a fresh cell. #
+# The Fumola panel shows that as a realignment, not a new node: #
+
+let b = fumola store as $graphical in
+  { let q = 0 := 42; @ q }
+end in
+
+# A different name is a different instance, with nothing in it: #
+
+let elsewhere = fumola other as $graphical in
+  { let r = 0 := 1; @ r }
+end in
 
 # The mode is $graphical or $simple.  Only a $graphical instance records the #
-# events that the Fumola panel shows; a $simple one keeps no graph. #
+# events the panel shows; a $simple one keeps no graph. #
 
-# Changing a mode RESETS the instance, which discards the store.  That is #
-# why the mode is written beside the name, and why leaving the slot as a #
-# hole means "leave this instance alone" rather than "use the default". #
+# Changing a mode RESETS the instance, discarding the store.  That is why #
+# the mode is written beside the name, and why leaving the slot as a hole #
+# means "leave this instance alone" rather than "use the default". #
 
 (a, b, elsewhere)
