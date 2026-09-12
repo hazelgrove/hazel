@@ -24,27 +24,6 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
-/* The segment to display in Dynamic mode, and the ids of its tokens that
-   came from runtime. [ctx] must be the expression's own: the types a sample
-   mentions are the ones in scope where it was sampled, and a stand-in
-   context reports them as something else. */
-let get_dynamic_segment =
-    (utility: utility, info: info, ~ctx: Ctx.t): (Base.segment, Id.Set.t) =>
-  DynamicTypInfer.displayed_segment_and_dynamic_ids(
-    ~typ_to_seg_with_diff_ids=utility.typ_to_seg_with_diff_ids(~inline=true),
-    ~ctx,
-    ~static_typ=
-      Option.value(
-        ~default=Typ.fresh(Unknown(Internal)),
-        self_ty(info.statics),
-      ),
-    ~samples=
-      switch (info.dynamics) {
-      | None => []
-      | Some(d: Dynamics.Info.t) => d.samples
-      },
-  );
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
@@ -68,92 +47,110 @@ module M: Projector = {
   let elaborate_syntax = false;
   let focusable = Focusable.non;
 
-  /* The arrow and the tooltip describe the same reading, so one cascade
-     decides both. The model says which reading was asked for; this says
-     which it came to, since Expected falls back to Self where there is no
-     expectation, and either reads as agreement where the two coincide. */
-  type mode = {
+  /* Whether statics has an expectation to show. An expression in synthetic
+     position has none, so Expected mode falls back to Self and toggling
+     skips it. */
+  let has_expected = (statics: option(Info.t)): bool =>
+    switch (expected_ty(statics)) {
+    | None => false
+    | Some(ty) => !Typ.is_syn(ty)
+    };
+
+  /* What the cell shows: the model says which reading was asked for, this
+     says which it came to. Runtime carries no type -- its segment is built
+     from the samples and comes with the ids to colour. */
+  type content =
+    | FromRuntime
+    | OfTyp(Typ.t);
+
+  /* The arrow, its tooltip and the content are one decision, so one cascade
+     settles all three and none can drift from the others. */
+  type reading = {
     glyph: string,
     description: string,
+    content,
   };
 
-  let mode = (model: model, statics: option(Language.Info.t)): mode =>
+  let reading = (model: model, statics: option(Info.t)): reading => {
+    let self = () => {
+      glyph: "⇒",
+      description: "Self type",
+      content: OfTyp(self_ty(statics) |> totalize_ty),
+    };
     switch (model) {
     | Dynamic => {
         glyph: "⇓",
         description: "Dynamic type (from runtime values)",
+        content: FromRuntime,
       }
     /* ↔ not ⇔: the bundled font has no bidirectional double arrow, and a
        fallback renders differently per browser (see proj-type.css). */
     | _ when self_ty(statics) == expected_ty(statics) => {
         glyph: "↔",
         description: "Self type matches expected type",
+        content: OfTyp(self_ty(statics) |> totalize_ty),
       }
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => {
-        glyph: "⇒",
-        description: "Self type",
-      }
-    | Self => {
-        glyph: "⇒",
-        description: "Self type",
-      }
+    | Self => self()
+    | Expected when !has_expected(statics) => self()
     | Expected => {
         glyph: "⇐",
         description: "Expected type",
+        content: OfTyp(expected_ty(statics) |> totalize_ty),
       }
     };
+  };
 
-  let mode_view = (model, info) => {
-    let {glyph, description} = mode(model, info);
+  let mode_view = (glyph, description) =>
     div(
       ~attrs=[Attr.classes(["mode"]), Attr.title(description)],
       [text(glyph)],
     );
+
+  let typ_view = (content, info: info, utility, view_seg: View.seg, ~ctx) => {
+    /* Dynamic hands over the exact segment its ids were computed from:
+       preparing mints fresh paren ids, so a second one would not answer to
+       them. */
+    let (classes, seg) =
+      switch (content) {
+      | FromRuntime =>
+        let (seg, dynamic_ids) =
+          DynamicTypInfer.displayed_segment_and_dynamic_ids(
+            ~typ_to_seg_with_diff_ids=
+              utility.typ_to_seg_with_diff_ids(~inline=true),
+            ~ctx,
+            ~static_typ=self_ty(info.statics) |> totalize_ty,
+            ~samples=
+              switch (info.dynamics) {
+              | None => []
+              | Some(d: Dynamics.Info.t) => d.samples
+              },
+          );
+        ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
+      | OfTyp(typ) => (
+          (_ => []),
+          utility.term_to_seg(~inline=true, Typ(typ)),
+        )
+      };
+    div(
+      ~attrs=[Attr.classes(["type-cell"])],
+      [seg |> view_seg(~single_line=true, ~classes, Sort.Typ)],
+    );
   };
 
-  let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    /* Every arm yields its own segment, so Dynamic can hand over the exact
-       one its ids were computed from. */
-    let to_seg = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
-    let cell = (~attrs=[], contents) =>
-      div(~attrs=[Attr.classes(["type-cell"]), ...attrs], contents);
-    switch (info.statics) {
-    /* Statics are absent when the user has turned them off, and briefly
-       while an edit is being checked. Say so rather than showing `?`, which
-       would claim the type is unknown when what is unknown is whether we
-       looked. */
-    | None =>
-      cell(
-        ~attrs=[Attr.title("No type information for this expression")],
-        [text("unavailable")],
-      )
-    | Some(statics) =>
-      let (classes, seg) =
-        switch (model) {
-        | Dynamic =>
-          let (seg, dynamic_ids) =
-            get_dynamic_segment(utility, info, ~ctx=Info.ctx_of(statics));
-          ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
-        | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
-            (_ => []),
-            to_seg(self_ty(info.statics) |> totalize_ty),
-          )
-        | Expected => (
-            (_ => []),
-            to_seg(expected_ty(info.statics) |> totalize_ty),
-          )
-        | Self => ((_ => []), to_seg(self_ty(info.statics) |> totalize_ty))
-        };
-      cell([seg |> view_seg(~single_line=true, ~classes, Sort.Typ)]);
-    };
-  };
+  /* Statics are absent when the user has turned them off, and briefly while
+     an edit is being checked. Say so rather than showing `?`, which would
+     claim the type is unknown when what is unknown is whether we looked. */
+  let unavailable_view = () =>
+    div(
+      ~attrs=[
+        Attr.classes(["type-cell"]),
+        Attr.title("No type information for this expression"),
+      ],
+      [text("unavailable")],
+    );
 
   let update = (model, info, a: action) => {
-    let has_expected =
-      switch (expected_ty(info.statics)) {
-      | Some(ty) => !Typ.is_syn(ty)
-      | None => false
-      };
+    let has_expected = has_expected(info.statics);
     switch (a, model) {
     | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
     | (ToggleDisplay, Self) => Dynamic
@@ -176,10 +173,22 @@ module M: Projector = {
               Attr.classes(["offside"]),
               Attr.on_double_click(_ => local(ToggleDisplay)),
             ],
-            [
-              mode_view(model, info.statics),
-              typ_view(model, info, info.utility, view_seg),
-            ],
+            switch (info.statics) {
+            | None => [unavailable_view()]
+            | Some(statics) =>
+              let {glyph, description, content} =
+                reading(model, info.statics);
+              [
+                mode_view(glyph, description),
+                typ_view(
+                  content,
+                  info,
+                  info.utility,
+                  view_seg,
+                  ~ctx=Info.ctx_of(statics),
+                ),
+              ];
+            },
           ),
         ),
       overlay: None,

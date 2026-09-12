@@ -58,28 +58,14 @@ let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
   };
 };
 
-/* Types appear in failure messages as source, not as a term dump. */
-let typ_to_string = (ty: Typ.t): string => {
-  let seg =
-    TypToSegment.typ_to_segment(
-      ~settings={
-        secondary: AutoFormat,
-        parenthesization: Defensive,
-        label_format: QuoteWhenNecessary,
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: `NoFold,
-        hide_fixpoints: false,
-        show_filters: true,
-        show_unknown_as_hole: true,
-        show_ascriptions: true,
-        hole_tiles: false,
-        project_tables: false,
-      },
-      ty,
-    );
-  Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
-};
+/* Types appear in failure messages as the projector would show them, not as
+   a term dump. */
+let typ_to_string = (ty: Typ.t): string =>
+  TypToSegment.typ_to_segment(
+    ~settings=ProjectorInfo.seg_settings(~inline=true),
+    ty,
+  )
+  |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true);
 
 let testable_typ_string = testable(Fmt.string, String.equal);
 
@@ -230,7 +216,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
         list(string),
         "tiles of a wholly runtime-derived type left uncoloured",
         [],
-        Segment.tile_ids(seg)
+        Test_TypToSegment.tile_ids(seg)
         |> List.filter(id => !Id.Set.mem(id, dynamic_ids))
         |> List.map(id => Id.str8(id)),
       );
