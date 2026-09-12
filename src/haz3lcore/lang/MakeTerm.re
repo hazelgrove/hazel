@@ -364,6 +364,7 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       | "true" => ret(Lit(Bool(true)))
       | "false" => ret(Lit(Bool(false)))
       | "null" => ret(Lit(Null))
+      | _ when Token.is_empty_tuple(t) => ret(Lit(Unit))
       | _ when Token.is_int(t) => ret(Lit(Nat(t)))
       /* The token keeps its quotes, which is what Lit(Text) holds and what
          FumolaPrint prints: Fumola's string syntax is Hazel's. */

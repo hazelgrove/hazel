@@ -791,9 +791,11 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | BoolLit => (Token.is_bool, [op(Exp), op(Pat), op(Drv(Exp))])
   | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat), op(Drv(Exp))])
+  /* Fumola's unit is `()` as Hazel's is, and calling a Fumola function of no
+     arguments needs it. */
   | EmptyTuple => (
       Token.is_empty_tuple,
-      [op(Exp), op(Pat), op(Typ), op(Drv(Exp))],
+      [op(Exp), op(Pat), op(Typ), op(Drv(Exp)), op(Fumola(Exp))],
     )
   | EmptyModule => (Token.is_empty_module, [op(Exp), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])

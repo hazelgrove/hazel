@@ -170,12 +170,7 @@ let corpus: list((string, string, string, string)) = [
   ),
   /* Projection is what makes an import worth having: it is how the module
      the import binds is reached. */
-  (
-    "a projection",
-    "fumola ? as store in e.x end",
-    "store",
-    "e.x",
-  ),
+  ("a projection", "fumola ? as store in e.x end", "store", "e.x"),
   (
     "a projection chains to the left",
     "fumola ? as store in e.x.y end",
@@ -194,6 +189,7 @@ let corpus: list((string, string, string, string)) = [
     "store",
     "Seq.fromList l",
   ),
+  ("unit", "fumola ? as store in () end", "store", "()"),
   (
     "a hazel expression",
     "fumola ? as store in hazel 1 end end",
