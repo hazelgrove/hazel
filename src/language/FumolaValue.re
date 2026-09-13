@@ -43,8 +43,7 @@ let element_anas =
   };
 
 /* The expected type of a list's elements. */
-let element_ana =
-    (~tools: FumolaTools.t, ana: TermBase.Typ.t): TermBase.Typ.t =>
+let element_ana = (~tools: FumolaTools.t, ana: TermBase.Typ.t): TermBase.Typ.t =>
   switch (tools.normalize(ana).term) {
   | List(ty) => ty
   | _ => unknown()
@@ -61,8 +60,7 @@ let element_ana =
  *
  * Visible immediately in a table view, whose columns are the fields in the
  * order they arrive. */
-let field_order =
-    (~tools: FumolaTools.t, ana: TermBase.Typ.t): list(string) =>
+let field_order = (~tools: FumolaTools.t, ana: TermBase.Typ.t): list(string) =>
   switch (tools.normalize(ana).term) {
   | Prod(tys) =>
     List.filter_map(
@@ -97,8 +95,7 @@ let order_fields =
 
 /* The expected type of a record field, by label. */
 let field_ana =
-    (~tools: FumolaTools.t, ana: TermBase.Typ.t, name: string)
-    : TermBase.Typ.t => {
+    (~tools: FumolaTools.t, ana: TermBase.Typ.t, name: string): TermBase.Typ.t => {
   let labelled = (ty: TermBase.Typ.t) =>
     switch (ty.term) {
     | TupLabel({term: Label(l), _}, ty) when l == name => Some(ty)
@@ -360,11 +357,7 @@ let wants_symbol = (~tools: FumolaTools.t, ana: TermBase.Typ.t): bool => {
    constructors are the ones the expected type declares rather than invented
    here. */
 let rec symbol_exp =
-        (
-          ~tools: FumolaTools.t,
-          ~ana: TermBase.Typ.t,
-          json: Yojson.Safe.t,
-        )
+        (~tools: FumolaTools.t, ~ana: TermBase.Typ.t, json: Yojson.Safe.t)
         : result(TermBase.Exp.t, string) => {
   let applied = (name, payload) => {
     let (ctr, payload_ana) = constructor(~tools, ~ana, name);

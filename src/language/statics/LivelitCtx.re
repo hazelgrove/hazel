@@ -25,10 +25,11 @@ type send_action = action_exp => Ui_effect.t(unit);
 /* The Fumola bridge's type tools, which are not about livelits: they moved to
    FumolaTools when the tile integration needed them without a livelit in
    sight. Kept under this name too, so livelit code reads as it did. */
-type type_tools = FumolaTools.t = {
-  resolve_ctr: (~ana: TermBase.Typ.t, string) => option(TermBase.Typ.t),
-  normalize: TermBase.Typ.t => TermBase.Typ.t,
-};
+type type_tools =
+  FumolaTools.t = {
+    resolve_ctr: (~ana: TermBase.Typ.t, string) => option(TermBase.Typ.t),
+    normalize: TermBase.Typ.t => TermBase.Typ.t,
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type raw_livelit = {
