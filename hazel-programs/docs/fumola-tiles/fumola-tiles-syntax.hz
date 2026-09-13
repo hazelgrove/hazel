@@ -18,7 +18,7 @@ let ^^probe(hLit) = (1, "two", true, ()) in
 # both are in the AST and neither has a spelling yet. #
 
 let ^^probe(fNull) = fumola $graphical as syn in null end in
-let ^^probe(hNull): Option(Int) = None in
+let ^^probe(hNull): Option = None in
 
 # A quoted name is a Fumola symbol, and crosses as Hazel's Symbol. #
 
@@ -186,4 +186,14 @@ let ^^probe(fEscape) =
 # blocked by the tokenizer rather than by effort, is in #
 # docs/extending-the-tile-grammar.md. #
 
-(fLit, hLit, fSwitch, hSwitch, fBang, hBang, fCells, fEscape)
+# Every binding above, so that none of them is unused -- the probes have #
+# already shown each one; this is the list of what evaluated. #
+
+(
+  fLit, hLit, fNull, hNull, fName,
+  hName, fArith, hArith, fLadder, fLogic,
+  hLogic, fArray, hArray, fIndex, fVariant,
+  hVariant, fIf, hIf, fSwitch, hSwitch,
+  fLet, hLet, fProj, fImport, fAssert,
+  fPrim, fBang, hBang, fCells, fEscape,
+)

@@ -117,8 +117,15 @@
 .fumola-peek {
     display: inline-flex;
     align-items: baseline;
-    gap: 0.35em;
-    padding: 0 0.3em;
+    gap: 0.15em;
+    /* The placeholder reserves columns of the CODE grid -- see
+       FumolaPeekProj.placeholder, which counts characters -- so the widget
+       has to paint on that same grid or the box is wider than its text. It
+       was inheriting the UI font, proportional and a size smaller, which
+       left a moat of a few columns down each side. */
+    font-family: var(--code-font);
+    font-size: var(--base-font-size);
+    padding: 0 0.05em;
     border: 1px solid rgba(0, 0, 0, 0.18);
     border-radius: 0.3em;
     background: rgba(0, 0, 0, 0.03);
@@ -130,6 +137,10 @@
 .fumola-peek-arrow {
     opacity: 0.4;
 }
+/* Not bold: the grid the placeholder reserves is the regular weight, and
+   Source Code Pro's 600 is wider per character, which puts the box back
+   over its reservation by a column every twenty-five. The value already
+   stands out against the reference, which is at 0.65. */
 .fumola-peek-value {
-    font-weight: 600;
+    font-weight: inherit;
 }

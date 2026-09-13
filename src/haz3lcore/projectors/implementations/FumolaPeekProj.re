@@ -35,12 +35,25 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
 
-  /* Wide enough for both halves and the arrow between them. */
+  /* Wide enough for both halves, the arrow between them, and a little over.
+
+     The three is the arrow and its spaces. The four beyond it is an
+     allowance, and it is not arbitrary: the widget paints in the code font
+     at the code size (see proj-livelit.css, which had to be told to), and
+     that font's advance width is a shade wider than the editor's column --
+     10.4px against 10.0 at the default size. Over a hundred characters that
+     is three columns, so a box sized to its exact character count comes out
+     wider than the slot reserved for it and sits proud of the text beside
+     it.
+
+     Erring the other way leaves a moat, which is what this looked like
+     before the font was fixed: the widget was inheriting the proportional
+     UI font, so a hundred and ten columns of slot held eighty of drawing. */
   let placeholder = (m: model, _) =>
     ProjectorCore.Shape.inline(
       Unicode.Width.columns_of_string(m.reads)
       + Unicode.Width.columns_of_string(m.shown)
-      + 3,
+      + 7,
     );
 
   let update = (m, _, _) => m;

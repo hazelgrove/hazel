@@ -7,7 +7,20 @@
 
 # The path is the packaged module path, not a file on your disk. #
 
-let ^^probe(root) = fumola $graphical as lib in
+# A level tree node is a Fumola variant, and the tags it uses -- empty, #
+# element, binary -- are not names Hazel knows.  Declaring the type is #
+# what lets them land as constructors rather than as unbound names, and #
+# it is also what tells the bridge which sum to build.  The children are #
+# pointers, and a pointer's Hazel type is the type of what it points at, #
+# so `left` and `right` are Nodes. #
+
+type Node =
+  + Empty
+  + Element((element = Int, symbol = Int))
+  + Binary((left = Node, level = Int, right = Node, symbol = Int))
+in
+
+let ^^probe(root): Node = fumola $graphical as lib in
   { import Seq = "fumola/collections/levelTree";
     Seq.testFromList(())! }
 end in
@@ -30,7 +43,7 @@ end in
 # All the reading forms take either a symbol or a pointer, so a reference #
 # that came through Hazel is an argument like any other: #
 
-let ^^probe(viaGet) = fumola $graphical as lib in
+let ^^probe(viaGet): Node = fumola $graphical as lib in
   { get(hazel root end) }
 end in
 
@@ -65,7 +78,7 @@ end in
 # on: the left child comes back as another reference, which the probe #
 # shows the way it showed the root. #
 
-let ^^probe(leftChild) = fumola $graphical as lib in
+let ^^probe(leftChild): Node = fumola $graphical as lib in
   { switch (@ hazel root end) {
       case $binary(b) => b.left;
       case _ => hazel root end } }
