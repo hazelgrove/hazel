@@ -46,15 +46,50 @@ let ^^probe(theSpace): Space = fumola $graphical as watch in Adapton.here() end 
 # projection at an index, and a tile for it.  The second event is an edge #
 # being added, which is the smallest event there is: #
 
-# (Only the tags this slide meets are declared.  The full shape is #
-# PeekInfo.Events in the Fumola source, and it is much wider than this.) #
+# The log's own shape, written out.  Fumola writes its event tags in #
+# lower case and they arrive capitalised, which is how Hazel spells a #
+# constructor. #
 
 type EdgeId = + EdgeId(Int) in
-type Event = + AddEdge(EdgeId) in
+type Event =
+  + AddNode((Space, Time, Int))
+  + AddEdge(EdgeId)
+  + UpdateEdge(EdgeId)
+  + ForceBegin((EdgeId, Option))
+  + ForceEnd(EdgeId) in
+type EventRow = (metaTime = Int, event = Event) in
 
 let ^^probe(oneEvent): Event = fumola $graphical as watch in
   Adapton.peekEvents()[1].event
 end in
+
+# How many there are.  `.size()` on the list is a nullary call on a #
+# projection, which is the shape that used to be untypeable. #
+
+let ^^probe(howMany): Int = fumola $graphical as watch in
+  Adapton.peekEvents().size()
+end in
+
+# THE LOG AS ROWS #
+
+# A list of records is what Hazel's table wants, and that is exactly what #
+# the log already is -- no reshaping in between, which is the point worth #
+# making: the graph's record of itself is ordinary structured data. #
+
+# The annotation below is the log's type, and it is what makes the whole #
+# list land as rows rather than as a heap of unresolved tags. #
+
+# `^^probe_table` asks for those rows drawn as a table.  It is placed and #
+# it samples, and at the time of writing it draws the list inline instead #
+# -- the renderer is registered and the token is parsed, so the gap is #
+# somewhere between the two.  Tracked; the annotation and the shape are #
+# right either way, and the table appears when it is fixed. #
+
+let events: [EventRow] = fumola $graphical as watch in
+  Adapton.peekEvents()
+end in
+
+^^probe_table(events);
 
 # WHAT A THUNK PRODUCED, WITHOUT DEPENDING ON IT #
 
@@ -72,4 +107,4 @@ end in
 # writes without recording, and `reset` discards the store.  The last is #
 # not run here, for the obvious reason. #
 
-(total, nodes, theTime, theSpace, oneEvent, forced)
+(total, nodes, theTime, theSpace, oneEvent, howMany, forced, events)
