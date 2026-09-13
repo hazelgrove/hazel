@@ -28,6 +28,11 @@ Twelve forms landed in one pass this way: arrays and indexing, concatenation,
 `e!`, `not`, `assert`, `ignore`, `return`, `prim`, `if`/`else`, quoted names.
 The constraint is never the semantics. It is always the **concrete syntax**.
 
+`switch` and its patterns landed later and cost slightly more — one
+constructor in the sub-language's own AST — for a reason worth reading before
+you add a form with sub-structure of its own; see *A form with structure
+inside it* below.
+
 ## The real constraint: Hazel's tokenizer is shared
 
 A sub-language does not get its own lexer. Every token in the document is
@@ -46,6 +51,10 @@ either**, because a Hazel comment is delimited by it. Writing *about* a Fumola
 tag inside a documentation slide ends the comment and turns the rest of the
 sentence into code. That has now broken three slides, twice in a slide whose
 subject was this exact problem.
+
+The same wall means **a slide cannot cite an issue number**. A reference slide
+that wants to say "the rest is tracked in" has to name a file path and let
+that file carry the link.
 
 **2. Not every punctuation mark can be an operator.** `Token.ascii_operator_chars`
 is a fixed set, and `$` is not in it — so although `$tag` lexes fine as an
@@ -84,10 +93,14 @@ takes twenty lines against `Token.is_potential_token` and `Parser.to_segment`.
 **4. One token expands to one form per sort.** `Form.Expansion` resolves a
 token and a sort with `find_opt`, so `fumola … in … end` and
 `fumola … as … in … end` cannot both be reachable by typing. That is why the
-adapton mode is a *slot* rather than an option. The same rule made `?e`
-impossible — `?` is Hazel's explicit-hole token — and makes unary minus
-unreachable, since a leading `-` lexes into the numeric literal before any
-form is consulted.
+adapton mode is a *slot* rather than an option. The same rule makes `?e`
+impossible: `?` is Hazel's explicit-hole token.
+
+Unary minus was listed here too and does not belong. `-x` is a prefix tile and
+works; what a leading `-` does is join a *numeral*, since the int token is
+`^-?\d+[0-9_]*$`, so `-1` is the literal rather than a negation of `1`. Those
+mean the same thing, so nothing is lost — but the claim that the form was
+unreachable was not measured, which is the mistake rule 3 is about.
 
 ## Decisions we made, and why
 
@@ -114,6 +127,50 @@ already in `FumolaGrammar` with a printer case and round-trip coverage. That
 is why landing one is cheap. The exception proves the value of the rule: `do ?`
 is *not* in the AST, so it needs a constructor before it needs a tile — and
 that distinction is invisible unless the tiers are written down.
+
+## A form with structure inside it
+
+Every form above is flat: an operator, a prefix, a bracket pair. `switch` was
+the first with structure of its own — a *sequence* of *pattern*-and-body pairs
+— and the instinct was to model both notions with new sorts, on Hazel's own
+pattern: a `Fumola(Pat)` sort for the patterns and a `Fumola(Rul)` sort to
+chain the cases, mirroring Hazel's `Pat` and `Rul`.
+
+Both were written and both were deleted, because both notions already existed
+in a usable form:
+
+- **a pattern position** is `Fumola(Exp)` read as a pattern by
+  `MakeTerm.fumola_pat_of` — which is what the binding position of a `let`
+  already was;
+- **a sequence** is a `;`-chain of declarations — which is what a block
+  already was, with `fumola_decs` already reading one.
+
+So a case is spelled as a *declaration*: `case p => b`, separated by `;`
+exactly as a block's contents are. The whole form cost **one constructor** in
+the sub-language's AST (`DCase`) and **no new sorts**, and one machine reads a
+switch's cases and a block's contents alike.
+
+**Look for the existing reading before adding a sort.** Two sorts would have
+meant two answers to "what is a pattern here" and two to "what is a sequence",
+and the tile grammar is small enough that a second answer is a liability
+rather than a generalization.
+
+It helped that Fumola separates its own cases with `;`, so that spelling is
+its own rather than borrowed. `=>` is borrowed from Hazel by rule 1 above.
+
+### The invariant that was true only because a form was missing
+
+`has_hole` never looked at a pattern. It did not need to: a `let` binder that
+is not a name is already a hole at the term level, so no pattern position
+could hold one. A case pattern can. It printed as `case ?□ …` — which the real
+parser rejects — while `has_hole` reported the program printable, so the guard
+that checks every shipped slide would have waved it through.
+
+This is the failure mode the tier lists in
+[#2538](https://github.com/hazelgrove/hazel/issues/2538) cannot capture: not a
+form that is missing, but **an invariant that held only because a form was
+missing**. Worth asking of any form you add: what was true of every existing
+form, only because this one did not exist?
 
 ## What the tests can and cannot see
 
@@ -150,12 +207,30 @@ becomes a *name*, its text must be **injective**, not pretty: rendered without
 parentheses, `(1 | 2) + 3` and `1 | (2 + 3)` collide on one name and two
 distinct cells become one.
 
-**Names crossing at all.** Fumola runs during elaboration, before substitution,
-so `hazel … end` carries a value written in place and not a bound variable
-([#2537](https://github.com/hazelgrove/hazel/issues/2537)). Lifting that means
-moving the runtime into the worker, which puts the store behind an async
-boundary and takes it out of reach of the event panel. That is the deepest
-open question here, and it is about *evaluation order*, not about tiles.
+**Names crossing at all.** This was the deepest open question here and it is
+now closed, which is worth recording because of *how* it was closed
+([#2537](https://github.com/hazelgrove/hazel/issues/2537)).
+
+Fumola ran during elaboration, before substitution, so `hazel … end` carried a
+value written in place and not a bound variable. Lifting it looked like it
+meant moving the runtime into the worker — putting the store behind an async
+boundary and out of reach of the event panel — because a cell's result is
+computed in a worker and the worker has no `window.fumola`. That measurement
+was right. The inference from it was not: **the worker is a choice per cell,
+not a fact.** `EvalResult.calculate` has always taken
+`~queue_worker: option(…)`, and `None` routes a cell through
+`WorkerServer.evaluate_sync` on the main thread. A cell whose statics pass saw
+a Fumola term now goes that way; every other cell keeps the worker.
+
+The lesson is not about tiles at all: a measurement of what *is* happening had
+been read as a constraint on what *could*. It cost a milestone
+(`M2.5` in `docs/fumola-tiles-design.md`, recorded as abandoned and then done).
+
+What remains open at this boundary is narrower and worth knowing: a reference
+that comes into Hazel can go back out, but there is no way to *say* "the value
+it holds" ([#2548](https://github.com/hazelgrove/hazel/issues/2548)), and
+instance names are not first-class, so Hazel code over Fumola cannot be reused
+across instances ([#2549](https://github.com/hazelgrove/hazel/issues/2549)).
 
 ## If you are adding the next sub-language
 
