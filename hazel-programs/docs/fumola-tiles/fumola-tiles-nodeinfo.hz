@@ -1,0 +1,111 @@
+# WHAT ONE NODE KNOWS: peekInfo #
+
+# `peekEvents` is the store's history, in order.  `peekInfo` is the other #
+# view of the same graph: one node, as it stands now, with its contents #
+# and both directions of its edges.  A sequence and a structure. #
+
+# The same two cells and a thunk as the slide before. #
+
+let total: Int = fumola $graphical as look in
+  { let a = 1 := 41;
+    let b = 2 := 1;
+    let t = 3 := thunk { (@ a) + (@ b) };
+    force t }
+end in
+
+# THE TYPES #
+
+# Fumola writes `Any` wherever a cell may hold anything.  Hazel writes `?`, #
+# and a constructor declared with `?` takes whatever crosses -- which is #
+# what lets one Action type cover a put of an integer and a force of a #
+# thunk. #
+
+type Time = + Now in
+type Space = + Here + Symbol(Symbol) in
+type NodeId = (Space, Time, Int) in
+type EdgeId = + EdgeId(Int) in
+
+# An edge is aligned with the graph, or signaled that it may not be. #
+type Align = + Aligned + Signaled in
+
+# What the edge did.  A get reads a cell; a put writes one; a force runs a #
+# thunk, and carries both the thunk and what it produced. #
+type Action =
+  + ForceBegin(?)
+  + Force_((?, ?))
+  + Put(?)
+  + Get(?) in
+
+type Edge =
+  (
+    source = NodeId,
+    target = NodeId,
+    action = Action,
+    metaTimes = (Int, Int),
+    align = Align
+  ) in
+
+# A thunk node carries its code, the trace its last run left, its result #
+# if it has one, and the space it lives in. #
+type ThunkNode =
+  (body = ?, result = Option, space = Space, trace = [EdgeId]) in
+
+type Node = + NonThunk(?) + Thunk_(ThunkNode) in
+
+type NodeInfo =
+  (
+    node = Node,
+    nodeId = NodeId,
+    incomingEdges = [(EdgeId, Edge)],
+    outgoingEdges = [(EdgeId, Edge)]
+  ) in
+
+# A CELL #
+
+# A cell's node is simply what it holds.  `!` unwraps peekInfo's option. #
+
+# The parentheses around the unwrap are not decoration: `e!.x` has no tile #
+# spelling today, though `e![0]` does, so the unwrap has to be closed off #
+# before the field is reached.  Tracked. #
+
+let ^^probe(cellNode): Node = fumola $graphical as look in
+  (Adapton.peekInfo(pointer(1))!).node
+end in
+
+# A THUNK #
+
+# A thunk's node carries its CODE.  A thunk is a Fumola value Hazel has no #
+# form for, so it arrives as a reference showing its own source -- which #
+# is more use than a hole would be, and is the same widget a pointer gets. #
+
+let ^^probe(thunkNode): Node = fumola $graphical as look in
+  (Adapton.peekInfo(pointer(3))!).node
+end in
+
+# THE EDGES, WHICH ARE THE DEPENDENCE GRAPH ITSELF #
+
+# The thunk reads two cells, so it has two outgoing `get` edges.  This is #
+# the dependence graph rather than a summary of one: each edge names its #
+# source, its target, what it did, the meta times it spans, and whether it #
+# is still aligned. #
+
+let ^^probe(whatTheThunkReads): [(EdgeId, Edge)] =
+  fumola $graphical as look in
+    (Adapton.peekInfo(pointer(3))!).outgoingEdges
+  end in
+
+# The other direction, from a cell: who read it, and how it got there. #
+# The first cell has an incoming put -- it was written -- and a get from #
+# the thunk that read it. #
+
+let ^^probe(whoReadsTheCell): [(EdgeId, Edge)] =
+  fumola $graphical as look in
+    (Adapton.peekInfo(pointer(1))!).incomingEdges
+  end in
+
+# Those two lists are the same edges seen from opposite ends, which is #
+# what makes the graph walkable in either direction: from a value to what #
+# it depends on, or from a cell to everything that would have to be #
+# repaired if it changed. #
+
+(total, cellNode, thunkNode, whatTheThunkReads, whoReadsTheCell)

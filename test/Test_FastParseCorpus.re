@@ -56,6 +56,7 @@ let known_gaps: list(string) = [
   "fumola-tiles-syntax.hz",
   "fumola-tiles-library.hz",
   "fumola-tiles-inspect.hz",
+  "fumola-tiles-nodeinfo.hz",
   "blackboard-overview.hz",
   "blackboard-terms.hz",
   "blackboard-signatures.hz",
