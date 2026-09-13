@@ -752,13 +752,15 @@ let test_slides_printable = () =>
 /* A Fumola reference goes back out as the pointer it is.
 
    `@` wants a pointer and a bare symbol is not one -- the runtime answers "a
-   value of the wrong kind" -- so the crossing is the symbol wrapped in
-   `prim "adaptonPointer"`, which is what makes one. Checked against the real
-   runtime in the browser, both directions:
+   value of the wrong kind" -- so the crossing turns the symbol back into a
+   pointer with `pointer`, one of the four names the wasm host binds
+   unqualified from fumola/system/prelude.fumola. The parentheses are load
+   bearing: `@ pointer(`x)` is a syntax error and `@ (pointer(`x))` is the
+   read. Checked against the real runtime in the browser:
 
-     @ (prim "adaptonPointer" (`cell))                      -> 99
-     (prim "adaptonPointer" (`cell)) := 123; @ ...          -> 123
-     force thunk { (@ (prim "adaptonPointer" (`cell))) + 1 } -> 124
+     @ (pointer(`cell))                       -> 99
+     (pointer(`cell)) := 123; @ (pointer(`cell)) -> 123
+     force thunk { (@ (pointer(`cell))) + 1 }  -> 124
 
    the last of which is the one that matters: the dependency is recorded, so
    a reference that crossed through Hazel is as incremental as one written in
@@ -783,13 +785,13 @@ let test_reference_crosses_back = () => {
   check(
     string,
     "a cell named by a symbol",
-    "(prim \"adaptonPointer\" (`cell))",
+    "(pointer(`cell))",
     source(peek("`cell")),
   );
   check(
     string,
     "a cell named by a number",
-    "(prim \"adaptonPointer\" (7))",
+    "(pointer(7))",
     source(peek("7")),
   );
   /* An opaque value rides the same term with no source: it names no cell,
