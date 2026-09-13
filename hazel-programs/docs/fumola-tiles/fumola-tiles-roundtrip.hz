@@ -40,33 +40,39 @@ let ^^probe(leaf): Tree = fumola $graphical as trip in
   { let p = 2 := $leaf(1); @ p }
 end in
 
-# WHAT THE ESCAPE CANNOT CARRY #
+# WHAT THE ESCAPE CARRIES #
 
-# `hazel ... end` carries a value written in place, NOT a variable bound #
-# outside it.  Writing `hazel leaf end` here -- to send back the value the #
-# slide just read -- does not work: a Fumola program runs during #
-# elaboration, before anything has been substituted, so the escape has a #
-# name and no value, and the program is marked `no Fumola source for this #
-# expression` instead of running. #
+# `hazel ... end` carries a value, and a variable the program around it #
+# bound is one.  `leaf` is what the slide read back a step ago; here it #
+# goes straight out again, and `trip` stores it under a second name. #
 
-# Write the value in place and the round trip works.  The crossing #
-# recases: a lower-case Fumola tag arrives capitalised, and a Hazel #
-# constructor goes out lower-cased.  Only the first letter moves, so a tag #
-# that already begins upper-case does not survive being sent and read #
-# back. #
+# This is the round trip closing on itself, and it works because a Fumola #
+# program runs during *evaluation*.  By the time the program is printed, #
+# `leaf` has been reduced to the value it stands for, and it is that value #
+# that crosses.  Running during elaboration -- which is where this used to #
+# happen, and where livelit expansion still happens -- would see the name #
+# and not the value. #
+
+# The crossing recases: a lower-case Fumola tag arrives capitalised, and a #
+# Hazel constructor goes out lower-cased.  Only the first letter moves, so #
+# a tag that already begins upper-case does not survive being sent and #
+# read back.  So `leaf` goes out as the tag it arrived as. #
 # (A Fumola tag cannot be written in this sentence: a Hazel comment is #
 # delimited by the same hash the tag begins with.) #
 
 let ^^probe(again): Tree = fumola $graphical as trip in
-  { let p = 3 := hazel Leaf(1) end; @ p }
+  { let p = 3 := hazel leaf end; @ p }
 end in
 
-# This is the one place the livelit integration does better.  There a #
-# Fumola program has a single Hazel input slot, spliced as `let input = #
-# ...`, and it takes an ordinary Hazel expression -- a bound variable #
-# included, with Hazel's types and completion on it.  What it does not #
-# have is more than one slot, or an escape anywhere but the boundary.  See #
-# the `Fumola (Livelits) / 5. Input` slide. #
+# What an escape still cannot carry is a value with no written Fumola form #
+# -- a function, a hole.  That is said when the program runs rather than #
+# while it is being typed, since until the escape has a value there is #
+# nothing to refuse. #
+
+# The livelit integration takes Hazel in through a single `input` slot at #
+# the boundary of the program text.  The escape here is a tile subtree #
+# instead, so it stands anywhere a Fumola term can and a program may have #
+# as many as it likes.  See the `Fumola (Livelits) / 5. Input` slide. #
 
 # BOTH DIRECTIONS IN ONE PROGRAM #
 

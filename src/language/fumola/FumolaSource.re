@@ -45,6 +45,13 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   switch (e.term) {
   | Parens(inner) => of_exp(inner)
   | Asc(inner, _) => of_exp(inner)
+  /* What the evaluator wraps a value in. Since the run moved to evaluation
+     these are what a `hazel … end` actually holds: a value that came from a
+     variable arrives inside the closure that captured its environment, and
+     stepper filters wrap whatever they are watching. Neither changes the
+     value, so both are seen through. */
+  | Closure(_, inner) => of_exp(inner)
+  | Filter(_, inner) => of_exp(inner)
   | Atom(Int(n)) => Ok(Bigint.to_string(n))
   | Atom(Bool(b)) => Ok(b ? "true" : "false")
   | Atom(Float(f)) => Ok(Printf.sprintf("%g", f))

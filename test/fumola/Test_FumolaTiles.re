@@ -370,10 +370,10 @@ let test_mode_resolves = () => {
    named it, so `hazel m end` rendered the *expression* `m`, which has no
    Fumola source.
 
-   This is the half of the escape that works without deciding where the
-   Fumola runtime lives. Actually *using* a bound variable also needs the
-   program to run after substitution rather than during elaboration, which
-   is the open question in docs/fumola-tiles-design.md. */
+   This is the substitution-mode half. The environment-mode half -- which is
+   what the app runs -- is test_escape_carries_a_bound_variable below: there
+   the escape is reduced by the evaluator rather than substituted into. Both
+   had to be true before `hazel x end` could name anything. */
 let test_substitution = () => {
   let printed = (body: FumolaTermBase.t) =>
     Fumola.has_hole(body)
@@ -594,67 +594,157 @@ let test_prefixes = () =>
     },
   );
 
-/* Every Fumola program in every shipped slide must at least be PRINTABLE:
-   `fumola ... end` is rendered to Fumola source before it runs, and an
-   escape holding something with no Fumola form -- a bound variable, say --
-   makes the printer refuse and the program carry a mark instead of a value.
+/* Running a program without a runtime, which is what the test runner is.
 
-   This does not need the wasm shim, which the test runner has not got: the
-   printer's refusal happens before the runtime is consulted, and it reports
-   a different message from anything the runtime can say. So a slide that
-   cannot run for THIS reason is caught here, where a slide that merely has
-   no runtime is not.
+   FumolaRun refuses in a definite order: it renders the program to Fumola
+   source first, and only then asks for the runtime. So the message that
+   comes back says which of the two failed, and "no Fumola source …" is a
+   thing only this side can say. That is what makes the checks below work
+   with no wasm anywhere near them. */
+let no_runtime = "no Fumola runtime available";
+
+let statics_and_elab = (e: Exp.t) =>
+  Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), e);
+
+let eval = (src: string): Exp.t => {
+  let (info_map, elab) = statics_and_elab(parse(src));
+  let eval_info =
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
+  let (result, _) =
+    Evaluator.evaluate(
+      ~prev=IncrEval.empty,
+      ~eval_info,
+      ~env=Builtins.env_init,
+      elab,
+    );
+  result;
+};
+
+/* Every Invalid message in a result, which is where a Fumola program that
+   could not run ends up. */
+let invalid_messages = (e: Exp.t): list(string) => {
+  let seen = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) => {
+          switch (e.term) {
+          | Invalid(msg) => seen := [msg, ...seen^]
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  List.rev(seen^);
+};
+
+/* The thing the escape exists for: a value the surrounding Hazel program
+   bound, not one written in place.
+
+   Checked without a runtime, and with power because of the order above. The
+   escape holding `m` reaches the runtime only if it was reduced to 1 first;
+   if it were not, the printer would refuse and say so instead, which is
+   exactly what the second case shows. Verified to fail by putting the run
+   back in elaboration: the first case then reports "no Fumola source". */
+let test_escape_carries_a_bound_variable = () => {
+  check(
+    list(string),
+    "a bound variable reaches the runtime, so only the runtime is missing",
+    [no_runtime],
+    invalid_messages(eval("let m = 1 in fumola ? as s in hazel m end end")),
+  );
+  check(
+    list(string),
+    "so does one computed rather than written",
+    [no_runtime],
+    invalid_messages(
+      eval("let m = 1 in fumola ? as s in hazel m + 1 end end"),
+    ),
+  );
+  check(
+    list(string),
+    "a value with no written Fumola form is still refused, now when it runs",
+    ["no Fumola source for a function"],
+    invalid_messages(
+      eval("let f = fun x -> x in fumola ? as s in hazel f end end"),
+    ),
+  );
+};
+
+/* Every Fumola program in every shipped slide must be able to REACH the
+   runtime: rendered to Fumola source, with every escape reduced to
+   something that has one.
+
+   The old form of this guard read statics marks, because that is where the
+   run was. With the run in evaluation the marks are gone and the slide is
+   evaluated instead -- which is a stronger check than the one it replaces,
+   since it judges the escapes after they have been reduced rather than
+   before. A slide that cannot run merely for want of a runtime is still not
+   caught, which is the point.
+
+   One message has to be excused, and it is the cascade of that same
+   absence: a program with no runtime evaluates to Invalid, and a later
+   `hazel ... end` naming its result then escapes an invalid expression. The
+   only thing that puts an Invalid in a value position in this corpus is a
+   Fumola program that could not run, so under the test runner that is every
+   chained slide. Everything a slide can get wrong on its own -- a function,
+   a hole, a name nothing bound -- says something else and is still caught.
 
    Written after shipping a slide whose fourth example escaped a bound
    variable. The text round-trip test passed, because the text was fine;
    what was broken was what the text meant. */
 let test_slides_printable = () =>
   test_case(
-    "every slide's Fumola programs are printable",
+    "every slide's Fumola programs reach the runtime",
     `Quick,
     () => {
-      let unprintable =
+      let unreachable =
         Docslides.Slides.all_slides
-        |> List.concat_map(((title, z: Haz3lcore.PersistentZipper.t)) => {
-             let src = z.backup_text;
-             switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+        |> List.concat_map(((title, z: Haz3lcore.PersistentZipper.t)) =>
+             switch (Haz3lcore.Parser.to_term(z.backup_text, ~root=Exp)) {
              | None => []
              | Some(e) =>
-               let (m, _) =
-                 Language.Statics.mk(
-                   CoreSettings.on,
-                   Builtins.ctx_init(None),
-                   e,
+               let (info_map, elab) = statics_and_elab(e);
+               let eval_info =
+                 EvalInfo.of_info_map(
+                   ~probe_all=CoreSettings.on.probe_all,
+                   ~targets=Id.Map.empty,
+                   info_map,
                  );
-               Id.Map.bindings(m)
-               |> List.concat_map(((_, i)) =>
-                    switch ((i: Info.t)) {
-                    | InfoExp({marks, _}) =>
-                      List.filter_map(
-                        (mk: Language.Mark.t) =>
-                          switch (mk) {
-                          | FumolaFailed(msg)
-                              when
-                                Util.StringUtil.plain_match(
-                                  "no Fumola source",
-                                  msg,
-                                ) =>
-                            Some(title ++ ": " ++ msg)
-                          | _ => None
-                          },
-                        marks,
-                      )
-                    | _ => []
-                    }
-                  );
-             };
-           })
+               switch (
+                 Evaluator.evaluate(
+                   ~prev=IncrEval.empty,
+                   ~eval_info,
+                   ~env=Builtins.env_init,
+                   elab,
+                 )
+               ) {
+               | exception _ => []
+               | (result, _) =>
+                 invalid_messages(result)
+                 |> List.filter(msg =>
+                      Util.StringUtil.plain_match("no Fumola source", msg)
+                      && !
+                           Util.StringUtil.plain_match(
+                             "an invalid expression",
+                             msg,
+                           )
+                    )
+                 |> List.map(msg => title ++ ": " ++ msg)
+               };
+             }
+           )
         |> List.sort_uniq(compare);
       Alcotest.check(
         Alcotest.(list(string)),
-        "slides whose Fumola programs cannot be printed",
+        "slides whose Fumola programs cannot reach the runtime",
         [],
-        unprintable,
+        unreachable,
       );
     },
   );
@@ -703,6 +793,11 @@ let tests = (
       test_mode_resolves,
     ),
     test_case("substitution reaches the escape", `Quick, test_substitution),
+    test_case(
+      "the escape carries a bound variable",
+      `Quick,
+      test_escape_carries_a_bound_variable,
+    ),
     test_case(
       "names recase in both directions",
       `Quick,

@@ -21,3 +21,13 @@ type t = {
      destructured. */
   normalize: TermBase.Typ.t => TermBase.Typ.t,
 };
+
+/* What to use where there is no context to ask: the worker, and the test
+   runner. Nothing unfolds and no constructor resolves, so a result comes
+   back with whatever shape it has rather than the shape something expected
+   -- which is a worse answer than the real tools give, and a better one than
+   a guess. */
+let unknown: t = {
+  resolve_ctr: (~ana as _, _) => None,
+  normalize: ty => ty,
+};

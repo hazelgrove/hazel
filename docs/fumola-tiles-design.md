@@ -182,7 +182,7 @@ are the part worth keeping:
 | **M0** | `FumolaGrammar`, `FumolaTermBase`, `FumolaPrint`, 56 tests, a round-trip script | three grammar facts intuition gets wrong (above); and a first version of the script that compared each program *to itself* and so proved nothing |
 | **M1** | a sort, a form table, a precedence ladder, `MakeTerm`, `ExpToSegment`, 55 tests | `#tag` is untokenizable; application has no token; only one form per opening keyword; `fumola` shadowed `fun` in completions |
 | **M2** | `FumolaRun`, `FumolaValue`, `FumolaSource`, `FumolaTools`, the wasm shim | instance-by-name verified against the real shim; changing a mode resets the store; the livelit's pointer widget has no tile counterpart and was dropped |
-| **M2.5** | attempted: run during evaluation so escapes carry bound variables | **abandoned.** The worker computes the result and has no shim. The traversal fix it needed was kept; the move was not |
+| **M2.5** | run during evaluation so escapes carry bound variables | **abandoned, then done.** The first attempt read "the worker computes the result" as "the worker must compute the result". `EvalResult.calculate` already takes an optional `queue_worker`, and `None` routes a cell to `WorkerServer.evaluate_sync` on the main thread |
 | **M3** | `FumolaEvents`, `FumolaSidebar`, a panel, CSS | history reachable as a prim, so no wasm export; a cursor on whitespace names no term, which emptied the panel while typing |
 | **M4** | `FumolaParse`, 107 tests | the round trip checks *structure* but is blind to a wrong precedence level, because parser and printer share the ladder; the corpus needs types, not a parser |
 | **docs** | four slides, a `Fumola (Tiles)` deck | two slides shipped Fumola that had never been run; a third broke on `#` inside a Hazel comment |
@@ -340,17 +340,34 @@ the expected type is what `resolve_ctr` consults.
 
 ### Where things run, and what that costs
 
-- **A cell's result is computed in a web worker**, which has no
-  `window.fumola`. Instrumenting the evaluator reports `runtime=absent
-  ctx=worker` for the shown result and `runtime=present ctx=main-thread`
-  beside it. `async_evaluation: false` does not mean "no worker".
-- So a Fumola program runs during **elaboration**, on the main thread. The
-  cost is that a `hazel … end` carries a value written in place and not a
-  bound variable, since nothing has been substituted yet. The benefit is one
-  runtime, on the thread where the event panel can ask it.
+- **A cell's result is computed in a web worker by default**, and the worker
+  has no `window.fumola`. Instrumenting the evaluator reports `runtime=absent
+  ctx=worker` for the shown result. `async_evaluation: false` does not mean
+  "no worker".
+- **But the worker is a choice per cell, not a fact.**
+  `EvalResult.calculate` takes `~queue_worker: option(...)`, and `None` runs
+  the cell through `WorkerServer.evaluate_sync` on the main thread, which
+  reports `runtime=present ctx=main-thread`. A cell whose statics saw a
+  Fumola term is routed that way; every other cell keeps the worker.
+- So a Fumola program runs during **evaluation**, on the main thread. That is
+  what lets a `hazel … end` carry a bound variable: by the time the program
+  is printed, the escape has been reduced to the value it names. One runtime,
+  one store, on the thread where the event panel can ask it.
+- **Two things travel that way, for the same reason.** The runtime is a
+  property of `window`; the typing context is full of OCaml closures
+  (`LivelitCtx`). Neither crosses `postMessage`, so `FumolaCtx` hands the
+  context from the statics pass to the run rather than putting it on the
+  term.
+- **What it costs is slicing.** The worker evaluates in 5000-step slices with
+  streaming updates and a 20 s timeout; `evaluate_sync` runs to completion in
+  one go. Measured on the five shipped slides: 0.0–4.9 ms of Hazel
+  evaluation, against ~0.4 ms median for the Fumola run itself and ~65 ms
+  each for `claim` and `ensureMode` the first time an instance is named. A
+  Fumola program sharing a cell with a heavy Hazel computation would block
+  the UI for the whole of it.
 - **The traversals had to be taught to enter a Fumola term.** `TermBase`
-  skipped them, so substitution never reached the Hazel expressions inside a
-  `hazel … end`. That is fixed independently of where running happens.
+  skipped them, so neither substitution nor elaboration reached the Hazel
+  expressions inside a `hazel … end`.
 - **Changing an instance's mode resets it**, discarding the store:
   `ensureMode` answers `reset: false` for the mode an instance already has
   and `reset: true` for a different one. A hole in the mode slot therefore

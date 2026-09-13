@@ -585,23 +585,25 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.empty,
         m,
       )
-    /* A Fumola program runs against the instance it names, and elaborates
-       to the Hazel value that comes back. This happens here, during
-       elaboration, for the same reason livelit expansion did: it is the one
-       pass that already reruns on every edit and has the expected type in
-       hand, which is what decides the shape a Fumola result takes on the way
-       into Hazel.
+    /* A Fumola program elaborates to itself, and runs during evaluation.
+       See Transition's FumolaQuote case for the run, and
+       src/language/fumola/README.md for why it is not here.
 
-       A program that cannot run elaborates to itself with an unknown type
-       and a mark saying why -- except when the reason is a syntax error,
-       which a half-written program produces on nearly every keystroke and
-       which the editor already shows better than a mark would. */
+       The short version: the program is printed with its `hazel … end`
+       escapes rendered as Fumola source, and an escape that names something
+       bound outside has no value until evaluation has reached it. Running at
+       elaboration -- as this did, and as livelit expansion does -- means
+       every escape carries an expression, so a literal crosses and a
+       variable does not.
+
+       What stays here is what statics is for: the escapes are Hazel
+       expressions and are elaborated and type-checked in this expression's
+       own context, so `hazel x end` resolves x the way any other occurrence
+       of x would. Nothing else about the program is Hazel's business. */
     | FumolaQuote(name, mode, body) =>
-      /* The three Fumola children first, whatever the run does with them:
-         the info map is what the cursor inspector reads, and an id missing
-         from it reports as whitespace rather than as the form it is. This
-         runs even when the program cannot run, which is when a reader most
-         wants to know what is under the cursor. */
+      /* The three Fumola children first: the info map is what the cursor
+         inspector reads, and an id missing from it reports as whitespace
+         rather than as the form it is. */
       let m =
         [name, mode, body]
         |> List.fold_left(
@@ -609,49 +611,47 @@ and uexp_to_info_map =
                fumola_to_info_map(f, m, ~ancestors=ancestors_inclusive),
              m,
            );
-      /* Closures rather than the context itself, because the Fumola modules
-         sit below Ctx and cannot name it. */
-      let tools: FumolaTools.t = {
-        resolve_ctr: (~ana, ctr_name) =>
-          switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr_name)) {
-          | Some(ty) => Some(ty)
-          | None =>
-            switch (Ctx.lookup_ctr(ctx, ctr_name)) {
-            | Some({typ, _}) => Some(typ)
-            | None => None
-            }
+      /* Every `hazel … end` in the program, elaborated where it stands.
+         Synthetic rather than analytic: what a Fumola program expects of an
+         embedded Hazel expression is not something Hazel can see, so the
+         escape is judged on its own and the crossing is checked by
+         FumolaSource at run time. */
+      let (fumola_elabs, co_ctxs, m) =
+        List.fold_left(
+          ((elabs, co_ctxs, m), f) => {
+            let (escapes, co_ctxs, m) =
+              List.fold_left(
+                ((escapes, co_ctxs, m), escape) => {
+                  let (info, elab, m) = go(escape, m);
+                  (escapes @ [elab], co_ctxs @ [info.co_ctx], m);
+                },
+                ([], co_ctxs, m),
+                Fumola.escapes(f),
+              );
+            (elabs @ [Fumola.set_escapes(f, escapes)], co_ctxs, m);
           },
-        normalize: ty => Typ.normalize(ctx, ty),
-      };
-      switch (FumolaRun.run(~ana, ~tools, name, mode, body)) {
-      | Ok(value) =>
-        /* The value stands in for the expression, the way a livelit
-           expansion did. Its type is whatever the value turned out to be. */
-        let (value_info, value_elab, m) = go(~ana, value, m);
-        add(
-          ~elab_term=value_elab,
-          ~elab_syn_ty=value_info.elab_syn_ty,
-          ~marks=[],
-          ~co_ctx=CoCtx.empty,
-          m,
+          ([], [], m),
+          [name, mode, body],
         );
-      | Error({syntax: true, _}) =>
-        add(
-          ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-          ~marks=[],
-          ~co_ctx=CoCtx.empty,
-          m,
-        )
-      | Error({message, _}) =>
-        add(
-          ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-          ~marks=[FumolaFailed(message)],
-          ~co_ctx=CoCtx.empty,
-          m,
-        )
-      };
+      let (name, mode, body) =
+        switch (fumola_elabs) {
+        | [name, mode, body] => (name, mode, body)
+        /* Unreachable: the fold is over a three-element list. */
+        | _ => (name, mode, body)
+        };
+      add(
+        ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
+        /* Unknown, because what a program produces is not decided until it
+           has run. The expected type still reaches the run -- through
+           FumolaCtx, which is how the result gets its shape -- but it is not
+           something this expression can claim to synthesize. */
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[],
+        /* A variable used inside an escape is used, and saying otherwise
+           would have Hazel report it unused. */
+        ~co_ctx=CoCtx.union(co_ctxs),
+        m,
+      );
     | DrvQuote(term, sort) =>
       let m =
         drv_to_info_map(term, m, ~ctx, ~ancestors=ancestors_inclusive, ~sort);
@@ -4545,3 +4545,47 @@ let mk =
     ) =>
   core.statics
     ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+
+/* Whether this pass saw a Fumola program. Only fumola_to_info_map writes an
+   InfoFumola entry, so the question is exactly "is there a Fumola term
+   here", and the answer decides where the cell is evaluated: a Fumola
+   program runs against `window.fumola`, which exists on the main thread and
+   not in the worker. */
+let has_fumola = (m: Map.t): bool =>
+  Id.Map.exists(
+    (_, info: Info.t) =>
+      switch (info) {
+      | InfoFumola(_) => true
+      | _ => false
+      },
+    m,
+  );
+
+/* The context a Fumola run needs, read back out of the pass that recorded
+   it. Keyed by the id of the `fumola … end` expression, which elaboration
+   preserves, so the run can ask for the type expected of it and for the two
+   type questions reading a result back raises.
+
+   This is the producing half of FumolaCtx; see there for why the context
+   travels this way rather than on the term. */
+let fumola_resolve = (m: Map.t): FumolaCtx.resolve =>
+  (id: Id.t) =>
+    switch (Map.lookup(id, m)) {
+    | Some(InfoExp({ana, ctx, _})) =>
+      Some({
+        ana,
+        tools: {
+          resolve_ctr: (~ana, ctr_name) =>
+            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr_name)) {
+            | Some(ty) => Some(ty)
+            | None =>
+              switch (Ctx.lookup_ctr(ctx, ctr_name)) {
+              | Some({typ, _}) => Some(typ)
+              | None => None
+              }
+            },
+          normalize: ty => Typ.normalize(ctx, ty),
+        },
+      })
+    | _ => None
+    };

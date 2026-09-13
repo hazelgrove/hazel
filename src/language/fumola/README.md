@@ -79,7 +79,9 @@ This is what the livelit's `input` was, with two differences that follow from
 being a form rather than a model slot. The livelit carried one value, at the
 boundary of a string Hazel could not see into. A `hazel … end` is a tile
 subtree, it can stand anywhere a Fumola term can, and a program can have as
-many as it likes:
+many as it likes. `Fumola.escapes` and `set_escapes` are how the rest of the
+code gets at them, and both walk with `FumolaGrammar.map_annotation`, so a
+form added to the grammar is reached without anything here changing:
 
 ```
 fumola store in hazel 1 end + hazel 2 end end     -->  (1) + (2)
@@ -140,47 +142,68 @@ would silently discard what another expression had been building.
 
 ### Where the runtime lives, and why it decides the rest
 
-Measured, not assumed: a cell's result is computed **in a web worker**, and
-the worker has no `window.fumola`. Instrumenting the evaluator reports
+Measured, not assumed: a cell's result is computed **in a web worker** by
+default, and the worker has no `window.fumola`. Instrumenting the evaluator
+reports
 
 ```
-FUMOLA-PROBE: reached; runtime=absent  ctx=worker        <- the shown result
-FUMOLA-PROBE: reached; runtime=present ctx=main-thread
+FUMOLA-PROBE: start_evaluation; runtime=absent  ctx=worker
+FUMOLA-PROBE: evaluate_sync;    runtime=present ctx=main-thread ms=0.7
 ```
 
-so a Fumola program run during *evaluation* finds no runtime and leaves
-itself unevaluated, while one run during *elaboration* -- which is on the
-main thread -- runs. (`async_evaluation: false` does not mean "no worker";
-the worker computes the result either way.)
+The first line was once read as "so the program cannot run during
+evaluation", and it does not say that. The worker is a **choice per cell**:
+`EvalResult.calculate` takes `~queue_worker: option(...)`, and `None` routes
+the cell through `WorkerServer.evaluate_sync` on the main thread instead --
+the second line above. A cell whose statics pass saw a Fumola term is routed
+that way; every other cell keeps the worker.
 
-This is why running happens at elaboration, and it is the constraint behind
-the limitation below. Moving it to evaluation, so that substitution has
-happened before the escapes are rendered, means putting the shim in the
-worker -- which also moves the adapton store there, out of reach of anything
-on the main thread that might want to show it. Two consequences worth
-weighing together:
+**Two things travel by that route, for the same reason.** The runtime is a
+property of `window`. The typing context is full of OCaml closures, since
+`Ctx` holds `LivelitCtx` entries. Neither crosses `postMessage`. So the run
+happens where both are: on the main thread, with `FumolaCtx` handing the
+context from the pass that had it to the pass that needs it.
 
-- the program would otherwise run in *both* contexts, so `:=` and every other
-  adapton effect would happen twice, in two separate stores;
-- a main-thread view of an instance -- an event list beside the editor, say --
-  could no longer ask the runtime directly, and would have to ask the worker.
+**What it costs is slicing.** The worker evaluates in 5000-step slices with
+streaming updates and a 20 s client timeout; `evaluate_sync` runs to
+completion in one go. On the five shipped slides that is 0.0--4.9 ms of Hazel
+evaluation, against ~0.4 ms median for a Fumola run itself and ~65 ms each
+for `claim` and `ensureMode` the first time an instance is named -- costs the
+main thread already paid when the run was in elaboration. A Fumola program
+sharing a cell with a heavy Hazel computation would block the UI for the
+whole of it, which is the case to watch.
 
-**A mode can be written but not yet referred to.** `hazel Graphical end` is
-read; `let m = Graphical in … hazel m end` is not, and says so rather than
-quietly leaving the mode alone. The reason is where running happens: during
-elaboration, before anything is substituted, so the escape holds the
-*expression* `m` and not its value. The same limit applies to every `hazel …
-end`, not just the mode -- a literal or a constructor crosses, a bound
-variable does not. Lifting it means running the program during evaluation
-instead, where substitution has happened; that also needs `Substitution` to
-descend into a Fumola term to reach the escapes inside it, which it currently
-does not.
+**Running happens during evaluation**, which is what makes the escape carry a
+value. Livelit expansion still happens during elaboration, and that is
+exactly the difference between the two routes:
 
-**Running happens during elaboration**, as livelit expansion did: it is the
-one pass that already reruns on every edit and has the expected type in hand,
-and that type is what decides the shape a Fumola result takes on the way into
-Hazel. So a Fumola expression is evaluated on every keystroke. Whether that is
-the right answer is still open; see docs/fumola-tiles-design.md.
+```
+let m = Graphical in fumola hazel m end as store in 1 + 1 end
+```
+
+reads the mode from `m`, because by the time the program is printed `m` has
+been reduced to `Graphical`. The same holds for every `hazel … end`: a
+literal, a constructor, a tuple, a variable, a call -- anything that
+evaluates to a value with a written Fumola form.
+
+What an escape still cannot carry is a value with **no** written Fumola form:
+a function, a hole. That is now reported when the program runs rather than
+while it is typed, since until the escape has a value there is nothing to
+refuse.
+
+Two consequences of running at evaluation rather than elaboration, worth
+knowing:
+
+- **The expected type has to be carried.** It decides the shape a Fumola
+  result takes on the way into Hazel, and statics is where it is known.
+  `FumolaCtx` is that channel, scoped to one evaluation and empty everywhere
+  else -- so under the test runner, and in the worker, a result still comes
+  back, just with nothing to shape it.
+- **Hazel's incremental evaluator caches the result**, so a re-evaluation
+  that reuses a cached cell does not re-run the program. That is fewer
+  adapton effects than elaboration produced, not more. It also means the
+  adapton store can move on without the displayed value following it, since
+  the store is mutable state outside Hazel's incremental model.
 
 A program that cannot run elaborates to itself with an unknown type and a
 `FumolaFailed` mark carrying what the runtime said -- except when the failure

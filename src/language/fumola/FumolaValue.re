@@ -523,16 +523,23 @@ and exp_of_tagged =
      it is rather than showing it. */
   | ("Opaque", `String(shows)) =>
     Error("the program produced " ++ shows ++ ", which has no Hazel form")
-  /* A pointer becomes the livelit that reads it: the same Fumola instance,
-     running get(<the name it points at>).
+  /* A pointer becomes the value it points at, and nothing else.
 
-     So a livelit that returns a pointer returns a simpler livelit. The term
-     is inert where it lands -- statics splices an expansion in without
-     traversing it, so a livelit inside one is never expanded, and widgets
-     come from projectors over editor syntax, which an expansion is not. What
-     it gives you is a faithful reading of what a pointer is: not a value, but
-     the expression that would fetch one. Copied into a program it becomes a
-     real livelit. */
+     This is where the tile route and the livelit route part company. There a
+     pointer became a FumolaPeek term: a value form of its own, carrying the
+     reading that names the cell alongside the value in it, and rendered by a
+     projector that showed both. A reader could see that they were looking at
+     a reference and at what it currently held.
+
+     FumolaPeek was a livelit-era term with no tile counterpart -- widgets
+     there come from projectors over editor syntax, and a Fumola result is
+     not editor syntax -- so the identity half is dropped and the value half
+     is what lands. A cell holding 41 yields 41, not "peek(`x) = 41".
+
+     What survives of the reading is the failure message: a cell Hazel cannot
+     represent reports `peek(<name>) holds <what the runtime says>` rather
+     than rendering as an empty widget. Reinstating the identity half means a
+     tile-side value form for it; see docs/fumola-tiles-design.md. */
   | ("AdaptonPointer", `Assoc(fields)) =>
     switch (List.assoc_opt("source", fields)) {
     | Some(`String(source)) =>
