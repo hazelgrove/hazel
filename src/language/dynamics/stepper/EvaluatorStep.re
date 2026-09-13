@@ -184,6 +184,9 @@ let rec matches =
       | MultiHole(ctx, (dl, dr)) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MultiHole(ctx, (dl, dr)) |> rewrap;
+      | FumolaQuote(children, ctx, (dl, dr)) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FumolaQuote(children, ctx, (dl, dr)) |> rewrap;
       | Asc(ctx, ty) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Asc(ctx, ty) |> rewrap;

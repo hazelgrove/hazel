@@ -259,6 +259,18 @@ module Update = {
         ~targets=Calc.get_value(targets),
         statics.info_map,
       );
+    /* A cell holding a Fumola program evaluates here rather than in the
+     * worker, whatever its mode asked for. Two things the run needs exist
+     * only on this side: `window.fumola`, which is the runtime and the
+     * adapton store it owns, and the typing context, which cannot cross
+     * postMessage because Ctx holds LivelitCtx closures. Measured, not
+     * assumed -- see src/language/fumola/README.md.
+     *
+     * The cost is that such a cell is evaluated without slicing, so a Fumola
+     * program sharing a cell with a heavy Hazel computation blocks the UI
+     * for the whole of it. Cells with no Fumola in them are untouched. */
+    let queue_worker =
+      Statics.has_fumola(statics.info_map) ? None : queue_worker;
     let result =
       result
       |> {
@@ -280,11 +292,14 @@ module Update = {
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.evaluate_sync({
-              expr: elab,
-              eval_info_map,
-              prev: prev_incr,
-            })
+            FumolaCtx.with_resolve(
+              Statics.fumola_resolve(statics.info_map), () =>
+              WorkerServer.evaluate_sync({
+                expr: elab,
+                eval_info_map,
+                prev: prev_incr,
+              })
+            )
           ) {
           | Ok((exp, state)) =>
             ProgramResult.ResultOk(

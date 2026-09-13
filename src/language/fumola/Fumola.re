@@ -55,3 +55,84 @@ let rec why_unprintable = (e: FumolaTermBase.t): option(string) =>
     }
   | _ => FumolaPrint.children(e) |> List.find_map(why_unprintable)
   };
+
+/* The Hazel expressions a program embeds, and the same program with those
+   expressions replaced.
+
+   These are what makes `hazel … end` carry a value rather than a name. The
+   program is printed only once its escapes have been reduced, so the two
+   have to line up: `escapes` hands the evaluator the expressions to reduce,
+   and `set_escapes` puts the results back where they came from.
+
+   Both walk with FumolaGrammar.map_annotation, which visits every `Hazel`
+   node exactly once. Neither depends on what that traversal's order *is* --
+   only that the two calls agree, which they do by being the same walk. */
+let escapes = (e: FumolaTermBase.t): list(TermBase.Exp.t) => {
+  let seen = ref([]);
+  let _ =
+    FumolaGrammar.map_annotation(
+      (
+        h => {
+          seen := [h, ...seen^];
+          h;
+        },
+        Fun.id,
+      ),
+      e,
+    );
+  List.rev(seen^);
+};
+
+let set_escapes =
+    (e: FumolaTermBase.t, es: list(TermBase.Exp.t)): FumolaTermBase.t => {
+  let remaining = ref(es);
+  FumolaGrammar.map_annotation(
+    (
+      h =>
+        switch (remaining^) {
+        | [] => h
+        | [next, ...rest] =>
+          remaining := rest;
+          next;
+        },
+      Fun.id,
+    ),
+    e,
+  );
+};
+
+/* A whole `fumola <mode> as <name> in <body> end`'s escapes, as one
+   sequence. The three children are walked in the order they are written, so
+   the run, the evaluator and the evaluation context all agree about which
+   value belongs to which escape without any of them carrying positions. */
+let quote_escapes =
+    (
+      (name, mode, body): (
+        FumolaTermBase.t,
+        FumolaTermBase.t,
+        FumolaTermBase.t,
+      ),
+    )
+    : list(TermBase.Exp.t) =>
+  escapes(name) @ escapes(mode) @ escapes(body);
+
+let set_quote_escapes =
+    (
+      (name, mode, body): (
+        FumolaTermBase.t,
+        FumolaTermBase.t,
+        FumolaTermBase.t,
+      ),
+      es: list(TermBase.Exp.t),
+    )
+    : (FumolaTermBase.t, FumolaTermBase.t, FumolaTermBase.t) => {
+  let (name_es, rest) =
+    Util.ListUtil.split_n(List.length(escapes(name)), es);
+  let (mode_es, body_es) =
+    Util.ListUtil.split_n(List.length(escapes(mode)), rest);
+  (
+    set_escapes(name, name_es),
+    set_escapes(mode, mode_es),
+    set_escapes(body, body_es),
+  );
+};

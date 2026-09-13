@@ -535,16 +535,23 @@ and exp_of_tagged =
         }),
       ),
     )
-  /* A pointer becomes the livelit that reads it: the same Fumola instance,
-     running get(<the name it points at>).
+  /* A pointer becomes a FumolaPeek: a value form of its own, carrying the
+     reading that names the cell alongside the value the cell holds, rendered
+     by a projector that shows both. So a reader sees that they are looking
+     at a reference AND at what it currently holds, rather than at a number
+     that came from somewhere.
 
-     So a livelit that returns a pointer returns a simpler livelit. The term
-     is inert where it lands -- statics splices an expansion in without
-     traversing it, so a livelit inside one is never expanded, and widgets
-     come from projectors over editor syntax, which an expansion is not. What
-     it gives you is a faithful reading of what a pointer is: not a value, but
-     the expression that would fetch one. Copied into a program it becomes a
-     real livelit. */
+     This is a place where the two routes disagreed and this tree settles it.
+     On fumola-tiles-mvp alone FumolaPeek does not exist -- it was a
+     livelit-era term, widgets there come from projectors over editor syntax,
+     and a Fumola result is not editor syntax -- so a pointer yields the
+     value it points at and the identity half is lost. Here the livelit route
+     is in the same tree, the term is available to both, and the tile route
+     gets the identity half back for free.
+
+     [seen] stops a cell that holds a pointer back to itself from being
+     followed forever; a repeat yields a peek with an empty value and a
+     description saying so. */
   | ("AdaptonPointer", `Assoc(fields)) =>
     switch (List.assoc_opt("source", fields)) {
     | Some(`String(source)) =>

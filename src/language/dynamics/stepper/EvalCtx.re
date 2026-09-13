@@ -32,6 +32,15 @@ type term =
   | HintedTest(t, DHExp.t)
   | Parens(t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
+  /* Inside one `hazel … end` of a Fumola program. The three Fumola
+     children travel whole and the escapes travel as one sequence, in
+     the order Fumola.quote_escapes walks them, so putting the stepped
+     value back is Fumola.set_quote_escapes and nothing more. */
+  | FumolaQuote(
+      (FumolaTermBase.t, FumolaTermBase.t, FumolaTermBase.t),
+      t,
+      (list(DHExp.t), list(DHExp.t)),
+    )
   | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DHExp.t)
   | Cons2(DHExp.t, t)
@@ -143,6 +152,14 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | ListLit(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+    | FumolaQuote(children, ctx, (ld, rd)) =>
+      let d = compose(ctx, d);
+      let (name, mode, body) =
+        Fumola.set_quote_escapes(
+          children,
+          ListUtil.rev_concat(ld, [d, ...rd]),
+        );
+      FumolaQuote(name, mode, body) |> wrap;
     | MultiHole(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       MultiHole(ListUtil.rev_concat(ld, [Exp(d), ...rd])) |> wrap;
