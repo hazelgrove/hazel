@@ -118,6 +118,18 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   | Invalid(_) => unsupported("an invalid expression")
   | Fun(_)
   | TypFun(_) => unsupported("a function")
+  /* A reference goes back out as the pointer it is, not as the value it
+     holds. `prim "adaptonPointer"` is what turns a symbol into a pointer --
+     a bare `x is a symbol, and `@` on one is a value of the wrong kind -- so
+     the round trip is the symbol wrapped in that prim. Checked against the
+     runtime, both directions: reading with `@`, writing with `:=`, and
+     reading through it inside a thunk, which records the dependency the way
+     a read written in Fumola would.
+
+     An opaque value names no cell and has no source, so it is still refused:
+     what came back said what it was, and there is nothing to send. */
+  | FumolaPeek({source, _}) when source != "" =>
+    Ok("(prim \"adaptonPointer\" (" ++ source ++ "))")
   | FumolaPeek(_) => unsupported("a reference into a Fumola runtime")
   | _ => unsupported("this expression")
   };
