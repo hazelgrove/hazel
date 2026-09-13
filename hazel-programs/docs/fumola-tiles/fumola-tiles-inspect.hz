@@ -82,12 +82,36 @@ let ^^probe(oneEvent): Event = fumola $graphical as watch in
   Adapton.peekEvents()[1].event
 end in
 
-# How many there are.  `.size()` on the list is a nullary call on a #
-# projection, which is the shape that used to be untypeable. #
+# A HAZEL SWITCH, AND A GRAPH THAT ANSWERS TO IT #
+
+# Everything above only reads the store.  This one writes to it, and what #
+# it writes depends on a value Hazel holds -- so flipping one boolean here #
+# changes the shape of the graph Fumola records. #
+
+let ^^probe(growTheGraph) = false in
 
 let ^^probe(howMany): Int = fumola $graphical as watch in
-  Adapton.peekEvents().size()
+  { let grow = hazel growTheGraph end;
+    if grow then { let p = 100 := 1; () } else ();
+    Adapton.peekEvents().size() }
 end in
+
+# Twelve with the switch off and fourteen with it on: a cell, and the edge #
+# that made it.  Change `false` to `true` above and watch both numbers #
+# move -- and the table below grow two rows. #
+
+# That pairing is the point.  A Hazel probe says what the program BELIEVES #
+# at a point: one value, where the caret is.  A Fumola event log says what #
+# the store DID: every node and edge, in order, with the causes attached. #
+# Neither is a reconstruction of the other, and having both means a #
+# question like "why did that recompute" has an answer on the screen #
+# rather than in a reasoning exercise. #
+
+# The switch is also the smallest demonstration of the escape carrying a #
+# bound variable: `grow` is Fumola's name for what `growTheGraph` holds. #
+# Note that the second use has to be `grow` and not `growTheGraph` -- #
+# inside the program you are in Fumola's scope, and only `hazel ... end` #
+# reaches back. #
 
 # THE LOG AS ROWS #
 
@@ -98,11 +122,9 @@ end in
 # The annotation below is the log's type, and it is what makes the whole #
 # list land as rows rather than as a heap of unresolved tags. #
 
-# `^^probe_table` asks for those rows drawn as a table.  It is placed and #
-# it samples, and at the time of writing it draws the list inline instead #
-# -- the renderer is registered and the token is parsed, so the gap is #
-# somewhere between the two.  Tracked; the annotation and the shape are #
-# right either way, and the table appears when it is fixed. #
+# `^^probe_table` draws those rows as a table.  Columns come out in the #
+# order EventRow lists its fields, which is why metaTime is written #
+# first, and the table opens in the drawer below the line. #
 
 let events: [EventRow] = fumola $graphical as watch in
   Adapton.peekEvents()
@@ -126,4 +148,4 @@ end in
 # writes without recording, and `reset` discards the store.  The last is #
 # not run here, for the obvious reason. #
 
-(total, nodes, theTime, theSpace, oneEvent, howMany, forced, events)
+(total, nodes, theTime, theSpace, oneEvent, growTheGraph, howMany, forced, events)

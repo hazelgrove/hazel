@@ -92,8 +92,7 @@ type EventRow = (metaTime=Int, event=Event) in
 # worth reading on its own.                                                 #
 #                                                                           #
 # A list of records is what a table wants, and the log already is one.      #
-# ^^probe_table pins a probe here and asks for its samples as a table; at   #
-# the time of writing it draws them inline instead, which is tracked.       #
+# ^^probe_table pins a probe here and draws its samples as a table.         #
 # Columns come out in the order EventRow lists its fields, which is why     #
 # metaTime is written first.                                                #
 let events : [EventRow] =
