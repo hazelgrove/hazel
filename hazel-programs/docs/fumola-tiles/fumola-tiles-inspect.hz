@@ -1,0 +1,75 @@
+# WHAT THE STORE KNOWS ABOUT ITSELF #
+
+# The graphical mode does not just remember values.  It records what the #
+# program did -- which cells it made, which it read, which forces began #
+# and ended -- and hands that record back as ordinary Fumola values. #
+
+# `Adapton` is bound at the top of every instance, so none of this needs #
+# an import.  The functions are in fumola/system/adapton.fumola. #
+
+# Something to look at first: two cells, and a thunk that reads both. #
+
+let total: Int = fumola $graphical as watch in
+  { let a = 1 := 41;
+    let b = 2 := 1;
+    let t = 3 := thunk { (@ a) + (@ b) };
+    force t }
+end in
+
+# HOW BIG THE GRAPH IS #
+
+# `nodeValsNow()` is the node map of the run so far and `size` counts it. #
+# Three: the two cells and the thunk. #
+
+let ^^probe(nodes): Int = fumola $graphical as watch in
+  Adapton.Native.size(Adapton.Native.nodeValsNow())
+end in
+
+# WHERE AND WHEN THE STORE IS #
+
+# A store has a cursor -- a time and a space -- and both are values. #
+# Hazel needs the two names declared before it can hold them. #
+
+type Time = + Now in
+type Space = + Here in
+
+let ^^probe(theTime): Time = fumola $graphical as watch in Adapton.now() end in
+let ^^probe(theSpace): Space = fumola $graphical as watch in Adapton.here() end in
+
+# THE EVENT LIST #
+
+# `peekEvents()` hands back the whole record as a list.  It is the same #
+# data the Fumola panel renders -- the tab below Problems -- so this is #
+# one record seen two ways, one of them a value a program can use. #
+
+# The list is long and each event is deep, so index into it.  Fumola has #
+# projection at an index, and a tile for it.  The second event is an edge #
+# being added, which is the smallest event there is: #
+
+# (Only the tags this slide meets are declared.  The full shape is #
+# PeekInfo.Events in the Fumola source, and it is much wider than this.) #
+
+type EdgeId = + EdgeId(Int) in
+type Event = + AddEdge(EdgeId) in
+
+let ^^probe(oneEvent): Event = fumola $graphical as watch in
+  Adapton.peekEvents()[1].event
+end in
+
+# WHAT A THUNK PRODUCED, WITHOUT DEPENDING ON IT #
+
+# `peekForce` answers when a thunk was forced and what it produced.  It is #
+# a peek rather than a get, so looking does not record a dependency the #
+# way `@` would -- which is what makes it safe to inspect a running #
+# computation rather than becoming part of it. #
+
+let ^^probe(forced): Option = fumola $graphical as watch in
+  Adapton.peekForce(pointer(3))
+end in
+
+# There is more in the module: `peekCell` and `peekInfo` give a node's #
+# incoming and outgoing edges, `peekHistory` the whole graph, `poke` #
+# writes without recording, and `reset` discards the store.  The last is #
+# not run here, for the obvious reason. #
+
+(total, nodes, theTime, theSpace, oneEvent, forced)
