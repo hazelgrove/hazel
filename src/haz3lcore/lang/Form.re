@@ -261,7 +261,13 @@ type fumola_compound_form =
      Borrowing one is less to explain than inventing a delimiter -- the same
      decision `if c then t else e` records. */
   | FumolaSwitch
-  | FumolaCase;
+  | FumolaCase
+  /* `f()`, whose `()` is ONE token rather than a bracket pair with nothing
+     between.  Without it an empty pair is an application whose argument slot
+     is empty, and an empty slot is a hole -- so `Adapton.peekEvents()` was a
+     program the printer refused.  Hazel's own ApExpEmpty is the same form for
+     the same reason; see #2550. */
+  | FumolaApEmpty;
 
 let fumola_get: fumola_compound_form => t =
   fun
@@ -370,7 +376,8 @@ let fumola_get: fumola_compound_form => t =
   /* The pattern slot is Fumola(Exp), read as a pattern by
      MakeTerm.fumola_pat_of -- the same arrangement `let`'s binder has. */
   | FumolaCase =>
-    mk_pre_c(L, ["case", "=>"], P.fum_stmt, Fumola(Exp), [Fumola(Exp)]);
+    mk_pre_c(L, ["case", "=>"], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
+  | FumolaApEmpty => mk_post_c(LT, ["()"], P.fum_post, Fumola(Exp), []);
 
 /* Blackboard forms.  One sort, Bb(Term), for terms, signature entries and
    blocks; see BbSort.  Signature entries are membership terms `x : T`,

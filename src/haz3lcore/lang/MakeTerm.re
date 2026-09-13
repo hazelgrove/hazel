@@ -526,8 +526,21 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       (Block(ds), ids);
     | _ => ret(hole(tm))
     }
-  | Post(Fumola(l), ([(_id, t)], [])) as tm =>
+  | Post(Fumola(l), ([(id, t)], [])) as tm =>
     switch (t) {
+    /* `f()` applies to unit.  The argument is built here rather than typed,
+       which is the whole point of the form: an empty bracket pair would be an
+       empty slot, and an empty slot is a hole.  See #2550. */
+    | (["()"], []) =>
+      ret(
+        Ap(
+          l,
+          {
+            term: Lit(Unit),
+            annotation: fumola_dec_annotation(id),
+          },
+        ),
+      )
     /* `$tag(e)` is the variant with a payload rather than an application of
        the tag, which is not a thing Fumola has. */
     | (["(", ")"], [Fumola(r)]) =>

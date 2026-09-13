@@ -22,7 +22,7 @@ in
 
 let ^^probe(root): Node = fumola $graphical as lib in
   { import Seq = "fumola/collections/levelTree";
-    Seq.testFromList(())! }
+    Seq.testFromList()! }
 end in
 
 # `testFromList` builds a level tree in the store and answers an option #

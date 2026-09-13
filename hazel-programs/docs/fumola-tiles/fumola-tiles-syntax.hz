@@ -111,7 +111,8 @@ let ^^probe(hLet) = let a = 1 in a + 1 in
 
 # Fumola writes application by juxtaposition; a tile needs a token, so #
 # the tile is `f(x)` and Fumola reads it as application to a #
-# parenthesised argument, which means the same thing. #
+# parenthesised argument, which means the same thing.  A call with no #
+# argument is `f()`, one token rather than an empty pair. #
 
 let ^^probe(fProj) = fumola $graphical as syn in { let r = (10, 20); r.0 } end in
 
@@ -137,7 +138,7 @@ let ^^probe(fAssert) = fumola $graphical as syn in { assert true; 1 } end in
 # `prim` reaches a runtime primitive by name, which is how the Fumola #
 # panel reads an instance's history.  There is no Hazel counterpart. #
 
-let ^^probe(fPrim) = fumola $graphical as syn in prim "adaptonNow"(()) end in
+let ^^probe(fPrim) = fumola $graphical as syn in prim "adaptonNow"() end in
 
 # `e!` unwraps Fumola's option.  `peek` answers one, so this reads a cell #
 # and unwraps in a single line.  Hazel unwraps with a case instead; `?e`, #

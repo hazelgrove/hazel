@@ -83,6 +83,22 @@ let corpus: list((string, string, string, string)) = [
     "x",
   ),
   ("addition", "fumola ? as store in 1 + 2 end", "store", "1 + 2"),
+  /* A nullary call. `()` here is one token, not an empty bracket pair: an
+     empty pair is an application whose argument slot is empty, and an empty
+     slot is a hole, which is what `Adapton.peekEvents()` used to be. #2550. */
+  ("a nullary call", "fumola ? as store in f() end", "store", "f ()"),
+  (
+    "a nullary call on a projection, which is what found this",
+    "fumola ? as store in Adapton.peekEvents() end",
+    "store",
+    "Adapton.peekEvents ()",
+  ),
+  (
+    "the explicit spelling means the same and normalises to the short one",
+    "fumola ? as store in f(()) end",
+    "store",
+    "f ()",
+  ),
   /* `switch` and the patterns that make it worth having. The tile spells a
      case as a declaration -- `case p => b`, separated by `;` -- so a
      switch's cases and a block's contents are read by one machine; the
@@ -954,6 +970,42 @@ let test_case_outside_switch = () => {
   );
 };
 
+/* A nullary call is application to unit, not an application with a hole in
+   it (#2550).
+
+   The distinction is invisible in the printed output of a WORKING program --
+   `f ()` either way -- so what this pins is that the program is printable at
+   all. Before the one-token form, every spelling below was a hole, and the
+   printer refused the program rather than the runtime refusing to parse it.
+
+   Found by trying to type `Adapton.peekEvents()`, and it had been papered
+   over twice already: two shipped slides say `f(())` because the short
+   spelling produced a hole, without anyone noticing it was the same bug. */
+let test_nullary_call = () => {
+  let printed = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({body, _}) =>
+      Fumola.has_hole(body) ? "refused" : Fumola.of_exp(body)
+    };
+  let cases = [
+    ("a bare call", "f()", "f ()"),
+    ("on a projection", "Adapton.peekEvents()", "Adapton.peekEvents ()"),
+    ("on a parenthesised callee", "(g)()", "(g) ()"),
+    ("the explicit spelling", "f(())", "f ()"),
+    ("an argument still works", "f(1)", "f 1"),
+  ];
+  cases
+  |> List.iter(((name, src, want)) =>
+       check(
+         string,
+         name,
+         want,
+         printed("fumola ? as s in " ++ src ++ " end"),
+       )
+     );
+};
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -1012,6 +1064,11 @@ let tests = (
       "a case outside a switch is refused",
       `Quick,
       test_case_outside_switch,
+    ),
+    test_case(
+      "a nullary call is application to unit",
+      `Quick,
+      test_nullary_call,
     ),
     test_case(
       "names recase in both directions",

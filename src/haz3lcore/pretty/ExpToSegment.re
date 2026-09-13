@@ -3262,6 +3262,12 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     let+ b = block_of(ds);
     [mk_form(Form.Fumola(FumolaBlock), id, [b])];
   | Tuple(ts) => sep(FumolaComma, ts)
+  /* Rendered with the one-token form, so what comes back out is what a
+     reader would type.  `f(())` means the same and renders this way too,
+     which is a normalisation rather than a loss. */
+  | Ap(f, {term: Lit(Unit), _}) =>
+    let+ f = go(f);
+    f @ [mk_form(Form.Fumola(FumolaApEmpty), id, [])];
   | Ap(f, a) =>
     let+ f = go(f)
     and+ a = go(a);
