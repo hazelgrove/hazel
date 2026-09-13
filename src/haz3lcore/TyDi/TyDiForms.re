@@ -18,6 +18,7 @@ module Typ = {
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
     ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
+    ("r\"\"", Atom(String) |> Typ.fresh),
     ("_", unk),
   ];
 

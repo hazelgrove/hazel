@@ -52,26 +52,56 @@ let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
-let is_string = t =>
-  match(string_regexp, t) && List.length(split_on_char('"', t)) < 4;
+let string_regexp = regexp("^\"([^\"]|(\\\\\"))*\"$");
+let is_string = t => match(string_regexp, t);
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
-/* Byte-based, which is exactly right here: every delimiter we quote with is
-   a one-byte ASCII character, so the bytes stripped are the delimiters
-   whatever the quoted content is. */
-let strip_quotes = (~quote="\"", s) =>
+let strip_quotes = (~quote="\"", ~escaping: bool=false, s) =>
   if (String.length(s) < 2) {
     s;
   } else if (String.sub(s, 0, 1) != quote
              || String.sub(s, String.length(s) - 1, 1) != quote) {
     s;
   } else {
-    String.sub(s, 1, String.length(s) - 2);
+    let body = String.sub(s, 1, String.length(s) - 2);
+    if (escaping) {
+      try(Scanf.unescaped(body)) {
+      | _ => body
+      };
+    } else {
+      body;
+    };
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
+
+let string_quote_is_escaped = (s: t, idx: int): bool => {
+  let rec count_backslashes = (i: int, n: int): int =>
+    if (i < 0 || s.[i] != '\\') {
+      n;
+    } else {
+      count_backslashes(i - 1, n + 1);
+    };
+  count_backslashes(idx - 1, 0) mod 2 == 1;
+};
+
+let raw_string_regexp = regexp("^r\"[^\n]*\"$"); /* Multiline raw strings not supported */
+let is_raw_string = t =>
+  match(raw_string_regexp, t) && List.length(split_on_char('"', t)) < 4;
+let empty_raw_string = "r\"\"";
+
+let is_raw_string_start = (==)("r\"");
+
+let strip_raw_quotes = s =>
+  if (String.length(s) < 3) {
+    s;
+  } else if (String.sub(s, 0, 2) != "r\""
+             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+    s;
+  } else {
+    String.sub(s, 2, String.length(s) - 3);
+  };
 
 /* Grapheme width: functions taking into account that some unicode
    clusters (emoji, CJK, fullwidth forms) occupy two grid columns.
@@ -100,13 +130,15 @@ let label_quote = s => label_delim ++ s ++ label_delim;
 let closing_stringlit_or_comment = (char, t: t): bool =>
   is_string(t)
   && is_string_delim(char)
+  || is_raw_string(t)
+  && is_string_delim(char)
   || is_comment(t)
   && is_comment_delim(char)
   || is_quoted_label(t)
   && is_quoted_label_delim(char);
 
 let is_string_or_comment = t =>
-  is_string(t) || is_comment(t) || is_quoted_label(t);
+  is_string(t) || is_raw_string(t) || is_comment(t) || is_quoted_label(t);
 let is_string_or_comment_delim = t =>
   is_string_delim(t) || is_comment_delim(t) || is_quoted_label_delim(t);
 
@@ -196,6 +228,8 @@ let is_potential_token = t =>
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
+    || is_raw_string(t)
+    || t == "r\""
     || is_comment(t)
     || is_quoted_label(t);
   };
@@ -326,7 +360,15 @@ let is_empty_module = equal(empty_module);
 let const_mono_delims =
   base_typs
   @ bools
-  @ [undefined, wild, empty_list, empty_tuple, empty_module, empty_string];
+  @ [
+    undefined,
+    wild,
+    empty_list,
+    empty_tuple,
+    empty_module,
+    empty_string,
+    empty_raw_string,
+  ];
 
 let bad_token_cls: string => bad_token_cls =
   t =>
