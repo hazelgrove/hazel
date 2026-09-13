@@ -40,19 +40,39 @@ let ^^probe(leaf): Tree = fumola $graphical as trip in
   { let p = 2 := $leaf(1); @ p }
 end in
 
-# A ROUND TRIP THAT IS NOT ONE #
+# WHAT THE ESCAPE CARRIES #
 
-# The crossing recases: a lower-case Fumola tag arrives capitalised, and #
-# a Hazel constructor goes out lower-cased.  Only the first letter moves, #
-# so a tag that already begins upper-case does not survive being sent and #
-# read back.  Send the value that came back and the probe shows the same #
-# Leaf(1) returning. #
+# `hazel ... end` carries a value, and a variable the program around it #
+# bound is one.  `leaf` is what the slide read back a step ago; here it #
+# goes straight out again, and `trip` stores it under a second name. #
+
+# This is the round trip closing on itself, and it works because a Fumola #
+# program runs during *evaluation*.  By the time the program is printed, #
+# `leaf` has been reduced to the value it stands for, and it is that value #
+# that crosses.  Running during elaboration -- which is where this used to #
+# happen, and where livelit expansion still happens -- would see the name #
+# and not the value. #
+
+# The crossing recases: a lower-case Fumola tag arrives capitalised, and a #
+# Hazel constructor goes out lower-cased.  Only the first letter moves, so #
+# a tag that already begins upper-case does not survive being sent and #
+# read back.  So `leaf` goes out as the tag it arrived as. #
 # (A Fumola tag cannot be written in this sentence: a Hazel comment is #
 # delimited by the same hash the tag begins with.) #
 
 let ^^probe(again): Tree = fumola $graphical as trip in
   { let p = 3 := hazel leaf end; @ p }
 end in
+
+# What an escape still cannot carry is a value with no written Fumola form #
+# -- a function, a hole.  That is said when the program runs rather than #
+# while it is being typed, since until the escape has a value there is #
+# nothing to refuse. #
+
+# The livelit integration takes Hazel in through a single `input` slot at #
+# the boundary of the program text.  The escape here is a tile subtree #
+# instead, so it stands anywhere a Fumola term can and a program may have #
+# as many as it likes.  See the `Fumola (Livelits) / 5. Input` slide. #
 
 # BOTH DIRECTIONS IN ONE PROGRAM #
 

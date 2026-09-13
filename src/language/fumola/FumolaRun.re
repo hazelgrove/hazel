@@ -137,11 +137,8 @@ let rec mode_of = (mode: FumolaTermBase.t): result(option(mode), string) =>
      and its mode referred to rather than repeated. Hazel spells the two the
      way the livelit did, as the constructors Simple and Graphical.
 
-     Read from the expression rather than from its value, which is the limit
-     of where this runs: a constructor written in place is read, and a
-     variable bound to one is not, because elaboration happens before
-     evaluation and nothing has substituted it yet. See the note in
-     src/language/fumola/README.md. */
+     By the time this runs the escape holds a value, so `hazel m end` with m
+     bound to Graphical reads the same as `hazel Graphical end`. */
   | Hazel(e) => mode_of_hazel(e)
   | Paren(m) => mode_of(m)
   | _ =>
@@ -154,17 +151,16 @@ let rec mode_of = (mode: FumolaTermBase.t): result(option(mode), string) =>
 and mode_of_hazel = (e: TermBase.Exp.t): result(option(mode), string) =>
   switch (e.term) {
   | Parens(inner)
-  | Asc(inner, _) => mode_of_hazel(inner)
+  | Asc(inner, _)
+  /* The wrappers evaluation puts around a value; see FumolaSource. */
+  | Closure(_, inner)
+  | Filter(_, inner) => mode_of_hazel(inner)
   | Constructor("Simple", _) => Ok(Some(Simple))
   | Constructor("Graphical", _) => Ok(Some(Graphical))
   | EmptyHole => Ok(None)
-  | Var(x) =>
-    Error(
-      "the mode is "
-      ++ x
-      ++ ", whose value is not known here: a Fumola program runs before "
-      ++ "anything is substituted, so write Simple or Graphical in place",
-    )
+  /* A name still standing here is one evaluation could not resolve, which
+     for a bound variable would already have been reported as unbound. */
+  | Var(x) => Error(x ++ " is not bound to a Fumola mode")
   | _ => Error("a Fumola mode from Hazel is Simple or Graphical")
   };
 
@@ -174,6 +170,14 @@ let name_of = (name: FumolaTermBase.t): option(string) =>
   switch (Annotated.term_of(name)) {
   | Var(x) => Some(x)
   | _ => None
+  };
+
+/* The same, for anything that wants to say which instance a step belonged to
+   and has nowhere to put "it named none". */
+let instance_name = (name: FumolaTermBase.t): string =>
+  switch (name_of(name)) {
+  | Some(x) => x
+  | None => "?"
   };
 
 let run =

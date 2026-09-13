@@ -21,9 +21,15 @@ end in
 
 let configured = fumola hazel Graphical end as store in 1 end in
 
-# One limit worth knowing: the escape carries a value written in place, not #
-# a variable bound outside.  `let m = Graphical in ... hazel m end` says so #
-# rather than guessing, because a Fumola program runs before anything has #
-# been substituted. #
+# An escape carries a *value*, and a variable the surrounding Hazel program #
+# bound is one: a Fumola program runs during evaluation, so by the time it #
+# is printed its escapes have been reduced.  That holds in the mode slot #
+# too, which is what lets a mode be named once and referred to: #
 
-(sum, pair, configured)
+let named = let m = Graphical in
+  fumola hazel m end as store in 1 + 1 end in
+
+# What an escape cannot carry is a value with no written Fumola form -- a #
+# function, a hole.  The program says so when it runs. #
+
+(sum, pair, configured, named)
