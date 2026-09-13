@@ -28,10 +28,15 @@ end in
 # WHERE AND WHEN THE STORE IS #
 
 # A store has a cursor -- a time and a space -- and both are values. #
-# Hazel needs the two names declared before it can hold them. #
+# Hazel needs their names declared before it can hold them. #
+
+# A space is either the current one or a symbol naming a cell; a pointer #
+# IS a space, which is why the two share a type.  (The Fumola source's own #
+# Time and Space are marked TO DO and say `time` and `space` where the #
+# runtime emits `Now` and `Symbol`.  These follow the runtime.) #
 
 type Time = + Now in
-type Space = + Here in
+type Space = + Here + Symbol(Symbol) in
 
 let ^^probe(theTime): Time = fumola $graphical as watch in Adapton.now() end in
 let ^^probe(theSpace): Space = fumola $graphical as watch in Adapton.here() end in
@@ -46,17 +51,31 @@ let ^^probe(theSpace): Space = fumola $graphical as watch in Adapton.here() end 
 # projection at an index, and a tile for it.  The second event is an edge #
 # being added, which is the smallest event there is: #
 
-# The log's own shape, written out.  Fumola writes its event tags in #
-# lower case and they arrive capitalised, which is how Hazel spells a #
-# constructor. #
+# The log's own shape, written out -- all twelve tags, not just the five #
+# this program happens to produce.  Fumola writes them in lower case and #
+# they arrive capitalised, which is how Hazel spells a constructor. #
+
+# A node id is a space, a time and a meta time, which is why AddNode #
+# carries three things.  The last four tags are realignment: a put that #
+# changes a cell signals the edges that read it, and repair walks them #
+# back into alignment. #
 
 type EdgeId = + EdgeId(Int) in
+type NodeId = (Space, Time, Int) in
+type RepairOutcome = + Aligned + Reevaluated in
 type Event =
-  + AddNode((Space, Time, Int))
+  + AddNode(NodeId)
   + AddEdge(EdgeId)
   + UpdateEdge(EdgeId)
+  + RemoveEdge(EdgeId)
   + ForceBegin((EdgeId, Option))
-  + ForceEnd(EdgeId) in
+  + ForceEnd(EdgeId)
+  + SignalingBegin(NodeId)
+  + SignalingEnd(NodeId)
+  + EdgeSignaled(EdgeId)
+  + RepairBegin(NodeId)
+  + RepairEnd((NodeId, RepairOutcome))
+  + EdgeAligned(EdgeId) in
 type EventRow = (metaTime = Int, event = Event) in
 
 let ^^probe(oneEvent): Event = fumola $graphical as watch in
