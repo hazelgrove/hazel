@@ -54,13 +54,37 @@ let eventCount : Int =
 # The types below are the log's own shape. Fumola writes its event tags     #
 # in lower case, and they arrive capitalised, since that is how Hazel       #
 # spells a constructor.                                                     #
+#                                                                           #
+# Space and Time have to be declared, not merely named: an unbound type     #
+# name is not an error here, it degrades to unknown -- so AddNode's first   #
+# component had no expectation, and a symbol with nothing expecting one     #
+# arrives as its text rather than as structure.                             #
+#                                                                           #
+# A space is the current one or a symbol naming a cell, since a pointer IS  #
+# a space. These follow what the runtime emits; PeekInfo's own Time and     #
+# Space in the Fumola source are marked TO DO and say `time` and `space`.   #
+type Time = + Now in
+type Space = + Here + Symbol(Symbol) in
 type EdgeId = + EdgeId(Int) in
+type NodeId = (Space, Time, Int) in
+type RepairOutcome = + Aligned + Reevaluated in
+
+# All twelve tags. The last four are realignment: a put that changes a      #
+# cell signals the edges that read it, and repair walks them back into      #
+# alignment.                                                                #
 type Event =
-  + AddNode((Space, Time, Int))
+  + AddNode(NodeId)
   + AddEdge(EdgeId)
   + UpdateEdge(EdgeId)
+  + RemoveEdge(EdgeId)
   + ForceBegin((EdgeId, Option))
-  + ForceEnd(EdgeId) in
+  + ForceEnd(EdgeId)
+  + SignalingBegin(NodeId)
+  + SignalingEnd(NodeId)
+  + EdgeSignaled(EdgeId)
+  + RepairBegin(NodeId)
+  + RepairEnd((NodeId, RepairOutcome))
+  + EdgeAligned(EdgeId) in
 type EventRow = (metaTime=Int, event=Event) in
 
 # The annotation is what lets the livelit expand -- it runs only in         #
