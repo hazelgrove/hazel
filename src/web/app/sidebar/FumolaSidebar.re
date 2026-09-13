@@ -30,11 +30,36 @@ let instances = (e: Exp.t): list((string, list(Id.t))) => {
   let found = ref([]);
   let subtree_ids = (e: Exp.t): list(Id.t) => {
     let ids = ref([]);
+    /* The program between `in` and `end` is a Fumola term, not a Hazel one,
+       so map_term never reaches its nodes. Without this the panel only
+       recognised the cursor when it sat on the quote itself, and emptied
+       itself the moment the caret moved onto anything inside -- which is
+       what you do to point at a cell. The annotation the Fumola grammar
+       carries is the same IdTag a Hazel term carries, so the ids are there
+       to be had. */
+    let fumola_ids = (body: FumolaTermBase.t) => {
+      let _ =
+        FumolaGrammar.map_annotation(
+          (
+            Fun.id,
+            (ann: IdTagged.IdTag.t) => {
+              ids := ann.ids @ ids^;
+              ann;
+            },
+          ),
+          body,
+        );
+      ();
+    };
     let _ =
       Exp.map_term(
         ~f_exp=
           (cont, e) => {
             ids := IdTagged.ids(e) @ ids^;
+            switch (e.term) {
+            | FumolaQuote(_, _, body) => fumola_ids(body)
+            | _ => ()
+            };
             cont(e);
           },
         e,
@@ -90,8 +115,10 @@ let instance_to_show = (~cursor_id: option(Id.t), e: Exp.t): option(string) => {
       | [] => None
     )
   | [] =>
-    switch (all) {
-    | [(name, _)] => Some(name)
+    /* By instance name, not by block: a slide that runs five programs
+       against `look` names one instance, and that is the one meant. */
+    switch (List.sort_uniq(compare, List.map(fst, all))) {
+    | [name] => Some(name)
     | _ => None
     }
   };
