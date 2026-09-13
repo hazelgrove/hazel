@@ -55,16 +55,31 @@ spelling for concatenation, `$` was the obvious candidate for consistency with
 token in every Hazel program lexes, which is not a trade worth making for one
 operator in one sub-language.
 
+The rule costs more than `$`. Fumola's xor is `^`, which is not an operator
+character either — it leads Hazel's livelit and projector prefixes — so that
+operator has no reachable spelling at all: `1 ^ 2` lexes as `1 _ ^ _ 2`, with
+grout where the operator should be. A character in this position lexes
+perfectly well and still cannot be an operator, which is why the failure looks
+like nothing in particular.
+
 We took `++`: free in Fumola, reads as concatenation, and shared with Hazel's
 own `++` — which is fine, because **forms resolve by token *and* sort**. `+`
 was already shared this way. A closed sort may reuse a spelling.
 
 **3. Some tokens are reserved by an existing ambiguity.** Every token
 beginning with `>` is restricted by `Token.is_potential_token` to a fixed list,
-to keep type application (`map@<a>`) unambiguous. So Fumola's `>>` and `<>>`
-are not merely unimplemented — they are **blocked** until that ambiguity is
-resolved, while their mirror images `<<` and `<<>` are available. An
-asymmetry like that is worth discovering before promising a milestone.
+to keep type application (`map@<a>`) unambiguous. So Fumola's `>>` is not
+merely unimplemented — it is **blocked** until that ambiguity is resolved:
+`1 >> 2` lexes as `1 > _ > 2`, two operators with a grout hole between them.
+Its mirror `<<` is available, as are `<<>` and `<>>`.
+
+Which spelling falls on which side cannot be read off by inspection, and we
+got it wrong. This paragraph and the comment in `ExpToSegment` both named
+`>>` and `<>>` as the blocked pair until the predicate was run over all six
+operators: `<>>` types cleanly and lexes as one token, and the operator
+genuinely blocked alongside `>>` is `^`, by rule 2 above. An asymmetry like
+that is worth **measuring** before promising a milestone, and measuring it
+takes twenty lines against `Token.is_potential_token` and `Parser.to_segment`.
 
 **4. One token expands to one form per sort.** `Form.Expansion` resolves a
 token and a sort with `find_opt`, so `fumola … in … end` and

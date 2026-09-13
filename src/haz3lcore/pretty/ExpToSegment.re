@@ -3265,10 +3265,14 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     /* Spelled `++` in tiles and `#` in Fumola; see Form.FumolaCat. */
     | Cat => infix(FumolaCat, l, r)
     /* No tile spells these yet, and rendering them as some other operator
-       would be a lie the editor could not be talked out of. `>>` and `<>>`
-       are blocked by more than effort: Token.is_potential_token restricts
-       every token beginning with `>` to a fixed list, to keep type
-       application unambiguous. */
+       would be a lie the editor could not be talked out of. Two are blocked
+       by more than effort, for different reasons: `>>`, because
+       Token.is_potential_token restricts every token beginning with `>` to a
+       fixed list, to keep type application unambiguous; and `^`, because it
+       is not in Token.ascii_operator_chars at all, so it lexes only as an
+       operand -- the same wall that ruled `$` out as a spelling for `#`.
+       `<<`, `<<>` and `<>>` all lex cleanly as single tokens and need only
+       tiles. */
     | Xor
     | ShL
     | ShR
