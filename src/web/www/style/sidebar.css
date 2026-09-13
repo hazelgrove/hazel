@@ -692,82 +692,96 @@
   background: var(--T3);
 }
 
-/* All requests share one benchmark table so columns align; requests are
-   separated by styled group rows. */
-#debug-sidebar .wm-scroll {
-  overflow-x: auto; /* wide numbers scroll rather than clip the status column */
-  margin-top: 0.3em;
-}
+/* Worker Messaging renders in the shared .perf-table below; all requests share
+   one benchmark table so columns align, separated by styled group rows. Only
+   those group rows are specific to it. */
 
-#debug-sidebar .wire-metrics-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-
-#debug-sidebar .wire-metrics-table td {
-  padding: 0.1em 0.25em;
-  text-align: right;
-  white-space: nowrap;
-}
-
-#debug-sidebar .wire-metrics-table .wm-head {
-  font-weight: 600;
-  color: var(--BR3);
-  border-bottom: 1px solid var(--BR1);
-}
-
-#debug-sidebar .wire-metrics-table .wm-wire {
-  text-align: left;
-  padding-left: 0.6em;
-}
-
-#debug-sidebar .wire-metrics-table .wm-total {
-  font-weight: 600;
-}
-
-/* Group separators. `wm-req` starts a new request (strong top rule + tint);
-   `wm-resp` is the lighter response sub-header within the same request. */
-#debug-sidebar .wire-metrics-table .wm-group {
+/* Group separators (a row spanning every column, emitted by PerfFormat.table).
+   `perf-group-primary` starts a new request (strong top rule + tint);
+   `-secondary` is the lighter response sub-header within the same request, and
+   `-absent` notes a group with nothing to show. */
+#debug-sidebar .perf-table .perf-group {
   text-align: left;
   padding: 0.25em 0.3em 0.15em;
 }
 
-#debug-sidebar .wire-metrics-table .wm-req {
+#debug-sidebar .perf-table .perf-group-primary {
   font-weight: 600;
   color: var(--BR4);
   background: var(--T3);
   border-top: 2px solid var(--BR2);
 }
 
-#debug-sidebar .wire-metrics-table .wm-resp,
-#debug-sidebar .wire-metrics-table .wm-note {
+#debug-sidebar .perf-table .perf-group-secondary,
+#debug-sidebar .perf-table .perf-group-absent {
   font-style: italic;
   color: var(--BR3);
   opacity: 0.8;
 }
 
-#debug-sidebar .wire-metrics-table .wm-ok {
-  color: var(--G0);
+/* Metric-table styling shared by every instrumented section: Worker Messaging
+   and the telemetry ones (Evaluation / Statics / Editor & Memory / Frame
+   Timing). */
+#debug-sidebar .perf-scroll {
+  overflow-x: auto; /* wide numbers scroll rather than clip */
+  margin-top: 0.3em;
 }
 
-#debug-sidebar .wire-metrics-table .wm-fail {
-  color: var(--R2);
+#debug-sidebar .perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+#debug-sidebar .perf-table td {
+  padding: 0.1em 0.25em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#debug-sidebar .perf-table .perf-head {
+  font-weight: 600;
+  color: var(--BR3);
+  border-bottom: 1px solid var(--BR1);
+  cursor: help; /* signals the hover-text explanation on each column */
+}
+
+#debug-sidebar .perf-table .perf-total {
+  font-weight: 600;
+  color: var(--BR4);
+}
+
+/* Name columns (the Worker Messaging encoding): left-aligned, not a number. */
+#debug-sidebar .perf-table .perf-name {
   text-align: left;
-  max-width: 8em;
+  padding-left: 0.6em;
+}
+
+/* Edit-action label column (Statics, Editor & Memory, Frame Timing):
+   left-aligned, truncated, with the full label on the cell's tooltip. */
+#debug-sidebar .perf-table .perf-action {
+  text-align: left;
+  max-width: 9em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-#debug-sidebar .wm-empty {
+#debug-sidebar .perf-table .perf-ok {
+  color: var(--G0);
+}
+
+#debug-sidebar .perf-table .perf-fail {
+  color: var(--R2);
+}
+
+#debug-sidebar .perf-table .perf-pending {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+#debug-sidebar .perf-empty,
+#debug-sidebar .perf-note {
   opacity: 0.6;
   font-style: italic;
   margin: 0.3em 0;
-}
-
-/* Units legend above the shared table. */
-#debug-sidebar .wm-legend {
-  opacity: 0.6;
-  font-style: italic;
-  margin: 0.2em 0;
 }
