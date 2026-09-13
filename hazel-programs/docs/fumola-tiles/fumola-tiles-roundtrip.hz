@@ -70,9 +70,19 @@ end in
 # nothing to refuse. #
 
 # The livelit integration takes Hazel in through a single `input` slot at #
-# the boundary of the program text.  The escape here is a tile subtree #
-# instead, so it stands anywhere a Fumola term can and a program may have #
-# as many as it likes.  See the `Fumola (Livelits) / 5. Input` slide. #
+# the boundary of the program text.  Two differences, and both follow from #
+# the escape being a tile subtree rather than a slot: it stands anywhere a #
+# Fumola term can, a program may have as many as it likes, and -- because #
+# a livelit still expands during elaboration -- the slot takes a value #
+# written in place and not a variable bound outside it. #
+
+# Checked, not assumed.  With no runtime loaded a Fumola program reports #
+# which of the two steps failed, and the two answers differ: #
+#   ^fumola_with(0, "`t", "input", 21)  says  no Fumola runtime available #
+#   ^fumola_with(0, "`t", "input", v)   says  no Fumola source for this  #
+#                                             expression                  #
+# The literal reached the runtime and the variable did not.  See the #
+# `Fumola (Livelits) / 5. Input` slide. #
 
 # BOTH DIRECTIONS IN ONE PROGRAM #
 
