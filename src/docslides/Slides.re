@@ -43,6 +43,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Fumola (Tiles) / Hazel inside", [%blob "fumola-tiles-hazel-inside.hz"]),
     ("Fumola (Tiles) / The round trip", [%blob "fumola-tiles-roundtrip.hz"]),
     ("Fumola (Tiles) / Showcase", [%blob "fumola-tiles-showcase.hz"]),
+    ("Fumola (Tiles) / The library", [%blob "fumola-tiles-library.hz"]),
     /* Blackboard: an experiment embedding the core logic of the
        Blackboard proof assistant as its own sort. */
     ("Blackboard / 0. Overview", [%blob "blackboard-overview.hz"]),

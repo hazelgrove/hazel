@@ -1,0 +1,61 @@
+# THE LIBRARY IS ALREADY HERE #
+
+# The Fumola runtime this build loads is not empty.  It ships eighteen #
+# modules -- collections, examples, and the system modules -- and a tile #
+# program can reach all of them today.  Three tile forms are all it takes: #
+# a string, `import`, and the `.` that reaches into what was imported. #
+
+# The path is the packaged module path, not a file on your disk. #
+
+let ^^probe(root) = fumola $graphical as lib in
+  { import Seq = "fumola/collections/levelTree";
+    Seq.testFromList(())! }
+end in
+
+# `testFromList` builds a level tree in the store and answers an option #
+# holding a pointer to its root.  `!` is Fumola's option unwrap, so what #
+# arrives in Hazel is the pointer itself -- a reference, which the probe #
+# shows along with what the cell it names holds. #
+
+# Nothing above was written here.  The tree is library code's, and the #
+# only thing this slide did was ask for it by name. #
+
+# THE PRELUDE, WHICH NEEDS NO IMPORT #
+
+# Four names are bound at the top of every instance, from the module #
+# `fumola/system/prelude`: `pointer`, `get`, `peek` and `print`.  They are #
+# the short spellings of the Adapton operations, so that a program writes #
+# `get(...)` rather than `Adapton.get(...)`. #
+
+# All the reading forms take either a symbol or a pointer, so a reference #
+# that came through Hazel is an argument like any other: #
+
+let ^^probe(viaGet) = fumola $graphical as lib in
+  { get(hazel root end) }
+end in
+
+# `get` records a dependency on the cell it read; `peek` does not.  That #
+# is the whole difference between them, and the Fumola panel is where it #
+# shows -- put the cursor in either program and read what `lib` recorded. #
+
+let ^^probe(viaPeek) = fumola $graphical as lib in
+  { peek(hazel root end) }
+end in
+
+# `pointer` is the name the boundary itself uses.  Every `hazel ... end` #
+# above that names `root` prints as `(pointer(...))`: a reference that #
+# came into Hazel goes back out as the pointer it is, not as the value it #
+# was holding at the time. #
+
+# WHAT IS NOT REACHABLE YET #
+
+# A level tree node is a variant wrapping a record, and taking one apart #
+# needs `switch`.  The printer and the parser here both handle it; no tile #
+# spells it.  So a tile program can read a library structure and not yet #
+# destructure one, and the destructuring has to happen on the Hazel side. #
+
+# The other modules are reachable the same way.  `List` makes every cons #
+# cell a named cell and `pureList` names nothing, which is the whole #
+# argument for naming -- run each and compare what the panel recorded. #
+
+(root, viaGet, viaPeek)
