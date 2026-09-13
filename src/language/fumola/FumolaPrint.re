@@ -354,6 +354,10 @@ and dec = (~hazel, ~explicit, d: dec('h, 'a)): string =>
     "import " ++ pat(p) ++ " = " ++ exp(~hazel, ~explicit, ~prec=p_stmt, e)
   | DFunc(name, p, ds) =>
     "func " ++ name ++ pat_plain(p) ++ " " ++ block(~hazel, ~explicit, ds)
+  /* A case that escaped its switch. It is not a Fumola declaration, so there
+     is nothing grammatical to print; a hole is what has_hole below already
+     reports, and printing one keeps the two answers in step. */
+  | DCase(_, _) => hole(EmptyHole)
   }
 
 and case = (~hazel, ~explicit, c: case('h, 'a)): string =>
@@ -454,17 +458,37 @@ let rec has_hole = (~hazel_has_hole, e: exp('h, 'a)): bool => {
     || has_hole(t)
     || Option.fold(~none=false, ~some=has_hole, f)
   | Switch(e, cases) =>
-    has_hole(e) || List.exists(c => has_hole(c.body), cases)
+    has_hole(e)
+    || List.exists(
+         (c: case('h, 'a)) => has_hole_pat(c.pat) || has_hole(c.body),
+         cases,
+       )
   | DoNav(_, dim, e, ds) =>
     has_hole(dim) || has_hole(e) || List.exists(has_hole_dec, ds)
   };
 }
 
+/* A pattern with a hole in it prints as `?□`, which Fumola rejects. Checked
+   separately because the expression traversal never reaches a pattern, and
+   until `switch` had a tile no pattern position could hold one. */
+and has_hole_pat = (p: pat('h, 'a)): bool =>
+  switch (Annotated.term_of(p)) {
+  | PHole(_) => true
+  | PVar(_)
+  | PWild
+  | PLit(_) => false
+  | PParen(q)
+  | POpt(q) => has_hole_pat(q)
+  | PVariant(_, q) => Option.fold(~none=false, ~some=has_hole_pat, q)
+  | PTuple(qs) => List.exists(has_hole_pat, qs)
+  }
 and has_hole_dec = (~hazel_has_hole, d: dec('h, 'a)): bool => {
   let has_hole = has_hole(~hazel_has_hole);
   let has_hole_dec = has_hole_dec(~hazel_has_hole);
   switch (Annotated.term_of(d)) {
   | DHole(_) => true
+  /* A case outside a switch is not a program; see the printer. */
+  | DCase(_, _) => true
   | DExp(e)
   | DLet(_, e)
   | DVar(_, e)
@@ -481,6 +505,7 @@ let rec children = (e: exp('h, 'a)): list(exp('h, 'a)) => {
     | DExp(e)
     | DLet(_, e)
     | DVar(_, e)
+    | DCase(_, e)
     | DImport(_, e) => [e]
     | DFunc(_, _, ds) => List.concat_map(dec_children, ds)
     };
@@ -530,6 +555,7 @@ and dec_children = (d: dec('h, 'a)): list(exp('h, 'a)) =>
   | DExp(e)
   | DLet(_, e)
   | DVar(_, e)
+  | DCase(_, e)
   | DImport(_, e) => [e]
   | DFunc(_, _, ds) => List.concat_map(dec_children, ds)
   };

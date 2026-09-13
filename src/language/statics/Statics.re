@@ -322,6 +322,7 @@ and fumola_to_info_map =
     | DExp(e) => go(~ancestors, e, m)
     | DLet(p, e)
     | DVar(p, e)
+    | DCase(p, e)
     | DImport(p, e) => m |> pat(~ancestors, p) |> go(~ancestors, e)
     | DFunc(_, p, ds) =>
       List.fold_left(

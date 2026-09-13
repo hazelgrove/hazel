@@ -47,15 +47,40 @@ end in
 # came into Hazel goes back out as the pointer it is, not as the value it #
 # was holding at the time. #
 
-# WHAT IS NOT REACHABLE YET #
+# WALKING THE STRUCTURE, IN FUMOLA #
 
-# A level tree node is a variant wrapping a record, and taking one apart #
-# needs `switch`.  The printer and the parser here both handle it; no tile #
-# spells it.  So a tile program can read a library structure and not yet #
-# destructure one, and the destructuring has to happen on the Hazel side. #
+# A level tree node is a variant wrapping a record, so reading one means #
+# taking a variant apart.  `switch` does that, and the tile spells a case #
+# as a declaration -- `case p => b`, separated by `;` exactly as a block's #
+# contents are.  The printer puts Fumola's own spelling back, which #
+# parenthesizes the pattern and has no arrow. #
 
-# The other modules are reachable the same way.  `List` makes every cons #
-# cell a named cell and `pureList` names nothing, which is the whole #
-# argument for naming -- run each and compare what the panel recorded. #
+let level = fumola $graphical as lib in
+  { switch (@ hazel root end) {
+      case $binary(b) => b.level;
+      case _ => 0 } }
+end in
 
-(root, viaGet, viaPeek)
+# The child pointers are fields of that same record, so the walk carries #
+# on: the left child comes back as another reference, which the probe #
+# shows the way it showed the root. #
+
+let ^^probe(leftChild) = fumola $graphical as lib in
+  { switch (@ hazel root end) {
+      case $binary(b) => b.left;
+      case _ => hazel root end } }
+end in
+
+# Nothing above is Hazel's doing.  The tree was built by library code, the #
+# walk is a Fumola program, and Hazel's part is holding the reference #
+# between the two. #
+
+# STILL OUT OF REACH #
+
+# `var` and `func` have no tile, so a program can read the library and not #
+# yet define a function of its own.  The other modules are reachable the #
+# same way this one is: `List` makes every cons cell a named cell and #
+# `pureList` names nothing, which is the whole argument for naming -- run #
+# each and compare what the panel recorded. #
+
+(root, viaGet, viaPeek, level, leftChild)

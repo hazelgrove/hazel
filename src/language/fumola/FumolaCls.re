@@ -199,6 +199,7 @@ let of_dec: FumolaTermBase.dec => t =
     | DVar(_, _) => Var_
     | DFunc(_, _, _) => Func
     | DImport(_, _) => Import
+    | DCase(_, _) => Case
     };
 
 let of_pat: FumolaTermBase.pat => t =

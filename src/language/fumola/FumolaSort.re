@@ -11,6 +11,14 @@
   handle the wasm API calls a FumolaInstanceId, and the name has to be text
   the programmer wrote so the instance survives an edit. Spelling it as a Pat
   would reuse more machinery at the cost of reading like a binding.
+
+  There is deliberately no Pat sort and no Rul sort, though `switch` needs
+  both notions. A case's pattern is a Fumola term read as a pattern by
+  MakeTerm.fumola_pat_of, which is what the binding position of a `let`
+  already is; and a switch's cases are a `;`-chain of declarations, which is
+  what a block already is. Reusing both keeps one reading of what a pattern is
+  and one of what a sequence is, and the printer refuses anything that is not
+  one.
  */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]

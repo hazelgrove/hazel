@@ -3173,14 +3173,32 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
       x @ [mk_form(Form.Fumola(form), id, [])] @ rest;
     };
   let sep = (form, ts) => sep_pretty(form, List.map(go, ts));
-  /* A binder position holds a Fumola pattern, and the only patterns the M1
-     tiles build there are a name and a wildcard. */
-  let pat_pretty = (p: FumolaTermBase.pat): pretty => {
+  /* A pattern position -- a `let` binder or a `switch` case. The tiles are
+     the expression tiles: a pattern slot is Fumola(Exp) and MakeTerm reads
+     what it finds there as a pattern, so `$tag(p)` is the variant tile and
+     the application tile, exactly as it is in an expression.
+
+     `?p` and a tuple pattern have no tile and render as a hole; the printer
+     and has_hole agree with that. */
+  let rec pat_pretty = (p: FumolaTermBase.pat): pretty => {
     let pid = p |> IdTagged.rep_id;
     switch (p.term) {
     | PVar(x) => text_to_pretty(pid, Sort.Fumola(Exp), x)
     | PWild => text_to_pretty(pid, Sort.Fumola(Exp), "_")
-    | _ => hole_at(pid)
+    | PLit(l) =>
+      text_to_pretty(pid, Sort.Fumola(Exp), FumolaPrint.lit_token(l))
+    | PVariant(tag, None) =>
+      text_to_pretty(pid, Sort.Fumola(Exp), "$" ++ tag)
+    | PVariant(tag, Some(q)) =>
+      let+ tag = text_to_pretty(pid, Sort.Fumola(Exp), "$" ++ tag)
+      and+ q = pat_pretty(q);
+      tag @ [mk_form(Form.Fumola(FumolaAp), pid, [q])];
+    | PParen(q) =>
+      let+ q = pat_pretty(q);
+      [mk_form(Form.Fumola(FumolaParens), pid, [q])];
+    | PHole(_)
+    | PTuple(_)
+    | POpt(_) => hole_at(pid)
     };
   };
   /* `let` and `import` are prefix forms with the binder as their interior
@@ -3204,11 +3222,27 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
       })
     | DLet(p, e) => binder(FumolaLet, p, e)
     | DImport(p, e) => binder(FumolaImport, p, e)
+    | DCase(p, e) => binder(FumolaCase, p, e)
     | DVar(_, _)
     | DFunc(_, _, _) => hole_at(did)
     };
   };
   let block_of = ds => sep_pretty(FumolaSemi, List.map(dec_pretty, ds));
+  /* A switch's cases render as the `;`-chain of case declarations they are
+     spelled as; see FumolaGrammar.DCase for why that is the spelling. */
+  let cases_of = (cs: list(FumolaGrammar.case(Exp.t, IdTagged.IdTag.t))) =>
+    sep_pretty(
+      FumolaSemi,
+      List.map(
+        (c: FumolaGrammar.case(Exp.t, IdTagged.IdTag.t)) => {
+          let cid = c.body |> IdTagged.rep_id;
+          let+ p = pat_pretty(c.pat)
+          and+ b = go(c.body);
+          [mk_form(Form.Fumola(FumolaCase), cid, [p])] @ b;
+        },
+        cs,
+      ),
+    );
   switch (f.term) {
   | Hole(Invalid(s)) => text_to_pretty(id, Sort.Fumola(Exp), s)
   | Hole(EmptyHole) =>
@@ -3329,13 +3363,16 @@ and fumola_to_pretty = (~settings: Settings.t, f: FumolaTermBase.t): pretty => {
     and+ e = go(e);
     [mk_form(Form.Fumola(FumolaIf), id, [c, t])] @ e;
   /* `[var …]`, a bare `return`, and an `if` with no else have no tile. */
+  | Switch(e, cases) =>
+    let+ e = go(e)
+    and+ cs = cases_of(cases);
+    [mk_form(Form.Fumola(FumolaSwitch), id, [e, cs])];
   | Array(true, _)
   | Return(None)
   | If(_, _, None)
   | Opt(_)
   | Un(_, _)
   | Unquote(_)
-  | Switch(_, _)
   | DoPutForce(_, _)
   | DoNav(_, _, _, _) => unbuildable()
   };

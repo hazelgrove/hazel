@@ -83,6 +83,60 @@ let corpus: list((string, string, string, string)) = [
     "x",
   ),
   ("addition", "fumola ? as store in 1 + 2 end", "store", "1 + 2"),
+  /* `switch` and the patterns that make it worth having. The tile spells a
+     case as a declaration -- `case p => b`, separated by `;` -- so a
+     switch's cases and a block's contents are read by one machine; the
+     printer puts Fumola's own spelling back, which parenthesizes the pattern
+     and drops the arrow. Every line below was run against the real runtime
+     before it was written down. */
+  (
+    "a switch on a variant, with a payload bound",
+    "fumola ? as store in switch x { case $leaf(n) => n } end",
+    "store",
+    "switch x { case (#leaf n) n }",
+  ),
+  (
+    "several cases, separated as a block is",
+    "fumola ? as store in switch x { case $leaf(n) => n; case $bin(b) => 0 } end",
+    "store",
+    "switch x { case (#leaf n) n; case (#bin b) 0 }",
+  ),
+  (
+    "a wildcard case",
+    "fumola ? as store in switch x { case _ => 0 } end",
+    "store",
+    "switch x { case _ 0 }",
+  ),
+  (
+    "a tag with no payload",
+    "fumola ? as store in switch x { case $empty => 0 } end",
+    "store",
+    "switch x { case #empty 0 }",
+  ),
+  (
+    "a name binds the whole scrutinee",
+    "fumola ? as store in switch x { case y => y } end",
+    "store",
+    "switch x { case y y }",
+  ),
+  (
+    "a literal pattern",
+    "fumola ? as store in switch x { case 1 => 0 } end",
+    "store",
+    "switch x { case 1 0 }",
+  ),
+  (
+    "a payload that is itself a variant",
+    "fumola ? as store in switch x { case $bin($leaf(n)) => n } end",
+    "store",
+    "switch x { case (#bin (#leaf n)) n }",
+  ),
+  (
+    "the scrutinee is a read, and the body a projection",
+    "fumola ? as store in switch (@ p) { case $binary(b) => b.level } end",
+    "store",
+    "switch (@ p) { case (#binary b) b.level }",
+  ),
   (
     "multiplication binds tighter",
     "fumola ? as store in 1 + 2 * 3 end",
@@ -857,6 +911,49 @@ let test_reference_crosses_back = () => {
   );
 };
 
+/* A case is spelled as a declaration, so nothing stops one being written
+   outside a `switch`. That is not a Fumola program, and the printer has to
+   say so rather than emit a `case` where Fumola expects a declaration.
+
+   The pattern half matters as much: until `switch` had a tile, no pattern
+   position could hold a hole, so `has_hole` never looked at one. A case
+   whose pattern is a hole prints as `case ?□ …`, which the runtime rejects,
+   and it is this test that keeps the printer and has_hole agreeing about it.
+   Verified to have power by dropping the pattern check: the third case then
+   reports printable. */
+let test_case_outside_switch = () => {
+  let printed = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({body, _}) =>
+      Fumola.has_hole(body) ? "refused" : Fumola.of_exp(body)
+    };
+  check(
+    string,
+    "a case outside a switch is not a program",
+    "refused",
+    printed("fumola ? as s in { case $a => 1 } end"),
+  );
+  check(
+    string,
+    "nor is one where a switch could be",
+    "refused",
+    printed("fumola ? as s in case $a => 1 end"),
+  );
+  check(
+    string,
+    "a case whose pattern is a hole is refused too",
+    "refused",
+    printed("fumola ? as s in switch x { case ? => 1 } end"),
+  );
+  check(
+    string,
+    "and a well formed one is not",
+    "switch x { case #a 1 }",
+    printed("fumola ? as s in switch x { case $a => 1 } end"),
+  );
+};
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -910,6 +1007,11 @@ let tests = (
       "a reference crosses back into Fumola",
       `Quick,
       test_reference_crosses_back,
+    ),
+    test_case(
+      "a case outside a switch is refused",
+      `Quick,
+      test_case_outside_switch,
     ),
     test_case(
       "names recase in both directions",

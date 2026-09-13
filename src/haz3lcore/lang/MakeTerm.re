@@ -404,6 +404,13 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
     | (["{", "}"], [Fumola(body)]) =>
       let (ds, ids) = fumola_decs(body);
       (Block(ds), ids);
+    /* The cases arrive as the `;`-chain of declarations they are spelled as,
+       and this is where they stop being declarations: a DCase becomes a
+       case, and anything else in there is a case with no pattern, which the
+       printer refuses rather than guessing at. */
+    | (["switch", "{", "}"], [Fumola(scrut), Fumola(cases)]) =>
+      let (ds, ids) = fumola_decs(cases);
+      (Switch(scrut, List.map(fumola_case_of, ds)), ids);
     | (["hazel", "end"], [Exp(e)]) => ret(Hazel(e))
     | _ => ret(hole(tm))
     }
@@ -426,6 +433,17 @@ and fumola_term: unsorted => (FumolaTermBase.exp_term, list(Id.t)) = {
       Fumola(e),
     ) =>
     ret(If(c, t, Some(e)))
+  /* Shaped like `let`, and for the same reason: one tile makes two nodes, so
+     the declaration takes the tile's id and the body keeps its own. */
+  | Pre(([(id, (["case", "=>"], [Fumola(p)]))], []), Fumola(body)) =>
+    ret(
+      Block([
+        {
+          term: DCase(fumola_pat_of(p), body),
+          annotation: fumola_dec_annotation(id),
+        },
+      ]),
+    )
   | Pre(([(id, (["import", "="], [Fumola(p)]))], []), Fumola(body)) =>
     ret(
       Block([
@@ -558,21 +576,51 @@ and fumola_dec_of =
    Anything that is not a name is a hole, which the printer refuses. */
 and fumola_pat_of = (e: FumolaTermBase.t): FumolaTermBase.pat => {
   let annotation = e.annotation;
+  let at = (term): FumolaTermBase.pat => {
+    term,
+    annotation,
+  };
   switch (e.term) {
-  | Var("_") => {
-      term: PWild,
-      annotation,
-    }
-  | Var(x) => {
-      term: PVar(x),
-      annotation,
-    }
-  | _ => {
-      term: PHole(EmptyHole),
-      annotation,
-    }
+  | Var("_") => at(PWild)
+  | Var(x) => at(PVar(x))
+  | Lit(l) => at(PLit(l))
+  | Paren(p) => at(PParen(fumola_pat_of(p)))
+  /* `$tag` and `$tag(p)`, which is what takes a variant apart in a `switch`
+     case. The tiles are the expression tiles -- the tag is an operand and
+     the payload an application -- because a pattern slot is Fumola(Exp). */
+  | Variant(tag, None) => at(PVariant(tag, None))
+  /* `$tag(p)` has already become a variant with a payload rather than an
+     application; see the Post case above. */
+  | Variant(tag, Some(arg)) => at(PVariant(tag, Some(fumola_pat_of(arg))))
+  | _ => at(PHole(EmptyHole))
   };
 }
+/* One declaration of a switch's case chain, as a case. */
+and fumola_case_of =
+    (d: FumolaTermBase.dec): FumolaGrammar.case(Exp.t, IdTagged.IdTag.t) =>
+  switch (d.term) {
+  | DCase(pat, body) => {
+      pat,
+      body,
+    }
+  | DExp(body) => {
+      pat: {
+        term: PHole(EmptyHole),
+        annotation: d.annotation,
+      },
+      body,
+    }
+  | _ => {
+      pat: {
+        term: PHole(EmptyHole),
+        annotation: d.annotation,
+      },
+      body: {
+        term: Hole(EmptyHole),
+        annotation: d.annotation,
+      },
+    }
+  }
 and bb = unsorted => {
   let (term, inner_ids) = bb_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;

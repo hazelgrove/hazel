@@ -85,6 +85,7 @@ and erase_dec = (d: FumolaTermBase.dec): FumolaTermBase.dec => {
     | DLet(p, e) => DLet(erase_pat(p), erase(e))
     | DVar(p, e) => DVar(erase_pat(p), erase(e))
     | DImport(p, e) => DImport(erase_pat(p), erase(e))
+    | DCase(p, e) => DCase(erase_pat(p), erase(e))
     | DFunc(n, p, ds) => DFunc(n, erase_pat(p), List.map(erase_dec, ds))
     };
   {

@@ -248,7 +248,20 @@ type fumola_compound_form =
   | FumolaIf
   | FumolaThunk
   | FumolaForce
-  | FumolaGet;
+  | FumolaGet
+  /* `switch e { case p => b; case p => b }`.
+
+     A case is shaped like a `let`: a declaration with a binding slot, so the
+     cases of a switch are a `;`-chain exactly as the declarations of a block
+     are, and the same machinery reads both.  Fumola separates its own cases
+     with `;` too, so the spelling is its own.
+
+     `=>` is borrowed from Hazel: Fumola writes `case (p) b` with no arrow,
+     and a prefix form needs a token between the pattern and the body.
+     Borrowing one is less to explain than inventing a delimiter -- the same
+     decision `if c then t else e` records. */
+  | FumolaSwitch
+  | FumolaCase;
 
 let fumola_get: fumola_compound_form => t =
   fun
@@ -346,7 +359,18 @@ let fumola_get: fumola_compound_form => t =
     )
   | FumolaThunk => mk_prefix("thunk", Fumola(Exp), P.fum_stmt)
   | FumolaForce => mk_prefix("force", Fumola(Exp), P.fum_stmt)
-  | FumolaGet => mk_prefix("@", Fumola(Exp), P.fum_stmt);
+  | FumolaGet => mk_prefix("@", Fumola(Exp), P.fum_stmt)
+  | FumolaSwitch =>
+    mk_op_c(
+      L,
+      ["switch", "{", "}"],
+      Fumola(Exp),
+      [Fumola(Exp), Fumola(Exp)],
+    )
+  /* The pattern slot is Fumola(Exp), read as a pattern by
+     MakeTerm.fumola_pat_of -- the same arrangement `let`'s binder has. */
+  | FumolaCase =>
+    mk_pre_c(L, ["case", "=>"], P.fum_stmt, Fumola(Exp), [Fumola(Exp)]);
 
 /* Blackboard forms.  One sort, Bb(Term), for terms, signature entries and
    blocks; see BbSort.  Signature entries are membership terms `x : T`,
@@ -865,7 +889,12 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
-  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp)), op(Bb(Term))])
+  /* `_` reaches Fumola for the same reason it reaches Drv: a case pattern
+     needs a catch-all, and the pattern slot is Fumola(Exp). */
+  | Wild => (
+      Token.is_wild,
+      [op(Pat), op(Drv(Exp)), op(Bb(Term)), op(Fumola(Exp))],
+    )
   /* Fumola spells strings with double quotes as Hazel does, so the token
      carries straight through: MakeTerm reads it as Lit(Text) with its quotes
      still on, and FumolaPrint puts it back unchanged.  No `$tag`-style

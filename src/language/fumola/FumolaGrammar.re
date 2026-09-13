@@ -147,6 +147,18 @@ module M =
        marks as sugar and accepts either way.  We always print it, because
        the tile that builds one is shaped like `let`. */
     | DImport(pat('h, 'a), exp('h, 'a))
+    /* One case of a `switch`, before the `switch` has claimed it.
+
+       Fumola has no such declaration; this is how the tile route spells a
+       case, so that the cases of a switch are a `;`-chain of declarations
+       exactly as the contents of a block are, and one piece of machinery
+       reads both. MakeTerm collects them at the `switch` tile and builds
+       `Switch(scrutinee, cases)`.
+
+       A DCase that reaches the printer has escaped its switch, which is not
+       a program: it prints as a hole, so `has_hole` refuses it and the
+       runtime is never asked. */
+    | DCase(pat('h, 'a), exp('h, 'a))
   and dec('h, 'a) = W.t(dec_term('h, 'a), 'a)
   and pat_term('h, 'a) =
     | PHole(hole('h, 'a))
@@ -238,6 +250,8 @@ and map_dec_annotation:
         )
       | DImport(p, e) =>
         DImport(map_pat_annotation(fs, p), map_annotation(fs, e))
+      | DCase(p, e) =>
+        DCase(map_pat_annotation(fs, p), map_annotation(fs, e))
       };
     {
       term,
