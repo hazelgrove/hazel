@@ -1,0 +1,224 @@
+# A 3D Canvas, Defined In Hazel #
+
+# Nothing below is a new language feature.  A user-defined livelit #
+# is a module with a model, an update and a view; the view returns #
+# Html, and Html.node reaches SVG.  That is the whole substrate a #
+# 3D viewer needs: the renderer itself is Hazel code. #
+
+# The pipeline is the textbook one.  Rotate each corner by the #
+# camera's yaw and pitch, divide by depth to project, then draw the #
+# faces far-to-near so nearer ones cover farther ones.  There is no #
+# z-buffer and no GPU here -- the painter's algorithm IS the sort #
+# on the next-to-last line of the view. #
+
+# Drag to orbit.  Scroll to dolly. #
+
+let ^scene = {
+  type Obj = (cx = Float, cy = Float, cz = Float, size = Float, hue = Int);
+  type Model =
+    (yaw = Float, pitch = Float, dist = Float,
+     held = Bool, px = Int, py = Int, objs = [Obj]);
+  type Action = + Press(Int, Int) + MoveTo(Int, Int) + Release + Zoom(Float);
+  type Expansion = (yaw = Float, pitch = Float, dist = Float);
+
+  let init : Model =
+    (yaw = 0.6, pitch = 0.4, dist = 9.0, held = false, px = 0, py = 0,
+     objs = [(cx = 0.0, cy = 0.0, cz = 0.0, size = 1.0, hue = 205),
+             (cx = 2.4, cy = 0.0, cz = 0.0, size = 0.6, hue = 30),
+             (cx = 0.0, cy = 0.0, cz = 2.4, size = 0.6, hue = 140),
+             (cx = 0.0, cy = 2.0, cz = 0.0, size = 0.45, hue = 320)]);
+
+  # The camera is the only thing the GUI edits, so every branch #
+  # rebuilds the record around a new yaw, pitch or distance. #
+
+  # A negative float literal inside a module body cannot be printed #
+  # back to tiles -- issue 2554, the ExpToSegment unary-minus crash -- #
+  # so the two signs are named here and the corner table reads as a #
+  # table of signs. #
+
+  let p = 1.0;
+  let n = 0.0 -. 1.0;
+
+  let clamp : (Float, Float, Float) -> Float =
+    fun lo, hi, v -> if v <. lo then lo else if v >. hi then hi else v;
+
+  let update = fun (m, a) : (Model, Action) ->
+    case a
+    | Press(x, y) =>
+      (yaw = m.yaw, pitch = m.pitch, dist = m.dist,
+       held = true, px = x, py = y, objs = m.objs)
+    | Release =>
+      (yaw = m.yaw, pitch = m.pitch, dist = m.dist,
+       held = false, px = m.px, py = m.py, objs = m.objs)
+    | MoveTo(x, y) =>
+      if m.held
+      then
+        let dx = float_of_int(x - m.px) in
+        let dy = float_of_int(y - m.py) in
+        (yaw = m.yaw +. dx *. 0.012,
+         pitch = clamp(n *. 1.4, 1.4, m.pitch +. dy *. 0.012),
+         dist = m.dist, held = true, px = x, py = y, objs = m.objs)
+      else m
+    | Zoom(dy) =>
+      (yaw = m.yaw, pitch = m.pitch,
+       dist = clamp(3.5, 26.0, m.dist +. dy *. 0.01),
+       held = m.held, px = m.px, py = m.py, objs = m.objs)
+    end;
+
+  # One world point to one screen point, carrying its depth along so #
+  # the sort has something to sort on. #
+
+  let project : (Float, Float, Float, Model) -> (Float, Float, Float) =
+    fun x, y, z, m ->
+      let ca = cos(m.yaw) in
+      let sa = sin(m.yaw) in
+      let x1 = x *. ca +. z *. sa in
+      let z1 = z *. ca -. x *. sa in
+      let cb = cos(m.pitch) in
+      let sb = sin(m.pitch) in
+      let y2 = y *. cb -. z1 *. sb in
+      let z2 = y *. sb +. z1 *. cb in
+      let d = z2 +. m.dist in
+      let s = 260.0 /. (if d <. 0.6 then 0.6 else d) in
+      (150.0 +. x1 *. s, 110.0 -. y2 *. s, d);
+
+  # A cube's eight corners, already projected.  The sign triples are #
+  # the corners of the unit cube; size scales them, the centre moves #
+  # them. #
+
+  let corners : (Obj, Model) -> [(Float, Float, Float)] =
+    fun o, m ->
+      let at =
+        fun (sx, sy, sz) ->
+          project(o.cx +. sx *. o.size,
+                  o.cy +. sy *. o.size,
+                  o.cz +. sz *. o.size, m) in
+      [at((n, n, n)), at((p, n, n)),
+       at((p, p, n)), at((n, p, n)),
+       at((n, n, p)), at((p, n, p)),
+       at((p, p, p)), at((n, p, p))];
+
+  let nth : ([(Float, Float, Float)], Int) -> (Float, Float, Float) =
+    fun ps, i ->
+      case ps
+      | [] => (0.0, 0.0, 0.0)
+      | hd :: tl => if i <= 0 then hd else nth(tl, i - 1)
+      end;
+
+  # Six faces, each four corner indices and a lightness.  The #
+  # lightness stands in for a light source: a constant per face is #
+  # enough to read the solid. #
+
+  let faces : [(Int, Int, Int, Int, Int)] =
+    [(0, 1, 2, 3, 30), (4, 5, 6, 7, 62), (0, 1, 5, 4, 38),
+     (3, 2, 6, 7, 70), (0, 3, 7, 4, 46), (1, 2, 6, 5, 54)];
+
+  let xy : (Float, Float, Float) -> String =
+    fun x, y, _d -> to_fixed(x, 1) ++ "," ++ to_fixed(y, 1);
+
+  let quads : ([(Int, Int, Int, Int, Int)], [(Float, Float, Float)], Int)
+              -> [(Float, [Html.T])] =
+    fun fs, ps, hue ->
+      case fs
+      | [] => []
+      | (i0, i1, i2, i3, light) :: tl =>
+        let (x0, y0, d0) = nth(ps, i0) in
+        let (x1, y1, d1) = nth(ps, i1) in
+        let (x2, y2, d2) = nth(ps, i2) in
+        let (x3, y3, d3) = nth(ps, i3) in
+        let points =
+          xy(x0, y0, d0) ++ " " ++ xy(x1, y1, d1) ++ " "
+          ++ xy(x2, y2, d2) ++ " " ++ xy(x3, y3, d3) in
+        let fill =
+          "hsl(" ++ string_of_int(hue) ++ ", 58%, "
+          ++ string_of_int(light) ++ "%)" in
+        ((d0 +. d1 +. d2 +. d3) /. 4.0,
+         [Html.node("polygon",
+            [Attr.create("points", points),
+             Attr.create("fill", fill),
+             Attr.create("stroke", "rgba(0, 0, 0, 0.4)"),
+             Attr.create("stroke-width", "0.6")], [])])
+        :: quads(tl, ps, hue)
+      end;
+
+  let scene : ([Obj], Model) -> [(Float, [Html.T])] =
+    fun os, m ->
+      case os
+      | [] => []
+      | o :: tl => quads(faces, corners(o, m), o.hue) @ scene(tl, m)
+      end;
+
+  # Painter's algorithm: farthest first, so what is nearer is drawn #
+  # over it.  An insertion sort is the whole depth test. #
+
+  let insert : ([(Float, [Html.T])], (Float, [Html.T]))
+               -> [(Float, [Html.T])] =
+    fun xs, e ->
+      case xs
+      | [] => [e]
+      | hd :: tl =>
+        let (dh, _) = hd in
+        let (de, _) = e in
+        if de >. dh then e :: xs else hd :: insert(tl, e)
+      end;
+
+  let sorted : [(Float, [Html.T])] -> [(Float, [Html.T])] =
+    fun xs ->
+      case xs
+      | [] => []
+      | hd :: tl => insert(sorted(tl), hd)
+      end;
+
+  let drawn : [(Float, [Html.T])] -> [Html.T] =
+    fun xs ->
+      case xs
+      | [] => []
+      | hd :: tl => let (_, h) = hd in h @ drawn(tl)
+      end;
+
+  let view = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-direction", "column"),
+                   ("gap", "0.2em")])],
+      [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 300 220"),
+           Attr.width("300"), Attr.height("220"),
+           Attr.style([("background", "#11151c"),
+                       ("border-radius", "4px"),
+                       ("cursor", if m.held then "grabbing" else "grab")]),
+           Attr.on_mouse_down_at(fun (x, y) -> Press(x, y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)),
+           Attr.on_mouse_up_at(fun _p -> Release),
+           Attr.on_wheel_at(fun (_x, _y, _dx, dy) -> Zoom(dy))],
+          drawn(sorted(scene(m.objs, m)))),
+        Html.div(
+          [Attr.style([("font-family", "var(--code-font)"),
+                       ("font-size", "0.75em"), ("opacity", "0.7")])],
+          [Html.text("yaw " ++ to_fixed(m.yaw, 2)
+                     ++ "   pitch " ++ to_fixed(m.pitch, 2)
+                     ++ "   dist " ++ to_fixed(m.dist, 1))])
+      ]);
+
+  # What a use MEANS to the program is the camera, not the picture. #
+  # Orbit the widget and the number below changes with it. #
+
+  let expand = fun m : Model -> (yaw = m.yaw, pitch = m.pitch, dist = m.dist);
+
+  let shape = Block(46, 17)
+} in
+
+let camera =
+  ^^livelit(^scene(
+    (yaw = 0.6, pitch = 0.4, dist = 9.0, held = false, px = 0, py = 0,
+     objs = [(cx = 0.0, cy = 0.0, cz = 0.0, size = 1.0, hue = 205),
+             (cx = 2.4, cy = 0.0, cz = 0.0, size = 0.6, hue = 30),
+             (cx = 0.0, cy = 0.0, cz = 2.4, size = 0.6, hue = 140),
+             (cx = 0.0, cy = 2.0, cz = 0.0, size = 0.45, hue = 320)])))
+in
+
+# The objects are a list in the model, which is the seam the next #
+# step needs: a Fumola scene would supply that list instead of the #
+# literal above. #
+
+camera
