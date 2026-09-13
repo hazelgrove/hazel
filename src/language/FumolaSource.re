@@ -119,17 +119,27 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   | Fun(_)
   | TypFun(_) => unsupported("a function")
   /* A reference goes back out as the pointer it is, not as the value it
-     holds. `prim "adaptonPointer"` is what turns a symbol into a pointer --
-     a bare `x is a symbol, and `@` on one is a value of the wrong kind -- so
-     the round trip is the symbol wrapped in that prim. Checked against the
-     runtime, both directions: reading with `@`, writing with `:=`, and
-     reading through it inside a thunk, which records the dependency the way
-     a read written in Fumola would.
+     holds. A bare `x is a *symbol*, and `@` on a symbol is a value of the
+     wrong kind, so what crosses is the symbol turned back into a pointer.
+
+     `pointer` rather than `prim "adaptonPointer"`, which is the same
+     operation: it is one of the four names fumola_wasm binds unqualified at
+     the top of every instance from fumola/system/prelude.fumola, and it is
+     how a Fumola program is meant to be read. The cost is a dependency on
+     that binding having loaded; the host reports it loudly if it did not.
+
+     Parenthesized, like everything else this renders, and here it is load
+     bearing rather than defensive: `@ pointer(`x)` is a *syntax* error --
+     `@` takes an atom, and it reaches `pointer` before the argument --
+     while `@ (pointer(`x))` is the read. Checked against the runtime in
+     all three directions: reading with `@`, writing with `:=`, and reading
+     through it inside a thunk, which records the dependency exactly as a
+     read written in Fumola would.
 
      An opaque value names no cell and has no source, so it is still refused:
      what came back said what it was, and there is nothing to send. */
   | FumolaPeek({source, _}) when source != "" =>
-    Ok("(prim \"adaptonPointer\" (" ++ source ++ "))")
+    Ok("(pointer(" ++ source ++ "))")
   | FumolaPeek(_) => unsupported("a reference into a Fumola runtime")
   | _ => unsupported("this expression")
   };
