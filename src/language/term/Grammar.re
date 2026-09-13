@@ -80,6 +80,13 @@ and exp_term('a) =
   | FumolaPeek({
       instance_id: int,
       reads: string,
+      /* The Fumola text naming the cell, e.g. "`x" or "7" -- the pointer's
+         own spelling rather than the `peek(...)` around it that [reads]
+         shows. Kept so the reference can go back out: FumolaSource sends it
+         as `prim "adaptonPointer" (<source>)`, which is what turns a symbol
+         into a pointer again, and `@` and `:=` work through the result.
+         Empty for an opaque value, which names no cell. */
+      source: string,
       value: exp_t('a),
       /* What the cell holds, when Hazel has no value for it: a thunk prints
          itself, so this is text like "@thunk ({ 1 + 3 })". Empty when
@@ -235,10 +242,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             FumolaGrammar.map_annotation((map_exp_annotation(f), f), b),
           )
         | LivelitName(s) => LivelitName(s)
-        | FumolaPeek({instance_id, reads, value, holds}) =>
+        | FumolaPeek({instance_id, reads, source, value, holds}) =>
           FumolaPeek({
             instance_id,
             reads,
+            source,
             value: map_exp_annotation(f, value),
             holds,
           })
@@ -731,12 +739,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let fumola_peek =
-        (~ann=?, ~instance_id, ~reads, ~holds="", value)
+        (~ann=?, ~instance_id, ~reads, ~source="", ~holds="", value)
         : exp_t(DefaultAnnotation.t) => {
       term:
         FumolaPeek({
           instance_id,
           reads,
+          source,
           value,
           holds,
         }),

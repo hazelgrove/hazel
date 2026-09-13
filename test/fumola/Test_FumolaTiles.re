@@ -749,6 +749,59 @@ let test_slides_printable = () =>
     },
   );
 
+/* A Fumola reference goes back out as the pointer it is.
+
+   `@` wants a pointer and a bare symbol is not one -- the runtime answers "a
+   value of the wrong kind" -- so the crossing is the symbol wrapped in
+   `prim "adaptonPointer"`, which is what makes one. Checked against the real
+   runtime in the browser, both directions:
+
+     @ (prim "adaptonPointer" (`cell))                      -> 99
+     (prim "adaptonPointer" (`cell)) := 123; @ ...          -> 123
+     force thunk { (@ (prim "adaptonPointer" (`cell))) + 1 } -> 124
+
+   the last of which is the one that matters: the dependency is recorded, so
+   a reference that crossed through Hazel is as incremental as one written in
+   Fumola. What this test pins is the text; the script and the browser are
+   what tie the text to the runtime. */
+let test_reference_crosses_back = () => {
+  let peek = (~holds="", source) =>
+    DHExp.fresh(
+      Grammar.FumolaPeek({
+        instance_id: 1,
+        reads: "peek(" ++ source ++ ")",
+        source,
+        value: DHExp.fresh(Atom(Int(Bigint.of_int(41)))),
+        holds,
+      }),
+    );
+  let source = e =>
+    switch (FumolaSource.of_exp(e)) {
+    | Ok(s) => s
+    | Error(message) => message
+    };
+  check(
+    string,
+    "a cell named by a symbol",
+    "(prim \"adaptonPointer\" (`cell))",
+    source(peek("`cell")),
+  );
+  check(
+    string,
+    "a cell named by a number",
+    "(prim \"adaptonPointer\" (7))",
+    source(peek("7")),
+  );
+  /* An opaque value rides the same term with no source: it names no cell,
+     so there is nothing to send and saying so is the honest answer. */
+  check(
+    string,
+    "an opaque value names no cell",
+    "no Fumola source for a reference into a Fumola runtime",
+    source(peek(~holds="@thunk ({ 1 + 3 })", "")),
+  );
+};
+
 let corpus_path = "fumola-tiles-corpus.txt";
 let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
 
@@ -797,6 +850,11 @@ let tests = (
       "the escape carries a bound variable",
       `Quick,
       test_escape_carries_a_bound_variable,
+    ),
+    test_case(
+      "a reference crosses back into Fumola",
+      `Quick,
+      test_reference_crosses_back,
     ),
     test_case(
       "names recase in both directions",

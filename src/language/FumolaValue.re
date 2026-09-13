@@ -523,6 +523,9 @@ and exp_of_tagged =
         FumolaPeek({
           instance_id,
           reads: "",
+          /* An opaque value names no cell, so there is nothing to send
+             back. FumolaSource refuses it on exactly this. */
+          source: "",
           value: DHExp.fresh(EmptyHole),
           holds: shows,
         }),
@@ -562,6 +565,7 @@ and exp_of_tagged =
             FumolaPeek({
               instance_id,
               reads,
+              source,
               value: DHExp.fresh(EmptyHole),
               holds: "a cell that points to itself",
             }),
@@ -603,6 +607,7 @@ and exp_of_tagged =
             FumolaPeek({
               instance_id,
               reads,
+              source,
               value,
               holds,
             }),
