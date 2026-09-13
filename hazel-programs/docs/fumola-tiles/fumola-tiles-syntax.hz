@@ -196,5 +196,5 @@ let ^^probe(fEscape) =
   hLogic, fArray, hArray, fIndex, fVariant,
   hVariant, fIf, hIf, fSwitch, hSwitch,
   fLet, hLet, fProj, fImport, fAssert,
-  fPrim, fBang, hBang, fCells, fEscape,
+  fPrim, fBang, hBang, fCells, fEscape
 )
