@@ -830,11 +830,319 @@ let sig_paths_tests = {
   );
 };
 
+/* Avoidance: a path rooted at a binder that goes out of scope is reduced,
+   then, if still abstract, named by an enclosing signature member or
+   replaced by `?`. */
+let avoid_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sa = t => F.Sig.sig_type_abstract(F.TPat.var(t));
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tv = F.Typ.var;
+  let path = (m, t) => F.Typ.prod_projection(F.Typ.var(m), F.Typ.label(t));
+  let abstract_sig = sg([sa("T"), sv("x", tv("T"))]);
+  let manifest_sig = sg([st("T", ti), sv("x", tv("T"))]);
+  let var_entry = (name, typ) =>
+    Ctx.VarEntry({
+      name,
+      id: Id.invalid,
+      typ,
+      custom_statics: None,
+    });
+  let ctx =
+    Builtins.ctx_init(None)
+    |> Ctx.extend(_, var_entry("M", abstract_sig))
+    |> Ctx.extend(_, var_entry("N", manifest_sig));
+  let site = Id.mk_str("avoid-tests");
+  let avoid = (escaping, ty) =>
+    Typ.avoid(ctx, ~escape_to=EscapesAt(site), ~escaping, ty);
+  (
+    "Typ.Avoid",
+    [
+      test_case(
+        "identity without escaping paths",
+        `Quick,
+        () => {
+          check(typ, "int", ti, avoid(["M"], ti));
+          check(
+            typ,
+            "other root",
+            path("M", "T"),
+            avoid(["N"], path("M", "T")),
+          );
+          check(
+            typ,
+            "abstract signature",
+            abstract_sig,
+            avoid(["M"], abstract_sig),
+          );
+        },
+      ),
+      test_case(
+        "an escaping abstract path becomes an escaped abstract type",
+        `Quick,
+        () => {
+          let esc = F.Typ.escaped("M.T");
+          check(typ, "bare", esc, avoid(["M"], path("M", "T")));
+          check(
+            typ,
+            "nested",
+            F.Typ.arrow(esc, ti),
+            avoid(["M"], F.Typ.arrow(path("M", "T"), ti)),
+          );
+        },
+      ),
+      test_case("an escaping manifest path reduces", `Quick, () =>
+        check(typ, "reduced", ti, avoid(["N"], path("N", "T")))
+      ),
+      test_case(
+        "a member defined as an escaping path becomes abstract",
+        `Quick,
+        () => {
+          check(
+            typ,
+            "strengthened signature",
+            abstract_sig,
+            avoid(
+              ["M"],
+              sg([st("T", path("M", "T")), sv("x", tv("T"))]),
+            ),
+          );
+          check(
+            typ,
+            "later mentions use the member",
+            sg([sa("V"), sv("w", tv("V"))]),
+            avoid(
+              ["M"],
+              sg([st("V", path("M", "T")), sv("w", path("M", "T"))]),
+            ),
+          );
+        },
+      ),
+      test_case("path roots", `Quick, () =>
+        check(
+          list(string),
+          "roots",
+          ["M", "N"],
+          Typ.path_roots(
+            F.Typ.arrow(path("M", "T"), sg([sv("x", path("N", "U"))])),
+          ),
+        )
+      ),
+    ],
+  );
+};
+
+/* An escaped abstract type: what avoidance leaves where a path outlived the
+   binder it was rooted at. Its identity is its id, it is consistent with `?`
+   and with itself and with nothing else, and it is closed. */
+let escaped_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let esc = (~id, label) => F.Typ.escaped(~id, label);
+  let a = esc(~id=Id.mk_str("a"), "m.T");
+  let a' = esc(~id=Id.mk_str("a"), "m.T");
+  let b = esc(~id=Id.mk_str("b"), "m.T");
+  let ti = F.Typ.int();
+  let tu = F.Typ.unknown(Internal);
+  let meet = (t1, t2) => Typ.meet(ctx, t1, t2);
+  let coercion = (~to_, ~from) => Typ.coercion(ctx, ~from, ~to_);
+  let opt_typ = option(typ);
+  (
+    "Typ.Escaped",
+    [
+      test_case(
+        "consistent with itself",
+        `Quick,
+        () => {
+          check(opt_typ, "same id", Some(a), meet(a, a'));
+          check(opt_typ, "idempotent", Some(a), meet(a, a));
+        },
+      ),
+      test_case(
+        "inconsistent with a different escape of the same path",
+        `Quick,
+        () => {
+          check(opt_typ, "different ids", None, meet(a, b));
+          check(opt_typ, "symmetric", None, meet(b, a));
+        },
+      ),
+      test_case(
+        "inconsistent with everything concrete",
+        `Quick,
+        () => {
+          check(opt_typ, "int", None, meet(a, ti));
+          check(opt_typ, "int flipped", None, meet(ti, a));
+          check(
+            opt_typ,
+            "at an analysis position",
+            None,
+            coercion(~to_=ti, ~from=a),
+          );
+          check(
+            opt_typ,
+            "analysis flipped",
+            None,
+            coercion(~to_=a, ~from=ti),
+          );
+        },
+      ),
+      test_case(
+        "consistent with unknown, which it refines",
+        `Quick,
+        () => {
+          check(opt_typ, "unknown on the right", Some(a), meet(a, tu));
+          check(opt_typ, "unknown on the left", Some(a), meet(tu, a));
+          check(
+            opt_typ,
+            "analyzed against unknown",
+            Some(a),
+            coercion(~to_=tu, ~from=a),
+          );
+        },
+      ),
+      test_case(
+        "closed: it names no binder",
+        `Quick,
+        () => {
+          check(list(string), "no path roots", [], Typ.path_roots(a));
+          check(list(string), "no free variables", [], Typ.free_vars(a));
+          check(
+            list(string),
+            "nor inside an arrow",
+            [],
+            Typ.path_roots(F.Typ.arrow(a, b)),
+          );
+        },
+      ),
+      test_case(
+        "normalization and avoidance leave it alone",
+        `Quick,
+        () => {
+          check(typ, "normalize", a, Typ.normalize(ctx, a));
+          check(typ, "whnf", a, Typ.weak_head_normalize(ctx, a));
+          check(
+            typ,
+            "avoid",
+            a,
+            Typ.avoid(
+              ctx,
+              ~escape_to=EscapesAt(Id.mk_str("s")),
+              ~escaping=["m"],
+              a,
+            ),
+          );
+        },
+      ),
+      test_case("prints as the path it came from, plus a tag", `Quick, () =>
+        check(
+          bool,
+          "printed",
+          true,
+          String.starts_with(~prefix="m.T~", Typ.pretty_print(a)),
+        )
+      ),
+      test_case(
+        "freshening derives a new identity per site, stable per site",
+        `Quick,
+        () => {
+          let site1 = Id.mk_str("site1");
+          let site2 = Id.mk_str("site2");
+          let f1 = Typ.freshen_escaped(~site=site1, a);
+          let f2 = Typ.freshen_escaped(~site=site2, a);
+          check(opt_typ, "not the original", None, meet(a, f1));
+          check(opt_typ, "not another site", None, meet(f1, f2));
+          check(
+            opt_typ,
+            "stable for the same site",
+            Some(f1),
+            meet(f1, Typ.freshen_escaped(~site=site1, a)),
+          );
+          check(
+            bool,
+            "keeps its path",
+            true,
+            String.starts_with(~prefix="m.T~", Typ.pretty_print(f1)),
+          );
+          check(
+            opt_typ,
+            "reaches inside a type",
+            None,
+            meet(
+              F.Typ.arrow(ti, a),
+              Typ.freshen_escaped(~site=site1, F.Typ.arrow(ti, a)),
+            ),
+          );
+        },
+      ),
+      test_case(
+        "a hand-written escape matches by label",
+        `Quick,
+        () => {
+          /* Id.invalid is the wildcard a test writes, since real ids come from
+             the term whose scope closed. */
+          let any = F.Typ.escaped("m.T");
+          check(
+            opt_typ,
+            "matches an id-carrying escape",
+            Some(any),
+            meet(any, a),
+          );
+          check(
+            opt_typ,
+            "but not a different label",
+            None,
+            meet(F.Typ.escaped("m.U"), a),
+          );
+        },
+      ),
+    ],
+  );
+};
+
+/* `type x = x.a in ?` used to abort the whole analysis with
+   Failure("weak_head_normalize exceeded 1000 recursive calls"): TyAlias wraps a
+   self-referential alias in Rec, but as_sig unrolls that Rec to look for a
+   signature, which hands the projection straight back to path_sig. A cyclic
+   alias has no weak head normal form, so the type must come back stuck --
+   the QCheck property only catches this on seeds that happen to generate one. */
+let cyclic_alias_tests = {
+  module F = IdTagged.FreshGrammar;
+  let cyclic =
+    F.Typ.rec_(
+      F.TPat.var("x"),
+      F.Typ.prod_projection(F.Typ.var("x"), F.Typ.label("a")),
+    );
+  let ctx =
+    Builtins.ctx_init(None) |> Ctx.extend_alias(_, "x", Id.invalid, cyclic);
+  (
+    "Typ.CyclicAlias",
+    [
+      test_case(
+        "a cyclic alias normalizes to a stuck type instead of crashing",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "type x = x.a is stuck",
+          cyclic,
+          Typ.weak_head_normalize(ctx, F.Typ.var("x")),
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
+  cyclic_alias_tests,
+  escaped_tests,
   meet_tests,
   fast_equal_tests,
   sig_tests,
   cyclic_path_tests,
   coercion_tests,
   sig_paths_tests,
+  avoid_tests,
 ];

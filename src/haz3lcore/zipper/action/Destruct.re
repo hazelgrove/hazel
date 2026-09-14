@@ -119,6 +119,7 @@ let go = (d: Direction.t, z: t, ~root): option(t) => {
     /* If grout disappears we may have a second merge opportunity */
     let z =
       z
+      |> Insert.downgrade_bare_sig_type
       |> Insert.merge_or_noop(~root)
       |> remold_regrout(d, ~root)
       |> Insert.merge_or_noop(~root);
