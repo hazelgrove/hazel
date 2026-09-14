@@ -161,8 +161,6 @@ module M: Projector = {
 
   let focusable: Focusable.t = Focusable.non;
 
-  let dynamics: bool = false;
-
   let elaborate_syntax: bool = false;
 
   let placeholder_size: ProjectorCore.Shape.t = {
