@@ -158,12 +158,14 @@ slide, where a program has little to do and an editor has as much to do as ever,
 so an extreme ratio is what should be expected and it says nothing yet about a
 real program. Turning it into a measurement is N1.
 
-## The channel for attribution is already there
+## The channel is there; spending it is not free
 
 An earlier draft of this document said the store can tell you *that* the editor
-caused an event but not *which pass* caused it. That is wrong, and the way it is
-wrong is the useful part: the channel exists in the data model and is simply not
-being spent.
+caused an event but not *which pass* caused it, and proposed threading a
+declaration through the run. That was wrong, and the correction was to spend a
+field the store already carries. That correction was also wrong, in a way only
+measurement found. Both halves are worth keeping, because the observation
+survives and the inference does not.
 
 A node id is a triple, and both of its first two components are symbols:
 
@@ -173,43 +175,69 @@ space   = Here | Symbol(sym)
 time    = Now  | Symbol(sym)
 ```
 
-`source_is_here` — the prime-mover test that separates the editor's traffic from
-the program's — destructures that triple as `[space, ..._]` and tests the space
-alone. It already ignores the time. So the time component of a Here-rooted node
-is free, and today the editor spends it on nothing: every root it creates is
-`(Here, Now, _)`, the unnamed moment, for every pass of every edit.
+`is_editor` — the test that separates the editor's traffic from the program's —
+destructures that triple as `[space, ..._]` and tests the space alone. **The
+observation holds**: measured on both builds of
+[N1](hazel-effect-schedule.md), every edge in every instance is sourced at
+`Here/Now/0`. 16 of 16, 33 of 33, 2 of 2. The time and the counter on the
+editor's root carry no information, across every pass, gesture and reload.
 
-Stamp a distinct time there per pass — `(Here, Symbol("elab·17"), _)`,
-`(Here, Symbol("eval·17"), _)` — and attribution falls out of ids that are
-already in the store, already rendered by the panel, already comparable against
-the symbol in an event. No channel threaded through the run, no new wasm export,
-no change to the Fumola runtime. It is the same shape of answer the event list
-already took: the history was reachable as a prim, so the panel runs
-`prim "adaptonPeekHistory" ()` through the existing shim, and a change to what
-the panel shows costs a Hazel build rather than a Rust one.
+**The inference does not hold.** Hazel cannot spend that field, for two reasons
+that were checked against the running runtime rather than reasoned about.
 
-Two consequences make this better than the declaration channel it replaces.
+**The root node is a constant.** `root_node()` in the graphical engine answers
+`(Space::Here, Time::Now, MetaTime(0))`. It takes no argument and reads no
+state, so the source of every edge the editor causes is that triple and nothing
+Hazel does can make it otherwise.
 
-**Times are ordered, so passes are sequenced for free.** A set of labels would
-say which pass an event belongs to. Ordered times say that *and* the order they
-happened in — which is most of what a schedule is, obtained by spending a field
-that was already being wasted.
+**The navigations exist, and they move the wrong end.** Fumola has
+`do goto time <sym> { … }`, which sets the current time, and
+`do within time <sym> { … }`, which extends it; both scope to their block. Run a
+program inside one and the time does land — on the **target** node ids, the
+cells the program touches. The source stays `Here/Now/0`:
 
-**An edge spans a pair of moments, so a pass boundary is visible.**
-`FumolaHistory` already reads a `metaTimes` pair off every edge, described there
-as the pair an edge spans. An edge whose two moments fall in different passes is
-a dependency that *survived* the boundary — the observable signature of Hazel's
-cache reusing something instead of re-running it. That turns the composition-law
-question below from an argument into a query over the edge list.
+```
+put   Here/Now/0  ->  Symbol(b) / Symbol(p1)     under  do goto time `p1
+put   Here/Now/0  ->  Symbol(c) / Symbol(p2)     under  do within time `p2
+```
 
-What remains true from the earlier draft is the cautionary part. The prime-mover
-separation is an inference about the store's shape, and it took two corrections
-to get one right answer on one slide. The second is the instructive one: judging
-an event by the edge it named left every event that names a *node* unattributed,
-on the reasoning that a node is neither the editor's doing nor the program's — it
-simply exists. That is right about the node and wrong about the event, because a
-cell signals because someone put into it. Reading structure that is already in
-the id is the fix; inferring harder is not.
+**And the time is part of a node's identity**, which is what makes this fatal
+rather than merely inconvenient. The same program run under two times does not
+write one cell twice; it writes two cells:
+
+```
+`k := 1  under `pA   ->   Symbol(k) / Symbol(pA) / 1
+`k := 1  under `pB   ->   Symbol(k) / Symbol(pB) / 3
+```
+
+A time per pass would therefore give every pass its own private copy of the
+store — destroying exactly the incrementality the store is there for. The
+cheapest-looking version of N2 is the one that breaks the thing N2 is
+instrumenting.
+
+### What is left, and it is two different milestones
+
+**A — change the runtime, and attribution becomes structural.** `root_node()`
+stops being a constant and reads the current time. Then the editor's own root
+carries the pass, attribution is read straight off the edge source exactly as
+hoped, and no cell's identity moves, because the cells are targets and only the
+source changed. The space-only `is_editor` test is what makes this safe, and
+that half of the design was right and is already committed (`303fc7c018`). The
+cost is a change in the Fumola repo, and
+[`fumola-runtime-changes.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-runtime-changes.md)
+is the reason that is not a small decision: Hazel pins no version, so it reaches
+every Hazel user without a commit here.
+
+**B — a sentinel, from Hazel alone.** Each run begins by putting the pass's name
+into one well-known cell. Attribution is then positional: every event between
+marker *n* and marker *n+1* belongs to that pass. Verified in the runtime — the
+work cell is not forked, order is preserved, and all nine edges of a three-run
+test came back `aligned` with **no signal**, because nothing ever reads the
+marker. It costs one put per run and adds the marker's own traffic to the store,
+which is the editor's traffic and already dimmable.
+
+B works today and is what N2 below now proposes. A is better and is not this
+milestone.
 
 ## The composition law
 
@@ -312,23 +340,30 @@ every instance on both builds is sourced at `Here/Now/0` -- and gave the
 idempotence prediction below its first test, which it passed, with a correction.
 What it did not get is the stepper.
 
-### N2 — A distinct time per pass
+### N2 — A sentinel naming the pass
 
-The editor stamps a named time on the roots it creates, one per pass, instead of
-spending every root on `Now`. Attribution is then read off node ids already in
-the store, and the panel groups by time.
+Each run puts the name of the pass that caused it into one well-known cell
+before running the program. The panel groups events by the marker they fall
+after, and the reader gets *elaboration*, *evaluation*, *stepper*, *panel peek*
+against the counts N1 measured.
+
+The pass is known where it needs to be known: `Transition.transition` already
+takes `~effects`, and every call site already declares whether its steps are the
+program happening. Widening that from a two-state flag to one that names the
+pass is a change to an argument that exists, not new plumbing.
 
 *Why second.* N1 can count effects but cannot fill in the column saying why each
-one happened. This is the cheapest thing that fills it — no channel to thread, no
-export to add, no Rust build — and, because times are ordered, it yields the
-sequence as well as the labels.
+one happened.
 
-*How we would know it worked.* On a slide whose schedule N1 established, every
-event carries a time naming a pass, and the per-pass counts add up to N1's
-totals. Then the check worth doing for its own sake: list the edges whose
-`metaTimes` straddle two passes. Each is a dependency Hazel's cache carried
-across a boundary, and each is either an explanation for an effect N1 could not
-account for, or a bug.
+*How we would know it worked.* On a program whose schedule N1 established, every
+event falls after a marker naming a pass, and the per-pass counts add up to N1's
+totals. The marker must not perturb: the work cell keeps one identity, and a
+re-run that changes nothing still adds no signal.
+
+*What it does not get.* Ordering across passes is positional rather than carried
+in the ids, so nothing in an edge says which pass it belongs to when read on its
+own — only where it sits. That is what A would fix, and it is why A is worth
+doing even after this lands.
 
 ## What this would be, if it works
 

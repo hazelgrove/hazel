@@ -131,6 +131,14 @@ gesture and reload.
 This is N2's premise confirmed by measurement rather than by reading the type:
 **the time and the counter on the editor's root carry no information at all.**
 
+It is not, however, a field Hazel can go on to spend, which is the part that
+took a second measurement to learn. `root_node()` in the graphical engine is the
+constant `(Space::Here, Time::Now, MetaTime(0))`, and the `do goto time` /
+`do within time` navigations move the *target* of an edge rather than its
+source — and time is part of a node's identity, so the same program under two
+times writes two cells rather than one. [Notebook
+semantics](notebook-semantics.md) carries that correction and what N2 became.
+
 `metaTime` advances per *operation*, not per pass — pairs run `(1,1) (2,2) …
 (12,12)`, one per edge. So a pass boundary is currently invisible in the store:
 nothing says which of the three runs an edge belongs to. On the baseline that is
