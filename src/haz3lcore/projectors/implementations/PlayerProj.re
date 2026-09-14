@@ -34,7 +34,6 @@ module M: Projector = {
     | _ => None
     };
 
-  let dynamics = true; /* Need dynamics to get evaluated value */
   let focusable = Focusable.non;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;

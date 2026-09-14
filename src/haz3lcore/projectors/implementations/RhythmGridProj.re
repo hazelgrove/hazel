@@ -113,7 +113,6 @@ module M: Projector = {
     };
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
   /* Rhythm grid needs ~6 rows: controls + 4 drum rows + padding */

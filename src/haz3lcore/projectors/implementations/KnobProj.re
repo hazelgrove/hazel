@@ -69,7 +69,6 @@ module M: Projector = {
     };
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
   /* Knob needs square space - 3 rows height for the dial */
