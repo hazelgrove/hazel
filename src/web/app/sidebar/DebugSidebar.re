@@ -40,7 +40,7 @@ let code_settings_ml: Haz3lcore.ExpToSegment.Settings.t = {
 let typ_to_text = (~settings, typ: Typ.t): string =>
   Haz3lcore.Printer.of_segment(
     ~holes="?",
-    Haz3lcore.ExpToSegment.typ_to_segment(~settings, typ),
+    Haz3lcore.TypToSegment.typ_to_segment(~settings, typ),
   );
 
 /* Copy a rendered term/type the way the editor does: the printed text shows
@@ -179,7 +179,7 @@ let field_typ = (~globals, ~raw, label: string, typ: Typ.t): Node.t =>
     field_str(label, Typ.show(typ));
   } else {
     let seg =
-      Haz3lcore.ExpToSegment.typ_to_segment(~settings=code_settings_ml, typ);
+      Haz3lcore.TypToSegment.typ_to_segment(~settings=code_settings_ml, typ);
     field_node(
       ~copy=Some(() => copy_segment(seg)),
       label,

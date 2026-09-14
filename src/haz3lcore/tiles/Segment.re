@@ -1079,18 +1079,6 @@ and ids_of_piece = (p: Piece.t): list(Id.t) =>
   | Projector(_) => [Piece.id(p)]
   };
 
-/* The ids of the tiles alone. Code.re classes tiles and ignores Grout and
-   Secondary, so this is the set of ids a decoration can actually colour. */
-let rec tile_ids = (s: t): list(Id.t) =>
-  List.concat_map(tile_ids_of_piece, s)
-and tile_ids_of_piece = (p: Piece.t): list(Id.t) =>
-  switch (p) {
-  | Tile(t) => [Piece.id(p), ...tile_ids(List.concat(t.children))]
-  | Grout(_)
-  | Secondary(_)
-  | Projector(_) => []
-  };
-
 let first_string =
   fun
   | [] => "EMPTY"

@@ -451,6 +451,31 @@ let diff_tests = (
       },
     ),
     test_case(
+      "diff Unknown on the dynamic side",
+      `Quick,
+      () => {
+        /* Runtime can know less than statics -- a closure's domain reads as
+           `?` -- and what it did not supply is not marked. */
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let unknown = Typ.fresh(Unknown(Internal));
+        check(
+          list(testable_id),
+          "`?` against a concrete type marks nothing",
+          [],
+          Typ.diff(int_typ, unknown),
+        );
+        check(
+          list(testable_id),
+          "and nothing inside an arrow either",
+          [],
+          Typ.diff(
+            Typ.fresh(Arrow(int_typ, int_typ)),
+            Typ.fresh(Arrow(unknown, int_typ)),
+          ),
+        );
+      },
+    ),
+    test_case(
       "diff arrow different codomain",
       `Quick,
       () => {
@@ -614,7 +639,7 @@ let diff_tests = (
                   Typ.fresh(
                     Prod([
                       Typ.fresh(Atom(Atom.Int)),
-                      Typ.fresh(Unknown(Internal)),
+                      Typ.fresh(Atom(Atom.Bool)),
                     ]),
                   ),
                 ),
@@ -624,8 +649,8 @@ let diff_tests = (
         let static_typ =
           Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
         let dynamic_typ = Typ.fresh(Var("Pair"));
-        /* The Unknown in Pair's expansion differs from String, so the alias
-           differs -- but it renders as the single token `Pair`, so the ids
+        /* The Bool in Pair's expansion differs from String, so the alias
+           differs -- but it prints as the single token `Pair`, so the ids
            are that node's, not the expansion's, which appear nowhere. */
         check(
           list(testable_id),
@@ -639,9 +664,8 @@ let diff_tests = (
       "diff both sides parenthesized",
       `Quick,
       () => {
-        /* Normalization parenthesizes both sides, and the renderer emits the
-           parens as a tile. The wrapped node is wholly replaced, so the parens
-           are replaced with it. */
+        /* Preparing for printing parenthesizes both sides. The wrapped node is
+           wholly replaced, so the parens go with it. */
         let int_typ = Typ.fresh(Atom(Atom.Int));
         let dynamic_typ = Typ.fresh(Parens(int_typ));
         check(
@@ -657,8 +681,8 @@ let diff_tests = (
       `Quick,
       () => {
         /* `type A = B in type B = A` -- neither side is self-referential, so
-           TyAlias does not wrap either in a Rec, and diff used to expand the
-           chain until the stack ran out. */
+           TyAlias wraps neither in a Rec, and nothing but expanded_aliases
+           stops diff following the chain forever. */
         let a_body = Typ.fresh(Var("B"));
         let b_body = Typ.fresh(Var("A"));
         let extend = (ctx, name, kind) =>
@@ -691,6 +715,42 @@ let diff_tests = (
       },
     ),
     test_case(
+      "diff terminates on a cyclic alias chain through parens",
+      `Quick,
+      () => {
+        /* `type A = (B) in type B = (A)` -- the same cycle with a node that
+           carries no meaning of its own in the way. */
+        let extend = (ctx, name, kind) =>
+          Ctx.extend_tvar(
+            ctx,
+            {
+              name,
+              id: Id.mk(),
+              kind,
+            },
+          );
+        let ctx =
+          Ctx.empty
+          |> extend(
+               _,
+               "A",
+               Singleton(Typ.fresh(Parens(Typ.fresh(Var("B"))))),
+             )
+          |> extend(
+               _,
+               "B",
+               Singleton(Typ.fresh(Parens(Typ.fresh(Var("A"))))),
+             );
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        check(
+          list(testable_id),
+          "an unexpandable alias on the left marks the whole right side",
+          [Typ.rep_id(int_typ)],
+          Typ.diff(~ctx, Typ.fresh(Var("A")), int_typ),
+        );
+      },
+    ),
+    test_case(
       "diff Sum missing constructor in dynamic",
       `Quick,
       () => {
@@ -712,7 +772,7 @@ let diff_tests = (
             Sum([ConstructorMap.Variant("Some", ann, Some(some_int))]),
           );
         let result = Typ.diff(static_typ, dynamic_typ);
-        /* Dynamic is missing None, so entire dynamic Sum is different */
+        /* A constructor missing on the right makes the whole Sum different. */
         check(
           bool,
           "missing constructor marks all dynamic IDs",
@@ -737,7 +797,7 @@ let diff_tests = (
             ]),
           );
         let result = Typ.diff(static_typ, dynamic_typ);
-        /* B is extra in dynamic — its variant_ann ID should be in the diff */
+        /* B is extra on the right, so its variant_ann id is in the diff. */
         check(
           bool,
           "extra constructor produces diff",

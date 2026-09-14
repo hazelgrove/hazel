@@ -58,7 +58,7 @@ let view_typ =
       typ: Language.Typ.t,
     ) =>
   typ
-  |> ExpToSegment.typ_to_segment(~settings)
+  |> TypToSegment.typ_to_segment(~settings)
   |> view_segment(~globals, ~classes);
 
 let view_any =

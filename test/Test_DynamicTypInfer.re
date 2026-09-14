@@ -7,7 +7,7 @@ open Language;
    DynamicTypInfer.dynamic_typ_of_samples with the real program context. */
 let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
   switch (Parser.to_zipper(~root=Exp, code)) {
-  | None => (Sample.Map.empty, Statics.Map.empty)
+  | None => failf("did not parse: %s", code)
   | Some(z) =>
     let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let probe_ids =
@@ -42,57 +42,42 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
   };
 };
 
-/* Get the first probe's samples from the evaluation result */
-let first_probe_samples = (probes: Sample.Map.t): list(Sample.t) =>
+/* The samples the first probe in [code] recorded, and the context it was
+   sampled in. Both are assertions: a program that stopped parsing or stopped
+   carrying a probe would otherwise report no samples, and a type met from no
+   samples passes the tests that expect None. */
+let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
+  let (probes, info_map) = evaluate_probes(code);
   switch (Id.Map.bindings(probes)) {
-  | [(_, samples), ..._] => samples
-  | [] => []
+  | [] => failf("no probe recorded anything in: %s", code)
+  | [(probe_id, samples), ..._] =>
+    switch (Statics.Map.lookup(probe_id, info_map)) {
+    | None => failf("probe carries no statics in: %s", code)
+    | Some(info) => (samples, Info.ctx_of(info))
+    }
   };
-
-/* Pretty-print a type for readable test output */
-let typ_to_string = (ty: Typ.t): string => {
-  let seg =
-    ExpToSegment.typ_to_segment(
-      ~settings={
-        secondary: AutoFormat,
-        parenthesization: Defensive,
-        label_format: QuoteWhenNecessary,
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: `NoFold,
-        hide_fixpoints: false,
-        show_filters: true,
-        show_unknown_as_hole: true,
-        show_ascriptions: true,
-        hole_tiles: false,
-        project_tables: false,
-      },
-      ty,
-    );
-  Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
 };
+
+/* Types appear in failure messages as the projector would show them, not as
+   a term dump. */
+let typ_to_string = (ty: Typ.t): string =>
+  TypToSegment.typ_to_segment(
+    ~settings=ProjectorInfo.seg_settings(~inline=true),
+    ty,
+  )
+  |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true);
 
 let testable_typ_string = testable(Fmt.string, String.equal);
 
-/* Test helper: given code with a probe, compute the dynamic type and check
-   it matches `expected`. Pass `Some("Int")` for a successful meet or
-   `None` when sample types are inconsistent. */
+/* Check the dynamic type inferred from a probe's samples. `expected` is
+   None when the probe recorded nothing, or when the sample types are
+   inconsistent and refuse to meet. */
 let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
   test_case(
     name,
     `Quick,
     () => {
-      let (probes, info_map) = evaluate_probes(code);
-      let samples = first_probe_samples(probes);
-      let ctx =
-        switch (Id.Map.bindings(probes)) {
-        | [(probe_id, _), ..._] =>
-          switch (Statics.Map.lookup(probe_id, info_map)) {
-          | Some(info) => Info.ctx_of(info)
-          | None => Builtins.ctx_init(Some(Int))
-          }
-        | [] => Builtins.ctx_init(Some(Int))
-        };
+      let (samples, ctx) = first_probe_samples_and_ctx(code);
       let result = DynamicTypInfer.dynamic_typ_of_samples(~ctx, samples);
       check(
         option(testable_typ_string),
@@ -139,11 +124,22 @@ in [f(true), f(false)]|},
 in [f(true), f(false)]|},
     None,
   ),
-  dynamic_typ_test(
-    "No samples from unevaluated branch",
-    {|if false then ^^probe(42) else 0|},
-    Some("?"),
-  ),
+  test_case("No samples infers nothing", `Quick, () => {
+    /* The projector reaches this whenever nothing ran -- an unevaluated
+       branch records no probe entry at all. Meeting no types would report
+       `?`, which reads as runtime having found the type to be unknown
+       rather than as runtime not having run. */
+    check(
+      option(testable_typ_string),
+      "no samples infers nothing",
+      None,
+      DynamicTypInfer.dynamic_typ_of_samples(
+        ~ctx=Builtins.ctx_init(Some(Int)),
+        [],
+      )
+      |> Option.map(typ_to_string),
+    )
+  }),
 ];
 
 /* === User-defined type tests === */
@@ -206,45 +202,30 @@ let scoping_tests = [
 in let f = fun () -> h
 in let g = fun (h : () -> Int) -> ^^probe(h)
 in g(f)|},
-    /* `(())` is `typ_to_string`'s defensive parenthesization of the unit
-       argument, as in the "Arrow via function" case above. */
     Some("(()) -> Int"),
   ),
 ];
 
-/* === Colouring the rendered dynamic type === */
+/* === Colouring the printed dynamic type === */
 
 /* When statics knew nothing, the whole type came from runtime, so every tile
-   of the rendered segment must be coloured.
+   of the printed segment must be green.
 
-   Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility --
-   the composition the projector runs -- because the ids that reach the
-   renderer are the ones statics put on the inferred type, and those are what
-   broke: Typ.temp stamps every node with Id.invalid, so the dynamic_ids collapsed
-   to one id and uniquify_repeated_tiles freshened away every tile but the
-   first. A generator cannot rediscover this: QCheck_Util.arb_typ mints a
-   distinct id per node, which is the precondition production violates. */
+   Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility,
+   the composition the projector runs, because the ids that reach the printer
+   come from statics -- which stamps every node with the same Id.invalid.
+   QCheck_Util.arb_typ mints a distinct id per node, so a generator cannot
+   reach this; it takes a real program. */
 let uncoloured_tiles_test = (name: string, code: string) =>
   test_case(
     name,
     `Quick,
     () => {
-      let (probes, info_map) = evaluate_probes(code);
-      let samples = first_probe_samples(probes);
-      let ctx =
-        switch (Id.Map.bindings(probes)) {
-        | [(probe_id, _), ..._] =>
-          switch (Statics.Map.lookup(probe_id, info_map)) {
-          | Some(info) => Info.ctx_of(info)
-          | None => Builtins.ctx_init(Some(Int))
-          }
-        | [] => Builtins.ctx_init(Some(Int))
-        };
+      let (samples, ctx) = first_probe_samples_and_ctx(code);
       let (seg, dynamic_ids) =
         DynamicTypInfer.displayed_segment_and_dynamic_ids(
-          ~normalize=ProjectorInfo.utility.normalize_typ(~inline=true),
-          ~render_normalized=
-            ProjectorInfo.utility.render_normalized_typ(~inline=true),
+          ~typ_to_seg_with_diff_ids=
+            ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
           ~ctx,
           ~static_typ=Typ.fresh(Unknown(Internal)),
           ~samples,
@@ -253,7 +234,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
         list(string),
         "tiles of a wholly runtime-derived type left uncoloured",
         [],
-        Segment.tile_ids(seg)
+        Test_TypToSegment.tile_ids(seg)
         |> List.filter(id => !Id.Set.mem(id, dynamic_ids))
         |> List.map(id => Id.str8(id)),
       );
@@ -261,6 +242,14 @@ let uncoloured_tiles_test = (name: string, code: string) =>
   );
 
 let dynamic_id_tests = [
+  /* Statics puts one alias body in every position that mentions the alias,
+     so the two components share the `type T` declaration's ids. Before
+     TypToSegment.prepare made them distinct the second sum printed under
+     freshly minted ids and stayed uncoloured. */
+  uncoloured_tiles_test(
+    "An alias repeated in a tuple",
+    {|type T = A + B in ^^probe((A, A))|},
+  ),
   uncoloured_tiles_test("Tuple", {|^^probe((1, 2))|}),
   uncoloured_tiles_test("List", {|^^probe([1, 2, 3])|}),
   uncoloured_tiles_test("Nested tuple", {|^^probe((1, ("a", true)))|}),
@@ -277,56 +266,35 @@ in ^^probe(p)|},
   ),
 ];
 
-/* CursorInspector hands segment_and_dynamic_ids a live-typing elab_syn_ty rather
-   than a sample-inferred type, and statics builds both with Typ.temp -- every
-   node carrying the Id.invalid sentinel. With the sentinels left in, this
-   coloured `Int`, which statics supplied, and the enclosing parens along with
-   it, because diff's wrapped_replaced test fires on any node sharing the
-   sentinel with a replaced one. */
-let coloured_tile_labels = (~static_typ: Typ.t, ~dynamic_typ: Typ.t) => {
-  let (seg, dynamic_ids) =
-    DynamicTypInfer.segment_and_dynamic_ids(
-      ~normalize=ProjectorInfo.utility.normalize_typ(~inline=true),
-      ~render_normalized=
-        ProjectorInfo.utility.render_normalized_typ(~inline=true),
-      ~ctx=None,
-      ~static_typ,
-      ~dynamic_typ,
-    );
-  let rec go = (seg: Segment.t) =>
-    List.concat_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          (
-            Id.Set.mem(t.id, dynamic_ids) ? [String.concat("", t.label)] : []
-          )
-          @ List.concat_map(go, t.children)
-        | Grout(_)
-        | Secondary(_)
-        | Projector(_) => []
-        },
-      seg,
-    );
-  go(seg);
-};
+/* === Colouring a type statics refined === */
 
+/* CursorInspector hands segment_and_dynamic_ids a live-typing elab_syn_ty
+   rather than a sample-inferred type, and statics builds both with Typ.temp,
+   every node carrying the Id.invalid sentinel. With the sentinels left in this
+   coloured `Int`, which statics supplied, and the enclosing parens with it. */
 let statics_built_tests = [
   test_case(
-    "a statics-built dynamic type dynamic_ids only its runtime-derived tokens",
+    "segment_and_dynamic_ids colours only the tokens statics did not supply",
     `Quick,
     () => {
       let temp = (t: Typ.term) => Typ.temp(t);
-      check(
-        list(string),
-        "only the component statics did not know is coloured",
-        ["Bool"],
-        coloured_tile_labels(
+      let (seg, dynamic_ids) =
+        DynamicTypInfer.segment_and_dynamic_ids(
+          ~typ_to_seg_with_diff_ids=
+            ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
+          ~ctx=Builtins.ctx_init(Some(Int)),
           ~static_typ=
             temp(Prod([temp(Atom(Atom.Int)), temp(Unknown(Internal))])),
           ~dynamic_typ=
             temp(Prod([temp(Atom(Atom.Int)), temp(Atom(Atom.Bool))])),
-        ),
+        );
+      let classes = id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [];
+      check(
+        list(Test_TypToSegment.region),
+        "Int static, Bool dynamic",
+        Test_TypToSegment.[s("(Int,"), d("Bool"), s(")")],
+        Test_TypToSegment.segment_fragments(classes, seg)
+        |> Test_TypToSegment.group_regions,
       );
     },
   ),

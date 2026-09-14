@@ -1090,172 +1090,6 @@ let mk_form =
   });
 };
 
-/* HACK[Matt]: Sometimes terms that should have multiple ids won't because
-   evaluation only ever gives them one.
-
-   Some upstream producers (e.g., evaluator collapse, certain absorption
-   paths) can emit ids lists with duplicates — e.g., [case_id, case_id, ...]
-   for a Match where the adoption machinery did not preserve distinct rule
-   ids. If we pass duplicates through unchanged, the pretty-printer will
-   emit multiple Tile pieces sharing the same id (e.g., the case `[case;end]`
-   form and all `[|;=>]` rules all tagged with case_id), and
-   Segment.reassemble will group them into a single Aba match and fail
-   with an out-of-order combined_shards assertion.
-
-   To prevent that, pad_ids also ensures the returned list has:
-   1. no duplicates within itself;
-   2. no id equal to any id in [~forbidden]. */
-let pad_ids =
-    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
-  let len = List.length(ids);
-  let forbidden_set = ref(Id.Set.of_list(forbidden));
-  let replace = id =>
-    if (Id.Set.mem(id, forbidden_set^)) {
-      let fresh = Id.mk();
-      forbidden_set := Id.Set.add(fresh, forbidden_set^);
-      fresh;
-    } else {
-      forbidden_set := Id.Set.add(id, forbidden_set^);
-      id;
-    };
-  let truncated =
-    if (len < n) {
-      ids @ List.init(n - len, _ => Id.mk());
-    } else {
-      ListUtil.split_n(n, ids) |> fst;
-    };
-  List.map(replace, truncated);
-};
-
-/* How many ids each type constructor's rendering consumes. This lives here,
-   beside the `pad_ids(n, ...)` calls that spend them, because it mirrors the
-   token layout below -- kept anywhere else it is a second copy that silently
-   drifts. Counts must match the `pad_ids` argument in typ_to_pretty exactly;
-   `typ_ids_sufficient` below is how that is checked. */
-let necessary_ids: Typ.t => int =
-  ty =>
-    switch (ty.term) {
-    /* "()", "Void" and "{}" render from rep_id */
-    | Prod([]) => 1
-    | Sum([]) => 1
-    | Sig([]) => 1
-    /* one id per separator */
-    | Prod(tys) => List.length(tys) - 1
-    /* one id per variant; the single-variant form renders from rep_id */
-    | Sum(tys) => max(1, List.length(tys))
-    /* rep_id for the braces, then one id per `;` between items */
-    | Sig(items) => max(1, List.length(items))
-    /* one grout id between entries */
-    | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
-    /* every other form renders from rep_id alone */
-    | _ => 1
-    };
-
-/* Number of IDs required for a variant_ann by ExpToSegment */
-let necessary_variant_ann_ids: ConstructorMap.variant(Typ.t) => int =
-  fun
-  | Variant(_, _, Some(_)) => 2 /* parens ID + constructor name ID */
-  | Variant(_, _, None) => 1 /* constructor name ID */
-  | BadEntry(_) => 0;
-
-/* Pad variant_ann.ids to the count ExpToSegment expects */
-let pad_variant_ann =
-    (v: ConstructorMap.variant(Typ.t)): ConstructorMap.variant(Typ.t) =>
-  switch (v) {
-  | Variant(c, ann, payload) =>
-    let needed = necessary_variant_ann_ids(v);
-    let current = List.length(ann.ids);
-    let ids = ann.ids @ List.init(max(0, needed - current), _ => Id.mk());
-    Variant(
-      c,
-      {
-        ...ann,
-        ids,
-      },
-      payload,
-    );
-  | BadEntry(_) => v
-  };
-
-/* Recursively pad variant_ann.ids throughout a type */
-let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
-  let term: Typ.term =
-    switch (ty.term) {
-    | Sum(variants) =>
-      Sum(
-        List.map(
-          fun
-          | ConstructorMap.Variant(c, ann, payload) => {
-              let v =
-                ConstructorMap.Variant(
-                  c,
-                  ann,
-                  Option.map(pad_variant_anns, payload),
-                );
-              pad_variant_ann(v);
-            }
-          | ConstructorMap.BadEntry(t) =>
-            ConstructorMap.BadEntry(pad_variant_anns(t)),
-          variants,
-        ),
-      )
-    | Arrow(t1, t2) => Arrow(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Prod(ts) => Prod(List.map(pad_variant_anns, ts))
-    | List(t) => List(pad_variant_anns(t))
-    | TupLabel(t1, t2) =>
-      TupLabel(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Parens(t) => Parens(pad_variant_anns(t))
-    | Rec(tp, t) => Rec(tp, pad_variant_anns(t))
-    | Poly(tp, t) => Poly(tp, pad_variant_anns(t))
-    | Projector(d, t) => Projector(d, pad_variant_anns(t))
-    | ProdProjection(t1, t2) =>
-      ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
-    | ProdExtension(t1, t2) =>
-      ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Unknown(_)
-    | Atom(_)
-    | DrvQuoteTy(_)
-    | Label(_)
-    | ExplicitNonlabel
-    | Var(_)
-    | ProofOf(_)
-    | Sig(_) => ty.term
-    };
-  {
-    ...ty,
-    term,
-  };
-};
-
-/**
- * Pads type IDs to ensure ExpToSegment uses them instead of creating new ones,
- * preserving ID correspondence for styling.
- */
-let pad_typ_ids = (ty: Typ.t): Typ.t => {
-  let ty =
-    Typ.map_term(
-      ~f_typ=
-        (cont, ty) => {
-          let current_ids = ty.annotation.ids;
-          let needed_ids = necessary_ids(ty);
-          let ids =
-            current_ids
-            @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
-                Id.mk()
-              );
-          cont({
-            ...ty,
-            annotation: {
-              ids,
-              secondary: ty.annotation.secondary,
-            },
-          });
-        },
-      ty,
-    );
-  pad_variant_anns(ty);
-};
-
 /* Save standard list concatenation before we shadow @ */
 let list_append = (@);
 
@@ -1400,7 +1234,8 @@ let rec drv_exp_to_pretty =
   | Ctx([x, ...xs]) =>
     let* x = go(x, ~sort=Prop)
     and* xs = xs |> List.map(go(~sort=Prop)) |> all;
-    let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+    let ids =
+      syntax |> IdTagged.ids |> List.tl |> PadIds.pad_ids(List.length(xs));
     let map2_safe = (f, l1, l2) =>
       List.length(l1) == List.length(l2)
         ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
@@ -1549,7 +1384,7 @@ let rec drv_exp_to_pretty =
     and+ e2 = go(e2, ~sort=Exp);
     let all_ids = IdTagged.ids(syntax);
     let rule_ids =
-      pad_ids(
+      PadIds.pad_ids(
         ~forbidden=[id],
         2,
         switch (all_ids) {
@@ -1928,7 +1763,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(exp) |> List.tl |> PadIds.pad_ids(List.length(xs)),
     );
     let form = (x, xs) =>
       mk_form(
@@ -1995,7 +1830,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.
        For N elements, we need N-1 grout pieces (one between each pair). */
     let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(exp) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(exp) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (es) {
       | [] => []
@@ -2107,7 +1942,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // TODO: Add optional newlines
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
-    let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
+    let ids = IdTagged.ids(exp) |> PadIds.pad_ids(List.length(xs));
     wrap(
       exp,
       x
@@ -2274,7 +2109,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ es = es |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
+      IdTagged.ids(exp) |> List.tl |> PadIds.pad_ids(List.length(es)),
     );
     wrap(
       exp,
@@ -2393,7 +2228,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       case_id,
       all_exp_ids
       |> List.tl
-      |> pad_ids(~forbidden=[case_id], List.length(rs)),
+      |> PadIds.pad_ids(~forbidden=[case_id], List.length(rs)),
     );
     wrap(
       exp,
@@ -2482,7 +2317,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(exp) |> List.tl |> PadIds.pad_ids(List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -2579,7 +2414,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(pat) |> List.hd,
-      IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(pat) |> List.tl |> PadIds.pad_ids(List.length(xs)),
     );
     wrap(
       pat,
@@ -2609,7 +2444,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
-    let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
+    let ids = IdTagged.ids(pat) |> PadIds.pad_ids(List.length(xs));
     wrap(
       pat,
       x
@@ -2681,7 +2516,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
     let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(pat) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(pat) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (es) {
       | [] => []
@@ -2784,8 +2619,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(MultiHole(es))) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
+    let ids =
+      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
     let seg =
       switch (es) {
       | [] => []
@@ -2839,7 +2674,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       @ List.flatten(
           List.map2(
             (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-            IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+            IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ)),
             ts,
           ),
         ),
@@ -2954,7 +2789,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go_constructor(t);
     wrap(typ, [mk_form(TypSumSingle, id, [])] @ t);
   | Sum([t, ...ts]) =>
-    let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
+    let ids =
+      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
     let id = List.hd(ids);
     let ids = List.tl(ids);
     let+ t = go_constructor(t)
@@ -2972,7 +2808,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
   | Sig(items) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
-    let id = typ |> Typ.rep_id;
+    let ids =
+      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
+    let id = List.hd(ids);
+    let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
@@ -3015,8 +2854,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
          )
       |> all;
     /* Join items with semicolons and wrap in braces */
-    let ids =
-      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -3055,7 +2892,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.
        For N elements, we need N-1 grout pieces (one between each pair). */
     let num_grouts = max(0, List.length(xs) - 1);
-    let ids = IdTagged.ids(tpat) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(tpat) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (xs) {
       | [] => []
@@ -3200,6 +3037,31 @@ and label_to_pretty =
   );
 };
 
+/* Types built from source repeat ids -- statics puts one alias body in every position that mentions the
+   alias, and Typ.replace_temp only rewrites the Id.invalid sentinel -- and a
+   repeat prints as two tiles that uniquify_repeated_tiles below then tells apart
+   by minting an id no type holds, leaving that tile unnameable. */
+let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
+  let seen = ref(Id.Set.empty);
+  let distinct = id => {
+    let id = Id.Set.mem(id, seen^) ? Id.mk() : id;
+    seen := Id.Set.add(id, seen^);
+    id;
+  };
+  Typ.map_term(
+    ~f_typ=
+      (cont, ty) =>
+        cont({
+          ...ty,
+          annotation: {
+            ...ty.annotation,
+            ids: List.map(distinct, ty.annotation.ids),
+          },
+        }),
+    ty,
+  );
+};
+
 /* Display segments must never contain two tile pieces claiming the same
    (id, shard): Segment.reassemble (run by PrettySegment.format during
    drawer layout, and by editor init on result views) groups tile pieces
@@ -3258,63 +3120,6 @@ let exp_to_segment =
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select |> uniquify_repeated_tiles;
 };
-
-/* The type the token layout is actually computed from: Sig desugared to
-     labeled tuples, parens inserted (as real Parens NODES, not synthesized
-     tokens), and ids padded to the counts above.
-   *
-   * Exposed because a caller that wants to reason about the ids in a rendered
-   * segment has to reason about THIS type, not the one it passed in: the parens
-   * and the padded id slots are nodes that only exist after normalization, and
-   * their ids are what the renderer puts on tokens. Diffing the un-normalized
-   * type cannot name them.
-   *
-   * Not idempotent: parenthesize_typ mints a fresh id for each Parens it adds,
-   * so normalizing twice yields two different types. Normalize once, then pass
-   * the result to normalized_typ_to_segment. */
-let normalize_typ = (~settings: Settings.t, typ: Typ.t): Typ.t =>
-  typ
-  |> Typ.desugar_sig(Ctx.empty)
-  |> parenthesize_typ(
-       ~parenthesization=settings.parenthesization,
-       ~show_filters=settings.show_filters,
-       ~show_ascriptions=settings.show_ascriptions,
-     )
-  |> pad_typ_ids;
-
-/* Whether every node of a type already carries the ids its rendering will
-     consume, so the renderer never has to mint one.
-   *
-   * This is the invariant the dynamic-type marking rests on: an id minted
-     during rendering is in the DOM but in no type, so nothing can name it, and
-     the token it labels can never be coloured. normalize_typ is supposed to
-     guarantee it -- this is how that is checked, over generated types, rather
-     than by a flag on these settings that only fired on whatever input a test
-     happened to render. */
-let typ_ids_sufficient = (typ: Typ.t): bool => {
-  let ok = ref(true);
-  let _ =
-    Typ.map_term(
-      ~f_typ=
-        (cont, ty) => {
-          if (List.length(ty.annotation.ids) < necessary_ids(ty)) {
-            ok := false;
-          };
-          cont(ty);
-        },
-      typ,
-    );
-  ok^;
-};
-
-/* Render a type that has already been through normalize_typ. */
-let normalized_typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
-  typ_to_pretty(~settings, typ)
-  |> PrettySegment.select
-  |> uniquify_repeated_tiles;
-
-let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
-  normalized_typ_to_segment(~settings, normalize_typ(~settings, typ));
 
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {

@@ -412,6 +412,14 @@
   color: var(--context-inspector-colon);
 }
 
+/* The parts of a live type that came from runtime values, the same green
+   as the type probe's Dynamic mode (proj-type.css). Every token of the
+   marked tile, not just the ones classed Typ: holes and labels carry other
+   classes. */
+#cursor-inspector .code .dynamic > .token {
+  color: var(--dynamic-token);
+}
+
 .dynamic-icon {
   display: inline-flex;
   align-items: center;

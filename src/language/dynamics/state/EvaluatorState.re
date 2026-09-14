@@ -58,7 +58,6 @@ type effect =
       samples: PatternMatch.sample_closures,
     })
   | RecordTypeInstantiation(CallStack.t => Dynamics.TypeInstantiation.t)
-  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
@@ -279,26 +278,6 @@ let update =
           call_stack,
           add_test(state, instance_report),
         )
-      | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
-        let step = state.step_count;
-        /* Substitute env so a Var body resolves to its runtime value. */
-        let ascribed_exp = Substitution.in_exp(env, ascribed_exp);
-        let sample =
-          Sample.mk(
-            ~step_start=step,
-            ~step_end=step,
-            id,
-            ascribed_exp,
-            env,
-            call_stack,
-            capture_spec,
-          );
-        let state = record_event(state, ObsTrace.Minted(sample));
-        let state = {
-          ...state,
-          step_count: state.step_count + 1,
-        };
-        (call_stack, state);
       | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we
          * increment to ensure patterns don't share step boundaries

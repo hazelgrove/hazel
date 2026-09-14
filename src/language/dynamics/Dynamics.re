@@ -168,12 +168,23 @@ let filter_by_focus = (sample_focus: Sample.Focus.t, dyn: t): t => {
  * Unguarded on purpose: substitution walks the value, but so does the statics
  * run that `LiveTyping.refine_typ_with_dynamics` performs on every sample, and
  * any cheap "does this contain a closure?" test would have to walk it too
- * (`Exp.map_term` rebuilds every node, so it is no cheaper than substituting). */
+ * (`Exp.map_term` rebuilds every node, so it is no cheaper than substituting).
+ *
+ * A value still wrapped in an ascription is a cast that got stuck, and a
+ * nested ascription's sample can be one: `(x : ?) : String` collapses to a
+ * single cast under the inner ascription's id (Ascriptions.transition), so
+ * with x = 1 the inner node observes `1 : String`. Statics would read that as
+ * String -- the cast's type, not the operand's -- so the stuck casts come off
+ * and the `1` that flowed there is the evidence. */
 let to_live_typing_map = (dyn: t): LiveTyping.Map.t =>
   LiveTyping.Map.mk(
     Id.Map.map(
       List.map((s: Sample.t): LiveTyping.sample =>
-        {exp: Substitution.in_exp(Environment.empty, s.value)}
+        {
+          exp:
+            Substitution.in_exp(Environment.empty, s.value)
+            |> DHExp.strip_root_ascriptions,
+        }
       ),
       dyn.probe_map,
     ),

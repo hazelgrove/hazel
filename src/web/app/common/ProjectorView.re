@@ -360,7 +360,7 @@ let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
 let simple_code =
     (
       ~background=false,
-      ~classes=(_: Id.t) => [],
+      ~classes=?,
       ~is_single_line=false,
       font_metrics,
       _sort,
@@ -373,7 +373,7 @@ let simple_code =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
-      ~classes,
+      ~classes?,
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
@@ -438,7 +438,7 @@ let flex_code =
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
-      ~classes=(_: Id.t) => [],
+      ~classes=?,
       sort,
       segment,
     ) => {
@@ -446,7 +446,7 @@ let flex_code =
     ? text_code(segment)
     : simple_code(
         ~background?,
-        ~classes,
+        ~classes?,
         ~is_single_line=single_line,
         font_metrics,
         sort,

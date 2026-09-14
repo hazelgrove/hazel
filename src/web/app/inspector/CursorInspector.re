@@ -132,32 +132,33 @@ let view_any = (~globals, any: Any.t) =>
   |> code_box_container;
 
 let view_type = (~globals, ~live_typing_info: option(Info.t)=?, typ: Typ.t) => {
-  let dyn_type =
+  let live_typ =
     switch (live_typing_info) {
-    | Some(InfoExp({elab_syn_ty, _})) => Some(elab_syn_ty)
-    | Some(InfoPat({elab_syn_ty, _})) => Some(elab_syn_ty)
+    | Some(InfoExp({elab_syn_ty, _}) as info)
+    | Some(InfoPat({elab_syn_ty, _}) as info) => Some((info, elab_syn_ty))
     | _ => None
     };
-  /* Same pipeline as the type probe's Dynamic mode: normalize both, diff the
-     normalized forms, render the normalized dynamic type once. Rendering the
-     type again here would re-normalize it and produce a segment the dynamic ids do
-     not describe. */
+  /* Same pipeline as the type probe's Dynamic mode, which hands over the one
+     segment its ids describe: printing the type again here would mint paren
+     ids the set does not name. */
   let (seg, dynamic_ids) =
-    switch (dyn_type) {
-    | Some(dynamic_typ) when !Typ.fast_equal(typ, dynamic_typ) =>
+    switch (live_typ) {
+    | Some((info, dynamic_typ)) when !Typ.fast_equal(typ, dynamic_typ) =>
       Haz3lcore.DynamicTypInfer.segment_and_dynamic_ids(
-        ~normalize=
-          Haz3lcore.ExpToSegment.normalize_typ(~settings=code_view_settings),
-        ~render_normalized=
-          Haz3lcore.ExpToSegment.normalized_typ_to_segment(
-            ~settings=code_view_settings,
-          ),
-        ~ctx=None,
+        ~typ_to_seg_with_diff_ids=
+          (~ctx, ~against, typ) =>
+            Haz3lcore.TypToSegment.typ_to_segment_with_diff_ids(
+              ~settings=code_view_settings,
+              ~ctx,
+              ~against,
+              typ,
+            ),
+        ~ctx=Info.ctx_of(info),
         ~static_typ=typ,
         ~dynamic_typ,
       )
     | _ => (
-        Haz3lcore.ExpToSegment.typ_to_segment(
+        Haz3lcore.TypToSegment.typ_to_segment(
           ~settings=code_view_settings,
           typ,
         ),
