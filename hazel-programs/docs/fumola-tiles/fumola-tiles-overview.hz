@@ -3,11 +3,41 @@
 # Fumola is a language for incremental computation. A Fumola program lives #
 # inside a Hazel expression, written with tiles of its own: #
 
-let answer = fumola $graphical as store in 1 + 2 end in
+let answer = fumola $graphical as store in
+  { let cell = `myCell` := 333;
+    let t = `myThunk` := thunk { @ cell };
+    force(t) }
+end in
 
 # Read the form as three parts.  `store` names the Fumola VM instance the #
 # program runs against.  `$graphical` is the adapton semantics that instance #
 # runs.  Between `in` and `end` is the program itself. #
 
+# `:=` puts a value at a name and hands back a pointer, so `myCell` is a #
+# cell holding 333 and `myThunk` is a cell holding a thunk.  `@ cell` #
+# reads a cell, and `force` runs a thunk and remembers what it answered. #
+
 # The result comes back as a Hazel value, so it is an Int here: #
-answer + 1
+
+# WHAT THE STORE MADE OF IT #
+
+# Three lines, and the panel on the right holds the whole of what they did. #
+# Open it from the rail, or from the explanation of an instance name. #
+
+# NODES are the two cells: a nonThunk holding 333, and a thunk which, once #
+# forced, carries its result and the trace of what it read. #
+
+# EDGES are what passed between them, and the action says which.  The #
+# force carries BOTH the thunk and its answer -- #
+# Force_(@thunk ({ @ cell }), 333) -- which is the pair the runtime #
+# records and the reason an edge is worth reading rather than counting. #
+
+# EVENTS are the same story in order: nodes added, edges added, a force #
+# that begins and ends, and the edge updated when it did. #
+
+# Most of those edges have `@here` for a source: the editor putting values #
+# in, rather than the program computing.  The panel calls that the prime #
+# mover and will dim or hide it, which leaves the get and the force -- the #
+# two the program itself did. #
+
+answer
