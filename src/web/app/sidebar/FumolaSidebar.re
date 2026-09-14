@@ -208,6 +208,14 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
 
   let is_open = (key: string) => List.mem(key, globals.fumola_open);
 
+  /* The row a pointer was just followed to gets scrolled to. Following a
+     pointer switches views as well as opening a row, so without this the
+     reader arrives at the top of a list they did not ask to be at the top
+     of, with what they clicked somewhere below the fold. */
+  let scroll_to = (key: string): list(Attr.t) =>
+    globals.fumola_focused == Some(key)
+      ? [ScrollIntoView.attr(~name="scroll-followed-fumola-row", key)] : [];
+
   let number = (s: string) =>
     switch (int_of_string_opt(s)) {
     | Some(n) => n
@@ -577,6 +585,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                   @ (row.editor ? ["fumola-editor"] : [])
                   @ dim_class(~editor=row.editor),
                 ),
+                ...scroll_to(key),
               ],
               [
                 /* Closed, a row is its name and its moment and nothing else,
@@ -674,6 +683,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                   @ (row.editor ? ["fumola-editor"] : [])
                   @ dim_class(~editor=row.editor),
                 ),
+                ...scroll_to(key),
               ],
               [
                 div(

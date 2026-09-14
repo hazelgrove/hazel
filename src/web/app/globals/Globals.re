@@ -124,6 +124,11 @@ module Model = {
        deliberately: the runtime mints these ids afresh on every page load,
        so a persisted set would accumulate dead keys forever. */
     fumola_open: list(string),
+    /* The row a pointer was just followed to, if any. Separate from the open
+       set because being open and being arrived at are different things: a
+       reader opens several rows and is looking at one of them. Cleared when a
+       row is opened by hand, so only following scrolls. */
+    fumola_focused: option(string),
     // MVU apps, keyed by app-projector syntax id; not persisted
     apps: AppStore.t,
     // Calculated:
@@ -152,6 +157,7 @@ module Model = {
     meta_down: false,
     visible_rows: None,
     fumola_open: [],
+    fumola_focused: None,
     apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>

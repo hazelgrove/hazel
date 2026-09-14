@@ -272,6 +272,8 @@ module Update = {
             List.mem(key, model.globals.fumola_open)
               ? List.filter(k => k != key, model.globals.fumola_open)
               : [key, ...model.globals.fumola_open],
+          /* Opening a row by hand means the reader is already looking at it. */
+          fumola_focused: None,
         },
       }
       |> return_quiet
@@ -292,6 +294,7 @@ module Update = {
                  model.globals.fumola_open,
                ),
           ],
+          fumola_focused: Some(key),
         },
       }
       |> return_quiet
