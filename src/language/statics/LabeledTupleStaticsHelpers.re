@@ -1,6 +1,3 @@
-/* Shared helpers for labeled tuple statics logic.
-   These factor out the duplicated patterns in the Exp and Pat Tuple/TupLabel cases. */
-
 module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
@@ -10,8 +7,6 @@ let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };
 
-/* Validate a label name against expected/duplicate label lists.
-   Returns (elab_syn_ty, marks, is_invalid) for the label itself. */
 let validate_label_name =
     (
       ~name: string,
@@ -35,8 +30,6 @@ let validate_label_name =
       : (Label(name) |> Typ.temp, [], false)
   };
 
-/* Compute the synthesized type and marks for a TupLabel node
-   given its label analysis and child value type. */
 let tup_label_self_type =
     (
       ~lab_name: option(string),
@@ -89,7 +82,6 @@ let tup_label_self_type =
     )
   };
 
-/* Standalone TupLabel variant (no expected/duplicate labels to check) */
 let standalone_tup_label_self_type =
     (
       ~lab_name: option(string),
@@ -120,7 +112,6 @@ let standalone_tup_label_self_type =
     )
   };
 
-/* Compute expected labels from an analysis type. */
 let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
   switch (Typ.weak_head_normalize(ctx, ana).term) {
   | Prod(ts) =>
@@ -130,7 +121,44 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
   | _ => None
   };
 
-/* Expand per-occurrence duplicate labels from unique duplicates. */
+type shape_mismatch = {
+  expected_labels: list(option(string)),
+  actual_labels: list(option(string)),
+  missing_labels: list(string),
+  unexpected_labels: list(string),
+};
+
+let shape_mismatch =
+    (ctx: Ctx.t, ~ana: Typ.t, ~syn: Typ.t): option(shape_mismatch) => {
+  let labels_of = ty =>
+    switch (Typ.weak_head_normalize(ctx, ty).term) {
+    | Prod(ts) =>
+      Some(List.map(t => Typ.match_tup_label(t) |> Option.map(fst), ts))
+    | _ => None
+    };
+  switch (labels_of(ana), labels_of(syn)) {
+  | (Some(expected_labels), Some(actual_labels)) =>
+    let names = l => List.filter_map(Fun.id, l);
+    let missing_labels =
+      names(expected_labels)
+      |> List.filter(n => !List.mem(n, names(actual_labels)));
+    let unexpected_labels =
+      names(actual_labels)
+      |> List.filter(n => !List.mem(n, names(expected_labels)));
+    List.length(expected_labels) == List.length(actual_labels)
+    && missing_labels == []
+    && unexpected_labels == []
+      ? None
+      : Some({
+          expected_labels,
+          actual_labels,
+          missing_labels,
+          unexpected_labels,
+        });
+  | _ => None
+  };
+};
+
 let expand_duplicate_labels =
     (
       ~match_tup_label: 'a => option((string, 'b)),
@@ -147,7 +175,6 @@ let expand_duplicate_labels =
     items,
   );
 
-/* Compute invalid labels (labels not in the expected set). */
 let compute_invalid_labels =
     (
       ~match_tup_label: 'a => option((string, 'b)),
@@ -168,7 +195,6 @@ let compute_invalid_labels =
     )
   };
 
-/* Collect malformed label sources from children's TupleLabelError marks. */
 let collect_malformed_labels =
     (
       ~has_tup_label: 'info => bool,
@@ -187,7 +213,6 @@ let collect_malformed_labels =
     infos,
   );
 
-/* Build the final Prod type and TupleLabelError mark for a Tuple node. */
 let finalize_tuple_type =
     (
       ~duplicate_labels: list(string),
@@ -214,8 +239,6 @@ let finalize_tuple_type =
   (prod_ty, marks);
 };
 
-/* Apply inferred_label to an info record and update the map if needed.
-   Works for both exp and pat by taking updater functions. */
 let apply_inferred_label_exp =
     (~inferred_label: option(string), info: Info.exp, m: Map.t)
     : (Info.exp, Map.t) =>
