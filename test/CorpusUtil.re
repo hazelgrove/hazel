@@ -94,7 +94,8 @@ let sorted_ids = (ids: list(Id.t)): list(string) =>
    gates that blew the CI budget */
 let contains = (s: string, sub: string): bool => {
   let (nl, sl) = (String.length(s), String.length(sub));
-  let rec go = i => i + sl <= nl && (String.sub(s, i, sl) == sub || go(i + 1));
+  let rec go = i =>
+    i + sl <= nl && (String.sub(s, i, sl) == sub || go(i + 1));
   go(0);
 };
 
