@@ -17,7 +17,11 @@ open Virtual_dom.Vdom;
 let quote = "*\"Classical watches display time, but can hardly do anything else. This limitation is artificial: for instance several people confessed to be often in want of mustard...and what is the point of knowing time if you cannot get mustard?\"*\n\n-- Jean-Yves Girard (alias Yann-Joachim Ringard)";
 
 let svg = (tag, attrs, children) =>
-  Node.create_svg(tag, ~attrs=List.map(((k, v)) => Attr.create(k, v), attrs), children);
+  Node.create_svg(
+    tag,
+    ~attrs=List.map(((k, v)) => Attr.create(k, v), attrs),
+    children,
+  );
 
 /* Hour markers: the connectives, where 12, 3, 6 and 9 would be. */
 let marker = (x, y, glyph) =>

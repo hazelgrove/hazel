@@ -1622,7 +1622,11 @@ let view_doc =
   | Markdown(msg) => ([], mk_translation(~globals, ~inject=_ => (), msg), [])
   | MarkdownArt(msg, art) =>
     let (nodes, mapping) = mk_translation(~globals, ~inject=_ => (), msg);
-    ([], (nodes @ [div(~attrs=[clss(["explain-art"])], [art])], mapping), []);
+    (
+      [],
+      (nodes @ [div(~attrs=[clss(["explain-art"])], [art])], mapping),
+      [],
+    );
   | DrvSyntax(syntax, msg) => (
       [syntax |> CodeViewable.view_segment(~globals)],
       (
@@ -1703,7 +1707,8 @@ let color_map_of = (~globals: Globals.t, decision: decision): ColorSteps.t =>
   | Prose(_)
   | DrvSyntax(_) => ColorSteps.empty
   | Markdown(msg)
-  | MarkdownArt(msg, _) => snd(mk_translation(~globals, ~inject=_ => (), msg))
+  | MarkdownArt(msg, _) =>
+    snd(mk_translation(~globals, ~inject=_ => (), msg))
   | Doc({color_map: Some(color_map), _}) => color_map
   | Doc({explanation, _}) =>
     snd(mk_translation(~globals, ~inject=_ => (), explanation))
