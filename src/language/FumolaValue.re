@@ -552,6 +552,8 @@ and exp_of_tagged =
           source: "",
           value: DHExp.fresh(EmptyHole),
           holds: shows,
+          /* An opaque value names no cell, so there is no node to ask. */
+          info: "",
         }),
       ),
     )
@@ -592,6 +594,9 @@ and exp_of_tagged =
               source,
               value: DHExp.fresh(EmptyHole),
               holds: "a cell that points to itself",
+              /* Following the cycle to ask about the node would be the
+                 same cycle one step along. */
+              info: "",
             }),
           ),
         );
@@ -634,6 +639,14 @@ and exp_of_tagged =
               source,
               value,
               holds,
+              info:
+                node_info(
+                  ~instance_id,
+                  ~eval,
+                  ~seen=[source, ...seen],
+                  ~tools,
+                  source,
+                ),
             }),
           ),
         );
@@ -748,6 +761,87 @@ and exp_of_tagged =
       "Fumola returned a " ++ tag ++ ", which has no Hazel translation yet",
     )
   }
+
+/* What the DCG knows about the node this cell is, below what the cell holds.
+
+   A cell holding a thunk shows the thunk, which is its code and not its
+   answer. `adaptonPeekCell` goes one step further in and the node says what
+   the force remembered, so this is the line the reader actually wanted:
+   peek shows `@thunk ({ ... })`, and this shows what that came to.
+
+   Empty for everything else. A non-thunk node holds exactly the value the
+   cell already shows, so a second line repeating it would be noise, and a
+   thunk that has not been forced has nothing to report yet.
+
+   Read with peekCell rather than get, so looking costs the graph nothing:
+   three consecutive reads of a history leave it byte-identical. */
+and node_info =
+    (
+      ~instance_id: int,
+      ~eval: string => Yojson.Safe.t,
+      ~seen: list(string),
+      ~tools: FumolaTools.t,
+      source: string,
+    )
+    : string => {
+  let at = (name, json) =>
+    switch (json) {
+    | `Assoc(obj) => List.assoc_opt(name, obj)
+    | _ => None
+    };
+  /* A tagged value, as the boundary renders one: {tag, value}. */
+  let un = (tag, json) =>
+    switch (at("tag", json), at("value", json)) {
+    | (Some(`String(t)), Some(v)) when t == tag => Some(v)
+    | _ => None
+    };
+  let variant = (name, json) =>
+    switch (un("Variant", json)) {
+    | Some(v) =>
+      switch (at("name", v), at("value", v)) {
+      | (Some(`String(n)), Some(payload)) when n == name => Some(payload)
+      | _ => None
+      }
+    | None => None
+    };
+  /* The response carries the tagged value at its own top level -- tag and
+     value sit beside counts and ok -- so the Option is unwrapped from the
+     response itself, not from a field of it. */
+  let node =
+    eval(
+      "prim \"adaptonPeekCell\" (prim \"adaptonPointer\" (" ++ source ++ "))",
+    )
+    |> un("Option")
+    |> Option.map(un("Record"))
+    |> Option.join
+    |> Option.map(at("node"))
+    |> Option.join;
+  /* (metaTime, Any): the moment the force ended, and what it answered. */
+  let result =
+    node
+    |> Option.map(variant("thunk_"))
+    |> Option.join
+    |> Option.map(un("Record"))
+    |> Option.join
+    |> Option.map(at("result"))
+    |> Option.join
+    |> Option.map(un("Option"))
+    |> Option.join
+    |> Option.map(un("Tuple"))
+    |> Option.join;
+  switch (node, result) {
+  | (None, _) => ""
+  | (Some(_), None) => ""
+  | (Some(_), Some(`List([_moment, answer]))) =>
+    switch (
+      exp_of_json(~instance_id, ~eval, ~seen, ~ana=unknown(), ~tools, answer)
+    ) {
+    | Ok(e) => "forced = " ++ describe_value(e)
+    | Error(_) => ""
+    }
+  | (Some(_), Some(_)) => ""
+  };
+}
 
 and all = (results: list(result('a, string))): result(list('a), string) =>
   List.fold_right(

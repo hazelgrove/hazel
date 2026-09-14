@@ -96,6 +96,11 @@ and exp_term('a) =
          the value rather than in it so that a cell Hazel cannot represent
          still shows as a hole rather than as an error. */
       holds: string,
+      /* What the node behind the cell knows that the cell does not: a
+         forced thunk's answer. Empty for a non-thunk, and for a thunk
+         nobody has forced. A snapshot on the same terms as [value] --
+         regenerated on every expansion, never persisted. */
+      info: string,
     })
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
@@ -251,13 +256,14 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | BbQuote(b) => BbQuote(BbGrammar.map_annotation(f, b))
         | LivelitName(s) => LivelitName(s)
-        | FumolaPeek({instance_id, reads, source, value, holds}) =>
+        | FumolaPeek({instance_id, reads, source, value, holds, info}) =>
           FumolaPeek({
             instance_id,
             reads,
             source,
             value: map_exp_annotation(f, value),
             holds,
+            info,
           })
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
@@ -761,7 +767,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let fumola_peek =
-        (~ann=?, ~instance_id, ~reads, ~source="", ~holds="", value)
+        (~ann=?, ~instance_id, ~reads, ~source="", ~holds="", ~info="", value)
         : exp_t(DefaultAnnotation.t) => {
       term:
         FumolaPeek({
@@ -770,6 +776,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
           source,
           value,
           holds,
+          info,
         }),
       annotation: default_annotation(ann),
     };

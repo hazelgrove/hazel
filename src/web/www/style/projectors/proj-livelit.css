@@ -114,6 +114,28 @@
 
 /* The widget for a Fumola reference: the program that reads the cell, and
    what it held. Produced by translation, never chosen by a user. */
+/* With a node line under it the widget is two rows, so the row of the cell
+   and the row of the node stack rather than sit side by side. The
+   placeholder reserves the second row (Block(1)); this is only the
+   direction. */
+.fumola-peek-deep {
+    /* Wrap rather than turn the column: the first line is still a row --
+       the reading, the equals, the value -- and only the node's line goes
+       below it, which flex-basis:100% on that line is what forces. Turning
+       the whole widget into a column stacks the equals sign too. */
+    flex-wrap: wrap;
+}
+
+/* One step further into the graph than the line above it, and said quietly:
+   the cell's own reading is the answer to what was asked, and this is the
+   panel volunteering what the node knows. */
+.fumola-peek-info {
+    flex-basis: 100%;
+    opacity: 0.72;
+    font-size: 0.92em;
+    padding-left: 1.2em;
+}
+
 .fumola-peek {
     display: inline-flex;
     align-items: baseline;

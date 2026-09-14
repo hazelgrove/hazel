@@ -1942,7 +1942,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
      translating a Fumola result, never written or parsed -- so the rendering
      is free to be whatever reads best, and this is a first cut rather than a
      settled choice. */
-  | FumolaPeek({reads, value, holds, _}) =>
+  | FumolaPeek({reads, value, holds, info, _}) =>
     let id = exp |> Exp.rep_id;
     let+ value_seg = go(value);
     /* The widget is drawn by emitting a projector HERE, at rendering time,
@@ -1989,6 +1989,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         reads,
         shown:
           opaque ? holds : Language.FumolaValue.shown_value(~holds, value),
+        info,
       });
     wrap(
       exp,

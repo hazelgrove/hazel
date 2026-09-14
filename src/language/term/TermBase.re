@@ -240,13 +240,14 @@ and Exp: {
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
-        | FumolaPeek({instance_id, reads, source, value, holds}) =>
+        | FumolaPeek({instance_id, reads, source, value, holds, info}) =>
           FumolaPeek({
             instance_id,
             reads,
             source,
             value: exp_map_term(value),
             holds,
+            info,
           })
         | Fun(p, e, t, f) =>
           Fun(

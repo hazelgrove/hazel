@@ -19,11 +19,16 @@ type t = {
   reads: string,
   /* What it answered, already rendered -- an option, e.g. "Some(41)". */
   shown: string,
+  /* What the node behind the cell knows that the cell does not, e.g.
+     "forced = 274". Empty when there is nothing further to say, which is
+     every cell that is not a thunk somebody has forced. */
+  info: string,
 };
 
 let empty: t = {
   reads: "",
   shown: "",
+  info: "",
 };
 
 /* A projector's model travels as the sexp of its model type; see
