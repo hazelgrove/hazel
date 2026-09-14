@@ -83,6 +83,16 @@ boundary, which is what an engraver would have cut.
 **No gradients, no blurs, no drop shadows.** Cast shadows are a few short
 parallel strokes on the ground, thinning as they recede.
 
+**Draw the object in ink and the page furniture in `currentColor`.** An
+illustration has two kinds of mark in it: the object, and the things around
+the object that belong to the page — the shelf it stands on, its cast
+shadows, the caption under it. Give the object warm ink, so that it stays an
+engraving whatever the panel is doing. Give the furniture `currentColor`, so
+that it follows the panel's text colour and does not quietly disappear when
+the panel changes. This is the cheapest theme-proofing available and it costs
+the drawing nothing, because the furniture was never supposed to have a
+colour of its own.
+
 **Repetition is cheap and looks expensive.** `stroke-dasharray` with
 `pathLength` gives evenly divided detail around a circle for one element —
 a knurled bezel, a minute track, a row of rivets. Fine repeated detail is
@@ -112,17 +122,24 @@ the same structure:
 
 The frame does real work beyond decoration. It makes the artwork
 self-grounding: the paper travels with the image, so the piece does not
-depend on the panel behind it being any particular colour. That matters for
-anything that has to survive a theme change.
+depend on the panel behind it being any particular colour.
+
+It is not the only way to get that, though, and it is the heavier one. An
+unframed figure drawn in mid-tones — leather, steel, ochre — survives a dark
+panel perfectly well on its own, provided the page furniture is in
+`currentColor`. The frame is a stylistic choice about whether the piece wants
+to be a plate or a figure; it should not have to be load-bearing.
 
 ## Scale: draw for two distances
 
 The Weekly covers reward being looked at twice, and small in-app artwork
 should too. Practically this means designing at two scales at once:
 
-- **At panel size** (roughly 140 px wide for an explanation panel), only the
-  silhouette, the largest masses and the spot colour survive. Those have to
-  carry the whole idea on their own.
+- **At panel size**, only the silhouette, the largest masses and the spot
+  colour survive. Those have to carry the whole idea on their own. Measure
+  rather than guess how much room there is: the explanation panel turns out to
+  give about 367px of content width, not the ~140 it looks like, and a figure
+  drawn for 140 sits stranded in the middle of it.
 - **On closer inspection**, the fine detail pays the viewer back: hatching,
   a signature on a dial, a joke in a caption, an object that turns out to be
   labelled.
