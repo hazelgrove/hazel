@@ -582,16 +582,6 @@ let chunk_for_row = (row: int, m: t): option(chunk) => {
   n == 0 ? None : bs(0, n - 1);
 };
 
-/* ---- compatibility accessors for callers written against the flat
-   map (refactor drag tracks, FLIP staging, line numbers) ---- */
-let find_shards_by_id = (id: Id.t, m: t): option(list((int, measurement))) =>
-  switch (chunk_for_id(id, m)) {
-  | Some(ch) =>
-    Id.Map.find_opt(id, ch.c_flat.tiles)
-    |> Option.map(List.map(((i, meas)) => (i, shift_m(ch.c_start, meas))))
-  | None => None
-  };
-
 /* ---- public accessors (chunk-translated) ---- */
 
 let find_shards = (~msg="", t: Tile.t, m: t) =>
