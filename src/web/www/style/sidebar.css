@@ -970,3 +970,15 @@
   opacity: 1;
   background: rgb(0 0 0 / 5%);
 }
+
+/* An edge the editor made, marked whatever the prime-mover setting is: the
+   colour says whose edge it is before anyone opens the record inside. A
+   deeper mustard than the panel's ground, so it reads as the same family as
+   the instance's own colour rather than as a warning. */
+.fumola-row.fumola-prime .fumola-row-value {
+  background: rgb(190 145 20 / 14%);
+}
+
+.fumola-row.fumola-prime .fumola-row-key {
+  color: rgb(120 90 10 / 85%);
+}

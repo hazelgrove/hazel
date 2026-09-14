@@ -55,36 +55,6 @@ let empty: t = {
   edges: [],
 };
 
-/* The space of a node id, as text. A node id is (space, time, serial), and
-   the space is either Here or a symbol; the symbol's text is the key, and
-   FumolaValue.symbol_text is what spells it everywhere else. */
-let space_key = (node_id: Yojson.Safe.t): string =>
-  switch (FumolaEvents.tagged(node_id)) {
-  | Some(("Tuple", `List([space, ..._]))) =>
-    switch (FumolaEvents.tagged(space)) {
-    | Some(("Variant", v)) =>
-      switch (FumolaEvents.field("name", v), FumolaEvents.field("value", v)) {
-      | (Some(`String("Here")), _) => "@here"
-      | (Some(`String(_)), Some(payload)) =>
-        /* The Space variant's payload is a symbol wrapped in its own Symbol
-           tag, the same shape an event's pointer has; symbol_text wants the
-           symbol itself. */
-        let symbol =
-          switch (FumolaEvents.tagged(payload)) {
-          | Some(("Symbol", inner)) => inner
-          | _ => payload
-          };
-        switch (FumolaEvents.symbol_text(symbol)) {
-        | Some(text) => text
-        | None => ""
-        };
-      | _ => ""
-      }
-    | _ => ""
-    }
-  | _ => ""
-  };
-
 /* Whether a node id's space is the root.
 
    The variant's name, not the rendered key: FumolaValue renders a Name as
@@ -190,7 +160,7 @@ let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
             };
           let space =
             switch (FumolaEvents.field("nodeId", fields)) {
-            | Some(id) => space_key(id)
+            | Some(id) => FumolaEvents.space_key(id)
             | None => ""
             };
           Some({
@@ -231,7 +201,7 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
             switch (inner) {
             | Some(f) =>
               switch (FumolaEvents.field(name, f)) {
-              | Some(id) => space_key(id)
+              | Some(id) => FumolaEvents.space_key(id)
               | None => ""
               }
             | None => ""

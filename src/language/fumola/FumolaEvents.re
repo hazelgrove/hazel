@@ -23,7 +23,7 @@ type span =
    what names an edge, which edge. That last is a key rather than content:
    whether an event is the editor's own doing is a fact about the EDGE it
    names, and only the edge list knows it. */
-type event = (string, string, list(span), option(string));
+type event = (string, string, list(span), option(string), option(string));
 
 /* Fumola renders a value as tagged JSON; these read the bits this needs and
    say nothing about the rest. */
@@ -149,6 +149,56 @@ let summarize = (json: Yojson.Safe.t): string =>
    Read from the payload rather than from the rendered spans: `spans` drops
    empty groups, so a pair renders as its head by accident rather than by
    rule, and matching text would break the first time a payload changed. */
+/* The space of a node id, as text: the identity a node keeps across its
+   revisions. Lives here rather than in FumolaHistory because both the rows
+   and the events are filed under it. */
+let space_key = (node_id: Yojson.Safe.t): string =>
+  switch (tagged(node_id)) {
+  | Some(("Tuple", `List([space, ..._]))) =>
+    switch (tagged(space)) {
+    | Some(("Variant", v)) =>
+      switch (field("name", v), field("value", v)) {
+      | (Some(`String("Here")), _) => "@here"
+      | (Some(`String(_)), Some(payload)) =>
+        /* The Space variant's payload is a symbol wrapped in its own Symbol
+           tag; symbol_text wants the symbol itself. */
+        let symbol =
+          switch (tagged(payload)) {
+          | Some(("Symbol", inner)) => inner
+          | _ => payload
+          };
+        switch (symbol_text(symbol)) {
+        | Some(text) => text
+        | None => ""
+        };
+      | _ => ""
+      }
+    | _ => ""
+    }
+  | _ => ""
+  };
+
+/* The node an event names, where it names one. Five kinds do: a node was
+   added, it began or finished signaling, it began or finished being
+   repaired. `repairEnd` names a pair of the node and what came of it, so
+   its node is the head.
+
+   Whether such an event is the editor's own doing is not something the
+   event says -- a node is neither the editor's nor the program's, it simply
+   exists -- so the panel decides it from the edges that point AT the node. */
+let node_named =
+    (name: string, payload: option(Yojson.Safe.t)): option(string) =>
+  switch (name, payload) {
+  | ("addNode" | "signalingBegin" | "signalingEnd" | "repairBegin", Some(id)) =>
+    Some(space_key(id))
+  | ("repairEnd", Some(payload)) =>
+    switch (tagged(payload)) {
+    | Some(("Tuple", `List([id, ..._]))) => Some(space_key(id))
+    | _ => None
+    }
+  | _ => None
+  };
+
 let edge_named =
     (name: string, payload: option(Yojson.Safe.t)): option(string) => {
   let of_edge_id = (json: Yojson.Safe.t) =>
@@ -194,6 +244,7 @@ let of_json = (json: Yojson.Safe.t): list(event) =>
                    | None => []
                    },
                    edge_named(name, field("value", v)),
+                   node_named(name, field("value", v)),
                  ))
                | _ => None
                }

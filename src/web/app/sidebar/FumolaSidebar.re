@@ -613,6 +613,10 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                 clss(
                   ["fumola-row"]
                   @ (open_ ? ["open"] : [])
+                  /* Marked whatever the prime-mover setting is: the point of
+                     the colour is to say whose edge this is before anyone
+                     reads the record inside it. */
+                  @ (row.prime_mover ? ["fumola-prime"] : [])
                   @ dim_class(~prime=row.prime_mover),
                 ),
               ],
@@ -694,29 +698,46 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                 events_body(
                   ~nodes=history.nodes,
                   {
-                    /* Which edges are the editor's, by id, so an event can
-                       be judged by the edge it names. Built once per render
-                       rather than searched per event. */
+                    /* Which edges are the editor's, by id, and which nodes
+                       the editor made, by space. Built once per render
+                       rather than searched per event.
+
+                       An event naming an edge is judged by that edge. An
+                       event naming a node -- added, signaling, repaired --
+                       is judged by whether anything the editor did points
+                       AT that node: a cell signals because someone put into
+                       it, so a cell the editor put into signals on the
+                       editor's account. Without this the Hide setting left
+                       a list of signalling about nodes whose every edge it
+                       had just hidden. */
                     let prime = Hashtbl.create(64);
+                    let prime_nodes = Hashtbl.create(64);
                     List.iter(
-                      (row: FumolaHistory.edge_row) =>
-                        Hashtbl.replace(prime, row.edge_id, row.prime_mover),
+                      (row: FumolaHistory.edge_row) => {
+                        Hashtbl.replace(prime, row.edge_id, row.prime_mover);
+                        if (row.prime_mover) {
+                          Hashtbl.replace(prime_nodes, row.target, true);
+                        };
+                      },
                       history.edges,
                     );
+                    let known = (table, key) =>
+                      switch (Hashtbl.find_opt(table, key)) {
+                      | Some(p) => p
+                      | None => false
+                      };
                     List.map(
-                      ((meta_time, name, subject, edge)) =>
+                      ((meta_time, name, subject, edge, node)) =>
                         {
                           meta_time,
                           kind: kind_of(name),
                           subject,
                           prime_mover:
-                            switch (edge) {
-                            | Some(id) =>
-                              switch (Hashtbl.find_opt(prime, id)) {
-                              | Some(p) => p
-                              | None => false
-                              }
-                            | None => false
+                            switch (edge, node) {
+                            | (Some(id), _) => known(prime, id)
+                            | (None, Some(space)) =>
+                              known(prime_nodes, space)
+                            | (None, None) => false
                             },
                         },
                       history.events,
