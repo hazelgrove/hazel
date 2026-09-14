@@ -98,8 +98,8 @@ let check_variant = (name: string): unit => {
 let tests = (
   "MegaCorpus",
   [
-    test_case("mega-1k", `Quick, () => check_variant("mega-1k.hz")),
-    test_case("mega-2k", `Quick, () => check_variant("mega-2k.hz")),
-    test_case("mega-4k", `Quick, () => check_variant("mega-4k.hz")),
+    test_case("mega-1k", `Slow, () => check_variant("mega-1k.hz")),
+    test_case("mega-2k", `Slow, () => check_variant("mega-2k.hz")),
+    test_case("mega-4k", `Slow, () => check_variant("mega-4k.hz")),
   ],
 );

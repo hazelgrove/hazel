@@ -122,8 +122,8 @@ let tests = (
     edge_programs,
   )
   @ [
-    test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
-    test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
-    test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz")),
+    test_case("mega-1k parity", `Slow, corpus_case("mega-1k.hz")),
+    test_case("mega-2k parity", `Slow, corpus_case("mega-2k.hz")),
+    test_case("mega-4k parity", `Slow, corpus_case("mega-4k.hz")),
   ],
 );

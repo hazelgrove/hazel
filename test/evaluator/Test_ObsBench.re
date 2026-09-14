@@ -98,23 +98,23 @@ let timed = (~reps: int, label: string, f: unit => unit): unit => {
 let tests = (
   "ObsBench",
   [
-    test_case("bench: fib(16) probes-off x10", `Quick, () =>
+    test_case("bench: fib(16) probes-off x10", `Slow, () =>
       timed(~reps=10, "fib16-off-x10", () => eval_n(~reps=10, fib(16)))
     ),
-    test_case("bench: fib(14) one-probe x10", `Quick, () =>
+    test_case("bench: fib(14) one-probe x10", `Slow, () =>
       timed(~reps=10, "fib14-probed-x10", () =>
         eval_n(~reps=10, fib_probed(14))
       )
     ),
-    test_case("bench: fib(12) probe-all x3", `Quick, () =>
+    test_case("bench: fib(12) probe-all x3", `Slow, () =>
       timed(~reps=3, "fib12-all-x3", () =>
         eval_n(~probe_all=true, ~reps=3, fib(12))
       )
     ),
-    test_case("bench: 40-let chain + probed recursion x5", `Quick, () =>
+    test_case("bench: 40-let chain + probed recursion x5", `Slow, () =>
       timed(~reps=5, "letchain40-x5", () => eval_n(~reps=5, let_chain(40)))
     ),
-    test_case("bench: fold_left probed x20", `Quick, () =>
+    test_case("bench: fold_left probed x20", `Slow, () =>
       timed(~reps=20, "fold-probed-x20", () => eval_n(~reps=20, fold_prog))
     ),
   ],

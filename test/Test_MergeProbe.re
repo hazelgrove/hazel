@@ -521,7 +521,7 @@ let dump_var_type = (code: string, var: string): unit =>
 
 let module_probes = [
   test_case(
-    "module named Foo (not a builtin constructor), member access", `Quick, () =>
+    "module named Foo (not a builtin constructor), member access", `Slow, () =>
     check(
       int,
       "errors",
@@ -533,7 +533,7 @@ let module_probes = [
   ),
   test_case(
     "dump module form",
-    `Quick,
+    `Slow,
     () => {
       dump_var_type(
         "module Text = {\n  let f = fun n -> \"x\"\n} in\nText.f(0) == \"x\"",
@@ -545,10 +545,10 @@ let module_probes = [
       );
     },
   ),
-  test_case("labeled tuple projection", `Quick, () =>
+  test_case("labeled tuple projection", `Slow, () =>
     check(int, "errors", 0, error_count("let t = (a=1, b=2) in t.a == 1"))
   ),
-  test_case("let-bound module, no member access", `Quick, () =>
+  test_case("let-bound module, no member access", `Slow, () =>
     check(
       int,
       "errors",
@@ -556,7 +556,7 @@ let module_probes = [
       error_count("let m = {\n  let f = fun n -> \"x\"\n} in\n1 == 1"),
     )
   ),
-  test_case("let-bound module, member access", `Quick, () =>
+  test_case("let-bound module, member access", `Slow, () =>
     check(
       int,
       "errors",
@@ -566,7 +566,7 @@ let module_probes = [
       ),
     )
   ),
-  test_case("module member, plain fun", `Quick, () =>
+  test_case("module member, plain fun", `Slow, () =>
     check(
       int,
       "errors",
@@ -576,7 +576,7 @@ let module_probes = [
       ),
     )
   ),
-  test_case("module member, ascribed fun", `Quick, () =>
+  test_case("module member, ascribed fun", `Slow, () =>
     check(
       int,
       "errors",
@@ -586,7 +586,7 @@ let module_probes = [
       ),
     )
   ),
-  test_case("module member used inside the module (ascribed)", `Quick, () =>
+  test_case("module member used inside the module (ascribed)", `Slow, () =>
     check(
       int,
       "errors",
@@ -596,7 +596,7 @@ let module_probes = [
       ),
     )
   ),
-  test_case("let-in module (dev style)", `Quick, () =>
+  test_case("let-in module (dev style)", `Slow, () =>
     check(
       int,
       "errors",
@@ -888,7 +888,7 @@ let canvas_parity = (code: string): (int, list(string)) =>
 let parity_probes = [
   test_case(
     "canvas parity: dungeon program",
-    `Quick,
+    `Slow,
     () => {
       let (n, diffs) = canvas_parity(program);
       check(bool, "nonempty", true, n > 0);
@@ -897,7 +897,7 @@ let parity_probes = [
   ),
   test_case(
     "canvas parity: evolved dungeon program",
-    `Quick,
+    `Slow,
     () => {
       let (n, diffs) = canvas_parity(evolved);
       check(bool, "nonempty", true, n > 0);
@@ -905,18 +905,18 @@ let parity_probes = [
     },
   ),
   test_case(
-    "insert_after last member (case def) keeps it separated", `Quick, () =>
+    "insert_after last member (case def) keeps it separated", `Slow, () =>
     member_sep_probe(
       "let b(x: Int): Int =\n    case x\n    | 0 => 1\n    | _ => 2\n    end",
     )
   ),
   test_case(
-    "insert_after last member (simple def) keeps it separated", `Quick, () =>
+    "insert_after last member (simple def) keeps it separated", `Slow, () =>
     member_sep_probe("let b = 2")
   ),
   test_case(
     "node map parity: evolved dungeon program",
-    `Quick,
+    `Slow,
     () => {
       let (n, missing, extra) = parity(evolved);
       check(bool, "nonempty", true, n > 0);
@@ -926,7 +926,7 @@ let parity_probes = [
   ),
   test_case(
     "node map parity: evolved dungeon program, incremental",
-    `Quick,
+    `Slow,
     () => {
       let (n, missing, extra) = parity_incr(program, evolved);
       check(bool, "nonempty", true, n > 0);
@@ -936,7 +936,7 @@ let parity_probes = [
   ),
   test_case(
     "node map parity: small module program",
-    `Quick,
+    `Slow,
     () => {
       let (n, missing, extra) =
         parity(
@@ -949,7 +949,7 @@ let parity_probes = [
   ),
   test_case(
     "node map parity: dungeon program",
-    `Quick,
+    `Slow,
     () => {
       let (n, missing, extra) = parity(program);
       check(bool, "nonempty", true, n > 0);
@@ -963,7 +963,7 @@ let tests =
   parity_probes
   @ module_probes
   @ [
-    test_case("let-chain program", `Quick, () =>
+    test_case("let-chain program", `Slow, () =>
       check(
         bool,
         "built",
@@ -971,7 +971,7 @@ let tests =
         build_at_end("let x = 1 in\nlet y = 2 in\n?") >= 0,
       )
     ),
-    test_case("small ;-program (module item + test)", `Quick, () =>
+    test_case("small ;-program (module item + test)", `Slow, () =>
       check(
         bool,
         "built",
@@ -980,7 +980,7 @@ let tests =
         >= 0,
       )
     ),
-    test_case("dungeon program", `Quick, () =>
+    test_case("dungeon program", `Slow, () =>
       check(bool, "built", true, build_at_end(program) >= 0)
     ),
   ];
