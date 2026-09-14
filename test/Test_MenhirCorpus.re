@@ -100,10 +100,28 @@ let check_file = (path: string): unit => {
      form the editor ever sees, and it lets ParsedCorpus share the parse with
      DocSlides.ReparseBackuptext, which checks the same programs. */
   let txt = read_file(path) |> ParsedCorpus.normalize;
+  /* the editor-side term: the typing parser, except for livelit-using
+     programs, where simulated typing re-materializes every ^^livelit use
+     per keystroke (12-26 s a file); those take the load path's fast
+     parse, which is also an editor parse of the same text */
   let mk =
-    switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
-    | Some(seg) => Some(MakeTerm.go(seg).term)
-    | None => None
+    if (CorpusUtil.contains(txt, "^^livelit")) {
+      switch (
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~collect_refractors=true,
+          ~root=Exp,
+          txt,
+        )
+      ) {
+      | Some(seg) => Some(MakeTerm.go(seg).term)
+      | None => None
+      };
+    } else {
+      switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
+      | Some(seg) => Some(MakeTerm.go(seg).term)
+      | None => None
+      };
     };
   let mh =
     switch (MenhirParser.Interface.parse_program(txt)) {
