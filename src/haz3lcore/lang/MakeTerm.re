@@ -650,8 +650,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_undefined(t) => ret(Undefined)
       | ([t], []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
-      | ([t], []) when Token.is_string(t) =>
+      | ([t], [])
+          when Token.is_string(t) && Token.string_has_valid_escapes(t) =>
         ret(Atom(String(Token.strip_quotes(~escaping=true, t))))
+      | ([t], [])
+          when Token.is_string(t) && !Token.string_has_valid_escapes(t) =>
+        ret(Invalid(t))
       | ([t], []) when Token.is_raw_string(t) =>
         ret(Atom(String(Token.strip_raw_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
@@ -996,8 +1000,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
-      | ([t], []) when Token.is_string(t) =>
+      | ([t], [])
+          when Token.is_string(t) && Token.string_has_valid_escapes(t) =>
         ret(Atom(String(Token.strip_quotes(~escaping=true, t))))
+      | ([t], [])
+          when Token.is_string(t) && !Token.string_has_valid_escapes(t) =>
+        ret(Invalid(t))
       | ([t], []) when Token.is_raw_string(t) =>
         ret(Atom(String(Token.strip_raw_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>

@@ -73,6 +73,7 @@ type t =
     })
   | BadToken(string)
   | BadLabel(Any.t)
+  | BadStringEscape(string)
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
   | UnexpectedLabelSort(LabeledTuple.label)
   | ExplicitNonlabel

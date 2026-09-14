@@ -49,11 +49,6 @@ let is_comment_delim = t => t == "#";
 let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
 /* STRINGS: special-case syntax */
-
-/* is_string: last clause is a somewhat hacky way of making sure
-   there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"([^\"]|(\\\\\"))*\"$");
-let is_string = t => match(string_regexp, t);
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
@@ -73,6 +68,13 @@ let strip_quotes = (~quote="\"", ~escaping: bool=false, s) =>
       body;
     };
   };
+let string_has_valid_escapes = (s: t): bool => {
+  let body = strip_quotes(s);
+  let escaped = strip_quotes(~escaping=true, s);
+  !String.contains(body, '\\') || body != escaped;
+};
+let string_regexp = regexp("^\"([^\"]|(\\\\\"))*\"$");
+let is_string = t => match(string_regexp, t);
 
 let string_quote = s => "\"" ++ s ++ "\"";
 
