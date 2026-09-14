@@ -20,6 +20,25 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Csv => (module Cook(CSVProjector.M))
   };
 
+/* Projectors probed automatically so `info.dynamics` carries the live value
+ * of the syntax they replace (HTMLProj.live_value). Was `Projector.dynamics`
+ * until dev's #2522 dropped that (unread) flag. */
+let wants_dynamics = (kind: ProjectorCore.Kind.t): bool =>
+  switch (kind) {
+  | HTML => true
+  | Fold
+  | Statics
+  | Probe
+  | Slider
+  | SliderF
+  | Checkbox
+  | TextArea
+  | Livelit
+  | Card
+  | Table
+  | Csv => false
+  };
+
 let init =
     (
       kind: ProjectorCore.Kind.t,
