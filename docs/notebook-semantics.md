@@ -45,8 +45,8 @@ running on `experimental-lang-integration`, and the observations it reports were
 made there. What is proposed here is how to turn them into a result. Prose only
 — no code.
 
-Companion document: [Programmable probes](programmable-probes.md), which is the
-same instrument pointed at a user's program rather than at the editor.
+Companion document: [Archivist reflection](archivist-reflection.md), which is
+the same mirror pointed at a user's program rather than at the editor.
 
 ## The question
 
@@ -304,7 +304,7 @@ appends two edges and advances metaTime by two, so adapton is idempotent with
 respect to *alignment* and not with respect to *history*. A discipline on the
 Fumola program can make re-running harmless to what the program computes, and
 cannot make it invisible to anything that reads the history -- which is the
-panel, and would be any probe built on P1's series.
+panel, and would be any probe built on AR1's series.
 
 One test on one instance is not a result, and the older evidence should still be
 labelled weak: across six instances the only align seen was `aligned`, which is
@@ -417,4 +417,4 @@ Having the instrument is the contribution. The findings are what it produces.
 | [`docs/fumola-tiles-design.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-tiles-design.md) | why the instance is named in the syntax rather than derived from an `Id` |
 | [`docs/fumola-runtime-changes.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-runtime-changes.md) | the unpinned wasm dependency, and why to check `source()` before drawing a conclusion from a browser session |
 | [`docs/hazel-effect-schedule.md`](hazel-effect-schedule.md) | N1's result: the measured schedule, and the A/B that produced it |
-| [`docs/programmable-probes.md`](programmable-probes.md) | the same instrument, pointed at a user's program |
+| [`docs/archivist-reflection.md`](archivist-reflection.md) | the same mirror, pointed at a user's program |

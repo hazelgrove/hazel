@@ -1,4 +1,4 @@
-# Programmable probes
+# Archivist reflection
 
 > Hazel is Fumola's Strange Observer (and editor).
 > Fumola is Hazel's Strange Outsider (and doer/archivist).
@@ -38,15 +38,16 @@ it answers quickly because it is answering an older question. Getting both is
 what the archivist is for, and it is why the store has to be somewhere the
 editor does not control.
 
-Fumola instances as probes you can write, and that survive the edit.
+Your program's own history, kept by the archivist and readable back inside the
+program. Reflection, held outside the thing reflecting.
 
 Status: a design note and a proposal. The integration it builds on is running on
 `experimental-lang-integration`; nothing in the proposal is implemented. Prose
 only — no code.
 
 Companion document: [Notebook semantics](notebook-semantics.md), which is the
-same instrument pointed at Hazel's own evaluator rather than at a user's
-program, and which explains why a Fumola instance can do any of this.
+same mirror pointed at Hazel's own evaluator rather than at a user's program,
+and which explains why a Fumola instance can do any of this.
 
 ## The claim
 
@@ -75,6 +76,13 @@ to use it as one:
 > A probe whose logic is a program in the editor, and whose samples outlive the
 > evaluation that produced them.
 
+That is reflection, arranged the only way it can be arranged here. A language
+reflects by holding a description of its own running; Hazel cannot hold one,
+because its evaluator is pure and its caches are private — the reason set out in
+[Notebook semantics](notebook-semantics.md). So the description is held by the
+archivist instead: outside the thing being reflected, which is precisely what
+lets it survive the thing being reflected.
+
 ## Two halves of a spreadsheet
 
 Hazel and Fumola are close relatives — both ML-family, both with variants and
@@ -101,7 +109,7 @@ turn out to be complementary rather than overlapping.
 
 ## The correspondence
 
-"Programmable probe" is a description rather than a metaphor, because Hazel's
+The word is doing literal work rather than metaphorical work, because Hazel's
 probe system and Fumola's store are already the same shape.
 
 | Hazel probe system | Fumola | What the pairing buys |
@@ -117,7 +125,7 @@ The last row is the one to sit with. Auto-probing every row is an approximation
 of what a demanded computation graph already is, minus the structure — and the
 structure is the part a reader actually wants when the value is surprising.
 
-## What a durable probe can observe that today's cannot
+## What a durable record can show that today's probes cannot
 
 Four capabilities, in rough order of how cheap they are:
 
@@ -164,14 +172,14 @@ way.
 
 Four milestones. Each says what lands and how we would know it worked.
 
-They are numbered P1–P4 to keep them distinct from N1–N2 in
+They are numbered AR1–AR4 to keep them distinct from N1–N2 in
 [Notebook semantics](notebook-semantics.md), which are not merely separate work:
 N1 and N2 measure how many times a Hazel expression actually runs per edit, and
-P1's whole premise is that a sample series is a faithful record of that. If the
-effect schedule turns out to be surprising, P1 inherits the surprise. It is
+AR1's whole premise is that a sample series is a faithful record of that. If the
+effect schedule turns out to be surprising, AR1 inherits the surprise. It is
 worth doing N1 first for that reason alone.
 
-### P1 — A probe that survives the edit
+### AR1 — A record that survives the edit
 
 Samples accumulate in a named instance rather than in an evaluation. The series
 is named in the source, per the section above.
@@ -185,7 +193,7 @@ Rename the series; the history starts over, visibly. Change the instance's mode;
 it should *not* silently reset — and today it would, which is the first thing
 this milestone will run into.
 
-### P2 — A rich probe written in Fumola
+### AR2 — A rich probe written in Fumola
 
 `RichProbe` becomes an interface a Fumola thunk can implement, rather than an
 OCaml module plus a `.rei` plus a registry line plus a rebuild. This is the
@@ -198,7 +206,7 @@ recognisably the same program and should handle the same values. Where it cannot
 `parent(SetSyntax(seg))`, and a Fumola thunk has no obvious counterpart — that
 limit gets written down rather than worked around.
 
-### P3 — Provenance over a user's own computation
+### AR3 — Provenance over a user's own computation
 
 The Nodes and Edges views pointed at a user's instance rather than at a demo,
 with navigation from a sample back to the edges that produced it.
@@ -209,7 +217,7 @@ Prefer an example where the obvious answer is wrong — a memoized call whose
 result came from a revision older than the edit that appears to have caused it.
 An example that can only confirm what a reader already assumed is not a check.
 
-### P4 — Scenes as Hazel values
+### AR4 — Scenes as Hazel values
 
 DCG scenes rendered through Hazel's own view layer rather than through a bespoke
 panel, starting with the List rung. This is where the two halves finally close:
@@ -223,7 +231,7 @@ type, and the panel is one renderer over it rather than the only way to see it.
 
 - **A mode change discards the store.** `ensureMode` resets an instance when the
   mode differs from the one it holds. A probe that silently loses its history is
-  worse than no probe, and P1 will meet this immediately.
+  worse than no probe, and AR1 will meet this immediately.
 - **Instance names are global.** Two programs that both say `store` share one
   runtime. That is a feature for the panel and a hazard for anything a user
   writes without knowing the convention.
@@ -251,8 +259,8 @@ type, and the panel is one renderer over it rather than the only way to see it.
 
 | Where | What |
 |---|---|
-| [`docs/rich-probes.md`](rich-probes.md) | the renderer plug-in layer P2 would open to Fumola, and why the `.rei` is mandatory |
+| [`docs/rich-probes.md`](rich-probes.md) | the renderer plug-in layer AR2 would open to Fumola, and why the `.rei` is mandatory |
 | [`docs/livelits.md`](livelits.md) | the programmable surface this one is modelled on |
 | [`docs/notebook-semantics.md`](notebook-semantics.md) | why a Fumola instance can outlive an evaluation, and what that revealed |
 | [`src/language/fumola/README.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/src/language/fumola/README.md) | the grammar, the printer contract, the event list, and the round trip |
-| [`docs/fumola-tiles-design.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-tiles-design.md) | why the instance is named in the syntax — the decision P1 echoes |
+| [`docs/fumola-tiles-design.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-tiles-design.md) | why the instance is named in the syntax — the decision AR1 echoes |

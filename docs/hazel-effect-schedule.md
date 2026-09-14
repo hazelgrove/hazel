@@ -247,7 +247,7 @@ advances metaTime by two. Adapton is idempotent with respect to *alignment*; it
 is not idempotent with respect to *history*. A discipline on the Fumola program
 can make re-running harmless to what the program computes, and cannot make it
 invisible to anything that reads the history — which includes the panel, and
-would include any probe built on P1's sample series.
+would include any probe built on AR1's sample series.
 
 That is exactly what the baseline's three-runs-per-keystroke looks like from
 inside the store: harmless to every value, and a history three times the size of
