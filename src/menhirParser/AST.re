@@ -225,7 +225,10 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let+ suffix = nonascii_name_suffix;
         let ident = String.make(1, leading) ++ tail ++ suffix;
-        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
+        if (List.exists(
+              ~f=a => String.equal(a, ident),
+              ["String", "Int", "Float", "Bool"],
+            )) {
           "Keyword";
         } else {
           ident;
@@ -382,7 +385,8 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
           leaf,
           {
             let* sizes = gen_sized_array(n);
-            let+ exps = flatten_a(Array.map((n: int) => self(n), sizes));
+            let+ exps =
+              flatten_a(Array.map(~f=(n: int) => self(n), sizes));
             ListExp(Array.to_list(exps));
           },
           {
@@ -390,15 +394,16 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let+ exps =
               flatten_a(
                 Array.map(
-                  (n: int) =>
-                    oneof([
-                      {
-                        let* l = gen_label;
-                        let+ e = self(n - 1);
-                        TupLabel(Label(l), e);
-                      },
-                      self(n),
-                    ]),
+                  ~f=
+                    (n: int) =>
+                      oneof([
+                        {
+                          let* l = gen_label;
+                          let+ e = self(n - 1);
+                          TupLabel(Label(l), e);
+                        },
+                        self(n),
+                      ]),
                   sizes,
                 ),
               );
@@ -454,7 +459,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             };
             let* e = self((n - 1) / 2);
             let* sizes = gen_sized_array((n - 1) / 2);
-            let+ cases = flatten_a(Array.map(case, sizes));
+            let+ cases = flatten_a(Array.map(~f=case, sizes));
             CaseExp(e, Array.to_list(cases));
           },
           {
@@ -514,19 +519,20 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let* items =
               flatten_a(
                 Array.map(
-                  (size: int) =>
-                    oneof([
-                      {
-                        let* p = gen_pat_sized(size / 2);
-                        let+ e = self(size / 2);
-                        ModItemLet(p, e);
-                      },
-                      {
-                        let* tp = gen_tpat;
-                        let+ t = gen_typ_sized(size / 2);
-                        ModItemType(tp, t);
-                      },
-                    ]),
+                  ~f=
+                    (size: int) =>
+                      oneof([
+                        {
+                          let* p = gen_pat_sized(size / 2);
+                          let+ e = self(size / 2);
+                          ModItemLet(p, e);
+                        },
+                        {
+                          let* tp = gen_tpat;
+                          let+ t = gen_typ_sized(size / 2);
+                          ModItemType(tp, t);
+                        },
+                      ]),
                   sizes,
                 ),
               );
@@ -583,15 +589,16 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let+ typs =
                   flatten_a(
                     Array.map(
-                      (size: int) =>
-                        oneof([
-                          self(size),
-                          {
-                            let* l = gen_label;
-                            let+ t = self(size);
-                            TupLabelType(LabelType(l), t);
-                          },
-                        ]),
+                      ~f=
+                        (size: int) =>
+                          oneof([
+                            self(size),
+                            {
+                              let* l = gen_label;
+                              let+ t = self(size);
+                              TupLabelType(LabelType(l), t);
+                            },
+                          ]),
                       sizes,
                     ),
                   );
@@ -625,19 +632,20 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let+ sumterms =
                   flatten_a(
                     Array.map(
-                      (n: int) => {
-                        frequency([
-                          (1, return(BadEntry(UnknownType(EmptyHole)))),
-                          (
-                            5,
-                            {
-                              let* optional_typ = option(self(n - 1));
-                              let+ constructor = gen_constructor_ident;
-                              Variant(constructor, optional_typ);
-                            },
-                          ),
-                        ])
-                      },
+                      ~f=
+                        (n: int) => {
+                          frequency([
+                            (1, return(BadEntry(UnknownType(EmptyHole)))),
+                            (
+                              5,
+                              {
+                                let* optional_typ = option(self(n - 1));
+                                let+ constructor = gen_constructor_ident;
+                                Variant(constructor, optional_typ);
+                              },
+                            ),
+                          ])
+                        },
                       sizes,
                     ),
                   );
@@ -706,15 +714,16 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
                 let+ pats =
                   flatten_a(
                     Array.map(
-                      (n: int) =>
-                        oneof([
-                          self(n),
-                          {
-                            let* l = gen_label;
-                            let+ p = self(n - 1);
-                            TupLabelPat(LabelPat(l), p);
-                          },
-                        ]),
+                      ~f=
+                        (n: int) =>
+                          oneof([
+                            self(n),
+                            {
+                              let* l = gen_label;
+                              let+ p = self(n - 1);
+                              TupLabelPat(LabelPat(l), p);
+                            },
+                          ]),
                       sizes,
                     ),
                   );
@@ -723,7 +732,9 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
               {
                 let* sizes = gen_sized_array(n - 1);
                 let+ pats =
-                  flatten_a(Array.map((size: int) => self(size), sizes));
+                  flatten_a(
+                    Array.map(~f=(size: int) => self(size), sizes),
+                  );
                 ListPat(Array.to_list(pats));
               },
               {
@@ -1284,10 +1295,11 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | SumTyp(l) =>
           let payloads =
             List.filter_map(
-              fun
-              | Variant(_, Some(t)) => Some(t)
-              | BadEntry(t) => Some(t)
-              | Variant(_, None) => None,
+              ~f=
+                fun
+                | Variant(_, Some(t)) => Some(t)
+                | BadEntry(t) => Some(t)
+                | Variant(_, None) => None,
               l,
             );
           let shrink_sumterm: QCheck.Shrink.t(sumterm) =
