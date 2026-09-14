@@ -282,6 +282,19 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   let dim_class = (~editor: bool) =>
     editor && editor_mode == SidebarModel.Settings.Dim ? ["fumola-dim"] : [];
 
+  /* Hiding the editor empties a list that is not empty, and the empty blurb
+     then said this instance had made none of whatever it was -- false, and
+     false in the direction that reads as a broken panel rather than a
+     working filter. So a list with rows in it says where they went. */
+  let all_editor = (~total: int, ~one: string, ~many: string) =>
+    total == 1
+      ? "The editor is hidden, and the one " ++ one ++ " here is its own."
+      : "The editor is hidden, and all "
+        ++ string_of_int(total)
+        ++ " "
+        ++ many
+        ++ " here are its own.";
+
   /* The rows of the Events view. The section around it is the panel's, shared
      with the other two views, so this returns its contents rather than a
      section of its own. */
@@ -299,80 +312,92 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           ],
         ),
       ]
-    | events => [
-        div(
-          ~attrs=[clss(["fumola-event-table"])],
-          List.concat_map(
-            ev =>
-              with_editor(~editor=ev.editor, () =>
-                div(
-                  ~attrs=[
-                    clss(["fumola-event"] @ dim_class(~editor=ev.editor)),
-                  ],
-                  [
-                    div(
-                      ~attrs=[clss(["fumola-event-time"])],
-                      [text(ev.meta_time)],
-                    ),
-                    div(
-                      ~attrs=[clss(["fumola-event-kind"])],
-                      [text(ev.kind)],
-                    ),
-                    div(
-                      ~attrs=[clss(["fumola-event-subject"])],
-                      List.map(
-                        fun
-                        /* The symbol is the part that tells two events
-                           apart, so it is the part that is set apart. */
-                        | FumolaEvents.Sym(s) =>
-                          /* The symbol is the pointer. Where the revision it
-                             names can be found, it is also the way to it. */
-                          switch (
-                            revision_at(~space=s, ~at=ev.meta_time, nodes)
-                          ) {
-                          | Some(key) =>
-                            span(
-                              ~attrs=[
-                                clss([
-                                  "fumola-event-symbol",
-                                  "fumola-pointer",
-                                ]),
-                                Attr.title(
-                                  "Show this node as it was at "
-                                  ++ ev.meta_time,
-                                ),
-                                Attr.on_click(_ => follow(key)),
-                              ],
-                              [text(s)],
-                            )
-                          | None =>
-                            span(
-                              ~attrs=[clss(["fumola-event-symbol"])],
-                              [text(s)],
-                            )
-                          }
-                        /* An edge id names a row in the Edges view, so it
-                           leads there, the same way a symbol leads to a node. */
-                        | FumolaEvents.Edge(id) =>
+    | events =>
+      let rows =
+        List.concat_map(
+          ev =>
+            with_editor(~editor=ev.editor, () =>
+              div(
+                ~attrs=[
+                  clss(["fumola-event"] @ dim_class(~editor=ev.editor)),
+                ],
+                [
+                  div(
+                    ~attrs=[clss(["fumola-event-time"])],
+                    [text(ev.meta_time)],
+                  ),
+                  div(
+                    ~attrs=[clss(["fumola-event-kind"])],
+                    [text(ev.kind)],
+                  ),
+                  div(
+                    ~attrs=[clss(["fumola-event-subject"])],
+                    List.map(
+                      fun
+                      /* The symbol is the part that tells two events
+                         apart, so it is the part that is set apart. */
+                      | FumolaEvents.Sym(s) =>
+                        /* The symbol is the pointer. Where the revision it
+                           names can be found, it is also the way to it. */
+                        switch (
+                          revision_at(~space=s, ~at=ev.meta_time, nodes)
+                        ) {
+                        | Some(key) =>
                           span(
                             ~attrs=[
-                              clss(["fumola-pointer"]),
-                              Attr.title("Show " ++ id),
-                              Attr.on_click(_ => follow_edge(id)),
+                              clss(["fumola-event-symbol", "fumola-pointer"]),
+                              Attr.title(
+                                "Show this node as it was at " ++ ev.meta_time,
+                              ),
+                              Attr.on_click(_ => follow(key)),
                             ],
-                            [text(id)],
+                            [text(s)],
                           )
-                        | FumolaEvents.Plain(s) => text(s),
-                        ev.subject,
-                      ),
+                        | None =>
+                          span(
+                            ~attrs=[clss(["fumola-event-symbol"])],
+                            [text(s)],
+                          )
+                        }
+                      /* An edge id names a row in the Edges view, so it
+                         leads there, the same way a symbol leads to a node. */
+                      | FumolaEvents.Edge(id) =>
+                        span(
+                          ~attrs=[
+                            clss(["fumola-pointer"]),
+                            Attr.title("Show " ++ id),
+                            Attr.on_click(_ => follow_edge(id)),
+                          ],
+                          [text(id)],
+                        )
+                      | FumolaEvents.Plain(s) => text(s),
+                      ev.subject,
                     ),
-                  ],
-                )
+                  ),
+                ],
+              )
+            ),
+          events,
+        );
+      /* An empty table renders as nothing at all, which said even less than
+         the wrong blurb did on the other two views. */
+      switch (rows) {
+      | [] => [
+          div(
+            ~attrs=[clss(["fumola-blurb"])],
+            [
+              text(
+                all_editor(
+                  ~total=List.length(events),
+                  ~one="event",
+                  ~many="events",
+                ),
               ),
-            events,
+            ],
           ),
-        ),
-      ]
+        ]
+      | rows => [div(~attrs=[clss(["fumola-event-table"])], rows)]
+      };
     };
 
   /* The three views are three indices on one history, so the strip is a view
@@ -471,7 +496,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             option(
               SidebarModel.Settings.Show,
               "Show",
-              "Show the editor's own edges and events",
+              "Show the editor's own nodes, edges and events",
             ),
             option(SidebarModel.Settings.Dim, "Dim", "Keep them, faintly"),
             option(SidebarModel.Settings.Hide, "Hide", "Leave them out"),
@@ -511,9 +536,22 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ],
     );
 
-  let rows_view = (~name: string, ~empty: string, rows: list(Node.t)) =>
+  let rows_view =
+      (
+        ~name: string,
+        ~empty: string,
+        ~total: int,
+        ~one: string,
+        ~many: string,
+        rows: list(Node.t),
+      ) =>
     switch (rows) {
-    | [] => [div(~attrs=[clss(["fumola-blurb"])], [text(empty)])]
+    | [] => [
+        div(
+          ~attrs=[clss(["fumola-blurb"])],
+          [text(total == 0 ? empty : all_editor(~total, ~one, ~many))],
+        ),
+      ]
     | rows => [
         div(~attrs=[clss(["fumola-rows", "fumola-" ++ name])], rows),
       ]
@@ -523,6 +561,9 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     rows_view(
       ~name="nodes",
       ~empty="This instance has made no nodes yet.",
+      ~total=List.length(nodes),
+      ~one="node",
+      ~many="nodes",
       List.concat_map(
         (row: FumolaHistory.node_row) => {
           let key = revision_key(row.space, row.meta_time);
@@ -613,6 +654,9 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     rows_view(
       ~name="edges",
       ~empty="This instance has made no edges yet.",
+      ~total=List.length(edges),
+      ~one="edge",
+      ~many="edges",
       List.concat_map(
         (row: FumolaHistory.edge_row) => {
           let (from_, to_) = row.meta_times;
