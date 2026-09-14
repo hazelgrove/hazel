@@ -136,7 +136,6 @@ module M: Projector = {
       pointer: Some(focus_pointer),
       keyboard: Some(focus_keyboard),
     };
-  let dynamics = false;
   let elaborate_syntax = false;
   let placeholder = (_, info) => {
     let str = info |> get;
