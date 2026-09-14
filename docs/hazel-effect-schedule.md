@@ -36,7 +36,8 @@ experiment that says what it is worth.
 | Page load, program restored from local storage | — | 1 | 1 |
 | Turning the stepper on | — | 1 | 1 |
 | Opening the Fumola panel | — | 0 (one peek) | 1 |
-| Taking a stepper step | — | *not measured* | — |
+| Selecting a redex in the stepper (first click) | — | **0** | 1 |
+| Taking the step (second click on the same redex) | — | **1**, as `step` | 1 |
 | Any edit that re-runs the program, **with the stepper open** | — | **one extra**, as `decompose` | 2 |
 
 A "run" is the triple `claim` → `ensureMode` → `evalTop`. All three appeared
@@ -239,11 +240,48 @@ Recorded as an unreproduced observation, not a finding. If the two-round
 behaviour is real it is rare or boot-conditioned, and a row that fires once in
 five is a row this method cannot yet measure.
 
+## Stepping, in full
+
+One program, and the store's account of what it cost to evaluate the cell, open
+the stepper, and take one step:
+
+```
+put  _hazelPass = eval          the cell evaluating
+put  s = 5
+get  s = 5
+put  _hazelPass = decompose     opening the stepper
+put  s = 5
+get  s = 5
+put  _hazelPass = step          taking the step
+put  s = 5
+get  s = 5
+```
+
+**Three runs of the same program**, all `aligned`, no signal — the value never
+changes, so nothing is ever signalled.
+
+This substantiates the claim `EvaluatorStep` makes about itself, and corrects
+its timing. The comment there says decomposition "performs the step to find
+[where it is], and TakeStep then performs it again — so stepping a Fumola cell
+puts twice into its store." Both passes do run the program, so the count is
+right. But they are not back to back: `decompose` fires when the stepper opens
+and again on every edit while it stays open, and `step` fires when you click. A
+reader who opens the stepper, edits five times and takes one step pays seven
+runs, not two.
+
+**A step takes two clicks, and only the second costs anything.** The first click
+on a redex selects it; a second click on an already-selected redex takes the
+step (`StepperEditor.re`: `Some(nth(next_steps, x)) == selected_id ?
+signal(TakeStep(x)) : inject(Select(...))`). Selecting measured 0 runs; taking
+the step measured 1, marked `step`. That is also why the earlier attempt at this
+row failed — single clicks only ever selected.
+
 ## What was not measured
 
-**Taking a stepper step.** Turning the stepper on works and costs one run, and
-keeping it open costs one per edit thereafter — both measured, see above. What is
-still missing is the step itself: I could not get the stepper to advance — neither clicking the highlighted redex nor
+**Nothing in the stepper, any more.** Kept below for the record of how it was
+got wrong. What the stepper actually costs is in "Stepping, in full" above.
+
+*Previously:* I could not get the stepper to advance — neither clicking the highlighted redex nor
 the step-forward control moved it off step zero, with `Step Backwards` disabled
 throughout. Whether that is the stepper stalling on the Fumola quote or my
 driving it wrong, I could not tell from outside.
