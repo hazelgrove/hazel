@@ -394,5 +394,39 @@ window.fumola = (() => {
     }
   };
 
-  return { ready, source, claim, ensureMode, evalSync, evalTop, evalFresh };
+  /* Restore an instance to its pristine state: the library loaded, the
+     prelude bound, the semantics it was given already set, and nothing else.
+
+     `fumola_reset` rather than running `Adapton.reset()` in the instance.
+     The prim behind that call takes Unit to mean Graphical and never updates
+     the recorded mode, so a $simple instance would silently become graphical
+     and ensureMode -- which returns early when the mode already matches --
+     would not put it back. This restores a snapshot instead, and a graphical
+     instance's snapshot is graphical.
+
+     Stronger than Adapton.reset() in one way worth knowing: it also drops
+     top-level bindings from programs run earlier in this instance. For a
+     single cell that is what you want; where an instance is shared, only the
+     re-run cell's bindings come back. */
+  const reset = (id) => {
+    if (!ready()) return false;
+    if (!wasm.fumola_has(id)) return false;
+    try {
+      wasm.fumola_reset(id);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  return {
+    ready,
+    source,
+    claim,
+    ensureMode,
+    evalSync,
+    evalTop,
+    evalFresh,
+    reset,
+  };
 })();

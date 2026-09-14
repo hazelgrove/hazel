@@ -354,6 +354,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                               [text(s)],
                             )
                           }
+                        /* An edge id names a row in the Edges view, so it
+                           leads there, the same way a symbol leads to a node. */
+                        | FumolaEvents.Edge(id) =>
+                          span(
+                            ~attrs=[
+                              clss(["fumola-pointer"]),
+                              Attr.title("Show " ++ id),
+                              Attr.on_click(_ => follow_edge(id)),
+                            ],
+                            [text(id)],
+                          )
                         | FumolaEvents.Plain(s) => text(s),
                         ev.subject,
                       ),
@@ -370,6 +381,22 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   /* The three views are three indices on one history, so the strip is a view
      choice and not three panels. Markup and CSS are the problems panel's
      `.toggle-option`, which is unscoped and already reads as a tab strip. */
+  /* Empty the store and build it again from the program. Beside the views
+     rather than in them: it is about the instance, not about what is being
+     looked at. */
+  let reset_button = (instance: string) =>
+    span(
+      ~attrs=[
+        clss(["fumola-reset"]),
+        Attr.title(
+          "Empty this instance and run the program again. Bindings from "
+          ++ "other cells that share the instance do not come back.",
+        ),
+        Attr.on_click(_ => globals.inject_global(FumolaReset(instance))),
+      ],
+      [text("reset")],
+    );
+
   let tab_strip = (current: SidebarModel.Settings.fumola_tab) => {
     let tab = (tab, label) =>
       span(
@@ -521,18 +548,26 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                         div(
                           ~attrs=[clss(["fumola-row-links"])],
                           [text("edges: ")]
-                          @ List.map(
-                              id =>
-                                span(
-                                  ~attrs=[
-                                    clss(["fumola-pointer"]),
-                                    Attr.title("Show " ++ id),
-                                    Attr.on_click(_ => follow_edge(id)),
-                                  ],
-                                  [text(id)],
-                                ),
-                              row.trace,
-                            ),
+                          @ (
+                            row.trace
+                            |> List.map(id =>
+                                 span(
+                                   ~attrs=[
+                                     clss(["fumola-pointer"]),
+                                     Attr.title("Show " ++ id),
+                                     Attr.on_click(_ => follow_edge(id)),
+                                   ],
+                                   [text(id)],
+                                 )
+                               )
+                            /* A literal separator rather than a flex gap:
+                               the chips must not run together even where
+                               this row's stylesheet has not arrived. */
+                            |> List.mapi((i, node) =>
+                                 i == 0 ? [node] : [text(", "), node]
+                               )
+                            |> List.flatten
+                          ),
                         ),
                       ]
                   )
@@ -625,7 +660,12 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           section(
             "fumola-events",
             panel_title(instance),
-            [tab_strip(tab)]
+            [
+              div(
+                ~attrs=[clss(["fumola-controls"])],
+                [tab_strip(tab), reset_button(instance)],
+              ),
+            ]
             @ (tab == Nodes ? [] : [prime_mover_strip()])
             @ (
               switch (tab) {

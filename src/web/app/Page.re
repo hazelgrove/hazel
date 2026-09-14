@@ -242,6 +242,27 @@ module Update = {
             },
           }
           |> return_quiet
+    /* Two steps, and the second is the one that is easy to get wrong. The
+       reset empties the instance; nothing in the program's syntax changes, so
+       every test evaluation makes before reusing a cached value still passes
+       and the panel would go on showing the graph that is no longer there.
+       ForceReeval is what makes evaluation forget. */
+    | FumolaReset(instance) =>
+      if (Language.FumolaRun.reset_instance(instance)) {
+        let* editors =
+          Editors.Update.update(
+            ~globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            Scratch(CellAction(ResultAction(ForceReeval))),
+            model.editors,
+          );
+        {
+          ...model,
+          editors,
+        };
+      } else {
+        model |> Updated.return_quiet;
+      }
     | FumolaToggleOpen(key) =>
       {
         ...model,

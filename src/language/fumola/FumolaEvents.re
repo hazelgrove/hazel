@@ -14,7 +14,10 @@
    from the rest rather than flattening everything into one string. */
 type span =
   | Plain(string)
-  | Sym(string);
+  | Sym(string)
+  /* An edge id, which names a row in the Edges view and is therefore a way
+     to it -- the same as a symbol is a way to a node. */
+  | Edge(string);
 
 /* The events, as the panel wants them: when, what, to what -- and, when the
    what names an edge, which edge. That last is a key rather than content:
@@ -77,6 +80,11 @@ let rec spans = (json: Yojson.Safe.t): list(span) =>
   | Some(("Variant", v)) =>
     switch (field("name", v), field("value", v)) {
     | (Some(`String(name)), Some(`Null)) => [Plain(name)]
+    /* An edge id is one span, not a name beside a number, so that the panel
+       has something whole to make a link of. */
+    | (Some(`String("edgeId")), Some(payload)) => [
+        Edge("edgeId " ++ summarize_json(payload)),
+      ]
     | (Some(`String(name)), Some(payload)) =>
       switch (spans(payload)) {
       | [] => [Plain(name)]
@@ -99,6 +107,15 @@ let rec spans = (json: Yojson.Safe.t): list(span) =>
 and join = (groups: list(list(span))): list(span) => separate(" ", groups)
 and comma = (groups: list(list(span))): list(span) =>
   separate(", ", groups)
+and summarize_json = (json: Yojson.Safe.t): string =>
+  spans(json)
+  |> List.map(
+       fun
+       | Plain(s) => s
+       | Sym(s) => s
+       | Edge(s) => s,
+     )
+  |> String.concat("")
 and separate = (sep: string, groups: list(list(span))): list(span) =>
   switch (groups) {
   | [] => []
@@ -117,7 +134,8 @@ let summarize = (json: Yojson.Safe.t): string =>
   |> List.map(
        fun
        | Plain(s) => s
-       | Sym(s) => s,
+       | Sym(s) => s
+       | Edge(s) => s,
      )
   |> String.concat("");
 

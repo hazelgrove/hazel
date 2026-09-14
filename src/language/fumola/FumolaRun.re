@@ -85,6 +85,15 @@ let ensure_mode = (instance_id: int, mode: mode): unit =>
   | _ => ()
   };
 
+/* Put an instance back to its pristine state, dropping the adapton store and
+   everything the page has run in it. Answers whether it happened: a runtime
+   that is not loaded, or an instance that was never realized, is a no. */
+let reset_instance = (name: string): bool =>
+  switch (shim("reset", [|js_int(instance_of_name(name))|])) {
+  | exception _ => false
+  | answer => Js_of_ocaml.Js.to_bool(Js_of_ocaml.Js.Unsafe.coerce(answer))
+  };
+
 /* Run a program in an instance and hand back its JSON. Used both for the
    program itself and, by FumolaValue, for reading what a pointer points at. */
 let eval_in = (instance_id: int, program: string): Yojson.Safe.t =>

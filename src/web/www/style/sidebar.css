@@ -920,7 +920,46 @@
   white-space: nowrap;
 }
 
-/* Kept, and said to be the editor's rather than the program's. */
+/* Dimmed: the editor's own traffic, kept and still readable, but taking less
+   room. Set smaller rather than fainter -- these rows are here to be read
+   when you want them, and a faint row is harder to read without being any
+   shorter. */
 .fumola-dim {
-  opacity: 0.4;
+  font-size: 0.8em;
+  line-height: 1.15;
+  opacity: 0.8;
+}
+
+/* The event grid's columns are in em, so a smaller row would shift them out
+   of line with its neighbours. Scaled by the same factor, the columns keep
+   their absolute width and the three columns stay aligned down the list. */
+.fumola-event.fumola-dim {
+  grid-template-columns: 3.125em 10em 1fr;
+  padding-top: 0.05em;
+  padding-bottom: 0.05em;
+}
+
+/* The tab strip and the reset button share a line. */
+.fumola-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  margin-right: 0.5em;
+}
+
+.fumola-reset {
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85em;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  border: 1px solid rgb(0 0 0 / 15%);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.fumola-reset:hover {
+  opacity: 1;
+  background: rgb(0 0 0 / 5%);
 }
