@@ -161,6 +161,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TPatNotAVar(_) => "(internal)"
   | Redundant
   | ExpectedConstructor => "(internal)"
+  | BadStringEscape(s) =>
+    "String " ++ s ++ " contains an invalid escape sequence"
   | FreeConstructor(_)
   | BadToken(_)
   | BadLabel(_)

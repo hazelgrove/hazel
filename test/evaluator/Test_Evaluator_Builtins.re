@@ -52,7 +52,13 @@ let tests = (
       )
     ),
     test_case("string_escaped", `Quick, () =>
-      parse_and_evaluate_test({|"\\hello"|}, {|string_escaped("\hello")|})
+      parse_and_evaluate_test({|"\\\\hello"|}, {|string_escaped("\hello")|})
+    ),
+    test_case("string_escaped_tab", `Quick, () =>
+      parse_and_evaluate_test({|"\\t"|}, {|string_escaped("\t")|})
+    ),
+    test_case("string_unescaped_backslash_n", `Quick, () =>
+      parse_and_evaluate_test({|"\n"|}, {|string_unescaped("\\n")|})
     ),
     test_case("string_uppercase", `Quick, () =>
       parse_and_evaluate_test({|"HELLO"|}, {|string_uppercase("hello")|})
@@ -118,6 +124,101 @@ let tests = (
           Forward,
           builtin_fun("string_search"),
           tuple([string("foo"), string("hazel"), int(0)]),
+        ),
+      )
+    ),
+    test_case("Raw string preserves literal backslash and n", `Quick, () =>
+      parse_and_evaluate_test({|r"\n"|}, {|r"\n"|})
+    ),
+    test_case("Raw string preserves backslash t", `Quick, () =>
+      parse_and_evaluate_test({|r"\t"|}, {|r"\t"|})
+    ),
+    test_case("string_escaped on raw string content", `Quick, () =>
+      parse_and_evaluate_test({|"\\\\n"|}, {|string_escaped(r"\n")|})
+    ),
+    test_case("string_match with raw string regex pattern", `Quick, () =>
+      evaluation_test(
+        {|string_match((r"^hello.*", "hello world"))|},
+        bool(true),
+        ap(
+          Forward,
+          builtin_fun("string_match"),
+          tuple([string({|^hello.*|}), string("hello world")]),
+        ),
+      )
+    ),
+    test_case(
+      "string_search with raw string regex containing digit escape", `Quick, () =>
+      evaluation_test(
+        {|string_search((r"\d+", "abc123def", 0))|},
+        int(3),
+        ap(
+          Forward,
+          builtin_fun("string_search"),
+          tuple([string({|\d+|}), string("abc123def"), int(0)]),
+        ),
+      )
+    ),
+    test_case("string_replace using raw string regex pattern", `Quick, () =>
+      evaluation_test(
+        {|string_replace((r"a+", "caaat", "o"))|},
+        string("cot"),
+        ap(
+          Forward,
+          builtin_fun("string_replace"),
+          tuple([string({|a+|}), string("caaat"), string("o")]),
+        ),
+      )
+    ),
+    test_case("string_escaped multiple escapes (newline and tab)", `Quick, () =>
+      parse_and_evaluate_test({|"\\n\\t"|}, {|string_escaped("\n\t")|})
+    ),
+    test_case("string_escaped single backslash", `Quick, () =>
+      parse_and_evaluate_test({|"\\\\"|}, {|string_escaped("\\")|})
+    ),
+    test_case("string_unescaped tab character", `Quick, () =>
+      parse_and_evaluate_test({|"\t"|}, {|string_unescaped("\\t")|})
+    ),
+    test_case("string_unescaped backslash", `Quick, () =>
+      parse_and_evaluate_test({|"\\"|}, {|string_unescaped("\\\\")|})
+    ),
+    test_case(
+      "string_match regex with standard string digit escape", `Quick, () =>
+      evaluation_test(
+        {|string_match(("\\d+", "99"))|},
+        bool(true),
+        ap(
+          Forward,
+          builtin_fun("string_match"),
+          tuple([string("\\d+"), string("99")]),
+        ),
+      )
+    ),
+    test_case(
+      "string_match regex matching literal backslash in standard string",
+      `Quick,
+      () =>
+      evaluation_test(
+        {|string_match(("\\\\", "\\"))|},
+        bool(true),
+        ap(
+          Forward,
+          builtin_fun("string_match"),
+          tuple([string("\\\\"), string("\\")]),
+        ),
+      )
+    ),
+    test_case(
+      "string_replace substituting escaped backslash in standard string",
+      `Quick,
+      () =>
+      evaluation_test(
+        {|string_replace(("\\\\", "a\\b", "/"))|},
+        string("a/b"),
+        ap(
+          Forward,
+          builtin_fun("string_replace"),
+          tuple([string("\\\\"), string("a\\b"), string("/")]),
         ),
       )
     ),

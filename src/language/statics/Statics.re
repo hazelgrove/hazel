@@ -422,6 +422,19 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
+    | Invalid(token)
+        when
+          String.length(token) >= 2
+          && token.[0] == '"'
+          && token.[String.length(token) - 1] == '"'
+          && String.contains(token, '\\') =>
+      add(
+        ~elab_term=Invalid(token) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[BadStringEscape(token)],
+        ~co_ctx=hole_co_ctx,
+        m,
+      )
     | Invalid(token) =>
       add(
         ~elab_term=Invalid(token) |> rewrap,
@@ -2928,6 +2941,19 @@ and upat_to_info_map =
         ~constraint_=Coverage.Constraint.Hole(None),
         m,
       );
+    | Invalid(token)
+        when
+          String.length(token) >= 2
+          && token.[0] == '"'
+          && token.[String.length(token) - 1] == '"'
+          && String.contains(token, '\\') =>
+      add(
+        ~elab_syn_ty=SynTy.unknown_internal(),
+        ~marks=[BadStringEscape(token)],
+        ~ctx,
+        ~constraint_=Coverage.Constraint.Hole(None),
+        m,
+      )
     | Invalid(token) =>
       add(
         ~elab_syn_ty=SynTy.unknown_internal(),
@@ -3686,6 +3712,13 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
+    | (_, Unknown(Hole(Invalid(token))))
+        when
+          String.length(token) >= 2
+          && token.[0] == '"'
+          && token.[String.length(token) - 1] == '"'
+          && String.contains(token, '\\') =>
+      err(BadStringEscape(token))
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
