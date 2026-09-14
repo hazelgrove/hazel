@@ -276,7 +276,6 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
 
   let init = (info: TermBase.Any.t): option(model) =>
