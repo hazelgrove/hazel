@@ -54,7 +54,7 @@ let get_all_samples = (code: string): list(Sample.t) => {
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
-  Id.Map.bindings(probes) |> List.concat_map(snd);
+  Id.Map.bindings(probes) |> List.concat_map(~f=snd);
 };
 
 /* Basic step range tests */
@@ -137,7 +137,9 @@ let nesting_tests = [
       /* Sort by step_start - outer should start earlier */
       let sorted =
         List.sort(
-          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          ~compare=
+            (a: Sample.t, b: Sample.t) =>
+              compare(a.step_start, b.step_start),
           samples,
         );
       switch (sorted) {
@@ -172,7 +174,9 @@ let recursive_tests = [
       /* Sort by step_start (earlier = outer call) */
       let sorted =
         List.sort(
-          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          ~compare=
+            (a: Sample.t, b: Sample.t) =>
+              compare(a.step_start, b.step_start),
           samples,
         );
 
@@ -180,13 +184,14 @@ let recursive_tests = [
       | [first, ...rest] when List.length(rest) > 0 =>
         /* First (outermost) should contain all others */
         List.iter(
-          (inner: Sample.t) =>
-            check(
-              bool,
-              "Outer contains inner",
-              true,
-              contains(first, inner),
-            ),
+          ~f=
+            (inner: Sample.t) =>
+              check(
+                bool,
+                "Outer contains inner",
+                true,
+                contains(first, inner),
+              ),
           rest,
         )
       | _ => () /* Not enough samples */

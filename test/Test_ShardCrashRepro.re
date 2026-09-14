@@ -25,6 +25,7 @@
 open Alcotest;
 open Haz3lcore;
 open Test_Evaluator_Prelude;
+open Poly;
 
 /* Result-display-flavored settings (mirrors EvalResult's usage:
  * value printing, unknowns as holes). The exact flags matter less than
@@ -53,11 +54,11 @@ let print_seg = Printer.of_segment(~holes="?", ~refractors=[]);
  * to be the same piece = the corruption Segment.reassemble dies on. */
 let rec id_shard_pairs = (seg: Segment.t): list((Id.t, int)) =>
   seg
-  |> List.concat_map((p: Piece.t) =>
+  |> List.concat_map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
-         List.map(i => (t.id, i), t.shards)
-         @ List.concat_map(id_shard_pairs, t.children)
+         List.map(~f=i => (t.id, i), t.shards)
+         @ List.concat_map(~f=id_shard_pairs, t.children)
        | Projector(pr) => id_shard_pairs([pr.syntax])
        | Grout(_)
        | Secondary(_) => []
@@ -66,13 +67,14 @@ let rec id_shard_pairs = (seg: Segment.t): list((Id.t, int)) =>
 
 let duplicate_pairs = (seg: Segment.t): list((Id.t, int)) => {
   let pairs = id_shard_pairs(seg);
-  let tbl = Hashtbl.create(64);
+  let tbl = Stdlib.Hashtbl.create(64);
   List.filter(
-    pair => {
-      let seen = Hashtbl.mem(tbl, pair);
-      Hashtbl.replace(tbl, pair, ());
-      seen;
-    },
+    ~f=
+      pair => {
+        let seen = Stdlib.Hashtbl.mem(tbl, pair);
+        Stdlib.Hashtbl.replace(tbl, pair, ());
+        seen;
+      },
     pairs,
   );
 };
@@ -92,9 +94,9 @@ let eval_print_reassemble = (msg: string, program: string) => {
       msg
       ++ ": printed result segment contains duplicated (id, shard) pairs: "
       ++ String.concat(
-           ", ",
+           ~sep=", ",
            List.map(
-             ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
+             ~f=((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
              dups,
            ),
          )
@@ -214,9 +216,9 @@ let check_result_seg = (msg: string, result: Language.Exp.t) => {
       msg
       ++ ": duplicated (id, shard) pairs in printed result: "
       ++ String.concat(
-           ", ",
+           ~sep=", ",
            List.map(
-             ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
+             ~f=((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
              dups,
            ),
          ),
@@ -293,45 +295,52 @@ let check_sample_values = (msg: string, probes: Language.Sample.Map.t) => {
   let all: list(Language.Sample.t) =
     Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
   List.iteri(
-    (n, sample: Language.Sample.t) => {
-      let v = sample.value;
-      let seg = sample_to_seg(v);
-      let dups = duplicate_pairs(seg);
-      if (dups != []) {
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " (syntax_id "
-          ++ Id.to_string(sample.syntax_id)
-          ++ ") printed with duplicated (id, shard) pairs: "
-          ++ String.concat(
-               ", ",
-               List.map(
-                 ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
-                 dups,
-               ),
-             )
-          ++ "\nvalue seg: "
-          ++ print_seg(seg),
-        );
-      };
-      /* Drawer path: prettify runs Segment.reassemble internally. */
-      switch (PrettySegment.prettify(~width=40, seg)) {
-      | _ => ()
-      | exception (Failure(f)) =>
-        fail(
-          msg ++ ": sample #" ++ string_of_int(n) ++ " prettify raised: " ++ f,
-        )
-      | exception (Assert_failure(_)) =>
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " prettify raised Assert_failure",
-        )
-      };
-    },
+    ~f=
+      (n, sample: Language.Sample.t) => {
+        let v = sample.value;
+        let seg = sample_to_seg(v);
+        let dups = duplicate_pairs(seg);
+        if (dups != []) {
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " (syntax_id "
+            ++ Id.to_string(sample.syntax_id)
+            ++ ") printed with duplicated (id, shard) pairs: "
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(
+                   ~f=
+                     ((id, i)) =>
+                       Id.to_string(id) ++ "#" ++ string_of_int(i),
+                   dups,
+                 ),
+               )
+            ++ "\nvalue seg: "
+            ++ print_seg(seg),
+          );
+        };
+        /* Drawer path: prettify runs Segment.reassemble internally. */
+        switch (PrettySegment.prettify(~width=40, seg)) {
+        | _ => ()
+        | exception (Failure(f)) =>
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " prettify raised: "
+            ++ f,
+          )
+        | exception (Assert_failure(_)) =>
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " prettify raised Assert_failure",
+          )
+        };
+      },
     all,
   );
 };
@@ -416,9 +425,9 @@ let pairs_of_siblings = ((l, r): Siblings.t) =>
   id_shard_pairs(l) @ id_shard_pairs(r);
 
 let pairs_of_ancestor = (a: Ancestor.t) => {
-  let own = List.map(i => (a.id, i), fst(a.shards) @ snd(a.shards));
+  let own = List.map(~f=i => (a.id, i), fst(a.shards) @ snd(a.shards));
   let kids =
-    List.concat_map(id_shard_pairs, fst(a.children) @ snd(a.children));
+    List.concat_map(~f=id_shard_pairs, fst(a.children) @ snd(a.children));
   own @ kids;
 };
 
@@ -426,19 +435,20 @@ let zipper_pairs = (z: Zipper.t): list((Id.t, int)) =>
   id_shard_pairs(z.selection.content)
   @ pairs_of_siblings(z.relatives.siblings)
   @ List.concat_map(
-      ((a, sibs)) => pairs_of_ancestor(a) @ pairs_of_siblings(sibs),
+      ~f=((a, sibs)) => pairs_of_ancestor(a) @ pairs_of_siblings(sibs),
       z.relatives.ancestors,
     );
 
 let zipper_dups = (z: Zipper.t): list((Id.t, int)) => {
   let pairs = zipper_pairs(z);
-  let tbl = Hashtbl.create(256);
+  let tbl = Stdlib.Hashtbl.create(256);
   List.filter(
-    pair => {
-      let seen = Hashtbl.mem(tbl, pair);
-      Hashtbl.replace(tbl, pair, ());
-      seen;
-    },
+    ~f=
+      pair => {
+        let seen = Stdlib.Hashtbl.mem(tbl, pair);
+        Stdlib.Hashtbl.replace(tbl, pair, ());
+        seen;
+      },
     pairs,
   );
 };
@@ -502,7 +512,7 @@ run(init, [SelectSeed(1), PlantSeed(1, 2)])|xyz};
 
 /* Locate the `row` token on the seeded-bug line (`if j == row`). */
 let find_bug_token = (prog: string): (int, int) => {
-  let lines = String.split_on_char('\n', prog);
+  let lines = String.split(prog, ~on='\n');
   let rec go = (n, ls) =>
     switch (ls) {
     | [] => Alcotest.fail("bug line not found")
@@ -511,7 +521,7 @@ let find_bug_token = (prog: string): (int, int) => {
       | _ =>
         let idx = Str.search_forward(Str.regexp_string("row"), l, 0);
         (n, idx);
-      | exception Not_found => go(n + 1, rest)
+      | exception Stdlib.Not_found => go(n + 1, rest)
       }
     };
   go(0, lines);
@@ -524,9 +534,9 @@ let check_zipper = (msg: string, z: Zipper.t) => {
       msg
       ++ ": zipper contains duplicated (id, shard) pairs: "
       ++ String.concat(
-           ", ",
+           ~sep=", ",
            List.map(
-             ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
+             ~f=((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
              dups,
            ),
          ),
@@ -561,23 +571,24 @@ let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
   let prev = ref(Language.IncrEval.empty);
   let _final =
     List.fold_left(
-      (z, a) => {
-        let z' = Test_Editing.perform(z, [a]);
-        let step_msg = msg ++ " after " ++ Action.show(a);
-        check_zipper(step_msg, z');
-        /* Live-editor-style recompute: probe_all eval threading prev. */
-        switch (MakeTerm.from_zip_for_sem(z', ~root=Exp).term) {
-        | exp =>
-          switch (eval_incr_probes(~settings, ~prev=prev^, exp)) {
-          | (_, samples, incr) =>
-            prev := incr;
-            check_sample_values(step_msg, samples);
-          | exception _ => () /* eval failures are fine; crash is in display */
-          }
-        };
-        z';
-      },
-      z0,
+      ~f=
+        (z, a) => {
+          let z' = Test_Editing.perform(z, [a]);
+          let step_msg = msg ++ " after " ++ Action.show(a);
+          check_zipper(step_msg, z');
+          /* Live-editor-style recompute: probe_all eval threading prev. */
+          switch (MakeTerm.from_zip_for_sem(z', ~root=Exp).term) {
+          | exp =>
+            switch (eval_incr_probes(~settings, ~prev=prev^, exp)) {
+            | (_, samples, incr) =>
+              prev := incr;
+              check_sample_values(step_msg, samples);
+            | exception _ => () /* eval failures are fine; crash is in display */
+            }
+          };
+          z';
+        },
+      ~init=z0,
       steps,
     );
   ();
@@ -611,46 +622,65 @@ let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) =>
   let all: list(Language.Sample.t) =
     Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
   List.iteri(
-    (n, sample: Language.Sample.t) => {
-      let seg = drawer_seg_of_value(sample.value);
-      let dups = duplicate_pairs(seg);
-      if (dups != []) {
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " (syntax_id "
-          ++ Id.to_string(sample.syntax_id)
-          ++ ") drawer segment has duplicated (id, shard) pairs: "
-          ++ String.concat(
-               ", ",
-               List.map(
-                 ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
-                 dups,
-               ),
-             )
-          ++ "\nvalue seg: "
-          ++ print_seg(seg),
-        );
-      };
-      /* Full DrawerHeight.sample_rows equivalent: prettify at the
-       * default drawer width, then the Measured row-count walk. */
-      switch (PrettySegment.prettify(~width=30, seg)) {
-      | pretty =>
-        switch (
-          Measured.of_segment(
-            pretty,
-            ProjectorCore.Shape.Map.empty,
-            Id.Map.empty,
-          )
-        ) {
-        | _ => ()
+    ~f=
+      (n, sample: Language.Sample.t) => {
+        let seg = drawer_seg_of_value(sample.value);
+        let dups = duplicate_pairs(seg);
+        if (dups != []) {
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " (syntax_id "
+            ++ Id.to_string(sample.syntax_id)
+            ++ ") drawer segment has duplicated (id, shard) pairs: "
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(
+                   ~f=
+                     ((id, i)) =>
+                       Id.to_string(id) ++ "#" ++ string_of_int(i),
+                   dups,
+                 ),
+               )
+            ++ "\nvalue seg: "
+            ++ print_seg(seg),
+          );
+        };
+        /* Full DrawerHeight.sample_rows equivalent: prettify at the
+         * default drawer width, then the Measured row-count walk. */
+        switch (PrettySegment.prettify(~width=30, seg)) {
+        | pretty =>
+          switch (
+            Measured.of_segment(
+              pretty,
+              ProjectorCore.Shape.Map.empty,
+              Id.Map.empty,
+            )
+          ) {
+          | _ => ()
+          | exception (Failure(f)) =>
+            fail(
+              msg
+              ++ ": sample #"
+              ++ string_of_int(n)
+              ++ " Measured raised: "
+              ++ f,
+            )
+          | exception (Assert_failure(_)) =>
+            fail(
+              msg
+              ++ ": sample #"
+              ++ string_of_int(n)
+              ++ " Measured raised Assert_failure",
+            )
+          }
         | exception (Failure(f)) =>
           fail(
             msg
             ++ ": sample #"
             ++ string_of_int(n)
-            ++ " Measured raised: "
+            ++ " drawer prettify raised: "
             ++ f,
           )
         | exception (Assert_failure(_)) =>
@@ -658,26 +688,10 @@ let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) =>
             msg
             ++ ": sample #"
             ++ string_of_int(n)
-            ++ " Measured raised Assert_failure",
+            ++ " drawer prettify raised Assert_failure (Tile.re invariant)",
           )
-        }
-      | exception (Failure(f)) =>
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " drawer prettify raised: "
-          ++ f,
-        )
-      | exception (Assert_failure(_)) =>
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " drawer prettify raised Assert_failure (Tile.re invariant)",
-        )
-      };
-    },
+        };
+      },
     all,
   );
 };
@@ -748,9 +762,9 @@ let dup_display_case = (msg: string) => {
       ++ ": result segment still contains duplicated (id, shard) pairs after "
       ++ "printing: "
       ++ String.concat(
-           ", ",
+           ~sep=", ",
            List.map(
-             ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
+             ~f=((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
              dups,
            ),
          ),
