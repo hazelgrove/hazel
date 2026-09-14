@@ -874,6 +874,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* What the panel could not show. Not an error -- the instance is fine and so
+   is the program -- but not a footnote either: it is the difference between a
+   short list and a shortened one, and a reader who cannot see it has no way
+   to know which they are looking at. */
+.fumola-missed {
+  margin: 0.5em 0.5em 0.25em;
+  padding: 0.35em 0.5em;
+  line-height: 1.35;
+  border-left: 2px solid var(--fumola-missed-rule, rgba(0, 0, 0, 0.25));
+  opacity: 0.85;
+}
+
 .fumola-rows {
   display: flex;
   flex-direction: column;

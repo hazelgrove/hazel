@@ -65,6 +65,12 @@ type t = {
      identity, so a pass with its own time would be a pass with its own copy
      of the store. See the note in FumolaRun. */
   passes: list((int, string)),
+  /* What the store holds and the panel could not show, and why. One message
+     per row that did not make it. Kept apart per list because the panel shows
+     one list at a time and a count is only honest beside the rows it is
+     about. */
+  nodes_missed: list(string),
+  edges_missed: list(string),
 };
 
 let empty: t = {
@@ -72,6 +78,8 @@ let empty: t = {
   nodes: [],
   edges: [],
   passes: [],
+  nodes_missed: [],
+  edges_missed: [],
 };
 
 /* Whether a node id is the editor's: its space is Here.
@@ -110,7 +118,13 @@ let meta_times_of = (edge: Yojson.Safe.t): (string, string) =>
   };
 
 /* Each row is translated on its own, so one unshowable row costs its own row
-   and not the list. */
+   and not the list.
+
+   It used to cost its row in SILENCE, and that is how a real bug hid: a node
+   whose name was a compound symbol had no Hazel form, its row vanished, and
+   the panel showed a shorter list with nothing saying it was shorter. The
+   reasons come back with the rows now, so the panel can say how many it could
+   not show and why. */
 let rows =
     (
       ~instance_id: int,
@@ -118,11 +132,11 @@ let rows =
       ~key: (Yojson.Safe.t, TermBase.Exp.t) => option('a),
       json: Yojson.Safe.t,
     )
-    : list('a) =>
+    : (list('a), list(string)) =>
   switch (FumolaEvents.tagged(json)) {
   | Some(("List", `List(items))) =>
-    List.filter_map(
-      item =>
+    List.fold_left(
+      ((kept, missed), item) =>
         switch (
           FumolaValue.exp_of_json(
             ~instance_id,
@@ -132,12 +146,19 @@ let rows =
             item,
           )
         ) {
-        | Ok(value) => key(item, value)
-        | Error(_) => None
+        | Ok(value) =>
+          switch (key(item, value)) {
+          | Some(row) => (kept @ [row], missed)
+          /* Translated, and the key still refused it: the row is not
+             readable either, and that is a miss too. */
+          | None => (kept, missed @ ["a row this panel could not read"])
+          }
+        | Error(message) => (kept, missed @ [message])
         },
+      ([], []),
       items,
     )
-  | _ => []
+  | _ => ([], [])
   };
 
 /* A thunk node's trace: the edges its last run recorded. A non-thunk has
@@ -169,7 +190,9 @@ let trace_of = (node: option(Yojson.Safe.t)): list(string) =>
   | None => []
   };
 
-let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
+let node_rows =
+    (~instance_id: int, json: Yojson.Safe.t)
+    : (list(node_row), list(string)) =>
   rows(
     ~instance_id,
     ~ana=FumolaAdapton.node_row(),
@@ -203,7 +226,9 @@ let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
     json,
   );
 
-let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
+let edge_rows =
+    (~instance_id: int, json: Yojson.Safe.t)
+    : (list(edge_row), list(string)) =>
   rows(
     ~instance_id,
     ~ana=FumolaAdapton.edge_row(),
@@ -425,25 +450,31 @@ let of_instance = (name: string): result(t, string) =>
                field rather than an empty one. */
             | None => None
             };
+          /* Translated once each, since translating is the expensive part
+             and the misses have to come back with the rows they are about. */
+          let (nodes, nodes_missed) =
+            switch (list_at("nodes")) {
+            | Some(nodes) => node_rows(~instance_id, nodes)
+            | None => ([], [])
+            };
+          let (edges, edges_missed) =
+            switch (list_at("edges")) {
+            | Some(edges) => edge_rows(~instance_id, edges)
+            | None => ([], [])
+            };
           Ok({
             events:
               switch (list_at("events")) {
               | Some(events) => FumolaEvents.of_json(events)
               | None => []
               },
-            nodes:
-              switch (list_at("nodes")) {
-              | Some(nodes) => node_rows(~instance_id, nodes)
-              | None => []
-              },
+            nodes,
+            nodes_missed,
+            edges,
+            edges_missed,
             passes:
               switch (list_at("edges")) {
               | Some(edges) => pass_boundaries(edges)
-              | None => []
-              },
-            edges:
-              switch (list_at("edges")) {
-              | Some(edges) => edge_rows(~instance_id, edges)
               | None => []
               },
           });

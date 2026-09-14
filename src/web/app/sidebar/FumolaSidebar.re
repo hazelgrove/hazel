@@ -736,6 +736,37 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ],
     );
 
+  /* What the store holds and the panel could not show.
+
+     A row that will not translate is dropped, which is right -- one bad row
+     should not cost the list -- but dropping it in silence is not. A shorter
+     list reads as a shorter history, and the reader has no way to tell the
+     difference. That is how a compound name went missing from the library's
+     panel without anyone noticing.
+
+     Reasons are deduplicated: fifty rows failing for one reason is one thing
+     to say, said once. */
+  let missed_note = (~one: string, ~many: string, missed: list(string)) =>
+    switch (missed) {
+    | [] => []
+    | missed =>
+      let n = List.length(missed);
+      [
+        div(
+          ~attrs=[clss(["fumola-missed"])],
+          [
+            text(
+              string_of_int(n)
+              ++ " "
+              ++ (n == 1 ? one : many)
+              ++ " in the store could not be shown here: "
+              ++ String.concat("; ", List.sort_uniq(compare, missed)),
+            ),
+          ],
+        ),
+      ];
+    };
+
   let rows_view =
       (
         ~name: string,
@@ -743,23 +774,35 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         ~total: int,
         ~one: string,
         ~many: string,
+        ~missed: list(string),
         rows: list(Node.t),
       ) =>
-    switch (rows) {
-    | [] => [
-        div(
-          ~attrs=[clss(["fumola-blurb"])],
-          [text(total == 0 ? empty : all_editor(~total, ~one, ~many))],
-        ),
-      ]
-    | rows => [
-        div(~attrs=[clss(["fumola-rows", "fumola-" ++ name])], rows),
-      ]
-    };
+    (
+      switch (rows) {
+      /* Nothing shown and something missed is not an empty instance, and
+         saying so would be the same lie in a louder voice. */
+      | [] when missed != [] => []
+      | [] => [
+          div(
+            ~attrs=[clss(["fumola-blurb"])],
+            [text(total == 0 ? empty : all_editor(~total, ~one, ~many))],
+          ),
+        ]
+      | rows => [
+          div(~attrs=[clss(["fumola-rows", "fumola-" ++ name])], rows),
+        ]
+      }
+    )
+    @ missed_note(~one, ~many, missed);
 
   let nodes_view =
-      (~passes: list((int, string)), nodes: list(FumolaHistory.node_row)) =>
+      (
+        ~passes: list((int, string)),
+        ~missed: list(string),
+        nodes: list(FumolaHistory.node_row),
+      ) =>
     rows_view(
+      ~missed,
       ~name="nodes",
       ~empty="This instance has made no nodes yet.",
       ~total=List.length(nodes),
@@ -859,9 +902,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       (
         ~passes: list((int, string)),
         ~nodes: list(FumolaHistory.node_row),
+        ~missed: list(string),
         edges: list(FumolaHistory.edge_row),
       ) =>
     rows_view(
+      ~missed,
       ~name="edges",
       ~empty="This instance has made no edges yet.",
       ~total=List.length(edges),
@@ -962,11 +1007,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             @ [editor_strip()]
             @ (
               switch (tab) {
-              | Nodes => nodes_view(~passes=history.passes, history.nodes)
+              | Nodes =>
+                nodes_view(
+                  ~passes=history.passes,
+                  ~missed=history.nodes_missed,
+                  history.nodes,
+                )
               | Edges =>
                 edges_view(
                   ~passes=history.passes,
                   ~nodes=history.nodes,
+                  ~missed=history.edges_missed,
                   history.edges,
                 )
               | Events =>
