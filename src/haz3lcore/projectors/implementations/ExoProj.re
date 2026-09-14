@@ -24,7 +24,6 @@ module M = (ExoP: {
     ExoP.exo.guard(any) ? Some(ExoP.exo.size) : None;
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
 

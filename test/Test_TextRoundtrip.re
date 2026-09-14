@@ -131,6 +131,40 @@ let text_reproducer_cases = [
   ),
 ];
 
+/* A marker whose removal leaves a complete term used to be lost (#2518):
+   `[¿]` reloaded as `[]`, because of_text destructed the marker and relied
+   on regrout to put Grout back. Markers are now swapped for Grout in
+   place; check the reload prints the same text AND that the hole survives
+   the load-time regrout (PersistentZipper's fast path runs one). */
+let sole_hole_case = (~name, text) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = parse_or_fail(text);
+      check(
+        string,
+        "marker preserved by of_text",
+        text,
+        MarkerParse.to_text(z),
+      );
+      let z = Zipper.remold_regrout(Left, ~root=Exp, z);
+      check(string, "hole survives regrout", text, MarkerParse.to_text(z));
+    },
+  );
+
+let sole_hole_cases = [
+  sole_hole_case(~name="sole list element", "[¿]"),
+  sole_hole_case(
+    ~name="sole list element, typed let",
+    "let xs : [Int] = [¿] in xs",
+  ),
+  sole_hole_case(~name="nested sole list element", "[[¿]]"),
+  sole_hole_case(~name="sole parenthesized", "(¿)"),
+  sole_hole_case(~name="sole argument", "f(¿)"),
+  sole_hole_case(~name="list with hole and element", "[¿, 1]"),
+];
+
 /* Render an arbitrary `Exp.t` to source text (same path
  * `QCheck_Util.arb_exp` uses for `show`), then parse it. Going through
  * the parser canonicalizes the segment so the fixed-point check is
@@ -159,6 +193,7 @@ let arb_exp_roundtrip =
 
 let tests = [
   ("TextRoundtrip.TextReproducers", text_reproducer_cases),
+  ("TextRoundtrip.SoleHoles", sole_hole_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
   (
     "TextRoundtrip.Property",
