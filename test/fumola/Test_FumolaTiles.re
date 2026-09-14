@@ -898,6 +898,9 @@ let test_reference_crosses_back = () => {
         source,
         value: DHExp.fresh(Atom(Int(Bigint.of_int(41)))),
         holds,
+        /* What the node behind the cell knows. Nothing here: this peek is
+           built for the printer, not read back from a runtime. */
+        info: "",
       }),
     );
   let source = e =>
