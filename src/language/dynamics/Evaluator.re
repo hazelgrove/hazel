@@ -422,6 +422,7 @@ let rec evaluate =
           elab_term: prev_elab,
           co_ctx,
           probe_targets: prev_probe_targets,
+          ana: prev_ana,
           _,
         }) =>
         let entry: IncrEval.entry(EvaluatorState.t) = {
@@ -431,6 +432,7 @@ let rec evaluate =
               IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
             ),
           prev_probe_targets,
+          prev_ana,
           value: final_value,
           state: replay_state(state^),
         };
