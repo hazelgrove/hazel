@@ -43,8 +43,8 @@ let apply = (model: History.Model.t, action: Page.Update.t): History.Model.t =>
 
 let insert = (s: string): Page.Update.t =>
   Globals(ActiveEditor(Insert(s)));
-let move_right: Page.Update.t =
-  Globals(ActiveEditor(Move(Local(Right, ByChar))));
+let move_left: Page.Update.t =
+  Globals(ActiveEditor(Move(Local(Left, ByChar))));
 let undo: Page.Update.t = Globals(Undo);
 let redo: Page.Update.t = Globals(Redo);
 
@@ -164,18 +164,24 @@ let tests = (
       () => {
         let m0 = mk_model();
         let m1 = apply(m0, insert("1"));
-        let t1 = text_of(m1);
-        let m2 = apply(m1, undo);
+        let m2 = apply(m1, insert("2"));
+        let t2 = text_of(m2);
+        /* Undo one of the two edits so both stacks are non-empty, and so
+         * there is program text for the caret to move over (the empty
+         * program has no characters at all). */
+        let m3 = apply(m2, undo);
+        check(int, "one edit remains undoable", 1, undo_len(m3));
+        check(int, "the undone edit is on the redo stack", 1, redo_len(m3));
         /* Caret movement is not historic (Action.is_historic) */
-        let m3 = apply(m2, move_right);
-        check(int, "move did not push an undo entry", 0, undo_len(m3));
-        check(int, "move preserved the redo stack", 1, redo_len(m3));
-        let m4 = apply(m3, redo);
+        let m4 = apply(m3, move_left);
+        check(int, "move did not push an undo entry", 1, undo_len(m4));
+        check(int, "move preserved the redo stack", 1, redo_len(m4));
+        let m5 = apply(m4, redo);
         check(
           string,
           "redo still works after a non-historic action",
-          t1,
-          text_of(m4),
+          t2,
+          text_of(m5),
         );
       },
     ),

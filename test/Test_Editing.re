@@ -338,7 +338,7 @@ let basic_tests = [
   test(
     ~name="Paste string splitting token",
     ~acts=mk("1¦1") @ [Paste({|"foo"|})],
-    ~goal={|1~"foo"¦~1|},
+    ~goal={|1"foo"¦1|},
   ),
   /* `(¦)` is a caret INSIDE the `()` duo-token, so these two take the
      slow token-splitting path (the fast gate requires an Outer caret);
@@ -360,31 +360,34 @@ let basic_tests = [
   ),
   /* Body-less fragments (the common copy: definitions ending in `in`)
      take the fast path via its append-a-hole completion rung; goals are
-     the typed-out (slow-path) states, trailing convex grout included. */
+     the typed-out (slow-path) states. Upstream spells them with the
+     trailing convex grout (`?`); the edit state here stores no grout,
+     so the same states print without it — the pinned property (where
+     the caret lands after the paste) is identical. */
   test(
     ~name="Paste body-less binding at Outer caret at depth",
     ~acts=mk("let x = ¦ in x") @ [Paste("let y = 2 in")],
-    ~goal="let x = let y = 2 in¦? in x",
+    ~goal="let x = let y = 2 in¦ in x",
   ),
   test(
     ~name="Paste body-less binding chain at top level",
     ~acts=mk("¦") @ [Paste("let a = 1 in let b = 2 in")],
-    ~goal="let a = 1 in let b = 2 in¦?",
+    ~goal="let a = 1 in let b = 2 in¦",
   ),
   test(
     ~name="Paste body-less binding inside empty parens (token split)",
     ~acts=mk("(¦)") @ [Paste("let y = 2 in")],
-    ~goal="(let y = 2 in¦?)",
+    ~goal="(let y = 2 in¦)",
   ),
   test(
     ~name="Paste trailing-operator fragment",
     ~acts=mk("¦") @ [Paste("1 +")],
-    ~goal="1 +¦?",
+    ~goal="1 +¦",
   ),
   test(
     ~name="Paste multiline body-less chain keeps layout",
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
-    ~goal="let a = 1 in\nlet b = 2 in¦?",
+    ~goal="let a = 1 in\nlet b = 2 in¦",
   ),
   test(
     ~name="Paste plaintext into token at Inner caret",
@@ -401,11 +404,15 @@ let basic_tests = [
     ~acts=mk("(hel¦lo)") @ [Paste("abc")],
     ~goal="(helabc¦lo)",
   ),
+  /* Goals print the RAW EDIT STATE, which is grout-free: holes are
+     derived downstream (GroutPlace) for statics and display, so `?`/`~`
+     appear here only for user-typed hole tokens, and typed spaces stay
+     literal spaces. */
   test(
     ~name="Paste splitting text into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("a b")],
     /* Caret lands after the pasted text (at the end of "b"), not before it */
-    ~goal="hela~b¦lo",
+    ~goal="hela b¦lo",
   ),
   test(
     ~name="Paste into token inside let expression",
@@ -420,22 +427,22 @@ let basic_tests = [
   test(
     ~name="Insert char into comment at Inner caret",
     ~acts=mk("#hel¦lo#") @ [Insert("X")],
-    ~goal="#helX¦lo#?",
+    ~goal="#helX¦lo#",
   ),
   test(
     ~name="Paste into comment at Inner caret",
     ~acts=mk("#hel¦lo#") @ [Paste("abc")],
-    ~goal="#helabc¦lo#?",
+    ~goal="#helabc¦lo#",
   ),
   test(
     ~name="Paste string splitting consecutive delimiters",
     ~acts=mk("if¦then") @ [Paste({|"foo"|})],
-    ~goal={|if"foo"¦then?|},
+    ~goal={|if"foo"¦then|},
   ),
   test(
     ~name="Paste string with a backpack glom false friend",
     ~acts=mk("¦") @ [Paste({|([)(|})],
-    ~goal={|([?)(¦?|},
+    ~goal={|([)(¦|},
   ),
   test(
     ~name="Split two prefix op !s into bin op !!",
@@ -463,13 +470,13 @@ let basic_tests = [
   test(
     ~name="Merge 2 prefix ops ! into infix op !!",
     ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|?!¦! X|},
+    ~goal={|!¦! X|},
   ),
   // wrong caret placement (and its in weird escapee mode...)
   test(
     ~name="Merge + + ops in type sort context",
     ~acts=mk({|1:(+ ¦+A)|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|1:(?+¦+A)|},
+    ~goal={|1:(+¦+A)|},
   ),
 ];
 
@@ -478,12 +485,12 @@ let insertion_tests = [
   test(
     ~name="Insert whitespace",
     ~acts=mk({|¦|}) @ [Insert(" ")],
-    ~goal={| ¦?|},
+    ~goal={| ¦|},
   ),
   test(
     ~name="Insert comment",
     ~acts=mk({|¦|}) @ [Insert("#")],
-    ~goal={|#¦#?|},
+    ~goal={|#¦#|},
   ),
   test(
     ~name="Insert string",
@@ -493,7 +500,7 @@ let insertion_tests = [
   test(
     ~name="Insert string after concave grout",
     ~acts=mk({|1 ¦|}) @ [Insert({|"|})],
-    ~goal={|1 ~"¦"|},
+    ~goal={|1 "¦"|},
   ),
   test(
     ~name="Insert char at end of token",
@@ -556,19 +563,19 @@ let insertion_tests = [
   test(
     ~name="Delimiter prefix molding 1",
     ~acts=mk({|let a = 1 ¦|}) @ [Insert("i")],
-    ~goal={|let a = 1 i¦?|},
+    ~goal={|let a = 1 i¦|},
   ),
   /* Then, when you drop the n, the concave grout that appears in the
      above case should disappear, leaving a space */
   test(
     ~name="Delimiter prefix molding 2",
     ~acts=mk({|let a = 1 i¦|}) @ [Insert("n")],
-    ~goal={|let a = 1 in¦?|},
+    ~goal={|let a = 1 in¦|},
   ),
   test(
     ~name="Delimiter prefix molding 3",
     ~acts=mk({|let a = 1 in¦|}) @ [Insert(" ")],
-    ~goal={|let a = 1 in ¦?|},
+    ~goal={|let a = 1 in ¦|},
   ),
   /* INSERTION: SUPPRESSED SPACE TRACKING */
   /* Space suppression tracking: space reappears when grout is consumed */
@@ -581,39 +588,39 @@ let insertion_tests = [
   test(
     ~name="Split empty list",
     ~acts=mk({|[¦]|}) @ [Insert(" ")],
-    ~goal={|[?¦]|},
+    ~goal={|[ ¦]|},
   ),
   test(
     ~name="Split case end",
     ~acts=mk({|case¦end|}) @ [Insert(" ")],
-    ~goal={|case?¦end|},
+    ~goal={|case ¦end|},
   ),
   test(
     ~name="Split number literal",
     ~acts=mk({|1¦1|}) @ [Insert(" ")],
-    ~goal={|1~¦1|},
+    ~goal={|1 ¦1|},
   ),
   /* Spliting tokens when the latter must drop from backpack */
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with space",
     ~acts=mk({|if¦then|}) @ [Insert(" ")],
-    ~goal={|if?¦then?|},
+    ~goal={|if ¦then|},
   ),
   test(
     ~name="Split mono child and 2nd delim of 3-delim form",
     ~acts=mk({|if true¦then|}) @ [Insert(" ")],
-    ~goal={|if true ¦then?|},
+    ~goal={|if true ¦then|},
   ),
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with instant expander",
     ~acts=mk({|if¦then|}) @ [Insert("(")],
-    ~goal={|if(?¦then?|},
+    ~goal={|if(¦then|},
   ),
   /* Spliting tokens when both must expand */
   test(
     ~name="Split two leading delated expander delims with bin op",
     ~acts=mk({|if¦if|}) @ [Insert("+")],
-    ~goal={|if?+¦if?|},
+    ~goal={|if+¦if|},
   ),
   /* The next three tests cover issue #1907. They are slightly awkwardly
      written; the details don't matter so much here. The important thing
@@ -625,7 +632,7 @@ let insertion_tests = [
     ~acts=
       mk({|¦if 1 then 2 else 3|})
       @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
-    ~goal={|if? then?else¦ if 1 then 2 else 3|},
+    ~goal={|if thenelse¦ if 1 then 2 else 3|},
   ),
   test(
     ~name="Inserting let before existing let doesn't steal delimiters",
@@ -639,7 +646,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦ let x = 2 in 3|},
+    ~goal={|let =in¦ let x = 2 in 3|},
   ),
   test(
     ~name="Inserting let before existing type doesn't steal delimiters",
@@ -653,7 +660,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦ type x = 2 in 3|},
+    ~goal={|let =in¦ type x = 2 in 3|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
@@ -662,7 +669,7 @@ let insertion_tests = [
   test(
     ~name="Split 2nd delim of 3-delim form with space",
     ~acts=mk({|if the¦else|}) @ [Insert("n"), Insert(" ")],
-    ~goal={|if? then?¦else?|},
+    ~goal={|if then ¦else|},
   ),
   /* INSERTTION: AMPHIBIOUS PREFIX/INFIX OP */
   test(
@@ -673,7 +680,7 @@ let insertion_tests = [
   test(
     ~name="Amphibious Plus - At End - 1",
     ~acts=mk({|type T = A ¦|}) @ [Insert("+")],
-    ~goal={|type T = A +¦?|},
+    ~goal={|type T = A +¦|},
   ),
   test(
     ~name="Amphibious Plus - At End - 2",
@@ -683,7 +690,7 @@ let insertion_tests = [
   test(
     ~name="Amphibious Plus - At End - 3",
     ~acts=mk({|type T = + ¦|}),
-    ~goal={|type T = + ¦?|},
+    ~goal={|type T = + ¦|},
   ),
   test(
     ~name="Amphibious Plus - At End - 4",
@@ -708,12 +715,12 @@ let insertion_tests = [
   test(
     ~name="Amphibious Plus - Before - 3 (Prelude)",
     ~acts=mk({|type T = A ¦ B|}),
-    ~goal={|type T = A  ¦~B|},
+    ~goal={|type T = A ¦ B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 3",
     ~acts=mk({|type T = A ¦ B|}) @ [Insert("+")],
-    ~goal={|type T = A  +¦B|},
+    ~goal={|type T = A +¦ B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 4",
@@ -753,64 +760,64 @@ let insertion_tests = [
   test(
     ~name="Prepending to leading delimiter: if",
     ~acts=mk({|¦if 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|x¦~if 1 then 2 else 3|},
+    ~goal={|x¦if 1 then 2 else 3|},
   ),
   test(
     ~name="Prepending to middle delimiter: if",
     ~acts=mk({|if 1 ¦then 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1 ~x¦then~ 2 else 3|},
+    ~goal={|if 1 x¦then 2 else 3|},
   ),
   test(
     ~name="Prepending to trailing delimiter: if",
     ~acts=mk({|if 1 then 2 ¦else 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2 ~x¦else~ 3|},
+    ~goal={|if 1 then 2 x¦else 3|},
   ),
   test(
     ~name="Within leading delimiter: if",
     ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|ix¦f~ 1 then 2 else 3|},
+    ~goal={|ix¦f 1 then 2 else 3|},
   ),
   test(
     ~name="Within middle delimiter: if",
     ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1~ thx¦en~ 2 else 3|},
+    ~goal={|if 1 thx¦en 2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2~ ex¦lse~ 3|},
+    ~goal={|if 1 then 2 ex¦lse 3|},
   ),
   test(
     ~name="Postpending to leading delimiter: if",
     ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|ifx¦~ 1 then 2 else 3|},
+    ~goal={|ifx¦ 1 then 2 else 3|},
   ),
   test(
     ~name="Postpending to middle delimiter: if",
     ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1 ~thenx¦~ 2 else 3|},
+    ~goal={|if 1 thenx¦ 2 else 3|},
   ),
   test(
     ~name="Postpending to trailing delimiter: if",
     ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2 ~elsex¦~ 3|},
+    ~goal={|if 1 then 2 elsex¦ 3|},
   ),
   test(
     ~name="Grout inserted on correct side of caret when adding if before",
     ~acts=mk({|¦[]|}) @ [Insert("i")],
-    ~goal={|i¦~[]|},
+    ~goal={|i¦[]|},
   ),
   /* SPLITTING */
   test(
     ~name="Split ap (Make sure outside gets remolded)",
     ~acts=mk({|ap(¦)|}) @ [Insert(" ")],
-    ~goal={|ap(?¦)|},
+    ~goal={|ap( ¦)|},
   ),
   /* MERGING */
   test(
     ~name="Prelude for: Merge across concave grout on insert",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|if 1 then 2 ¦~lse~ 3|},
+    ~goal={|if 1 then 2 ¦lse 3|},
   ),
   test(
     ~name="Merge across concave grout on insert",
@@ -839,7 +846,7 @@ let insertion_tests = [
     ~name=
       "Poly (formerly Forall) regrouting edge case (non-debatable) (#1913)",
     ~acts=mk({|?:pol¦(?)|}) @ [Insert("y"), Insert("-"), Insert(">")],
-    ~goal={|?:poly?->¦(?)|},
+    ~goal={|?:poly->¦(?)|},
   ),
   /* In below test, we first cause the two `=`s to merge, then split them.
      The first `=` should not get matched to the `let` because of the parens.
@@ -895,8 +902,17 @@ let insertion_tests = [
   /* Regression for #2074. */
   test(
     ~name="Tuple label keyword-expanding to `let` doesn't crash",
-    ~acts=string_to_ltr_actions("(le=)") @ mv_l(3) @ [Insert("t")],
-    ~goal={|(let¦?=?)|},
+    /* grout is no longer a caret stop, so reaching le¦= takes two
+       moves, not three */
+    ~acts=string_to_ltr_actions("(le=)") @ mv_l(2) @ [Insert("t")],
+    /* the crash guard is the point. Under grout-free editing `let=`
+       stays a tuple LABEL (no keyword expansion inside the label);
+       the caret hopping left of the parens after the label remold is
+       known jank, tracked by feel */
+    /* caret homes to the parent shard now (base_point ancestor
+       fallback), not (0,0) — the pinned pre-fix landing was itself
+       the empty-child caret bug */
+    ~goal={|(let¦=)|},
   ),
 ];
 
@@ -905,22 +921,22 @@ let destruct_tests = [
   test(
     ~name="Delete comment",
     ~acts=mk({|##¦|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   test(
     ~name="Delete string",
     ~acts=mk({|""¦|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   test(
     ~name="Deleting comment delimiter deletes comment",
     ~acts=mk({|#¦#|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   test(
     ~name="Deleting string delimiter deletes string",
     ~acts=mk({|"¦"|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   test(
     ~name="Delete char from token by backspacing",
@@ -969,12 +985,12 @@ let destruct_tests = [
   test(
     ~name="Amphibious Plus Destruct 3",
     ~acts=mk({|type T = A + B + C¦|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|type T = A + B + ¦?|},
+    ~goal={|type T = A + B + ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 4",
     ~acts=mk({|type T = + A¦|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|type T = + ¦?|},
+    ~goal={|type T = + ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 5",
@@ -984,7 +1000,7 @@ let destruct_tests = [
   test(
     ~name="Amphibious Plus Destruct 6",
     ~acts=mk({|type T = + A + B¦|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|type T = + A + ¦?|},
+    ~goal={|type T = + A + ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 7",
@@ -1005,7 +1021,7 @@ let destruct_tests = [
   test(
     ~name="Amphibious Plus Destruct 9",
     ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|type T = + A + B ¦~ C|},
+    ~goal={|type T = + A + B ¦ C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 10",
@@ -1017,12 +1033,12 @@ let destruct_tests = [
   test(
     ~name="Regrouting edge case 1",
     ~acts=mk({|if 1then else¦|}) @ mv_l(9) @ [Insert(" ")],
-    ~goal={|if 1 ¦then? else?|},
+    ~goal={|if 1 ¦then else|},
   ),
   test(
     ~name="Regrouting edge case 2",
     ~acts=mk({|if thena¦ else|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|if? then¦? else?|},
+    ~goal={|if then¦ else|},
   ),
   /* If the below fails, it's likely zipper.caret isn't being
    * properly updated during insert/delete actions */
@@ -1035,7 +1051,10 @@ let destruct_tests = [
         Destruct(Local(Left, ByChar)),
         Destruct(Local(Left, ByChar)),
       ],
-    ~goal={|if 1 ~th¦n|},
+    /* keyword-decay edge: awkward in both models; the dev inner-caret
+       put_down fix landed the caret at the deletion point (was `t¦hn`,
+       a double-step drift; upstream pins `~th¦n` with stored grout) */
+    ~goal={|if 1 th¦n|},
   ),
   /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
   /* Some of the below grout placements feel inconsistent...
@@ -1043,22 +1062,22 @@ let destruct_tests = [
   test(
     ~name="Within leading delimiter: if",
     ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|¦f~ 1 then 2 else 3|},
+    ~goal={|¦f 1 then 2 else 3|},
   ),
   test(
     ~name="Within middle delimiter: if",
     ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|if 1 ~t¦en~ 2 else 3|},
+    ~goal={|if 1 t¦en 2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|if 1 then 2 ¦~lse~ 3|},
+    ~goal={|if 1 then 2 ¦lse 3|},
   ),
   test(
     ~name="At end of leading delimiter: if",
     ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|i¦~ 1 then 2 else 3|},
+    ~goal={|i¦ 1 then 2 else 3|},
   ),
   test(
     ~name="At end of middle delimiter: if",
@@ -1086,10 +1105,9 @@ let destruct_tests = [
     ~goal={|"a¦"|},
   ),
   /* INDENT-LEVEL BACKSPACE — capped at the line's AUTO-INDENT level
-     (andrew 2026-07-22, ported from artifact-grout 1c2bc75efb): this
-     body line's level is 0, so typed spaces are real material, one
-     per press; the 2-space unit dedent applies only within the
-     auto-indent width */
+     (andrew 2026-07-22): this body line's level is 0, so typed
+     spaces are real material, one per press; the 2-space unit
+     dedent applies only within the auto-indent width */
   test(
     ~name="Backspace beyond auto-indent deletes 1 space",
     ~acts=mk({|let x = 1 in
@@ -1125,7 +1143,7 @@ let destruct_tests = [
     ~acts=mk({|let x = 1 in
   x¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-  ¦?|} /* Hole appears because body is now empty */
+  ¦|} /* Hole appears because body is now empty */
   ),
   /* Regression: indent-level backspace should NOT trigger inside parens on same line */
   test(
@@ -1142,19 +1160,19 @@ let destruct_tests = [
         Select(Resize(Local(Right, ByChar))),
         Destruct(Local(Left, ByChar)),
       ],
-    ~goal={|let x = 10 in ¦?|},
+    ~goal={|let x = 10 in ¦|},
   ),
   /* TOKEN/HUNGRY DELETE */
   test(
     ~name="Token delete removes entire token",
     ~acts=mk({|let foo¦ = 1 in foo|}) @ [Destruct(Local(Left, ByToken))],
-    ~goal={|let ¦? = 1 in foo|} /* Hole appears for binding site */
+    ~goal={|let ¦ = 1 in foo|} /* Hole appears for binding site */
   ),
   test(
     ~name="Hungry delete removes spaces and linebreak",
     ~acts=mk({|let x = 1 in
   ¦x|}) @ [Destruct(Local(Left, ByToken))],
-    ~goal={|let x = 1~ in¦x|} /* Grout appears for shape consistency */
+    ~goal={|let x = 1 in¦x|} /* Grout appears for shape consistency */
   ),
   test(
     ~name="Hungry delete stops after one linebreak",
@@ -1393,7 +1411,7 @@ end|} /* Should be at case level, not indented */
   test(
     ~name="Enter in empty parens",
     ~acts=mk({|(¦)|}) @ [Action.Insert("\n")],
-    ~goal={|(?
+    ~goal={|(
 ¦)|},
   ),
   /* Scenario: Two consecutive Enters after case rule */
@@ -2571,7 +2589,7 @@ let rescan_tests = [
   test(
     ~name="Rescan: if with then typed after else",
     ~acts=string_to_ltr_actions("if 1 else 2 then"),
-    ~goal={|if 1 else 2 then¦?|},
+    ~goal={|if 1 else 2 then¦|},
   ),
   /* let/=/in : type `let x in 1 = 2` (= after in) */
   test(
@@ -2743,7 +2761,7 @@ let paste_tests = [
   test(
     ~name="Paste unbalanced parens (backpack glom)",
     ~acts=mk("¦") @ [Paste({|([)(|})],
-    ~goal={|([?)(¦?|},
+    ~goal={|([)(¦|},
   ),
   test(
     ~name="Paste unmatched open paren",
@@ -2789,12 +2807,12 @@ let module_tests = [
   test(
     ~name="Module: Insert open brace (} in backpack)",
     ~acts=mk({|¦|}) @ [Insert("{")],
-    ~goal={|{¦?|},
+    ~goal={|{¦|},
   ),
   test(
     ~name="Module: Complete empty module with Put_down",
     ~acts=mk({|¦|}) @ [Insert("{"), Put_down],
-    ~goal={|{?}¦|},
+    ~goal={|{}¦|},
   ),
   test(
     ~name="Module: Type let inside module",
@@ -2808,7 +2826,7 @@ let module_tests = [
   test(
     ~name="Module: Empty module as let definition",
     ~acts=mk({|let m = ¦|}) @ [Insert("{"), Put_down],
-    ~goal={|let m = {?}¦|},
+    ~goal={|let m = {}¦|},
   ),
   /* --- Module Cmd+D selection tests --- */
   test(
@@ -3052,7 +3070,7 @@ let shard_theft_tests = [
   test_complete(
     ~name="Type identifier before complete let",
     ~acts=mk({|¦let x = 1 in x|}) @ string_to_ltr_actions("y "),
-    ~goal={|y ¦~let x = 1 in x|},
+    ~goal={|y ¦let x = 1 in x|},
   ),
 ];
 
@@ -3302,7 +3320,7 @@ let wrap_selection_tests = [
       mk({|¦abc|})
       @ [Action.Select(Term(Current))]
       @ [Action.Insert("#")],
-    ~goal={|?#abc#¦|},
+    ~goal={|#abc#¦|},
   ),
   /* --- Quote wrapping validation (fallthrough to replacement) --- */
   test(
@@ -3321,7 +3339,7 @@ let wrap_selection_tests = [
       mk({|¦x + y|})
       @ [Action.Select(Term(Current))]
       @ [Action.Insert(")")],
-    ~goal={|?)¦ + y|},
+    ~goal={|)¦ + y|},
   ),
   test(
     ~name="Closing bracket replaces selection, does not wrap",
@@ -3329,7 +3347,7 @@ let wrap_selection_tests = [
       mk({|¦x + y|})
       @ [Action.Select(Term(Current))]
       @ [Action.Insert("]")],
-    ~goal={|?]¦ + y|},
+    ~goal={|]¦ + y|},
   ),
   /* --- Edge cases --- */
   test(
@@ -3428,7 +3446,7 @@ let unwrap_quote_tests = [
   test(
     ~name="Backspace empty string just deletes",
     ~acts=mk({|""¦|}) @ [Action.Destruct(Local(Left, ByChar))],
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   test(
     ~name="Single char string unwraps",
@@ -3464,7 +3482,7 @@ let unwrap_quote_tests = [
   test(
     ~name="Unwrap string with spaces produces separate tokens",
     ~acts=mk({|"hello world"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
-    ~goal={|hello ~world¦|},
+    ~goal={|hello world¦|},
   ),
   test(
     ~name="Unwrap string with operators re-parses as expression",
@@ -3504,23 +3522,23 @@ let comment_toggle_tests = [
   test(
     ~name="Comment a code line",
     ~acts=mk({|¦hello|}) @ [Action.ToggleLineComment],
-    ~goal={|?#hello#¦|},
+    ~goal={|#hello#¦|},
   ),
   test(
     ~name="Comment an expression",
     ~acts=mk({|¦1 + 2|}) @ [Action.ToggleLineComment],
-    ~goal={|?#1 + 2#¦|},
+    ~goal={|#1 + 2#¦|},
   ),
   test(
     ~name="Comment with caret in middle of line",
     ~acts=mk({|he¦llo|}) @ [Action.ToggleLineComment],
-    ~goal={|?#hello#¦|},
+    ~goal={|#hello#¦|},
   ),
   /* Toggle empty line is a no-op */
   test(
     ~name="Toggle empty line is no-op",
     ~acts=mk({|¦|}) @ [Action.ToggleLineComment],
-    ~goal={|?¦|},
+    ~goal={|¦|},
   ),
   /* Roundtrip: comment then uncomment */
   test(
@@ -3555,7 +3573,9 @@ let comment_toggle_tests = [
       @ string_to_ltr_actions("\n")
       @ string_to_ltr_actions("y")
       @ [Action.ToggleLineComment],
-    ~goal="x\n# y#¦",
+    /* comment toggle no longer bakes a grout-derived space into the
+       comment text, and uncommenting returns the bare token */
+    ~goal="x\n#y#¦",
   ),
   test(
     ~name="Comment second line roundtrip",
@@ -3565,7 +3585,7 @@ let comment_toggle_tests = [
       @ string_to_ltr_actions("y")
       @ [Action.ToggleLineComment]
       @ [Action.ToggleLineComment],
-    ~goal="x\n ~y¦",
+    ~goal="x\ny¦",
   ),
   /* Multi-line with selection: comment all lines */
   test(
@@ -3576,7 +3596,7 @@ let comment_toggle_tests = [
       @ string_to_ltr_actions("y")
       @ [Action.Select(All)]
       @ [Action.ToggleLineComment],
-    ~goal="§?#x#\n# y#¦",
+    ~goal="§#x#\n#y#¦",
   ),
   /* Multi-line: select one line and comment */
   test(
@@ -3587,7 +3607,7 @@ let comment_toggle_tests = [
       @ string_to_ltr_actions("y")
       @ [Action.Select(Resize(Line(Left)))]
       @ [Action.ToggleLineComment],
-    ~goal="x\n§# y#¦",
+    ~goal="x\n§#y#¦",
   ),
   /* Multi-line: mixed state does nothing */
   test(
@@ -3611,7 +3631,7 @@ let comment_toggle_tests = [
       @ [Action.ToggleLineComment]
       @ [Action.Select(All)]
       @ [Action.ToggleLineComment],
-    ~goal="§x\n ~y¦",
+    ~goal="§x\ny¦",
   ),
 ];
 
@@ -3739,7 +3759,7 @@ else 2¦|})
       @ string_to_ltr_actions("y")
       @ [Action.Select(All)]
       @ [Action.ToggleLineComment],
-    ~goal="§?#x#\n##\n# y#¦",
+    ~goal="§#x#\n##\n#y#¦",
   ),
 ];
 
@@ -4033,7 +4053,7 @@ let char_selection_tests = [
   test(
     ~name="Delete entire token via char selection",
     ~acts=mk({|¦hello|}) @ sel_r(5) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   test(
     ~name="Delete first char of token",
@@ -4756,7 +4776,7 @@ let cross_boundary_tests = [
   test_destruct_char(
     ~name="Delete selection including both string quotes",
     ~init={|§"hello"¦|},
-    ~goal={|¦?|},
+    ~goal={|¦|},
   ),
   /* --- Comment delimiter edge cases --- */
   test_destruct_char(
@@ -4773,7 +4793,7 @@ let cross_boundary_tests = [
   test_destruct_char(
     ~name="Delete char selection within comment (text)",
     ~init={|#he§ll¦o#|},
-    ~goal={|#he¦o#?|},
+    ~goal={|#he¦o#|},
   ),
   test_case(
     "Delete within comment preserves Secondary piece type",
@@ -5340,7 +5360,8 @@ let inner_destruct_tests = [
       mk({|"aa" ++ "x"¦|})
       @ mv_l(4)
       @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
-    ~goal={|"aa" +"+"~¦ "x"|},
+    /* raw print is grout-free (upstream pins +"+"~) */
+    ~goal={|"aa" +"+"¦ "x"|},
   ),
   test(
     ~name="Delete after wrapping char-level selection in quotes",
@@ -5352,15 +5373,15 @@ let inner_destruct_tests = [
         Insert("\""),
         Destruct(Local(Right, ByChar)),
       ],
-    ~goal={|"aa" +"+"~¦"x"|},
+    ~goal={|"aa" +"+"¦"x"|},
   ),
-  /* Only `c` is wrapped; `ab` and `d` survive on either side. The flanking
-   * grout is how Hazel already grouts three adjacent operands — typing
+  /* Goals below drop the `?`/`~` upstream prints: grout is virtual here.
+   * Only `c` is wrapped; `ab` and `d` survive on either side — typing
    * `ab"c"d` from scratch produces the same shape. */
   test(
     ~name="Wrap char-level selection interior to a token in quotes",
     ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("\"")],
-    ~goal={|ab~"c"~¦d|},
+    ~goal={|ab"c"¦d|},
   ),
   test(
     ~name="Wrap char-level selection spanning a token boundary in quotes",
@@ -5390,18 +5411,18 @@ let inner_destruct_tests = [
   test(
     ~name="Wrap char-level selection interior to a token in parens",
     ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("(")],
-    ~goal={|ab(§c¦)~d|},
+    ~goal={|ab(§c¦)d|},
   ),
   test(
     ~name="Wrap right-focused char-level selection in parens",
     ~acts=mk({|abcd¦|}) @ mv_l(3) @ sel_r(2) @ [Insert("(")],
-    ~goal={|a(§bc¦)~d|},
+    ~goal={|a(§bc¦)d|},
   ),
   /* Partial `++` outside, its other half plus the whole of `xyz` inside. */
   test(
     ~name="Wrap char-level selection spanning a token boundary in parens",
     ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("(")],
-    ~goal={|abc +(?§+ xyz¦)|},
+    ~goal={|abc +(§+ xyz¦)|},
   ),
   /* Selection reaching a token edge has a remainder on one side only. */
   test(
@@ -5412,22 +5433,22 @@ let inner_destruct_tests = [
   test(
     ~name="Wrap char-level selection starting on a token boundary in parens",
     ~acts=mk({|abcd¦|}) @ mv_l(2) @ sel_l(2) @ [Insert("(")],
-    ~goal={|(§ab¦)~cd|},
+    ~goal={|(§ab¦)cd|},
   ),
   test(
     ~name="Wrap char-level selection interior to a token in brackets",
     ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("[")],
-    ~goal={|ab~[§c¦]~d|},
+    ~goal={|ab[§c¦]d|},
   ),
   test(
     ~name="Wrap char-level selection interior to a token in braces",
     ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("{")],
-    ~goal={|ab~{§c¦}~d|},
+    ~goal={|ab{§c¦}d|},
   ),
   test(
     ~name="Wrap char-level selection in parens inside a let",
     ~acts=mk({|let x = 12¦34 in x|}) @ sel_l(1) @ [Insert("(")],
-    ~goal={|let x = 1(§2¦)~34 in x|},
+    ~goal={|let x = 1(§2¦)34 in x|},
   ),
   test(
     ~name="Edit after wrapping char-level selection in parens",
@@ -5437,7 +5458,7 @@ let inner_destruct_tests = [
       @ sel_l(1)
       @ [Insert("("), Unselect(None)]
       @ string_to_ltr_actions("+1"),
-    ~goal={|ab(c+1¦)~d|},
+    ~goal={|ab(c+1¦)d|},
   ),
   /* smart_rounded reads the anchor as Outer, so the whole token is wrapped. */
   test(
@@ -5460,7 +5481,7 @@ let inner_destruct_tests = [
       mk({|¦ab cd|})
       @ [Select(Resize(Local(Right, ByToken)))]
       @ [Insert("(")],
-    ~goal={|(§ab¦) ~cd|},
+    ~goal={|(§ab¦) cd|},
   ),
   /* Splitting a string would strand its delimiters, so it wraps whole. */
   test(
@@ -5594,27 +5615,27 @@ let grapheme_tests = [
   test(
     ~name="Insert emoji into a comment",
     ~acts=mk({|#he¦llo#|}) @ [Insert({|😀|})],
-    ~goal={|#he😀¦llo#?|},
+    ~goal={|#he😀¦llo#|},
   ),
   test(
     ~name="Insert after emoji in a comment",
     ~acts=mk({|#he😀¦llo#|}) @ [Insert("X")],
-    ~goal={|#he😀X¦llo#?|},
+    ~goal={|#he😀X¦llo#|},
   ),
   test(
     ~name="Backspace an emoji in a comment",
     ~acts=mk({|#he😀¦llo#|}) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|#he¦llo#?|},
+    ~goal={|#he¦llo#|},
   ),
   test(
     ~name="Move by char across emoji in a comment",
     ~acts=mk({|#a😀b#¦|}) @ mv_l(3) @ mv_r(1),
-    ~goal={|#a😀¦b#?|},
+    ~goal={|#a😀¦b#|},
   ),
   test(
     ~name="Insert after CJK in a comment",
     ~acts=mk({|#日本¦語#|}) @ [Insert("X")],
-    ~goal={|#日本X¦語#?|},
+    ~goal={|#日本X¦語#|},
   ),
   test(
     ~name="Caret after a comment containing an emoji",
@@ -5700,11 +5721,11 @@ let grapheme_tests = [
         );
       };
       /* `#a😀b#` is five clusters but six columns */
-      check(pair(int, int), "comment", (6, 7), cols({|#a😀b#¦|}));
+      check(pair(int, int), "comment", (6, 6), cols({|#a😀b#¦|}));
       check(
         pair(int, int),
         "cjk comment",
-        (8, 9),
+        (8, 8),
         cols({|#日本語#¦|}),
       );
       check(
@@ -5742,7 +5763,7 @@ let pending_delim_tests = [
   test_print(
     ~name="Pat: minus after complete pattern holds infix pending ->",
     ~acts=mk({|fun x -¦|}),
-    ~goal={|fun x -¦?|},
+    ~goal={|fun x -¦|},
   ),
   test_print(
     ~name="Pat: minus completes to -> normally",
@@ -5767,12 +5788,12 @@ let pending_delim_tests = [
   test_print(
     ~name="Typ: minus pending arrow",
     ~acts=mk({|type T = Int -¦|}),
-    ~goal={|type T = Int -¦?|},
+    ~goal={|type T = Int -¦|},
   ),
   test_print(
     ~name="Rul: = after pattern holds infix pending =>",
     ~acts=mk({|case 1 | 1 =¦|}),
-    ~goal={|case 1 | 1 =¦?|},
+    ~goal={|case 1 | 1 =¦|},
   ),
 ];
 

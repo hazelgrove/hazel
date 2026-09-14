@@ -109,17 +109,6 @@ let move_until_wrap = (p, d, z) =>
  * few cases including for example `true && !|flag`,
  * where the caret (|) is at the leftmost edge of
  * `flag`, but the not operator ("!") is indicated */
-let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
-  let at_piece =
-    fun
-    | (_, Some(piece)) when d == Left => Piece.id(piece) == id
-    | (Some(piece), _) when d == Right => Piece.id(piece) == id
-    | _ => false;
-  let z = do_to_extreme(local(ByToken, d), z);
-  at_piece(Zipper.generalized_neighbors(z))
-    ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
-};
-
 /* Caret-position invariant for the char-level selection model:
  *   `Inner(n)` is right-neighbor-relative — the right-generalized
  *   neighbor must be a Piece P with `piece_max_idx(P) >= n`.
@@ -169,6 +158,82 @@ let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
  * via `shard_locator`; pass `target_caret` and `locator` here after
  * `Zipper.directional_unselect`. No-op for Outer targets or when the
  * boundary piece isn't a single-shard tile. */
+let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+  let jump = (d: Direction.t, id: Id.t) => {
+    let at_piece =
+      fun
+      | (_, Some(piece)) when d == Left => Piece.id(piece) == id
+      | (Some(piece), _) when d == Right => Piece.id(piece) == id
+      | _ => false;
+    let z = do_to_extreme(local(ByToken, d), z);
+    at_piece(Zipper.generalized_neighbors(z))
+      ? Some(z)
+      : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
+  };
+  /* a hole id names DERIVED material (the edit state is grout-free):
+     jumping to it means jumping to the position where the hole
+     displays. Resolve the id against the placed segment: beside a
+     non-secondary sibling when it has one, else at the parent shard
+     boundary of its (otherwise empty) slot. */
+  let jump_shard = (tile_id: Id.t, shard_idx: int) =>
+    jump_to_shard(z, tile_id, shard_idx);
+  let retarget = (): option(t) => {
+    let placed = GroutPlace.place(Zipper.unselect_and_zip(z));
+    let non_sec = (p: Piece.t) =>
+      switch (p) {
+      | Secondary(_)
+      | Grout(_) => None
+      | p => Some(Piece.id(p))
+      };
+    let rec find =
+            (~slot: option((Id.t, int)), sg: Segment.t): option(option(t)) => {
+      let rec go = (last: option(Id.t), rest: Segment.t) =>
+        switch (rest) {
+        | [] => None
+        | [Piece.Grout(g), ...tl] when Id.equal(g.id, id) =>
+          switch (last, List.find_map(non_sec, tl)) {
+          | (Some(l), _) => Some(jump(Right, l))
+          | (None, Some(r)) => Some(jump(Left, r))
+          | (None, None) =>
+            switch (slot) {
+            | Some((tid, k)) => Some(jump_shard(tid, k))
+            | None => Some(None)
+            }
+          }
+        | [Piece.Tile(t), ...tl] =>
+          let inner =
+            List.fold_left(
+              (acc, (k, kid)) =>
+                acc == None
+                  ? find(
+                      ~slot=
+                        switch (List.nth_opt(t.shards, k + 1)) {
+                        | Some(sh) => Some((t.id, sh))
+                        | None => None
+                        },
+                      kid,
+                    )
+                  : acc,
+              None,
+              List.mapi((k, kid) => (k, kid), t.children),
+            );
+          inner != None ? inner : go(Some(t.id), tl);
+        | [Piece.Secondary(_), ...tl] => go(last, tl)
+        | [p, ...tl] => go(Some(Piece.id(p)), tl)
+        };
+      go(None, sg);
+    };
+    switch (find(~slot=None, placed)) {
+    | Some(r) => r
+    | None => None
+    };
+  };
+  switch (jump(d, id)) {
+  | Some(_) as r => r
+  | None => retarget()
+  };
+};
+
 let canonicalize_inner_unselect =
     (~locator: option((Id.t, int)), ~target_caret: CaretBase.t, z: t): t =>
   switch (locator, target_caret) {

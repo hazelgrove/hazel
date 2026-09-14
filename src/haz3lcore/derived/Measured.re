@@ -61,7 +61,11 @@ type t = {
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
   rows: Rows.t,
-  piece_rows: list(list(Piece.t)) /* NOTE: sublists are reversed */
+  piece_rows: list(list(Piece.t)), /* NOTE: sublists are reversed */
+  /* the width-transfer classification this measurement was computed
+     under — caret consumers use it to resolve collapsed columns at
+     consumed spaces */
+  grout_cells: GroutCells.t,
 };
 
 let empty = {
@@ -71,6 +75,7 @@ let empty = {
   projectors: Id.Map.empty,
   rows: Rows.empty,
   piece_rows: [],
+  grout_cells: GroutCells.empty,
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -302,6 +307,8 @@ let of_segment_inner =
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
+  let grout_cells = GroutCells.classify(seg);
+
   let shardify = (t: Tile.t, idx: int): Tile.t => {
     {
       ...t,
@@ -336,7 +343,18 @@ let of_segment_inner =
   };
 
   let add_grout = (acc: measure_acc, g: Grout.t): measure_acc => {
-    let size = Point.mk(~row=0, ~col=1);
+    /* width transfer (GroutCells): a hole occupies one real cell
+       where backing exists — the consumed neighboring space measures
+       zero, so total line width equals the grout-free segment's
+       (measured-level layout invisibility; a LineEndFree hole may
+       add one column past the content, per the design doc). A
+       pinched hole stays zero-width. */
+    let width =
+      switch (GroutCells.cls_of(grout_cells, g.id)) {
+      | Some(c) => GroutCells.width(c)
+      | None => 0
+      };
+    let size = Point.mk(~row=0, ~col=width);
     let (measure, map) = calc_inline(acc.pos, acc.map, size);
     {
       seg: [Piece.Grout(g), ...acc.seg],
@@ -397,8 +415,12 @@ let of_segment_inner =
         row_content: empty_row_content_,
       };
     } else if (Secondary.is_space(w)) {
-      /* Space: add to segment but don't update content bounds */
-      let size = Point.mk(~row=0, ~col=Secondary.columns(w));
+      /* Space: add to segment but don't update content bounds. A
+         space consumed by an adjacent hole (GroutCells) measures
+         zero — the hole owns its cell. */
+      let width =
+        GroutCells.is_consumed(grout_cells, w.id) ? 0 : Secondary.columns(w);
+      let size = Point.mk(~row=0, ~col=width);
       let (measure, map) = calc_inline(acc.pos, acc.map, size);
       {
         seg: [Piece.Secondary(w), ...acc.seg],
@@ -474,7 +496,11 @@ let of_segment_inner =
     map: empty,
     row_content: empty_row_content_,
   };
-  go(~top_level=true, initial_acc, seg).map;
+  let map = go(~top_level=true, initial_acc, seg).map;
+  {
+    ...map,
+    grout_cells,
+  };
 };
 
 let of_segment_memo = Core.Memo.general(of_segment_inner);

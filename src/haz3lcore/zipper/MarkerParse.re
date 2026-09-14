@@ -41,11 +41,23 @@ let seg_to_text =
     segment,
   );
 
+/* The edit state stores no grout, so derive the holes for printing as
+   statics and display do (GroutPlace.place): the printer wraps pinned
+   terms by the segment's skel, which FAILS on a hole-less fragment
+   (`^^probe(x);` — an operator with no operand) and silently drops the
+   ^^probe wrappers from the saved text (#2450 upstream, fixed there by
+   regrouting on load). Derived holes print as the ¿ marker, the same
+   text upstream saves: the fast parser needs it (a body-less `in`
+   before `))` is a menhir error without it, and the slow path is not
+   safe on such fragments), and the reader swaps it back to grout
+   (replace_markers) before parse_text strips it, so placement being a
+   pure function of the grout-free segment makes every save a fixed
+   point. */
 let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
   seg_to_text(
     ~implicit_hole,
     ~refractors=z.refractors.manuals,
-    Zipper.unselect_and_zip(~erase_buffer=true, z),
+    Zipper.unselect_and_zip(~erase_buffer=true, z) |> GroutPlace.place,
   );
 
 /* Swap every marker tile for a convex Grout with the same id. Projector

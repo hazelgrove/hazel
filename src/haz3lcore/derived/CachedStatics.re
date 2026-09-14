@@ -193,10 +193,8 @@ let init =
     with_obligations(statics, obs)
   | obs =>
     let make_term_result =
-      MakeTerm.from_zip_for_sem_spliced(
-        z,
-        ~root,
-        ~splice=TypeObligations.reify(obs),
+      MakeTerm.from_zip_for_sem_spliced(z, ~root, ~splice=seg =>
+        GroutPlace.place(TypeObligations.reify(obs, seg))
       );
     let term = make_term_result.term |> stitch;
     let statics =

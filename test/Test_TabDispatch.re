@@ -88,6 +88,8 @@ let show_delims = (ds: list(CanonicalCompletion.delimiter_info)) =>
 type display = {
   assist: list(CanonicalCompletion.insertion),
   shown: list(CanonicalCompletion.insertion),
+  segment: Segment.t,
+  marks: list((Id.t, option(int))),
   measured: Measured.t,
   caret_pos: option((int, int)),
 };
@@ -103,6 +105,8 @@ let display_of = (z: Zipper.t): display => {
   let caret = Zipper.Caret.point(measured, z);
   {
     assist: fork.assist,
+    segment: fork.segment,
+    marks: fork.ghost_marks,
     shown:
       CompletionQuery.chips_displayed(~ghosted=fork.ghosted, fork.assist),
     measured,
@@ -110,9 +114,12 @@ let display_of = (z: Zipper.t): display => {
   };
 };
 
-/* Tab's action at this caret over the live assist stream */
+/* Tab's action at this caret over the live assist stream, slicing the
+   displayed completion as the editor does */
+let tab_action_of = (z: Zipper.t, d: display): option(Action.t) =>
+  CompletionQuery.tab_action(~display=d.segment, ~marks=d.marks, z, d.assist);
 let tab_action = (z: Zipper.t): option(Action.t) =>
-  CompletionQuery.tab_action(z, display_of(z).assist);
+  tab_action_of(z, display_of(z));
 
 let tab_head = (z: Zipper.t): option(string) =>
   switch (tab_action(z)) {
@@ -152,7 +159,7 @@ let is_engine_record = (ins: CanonicalCompletion.insertion) =>
 
 let unfaithful = (~strict=false, z: Zipper.t): option(string) => {
   let d = display_of(z);
-  switch (CompletionQuery.tab_action(z, d.assist)) {
+  switch (tab_action_of(z, d)) {
   | None => None
   | Some(a) =>
     let engine =
@@ -321,7 +328,11 @@ let stack_mid_indent = apply(stack_enter, Move(Local(Left, ByChar)));
 let stack_witness = type_string(stack_enter, "e");
 
 let curated = [
-  check_tab("stack after 4", ~expected=" else ", stack),
+  /* tab-slice: the paste is read off the displayed completion —
+     `else` plus its display pads; the hole between them contributes
+     nothing but both pads travel (the flagged choice in the design
+     doc: accepting past an unfilled hole materializes its pads) */
+  check_tab("stack after 4", ~expected=" else  ", stack),
   /* the reported case: engine splits [else] | [end in] across the
      linebreak; the caret owns both, else leads */
   check_tab("stack, Enter", ~expected="else ", stack_enter),
