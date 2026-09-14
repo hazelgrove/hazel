@@ -3681,6 +3681,9 @@ let exp_to_segment =
   |> uniquify_repeated_tiles;
 };
 
+let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t =>
+  pat_to_pretty(~settings, pat) |> PrettySegment.select;
+
 let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
   /* Desugar Sig types to labeled tuples so they display as (x=Int, y=Bool)
      instead of {sig}. Uses empty ctx since we're just displaying. */
