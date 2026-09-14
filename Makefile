@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check ci-extended dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -124,6 +124,18 @@ ci-quick: setup-zarith
 # without linking, so it costs no second js_of_ocaml build of the test bundle.
 ci-check:
 	dune build @check --profile release
+
+# The weekly extended run (.github/workflows/extended-tests.yml). QCHECK_LONG
+# puts qcheck-core in long mode, where it multiplies every ~count, max_gen and
+# max_fail by QCHECK_LONG_FACTOR -- which the caller sets, so with it unset this
+# is just `ci` without the instrumentation. No bisect_ppx: coverage is the
+# per-push `ci` run's job, and instrumenting only makes a multi-hour run slower.
+#
+# --force because the runtest alias is otherwise cached, and dune does not track
+# QCHECK_* as a dependency of the rule (there is no (env_var) in test/dune), so
+# an env-only change would be a no-op against a cached result.
+ci-extended: setup-zarith
+	QCHECK_LONG=1 dune runtest --force
 
 generate-coverage-html:
 	bisect-ppx-report html
