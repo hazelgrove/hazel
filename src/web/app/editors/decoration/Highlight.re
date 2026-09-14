@@ -356,6 +356,89 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
 /* Fraction of a group's width covered by the active-eval sweep bar. */
 let sweep_width_ratio = 0.45;
 
+let svg_of_bbox =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~clss: list(string),
+      ~sweep: bool=false,
+      ~path_cmds: list(SvgUtil.Path.cmd),
+      bb: bbox,
+    )
+    : Node.t => {
+  let width_f = bb.max_col -. bb.min_col;
+  let height = bb.max_row - bb.min_row + 1;
+  let height_f = float_of_int(height);
+
+  /* Clip-path ids must be document-unique; derive one from the group's
+   * bounding box (cols are fractional, so scale to tenths of a column). */
+  let clip_id =
+    Printf.sprintf(
+      "incremental-active-%d-%d-%d-%d",
+      int_of_float(bb.min_col *. 10.0),
+      bb.min_row,
+      int_of_float(bb.max_col *. 10.0),
+      bb.max_row,
+    );
+  let active_sweep =
+    if (sweep) {
+      let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+      [
+        Node.create_svg(
+          "defs",
+          [
+            Node.create_svg(
+              "clipPath",
+              ~attrs=[Attr.create("id", clip_id)],
+              [SvgUtil.Path.view(~attrs=[], path_cmds)],
+            ),
+          ],
+        ),
+        Node.create_svg(
+          "g",
+          ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
+          [
+            Node.create_svg(
+              "rect",
+              ~attrs=[
+                Attr.classes(["incremental-sweep"]),
+                Attr.create("x", "0"),
+                Attr.create("y", "0"),
+                Attr.create("width", Printf.sprintf("%f", sweep_width)),
+                Attr.create("height", Printf.sprintf("%f", height_f)),
+              ],
+              [],
+            ),
+          ],
+        ),
+      ];
+    } else {
+      [];
+    };
+
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      Attr.classes(["shard"] @ clss),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+          bb.min_col *. font_metrics.col_width,
+          float_of_int(bb.min_row) *. font_metrics.row_height,
+          width_f *. font_metrics.col_width,
+          height_f *. font_metrics.row_height,
+        ),
+      ),
+      Attr.create(
+        "viewBox",
+        Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
+      ),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
+    [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
+  );
+};
+
 let svg_of_group =
     (
       ~font_metrics: FontMetrics.t,
@@ -367,82 +450,9 @@ let svg_of_group =
   switch (bbox_of(rows)) {
   | None => None
   | Some(bb) =>
-    let width_f = bb.max_col -. bb.min_col;
-    let height = bb.max_row - bb.min_row + 1;
-    let height_f = float_of_int(height);
-
     let path_cmds =
       outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
-    /* Clip-path ids must be document-unique; derive one from the group's
-     * bounding box (cols are fractional, so scale to tenths of a column). */
-    let clip_id =
-      Printf.sprintf(
-        "incremental-active-%d-%d-%d-%d",
-        int_of_float(bb.min_col *. 10.0),
-        bb.min_row,
-        int_of_float(bb.max_col *. 10.0),
-        bb.max_row,
-      );
-    let active_sweep =
-      if (sweep) {
-        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
-        [
-          Node.create_svg(
-            "defs",
-            [
-              Node.create_svg(
-                "clipPath",
-                ~attrs=[Attr.create("id", clip_id)],
-                [SvgUtil.Path.view(~attrs=[], path_cmds)],
-              ),
-            ],
-          ),
-          Node.create_svg(
-            "g",
-            ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
-            [
-              Node.create_svg(
-                "rect",
-                ~attrs=[
-                  Attr.classes(["incremental-sweep"]),
-                  Attr.create("x", "0"),
-                  Attr.create("y", "0"),
-                  Attr.create("width", Printf.sprintf("%f", sweep_width)),
-                  Attr.create("height", Printf.sprintf("%f", height_f)),
-                ],
-                [],
-              ),
-            ],
-          ),
-        ];
-      } else {
-        [];
-      };
-
-    Some(
-      Node.create_svg(
-        "svg",
-        ~attrs=[
-          Attr.classes(["shard"] @ clss),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
-              bb.min_col *. font_metrics.col_width,
-              float_of_int(bb.min_row) *. font_metrics.row_height,
-              width_f *. font_metrics.col_width,
-              height_f *. font_metrics.row_height,
-            ),
-          ),
-          Attr.create(
-            "viewBox",
-            Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
-          ),
-          Attr.create("preserveAspectRatio", "none"),
-        ],
-        [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
-      ),
-    );
+    Some(svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb));
   };
 
 /* Clip partial-token boundaries for char-level selections.
@@ -675,6 +685,196 @@ let color =
   | None => []
   };
 
+/* per-id RANGE memo for the pending-eval highlight: incr_eval runs on
+   every streamed chunk and recomputed extreme_measures for every
+   pending leaf id (thousands of measured lookups per frame). Ranges
+   only change with the measured/term_data generation, so one table
+   serves a whole evaluation. Cleared on generation change. */
+module RangeCache = {
+  let key: ref(Obj.t) = ref(Obj.repr(0));
+  let tbl: Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))) =
+    Hashtbl.create(1024);
+  let for_gen =
+      (~measured: Measured.t, ~term_data: TermData.t)
+      : (Id.t => option((Measured.Point.t, Measured.Point.t))) => {
+    /* measured is the stricter generation proxy: term_data only
+       changes in mk, where measured is rebuilt too */
+    if (!(key^ === Obj.repr(measured))) {
+      Hashtbl.reset(tbl);
+      key := Obj.repr(measured);
+    };
+    id =>
+      switch (Hashtbl.find_opt(tbl, id)) {
+      | Some(r) => r
+      | None =>
+        let r = TermData.extreme_measures(id, term_data, measured);
+        Hashtbl.replace(tbl, id, r);
+        r;
+      };
+  };
+};
+
+/* per-id node cache for the pending-eval highlight (see incr_eval).
+   Eviction: tick sweep, view-side cache discipline. */
+module IncrEvalCache = {
+  type entry = {
+    mutable e_meas: Obj.t,
+    mutable e_range: (Measured.Point.t, Measured.Point.t),
+    mutable e_fm: Obj.t,
+    mutable e_sweep: bool,
+    mutable e_nodes: list(Node.t),
+    mutable e_tick: int,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  let tick = ref(0);
+  let bump = () => {
+    incr(tick);
+    if (tick^ mod 64 == 0) {
+      let dead =
+        Hashtbl.fold(
+          (id, e, acc) => e.e_tick < tick^ - 16 ? [id, ...acc] : acc,
+          cache,
+          [],
+        );
+      List.iter(Hashtbl.remove(cache), dead);
+    };
+  };
+  let get =
+      (~id, ~measured, ~range, ~font_metrics, ~sweep: bool, ~mk)
+      : list(Node.t) =>
+    switch (Hashtbl.find_opt(cache, id)) {
+    | Some(e)
+        when
+          e.e_meas === Obj.repr(measured)
+          && e.e_range == range
+          && e.e_fm === Obj.repr(font_metrics)
+          && e.e_sweep == sweep =>
+      e.e_tick = tick^;
+      e.e_nodes;
+    | _ =>
+      let nodes = mk();
+      Hashtbl.replace(
+        cache,
+        id,
+        {
+          e_meas: Obj.repr(measured),
+          e_range: range,
+          e_fm: Obj.repr(font_metrics),
+          e_sweep: sweep,
+          e_nodes: nodes,
+          e_tick: tick^,
+        },
+      );
+      nodes;
+    };
+};
+
+let bbox_of_range =
+    (~measured: Measured.t, (origin: Point.t, final: Point.t)): option(bbox) =>
+  if (final.row < origin.row) {
+    None;
+  } else {
+    List.init(final.row - origin.row + 1, i => origin.row + i)
+    |> List.fold_left(
+         (acc, row) =>
+           switch (acc, Measured.row_shape(row, measured)) {
+           | (None, _)
+           | (_, None) => None
+           | (Some(bb), Some(shape: Measured.Rows.shape)) =>
+             let left =
+               float_of_int(row == origin.row ? origin.col : shape.indent);
+             let right =
+               float_of_int(row == final.row ? final.col : shape.max_col);
+             Some({
+               ...bb,
+               min_col: min(bb.min_col, left),
+               max_col: max(bb.max_col, right),
+             });
+           },
+         Some({
+           min_col: float_of_int(origin.col),
+           max_col: float_of_int(origin.col),
+           min_row: origin.row,
+           max_row: final.row,
+         }),
+       );
+  };
+
+let color_range =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measured: Measured.t,
+      ~sweep: bool=false,
+      clss: list(string),
+      range: (Point.t, Point.t),
+    )
+    : list(Node.t) =>
+  switch (bbox_of_range(~measured, range)) {
+  | None => []
+  | Some(bb) =>
+    let width = bb.max_col -. bb.min_col;
+    let height = float_of_int(bb.max_row - bb.min_row + 1);
+    let path_cmds =
+      SvgUtil.Path.[
+        M({
+          x: 0.0,
+          y: 0.0,
+        }),
+        H({x: width}),
+        V({y: height}),
+        H({x: 0.0}),
+        Z,
+      ];
+    [svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb)];
+  };
+
+/* One text-hugging svg per contiguous row run of a range: per-row
+   extents from the measured row shapes, contoured by outline_path -
+   shard-shaped visuals at bounding-box node cost. (Rendering the
+   range's SEGMENT through the shard machinery emitted hundreds of
+   nodes per item-sized range - 23k+ overlays on a mega program.)
+   Blank rows split the contour, so the highlight skips empty lines. */
+let contour_of_range =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measured: Measured.t,
+      ~sweep: bool=false,
+      clss: list(string),
+      (origin: Point.t, final: Point.t),
+    )
+    : list(Node.t) =>
+  if (final.row < origin.row) {
+    [];
+  } else {
+    let rows =
+      List.init(final.row - origin.row + 1, i => origin.row + i)
+      |> List.filter_map(row =>
+           switch (Measured.row_shape(row, measured)) {
+           | None => None
+           | Some(shape) =>
+             /* max/min: window-clamped regions may start/end mid-range
+                with cols from a different row */
+             let left =
+               row == origin.row
+                 ? max(origin.col, shape.indent) : shape.indent;
+             let right =
+               row == final.row
+                 ? min(final.col, shape.max_col) : shape.max_col;
+             right <= left
+               ? None
+               : Some({
+                   row_num: row,
+                   left_col: left,
+                   right_col: right,
+                   left_tip: None,
+                   right_tip: None,
+                 });
+           }
+         );
+    group_consecutive(rows)
+    |> List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep));
+  };
+
 let colors =
     (
       ~font_metrics: FontMetrics.t,
@@ -693,27 +893,28 @@ let colors =
     ),
   );
 
-/* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
+      ~visible: option(Globals.VisibleRows.t)=?,
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
-      ~show_frozen: bool=true,
-      predicted_reuse: Language.EvaluatorState.incr_eval,
+      (),
     ) => {
+  IncrEvalCache.bump();
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
-  let range_contains = ((o1, l1), (o2, l2)) =>
-    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
+  let range_of =
+    RangeCache.for_gen(
+      ~measured=syntax.measured,
+      ~term_data=syntax.term_data,
+    );
   let ranged_ids_of = ids =>
     ids
     |> List.sort_uniq(Id.compare)
     |> List.filter_map(id =>
-         switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-         ) {
+         switch (range_of(id)) {
          | Some(range) => Some((id, range))
          | None => None
          }
@@ -723,23 +924,6 @@ let incr_eval =
     | 0 => Point.compare(l1, l2)
     | cmp => cmp
     };
-  let outermost = ranged_ids =>
-    List.fold_left(
-      (acc, (id, r)) =>
-        if (List.exists(
-              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
-              ranged_ids,
-            )
-            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
-          acc;
-        } else {
-          [(id, r), ...acc];
-        },
-      [],
-      ranged_ids,
-    );
-  let frozen_ids =
-    show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
   let pending_eval_ranges =
     pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
   let active_ids =
@@ -757,29 +941,112 @@ let incr_eval =
              active_ids,
            )
        );
-  let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
-  div_c(
-    "incremental-highlights",
-    List.concat_map(
-      ((id, _)) =>
-        color(~syntax, ~font_metrics, ["incremental-frozen"], id),
-      frozen_outermost,
+  /* None = the scroll handler has not fired yet (or the mode has no
+     culling), i.e. the view is at its initial scroll position: cull
+     to a generous top window rather than building every range - a
+     full mega-program pending set is tens of thousands of SVGs */
+  let visible_bounds =
+    switch (visible) {
+    | None => (0, 300)
+    | Some({first, last}) => (first, last)
+    };
+  let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
+    let (first, last) = visible_bounds;
+    List.filter(
+      ((_, (origin: Point.t, final: Point.t))) =>
+        origin.row <= last && final.row >= first,
+      ranges,
+    );
+  };
+  /* The pending set shrinks on EVERY streamed chunk; caching nodes
+     per id keeps those frames cheap: within one evaluation the
+     measured/range/metrics are stable, so all but the popped head
+     are reference-equal and the vdom diff skips them. */
+  /* Shard-hugging contours, not bounding rectangles - but at REGION
+     granularity: the pending set is leaf-granular (thousands of ids on
+     a mega program), and per-leaf SVGs cost ~1s of path serialization
+     per edit even viewport-culled. Adjacent pending rows merge into a
+     few contiguous regions (the worklist completes roughly in program
+     order, so the remainder stays near-contiguous), clamped to the
+     visible window so path sizes stay bounded. */
+  let merge_regions = (ranges: list((Id.t, (Point.t, Point.t)))) =>
+    List.fold_left(
+      (acc, (id, (o: Point.t, f: Point.t))) =>
+        switch (acc) {
+        | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
+            when o.row <= rf.row + 1 =>
+          let rf' = rf.row > f.row ? rf : f;
+          [(rid, (ro, rf')), ...rest];
+        | _ => [(id, (o, f)), ...acc]
+        },
+      [],
+      ranges,
     )
-    @ List.concat_map(
-        ((id, _)) =>
-          color(~syntax, ~font_metrics, ["incremental-pending"], id),
-        pending_inactive_ranges,
-      )
-    @ List.concat_map(
-        ((id, _)) =>
-          color(
-            ~syntax,
-            ~font_metrics,
-            ~sweep=true,
-            ["incremental-pending", "incremental-active"],
-            id,
-          ),
-        active_ids,
-      ),
-  );
+    |> List.rev;
+  let clamp_region = ((id, (o: Point.t, f: Point.t))) => {
+    let (first, last) = visible_bounds;
+    let o =
+      o.row >= first
+        ? o
+        : Point.{
+            row: first,
+            col: 0,
+          };
+    let f =
+      f.row <= last
+        ? f
+        : Point.{
+            row: last,
+            col: Int.max_int,
+          };
+    (id, (o, f));
+  };
+  let regions =
+    visible_ranges(pending_inactive_ranges)
+    |> merge_regions
+    |> List.map(clamp_region);
+  let inactive_nodes =
+    regions
+    |> List.concat_map(((id, range)) =>
+         IncrEvalCache.get(
+           ~id,
+           ~measured=syntax.measured,
+           ~range,
+           ~font_metrics,
+           ~sweep=false,
+           ~mk=() =>
+           contour_of_range(
+             ~font_metrics,
+             ~measured=syntax.measured,
+             ["incremental-pending"],
+             range,
+           )
+         )
+       );
+  /* The active range can span thousands of rows (head-by-origin of
+     the pending set): clamp it to the visible window like the
+     inactive regions, and cache its node — otherwise every render
+     during an evaluation pays ~50ms of path serialization. The sweep
+     animates via CSS, so an identical vdom node keeps animating. */
+  let active_nodes =
+    visible_ranges(active_ids)
+    |> List.map(clamp_region)
+    |> List.concat_map(((id, range)) =>
+         IncrEvalCache.get(
+           ~id,
+           ~measured=syntax.measured,
+           ~range,
+           ~font_metrics,
+           ~sweep=true,
+           ~mk=() =>
+           contour_of_range(
+             ~font_metrics,
+             ~measured=syntax.measured,
+             ~sweep=true,
+             ["incremental-pending", "incremental-active"],
+             range,
+           )
+         )
+       );
+  div_c("incremental-highlights", inactive_nodes @ active_nodes);
 };

@@ -14,13 +14,16 @@ module VisibleRows = {
   };
 
   /* Compute visible row range from scroll container properties.
-   * buffer: extra rows above/below to prevent popping */
+   * buffer: extra rows above/below to prevent popping. Wide buffer +
+   * wide change threshold below: every visible-rows change re-renders
+   * the page, so culling must recompute per scrolled SCREEN, not per
+   * scrolled row. */
   let compute =
       (
         ~scroll_top: float,
         ~client_height: float,
         ~row_height: float,
-        ~buffer=5,
+        ~buffer=40,
         (),
       )
       : t => {
@@ -33,12 +36,12 @@ module VisibleRows = {
     };
   };
 
-  /* Check if visible_rows changed significantly (threshold of 2 rows) */
+  /* Re-render only once scrolled well into the buffer */
   let changed = (old: option(t), new_rows: t): bool =>
     switch (old) {
     | None => true
     | Some(old) =>
-      abs(old.first - new_rows.first) > 2
+      abs(old.first - new_rows.first) > 16
       || abs(old.last - new_rows.last) > 2
     };
 };
@@ -130,6 +133,7 @@ module Model = {
 
   let load = () => {
     let settings = Settings.Store.load();
+    Language.EvalWorklist.compute_enabled := settings.show_pending_eval;
     init(~settings, ());
   };
 

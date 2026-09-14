@@ -215,10 +215,10 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Show horizontal lines between each row of code"),
       },
       {
-        name: "Incremental Reuse",
-        active: globals.settings.show_incremental_deco,
-        setting: ShowIncrementalDeco,
-        tooltip: Some("Show incremental evaluator cache hits"),
+        name: "Eval Progress",
+        active: globals.settings.show_pending_eval,
+        setting: ShowPendingEval,
+        tooltip: Some("Highlight code pending re-evaluation after edits"),
       },
       {
         name: "Debug Sidebar",
