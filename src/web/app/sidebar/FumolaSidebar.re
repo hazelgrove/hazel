@@ -129,6 +129,10 @@ type event = {
   meta_time: string,
   kind: string,
   subject: list(FumolaEvents.span),
+  /* The editor's own doing rather than the program's: true when the edge
+     this event names has the root as its source. An event that names no
+     edge is neither, and is never dimmed. */
+  prime_mover: bool,
 };
 
 /* Fumola's event names, in the terms this project uses for them: a force has
@@ -262,6 +266,23 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     ]);
 
+  /* Show, Dim or Hide, applied to one row. Hiding drops it; dimming keeps it
+     and says so, which is the point of having three settings rather than a
+     checkbox: the editor's own traffic is noise most of the time and the
+     thing you are looking for some of the time. */
+  let prime_mover_mode = globals.settings.sidebar.fumola_prime_mover;
+
+  let with_prime_mover = (~prime: bool, row: unit => Node.t): list(Node.t) =>
+    switch (prime ? prime_mover_mode : Show) {
+    | Hide => []
+    | Show
+    | Dim => [row()]
+    };
+
+  let dim_class = (~prime: bool) =>
+    prime && prime_mover_mode == SidebarModel.Settings.Dim
+      ? ["fumola-dim"] : [];
+
   /* The rows of the Events view. The section around it is the panel's, shared
      with the other two views, so this returns its contents rather than a
      section of its own. */
@@ -282,53 +303,63 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     | events => [
         div(
           ~attrs=[clss(["fumola-event-table"])],
-          List.map(
+          List.concat_map(
             ev =>
-              div(
-                ~attrs=[clss(["fumola-event"])],
-                [
-                  div(
-                    ~attrs=[clss(["fumola-event-time"])],
-                    [text(ev.meta_time)],
-                  ),
-                  div(
-                    ~attrs=[clss(["fumola-event-kind"])],
-                    [text(ev.kind)],
-                  ),
-                  div(
-                    ~attrs=[clss(["fumola-event-subject"])],
-                    List.map(
-                      fun
-                      /* The symbol is the part that tells two events
-                         apart, so it is the part that is set apart. */
-                      | FumolaEvents.Sym(s) =>
-                        /* The symbol is the pointer. Where the revision it
-                           names can be found, it is also the way to it. */
-                        switch (
-                          revision_at(~space=s, ~at=ev.meta_time, nodes)
-                        ) {
-                        | Some(key) =>
-                          span(
-                            ~attrs=[
-                              clss(["fumola-event-symbol", "fumola-pointer"]),
-                              Attr.title(
-                                "Show this node as it was at " ++ ev.meta_time,
-                              ),
-                              Attr.on_click(_ => follow(key)),
-                            ],
-                            [text(s)],
-                          )
-                        | None =>
-                          span(
-                            ~attrs=[clss(["fumola-event-symbol"])],
-                            [text(s)],
-                          )
-                        }
-                      | FumolaEvents.Plain(s) => text(s),
-                      ev.subject,
+              with_prime_mover(~prime=ev.prime_mover, () =>
+                div(
+                  ~attrs=[
+                    clss(
+                      ["fumola-event"] @ dim_class(~prime=ev.prime_mover),
                     ),
-                  ),
-                ],
+                  ],
+                  [
+                    div(
+                      ~attrs=[clss(["fumola-event-time"])],
+                      [text(ev.meta_time)],
+                    ),
+                    div(
+                      ~attrs=[clss(["fumola-event-kind"])],
+                      [text(ev.kind)],
+                    ),
+                    div(
+                      ~attrs=[clss(["fumola-event-subject"])],
+                      List.map(
+                        fun
+                        /* The symbol is the part that tells two events
+                           apart, so it is the part that is set apart. */
+                        | FumolaEvents.Sym(s) =>
+                          /* The symbol is the pointer. Where the revision it
+                             names can be found, it is also the way to it. */
+                          switch (
+                            revision_at(~space=s, ~at=ev.meta_time, nodes)
+                          ) {
+                          | Some(key) =>
+                            span(
+                              ~attrs=[
+                                clss([
+                                  "fumola-event-symbol",
+                                  "fumola-pointer",
+                                ]),
+                                Attr.title(
+                                  "Show this node as it was at "
+                                  ++ ev.meta_time,
+                                ),
+                                Attr.on_click(_ => follow(key)),
+                              ],
+                              [text(s)],
+                            )
+                          | None =>
+                            span(
+                              ~attrs=[clss(["fumola-event-symbol"])],
+                              [text(s)],
+                            )
+                          }
+                        | FumolaEvents.Plain(s) => text(s),
+                        ev.subject,
+                      ),
+                    ),
+                  ],
+                )
               ),
             events,
           ),
@@ -358,6 +389,46 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         tab(SidebarModel.Settings.Events, "Events"),
         tab(SidebarModel.Settings.Nodes, "Nodes"),
         tab(SidebarModel.Settings.Edges, "Edges"),
+      ],
+    );
+  };
+
+  /* The editor's own edges and events. Not offered on the Nodes view: a node
+     has no source, so the distinction does not apply to it. */
+  let prime_mover_strip = () => {
+    let option = (mode, label, title) =>
+      span(
+        ~attrs=[
+          clss(
+            ["toggle-option"] @ (prime_mover_mode == mode ? ["active"] : []),
+          ),
+          Attr.title(title),
+          Attr.on_click(_ =>
+            prime_mover_mode == mode
+              ? Virtual_dom.Vdom.Effect.Ignore
+              : globals.inject_global(
+                  Set(Sidebar(SwitchFumolaPrimeMover(mode))),
+                )
+          ),
+        ],
+        [text(label)],
+      );
+    div(
+      ~attrs=[clss(["fumola-prime-strip"])],
+      [
+        span(~attrs=[clss(["fumola-strip-label"])], [text("prime mover")]),
+        div(
+          ~attrs=[clss(["problem-view-toggle"])],
+          [
+            option(
+              SidebarModel.Settings.Show,
+              "Show",
+              "Show the editor's own edges and events",
+            ),
+            option(SidebarModel.Settings.Dim, "Dim", "Keep them, faintly"),
+            option(SidebarModel.Settings.Hide, "Hide", "Leave them out"),
+          ],
+        ),
       ],
     );
   };
@@ -477,42 +548,52 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     rows_view(
       ~name="edges",
       ~empty="This instance has made no edges yet.",
-      List.map(
+      List.concat_map(
         (row: FumolaHistory.edge_row) => {
           let (from_, to_) = row.meta_times;
           let key = edge_key(row.edge_id);
           let open_ = is_open(key);
-          div(
-            ~attrs=[clss(["fumola-row"] @ (open_ ? ["open"] : []))],
-            [
-              div(
-                ~attrs=[
-                  clss(["fumola-row-key"]),
-                  Attr.title(open_ ? "Collapse this edge" : "Show this edge"),
-                  Attr.on_click(_ =>
-                    globals.inject_global(FumolaToggleOpen(key))
-                  ),
-                ],
-                [
-                  span(
-                    ~attrs=[clss(["fumola-caret"])],
-                    [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
-                  ),
-                  text(row.edge_id ++ ": "),
-                  span(
-                    ~attrs=[clss(["fumola-event-symbol"])],
-                    [text(row.source)],
-                  ),
-                  text(" to "),
-                  span(
-                    ~attrs=[clss(["fumola-event-symbol"])],
-                    [text(row.target)],
-                  ),
-                  text(" spanning " ++ from_ ++ "-" ++ to_),
-                ],
-              ),
-              ...open_ ? [value_view(row.value)] : [],
-            ],
+          with_prime_mover(~prime=row.prime_mover, () =>
+            div(
+              ~attrs=[
+                clss(
+                  ["fumola-row"]
+                  @ (open_ ? ["open"] : [])
+                  @ dim_class(~prime=row.prime_mover),
+                ),
+              ],
+              [
+                div(
+                  ~attrs=[
+                    clss(["fumola-row-key"]),
+                    Attr.title(
+                      open_ ? "Collapse this edge" : "Show this edge",
+                    ),
+                    Attr.on_click(_ =>
+                      globals.inject_global(FumolaToggleOpen(key))
+                    ),
+                  ],
+                  [
+                    span(
+                      ~attrs=[clss(["fumola-caret"])],
+                      [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
+                    ),
+                    text(row.edge_id ++ ": "),
+                    span(
+                      ~attrs=[clss(["fumola-event-symbol"])],
+                      [text(row.source)],
+                    ),
+                    text(" to "),
+                    span(
+                      ~attrs=[clss(["fumola-event-symbol"])],
+                      [text(row.target)],
+                    ),
+                    text(" spanning " ++ from_ ++ "-" ++ to_),
+                  ],
+                ),
+                ...open_ ? [value_view(row.value)] : [],
+              ],
+            )
           );
         },
         edges,
@@ -545,6 +626,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             "fumola-events",
             panel_title(instance),
             [tab_strip(tab)]
+            @ (tab == Nodes ? [] : [prime_mover_strip()])
             @ (
               switch (tab) {
               | Nodes => nodes_view(history.nodes)
@@ -552,15 +634,35 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
               | Events =>
                 events_body(
                   ~nodes=history.nodes,
-                  List.map(
-                    ((meta_time, name, subject)) =>
-                      {
-                        meta_time,
-                        kind: kind_of(name),
-                        subject,
-                      },
-                    history.events,
-                  ),
+                  {
+                    /* Which edges are the editor's, by id, so an event can
+                       be judged by the edge it names. Built once per render
+                       rather than searched per event. */
+                    let prime = Hashtbl.create(64);
+                    List.iter(
+                      (row: FumolaHistory.edge_row) =>
+                        Hashtbl.replace(prime, row.edge_id, row.prime_mover),
+                      history.edges,
+                    );
+                    List.map(
+                      ((meta_time, name, subject, edge)) =>
+                        {
+                          meta_time,
+                          kind: kind_of(name),
+                          subject,
+                          prime_mover:
+                            switch (edge) {
+                            | Some(id) =>
+                              switch (Hashtbl.find_opt(prime, id)) {
+                              | Some(p) => p
+                              | None => false
+                              }
+                            | None => false
+                            },
+                        },
+                      history.events,
+                    );
+                  },
                 )
               }
             ),

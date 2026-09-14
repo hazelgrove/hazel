@@ -905,3 +905,22 @@
   opacity: 0.75;
   padding: 0.25em 0 0 1em;
 }
+
+/* The prime-mover control, under the tab strip. */
+.fumola-prime-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0.5em 0.5em;
+}
+
+.fumola-strip-label {
+  font-size: 0.8em;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Kept, and said to be the editor's rather than the program's. */
+.fumola-dim {
+  opacity: 0.4;
+}

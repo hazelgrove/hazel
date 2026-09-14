@@ -34,6 +34,10 @@ type edge_row = {
   edge_id: string,
   source: string,
   target: string,
+  /* Whether the source is the root, (Here, Now, _): the editor's own doing
+     rather than the program's. Kept as a fact about the row rather than
+     filtered away, because dimming needs the row to still be here. */
+  prime_mover: bool,
   /* The pair an edge spans; both are moments a reader may want to open. */
   meta_times: (string, string),
   value: TermBase.Exp.t,
@@ -79,6 +83,23 @@ let space_key = (node_id: Yojson.Safe.t): string =>
     | _ => ""
     }
   | _ => ""
+  };
+
+/* Whether a node id's space is the root.
+
+   The variant's name, not the rendered key: FumolaValue renders a Name as
+   the bare string it carries, and the runtime's own symbol for the root is
+   spelled `@here`, which nothing reserves. A program free to name a cell
+   `@here` would otherwise have its edges read as the editor's. */
+let source_is_here = (node_id: Yojson.Safe.t): bool =>
+  switch (FumolaEvents.tagged(node_id)) {
+  | Some(("Tuple", `List([space, ..._]))) =>
+    switch (FumolaEvents.tagged(space)) {
+    | Some(("Variant", v)) =>
+      FumolaEvents.field("name", v) == Some(`String("Here"))
+    | _ => false
+    }
+  | _ => false
   };
 
 let meta_times_of = (edge: Yojson.Safe.t): (string, string) =>
@@ -219,6 +240,15 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
             edge_id,
             source: at("source"),
             target: at("target"),
+            prime_mover:
+              switch (inner) {
+              | Some(f) =>
+                switch (FumolaEvents.field("source", f)) {
+                | Some(id) => source_is_here(id)
+                | None => false
+                }
+              | None => false
+              },
             meta_times:
               switch (inner) {
               | Some(f) => meta_times_of(f)

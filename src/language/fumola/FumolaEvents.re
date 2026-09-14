@@ -16,8 +16,11 @@ type span =
   | Plain(string)
   | Sym(string);
 
-/* The events, as the panel wants them: when, what, and to what. */
-type event = (string, string, list(span));
+/* The events, as the panel wants them: when, what, to what -- and, when the
+   what names an edge, which edge. That last is a key rather than content:
+   whether an event is the editor's own doing is a fact about the EDGE it
+   names, and only the edge list knows it. */
+type event = (string, string, list(span), option(string));
 
 /* Fumola renders a value as tagged JSON; these read the bits this needs and
    say nothing about the rest. */
@@ -118,6 +121,40 @@ let summarize = (json: Yojson.Safe.t): string =>
      )
   |> String.concat("");
 
+/* The edge an event names, where it names one.
+
+   Seven of the twelve kinds carry an EdgeId; `forceBegin` carries a pair of
+   one and an optional moment, so its edge is the head. The other five name a
+   node, and a node is not the editor's doing or the program's -- it simply
+   exists -- so they have no edge and are never dimmed.
+
+   Read from the payload rather than from the rendered spans: `spans` drops
+   empty groups, so a pair renders as its head by accident rather than by
+   rule, and matching text would break the first time a payload changed. */
+let edge_named =
+    (name: string, payload: option(Yojson.Safe.t)): option(string) => {
+  let of_edge_id = (json: Yojson.Safe.t) =>
+    switch (tagged(json)) {
+    | Some(("Variant", _)) => Some(summarize(json))
+    | _ => None
+    };
+  switch (name, payload) {
+  | (
+      "addEdge" | "updateEdge" | "removeEdge" | "forceEnd" | "edgeSignaled" |
+      "edgeAligned",
+      Some(payload),
+    ) =>
+    of_edge_id(payload)
+  | ("forceBegin", Some(payload)) =>
+    switch (tagged(payload)) {
+    | Some(("Tuple", `List([edge, ..._]))) => of_edge_id(edge)
+    /* Recorded without the optional moment beside it. */
+    | _ => of_edge_id(payload)
+    }
+  | _ => None
+  };
+};
+
 let of_json = (json: Yojson.Safe.t): list(event) =>
   switch (tagged(json)) {
   | Some(("List", `List(items))) =>
@@ -138,6 +175,7 @@ let of_json = (json: Yojson.Safe.t): list(event) =>
                    | Some(payload) => spans(payload)
                    | None => []
                    },
+                   edge_named(name, field("value", v)),
                  ))
                | _ => None
                }
