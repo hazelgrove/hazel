@@ -1,0 +1,39 @@
+# ========================================= #
+# STRUDEL x HAZEL LIVE CODING DEMO          #
+# ========================================= #
+# This program demonstrates the Sound type  #
+# and its associated projectors/refractors. #
+# The code below runs on Strudel! (AGPL)    #
+# https://github.com/tidalcycles/strudel    #
+# ========================================= #
+
+# ----------------------------------------- #
+# BASIC DRUM PATTERN                        #
+# ----------------------------------------- #
+
+let kick = ^^player(^^rhythm(Sample("bd bd ~ cp bd hh sd ~"))) in
+let snare = ^^player(^^samplepicker(Sample("bass"))) in
+let hihat = ^^player(Sample("hh hh hh hh")) in
+
+# Combine drums into a basic beat #
+let basic_drums =
+^^player(Stack([kick, snare, hihat])) in
+
+# ----------------------------------------- #
+# MELODY & HARMONY                          #
+# ----------------------------------------- #
+
+let (melody, harmony) =
+( ^^scalepicker(Note("c4 db4 eb4 f4 gb4 ab4 bb4")),^^player(^^notes(Note("c4 e4 d4")))) in
+
+# ----------------------------------------- #
+# EFFECTS AND PARAMETERS                    #
+# ----------------------------------------- #
+
+let (gain, pan, xy_pad) =
+(^^knob(0.490456), ^^knob(0.569428), ^^probe(^^xypad((0.319231, 0.384009))))  in
+# Apply effects to melody #
+let effected_melody = ^^player(Gain(
+(gain, Pan((pan, melody))))) in
+effected_melody
+
