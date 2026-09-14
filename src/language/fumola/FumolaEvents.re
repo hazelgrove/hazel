@@ -158,6 +158,9 @@ let space_key = (node_id: Yojson.Safe.t): string =>
     switch (tagged(space)) {
     | Some(("Variant", v)) =>
       switch (field("name", v), field("value", v)) {
+      /* Every one of the editor's nodes keys to the same string, whatever
+         time it carries: what the panel wants to know of a node id here is
+         whose it is, and they are all the editor's. */
       | (Some(`String("Here")), _) => "@here"
       | (Some(`String(_)), Some(payload)) =>
         /* The Space variant's payload is a symbol wrapped in its own Symbol

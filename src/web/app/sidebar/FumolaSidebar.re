@@ -130,9 +130,9 @@ type event = {
   kind: string,
   subject: list(FumolaEvents.span),
   /* The editor's own doing rather than the program's: true when the edge
-     this event names has the root as its source. An event that names no
-     edge is neither, and is never dimmed. */
-  prime_mover: bool,
+     this event names is sourced in the editor. An event that names no edge
+     and no node is neither, and is never dimmed. */
+  editor: bool,
 };
 
 /* Fumola's event names, in the terms this project uses for them: a force has
@@ -270,18 +270,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      and says so, which is the point of having three settings rather than a
      checkbox: the editor's own traffic is noise most of the time and the
      thing you are looking for some of the time. */
-  let prime_mover_mode = globals.settings.sidebar.fumola_prime_mover;
+  let editor_mode = globals.settings.sidebar.fumola_editor;
 
-  let with_prime_mover = (~prime: bool, row: unit => Node.t): list(Node.t) =>
-    switch (prime ? prime_mover_mode : Show) {
+  let with_editor = (~editor: bool, row: unit => Node.t): list(Node.t) =>
+    switch (editor ? editor_mode : Show) {
     | Hide => []
     | Show
     | Dim => [row()]
     };
 
-  let dim_class = (~prime: bool) =>
-    prime && prime_mover_mode == SidebarModel.Settings.Dim
-      ? ["fumola-dim"] : [];
+  let dim_class = (~editor: bool) =>
+    editor && editor_mode == SidebarModel.Settings.Dim ? ["fumola-dim"] : [];
 
   /* The rows of the Events view. The section around it is the panel's, shared
      with the other two views, so this returns its contents rather than a
@@ -305,12 +304,10 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           ~attrs=[clss(["fumola-event-table"])],
           List.concat_map(
             ev =>
-              with_prime_mover(~prime=ev.prime_mover, () =>
+              with_editor(~editor=ev.editor, () =>
                 div(
                   ~attrs=[
-                    clss(
-                      ["fumola-event"] @ dim_class(~prime=ev.prime_mover),
-                    ),
+                    clss(["fumola-event"] @ dim_class(~editor=ev.editor)),
                   ],
                   [
                     div(
@@ -439,30 +436,29 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     );
   };
 
-  /* The editor's own edges and events. Not offered on the Nodes view: a node
-     has no source, so the distinction does not apply to it. */
-  let prime_mover_strip = () => {
+  /* The editor's own edges, nodes and events. On all three views: an edge is
+     the editor's when its source is, and a node when its own space is
+     Here. */
+  let editor_strip = () => {
     let option = (mode, label, title) =>
       span(
         ~attrs=[
-          clss(
-            ["toggle-option"] @ (prime_mover_mode == mode ? ["active"] : []),
-          ),
+          clss(["toggle-option"] @ (editor_mode == mode ? ["active"] : [])),
           Attr.title(title),
           Attr.on_click(_ =>
-            prime_mover_mode == mode
+            editor_mode == mode
               ? Virtual_dom.Vdom.Effect.Ignore
               : globals.inject_global(
-                  Set(Sidebar(SwitchFumolaPrimeMover(mode))),
+                  Set(Sidebar(SwitchFumolaEditor(mode))),
                 )
           ),
         ],
         [text(label)],
       );
     div(
-      ~attrs=[clss(["fumola-prime-strip"])],
+      ~attrs=[clss(["fumola-editor-strip"])],
       [
-        span(~attrs=[clss(["fumola-strip-label"])], [text("prime mover")]),
+        span(~attrs=[clss(["fumola-strip-label"])], [text("editor")]),
         div(
           ~attrs=[clss(["problem-view-toggle"])],
           [
@@ -521,77 +517,86 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     rows_view(
       ~name="nodes",
       ~empty="This instance has made no nodes yet.",
-      List.map(
+      List.concat_map(
         (row: FumolaHistory.node_row) => {
           let key = revision_key(row.space, row.meta_time);
           let open_ = is_open(key);
-          div(
-            ~attrs=[clss(["fumola-row"] @ (open_ ? ["open"] : []))],
-            [
-              /* Closed, a row is its name and its moment and nothing else,
-                 which is what makes a list of revisions readable. Open, the
-                 value follows. */
-              div(
-                ~attrs=[
-                  clss(["fumola-row-key"]),
-                  Attr.title(
-                    open_ ? "Collapse this revision" : "Show this revision",
-                  ),
-                  Attr.on_click(_ =>
-                    globals.inject_global(FumolaToggleOpen(key))
-                  ),
-                ],
-                [
-                  span(
-                    ~attrs=[clss(["fumola-caret"])],
-                    [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
-                  ),
-                  span(
-                    ~attrs=[clss(["fumola-event-symbol"])],
-                    [text(row.space)],
-                  ),
-                  text(" at " ++ row.meta_time),
-                ],
-              ),
-            ]
-            @ (
-              open_
-                ? [value_view(row.value)]
-                  @ (
-                    row.trace == []
-                      ? []
-                      : [
-                        /* The trace is inside the value too, but a rendered
-                           value is code and code is not clickable. These are
-                           the same edges, offered as ways on. */
-                        div(
-                          ~attrs=[clss(["fumola-row-links"])],
-                          [text("edges: ")]
-                          @ (
-                            row.trace
-                            |> List.map(id =>
-                                 span(
-                                   ~attrs=[
-                                     clss(["fumola-pointer"]),
-                                     Attr.title("Show " ++ id),
-                                     Attr.on_click(_ => follow_edge(id)),
-                                   ],
-                                   [text(id)],
+          with_editor(~editor=row.editor, () =>
+            div(
+              ~attrs=[
+                clss(
+                  ["fumola-row"]
+                  @ (open_ ? ["open"] : [])
+                  @ (row.editor ? ["fumola-editor"] : [])
+                  @ dim_class(~editor=row.editor),
+                ),
+              ],
+              [
+                /* Closed, a row is its name and its moment and nothing else,
+                   which is what makes a list of revisions readable. Open, the
+                   value follows. */
+                div(
+                  ~attrs=[
+                    clss(["fumola-row-key"]),
+                    Attr.title(
+                      open_ ? "Collapse this revision" : "Show this revision",
+                    ),
+                    Attr.on_click(_ =>
+                      globals.inject_global(FumolaToggleOpen(key))
+                    ),
+                  ],
+                  [
+                    span(
+                      ~attrs=[clss(["fumola-caret"])],
+                      [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
+                    ),
+                    span(
+                      ~attrs=[clss(["fumola-event-symbol"])],
+                      [text(row.space)],
+                    ),
+                    text(" at " ++ row.meta_time),
+                  ],
+                ),
+              ]
+              @ (
+                open_
+                  ? [value_view(row.value)]
+                    @ (
+                      row.trace == []
+                        ? []
+                        : [
+                          /* The trace is inside the value too, but a rendered
+                             value is code and code is not clickable. These are
+                             the same edges, offered as ways on. */
+                          div(
+                            ~attrs=[clss(["fumola-row-links"])],
+                            [text("edges: ")]
+                            @ (
+                              row.trace
+                              |> List.map(id =>
+                                   span(
+                                     ~attrs=[
+                                       clss(["fumola-pointer"]),
+                                       Attr.title("Show " ++ id),
+                                       Attr.on_click(_ => follow_edge(id)),
+                                     ],
+                                     [text(id)],
+                                   )
                                  )
-                               )
-                            /* A literal separator rather than a flex gap:
-                               the chips must not run together even where
-                               this row's stylesheet has not arrived. */
-                            |> List.mapi((i, node) =>
-                                 i == 0 ? [node] : [text(", "), node]
-                               )
-                            |> List.flatten
+                              /* A literal separator rather than a flex gap:
+                                 the chips must not run together even where
+                                 this row's stylesheet has not arrived. */
+                              |> List.mapi((i, node) =>
+                                   i == 0 ? [node] : [text(", "), node]
+                                 )
+                              |> List.flatten
+                            ),
                           ),
-                        ),
-                      ]
-                  )
-                : []
-            ),
+                        ]
+                    )
+                  : []
+              ),
+            )
           );
         },
         nodes,
@@ -607,17 +612,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           let (from_, to_) = row.meta_times;
           let key = edge_key(row.edge_id);
           let open_ = is_open(key);
-          with_prime_mover(~prime=row.prime_mover, () =>
+          with_editor(~editor=row.editor, () =>
             div(
               ~attrs=[
                 clss(
                   ["fumola-row"]
                   @ (open_ ? ["open"] : [])
-                  /* Marked whatever the prime-mover setting is: the point of
-                     the colour is to say whose edge this is before anyone
-                     reads the record inside it. */
-                  @ (row.prime_mover ? ["fumola-prime"] : [])
-                  @ dim_class(~prime=row.prime_mover),
+                  /* Marked whatever the editor setting is: the point of the
+                     colour is to say whose edge this is before anyone reads
+                     the record inside it. */
+                  @ (row.editor ? ["fumola-editor"] : [])
+                  @ dim_class(~editor=row.editor),
                 ),
               ],
               [
@@ -689,7 +694,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                 [tab_strip(tab), reset_button(instance)],
               ),
             ]
-            @ (tab == Nodes ? [] : [prime_mover_strip()])
+            @ [editor_strip()]
             @ (
               switch (tab) {
               | Nodes => nodes_view(history.nodes)
@@ -704,19 +709,31 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
 
                        An event naming an edge is judged by that edge. An
                        event naming a node -- added, signaling, repaired --
-                       is judged by whether anything the editor did points
-                       AT that node: a cell signals because someone put into
-                       it, so a cell the editor put into signals on the
-                       editor's account. Without this the Hide setting left
-                       a list of signalling about nodes whose every edge it
-                       had just hidden. */
-                    let prime = Hashtbl.create(64);
-                    let prime_nodes = Hashtbl.create(64);
+                       is the editor's on either of two counts: the node is
+                       the editor's own, or something the editor did points
+                       AT it. The second is what a cell needs: it signals
+                       because someone put into it, so a cell the editor put
+                       into signals on the editor's account. Without it the
+                       Hide setting left a list of signalling about nodes
+                       whose every edge it had just hidden. */
+                    let editor_edges = Hashtbl.create(64);
+                    let editor_nodes = Hashtbl.create(64);
+                    List.iter(
+                      (row: FumolaHistory.node_row) =>
+                        if (row.editor) {
+                          Hashtbl.replace(editor_nodes, row.space, true);
+                        },
+                      history.nodes,
+                    );
                     List.iter(
                       (row: FumolaHistory.edge_row) => {
-                        Hashtbl.replace(prime, row.edge_id, row.prime_mover);
-                        if (row.prime_mover) {
-                          Hashtbl.replace(prime_nodes, row.target, true);
+                        Hashtbl.replace(
+                          editor_edges,
+                          row.edge_id,
+                          row.editor,
+                        );
+                        if (row.editor) {
+                          Hashtbl.replace(editor_nodes, row.target, true);
                         };
                       },
                       history.edges,
@@ -732,11 +749,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                           meta_time,
                           kind: kind_of(name),
                           subject,
-                          prime_mover:
+                          editor:
                             switch (edge, node) {
-                            | (Some(id), _) => known(prime, id)
+                            | (Some(id), _) => known(editor_edges, id)
                             | (None, Some(space)) =>
-                              known(prime_nodes, space)
+                              known(editor_nodes, space)
                             | (None, None) => false
                             },
                         },

@@ -4,12 +4,15 @@ module Settings = {
   /* Which of the Fumola panel's three views is showing. They are three
      indices on one history -- the same fetch answers all three -- so this is
      a view choice and not three panels. */
-  /* What to do with the editor's own edges and events -- the ones whose
-     source is the root, (Here, Now, _). They are here to be inspected, and
-     they get verbose, so they can be dimmed or dropped without being
-     forgotten. */
+  /* What to do with the editor's own edges and events -- the ones sourced at
+     a node whose space is Here, at whatever time. They are here to be
+     inspected, and they get verbose, so they can be dimmed or dropped
+     without being forgotten.
+
+     "The editor" is meant literally: these are the puts Hazel itself made on
+     the program's behalf, as against what the program computed. */
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-  type fumola_prime_mover =
+  type fumola_editor =
     | Show
     | Dim
     | Hide;
@@ -198,7 +201,7 @@ module Settings = {
     /* Dim by default: it answers "they get verbose" without anything
        disappearing before the reader knows it was ever there. */
     [@sexp.default Dim] [@yojson.default Dim]
-    fumola_prime_mover,
+    fumola_editor,
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -241,6 +244,6 @@ module Settings = {
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
     | SwitchFumolaTab(fumola_tab)
-    | SwitchFumolaPrimeMover(fumola_prime_mover)
+    | SwitchFumolaEditor(fumola_editor)
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

@@ -82,7 +82,7 @@ module Model = {
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
       fumola_tab: Events,
-      fumola_prime_mover: Dim,
+      fumola_editor: Dim,
     },
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
@@ -381,11 +381,11 @@ module Update = {
             fumola_tab: tab,
           },
         }
-      | Sidebar(SwitchFumolaPrimeMover(mode)) => {
+      | Sidebar(SwitchFumolaEditor(mode)) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
-            fumola_prime_mover: mode,
+            fumola_editor: mode,
           },
         }
       | Sidebar(ToggleWorkerEncoding(e)) => {

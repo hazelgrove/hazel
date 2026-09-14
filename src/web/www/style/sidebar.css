@@ -906,8 +906,8 @@
   padding: 0.25em 0 0 1em;
 }
 
-/* The prime-mover control, under the tab strip. */
-.fumola-prime-strip {
+/* The editor control, under the tab strip. */
+.fumola-editor-strip {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -971,14 +971,14 @@
   background: rgb(0 0 0 / 5%);
 }
 
-/* An edge the editor made, marked whatever the prime-mover setting is: the
+/* An edge the editor made, marked whatever the editor setting is: the
    colour says whose edge it is before anyone opens the record inside. A
    deeper mustard than the panel's ground, so it reads as the same family as
    the instance's own colour rather than as a warning. */
-.fumola-row.fumola-prime .fumola-row-value {
+.fumola-row.fumola-editor .fumola-row-value {
   background: rgb(190 145 20 / 14%);
 }
 
-.fumola-row.fumola-prime .fumola-row-key {
+.fumola-row.fumola-editor .fumola-row-key {
   color: rgb(120 90 10 / 85%);
 }

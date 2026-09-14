@@ -27,6 +27,12 @@ type node_row = {
      are inside the rendered value too, but code is not clickable, so they
      are read out here to be offered as ways on. */
   trace: list(string),
+  /* Whether this node is the editor's own: its space is Here. The editor
+     used to be a single node at a single time, which no list of nodes would
+     bother showing; with a time of its own per moment it has revisions like
+     any other node, and a reader wants the same Show / Dim / Hide over them
+     as over its edges. */
+  editor: bool,
   value: TermBase.Exp.t,
 };
 
@@ -34,10 +40,13 @@ type edge_row = {
   edge_id: string,
   source: string,
   target: string,
-  /* Whether the source is the root, (Here, Now, _): the editor's own doing
-     rather than the program's. Kept as a fact about the row rather than
-     filtered away, because dimming needs the row to still be here. */
-  prime_mover: bool,
+  /* Whether the source is the editor's: a node whose space is Here. The
+     editor acts at more than one time, so the time is not part of the
+     test -- (Here, Now, _) and (Here, t, _) are both the editor, and a
+     panel that read the whole triple would call the second one program
+     traffic. Kept as a fact about the row rather than filtered away,
+     because dimming needs the row to still be here. */
+  editor: bool,
   /* The pair an edge spans; both are moments a reader may want to open. */
   meta_times: (string, string),
   value: TermBase.Exp.t,
@@ -55,13 +64,18 @@ let empty: t = {
   edges: [],
 };
 
-/* Whether a node id's space is the root.
+/* Whether a node id is the editor's: its space is Here.
+
+   Space only. A node id is a triple of space, time and a counter, and the
+   editor is spread across times rather than confined to Now, so the time
+   says which of the editor's moments this was and not whether it was the
+   editor at all.
 
    The variant's name, not the rendered key: FumolaValue renders a Name as
-   the bare string it carries, and the runtime's own symbol for the root is
+   the bare string it carries, and the runtime's own symbol for the editor is
    spelled `@here`, which nothing reserves. A program free to name a cell
    `@here` would otherwise have its edges read as the editor's. */
-let source_is_here = (node_id: Yojson.Safe.t): bool =>
+let is_editor = (node_id: Yojson.Safe.t): bool =>
   switch (FumolaEvents.tagged(node_id)) {
   | Some(("Tuple", `List([space, ..._]))) =>
     switch (FumolaEvents.tagged(space)) {
@@ -167,6 +181,11 @@ let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
             meta_time,
             space,
             trace: trace_of(FumolaEvents.field("node", fields)),
+            editor:
+              switch (FumolaEvents.field("nodeId", fields)) {
+              | Some(id) => is_editor(id)
+              | None => false
+              },
             value,
           });
         | _ => None
@@ -210,11 +229,11 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
             edge_id,
             source: at("source"),
             target: at("target"),
-            prime_mover:
+            editor:
               switch (inner) {
               | Some(f) =>
                 switch (FumolaEvents.field("source", f)) {
-                | Some(id) => source_is_here(id)
+                | Some(id) => is_editor(id)
                 | None => false
                 }
               | None => false

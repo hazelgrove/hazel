@@ -35,9 +35,9 @@ end in
 # EVENTS are the same story in order: nodes added, edges added, a force #
 # that begins and ends, and the edge updated when it did. #
 
-# Most of those edges have `@here` for a source: the editor putting values #
-# in, rather than the program computing.  The panel calls that the prime #
-# mover and will dim or hide it, which leaves the get and the force -- the #
-# two the program itself did. #
+# Most of those edges are sourced at `@here`: the editor putting values in, #
+# rather than the program computing.  The panel calls those the EDITOR's -- #
+# any node whose space is Here, whatever time it carries -- and will dim or #
+# hide them, leaving the get and the force, the two the program itself did. #
 
 answer
