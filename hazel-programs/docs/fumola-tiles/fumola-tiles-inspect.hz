@@ -35,7 +35,7 @@ end in
 # Time and Space are marked TO DO and say `time` and `space` where the #
 # runtime emits `Now` and `Symbol`.  These follow the runtime.) #
 
-type Time = + Now in
+type Time = + Now + Symbol(Symbol) in
 type Space = + Here + Symbol(Symbol) in
 
 let ^^probe(theTime): Time = fumola $graphical as mustardWatch in Adapton.now() end in

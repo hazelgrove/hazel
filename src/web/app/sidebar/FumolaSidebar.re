@@ -290,6 +290,34 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   let dim_class = (~editor: bool) =>
     editor && editor_mode == SidebarModel.Settings.Dim ? ["fumola-dim"] : [];
 
+  /* Whether a row NAMES something, which is what the bold in it means.
+
+     A symbol is set in bold because it is the part that tells two rows apart:
+     it says which cell the row was about. A row carrying only a verb and an
+     edge id -- `edge added edgeId 1002` -- is the editor going about its
+     business, and is what the Show / Dim / Hide control is for.
+
+     So the editor's own traffic is judged twice over. A row of the editor's
+     that names nothing is traffic, and Dim quietens it and Hide drops it. A
+     row of the editor's that names a cell is how that cell came to exist --
+     `node added Symbol myThunk` is the thunk being made -- and that is
+     content whoever caused it. Dim leaves it at full strength and Hide keeps
+     it, which is the point of Hide: what remains is the story of what the
+     store holds, with the bookkeeping taken out and the naming left in.
+
+     An edge id is a link rather than a name, so it does not count. */
+  let names_a_cell = (subject: list(FumolaEvents.span)) =>
+    List.exists(
+      fun
+      | FumolaEvents.Sym(_) => true
+      | FumolaEvents.Edge(_)
+      | FumolaEvents.Plain(_) => false,
+      subject,
+    );
+
+  /* The editor's, for the purpose of hiding and dimming. */
+  let is_traffic = (ev: event) => ev.editor && !names_a_cell(ev.subject);
+
   /* Hiding the editor empties a list that is not empty, and the empty blurb
      then said this instance had made none of whatever it was -- false, and
      false in the direction that reads as a broken panel rather than a
@@ -390,10 +418,12 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           ~passes,
           ~at=(ev: event) => ev.meta_time,
           ev =>
-            with_editor(~editor=ev.editor, () =>
+            with_editor(~editor=is_traffic(ev), () =>
               div(
                 ~attrs=[
-                  clss(["fumola-event"] @ dim_class(~editor=ev.editor)),
+                  clss(
+                    ["fumola-event"] @ dim_class(~editor=is_traffic(ev)),
+                  ),
                 ],
                 [
                   div(

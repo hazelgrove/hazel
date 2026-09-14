@@ -63,7 +63,7 @@ let eventCount : Int =
 # A space is the current one or a symbol naming a cell, since a pointer IS  #
 # a space. These follow what the runtime emits; PeekInfo's own Time and     #
 # Space in the Fumola source are marked TO DO and say `time` and `space`.   #
-type Time = + Now in
+type Time = + Now + Symbol(Symbol) in
 type Space = + Here + Symbol(Symbol) in
 type EdgeId = + EdgeId(Int) in
 type NodeId = (Space, Time, Int) in

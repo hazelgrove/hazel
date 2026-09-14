@@ -20,7 +20,12 @@ end in
 # what lets one Action type cover a put of an integer and a force of a #
 # thunk. #
 
-type Time = + Now in
+# A space is a cell and a time is a moment, and each is `Now`/`Here` or a #
+# symbol naming one.  Time was declared as just `Now` here while that was #
+# all the runtime ever emitted; an unbound case is not an error in Hazel, #
+# it degrades to unknown, so the gap only showed once a named moment      #
+# arrived and a Symbol turned up where only Now was expected.             #
+type Time = + Now + Symbol(Symbol) in
 type Space = + Here + Symbol(Symbol) in
 type NodeId = (Space, Time, Int) in
 type EdgeId = + EdgeId(Int) in
