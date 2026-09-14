@@ -189,86 +189,78 @@ slide, where a program has little to do and an editor has as much to do as ever,
 so an extreme ratio is what should be expected and it says nothing yet about a
 real program. Turning it into a measurement is N1.
 
-## The channel is there; spending it is not free
+## Fumola's times, measured
 
-An earlier draft of this document said the store can tell you *that* the editor
-caused an event but not *which pass* caused it, and proposed threading a
-declaration through the run. That was wrong, and the correction was to spend a
-field the store already carries. That correction was also wrong, in a way only
-measurement found. Both halves are worth keeping, because the observation
-survives and the inference does not.
+This section began life arguing that a time per pass could not work. It was
+wrong twice — first about the mechanism, then about the consequence — and what
+replaced it is the most useful thing the instrument has produced, because it is
+not about Hazel at all. It is Fumola's model of revisions, which is the other
+point of view Hazel is being looked at from.
 
-A node id is a triple, and both of its first two components are symbols:
+A node id is `(space, time, int)`. **A space is a cell; a time is a moment.**
+Recording which pass ran a program by putting its name into a cell, as an
+earlier draft of this did, gives the pass a *space* — and a pass is not a thing,
+it is an occasion.
 
-```
-node_id = (space, time, int)
-space   = Here | Symbol(sym)
-time    = Now  | Symbol(sym)
-```
+### The lookup rule
 
-`is_editor` — the test that separates the editor's traffic from the program's —
-destructures that triple as `[space, ..._]` and tests the space alone. **The
-observation holds**: measured on both builds of
-[N1](hazel-effect-schedule.md), every edge in every instance is sourced at
-`Here/Now/0`. 16 of 16, 33 of 33, 2 of 2. The time and the counter on the
-editor's root carry no information, across every pass, gesture and reload.
+**A read at time T answers with the write at the greatest *comparable* T′ ≤ T.**
 
-**The inference does not hold.** Hazel cannot spend that field, for two reasons
-that were checked against the running runtime rather than reasoned about.
+Everything follows from that sentence, and every line of it was checked against
+a running runtime:
 
-**The root node is a constant.** `root_node()` in the graphical engine answers
-`(Space::Here, Time::Now, MetaTime(0))`. It takes no argument and reads no
-state, so the source of every edge the editor causes is that triple and nothing
-Hazel does can make it otherwise.
+| after | at 0 | at 1 | at 2 | at 3 | at `Now` | `` `step(5) `` |
+|---|---|---|---|---|---|---|
+| `` `q := 7 `` at 1 | — | 7 | 7 | 7 | — | |
+| `` `q := 70 `` at 2 | — | **7** | 70 | 70 | — | |
+| `` `q := 700 `` at 1 | — | 700 | **70** | 70 | — | — |
 
-**The navigations exist, and they move the wrong end.** Fumola has
-`do goto time <sym> { … }`, which sets the current time, and
-`do within time <sym> { … }`, which extends it; both scope to their block. Run a
-program inside one and the time does land — on the **target** node ids, the
-cells the program touches. The source stays `Here/Now/0`:
+A later moment sees what earlier ones did. A later write leaves the earlier
+moments untouched — the history is immutable, not a mutable store being
+overwritten. And a time in another family sees none of it.
 
-```
-put   Here/Now/0  ->  Symbol(b) / Symbol(p1)     under  do goto time `p1
-put   Here/Now/0  ->  Symbol(c) / Symbol(p2)     under  do within time `p2
-```
+`Now` is not a special base; it is simply the **bottom** of the order. That is
+why every named moment can read what was written at `Now`, and why `Now` can
+read nothing written at a named moment.
 
-**And the time is part of a node's identity**, which is what makes this fatal
-rather than merely inconvenient. The same program run under two times does not
-write one cell twice; it writes two cells:
+### Ordered and unordered, both on purpose
+
+Fumola's `PartialOrd` is where the design lives:
 
 ```
-`k := 1  under `pA   ->   Symbol(k) / Symbol(pA) / 1
-`k := 1  under `pB   ->   Symbol(k) / Symbol(pB) / 3
+`hazel(1) < `hazel(2)        Symbol::Nat arguments compare numerically
+`hazel(1)  ?  `step(2)       different heads: incomparable, in both directions
+Now < every named time       Now is the bottom
 ```
 
-A time per pass would therefore give every pass its own private copy of the
-store — destroying exactly the incrementality the store is there for. The
-cheapest-looking version of N2 is the one that breaks the thing N2 is
-instrumenting.
+Name symbols are incomparable *deliberately*. The comment in
+`adapton/mod.rs` says why: non-equal quoted symbols are left incomparable "to
+express certain kinds of **independence/parallelism** in the time ordering."
+So Fumola offers a mixture — an ordered sequence within a family, and
+independence between families — and a system layered on top gets to say which
+of its own moments are a history and which are parallel observations.
 
-### What is left, and it is two different milestones
+One spelling decides which you get, and it is easy to get wrong: the index must
+be **bare**. `` `hazel(1) `` is a `Symbol::Nat` and is ordered; `` `hazel(`1) ``
+is a `QuotedAst` and is incomparable, which would silently give every run its
+own island with nothing visible between them. Two more: the navigation takes a
+nullary expression, so the time needs its own parentheses; and the braces after
+a navigation are already a block position, so the program inside needs no `do`
+of its own.
 
-**A — change the runtime, and attribution becomes structural.** `root_node()`
-stops being a constant and reads the current time. Then the editor's own root
-carries the pass, attribution is read straight off the edge source exactly as
-hoped, and no cell's identity moves, because the cells are targets and only the
-source changed. The space-only `is_editor` test is what makes this safe, and
-that half of the design was right and is already committed (`303fc7c018`). The
-cost is a change in the Fumola repo, and
-[`fumola-runtime-changes.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-runtime-changes.md)
-is the reason that is not a small decision: Hazel pins no version, so it reaches
-every Hazel user without a commit here.
+### What that makes Hazel
 
-**B — a sentinel, from Hazel alone.** Each run begins by putting the pass's name
-into one well-known cell. Attribution is then positional: every event between
-marker *n* and marker *n+1* belongs to that pass. Verified in the runtime — the
-work cell is not forked, order is preserved, and all nine edges of a three-run
-test came back `aligned` with **no signal**, because nothing ever reads the
-marker. It costs one put per run and adds the marker's own traffic to the store,
-which is the editor's traffic and already dimmable.
+Hazel's passes are now moments in one ordered family: every run happens at
+`` `hazel(n) ``, with `n` counting runs. Pass *n* sees everything every earlier
+pass did; its writes leave the earlier moments alone; and `Now` is left to the
+meta level, unused.
 
-B works today and is what N2 below now proposes. A is better and is not this
-milestone.
+The attraction is that this is not a labelling scheme bolted on. **Hazel's
+sequence of edits is a revision sequence, and Fumola already has revisions.**
+The store stops being one mutable thing the editor keeps overwriting and becomes
+a history of what the editor did, addressable at any point in it. Attribution
+comes free and structural — a node's time *is* the moment that made it — with
+nothing written anywhere to record it.
 
 ## The composition law
 
@@ -371,56 +363,24 @@ every instance on both builds is sourced at `Here/Now/0` -- and gave the
 idempotence prediction below its first test, which it passed, with a correction.
 What it did not get is the stepper.
 
-### N2 — A sentinel naming the pass
+### N2 — Every run at its own moment
 
-Each run puts the name of the pass that caused it into one well-known cell
-before running the program. The panel groups events by the marker they fall
-after, and the reader gets *elaboration*, *evaluation*, *stepper*, *panel peek*
-against the counts N1 measured.
+Each run happens at `` `hazel(n) ``, `n` counting runs, and the panel groups by
+the moment it reads off a node id. The pass a moment belonged to is Hazel's own
+business and stays in Hazel; nothing is written to the store to record it.
 
 The pass is known where it needs to be known: `Transition.transition` already
 takes `~effects`, and every call site already declares whether its steps are the
 program happening. Widening that from a two-state flag to one that names the
 pass is a change to an argument that exists, not new plumbing.
 
-*Why second.* N1 can count effects but cannot fill in the column saying why each
-one happened.
-
 *How we would know it worked.* On a program whose schedule N1 established, every
-event falls after a marker naming a pass, and the per-pass counts add up to N1's
-totals. The marker must not perturb: the work cell keeps one identity, and a
-re-run that changes nothing still adds no signal.
+node's time names a moment and the per-moment counts add up to N1's totals. The
+store gains no cell that exists only to be read by the panel. And reads have to
+move with the writes — a reader left at `Now` sees nothing at all, since `Now`
+is below every moment.
 
-*What it does not get.* Ordering across passes is positional rather than carried
-in the ids, so nothing in an edge says which pass it belongs to when read on its
-own — only where it sits. That is what A would fix, and it is why A is worth
-doing even after this lands.
-
-**Done, 2026-09-14: [#2566](https://github.com/hazelgrove/hazel/pull/2566).** It
-answered a question N1 left open on its first run. N1 measured *turning the
-stepper on → 1 run* and could not say whose:
-
-```
-put  _hazelPass = `eval
-put  w          = 5
-get  w          = 5
-put  _hazelPass = `decompose      <- turning the stepper on
-put  w          = 5
-get  w          = 5
-```
-
-It is `decompose` — the pass that performs a step only to find out where the
-step is, which is the one `EvaluatorStep` already flags as needing its own fix.
-Six edges, all aligned, no signal: the work cell keeps one identity and nothing
-reads the marker.
-
-The panel groups by it too: Events, Nodes and Edges each show a header
-wherever the pass changes. A header is emitted only above a row that is
-actually shown, so hiding the editor cannot leave a heading with nothing
-under it, and the pass of a hidden row is still read, so a boundary falling
-inside a hidden run reaches the next visible row. Rows older than the first
-marker get no header — every row an instance recorded before this build, and
-every row a program put there itself.
+**Done, 2026-09-14: [#2566](https://github.com/hazelgrove/hazel/pull/2566).**
 
 ## What this would be, if it works
 
