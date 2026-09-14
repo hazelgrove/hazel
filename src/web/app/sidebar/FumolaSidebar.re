@@ -128,7 +128,7 @@ let instance_to_show = (~cursor_id: option(Id.t), e: Exp.t): option(string) => {
 type event = {
   meta_time: string,
   kind: string,
-  subject: string,
+  subject: list(FumolaEvents.span),
 };
 
 /* Fumola's event names, in the terms this project uses for them: a force has
@@ -222,7 +222,18 @@ let view =
                     ),
                     div(
                       ~attrs=[clss(["fumola-event-subject"])],
-                      [text(ev.subject)],
+                      List.map(
+                        fun
+                        /* The symbol is the part that tells two events
+                           apart, so it is the part that is set apart. */
+                        | FumolaEvents.Sym(s) =>
+                          span(
+                            ~attrs=[clss(["fumola-event-symbol"])],
+                            [text(s)],
+                          )
+                        | FumolaEvents.Plain(s) => text(s),
+                        ev.subject,
+                      ),
                     ),
                   ],
                 ),

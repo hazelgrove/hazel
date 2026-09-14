@@ -8,8 +8,16 @@
    prim, so the boundary stays source text and a change to what the panel
    shows costs a Hazel rebuild rather than a Rust one. */
 
+/* A rendered event is mostly boilerplate -- "node added", "edge added" --
+   with one part that actually distinguishes it: the symbol the node or cell
+   was named with. The panel bolds that part, so the rendering keeps it apart
+   from the rest rather than flattening everything into one string. */
+type span =
+  | Plain(string)
+  | Sym(string);
+
 /* The events, as the panel wants them: when, what, and to what. */
-type event = (string, string, string);
+type event = (string, string, list(span));
 
 /* Fumola renders a value as tagged JSON; these read the bits this needs and
    say nothing about the rest. */
@@ -25,34 +33,90 @@ let tagged = (json: Yojson.Safe.t): option((string, Yojson.Safe.t)) =>
   | _ => None
   };
 
+/* The text of a symbol, which is the name the store itself knows the cell by.
+
+   Deferred to FumolaValue.symbol_text rather than spelled again here: that
+   function is what turns a symbol into a NAME everywhere else, and its
+   spelling is deliberately injective (see the note on BinOp there), so two
+   distinct cells cannot come out reading alike in this list.
+
+   QuotedAst is the one form it has no written form for. It carries its own
+   source text, and showing that beats showing nothing. */
+let symbol_text = (json: Yojson.Safe.t): option(string) =>
+  switch (FumolaValue.symbol_text(json)) {
+  | Ok(text) => Some(text)
+  | Error(_) =>
+    switch (field("tag", json), field("source", json)) {
+    | (Some(`String("QuotedAst")), Some(`String(source))) => Some(source)
+    | _ => None
+    }
+  };
+
 /* A short, readable rendering of whatever an event points at: a node id, an
    edge id, a symbol. Enough to tell two events apart, which is what a list
-   of them is for; the full structure belongs in a graph view, not here. */
-let rec summarize = (json: Yojson.Safe.t): string =>
+   of them is for; the full structure belongs in a graph view, not here.
+
+   A node id is (space, time, serial), and the space is where the symbol
+   lives. Before this returned spans, a symbol whose form had no case here
+   rendered as the empty string, so `Symbol(Num 1)` came out as the bare
+   word "Symbol" and every node in the list looked the same -- which is the
+   opposite of what the column is for. */
+let rec spans = (json: Yojson.Safe.t): list(span) =>
   switch (tagged(json)) {
-  | Some(("Int", `String(n))) => n
-  | Some(("Int", `Int(n))) => string_of_int(n)
-  | Some(("Symbol", v)) => summarize(v)
-  | Some(("Name", `String(x))) => "`" ++ x
+  | Some(("Int", `String(n))) => [Plain(n)]
+  | Some(("Int", `Int(n))) => [Plain(string_of_int(n))]
+  | Some(("Symbol", v)) =>
+    switch (symbol_text(v)) {
+    | Some(text) => [Sym(text)]
+    | None => []
+    }
+  | Some(("Name", `String(x))) => [Sym("`" ++ x)]
   | Some(("Variant", v)) =>
     switch (field("name", v), field("value", v)) {
-    | (Some(`String(name)), Some(`Null)) => name
+    | (Some(`String(name)), Some(`Null)) => [Plain(name)]
     | (Some(`String(name)), Some(payload)) =>
-      let inner = summarize(payload);
-      inner == "" ? name : name ++ " " ++ inner;
-    | _ => ""
+      switch (spans(payload)) {
+      | [] => [Plain(name)]
+      | inner => [Plain(name ++ " "), ...inner]
+      }
+    | _ => []
     }
   | Some(("Tuple", `List(parts))) =>
-    parts
-    |> List.map(summarize)
-    |> List.filter(s => s != "")
-    |> String.concat(" ")
+    parts |> List.map(spans) |> List.filter(p => p != []) |> join
   | Some(("List", `List(parts))) =>
-    "[" ++ (parts |> List.map(summarize) |> String.concat(", ")) ++ "]"
-  | Some(("Record", _)) => "…"
-  | Some(("Opaque", `String(s))) => s
-  | _ => ""
+    [Plain("[")]
+    @ (parts |> List.map(spans) |> List.filter(p => p != []) |> comma)
+    @ [Plain("]")]
+  | Some(("Record", _)) => [Plain("\xE2\x80\xA6")]
+  | Some(("Opaque", `String(s))) => [Plain(s)]
+  | _ => []
+  }
+/* Both of these put a separator between groups and nothing at the ends,
+   which List.concat alone will not do. */
+and join = (groups: list(list(span))): list(span) => separate(" ", groups)
+and comma = (groups: list(list(span))): list(span) =>
+  separate(", ", groups)
+and separate = (sep: string, groups: list(list(span))): list(span) =>
+  switch (groups) {
+  | [] => []
+  | [first, ...rest] =>
+    List.fold_left(
+      (acc, group) => acc @ [Plain(sep), ...group],
+      first,
+      rest,
+    )
   };
+
+/* The same rendering with the distinction thrown away, for the places that
+   want one string -- the meta-time column, which is never a symbol. */
+let summarize = (json: Yojson.Safe.t): string =>
+  spans(json)
+  |> List.map(
+       fun
+       | Plain(s) => s
+       | Sym(s) => s,
+     )
+  |> String.concat("");
 
 let of_json = (json: Yojson.Safe.t): list(event) =>
   switch (tagged(json)) {
@@ -71,8 +135,8 @@ let of_json = (json: Yojson.Safe.t): list(event) =>
                    summarize(meta_time),
                    name,
                    switch (field("value", v)) {
-                   | Some(payload) => summarize(payload)
-                   | None => ""
+                   | Some(payload) => spans(payload)
+                   | None => []
                    },
                  ))
                | _ => None

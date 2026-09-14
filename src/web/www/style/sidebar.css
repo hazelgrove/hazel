@@ -808,11 +808,15 @@
   flex-direction: column;
   margin: 0.25em 0.5em;
   font-family: var(--code-font), monospace;
+  /* Smaller than the panel's prose: a symbol can be long -- a composite one
+     prints as an expression -- and the column has to hold it without
+     wrapping every row. */
+  font-size: 0.85em;
 }
 
 .fumola-event {
   display: grid;
-  grid-template-columns: 3em 9em 1fr;
+  grid-template-columns: 2.5em 8em 1fr;
   gap: 0.5em;
   padding: 0.15em 0.25em;
   border-bottom: 1px solid rgb(0 0 0 / 6%);
@@ -826,4 +830,12 @@
 .fumola-event-subject {
   overflow-wrap: anywhere;
   opacity: 0.8;
+}
+
+/* The symbol a node or cell was named with: the one part of a row that says
+   WHICH thing this event was about. Bold, and at full strength against the
+   dimmed boilerplate around it. */
+.fumola-event-symbol {
+  font-weight: bold;
+  opacity: 1;
 }
