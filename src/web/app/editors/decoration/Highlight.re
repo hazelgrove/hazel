@@ -60,8 +60,15 @@ let multiline_shard =
  * shard of each segment. Ideally we could just get this info from
  * the row measurements, but we have no current way of figuring out
  * shapes for whitespace without traversing */
+/* ~trim_ws: skip leading whitespace on continuation rows (rows after a
+ * linebreak), so selection decorations hug code instead of painting
+ * indentation. Whitespace only — comments are Secondary too and stay.
+ * Whitespace-only rows keep their full extent (else the selection
+ * reads as discontinuous), and the first row is never trimmed: its
+ * left edge is the selection start, which is deliberate. */
 let rows_of_segment =
     (
+      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~shape_init: ShardDec.tip,
@@ -76,21 +83,33 @@ let rows_of_segment =
               ShardDec.tip,
               list(
                 option(
-                  (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
+                  (
+                    (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
+                    bool,
+                  ),
                 ),
               ),
             ) => {
+    let tag = is_ws => Option.map(x => (x, is_ws));
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
-      | Grout(g) => [Some(shard_svg(~start_shape, find_g(g), p))]
+      | Grout(g) => [
+          Some(shard_svg(~start_shape, find_g(g), p)) |> tag(false),
+        ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
           Some((
             find_w(w),
             (start_shape |> Option.map(Nib.Shape.flip), start_shape),
-          )),
+          ))
+          |> tag(
+               switch (w.content) {
+               | Whitespace(_) => true
+               | _ => false
+               },
+             ),
         ]
       };
     let next_start_shape =
@@ -111,9 +130,13 @@ let rows_of_segment =
            let token = List.nth(t.label, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(shard_svg(~start_shape, m, Tile(shard)))]
+           | 0 => [
+               Some(shard_svg(~start_shape, m, Tile(shard)))
+               |> Option.map(x => (x, false)),
+             ]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
+             |> List.map(Option.map(x => (x, false)))
            };
          });
     let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
@@ -150,13 +173,14 @@ let rows_of_segment =
         };
       if (num_lb == 0) {
         [
-          Some(
+          Some((
             shard_svg(
               ~start_shape,
               Measured.find_pr(p, measured),
               Projector(p),
             ),
-          ),
+            false,
+          )),
         ];
       } else {
         List.init(num_lb + 1, _ => None);
@@ -165,8 +189,21 @@ let rows_of_segment =
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
     seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
+  let trim_row = row => {
+    let rec drop = xs =>
+      switch (xs) {
+      | [(_, true), ...rest] => drop(rest)
+      | _ => xs
+      };
+    switch (drop(row)) {
+    | [] => row
+    | trimmed => trimmed
+    };
+  };
   of_segment(shape_init, segment)
   |> ListUtil.split_at_nones
+  |> List.mapi((i, row) => trim_ws && i > 0 ? trim_row(row) : row)
+  |> List.map(List.map(fst))
   |> ListUtil.first_and_last
   |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
        (
@@ -546,6 +583,7 @@ let clip_char_selection =
 
 let of_segment =
     (
+      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
@@ -556,7 +594,7 @@ let of_segment =
     )
     : list(Node.t) => {
   let rows =
-    rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
+    rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
   List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
@@ -571,6 +609,7 @@ let selection =
     ) => {
   let rows =
     rows_of_segment(
+      ~trim_ws=true,
       ~measured,
       ~shape_map,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
@@ -620,6 +659,7 @@ let selection_expanded =
           seg,
         )
         @ of_segment(
+            ~trim_ws=true,
             ~measured,
             ~shape_map,
             ~font_metrics,

@@ -197,8 +197,6 @@ let start = default_model => {
         ),
       );
     });
-    /* Setup scroll listener for floating elements (backpack) */
-    FloatingElement.setup_scroll_listener();
     // Sync log count from database
     Log.sync_count();
   };
@@ -235,7 +233,7 @@ let start = default_model => {
         Haz3lcore.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
-        /* Update floating elements (backpack) to viewport coordinates */
+        /* Update floating elements (probe menus) to viewport coordinates */
         FloatingElement.update_all();
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;
