@@ -117,11 +117,22 @@ during evaluation. In a pure setting the difference is invisible. With a store
 it is plain, and it is what lets `hazel m end` carry the *value* `m` is bound to
 rather than the variable.
 
-**Hazel's cache means fewer effects than assumed, not more.** A re-evaluation
-that reuses a cached cell does not re-run the program at all. The
-elaboration-time route erred the other way, re-running on nearly every
-keystroke. So the effect count per edit is bracketed by the two routes and equal
-to neither — and nobody has written down which one the semantics intends.
+**The count per edit is three, and was believed to be one.** This was the
+belief this document was written to check, and checking it is
+[N1](hazel-effect-schedule.md). An edit inside a `fumola … end` form runs the
+program **three times**, within about five milliseconds, on this branch as
+committed. Two of the three are passes that want only the *shape* of a rule --
+`ReusePass`, which walks a term after the evaluation that already ran it, and
+`StreamCollector`, which reassembles an evaluation that happened in the worker --
+and pay for that shape by firing the rule. For every pure rule that costs time
+and nothing else, which is why it has never mattered. For the one rule whose
+step reaches a store outside Hazel, it costs a put.
+
+The draft of this paragraph said the opposite: that Hazel's cache means *fewer*
+effects than assumed, because a re-evaluation reusing a cached cell does not
+re-run the program. That is true of one gesture -- undo, measured at zero -- and
+it was the wrong generalisation. The instrument was built to settle this and it
+settled it the other way.
 
 **The display and the store can disagree.** The store is mutable state outside
 Hazel's incremental model, so it can move on without the displayed value
@@ -227,10 +238,19 @@ then Hazel re-running a pass over an unchanged program leaves everything
 aligned and adds no signal. Either showing up after such a re-run falsifies the
 candidate, and the event is the cheaper of the two to watch.
 
-There is already weak evidence in favour, and it should be labelled weak:
-across six instances, the only align seen was `aligned`. Six instances of demo
-slides are not a sample, and those slides may simply never re-run in a way that
-could signal. It is the right prediction to check, not a result.
+[N1](hazel-effect-schedule.md) gave it a first real test: an instance that ran
+an identical program exactly twice, with no edit between, produced four edges,
+all `aligned`, no signal. It passed -- with a correction it did not anticipate.
+**The store still grew.** A re-run that signals nobody and realigns nothing
+appends two edges and advances metaTime by two, so adapton is idempotent with
+respect to *alignment* and not with respect to *history*. A discipline on the
+Fumola program can make re-running harmless to what the program computes, and
+cannot make it invisible to anything that reads the history -- which is the
+panel, and would be any probe built on P1's series.
+
+One test on one instance is not a result, and the older evidence should still be
+labelled weak: across six instances the only align seen was `aligned`, which is
+six demo slides, not a sample.
 
 ## Other things unresolved
 
@@ -275,6 +295,15 @@ derived, naming the build and the runtime version it was measured against.
 `window.fumola.source()` reports the latter, and it matters: a developer with
 stale local wasm artifacts and a developer with none are running different
 runtimes at the same commit.
+
+**Done, 2026-09-14: [Hazel's effect schedule](hazel-effect-schedule.md).** It
+came out as an A/B between the branch as committed and the uncommitted
+`~effects` work, which is a sharper instrument than the one proposed here: three
+runs per edit becomes one, and the two that disappear are identified by what
+removing them removes. It also confirmed N2's premise directly -- every edge in
+every instance on both builds is sourced at `Here/Now/0` -- and gave the
+idempotence prediction below its first test, which it passed, with a correction.
+What it did not get is the stepper.
 
 ### N2 — A distinct time per pass
 
@@ -328,4 +357,5 @@ Having the instrument is the contribution. The findings are what it produces.
 | [`src/language/fumola/README.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/src/language/fumola/README.md) | running a program, where the runtime lives, and why it decides the rest |
 | [`docs/fumola-tiles-design.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-tiles-design.md) | why the instance is named in the syntax rather than derived from an `Id` |
 | [`docs/fumola-runtime-changes.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-runtime-changes.md) | the unpinned wasm dependency, and why to check `source()` before drawing a conclusion from a browser session |
+| [`docs/hazel-effect-schedule.md`](hazel-effect-schedule.md) | N1's result: the measured schedule, and the A/B that produced it |
 | [`docs/programmable-probes.md`](programmable-probes.md) | the same instrument, pointed at a user's program |
