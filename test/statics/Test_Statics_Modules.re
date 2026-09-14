@@ -20,21 +20,6 @@ let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
     },
   );
 
-/* The marks on the sub-expression whose term satisfies [pred]. */
-let subexp_marks =
-    (source, pred: Language.Exp.term => bool): list(Language.Mark.t) =>
-  Language.Id.Map.fold(
-    (_, info: Language.Info.t, acc) =>
-      switch (acc, info) {
-      | (None, InfoExp({user_term, marks, _})) when pred(user_term.term) =>
-        Some(marks)
-      | _ => acc
-      },
-    statics(parse_exp(source)),
-    None,
-  )
-  |> Option.value(~default=[]);
-
 /* Exactly one mark in the whole program, and it satisfies [pred]. */
 let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
   Alcotest.test_case(
@@ -175,6 +160,35 @@ let test_unknown_typed_root_is_not_an_error =
         |> List.concat_map(snd);
       Alcotest.(check(bool))("no marks", true, List.is_empty(marks));
     },
+  );
+
+/* A signature-typed expression lacking members the signature requires names
+   them, as a module literal does. */
+let test_missing_members_on_variable =
+  single_mark_test(
+    "A module variable lacking a member names it",
+    {|let big = { let x = 1 } in let m : { let x : Int; let y : Int } = big in m|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_missing_members_on_argument =
+  single_mark_test(
+    "A module argument lacking a member names it",
+    {|let greet = fun (m : { let name : String }) -> m.name in module Carol = { let age = 3 } in greet(Carol)|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["name"]) => true
+    | _ => false,
+  );
+
+let test_missing_type_member_on_variable =
+  single_mark_test(
+    "A module variable lacking a type member names it",
+    {|let big = { let x = 1 } in let m : { type T; let x : Int } = big in m|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["T"]) => true
+    | _ => false,
   );
 
 /* A differing manifest type member is reported once, on the member's
@@ -2267,6 +2281,9 @@ let tests = (
     test_labeled_tuple_binder_ok,
     test_nested_tuple_binder_mismatch_localized,
     test_cons_binder_mismatch_localized,
+    test_missing_members_on_variable,
+    test_missing_members_on_argument,
+    test_missing_type_member_on_variable,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,
