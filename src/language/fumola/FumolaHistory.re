@@ -56,12 +56,22 @@ type t = {
   events: list(FumolaEvents.event),
   nodes: list(node_row),
   edges: list(edge_row),
+  /* Where one of Hazel's passes began, and which one: the metaTime of each
+     put into the marker cell, paired with the name it wrote. Ascending, so a
+     row's pass is the last boundary at or before its own metaTime.
+
+     Positional rather than carried in the ids, because it cannot be carried:
+     `root_node()` answers a constant, and a node's time is part of its
+     identity, so a pass with its own time would be a pass with its own copy
+     of the store. See the note in FumolaRun. */
+  passes: list((int, string)),
 };
 
 let empty: t = {
   events: [],
   nodes: [],
   edges: [],
+  passes: [],
 };
 
 /* Whether a node id is the editor's: its space is Here.
@@ -181,11 +191,20 @@ let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
             meta_time,
             space,
             trace: trace_of(FumolaEvents.field("node", fields)),
+            /* The marker cell is the editor's by name rather than by
+               space: the editor puts into it, but it is a cell like any
+               other, so `is_editor` -- which asks whether a node's space is
+               Here -- says no. Left unmarked it reads as the program's own
+               doing, under a header that is the panel rendering that very
+               row. */
             editor:
-              switch (FumolaEvents.field("nodeId", fields)) {
-              | Some(id) => is_editor(id)
-              | None => false
-              },
+              space == FumolaRun.pass_cell_name
+              || (
+                switch (FumolaEvents.field("nodeId", fields)) {
+                | Some(id) => is_editor(id)
+                | None => false
+                }
+              ),
             value,
           });
         | _ => None
@@ -229,13 +248,26 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
             edge_id,
             source: at("source"),
             target: at("target"),
+            /* Sourced at the editor, or aimed at the marker cell. The
+               first catches every edge the editor causes; the second is
+               belt and braces for the marker, whose whole point is to be
+               the editor's. */
             editor:
               switch (inner) {
               | Some(f) =>
-                switch (FumolaEvents.field("source", f)) {
-                | Some(id) => is_editor(id)
-                | None => false
-                }
+                (
+                  switch (FumolaEvents.field("source", f)) {
+                  | Some(id) => is_editor(id)
+                  | None => false
+                  }
+                )
+                || (
+                  switch (FumolaEvents.field("target", f)) {
+                  | Some(id) =>
+                    FumolaEvents.space_key(id) == FumolaRun.pass_cell_name
+                  | None => false
+                  }
+                )
               | None => false
               },
             meta_times:
@@ -249,6 +281,91 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
         },
     json,
   );
+
+/* The puts into the marker cell, as (metaTime, pass name), ascending.
+
+   Read from the edges rather than from the events, because only an edge
+   carries the value that was put, and that value is the name of the pass. */
+let pass_boundaries = (edges: Yojson.Safe.t): list((int, string)) => {
+  let inner_of = fields =>
+    switch (FumolaEvents.field("edge", fields)) {
+    | Some(e) =>
+      switch (FumolaEvents.tagged(e)) {
+      | Some(("Record", f)) => Some(f)
+      | _ => None
+      }
+    | None => None
+    };
+  let is_marker = f =>
+    switch (FumolaEvents.field("target", f)) {
+    | Some(id) => FumolaEvents.space_key(id) == FumolaRun.pass_cell_name
+    | None => false
+    };
+  let began_at = f =>
+    switch (FumolaEvents.field("metaTimes", f)) {
+    | Some(pair) =>
+      switch (FumolaEvents.tagged(pair)) {
+      | Some(("Tuple", `List([a, ..._]))) =>
+        int_of_string_opt(FumolaEvents.summarize(a))
+      | _ => None
+      }
+    | None => None
+    };
+  let wrote = f =>
+    switch (FumolaEvents.field("action", f)) {
+    | Some(a) =>
+      switch (FumolaEvents.tagged(a)) {
+      | Some(("Variant", v)) =>
+        switch (FumolaEvents.field("value", v)) {
+        | Some(payload) =>
+          switch (FumolaEvents.tagged(payload)) {
+          | Some(("Symbol", sym)) => FumolaEvents.symbol_text(sym)
+          | _ => None
+          }
+        | None => None
+        }
+      | _ => None
+      }
+    | None => None
+    };
+  switch (FumolaEvents.tagged(edges)) {
+  | Some(("List", `List(items))) =>
+    items
+    |> List.filter_map(item =>
+         switch (FumolaEvents.tagged(item)) {
+         | Some(("Record", fields)) =>
+           switch (inner_of(fields)) {
+           | Some(f) when is_marker(f) =>
+             switch (began_at(f), wrote(f)) {
+             | (Some(at), Some(name)) => Some((at, name))
+             | _ => None
+             }
+           | _ => None
+           }
+         | _ => None
+         }
+       )
+    |> List.sort(((a, _), (b, _)) => compare(a, b))
+  | _ => []
+  };
+};
+
+/* The pass a row belongs to: the last boundary at or before its metaTime.
+
+   None for a row older than the first marker, which is every row an instance
+   recorded before this Hazel build, and every row a program put there
+   itself. */
+let pass_at =
+    (passes: list((int, string)), meta_time: string): option(string) =>
+  switch (int_of_string_opt(meta_time)) {
+  | None => None
+  | Some(m) =>
+    List.fold_left(
+      (acc, (at, name)) => at <= m ? Some(name) : acc,
+      None,
+      passes,
+    )
+  };
 
 /* One fetch, three lists. The error cases are FumolaEvents.of_instance's, for
    the same reasons: a missing runtime is an error because a panel showing
@@ -282,6 +399,11 @@ let of_instance = (name: string): result(t, string) =>
             nodes:
               switch (list_at("nodes")) {
               | Some(nodes) => node_rows(~instance_id, nodes)
+              | None => []
+              },
+            passes:
+              switch (list_at("edges")) {
+              | Some(edges) => pass_boundaries(edges)
               | None => []
               },
             edges:

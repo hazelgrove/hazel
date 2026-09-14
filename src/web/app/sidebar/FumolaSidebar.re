@@ -303,11 +303,75 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         ++ many
         ++ " here are its own.";
 
+  /* Hazel's passes, in words rather than in the symbol the marker carries.
+     The symbols come from FumolaRun.pass_symbol; an unknown one is shown as
+     itself, since a pass this panel has not heard of is still worth seeing. */
+  let pass_label = (name: string): string =>
+    switch (name) {
+    | "eval" => "evaluation"
+    | "step" => "a stepper step"
+    | "decompose" => "the stepper, finding the redex"
+    | "valueCheck" => "the value check"
+    | other => other
+    };
+
+  /* Rows, with a header wherever the pass changes.
+
+     A header is emitted only above a row that is actually shown, so hiding
+     the editor cannot leave a heading with nothing under it. The pass of a
+     hidden row is still read, so a boundary that falls inside a hidden run
+     is not lost -- the next visible row carries it.
+
+     Rows before the first marker get no header. That is every row an
+     instance recorded before this build of Hazel, and every row a program
+     put there itself; none of them belong to a pass this panel can name. */
+  let by_pass:
+    'a.
+    (
+      ~passes: list((int, string)),
+      ~at: 'a => string,
+      'a => list(Node.t),
+      list('a)
+    ) =>
+    list(Node.t)
+   =
+    (~passes, ~at, row, items) => {
+      let (out, _) =
+        List.fold_left(
+          ((acc, shown), item) => {
+            let rendered = row(item);
+            let pass = FumolaHistory.pass_at(passes, at(item));
+            switch (rendered, pass) {
+            | ([], _) => (acc, shown)
+            | (_, Some(p)) when Some(p) != shown => (
+                acc
+                @ [
+                  div(
+                    ~attrs=[clss(["fumola-pass"])],
+                    [text(pass_label(p))],
+                  ),
+                ]
+                @ rendered,
+                Some(p),
+              )
+            | _ => (acc @ rendered, shown)
+            };
+          },
+          ([], None),
+          items,
+        );
+      out;
+    };
+
   /* The rows of the Events view. The section around it is the panel's, shared
      with the other two views, so this returns its contents rather than a
      section of its own. */
   let events_body =
-      (~nodes: list(FumolaHistory.node_row), events: list(event)) =>
+      (
+        ~passes: list((int, string)),
+        ~nodes: list(FumolaHistory.node_row),
+        events: list(event),
+      ) =>
     switch (events) {
     | [] => [
         div(
@@ -322,7 +386,9 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ]
     | events =>
       let rows =
-        List.concat_map(
+        by_pass(
+          ~passes,
+          ~at=(ev: event) => ev.meta_time,
           ev =>
             with_editor(~editor=ev.editor, () =>
               div(
@@ -565,14 +631,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ]
     };
 
-  let nodes_view = (nodes: list(FumolaHistory.node_row)) =>
+  let nodes_view =
+      (~passes: list((int, string)), nodes: list(FumolaHistory.node_row)) =>
     rows_view(
       ~name="nodes",
       ~empty="This instance has made no nodes yet.",
       ~total=List.length(nodes),
       ~one="node",
       ~many="nodes",
-      List.concat_map(
+      by_pass(
+        ~passes,
+        ~at=(row: FumolaHistory.node_row) => row.meta_time,
         (row: FumolaHistory.node_row) => {
           let key = revision_key(row.space, row.meta_time);
           let open_ = is_open(key);
@@ -659,14 +728,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     );
 
-  let edges_view = (edges: list(FumolaHistory.edge_row)) =>
+  let edges_view =
+      (~passes: list((int, string)), edges: list(FumolaHistory.edge_row)) =>
     rows_view(
       ~name="edges",
       ~empty="This instance has made no edges yet.",
       ~total=List.length(edges),
       ~one="edge",
       ~many="edges",
-      List.concat_map(
+      by_pass(
+        ~passes,
+        ~at=(row: FumolaHistory.edge_row) => fst(row.meta_times),
         (row: FumolaHistory.edge_row) => {
           let (from_, to_) = row.meta_times;
           let key = edge_key(row.edge_id);
@@ -757,10 +829,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             @ [editor_strip()]
             @ (
               switch (tab) {
-              | Nodes => nodes_view(history.nodes)
-              | Edges => edges_view(history.edges)
+              | Nodes => nodes_view(~passes=history.passes, history.nodes)
+              | Edges => edges_view(~passes=history.passes, history.edges)
               | Events =>
                 events_body(
+                  ~passes=history.passes,
                   ~nodes=history.nodes,
                   {
                     /* Which edges are the editor's, by id, and which nodes

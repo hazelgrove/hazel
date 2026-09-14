@@ -259,7 +259,8 @@ let pass_symbol =
 /* The cell the marker is written to. Leading underscore so it sorts and
    reads as the editor's rather than the program's, and so a program that
    wants the name can still have it. */
-let pass_cell = "`_hazelPass";
+let pass_cell_name = "_hazelPass";
+let pass_cell = "`" ++ pass_cell_name;
 
 /* A program, preceded by the mark of the pass running it.
 

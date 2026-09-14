@@ -847,6 +847,26 @@
   margin: 0.25em 0.5em 0.5em;
 }
 
+/* Where one of Hazel's passes began. Not a row: a divider with a name on it,
+   set apart from the rows it heads so a reader scanning values does not read
+   it as one of them. Dimmer than a row's key, since it is the panel talking
+   about the editor rather than the store talking about itself. */
+.fumola-pass {
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  opacity: 0.7;
+  padding: 0.15em 0 0.1em;
+  margin-top: 0.25em;
+  border-top: 1px solid var(--fumola-pass-rule, rgba(0, 0, 0, 0.18));
+}
+
+/* The first one heads the list, and a rule above it would float free. */
+.fumola-rows > .fumola-pass:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
 .fumola-rows {
   display: flex;
   flex-direction: column;
