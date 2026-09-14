@@ -279,8 +279,10 @@ let capitalized_name_regexp =
   unicode_regexp("^" ++ uppercase_start ++ name_rest_class ++ "*$");
 let is_ctr = unicode_match(capitalized_name_regexp);
 
+/* Keywords pass is_var but cannot lex as an identifier in label position,
+   so they need the quotes too (#2512). */
 let quote_label_when_necessary = (l: string): string =>
-  is_var(l) || is_ctr(l) ? l : label_quote(l);
+  (is_var(l) || is_ctr(l)) && !is_keyword(l) ? l : label_quote(l);
 /* Atom type names recognized by MakeTerm as Atom(...) in Typ sort,
  * plus "Void" and the Drv* names recognized as DrvQuoteTy(sort).
  * Derived from BaseAtom.table, the single home for these spellings. */
