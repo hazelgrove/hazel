@@ -64,6 +64,12 @@ let post_evaluate = (worker, request: Request.t) =>
     Active.encode_request(ClientMessage.Evaluate(request)),
   );
 
+/* W2a: segment-residency sync (fire-and-forget; the answer arrives as
+   ServerMessage.Summary through on_summary) */
+let on_summary: ref(ServerMessage.summary_msg => unit) = ref(_ => ());
+let post_sync = (worker, sync: WorkerServer.SyncProgram.t) =>
+  worker##postMessage(Active.encode_request(ClientMessage.Sync(sync)));
+
 let fail_latest = latest => {
   clear_timeouts();
   latest_request := None;
@@ -108,6 +114,10 @@ let setup_worker_message_handler = worker => {
             };
           },
         )
+      | ServerMessage.Summary(summary) =>
+        /* W2a: not tied to an eval request — routed unconditionally
+           (generation tracking lives with the shadow-mode consumer) */
+        on_summary^(summary)
       };
       Js._true;
     });
@@ -135,12 +145,24 @@ let get_worker = () =>
     w;
   };
 
+/* W2a: fire-and-forget segment sync (answer arrives via on_summary) */
+let sync = (s: WorkerServer.SyncProgram.t): unit =>
+  post_sync(get_worker(), s);
+
+/* a restart births a BLANK worker: all residency is gone, but the
+   client-side mirror still believes it's synced. The residency owner
+   (ShadowResidency) registers here to invalidate its mirror and
+   Full-sync the new worker BEFORE any retried eval posts (the hook
+   runs synchronously, so its sync wins the FIFO race). */
+let on_restart: ref(unit => unit) = ref(() => ());
+
 let restart_worker = (): unit => {
   switch (worker_ref.contents) {
   | Some(w) => w##terminate
   | None => ()
   };
   worker_ref.contents = Some(init_worker());
+  on_restart^();
 };
 
 /* Wall-clock cap for the whole request (including ACK wait). On expiry the

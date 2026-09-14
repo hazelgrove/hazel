@@ -1587,20 +1587,50 @@ module Update = {
               ),
               f.f_entries,
             );
+          let clamped = Haz3lcore.DefStatics.clamp^;
           let ds =
-            Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
+            Haz3lcore.DefStatics.calc_auto(
+              ~settings,
+              ~propagate=!clamped,
+              ~probe_ids,
+              term,
+            );
+          /* W2 stacked-mode sync: ship the SPLICED program (this is
+             the coherent segment/statics moment while stacked; the
+             Main.after_display hook covers only the unstacked case) */
+          switch (editor.editor.editor.root) {
+          | Exp
+          | Mod =>
+            ShadowResidency.on_master_statics(
+              ~key=ShadowResidency.master_key,
+              ~root=editor.editor.editor.root,
+              ~settings,
+              spliced,
+              ds,
+            )
+          | _ => ()
+          };
           stacked_statics :=
             Some(
               Haz3lcore.CachedStatics.{
                 term,
                 elaborated:
-                  switch (Haz3lcore.DefStatics.whole_elab(ds)) {
-                  | Some(elab) => elab
-                  | None =>
-                    Haz3lcore.CachedStatics.dh_err(
-                      "Compositional elaboration gap",
-                    )
-                  },
+                  clamped
+                    /* worker-resident dynamics: sentinel keeps the
+                       eval-request cadence (see CachedStatics) */
+                    ? Haz3lcore.CachedStatics.dh_err(
+                        "w2-resident:"
+                        ++ string_of_int(Haz3lcore.DefStatics.semantic_gen^),
+                      )
+                    : (
+                      switch (Haz3lcore.DefStatics.whole_elab(ds)) {
+                      | Some(elab) => elab
+                      | None =>
+                        Haz3lcore.CachedStatics.dh_err(
+                          "Compositional elaboration gap",
+                        )
+                      }
+                    ),
                 info_map: ds.merged,
                 error_ids: Haz3lcore.DefStatics.all_error_ids(ds),
                 warning_ids: Haz3lcore.DefStatics.all_warning_ids(ds),
@@ -1828,6 +1858,37 @@ module Update = {
               },
             model.focus,
           ),
+      };
+      /* W2 unstacked sync: MUST ship before the eval batch posts —
+         a Resident eval references the worker's resident program, and
+         postMessage order is the only thing keeping it current (the
+         stacked path ships at its Force site above; shipping from
+         after_display was one edit LATE and evals ran on the previous
+         generation) */
+      switch (model.focus) {
+      | None =>
+        let ed =
+          switch (List.nth(model.scratchpads, model.current).kind) {
+          | Code({editor, _}) => Some(editor.editor)
+          | Drv(_) => None
+          };
+        switch (ed, Haz3lcore.DefStatics.current()) {
+        | (Some(ed), Some(ds)) =>
+          switch (ed.editor.root) {
+          | Exp
+          | Mod =>
+            ShadowResidency.on_master_statics(
+              ~key=ShadowResidency.master_key,
+              ~root=ed.editor.root,
+              ~settings,
+              ed.editor.syntax.segment,
+              ds,
+            )
+          | _ => ()
+          }
+        | _ => ()
+        };
+      | Some(_) => () /* shipped at the stacked Force site */
       };
       let dispatch = (_key, action) =>
         schedule_action(CellAction(ResultAction(action)));
