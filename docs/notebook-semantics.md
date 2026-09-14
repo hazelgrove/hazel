@@ -140,24 +140,58 @@ slide, where a program has little to do and an editor has as much to do as ever,
 so an extreme ratio is what should be expected and it says nothing yet about a
 real program. Turning it into a measurement is N1.
 
-## What the instrument still cannot attribute
+## The channel for attribution is already there
 
-The store can say *that* the editor caused an event rather than the program. It
-cannot yet say *which pass* — elaboration, evaluation, a stepper step, the
-panel's own peek.
+An earlier draft of this document said the store can tell you *that* the editor
+caused an event but not *which pass* caused it. That is wrong, and the way it is
+wrong is the useful part: the channel exists in the data model and is simply not
+being spent.
 
-The separation today is an inference about the store's shape: an edge is the
-editor's if its source is the root, `(Here, Now, _)`. That works, and it took
-two corrections to get right. The first judged an event by the edge it named,
-which left every event that names a *node* unattributed on the reasoning that a
-node is neither the editor's doing nor the program's — it simply exists. That
-reasoning is right about the node and wrong about the event: a cell signals
-because someone put into it, so a cell the editor put into signals on the
-editor's account.
+A node id is a triple, and both of its first two components are symbols:
 
-A heuristic that needed two corrections to arrive at one right answer on one
-slide is not a foundation for a measurement. N2 is replacing it with a
-declaration.
+```
+node_id = (space, time, int)
+space   = Here | Symbol(sym)
+time    = Now  | Symbol(sym)
+```
+
+`source_is_here` — the prime-mover test that separates the editor's traffic from
+the program's — destructures that triple as `[space, ..._]` and tests the space
+alone. It already ignores the time. So the time component of a Here-rooted node
+is free, and today the editor spends it on nothing: every root it creates is
+`(Here, Now, _)`, the unnamed moment, for every pass of every edit.
+
+Stamp a distinct time there per pass — `(Here, Symbol("elab·17"), _)`,
+`(Here, Symbol("eval·17"), _)` — and attribution falls out of ids that are
+already in the store, already rendered by the panel, already comparable against
+the symbol in an event. No channel threaded through the run, no new wasm export,
+no change to the Fumola runtime. It is the same shape of answer the event list
+already took: the history was reachable as a prim, so the panel runs
+`prim "adaptonPeekHistory" ()` through the existing shim, and a change to what
+the panel shows costs a Hazel build rather than a Rust one.
+
+Two consequences make this better than the declaration channel it replaces.
+
+**Times are ordered, so passes are sequenced for free.** A set of labels would
+say which pass an event belongs to. Ordered times say that *and* the order they
+happened in — which is most of what a schedule is, obtained by spending a field
+that was already being wasted.
+
+**An edge spans a pair of moments, so a pass boundary is visible.**
+`FumolaHistory` already reads a `metaTimes` pair off every edge, described there
+as the pair an edge spans. An edge whose two moments fall in different passes is
+a dependency that *survived* the boundary — the observable signature of Hazel's
+cache reusing something instead of re-running it. That turns the composition-law
+question below from an argument into a query over the edge list.
+
+What remains true from the earlier draft is the cautionary part. The prime-mover
+separation is an inference about the store's shape, and it took two corrections
+to get one right answer on one slide. The second is the instructive one: judging
+an event by the edge it named left every event that names a *node* unattributed,
+on the reasoning that a node is neither the editor's doing nor the program's — it
+simply exists. That is right about the node and wrong about the event, because a
+cell signals because someone put into it. Reading structure that is already in
+the id is the fix; inferring harder is not.
 
 ## The composition law
 
@@ -180,8 +214,21 @@ increasing order of how much I believe them:
    composition law is a discipline on the *Fumola* program, and Hazel's
    evaluator needs no change at all.
 
-I think the third is right. I do not think it is established, and the difference
-between those two sentences is what N1 and N2 are for.
+I think the third is right. I do not think it is established, and N2 is what
+turns the difference between those two sentences into a check rather than a
+preference.
+
+Candidate 3 makes a prediction that is readable directly off the store: **a
+re-run that changes nothing should add no `Signaled` align.** An alignment is
+`Aligned` or `Signaled`, so if archivist-style operations really are idempotent
+under arbitrary re-running, then Hazel re-running a pass over an unchanged
+program leaves everything aligned. A `Signaled` after such a re-run falsifies
+the candidate.
+
+There is already weak evidence in favour, and it should be labelled weak:
+across six instances, the only align seen was `aligned`. Six instances of demo
+slides are not a sample, and those slides may simply never re-run in a way that
+could signal. It is the right prediction to check, not a result.
 
 ## Other things unresolved
 
@@ -227,21 +274,23 @@ derived, naming the build and the runtime version it was measured against.
 stale local wasm artifacts and a developer with none are running different
 runtimes at the same commit.
 
-### N2 — Attribution by declaration, not by heuristic
+### N2 — A distinct time per pass
 
-The run carries which pass it came from, so an event can say *elaboration*,
-*evaluation*, *stepper*, *panel peek*, rather than being sorted by whether its
-source happens to be the root.
+The editor stamps a named time on the roots it creates, one per pass, instead of
+spending every root on `Now`. Attribution is then read off node ids already in
+the store, and the panel groups by time.
 
-*Why second.* N1 can count effects but cannot fill in the column that says why
-each one happened. Without that, the schedule table has a hole exactly where the
-interesting part is.
+*Why second.* N1 can count effects but cannot fill in the column saying why each
+one happened. This is the cheapest thing that fills it — no channel to thread, no
+export to add, no Rust build — and, because times are ordered, it yields the
+sequence as well as the labels.
 
 *How we would know it worked.* On a slide whose schedule N1 established, every
-event is attributed and the per-pass counts add up. Then the heuristic and the
-declaration are run against each other on the existing slides — and the
-interesting result is a disagreement, since the heuristic is currently what the
-panel ships.
+event carries a time naming a pass, and the per-pass counts add up to N1's
+totals. Then the check worth doing for its own sake: list the edges whose
+`metaTimes` straddle two passes. Each is a dependency Hazel's cache carried
+across a boundary, and each is either an explanation for an effect N1 could not
+account for, or a bug.
 
 ## What this would be, if it works
 
