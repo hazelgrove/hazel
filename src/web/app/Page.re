@@ -275,12 +275,23 @@ module Update = {
         },
       }
       |> return_quiet
+    /* Replace what is focused among things of this kind, and leave the other
+       kinds as the reader left them: an edge followed out of a node's value
+       must not collapse the nodes that were open to find it. */
     | FumolaFocus(key) =>
       {
         ...model,
         globals: {
           ...model.globals,
-          fumola_open: [key],
+          fumola_open: [
+            key,
+            ...List.filter(
+                 k =>
+                   Globals.fumola_namespace(k)
+                   != Globals.fumola_namespace(key),
+                 model.globals.fumola_open,
+               ),
+          ],
         },
       }
       |> return_quiet
