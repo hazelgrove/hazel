@@ -26,9 +26,9 @@ module ValueCheckerEVMode: {
   let req_final = (vc, _, d) => (d, vc(d));
   let req_all_final = (vc, _, ds) =>
     List.fold_right(
-      ((v1, r1), (v2, r2)) => ([v1, ...v2], combine(r1, r2)),
-      List.map(req_final(vc, x => x), ds),
-      ([], Value),
+      ~f=((v1, r1), (v2, r2)) => ([v1, ...v2], combine(r1, r2)),
+      ~init=([], Value),
+      List.map(~f=req_final(vc, x => x), ds),
     );
 
   let otherwise = (_, _) => ((), Value);
@@ -54,4 +54,4 @@ let rec check_value = (~in_closure=?, env, d) =>
 
 /* Check if an expression is a fully-evaluated value */
 let is_value = (exp: Exp.t): bool =>
-  check_value(Environment.empty, exp) == Value;
+  Poly.equal(check_value(Environment.empty, exp), Value);

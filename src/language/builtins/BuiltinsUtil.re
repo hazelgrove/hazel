@@ -96,7 +96,7 @@ let extend = (map: VarMap.t_(builtin), builtin: builtin): VarMap.t_(builtin) => 
 };
 
 let to_map: list(builtin) => VarMap.t_(builtin) =
-  List.fold_left(extend, VarMap.empty);
+  List.fold_left(~f=extend, ~init=VarMap.empty);
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {

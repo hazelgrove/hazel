@@ -23,9 +23,10 @@ let is_drv_exp: t => option(DrvTermBase.Exp.t) =
 let drv_hole = (tms: list(TermBase.Any.t)): DrvTermBase.type_hole =>
   tms
   |> List.filter_map(
-       fun
-       | Grammar.Drv(exp) => Some(exp)
-       | _ => None,
+       ~f=
+         fun
+         | Grammar.Drv(exp) => Some(exp)
+         | _ => None,
      )
   |> (
     fun

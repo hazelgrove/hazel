@@ -49,9 +49,10 @@ let equal_constructor =
 
 let is_empty = (x: t('a)): bool =>
   List.for_all(
-    fun
-    | Variant(_, _, _) => false
-    | BadEntry(_) => true,
+    ~f=
+      fun
+      | Variant(_, _, _) => false
+      | BadEntry(_) => true,
     x,
   );
 
@@ -67,28 +68,31 @@ let same_constructor =
 
 let has_bad_entry = (x: t('a)): bool =>
   List.exists(
-    fun
-    | BadEntry(_) => true
-    | Variant(_) => false,
+    ~f=
+      fun
+      | BadEntry(_) => true
+      | Variant(_) => false,
     x,
   );
 
 let has_good_entry = (x: t('a)): bool =>
   List.exists(
-    fun
-    | BadEntry(_) => false
-    | Variant(_) => true,
+    ~f=
+      fun
+      | BadEntry(_) => false
+      | Variant(_) => true,
     x,
   );
 
 let free_variables = (f, m) =>
   m
   |> List.map(
-       fun
-       | Variant(_, _, Some(value)) => f(value)
-       | _ => [],
+       ~f=
+         fun
+         | Variant(_, _, Some(value)) => f(value)
+         | _ => [],
      )
-  |> List.flatten;
+  |> List.concat;
 
 /* computes all three regions of a venn diagram of two sets represented as lists */
 let venn_regions =
@@ -98,9 +102,9 @@ let venn_regions =
     switch (xs) {
     | [] => (acc |> List.rev, left |> List.rev, List.rev_append(right, ys))
     | [x, ...xs] =>
-      switch (List.partition(f(x, _), ys)) {
+      switch (List.partition_tf(ys, ~f=f(x, _))) {
       | ([], _) =>
-        switch (List.partition(f(x, _), seen_xs)) {
+        switch (List.partition_tf(seen_xs, ~f=f(x, _))) {
         | ([], _) => go(xs, ys, [x, ...seen_xs], acc, [x, ...left], right)
         | (_, _) => go(xs, ys, seen_xs, acc, left, right)
         }
@@ -135,7 +139,7 @@ let meet =
     )
     : option(t('a)) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let meet_entries = List.filter_map(meet_entry(meet), inter);
+  let meet_entries = List.filter_map(~f=meet_entry(meet), inter);
   if (List.length(meet_entries) == List.length(inter)) {
     switch (
       has_good_entry(left),
@@ -146,7 +150,8 @@ let meet =
     | (_, true, _, true) => Some(meet_entries @ left @ right)
     | (false, true, _, _) => Some(meet_entries @ right)
     | (_, _, false, true) => Some(meet_entries @ left)
-    | _ when left == [] && right == [] => Some(meet_entries)
+    | _ when List.is_empty(left) && List.is_empty(right) =>
+      Some(meet_entries)
     | _ => None
     };
   } else {
@@ -165,10 +170,11 @@ let match_synswitch =
   let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
   let inter' =
     List.map(
-      fun
-      | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
-        Variant(ctr, ids, Some(match_synswitch(value1, value2)))
-      | (v, _) => v,
+      ~f=
+        fun
+        | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
+          Variant(ctr, ids, Some(match_synswitch(value1, value2)))
+        | (v, _) => v,
       inter,
     );
   inter' @ left;
@@ -178,14 +184,15 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   switch (venn_regions(same_constructor(eq), m1, m2)) {
   | (inter, [], []) =>
     List.for_all(
-      ((x, y)) =>
-        switch (x, y) {
-        | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
-          eq(value1, value2)
-        | (Variant(_, _, None), Variant(_, _, None)) => true
-        | (BadEntry(x), BadEntry(y)) => eq(x, y)
-        | _ => false
-        },
+      ~f=
+        ((x, y)) =>
+          switch (x, y) {
+          | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
+            eq(value1, value2)
+          | (Variant(_, _, None), Variant(_, _, None)) => true
+          | (BadEntry(x), BadEntry(y)) => eq(x, y)
+          | _ => false
+          },
       inter,
     )
   | _ => false
@@ -194,20 +201,22 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
 
 let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   List.map(
-    fun
-    | Variant(ctr, args, value) => Variant(ctr, args, f(value))
-    | BadEntry(value) => BadEntry(value),
+    ~f=
+      fun
+      | Variant(ctr, args, value) => Variant(ctr, args, f(value))
+      | BadEntry(value) => BadEntry(value),
     m,
   );
 };
 
 let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
   List.map(
-    fun
-    | Variant(ctr, args, Some(value)) =>
-      Variant(ctr, args, Some(f(value)))
-    | Variant(ctr, args, None) => Variant(ctr, args, None)
-    | BadEntry(value) => BadEntry(f(value)),
+    ~f=
+      fun
+      | Variant(ctr, args, Some(value)) =>
+        Variant(ctr, args, Some(f(value)))
+      | Variant(ctr, args, None) => Variant(ctr, args, None)
+      | BadEntry(value) => BadEntry(f(value)),
     m,
   );
 };
@@ -215,10 +224,11 @@ let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
 // TODO: maybe define a variant here instead of double option
 let get_entry = (ctr, m) =>
   List.find_map(
-    fun
-    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
-      Some(value)
-    | Variant(_)
-    | BadEntry(_) => None,
+    ~f=
+      fun
+      | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
+        Some(value)
+      | Variant(_)
+      | BadEntry(_) => None,
     m,
   );
