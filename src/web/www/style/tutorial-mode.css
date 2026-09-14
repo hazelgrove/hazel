@@ -122,10 +122,6 @@
   opacity: 1;
 }
 
-#main.Tutorial .done-checkmark {
-  margin-left: 0.5rem;
-}
-
 #main.Tutorial .title-cell {
   display: flex;
   align-items: flex-start;
@@ -144,12 +140,6 @@
   margin-top: 0 !important;
   margin-bottom: 2em !important;
   padding: 0 !important;
-}
-
-#main.Tutorial .tutorial-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2em;
 }
 
 #main.Tutorial .cross {

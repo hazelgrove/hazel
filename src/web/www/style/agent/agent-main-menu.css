@@ -308,15 +308,6 @@
   color: var(--BR4);
 }
 
-/* Chat Interface */
-.chat-interface-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 1.5em;
-  background-color: var(--ui-bkg);
-}
-
 .chat-interface-placeholder {
   flex: 1;
   display: flex;
