@@ -1,5 +1,12 @@
 # Programmable probes
 
+> Hazel is Fumola's Strange Observer (and editor).
+> Fumola is Hazel's Strange Outsider (and doer/archivist).
+>
+> They make a strange loop that's very exciting to me.
+>
+> — Matthew Hammer
+
 Fumola instances as probes you can write, and that survive the edit.
 
 Status: a design note and a proposal. The integration it builds on is running on

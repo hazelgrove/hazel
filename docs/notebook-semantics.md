@@ -1,5 +1,12 @@
 # Notebook semantics
 
+> Hazel is Fumola's Strange Observer (and editor).
+> Fumola is Hazel's Strange Outsider (and doer/archivist).
+>
+> They make a strange loop that's very exciting to me.
+>
+> — Matthew Hammer
+
 What actually runs when you edit, and how we found out.
 
 Status: a design note and a proposal. The instrument it describes is built and

@@ -1,5 +1,12 @@
 # Hazel's effect schedule
 
+> Hazel is Fumola's Strange Observer (and editor).
+> Fumola is Hazel's Strange Outsider (and doer/archivist).
+>
+> They make a strange loop that's very exciting to me.
+>
+> — Matthew Hammer
+
 How many times a Fumola program runs, per editor gesture. Measured, not derived.
 
 This is N1 of [Notebook semantics](notebook-semantics.md). Everything below was
