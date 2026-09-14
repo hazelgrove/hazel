@@ -381,17 +381,22 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   /* Empty the store and build it again from the program. Beside the views
      rather than in them: it is about the instance, not about what is being
      looked at. */
+  /* One letter each, because this sits on the same line as the tab strip and
+     the two words did not leave it room. The whole of what they mean is in
+     the tooltip, which is where a control this small has to keep it. */
   let reset_button = (instance: string) => {
-    let into = (mode, label, what) =>
+    let into = (mode, label, name, what) =>
       span(
         ~attrs=[
           clss(["fumola-reset"]),
           Attr.title(
-            "Empty this instance and run the program again, "
+            "Empty this instance and run the program again as "
+            ++ name
+            ++ ", "
             ++ what
             ++ ". Bindings from other cells that share the instance do not "
-            ++ "come back, and a mode written in the program is asserted "
-            ++ "again when it runs.",
+            ++ "come back. The mode stays as you asked until the program's "
+            ++ "own mode is edited.",
           ),
           Attr.on_click(_ =>
             globals.inject_global(FumolaReset(instance, mode))
@@ -403,9 +408,10 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ~attrs=[clss(["fumola-resets"])],
       [
         span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
-        into(Language.FumolaRun.Simple, "simple", "keeping no graph"),
+        into(Language.FumolaRun.Simple, "S", "simple", "keeping no graph"),
         into(
           Language.FumolaRun.Graphical,
+          "G",
           "graphical",
           "recording as it forces",
         ),

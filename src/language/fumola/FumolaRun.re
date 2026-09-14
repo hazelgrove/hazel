@@ -75,6 +75,21 @@ let mode_source =
    mode is written beside the instance name rather than somewhere a program
    could change it in passing, and why running with no mode written does not
    set one: it would reset an instance another expression had configured. */
+/* The mode last written in the program text for an instance, by instance.
+
+   Not the instance's actual mode -- the runtime owns that. This is only what
+   the tile said the last time it ran, and it is here so a run can tell a
+   DECLARATION from a re-run of the same declaration.
+
+   A run used to set the declared mode every time. That is a no-op whenever
+   nothing changed, so it looked free, and it was not: the panel's `reset`
+   buttons set a mode too, and the re-run that a reset schedules came along
+   one step later and set the declared one back. Asking a $graphical cell to
+   come back as simple emptied the store, made it simple, and then ran the
+   program -- which declared $graphical, which reset it again and recorded a
+   graph. The button worked and was undone before anything could show it. */
+let last_declared: Hashtbl.t(int, mode) = Hashtbl.create(8);
+
 let ensure_mode = (instance_id: int, mode: mode): unit =>
   switch (
     shim(
@@ -99,7 +114,13 @@ let reset_instance = (~mode: option(mode)=?, name: string): bool => {
   /* The snapshot a reset restores carries the mode the instance was given,
      so coming back as the other one is a second step. Setting a mode an
      instance already has is a no-op, so asking for the one it already had
-     costs nothing. */
+     costs nothing.
+
+     `last_declared` is deliberately left alone: it records what the PROGRAM
+     said, and the program has not changed. That is what lets this mode
+     survive the re-run a reset schedules -- the re-run sees its own
+     declaration unchanged and says nothing, so the reader's choice stands
+     until the tile itself is edited. */
   if (reset) {
     Option.iter(ensure_mode(instance_id), mode);
   };
@@ -233,7 +254,19 @@ let run =
       | None =>
         let program = Fumola.of_exp(body);
         let instance_id = instance_of_name(instance_name);
-        Option.iter(ensure_mode(instance_id), mode);
+        /* Declare the mode when the declaration is new or has changed, which
+           is when it means something. An unchanged declaration says nothing
+           the instance has not already been told, and saying it anyway would
+           overrule whoever spoke last -- which, after a reset, is the
+           reader. Leaving the mode slot a hole still says nothing at all. */
+        Option.iter(
+          mode =>
+            if (Hashtbl.find_opt(last_declared, instance_id) != Some(mode)) {
+              ensure_mode(instance_id, mode);
+              Hashtbl.replace(last_declared, instance_id, mode);
+            },
+          mode,
+        );
         switch (eval_in(instance_id, program)) {
         | `Null =>
           Error({
