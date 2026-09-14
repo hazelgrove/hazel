@@ -48,22 +48,45 @@ module FError =
     };
   });
 
-/**
- * Helper function to assemble live typing data map from samples and type
- * instantiations. Defers to the same conversion the editor uses
- * (Dynamics.to_live_typing_map), so tests exercise its value-closing.
- */
-let mk_live_typing =
-    (
-      probe_data: Id.Map.t(list(Sample.t)),
-      type_insts: Dynamics.TypeInstMap.t,
-    )
-    : LiveTyping.Map.t =>
-  Dynamics.to_live_typing_map({
+/* The live-typing input CodeWithStatics builds from an evaluation: the
+   dynamics, narrowed to the pinned call when there is one, converted for
+   statics by the same Dynamics.to_live_typing_map the editor uses. */
+let live_typing_of_state =
+    (~pin: option(CallStack.t)=None, state: EvaluatorState.t)
+    : LiveTyping.Map.t => {
+  let dynamics: Dynamics.t = {
     ...Dynamics.empty,
-    probe_map: probe_data,
-    type_inst_map: type_insts,
-  });
+    probe_map: EvaluatorState.get_probes(state),
+    type_inst_map: EvaluatorState.get_type_insts(state),
+  };
+  (
+    switch (pin) {
+    | None => dynamics
+    | Some(pinned_stack) =>
+      Dynamics.filter_by_focus(
+        {
+          ...Sample.Focus.init,
+          pinned_stack: Some(pinned_stack),
+        },
+        dynamics,
+      )
+    }
+  )
+  |> Dynamics.to_live_typing_map;
+};
+
+/* A term as the editor prints it, on one line. */
+let show_any = (any: Any.t): string =>
+  Haz3lcore.(
+    Printer.of_segment(
+      ~holes="?",
+      ExpToSegment.any_to_segment(
+        ~settings=
+          ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+        any,
+      ),
+    )
+  );
 
 /**
  * Maps static and live typing error information to error annotations.
@@ -105,21 +128,7 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
     Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), expected_exp);
 
   let test_name =
-    Util.OptUtil.get(
-      () => {
-        Haz3lcore.(
-          Printer.of_segment(
-            ~holes="?",
-            ExpToSegment.exp_to_segment(
-              ~settings=
-                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-              exp_with_ids,
-            ),
-          )
-        )
-      },
-      test_name,
-    );
+    Util.OptUtil.get(() => show_any(Exp(exp_with_ids)), test_name);
 
   // Perform initial static analysis (also produces elaborated expression).
   let (initial_statics, elaborated_exp) =
@@ -150,12 +159,7 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
       elaborated_exp,
     );
 
-  // Extract probe data and type instantiations from the evaluation state
-  let probe_data = EvaluatorState.get_probes(evaluation_state);
-  let type_insts = EvaluatorState.get_type_insts(evaluation_state);
-
-  // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
-  let dynamic_expressions = mk_live_typing(probe_data, type_insts);
+  let dynamic_expressions = live_typing_of_state(evaluation_state);
 
   // Re-run static analysis with dynamic information
   let (live_typing_statics, _) =
@@ -221,21 +225,54 @@ let inconsistent_exp = (kind: inconsistent_kind): list(Mark.t) =>
     ]
   };
 
-/* Pipeline mirroring `test_live_typing`, but returning the live-typing error
-   ids as computed by the shared reporting filter
-   (StaticsBase.Map.live_typing_error_ids) plus both info maps. For tests
-   that pin the *reporting policy* — which live-run marks are surfaced as
-   live typing errors — rather than per-node mark contents. */
-let live_error_ids_of =
-    (program: string): (list(Id.t), Statics.Map.t, Statics.Map.t) => {
-  let exp = parse_exp(program);
+type live_run = {
+  static_map: Statics.Map.t,
+  live_map: Statics.Map.t,
+  /* The ids the editor decorates, as the shared reporting filter
+     (StaticsBase.Map.live_typing_error_ids) computes them. */
+  live_ids: list(Id.t),
+};
+
+/* The pin ProbeProj.pin_call builds for a probed call: the call's own id
+   over the stack it ran under. The program must probe exactly one call, and
+   that call must have run exactly once, or the pin is ambiguous. */
+let pin_of_probed_call =
+    (probes: Sample.Map.t, probe_targets: Sample.targets): CallStack.t =>
+  switch (Id.Map.bindings(probe_targets)) {
+  | [(ap_id, _)] =>
+    switch (Id.Map.find_opt(ap_id, probes)) {
+    | Some([sample]) => CallStack.extend(ap_id, sample.call_stack)
+    | Some(samples) =>
+      fail(
+        Printf.sprintf(
+          "the probed call ran %d times; pinning needs exactly one",
+          List.length(samples),
+        ),
+      )
+    | None => fail("the probed call never ran")
+    }
+  | probed =>
+    fail(
+      Printf.sprintf(
+        "expected exactly one ^^probe, found %d",
+        List.length(probed),
+      ),
+    )
+  };
+
+/* Static and live passes over `program`, the live one fed the dynamics of a
+   full evaluation. With `~pinned`, the dynamics are first narrowed to the
+   program's single `^^probe`d call, as CodeWithStatics narrows them to the
+   editor's sample focus. */
+let live_run = (~pinned: bool, program: string): live_run => {
+  let (exp, elaborated, static_map, probe_targets) =
+    parse_with_probes(program);
   let ctx = Builtins.ctx_init(Some(Int));
-  let (static_map, elaborated) = Statics.mk(CoreSettings.on, ctx, exp);
   let targets =
     Haz3lcore.CachedStatics.compute_targets(
       ~settings=CoreSettings.on,
       ~info_map=static_map,
-      ~probe_ids=Id.Map.empty,
+      ~probe_ids=Id.Map.map(_ => (), probe_targets),
     );
   let (_, state) =
     Evaluator.evaluate(
@@ -243,35 +280,84 @@ let live_error_ids_of =
       ~env=Builtins.env_init,
       elaborated,
     );
-  let dynamics =
-    mk_live_typing(
-      EvaluatorState.get_probes(state),
-      EvaluatorState.get_type_insts(state),
+  let pin =
+    pinned
+      ? Some(
+          pin_of_probed_call(
+            EvaluatorState.get_probes(state),
+            probe_targets,
+          ),
+        )
+      : None;
+  let (live_map, _) =
+    Statics.mk(
+      ~dynamics=live_typing_of_state(~pin, state),
+      CoreSettings.on,
+      ctx,
+      exp,
     );
-  let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
-  let live_ids =
-    StaticsBase.Map.live_typing_error_ids(
-      ~static_error_ids=StaticsBase.Map.error_ids(static_map),
-      live_map,
-    );
-  (live_ids, static_map, live_map);
+  {
+    static_map,
+    live_map,
+    live_ids:
+      StaticsBase.Map.live_typing_error_ids(
+        ~static_error_ids=StaticsBase.Map.error_ids(static_map),
+        live_map,
+      ),
+  };
 };
 
-/* The synthesized type of the pattern variable `name` in `map`. This is the
-   binder type that drives both the inspector display and the context entry
-   seen by uses. Assumes `name` is bound only once in the program. */
-let pat_elab_syn_ty = (name: string, map: Statics.Map.t): option(Typ.t) =>
+/* Each live typing error as "<mark> <term>", sorted, so a run's errors
+   compare as one value. */
+let describe_live_errors = ({live_map, live_ids, _}: live_run): list(string) =>
+  live_ids
+  |> List.concat_map(id => {
+       let info =
+         switch (StaticsBase.Map.lookup(id, live_map)) {
+         | Some(info) => info
+         | None => fail("live typing error id without info: " ++ Id.show(id))
+         };
+       let term =
+         switch (Info.any_of(info)) {
+         | Some(any) => show_any(any)
+         | None => fail("live typing error on a secondary node")
+         };
+       Info.marks_of(info)
+       |> List.filter(Mark.is_live_reportable)
+       |> List.map(mark => Mark.Variants.to_name(mark) ++ " " ++ term);
+     })
+  |> List.sort(String.compare);
+
+/* `call`, marked for sampling the way a user pins it: with a probe on the
+   application. */
+let probed = (call: string): string => "^^probe(" ++ call ++ ")";
+
+/* The info of the pattern variable `name` in `map`. Assumes `name` is bound
+   only once in the program. */
+let pat_info = (name: string, map: Statics.Map.t): option(Info.pat) =>
   Id.Map.fold(
     (_, info, acc) =>
       switch (info) {
-      | Info.InfoPat({user_term, elab_syn_ty, _})
+      | Info.InfoPat({user_term, _} as p)
           when Pat.get_var(user_term) == Some(name) =>
-        Some(elab_syn_ty)
+        Some(p)
       | _ => acc
       },
     map,
     None,
   );
+
+/* The synthesized type of binder `name`: the type that drives both the
+   inspector display and the context entry seen by uses. */
+let pat_elab_syn_ty = (name: string, map: Statics.Map.t): option(Typ.t) =>
+  pat_info(name, map) |> Option.map((p: Info.pat) => p.elab_syn_ty);
+
+/* The type of binder `name` with its head resolved through the binder's own
+   context, so a `typfun` parameter reads as the type live typing
+   instantiated it to. */
+let pat_ty_normalized = (name: string, map: Statics.Map.t): option(Typ.t) =>
+  pat_info(name, map)
+  |> Option.map((p: Info.pat) => Typ.weak_head_normalize(p.ctx, p.ty));
 
 /* Property: for every expression-info id, the elab_syn_ty produced by static
    analysis run *with* live-typing dynamics is more precise than (or equal to)
@@ -299,11 +385,7 @@ let precision_property = (exp: Exp.t): bool =>
           ~env=Builtins.env_init,
           elaborated,
         );
-      let dynamics =
-        mk_live_typing(
-          EvaluatorState.get_probes(state),
-          EvaluatorState.get_type_insts(state),
-        );
+      let dynamics = live_typing_of_state(state);
       let (live_map, _) =
         Statics.mk(~dynamics, CoreSettings.on, ctx, exp_with_ids);
       Id.Map.for_all(
@@ -373,11 +455,7 @@ in
         let (result, state: EvaluatorState.t) =
           Evaluator.evaluate(~env=Builtins.env_init, elaborated);
 
-        let dynamics = EvaluatorState.get_probes(state);
-        let type_insts = EvaluatorState.get_type_insts(state);
-
-        // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
-        let dynamic_expressions = mk_live_typing(dynamics, type_insts);
+        let dynamic_expressions = live_typing_of_state(state);
         let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,
@@ -531,35 +609,19 @@ in
             ~env=Builtins.env_init,
             elaborated,
           );
-        let dynamics =
-          mk_live_typing(
-            EvaluatorState.get_probes(state),
-            EvaluatorState.get_type_insts(state),
-          );
+        let dynamics = live_typing_of_state(state);
         let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
-        let pat_var_ty = (name, map) =>
-          Id.Map.fold(
-            (_, info, acc) =>
-              switch (info) {
-              | Info.InfoPat({user_term, ty, _})
-                  when Pat.get_var(user_term) == Some(name) =>
-                Some(ty)
-              | _ => acc
-              },
-            map,
-            None,
-          );
         check(
           Alcotest.option(Test_Statics_Prelude.testable_typ),
           "x has static type ?",
           Some(Test_Statics_Prelude.FTemp.Typ.unknown(Internal)),
-          pat_var_ty("x", static_map),
+          pat_ty_normalized("x", static_map),
         );
         check(
           Alcotest.option(Test_Statics_Prelude.testable_typ),
           "x has live type Int",
           Some(Test_Statics_Prelude.FTemp.Typ.int()),
-          pat_var_ty("x", live_map),
+          pat_ty_normalized("x", live_map),
         );
       },
     ),
@@ -582,11 +644,7 @@ in
             ~env=Builtins.env_init,
             elaborated,
           );
-        let dynamics =
-          mk_live_typing(
-            EvaluatorState.get_probes(state),
-            EvaluatorState.get_type_insts(state),
-          );
+        let dynamics = live_typing_of_state(state);
         let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
         /* The let-bound pattern `x`: statically `[?]`, at runtime `[String]`. */
         check(
@@ -614,7 +672,7 @@ in
            ExpectationMismatch. The closure must be read against the
            environment it captured. */
         let program = {|let h = 3 in let f = fun () -> h in let g = fun h -> let z = h in 3 + h() in g(f)|};
-        let (live_ids, _, live_map) = live_error_ids_of(program);
+        let {live_ids, live_map, _} = live_run(~pinned=false, program);
         check(
           Alcotest.int,
           "no live typing errors",
@@ -639,7 +697,7 @@ in
            against the ambient scope gives `p : () -> String`, making
            `3 + p()` a live error. */
         let program = {|let k = 3 in let f = fun () -> k in let k = "hi" in let g = fun p -> 3 + p() in g(f)|};
-        let (live_ids, _, live_map) = live_error_ids_of(program);
+        let {live_ids, live_map, _} = live_run(~pinned=false, program);
         check(
           Alcotest.int,
           "no live typing errors",
@@ -892,7 +950,8 @@ in
       `Quick,
       () => {
         let program = {|let f = fun (xs : [(k= String, v= ?)]) -> map(xs, fun (k= k, v= v) -> case k == "name" | true => v | false => v end) in f([(k= "name", v= "a"), (k= "age", v= 1)])|};
-        let (live_ids, static_map, live_map) = live_error_ids_of(program);
+        let {live_ids, static_map, live_map} =
+          live_run(~pinned=false, program);
         check(
           Alcotest.int,
           "no static errors",
@@ -932,7 +991,7 @@ in
       `Quick,
       () => {
         let program = {|(fun y -> y + 1)("")|};
-        let (live_ids, _, live_map) = live_error_ids_of(program);
+        let {live_ids, live_map, _} = live_run(~pinned=false, program);
         check(
           Alcotest.int,
           "one live typing error survives the filter",
@@ -970,7 +1029,8 @@ in
            projection `.get_acne` is then a witnessed misuse (LabelNotFound)
            and must survive the live-error mark filter. */
         let program = {|let xs : [(value= Bool, count= Int)] = [(value= true, count= 1)] in map(xs, fun r -> r.get_acne)|};
-        let (live_ids, static_map, live_map) = live_error_ids_of(program);
+        let {live_ids, static_map, live_map} =
+          live_run(~pinned=false, program);
         check(
           Alcotest.int,
           "no static errors",
@@ -1003,6 +1063,146 @@ in
           "surviving id carries LabelNotFound",
           true,
           has_label_not_found,
+        );
+      },
+    ),
+    /* Pinning a call narrows the dynamics to that call's extent, as the
+       editor's sample focus does. `get` is a stringly-keyed registry: "size"
+       is a number, anything else a handler. `show` reads the size as a
+       point, which is a misuse in both calls, then invokes the entry it
+       looked up and compares it to itself. Each of those two is right for
+       one entry and a misuse for the other, so which node errs, and with
+       what kind, follows the pin. */
+    test_case(
+      "Pinned call selects the samples: which live errors fire follows the pin",
+      `Quick,
+      () => {
+        let registry_program = (size_call, bump_call) =>
+          {|let get = fun key -> case key | "size" => (12 : ?) | _ => ((fun n -> n + 1) : ?) end in
+let show = fun key ->
+  let x = get("size").x in
+  let v = get(key) in
+  (x, v(1), v == v) in
+let _ = |}
+          ++ size_call
+          ++ {| in
+|}
+          ++ bump_call;
+        let size = {|show("size")|}
+        and bump = {|show("bump")|};
+        let unpinned = live_run(~pinned=false, registry_program(size, bump));
+        let pinned_size =
+          live_run(~pinned=true, registry_program(probed(size), bump));
+        let pinned_bump =
+          live_run(~pinned=true, registry_program(size, probed(bump)));
+        check(
+          int,
+          "no static errors",
+          0,
+          List.length(StaticsBase.Map.error_ids(unpinned.static_map)),
+        );
+        let errors = Alcotest.(list(string));
+        check(
+          errors,
+          "unpinned: v's samples never meet, only the constant misuse",
+          [{|DotOperatorRequiresTuple (get("size")).x|}],
+          describe_live_errors(unpinned),
+        );
+        check(
+          errors,
+          {|pinned on show("size"): v is an Int, so v(1) applies a non-function|},
+          [
+            {|DotOperatorRequiresTuple (get("size")).x|},
+            {|ExpectationMismatch v|},
+          ],
+          describe_live_errors(pinned_size),
+        );
+        check(
+          errors,
+          {|pinned on show("bump"): v is a function, so v == v compares functions|},
+          [
+            {|CompareFun v == v|},
+            {|DotOperatorRequiresTuple (get("size")).x|},
+          ],
+          describe_live_errors(pinned_bump),
+        );
+        let typ = Alcotest.option(Test_Statics_Prelude.testable_typ);
+        Test_Statics_Prelude.FTemp.Typ.(
+          {
+            check(
+              typ,
+              "v stays ? unpinned",
+              Some(unknown(Internal)),
+              pat_elab_syn_ty("v", unpinned.live_map),
+            );
+            check(
+              typ,
+              {|v is live Int under show("size")|},
+              Some(int()),
+              pat_elab_syn_ty("v", pinned_size.live_map),
+            );
+            check(
+              typ,
+              {|v is live ? -> Int under show("bump")|},
+              Some(arrow(unknown(Internal), int())),
+              pat_elab_syn_ty("v", pinned_bump.live_map),
+            );
+          }
+        );
+      },
+    ),
+    /* The same pin narrows the type instantiations. `a` is instantiated at
+       Int inside `g` and at String inside `h`, and each TypAp's stack sits
+       under its wrapper's call frame, so a pin on the wrapper keeps just
+       that instantiation. */
+    test_case(
+      "Pinned call selects the instantiations a typfun parameter takes",
+      `Quick,
+      () => {
+        let wrapper_program = (g_call, h_call) =>
+          {|let f = typfun a -> fun (x : a) -> x in
+let g = fun n -> f@<Int>(n) in
+let h = fun s -> f@<String>(s) in
+let _ = |}
+          ++ g_call
+          ++ {| in
+|}
+          ++ h_call;
+        let g = {|g(1)|}
+        and h = {|h("s")|};
+        let unpinned = live_run(~pinned=false, wrapper_program(g, h));
+        let pinned_g =
+          live_run(~pinned=true, wrapper_program(probed(g), h));
+        let pinned_h =
+          live_run(~pinned=true, wrapper_program(g, probed(h)));
+        check(
+          int,
+          "no static errors",
+          0,
+          List.length(StaticsBase.Map.error_ids(unpinned.static_map)),
+        );
+        let typ = Alcotest.option(Test_Statics_Prelude.testable_typ);
+        Test_Statics_Prelude.FTemp.Typ.(
+          {
+            check(
+              typ,
+              "a joins both instantiations to ? unpinned",
+              Some(unknown(Internal)),
+              pat_ty_normalized("x", unpinned.live_map),
+            );
+            check(
+              typ,
+              "a is Int under g(1)",
+              Some(int()),
+              pat_ty_normalized("x", pinned_g.live_map),
+            );
+            check(
+              typ,
+              {|a is String under h("s")|},
+              Some(string()),
+              pat_ty_normalized("x", pinned_h.live_map),
+            );
+          }
         );
       },
     ),
