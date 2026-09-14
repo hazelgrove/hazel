@@ -40,7 +40,7 @@ let empty: t('a) = {
 };
 
 let singleton = (x: 'a): t('a) => {
-  hash: Hashtbl.hash(`Leaf(x)),
+  hash: Stdlib.Hashtbl.hash(`Leaf(x)),
   node: Leaf(x),
 };
 
@@ -52,18 +52,18 @@ let union = (a: t('a), b: t('a)): t('a) =>
   | (Empty, _) => b
   | (_, Empty) => a
   | _ => {
-      hash: Hashtbl.hash(`Branch((a.hash, b.hash))),
+      hash: Stdlib.Hashtbl.hash(`Branch((a.hash, b.hash))),
       node: Branch(a, b),
     }
   };
 
 let rec equal = (a: t('a), b: t('a)): bool =>
-  a === b
+  phys_equal(a, b)
   || a.hash == b.hash
   && (
     switch (a.node, b.node) {
     | (Empty, Empty) => true
-    | (Leaf(x), Leaf(y)) => x == y
+    | (Leaf(x), Leaf(y)) => Poly.equal(x, y)
     | (Branch(la, ra), Branch(lb, rb)) => equal(la, lb) && equal(ra, rb)
     | (Empty | Leaf(_) | Branch(_), _) => false
     }
