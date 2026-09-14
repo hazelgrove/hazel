@@ -239,7 +239,7 @@ let speech_path =
   /* the tail's base spans 13 px back along the incoming edge and 11 px on
      along the outgoing one, but never past the neighbouring arcs on a
      short edge (a one-line bubble is ~17 px tall) */
-  let edge_len = ((ix, iy)) => Float.abs(ix) > 0.5 ? w : h;
+  let edge_len = ((ix, _)) => Float.abs(ix) > 0.5 ? w : h;
   let segs =
     Array.to_list(
       Array.mapi(

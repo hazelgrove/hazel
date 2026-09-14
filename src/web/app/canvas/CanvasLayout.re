@@ -221,9 +221,6 @@ let layout_impl =
       g.nodes,
     );
   let grid_keys = List.map((n: CanvasGraph.tynode) => n.key, grid_nodes);
-  let find_grid = (k: string): option(CanvasGraph.tynode) =>
-    List.find_opt((n: CanvasGraph.tynode) => n.key == k, grid_nodes);
-
   /* ---- placement: delegate to the GraphLayout engine ----
      Rank constraints: alias-body deps (hidden ones included — they still
      order columns), derived [T] after its element, and function flow

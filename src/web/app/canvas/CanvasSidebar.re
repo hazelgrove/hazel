@@ -1241,12 +1241,6 @@ let view_impl =
           )
         )
       : None;
-  let selected_value =
-    main_mode
-      ? Option.bind(selected_item, id =>
-          List.find_opt((v: CanvasGraph.value) => v.v_id == id, graph.values)
-        )
-      : None;
   let set_focus = (f: option(string)) =>
     globals.inject_global(Set(Sidebar(SetCanvasFocus(f))));
   /* clicking a function: focus it in the detail strip AND select its
