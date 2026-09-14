@@ -30,9 +30,12 @@ let wants_dynamics = (kind: ProjectorCore.Kind.t): bool =>
   switch (kind) {
   /* HTML: the projector's own sample stream is what `live_value` reads.
      Livelit: the view fold-in (Statics' Projector case) samples the live
-     HTML of a user-defined livelit at this projector's id. */
+     HTML of a user-defined livelit at this projector's id.
+     AutomergeWriteBack: writes the live value of the syntax it replaces
+     back to the document. */
   | HTML
-  | Livelit => true
+  | Livelit
+  | AutomergeWriteBack => true
   | Fold
   | Statics
   | Probe
@@ -42,7 +45,8 @@ let wants_dynamics = (kind: ProjectorCore.Kind.t): bool =>
   | TextArea
   | Card
   | Table
-  | Csv => false
+  | Csv
+  | Automerge => false
   };
 
 let init =
