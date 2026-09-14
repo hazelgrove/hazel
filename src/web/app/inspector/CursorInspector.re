@@ -260,6 +260,7 @@ let core_mark_err_view =
     | DotOperatorRequiresTuple
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
+    | TupleIndexOutOfBounds(_, _)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -728,6 +729,16 @@ let exp_mark_err_view =
       label_view(name),
       text(" not found in tuple's labels: "),
       ...List.map(label_view, labels),
+    ])
+  | TupleIndexOutOfBounds(idx, len) =>
+    div_err([
+      text(
+        "Tuple index "
+        ++ string_of_int(idx)
+        ++ " out of bounds for length-"
+        ++ string_of_int(len)
+        ++ " tuple",
+      ),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>

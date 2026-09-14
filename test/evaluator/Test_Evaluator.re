@@ -1,6 +1,8 @@
 let tests =
   [
     Test_Evaluator_Labeled_Tuple.tests,
+    Test_Evaluator_TupleIndex.tests,
+    Test_Evaluator_StuckLet.tests,
     Test_Evaluator_ProbeSteps.tests,
     Test_Evaluator_ProbeCallStack.tests,
     Test_Evaluator_ProbeSelection.tests,
