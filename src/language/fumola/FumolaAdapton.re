@@ -79,7 +79,9 @@ let edge = () =>
     ("target", node_id()),
     ("action", action()),
     ("metaTimes", tuple([int(), int()])),
-    ("align", align()),
+    /* `status` since Adapton/fumola#133; FumolaHistory renames the older
+       `align` on the way in, so either spelling reaches here as this one. */
+    ("status", align()),
   ]);
 
 let thunk_node = () =>

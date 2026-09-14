@@ -380,6 +380,31 @@ let pass_at =
    the same reasons: a missing runtime is an error because a panel showing
    nothing would otherwise read as "this program did nothing", and an instance
    that has never run is not. */
+/* An edge's status field was spelled `align` until Adapton/fumola#133 and is
+   spelled `status` after it, and Hazel pins no runtime version -- it reads
+   whatever fumola.org is serving. So both spellings arrive in practice, and
+   for as long as they do the reader accepts either by renaming the older key
+   on the way in.
+
+   A blanket rename over the history is safe because only an Edge carries this
+   field: a node row has body / result / space / trace, and an event carries
+   its own shape. Nothing else in this JSON is called `align`.
+
+   Removable once the published runtime has moved and stayed moved. */
+let rec accept_either_status = (json: Yojson.Safe.t): Yojson.Safe.t =>
+  switch (json) {
+  | `Assoc(fields) =>
+    `Assoc(
+      List.map(
+        ((key, v)) =>
+          (key == "align" ? "status" : key, accept_either_status(v)),
+        fields,
+      ),
+    )
+  | `List(items) => `List(List.map(accept_either_status, items))
+  | other => other
+  };
+
 let of_instance = (name: string): result(t, string) =>
   switch (FumolaRun.instance_of_name(name)) {
   | exception FumolaRun.No_runtime =>
@@ -392,6 +417,7 @@ let of_instance = (name: string): result(t, string) =>
       | Some(`Bool(true)) =>
         switch (FumolaEvents.field("value", json)) {
         | Some(history) =>
+          let history = accept_either_status(history);
           let list_at = name =>
             switch (FumolaEvents.field(name, history)) {
             | Some(list) => Some(list)
