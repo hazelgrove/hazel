@@ -24,6 +24,13 @@ type t = {
   vertical,
 };
 
+let s = (s: t) =>
+  switch (s.vertical) {
+  | Inline => "Inline"
+  | Tab(_) => "Tab"
+  | Block(_) => "Block"
+  };
+
 let inline = (width: int): t => {
   horizontal: width,
   vertical: Inline,

@@ -7,9 +7,10 @@ open Language;
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  let term_to_seg = (inline, any) =>
+  let term_to_seg = (inline: Inline.t, any) =>
     ExpToSegment.any_to_segment(
       ~settings={
+        //TODO(andrew): ExpandElements
         ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
         show_unknown_as_hole: false,
         hole_tiles: false,
@@ -19,7 +20,8 @@ let utility: ProjectorBase.utility = {
       any,
     );
   let lift_syntax =
-      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
+      (fn: Any.t => Any.t, inline: Inline.t, seg: Base.segment)
+      : option(Base.segment) =>
     switch (seg |> seg_to_term) {
     | None => None
     | Some(s) =>
@@ -27,7 +29,7 @@ let utility: ProjectorBase.utility = {
       /* When not inline (projector syntax rewrites like table operations),
          append a trailing newline so the expression doesn't extend to
          the edge of the screen, leaving room for probe values */
-      if (!inline) {
+      if (inline != Inline.Inline) {
         let newline: Base.piece =
           Secondary({
             content: Whitespace(Token.linebreak),
@@ -38,14 +40,14 @@ let utility: ProjectorBase.utility = {
         Some(result);
       };
     };
-  };
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
-    term_to_seg: (~inline, any) => term_to_seg(inline, any),
+    term_to_seg: (~inline, any) =>
+      term_to_seg(inline ? Inline.Inline : Inline.Block, any),
     seg_to_term,
-    lift_syntax: (~inline) => lift_syntax(inline),
+    lift_syntax,
     seg_to_string,
   };
 };
