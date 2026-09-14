@@ -1,0 +1,91 @@
+@flags
+show_report version=1 id=d0000034-0034-0034-0034-000000000034
+
+@prompt
+# Task: The dew ledger
+
+First debugging task. The ledger tracks dew drops and jars; one action is misbehaving, as revealed by the failing test. Find and fix the bug. This program is small enough to read in full, but try the suggested approach in the sidebar anyway: the same approach helps on the bigger tasks.
+
+@hint
+Probe the failing test's update call and compare what changed against what the Action's comment says should change.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it.
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the failing test (the ✗). Read what it asserts.
+5. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
+
+@hints
+collecting adds drops
+bottling needs ten drops
+bottling fills a jar
+a spill loses half the loose drops
+
+@code
+# The Dew Ledger #
+# The dew keepers collect dew and bottle it in jars. #
+# This program tracks the ledger. #
+
+# What the ledger tracks #
+type Model = (
+  dew = Int,   # loose drops on hand #
+  jars = Int   # full jars stored away #
+) in
+
+# What can happen to the ledger #
+type Action =
+  + Collect(Int)  # gather n more drops #
+  + Bottle        # pour 10 loose drops into a new jar #
+  + Spill         # an accident: half the loose drops are lost #
+in
+
+# Read the types above, then find the failing test (✗) below. #
+
+let init : Model = (dew = 0, jars = 0) in
+
+# Apply one action to the ledger #
+let update(m: Model, action: Action): Model =
+    case action
+    | Collect(n) =>
+        (dew = m.dew + n, jars = m.jars)
+    | Bottle =>
+        if m.dew < 10
+        then m  # not enough to fill a jar #
+        else (dew = m.dew - 10, jars = m.jars + 1)
+    | Spill =>
+        (dew = m.dew, jars = m.jars / 2)
+    end
+in
+
+# ===== TESTS ===== #
+
+hint "collecting adds drops"
+test
+  let m: Model = update(init, Collect(7)) in
+  m.dew == 7
+end;
+
+hint "bottling needs ten drops"
+test
+  let short: Model = (dew = 4, jars = 0) in
+  update(short, Bottle) == short
+end;
+
+hint "bottling fills a jar"
+test
+  let full: Model = (dew = 12, jars = 1) in
+  let m = update(full, Bottle) in
+  m.dew == 2 && m.jars == 2
+end;
+
+hint "a spill loses half the loose drops"
+test
+  let morning: Model = (dew = 8, jars = 2) in
+  let m = update(morning, Spill) in
+  m.dew == 4 && m.jars == 2
+end
+
+@test
+0

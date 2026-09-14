@@ -1,0 +1,21 @@
+@flags
+version=1 id=b0000026-0026-0026-0026-000000000026
+
+@prompt
+{{no_editor}}
+# Tasks ahead
+
+The following are some more substantial tasks, alternating between two types:
+
+- **writing**: build a function to a spec (auto-probe starts on by default)
+- **debugging**: a working program with one failing test; find and fix the bug
+
+Notes:
+
+- **The tests are the spec.** It suffices to make them pass.
+- Most debugging tasks are small model-view-update apps. These all have a *model* type (the app state), an *action* type (what can happen), and an `update` function taking a model and an action to a new model. Suggested route: read the comment at the top, then the model and action types, then find the first failing test, and probe from there. You probably do not need to read the whole program; this advice is repeated in the Task Reference sidebar.
+- **Use whatever tools feel natural.** These include: Manual probes, Auto-probe, Many mode, Call Pinning, Step Into, the environment dropdown.
+- **Predict, then look.** Note what you expect before you check a value, and notice what surprised you after.
+
+@code
+0
