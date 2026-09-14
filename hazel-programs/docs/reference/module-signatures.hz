@@ -93,4 +93,7 @@ module M : {
 
 # 23. Error: a hole-typed member is still required #
 let m : {let x : ?} = {let y = 1} in
+
+# 23a. Error: a member declared twice in a signature #
+let d : {let x : Int; let x : Bool} = {let x = 1} in
 ¿

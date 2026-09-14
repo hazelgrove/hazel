@@ -54,7 +54,9 @@ Signature items are `let name : Type` (value member), `type T = Type`
 (manifest type member), `type T` (abstract type member) and
 `module Name : Signature` (sub-module member, which may be capitalized). Items scope sequentially: `let x : T` may mention
 a `type T` declared earlier in the same signature. A member written `let x`
-or `module M` without a type has type `?`.
+or `module M` without a type has type `?`. Declaring a member twice is an
+error on the later declaration (`SigDuplicateMember`); value and module
+members share a namespace, type members have their own.
 
 ```
 module Outer : { module Inner : { let x : Int }; let y : Int } =
@@ -457,7 +459,7 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypAbstractMemberOfSignature` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypAbstractMemberOfSignature`, `SigDuplicateMember` |
 | `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
