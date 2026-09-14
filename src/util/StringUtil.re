@@ -100,17 +100,9 @@ let trim_leading = (s: string): string => {
   |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
-/* Split at the first occurrence of a character. OCaml 5.5's
-   String.split_first; drop this when the compiler pin reaches 5.5. */
+/* Split at the first occurrence of a character. */
 let split_first = (~on: char, s: string): option((string, string)) =>
-  switch (String.index(s, on)) {
-  | Some(i) =>
-    Some((
-      String.sub(s, ~pos=0, ~len=i),
-      String.sub(s, ~pos=i + 1, ~len=String.length(s) - i - 1),
-    ))
-  | None => None
-  };
+  String.lsplit2(s, ~on);
 
 /* Strip exactly one final newline: the artifact a writer appends (POSIX
    final newline in files; PersistentZipper.persist). All other edge
