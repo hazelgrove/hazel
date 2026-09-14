@@ -58,10 +58,18 @@ let space_key = (node_id: Yojson.Safe.t): string =>
       switch (FumolaEvents.field("name", v), FumolaEvents.field("value", v)) {
       | (Some(`String("Here")), _) => "@here"
       | (Some(`String(_)), Some(payload)) =>
-        switch (FumolaEvents.symbol_text(payload)) {
+        /* The Space variant's payload is a symbol wrapped in its own Symbol
+           tag, the same shape an event's pointer has; symbol_text wants the
+           symbol itself. */
+        let symbol =
+          switch (FumolaEvents.tagged(payload)) {
+          | Some(("Symbol", inner)) => inner
+          | _ => payload
+          };
+        switch (FumolaEvents.symbol_text(symbol)) {
         | Some(text) => text
         | None => ""
-        }
+        };
       | _ => ""
       }
     | _ => ""

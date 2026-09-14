@@ -839,3 +839,34 @@
   font-weight: bold;
   opacity: 1;
 }
+
+/* --- The Nodes and Edges views ------------------------------------------ */
+
+/* The tab strip reuses .problem-view-toggle; this only gives it room. */
+.fumola-tabs {
+  margin: 0.25em 0.5em 0.5em;
+}
+
+.fumola-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin: 0 0.5em 0.5em;
+}
+
+/* A row is its key -- the name it is filed under -- and its value. The key
+   is the panel's own text; the value is Hazel code, so it keeps the code
+   font it is rendered in and is not restyled here. */
+.fumola-row-key {
+  font-family: var(--code-font), monospace;
+  font-size: 0.85em;
+  opacity: 0.75;
+  padding-bottom: 0.15em;
+}
+
+.fumola-row-value {
+  overflow-x: auto;
+  padding: 0.25em 0.4em;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 4%);
+}

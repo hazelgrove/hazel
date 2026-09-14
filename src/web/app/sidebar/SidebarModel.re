@@ -1,7 +1,16 @@
 open Util;
 
 module Settings = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  /* Which of the Fumola panel's three views is showing. They are three
+     indices on one history -- the same fetch answers all three -- so this is
+     a view choice and not three panels. */
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+  type fumola_tab =
+    | Events
+    | Nodes
+    | Edges;
+
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type panel =
     | LanguageDocumentation
     | HelpfulAssistant
@@ -169,6 +178,13 @@ module Settings = {
                                               [WorkerServer.Marshal]
                                             ]
     worker_encodings: list(WorkerServer.encoding),
+    /* Defaulted on load for the same reason as worker_encodings: settings
+       persisted before this field existed still have to load. A tab is a
+       fixed name, so it is safe to persist -- unlike a node or edge id,
+       which the runtime mints afresh on every page load and which would
+       accumulate here forever. */
+    [@sexp.default Events] [@yojson.default Events]
+    fumola_tab,
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -210,5 +226,6 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
+    | SwitchFumolaTab(fumola_tab)
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

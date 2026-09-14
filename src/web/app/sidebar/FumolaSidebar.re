@@ -145,8 +145,7 @@ let kind_of = (name: string): string =>
   | other => other
   };
 
-let view =
-    (~globals as _: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
+let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   let section = (cls, header, body) =>
     div(
       ~attrs=[clss(["fumola-section", cls])],
@@ -194,60 +193,174 @@ let view =
      the app no longer calls it. */
   let panel_title = (instance: string) => "Fumola VM instance " ++ instance;
 
-  let events_view = (instance: string, events: list(event)) =>
-    section(
-      "fumola-events",
-      panel_title(instance),
-      switch (events) {
-      | [] => [
-          div(
-            ~attrs=[clss(["fumola-blurb"])],
-            [
-              text(
-                "This instance has recorded nothing yet. A $simple instance "
-                ++ "never will; a $graphical one records as it forces.",
+  /* The rows of the Events view. The section around it is the panel's, shared
+     with the other two views, so this returns its contents rather than a
+     section of its own. */
+  let events_body = (events: list(event)) =>
+    switch (events) {
+    | [] => [
+        div(
+          ~attrs=[clss(["fumola-blurb"])],
+          [
+            text(
+              "This instance has recorded nothing yet. A $simple instance "
+              ++ "never will; a $graphical one records as it forces.",
+            ),
+          ],
+        ),
+      ]
+    | events => [
+        div(
+          ~attrs=[clss(["fumola-event-table"])],
+          List.map(
+            ev =>
+              div(
+                ~attrs=[clss(["fumola-event"])],
+                [
+                  div(
+                    ~attrs=[clss(["fumola-event-time"])],
+                    [text(ev.meta_time)],
+                  ),
+                  div(
+                    ~attrs=[clss(["fumola-event-kind"])],
+                    [text(ev.kind)],
+                  ),
+                  div(
+                    ~attrs=[clss(["fumola-event-subject"])],
+                    List.map(
+                      fun
+                      /* The symbol is the part that tells two events
+                         apart, so it is the part that is set apart. */
+                      | FumolaEvents.Sym(s) =>
+                        span(
+                          ~attrs=[clss(["fumola-event-symbol"])],
+                          [text(s)],
+                        )
+                      | FumolaEvents.Plain(s) => text(s),
+                      ev.subject,
+                    ),
+                  ),
+                ],
               ),
+            events,
+          ),
+        ),
+      ]
+    };
+
+  /* The three views are three indices on one history, so the strip is a view
+     choice and not three panels. Markup and CSS are the problems panel's
+     `.toggle-option`, which is unscoped and already reads as a tab strip. */
+  let tab_strip = (current: SidebarModel.Settings.fumola_tab) => {
+    let tab = (tab, label) =>
+      span(
+        ~attrs=[
+          clss(["toggle-option"] @ (current == tab ? ["active"] : [])),
+          Attr.on_click(_ =>
+            current == tab
+              ? Virtual_dom.Vdom.Effect.Ignore
+              : globals.inject_global(Set(Sidebar(SwitchFumolaTab(tab))))
+          ),
+        ],
+        [text(label)],
+      );
+    div(
+      ~attrs=[clss(["problem-view-toggle", "fumola-tabs"])],
+      [
+        tab(SidebarModel.Settings.Events, "Events"),
+        tab(SidebarModel.Settings.Nodes, "Nodes"),
+        tab(SidebarModel.Settings.Edges, "Edges"),
+      ],
+    );
+  };
+
+  /* A row's value is a Hazel value of a declared Hazel type, so it is shown
+     the way Hazel shows a value: through the same code view the explanation
+     panel and the debug panel use. Nothing here formats anything. */
+  let value_view = (value: Exp.t) =>
+    div(
+      ~attrs=[clss(["fumola-row-value"])],
+      [
+        CodeViewable.view_segment(
+          ~globals,
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=false,
+                globals.settings.core,
+              ),
+            value,
+          ),
+        ),
+      ],
+    );
+
+  let rows_view = (~name: string, ~empty: string, rows: list(Node.t)) =>
+    switch (rows) {
+    | [] => [div(~attrs=[clss(["fumola-blurb"])], [text(empty)])]
+    | rows => [
+        div(~attrs=[clss(["fumola-rows", "fumola-" ++ name])], rows),
+      ]
+    };
+
+  let nodes_view = (nodes: list(FumolaHistory.node_row)) =>
+    rows_view(
+      ~name="nodes",
+      ~empty="This instance has made no nodes yet.",
+      List.map(
+        (row: FumolaHistory.node_row) =>
+          div(
+            ~attrs=[clss(["fumola-row"])],
+            [
+              div(
+                ~attrs=[clss(["fumola-row-key"])],
+                [
+                  span(
+                    ~attrs=[clss(["fumola-event-symbol"])],
+                    [text(row.space)],
+                  ),
+                  text(" at " ++ row.meta_time),
+                ],
+              ),
+              value_view(row.value),
             ],
           ),
-        ]
-      | events => [
+        nodes,
+      ),
+    );
+
+  let edges_view = (edges: list(FumolaHistory.edge_row)) =>
+    rows_view(
+      ~name="edges",
+      ~empty="This instance has made no edges yet.",
+      List.map(
+        (row: FumolaHistory.edge_row) => {
+          let (from_, to_) = row.meta_times;
           div(
-            ~attrs=[clss(["fumola-event-table"])],
-            List.map(
-              ev =>
-                div(
-                  ~attrs=[clss(["fumola-event"])],
-                  [
-                    div(
-                      ~attrs=[clss(["fumola-event-time"])],
-                      [text(ev.meta_time)],
-                    ),
-                    div(
-                      ~attrs=[clss(["fumola-event-kind"])],
-                      [text(ev.kind)],
-                    ),
-                    div(
-                      ~attrs=[clss(["fumola-event-subject"])],
-                      List.map(
-                        fun
-                        /* The symbol is the part that tells two events
-                           apart, so it is the part that is set apart. */
-                        | FumolaEvents.Sym(s) =>
-                          span(
-                            ~attrs=[clss(["fumola-event-symbol"])],
-                            [text(s)],
-                          )
-                        | FumolaEvents.Plain(s) => text(s),
-                        ev.subject,
-                      ),
-                    ),
-                  ],
-                ),
-              events,
-            ),
-          ),
-        ]
-      },
+            ~attrs=[clss(["fumola-row"])],
+            [
+              div(
+                ~attrs=[clss(["fumola-row-key"])],
+                [
+                  text(row.edge_id ++ ": "),
+                  span(
+                    ~attrs=[clss(["fumola-event-symbol"])],
+                    [text(row.source)],
+                  ),
+                  text(" to "),
+                  span(
+                    ~attrs=[clss(["fumola-event-symbol"])],
+                    [text(row.target)],
+                  ),
+                  text(" spanning " ++ from_ ++ "-" ++ to_),
+                ],
+              ),
+              value_view(row.value),
+            ],
+          );
+        },
+        edges,
+      ),
     );
 
   let body =
@@ -263,26 +376,38 @@ let view =
       switch (instance_to_show(~cursor_id, term)) {
       | None => how_to_make_one
       | Some(instance) =>
-        switch (FumolaEvents.of_instance(instance)) {
+        switch (FumolaHistory.of_instance(instance)) {
         | Error(message) =>
           section(
             "fumola-unavailable",
             panel_title(instance),
             [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
           )
-        | Ok(events) =>
-          events_view(
-            instance,
-            List.map(
-              ((meta_time, name, subject)) =>
-                {
-                  meta_time,
-                  kind: kind_of(name),
-                  subject,
-                },
-              events,
+        | Ok(history) =>
+          let tab = globals.settings.sidebar.fumola_tab;
+          section(
+            "fumola-events",
+            panel_title(instance),
+            [tab_strip(tab)]
+            @ (
+              switch (tab) {
+              | Nodes => nodes_view(history.nodes)
+              | Edges => edges_view(history.edges)
+              | Events =>
+                events_body(
+                  List.map(
+                    ((meta_time, name, subject)) =>
+                      {
+                        meta_time,
+                        kind: kind_of(name),
+                        subject,
+                      },
+                    history.events,
+                  ),
+                )
+              }
             ),
-          )
+          );
         }
       };
     | None => how_to_make_one
