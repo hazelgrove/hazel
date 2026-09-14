@@ -1,44 +1,9 @@
 open Language;
-open Util;
 open Virtual_dom.Vdom;
 open Node;
 open Tutorial;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type percentage = float;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type points = float;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type score = (points, points);
-
-let score_of_percent = (percent, max_points) => {
-  let max_points = float_of_int(max_points);
-  (percent *. max_points, max_points);
-};
-
-let score_view = ((earned: points, max: points)) => {
-  div(
-    ~attrs=[
-      Attr.classes([
-        "test-percent",
-        Float.equal(earned, max) ? "all-pass" : "some-fail",
-      ]),
-    ],
-    [text(Printf.sprintf("%.1f / %.1f pts", earned, max))],
-  );
-};
-
-let percentage_view = (p: percentage) => {
-  div(
-    ~attrs=[
-      Attr.classes([
-        "test-percent",
-        Float.equal(p, 1.) ? "all-pass" : "some-fail",
-      ]),
-    ],
-    [text(Printf.sprintf("%.0f%%", 100. *. p))],
-  );
-};
+include Grading;
 
 module TestValidationReport = {
   type t = {

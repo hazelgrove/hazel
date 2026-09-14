@@ -35,7 +35,7 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
       ...sample_focus,
       time: Some(data.time),
       seq: data.seq,
-      /* D1: the clicked sample's identity, stored directly (the
+      /* The clicked sample's identity, stored directly (the
        * coordinate fields below are its projections). */
       anchor:
         Some({

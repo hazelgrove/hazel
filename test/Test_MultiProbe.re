@@ -114,7 +114,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Call MultiProbe to get probe term IDs using the sophisticated version.
          Use target_subterm_ids to narrow the anchor (e.g. Let/Module → def),
          matching the production pipeline in ProbePerform.add_multi. */
-      let target_ids = ProbePerform.target_subterm_ids(root_id, info_map);
+      let target_ids = ProbeTargets.target_subterm_ids(root_id, info_map);
       let probe_ids =
         List.concat_map(
           target_id =>
@@ -311,6 +311,11 @@ list # no probe #|},
 
 /* TUPLABEL SPECIAL CASES - probe RHS value, not the label */
 let tuplabel_tests = [
+  test_probe_placement(
+    ~name="Infix minus - a real operator, not a pending -> prefix",
+    ~code={|let x = 1 - 2 in # 1 - 2 #
+x # no probe #|},
+  ),
   test_probe_placement(
     ~name="Multi-line record - probe values not tuplabels",
     ~code=

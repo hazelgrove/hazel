@@ -278,6 +278,11 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   | _ => None
   };
 
+/* A parse already means a user-defined livelit views this exact type (and
+   for a list, that every element renders — `list_elems` rejects the empty
+   one), so a match is always real evidence for an automatic pick. */
+let auto_applies = (_: value): bool => true;
+
 let drawer_rows = (v: value): int => v.rows;
 
 let render =

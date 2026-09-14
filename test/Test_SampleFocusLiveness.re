@@ -61,7 +61,7 @@ let tests = [
           z,
         );
       let z =
-        ProbePerform.editor_effects(
+        ProbeFocus.editor_effects(
           ~is_edited=false,
           ~syntax,
           ~info_map,

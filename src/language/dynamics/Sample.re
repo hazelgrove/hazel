@@ -283,8 +283,7 @@ module Window = {
  * plus the call-stack instance it evaluated at. Edit-stable for the same
  * reason SampleLength's content hash is: built from syntax ids, so it
  * re-matches automatically across whole-program re-evaluations, and dies
- * (drops) when no counterpart exists. D1 of the display-layer plan
- * (plans/observation-trace.md §10): Focus stores these alongside the
+ * (drops) when no counterpart exists. Focus stores these alongside the
  * legacy coordinate projections, which derive from them and are slated
  * for deletion once consumers migrate. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -346,10 +345,10 @@ module Focus = {
     seq: int,
     step_range: option((int, int)),
     pending_focus: option(pending_focus),
-    /* Span references (D1): the identities the coordinates above are
+    /* Span references: the identities the coordinates above are
      * projections of. anchor = the focused sample; pinned_span = the
      * pinned sample. Populated wherever the actual sample is in hand;
-     * not yet consumed by selection. */
+     * Selection.most_aligned_index reads them first. */
     anchor: option(span_ref),
     pinned_span: option(span_ref),
   };
@@ -561,7 +560,7 @@ module Selection = {
     let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
     | Some(_) when pinned_interval != None =>
-      /* D1 interval semantics, three rules:
+      /* Pinned-interval semantics, three rules:
        * 1. The pinned probe itself shows ALL its samples (escape) —
        *    other instances of the pinned call stay browsable.
        * 2. Other probes keep samples whose span lies WITHIN the pinned
@@ -650,7 +649,7 @@ module Selection = {
   let rec most_aligned_index =
           (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
           : option(int) => {
-    /* D1.2 reference-first: if the cursor holds the IDENTITY of one of
+    /* Reference-first: if the cursor holds the IDENTITY of one of
      * this probe's samples — the anchored (clicked) sample, or the
      * pinned sample — display it by reference; no matching. The
      * stack-pattern tiers below remain the fallback for probes the

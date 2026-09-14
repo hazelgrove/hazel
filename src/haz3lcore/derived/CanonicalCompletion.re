@@ -225,11 +225,15 @@ let is_prefix_witness =
     (~slot: Sort.t, ~operand_left: bool, p: Piece.t, shard_text: Token.t)
     : bool =>
   switch (p) {
-  | Tile({label: [tok], _}) =>
+  | Tile({label: [tok], mold, _}) =>
     Token.length(tok) < Token.length(shard_text)
     && String.sub(shard_text, 0, Token.length(tok)) == tok
     && (
-      Piece.is_infix_delimiter_op_prefix(p)
+      /* any infix mold witnesses here, not just the backup molds
+         Piece.is_infix_delimiter_op_prefix narrowed to: a `-` molded as
+         minus still sits where a broken `->` would */
+      Mold.is_infix_op(mold)
+      && Form.is_infix_delimiter_op_prefix(tok)
       || is_symbolic_token(tok)
       && !
            List.exists(

@@ -137,9 +137,9 @@ type step_kind =
    invisible (Administrative). Administrative steps with `may_delegate`
    can rebuild a redex under its own id (rewrap here; fast_copy in
    Ascriptions), re-evaluating user syntax as a CONTINUATION of its
-   enclosing observation span rather than a fresh event — see the
-   delegation law in Evaluator.eval_3_record_probe_sample and
-   plans/observation-trace.md.
+   enclosing observation span rather than a fresh event (at most one
+   open span per (id, call-stack) key — see
+   Evaluator.eval_3_record_probe_sample).
 
    Distinct from should_hide_step_kind below: that is a display
    preference (e.g. Conditional is hideable but Proper); provenance is

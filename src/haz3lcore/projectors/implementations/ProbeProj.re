@@ -401,18 +401,6 @@ let pretty_seg_of_value =
 /* rich content at most this many rows renders IN the offside row;
    taller content lives in the drawer instead (an explicit activation
    auto-opens it) */
-/* An empty list parses as an empty hand (and vacuously "matches" any
-   list-shaped renderer), so it is NO EVIDENCE for auto-picking a rich
-   renderer: [] of Int was rendering as an empty card hand. Auto paths
-   require a non-vacuous match; explicit picks are unaffected, and card
-   probes keep their empty-hand silhouettes because the probe-level gate
-   accepts evidence from any SIBLING sample. */
-let vacuous_value = (exp: Exp.t): bool =>
-  switch (CardSyntax.strip_wraps_exp(exp).term) {
-  | ListLit([]) => true
-  | _ => false
-  };
-
 let inline_rows_cap = 4;
 
 module DrawerHeight = {
@@ -832,22 +820,26 @@ let value_view =
           switch (
             List.find_opt(
               (r: packed_renderer) =>
-                r.id != "table"
-                && r.can_handle(
-                     ~statics=Some(ctx.statics),
-                     ctx.sort,
-                     sample.value,
-                   )
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
+                /* a vacuous match (empty hand) still renders when a
+                   SIBLING sample at this site is real evidence */
                 && (
-                  !vacuous_value(sample.value)
+                  r.auto_applies(
+                    ~statics=Some(ctx.statics),
+                    ctx.sort,
+                    sample.value,
+                  )
                   || List.exists(
                        (s: Sample.t) =>
-                         !vacuous_value(s.value)
-                         && r.can_handle(
-                              ~statics=Some(ctx.statics),
-                              ctx.sort,
-                              s.value,
-                            ),
+                         r.auto_applies(
+                           ~statics=Some(ctx.statics),
+                           ctx.sort,
+                           s.value,
+                         ),
                        ctx.dynamics.samples,
                      )
                 )
@@ -900,14 +892,11 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    vacuous_value(value)
-      ? (None: option(packed_renderer))
-      : List.find_opt(
-          (r: packed_renderer) =>
-            r.id != "table"
-            && r.can_handle(~statics=info.statics, sort, value),
-          renderers,
-        );
+    List.find_opt(
+      (r: packed_renderer) =>
+        r.auto_applies(~statics=info.statics, sort, value),
+      renderers,
+    );
   switch (pick) {
   | Some(r) =>
     switch (r.init_model(~statics=info.statics, sort, value)) {
@@ -927,7 +916,6 @@ let standalone_rich =
   | None => None
   };
 };
-
 /* Hard cap for code in the sample dropdown (env values + call args), so a
  * wide sample doesn't make them uselessly long. */
 let dropdown_value_width = 50;
@@ -1961,17 +1949,11 @@ let prepare_offside =
       && model.active_renderer == None
       && List.exists(
            (sample: Sample.t) =>
-             !vacuous_value(sample.value)
-             && List.exists(
-                  (r: packed_renderer) =>
-                    r.id != "table"
-                    && r.can_handle(
-                         ~statics=Some(statics),
-                         sort,
-                         sample.value,
-                       ),
-                  renderers,
-                ),
+             List.exists(
+               (r: packed_renderer) =>
+                 r.auto_applies(~statics=Some(statics), sort, sample.value),
+               renderers,
+             ),
            dynamics.samples,
          );
     let ctx = {
@@ -2268,14 +2250,11 @@ let rich_content =
      so a widget too tall for the inline chip still appears in the
      drawer without a menu trip */
   | (None, Some(exp))
-      when
-        (model.auto_rich || settings.auto_rich_default)
-        && !model.rich_off
-        && !vacuous_value(exp) =>
+      when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
     switch (
       List.find_opt(
         (r: packed_renderer) =>
-          r.id != "table" && r.can_handle(~statics=info.statics, sort, exp),
+          r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
     ) {
@@ -2367,31 +2346,35 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
   };
 };
 
-/* first registered renderer that takes the value, rendered */
+/* First registered renderer that takes the value, rendered. A canvas card
+   is an explicit request for a view, so unlike the offside auto path it
+   also accepts the TABLE renderer (which opts out of auto-selection);
+   everything else goes through auto_applies, which is what now rejects
+   the vacuous matches (an empty list as an empty card hand). */
 let card_rich =
     (ctx: probe_ctx, ~view_seg: View.seg, local, value: Exp.t)
     : option(Node.t) =>
-  vacuous_value(value)
-    ? None
-    : List.find_map(
-        (r: packed_renderer) =>
-          r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
-            ? Option.bind(
-                r.init_model(~statics=Some(ctx.statics), ctx.sort, value), pm =>
-                r.render_model(
-                  pm,
-                  ~info=ctx.p_info,
-                  ~exp=value,
-                  ~view_seg=(sort, seg) => view_seg(sort, seg),
-                  ~local=pa => local(RendererAction(pa)),
-                  ~parent=ctx.parent,
-                  ~sort=ctx.sort,
-                  (),
-                )
-              )
-            : None,
-        renderers,
-      );
+  List.find_map(
+    (r: packed_renderer) =>
+      r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
+      || r.id == "table"
+      && r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+        ? Option.bind(
+            r.init_model(~statics=Some(ctx.statics), ctx.sort, value), pm =>
+            r.render_model(
+              pm,
+              ~info=ctx.p_info,
+              ~exp=value,
+              ~view_seg=(sort, seg) => view_seg(sort, seg),
+              ~local=pa => local(RendererAction(pa)),
+              ~parent=ctx.parent,
+              ~sort=ctx.sort,
+              (),
+            )
+          )
+        : None,
+    renderers,
+  );
 
 let card_view =
     (data: offside_data, local, view_seg: View.seg, ~settings as _: settings)
@@ -2529,20 +2512,38 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       when
         (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
-    | Some(exp) when !vacuous_value(exp) =>
+    | Some(exp) =>
       List.find_opt(
         (r: packed_renderer) =>
-          r.id != "table" && r.can_handle(~statics=info.statics, sort, exp),
+          r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
       |> Option.map((r: packed_renderer) =>
            r.drawer_rows(~statics=info.statics, sort, exp)
          )
       |> Option.join
-    | Some(_)
     | None => None
     }
   | None => None
+  };
+};
+
+/* Leaving the drawer hides a rich view that only fits there, so drop the
+   renderer with it: the menu then offers `View as` again and choosing it
+   reopens the drawer (#2519). Views that fit inline stay active and keep
+   embedding in the chip. */
+let set_drawer_mode =
+    (model: probe_model, info: info, drawer_mode: bool): probe_model => {
+  let needs_drawer =
+    switch (model.active_renderer, rich_drawer_rows(model, info)) {
+    | (Some(_), Some(n)) => n > inline_rows_cap
+    | _ => false
+    };
+  {
+    ...model,
+    drawer_mode,
+    active_renderer:
+      !drawer_mode && needs_drawer ? None : model.active_renderer,
   };
 };
 
@@ -2625,17 +2626,11 @@ module M: Projector = {
       /* Toggling moves the focusable .live-offside between DOM slots, which
        * drops focus; schedule a restore via after_display. */
       FocusEffect.schedule(info.id);
-      {
-        ...model,
-        drawer_mode: !model.drawer_mode,
-      };
+      set_drawer_mode(model, info, !model.drawer_mode);
     | SetDrawerMode(b) =>
       Settings.version := Settings.version^ + 1;
       FocusEffect.schedule(info.id);
-      {
-        ...model,
-        drawer_mode: b,
-      };
+      set_drawer_mode(model, info, b);
     | ToggleDropdown(did) =>
       Settings.set_open_dropdown(
         Settings.open_dropdown^ == Some(did) ? None : Some(did),
@@ -2657,10 +2652,9 @@ module M: Projector = {
         sample_lengths: [],
       };
     | ToggleModal(pm) =>
-      switch (model.active_renderer) {
-      | None =>
-        /* activation: content taller than the inline cap opens the
-           drawer (chevron / Cmd+ArrowUp toggles back) */
+      /* activation: content taller than the inline cap opens the
+         drawer (chevron / Cmd+ArrowUp toggles back) */
+      let activate = () => {
         let wants_drawer =
           switch (
             rich_drawer_rows(
@@ -2679,11 +2673,20 @@ module M: Projector = {
           active_renderer: pm,
           drawer_mode: model.drawer_mode || wants_drawer,
         };
-      | Some(_) => {
+      };
+      switch (model.active_renderer, pm) {
+      | (None, _) => activate()
+      | (Some(active), Some(next))
+          when
+            RichProbe.renderer_id_of_model(active)
+            != RichProbe.renderer_id_of_model(next) =>
+        /* a different renderer switches rather than toggling off */
+        activate()
+      | (Some(_), _) => {
           ...model,
           active_renderer: None,
         }
-      }
+      };
     | RendererAction(pa) =>
       switch (
         model.active_renderer,

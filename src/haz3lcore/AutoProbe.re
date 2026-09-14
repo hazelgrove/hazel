@@ -1,7 +1,7 @@
 /* Auto-probe mode (threaded from Settings through Editor.calculate into
- * ProbePerform):
+ * AutoProbePerform):
  *   Off   — no automatic probes (manual probes still work)
- *   Caret — probe the top-level definition the caret is inside
+ *   Caret — probe the top-level definition (or bare expression) the caret is in
  *   All   — probe the whole program, one probe per source row */
 [@deriving (show({with_path: false}), yojson, eq)]
 type t =

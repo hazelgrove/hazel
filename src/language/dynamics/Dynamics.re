@@ -13,7 +13,7 @@ module Info = {
     sample_focus: Sample.Focus.t,
     /* The pinned span's step interval, resolved once at info-assembly
      * time (the pinned sample usually belongs to a DIFFERENT probe than
-     * the one viewing). D1: lets filter_by_pin use temporal containment
+     * the one viewing). Lets filter_by_pin use temporal containment
      * — "during the pinned evaluation" — instead of stack-id suffixes,
      * which is also the correct semantics for pinning non-call spans. */
     pinned_interval: option((int, int)),

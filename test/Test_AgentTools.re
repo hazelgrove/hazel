@@ -3585,13 +3585,13 @@ let statics_refractor_tests = (
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
             let z2 = ProbePerform.place_statics_at(~syntax, id, info_map, z);
-            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z2.refractors)) {
             | Statics(_) => ()
             | _ =>
               Alcotest.fail("expected Statics status after place_statics_at")
             };
             let z3 = ProbePerform.remove_statics_at(id, info_map, z2);
-            switch (ProbePerform.probe_status(id, info_map, z3.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z3.refractors)) {
             | Non => ()
             | _ =>
               Alcotest.fail(
@@ -3617,12 +3617,12 @@ let statics_refractor_tests = (
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
             let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
-            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z2.refractors)) {
             | Manual(_) => ()
             | _ => Alcotest.fail("expected Manual probe after add_manual")
             };
             let z3 = ProbePerform.remove_statics_at(id, info_map, z2);
-            switch (ProbePerform.probe_status(id, info_map, z3.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z3.refractors)) {
             | Manual(_) => ()
             | _ =>
               Alcotest.fail(
@@ -3713,7 +3713,7 @@ let agent_tools_with_projectors_tests = (
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
             let z2 = ProbePerform.place_statics_at(~syntax, id, info_map, z);
-            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z2.refractors)) {
             | Statics(_) => ()
             | _ =>
               Alcotest.fail(
@@ -3739,7 +3739,7 @@ let agent_tools_with_projectors_tests = (
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
             let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
-            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z2.refractors)) {
             | Manual(_) => ()
             | _ =>
               Alcotest.fail(
@@ -4875,7 +4875,7 @@ let fn_sugar_tests = (
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
             let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
-            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            switch (ProbeTargets.probe_status(id, info_map, z2.refractors)) {
             | Manual(_) => ()
             | _ => Alcotest.fail("expected Manual probe on sugared fn")
             };

@@ -435,6 +435,9 @@ module View = {
         ~result_kind,
         ~caption=CellCommon.caption(caption, ~rest=?subcaption),
         ~lines=true,
+        /* the culling range is measured on the user cell; the instructor
+           hidden-tests cell must not be culled with it */
+        ~cull=this_pos == Tutorial.YourImpl,
         cell,
       );
     };
