@@ -196,7 +196,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   /* A revision is named by the space it belongs to and the moment it was
      born at, which is the pair the panel opens and closes. */
   let revision_key = (space: string, meta_time: string) =>
-    space ++ "@" ++ meta_time;
+    "n:" ++ space ++ "@" ++ meta_time;
+
+  /* Edges are opened by the same set, so the two namespaces must not meet:
+     an edge id and a space name are both just digits often enough. */
+  let edge_key = (edge_id: string) => "e:" ++ edge_id;
 
   let is_open = (key: string) => List.mem(key, globals.fumola_open);
 
@@ -241,6 +245,15 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
 
   /* Following a pointer means two things at once: open that revision alone,
      and show the view it lives in. */
+  /* An edge named inside a node's value: show it where edges live, alone. */
+  let follow_edge = (edge_id: string) =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(FumolaFocus(edge_key(edge_id))),
+      globals.inject_global(
+        Set(Sidebar(SwitchFumolaTab(SidebarModel.Settings.Edges))),
+      ),
+    ]);
+
   let follow = (key: string) =>
     Virtual_dom.Vdom.Effect.Many([
       globals.inject_global(FumolaFocus(key)),
@@ -423,8 +436,37 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                   text(" at " ++ row.meta_time),
                 ],
               ),
-              ...open_ ? [value_view(row.value)] : [],
-            ],
+            ]
+            @ (
+              open_
+                ? [value_view(row.value)]
+                  @ (
+                    row.trace == []
+                      ? []
+                      : [
+                        /* The trace is inside the value too, but a rendered
+                           value is code and code is not clickable. These are
+                           the same edges, offered as ways on. */
+                        div(
+                          ~attrs=[clss(["fumola-row-links"])],
+                          [text("edges: ")]
+                          @ List.map(
+                              id =>
+                                span(
+                                  ~attrs=[
+                                    clss(["fumola-pointer"]),
+                                    Attr.title("Show " ++ id),
+                                    Attr.on_click(_ => follow_edge(id)),
+                                  ],
+                                  [text(id)],
+                                ),
+                              row.trace,
+                            ),
+                        ),
+                      ]
+                  )
+                : []
+            ),
           );
         },
         nodes,
@@ -438,12 +480,24 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       List.map(
         (row: FumolaHistory.edge_row) => {
           let (from_, to_) = row.meta_times;
+          let key = edge_key(row.edge_id);
+          let open_ = is_open(key);
           div(
-            ~attrs=[clss(["fumola-row"])],
+            ~attrs=[clss(["fumola-row"] @ (open_ ? ["open"] : []))],
             [
               div(
-                ~attrs=[clss(["fumola-row-key"])],
+                ~attrs=[
+                  clss(["fumola-row-key"]),
+                  Attr.title(open_ ? "Collapse this edge" : "Show this edge"),
+                  Attr.on_click(_ =>
+                    globals.inject_global(FumolaToggleOpen(key))
+                  ),
+                ],
                 [
+                  span(
+                    ~attrs=[clss(["fumola-caret"])],
+                    [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
+                  ),
                   text(row.edge_id ++ ": "),
                   span(
                     ~attrs=[clss(["fumola-event-symbol"])],
@@ -457,7 +511,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                   text(" spanning " ++ from_ ++ "-" ++ to_),
                 ],
               ),
-              value_view(row.value),
+              ...open_ ? [value_view(row.value)] : [],
             ],
           );
         },

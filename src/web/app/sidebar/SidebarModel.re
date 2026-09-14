@@ -4,6 +4,16 @@ module Settings = {
   /* Which of the Fumola panel's three views is showing. They are three
      indices on one history -- the same fetch answers all three -- so this is
      a view choice and not three panels. */
+  /* What to do with the editor's own edges and events -- the ones whose
+     source is the root, (Here, Now, _). They are here to be inspected, and
+     they get verbose, so they can be dimmed or dropped without being
+     forgotten. */
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+  type fumola_prime_mover =
+    | Show
+    | Dim
+    | Hide;
+
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type fumola_tab =
     | Events
@@ -185,6 +195,10 @@ module Settings = {
        accumulate here forever. */
     [@sexp.default Events] [@yojson.default Events]
     fumola_tab,
+    /* Dim by default: it answers "they get verbose" without anything
+       disappearing before the reader knows it was ever there. */
+    [@sexp.default Dim] [@yojson.default Dim]
+    fumola_prime_mover,
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -227,5 +241,6 @@ module Settings = {
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
     | SwitchFumolaTab(fumola_tab)
+    | SwitchFumolaPrimeMover(fumola_prime_mover)
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

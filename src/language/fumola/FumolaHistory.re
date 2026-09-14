@@ -23,6 +23,10 @@ type node_row = {
   /* The node's space, as the symbol that names it -- the identity a node
      keeps across revisions, and what an event's pointer is matched against. */
   space: string,
+  /* The edges this revision's last run left behind, if it is a thunk. They
+     are inside the rendered value too, but code is not clickable, so they
+     are read out here to be offered as ways on. */
+  trace: list(string),
   value: TermBase.Exp.t,
 };
 
@@ -121,6 +125,35 @@ let rows =
   | _ => []
   };
 
+/* A thunk node's trace: the edges its last run recorded. A non-thunk has
+   none, and neither does a thunk that has not run. */
+let trace_of = (node: option(Yojson.Safe.t)): list(string) =>
+  switch (node) {
+  | Some(node) =>
+    switch (FumolaEvents.tagged(node)) {
+    | Some(("Variant", v)) =>
+      switch (FumolaEvents.field("value", v)) {
+      | Some(payload) =>
+        switch (FumolaEvents.tagged(payload)) {
+        | Some(("Record", fields)) =>
+          switch (FumolaEvents.field("trace", fields)) {
+          | Some(trace) =>
+            switch (FumolaEvents.tagged(trace)) {
+            | Some(("List", `List(items))) =>
+              List.map(FumolaEvents.summarize, items)
+            | _ => []
+            }
+          | None => []
+          }
+        | _ => []
+        }
+      | None => []
+      }
+    | _ => []
+    }
+  | None => []
+  };
+
 let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
   rows(
     ~instance_id,
@@ -142,6 +175,7 @@ let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
           Some({
             meta_time,
             space,
+            trace: trace_of(FumolaEvents.field("node", fields)),
             value,
           });
         | _ => None

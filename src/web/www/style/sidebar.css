@@ -891,3 +891,17 @@
   width: 1em;
   opacity: 0.6;
 }
+
+/* The edges a node's run left behind, offered as ways on. The same ids are
+   inside the rendered value, but a rendered value is code and code carries
+   no click targets. */
+.fumola-row-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  align-items: baseline;
+  font-family: var(--code-font), monospace;
+  font-size: 0.85em;
+  opacity: 0.75;
+  padding: 0.25em 0 0 1em;
+}
