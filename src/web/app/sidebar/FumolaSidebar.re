@@ -274,6 +274,45 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     ]);
 
+  /* A node id, in place, as a way to the node it names.
+
+     The Events view has had this since it had symbols; the Edges view showed
+     the same two node ids and offered no way on, so the link went one way
+     only. `at` is the moment to read the node AS OF -- an edge names a node
+     whose own revision may be older than the edge, and revision_at answers
+     with the newest revision at or before it, which is the one this edge saw.
+
+     A click here must not also work the row's own toggle, which is the div
+     this span sits inside. Stop_propagation is what keeps following a pointer
+     from collapsing the record you were reading it out of.
+
+     The editor's root names no node, so it stays plain rather than pretending
+     to lead somewhere. */
+  let node_link =
+      (
+        ~nodes: list(FumolaHistory.node_row),
+        ~space: string,
+        ~at: string,
+        label: string,
+      ) =>
+    switch (revision_at(~space, ~at, nodes)) {
+    | Some(key) =>
+      span(
+        ~attrs=[
+          clss(["fumola-event-symbol", "fumola-pointer"]),
+          Attr.title("Show this node as it was at " ++ at),
+          Attr.on_click(_ =>
+            Virtual_dom.Vdom.Effect.Many([
+              Virtual_dom.Vdom.Effect.Stop_propagation,
+              follow(key),
+            ])
+          ),
+        ],
+        [text(label)],
+      )
+    | None => span(~attrs=[clss(["fumola-event-symbol"])], [text(label)])
+    };
+
   /* Show, Dim or Hide, applied to one row. Hiding drops it; dimming keeps it
      and says so, which is the point of having three settings rather than a
      checkbox: the editor's own traffic is noise most of the time and the
@@ -759,7 +798,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
     );
 
   let edges_view =
-      (~passes: list((int, string)), edges: list(FumolaHistory.edge_row)) =>
+      (
+        ~passes: list((int, string)),
+        ~nodes: list(FumolaHistory.node_row),
+        edges: list(FumolaHistory.edge_row),
+      ) =>
     rows_view(
       ~name="edges",
       ~empty="This instance has made no edges yet.",
@@ -804,15 +847,14 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                       [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
                     ),
                     text(row.edge_id ++ ": "),
-                    span(
-                      ~attrs=[clss(["fumola-event-symbol"])],
-                      [text(row.source)],
+                    node_link(
+                      ~nodes,
+                      ~space=row.source,
+                      ~at=from_,
+                      row.source,
                     ),
                     text(" to "),
-                    span(
-                      ~attrs=[clss(["fumola-event-symbol"])],
-                      [text(row.target)],
-                    ),
+                    node_link(~nodes, ~space=row.target, ~at=to_, row.target),
                     text(" spanning " ++ from_ ++ "-" ++ to_),
                   ],
                 ),
@@ -860,7 +902,12 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             @ (
               switch (tab) {
               | Nodes => nodes_view(~passes=history.passes, history.nodes)
-              | Edges => edges_view(~passes=history.passes, history.edges)
+              | Edges =>
+                edges_view(
+                  ~passes=history.passes,
+                  ~nodes=history.nodes,
+                  history.edges,
+                )
               | Events =>
                 events_body(
                   ~passes=history.passes,
