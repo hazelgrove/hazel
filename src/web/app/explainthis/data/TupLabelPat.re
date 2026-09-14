@@ -28,7 +28,7 @@ let labeled_pat = (~label_id: Id.t, ~pat_id: Id.t): form => {
   colorings: labeled_pats_coloring_ids(~label_id, ~pat_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Assigns a [*label*](%s) to an [*pattern*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are automatically converted into a singleton tuple.",
       Id.to_string(label_id),
       Id.to_string(pat_id),

@@ -2,7 +2,7 @@ open Haz3lcore
 
 let bools_ex : Tutorial.spec =
   {
-    id = Option.get (Id.of_string "e1f2a3b4-5678-9012-3abc-def456789012");
+    id = Option.value_exn (Id.of_string "e1f2a3b4-5678-9012-3abc-def456789012");
     title = "Booleans and Types";
     module_name = "Tu_Booleans_and_Types";
     prompt =
@@ -329,7 +329,7 @@ let bools_ex : Tutorial.spec =
 
 let cond_ex : Tutorial.spec =
   {
-    id = Option.get (Id.of_string "f2a3b4c5-6789-0123-4abc-def567890123");
+    id = Option.value_exn (Id.of_string "f2a3b4c5-6789-0123-4abc-def567890123");
     title = "Conditional Expressions";
     module_name = "Tu_Conditional_Expressions";
     prompt =
@@ -481,7 +481,7 @@ let cond_ex : Tutorial.spec =
 
 let func_ex : Tutorial.spec =
   {
-    id = Option.get (Id.of_string "a3b4c5d6-7890-1234-5abc-def678901234");
+    id = Option.value_exn (Id.of_string "a3b4c5d6-7890-1234-5abc-def678901234");
     title = "Functions";
     module_name = "Tu_Functions";
     prompt =

@@ -119,7 +119,7 @@ let editor_positions = [YourImpl, HiddenTests];
 [YourImpl, HiddenTests];
 
 let positioned_editors = state =>
-  List.combine(editor_positions, editors(state));
+  List.zip_exn(editor_positions, editors(state));
 
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
@@ -226,8 +226,8 @@ let key_for_statics = (pos: pos): string =>
 
 let pos_of_key = (key: string): pos =>
   switch () {
-  | _ when key == user_impl_key => YourImpl
-  | _ when key == hidden_tests_key => HiddenTests
+  | _ when String.equal(key, user_impl_key) => YourImpl
+  | _ when String.equal(key, hidden_tests_key) => HiddenTests
   | _ => failwith("invalid key")
   };
 
@@ -266,8 +266,8 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let lookup = (pos, default) =>
     if (is_editable(pos, ~instructor_mode)) {
       positioned_zippers
-      |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist(~root=Exp))
+      |> (l => List.Assoc.find(l, pos, ~equal=Poly.equal))
+      |> Option.map(~f=PersistentZipper.unpersist(~root=Exp))
       |> Option.value(~default);
     } else {
       default;
