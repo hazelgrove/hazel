@@ -844,7 +844,6 @@ module M: Projector = {
 
   let focusable = Focusable.non;
 
-
   let elaborate_syntax = false;
 
   let placeholder = (model: model, _info: info): ProjectorCore.Shape.t =>
