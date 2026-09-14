@@ -193,10 +193,67 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      the app no longer calls it. */
   let panel_title = (instance: string) => "Fumola VM instance " ++ instance;
 
+  /* A revision is named by the space it belongs to and the moment it was
+     born at, which is the pair the panel opens and closes. */
+  let revision_key = (space: string, meta_time: string) =>
+    space ++ "@" ++ meta_time;
+
+  let is_open = (key: string) => List.mem(key, globals.fumola_open);
+
+  let number = (s: string) =>
+    switch (int_of_string_opt(s)) {
+    | Some(n) => n
+    | None => (-1)
+    };
+
+  /* The revision of [space] in force at [at]: the latest one born at or
+     before that moment. Following a pointer out of the event list has to
+     land on THAT node and not the same node at some other moment, and a
+     pointer mentioned at moment 7 may well have been born at 3. */
+  let revision_at =
+      (~space: string, ~at: string, nodes: list(FumolaHistory.node_row))
+      : option(string) => {
+    let at = number(at);
+    let candidates =
+      List.filter(
+        (row: FumolaHistory.node_row) =>
+          row.space == space && number(row.meta_time) <= at,
+        nodes,
+      );
+    let best =
+      List.fold_left(
+        (best, row: FumolaHistory.node_row) =>
+          switch (best) {
+          | Some(b: FumolaHistory.node_row)
+              when number(b.meta_time) >= number(row.meta_time) =>
+            Some(b)
+          | _ => Some(row)
+          },
+        None,
+        candidates,
+      );
+    switch (best) {
+    | Some(row) => Some(revision_key(row.space, row.meta_time))
+    /* Mentioned before it was made: nothing to land on. */
+    | None => None
+    };
+  };
+
+  /* Following a pointer means two things at once: open that revision alone,
+     and show the view it lives in. */
+  let follow = (key: string) =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(FumolaFocus(key)),
+      globals.inject_global(
+        Set(Sidebar(SwitchFumolaTab(SidebarModel.Settings.Nodes))),
+      ),
+    ]);
+
   /* The rows of the Events view. The section around it is the panel's, shared
      with the other two views, so this returns its contents rather than a
      section of its own. */
-  let events_body = (events: list(event)) =>
+  let events_body =
+      (~nodes: list(FumolaHistory.node_row), events: list(event)) =>
     switch (events) {
     | [] => [
         div(
@@ -232,10 +289,28 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                       /* The symbol is the part that tells two events
                          apart, so it is the part that is set apart. */
                       | FumolaEvents.Sym(s) =>
-                        span(
-                          ~attrs=[clss(["fumola-event-symbol"])],
-                          [text(s)],
-                        )
+                        /* The symbol is the pointer. Where the revision it
+                           names can be found, it is also the way to it. */
+                        switch (
+                          revision_at(~space=s, ~at=ev.meta_time, nodes)
+                        ) {
+                        | Some(key) =>
+                          span(
+                            ~attrs=[
+                              clss(["fumola-event-symbol", "fumola-pointer"]),
+                              Attr.title(
+                                "Show this node as it was at " ++ ev.meta_time,
+                              ),
+                              Attr.on_click(_ => follow(key)),
+                            ],
+                            [text(s)],
+                          )
+                        | None =>
+                          span(
+                            ~attrs=[clss(["fumola-event-symbol"])],
+                            [text(s)],
+                          )
+                        }
                       | FumolaEvents.Plain(s) => text(s),
                       ev.subject,
                     ),
@@ -275,20 +350,29 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   };
 
   /* A row's value is a Hazel value of a declared Hazel type, so it is shown
-     the way Hazel shows a value: through the same code view the explanation
-     panel and the debug panel use. Nothing here formats anything. */
+     the way a probe shows one: the probe's own pretty printer, and the code
+     view the explanation and debug panels already put code in the sidebar
+     with. Nothing here formats anything.
+
+     `pretty_seg_of_value` rather than ExpToSegment directly, so the panel and
+     the probes on the Node info slide are the same renderer on the same kind
+     of value and not two things that resemble each other. The utility it
+     takes is a free top-level value, not something a projector owns, which is
+     what lets a sidebar call it at all.
+
+     The code keeps its own font size: Code.view sizes an empty-hole
+     decoration from globals.font_metrics, which is the editor's, so shrinking
+     the text here would mis-size any hole a value contains. The row scrolls
+     instead. */
   let value_view = (value: Exp.t) =>
     div(
       ~attrs=[clss(["fumola-row-value"])],
       [
         CodeViewable.view_segment(
           ~globals,
-          Haz3lcore.ExpToSegment.exp_to_segment(
-            ~settings=
-              Haz3lcore.ExpToSegment.Settings.of_core(
-                ~inline=false,
-                globals.settings.core,
-              ),
+          Haz3lcore.ProbeProj.pretty_seg_of_value(
+            Haz3lcore.ProjectorInfo.utility,
+            ~width=50,
             value,
           ),
         ),
@@ -308,13 +392,30 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ~name="nodes",
       ~empty="This instance has made no nodes yet.",
       List.map(
-        (row: FumolaHistory.node_row) =>
+        (row: FumolaHistory.node_row) => {
+          let key = revision_key(row.space, row.meta_time);
+          let open_ = is_open(key);
           div(
-            ~attrs=[clss(["fumola-row"])],
+            ~attrs=[clss(["fumola-row"] @ (open_ ? ["open"] : []))],
             [
+              /* Closed, a row is its name and its moment and nothing else,
+                 which is what makes a list of revisions readable. Open, the
+                 value follows. */
               div(
-                ~attrs=[clss(["fumola-row-key"])],
+                ~attrs=[
+                  clss(["fumola-row-key"]),
+                  Attr.title(
+                    open_ ? "Collapse this revision" : "Show this revision",
+                  ),
+                  Attr.on_click(_ =>
+                    globals.inject_global(FumolaToggleOpen(key))
+                  ),
+                ],
                 [
+                  span(
+                    ~attrs=[clss(["fumola-caret"])],
+                    [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
+                  ),
                   span(
                     ~attrs=[clss(["fumola-event-symbol"])],
                     [text(row.space)],
@@ -322,9 +423,10 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                   text(" at " ++ row.meta_time),
                 ],
               ),
-              value_view(row.value),
+              ...open_ ? [value_view(row.value)] : [],
             ],
-          ),
+          );
+        },
         nodes,
       ),
     );
@@ -395,6 +497,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
               | Edges => edges_view(history.edges)
               | Events =>
                 events_body(
+                  ~nodes=history.nodes,
                   List.map(
                     ((meta_time, name, subject)) =>
                       {

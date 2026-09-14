@@ -242,6 +242,27 @@ module Update = {
             },
           }
           |> return_quiet
+    | FumolaToggleOpen(key) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          fumola_open:
+            List.mem(key, model.globals.fumola_open)
+              ? List.filter(k => k != key, model.globals.fumola_open)
+              : [key, ...model.globals.fumola_open],
+        },
+      }
+      |> return_quiet
+    | FumolaFocus(key) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          fumola_open: [key],
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,

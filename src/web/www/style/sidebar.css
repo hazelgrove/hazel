@@ -870,3 +870,24 @@
   border-radius: 4px;
   background: rgb(0 0 0 / 4%);
 }
+
+/* A pointer in the event list leads somewhere: the node it names, as it was
+   at that moment. Underlined at rest, because an affordance nobody hovers is
+   not an affordance. */
+.fumola-pointer {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+/* A revision's own line: click to show or hide its value. */
+.fumola-row-key {
+  cursor: pointer;
+  user-select: none;
+}
+
+.fumola-caret {
+  display: inline-block;
+  width: 1em;
+  opacity: 0.6;
+}

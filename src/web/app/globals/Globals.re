@@ -68,6 +68,11 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    /* Which revisions the Fumola panel is showing in full. Focus replaces
+       what is open, which is what following a pointer out of the event list
+       means: that node at that moment, and not the same node at another. */
+    | FumolaToggleOpen(string)
+    | FumolaFocus(string)
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(
@@ -92,6 +97,11 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    /* Fumola panel rows shown in full, keyed by space and moment. Not
+       persisted, and deliberately: the runtime mints these ids afresh on
+       every page load, so a persisted set would accumulate dead keys
+       forever. */
+    fumola_open: list(string),
     // MVU apps, keyed by app-projector syntax id; not persisted
     apps: AppStore.t,
     // Calculated:
@@ -119,6 +129,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    fumola_open: [],
     apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>
