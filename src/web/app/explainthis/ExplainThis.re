@@ -1736,7 +1736,7 @@ let fumola_panel_link = (~globals: Globals.t): Node.t =>
   div(
     ~attrs=[
       clss(["fumola-panel-link"]),
-      Attr.title("Switch to Fumola Panel"),
+      Attr.title("Switch to the Fumola VM instance panel"),
       Attr.on_mousedown(_ =>
         Effect.Many([
           globals.inject_global(Set(Sidebar(SwitchPanel(Fumola)))),
@@ -1747,7 +1747,7 @@ let fumola_panel_link = (~globals: Globals.t): Node.t =>
         ])
       ),
     ],
-    [Icons.fumolaIcon, text(" Watch this instance's events")],
+    [Icons.fumolaIcon, text(" Watch this instance's VM")],
   );
 
 let get_color_map =

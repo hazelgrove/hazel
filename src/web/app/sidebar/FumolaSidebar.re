@@ -188,10 +188,16 @@ let view =
       ],
     );
 
+  /* Spelled once, because it is spelled in two places -- the events and the
+     "runtime is not loaded" branch -- and a rename that reached only one of
+     them would leave the error state naming the panel something the rest of
+     the app no longer calls it. */
+  let panel_title = (instance: string) => "Fumola VM instance " ++ instance;
+
   let events_view = (instance: string, events: list(event)) =>
     section(
       "fumola-events",
-      "Events of " ++ instance,
+      panel_title(instance),
       switch (events) {
       | [] => [
           div(
@@ -261,7 +267,7 @@ let view =
         | Error(message) =>
           section(
             "fumola-unavailable",
-            "Events of " ++ instance,
+            panel_title(instance),
             [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
           )
         | Ok(events) =>

@@ -92,7 +92,7 @@ let fumola_tab = (~globals: Globals.t): Node.t =>
     ~panel=Fumola,
     ~cls=["fumola-button"],
     ~icon=Icons.fumolaIcon,
-    ~tooltip="Switch to Fumola Panel",
+    ~tooltip="Switch to the Fumola VM instance panel",
     ~globals,
   );
 
