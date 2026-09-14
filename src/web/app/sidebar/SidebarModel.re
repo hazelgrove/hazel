@@ -173,7 +173,24 @@ module Settings = {
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
+  /* A field removed from this record must not cost a reader every other
+     setting they have.
+
+     `Store.deserialize` catches whatever `t_of_sexp` raises, prints a line to
+     the console and hands back the WHOLE default record; there is no
+     versioning and no migration. ppx_sexp_conv raises on a field it does not
+     recognise, so renaming `fumola_prime_mover` to `fumola_editor` meant that
+     every browser which had run an earlier build of this branch -- including
+     the ones the demo runs on -- would silently lose instructor mode, the
+     dynamics toggles, the worker encodings, the line numbers and the rest,
+     on the next load. The `[@sexp.default]` attributes below do not help:
+     they cover a field that is MISSING, not one left over.
+
+     So extra fields are ignored here. A stale key is a key nothing reads,
+     which is what it should have been all along. */
   [@deriving (show({with_path: false}), sexp, yojson)]
+  [@sexp.allow_extra_fields]
+  [@yojson.allow_extra_fields]
   type t = {
     show: bool,
     panel,
