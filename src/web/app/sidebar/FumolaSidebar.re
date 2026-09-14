@@ -384,18 +384,37 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   /* Empty the store and build it again from the program. Beside the views
      rather than in them: it is about the instance, not about what is being
      looked at. */
-  let reset_button = (instance: string) =>
-    span(
-      ~attrs=[
-        clss(["fumola-reset"]),
-        Attr.title(
-          "Empty this instance and run the program again. Bindings from "
-          ++ "other cells that share the instance do not come back.",
+  let reset_button = (instance: string) => {
+    let into = (mode, label, what) =>
+      span(
+        ~attrs=[
+          clss(["fumola-reset"]),
+          Attr.title(
+            "Empty this instance and run the program again, "
+            ++ what
+            ++ ". Bindings from other cells that share the instance do not "
+            ++ "come back, and a mode written in the program is asserted "
+            ++ "again when it runs.",
+          ),
+          Attr.on_click(_ =>
+            globals.inject_global(FumolaReset(instance, mode))
+          ),
+        ],
+        [text(label)],
+      );
+    div(
+      ~attrs=[clss(["fumola-resets"])],
+      [
+        span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
+        into(Language.FumolaRun.Simple, "simple", "keeping no graph"),
+        into(
+          Language.FumolaRun.Graphical,
+          "graphical",
+          "recording as it forces",
         ),
-        Attr.on_click(_ => globals.inject_global(FumolaReset(instance))),
       ],
-      [text("reset")],
     );
+  };
 
   let tab_strip = (current: SidebarModel.Settings.fumola_tab) => {
     let tab = (tab, label) =>

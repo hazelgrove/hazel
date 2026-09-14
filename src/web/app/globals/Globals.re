@@ -75,7 +75,7 @@ module Action = {
     | FumolaFocus(string)
     /* Put an instance back to nothing and run the program again, so the graph
        is rebuilt rather than remembered. */
-    | FumolaReset(string)
+    | FumolaReset(string, Language.FumolaRun.mode)
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(

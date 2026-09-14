@@ -60,6 +60,7 @@ let instance_of_name = (name: string): int =>
    `$graphical`, so the two stay the same word.
 
    Graphical is the default, as it is Fumola's and as fumola_new's was. */
+[@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | Simple
   | Graphical;
@@ -88,11 +89,22 @@ let ensure_mode = (instance_id: int, mode: mode): unit =>
 /* Put an instance back to its pristine state, dropping the adapton store and
    everything the page has run in it. Answers whether it happened: a runtime
    that is not loaded, or an instance that was never realized, is a no. */
-let reset_instance = (name: string): bool =>
-  switch (shim("reset", [|js_int(instance_of_name(name))|])) {
-  | exception _ => false
-  | answer => Js_of_ocaml.Js.to_bool(Js_of_ocaml.Js.Unsafe.coerce(answer))
+let reset_instance = (~mode: option(mode)=?, name: string): bool => {
+  let instance_id = instance_of_name(name);
+  let reset =
+    switch (shim("reset", [|js_int(instance_id)|])) {
+    | exception _ => false
+    | answer => Js_of_ocaml.Js.to_bool(Js_of_ocaml.Js.Unsafe.coerce(answer))
+    };
+  /* The snapshot a reset restores carries the mode the instance was given,
+     so coming back as the other one is a second step. Setting a mode an
+     instance already has is a no-op, so asking for the one it already had
+     costs nothing. */
+  if (reset) {
+    Option.iter(ensure_mode(instance_id), mode);
   };
+  reset;
+};
 
 /* Run a program in an instance and hand back its JSON. Used both for the
    program itself and, by FumolaValue, for reading what a pointer points at. */

@@ -247,8 +247,8 @@ module Update = {
        every test evaluation makes before reusing a cached value still passes
        and the panel would go on showing the graph that is no longer there.
        ForceReeval is what makes evaluation forget. */
-    | FumolaReset(instance) =>
-      if (Language.FumolaRun.reset_instance(instance)) {
+    | FumolaReset(instance, mode) =>
+      if (Language.FumolaRun.reset_instance(~mode, instance)) {
         let* editors =
           Editors.Update.update(
             ~globals,

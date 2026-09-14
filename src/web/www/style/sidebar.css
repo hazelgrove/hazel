@@ -939,7 +939,14 @@
   padding-bottom: 0.05em;
 }
 
-/* The tab strip and the reset button share a line. */
+/* The two resets: one label, a choice of what to come back as. */
+.fumola-resets {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+/* The tab strip and the reset buttons share a line. */
 .fumola-controls {
   display: flex;
   align-items: center;
