@@ -175,6 +175,17 @@ test Pos.eq(Pos.step(North, (2, 2)), (2, 1)) end;
 test Pos.neighbors((0, 0)) == [(0, -1), (0, 1), (1, 0), (-1, 0)] end;
 ?|hz};
 
+/* the typing parse of a program, once: the dungeon programs are parsed
+   by most cases below, and simulated typing is the dominant cost */
+let zipper_cache: Hashtbl.t(string, option(Zipper.t)) = Hashtbl.create(8);
+let zipper_of = (code: string): option(Zipper.t) =>
+  switch (Hashtbl.find_opt(zipper_cache, code)) {
+  | Some(z) => z
+  | None =>
+    let z = Parser.to_zipper(~root=Exp, code);
+    Hashtbl.replace(zipper_cache, code, z);
+    z;
+  };
 let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
   fst(
     Statics.mk(
@@ -446,7 +457,7 @@ let evolved = {hz|module Lists = {
   test Pos.neighbors((0, 0)) == [(0, -1), (0, 1), (1, 0), (-1, 0)] end;|hz};
 
 let build_at_end = (code: string): int =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) =>
     let z = Move.to_end(z);
@@ -459,7 +470,7 @@ let build_at_end = (code: string): int =>
 
 /* module member typing probes (mega-corpus regression after the merge) */
 let error_count = (code: string): int =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) =>
     let m = mk_statics(z);
@@ -470,7 +481,7 @@ let error_count = (code: string): int =>
 
 /* dump: top-level term shape + the type recorded for a variable */
 let dump_var_type = (code: string, var: string): unit =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) =>
     let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -669,12 +680,12 @@ let missing_in_item_maps = (ds: DefStatics.t): unit => {
 /* parity: node map from the per-item engine == node map from the
    monolithic map (same node ids, same paths) */
 let term_of_code = (code: string): Exp.t =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) => MakeTerm.from_zip_for_sem(z, ~root=Exp).term
   };
 let parity_ds = (code: string, mk_ds: Exp.t => DefStatics.t): (int, int, int) =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) =>
     let z = Move.to_end(z);
@@ -784,7 +795,7 @@ let parity_incr = (prev_code: string, code: string) =>
   );
 /* monolithic node-map name paths of [code] */
 let node_names = (code: string): list(string) =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) =>
     let z = Move.to_end(z);
@@ -827,7 +838,7 @@ let member_sep_probe = (last_member: string) => {
    one (CachedStatics.items) — the canvas reads error ownership and module
    structure from the spine when it has one */
 let canvas_parity = (code: string): (int, list(string)) =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+  switch (zipper_of(code)) {
   | None => fail("parse failed")
   | Some(z) =>
     let z = Move.to_end(z);

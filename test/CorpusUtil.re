@@ -98,6 +98,13 @@ let contains = (s: string, sub: string): bool => {
   go(0);
 };
 
+/* the simulated-typing parser is quadratic in program size and
+   re-materializes every ^^livelit use per keystroke: past this point a
+   corpus check takes the load path's fast parse instead (measured:
+   8-15 KB slides 8-29 s each, livelit demos 12-94 s) */
+let typing_parse_too_costly = (text: string): bool =>
+  String.length(text) > 6000 || contains(text, "^^livelit");
+
 let mega_scale = (name: string): bool => {
   let sub = "Mega";
   let (nl, sl) = (String.length(name), String.length(sub));

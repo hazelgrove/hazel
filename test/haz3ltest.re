@@ -43,15 +43,10 @@ let (suite, exit_with_test_status) =
       Test_PatRootEditor.tests,
       Test_StackFocus.tests,
       Test_Restructure.tests,
-      Test_BenchStatics.tests,
-      Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
-      Test_PieceIdentity.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
-      Test_LabelBench.tests,
-      Test_FlatBench.tests,
       Test_ModRoot.tests,
       Test_TypeDeps.tests,
       Test_StringUtil.tests,
@@ -119,9 +114,23 @@ let (suite, exit_with_test_status) =
       Test_Evaluator_ProbeNav.tests,
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
-      Test_ObsBench.tests,
     ]
     @ [Test_GradingReport.tests]
+    /* timing benches (informational, print-only): not tests, and they
+       cost CI minutes — run them with HAZEL_BENCH=1 */
+    @ (
+      switch (Sys.getenv_opt("HAZEL_BENCH")) {
+      | Some(_) => [
+          Test_BenchStatics.tests,
+          Test_MegaCorpus.tests,
+          Test_PieceIdentity.tests,
+          Test_LabelBench.tests,
+          Test_FlatBench.tests,
+          Test_ObsBench.tests,
+        ]
+      | None => []
+      }
+    )
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
