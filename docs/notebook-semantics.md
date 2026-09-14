@@ -218,12 +218,14 @@ I think the third is right. I do not think it is established, and N2 is what
 turns the difference between those two sentences into a check rather than a
 preference.
 
-Candidate 3 makes a prediction that is readable directly off the store: **a
-re-run that changes nothing should add no `Signaled` align.** An alignment is
-`Aligned` or `Signaled`, so if archivist-style operations really are idempotent
-under arbitrary re-running, then Hazel re-running a pass over an unchanged
-program leaves everything aligned. A `Signaled` after such a re-run falsifies
-the candidate.
+Candidate 3 makes a prediction readable directly off the store: **a re-run that
+changes nothing should add no `edgeSignaled` event, and leave every alignment
+`Aligned`.** An alignment is `Aligned` or `Signaled`, and `edgeSignaled` is
+already one of the event kinds `FumolaEvents` names and the panel lists — so if
+archivist-style operations really are idempotent under arbitrary re-running,
+then Hazel re-running a pass over an unchanged program leaves everything
+aligned and adds no signal. Either showing up after such a re-run falsifies the
+candidate, and the event is the cheaper of the two to watch.
 
 There is already weak evidence in favour, and it should be labelled weak:
 across six instances, the only align seen was `aligned`. Six instances of demo
