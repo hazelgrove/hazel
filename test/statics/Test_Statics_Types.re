@@ -565,6 +565,28 @@ let tests = (
       "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
       {|fun (?: (Float((+ A(Bool))))) -> ""|},
     ),
+    // These overflowed Typ.normalize and raised Not_found respectively, so
+    // reaching a type at all is the regression being pinned.
+    synthesizes(
+      "self-referential type alias in a pattern annotation (#1623)",
+      {|type y = y ->  in fun (A: (y)) -> a|},
+      Some(
+        FTemp.Typ.(
+          arrow(
+            rec_(
+              FTemp.TPat.var("y"),
+              arrow(var("y"), unknown(Hole(EmptyHole))),
+            ),
+            unknown(Internal),
+          )
+        ),
+      ),
+    ),
+    synthesizes(
+      "nested rec types over a sum hole (#1999)",
+      {|let (B: ((rec ? -> (rec ? -> (+ ?))))) = A in a|},
+      Some(FTemp.Typ.unknown(Internal)),
+    ),
     test_case(
       "Type parse failure",
       `Quick,
