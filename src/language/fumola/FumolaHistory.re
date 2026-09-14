@@ -191,20 +191,11 @@ let node_rows = (~instance_id: int, json: Yojson.Safe.t): list(node_row) =>
             meta_time,
             space,
             trace: trace_of(FumolaEvents.field("node", fields)),
-            /* The marker cell is the editor's by name rather than by
-               space: the editor puts into it, but it is a cell like any
-               other, so `is_editor` -- which asks whether a node's space is
-               Here -- says no. Left unmarked it reads as the program's own
-               doing, under a header that is the panel rendering that very
-               row. */
             editor:
-              space == FumolaRun.pass_cell_name
-              || (
-                switch (FumolaEvents.field("nodeId", fields)) {
-                | Some(id) => is_editor(id)
-                | None => false
-                }
-              ),
+              switch (FumolaEvents.field("nodeId", fields)) {
+              | Some(id) => is_editor(id)
+              | None => false
+              },
             value,
           });
         | _ => None
@@ -255,19 +246,10 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
             editor:
               switch (inner) {
               | Some(f) =>
-                (
-                  switch (FumolaEvents.field("source", f)) {
-                  | Some(id) => is_editor(id)
-                  | None => false
-                  }
-                )
-                || (
-                  switch (FumolaEvents.field("target", f)) {
-                  | Some(id) =>
-                    FumolaEvents.space_key(id) == FumolaRun.pass_cell_name
-                  | None => false
-                  }
-                )
+                switch (FumolaEvents.field("source", f)) {
+                | Some(id) => is_editor(id)
+                | None => false
+                }
               | None => false
               },
             meta_times:
@@ -282,10 +264,56 @@ let edge_rows = (~instance_id: int, json: Yojson.Safe.t): list(edge_row) =>
     json,
   );
 
-/* The puts into the marker cell, as (metaTime, pass name), ascending.
+/* Where each of Hazel's moments begins, as (metaTime, label), ascending.
 
-   Read from the edges rather than from the events, because only an edge
-   carries the value that was put, and that value is the name of the pass. */
+   Read off the TIME of a node id rather than from anything written into the
+   store. Every run happens at `hazel(n), so a node's time IS the moment that
+   made it, and the pass that moment belonged to is looked up in FumolaRun.
+   Nothing is put anywhere to record this -- there is no marker, and no cell
+   that exists only to be read by the panel. */
+let moment_of = (node_id: Yojson.Safe.t): option(int) => {
+  let at = (name, json) =>
+    switch (json) {
+    | `Assoc(obj) => List.assoc_opt(name, obj)
+    | _ => None
+    };
+  let text = json =>
+    switch (at("value", json)) {
+    | Some(`String(s)) => Some(s)
+    | _ => None
+    };
+  switch (FumolaEvents.tagged(node_id)) {
+  | Some(("Tuple", `List([_space, time, ..._]))) =>
+    switch (FumolaEvents.tagged(time)) {
+    | Some(("Variant", v)) =>
+      switch (at("value", v)) {
+      | Some(sym) =>
+        switch (FumolaEvents.tagged(sym)) {
+        | Some(("Symbol", call)) =>
+          switch (at("tag", call), at("fun", call), at("arg", call)) {
+          | (Some(`String("Call")), Some(f), Some(arg)) =>
+            switch (text(f), text(arg)) {
+            | (Some("hazel"), Some(n)) => int_of_string_opt(n)
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ => None
+        }
+      | None => None
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+let label_of_moment = (n: int): string =>
+  switch (FumolaRun.pass_of_moment(n)) {
+  | Some(pass) => pass ++ " · moment " ++ string_of_int(n)
+  | None => "moment " ++ string_of_int(n)
+  };
+
 let pass_boundaries = (edges: Yojson.Safe.t): list((int, string)) => {
   let inner_of = fields =>
     switch (FumolaEvents.field("edge", fields)) {
@@ -295,11 +323,6 @@ let pass_boundaries = (edges: Yojson.Safe.t): list((int, string)) => {
       | _ => None
       }
     | None => None
-    };
-  let is_marker = f =>
-    switch (FumolaEvents.field("target", f)) {
-    | Some(id) => FumolaEvents.space_key(id) == FumolaRun.pass_cell_name
-    | None => false
     };
   let began_at = f =>
     switch (FumolaEvents.field("metaTimes", f)) {
@@ -311,23 +334,6 @@ let pass_boundaries = (edges: Yojson.Safe.t): list((int, string)) => {
       }
     | None => None
     };
-  let wrote = f =>
-    switch (FumolaEvents.field("action", f)) {
-    | Some(a) =>
-      switch (FumolaEvents.tagged(a)) {
-      | Some(("Variant", v)) =>
-        switch (FumolaEvents.field("value", v)) {
-        | Some(payload) =>
-          switch (FumolaEvents.tagged(payload)) {
-          | Some(("Symbol", sym)) => FumolaEvents.symbol_text(sym)
-          | _ => None
-          }
-        | None => None
-        }
-      | _ => None
-      }
-    | None => None
-    };
   switch (FumolaEvents.tagged(edges)) {
   | Some(("List", `List(items))) =>
     items
@@ -335,12 +341,15 @@ let pass_boundaries = (edges: Yojson.Safe.t): list((int, string)) => {
          switch (FumolaEvents.tagged(item)) {
          | Some(("Record", fields)) =>
            switch (inner_of(fields)) {
-           | Some(f) when is_marker(f) =>
-             switch (began_at(f), wrote(f)) {
-             | (Some(at), Some(name)) => Some((at, name))
+           | Some(f) =>
+             switch (
+               began_at(f),
+               FumolaEvents.field("target", f) |> Option.map(moment_of),
+             ) {
+             | (Some(at), Some(Some(n))) => Some((at, label_of_moment(n)))
              | _ => None
              }
-           | _ => None
+           | None => None
            }
          | _ => None
          }

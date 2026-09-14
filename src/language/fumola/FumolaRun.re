@@ -127,11 +127,43 @@ let reset_instance = (~mode: option(mode)=?, name: string): bool => {
   reset;
 };
 
+/* The moment the next run will happen at. Counts runs rather than edits: two
+   passes over one edit are two moments, which is the point -- telling them
+   apart is what the count is for. */
+let moment = ref(0);
+
+/* A program, sent at a given moment.
+
+   Three spellings matter here and none of them is obvious.
+
+   The index is a BARE number, so the time is a `Symbol::Nat` and is ordered.
+   `hazel(`3) would make the argument a QuotedAst, which Fumola leaves
+   deliberately incomparable, and every run would become its own island with
+   nothing visible between them.
+
+   The navigation takes a nullary expression, so the time needs parentheses of
+   its own: `goto time `hazel(3)` is a syntax error.
+
+   The braces after a navigation are a block position already, so the program
+   needs no `do` of its own -- which matters, because outside a nest position
+   the same braces would be an object literal, and both parse. */
+let at_moment = (n: int, program: string): string =>
+  Printf.sprintf("do goto time (`hazel(%d)) { %s }", n, program);
+
+/* Reads go at the LATEST moment, not at `Now`.
+
+   `Now` is the bottom of Fumola's time order: every named moment can see it
+   and it can see none of them. Since every run now happens at a named moment,
+   a reader left at `Now` would answer nothing at all. A read at T answers with
+   the write at the greatest comparable T' <= T, so reading at the latest
+   moment is what makes a reader see everything that has happened. */
+let at_now = (program: string): string => at_moment(moment^, program);
+
 /* Run a program in an instance and hand back its JSON. Used both for the
    program itself and, by FumolaValue, for reading what a pointer points at. */
-let eval_in = (instance_id: int, program: string): Yojson.Safe.t =>
+let eval_at = (instance_id: int, at: string): Yojson.Safe.t =>
   switch (
-    switch (shim("evalTop", [|js_int(instance_id), js_string(program)|])) {
+    switch (shim("evalTop", [|js_int(instance_id), js_string(at)|])) {
     | exception _ => None
     | r => Some(r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string)
     }
@@ -143,6 +175,10 @@ let eval_in = (instance_id: int, program: string): Yojson.Safe.t =>
     | json => json
     }
   };
+
+/* Everything else reads, so everything else goes at the latest moment. */
+let eval_in = (instance_id: int, program: string): Yojson.Safe.t =>
+  eval_at(instance_id, at_now(program));
 
 /* Why a program could not produce a Hazel value. A half-written program is a
    syntax error on nearly every keystroke, so whether the failure was
@@ -224,24 +260,37 @@ let instance_name = (name: FumolaTermBase.t): string =>
 
 /* Which of Hazel's passes is running this program.
 
-   Hazel runs a Fumola quote from more than one place, and the store cannot
-   tell them apart: `root_node()` in the runtime answers the constant
-   (Here, Now, 0), so every edge the editor causes is sourced at the same
-   node whatever pass caused it. Measured: docs/hazel-effect-schedule.md.
+   Hazel runs a Fumola quote from more than one place, and only one of them is
+   the program happening; the rest are the editor asking what the next step
+   would be, or whether something is a value, and answering by running the
+   program again. Measured: docs/hazel-effect-schedule.md, three runs to an
+   edit.
 
-   The obvious fix -- give each pass its own TIME, since the time on that
-   root is carrying nothing -- does not work, and the way it fails is worth
-   recording here so nobody tries it twice. `do goto time` and
-   `do within time` do set the time, but they set it on the nodes a program
-   TOUCHES rather than on the node doing the touching, and a time is part of
-   a node's identity. The same program under two times writes two cells
-   rather than one cell twice, so a time per pass would give every pass a
-   private copy of the store -- breaking the incrementality the store is
-   there for. Checked against a live runtime, not reasoned about.
+   The pass is recorded as a TIME rather than as a cell, because a pass is a
+   moment and not a thing. Fumola's times are ordered where ordering means
+   something and unordered where it does not, and both halves are load-bearing
+   here:
 
-   So the pass is marked instead: a put naming it, into one cell, before the
-   program runs. Attribution is positional -- every event after a marker
-   belongs to that pass, until the next one. */
+     `hazel(1) < `hazel(2)        Symbol::Nat arguments compare numerically
+     `hazel(1) vs `step(2)        different heads: incomparable, by design,
+                                  "to express certain kinds of independence /
+                                  parallelism in the time ordering"
+
+   And a read at time T answers with the write at the greatest comparable
+   T' <= T. So a run at `hazel(n) sees everything every earlier run did, its
+   own writes leave the earlier moments untouched, and the whole sequence is a
+   revision history rather than one mutable store. Checked against a live
+   runtime, every direction.
+
+   `Now` is the bottom of that order -- every named time can see it and it can
+   see none of them -- so it is left to the meta level and nothing is run
+   there.
+
+   Two spellings matter and neither is obvious. The index must be a BARE
+   number: `hazel(1) makes it Symbol::Nat and ordered, while `hazel(`1) makes
+   it a QuotedAst, which is deliberately incomparable and would silently give
+   every run its own island. And the navigation takes a nullary expression, so
+   the time needs its own parentheses: goto time (`hazel(1)). */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type pass =
   | Eval
@@ -249,39 +298,39 @@ type pass =
   | Decompose
   | ValueCheck;
 
-let pass_symbol =
+let pass_name =
   fun
   | Eval => "eval"
   | Step => "step"
   | Decompose => "decompose"
   | ValueCheck => "valueCheck";
 
-/* The cell the marker is written to. Leading underscore so it sorts and
-   reads as the editor's rather than the program's, and so a program that
-   wants the name can still have it. */
-let pass_cell_name = "_hazelPass";
-let pass_cell = "`" ++ pass_cell_name;
+let next_moment = () => {
+  incr(moment);
+  moment^;
+};
 
-/* A program, preceded by the mark of the pass running it.
+/* Which pass each moment was, so the panel can label a moment with the pass
+   that made it. The store holds the moment; the name of the pass is Hazel's
+   business and stays here. Not persisted: the moments start again at zero
+   whenever the page does, and so does the store. */
+let moment_pass: Hashtbl.t(int, string) = Hashtbl.create(64);
 
-   `do { ... }` rather than bare braces: after `do` a brace is a block
-   wherever it stands, while elsewhere it is an object literal -- both parse,
-   so the difference is invisible to a check that only asks whether the
-   program parses. A block answers its last expression, so the mark does not
-   change what the program evaluates to.
+let claim_moment = (pass: pass): int => {
+  incr(moment);
+  Hashtbl.replace(moment_pass, moment^, pass_name(pass));
+  moment^;
+};
 
-   Nothing reads this cell, so a put that changes its value signals nobody:
-   a three-run test across two passes left every edge aligned. The cost is
-   one put per run, and it is the editor's traffic, which the panel already
-   dims. */
-let marked = (pass: pass, program: string): string =>
-  Printf.sprintf(
-    "do { %s := `%s; %s }",
-    pass_cell,
-    pass_symbol(pass),
-    program,
-  );
+let pass_of_moment = (n: int): option(string) =>
+  Hashtbl.find_opt(moment_pass, n);
 
+/* Anything sent to an instance goes at a moment, reads included.
+
+   A read at `Now` would answer nothing now that every run happens at a named
+   moment: `Now` is the bottom of the order and can see none of them. Reading
+   at the LATEST moment is what makes a reader see everything, since a read at
+   T answers with the write at the greatest comparable T' <= T. */
 let run =
     (
       ~ana: TermBase.Typ.t,
@@ -313,7 +362,8 @@ let run =
           message,
         })
       | None =>
-        let program = marked(pass, Fumola.of_exp(body));
+        let program = Fumola.of_exp(body);
+        let at = claim_moment(pass);
         let instance_id = instance_of_name(instance_name);
         /* Declare the mode when the declaration is new or has changed, which
            is when it means something. An unchanged declaration says nothing
@@ -328,7 +378,7 @@ let run =
             },
           mode,
         );
-        switch (eval_in(instance_id, program)) {
+        switch (eval_at(instance_id, at_moment(at, program))) {
         | `Null =>
           Error({
             syntax: false,
