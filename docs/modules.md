@@ -65,17 +65,41 @@ let outer : { let inner : { let x : Int } } = { let inner = { let x = 1 } }
 A module synthesizes `module Inner : { … }` for a `module Inner = …` item and
 `let inner : { … }` for a `let inner = { … }` item.
 
-A module analyzed against a signature must define exactly the members the
-signature declares, each value member must have the declared type (with the
-signature's own type members substituted), and each type member must be
-defined as the declared type. A member's type error is reported on its
-definition; missing members (`ModuleMissingMembers`) and, until width
-subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
-module; a differing type member is reported on its definition type
-(`ModuleTypeMemberMismatch`). When one of the items is a hole (a hole item,
+A module analyzed against a signature must define every member the signature
+declares, each value member must have the declared type (with the signature's
+own type members substituted), and each type member must be defined as the
+declared type. A member's type error is reported on its definition; missing
+members (`ModuleMissingMembers`) are reported on the module; a differing type
+member is reported on its definition type (`ModuleTypeMemberMismatch`). When one of the items is a hole (a hole item,
 or a binder with a hole where a member could be bound) it may still become the
 missing members, so they are assumed rather than reported and the module has
 the signature's type.
+
+### Sealing
+
+At a coercion site the module may export more members than the signature
+declares. The sites are an ascription `(e : S)`, an annotated binder
+(`let m : S = e`, `module M : S = e`, a module item under a signature) and an
+application argument whose parameter type is a signature. The extra members
+are sealed away: the binder has exactly the signature's type, `m.y` on a member
+the signature omits is an error, and at runtime the module value keeps only
+the signature's members. Sub-module members may themselves be wider than
+declared, and the coercion is structural through tuples (`f(m, x)` is an
+application with two arguments). The site's operand is found through
+parentheses, the components of a tuple literal, and a function literal's
+body, which is sealed to the expected codomain the way a functor body is to
+its result signature; the parameter is matched exactly.
+
+```
+let m : { let x : Int } = { let x = 1; let y = 2 } in m.x    -- 1; m.y is an error
+let f = fun (m : { let x : Int }) -> m.x in f({ let x = 1; let y = 2 })
+```
+
+Everywhere else signatures match exactly, as in OCaml: a wider module as a
+list element, in an `if` branch, under a pattern annotation, or reached
+through a variable of list or function type is a mismatch, and the message
+says an ascription seals it. Function types are not contravariant; eta-expand
+instead.
 
 ### Member Access and `module`
 
@@ -118,6 +142,7 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 | ------------------------------------ | ------ |
 | Module syntax (`{ let ... }`)        | Works  |
 | Signature types (distinct from Prod) | Works  |
+| Sealing at coercion sites            | Works  |
 | Type members in signatures (checked) | Works  |
 | Member access via `.`                | Works  |
 | Module values at runtime             | Works  |
@@ -135,10 +160,6 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 
 ## Not Yet Supported
 
-- **Width subtyping.** A module must export exactly the members its signature
-  declares; extra members are an error. Planned: subtyping at analysis
-  positions only (a module with extra members satisfies a smaller signature
-  where it is ascribed, sealing the extras away).
 - **Abstract type members.** Signatures cannot yet declare `type T` without a
   definition, so there is no sealing of representations and no path types.
 - **Comparing modules with `==`** is a runtime incomparable result; statics
@@ -187,6 +208,16 @@ earlier type members by name, so:
   same type-member names (order-insensitive) and meets members pairwise in a
   context extended with the type members. A signature is inconsistent with
   every other type constructor, including `Prod`.
+- `Typ.coercion(ctx, ~from, ~to_)` is coercive subtyping, checked only where
+  the subsumption step runs with `~coercible` set: `Asc`, `Let` and `Ap` set
+  it on their operand, and the transparent forms (parentheses, projectors,
+  filters, closures) and tuple-literal components pass it on
+  (`StaticsBase.subsume`, used by `fixed_typ`, `expectation_mismatch_mark`
+  and `syn_ana_ok_common`). It tries `meet` first; failing that, structurally
+  through tuple components, a signature fits a signature that declares a
+  subset of its members (`Typ.sig_sub`, which opens the wider signature's type
+  members under fresh names). It returns the sealed signature, which is what
+  seals the binder's type.
 - `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
   items: a type alias first, then a value variable whose type is a signature.
   `weak_head_normalize` uses it for `ProdProjection`, falling back to the
@@ -215,8 +246,9 @@ After checking:
 - `ModuleHelpers.check_ana_type_members` marks the definition type of a
   `type T = ...` item that differs from the signature's
   (`Mark.ModuleTypeMemberMismatch`).
-- `ModuleHelpers.missing_members` / `extra_members` produce
-  `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
+- `ModuleHelpers.missing_members` produces `Mark.ModuleMissingMembers` on
+  the module node; extra members are sealed away by `Typ.coercion` at a
+  coercion site and are a mismatch elsewhere.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
   annotations are stripped, type items are dropped.
@@ -283,7 +315,8 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
@@ -308,5 +341,6 @@ used only for mispositioned items.
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
 | `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
-| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide; split off because one slide's `let` chain hit the evaluator stack limit in the Web Worker |
+| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
+| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide; the three slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |

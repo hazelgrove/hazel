@@ -795,24 +795,6 @@ let test_error_sig_module_member_mismatch =
 
 /* ===== SPECIFIC MARKS ===== */
 
-let test_extra_member_mark =
-  has_mark_test(
-    "Extra member is reported as an extra member",
-    {|let m : { let x : Int } = { let x = 1; let y = 2 } in m|},
-    fun
-    | Language.Mark.ModuleExtraMembers(["y"]) => true
-    | _ => false,
-  );
-
-let test_extra_type_member_mark =
-  has_mark_test(
-    "Extra type member is reported as an extra member",
-    {|let m : { let x : Int } = { type T = Int; let x = 1 } in m|},
-    fun
-    | Language.Mark.ModuleExtraMembers(["T"]) => true
-    | _ => false,
-  );
-
 let test_missing_member_mark =
   has_mark_test(
     "Missing member is reported as a missing member",
@@ -1002,37 +984,342 @@ let test_module_tuple_equality_rejected =
     {|test (x=1) == { let x = 1 } end|} |> parse_exp,
   );
 
-/* ===== NO WIDTH SUBTYPING YET (arrives with ana_meet) ===== */
-let test_extra_member_rejected =
-  inconsistent_typecheck(
-    "Extra module member is rejected by an exact signature",
-    {|let annotated : {} = { let x = 1 } in annotated|} |> parse_exp,
+/* ===== SEALING AT COERCION SITES ===== */
+/* At an ascription, an annotated binder or an application argument a module
+   may export more than the signature declares; the extras are sealed away and
+   the binder has exactly the signature's type. Everywhere else signatures
+   match exactly. */
+let test_width_empty_sig =
+  fully_consistent_typecheck(
+    "Extra member is sealed away by an empty signature",
+    {|let annotated : {} = { let x = 1 } in annotated|},
+    Some(sig_([])),
   );
 
-let test_extra_member_multi_rejected =
+let test_width_extra_member =
+  fully_consistent_typecheck(
+    "Extra member is sealed away by the signature",
+    {|let annotated : { let x : Int } = { let x = 1; let y = 2 } in annotated|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_width_narrower_sig =
+  fully_consistent_typecheck(
+    "Signature narrower than module seals the rest",
+    {|let annotated : { let x : Int; let y : Bool } = { let x = 1; let y = true; let z = "hello" } in annotated|},
+    Some(sig_([val_("x", int()), val_("y", bool())])),
+  );
+
+let test_width_extra_type_member =
+  fully_consistent_typecheck(
+    "Extra type member is sealed away",
+    {|let m : { let x : Int } = { type T = Int; let x = 1 } in m|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_sealed_member_inaccessible =
   inconsistent_typecheck(
-    "Extra member in multi-member module is rejected",
-    {|let annotated : { let x : Int } = { let x = 1; let y = 2 } in annotated|}
+    "Sealed-away member is not accessible",
+    {|let m : { let x : Int } = { let x = 1; let y = 2 } in m.y|} |> parse_exp,
+  );
+
+let test_width_in_asc =
+  fully_consistent_typecheck(
+    "Sealing at an ascription",
+    {|({ let x = 1; let y = 2 } : { let x : Int })|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_width_in_module_keyword =
+  fully_consistent_typecheck(
+    "Sealing with the module keyword",
+    {|module M : { let x : Int } = { let x = 1; let y = 2 } in M|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_width_function_argument_literal =
+  fully_consistent_typecheck(
+    "Sealing a module literal argument",
+    {|let f = fun (m : { let x : Int }) -> m.x in f({ let x = 1; let y = 2 })|},
+    Some(int()),
+  );
+
+let test_width_function_argument_variable =
+  fully_consistent_typecheck(
+    "Sealing a module variable argument",
+    {|let big = { let x = 1; let y = 2 } in let f = fun (m : { let x : Int }) -> m.x in f(big)|},
+    Some(int()),
+  );
+
+let test_width_bound_variable =
+  fully_consistent_typecheck(
+    "Sealing when binding a module variable",
+    {|let big = { let x = 1; let y = 2 } in let m : { let x : Int } = big in m|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_width_hole_member =
+  fully_consistent_typecheck(
+    "Hole-typed member accepts any type, extras sealed",
+    {|let m : { let x : ? } = { let x = 1; let y = 2 } in m|},
+    Some(sig_([val_("x", unknown(Hole(EmptyHole)))])),
+  );
+
+let test_width_depth =
+  fully_consistent_typecheck(
+    "Sealing through a nested module member",
+    {|let n : { let m : { let x : Int } } = { let m = { let x = 1; let y = 2 } } in n|},
+    Some(sig_([val_("m", sig_([val_("x", int())]))])),
+  );
+
+/* Function types match exactly: a function on a narrower module is not
+   coerced to one on a wider module (eta-expand instead). */
+let test_error_width_no_contravariance =
+  inconsistent_typecheck(
+    "A function on a narrower module is not coerced to a wider domain",
+    {|let g : { let x : Int; let y : Int } -> Int = fun (m : { let x : Int }) -> m.x in g|}
     |> parse_exp,
   );
 
-let test_sig_too_narrow_rejected =
+let test_error_width_covariant_domain =
   inconsistent_typecheck(
-    "Signature narrower than module is rejected",
-    {|let annotated : { let x : Int; let y : Bool } = { let x = 1; let y = true; let z = "hello" } in annotated|}
+    "A function on a wider module does not accept a narrower one",
+    {|let g : { let x : Int } -> Int = fun (m : { let x : Int; let y : Int }) -> m.x in g|}
     |> parse_exp,
   );
 
-/* TODO: a signature member whose NAME is a hole, `{ let ? : ? }`, should be
-   able to stand for any module member (`y` here): filling the hole could make
-   the module match. Today the hole-named item is dropped from the signature's
-   members, so `y` is reported as an extra member. Once width subtyping lands,
-   a signature with hole-named members should probably be treated as open, and
-   a hole-named member should not count as missing. */
+/* Consistency stays exact: branches must agree on their members. */
+let test_error_width_not_in_if =
+  inconsistent_typecheck(
+    "Width does not apply across if branches",
+    {|if true then { let x = 1 } else { let x = 1; let y = 2 }|} |> parse_exp,
+  );
+
+/* If branches are not coercion sites: under an annotation the wider branch
+   itself carries the mismatch. */
+let test_error_width_not_in_if_annotated =
+  Alcotest.test_case(
+    "Under an annotation a wider if branch is marked on the branch",
+    `Quick,
+    () => {
+      let marks =
+        subexp_marks(
+          {|let m : { let x : Int } = if true then { let x = 1 } else { let x = 1; let y = 2 } in m|},
+          fun
+          | Module(items) => List.length(items) == 2
+          | _ => false,
+        );
+      Alcotest.(check(bool))(
+        "wider branch marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ExpectationMismatch(_) => true
+          | _ => false,
+          marks,
+        ),
+      );
+    },
+  );
+
+let test_if_identical_sigs =
+  fully_consistent_typecheck(
+    "If branches with identical signatures",
+    {|if true then { let x = 1 } else { let x = 2 }|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_width_not_for_tuples =
+  inconsistent_typecheck(
+    "Labeled tuples are not sealed by width",
+    {|let t : (x=Int) = (x=1, y=2) in t|} |> parse_exp,
+  );
+
+/* Slide examples: sealing in use */
+let test_width_interface_function =
+  fully_consistent_typecheck(
+    "A function over any module with the members it needs",
+    {|let greet = fun (m : { let name : String }) -> "hello " ++ m.name in
+module Alice = { let name = "Alice"; let age = 30 } in
+module Bob = { let name = "Bob"; let email = "bob@example.com" } in
+greet(Alice) ++ greet(Bob)|},
+    Some(string()),
+  );
+
+let test_width_hides_helper =
+  fully_consistent_typecheck(
+    "Only the signature's members are exported",
+    {|module Stack : {
+  let empty : [Int];
+  let push : Int -> [Int] -> [Int];
+  let top : [Int] -> Int
+} = {
+  let default = 0;
+  let empty = [];
+  let push = fun x -> fun s -> x :: s;
+  let top = fun s -> case s | h :: _ => h | [] => default end
+} in
+Stack.top(Stack.push(1)(Stack.empty))|},
+    Some(int()),
+  );
+
+let test_error_width_hidden_helper =
+  inconsistent_typecheck(
+    "A helper the signature omits is not accessible",
+    {|module Stack : { let top : [Int] -> Int } = {
+  let default = 0;
+  let top = fun s -> case s | h :: _ => h | [] => default end
+} in
+Stack.default|}
+    |> parse_exp,
+  );
+
+let test_width_nested_member_wider =
+  fully_consistent_typecheck(
+    "Nested members may be wider than declared",
+    {|module Config : { module Db : { let host : String } } = {
+  module Db = { let host = "localhost"; let port = 5432 }
+} in
+Config.Db.host|},
+    Some(string()),
+  );
+
+let test_width_if_branch_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing the wider branch seals it so the branches agree",
+    {|let pick = fun b -> if b then { let x = 1 } else ({ let x = 1; let y = 2 } : { let x : Int }) in pick(true).x|},
+    Some(int()),
+  );
+
+/* Non-sites: the same wider module is a mismatch anywhere but under an
+   ascription, an annotated binder or in argument position, up to parentheses
+   and tuple structure. */
+let test_error_sealing_not_in_list =
+  inconsistent_typecheck(
+    "A wider module is not sealed as a list element",
+    {|let wide = { let x = 1; let y = 2 } in let l : [{ let x : Int }] = [wide] in l|}
+    |> parse_exp,
+  );
+
+let test_sealing_in_list_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing a list element seals it",
+    {|let wide = { let x = 1; let y = 2 } in let l : [{ let x : Int }] = [(wide : { let x : Int })] in l|},
+    Some(list(sig_([val_("x", int())]))),
+  );
+
+let test_error_sealing_module_literal_in_list =
+  has_mark_test(
+    "A module literal with extra members as a list element is a mismatch",
+    {|let l : [{ let x : Int }] = [{ let x = 1; let y = 2 }] in l|},
+    fun
+    | Language.Mark.ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
+let test_sealing_tuple_argument =
+  fully_consistent_typecheck(
+    "Each component of a tuple argument is sealed",
+    {|let f = fun (m : { let x : Int }, n : Int) -> m.x + n in
+let wide = { let x = 1; let y = 2 } in
+f(wide, 1)|},
+    Some(int()),
+  );
+
+let test_sealing_tuple_literal_annotated =
+  fully_consistent_typecheck(
+    "An annotation seals the components of a tuple literal",
+    {|let wide = { let x = 1; let y = 2 } in let p : (Int, { let x : Int }) = (1, wide) in p|},
+    Some(prod([int(), sig_([val_("x", int())])])),
+  );
+
+let test_sealing_labeled_tuple_component =
+  fully_consistent_typecheck(
+    "An annotation seals a labeled tuple component",
+    {|let wide = { let x = 1; let y = 2 } in let p : (m={ let x : Int }, n=Int) = (m=wide, n=1) in p.n|},
+    Some(int()),
+  );
+
+/* The coercion is structural through tuples, so a variable of tuple type is
+   coerced componentwise at a site too. */
+let test_sealing_tuple_variable =
+  fully_consistent_typecheck(
+    "A variable of tuple type is coerced componentwise at a site",
+    {|let wide = { let x = 1; let y = 2 } in let q = (1, wide) in let p : (Int, { let x : Int }) = q in p|},
+    Some(prod([int(), sig_([val_("x", int())])])),
+  );
+
+let test_error_sealing_not_in_case_pattern =
+  inconsistent_typecheck(
+    "A pattern annotation narrower than the scrutinee is a mismatch",
+    {|let wide = { let x = 1; let y = 2 } in case wide | (m : { let x : Int }) => m.x end|}
+    |> parse_exp,
+  );
+
+let test_sealing_scrutinee_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing the scrutinee seals it",
+    {|let wide = { let x = 1; let y = 2 } in case (wide : { let x : Int }) | m => m.x end|},
+    Some(int()),
+  );
+
+/* A function literal's body is its result: under an expected arrow type it
+   is sealed to the codomain, like a functor body to its result signature.
+   The parameter is still matched exactly (no contravariance). */
+let test_sealing_function_body =
+  fully_consistent_typecheck(
+    "A function body is sealed to the expected codomain",
+    {|let f : { let x : Int } -> { let x : Int } = fun m -> { let x = m.x; let y = 1 } in f({ let x = 1 })|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_sealing_through_parens =
+  fully_consistent_typecheck(
+    "Parentheses do not block sealing",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = ((wide)) in n|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_error_sealing_not_through_let_body =
+  inconsistent_typecheck(
+    "A let body is not a coercion site",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = (let h = 1 in wide) in n|}
+    |> parse_exp,
+  );
+
+let test_error_sealing_not_in_if_branches =
+  inconsistent_typecheck(
+    "If branches are not coercion sites",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = if true then wide else wide in n|}
+    |> parse_exp,
+  );
+
+let test_sealing_constructor_argument =
+  fully_consistent_typecheck(
+    "A constructor argument is sealed like any application argument",
+    {|type Box = Wrap({ let x : Int }) + Empty in
+let b : Box = Wrap({ let x = 1; let y = 2 }) in
+case b | Wrap(m) => m.x | Empty => 0 end|},
+    Some(int()),
+  );
+
+let test_error_sealing_not_through_sum_variable =
+  inconsistent_typecheck(
+    "A variable of a wider sum type is not coerced",
+    {|type Box = Wrap({ let x : Int }) + Empty in
+type Wide = Wrap({ let x : Int; let y : Int }) + Empty in
+let w : Wide = Wrap({ let x = 1; let y = 2 }) in
+let b : Box = w in b|}
+    |> parse_exp,
+  );
+
+/* A hole-named signature member is not a required member, and the module's
+   binding is an extra member the signature seals away. */
 let test_hole_named_member_matches_any =
-  skip_known_bug(
-    "signature member with a hole for its name should match a module member",
-    {|let m : { let ? : ? } = { let y = 1 } in m|},
+  fully_consistent_typecheck(
+    "Signature member with a hole for its name accepts a module member",
+    {|let m : { let ? : ? } = { let y = 1 } in 0|},
+    Some(int()),
   );
 
 /* A hole-typed member is still a required member */
@@ -1440,8 +1727,6 @@ let tests = (
     test_sig_lowercase_nested,
     test_error_sig_module_member_mismatch,
     /* Specific marks */
-    test_extra_member_mark,
-    test_extra_type_member_mark,
     test_missing_member_mark,
     test_type_member_mismatch_mark,
     /* Projection error attribution */
@@ -1499,12 +1784,48 @@ let tests = (
     test_empty_module_is_not_unit,
     test_unit_is_not_empty_module,
     test_module_tuple_equality_rejected,
-    /* No width subtyping yet */
-    test_extra_member_rejected,
-    test_extra_member_multi_rejected,
-    test_sig_too_narrow_rejected,
-    test_label_mismatch_hole,
+    /* Sealing at coercion sites */
+    test_width_empty_sig,
+    test_width_extra_member,
+    test_width_narrower_sig,
+    test_width_extra_type_member,
+    test_sealed_member_inaccessible,
+    test_width_in_asc,
+    test_width_in_module_keyword,
+    test_width_function_argument_literal,
+    test_width_function_argument_variable,
+    test_width_bound_variable,
+    test_width_hole_member,
+    test_width_depth,
+    test_error_width_no_contravariance,
+    test_error_width_covariant_domain,
+    test_error_width_not_in_if,
+    test_error_width_not_in_if_annotated,
+    test_if_identical_sigs,
+    test_width_not_for_tuples,
+    test_width_interface_function,
+    test_width_hides_helper,
+    test_error_width_hidden_helper,
+    test_width_nested_member_wider,
+    test_width_if_branch_ascribed,
+    /* Non-sites */
+    test_error_sealing_not_in_list,
+    test_sealing_in_list_ascribed,
+    test_error_sealing_module_literal_in_list,
+    test_sealing_tuple_argument,
+    test_sealing_tuple_literal_annotated,
+    test_sealing_labeled_tuple_component,
+    test_sealing_tuple_variable,
+    test_error_sealing_not_in_case_pattern,
+    test_sealing_scrutinee_ascribed,
+    test_sealing_function_body,
+    test_sealing_through_parens,
+    test_error_sealing_not_through_let_body,
+    test_error_sealing_not_in_if_branches,
+    test_sealing_constructor_argument,
+    test_error_sealing_not_through_sum_variable,
     test_hole_named_member_matches_any,
+    test_label_mismatch_hole,
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,

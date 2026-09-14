@@ -50,11 +50,17 @@ let type_member_mismatch_string = (name, ~expected, ~actual) =>
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
-    prn(
-      "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
-    );
+    Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana))
+      ? prn(
+          "Expecting type %s but got the wider type %s; an ascription seals the extra members",
+          Print.typ(ana),
+          Print.typ(syn),
+        )
+      : prn(
+          "Expecting type %s but got inconsistent type %s",
+          Print.typ(ana),
+          Print.typ(syn),
+        );
   switch (m) {
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
@@ -153,11 +159,6 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | LabelNotFound(_, _) => "Label not found"
   | ModuleMissingMembers(names) =>
     prn("Module is missing members: %s", String.concat(", ", names))
-  | ModuleExtraMembers(names) =>
-    prn(
-      "Module has members its signature does not declare: %s",
-      String.concat(", ", names),
-    )
   | ModuleMemberNotFound({name, members, type_member}) =>
     if (type_member) {
       prn(

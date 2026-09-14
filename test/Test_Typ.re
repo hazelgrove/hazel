@@ -220,7 +220,7 @@ let sig_tests = {
           Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
         )
       ),
-      test_case("meet refines an tu member", `Quick, () =>
+      test_case("meet refines an unknown member", `Quick, () =>
         check(
           opt_typ,
           "refined",
@@ -431,4 +431,176 @@ let cyclic_path_tests = {
   );
 };
 
-let tests = [meet_tests, fast_equal_tests, sig_tests, cyclic_path_tests];
+/* coercion: the meet, or a wider signature sealed to the one it is coerced
+   to; nothing else is directional. */
+let coercion_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tb = F.Typ.bool();
+  let tu = F.Typ.unknown(Internal);
+  let ctx = Builtins.ctx_init(None);
+  let opt_typ = option(typ);
+  let coercion = (to_, from) => Typ.coercion(ctx, ~from, ~to_);
+  (
+    "Typ.Coercion",
+    [
+      test_case("wider module fits a narrower signature", `Quick, () =>
+        check(
+          opt_typ,
+          "sealed to ana",
+          Some(sg([sv("x", ti)])),
+          coercion(sg([sv("x", ti)]), sg([sv("x", ti), sv("y", tb)])),
+        )
+      ),
+      test_case("narrower module does not fit a wider signature", `Quick, () =>
+        check(
+          opt_typ,
+          "missing member",
+          None,
+          coercion(sg([sv("x", ti), sv("y", tb)]), sg([sv("x", ti)])),
+        )
+      ),
+      test_case("member types must fit", `Quick, () =>
+        check(
+          opt_typ,
+          "wrong member type",
+          None,
+          coercion(sg([sv("x", ti)]), sg([sv("x", tb)])),
+        )
+      ),
+      test_case("unknown member type refines, extras dropped", `Quick, () =>
+        check(
+          opt_typ,
+          "refined",
+          Some(sg([sv("x", tu)])),
+          coercion(sg([sv("x", tu)]), sg([sv("x", ti), sv("y", tb)])),
+        )
+      ),
+      test_case(
+        "manifest type members must agree",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "same manifest",
+            Some(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+            coercion(
+              sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+              sg([st("T", ti), sv("x", F.Typ.var("T")), sv("y", tb)]),
+            ),
+          );
+          check(
+            opt_typ,
+            "different manifest",
+            None,
+            coercion(sg([st("T", ti)]), sg([st("T", tb), sv("y", tb)])),
+          );
+        },
+      ),
+      test_case(
+        "signatures never fit labeled tuples",
+        `Quick,
+        () => {
+          let prod = F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]);
+          check(
+            opt_typ,
+            "sig vs prod",
+            None,
+            coercion(sg([sv("x", ti)]), prod),
+          );
+          check(
+            opt_typ,
+            "prod vs sig",
+            None,
+            coercion(prod, sg([sv("x", ti)])),
+          );
+        },
+      ),
+      test_case(
+        "unknown on either side",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "? ana",
+            Some(sg([sv("x", ti)])),
+            coercion(tu, sg([sv("x", ti)])),
+          );
+          check(
+            opt_typ,
+            "? syn",
+            Some(sg([sv("x", ti)])),
+            coercion(sg([sv("x", ti)]), tu),
+          );
+        },
+      ),
+      test_case(
+        "seals through tuple components",
+        `Quick,
+        () => {
+          let narrow = sg([sv("x", ti)]);
+          let wide = sg([sv("x", ti), sv("y", ti)]);
+          check(
+            opt_typ,
+            "componentwise, holes refined",
+            Some(F.Typ.prod([ti, narrow])),
+            coercion(F.Typ.prod([tu, narrow]), F.Typ.prod([ti, wide])),
+          );
+          check(
+            opt_typ,
+            "arity must agree",
+            None,
+            coercion(F.Typ.prod([narrow]), F.Typ.prod([ti, wide])),
+          );
+        },
+      ),
+      test_case(
+        "agrees with meet unless the expected type is a signature",
+        `Quick,
+        () => {
+          let narrow = sg([sv("x", ti)]);
+          let wide = sg([sv("x", ti), sv("y", ti)]);
+          let pairs = [
+            (ti, ti),
+            (ti, tb),
+            (F.Typ.list(ti), F.Typ.list(tu)),
+            (F.Typ.arrow(ti, tb), F.Typ.arrow(ti, tb)),
+            /* no contravariance: function types match exactly */
+            (F.Typ.arrow(wide, ti), F.Typ.arrow(narrow, ti)),
+            (F.Typ.arrow(narrow, ti), F.Typ.arrow(wide, ti)),
+            /* no depth through lists */
+            (F.Typ.list(narrow), F.Typ.list(wide)),
+            (
+              F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]),
+              F.Typ.prod([
+                F.Typ.tup_label(F.Typ.label("x"), ti),
+                F.Typ.tup_label(F.Typ.label("y"), ti),
+              ]),
+            ),
+          ];
+          List.iter(
+            ((a, b)) =>
+              check(
+                opt_typ,
+                "same as meet",
+                Typ.meet(ctx, a, b),
+                coercion(a, b),
+              ),
+            pairs,
+          );
+        },
+      ),
+    ],
+  );
+};
+
+let tests = [
+  meet_tests,
+  fast_equal_tests,
+  sig_tests,
+  cyclic_path_tests,
+  coercion_tests,
+];

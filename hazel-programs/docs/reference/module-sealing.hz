@@ -1,0 +1,66 @@
+# MODULE SEALING #
+
+# Continues the Module Signatures slide: where a module is ascribed #
+# a signature, bound with one, or passed to a function expecting #
+# one, extra members are sealed away; elsewhere signatures match #
+# exactly. #
+
+
+# E. SEALING #
+
+# Where a module is ascribed a signature, bound with one, or #
+# passed to a function expecting one, it may have more members #
+# than the signature declares; the extra members are sealed #
+# away. Everywhere else signatures match exactly. #
+
+# 24. Extra members are sealed away by the signature #
+module M : {let x : Int} = {
+  let x = 1;
+  let y = 2
+} in
+let ok = M.x in
+
+# 25. Error: a sealed-away member is not accessible #
+let bad = M.y in
+
+# 26. A function over any module with the members it needs #
+let greet = fun (m : {let name : String}) -> "hello " ++ m.name in
+module Alice = {let name = "Alice"; let age = 30} in
+module Bob = {let name = "Bob"; let email = "bob@example.com"} in
+let g1 = greet(Alice) in
+let g2 = greet(Bob) in
+
+# 27. Hiding helpers: only the signature's members are exported #
+module Stack : {
+  let empty : [Int];
+  let push : Int -> [Int] -> [Int];
+  let top : [Int] -> Int
+} = {
+  let default = 0;
+  let empty = [];
+  let push = fun x -> fun s -> x :: s;
+  let top = fun s -> case s | h :: _ => h | [] => default end
+} in
+let t = Stack.top(Stack.push(1)(Stack.empty)) in
+
+# 28. Error: the helper is not part of the signature #
+let hidden = Stack.default in
+
+# 29. Nested members may be wider than declared too #
+module Config : {module Db : {let host : String}} = {
+  module Db = {let host = "localhost"; let port = 5432}
+} in
+let h = Config.Db.host in
+
+# 30. Error: elsewhere signatures match exactly, even in a list; #
+# an ascription seals the extra members (second element) #
+let wides : [{let x : Int}] =
+  [{let x = 1; let y = 2}, ({let x = 1; let y = 2} : {let x : Int})] in
+
+# 31. Error: branches are joined exactly, so they must agree... #
+let pick = fun b -> if b then {let x = 1} else {let x = 1; let y = 2} in
+
+# 32. ...unless the wider branch is sealed by an ascription #
+let pick = fun b ->
+  if b then {let x = 1} else ({let x = 1; let y = 2} : {let x : Int}) in
+¿
