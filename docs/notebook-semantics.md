@@ -365,6 +365,24 @@ in the ids, so nothing in an edge says which pass it belongs to when read on its
 own — only where it sits. That is what A would fix, and it is why A is worth
 doing even after this lands.
 
+**Done, 2026-09-14: [#2566](https://github.com/hazelgrove/hazel/pull/2566).** It
+answered a question N1 left open on its first run. N1 measured *turning the
+stepper on → 1 run* and could not say whose:
+
+```
+put  _hazelPass = `eval
+put  w          = 5
+get  w          = 5
+put  _hazelPass = `decompose      <- turning the stepper on
+put  w          = 5
+get  w          = 5
+```
+
+It is `decompose` — the pass that performs a step only to find out where the
+step is, which is the one `EvaluatorStep` already flags as needing its own fix.
+Six edges, all aligned, no signal: the work cell keeps one identity and nothing
+reads the marker. The panel does not yet group its rows by marker.
+
 ## What this would be, if it works
 
 **An operational account of Hazel's cell semantics, derived by measuring the
