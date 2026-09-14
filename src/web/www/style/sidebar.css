@@ -785,6 +785,14 @@
   user-select: none;
 }
 
+/* The mode the instance is in, beside its name. Lighter than the name it
+   qualifies: it is an answer about the instance, not part of what the
+   instance is called. */
+.fumola-mode-key {
+  font-weight: normal;
+  opacity: 0.6;
+}
+
 .fumola-blurb {
   padding: 0.25em 0.5em;
   line-height: 1.4;
