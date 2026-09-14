@@ -12,11 +12,12 @@ On `experimental-lang-integration` as committed, **an edit inside a `fumola … 
 form runs the program three times.** Not once. Three, within about five
 milliseconds of each other, for every keystroke.
 
-The uncommitted `~effects` work in the worktree takes it to one. That work was
-written from reading the evaluator; this document is the controlled experiment
-that says what it is worth.
+[`65c0e889c3`](https://github.com/hazelgrove/hazel/commit/65c0e889c3) -- "A pass
+that only asks what a step would do must not take it" -- takes it to one. That
+commit was written from reading the evaluator; this document is the controlled
+experiment that says what it is worth.
 
-| Gesture | Clean `22d619cf4b` | With the `~effects` work | Trials |
+| Gesture | Clean `22d619cf4b` | With `65c0e889c3` | Trials |
 |---|---|---|---|
 | Keystroke editing inside the fumola body | **3** | **1** | 3 and 3 |
 | Backspace inside the fumola body | **3** | **1** | 1 and 1 |
@@ -30,12 +31,13 @@ that says what it is worth.
 | Opening the Fumola panel | — | 0 (one peek) | 1 |
 | Taking a stepper step | — | *not measured* | — |
 
-A "run" is the triple `claim` → `ensureMode` → `evalTop`. All three appear
-together every time; no gesture produced one without the others. A dash means
-not measured on that build, not zero.
+A "run" is the triple `claim` → `ensureMode` → `evalTop`. All three appeared
+together every time on both builds measured here — though a later commit has
+since changed that, which the caveats record. A dash means not measured on that
+build, not zero.
 
-**What the two extra runs are.** The `~effects` work withholds effects in
-exactly two places — `ReusePass`, which walks a term after the evaluation that
+**What the two extra runs are.** `65c0e889c3` withholds effects in exactly two
+places — `ReusePass`, which walks a term after the evaluation that
 already ran it, and `StreamCollector`, which reassembles the state of an
 evaluation that happened in the worker. Withholding those two, and nothing else,
 takes the count from three to one. So the two extra runs are those two passes,
@@ -52,8 +54,8 @@ reaches a store outside Hazel, it costs a put.
 | | |
 |---|---|
 | Date | 2026-09-14 |
-| Baseline | `experimental-lang-integration` at `22d619cf4b`, clean |
-| Fixed | the same commit plus the uncommitted `~effects` work in `~/hazel-experimental` |
+| Baseline | `experimental-lang-integration` at `22d619cf4b`, clean, built 12:07 |
+| Fixed | the `~/hazel-experimental` working tree at 11:46, committed at 11:58 as `65c0e889c3` + `303fc7c018` |
 | Profile | `dune build src --profile dev`, both |
 | Fumola runtime | `fumola.org @ 65f7b1f1a088676d` on both, reported by `window.fumola.source()` |
 | Machine | this laptop, Linux, Chromium via the in-app browser pane |
@@ -134,7 +136,7 @@ edges with nothing to distinguish them, and the panel shows all nine.
 cell was `let y = fumola … end in y + 0`; editing the `0` to `078` moved the
 displayed result to `83`, correct, so the cell genuinely re-evaluated, while the
 Fumola program did not run at all. That is incremental reuse working at the
-granularity that matters, and the `~effects` work does not change it.
+granularity that matters, and `65c0e889c3` does not change it.
 
 It also sits awkwardly beside
 [#2564](https://github.com/hazelgrove/hazel/issues/2564), which reports that the
@@ -237,6 +239,16 @@ editor's listener at all.
 
 **Waits are six seconds.** Nothing arrived later than about 2.7 s after a
 gesture, but a count of zero is only as good as the wait behind it.
+
+**The branch moved during the measurement, and one later commit matters.**
+`ce5c0e5870` -- "A declared mode means something when it changes, not on every
+run" -- landed at 12:06, after the fixed build was taken, and makes `ensure_mode`
+fire only when the declared mode is new or has changed rather than on every run.
+So "a run is the triple `claim` → `ensureMode` → `evalTop`" describes the builds
+measured here and is already out of date on the branch: after `ce5c0e5870` the
+~132 ms `ensureMode` should be paid once per declaration rather than once per
+run. The run counts are unaffected, since that commit does not touch `evalTop`.
+`cc52eabb09` landed later still and touches only the panel.
 
 **Both builds ran the same `bundled.js`.** A fresh worktree building only
 `dune build src` does not produce it — it is an npm artifact — and without it the
