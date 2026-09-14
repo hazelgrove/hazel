@@ -37,11 +37,29 @@ experiment that says what it is worth.
 | Turning the stepper on | — | 1 | 1 |
 | Opening the Fumola panel | — | 0 (one peek) | 1 |
 | Taking a stepper step | — | *not measured* | — |
+| Any edit that re-runs the program, **with the stepper open** | — | **one extra**, as `decompose` | 2 |
 
 A "run" is the triple `claim` → `ensureMode` → `evalTop`. All three appeared
 together every time on both builds measured here — though a later commit has
 since changed that, which the caveats record. A dash means not measured on that
 build, not zero.
+
+**An open stepper costs a run per edit.** This row was found the hard way and is
+the one to watch for. While the stepper is open, every edit that re-runs the
+program runs it *twice*: once for the evaluation, once more for the pass that
+decomposes the term to find where the next step is. [#2566](https://github.com/hazelgrove/hazel/pull/2566)
+is what can say which: the second run marks itself `decompose`.
+
+The stepper setting persists per origin, so it survives a reload and is easy to
+leave on. That is how it was found: an earlier reading of the outside-edit row
+said 1 where it should say 0, and the cause looked like a regression across
+three commits. Bisecting cleared all of them — `303fc7c018`, `ce5c0e5870` and
+the tip each measured 0 — and the difference turned out to be an open stepper in
+one browser origin's saved settings. Same build, same gesture, stepper off: 0.
+Stepper on: 1.
+
+Worth stating as a rule, since it cost a bisect: **a count here is only valid
+against a recorded UI state.** The build and the runtime version are not enough.
 
 **What the two extra runs are.** `65c0e889c3` withholds effects in exactly two
 places — `ReusePass`, which walks a term after the evaluation that
@@ -223,8 +241,9 @@ five is a row this method cannot yet measure.
 
 ## What was not measured
 
-**Taking a stepper step.** Turning the stepper on works and costs one run. I
-could not get the stepper to advance — neither clicking the highlighted redex nor
+**Taking a stepper step.** Turning the stepper on works and costs one run, and
+keeping it open costs one per edit thereafter — both measured, see above. What is
+still missing is the step itself: I could not get the stepper to advance — neither clicking the highlighted redex nor
 the step-forward control moved it off step zero, with `Step Backwards` disabled
 throughout. Whether that is the stepper stalling on the Fumola quote or my
 driving it wrong, I could not tell from outside.
