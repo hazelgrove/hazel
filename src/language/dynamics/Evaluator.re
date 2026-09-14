@@ -166,6 +166,8 @@ let rec evaluate =
           child,
         ),
       ~mode=`Environment,
+      /* The evaluation itself: this is the program happening. */
+      ~effects=`Perform,
       ~targets=eval_info.targets,
       ~in_closure?,
       env,

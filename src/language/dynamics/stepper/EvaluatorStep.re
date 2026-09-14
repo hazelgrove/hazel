@@ -345,6 +345,14 @@ module Decompose = {
       Decomp.transition(
         decompose,
         ~mode=`Substitution,
+        /* Decomposition only wants to know WHERE the next step is, and
+           reads nothing but the rule's kind. It performs the step to find
+           that out, and TakeStep then performs it again -- so stepping a
+           Fumola cell puts twice into its store. Withholding would report
+           no step at all and the stepper would stall on the quote; telling
+           it a step is there without running one is the fix, and it is a
+           change to the rule rather than to this call. Issue 2564. */
+        ~effects=`Perform,
         ~in_closure?,
         env,
         exp,
@@ -387,6 +395,8 @@ module TakeStep = {
     TakeStepEV.transition(
       (~in_closure as _=?, _, _) => None,
       ~mode=`Substitution,
+      /* Taking the step the stepper was asked for. */
+      ~effects=`Perform,
       ~in_closure?,
       env,
       d,

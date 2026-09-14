@@ -68,6 +68,10 @@ let rec reuse_pass_for =
           (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet);
         },
         ~mode=`Environment,
+        /* A prediction about what the next evaluation would reuse. It runs
+           after that evaluation has already happened, over the same term, so
+           anything it performs is performed a second time. */
+        ~effects=`Withhold,
         ~targets=eval_info.targets,
         Builtins.env_init,
         d,

@@ -479,6 +479,23 @@ module Transition = (EV: EV_MODE) => {
            | `Substitution
            | `Environment
          ],
+        /* Whether a rule whose step reaches outside Hazel may fire.
+
+           Only one rule's does. A Fumola quote runs a program against an
+           adapton store the editor does not own, and a store remembers: the
+           put and the get stay in it. Every other rule is pure, so a pass
+           that asks for a rule and keeps only its shape -- is this a value,
+           where is the redex, what would the cache reuse -- pays only time
+           for the ones it discards. This one pays in somebody's store, and
+           the program's own effects come out doubled.
+
+           `Withhold` makes such a rule answer Indet, which is the answer it
+           already gives when it cannot run for any other reason. A caller
+           that needs the stepped expression cannot use it. */
+        ~effects: [
+           | `Perform
+           | `Withhold
+         ],
         ~targets: Sample.targets=Sample.no_targets,
         ~in_closure=?,
         env: Environment.t(Exp.t), // Environment is empty in substitution mode
@@ -953,27 +970,34 @@ module Transition = (EV: EV_MODE) => {
         | Some({ana, tools}) => (ana, tools)
         | None => (Typ.temp(Unknown(Internal)), FumolaTools.unknown)
         };
-      switch (FumolaRun.run(~ana, ~tools, name, mode, body)) {
-      | Ok(value) =>
-        Step({
-          expr: value,
-          side_effects: [],
-          kind: RunFumola(FumolaRun.instance_name(name)),
-          /* The runtime hands back a term to evaluate, not a value: a
-             variant arrives as a constructor applied to its payload. */
-          is_value: false,
-        })
-      /* A half-written program is a syntax error on nearly every keystroke,
-         and the editor says so better than a result can. Indeterminate
-         leaves the program itself standing. */
-      | Error({syntax: true, _}) => Indet
-      | Error({message, _}) =>
-        Step({
-          expr: Invalid(message) |> rewrap,
-          side_effects: [],
-          kind: RunFumola(FumolaRun.instance_name(name)),
-          is_value: false,
-        })
+      switch (effects) {
+      /* Nothing ran, so there is nothing to say about what it would answer.
+         Indet, not Value: the quote is not a value, it is a program this
+         pass declined to run. */
+      | `Withhold => Indet
+      | `Perform =>
+        switch (FumolaRun.run(~ana, ~tools, name, mode, body)) {
+        | Ok(value) =>
+          Step({
+            expr: value,
+            side_effects: [],
+            kind: RunFumola(FumolaRun.instance_name(name)),
+            /* The runtime hands back a term to evaluate, not a value: a
+               variant arrives as a constructor applied to its payload. */
+            is_value: false,
+          })
+        /* A half-written program is a syntax error on nearly every keystroke,
+           and the editor says so better than a result can. Indeterminate
+           leaves the program itself standing. */
+        | Error({syntax: true, _}) => Indet
+        | Error({message, _}) =>
+          Step({
+            expr: Invalid(message) |> rewrap,
+            side_effects: [],
+            kind: RunFumola(FumolaRun.instance_name(name)),
+            is_value: false,
+          })
+        }
       };
     /* A Blackboard document does not evaluate; it is already a value. */
     | BbQuote(_) =>
