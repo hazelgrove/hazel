@@ -49,9 +49,10 @@ let seg_to_text =
    regrouting on load). Derived holes print as the ¿ marker, the same
    text upstream saves: the fast parser needs it (a body-less `in`
    before `))` is a menhir error without it, and the slow path is not
-   safe on such fragments), and the reader destructs it back to grout
-   and strips it, so placement being a pure function of the grout-free
-   segment makes every save a fixed point. */
+   safe on such fragments), and the reader swaps it back to grout
+   (replace_markers) before parse_text strips it, so placement being a
+   pure function of the grout-free segment makes every save a fixed
+   point. */
 let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
   seg_to_text(
     ~implicit_hole,
