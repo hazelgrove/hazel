@@ -100,12 +100,13 @@ let check_file = (path: string): unit => {
      form the editor ever sees, and it lets ParsedCorpus share the parse with
      DocSlides.ReparseBackuptext, which checks the same programs. */
   let txt = read_file(path) |> ParsedCorpus.normalize;
-  /* the editor-side term: the typing parser, except for livelit-using
-     programs, where simulated typing re-materializes every ^^livelit use
-     per keystroke (12-26 s a file); those take the load path's fast
-     parse, which is also an editor parse of the same text */
+  /* the editor-side term: the typing parser, except where simulated
+     typing is pathological (CorpusUtil.typing_parse_too_costly: livelit
+     uses re-materialize per keystroke, and the parser is quadratic in
+     size); those take the load path's fast parse, which is also an
+     editor parse of the same text */
   let mk =
-    if (CorpusUtil.contains(txt, "^^livelit")) {
+    if (CorpusUtil.typing_parse_too_costly(txt)) {
       switch (
         FastParse.of_text(
           ~materialize=Triggers.invoked_projector,

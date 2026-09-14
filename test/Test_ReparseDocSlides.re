@@ -32,13 +32,13 @@ let doc_slide_reparses = ((name, root, slide: PersistentZipper.t)) => {
         String.trim(text),
         String.trim(MarkerParse.to_text(z)),
       );
-      /* Livelit-using slides also skip the typing-parse comparison: the
-         simulated typing re-materializes every ^^livelit use per
-         keystroke (4-28 s a slide, ~5 min for the demos), and the
-         fast/typing parity they would test is the reference slides'.
-         Their load-path fidelity is checked above like every slide. */
-      let uses_livelits = CorpusUtil.contains(text, "^^livelit");
-      if (!CorpusUtil.mega_scale(name) && !uses_livelits) {
+      /* Slides where the simulated typing is pathological (livelit uses
+         re-materialize per keystroke; the parser is quadratic in size:
+         4-29 s a slide, minutes for the demos) skip the fast/typing
+         parity — the reference slides carry it. Their load-path
+         fidelity is checked above like every slide. */
+      if (!CorpusUtil.mega_scale(name)
+          && !CorpusUtil.typing_parse_too_costly(text)) {
         switch (
           FastParse.of_text(
             ~materialize=Triggers.invoked_projector,
