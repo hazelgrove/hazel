@@ -67,6 +67,32 @@ Other useful QCheck env vars:
   (the seed is printed at the start of each run).
 - `QCHECK_VERBOSE=1` — print each generated case.
 
+### 4. The Weekly Extended Run
+
+`make ci-extended` is the whole suite in long mode: it sets `QCHECK_LONG=1` and
+leaves `QCHECK_LONG_FACTOR` to the caller, so
+
+```sh
+QCHECK_LONG_FACTOR=100 make ci-extended
+```
+
+runs every property a hundred times over. The `Extended Tests` workflow
+(`.github/workflows/extended-tests.yml`) does exactly that against `dev` every
+Sunday — long enough to turn a property that fails on one seed in a few hundred
+into one you can actually see.
+
+Be aware of what the factor does *not* touch when you size it. Only the QCheck
+properties scale; the other `Slow`-tagged tests and the three "stats only"
+harnesses in `Test_Statics_Properties` are a fixed floor. Runtime is linear in
+the factor on top of that constant, and so falls well short of N times the
+normal suite at factor N. To size a factor against a time budget, time the
+suite at two factors and divide the difference by the gap between them.
+
+It fixes the seed rather than letting QCheck pick one, and prints the whole
+`QCHECK_*` command to the run's job summary, so a failure there reproduces
+locally verbatim. It gates nothing; a red run is a bug report, not a broken
+build.
+
 ## Architecture
 
 - **`test/dune`** defines the test executable and two dune aliases (`@runtest` for all tests, `@test-quick` for quick tests). The `Makefile` targets invoke these aliases.
