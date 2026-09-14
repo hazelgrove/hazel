@@ -7,6 +7,37 @@
 >
 > — Matthew Hammer
 
+Two mottos, side by side:
+
+> **Incomplete programs should still be meaningful programs.** — Hazel
+>
+> **Incomplete programs should still be _responsive_ programs.** — the outside
+> archivist
+
+They ask for different things, and the second is only sayable once the first is
+answered.
+
+*Meaningful* is about what a program says while parts of it are missing. It is a
+claim about **semantics**: a hole has a type, an expression containing one still
+evaluates, and the value you are shown is the value the program has right now
+rather than an error standing in for one. Hazel answered that, and the answer is
+what makes an editor a live one rather than a text box that occasionally
+compiles.
+
+*Responsive* is about what it costs to ask again. It is a claim about
+**effort**: the edit you just made should cost work proportional to the edit and
+not to the program. Nothing in the first motto gets you the second — a semantics
+can be perfectly meaningful about holes and still recompute the world on every
+keystroke, which is what [the effect schedule](hazel-effect-schedule.md)
+measures Hazel doing.
+
+The two also fail differently, which is the useful part. A system that is
+meaningful but not responsive is correct and slow, and its incompleteness shows
+up as waiting. A system that is responsive but not meaningful is fast and lying:
+it answers quickly because it is answering an older question. Getting both is
+what the archivist is for, and it is why the store has to be somewhere the
+editor does not control.
+
 What actually runs when you edit, and how we found out.
 
 Status: a design note and a proposal. The instrument it describes is built and
