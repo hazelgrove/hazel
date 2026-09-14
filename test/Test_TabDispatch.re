@@ -1,40 +1,42 @@
 open Alcotest;
 open Haz3lcore;
-open Web;
+open Language;
 
 /* What Tab does, and that the quiver shows it.
 
-   Ownership — which completion records the caret's Tab acts on — is
-   computed ONCE (CompletionQuery.chips_at_caret) and handed to the
-   quiver as the bubble drawn at the caret, so "the bubble's first
+   Ownership — which records of the assist stream the caret's Tab acts
+   on — is computed ONCE (CompletionQuery.chips_owned) and handed to
+   the layout as the bubble drawn at the caret, so "the bubble's first
    delimiter is what Tab types" holds by construction. What remains
    to test:
    - CURATED Tab expectations: the ownership definition itself (the
-     caret's inter-content run, engine order). Andrew, 2026-09-02:
-     under `then 4` on a fresh line the bubble read "else ? end in ?"
-     but Tab dropped `end` — the engine had glued `else` to `4` and
-     appended `end in` past the linebreak, and the old query took the
-     NEAREST anchor (the indentation space) over the engine-first
-     record.
+     caret's inter-content run, witnesses first, then stream order).
+     Andrew, 2026-09-02: under `then 4` on a fresh line the bubble read
+     "else ? end in ?" but Tab dropped `end` — the engine had glued
+     `else` to `4` and appended `end in` past the linebreak, and the
+     old query took the NEAREST anchor over the stream-first record.
    - TAB FAITHFULNESS (property, every caret of random edit-derived
-     states): typing Tab's text does not change the completed program
-     (modulo whitespace) — Tab realizes the completion it shows rather
-     than steering it elsewhere. A failure prints the state; shrink
-     via the int list (Test_RoundtripFuzz.action_of), promote below.
+     states), two strengths:
+     LOCAL (default): Tab discharges exactly the promised obligation —
+     an engine delimiter Paste completes one missing shard (the text
+     became a delimiter: not glommed, not a new stranded tile); a
+     materialization completes at least one; TyDi material (commas,
+     type suggestions) must simply apply.
+     GLOBAL (~strict): the completed program is unchanged — the
+     engine's plan is reachable by accepting THIS chip first. Does
+     not hold in general and is not a display/Tab defect: heuristics
+     are order-dependent (stranded-closer pairing re-derives once
+     another closer completes; a completion-time re-indent is read by
+     child-relative indentation). Left as a KNOWN HOLE (andrew,
+     2026-09-03); pinned below so a change surfaces.
    - DISPLAY PLUMBING (same sweep): the caret's bubble exists iff the
-     caret owns records, sits at the caret, leads with them; bubbles
-     never overlap. */
-
-let font_metrics: FontMetrics.t = {
-  row_height: 20.0,
-  col_width: 10.0,
-};
+     caret owns displayed records, sits at the caret, leads with them. */
 
 /* char-exact movement (indentation_ux skips leading whitespace on
    arrow moves, hiding the mouse-reachable mid-indentation carets the
    sweep must visit) */
 let settings = {
-  ...Language.CoreSettings.on,
+  ...CoreSettings.on,
   indentation_ux: false,
 };
 
@@ -81,11 +83,50 @@ let show_delims = (ds: list(CanonicalCompletion.delimiter_info)) =>
   )
   ++ "]";
 
-/* Tab's paste text at this caret, if the caret owns a chip */
+/* the live display: the fork's assist stream and segment, exactly as
+   CachedSyntax renders them (armed, so ghosts are spliced) */
+type display = {
+  assist: list(CanonicalCompletion.insertion),
+  shown: list(CanonicalCompletion.insertion),
+  measured: Measured.t,
+  caret_pos: option((int, int)),
+};
+
+let display_of = (z: Zipper.t): display => {
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let obligations = TypeObligations.derive(info_map);
+  let fork = DisplayFork.mk(~info_map, ~obligations, ~armed=true, z);
+  let measured =
+    Measured.of_segment(fork.segment, Id.Map.empty, Id.Map.empty);
+  let caret = Zipper.Caret.point(measured, z);
+  {
+    assist: fork.assist,
+    shown:
+      CompletionQuery.chips_displayed(~ghosted=fork.ghosted, fork.assist),
+    measured,
+    caret_pos: Some((caret.row, caret.col)),
+  };
+};
+
+/* Tab's action at this caret over the live assist stream */
+let tab_action = (z: Zipper.t): option(Action.t) =>
+  CompletionQuery.tab_action(z, display_of(z).assist);
+
 let tab_head = (z: Zipper.t): option(string) =>
-  CompletionQuery.chip_at_caret(z)
-  |> Option.map(ins => CompletionQuery.tab_text(z, ins))
-  |> Option.join;
+  switch (tab_action(z)) {
+  | Some(Paste(t)) => Some(t)
+  | Some(ApplyCompletion(One(_))) => Some("<materialize>")
+  | _ => None
+  };
+
+let show_action = (a: Action.t) =>
+  switch (a) {
+  | Paste(text) => Printf.sprintf("Paste %S", text)
+  | ApplyCompletion(One(_)) => "ApplyCompletion(One)"
+  | _ => "?"
+  };
 
 /* the completed program, whitespace and holes erased */
 let completed_text = (z: Zipper.t): string => {
@@ -103,48 +144,22 @@ let missing_shards = (z: Zipper.t): int =>
   |> List.map(t => List.length(Tile.missing_shard_indices(t)))
   |> List.fold_left((+), 0);
 
-let show_action = (a: Action.t) =>
-  switch (a) {
-  | Paste(text) => Printf.sprintf("Paste %S", text)
-  | ApplyCompletion(One(_)) => "ApplyCompletion(One)"
-  | _ => "?"
+let is_engine_record = (ins: CanonicalCompletion.insertion) =>
+  switch (ins.delimiters) {
+  | [{of_shard: Some(_), _}, ..._] => true
+  | _ => false
   };
 
-/* TAB FAITHFULNESS, two strengths:
-   - LOCAL (default): Tab discharges the promised obligation and
-     nothing else — a Paste completes exactly one missing shard (the
-     text became a delimiter: not glommed into a neighbor, not a new
-     stranded tile), a materialization completes at least one.
-   - GLOBAL (~strict): the completed program is unchanged, i.e. the
-     engine's plan is reachable by accepting THIS chip first.
-
-   GLOBAL does not hold in general and is NOT a display/Tab defect —
-   the quiver is a forecast of a heuristic completion and Tab is an
-   edit, so the rest of the forecast may re-derive. Left as a KNOWN
-   HOLE (andrew, 2026-09-03). What a 60-state × every-caret sweep
-   found (17 strict violations), three separate causes:
-   - stranded-closer pairing (9): with two or more stranded closers,
-     completing one changes which span another closer's opener wraps
-     (`?) x ⏎ a) ?` -> `(?) x ⏎ (a) ?`, but after the first opener
-     lands the second hoists: `((?) x ⏎ a) ?`). Genuine order
-     sensitivity in opener placement.
-   - hole-only differences (8): the engine synthesizes a hole inside
-     an empty pair (`[?]`) where typing the closer yields the empty
-     literal (`[]`). Cosmetic.
-   - completion-time re-indent × child-relative indentation (the
-     `[ ( ⏎ i¦` pin): typing `]` closes the list, auto re-indent
-     moves `i` in two spaces, and inside the list's child the
-     partition heuristic counts the `(`'s indent from the child's
-     start (1), not its screen column (2), so the indented `i` now
-     reads as the paren's continuation: `[ (?) ⏎ i?]` becomes
-     `[ ( ⏎ i)]`. Holds with re-indent off. Candidate fix: compare
-     screen columns in nested partitions (untested).
-   The pins below keep the first and third visible; when either
-   changes, flip the pin. */
-let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
-  switch (CompletionQuery.tab_action(z)) {
+let unfaithful = (~strict=false, z: Zipper.t): option(string) => {
+  let d = display_of(z);
+  switch (CompletionQuery.tab_action(z, d.assist)) {
   | None => None
   | Some(a) =>
+    let engine =
+      switch (CompletionQuery.chip_among(z, d.assist)) {
+      | Some(ins) => is_engine_record(ins)
+      | None => false
+      };
     switch (go(z, a)) {
     | Error(_)
     | exception _ =>
@@ -159,6 +174,7 @@ let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
       let (m, m') = (missing_shards(z), missing_shards(z'));
       let discharged =
         switch (a) {
+        | _ when !engine => true /* TyDi material: applying is enough */
         | Paste(_) => m' == m - 1
         | _ => m' < m
         };
@@ -173,7 +189,7 @@ let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
             state_string(z),
           ),
         );
-      } else if (strict && before != after) {
+      } else if (strict && engine && before != after) {
         Some(
           Printf.sprintf(
             "%s re-planned the completion:\n%s\n  before: %s\n  after:  %s",
@@ -186,47 +202,46 @@ let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
       } else {
         None;
       };
-    }
+    };
   };
+};
 
-/* DISPLAY PLUMBING: the quiver draws the owned list at the caret */
+/* DISPLAY PLUMBING: the layout draws the owned list at the caret */
 let display_broken = (z: Zipper.t): option(string) => {
-  let syntax = CachedSyntax.init(z);
+  let d = display_of(z);
+  let owned = CompletionQuery.chips_owned(z, d.shown);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let caret = Zipper.Caret.point(syntax.measured, z);
-  let caret_pos = Some((caret.row, caret.col));
-  let owned = CompletionQuery.chips_at_caret(~seg, z);
-  let bs =
-    QuiverDec.bubbles(
-      ~measured=syntax.measured,
-      ~font_metrics,
-      ~caret_pos,
+  let bubbles =
+    QuiverLayout.layout(
+      ~measured=d.measured,
+      ~col_width=10.0,
+      ~caret_pos=d.caret_pos,
       ~owned,
-      seg,
-    );
+      ~seg,
+      d.shown,
+    )
+    |> List.map(fst);
   let owned_delims =
     List.concat_map(
       (ins: CanonicalCompletion.insertion) => ins.delimiters,
       owned,
     );
+  let key =
+    List.map((d: CanonicalCompletion.delimiter_info) =>
+      (d.text, d.of_shard)
+    );
   let leads_with = (ds: list(CanonicalCompletion.delimiter_info)) =>
     List.length(ds) >= List.length(owned_delims)
-    && Util.ListUtil.split_n(List.length(owned_delims), ds)
-    |> fst
-    |> List.map((d: CanonicalCompletion.delimiter_info) =>
-         (d.text, d.of_shard)
-       )
-    == List.map(
-         (d: CanonicalCompletion.delimiter_info) => (d.text, d.of_shard),
-         owned_delims,
-       );
-  let caret_bubbles =
-    List.filter((c: QuiverDec.positioned_insertion) => c.owned, bs);
+    && key(fst(Util.ListUtil.split_n(List.length(owned_delims), ds)))
+    == key(owned_delims);
   let fail = msg => Some(msg ++ " in:\n" ++ state_string(z));
-  switch (owned, caret_bubbles) {
+  switch (
+    owned,
+    List.filter((c: QuiverLayout.positioned_insertion) => c.owned, bubbles),
+  ) {
   | ([], []) => None
   | ([], _) => fail("bubble marked owned with nothing owned")
-  | (_, [c]) when caret_pos != Some((c.row, c.col)) =>
+  | (_, [c]) when d.caret_pos != Some((c.row, c.col)) =>
     fail("owned bubble not at the caret")
   | (_, [c]) when !leads_with(c.delimiters) =>
     fail(
@@ -235,30 +250,7 @@ let display_broken = (z: Zipper.t): option(string) => {
       ++ " does not lead with "
       ++ show_delims(owned_delims),
     )
-  | (_, [_]) =>
-    /* no two bubbles overlap on a row */
-    let w = (c: QuiverDec.positioned_insertion) =>
-      float_of_int(QuiverDec.delimiters_len(c.delimiters) + 2)
-      *. font_metrics.col_width
-      *. QuiverDec.chip_font_scale;
-    let sorted =
-      List.sort(
-        (a: QuiverDec.positioned_insertion, b: QuiverDec.positioned_insertion) =>
-          compare((a.row, a.col), (b.row, b.col)),
-        bs,
-      );
-    let rec overlaps = l =>
-      switch (l) {
-      | [a, b, ...tl] =>
-        a.QuiverDec.row == b.QuiverDec.row
-        && float_of_int(b.col)
-        *. font_metrics.col_width < float_of_int(a.col)
-        *. font_metrics.col_width
-        +. w(a)
-          ? true : overlaps([b, ...tl])
-      | _ => false
-      };
-    overlaps(sorted) ? fail("bubbles overlap") : None;
+  | (_, [_]) => None
   | (_, _) => fail("several owned bubbles")
   };
 };
@@ -306,7 +298,7 @@ let check_tab = (name, ~expected, z) =>
    states reach col 0) */
 let rec dedent = (z: Zipper.t): Zipper.t =>
   switch (List.rev(fst(z.relatives.siblings))) {
-  | [Secondary(w), ..._] when Secondary.is_space(w) =>
+  | [Secondary(w), ..._] when Haz3lcore.Secondary.is_space(w) =>
     dedent(apply(z, Destruct(Local(Left, ByChar))))
   | _ => z
   };
@@ -392,15 +384,15 @@ let curated = [
         bool,
         "ApplyCompletion(One)",
         true,
-        switch (CompletionQuery.tab_action(z)) {
+        switch (tab_action(z)) {
         | Some(ApplyCompletion(One(_))) => true
         | _ => false
         },
       );
     },
   ),
-  /* KNOWN HOLE pins (see unfaithful): these assert the re-planning
-     is still present so a change surfaces here */
+  /* KNOWN HOLE pins (see the header): these assert the re-planning is
+     still present so a change surfaces here */
   test_case("KNOWN HOLE: stranded-closer pairing re-plans", `Quick, () =>
     check(
       bool,
@@ -423,13 +415,6 @@ let curated = [
       |> positions
       |> List.exists(z => unfaithful(~strict=true, z) != None),
     )
-  ),
-  /* coalescing geometry (fuzz-found): the merged bubble is drawn at
-     the owned member's pin, not the group's leftmost — overlap must
-     be judged there, or the redrawn bubble lands on a neighbor */
-  check_sweep(
-    "overlap judged at the drawn pin",
-    type_string(Zipper.init(), "(?:(?] 1"),
   ),
 ];
 

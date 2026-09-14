@@ -58,9 +58,12 @@ let (suite, exit_with_test_status) =
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests
+    @ Test_TypeObligations.tests
+    @ Test_QuiverLayout.tests
+    @ Test_CompletionDisplay.tests
+    @ Test_CompletionFuzz.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
-    @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
     @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]

@@ -65,7 +65,6 @@ module Update = {
              | Destruct(_)
              | Insert(_)
              | Put_down
-             | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy
              | Cut
@@ -114,22 +113,17 @@ module Update = {
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z = model.editor.state.zipper;
+      /* caret pinned to a quiver chip: Tab dispatches the first of the
+         caret's OWNED records (CompletionQuery.tab_action — the same
+         list the quiver draws at the caret, witness first): type it
+         through the normal pipeline, or materialize an opener */
       let action: Action.t =
-        Selection.is_buffer(z.selection)
-          ? Buffer(Accept)
-          : (
-            /* caret pinned to a quiver chip: Tab dispatches that
-               obligation (CompletionQuery.tab_action — the same list
-               the quiver draws at the caret), whether or not an inline
-               buffer is showing (buffers only appear on edits; the
-               chip is always live) */
-            switch (CompletionQuery.tab_action(z)) {
-            | Some(a) => a
-            | None =>
-              Zipper.can_put_down(z)
-                ? Put_down : Move(Goal(NextProblem(Right)))
-            }
-          );
+        switch (CompletionQuery.tab_action(z, model.editor.syntax.assist)) {
+        | Some(a) => a
+        | None =>
+          Zipper.can_put_down(z)
+            ? Put_down : Move(Goal(NextProblem(Right)))
+        };
       perform(action, model);
     };
   };
@@ -264,13 +258,6 @@ module Selection = {
            ~section="Projection",
            ~action=action(Project(SetIndicated(ChooseLivelit))),
            "Livelit",
-         ),
-         /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
          ),
          mk(
            ~section="Diagnostics",
@@ -496,6 +483,7 @@ module View = {
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
+        ~obligations: list(Haz3lcore.CanonicalCompletion.insertion)=[],
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
@@ -512,6 +500,7 @@ module View = {
     [
       CaretDec.view(
         ~measured=syntax.measured,
+        ~caret_witnesses=syntax.caret_witnesses,
         ~font_metrics=globals.font_metrics,
         z,
       ),
@@ -553,6 +542,8 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
+            ~assist=obligations,
+            ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
@@ -568,9 +559,8 @@ module View = {
                      )
                 : None,
             /* the caret's chips — the same query Tab dispatches */
-            ~owned=
-              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
-            Lazy.force(engine_seg),
+            ~owned=CompletionQuery.chips_owned(z, obligations),
+            syntax.segment,
           ),
         ]
         /* quiver off: clear stale claims so probes don't stack
@@ -696,12 +686,21 @@ module View = {
           ),
       (),
     );
+    /* a chip whose content is currently ghosted inline — by the chip
+       ghost or a TyDi witness — never also shows as a chip (ONE
+       policy home, shared with the harness) */
+    let obligations =
+      CompletionQuery.chips_displayed(
+        ~ghosted=model.editor.syntax.ghosted,
+        model.editor.syntax.assist,
+      );
     let edit_decos =
       selected
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
+            ~obligations,
             ~globals,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),
