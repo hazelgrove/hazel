@@ -170,6 +170,26 @@ let update =
         )
       }
     };
+  | ReadAction(read_action) =>
+    /* Read actions don't modify the editor; the content is recomputed as
+       the tool-result message in [[AgentToolExec.execute_one_tool_call]].
+       Dispatch here only to surface failures. */
+    let z = editor.editor.state.zipper;
+    let info_map = CompositionGo.Public.mk_statics(z);
+    let syntax = CachedSyntax.init(z);
+    switch (
+      CompositionGo.Local.read_dispatch(
+        ~action=read_action,
+        ~z,
+        ~info_map,
+        ~syntax,
+      )
+    ) {
+    | Ok(_) => Ok((agent, editor))
+    | Error(Action.Failure.Composition_action_failure(msg)) =>
+      Error(Failure.Info(msg))
+    | Error(_) => Error(Failure.Info("Failed to execute read action"))
+    };
   | LanguageServerAction(_) =>
     Error(Failure.Info("LanguageServerAction is not implemented yet"))
   | InsertAtProgramBoundary(direction, code) =>

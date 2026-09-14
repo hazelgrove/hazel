@@ -83,6 +83,23 @@ let registry: list((string, entry)) = {
         "delete_body",
         "insert_after",
         "insert_before",
+        "update_type_annotation",
+        "selector_update",
+        "selector_delete",
+        "selector_insert_after",
+        "selector_insert_before",
+      ],
+    )
+  @ entries(
+      "Read",
+      Ungated,
+      [
+        "get_syntax",
+        "get_statics",
+        "get_context",
+        "select",
+        "get_canonical",
+        "get_completeness",
       ],
     )
   @ entries(
