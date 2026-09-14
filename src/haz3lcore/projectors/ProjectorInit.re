@@ -22,6 +22,29 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | AutomergeWriteBack => (module Cook(AutomergeWriteBackProj.M))
   };
 
+/* Projectors probed automatically so `info.dynamics` carries the live value
+ * of the syntax they replace. Was `Projector.dynamics` until dev's #2522
+ * dropped that (unread) flag; re-homed as a kind predicate, matching
+ * hazel-html's `wants_dynamics`. */
+let wants_dynamics = (kind: ProjectorCore.Kind.t): bool =>
+  switch (kind) {
+  /* HTML: the projector's own sample stream is what `live_value` reads.
+     Livelit: the view fold-in (Statics' Projector case) samples the live
+     HTML of a user-defined livelit at this projector's id. */
+  | HTML
+  | Livelit => true
+  | Fold
+  | Statics
+  | Probe
+  | Slider
+  | SliderF
+  | Checkbox
+  | TextArea
+  | Card
+  | Table
+  | Csv => false
+  };
+
 let init =
     (
       kind: ProjectorCore.Kind.t,

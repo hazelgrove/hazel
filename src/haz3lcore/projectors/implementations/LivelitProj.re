@@ -154,9 +154,6 @@ module M: Projector = {
       keyboard: None,
     };
 
-  /* Dynamics on: the view fold-in (Statics' Projector case) samples the
-     live HTML of a user-defined livelit at this projector's id */
-  let dynamics = true;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
 
