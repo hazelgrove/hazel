@@ -1720,6 +1720,36 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
     [div(~attrs=[clss(["section-title"])], [text(title)])] @ contents,
   );
 
+/* A way in to the Fumola panel, shown whenever the cursor is on an instance
+   name.
+
+   The panel is the thing this explanation is describing -- the store the
+   instance keeps, and what it did -- and until now nothing said it existed.
+   The only way to find it was to try an unlabelled tab on the rail, and the
+   two panels replace each other, so a reader who found it lost the prose that
+   sent them. Carrying the rail's own glyph is the point: it says which tab to
+   press to come back.
+
+   The effect is Sidebar.switch_to's, spelled again rather than called, since
+   Sidebar renders this module and cannot be referred to from inside it. */
+let fumola_panel_link = (~globals: Globals.t): Node.t =>
+  div(
+    ~attrs=[
+      clss(["fumola-panel-link"]),
+      Attr.title("Switch to Fumola Panel"),
+      Attr.on_mousedown(_ =>
+        Effect.Many([
+          globals.inject_global(Set(Sidebar(SwitchPanel(Fumola)))),
+          Effect.Stop_propagation,
+          /* Keep editor focus, as the rail's own tabs do: the panel reads the
+             cursor to decide which instance to show. */
+          Effect.Prevent_default,
+        ])
+      ),
+    ],
+    [Icons.fumolaIcon, text(" Watch this instance's events")],
+  );
+
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
   narrow_color_map(~globals, () =>
@@ -1740,6 +1770,17 @@ let view =
     ) => {
   // This gets the info from the infomap before singleton autolabelling
   let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
+  /* Same test `decide` uses for the InstanceName explanation, so the link
+     appears for every instance name and is not tied to what that explanation
+     happens to say. */
+  let instance_link =
+    switch (info_cursor) {
+    | Some(InfoFumola(fi))
+        when FumolaInfo.cls_of(fi) == FumolaCls.InstanceName => [
+        fumola_panel_link(~globals),
+      ]
+    | _ => []
+    };
   let (syn_form, (explanation, _), example) =
     view_doc(
       ~globals,
@@ -1797,7 +1838,7 @@ let view =
           | None => "Whitespace or Comment"
           | Some(info) => Info.cls_label(info)
           },
-        syn_form @ explanation,
+        syn_form @ explanation @ instance_link,
       ),
     ]
     @ (

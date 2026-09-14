@@ -225,3 +225,21 @@
   max-width: 100%;
   height: auto;
 }
+
+/* The way in to the Fumola panel, under the instance-name explanation.
+   Namespaced like the rest of this file so it beats `#side-bar *`'s
+   user-select, and underlined at rest rather than only on hover -- an
+   affordance nobody hovers is not an affordance. */
+#explain-this .fumola-panel-link {
+  align-self: flex-start;
+  cursor: pointer;
+  color: var(--BR3);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+#explain-this .fumola-panel-link:hover {
+  color: var(--BR4);
+}
