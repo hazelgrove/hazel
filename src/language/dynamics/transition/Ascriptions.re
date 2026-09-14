@@ -189,6 +189,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when
           Typ.is_consistent(
             ctx,
+            /* The constructor's own result type needs the same resolution the
+               ascription type got above: compact_builtin_recs leaves builtin
+               aliases as Var("JSON"), and Typ.unroll only unrolls a Rec, so
+               without normalizing here a builtin ADT's constructor is never
+               consistent with the Sum and the ascription never pushes in —
+               leaving `case` stuck on an ascribed value. */
             Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
             sumt' |> Typ.temp,
           ) =>
@@ -209,10 +215,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when
           Typ.is_consistent(
             ctx,
-            /* the constructor's own type may be a compact alias of a
-               recursive builtin sum (Null : JSON): resolve it the way
-               the ascription's type was, or the unrolled target never
-               reads as consistent and the cast sticks */
             Typ.unroll(Typ.weak_head_normalize(ctx, t)),
             t' |> Typ.temp,
           ) =>

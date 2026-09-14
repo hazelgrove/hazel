@@ -42,6 +42,7 @@ let display_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
   hole_tiles: false,
   project_tables: false,
+  project_html: false,
 };
 
 let exp_to_segment = ExpToSegment.exp_to_segment(~settings=display_settings);
@@ -284,6 +285,7 @@ let projector_display_settings = {
   show_unknown_as_hole: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
+  project_html: false,
 };
 
 let sample_to_seg = (v: Language.Exp.t): Segment.t =>
@@ -599,6 +601,7 @@ let drawer_settings = {
   show_unknown_as_hole: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
+  project_html: false,
 };
 
 let drawer_seg_of_value = (v: Language.Exp.t): Segment.t =>

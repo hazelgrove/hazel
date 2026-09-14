@@ -214,6 +214,7 @@ let qcheck_menhir_serialized_equivalent_test =
             show_unknown_as_hole: true,
             hole_tiles: false,
             project_tables: false,
+            project_html: false,
           },
           core_exp,
         );
