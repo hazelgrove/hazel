@@ -28,9 +28,15 @@ type t = {
   cls: FumolaCls.t,
   ancestors,
   status,
+  /* The identifier itself, kept only for an InstanceName: the name is a key
+     the runtime looks up, so unlike every other Fumola term what it SAYS is
+     part of what it means. */
+  name: option(string),
 };
 
 let cls_of: t => FumolaCls.t = ({cls, _}) => cls;
+
+let name_of: t => option(string) = ({name, _}) => name;
 
 let id_of: t => Id.t = ({id, _}) => id;
 
@@ -56,11 +62,12 @@ let status_of_hole: FumolaTermBase.hole => status =
   | MultiHole(_) => InHole(MultiHole)
   | EmptyHole => NotInHole;
 
-let mk = (~id, ~ancestors, ~status=NotInHole, cls: FumolaCls.t): t => {
+let mk = (~id, ~ancestors, ~status=NotInHole, ~name=None, cls: FumolaCls.t): t => {
   id,
   cls,
   ancestors,
   status,
+  name,
 };
 
 /* [instance_name] is set for the term in the `as` slot of `fumola … end`.
@@ -74,12 +81,12 @@ let of_exp = (~ancestors, ~instance_name=false, e: FumolaTermBase.t): t => {
     | Hole(h) => status_of_hole(h)
     | _ => NotInHole
     };
-  let cls =
+  let (cls, name) =
     switch (instance_name, e.term) {
-    | (true, Var(_)) => FumolaCls.InstanceName
-    | _ => FumolaCls.of_exp_term(e.term)
+    | (true, Var(x)) => (FumolaCls.InstanceName, Some(x))
+    | _ => (FumolaCls.of_exp_term(e.term), None)
     };
-  mk(~id=IdTagged.rep_id(e), ~ancestors, ~status, cls);
+  mk(~id=IdTagged.rep_id(e), ~ancestors, ~status, ~name, cls);
 };
 
 let of_dec = (~ancestors, d: FumolaTermBase.dec): t => {

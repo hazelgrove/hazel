@@ -123,6 +123,7 @@ let doc_of = (~docs, info: Info.t): option(ET.doc) =>
   | ET.NoDoc
   | ET.Prose(_)
   | ET.Markdown(_)
+  | ET.MarkdownArt(_)
   | ET.DrvSyntax(_) => None
   };
 

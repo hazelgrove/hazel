@@ -9,7 +9,7 @@
 
 # Something to look at first: two cells, and a thunk that reads both. #
 
-let total: Int = fumola $graphical as watch in
+let total: Int = fumola $graphical as mustardWatch in
   { let a = 1 := 41;
     let b = 2 := 1;
     let t = 3 := thunk { (@ a) + (@ b) };
@@ -21,7 +21,7 @@ end in
 # `nodeValsNow()` is the node map of the run so far and `size` counts it. #
 # Three: the two cells and the thunk. #
 
-let ^^probe(nodes): Int = fumola $graphical as watch in
+let ^^probe(nodes): Int = fumola $graphical as mustardWatch in
   Adapton.Native.size(Adapton.Native.nodeValsNow())
 end in
 
@@ -38,8 +38,8 @@ end in
 type Time = + Now in
 type Space = + Here + Symbol(Symbol) in
 
-let ^^probe(theTime): Time = fumola $graphical as watch in Adapton.now() end in
-let ^^probe(theSpace): Space = fumola $graphical as watch in Adapton.here() end in
+let ^^probe(theTime): Time = fumola $graphical as mustardWatch in Adapton.now() end in
+let ^^probe(theSpace): Space = fumola $graphical as mustardWatch in Adapton.here() end in
 
 # THE EVENT LIST #
 
@@ -78,7 +78,7 @@ type Event =
   + EdgeAligned(EdgeId) in
 type EventRow = (metaTime = Int, event = Event) in
 
-let ^^probe(oneEvent): Event = fumola $graphical as watch in
+let ^^probe(oneEvent): Event = fumola $graphical as mustardWatch in
   Adapton.peekEvents()[1].event
 end in
 
@@ -90,7 +90,7 @@ end in
 
 let ^^probe(growTheGraph) = false in
 
-let ^^probe(howMany): Int = fumola $graphical as watch in
+let ^^probe(howMany): Int = fumola $graphical as mustardWatch in
   { let grow = hazel growTheGraph end;
     if grow then { let p = 100 := 1; () } else ();
     Adapton.peekEvents().size() }
@@ -126,7 +126,7 @@ end in
 # order EventRow lists its fields, which is why metaTime is written #
 # first, and the table opens in the drawer below the line. #
 
-let events: [EventRow] = fumola $graphical as watch in
+let events: [EventRow] = fumola $graphical as mustardWatch in
   Adapton.peekEvents()
 end in
 
@@ -139,7 +139,7 @@ end in
 # way `@` would -- which is what makes it safe to inspect a running #
 # computation rather than becoming part of it. #
 
-let ^^probe(forced): Option = fumola $graphical as watch in
+let ^^probe(forced): Option = fumola $graphical as mustardWatch in
   Adapton.peekForce(pointer(3))
 end in
 
