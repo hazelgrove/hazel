@@ -207,6 +207,13 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
         }
       | _ => Error("Fumola symbol is missing field `op`")
       }
+    /* Its own source text, which is what FumolaEvents.symbol_text already
+       fell back to. Both spellings of the name agree now. */
+    | (Some(`String("QuotedAst")), _) =>
+      switch (List.assoc_opt("source", obj)) {
+      | Some(`String(source)) => Ok(source)
+      | _ => Error("Fumola quoted symbol is missing its source")
+      }
     | (Some(`String(tag)), _) =>
       Error(
         "This Fumola value cannot be shown in Hazel yet: it is a symbol built
@@ -425,6 +432,43 @@ let rec symbol_exp =
       applied("Call", payload_ana => pair(obj, "fun", "arg", payload_ana))
     | (Some(`String("Dot")), _) =>
       applied("Dot", payload_ana => pair(obj, "left", "right", payload_ana))
+    /* The operator rides in the middle as a String, which is how Fumola sends
+       it. The two operands are symbols and recur; the operator does not. */
+    | (Some(`String("BinOp")), _) =>
+      applied("BinOp", payload_ana =>
+        switch (
+          List.assoc_opt("left", obj),
+          List.assoc_opt("op", obj),
+          List.assoc_opt("right", obj),
+        ) {
+        | (Some(l), Some(`String(op)), Some(r)) =>
+          let (la, _, ra) =
+            switch (element_anas(~tools, payload_ana, 3)) {
+            | [la, oa, ra] => (la, oa, ra)
+            | _ => (unknown(), unknown(), unknown())
+            };
+          switch (
+            symbol_exp(~tools, ~ana=la, l),
+            symbol_exp(~tools, ~ana=ra, r),
+          ) {
+          | (Error(e), _)
+          | (_, Error(e)) => Error(e)
+          | (Ok(l), Ok(r)) =>
+            Ok(DHExp.fresh(Tuple([l, DHExp.fresh(Atom(String(op))), r])))
+          };
+        | (_, Some(_), _) => Error("Fumola symbol has a non-string `op`")
+        | _ => Error("Fumola symbol is missing a component")
+        }
+      )
+    /* Its source text is the whole of it, and it is what makes two quoted
+       programs different names. */
+    | (Some(`String("QuotedAst")), _) =>
+      applied("QuotedAst", _ =>
+        switch (List.assoc_opt("source", obj)) {
+        | Some(`String(source)) => Ok(DHExp.fresh(Atom(String(source))))
+        | _ => Error("Fumola quoted symbol is missing its source")
+        }
+      )
     | (Some(`String(tag)), _) =>
       Error("Fumola symbol form `" ++ tag ++ "` has no Hazel form yet")
     | _ => Error("Fumola symbol has no tag")

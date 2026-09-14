@@ -79,6 +79,20 @@ module Symbol = {
           ("Name", Some(Typ.fresh(Atom(String)))),
           ("Call", Some(Typ.fresh(Prod([self, self])))),
           ("Dot", Some(Typ.fresh(Prod([self, self])))),
+          /* An operator Fumola did not reduce. `1 - `element` is one, and
+             every name the library and level-tree examples mint has this
+             shape, so it is most of what those instances hold. The operator
+             is a String rather than a sum of its own: Fumola sends it as one,
+             and a closed sum here would be a claim about which operators
+             exist that would go stale the first time one was added. */
+          (
+            "BinOp",
+            Some(Typ.fresh(Prod([self, Typ.fresh(Atom(String)), self]))),
+          ),
+          /* A quoted program used as a name -- ``(1 - element)`` is one, which
+             is NOT the same symbol as `1 - `element` even though it reads
+             alike. It carries its own source text and nothing else. */
+          ("QuotedAst", Some(Typ.fresh(Atom(String)))),
         ]),
       ),
     );
