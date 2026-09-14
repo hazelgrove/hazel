@@ -62,7 +62,7 @@ module Local = {
   };
 
   let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
-    let k = ProjectorKind.of_name(String.trim(s));
+    let k = ProjectorKind.of_name(String.strip(s));
     if (ProjectorKind.is_refractor(k)) {
       raise(
         Failure(

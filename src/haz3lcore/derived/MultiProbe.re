@@ -1,4 +1,5 @@
 open Util.OptUtil.Syntax;
+open Poly;
 /* MULTI PROBE PLACEMENT
  * This module determines which term on each line should receive a multi probe.
  *
@@ -221,7 +222,7 @@ let let_body_is_hole = (term: Language.Any.t): bool =>
 
 let has_function_type = (id: Id.t, info_map: Language.Statics.Map.t): bool =>
   Language.Statics.Map.ty_of(id, info_map)
-  |> Option.map(Language.Typ.is_arrow)
+  |> Option.map(~f=Language.Typ.is_arrow)
   |> Option.value(~default=false);
 
 let term_spans_multiple_rows =
@@ -255,7 +256,7 @@ let rec collect_row_terms =
 let row_is_hole_only = (ids: list(Id.t), terms: TermMap.t): bool =>
   switch (collect_row_terms(ids, terms, [])) {
   | [] => false
-  | collected_terms => List.for_all(term_is_hole, collected_terms)
+  | collected_terms => List.for_all(~f=term_is_hole, collected_terms)
   };
 
 let rec collect_terms_for_row =
@@ -311,7 +312,8 @@ let rec build_row_id_lists =
     let current_row = start_row + index;
     let terms_with_cols =
       collect_terms_for_row(row, current_row, data, measured, []);
-    let sorted_pairs = List.sort(compare_by_col_desc, terms_with_cols);
+    let sorted_pairs =
+      List.sort(~compare=compare_by_col_desc, terms_with_cols);
     let ids = ids_from_pairs(sorted_pairs, []);
     build_row_id_lists(
       rest,
@@ -383,15 +385,17 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
     /* Check if any missing shard is a body-introducing keyword */
     let missing_shards = Tile.missing_shards(t);
     List.exists(
-      (shard: Tile.t) =>
-        switch (shard.shards) {
-        | [i] =>
-          switch (List.nth_opt(shard.label, i)) {
-          | Some(token) => List.mem(token, body_introducing_keywords)
-          | None => false
-          }
-        | _ => false
-        },
+      ~f=
+        (shard: Tile.t) =>
+          switch (shard.shards) {
+          | [i] =>
+            switch (List.nth(shard.label, i)) {
+            | Some(token) =>
+              List.mem(body_introducing_keywords, token, ~equal=Poly.equal)
+            | None => false
+            }
+          | _ => false
+          },
       missing_shards,
     );
   | _ => false
@@ -745,9 +749,10 @@ let ids_to_multiprobe =
   let (selections, _) = select_rows(row_contexts, env, empty_state);
   /* Normalize each selected ID to its rep_id to ensure sample lookup works */
   List.map(
-    fun
-    | Some(selected_id) => Some(normalize_to_rep_id(selected_id, terms))
-    | None => None,
+    ~f=
+      fun
+      | Some(selected_id) => Some(normalize_to_rep_id(selected_id, terms))
+      | None => None,
     selections,
   );
 };
