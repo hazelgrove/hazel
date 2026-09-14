@@ -148,6 +148,7 @@ module Ctr = {
     | Arrow(_)
     | Poly(_)
     | Sig(_)
+    | Implicit(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Escaped(_)
@@ -431,6 +432,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProdProjection(_)
     /* Likewise an escaped abstract type: nothing can be named. */
     | Escaped(_)
+    | Implicit(_)
     | Var(_) => unseen_pattern
     | Parens(_)
     | Projector(_)
@@ -572,6 +574,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProdProjection(_)
     /* Likewise an escaped abstract type: nothing can be named. */
     | Escaped(_)
+    | Implicit(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
@@ -639,6 +642,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProdProjection(_)
     /* Likewise an escaped abstract type: nothing can be named. */
     | Escaped(_)
+    | Implicit(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)

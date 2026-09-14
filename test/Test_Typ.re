@@ -1102,6 +1102,158 @@ let escaped_tests = {
   );
 };
 
+/* Implicit module binders: `implicit S : SIG` as a component of an arrow
+   domain binds S in the later components and in the codomain. */
+let implicit_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sa = t => F.Sig.sig_type_abstract(F.TPat.var(t));
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tv = F.Typ.var;
+  let path = (m, t) => F.Typ.prod_projection(F.Typ.var(m), F.Typ.label(t));
+  let imp = (s, sig_) => F.Typ.implicit_(F.MPat.asc(F.MPat.var(s), sig_));
+  let abstract_sig = sg([sa("T")]);
+  /* (implicit s : { type T }, s.T) -> s.T */
+  let shower = s =>
+    F.Typ.arrow(
+      F.Typ.prod([imp(s, abstract_sig), path(s, "T")]),
+      path(s, "T"),
+    );
+  let ctx = Builtins.ctx_init(None);
+  let ctx_x = Ctx.extend_alias(ctx, "X", Id.invalid, ti);
+  (
+    "Typ.Implicit",
+    [
+      test_case("meet renames the right binder to the left", `Quick, () =>
+        check(
+          option(typ),
+          "S vs R",
+          Some(shower("S")),
+          Typ.meet(ctx, shower("S"), shower("R")),
+        )
+      ),
+      test_case("meet rejects differing implicit positions", `Quick, () =>
+        check(
+          option(typ),
+          "positions",
+          None,
+          Typ.meet(
+            ctx,
+            F.Typ.arrow(F.Typ.prod([imp("S", abstract_sig), ti]), ti),
+            F.Typ.arrow(F.Typ.prod([ti, imp("S", abstract_sig)]), ti),
+          ),
+        )
+      ),
+      test_case(
+        "an implicit component meets a plain type as its signature", `Quick, () =>
+        check(
+          option(typ),
+          "sig",
+          Some(sg([sv("x", ti)])),
+          Typ.meet(ctx, imp("S", sg([sv("x", ti)])), sg([sv("x", ti)])),
+        )
+      ),
+      test_case(
+        "coercion: function types with implicit binders match exactly",
+        `Quick,
+        () => {
+          /* No contravariance: a function taking a narrower binder is not
+             coerced to a wider expectation, nor the reverse; only equal
+             binder signatures fit (eta-expand to adapt). */
+          let wide =
+            F.Typ.arrow(imp("S", sg([sv("x", ti), sv("y", ti)])), ti);
+          let narrow = F.Typ.arrow(imp("S", sg([sv("x", ti)])), ti);
+          check(
+            option(typ),
+            "narrow does not fit wide",
+            None,
+            Typ.coercion(ctx, ~from=narrow, ~to_=wide),
+          );
+          check(
+            option(typ),
+            "wide does not fit narrow",
+            None,
+            Typ.coercion(ctx, ~from=wide, ~to_=narrow),
+          );
+          check(
+            option(typ),
+            "equal fits",
+            Some(narrow),
+            Typ.coercion(ctx, ~from=narrow, ~to_=narrow),
+          );
+        },
+      ),
+      test_case(
+        "normalize resolves a manifest member through the binder", `Quick, () =>
+        check(
+          typ,
+          "S.T becomes Int",
+          F.Typ.arrow(F.Typ.prod([imp("S", sg([st("T", ti)])), ti]), ti),
+          Typ.normalize(
+            ctx_x,
+            F.Typ.arrow(
+              F.Typ.prod([
+                imp("S", sg([st("T", tv("X"))])),
+                path("S", "T"),
+              ]),
+              path("S", "T"),
+            ),
+          ),
+        )
+      ),
+      test_case(
+        "subst_path_root renames a root and stops at a shadowing binder",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "renamed",
+          F.Typ.arrow(path("M", "T"), shower("S")),
+          Typ.subst_path_root(
+            ~from="S",
+            ~to_=F.Typ.var("M"),
+            F.Typ.arrow(path("S", "T"), shower("S")),
+          ),
+        )
+      ),
+      test_case(
+        "avoid keeps a path rooted at the arrow's own binder", `Quick, () =>
+        check(
+          typ,
+          "kept",
+          shower("S"),
+          Typ.avoid(
+            ctx,
+            ~escape_to=EscapesAt(Id.mk_str("implicit-tests")),
+            ~escaping=["S"],
+            shower("S"),
+          ),
+        )
+      ),
+      test_case(
+        "path_roots and free_vars do not report the binder",
+        `Quick,
+        () => {
+          check(list(string), "roots", [], Typ.path_roots(shower("S")));
+          check(list(string), "free", [], Typ.free_vars(shower("S")));
+        },
+      ),
+      test_case("pretty_print", `Quick, () =>
+        check(
+          string,
+          "printed",
+          "(implicit S : { type T }) -> S.T",
+          Typ.pretty_print(
+            F.Typ.arrow(imp("S", abstract_sig), path("S", "T")),
+          ),
+        )
+      ),
+    ],
+  );
+};
+
 /* `type x = x.a in ?` used to abort the whole analysis with
    Failure("weak_head_normalize exceeded 1000 recursive calls"): TyAlias wraps a
    self-referential alias in Rec, but as_sig unrolls that Rec to look for a
@@ -1145,4 +1297,5 @@ let tests = [
   coercion_tests,
   sig_paths_tests,
   avoid_tests,
+  implicit_tests,
 ];

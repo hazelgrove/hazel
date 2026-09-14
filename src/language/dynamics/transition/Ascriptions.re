@@ -114,6 +114,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
       )
     | (_, Unknown(_)) => Some(e)
+    /* An implicit module binder casts to its signature. */
+    | (_, Implicit(mp)) =>
+      switch (MPat.binder(mp)) {
+      | Some((_, Some(sig_))) => Some(recur(Asc(e, sig_) |> DHExp.fresh))
+      | _ => Some(e)
+      }
     /* Elaboration normalizes manifest paths away, so a path type reaching
        the runtime names an abstract member: there is nothing to check. */
     | (_, ProdProjection(_)) => Some(e)

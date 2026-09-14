@@ -5698,6 +5698,30 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+/* Implicit module binders: `implicit S : SIG` as a pattern (an MPat body)
+   and as an arrow-domain type component (name child, signature body). */
+let implicit_tests = [
+  test_complete(
+    ~name="Implicit: parameter component typed left-to-right",
+    ~acts=mk({|let f = fun (implicit S : SHOW, x : S.T) -> x¦ in f|}),
+    ~goal={|let f = fun (implicit S : SHOW, x : S.T) -> x¦ in f|},
+  ),
+  test_complete(
+    ~name="Implicit: whole parameter",
+    ~acts=mk({|fun implicit S : SHOW -> S.show¦|}),
+    ~goal={|fun implicit S : SHOW -> S.show¦|},
+  ),
+  test_complete(
+    ~name="Implicit: unannotated instance declaration",
+    ~acts=mk({|let implicit m = { type T = Int; let x = 1 } in m.x¦|}),
+    ~goal={|let implicit m = { type T = Int; let x = 1 } in m.x¦|},
+  ),
+  test_complete(
+    ~name="Implicit: arrow-domain component in an annotation",
+    ~acts=mk({|let f : (implicit S : SHOW, S.T) -> S.T = ? in f¦|}),
+    ~goal={|let f : (implicit S : SHOW, S.T) -> S.T = ? in f¦|},
+  ),
+];
 let tests = [
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
@@ -5713,6 +5737,7 @@ let tests = [
   ("Editing.Paste", paste_tests),
   ("Editing.Module", module_tests),
   ("Editing.SigAbstract", sig_abstract_tests),
+  ("Editing.Implicit", implicit_tests),
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),

@@ -196,6 +196,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
+  | Implicit(_) => Precedence.ap
   | Tuple(_) => Precedence.comma
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -217,7 +218,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   /* Prints as the path it escaped from: one atom. */
   | Escaped(_)
   | TupLabel(_) => Precedence.max
-  | ProdProjection(_) => Precedence.dot
+  | ProdProjection(_) => Precedence.type_dot
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -241,6 +242,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
   | Sig(_) => Precedence.min
+  | Implicit(_) => Precedence.type_implicit
   };
 
 /* Conditional parenthesization helpers.
@@ -314,6 +316,16 @@ let paren_typ_at =
   | Defensive =>
     external_precedence_typ(typ) >= internal_precedence
       ? Typ.fresh(Parens(typ)) : typ
+  };
+
+/* A pattern annotation's type is always parenthesized (an arrow would
+   otherwise read as the enclosing form's), but only once, so printing a
+   reparsed program is idempotent. */
+let paren_typ_always =
+    (~parenthesization: Settings.parenthesization, typ: Typ.t): Typ.t =>
+  switch (Typ.term_of(typ)) {
+  | Parens(_) => typ
+  | _ => paren_typ_at(~parenthesization, Precedence.max, typ)
   };
 
 let paren_typ_assoc_at =
@@ -626,7 +638,6 @@ and parenthesize_pat =
     parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
-  let paren_typ_at = paren_typ_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
@@ -694,10 +705,18 @@ and parenthesize_pat =
   | Asc(p, t) when show_ascriptions =>
     Asc(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
-      parenthesize_typ(t) |> paren_typ_at(Precedence.max) // Hack[Matt]: always add parens to get the arrows right
+      parenthesize_typ(t) |> paren_typ_always(~parenthesization),
     )
     |> rewrap
   | Asc(p, _) => parenthesize_pat(p) // skip ascription if not showing
+  | Implicit(mp) =>
+    Implicit(
+      MPat.map_typ(
+        t => parenthesize_typ(t) |> paren_typ_always(~parenthesization),
+        mp,
+      ),
+    )
+    |> rewrap
   };
 }
 
@@ -777,8 +796,8 @@ and parenthesize_typ =
     |> rewrap
   | ProdProjection(t1, t2) =>
     ProdProjection(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.dot),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.dot),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_dot),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.type_dot),
     )
     |> rewrap
   | ProdExtension(t1, t2) =>
@@ -839,6 +858,14 @@ and parenthesize_typ =
     )
     |> rewrap
   | Sig(_) => term |> rewrap
+  | Implicit(mp) =>
+    Implicit(
+      MPat.map_typ(
+        t => parenthesize_typ(t) |> paren_typ_always(~parenthesization),
+        mp,
+      ),
+    )
+    |> rewrap
   };
 }
 
@@ -2598,6 +2625,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
     wrap(pat, p @ [mk_form(Typeann, id, [])] @ t);
+  | Implicit(mp) =>
+    let id = pat |> Pat.rep_id;
+    wrap(pat, [mk_form(ImplicitPat, id, [])] @ mpat_to_seg(~settings, mp));
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
@@ -2863,6 +2893,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       @ List.flatten(
           List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
         ),
+    );
+  | Implicit(mp) =>
+    /* `implicit S : SIG`: the name is the tile's child, the signature the
+       body (a hole when the binder is unannotated). */
+    let id = typ |> Typ.rep_id;
+    let (name, ann) =
+      switch (mp.term) {
+      | Asc(inner, t) => (inner, t)
+      | _ => (mp, Typ.fresh(Unknown(Hole(EmptyHole))))
+      };
+    let+ ann = go(ann);
+    wrap(
+      typ,
+      [mk_form(ImplicitTyp, id, [mpat_to_seg(~settings, name)])] @ ann,
     );
   | Sig([]) =>
     /* Empty sig: {} */

@@ -97,6 +97,7 @@ type typ =
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
+  | ImplicitType(string, typ)
   | RecType(tpat, typ)
   | ProofOfType(exp)
   | LabelType(string)
@@ -114,6 +115,7 @@ and sumtype = list(sumterm)
 and pat =
   | ParenPat(pat)
   | AscPat(pat, typ)
+  | ImplicitPat(pat)
   | EmptyHolePat
   | WildPat
   | AtomPat(Language.Atom.t)
@@ -600,6 +602,15 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 TupleType(Array.to_list(typs));
               },
               {
+                /* An implicit binder as an arrow-domain component, in scope
+                   for the later component and the codomain. */
+                let* x = gen_ident;
+                let* s = self(n - 1);
+                let* t = self(n - 1);
+                let+ r = self(n - 1);
+                ArrowType(ParenTyp(TupleType([ImplicitType(x, s), t])), r);
+              },
+              {
                 let+ t = self(n - 1);
                 ArrayType(t);
               },
@@ -712,6 +723,7 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
               map(x => AtomPat(Int(x |> Bigint.of_int)), small_int),
               map(x => AtomPat(Float(x)), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
+              map(x => ImplicitPat(VarPat(x)), gen_ident),
               map(x => AtomPat(String(x)), gen_string_literal),
               map(x => AtomPat(Bool(x)), bool),
               map(x => ConstructorPat(x, None), gen_constructor_ident),
@@ -1204,6 +1216,12 @@ and shrink_pat: QCheck.Shrink.t(pat) =
       Iter.(
         switch (pat) {
         | ParenPat(p) => return(p)
+        | ImplicitPat(p) =>
+          return(p)
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(ImplicitPat(shrunk));
+          }
         | AtomPat(a) =>
           return(WildPat)
           <+> (
@@ -1368,6 +1386,12 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk = shrink_typ(t);
             return(PolyType(tpat, shrunk));
+          }
+        | ImplicitType(x, t) =>
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(ImplicitType(x, shrunk));
           }
         | RecType(tpat, t) =>
           return(t)
