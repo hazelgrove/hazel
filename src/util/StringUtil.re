@@ -141,26 +141,14 @@ let sanitize_filename = (s: string): string => {
   replace(regexp("[^a-zA-Z0-9_-]"), s, "");
 };
 
+/* Trailing whitespace per line, which String.rstrip alone does not do
+   (it would only strip the end of the whole string). */
 let trim_trailing_whitespace = (str: string): string => {
-  let lines = String.split(str, ~on='\n');
   let is_trailing_ws = (c: char): bool =>
     Char.equal(c, ' ') || Char.equal(c, '\t') || Char.equal(c, '\r');
-  let trim_line = (line: string): string => {
-    let chars = String.to_list(line);
-    let rec drop_trailing_ws = (chars: list(char)): list(char) =>
-      switch (chars) {
-      | [] => []
-      | [c, ...rest] when is_trailing_ws(c) => drop_trailing_ws(rest)
-      | [c, ...rest] => [c, ...rest]
-      };
-    // Reverse, drop leading WS from reversed = drop trailing WS on line
-    let reversed_chars = List.rev(chars);
-    let trimmed_reversed = drop_trailing_ws(reversed_chars);
-    let trimmed_chars = List.rev(trimmed_reversed);
-    String.of_char_list(trimmed_chars);
-  };
-  let trimmed_lines = List.map(~f=trim_line, lines);
-  String.concat(~sep="\n", trimmed_lines);
+  String.split(str, ~on='\n')
+  |> List.map(~f=String.rstrip(~drop=is_trailing_ws))
+  |> String.concat(~sep="\n");
 };
 
 /* Every non-empty prefix, cut on grapheme boundaries. */

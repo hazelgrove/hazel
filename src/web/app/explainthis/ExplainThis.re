@@ -860,7 +860,7 @@ let decide =
             FunctionExp.functions_triv(~pat_id, ~body_id),
           )
         | ListLit(elements) =>
-          List.length(elements) == 0
+          List.is_empty(elements)
             ? leveled(
                 ~fallback=basic,
                 FunctionExp.functions_listnil(~pat_id, ~body_id),
@@ -1040,7 +1040,7 @@ let decide =
             LetExp.lets_triv(~def_id, ~pat_id, ~body_id),
           )
         | ListLit(elements) =>
-          List.length(elements) == 0
+          List.is_empty(elements)
             ? leveled(
                 ~fallback=basic,
                 LetExp.lets_listnil(~def_id, ~pat_id, ~body_id),
@@ -1347,7 +1347,7 @@ let decide =
     | Atom(String(s)) => get_message(TerminalPat.strlit(s))
     | Tuple([]) => get_message(TerminalPat.triv)
     | ListLit(elements) =>
-      if (List.length(elements) == 0) {
+      if (List.is_empty(elements)) {
         get_message(ListPat.listnil);
       } else {
         get_message(ListPat.listlit(~n=List.length(elements)));
