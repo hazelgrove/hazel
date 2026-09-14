@@ -274,6 +274,46 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     ]);
 
+  /* A moment, as a way to what happened at it.
+
+     The third entity the panel names, after pointers and edge ids, and the
+     one that had no way on: a node says which moment it was born at and an
+     edge says which pair it spans, and neither led anywhere. What a moment
+     leads to is the events at it, since the Events view is already the list
+     ordered by moment.
+
+     An event's OWN moment stays plain. Following it would scroll to the row
+     you clicked, which is the same reason a node does not link to itself. */
+  let moment_key = (at: string) => "m:" ++ at;
+
+  let follow_moment = (at: string) =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(FumolaFocus(moment_key(at))),
+      globals.inject_global(
+        Set(Sidebar(SwitchFumolaTab(SidebarModel.Settings.Events))),
+      ),
+    ]);
+
+  /* `at` reads as a moment rather than as a number, so it is worth saying
+     which it is: the title is what tells a reader this leads to the events
+     and not to another row of the list they are already in. */
+  let moment_link = (~stop: bool, at: string) =>
+    span(
+      ~attrs=[
+        clss(["fumola-moment", "fumola-pointer"]),
+        Attr.title("Show what happened at " ++ at),
+        Attr.on_click(_ =>
+          stop
+            ? Virtual_dom.Vdom.Effect.Many([
+                Virtual_dom.Vdom.Effect.Stop_propagation,
+                follow_moment(at),
+              ])
+            : follow_moment(at)
+        ),
+      ],
+      [text(at)],
+    );
+
   /* A node id, in place, as a way to the node it names.
 
      The Events view has had this since it had symbols; the Edges view showed
@@ -452,17 +492,34 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         ),
       ]
     | events =>
+      /* Several events share a moment, so one of them has to be what a link
+         to that moment lands on. The first, since the list is in order --
+         and only that one carries the scroll, or they would all answer the
+         same focus and fight over it. */
+      let numbered = List.mapi((i, ev) => (i, ev), events);
+      let first_at: Hashtbl.t(string, int) = Hashtbl.create(64);
+      List.iter(
+        ((i, ev: event)) =>
+          if (!Hashtbl.mem(first_at, ev.meta_time)) {
+            Hashtbl.add(first_at, ev.meta_time, i);
+          },
+        numbered,
+      );
+      let anchors_moment = ((i, ev: event)) =>
+        Hashtbl.find_opt(first_at, ev.meta_time) == Some(i);
       let rows =
         by_pass(
           ~passes,
-          ~at=(ev: event) => ev.meta_time,
-          ev =>
+          ~at=((_, ev): (int, event)) => ev.meta_time,
+          ((_, ev) as item) =>
             with_editor(~editor=is_traffic(ev), () =>
               div(
                 ~attrs=[
                   clss(
                     ["fumola-event"] @ dim_class(~editor=is_traffic(ev)),
                   ),
+                  ...anchors_moment(item)
+                       ? scroll_to(moment_key(ev.meta_time)) : [],
                 ],
                 [
                   div(
@@ -520,7 +577,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                 ],
               )
             ),
-          events,
+          numbered,
         );
       /* An empty table renders as nothing at all, which said even less than
          the wrong blurb did on the other two views. */
@@ -748,7 +805,8 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                       ~attrs=[clss(["fumola-event-symbol"])],
                       [text(row.space)],
                     ),
-                    text(" at " ++ row.meta_time),
+                    text(" at "),
+                    moment_link(~stop=true, row.meta_time),
                   ],
                 ),
               ]
@@ -855,7 +913,10 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                     ),
                     text(" to "),
                     node_link(~nodes, ~space=row.target, ~at=to_, row.target),
-                    text(" spanning " ++ from_ ++ "-" ++ to_),
+                    text(" spanning "),
+                    moment_link(~stop=true, from_),
+                    text("-"),
+                    moment_link(~stop=true, to_),
                   ],
                 ),
                 ...open_ ? [value_view(row.value)] : [],

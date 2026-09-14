@@ -867,6 +867,13 @@
   margin-top: 0;
 }
 
+/* A moment, where it leads to the events at it. Set apart from the prose
+   around it the way a symbol is, but numerically -- a moment is a count, not
+   a name, so it reads as the figure it is rather than as an identifier. */
+.fumola-moment {
+  font-variant-numeric: tabular-nums;
+}
+
 .fumola-rows {
   display: flex;
   flex-direction: column;
