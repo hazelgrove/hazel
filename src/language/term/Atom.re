@@ -125,81 +125,81 @@ let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
 
 let convert =
     (type a, type b, from: kind(a), to_: kind(b), v: a)
-    : Either.t(b, InvalidOperationError.t) => {
+    : result(b, InvalidOperationError.t) => {
   switch (from, to_) {
-  | (Int, Int) => L(v)
+  | (Int, Int) => Ok(v)
   | (Int, SInt) =>
     switch (Bigint.to_int(v)) {
-    | Some(i) => L(i)
-    | None => R(InvalidOperationError.IntegerTooBig)
+    | Some(i) => Ok(i)
+    | None => Error(InvalidOperationError.IntegerTooBig)
     }
   | (Int, Nat) =>
-    Bigint.(v < zero) ? R(InvalidOperationError.NegativeNat) : L(v)
-  | (Int, Float) => L(Bigint.to_float(v))
-  | (Int, Bool) => L(!Bigint.equal(v, Bigint.zero))
-  | (Int, String) => L(Bigint.to_string(v))
+    Bigint.(v < zero) ? Error(InvalidOperationError.NegativeNat) : Ok(v)
+  | (Int, Float) => Ok(Bigint.to_float(v))
+  | (Int, Bool) => Ok(!Bigint.equal(v, Bigint.zero))
+  | (Int, String) => Ok(Bigint.to_string(v))
 
-  | (SInt, SInt) => L(v)
-  | (SInt, Int) => L(Bigint.of_int(v))
+  | (SInt, SInt) => Ok(v)
+  | (SInt, Int) => Ok(Bigint.of_int(v))
   | (SInt, Nat) =>
-    v < 0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_int(v))
-  | (SInt, Bool) => L(v != 0)
-  | (SInt, Float) => L(float_of_int(v))
-  | (SInt, String) => L(string_of_int(v))
+    v < 0 ? Error(InvalidOperationError.NegativeNat) : Ok(Bigint.of_int(v))
+  | (SInt, Bool) => Ok(v != 0)
+  | (SInt, Float) => Ok(float_of_int(v))
+  | (SInt, String) => Ok(string_of_int(v))
 
-  | (Nat, Nat) => L(v)
+  | (Nat, Nat) => Ok(v)
   | (Nat, SInt) =>
     switch (Bigint.to_int(v)) {
-    | Some(i) => L(i)
-    | None => R(InvalidOperationError.IntegerTooBig)
+    | Some(i) => Ok(i)
+    | None => Error(InvalidOperationError.IntegerTooBig)
     }
-  | (Nat, Int) => L(v)
-  | (Nat, Bool) => L(!Bigint.equal(v, Bigint.zero))
-  | (Nat, Float) => L(Bigint.to_float(v))
-  | (Nat, String) => L(Bigint.to_string(v))
+  | (Nat, Int) => Ok(v)
+  | (Nat, Bool) => Ok(!Bigint.equal(v, Bigint.zero))
+  | (Nat, Float) => Ok(Bigint.to_float(v))
+  | (Nat, String) => Ok(Bigint.to_string(v))
 
-  | (Float, Float) => L(v)
-  | (Float, SInt) => L(int_of_float(v))
-  | (Float, Int) => L(Bigint.of_float(v))
+  | (Float, Float) => Ok(v)
+  | (Float, SInt) => Ok(int_of_float(v))
+  | (Float, Int) => Ok(Bigint.of_float(v))
   | (Float, Nat) =>
     Float.(v < 0.0)
-      ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))
-  | (Float, Bool) => L(!Float.equal(v, 0.0))
-  | (Float, String) => L(string_of_float(v))
+      ? Error(InvalidOperationError.NegativeNat) : Ok(Bigint.of_float(v))
+  | (Float, Bool) => Ok(!Float.equal(v, 0.0))
+  | (Float, String) => Ok(string_of_float(v))
 
-  | (Bool, Bool) => L(v)
-  | (Bool, SInt) => L(v ? 1 : 0)
-  | (Bool, Nat) => L(v ? Bigint.one : Bigint.zero)
-  | (Bool, Int) => L(v ? Bigint.one : Bigint.zero)
-  | (Bool, Float) => L(v ? 1.0 : 0.0)
-  | (Bool, String) => L(string_of_bool(v))
+  | (Bool, Bool) => Ok(v)
+  | (Bool, SInt) => Ok(v ? 1 : 0)
+  | (Bool, Nat) => Ok(v ? Bigint.one : Bigint.zero)
+  | (Bool, Int) => Ok(v ? Bigint.one : Bigint.zero)
+  | (Bool, Float) => Ok(v ? 1.0 : 0.0)
+  | (Bool, String) => Ok(string_of_bool(v))
 
-  | (String, String) => L(v)
+  | (String, String) => Ok(v)
   | (String, SInt) =>
     switch (int_of_string_opt(v)) {
-    | Some(i) => L(i)
-    | None => R(InvalidOperationError.InvalidOfString)
+    | Some(i) => Ok(i)
+    | None => Error(InvalidOperationError.InvalidOfString)
     }
   | (String, Int) =>
     switch (Bigint.of_string_opt(v)) {
-    | Some(i) => L(i)
-    | None => R(InvalidOperationError.InvalidOfString)
+    | Some(i) => Ok(i)
+    | None => Error(InvalidOperationError.InvalidOfString)
     }
   | (String, Nat) =>
     switch (Bigint.of_string_opt(v)) {
     | Some(i) =>
-      Bigint.(i < zero) ? R(InvalidOperationError.NegativeNat) : L(i)
-    | None => R(InvalidOperationError.InvalidOfString)
+      Bigint.(i < zero) ? Error(InvalidOperationError.NegativeNat) : Ok(i)
+    | None => Error(InvalidOperationError.InvalidOfString)
     }
   | (String, Float) =>
     switch (float_of_string_opt(v)) {
-    | Some(f) => L(f)
-    | None => R(InvalidOperationError.InvalidOfString)
+    | Some(f) => Ok(f)
+    | None => Error(InvalidOperationError.InvalidOfString)
     }
   | (String, Bool) =>
     switch (bool_of_string_opt(v)) {
-    | Some(b) => L(b)
-    | None => R(InvalidOperationError.InvalidOfString)
+    | Some(b) => Ok(b)
+    | None => Error(InvalidOperationError.InvalidOfString)
     }
   };
 };
@@ -217,13 +217,13 @@ let to_literal = (e: t): string =>
 /* ========== BUILTINS ========== */
 
 type builtin =
-  | OneFun(kind('a), kind('b), 'a => Either.t('b, InvalidOperationError.t))
+  | OneFun(kind('a), kind('b), 'a => result('b, InvalidOperationError.t))
     : builtin
   | TwoFun(
       kind('a),
       kind('b),
       kind('c),
-      ('a, 'b) => Either.t('c, InvalidOperationError.t),
+      ('a, 'b) => result('c, InvalidOperationError.t),
     )
     : builtin;
 
