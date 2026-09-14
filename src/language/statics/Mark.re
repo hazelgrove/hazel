@@ -109,6 +109,9 @@ type t =
       name: Var.t,
       typ: Typ.t,
     })
+  /* `S.T` where S is a signature alias and T is abstract in it: no module is
+     named, so there is no T to name. */
+  | TypAbstractMemberOfSignature(Var.t)
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure

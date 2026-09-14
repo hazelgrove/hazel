@@ -51,8 +51,8 @@ let m : MSig = { let x = 1 }
 ```
 
 Signature items are `let name : Type` (value member), `type T = Type`
-(manifest type member) and `module Name : Signature` (sub-module member,
-which may be capitalized). Items scope sequentially: `let x : T` may mention
+(manifest type member), `type T` (abstract type member) and
+`module Name : Signature` (sub-module member, which may be capitalized). Items scope sequentially: `let x : T` may mention
 a `type T` declared earlier in the same signature. A member written `let x`
 or `module M` without a type has type `?`.
 
@@ -100,6 +100,37 @@ list element, in an `if` branch, under a pattern annotation, or reached
 through a variable of list or function type is a mismatch, and the message
 says an ascription seals it. Function types are not contravariant; eta-expand
 instead.
+
+### Abstract type members and sealing
+
+```
+module Counter : { type T; let zero : T; let incr : T -> T; let get : T -> Int } =
+  { type T = Int; let zero = 0; let incr = fun c -> c + 1; let get = fun c -> c }
+in Counter.get(Counter.incr(Counter.zero))       -- 1
+Counter.zero + 1                                  -- error: Counter.T is not Int
+let c : Counter.T = Counter.incr(Counter.zero)    -- the path type names the abstract type
+module C2 = Counter in (Counter.zero : C2.T)      -- an alias shares the abstract type
+```
+
+A signature item `type T` with no definition declares an abstract type
+member. A module analyzed against the signature must define `T` (a missing
+definition is a `ModuleMissingMembers` error, and a value member of the same
+name does not count), and its value members are checked against the module's
+own definition of `T`. Outside the module, `T` is known only as the path
+`Counter.T`: a stuck type that is consistent with itself and with `?` and
+nothing else. Two modules sealed by the same signature have distinct abstract
+types. A module bound to another (`module C2 = Counter`, `let c = Counter`)
+shares them, because a module variable's type exposes its own abstract members
+as paths (`{ type T = Counter.T; ... }`). Only a path (a module variable, or a
+member reached through one) can name an abstract type; projecting a member of
+abstract type out of any other expression gives `?`. A signature alias names
+no module, so it cannot name an abstract member: `S.T` with `type S = { type
+T }` is an error (`TypAbstractMemberOfSignature`, on `T`); write `M.T` for a
+module `M : S`. Manifest members are named through an alias as before.
+
+In the editor, typing `type` inside a signature produces the bare `type T`
+form; typing `=` after its type pattern upgrades it to `type T = …`. In a
+module body `type` still produces `type T = …`.
 
 ### Member Access and `module`
 
@@ -157,11 +188,10 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 | TyDi completion (values and types)   | Works  |
 | Qualified type access (`M.T`, `M.P.T`) | Works |
 | Module aliasing (`module N = M`)     | Works  |
+| Abstract type members, sealing, path types (`M.T`) | Works |
 
 ## Not Yet Supported
 
-- **Abstract type members.** Signatures cannot yet declare `type T` without a
-  definition, so there is no sealing of representations and no path types.
 - **Comparing modules with `==`** is a runtime incomparable result; statics
   does not reject it yet.
 - `open` / `include` (issues #2260, #2261).
@@ -174,7 +204,7 @@ Three sorts implement the surface syntax:
 
 - **Mod** (`Sort.Mod`): module items — `let x = 1`, `type T = Int`, bare
   expressions
-- **Sig** (`Sort.Sig`): signature items — `let x : Int`, `type T = Int`
+- **Sig** (`Sort.Sig`): signature items — `let x : Int`, `type T = Int`, `type T`
 - **MPat** (`Sort.MPat`): module name patterns — `M`, `M : { let x : Int }`
 
 ### Terms
@@ -184,8 +214,9 @@ Three sorts implement the surface syntax:
 dynamics-only `ModVal(name, exp)` — an evaluated binding.
 
 **Signature items** (`sig_term`): `SigLet(pat)` (the pattern carries the
-optional `: Type`), `SigType(tpat, typ)`, `SigModule(mpat)` (the module name
-pattern carries the optional `: Signature`), holes.
+optional `: Type`), `SigType(tpat, typ)`, `SigTypeAbstract(tpat)`,
+`SigModule(mpat)` (the module name pattern carries the optional
+`: Signature`), holes.
 
 **Expression level**: `Module(list(mod_t))`, `ModuleExp(mpat, exp, exp)`.
 **Type level**: `Sig(list(sig_t))`, `ProdProjection(typ, typ)` (`M.T`).
@@ -193,21 +224,33 @@ pattern carries the optional `: Signature`), holes.
 ### Signature types
 
 `Typ.Sig(items)` is a first-class type. `Sig.re` exposes a member view
-(`Sig.members`: `Val(x, τ)` / `TypeManifest(T, τ)`), skipping holes and
-malformed items. A signature is a dependent record: later items may mention
+(`Sig.members`: `Val(x, τ)` / `TypeManifest(T, τ)` / `TypeAbstract(T)`),
+skipping holes and malformed items. A signature is a dependent record: later items may mention
 earlier type members by name, so:
 
 - `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat type members as
-  sequential binders (`Ctx.extend_sig_item` binds one in a context).
+  sequential binders, and value and module members as variables that later
+  paths may go through (`{ module Inner : { type T }; let y : Inner.T }`);
+  `Ctx.extend_sig_item` binds one item in a context. When a signature is
+  checked against a provided one (`Typ.sig_sub`), such a path means what the
+  module actually provides for the member, so `Inner` is bound to the
+  provided type.
   Member names cannot be alpha-renamed; on capture `subst` falls back to
   substituting `?` into the remaining items.
 - `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
   with the signature's earlier type members substituted, so `x : T` in
-  `{ type T = Int; let x : T }` projects to `Int`.
+  `{ type T = Int; let x : T }` projects to `Int`. An abstract member stands
+  for the path `self.T` when the signature is that of a module path
+  (`~self`), for `?` otherwise, or for its own bare name under
+  `~keep_local` (used when a module body is checked against its signature,
+  where `T` resolves to the module's own definition).
 - `Typ.meet` on two signatures requires the same value-member names and the
   same type-member names (order-insensitive) and meets members pairwise in a
-  context extended with the type members. A signature is inconsistent with
-  every other type constructor, including `Prod`.
+  context extended with the type members; an abstract member matches only an
+  abstract member. A signature is inconsistent with every other type
+  constructor, including `Prod`. A stuck path `M.T` (an abstract member
+  projected from a module path; `Typ.is_stuck_path_term`) meets only itself
+  and `?`.
 - `Typ.coercion(ctx, ~from, ~to_)` is coercive subtyping, checked only where
   the subsumption step runs with `~coercible` set: `Asc`, `Let` and `Ap` set
   it on their operand, and the transparent forms (parentheses, projectors,
@@ -216,12 +259,20 @@ earlier type members by name, so:
   and `syn_ana_ok_common`). It tries `meet` first; failing that, structurally
   through tuple components, a signature fits a signature that declares a
   subset of its members (`Typ.sig_sub`, which opens the wider signature's type
-  members under fresh names). It returns the sealed signature, which is what
+  members under fresh names, an abstract one as a fresh abstract type
+  variable). An abstract member of the required signature is realized by
+  whatever the provided signature declares for it; a manifest member is not
+  satisfied by an abstract one. It returns the sealed signature, which is what
   seals the binder's type.
 - `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
   items: a type alias first, then a value variable whose type is a signature.
-  `weak_head_normalize` uses it for `ProdProjection`, falling back to the
-  labeled-tuple projection.
+  For a path rooted at a module value it also returns the path itself, so
+  that `weak_head_normalize` (which uses it for `ProdProjection`, falling
+  back to the labeled-tuple projection) returns the stuck `M.T` for an
+  abstract member. `normalize` leaves a stuck path alone.
+- `Typ.strengthen(ctx, ty, ~path)` replaces each abstract member `type T` of
+  a signature by the manifest `type T = path.T`; it is the identity on
+  signatures without abstract members.
 
 ### Statics
 
@@ -237,7 +288,11 @@ so a wrong component is reported on that component) and `module Inner = …`
 items, which receive the sub-signature the outer signature declares for them
 (a member the sub-module lacks is reported inside it). A binder the user
 annotated keeps its annotation. `refold_module_elab` strips the synthetic
-ascriptions again by walking the user's pattern and its elaboration together.
+ascriptions again by walking the user's pattern and its elaboration together. A member whose declared type mentions a
+signature name the module does not define gets no annotation (the missing
+member is reported on the module, and a free name here would be reported on
+the signature), and the annotations carry fresh ids so checking them never
+records info under the signature's own type nodes.
 After checking:
 
 - `ModuleHelpers.module_sig_type` reads the module's signature back from the
@@ -247,8 +302,9 @@ After checking:
   `type T = ...` item that differs from the signature's
   (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_members` produces `Mark.ModuleMissingMembers` on
-  the module node; extra members are sealed away by `Typ.coercion` at a
-  coercion site and are a mismatch elsewhere.
+  the module node (an abstract type member the module does not define counts
+  as missing); extra members are sealed away by `Typ.coercion` at a coercion
+  site and are a mismatch elsewhere.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
   annotations are stripped, type items are dropped.
@@ -261,9 +317,16 @@ the dot carries only a message, the way `M.Fake` in a type reports on `Fake`
 (`ModuleTypeMemberNotFound`). A value used as the root of a type path gets
 `TypWantModule`, and a manifest type member differing from the signature is
 reported once, on its `type` item: members are checked against the module's
-own definition and the module is not reported again. In type position, `utyp_to_info_map` threads a context through
-signature items and resolves `M.T` through `Typ.path_sig`; TyDi receives the
-type member names via `LabelProjectionExpected`.
+own definition and the module is not reported again. A module variable (a `Var`, or a capitalized `Constructor`
+that names a module) synthesizes its strengthened type, so `M : { type T;
+let x : T }` is seen as `{ type T = M.T; let x : T }` and `M.x : M.T`; the
+context entry itself stays unstrengthened. `Dot` passes the projected path
+(`ModuleHelpers.path_of_exp`) as `~self` and strengthens a sub-module
+member's type at the extended path (`m.inner.T`). In type position,
+`utyp_to_info_map` threads a context through signature items and resolves
+`M.T` through `Typ.path_sig`; an abstract member is reported as
+`Message.PathAbstract`. TyDi receives the type member names (manifest and
+abstract) via `ModuleMemberExpected`.
 
 ### Dynamics
 
@@ -277,8 +340,10 @@ are all `ModVal` is a value.
 
 `Dot` on a module value returns the named binding. Ascribing a module value
 to a signature (`Ascriptions.re`) keeps the signature's value members in
-signature order, ascribes each to its declared type, and drops the rest;
-type members have no runtime content. `ModVal` items compare equal to the
+signature order, ascribes each to its declared type with the signature's
+type members substituted (a manifest member by its definition, an abstract
+one by `?`, a no-op cast), and drops the rest; type members have no runtime
+content. `ModVal` items compare equal to the
 literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 
 ### Sort Fallback Patterns, Forms and Decorations
@@ -289,6 +354,16 @@ case, the heterogeneous prefix forms (`mk_pre_c'` in `Form.re`), sort-specific
 grout precedence (`Skel.re`), module semicolon decoration (`Arms.re`), and the
 Menhir parser's `ModuleExp`/`ModItemModule` structure with `Conversion.re`'s
 `mpat_of_pat`/`pat_of_mpat`.
+
+The bare `type T` signature form is `Form.SigTypeAbstract`, listed before
+`SigType` so that `type` typed in a signature expands to it (expansion takes
+the first matching form). `Insert.upgrade_bare_sig_type` runs when `=` is
+inserted: if the pieces to the left of the caret are a bare `type` tile in
+the Sig sort followed by at most one type-pattern token (and whitespace), the
+tile is relabeled to the manifest form with its `=` missing, so the ordinary
+backpack put-down completes `type T = ¦`. There is no downgrade; delete the
+`=` to get a hole instead. In the text parser the bare form is
+`SigItemTypeAbstract` (`Parser.mly`: `TYP tpat` inside a signature).
 
 ### Cursor Inspector and Statics Info
 
@@ -315,12 +390,13 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypAbstractMemberOfSignature` |
 | `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
 | `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
+| `src/haz3lcore/zipper/action/Insert.re` | `=` upgrade of a bare `type T` signature item                      |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |
 | `src/menhirParser/Parser.mly`, `Conversion.re` | Text parser for module forms                                |
@@ -330,11 +406,12 @@ used only for mispositioned items.
 | File                                       | What                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------- |
 | `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
-| `test/Test_Typ.re`                         | `Typ.Sig`: meet, normalize, free_vars, member projection                  |
+| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.AnaMeet`, `Typ.SigPaths`: meet, subtyping, paths, strengthening |
 | `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
 | `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
 | `test/Test_TyDi.re`                        | Value/type member completion                                              |
 | `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
+| `test/Test_Editing.re`                     | `Editing.SigAbstract`: bare `type T` and the `=` upgrade                 |
 
 ### In-Editor Documentation
 

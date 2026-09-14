@@ -700,6 +700,7 @@ and SigItem: {
     | SigItemType(tp, t) =>
       sig_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
     | SigItemModule(p) => sig_module(mpat_of_pat(Pat.of_menhir_ast(p)))
+    | SigItemTypeAbstract(tp) => sig_type_abstract(TPat.of_menhir_ast(tp))
     };
   };
 
@@ -707,6 +708,7 @@ and SigItem: {
     switch (sig_.term) {
     | SigLet(p) => SigItemLet(Pat.of_core(p))
     | SigType(tp, t) => SigItemType(TPat.of_core(tp), Typ.of_core(t))
+    | SigTypeAbstract(tp) => SigItemTypeAbstract(TPat.of_core(tp))
     | SigModule(mp) => SigItemModule(Exp.pat_of_mpat(mp))
     | Invalid(_)
     | EmptyHole
