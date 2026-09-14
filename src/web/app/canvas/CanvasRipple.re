@@ -922,7 +922,6 @@ let rec draw = (): unit => {
         );
       Js.Unsafe.coerce(ctx)##.fillStyle := Js.string(fill);
       let sprite = get_dot_sprite(fill, dpr);
-      let two_pi = 2. *. Float.pi;
       /* continuous level-of-detail: the "current" grid is the power-of-
          two multiple of the base 14px lattice whose SCREEN pitch lands
          in [14, 28); as zooming grows it past 28 the next finer grid
@@ -948,9 +947,6 @@ let rec draw = (): unit => {
         let d = fmin(v, extent -. v);
         d <= 0. ? 0. : fmin(1., d /. edge);
       };
-      /* board model coord -> screen px */
-      let to_screen_x = (m: float): float => m *. z +. pan_slack -. sl
-      and to_screen_y = (m: float): float => m *. z +. pan_slack -. st;
       /* per-frame analytic suction terms: (content center, strength) */
       let su_terms =
         List.filter_map(

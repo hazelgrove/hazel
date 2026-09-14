@@ -1,6 +1,5 @@
 open Js_of_ocaml;
 open Haz3lcore;
-open Util;
 
 /* Offside staggering, top-down greedy (see plans/agent-canvas-docket.md):
    an offside display spanning K rows (a card fan, a tall rich view) must
