@@ -167,7 +167,7 @@ let rec evaluate =
         ),
       ~mode=`Environment,
       /* The evaluation itself: this is the program happening. */
-      ~effects=`Perform,
+      ~effects=`Perform(FumolaRun.Eval),
       ~targets=eval_info.targets,
       ~in_closure?,
       env,

@@ -352,7 +352,7 @@ module Decompose = {
            no step at all and the stepper would stall on the quote; telling
            it a step is there without running one is the fix, and it is a
            change to the rule rather than to this call. Issue 2564. */
-        ~effects=`Perform,
+        ~effects=`Perform(FumolaRun.Decompose),
         ~in_closure?,
         env,
         exp,
@@ -396,7 +396,7 @@ module TakeStep = {
       (~in_closure as _=?, _, _) => None,
       ~mode=`Substitution,
       /* Taking the step the stepper was asked for. */
-      ~effects=`Perform,
+      ~effects=`Perform(FumolaRun.Step),
       ~in_closure?,
       env,
       d,

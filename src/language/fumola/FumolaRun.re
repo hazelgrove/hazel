@@ -222,10 +222,70 @@ let instance_name = (name: FumolaTermBase.t): string =>
   | None => "?"
   };
 
+/* Which of Hazel's passes is running this program.
+
+   Hazel runs a Fumola quote from more than one place, and the store cannot
+   tell them apart: `root_node()` in the runtime answers the constant
+   (Here, Now, 0), so every edge the editor causes is sourced at the same
+   node whatever pass caused it. Measured: docs/hazel-effect-schedule.md.
+
+   The obvious fix -- give each pass its own TIME, since the time on that
+   root is carrying nothing -- does not work, and the way it fails is worth
+   recording here so nobody tries it twice. `do goto time` and
+   `do within time` do set the time, but they set it on the nodes a program
+   TOUCHES rather than on the node doing the touching, and a time is part of
+   a node's identity. The same program under two times writes two cells
+   rather than one cell twice, so a time per pass would give every pass a
+   private copy of the store -- breaking the incrementality the store is
+   there for. Checked against a live runtime, not reasoned about.
+
+   So the pass is marked instead: a put naming it, into one cell, before the
+   program runs. Attribution is positional -- every event after a marker
+   belongs to that pass, until the next one. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type pass =
+  | Eval
+  | Step
+  | Decompose
+  | ValueCheck;
+
+let pass_symbol =
+  fun
+  | Eval => "eval"
+  | Step => "step"
+  | Decompose => "decompose"
+  | ValueCheck => "valueCheck";
+
+/* The cell the marker is written to. Leading underscore so it sorts and
+   reads as the editor's rather than the program's, and so a program that
+   wants the name can still have it. */
+let pass_cell = "`_hazelPass";
+
+/* A program, preceded by the mark of the pass running it.
+
+   `do { ... }` rather than bare braces: after `do` a brace is a block
+   wherever it stands, while elsewhere it is an object literal -- both parse,
+   so the difference is invisible to a check that only asks whether the
+   program parses. A block answers its last expression, so the mark does not
+   change what the program evaluates to.
+
+   Nothing reads this cell, so a put that changes its value signals nobody:
+   a three-run test across two passes left every edge aligned. The cost is
+   one put per run, and it is the editor's traffic, which the panel already
+   dims. */
+let marked = (pass: pass, program: string): string =>
+  Printf.sprintf(
+    "do { %s := `%s; %s }",
+    pass_cell,
+    pass_symbol(pass),
+    program,
+  );
+
 let run =
     (
       ~ana: TermBase.Typ.t,
       ~tools: FumolaTools.t,
+      ~pass: pass,
       name: FumolaTermBase.t,
       mode: FumolaTermBase.t,
       body: FumolaTermBase.t,
@@ -252,7 +312,7 @@ let run =
           message,
         })
       | None =>
-        let program = Fumola.of_exp(body);
+        let program = marked(pass, Fumola.of_exp(body));
         let instance_id = instance_of_name(instance_name);
         /* Declare the mode when the declaration is new or has changed, which
            is when it means something. An unchanged declaration says nothing
