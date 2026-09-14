@@ -437,6 +437,7 @@ let exercise : Exercise.t =
                   seq = 0;
                   step_range = None;
                   pending_focus = None;
+                  anti_pin = None;
                   anchor = None;
                   pinned_span = None;
                 };
@@ -1269,6 +1270,7 @@ let exercise : Exercise.t =
                   seq = 0;
                   step_range = None;
                   pending_focus = None;
+                  anti_pin = None;
                   anchor = None;
                   pinned_span = None;
                 };
@@ -1644,6 +1646,7 @@ let exercise : Exercise.t =
                       seq = 0;
                       step_range = None;
                       pending_focus = None;
+                      anti_pin = None;
                       anchor = None;
                       pinned_span = None;
                     };
@@ -1965,6 +1968,7 @@ let exercise : Exercise.t =
                   seq = 0;
                   step_range = None;
                   pending_focus = None;
+                  anti_pin = None;
                   anchor = None;
                   pinned_span = None;
                 };
@@ -2312,6 +2316,7 @@ let exercise : Exercise.t =
                         seq = 0;
                         step_range = None;
                         pending_focus = None;
+                        anti_pin = None;
                         anchor = None;
                         pinned_span = None;
                       };
@@ -2659,6 +2664,7 @@ let exercise : Exercise.t =
                         seq = 0;
                         step_range = None;
                         pending_focus = None;
+                        anti_pin = None;
                         anchor = None;
                         pinned_span = None;
                       };
@@ -3753,6 +3759,7 @@ let exercise : Exercise.t =
                         seq = 0;
                         step_range = None;
                         pending_focus = None;
+                        anti_pin = None;
                         anchor = None;
                         pinned_span = None;
                       };
@@ -4718,6 +4725,7 @@ let exercise : Exercise.t =
                       seq = 0;
                       step_range = None;
                       pending_focus = None;
+                      anti_pin = None;
                       anchor = None;
                       pinned_span = None;
                     };
