@@ -48,3 +48,24 @@ stored in its own argument syntax, so state survives in the program text.
 These files ARE the shipped `Livelits / ...` slides: they are embedded
 at compile time (`src/livelitdemos/Slides.re`, ppx_blob) and parsed at
 load, so an edit here ships on the next build — no encode step.
+
+## Files that are not shipped as slides
+
+`graph-editor.hz` and `scene-3d.hz` live here and are not in
+`src/livelitdemos/Slides.re`. A registered slide is parsed and evaluated
+every time its deck is opened, so a definition that is slow to evaluate
+does not merely render slowly -- it wedges the editor for anyone who
+selects it.
+
+`scene-3d.hz` is a 3D renderer: it rotates each cube corner by the camera's
+yaw and pitch, projects, and sorts the faces far-to-near. It is correct --
+`hazel run` on a flattened copy returns the expected 24 faces for its four
+cubes -- and far too slow to be a widget. Measured on a dev-profile
+`.bc.js` build, four cubes take 3m43s and one cube 60s against a 38s
+parse-and-elaborate baseline, so roughly 8 seconds of evaluation per
+quadrilateral. Removing the `to_fixed` formatting changes nothing (3m57s),
+which rules out string building and leaves the evaluator's own throughput
+on a few thousand float operations. A release build is faster by some
+unmeasured factor; nothing close to the factor this needs.
+
+Keep it here, unregistered, until that changes.
