@@ -77,16 +77,15 @@ let compute_targets =
   );
 };
 
-/* Ids of projectors which opt into dynamic information (Projector.dynamics).
- * Probing a projector's term id is what populates its `info.dynamics`, so
- * such a projector can see the live value of the syntax it replaces. */
+/* Ids of projectors which opt into dynamic information
+ * (ProjectorInit.wants_dynamics). Probing a projector's term id is what
+ * populates its `info.dynamics`, so such a projector can see the live value
+ * of the syntax it replaces. */
 let projector_probe_ids =
     (projectors: Id.Map.t(Base.projector)): Id.Map.t(unit) =>
   Id.Map.fold(
-    (id, p: Base.projector, acc) => {
-      let (module P) = ProjectorInit.to_module(p.kind);
-      P.dynamics ? Id.Map.add(id, (), acc) : acc;
-    },
+    (id, p: Base.projector, acc) =>
+      ProjectorInit.wants_dynamics(p.kind) ? Id.Map.add(id, (), acc) : acc,
     projectors,
     Id.Map.empty,
   );

@@ -40,5 +40,11 @@ let tests = (
       {|1::[2]|},
       Some(list(int())),
     ),
+    /* Marks are left unconstrained here: the missing mark is #2305. */
+    synthesizes(
+      "list of inconsistent types synthesizes a list of unknown (#1716)",
+      {|[1, ""]|},
+      Some(list(unknown(Internal))),
+    ),
   ],
 );
