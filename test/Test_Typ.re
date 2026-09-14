@@ -196,4 +196,239 @@ let fast_equal_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests];
+/* Signature types: consistency is exact (same member names), normalization
+   keeps the Sig constructor, and member projection substitutes the
+   signature's own type members. */
+let sig_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tb = F.Typ.bool();
+  let tu = F.Typ.unknown(Internal);
+  let ctx = Builtins.ctx_init(None);
+  let opt_typ = option(typ);
+  (
+    "Typ.Sig",
+    [
+      test_case("meet of identical signatures", `Quick, () =>
+        check(
+          opt_typ,
+          "same",
+          Some(sg([sv("x", ti)])),
+          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
+        )
+      ),
+      test_case("meet refines an tu member", `Quick, () =>
+        check(
+          opt_typ,
+          "refined",
+          Some(sg([sv("x", ti)])),
+          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", tu)])),
+        )
+      ),
+      test_case("meet is exact: no width", `Quick, () =>
+        check(
+          opt_typ,
+          "width rejected",
+          None,
+          Typ.meet(
+            ctx,
+            sg([sv("x", ti)]),
+            sg([sv("x", ti), sv("y", tb)]),
+          ),
+        )
+      ),
+      test_case("meet rejects different member names", `Quick, () =>
+        check(
+          opt_typ,
+          "names differ",
+          None,
+          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("y", ti)])),
+        )
+      ),
+      test_case("meet matches members by name, left order", `Quick, () =>
+        check(
+          opt_typ,
+          "reordered",
+          Some(sg([sv("x", ti), sv("y", tb)])),
+          Typ.meet(
+            ctx,
+            sg([sv("x", ti), sv("y", tb)]),
+            sg([sv("y", tb), sv("x", ti)]),
+          ),
+        )
+      ),
+      test_case("meet of signatures with a type member", `Quick, () =>
+        check(
+          opt_typ,
+          "type member",
+          Some(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+          Typ.meet(
+            ctx,
+            sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+            sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+          ),
+        )
+      ),
+      test_case("meet rejects different manifest type members", `Quick, () =>
+        check(
+          opt_typ,
+          "manifest differ",
+          None,
+          Typ.meet(ctx, sg([st("T", ti)]), sg([st("T", tb)])),
+        )
+      ),
+      test_case(
+        "signatures and labeled tuples are inconsistent",
+        `Quick,
+        () => {
+          let prod = F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]);
+          check(
+            bool,
+            "sig vs prod",
+            false,
+            Typ.is_consistent(ctx, sg([sv("x", ti)]), prod),
+          );
+          check(
+            bool,
+            "prod vs sig",
+            false,
+            Typ.is_consistent(ctx, prod, sg([sv("x", ti)])),
+          );
+          check(
+            bool,
+            "empty sig vs unit",
+            false,
+            Typ.is_consistent(ctx, sg([]), F.Typ.prod([])),
+          );
+        },
+      ),
+      test_case(
+        "meet with tu",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "sig meet ?",
+            Some(sg([sv("x", ti)])),
+            Typ.meet(ctx, sg([sv("x", ti)]), tu),
+          );
+          check(
+            opt_typ,
+            "? meet sig",
+            Some(sg([sv("x", ti)])),
+            Typ.meet(ctx, tu, sg([sv("x", ti)])),
+          );
+        },
+      ),
+      test_case(
+        "normalize keeps the Sig and expands aliases",
+        `Quick,
+        () => {
+          let ctx = Ctx.extend_alias(ctx, "A", Id.invalid, ti);
+          check(
+            typ,
+            "alias expanded",
+            sg([sv("x", ti)]),
+            Typ.normalize(ctx, sg([sv("x", F.Typ.var("A"))])),
+          );
+          check(
+            typ,
+            "member alias expanded",
+            sg([st("T", ti), sv("x", ti)]),
+            Typ.normalize(
+              ctx,
+              sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+            ),
+          );
+        },
+      ),
+      test_case(
+        "free_vars respects type member binders",
+        `Quick,
+        () => {
+          check(
+            list(string),
+            "member bound",
+            [],
+            Typ.free_vars(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+          );
+          check(
+            list(string),
+            "outer alias free",
+            ["A"],
+            Typ.free_vars(sg([sv("x", F.Typ.var("A"))])),
+          );
+        },
+      ),
+      test_case(
+        "member projection substitutes type members",
+        `Quick,
+        () => {
+          let s = [st("T", ti), sv("x", F.Typ.var("T"))];
+          check(
+            opt_typ,
+            "type member",
+            Some(ti),
+            Typ.sig_project_type(s, "T"),
+          );
+          check(
+            opt_typ,
+            "value member",
+            Some(ti),
+            Typ.sig_project_value(s, "x"),
+          );
+          check(opt_typ, "missing", None, Typ.sig_project_value(s, "nope"));
+        },
+      ),
+      test_case("pretty printing", `Quick, () =>
+        check(
+          string,
+          "printed",
+          "{ let x : Int; type T = Int }",
+          Typ.pretty_print(sg([sv("x", ti), st("T", ti)])),
+        )
+      ),
+    ],
+  );
+};
+
+/* A signature that names a same-named outer binding,
+     let m = { type T = Int } in let m : { type T = m.T } = ... in ... m.T ...
+   has no weak head normal form: normalizing `m.T` asks path_sig what `m`
+   denotes, finds the inner `m`, whose signature defines `T` as `m.T`, and is
+   back where it started. Out of fuel the type has to come back unreduced so
+   statics reports a type error, instead of the whole analysis dying on
+   Failure("weak_head_normalize exceeded 1000 recursive calls"). */
+let cyclic_path_tests = {
+  module F = IdTagged.FreshGrammar;
+  let m_t = F.Typ.prod_projection(F.Typ.var("m"), F.Typ.label("T"));
+  let self_sig = F.Typ.sig_([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
+  let ctx =
+    Ctx.extend(
+      Builtins.ctx_init(None),
+      VarEntry({
+        name: "m",
+        id: Id.invalid,
+        typ: self_sig,
+        custom_statics: None,
+      }),
+    );
+  (
+    "Typ.CyclicPath",
+    [
+      test_case(
+        "a member path through a same-named binding normalizes without raising",
+        `Quick,
+        () => {
+          ignore(Typ.weak_head_normalize(ctx, m_t));
+          check(bool, "returned", true, true);
+        },
+      ),
+    ],
+  );
+};
+
+let tests = [meet_tests, fast_equal_tests, sig_tests, cyclic_path_tests];

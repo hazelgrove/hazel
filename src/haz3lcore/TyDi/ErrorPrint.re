@@ -39,6 +39,14 @@ module Print = {
 
 let prn = Printf.sprintf;
 
+let type_member_mismatch_string = (name, ~expected, ~actual) =>
+  prn(
+    "Type member %s is %s but its signature declares %s",
+    name,
+    Print.typ(actual),
+    Print.typ(expected),
+  );
+
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
@@ -136,13 +144,39 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     )
   | BadTrivAp(ty) =>
     prn("Function argument type \"%s\" inconsistent with ()", Print.typ(ty))
-  | DotOperatorRequiresTuple => "Expected a tuple"
+  | DotOperatorRequiresTuple => "Expected a module or tuple"
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
+  | ModuleMissingMembers(names) =>
+    prn("Module is missing members: %s", String.concat(", ", names))
+  | ModuleExtraMembers(names) =>
+    prn(
+      "Module has members its signature does not declare: %s",
+      String.concat(", ", names),
+    )
+  | ModuleMemberNotFound({name, members, type_member}) =>
+    if (type_member) {
+      prn(
+        "%s is a type member of the module, not a value; use it in a type position",
+        name,
+      );
+    } else {
+      switch (members) {
+      | [] => prn("Module has no member %s; it has no members", name)
+      | _ =>
+        prn(
+          "Module has no member %s; its members are %s",
+          name,
+          String.concat(", ", members),
+        )
+      };
+    }
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -154,6 +188,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(_)
+  | ModuleTypeMemberNotFound(_)
+  | TypWantModule(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -219,7 +255,25 @@ let typ_mark_string: Mark.t => string =
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
-    prn("Expected a tuple type, found type %s", Print.typ(ty))
+    prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+  | ModuleTypeMemberNotFound({name, members, submodule}) => {
+      let what = submodule ? "sub-module" : "type member";
+      switch (members) {
+      | [] => prn("Module has no %s %s; it has no %ss", what, name, what)
+      | _ =>
+        prn(
+          "Module has no %s %s; its %ss are %s",
+          what,
+          name,
+          what,
+          String.concat(", ", members),
+        )
+      };
+    }
+  | TypWantModule({name, typ}) =>
+    prn("%s is a value of type %s, not a module", name, Print.typ(typ))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
