@@ -117,6 +117,11 @@ select {
   flex-direction: column;
 }
 
+#main.zen {
+  grid-row: 1 / span 3;
+  grid-column: 1 / span 2;
+  z-index: 40;
+}
 
 #side-bar {
   display: flex;
@@ -136,6 +141,8 @@ select {
   display: flex;
   justify-content: space-between;
   width: 100%;
+  grid-column: 2;
+  grid-row: 2;
 }
 
 #top-bar {

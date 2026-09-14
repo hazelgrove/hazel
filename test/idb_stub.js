@@ -3,6 +3,11 @@
 if (typeof window === "undefined") {
   globalThis.window = globalThis;
 }
+// Ensure parent === window so PatchworkComm.is_in_iframe() returns false
+// in the test environment (Node.js has no parent property).
+if (typeof parent === "undefined") {
+  globalThis.parent = globalThis;
+}
 if (typeof IDBKeyRange === "undefined") {
   globalThis.IDBKeyRange = {
     only: () => ({}),
