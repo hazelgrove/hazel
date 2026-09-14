@@ -1,43 +1,48 @@
 # Programmable probes
 
-Fumola instances, as instruments for Hazel.
+Fumola instances as probes you can write, and that survive the edit.
 
-Status: a design note and a proposal. The integration it describes is built and
-running on `experimental-lang-integration`; what is proposed here is what to do
-with it next. This PR is prose only — no code.
+Status: a design note and a proposal. The integration it builds on is running on
+`experimental-lang-integration`; nothing in the proposal is implemented. Prose
+only — no code.
+
+Companion document: [Notebook semantics](notebook-semantics.md), which is the
+same instrument pointed at Hazel's own evaluator rather than at a user's
+program, and which explains why a Fumola instance can do any of this.
 
 ## The claim
 
-A Hazel probe tells you what your program computed. A Fumola instance tells you
-what Hazel did.
+Hazel has two programmable surfaces in the editor, and neither covers
+observation.
 
-The second sentence was not the plan. Fumola went into Hazel to give Hazel
-programs an incremental store — a place to keep an expensive computation and
-repair it rather than recompute it. It does that. But the property that makes
-the store useful for incremental computing makes it useful for something else,
-and the something else is the more interesting result:
+**Livelits** are programmable and are about *input*: a model, an action, a view,
+an expansion. A user writes one in Hazel and it becomes a GUI in the source.
 
-> A Fumola instance is the first state reachable from a Hazel program that
-> Hazel's own evaluator does not control.
+**Rich probes** are about observation and are not programmable by a user. A
+renderer is an OCaml module, plus a mandatory `.rei` to satisfy
+`pack_renderer`'s first-class module constraint, plus a line in
+`RichProbeRegistry.renderers`, plus a rebuild of Hazel. That is the right design
+for a renderer that ships with the editor and the wrong one for a renderer
+somebody wants this afternoon.
 
-Everything else in Hazel is downstream of the evaluator. A probe sample is
-produced by the evaluation being measured and cleared along with it, so a probe
-can only ever report on the program. A Fumola instance outlives the evaluation.
-So it can report on the evaluation: how many times an expression ran, in what
-order, under which pass, and whether the value on screen still corresponds to
-anything.
+And both are transient in the dimension that matters most for observation. A
+probe's samples belong to one evaluation; they are re-derived on the next
+keystroke and gone. "What values has this expression taken *while I have been
+editing it*" is not a question Hazel can currently answer at all.
 
-For this use case the name is **notebook semantics probe** — an instrument for
-the question every cell-based live environment has to answer, and that none of
-them answer in writing: *when I edit this, what actually runs?*
+A Fumola instance closes both gaps at once, because it is durable state that a
+Hazel program can reach and Hazel's evaluator does not control. The proposal is
+to use it as one:
+
+> A probe whose logic is a program in the editor, and whose samples outlive the
+> evaluation that produced them.
 
 ## Two halves of a spreadsheet
 
-Hazel and Fumola are close relatives. Both are ML-family, both have variants and
-records and thunks, both take evaluation order seriously enough to have made it
-a design question rather than an accident. That closeness is why the
-integration is a sort in the tile grammar and a value translation, rather than a
-foreign function interface.
+Hazel and Fumola are close relatives — both ML-family, both with variants and
+records and thunks, both having made evaluation order a design question rather
+than an accident. That closeness is why the integration is a sort in the tile
+grammar and a value translation rather than a foreign function interface.
 
 Both also have a spreadsheet in them. They are *different halves* of one, which
 is why putting them together is interesting rather than redundant.
@@ -48,302 +53,168 @@ is why putting them together is interesting rather than redundant.
 | Built around | editing, typing, rendering, responding | forcing, signaling, realignment, repair |
 | What it lacks | memory: it re-runs the world on every keystroke and forgets | a surface: it knows precisely what changed and has no way to show anyone |
 
-Excel has a weak version of Fumola's half and none of Hazel's: a half-written
+Excel has a weak version of Fumola's half and none of Hazel's — a half-written
 formula shows an error, not a value. Jupyter has neither, and names the gap
 *Restart and Run All*.
 
-Hazel re-runs and forgets. Fumola remembers and cannot show you. Neither half is
-a criticism — each is a language specialized for its domain, and the
-specializations are compatible.
-
-## What changed: the store became an instrument
-
-We put the store in the program to make the program incremental. What we got was
-an instrument that reads the editor.
-
-The mechanism is simple enough to state in one paragraph. A `fumola <mode> as
-<name> in … end` expression claims an instance *by name*, so the same name
-answers with the same runtime across every edit that leaves the name alone.
-Running the expression performs effects on that instance's adapton store —
-nodes, edges, forces, realignments — and the store keeps them. Hazel's evaluator
-decides when to run the expression, how often, on which thread, and whether to
-skip it in favour of a cached result. The store records the consequences of
-every one of those decisions. So the store is a log of the evaluator's
-behaviour, written in a vocabulary that already has a viewer.
-
-Two loops, one of which can now see the other:
-
-```
-Hazel      edit ──▶ elaborate ──▶ evaluate ──▶ display
-                        │             │
-                        └──── put ────┴──▶  ┐
-                                             │   (the only arrow that
-Fumola     put ──▶ signal ──▶ force ──▶ repair   survives the next edit)
-                                  └──▶ store ┘
-```
-
-## What the instrument has already read
-
-These are recorded on `experimental-lang-integration`, in
-[`src/language/fumola/README.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/src/language/fumola/README.md) and in commit
-messages, as things that were measured. Several of them corrected a belief that
-had been held confidently first.
-
-**A Fumola cell runs on the main thread, and the reasoning that said it could not
-run at all was wrong.** Instrumenting the evaluator reported `runtime=absent
-ctx=worker` and `runtime=present ctx=main-thread ms=0.7`. The first line was
-read once as "so the program cannot run during evaluation." It does not say
-that: the worker is a choice per cell, and a cell whose statics saw a Fumola
-term is routed to `evaluate_sync` on the main thread instead. Finding that out
-needed an effect to count, not a closer reading of the evaluator.
-
-**Elaboration and evaluation are observably different times, for the same
-program.** A livelit expands during elaboration; a `fumola … end` form runs
-during evaluation. The difference is invisible in a pure setting and plain once
-the store is there — it is what lets `hazel m end` carry the *value* `m` is
-bound to rather than the variable.
-
-**Hazel's cache means fewer effects than we assumed, not more.** A re-evaluation
-that reuses a cached cell does not re-run the program. The elaboration-time
-route erred the other way, re-running on nearly every keystroke. So the effect
-count per edit is bracketed by the two routes and equal to neither, and nobody
-had written down which one the semantics intends.
-
-**The display and the store can disagree.** The store is mutable state outside
-Hazel's incremental model, so it can move on without the displayed value
-following it. This is precisely the notebook honesty problem, reproduced inside
-a language that was designed to not have it — and it is now visible instead of
-theoretical.
-
-**On one slide, the editor caused 33 of 34 events.** Fixing the filter that
-separates the editor's traffic from the program's took a slide from 34 events,
-of which the filter wrongly left 20, down to exactly one surviving event: the
-`get` from `myThunk` to `myCell`, the single thing on that slide the *program*
-did. Everything else in the store was the editor being live.
-
-That last number is a demonstration, not a measurement of Hazel. It is one small
-slide, where a program has little to do and an editor has as much to do as ever,
-so the ratio should be expected to be extreme and says nothing yet about a real
-program. Turning it into a measurement is M1.
-
-## Why nothing else in Hazel could have read this
-
-Worth being precise about, because it explains why the instrument is a Fumola
-instance and not something cheaper.
-
-Hazel's evaluator is deterministic and its language is pure. Running an
-expression twice is, by construction, indistinguishable from running it once —
-that is the property the whole live-programming story rests on, and it is
-exactly what makes the schedule unobservable from inside. Re-running is free
-because it is invisible; it is invisible because it is free.
-
-So:
-
-- **Probes cannot do it.** A probe's samples are an output of the evaluation
-  being measured. They are re-derived each time and tell you about the program,
-  not about how many times the program ran.
-- **Livelits cannot do it.** A livelit model persists, but expansion happens
-  during elaboration, so a livelit measures the elaborator and cannot see the
-  evaluator at all.
-- **Logging from OCaml can do it, and does not scale.** `print_endline` in the
-  evaluator is how the worker routing above was found. It requires a rebuild per
-  question, it is invisible to anyone who is not running a dev build, and its
-  output is not a value, so nothing in Hazel can compute with it.
-
-A Fumola instance is the one option where the record is durable, the
-instrumentation is *written in the editor*, and the result comes back as a typed
-Hazel value that Hazel's own view layer can render. That last property is what
-makes it an instrument rather than a debug print: the thing being measured and
-the reading of the measurement share an editor.
+Hazel re-runs and forgets. Fumola remembers and cannot show you. Neither is a
+criticism: each language is specialized for its domain, and the specializations
+turn out to be complementary rather than overlapping.
 
 ## The correspondence
 
-The reason "programmable probe" is the right phrase, rather than a metaphor:
-Hazel's probe system and Fumola's store are already the same shape.
+"Programmable probe" is a description rather than a metaphor, because Hazel's
+probe system and Fumola's store are already the same shape.
 
 | Hazel probe system | Fumola | What the pairing buys |
 |---|---|---|
 | a probe placed on an expression | a `put` into a named cell | the sample survives the edit that produced it |
 | a probe's sample list | the cell's revision history | a series across edits, not within one evaluation |
-| a rich-probe renderer (`parse`/`init`/`update`/`render`) | a `thunk` reading cells | the renderer is a program in the editor, not an OCaml module, a `.rei`, a registry line and a rebuild |
+| a rich-probe renderer (`parse` / `init` / `update` / `render`) | a `thunk` reading cells | the renderer is a program in the editor, not a module plus a `.rei` plus a registry line plus a rebuild |
 | re-rendering a probe | realignment | a derived view over a long history repairs rather than recomputes |
-| the call-stack navigation in `ProbeFocus` | the DCG's edges | provenance: *why* this value, not just *what* |
+| the call-stack navigation in `ProbeFocus` | the DCG's edges | provenance: *why* this value, not only *what* |
 | `AutoProbe.All` — one probe per source row | the DCG itself | a graph already records every force and every dependency, which is a probe on everything, placed by the computation, keeping the edges a per-row probe throws away |
 
 The last row is the one to sit with. Auto-probing every row is an approximation
-of what a demanded computation graph already is, minus the structure.
+of what a demanded computation graph already is, minus the structure — and the
+structure is the part a reader actually wants when the value is surprising.
 
-## What is unresolved
+## What a durable probe can observe that today's cannot
 
-Named as open, not hidden in a milestone.
+Four capabilities, in rough order of how cheap they are:
 
-**1. The composition law.** Two incremental systems, one nested in the other,
-with different notions of "changed." Hazel decides whether to re-run; Fumola
-decides whether to repair; neither knows about the other's decision. Three
-candidate disciplines, in increasing order of how much I believe them:
+1. **A series across edits.** The last fifty values this expression took, as I
+   edited it, each labelled with the program text that produced it. Nearly free:
+   the store already survives, and the panel already renders its rows as typed
+   Hazel values.
+2. **A derived view that repairs rather than recomputes.** A fold over a long
+   history is a thunk. A histogram over ten thousand samples does not get
+   recomputed because one sample arrived. This is Fumola doing the thing it was
+   built for, in service of the editor rather than of a benchmark.
+3. **Observation logic a user writes.** The renderer is Fumola source in the
+   editor, edited as tiles, with Hazel statics on its escapes. This is the
+   livelit argument applied to observation instead of to input.
+4. **Provenance as a first-class view.** The Nodes and Edges views exist. Point
+   them at a user's own computation and "why is this value this value" becomes a
+   question the editor answers with a path rather than a number.
 
-- *Change Hazel's cache* so a cell containing a Fumola form is never skipped.
-  Honest, and it gives up the cache exactly where programs will be slowest.
-- *Make the effect count part of the semantics* — "at most once per edit that
-  changes the program text" — and hold the evaluator to it.
-- *Make the program idempotent and stop caring.* Adapton is already idempotent
-  in the right way: forcing an aligned thunk is free, and a `put` of a value a
-  cell already holds signals nobody. A program written in archivist style may
-  already be safe under arbitrary re-running, in which case the composition law
-  is a discipline on the Fumola program and Hazel's evaluator needs no change at
-  all.
+## The design question: who names the series
 
-I think the third is right, and I do not think it is established. M1 and M2 are
-what would establish or refute it.
+This is the one decision the proposal turns on, and it has already been made
+once, one level up.
 
-**2. Effects during stepping.** The stepper runs expressions under a different
-schedule again, and undo runs them backwards. Neither has been looked at.
+A sample series needs a key. The obvious key is the probed expression's `Id.t`,
+and it is wrong for a reason that is already written down: a name taken from a
+Hazel id starts a new series whenever that id changes — which is to say, on
+exactly the edits worth watching. `fumola … end` faced this and answered it by
+putting the instance name in the syntax, where the programmer wrote it:
 
-**3. Main thread only.** The runtime is a property of `window`, so a Fumola cell
-cannot use the worker, and `evaluate_sync` runs to completion rather than in
-5000-step slices. Measured costs on the shipped slides are small — ~0.4 ms
-median per run, ~65 ms once per instance for `claim` and `ensureMode`. A Fumola
-program sharing a cell with a heavy Hazel computation blocks the UI for the
-whole of it.
+```
+fumola $graphical as store in … end
+```
 
-**4. A mode change discards the store.** `ensureMode` resets an instance when
-the mode differs from the one it has. An instrument that silently loses its
-history is worse than no instrument, and this is the most likely way to lose
-one.
+Stable by construction, visible in the program, survivable across a reload, and
+it makes two blocks sharing one instance expressible.
 
-**5. Instance names are global.** Two programs that both say `store` share one
-runtime. That is a feature for the panel and a hazard for anything else.
+The answer here should be the same answer one level down: **the user names the
+series, in the source.** A renamed series starts over, visibly and on purpose,
+rather than silently. The structural echo is a point in its favour — a design
+that has to answer the same question twice should prefer answering it the same
+way.
 
-## Proposal: six milestones
+## Proposal
 
-Each says what lands, why it is next, and how we would know it worked. The
-checks matter more than the deliverables; every one of the findings above began
-as a confident belief that measurement corrected.
+Four milestones. Each says what lands and how we would know it worked.
 
-### M1 — The effect schedule, written down
+They are numbered P1–P4 to keep them distinct from N1–N2 in
+[Notebook semantics](notebook-semantics.md), which are not merely separate work:
+N1 and N2 measure how many times a Hazel expression actually runs per edit, and
+P1's whole premise is that a sample series is a faithful record of that. If the
+effect schedule turns out to be surprising, P1 inherits the surprise. It is
+worth doing N1 first for that reason alone.
 
-A corpus whose only job is to count. One instance, one cell, one `put` per
-visit, and a rendered count — then a table: for each editor gesture (a keystroke
-inside the cell, a keystroke elsewhere, a cell added, a reload, a step, an undo,
-a focus change), how many effects, in what order, under which pass.
+### P1 — A probe that survives the edit
 
-*Why now.* It needs no new machinery, and everything else in this document
-assumes an answer to it that nobody has.
+Samples accumulate in a named instance rather than in an evaluation. The series
+is named in the source, per the section above.
 
-*How we would know.* The table is produced by running the instrument and reading
-the panel, never by reading `Evaluator.re` — and it is reproducible by someone
-else from the document alone. A row we cannot reproduce is a finding about the
-instrument, which is just as valuable at this stage.
+*Why first.* It is the smallest thing that is genuinely new to a user, and it
+exercises the naming decision while it is still cheap to change.
 
-*Deliverable.* `docs/hazel-effect-schedule.md`, explicitly measured rather than
-derived, with the build and the runtime version it was measured against.
+*How we would know it worked.* Edit the probed expression; the earlier samples
+are still there, still labelled with the program text that produced each one.
+Rename the series; the history starts over, visibly. Change the instance's mode;
+it should *not* silently reset — and today it would, which is the first thing
+this milestone will run into.
 
-### M2 — Attribution by declaration, not by heuristic
+### P2 — A rich probe written in Fumola
 
-Today the editor's own traffic is separated by a property of the store's shape:
-an edge is the editor's if its source is the root, `(Here, Now, _)`. That works
-and it is an inference. Make it a declaration instead — the run carries which
-pass it came from, so an event can say *elaboration*, *evaluation*, *stepper*,
-*panel peek*.
+`RichProbe` becomes an interface a Fumola thunk can implement, rather than an
+OCaml module plus a `.rei` plus a registry line plus a rebuild. This is the
+milestone that earns the word *programmable*.
 
-*Why now.* M1 can count effects but cannot fully say *why* each one happened,
-only that the editor rather than the program caused it. Without attribution the
-schedule table has a column it cannot fill.
+*How we would know it worked.* A new renderer is added, and renders, without
+rebuilding Hazel. `TableRenderer` is the control: the Fumola version should be
+recognisably the same program and should handle the same values. Where it cannot
+— the existing renderer can rewrite the surrounding syntax via
+`parent(SetSyntax(seg))`, and a Fumola thunk has no obvious counterpart — that
+limit gets written down rather than worked around.
 
-*How we would know.* On a slide with a schedule established in M1, every event
-is attributed and the per-pass counts match. The heuristic and the declaration
-are then run against each other, and the interesting result is a disagreement.
+### P3 — Provenance over a user's own computation
 
-### M3 — A probe that survives the edit
+The Nodes and Edges views pointed at a user's instance rather than at a demo,
+with navigation from a sample back to the edges that produced it.
 
-The first new user-facing capability: a probe whose samples accumulate across
-edits, because they live in a named instance rather than in an evaluation. "The
-last fifty values this expression took, as I edited it" is an observation Hazel
-cannot currently make at all.
+*How we would know it worked.* On a computation whose dependency structure was
+written down in advance, the path the panel shows is the path the program takes.
+Prefer an example where the obvious answer is wrong — a memoized call whose
+result came from a revision older than the edit that appears to have caused it.
+An example that can only confirm what a reader already assumed is not a check.
 
-The design question is *who names the series*, and the answer should be the one
-already settled one level up: the user names it, in the source. A series keyed
-by `Id.t` loses its history on exactly the edits worth watching — this is the
-same failure the instance name was introduced to avoid, and it recurs here for
-the same reason.
+### P4 — Scenes as Hazel values
 
-*How we would know.* Edit the probed expression; the earlier samples are still
-there, still labelled with the program text that produced each one. Rename the
-series; the history starts over, visibly and on purpose.
+DCG scenes rendered through Hazel's own view layer rather than through a bespoke
+panel, starting with the List rung. This is where the two halves finally close:
+the graph Fumola maintains incrementally is displayed by the system that is good
+at displaying things, as an ordinary value of an ordinary type.
 
-### M4 — A rich probe written in Fumola
+*How we would know it worked.* The scene is a Hazel value with a declared Hazel
+type, and the panel is one renderer over it rather than the only way to see it.
 
-`RichProbe` becomes an interface a Fumola thunk can implement, instead of an
-OCaml module plus a mandatory `.rei` plus a registry line plus a rebuild. This
-is the livelit argument applied to observation rather than to input, and it is
-the milestone that earns the word *programmable*.
+## Risks
 
-*How we would know.* A new renderer is added, and rendered, without rebuilding
-Hazel. The existing `TableRenderer` is the control: the Fumola version of it
-should be recognisably the same program and should handle the same values.
-
-### M5 — Provenance over the user's own computation
-
-Point the Nodes and Edges views at a user's instance rather than at a demo, with
-navigation from a sample back to the edges that produced it. *Why is this value
-this value* becomes a question the editor can answer with a path rather than a
-number.
-
-*How we would know.* On a computation whose dependency structure we wrote down
-in advance, the path the panel shows is the path the program takes. Prefer an
-example where the obvious answer is wrong — a memoized call whose result came
-from a revision older than the edit that appears to have caused it.
-
-### M6 — Scenes as Hazel values
-
-DCG scenes rendered through Hazel's own view layer rather than a bespoke panel,
-starting with the List rung. This is where the two halves finally close: the
-graph that Fumola maintains incrementally is displayed by the system that is
-good at displaying things, as an ordinary value of an ordinary type.
-
-*How we would know.* The scene is a Hazel value with a declared Hazel type, and
-the panel is one renderer over it rather than the only way to see it.
-
-## The question the milestones are really asking
-
-M1 and M2 are instrumentation, and they are also the empirical part of a claim
-worth making in public: **an operational account of Hazel's cell semantics,
-derived by measuring the implementation rather than by reading it.**
-
-Live programming environments are specified by their front ends and
-under-specified by their schedules. Notebooks are the well-known case, and the
-usual response is to observe that notebooks are bad. Hazel is a system built
-specifically to not have that problem, with a real semantics and a real type
-system behind it — and the effect schedule of its cells was still, until this
-month, an open empirical question that nobody had the instrument to ask.
-
-Having the instrument is the contribution. It is also a nice inversion to be
-able to state: incremental computing was supposed to be the payload, and it
-turned out to be the microscope.
+- **A mode change discards the store.** `ensureMode` resets an instance when the
+  mode differs from the one it holds. A probe that silently loses its history is
+  worse than no probe, and P1 will meet this immediately.
+- **Instance names are global.** Two programs that both say `store` share one
+  runtime. That is a feature for the panel and a hazard for anything a user
+  writes without knowing the convention.
+- **Main thread only, so a heavy probe blocks the UI.** The runtime is a
+  property of `window`, so a cell containing a Fumola form cannot use the
+  worker. Measured costs today are small; a probe whose derived view is
+  expensive is exactly the case that stops being small.
+- **Hazel's cache and Fumola's store can disagree**, so a displayed value may
+  not correspond to the store behind it. This is the composition law, and it
+  belongs to the companion document.
 
 ## What this does not propose
 
-- **Changing Hazel's evaluator.** The instrument's job is to describe the
-  schedule. If the schedule turns out to be wrong, that is a separate decision
-  needing separate evidence, and M1 is what would supply it.
 - **Retiring Hazel's probes.** They answer a different question — what the
   program computed — and they answer it better, with no store to name and
-  nothing to survive.
+  nothing to survive. A durable probe is an addition, and most of the time the
+  transient one is what a reader wants.
 - **A type system for Fumola.** Examples first. The contracts that matter here
-  belong in this document and in the round-trip checks.
+  belong in this document and in the round-trip checks against the real parser.
 - **Merging the branch chain.** `fumola-tiles-mvp` → `fumola-tiles-and-livelits`
   → `experimental-lang-integration` remains a demo track. What lands on `dev`,
-  and when, is a separate conversation that this document is trying to inform
-  rather than pre-empt.
+  and when, is a separate conversation.
 
 ## Background
 
-Built and running on `experimental-lang-integration`:
-
 | Where | What |
 |---|---|
-| [`src/language/fumola/README.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/src/language/fumola/README.md) | the grammar, the printer contract, running, the event list, the parser and the round trip |
-| [`docs/fumola-tiles-design.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-tiles-design.md) | why Fumola is a tile sort, and why the instance is named in the syntax |
-| [`docs/fumola-runtime-changes.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-runtime-changes.md) | the unpinned wasm dependency, and the six exports Hazel actually calls |
-| [`docs/rich-probes.md`](rich-probes.md) | the renderer plug-in layer M4 would open to Fumola |
-| [`docs/livelits.md`](livelits.md) | the elaboration-time route, and what it cannot see |
+| [`docs/rich-probes.md`](rich-probes.md) | the renderer plug-in layer P2 would open to Fumola, and why the `.rei` is mandatory |
+| [`docs/livelits.md`](livelits.md) | the programmable surface this one is modelled on |
+| [`docs/notebook-semantics.md`](notebook-semantics.md) | why a Fumola instance can outlive an evaluation, and what that revealed |
+| [`src/language/fumola/README.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/src/language/fumola/README.md) | the grammar, the printer contract, the event list, and the round trip |
+| [`docs/fumola-tiles-design.md`](https://github.com/hazelgrove/hazel/blob/experimental-lang-integration/docs/fumola-tiles-design.md) | why the instance is named in the syntax — the decision P1 echoes |
