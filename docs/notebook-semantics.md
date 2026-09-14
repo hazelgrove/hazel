@@ -381,7 +381,15 @@ get  w          = 5
 It is `decompose` — the pass that performs a step only to find out where the
 step is, which is the one `EvaluatorStep` already flags as needing its own fix.
 Six edges, all aligned, no signal: the work cell keeps one identity and nothing
-reads the marker. The panel does not yet group its rows by marker.
+reads the marker.
+
+The panel groups by it too: Events, Nodes and Edges each show a header
+wherever the pass changes. A header is emitted only above a row that is
+actually shown, so hiding the editor cannot leave a heading with nothing
+under it, and the pass of a hidden row is still read, so a boundary falling
+inside a hidden run reaches the next visible row. Rows older than the first
+marker get no header — every row an instance recorded before this build, and
+every row a program put there itself.
 
 ## What this would be, if it works
 
