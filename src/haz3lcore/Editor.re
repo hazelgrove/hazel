@@ -214,12 +214,14 @@ module Update = {
      * update — so callers don't need to plumb "statics changed" signals. */
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
-      CachedSyntax.calculate(
-        zipper,
-        statics.info_map,
-        new_dynamics,
-        ~elaborated=Some(statics.elaborated),
-        syntax,
+      PerfTimer.time("editor-syntax", () =>
+        CachedSyntax.calculate(
+          zipper,
+          statics.info_map,
+          new_dynamics,
+          ~elaborated=Some(statics.elaborated),
+          syntax,
+        )
       );
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,

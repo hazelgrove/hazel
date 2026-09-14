@@ -106,7 +106,19 @@ module StaticsDebounce = {
   let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
     let force_now = force_on_next^;
     force_on_next := false;
-    if (is_edited && debounce_ms > 0.0) {
+    /* a projector commit is one discrete edit: run statics now rather
+       than after the typing debounce (livelit drag → result: -225ms) */
+    let projector_edit = Util.AgentPulse.projector_commit^;
+    Util.AgentPulse.projector_commit := false;
+    if (is_edited && projector_edit) {
+      switch (timer_id^) {
+      | Some(id) =>
+        Js_of_ocaml.Dom_html.window##clearTimeout(id);
+        timer_id := None;
+      | None => ()
+      };
+      StaticsForce;
+    } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
@@ -160,17 +172,24 @@ module Update = {
           Language.Id.Map.map(_ => (), statics.targets),
         );
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
-     * not a stale captured one */
+     * not a stale captured one. A recompute first takes the statics the agent
+     * tool path OFFERED for this very program (CachedStatics.offered_for),
+     * computed there for its error check — one statics pass per tool call
+     * instead of several. */
     let do_init = (editor: Editor.t) =>
-      CachedStatics.init(
-        ~settings,
-        ~stitch,
-        ~ctx?,
-        ~ana?,
-        ~is_dynamic_term,
-        ~root=editor.root,
-        editor.state.zipper,
-      );
+      switch (CachedStatics.offered_for(editor.state.zipper)) {
+      | Some(st) => st
+      | None =>
+        CachedStatics.init(
+          ~settings,
+          ~stitch,
+          ~ctx?,
+          ~ana?,
+          ~is_dynamic_term,
+          ~root=editor.root,
+          editor.state.zipper,
+        )
+      };
     let needs_refresh =
       statics_mode == StaticsForce
       || probes_differ(editor.state.zipper, statics)

@@ -21,6 +21,11 @@ type tool_result = {
   before_segment: option(Segment.t),
   after_segment: option(Segment.t),
   content: string,
+  /* When set, `content` IS the model-facing result payload (e.g. a
+     read_docs guide) rather than a UI-side note; the api message carries
+     it verbatim instead of the generic success acknowledgment. */
+  [@yojson.default false]
+  content_is_payload: bool,
 };
 
 let mk_skipped = (tool_call: OpenRouter.Reply.Model.tool_call): tool_result => {
@@ -32,4 +37,5 @@ let mk_skipped = (tool_call: OpenRouter.Reply.Model.tool_call): tool_result => {
   before_segment: None,
   after_segment: None,
   content: skipped_due_to_prior_failure_message,
+  content_is_payload: false,
 };

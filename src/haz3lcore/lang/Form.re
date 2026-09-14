@@ -749,14 +749,42 @@ module Molds = {
       assert(molds != []);
       List.hd(molds);
     | None =>
-      /* Fallback: create Any-sorted default mold. This handles tokens
-         not assigned molds by the language definition. */
-      switch (label) {
-      | [t]
-          when
-            Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
-        Mold.mk_bin(Precedence.max, Any, [])
-      | _ => Mold.mk_op(Any, [])
+      switch (label, get_base(label)) {
+      /* A compound form asked for in a sort it does not produce keeps its
+         own shape: an Any operand mold has no inner sorts, so a
+         multi-shard tile wearing one has children its mold cannot
+         account for and MakeTerm indexes past `in_` (Failure "nth" —
+         case rules inside a module member inserted at Mod root). The
+         sort mismatch is for statics to report, not for the mold to
+         erase. */
+      | ([_, _, ..._], [_, ..._] as molds) =>
+        /* stay in the requested language layer: a `|·=>` asked for in an
+           Exp/Rul context is the case rule, not the derivation rule */
+        let drv = (m: Mold.t) =>
+          switch (m.out) {
+          | Drv(_) => true
+          | _ => false
+          };
+        let want_drv =
+          switch (sort) {
+          | Drv(_) => true
+          | _ => false
+          };
+        switch (List.find_opt(m => drv(m) == want_drv, molds)) {
+        | Some(m) => m
+        | None => List.hd(molds)
+        };
+      | _ =>
+        /* Fallback: create Any-sorted default mold. This handles tokens
+           not assigned molds by the language definition. */
+        switch (label) {
+        | [t]
+            when
+              Token.is_potential_operator(t)
+              && !Token.is_potential_operand(t) =>
+          Mold.mk_bin(Precedence.max, Any, [])
+        | _ => Mold.mk_op(Any, [])
+        }
       }
     };
 };

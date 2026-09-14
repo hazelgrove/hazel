@@ -38,6 +38,7 @@ let start_yielding_evaluation:
     ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
+    ~reuse_stream: IncrEval.t(EvaluatorState.t)=?,
     Exp.t
   ) =>
   yielding_evaluation;
