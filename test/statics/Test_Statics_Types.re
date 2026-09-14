@@ -569,7 +569,7 @@ let tests = (
     // reaching a type at all is the regression being pinned.
     synthesizes(
       "self-referential type alias in a pattern annotation (#1623)",
-      {|type y = y ->  in fun (A: (y)) -> a|},
+      {|type y = y -> ? in fun (A: (y)) -> a|},
       Some(
         FTemp.Typ.(
           arrow(
