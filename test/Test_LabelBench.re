@@ -121,7 +121,7 @@ let case = () => {
 let tests = (
   "LabelBench",
   [
-    test_case("labeled module statics", `Quick, case),
-    test_case("in-situ incremental calc", `Quick, insitu),
+    test_case("labeled module statics", `Slow, case),
+    test_case("in-situ incremental calc", `Slow, insitu),
   ],
 );

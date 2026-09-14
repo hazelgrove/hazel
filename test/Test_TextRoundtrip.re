@@ -40,6 +40,10 @@ let parse_or_fail = (~root=Sort.Exp, text) =>
 let roundtripped_text = (~root=Sort.Exp, z: Zipper.t): string =>
   MarkerParse.to_text(z) |> parse_or_fail(~root) |> MarkerParse.to_text;
 
+/* Slides re-parse through the LOAD path (FastParse first, the typing
+   parser only as its fallback): the simulated-typing parser is
+   quadratic in program size, and the livelit/MVU demo slides took
+   35-94 s each through it — the whole group blew CI's budget. */
 let slide_roundtrip_case =
     ((name, root, z): (string, Sort.t, unit => Zipper.t)) =>
   test_case(
@@ -47,8 +51,14 @@ let slide_roundtrip_case =
     `Slow,
     () => {
       let z = z();
-      let before = MarkerParse.to_text(z);
-      let after = roundtripped_text(~root, z);
+      let before =
+        MarkerParse.to_text(z) |> Util.StringUtil.strip_final_newline;
+      let after =
+        switch (PersistentZipper.parse_text(~source=name, ~root, before)) {
+        | Some(z') =>
+          MarkerParse.to_text(z') |> Util.StringUtil.strip_final_newline
+        | None => Alcotest.fail("load-path parse returned None for " ++ name)
+        };
       check(
         string,
         "marker text round-trip is fixed-point for " ++ name,

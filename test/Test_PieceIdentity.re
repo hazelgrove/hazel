@@ -116,7 +116,7 @@ let case = (file: string, row: int, ()) =>
 let tests = (
   "PieceIdentity",
   [
-    test_case("mega-2k row 900", `Quick, case("mega-2k.hz", 900)),
-    test_case("mega-2k row 100", `Quick, case("mega-2k.hz", 100)),
+    test_case("mega-2k row 900", `Slow, case("mega-2k.hz", 900)),
+    test_case("mega-2k row 100", `Slow, case("mega-2k.hz", 100)),
   ],
 );

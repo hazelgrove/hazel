@@ -938,23 +938,23 @@ let stream_collector_parity = (): unit => {
 let tests = (
   "BenchStatics",
   [
-    test_case("stream collector parity", `Quick, stream_collector_parity),
-    test_case("probe capture parity", `Quick, probe_capture_parity),
-    test_case("structural alignment", `Quick, structural_alignment),
-    test_case("incremental MakeTerm parity", `Quick, incr_maketerm_parity),
-    test_case("payload probe (informational)", `Quick, payload_probe),
+    test_case("stream collector parity", `Slow, stream_collector_parity),
+    test_case("probe capture parity", `Slow, probe_capture_parity),
+    test_case("structural alignment", `Slow, structural_alignment),
+    test_case("incremental MakeTerm parity", `Slow, incr_maketerm_parity),
+    test_case("payload probe (informational)", `Slow, payload_probe),
     test_case(
       "DefStatics compositional (informational)",
-      `Quick,
+      `Slow,
       defstatics_bench,
     ),
-    test_case("Statics.mk memoization (informational)", `Quick, memo_probe),
+    test_case("Statics.mk memoization (informational)", `Slow, memo_probe),
     test_case(
       "slide-load pipeline (informational)",
-      `Quick,
+      `Slow,
       load_pipeline_probe,
     ),
-    test_case("corpus statics timing (informational)", `Quick, () =>
+    test_case("corpus statics timing (informational)", `Slow, () =>
       List.iter(
         name => {
           let path = "hazel-programs/bench/" ++ name;

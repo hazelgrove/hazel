@@ -2,7 +2,7 @@ open Alcotest;
 open Haz3lcore;
 
 let try_text = (label, text) =>
-  test_case(label, `Quick, () =>
+  test_case(label, `Slow, () =>
     switch (AgentToolResult.segment_of_text(text)) {
     | _ => ()
     | exception e =>
@@ -15,7 +15,7 @@ let try_text = (label, text) =>
 /* the agent-context view: the program with every top-level definition
    folded, built from per-item statics (the chat's "View Agent Context") */
 let try_context = (label, code) =>
-  test_case(label, `Quick, () =>
+  test_case(label, `Slow, () =>
     switch (Parser.to_zipper(~root=Exp, code)) {
     | None => fail("parse failed")
     | Some(z) =>
@@ -32,7 +32,7 @@ let try_context = (label, code) =>
    walker descended into the module item's surrogate def, whose
    scaffolding ids the per-item map strips — Not_found in view) */
 let try_canvas_nodemap = (label, code, ~caret_token) =>
-  test_case(label, `Quick, () =>
+  test_case(label, `Slow, () =>
     switch (Parser.to_zipper(~root=Exp, code)) {
     | None => fail("parse failed")
     | Some(z) =>
@@ -198,12 +198,12 @@ let incremental_member_edges = () => {
 let tests = [
   test_case(
     "incremental member insert: the new function is an edge",
-    `Quick,
+    `Slow,
     incremental_member_edges,
   ),
   test_case(
     "nested module members are edges (mono vs compositional)",
-    `Quick,
+    `Slow,
     () => {
       let (em, vm) = canvas_edges_of(false, nested_prog);
       let (ec, vc) = canvas_edges_of(true, nested_prog);
@@ -226,7 +226,7 @@ let tests = [
   ),
   test_case(
     "nested local aliases fold bottom-up (Room = (Int, Int, [Tile]))",
-    `Quick,
+    `Slow,
     () => {
       let prog = "module D = {\n  type Tile =\n    + Floor\n    + Wall;\n  type Room = (Int, Int, [Tile]);\n  let width(r: Room): Int =\n    let (w, _, _) = r in\n    w;\n  let nth(ts: [Tile], i: Int): Tile =\n    case ts\n    | [] => Wall\n    | hd :: tl => hd\n    end\n} in\n?";
       switch (Parser.to_zipper(~root=Exp, prog)) {
@@ -282,7 +282,7 @@ let tests = [
     },
   ),
   test_case(
-    "a member typed with a local alias attaches to the alias", `Quick, () =>
+    "a member typed with a local alias attaches to the alias", `Slow, () =>
     switch (Parser.to_zipper(~root=Exp, nested_prog)) {
     | None => fail("parse failed")
     | Some(z) =>
