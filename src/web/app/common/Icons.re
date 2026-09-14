@@ -293,7 +293,129 @@ let play = simple_icon(~view="0 0 24 24", ["M8 5v14l11-7z"]);
 
 /* The Fumola panel's tab: a node with edges leaving it, which is what the
    event list is about. */
-let fumolaIcon = Node.text("⬡");
+/* The Fumola panel's icon: a watch that dispenses mustard, which is the
+   joke the panel's own easter egg tells at length (see MustardWatch.re).
+
+   Drawn for its actual size rather than reduced from the plate. At 20px
+   nothing survives but the silhouette and one spot of colour, so that is
+   all there is: a case, two strap stubs, four dots where the hours would
+   be, and the mustard. The connectives the plate puts on the dial are
+   illegible here and would only muddy the circle.
+
+   Its own colours, not currentColor: the mustard is the point, and a rail
+   icon that took the theme's ink would be a grey circle. */
+let fumolaIcon =
+  Node.create_svg(
+    "svg",
+    ~attrs=
+      Attr.[
+        create("viewBox", "0 0 24 24"),
+        create("width", "20px"),
+        create("height", "20px"),
+        create("aria-hidden", "true"),
+      ],
+    [
+      /* Strap stubs, above and below. */
+      Node.create_svg(
+        "path",
+        ~attrs=
+          Attr.[
+            create(
+              "d",
+              "M9 3.2 h6 l-.7 3.4 h-4.6 z M9.7 17.4 h4.6 l.7 3.4 h-6 z",
+            ),
+            create("fill", "#6b533a"),
+          ],
+        [],
+      ),
+      /* Case. */
+      Node.create_svg(
+        "circle",
+        ~attrs=
+          Attr.[
+            create("cx", "12"),
+            create("cy", "12"),
+            create("r", "6.2"),
+            create("fill", "#e8c33d"),
+            create("stroke", "#4a3b23"),
+            create("stroke-width", "1.6"),
+          ],
+        [],
+      ),
+      /* Four dots for the hours. */
+      Node.create_svg(
+        "g",
+        ~attrs=Attr.[create("fill", "#4a3b23")],
+        [
+          Node.create_svg(
+            "circle",
+            ~attrs=
+              Attr.[
+                create("cx", "12"),
+                create("cy", "8.4"),
+                create("r", ".85"),
+              ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=
+              Attr.[
+                create("cx", "15.6"),
+                create("cy", "12"),
+                create("r", ".85"),
+              ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=
+              Attr.[
+                create("cx", "12"),
+                create("cy", "15.6"),
+                create("r", ".85"),
+              ],
+            [],
+          ),
+          Node.create_svg(
+            "circle",
+            ~attrs=
+              Attr.[
+                create("cx", "8.4"),
+                create("cy", "12"),
+                create("r", ".85"),
+              ],
+            [],
+          ),
+        ],
+      ),
+      /* The nozzle, where a crown would be, and the mustard leaving it. */
+      Node.create_svg(
+        "rect",
+        ~attrs=
+          Attr.[
+            create("x", "18"),
+            create("y", "10.9"),
+            create("width", "2.2"),
+            create("height", "2.2"),
+            create("rx", ".6"),
+            create("fill", "#4a3b23"),
+          ],
+        [],
+      ),
+      Node.create_svg(
+        "circle",
+        ~attrs=
+          Attr.[
+            create("cx", "21.6"),
+            create("cy", "12"),
+            create("r", "1.7"),
+            create("fill", "#e3a51a"),
+          ],
+        [],
+      ),
+    ],
+  );
 
 /* Entailment turnstile (⊢), drawn to match `new_buffer` so the two icons
    sit side-by-side in the scratch toolbar with identical stroke width,
