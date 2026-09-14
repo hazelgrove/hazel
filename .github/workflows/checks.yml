@@ -5,18 +5,18 @@
 # Two jobs, no `needs:` between them: they start together, and either can be
 # re-run alone. The split is by cost, not by concern -- `Fast checks` bundles
 # formatting, warnings and the quick suite because each extra job re-installs
-# the toolchain (~2 min warm, 5-9 min cold), which is more than the work those
-# checks do. Revisit if the build ever becomes an artifact the jobs can share.
+# the toolchain, which costs more than the work those checks do. Revisit if
+# the build ever becomes an artifact the jobs can share.
 name: Checks
 
 on:
   workflow_call:
     inputs:
-      publish-reports:
+      upload-coverage:
         description: >
-          Publish Test Report check runs and upload coverage. Off for fork pull
-          requests: their GITHUB_TOKEN is read-only, so creating a check run
-          fails, and they get no secrets, so the Codecov upload has no token.
+          Send the coverage report to Codecov. Off for fork pull requests: they
+          get no secrets, so the upload has no token. The test reports
+          themselves are job summaries and need nothing, so they run either way.
         type: boolean
         default: true
     secrets:
@@ -31,7 +31,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      checks: write # dorny/test-reporter publishes a check run
     steps:
       - name: Checkout the hazel repo
         uses: actions/checkout@v4
@@ -51,17 +50,18 @@ jobs:
           export DUNE_CACHE=enabled
           opam exec -- make ci-check
 
-      # alcotest's -q filter drops the Slow-tagged cases, which are ~92% of the
+      # alcotest's -q filter drops the Slow-tagged cases, which dominate the
       # full suite's wall clock. That is what makes a test signal here, rather
-      # than only in `Full tests`, affordable.
+      # than only in `Full tests`, affordable. Slow is a speed tag and not a
+      # synonym for QCheck -- most Slow-tagged cases are ordinary tests.
       - name: Run quick tests
         run: opam exec -- make ci-quick
         timeout-minutes: 20
 
       # Results UI, not the gate: the steps above already fail the job.
       - name: Quick Test Report
-        if: ${{ always() && inputs.publish-reports }}
-        uses: dorny/test-reporter@v1
+        if: ${{ always() }}
+        uses: dorny/test-reporter@v3
         with:
           name: Quick Test Report
           path: ./_build/default/test/junit_tests*.xml
@@ -70,9 +70,15 @@ jobs:
           # An earlier step failing leaves no report to read, and the job is
           # already red for that reason -- don't stack a second failure on it.
           fail-on-empty: false
-          # True (the default) writes to the job summary and creates no check
-          # run, leaving no status to link to or require.
-          use-actions-summary: false
+          # use-actions-summary defaults to true: the report is written to this
+          # job's summary and no check run is created. That is deliberate. A
+          # check run is created for a commit, not for a workflow, and GitHub
+          # picks which of the commit's check suites it joins -- it used to pick
+          # Deploy's, so the test results rendered under "Deploy branch preview"
+          # and a red suite made the deploy look broken. The summary is the only
+          # placement that is actually ours to choose. Nothing is lost as a
+          # gate: `Fast checks` and `Full tests` are the statuses to require,
+          # and the steps above already fail them.
 
   Full:
     name: Full tests
@@ -81,7 +87,6 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
-      checks: write # dorny/test-reporter publishes a check run
     steps:
       - name: Checkout the hazel repo
         uses: actions/checkout@v4
@@ -90,25 +95,22 @@ jobs:
 
       - name: Run tests
         run: opam exec -- make ci
-        # Headroom over the ~32-min suite is under 2x; check the trend before
-        # adding another expensive one.
         timeout-minutes: 60
 
       # Results UI, not the gate: the step above already fails on a red suite.
       - name: Test Report
-        if: ${{ always() && inputs.publish-reports }}
-        uses: dorny/test-reporter@v1
+        if: ${{ always() }}
+        uses: dorny/test-reporter@v3
         with:
           name: Test Report
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          # See Quick Test Report above for both of these.
+          # See Quick Test Report above for this and for the summary default.
           fail-on-empty: false
-          use-actions-summary: false
 
       - name: Send coverage report to Codecov
-        if: ${{ inputs.publish-reports }}
+        if: ${{ inputs.upload-coverage }}
         run: opam exec -- bisect-ppx-report send-to Codecov --verbose
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
