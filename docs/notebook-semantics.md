@@ -310,6 +310,60 @@ One test on one instance is not a result, and the older evidence should still be
 labelled weak: across six instances the only align seen was `aligned`, which is
 six demo slides, not a sample.
 
+## A documented limit is a cache too
+
+A memo, from getting this wrong on 2026-09-14, while writing per-form
+documentation for the cursor inspector.
+
+The entry for `hazel … end` — the escape back into Hazel from inside a Fumola
+program — said that it carries a value written in place and **not** a variable
+bound in the surrounding scope, because the Fumola program is rendered to
+source during *elaboration*, before anything has been substituted. Every clause
+of that was true when it was written. None of it is true now: the program runs
+during **evaluation**, so by the time it is printed its escapes have been
+reduced, and a bound variable is a value like any other.
+
+Nobody wrote the stale sentence twice. It was carried forward from the code it
+replaced, and shipped without being checked, which is the ordinary way this
+happens and the reason it is worth a memo rather than an apology.
+
+It is worth a memo *here*, in this document, because it is this document's own
+subject. The question the notebook asks is whether a displayed value still
+corresponds to the program it claims to be about. Prose is a display, and a
+documented limit is a cached answer to "what can this system not do" — cached
+with no dependency edges at all. Nothing recomputes it. Nothing signals it. No
+test fails when the thing it describes moves out from under it. It is the
+purest case of the failure the composition law is about, and it happens at the
+layer where neither system is watching.
+
+The sharper half is that the sentence did not merely go out of date. When the
+limit was lifted, it **reversed**: the escape now carries a bound variable
+anywhere, while the livelit route — which still expands during elaboration —
+is the one whose slot takes a literal only. A reader following the stale advice
+would have been sent to the integration that had just become the worse choice
+for exactly this. Stale documentation of a limit does not decay into silence;
+it decays into confident misdirection, because a limit is the kind of claim
+readers act on rather than verify.
+
+So, for both of us, going forward:
+
+> A limit is a claim in the present tense. Write it with the thing that would
+> show it had been lifted.
+
+In this repository that thing is usually a slide, and a slide is the good case:
+`Fumola (Tiles) / Self-inspection` reads a Hazel boolean through an escape and
+the graph Fumola records changes shape when the boolean flips. That is a
+limitation's test. It runs on every build, it is visible to a reader who is not
+looking for it, and when the limit moves the slide stops meaning what it said.
+A sentence in a comment has none of those properties.
+
+And note what would have caught it, since it is what this whole document is
+proposing. A record with dependency edges — one that knows the prose was
+derived from the elaboration order, and signals the prose when that order
+changes — is not a thing prose has and is exactly what the archivist is for.
+The gap this memo describes is the gap [Archivist reflection](archivist-reflection.md)
+argues for closing, one layer up from where it argues for closing it.
+
 ## Other things unresolved
 
 - **Stepping and undo.** The stepper runs expressions under a different schedule
