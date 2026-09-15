@@ -830,6 +830,12 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
+    let task_reference: option(string) =
+      switch (editors) {
+      | Tutorial(t) =>
+        TutorialsMode.Model.get_current(t).editors.task_reference
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -847,6 +853,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
+        ~task_reference,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
