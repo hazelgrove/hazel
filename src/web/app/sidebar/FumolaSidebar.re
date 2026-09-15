@@ -153,8 +153,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   let section = (cls, header, body) =>
     div(
       ~attrs=[clss(["fumola-section", cls])],
-      [div(~attrs=[clss(["fumola-section-header"])], [text(header)])]
-      @ body,
+      [div(~attrs=[clss(["fumola-section-header"])], header)] @ body,
     );
 
   /* Nothing in focus: say what a Fumola instance is and how to make one,
@@ -162,7 +161,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   let how_to_make_one =
     section(
       "fumola-empty",
-      "No Fumola instance in focus",
+      [text("No Fumola instance in focus")],
       [
         div(
           ~attrs=[clss(["fumola-blurb"])],
@@ -195,7 +194,37 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      "runtime is not loaded" branch -- and a rename that reached only one of
      them would leave the error state naming the panel something the rest of
      the app no longer calls it. */
-  let panel_title = (instance: string) => "Fumola VM instance " ++ instance;
+  let panel_name = "Fumola VM instance ";
+
+  /* The reset strip offers G and S, and the header decodes the one the
+     instance is actually in. Both spelled out would be a legend, which a
+     reader needs once; one spelled out is a statement about this instance,
+     which is the half that changes and the half worth the room. */
+  let mode_key = (mode: Language.FumolaRun.mode) =>
+    switch (mode) {
+    | Language.FumolaRun.Simple => "S = Simple"
+    | Language.FumolaRun.Graphical => "G = Graphical"
+    };
+
+  /* The mode is an option rather than a mode because there are runtimes that
+     cannot be asked: Hazel pins no version, and `adaptonMode` arrived in
+     Adapton/fumola#134. A header that guessed would be worse than one that
+     says nothing, since the guess would be wrong in exactly the case a reader
+     is looking -- just after a reset into the other mode. */
+  let panel_title =
+      (~mode: option(Language.FumolaRun.mode)=?, instance: string) =>
+    [text(panel_name ++ instance)]
+    @ (
+      switch (mode) {
+      | None => []
+      | Some(mode) => [
+          span(
+            ~attrs=[clss(["fumola-mode-key"])],
+            [text(" (" ++ mode_key(mode) ++ ")")],
+          ),
+        ]
+      }
+    );
 
   /* A revision is named by the space it belongs to and the moment it was
      born at, which is the pair the panel opens and closes. */
@@ -607,24 +636,33 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      rather than in them: it is about the instance, not about what is being
      looked at. */
   /* One letter each, because this sits on the same line as the tab strip and
-     the two words did not leave it room. The whole of what they mean is in
-     the tooltip, which is where a control this small has to keep it. */
-  let reset_button = (instance: string) => {
-    let into = (mode, label, name, what) =>
+     the two words did not leave it room. What the letters stand for is in the
+     header, which names the mode the instance is in and so decodes one of
+     them against the thing it is about; the tooltip is left to say what
+     pressing one would do, which is the part no label can carry. */
+  /* The one that keeps the instance where it is comes in bold. Both buttons
+     empty the store; only one of them leaves the mode alone, and which one
+     that is depends on the instance rather than on the strip. Nothing is bold
+     when the mode could not be asked, which is the same silence the header
+     keeps. */
+  let reset_button =
+      (~mode: option(Language.FumolaRun.mode)=?, instance: string) => {
+    let into = (into_mode, label, what) =>
       span(
         ~attrs=[
-          clss(["fumola-reset"]),
+          clss(
+            ["fumola-reset"]
+            @ (mode == Some(into_mode) ? ["fumola-reset-current"] : []),
+          ),
           Attr.title(
-            "Empty this instance and run the program again as "
-            ++ name
-            ++ ", "
+            "Empty this instance and run the program again, "
             ++ what
             ++ ". Bindings from other cells that share the instance do not "
             ++ "come back. The mode stays as you asked until the program's "
             ++ "own mode is edited.",
           ),
           Attr.on_click(_ =>
-            globals.inject_global(FumolaReset(instance, mode))
+            globals.inject_global(FumolaReset(instance, into_mode))
           ),
         ],
         [text(label)],
@@ -633,13 +671,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ~attrs=[clss(["fumola-resets"])],
       [
         span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
-        into(Language.FumolaRun.Simple, "S", "simple", "keeping no graph"),
-        into(
-          Language.FumolaRun.Graphical,
-          "G",
-          "graphical",
-          "recording as it forces",
-        ),
+        /* Graphical first: it is Fumola's default and the mode that records,
+           so it is the one a reader of this panel is usually coming back to.
+           Simple is the narrowing. */
+        into(Language.FumolaRun.Graphical, "G", "recording as it forces"),
+        into(Language.FumolaRun.Simple, "S", "keeping no graph"),
       ],
     );
   };
@@ -990,18 +1026,25 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         | Error(message) =>
           section(
             "fumola-unavailable",
+            /* No mode beside the name here: the branch a reader reaches
+               when the runtime could not be asked anything is not the place
+               to claim to know what it answered. */
             panel_title(instance),
             [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
           )
         | Ok(history) =>
           let tab = globals.settings.sidebar.fumola_tab;
+          /* Asked once and read twice -- the header spells it out, the strip
+             marks the button that would keep it -- so that the two cannot
+             disagree about the same instance in the same render. */
+          let mode = Language.FumolaRun.mode_of_instance(instance);
           section(
             "fumola-events",
-            panel_title(instance),
+            panel_title(~mode?, instance),
             [
               div(
                 ~attrs=[clss(["fumola-controls"])],
-                [tab_strip(tab), reset_button(instance)],
+                [tab_strip(tab), reset_button(~mode?, instance)],
               ),
             ]
             @ [editor_strip()]

@@ -180,6 +180,41 @@ let eval_at = (instance_id: int, at: string): Yojson.Safe.t =>
 let eval_in = (instance_id: int, program: string): Yojson.Safe.t =>
   eval_at(instance_id, at_now(program));
 
+/* Which mode an instance is running, asked of the instance rather than
+   remembered. Adapton/fumola#134 added the prim for this reader in
+   particular: what Hazel last *set* is a different question, and the two
+   part company in the case a reader most wants an answer -- immediately
+   after a reset into the other mode.
+
+   None means "say nothing", and covers three cases that all deserve silence
+   rather than a guess. There is no runtime. There is one, but it predates
+   #134, and answers `ok: false` with "there is no prim called adaptonMode" --
+   a live case and not a hypothetical, since Hazel pins no runtime version and
+   reads whatever fumola.org is serving. Or the answer is not a mode, which
+   would be a runtime disagreeing with itself.
+
+   The two spellings are Fumola's own, which is why they are read back through
+   `mode_source` rather than written out again: `adaptonReset` takes these
+   words and `adaptonMode` answers with them, and a second copy here could
+   drift from both. */
+let mode_of_instance = (name: string): option(mode) =>
+  switch (eval_in(instance_of_name(name), "prim \"adaptonMode\" ()")) {
+  | `Assoc(fields) =>
+    switch (List.assoc_opt("ok", fields), List.assoc_opt("value", fields)) {
+    | (Some(`Bool(true)), Some(`Assoc(value))) =>
+      switch (List.assoc_opt("name", value)) {
+      | Some(`String(spelled)) =>
+        List.find_opt(
+          mode => mode_source(mode) == spelled,
+          [Simple, Graphical],
+        )
+      | _ => None
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+
 /* Why a program could not produce a Hazel value. A half-written program is a
    syntax error on nearly every keystroke, so whether the failure was
    syntactic is carried separately: the editor has better ways to say that

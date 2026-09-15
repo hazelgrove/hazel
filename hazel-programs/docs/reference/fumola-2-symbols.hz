@@ -85,10 +85,12 @@ let namedByApplication : Int =
 # have a type in the Hazel prelude of the shape Fumola gives them, so the   #
 # cases can be told apart.                                                  #
 #                                                                          #
-#   type Space = + Symbol(String) + Here                                    #
-#   type Time  = + Symbol(String) + Now                                     #
+#   type Space = + Symbol(Symbol) + Here                                    #
+#   type Time  = + Symbol(Symbol) + Now                                     #
 #                                                                          #
-# A named space carries the symbol as its text.                             #
+# A named space carries the symbol itself, not its text. A time can be      #
+# `hazel(52), and flattening that to text would lose that it is an          #
+# application, and leave it uncomparable with the symbol in an event.       #
 let mySpace : Space =
   ^fumola_put_force(0, "`mySpace", "Adapton.space(`region)") in
 

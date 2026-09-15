@@ -47,14 +47,19 @@ let int = () => Typ.fresh(Atom(Int));
 
 let symbol = BuiltinsADT.Symbol.t;
 
-/* Space and Time carry a symbol rather than its text. The builtin Space and
-   Time in BuiltinsADT carry a String instead, deliberately -- a symbol
-   arrives as its text where a String is asked for -- but the panel wants the
-   structure, so that a node's name reads as `Num(1)` rather than "1" and can
-   be compared with the symbol in an event. */
-let space = () => sum([("Here", None), ("Symbol", Some(symbol))]);
+/* The prelude's Space and Time, not a second pair that agrees by hand. The
+   panel and a program that writes `: Time` have to mean the same type, or a
+   value out of the same runtime reads as a value in one place and an error
+   in the other -- which is what happened while these were two definitions.
 
-let time = () => sum([("Now", None), ("Symbol", Some(symbol))]);
+   Both carried a String once, on the reading that a symbol arrives as its
+   text. That stopped being true when the runtime began putting structure in
+   these positions: a pass time is `hazel(52), whose text spelling loses that
+   it is an application of a name to a number, and cannot be compared with
+   the symbol in an event. */
+let space = () => BuiltinsADT.Space.t;
+
+let time = () => BuiltinsADT.Time.t;
 
 let node_id = () => tuple([space(), time(), int()]);
 
