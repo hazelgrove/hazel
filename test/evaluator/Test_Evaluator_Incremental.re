@@ -910,23 +910,19 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * "frozen" decoration set.
  *
  * Background:
- *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
- *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
- *   inverts surface nesting: the surface-outer Module M becomes the
- *   elab-innermost Tuple, and surface-sibling ModLets become elab-
- *   ancestors of one another.
+ *   A module elaborates to a `Module` whose items keep their surface ids
+ *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
+ *   `c` on run 2 and finds its cached entry, it short-circuits via
+ *   `Evaluator.re:158-164` and marks only that one id as reused
+ *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
+ *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
+ *   so the UI must derive frozen ids by walking the reuse plan rather than
+ *   visited output.
  *
- *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
- *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
- *   marks only that one id as reused (`IncrEval.mark_reused`). The
- *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
- *   `let z = x + y` are never visited during evaluation, so the UI must
- *   derive frozen ids by walking the reuse plan rather than visited output.
- *
- *   The fix is to derive a "frozen set" from the ACK reuse plan by walking
- *   each entry's `prev_elab` and unioning all rep_ids encountered.
- *   That set is what the UI should paint as frozen. This test pins down
- *   the desired contents of that set. */
+ *   The "frozen set" is derived from the ACK reuse plan by walking each
+ *   entry's `prev_elab` and unioning all rep_ids encountered, including the
+ *   ids of module items. That set is what the UI should paint as frozen.
+ *   This test pins down the desired contents of that set. */
 let test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a = () => {
   let src = {|let fib = fun n ->
   if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
@@ -1678,6 +1674,59 @@ n|};
   );
 };
 
+/* Drop the value member [name] from every signature type in [exp],
+ * preserving every other id. Simulates editing a `module M : { ... }`
+ * annotation in place. */
+let drop_sig_member = (~name: string, exp: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    switch (t.term) {
+    | Sig(items) =>
+      let items =
+        List.filter(
+          (item: Sig.t) =>
+            switch (Sig.member_of_item(item)) {
+            | Some(Val(x, _)) => x != name
+            | _ => true
+            },
+          items,
+        );
+      {
+        ...t,
+        term: (Sig(items): Typ.term),
+      };
+    | _ => continue(t)
+    };
+  TermBase.Exp.map_term(~f_typ, exp);
+};
+
+/* Sealing is part of a binding's value: the same module definition bound
+ * under a narrower signature no longer has the member. Removing `default`
+ * from Stack's signature must invalidate the cached `Stack.default`, which
+ * previously reused the value computed under the wider signature. */
+let test_sig_edit_invalidates_sealed_member = () => {
+  let src = {|module Stack : { let default : Int; let x : Int } = {
+  let default = 0;
+  let x = 1
+} in Stack.default|};
+  let exp1 = parse_exp(src);
+  let exp2 = drop_sig_member(~name="default", exp1);
+  check(
+    bool,
+    "drop_sig_member actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1880,6 +1929,11 @@ let tests = (
       "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
       `Quick,
       test_builtin_call_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "SEALING: dropping a member from a module's signature invalidates its use",
+      `Quick,
+      test_sig_edit_invalidates_sealed_member,
     ),
   ],
 );

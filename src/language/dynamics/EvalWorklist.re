@@ -60,7 +60,13 @@ let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
   );
 
 let remove_streamed_ids =
-    (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) => {
-  let completed_ids = IncrEval.visible_ids(stream.completed);
-  List.filter(id => !List.exists(Id.equal(id), completed_ids), pending_ids);
-};
+    (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) =>
+  switch (pending_ids) {
+  | [] => []
+  | _ =>
+    let completed_ids = IncrEval.visible_ids(stream.completed);
+    List.filter(
+      id => !List.exists(Id.equal(id), completed_ids),
+      pending_ids,
+    );
+  };

@@ -305,6 +305,7 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
+    | l = LIVELIT_IDENT { VarPat(l) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
@@ -516,4 +517,8 @@ modItem:
 sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
+    | MODULE; i = IDENT { SigItemModule(VarPat(i)) }
+    | MODULE; c = CONSTRUCTOR_IDENT { SigItemModule(VarPat(c)) }
+    | MODULE; i = IDENT; COLON; t = typ { SigItemModule(AscPat(VarPat(i), t)) }
+    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ { SigItemModule(AscPat(VarPat(c), t)) }
 

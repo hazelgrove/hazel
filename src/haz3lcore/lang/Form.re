@@ -423,7 +423,8 @@ type compound_form =
   | SigBody
   | SigSeq
   | SigLet
-  | SigType;
+  | SigType
+  | SigModule;
 
 let get: compound_form => t =
   fun
@@ -536,7 +537,8 @@ let get: compound_form => t =
   | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
   | SigSeq => mk_infix(";", Sig, P.mod_seq)
   | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
-  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
+  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ)
+  | SigModule => mk_pre_c'(L, ["module"], P.let_, Sig, [], MPat);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);

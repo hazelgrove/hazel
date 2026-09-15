@@ -29,6 +29,12 @@ type error_builtin =
   | Exactly2Arguments;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type livelit_def_error =
+  | DefNotModule
+  | DefMissingMembers(list(string))
+  | DefMissingTypes(list(string));
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
   | BaseTyp
   | TyAlias
@@ -60,8 +66,24 @@ type t =
   | DotOperatorRequiresTuple
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | ModuleMissingMembers(list(Var.t))
+  /* `M.y` where the module has no value member y: on the label, while the
+     dot carries a message. [type_member]: y is one of its type members. */
+  | ModuleMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+      type_member: bool,
+    })
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
+  /* The livelit's expansion does not have the type the definition
+     declares for it (`type Expansion`). The declared type is what
+     clients type against, so the fault is the livelit's, not the use's. */
+  | BadLivelitExpansion({
+      declared: Typ.t,
+      actual: Typ.t,
+    })
+  | InvalidLivelitDef(livelit_def_error)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,
@@ -70,6 +92,11 @@ type t =
   | ExpectationMismatch({
       ana: Typ.t,
       syn: Typ.t,
+    })
+  | ModuleTypeMemberMismatch({
+      name: Var.t,
+      expected: Typ.t,
+      actual: Typ.t,
     })
   | BadToken(string)
   | BadLabel(Any.t)
@@ -84,6 +111,18 @@ type t =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(Typ.t)
+  /* `M.T` where the module has no type member T, or ([submodule]) `M.P.T`
+     where it has no sub-module P: on the label. */
+  | ModuleTypeMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+      submodule: bool,
+    })
+  /* `m.T` where m is a value that is not a module. */
+  | TypWantModule({
+      name: Var.t,
+      typ: Typ.t,
+    })
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure
