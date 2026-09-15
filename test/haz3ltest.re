@@ -42,6 +42,7 @@ let (suite, exit_with_test_status) =
       Test_Menhir.tests,
       Test_PatRootEditor.tests,
       Test_StackFocus.tests,
+      Test_CanvasTrajectory.tests,
       Test_Restructure.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
