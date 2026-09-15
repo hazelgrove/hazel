@@ -324,11 +324,38 @@ let retract = (~delay: float, ~dur: float, el): unit => {
   let total: float = Js.Unsafe.meth_call(el, "getTotalLength", [||]);
   let on_len = arm_dash(el, total);
   later(delay, () => set_attr(el, "marker-end", "none"));
+  let opacity =
+    Js.to_string(
+      Js.Unsafe.get(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(el)|],
+        ),
+        "opacity",
+      ),
+    );
   animate(
     el,
     [
-      [("strokeDashoffset", num(0.))],
-      [("strokeDashoffset", num(on_len))],
+      [
+        ("offset", num(0.)),
+        ("strokeDashoffset", num(0.)),
+        ("opacity", str(opacity)),
+      ],
+      [
+        ("offset", num(0.999)),
+        ("strokeDashoffset", num(on_len *. 0.999)),
+        ("opacity", str(opacity)),
+      ],
+      /* A fully retracted round-capped stroke still paints a dot. This
+         is conspicuous on the thick module hull stroke. Hide the
+         completed erasure, on the same pausable animation clock. */
+      [
+        ("offset", num(1.)),
+        ("strokeDashoffset", num(on_len)),
+        ("opacity", num(0.)),
+      ],
     ],
     [
       ("duration", num(dur)),
@@ -356,6 +383,23 @@ let shrink_out = (~delay: float, ~dur: float, el): unit => {
     ],
   );
 };
+
+/* A hull has one owner and may also have copies in ancestor modules.
+   Include those copies, but never a similarly named sibling's geometry. */
+let owned_hull_ids =
+    (~ids: list(string), ~prefix: string, name: string): list(string) => {
+  let base = prefix ++ CanvasView.sanitize(name);
+  let ancestor = base ++ "--v";
+  List.filter(
+    id =>
+      id == base
+      || String.length(id) > String.length(ancestor)
+      && String.sub(id, 0, String.length(ancestor)) == ancestor,
+    ids,
+  );
+};
+let hull_copies = (~prefix: string, name: string): list(string) =>
+  owned_hull_ids(~ids=Util.JsUtil.ids_with_prefix(prefix), ~prefix, name);
 
 /* screen-space waypoint the avatar passes at a time (ms into the beat) */
 type waypoint = ((float, float), float);
@@ -1378,14 +1422,20 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             | Some(el) => shrink_out(~delay=tf, ~dur=float_of_int(e.dur), el)
             | None => ()
             },
-          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)],
+          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
+          @ hull_copies(~prefix="hullc-n-", k),
         );
       | Erase(name) =>
         later(tf, () => CanvasAvatar.set_mood("erase"));
-        switch (by_id(CanvasView.path_dom_id(name))) {
-        | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
-        | None => ()
-        };
+        List.iter(
+          id =>
+            switch (by_id(id)) {
+            | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
+            | None => ()
+            },
+          [CanvasView.path_dom_id(name)]
+          @ hull_copies(~prefix="hulls-e-", name),
+        );
         List.iter(
           id =>
             switch (by_id(id)) {
@@ -1397,7 +1447,8 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             CanvasView.edge_dom_id(name),
             CanvasView.orbit_dom_id(name),
             "clead-" ++ CanvasView.sanitize(name),
-          ],
+          ]
+          @ hull_copies(~prefix="hullc-l-", name),
         );
       | Change(k) =>
         /* the view swaps the staged old look for the new one on the next

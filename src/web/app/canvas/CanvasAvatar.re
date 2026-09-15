@@ -437,21 +437,58 @@ let mirrors = (): (list(Js.Unsafe.any), option(Js.Unsafe.any)) => {
 };
 
 /* one frame: read the body's motion, move the targets, spring, draw */
+/* Undo the camera's translation and rendered scale before measuring
+   motion. Screen motion alone must not turn thinking into travelling. */
+let board_position =
+    (~origin: (float, float), ~zoom: float, (x, y): (float, float))
+    : (float, float) => {
+  let (ox, oy) = origin;
+  ((x -. ox) /. zoom, (y -. oy) /. zoom);
+};
+
 let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   let dt = min(0.05, max(0.001, (now_ms -. rig.last_ms) /. 1000.));
   rig.last_ms = now_ms;
   rig.t = rig.t +. dt;
-  /* where the body is on screen (the ride's transform included), in
-     board units so speed does not depend on the zoom */
-  let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
+  /* The ride transform is included, but camera pan and zoom are not.
+     Read the rendered zoom: a CSS zoom transition may be between the
+     setting's endpoints. */
   /* without a body on stage (canvas hidden, chat open) the rig idles in
      place and only the chat's mirror is drawn */
   let (mdx, mdy) =
-    switch (b) {
-    | Some(b) =>
+    switch (
+      b
+      |> Util.OptUtil.and_then(b =>
+           Js.Opt.to_option(
+             Js.Unsafe.meth_call(
+               b,
+               "closest",
+               [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
+             ),
+           )
+           |> Option.map(root => (b, root))
+         )
+    ) {
+    | Some((b, root)) =>
       let rect = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
-      let cx: float = Js.Unsafe.get(rect, "left") /. zoom
-      and cy: float = Js.Unsafe.get(rect, "top") /. zoom;
+      let rr = Js.Unsafe.meth_call(root, "getBoundingClientRect", [||]);
+      let style =
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(root)|],
+        );
+      let zoom =
+        Js.to_string(Js.Unsafe.get(style, "zoom"))
+        |> float_of_string_opt
+        |> Option.value(~default=1.)
+        |> max(0.2);
+      let (cx, cy) =
+        board_position(
+          ~origin=(Js.Unsafe.get(rr, "left"), Js.Unsafe.get(rr, "top")),
+          ~zoom,
+          (Js.Unsafe.get(rect, "left"), Js.Unsafe.get(rect, "top")),
+        );
       let d =
         switch (rig.last_pos) {
         | Some((px, py)) => (cx -. px, cy -. py)
@@ -655,6 +692,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
       and sh: float = Js.Unsafe.get(sr, "height")
       and rl: float = Js.Unsafe.get(rr, "left")
       and rt: float = Js.Unsafe.get(rr, "top");
+      let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
       let ox = (sl +. sw /. 2. -. rl) /. zoom
       and oy = (st +. sh /. 2. -. rt) /. zoom;
       let lx = tx -. ox

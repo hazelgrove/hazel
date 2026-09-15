@@ -1725,7 +1725,12 @@ let view =
                 ~key="avatar-bubble",
                 ~attrs=[clss(["canvas-avatar-bubble", "mode-hidden"])],
                 [
-                  svg("svg", [clss(["say-shape"])], [svg("path", [], [])]),
+                  tails,
+                  svg(
+                    "svg",
+                    [clss(["say-shape"])],
+                    [svg("path", [], [])],
+                  ),
                   div(~attrs=[clss(["say-text"])], []),
                   div(
                     ~attrs=[clss(["bubble-cloud"])],
@@ -1757,7 +1762,7 @@ let view =
               );
             [
               avatar_view(
-                ~bubbles=[tails, bubble],
+                ~bubbles=[bubble],
                 ~on_mousedown=on_avatar_mousedown,
                 a,
               ),

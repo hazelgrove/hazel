@@ -1333,6 +1333,8 @@
 .canvas-avatar-bubble.mode-thought {
   opacity: 1;
 }
+.canvas-avatar-bubble.mode-hidden > .bubble-tails,
+.canvas-avatar-bubble.mode-speech > .bubble-tails,
 .canvas-avatar-bubble.mode-thought .say-shape,
 .canvas-avatar-bubble.mode-thought .say-text,
 .canvas-avatar-bubble.mode-hidden .say-shape,
@@ -1413,7 +1415,7 @@
   }
 }
 /* the tails layer: the speech tail and the cloud's puffs, body-local */
-.canvas-avatar .avatar-body > .bubble-tails {
+.canvas-avatar-bubble > .bubble-tails {
   position: absolute;
   left: -300px;
   top: -300px;
