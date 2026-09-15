@@ -265,6 +265,7 @@ let core_mark_err_view =
     | ModuleExtraMembers(_)
     | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
+    | TypeMemberCapture(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -810,6 +811,16 @@ let exp_mark_err_view =
     ])
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
+  | TypeMemberCapture(names) =>
+    div_err(
+      [text("Type variable ")]
+      @ ListUtil.join(text(", "), List.map(code, names))
+      @ [
+        text(
+          " collides with a type member of the same name in this signature; rename the type variable",
+        ),
+      ],
+    )
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([

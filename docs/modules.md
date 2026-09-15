@@ -178,8 +178,12 @@ earlier type members by name, so:
 
 - `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat type members as
   sequential binders (`Ctx.extend_sig_item` binds one in a context).
-  Member names cannot be alpha-renamed; on capture `subst` falls back to
-  substituting `?` into the remaining items.
+  Member names cannot be alpha-renamed, so a substituted type with a free
+  variable named like a member would be captured by it. `subst` degrades the
+  items after that member to `?` and `Typ.subst_captures` names the member;
+  statics substitutes only through `StaticsBase.subst_marked`, which turns
+  that into `Mark.TypeMemberCapture`, and normalizes a type argument first so
+  an alias never collides — only an abstract type variable can.
 - `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
   with the signature's earlier type members substituted, so `x : T` in
   `{ type T = Int; let x : T }` projects to `Int`.
@@ -283,7 +287,7 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypeMemberCapture` |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
@@ -298,7 +302,7 @@ used only for mispositioned items.
 | File                                       | What                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------- |
 | `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
-| `test/Test_Typ.re`                         | `Typ.Sig`: meet, normalize, free_vars, member projection                  |
+| `test/Test_Typ.re`                         | `Typ.Sig`: meet, normalize, free_vars, member projection, `subst_captures` |
 | `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
 | `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
 | `test/Test_TyDi.re`                        | Value/type member completion                                              |
