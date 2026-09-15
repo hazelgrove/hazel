@@ -205,6 +205,42 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | Some(None)
       | None => None
       };
+    /* an UNTYPED constructor (raw syntax fed to the evaluator without
+       elaboration — a livelit's model argument, an agent-inserted
+       value) ascribed to a sum that has it takes the sum as its type;
+       an application pushes the ascription into the payload */
+    | (Constructor(c, None), Sum(m))
+        when ConstructorMap.get_entry(c, m) == Some(None) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Constructor(c, Some(Some(t))) |> DHExp.fresh,
+        ),
+      )
+    | (
+        Ap(Forward, {term: Constructor(c, None), _} as con, payload),
+        Sum(m),
+      )
+        when ConstructorMap.get_entry(c, m) != None =>
+      switch (ConstructorMap.get_entry(c, m)) {
+      | Some(Some(t')) =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Ap(
+              Forward,
+              IdTagged.fast_copy(
+                DHExp.rep_id(con),
+                Constructor(c, Some(Some(Typ.temp(Arrow(t', t)))))
+                |> DHExp.fresh,
+              ),
+              recur(Asc(payload, t') |> DHExp.fresh),
+            )
+            |> DHExp.fresh,
+          ),
+        )
+      | _ => None
+      }
     | (Constructor(_, Some(Some(t))), t')
         when
           Typ.is_consistent(

@@ -347,7 +347,11 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
 
     /* Probe ids up front — statics needs them too, since instrumentation
        (e.g. the livelit view fold-in) happens during elaboration */
-    let base_probe_ids = Haz3lcore.CachedStatics.probe_ids_of_zipper(zipper);
+    let base_probe_ids =
+      Haz3lcore.CachedStatics.probe_ids_of_zipper(
+        ~projectors=make_term_result.projectors,
+        zipper,
+      );
 
     /* Run statics to get info_map and the (instrumented) elaboration */
     let (info_map, elaborated) =
