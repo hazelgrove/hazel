@@ -4364,7 +4364,16 @@ let view_impl =
                     },
                   zoom: CanvasCamera.zoom_now^,
                 },
-              ~pos_of,
+              ~pos_of=
+                CanvasScore.with_edge_positions(
+                  ~pos_of,
+                  ~edges=
+                    List.map(
+                      (el: CanvasLayout.edge_layout) =>
+                        (el.edge.e_name, el.src_p, el.dst_p),
+                      lay.edges @ removed_edge_layouts,
+                    ),
+                ),
               ~all_keys=cur_keys,
               ~exposed=CanvasCamera.exposed_keys(),
               score,
