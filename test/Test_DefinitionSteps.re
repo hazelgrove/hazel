@@ -26,6 +26,67 @@ let tests = (
   "Definition steps",
   [
     test_case(
+      "block replacement never duplicates declarations",
+      `Quick,
+      () => {
+        let before =
+          parse(
+            "type A = Int in type B = [A] in let f : A -> B = fun a -> [a] in f(1)",
+          );
+        let after =
+          parse(
+            "type A = Int in type B = [A] in let f : A -> B = fun a -> [a, a] in f(2)",
+          );
+        let steps = check_plan(before, after);
+        ignore(
+          List.fold_left(
+            (seg, op) => {
+              let next = DefinitionSteps.apply(op, seg);
+              let names =
+                DefinitionSteps.items(next)
+                |> List.filter_map((it: DefinitionSteps.item) => it.name);
+              check(
+                int,
+                "each named definition appears once",
+                List.length(List.sort_uniq(compare, names)),
+                List.length(names),
+              );
+              check(
+                list(string),
+                "types stay present throughout",
+                ["A", "B"],
+                names
+                |> List.filter_map(((kind, name)) =>
+                     kind == "type" ? Some(name) : None
+                   ),
+              );
+              next;
+            },
+            before,
+            steps,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "existing function body changes as one definition",
+      `Quick,
+      () => {
+        let before =
+          parse("let f : Int -> Int = fun x -> let old = x in old in f(1)");
+        let (term, _) = Test_StackFocus.statics_of(before);
+        let id = Test_StackFocus.outline_id(term, "f");
+        let after =
+          Web.ScratchFocus.splice_def(
+            id,
+            parse("fun x -> let a = x + 1 in let b = a * 2 in b"),
+            before,
+          );
+        let steps = check_plan(before, after);
+        check(int, "one function revision", 1, List.length(steps));
+      },
+    ),
+    test_case(
       "multi-definition insertion",
       `Quick,
       () => {
@@ -60,6 +121,44 @@ let tests = (
               String.contains(text, 'A') && !String.contains(text, 'B');
             },
             states,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "reparsed module retains existing members during replacement",
+      `Quick,
+      () => {
+        let before =
+          parse(
+            "let m = {type A = Int; type B = Int; let f : A -> B = fun x -> x} in 0",
+          );
+        let after =
+          parse(
+            "let m = {type A = Int; type B = Int; let f : A -> B = fun x -> x + 1} in 0",
+          );
+        let steps = check_plan(before, after);
+        ignore(
+          List.fold_left(
+            (seg, op) => {
+              let next = DefinitionSteps.apply(op, seg);
+              let text = Test_StackFocus.text_of(next);
+              check(
+                bool,
+                "A remains in the module",
+                true,
+                String.contains(text, 'A'),
+              );
+              check(
+                bool,
+                "B remains in the module",
+                true,
+                String.contains(text, 'B'),
+              );
+              next;
+            },
+            before,
+            steps,
           ),
         );
       },
