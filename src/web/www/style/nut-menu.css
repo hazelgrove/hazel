@@ -51,8 +51,11 @@
   outline: 0.6px solid var(--menu-outline);
   box-shadow: 0px 10px 20px var(--menu-shadow);
 }
-#top-bar .nut-menu .submenu-icon:hover + .submenu,
-#top-bar .nut-menu .submenu-icon + .submenu:hover {
+/* Hovering opens the menu unless it has been dismissed: an item that
+ * navigates away marks the enclosing .top-menu-item (NutMenu.dismiss), and
+ * its mouseleave clears the mark. */
+#top-bar .nut-menu .top-menu-item:not(.dismissed) > .submenu-icon:hover + .submenu,
+#top-bar .nut-menu .top-menu-item:not(.dismissed) > .submenu-icon + .submenu:hover {
   display: flex;
 }
 

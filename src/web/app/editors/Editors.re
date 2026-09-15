@@ -637,7 +637,10 @@ module View = {
         config_type =>
           Widgets.button_named(
             Icons.gear,
-            _ => inject(Update.ShowConfig(config_type)),
+            evt => {
+              NutMenu.dismiss(evt);
+              inject(Update.ShowConfig(config_type));
+            },
             ~tooltip=
               "Edit "
               ++ ConfigurationMode.Model.config_name_of_type(config_type),

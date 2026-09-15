@@ -16,9 +16,38 @@ let item_group = (name: string, ts) => {
   div_c("group", [div_c("name", [text(name)]), div_c("contents", ts)]);
 };
 
+let item_class = "top-menu-item";
+
+/* A submenu opens on CSS :hover, which script cannot clear, so an item that
+   navigates away would leave its menu hanging open over the new view.
+   `dismissed` suppresses the hover rule (nut-menu.css) until the pointer
+   leaves the menu. Items that only toggle a setting should not use it: you
+   flip several in a row. */
+let dismissed_class = "dismissed";
+
+let dismiss = (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)): unit =>
+  switch (Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget)) {
+  | None => ()
+  | Some(el) =>
+    Util.JsUtil.find_ancestor_with_class(el, item_class)
+    |> Option.iter(item =>
+         item##.classList##add(Js_of_ocaml.Js.string(dismissed_class))
+       )
+  };
+
 let submenu = (~tooltip, ~icon, menu) =>
   div(
-    ~attrs=[clss(["top-menu-item"])],
+    ~attrs=[
+      clss([item_class]),
+      Attr.on_mouseleave(evt => {
+        switch (Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget)) {
+        | None => ()
+        | Some(item) =>
+          item##.classList##remove(Js_of_ocaml.Js.string(dismissed_class))
+        };
+        Effect.Ignore;
+      }),
+    ],
     [
       div(
         ~attrs=[clss(["submenu-icon"]), Attr.title(tooltip)],
