@@ -94,6 +94,66 @@ let instances = (e: Exp.t): list((string, list(Id.t))) => {
   found^;
 };
 
+/* A mode slot a reset should rewrite, so that the program says what the
+   instance is rather than what it used to be.
+
+   Pressing S while the program declares `$graphical` used to leave the two
+   disagreeing: the instance went simple and the text went on claiming
+   otherwise, with `FumolaRun.last_declared` existing only to stop the
+   re-run from overruling the reader. Rewriting the slot removes the
+   disagreement at its source.
+
+   A slot is rewritten only when it is a literal that DISAGREES with the mode
+   being asked for. The three exclusions each have their own reason:
+
+   - a slot that already agrees needs no edit, and editing it would put a
+     no-op in the undo history;
+   - a hole declares nothing -- it means "leave this instance's mode alone" --
+     so writing a mode into it would change what the program says rather than
+     correct it;
+   - a `hazel … end` escape is a mode COMPUTED in Hazel, which is the idiom
+     that lets a mode be named once and referred to (`Hazel inside`).
+     Overwriting it with a literal would delete a working program to restate
+     something it already says. */
+let rec declared_literal = (m: FumolaTermBase.t): option(FumolaRun.mode) =>
+  switch (Annotated.term_of(m)) {
+  | Variant("simple", None) => Some(FumolaRun.Simple)
+  | Variant("graphical", None) => Some(FumolaRun.Graphical)
+  | Paren(inner) => declared_literal(inner)
+  | _ => None
+  };
+
+/* Every such slot for one instance. An instance may be named by several
+   blocks -- the node-info slide runs five against `look` -- and they all
+   declare the same instance, so a reset that rewrote one and left the rest
+   would leave the program disagreeing with itself. */
+let mode_slots_to_rewrite =
+    (~instance: string, ~into: FumolaRun.mode, e: Exp.t): list(Id.t) => {
+  let found = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          switch (e.term) {
+          | FumolaQuote(name, mode, _) =>
+            switch (Annotated.term_of(name)) {
+            | Var(x) when x == instance =>
+              switch (declared_literal(mode)) {
+              | Some(declared) when declared != into =>
+                found := mode.annotation.ids @ found^
+              | _ => ()
+              }
+            | _ => ()
+            }
+          | _ => ()
+          };
+          cont(e);
+        },
+      e,
+    );
+  found^;
+};
+
 /* The instance to show.
 
    The cursor decides when it is inside one, innermost first: a Fumola program
@@ -661,7 +721,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      when the mode could not be asked, which is the same silence the header
      keeps. */
   let reset_button =
-      (~mode: option(Language.FumolaRun.mode)=?, instance: string) => {
+      (
+        ~mode: option(Language.FumolaRun.mode)=?,
+        ~term: Exp.t,
+        instance: string,
+      ) => {
     let into = (into_mode, label, what) =>
       span(
         ~attrs=[
@@ -676,8 +740,32 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             ++ "come back. The mode stays as you asked until the program's "
             ++ "own mode is edited.",
           ),
+          /* An operation and an edit. The reset empties the instance and
+             puts it in the mode asked for; the edit makes the program say
+             so, for every literal slot that disagreed. Doing only the first
+             is what left the text claiming a mode the instance no longer
+             had. */
           Attr.on_click(_ =>
-            globals.inject_global(FumolaReset(instance, into_mode))
+            Effect.Many([
+              globals.inject_global(FumolaReset(instance, into_mode)),
+              ...mode_slots_to_rewrite(~instance, ~into=into_mode, term)
+                 |> List.concat_map(id =>
+                      [
+                        globals.inject_global(
+                          ActiveEditor(
+                            Haz3lcore.Action.Select(Term(Id(id, Left))),
+                          ),
+                        ),
+                        globals.inject_global(
+                          ActiveEditor(
+                            Haz3lcore.Action.Insert(
+                              "$" ++ Language.FumolaRun.mode_source(into_mode),
+                            ),
+                          ),
+                        ),
+                      ]
+                    ),
+            ])
           ),
         ],
         [text(label)],
@@ -1059,7 +1147,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             [
               div(
                 ~attrs=[clss(["fumola-controls"])],
-                [tab_strip(tab), reset_button(~mode?, instance)],
+                [tab_strip(tab), reset_button(~mode?, ~term, instance)],
               ),
             ]
             @ [editor_strip()]
