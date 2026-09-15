@@ -162,7 +162,7 @@ let install_zoom_listener = (): unit => {
                 pending_dy := 0.;
                 /* detent at 1:1 so pinching back to normal lands exactly */
                 let z = abs_float(z -. 1.) < 0.05 ? 1. : z;
-                let z = max(0.4, min(2.5, z));
+                let z = CanvasZoom.clamp(z);
                 switch (zoom_send^) {
                 | Some(send) =>
                   /* apply the zoom IMPERATIVELY and correct the scroll
@@ -1818,7 +1818,7 @@ let view_impl =
       let x: int = Js.Unsafe.coerce(e)##.clientX;
       let y: int = Js.Unsafe.coerce(e)##.clientY;
       /* CSS zoom scales screen deltas; convert to layout px */
-      let z = max(0.2, globals.settings.canvas_zoom);
+      let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
       let dx = float_of_int(x - sx) /. z
       and dy = float_of_int(y - sy) /. z;
       if (abs_float(dx) +. abs_float(dy) > 4.) {
@@ -2043,7 +2043,7 @@ let view_impl =
     open Js_of_ocaml;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
-    let z = max(0.2, globals.settings.canvas_zoom);
+    let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
     switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.avatar_dom_id)) {
     | None => Effect.Ignore
     | Some(av) =>
@@ -2271,7 +2271,7 @@ let view_impl =
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
     let (w0, h0) = card_size(key);
-    let z = max(0.2, globals.settings.canvas_zoom);
+    let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
     let cur = ref((w0, h0));
     let natural =
       List.assoc_opt(
@@ -2391,43 +2391,39 @@ let view_impl =
     let _ = doc##addEventListener("mouseup", on_up);
     Effect.Prevent_default;
   };
-  /* fit the NODES' extent (nodes pinned or dragged outside the frame box
-     sit outside it) into the pane; also runs after a card opens or
-     resizes, so an expanded node never sits off-pane */
+  /* Explicit Fit is an overview, independent of Follow's readability
+     floor. Include the rendered cards, labels and wires, not just node
+     radii: any of them can extend beyond the layout's nominal box. */
   let fit_view = () => {
-    /* slack: equality lets sub-pixel rounding re-summon the
-       scrollbar the fit was meant to remove */
-    /* fit the NODES' extent, not the layout box: nodes pinned
-       or dragged above/left of the frame origin sit outside
-       the box (a board of only such nodes has a 0-high box) */
     let aw = Option.value(~default=lay.width, avail_width)
     and ah = Option.value(~default=lay.height, avail_height);
-    switch (CanvasCamera.graph_bbox^) {
+    let top = min(max(0., ah -. 40.), CanvasCamera.overview_top_inset());
+    CanvasCamera.note_user_zoom();
+    let bounds =
+      switch (CanvasCamera.rendered_graph_bbox()) {
+      | Some(b) => Some(b)
+      | None => CanvasCamera.graph_bbox^
+      };
+    switch (bounds) {
     | Some((x0, y0, x1, y1)) =>
-      let pad = 28.;
-      let gw = max(1., x1 -. x0 +. 2. *. pad)
-      and gh = max(1., y1 -. y0 +. 2. *. pad);
+      let z =
+        CanvasZoom.fit(~width=x1 -. x0, ~height=y1 -. y0, ~aw, ~ah=ah -. top);
       CanvasCamera.animate(
         ~aw,
         ~ah,
-        ~zoom=
-          Some(
-            max(0.4, min(2.5, min((aw -. 24.) /. gw, (ah -. 24.) /. gh))),
-          ),
+        ~zoom=Some(z),
         ~dur=320.,
         ~easing=CanvasCamera.EaseOut,
-        ((x0 +. x1) /. 2., (y0 +. y1) /. 2.),
+        ((x0 +. x1) /. 2., (y0 +. y1) /. 2. -. top /. (2. *. z)),
       );
     | None =>
-      let zw = (aw -. 24.) /. max(1., lay.width)
-      and zh = (ah -. 24.) /. max(1., lay.height);
       animate_fit(
-        ~z_to=max(0.4, min(2.5, min(zw, zh))),
+        ~z_to=CanvasZoom.fit(~width=lay.width, ~height=lay.height, ~aw, ~ah),
         ~lw=lay.width,
         ~lh=lay.height,
         ~aw,
         ~ah,
-      );
+      )
     };
   };
   /* a card just opened or resized: bring IT into view (pan; zoom up to

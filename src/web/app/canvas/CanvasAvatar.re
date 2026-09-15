@@ -482,7 +482,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
         Js.to_string(Js.Unsafe.get(style, "zoom"))
         |> float_of_string_opt
         |> Option.value(~default=1.)
-        |> max(0.2);
+        |> CanvasZoom.clamp;
       let (cx, cy) =
         board_position(
           ~origin=(Js.Unsafe.get(rr, "left"), Js.Unsafe.get(rr, "top")),
@@ -692,7 +692,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
       and sh: float = Js.Unsafe.get(sr, "height")
       and rl: float = Js.Unsafe.get(rr, "left")
       and rt: float = Js.Unsafe.get(rr, "top");
-      let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
+      let zoom = CanvasZoom.clamp(CanvasBuffer.canvas_zoom^);
       let ox = (sl +. sw /. 2. -. rl) /. zoom
       and oy = (st +. sh /. 2. -. rt) /. zoom;
       let lx = tx -. ox

@@ -300,7 +300,7 @@ let place = (): unit =>
       if (m != Hidden) {
         let (cx, cy, r) = CanvasAvatar.bounding_circle();
         /* which way is there room: the circle's position in the pane */
-        let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
+        let zoom = CanvasZoom.clamp(CanvasBuffer.canvas_zoom^);
         let (sx, sy) =
           switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
           | Some(pane) =>

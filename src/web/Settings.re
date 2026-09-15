@@ -729,7 +729,7 @@ module Update = {
         }
       | SetCanvasZoom(z) => {
           ...settings,
-          canvas_zoom: max(0.4, min(2.5, z)),
+          canvas_zoom: CanvasZoom.clamp(z),
         }
       | ToggleCanvasPace => {
           ...settings,
