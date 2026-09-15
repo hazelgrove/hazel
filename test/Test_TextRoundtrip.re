@@ -73,9 +73,7 @@ let doc_slide_cases =
 /* The .hzt lessons are authored as text too, so both halves of each one
    must be a fixed point: what TutorialText parsed and the editor reprints
    has to be the text in the file, or `tutorial-decode` would not reproduce
-   its own source. A hole regrout does not re-insert fails here — today that
-   is a lone `¿` inside a container, which reloads as `[]` (#2518), and is
-   why one lesson spells that hole `?` for now.
+   its own source. A hole regrout does not re-insert fails here.
    `hazel tutorial-verify --verbose` prints the diff. */
 let tutorial_lesson_cases =
   Web.TutorialText.all

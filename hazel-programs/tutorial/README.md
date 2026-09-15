@@ -40,13 +40,8 @@ Marker lines are *exactly*:
 - **No markers** → the whole file is `@code`.
 - Holes are `¿` — the editor's implicit Grout, and what you are asking the
   student to fill. Probes and projectors round-trip as `^^probe(...)`.
-  - **Workaround, remove once hazelgrove/hazel#2518 is fixed:** a lone `¿`
-    inside a container is dropped on reload (`[¿]` comes back as `[]`), so a
-    lesson wanting a hole as a container's only element has to spell it `?`
-    for now. That is an explicit hole *tile*: it survives, but the student
-    replaces a piece of syntax instead of filling a gap. Only
-    `14-list-literals.hzt` does this today — put it back to `¿` when the bug
-    is fixed.
+  - In *expression* position `?` is an explicit hole *tile*, which the student
+    deletes rather than fills. It is not the same thing — prefer `¿`.
   - In *type* position `?` means the unknown type (as in lesson 22), which is
     neither of the above.
 - `wrapper` binds the **whole** `@code` as `answer` — `let answer = <impl> in

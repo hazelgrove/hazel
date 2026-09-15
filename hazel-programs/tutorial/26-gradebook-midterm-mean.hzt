@@ -114,6 +114,6 @@ midterm_mean(gradebook)
 @test
 test midterm_mean(gradebook) == 81.6 end;
 test midterm_mean([
-(student_id=?, year=?, semester=?, quiz1=?, quiz2=?, midterm=1., final=?),
-(student_id=?, year=?, semester=?, quiz1=?, quiz2=?, midterm=2., final=?)
+(student_id=¿, year=¿, semester=¿, quiz1=¿, quiz2=¿, midterm=1., final=¿),
+(student_id=¿, year=¿, semester=¿, quiz1=¿, quiz2=¿, midterm=2., final=¿)
 ]) == 1.5 end
