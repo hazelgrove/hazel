@@ -3885,45 +3885,9 @@ let view_impl =
         ],
         [text(label)],
       );
-    let mode_btn = (kind, label, tooltip) => {
-      let active =
-        switch (place) {
-        | Some((k, _)) => k == kind
-        | None => false
-        };
-      btn(
-        ~cls=active ? "tool-active" : "",
-        label,
-        tooltip,
-        set_place(active ? None : Some((kind, []))),
-      );
-    };
     div(
       ~attrs=[clss(["canvas-toolbar"])],
       [
-        mode_btn(
-          "type",
-          {js|τ|js},
-          "stub type: click the canvas where it should go; creates type T = ? in",
-        ),
-        mode_btn(
-          "tuple",
-          "()",
-          "tuple former: click component nodes in order, then the canvas to place; creates type T = (A, B) in",
-        ),
-        mode_btn(
-          "list",
-          "[]",
-          "list former: click the element node, then the canvas to place; creates type T = [A] in",
-        ),
-        btn(
-          ~cls=connect == None ? "" : "tool-active",
-          {js|ƒ|js},
-          "draw a function: click a source node then a target node (shift-click collects several sources into a tuple input); creates let f : A -> B = ? in",
-          set_connect(connect == None ? Some([]) : None),
-        ),
-      ]
-      @ [
         btn(
           ~cls=globals.settings.canvas_pace ? "tool-active" : "",
           "pace",
@@ -3951,15 +3915,6 @@ let view_impl =
           offsets == [] && pins == []
             ? Effect.Ignore
             : globals.inject_global(Set(ClearCanvasNodeOffsets(slide))),
-        ),
-        btn(
-          ~cls=CanvasAvatar.is_rig() ? "tool-active" : "",
-          ~on_press=CanvasAvatar.toggle_look,
-          {js|◬|js},
-          CanvasAvatar.is_rig()
-            ? "agent look: constellation rig with moods — click for the minimal @ glyph"
-            : "agent look: minimal @ glyph — click for the constellation rig with moods",
-          globals.inject_global(Set(CanvasTick)),
         ),
         btn(
           ~cls=

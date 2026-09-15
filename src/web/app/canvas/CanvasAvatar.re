@@ -68,8 +68,8 @@ let storage_set = (k: string, v: string): unit =>
 let look: ref(string) =
   ref(
     switch (storage_get(look_key)) {
-    | Some("rig") => "rig"
-    | _ => "glyph"
+    | Some("glyph") => "glyph"
+    | _ => "rig"
     },
   );
 let is_rig = (): bool => look^ == "rig";
