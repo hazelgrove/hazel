@@ -76,50 +76,108 @@ let parse_flags = (s: sections, body: string): sections => {
   );
 };
 
-/* Split input on `@title`/`@prompt`/`@code`/`@test`/`@hint`/`@reference`/
-   `@hints`/`@flags` marker lines. Default section is `code`. */
+/* The section a marker line opens. Text before any marker is `Code`.
+   Adding a section here is a type error in `marker_of_line` and `add_line`
+   until it is wired through both, which is the point: the marker text, the
+   section it names, and the body it accumulates into stay one thing. */
+type marker =
+  | Title
+  | Prompt
+  | Code
+  | Test
+  | Hint
+  | Reference
+  | Hints
+  | Flags;
+
+let marker_of_line = (line: string): option(marker) =>
+  switch (String.trim(line)) {
+  | "@title" => Some(Title)
+  | "@prompt" => Some(Prompt)
+  | "@code" => Some(Code)
+  | "@test" => Some(Test)
+  | "@hint" => Some(Hint)
+  | "@reference" => Some(Reference)
+  | "@hints" => Some(Hints)
+  | "@flags" => Some(Flags)
+  | _ => None
+  };
+
+/* Each section's lines, joined in file order, before any interpretation. */
+type bodies = {
+  title: string,
+  prompt: string,
+  code: string,
+  test: string,
+  hint: string,
+  reference: string,
+  hints: string,
+  flags: string,
+};
+
+let no_bodies = {
+  title: "",
+  prompt: "",
+  code: "",
+  test: "",
+  hint: "",
+  reference: "",
+  hints: "",
+  flags: "",
+};
+
+let add_line = (m: marker, line: string, b: bodies): bodies => {
+  let line = line ++ "\n";
+  switch (m) {
+  | Title => {
+      ...b,
+      title: b.title ++ line,
+    }
+  | Prompt => {
+      ...b,
+      prompt: b.prompt ++ line,
+    }
+  | Code => {
+      ...b,
+      code: b.code ++ line,
+    }
+  | Test => {
+      ...b,
+      test: b.test ++ line,
+    }
+  | Hint => {
+      ...b,
+      hint: b.hint ++ line,
+    }
+  | Reference => {
+      ...b,
+      reference: b.reference ++ line,
+    }
+  | Hints => {
+      ...b,
+      hints: b.hints ++ line,
+    }
+  | Flags => {
+      ...b,
+      flags: b.flags ++ line,
+    }
+  };
+};
+
+let split_bodies = (content: string): bodies =>
+  String.split_on_char('\n', content)
+  |> List.fold_left(
+       ((b, cur), line) =>
+         switch (marker_of_line(line)) {
+         | Some(m) => (b, m)
+         | None => (add_line(cur, line, b), cur)
+         },
+       (no_bodies, Code),
+     )
+  |> fst;
+
 let parse_sections = (content: string): sections => {
-  let lines = String.split_on_char('\n', content);
-  let (acc, _cur) =
-    List.fold_left(
-      ((acc, cur), line) =>
-        switch (String.trim(line)) {
-        | "@title" => (acc, `Title)
-        | "@prompt" => (acc, `Prompt)
-        | "@code" => (acc, `Code)
-        | "@test" => (acc, `Test)
-        | "@hint" => (acc, `Hint)
-        | "@reference" => (acc, `Reference)
-        | "@hints" => (acc, `Hints)
-        | "@flags" => (acc, `Flags)
-        | _ =>
-          let key =
-            switch (cur) {
-            | `Title => "title"
-            | `Prompt => "prompt"
-            | `Code => "code"
-            | `Test => "test"
-            | `Hint => "hint"
-            | `Reference => "reference"
-            | `Hints => "hints"
-            | `Flags => "flags"
-            };
-          let prev =
-            try(List.assoc(key, acc)) {
-            | Not_found => ""
-            };
-          (
-            [(key, prev ++ line ++ "\n"), ...List.remove_assoc(key, acc)],
-            cur,
-          );
-        },
-      ([], `Code),
-      lines,
-    );
-  let get = k =>
-    try(List.assoc(k, acc)) {
-    | Not_found => ""
-    };
+  let b = split_bodies(content);
   let trimmed_opt = (body: string): option(string) =>
     switch (String.trim(body)) {
     | "" => None
@@ -127,18 +185,18 @@ let parse_sections = (content: string): sections => {
     };
   let s = {
     ...empty_sections,
-    title: String.trim(get("title")),
-    prompt: String.trim(get("prompt")),
-    code: get("code"),
-    test: String.trim(get("test")),
-    hint: String.trim(get("hint")),
-    reference: trimmed_opt(get("reference")),
+    title: String.trim(b.title),
+    prompt: String.trim(b.prompt),
+    code: b.code,
+    test: String.trim(b.test),
+    hint: String.trim(b.hint),
+    reference: trimmed_opt(b.reference),
     hints:
-      String.split_on_char('\n', get("hints"))
+      String.split_on_char('\n', b.hints)
       |> List.map(String.trim)
       |> List.filter(h => h != ""),
   };
-  parse_flags(s, get("flags"));
+  parse_flags(s, b.flags);
 };
 
 /* Filename -> module_name / title, matching the retired generator so the
@@ -157,11 +215,14 @@ let module_name_of = (rel: string): string => {
   "TuGen_" ++ camel;
 };
 
-let cap_words = (s: string): string =>
-  String.split_on_char('-', s)
+let cap_join = (words: list(string)): string =>
+  words
   |> List.filter(w => w != "")
   |> List.map(String.capitalize_ascii)
   |> String.concat(" ");
+
+let cap_words = (s: string): string =>
+  cap_join(String.split_on_char('-', s));
 
 let starts_with_digit = (s: string): bool =>
   String.length(s) > 0
@@ -175,11 +236,6 @@ let starts_with_digit = (s: string): bool =>
    " - ": "26-task-grove-name" -> "26 - Task - Grove Name". Directory
    segments become the SlidePath folders the title sits in. */
 let is_category = (s: string): bool => s == "task" || s == "extra";
-let cap_join = (words: list(string)): string =>
-  words
-  |> List.filter(w => w != "")
-  |> List.map(String.capitalize_ascii)
-  |> String.concat(" ");
 let title_of = (rel: string): string => {
   let segs = String.split_on_char('/', chop_lesson_ext(rel));
   switch (List.rev(segs)) {

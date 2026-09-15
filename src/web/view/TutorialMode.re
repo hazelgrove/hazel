@@ -392,50 +392,41 @@ module View = {
    *   {{video:FILE}}  embeds a <video> player with src "img/FILE"
    *   {{no_editor}}   hides the implementation editor (text-only slide) */
   let no_editor_marker = "{{no_editor}}";
+  let video_open = "{{video:";
+  let video_close = "}}";
 
-  let index_from = (hay: string, needle: string, from: int): option(int) => {
-    let (hl, nl) = (String.length(hay), String.length(needle));
-    let rec go = (i: int): option(int) =>
-      if (i + nl > hl) {
-        None;
-      } else if (String.sub(hay, i, nl) == needle) {
-        Some(i);
-      } else {
-        go(i + 1);
-      };
-    go(from);
-  };
-
-  let has_marker = (s, m) => index_from(s, m, 0) != None;
-
-  let rec remove_all = (s: string, needle: string): string =>
-    switch (index_from(s, needle, 0)) {
-    | None => s
-    | Some(i) =>
-      let nl = String.length(needle);
-      remove_all(
-        String.sub(s, 0, i)
-        ++ String.sub(s, i + nl, String.length(s) - (i + nl)),
-        needle,
-      );
+  let has_marker = (s: string, marker: string): bool =>
+    switch (Util.StringUtil.plain_split(s, marker)) {
+    | [_] => false
+    | _ => true
     };
+
+  let remove_all = (s: string, marker: string): string =>
+    Util.StringUtil.plain_split(s, marker) |> String.concat("");
 
   type prompt_seg =
     | Text(string)
     | Video(string);
 
-  let rec split_video = (s: string): list(prompt_seg) =>
-    switch (index_from(s, "{{video:", 0)) {
-    | None => [Text(s)]
-    | Some(i) =>
-      let after = String.sub(s, i + 8, String.length(s) - (i + 8));
-      switch (index_from(after, "}}", 0)) {
-      | None => [Text(s)]
-      | Some(j) =>
-        let file = String.trim(String.sub(after, 0, j));
-        let rest = String.sub(after, j + 2, String.length(after) - (j + 2));
-        [Text(String.sub(s, 0, i)), Video(file), ...split_video(rest)];
-      };
+  /* An unclosed `{{video:` is left alone, as the text it literally is. */
+  let split_video = (s: string): list(prompt_seg) =>
+    switch (Util.StringUtil.plain_split(s, video_open)) {
+    | [] => []
+    | [before, ...opened] => [
+        Text(before),
+        ...List.concat_map(
+             chunk =>
+               switch (Util.StringUtil.plain_split(chunk, video_close)) {
+               | [unclosed] => [Text(video_open ++ unclosed)]
+               | [file, ...after] => [
+                   Video(String.trim(file)),
+                   Text(String.concat(video_close, after)),
+                 ]
+               | [] => []
+               },
+             opened,
+           ),
+      ]
     };
 
   let video_node = (file: string): Node.t =>
