@@ -95,6 +95,36 @@ let tests = (
   "Canvas manual placement",
   [
     test_case(
+      "function terminal clears a type relationship",
+      `Quick,
+      () => {
+        let g =
+          Test_CanvasGraphFold.graph_of(
+            {|type Point = (Int, Int) in
+        type Shape = + Circle(Point, Int) in type Scene = [Shape] in
+        let area : Shape -> Int = fun s -> 0 in 0|},
+          );
+        let lay = L.layout(~cards=[], g);
+        let edge =
+          List.find(
+            (e: L.edge_layout) => e.edge.e_name == "area",
+            lay.edges,
+          );
+        let a = at(lay, "Shape")
+        and b = at(lay, "Scene");
+        let terminal = at(lay, edge.edge.dst);
+        let u = L.norm(a, b);
+        let distance =
+          abs_float((terminal.y -. a.y) *. u.x -. (terminal.x -. a.x) *. u.y);
+        check(
+          bool,
+          "area's terminal is visibly off the Shape–Scene chord",
+          true,
+          distance >= 23.,
+        );
+      },
+    ),
+    test_case(
       "dragging leaves unrelated nodes fixed and carries terminals",
       `Quick,
       move_without_bystanders,

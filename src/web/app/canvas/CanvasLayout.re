@@ -290,6 +290,83 @@ let declutter =
   );
 };
 
+/* A docked terminal can lie directly on its anchor's other relationship.
+   Move that terminal off the shared chord before applying manual positions;
+   the user's later drag remains rigid and never relocates bystanders. */
+let separate_docked_chords =
+    (~chords: list((string, string)), nodes: list(node_layout)) => {
+  let positions = Hashtbl.create(32);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(positions, nl.node.key, nl.p),
+    nodes,
+  );
+  List.map(
+    (nl: node_layout) => {
+      let p =
+        List.fold_left(
+          (p: pos, (ka, kb)) =>
+            switch (
+              nl.node.kind,
+              nl.node.sat,
+              Hashtbl.find_opt(positions, ka),
+              Hashtbl.find_opt(positions, kb),
+            ) {
+            | (Builtin, Some((anchor, _)), Some(a), Some(b))
+                when
+                  nl.node.key != ka
+                  && nl.node.key != kb
+                  && (anchor == ka || anchor == kb) =>
+              let length = sqrt((b.x -. a.x) ** 2. +. (b.y -. a.y) ** 2.);
+              let u = norm(a, b);
+              let along = (p.x -. a.x) *. u.x +. (p.y -. a.y) *. u.y;
+              let side = (p.y -. a.y) *. u.x -. (p.x -. a.x) *. u.y;
+              if (length > 1.
+                  && along > 0.
+                  && along < length
+                  && abs_float(side) < nl.r
+                  +. 12.) {
+                let candidate = dir => {
+                  x: p.x -. u.y *. dir *. 42.,
+                  y: p.y +. u.x *. dir *. 42.,
+                };
+                let clearance = (q: pos) =>
+                  List.fold_left(
+                    (score, other: node_layout) =>
+                      other.node.key == nl.node.key
+                        ? score
+                        : min(
+                            score,
+                            sqrt(
+                              (q.x -. other.p.x)
+                              ** 2.
+                              +. (q.y -. other.p.y)
+                              ** 2.,
+                            )
+                            -. other.r,
+                          ),
+                    max_float,
+                    nodes,
+                  );
+                let above = candidate(-1.)
+                and below = candidate(1.);
+                clearance(above) >= clearance(below) ? above : below;
+              } else {
+                p;
+              };
+            | _ => p
+            },
+          nl.p,
+          chords,
+        );
+      {
+        ...nl,
+        p,
+      };
+    },
+    nodes,
+  );
+};
+
 /* Manual movement is applied after automatic layout. Docked satellites
    inherit their anchor's movement; an explicit satellite pin stays put. */
 let apply_manual_positions = (~offsets, ~pins, nodes: list(node_layout)) => {
@@ -772,7 +849,8 @@ let layout_impl =
       List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
       |> Option.map((nl: node_layout) => nl.r)
       |> Option.value(~default=base_radius);
-    declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts);
+    declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts)
+    |> separate_docked_chords(~chords);
   };
   let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
