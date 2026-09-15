@@ -290,8 +290,15 @@ let declutter =
   );
 };
 
+/* Comparison modes keep the same graph and routing; only the rank
+   constraints change. Combined remains the production default. */
+type ranking =
+  | Combined
+  | FunctionFlow
+  | TypeDependencies;
 let layout_impl =
     (
+      ~ranking=Combined,
       ~x_scale=1.,
       ~y_scale=1.,
       ~center_within: option(float)=None,
@@ -574,13 +581,20 @@ let layout_impl =
   /* pinned nodes with no spec relationships float FREE of the rank
      grid: a freshly placed node would otherwise claim a row and shove
      every auto-laid node down */
+  let unrank =
+    List.map((e: Util.GraphLayout.Spec.edge) =>
+      {
+        ...e,
+        ranked: false,
+      }
+    );
+  let type_edges = es => ranking == FunctionFlow ? unrank(es) : es;
   let all_spec_edges =
-    dep_edges
-    @ derived_edges
-    @ flow_edges
-    @ former_rank_edges
+    type_edges(dep_edges @ derived_edges)
+    @ (ranking == TypeDependencies ? unrank(flow_edges) : flow_edges)
+    @ type_edges(former_rank_edges)
     @ formation_edges
-    @ module_flow_pull;
+    @ type_edges(module_flow_pull);
   let spec_touches = (k: string): bool =>
     List.exists(
       (e: Util.GraphLayout.Spec.edge) => e.src == k || e.dst == k,
@@ -616,13 +630,7 @@ let layout_impl =
                 ),
           grid_nodes,
         ),
-      edges:
-        dep_edges
-        @ derived_edges
-        @ flow_edges
-        @ former_rank_edges
-        @ formation_edges
-        @ module_flow_pull,
+      edges: all_spec_edges,
       attachments,
       col_gap: 160.,
       row_gap: 96.,

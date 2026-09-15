@@ -1087,6 +1087,15 @@ let view_impl =
      already-settled graph */
   let (graph, collapsed_counts) =
     collapse_filter(extract_cached(~test_results, editor.statics));
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__canvasLayoutStudy",
+    Js_of_ocaml.Js.Unsafe.callback(() =>
+      Js_of_ocaml.Js.string(
+        Yojson.Safe.to_string(CanvasLayoutStudy.compare(graph)),
+      )
+    ),
+  );
   CanvasEnact.label_of :=
     (
       k =>
