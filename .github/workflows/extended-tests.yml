@@ -3,7 +3,8 @@
 # invisible to CI. This job is the counterweight: the same suite, weekly, with
 # qcheck-core's long mode on, so every ~count is multiplied by
 # QCHECK_LONG_FACTOR. It gates nothing -- it exists to turn rare failures into
-# ones you can see and reproduce.
+# ones you can see and reproduce. Nothing else here notifies anyone when it
+# goes red, so the last step files the failure as an issue.
 #
 # On sizing the factor: only the QCheck properties scale. Most Slow-tagged
 # tests are not properties, and neither are the "stats only" harnesses in
@@ -31,6 +32,13 @@ on:
         description: QCHECK_SEED. Leave blank to derive one from the run id.
         type: string
         default: ""
+      file-issue:
+        description: >
+          Also file or update the tracker issue if this run fails. Off by
+          default: a manual run usually has someone watching the log already.
+          Scheduled runs always file, since nobody is watching those.
+        type: boolean
+        default: false
 
 # Never cancel a run in progress: a superseded four-hour run is four hours of
 # samples thrown away, and nothing downstream is waiting on the result.
@@ -48,6 +56,12 @@ jobs:
     timeout-minutes: 350
     permissions:
       contents: read
+      # For the tracker issue at the end. This widens the token across the
+      # hours-long step that runs the repo's own test code, which is accepted
+      # rather than overlooked: that code is dev's. The alternative is a second
+      # job existing only to hold the write scope while it downloads the
+      # artifact back, which buys isolation from code this job already trusts.
+      issues: write
     steps:
       - name: Checkout the hazel repo
         uses: actions/checkout@v4
@@ -69,9 +83,18 @@ jobs:
           factor="${FACTOR_INPUT:-100}"
           echo "seed=$seed" >> "$GITHUB_OUTPUT"
           echo "factor=$factor" >> "$GITHUB_OUTPUT"
+          # The one place the reproduction command is spelled out. The summary
+          # step and the tracker issue both read it from here rather than each
+          # building their own, so the two cannot drift into telling you
+          # different things about how to get the failure back.
+          echo "repro=QCHECK_LONG=1 QCHECK_LONG_FACTOR=$factor QCHECK_SEED=$seed ./run_tests" >> "$GITHUB_OUTPUT"
           echo "Seed $seed at factor $factor"
 
       - name: Run the suite in long mode
+        # The tracker step at the end keys its gate on this step's outcome by
+        # name, so that a failure here stays distinguishable from one of the
+        # always-steps after it going red on its own.
+        id: suite
         env:
           QCHECK_LONG_FACTOR: ${{ steps.config.outputs.factor }}
           QCHECK_SEED: ${{ steps.config.outputs.seed }}
@@ -81,24 +104,27 @@ jobs:
         timeout-minutes: 330
 
       # The three steps below are always: they are most wanted when the run is
-      # red, and the step above has already decided the job's outcome.
+      # red, and the step above has already decided the job's outcome. The
+      # tracker step after them has a narrower gate of its own.
       - name: Record how to reproduce
         if: ${{ always() }}
         env:
-          FACTOR: ${{ steps.config.outputs.factor }}
-          SEED: ${{ steps.config.outputs.seed }}
+          REPRO: ${{ steps.config.outputs.repro }}
         run: |
           {
             echo "### Reproducing this run"
             echo
             echo '```sh'
-            echo "QCHECK_LONG=1 QCHECK_LONG_FACTOR=$FACTOR QCHECK_SEED=$SEED ./run_tests"
+            echo "$REPRO"
             echo '```'
             echo
             echo "Narrow it to one group by appending, say, \`test 'Evaluator.Properties'\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the JUnit results
+        # For artifact-url, which the tracker issue links, so that reading the
+        # issue does not mean hunting through the Actions tab for the XML.
+        id: junit
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
@@ -117,6 +143,266 @@ jobs:
           reporter: java-junit
           fail-on-error: true
           fail-on-empty: false
+          # Only the failing cases, and list-suites left at `all` -- see Quick
+          # Test Report in checks.yml for both halves of that. It matters most
+          # here: at `all` this report is every one of some 3800 cases as its
+          # own row, several hundred kilobytes of green burying the handful of
+          # rows anyone opened it for.
+          list-tests: failed
           # Leaving use-actions-summary at its default writes the report to this
           # job's summary and creates no check run -- see checks.yml for why
           # that is the only placement GitHub actually lets us pick.
+
+      # Nothing else notifies anyone when the weekly run goes red. There is no
+      # Slack hook and no webhook, and GitHub's own mail for a failed scheduled
+      # run reaches whoever last touched the cron on dev and nobody else. So the
+      # failure goes to the issue tracker, which people already read.
+      #
+      # One rolling issue rather than one per run: the known seed-flaky
+      # properties would otherwise open a near-duplicate every Sunday. The
+      # notification shape follows from GitHub's own -- creating an issue
+      # notifies everyone watching the repo, commenting on one notifies only its
+      # participants. So the first failure pings the repo, the weeks after it
+      # are quiet in the thread, and closing the issue is what re-arms the ping:
+      # the lookup below is state `open`, so a closed tracker is never found,
+      # never reopened, and the next failure opens a fresh one. The issue body
+      # says so too, since a reader has no way to guess it.
+      #
+      # Keyed on the suite step's own outcome rather than on failure(): the
+      # steps above are always-steps, so by the time this one is evaluated the
+      # job may have been turned red by the upload or by the reporter rather
+      # than by a test, and a comment saying the suite failed when it passed is
+      # worse than no comment at all. `!= success` rather than `== failure` so
+      # that a skipped suite files too -- that is the toolchain breaking before
+      # the suite ran, which would otherwise go unreported for as long as it
+      # lasted.
+      #
+      # It must be inputs.file-issue and never github.event.inputs.file-issue:
+      # the latter is the string "false", which is truthy, so an unchecked box
+      # would file on every manual run.
+      - name: File or update the tracker issue
+        if: >-
+          !cancelled() &&
+          steps.suite.outcome != 'success' &&
+          (github.event_name == 'schedule' || inputs.file-issue)
+        uses: actions/github-script@v7
+        env:
+          # Read through env rather than interpolated into the script below. An
+          # expression inside `script` is textual substitution into JavaScript,
+          # and these carry workflow_dispatch strings a human typed, so a quote
+          # in one would break the script rather than the string. The other
+          # github-script steps in this repo do interpolate directly, but what
+          # they interpolate is commit SHAs already matched against [0-9a-fA-F].
+          REPRO: ${{ steps.config.outputs.repro }}
+          SEED: ${{ steps.config.outputs.seed }}
+          FACTOR: ${{ steps.config.outputs.factor }}
+          ARTIFACT_URL: ${{ steps.junit.outputs.artifact-url }}
+        with:
+          script: |
+            const fs = require('fs');
+
+            // On reading the report with a regex rather than a parser: tyxml
+            // escapes <, >, " and & in attribute values and element bodies
+            // alike, so no '<' can occur inside a test name or a failure
+            // message, and a non-greedy match for a closing tag always finds
+            // the real one. A parser would mean an npm install in a workflow
+            // that has no dependencies today, and would throw on the truncated
+            // report a killed run leaves behind, where this just finds fewer
+            // cases. Two facts about the file's shape, both from that printer:
+            // it prints with indent off, so the report is one enormous line and
+            // nothing line-oriented is any use on it; but tab, LF and CR are
+            // left unescaped, so a multi-line alcotest diff keeps its real
+            // newlines inside a <failure> body. Hence [\s\S] below, never '.'.
+            //
+            // One pass over the entities rather than chained replaces, which
+            // would decode the &lt; in a literal &amp;lt; into a '<'.
+            const decode = (s) =>
+              s.replace(/&(lt|gt|quot|apos|amp|#\d+|#x[0-9a-fA-F]+);/g, (_, e) => {
+                switch (e) {
+                  case 'lt': return '<';
+                  case 'gt': return '>';
+                  case 'quot': return '"';
+                  case 'apos': return "'";
+                  case 'amp': return '&';
+                  default:
+                    return String.fromCodePoint(
+                      e[1] === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
+                }
+              });
+
+            // Cannot terminate early: a literal '"' inside an attribute value
+            // would have been escaped to &quot;.
+            const attr = (tag, key) => {
+              const m = tag.match(new RegExp(`\\b${key}="([^"]*)"`));
+              return m ? decode(m[1]) : '';
+            };
+
+            const globber = await glob.create('_build/default/test/junit_tests*.xml');
+            const paths = await globber.glob();
+
+            const cases = [];
+            let totals = null;
+            for (const file of paths) {
+              const xml = fs.readFileSync(file, 'utf8');
+              const suite = xml.match(/<testsuite\b[^>]*>/);
+              if (suite && !totals) {
+                // Counts off the suite element rather than from counting the
+                // matches below, which would disagree with it on a truncated
+                // file and be the less trustworthy of the two.
+                totals = {
+                  tests: attr(suite[0], 'tests'),
+                  failures: attr(suite[0], 'failures'),
+                  errors: attr(suite[0], 'errors'),
+                };
+              }
+              // The self-closing alternative is not optional tidiness: a passing
+              // case may print as <testcase .../>, and a pattern that only knew
+              // the long form would run past it to the next case's </testcase>
+              // and file that case's counterexample under this case's name.
+              for (const m of xml.matchAll(
+                /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g)) {
+                const result = (m[2] || '').match(/<(failure|error)\b[^>]*>([\s\S]*)<\/\1>/);
+                if (!result) continue;
+                cases.push({
+                  // junit_alcotest records a `failure` for an OCaml Failure --
+                  // an alcotest check or a QCheck counterexample -- and an
+                  // `error` for any other exception, which is a real crash.
+                  // Different alarms, worth telling apart.
+                  crashed: result[1] === 'error',
+                  group: attr(m[1], 'classname'),
+                  name: attr(m[1], 'name'),
+                  // The `message` attribute is the constant "test failed" and
+                  // says nothing. The element body is where the shrunk
+                  // counterexample actually is.
+                  detail: decode(result[2]).trim(),
+                });
+              }
+            }
+
+            const CAP = 20;
+            let report;
+            if (paths.length === 0) {
+              // The likeliest failure of a multi-hour run rather than an edge
+              // case: haz3ltest.re writes the report only once the suite
+              // returns, so the step timeout, a crash, or a build that never
+              // reached the test binary all leave nothing on disk.
+              report =
+                'No JUnit report was written, so the suite was killed or never started --' +
+                ' the step timeout, a crash, or a build that did not get as far as the test' +
+                ' binary. The run log is the only record.';
+            } else if (cases.length === 0) {
+              report =
+                'The report lists no failing cases, so the suite exited non-zero for some' +
+                ' other reason. The run log has it.';
+            } else {
+              const lines = cases.slice(0, CAP).map(
+                (c) => `- \`${c.group} :: ${c.name}\`${c.crashed ? ' **(crashed)**' : ''}`);
+              if (cases.length > CAP) {
+                lines.push(`- ...and ${cases.length - CAP} more; the artifact has all of them`);
+              }
+              report = lines.join('\n');
+              const first = cases[0];
+              if (first.detail) {
+                const cut = first.detail.length > 2000 ? '\n[truncated]' : '';
+                // Four backticks: an alcotest diff can contain a fenced block
+                // of its own.
+                report +=
+                  '\n\nFirst failure, `' + first.group + ' :: ' + first.name + '`:\n\n' +
+                  '````\n' + first.detail.slice(0, 2000) + cut + '\n````';
+              }
+            }
+
+            const { owner, repo } = context.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const counts = totals
+              ? `${totals.tests} cases, ${totals.failures} failed, ${totals.errors} crashed`
+              : 'no counts -- the report is missing or truncated';
+
+            const entry = [
+              `**[Run ${context.runId}](${runUrl})** -- ` +
+                `${new Date().toISOString().slice(0, 10)} -- seed \`${process.env.SEED}\` ` +
+                `at factor \`${process.env.FACTOR}\` -- ${counts}`,
+              '',
+              report,
+              '',
+              '```sh',
+              process.env.REPRO,
+              '```',
+              process.env.ARTIFACT_URL
+                ? `\n[JUnit report artifact](${process.env.ARTIFACT_URL})`
+                : '',
+            ].join('\n');
+
+            // Invisible in the UI and unaffected by anyone editing the title,
+            // which is what makes it a better key than either.
+            const MARKER = '<!-- extended-tests-tracker -->';
+
+            try {
+              // Paginated on purpose: a single page would quietly stop finding
+              // the tracker once the repo had more than a hundred open
+              // `testing` issues, and the symptom would be a fresh tracker
+              // every week rather than anything that looks like an error. The
+              // issues endpoint returns pull requests too, and a pull request
+              // can carry the same label, so those are dropped rather than
+              // commented on.
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner,
+                repo,
+                state: 'open',
+                labels: 'testing',
+                per_page: 100,
+              });
+              const tracker = issues.find(
+                (issue) => !issue.pull_request && (issue.body || '').includes(MARKER));
+
+              if (tracker) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: tracker.number,
+                  body: entry,
+                });
+                core.notice(`Commented on #${tracker.number}`);
+              } else {
+                const { data: filed } = await github.rest.issues.create({
+                  owner,
+                  repo,
+                  title: 'Extended Tests: the weekly long-mode suite is failing',
+                  // `testing` because it is the label the lookup above keys on
+                  // and one that already exists. If a `ci` label is ever added,
+                  // change both together.
+                  labels: ['testing'],
+                  body: [
+                    MARKER,
+                    `The weekly [Extended Tests](${context.serverUrl}/${owner}/${repo}` +
+                      '/actions/workflows/extended-tests.yml) run failed. The workflow gates' +
+                      ' nothing, so this issue is the notification.',
+                    '',
+                    'It is opened once and then reused: each later failure arrives as a' +
+                      ' comment, so this thread is the record of which weeks were red. Those' +
+                      ' comments reach only the people already subscribed here.' +
+                      ' **Closing this issue re-arms the alert** -- the next failure opens a' +
+                      ' new one, which notifies everyone watching the repository again. So' +
+                      ' close it once the run is green for a reason rather than by luck.',
+                    '',
+                    '---',
+                    '',
+                    entry,
+                  ].join('\n'),
+                });
+                core.notice(`Opened #${filed.number}`);
+              }
+            } catch (e) {
+              // Issues disabled on the repo answers 410, a restricted token or
+              // an archived repo 403, and a fork running this schedule would
+              // file against itself. None of those is worth a second red step
+              // on a job already red for a real reason, so the entry goes to
+              // the summary instead and this step stays green.
+              core.warning(
+                `Could not file the tracker issue (${e.status || '?'} ${e.message}).` +
+                ' What it would have said is in this job summary.');
+              await core.summary
+                .addHeading('Extended Tests failure (could not be filed as an issue)', 3)
+                .addRaw(entry)
+                .write();
+            }
