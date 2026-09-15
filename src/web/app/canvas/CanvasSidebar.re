@@ -15,6 +15,11 @@ open Haz3lcore;
 let reveal_request: ref(option(Id.t)) = ref(None: option(Id.t));
 let request_reveal = (id: Id.t): unit => reveal_request := Some(id);
 
+/* Keep a pointer resize authoritative across sample/evaluation renders.
+   Only the final size is persisted in settings. */
+let resizing_card: ref(option((string, string, (float, float)))) =
+  ref(Option.none);
+
 /* the outline row of a definition selected on the CANVAS scrolls into
    view after the render that highlights it */
 let scroll_outline_to_selection = (): unit => {
@@ -1243,13 +1248,17 @@ let view_impl =
      its box plus a buffer; neighbours are pushed) */
   let card_default = (360., 260.);
   let card_size = (key: string): (float, float) =>
-    Option.value(
-      ~default=card_default,
-      List.assoc_opt(
-        (slide, key),
-        globals.settings.sidebar.canvas_card_sizes,
-      ),
-    );
+    switch (resizing_card^) {
+    | Some((s, k, wh)) when s == slide && k == key => wh
+    | _ =>
+      Option.value(
+        ~default=card_default,
+        List.assoc_opt(
+          (slide, key),
+          globals.settings.sidebar.canvas_card_sizes,
+        ),
+      )
+    };
   CanvasLayout.card_extents :=
     List.filter_map(
       key =>
@@ -2310,6 +2319,18 @@ let view_impl =
     let (w0, h0) = card_size(key);
     let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
     let cur = ref((w0, h0));
+    resizing_card := Some((slide, key, (w0, h0)));
+    let set_resizing = active =>
+      switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
+      | Some(el) =>
+        if (active) {
+          el##setAttribute(Js.string("data-card-resizing"), Js.string(""));
+        } else {
+          el##removeAttribute(Js.string("data-card-resizing"));
+        }
+      | None => ()
+      };
+    set_resizing(true);
     let natural =
       List.assoc_opt(
         (slide, key),
@@ -2408,6 +2429,7 @@ let view_impl =
       let w = max(40., w0 +. float_of_int(x - sx) /. z);
       let h = max(28., h0 +. float_of_int(y - sy) /. z);
       cur := (w, h);
+      resizing_card := Some((slide, key, (w, h)));
       follow((w, h));
       ();
     }
@@ -2416,9 +2438,24 @@ let view_impl =
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
       let (w, h) = cur^;
+      /* A queued RAF must not apply an older pointer position after the
+         committed render. Finish with transitions disabled, then restore
+         the circle/card morph for later expand/collapse gestures. */
+      pending := None;
+      apply_size((w, h));
+      resizing_card := None;
       Effect.Expert.handle_non_dom_event_exn(
         globals.inject_global(
           Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+        ),
+      );
+      ignore(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "requestAnimationFrame",
+          [|
+            Js.Unsafe.inject(Js.Unsafe.callback(() => set_resizing(false))),
+          |],
         ),
       );
       ();
@@ -2571,7 +2608,7 @@ let view_impl =
      zoom-to-fit, and a card without a stored size opens at a standard
      size with the content's proportions (long side 168px; plain values
      at their own size, capped 360x260). Stored only on change. */
-  if (cards != []) {
+  if (cards != [] && resizing_card^ == None) {
     CanvasEnact.after_render(() => {
       open Js_of_ocaml;
       let els =

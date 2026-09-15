@@ -468,7 +468,7 @@
 }
 
 /* hover = a tint, never a second ring (one border per thing) */
-.canvas-node.clickable:hover {
+.canvas-node.clickable:not(.node-card):hover {
   background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
@@ -2091,10 +2091,15 @@
 }
 .canvas-node.node-card {
   border-radius: 14px;
-  background: var(--df-bg, #fdfdf4);
+  background: var(--canvas-card-surface, var(--df-bg, #fdfdf4));
   display: block;
   overflow: visible;
   z-index: 5;
+}
+/* Direct manipulation has one size: the frame and content follow the
+   same pointer update. The morph transition remains for open/close. */
+.canvas-node.node-card[data-card-resizing] {
+  transition: none;
 }
 .canvas-node.node-card .card-body {
   position: absolute;
@@ -2128,7 +2133,7 @@
 .canvas-node.node-card.node-module {
   border: 1.5px solid var(--token-typ, #9457c9);
   border-style: solid;
-  background: var(--df-bg, #fdfdf4);
+  background: var(--canvas-card-surface, var(--df-bg, #fdfdf4));
   opacity: 1;
 }
 /* NODE mode: the view is inert (the card drags anywhere, dbl-click
@@ -2240,6 +2245,13 @@
 .canvas-card-probe .probe-card-rich > *,
 .canvas-node.node-card .canvas-app .user-livelit > * {
   zoom: var(--card-zoom, 1);
+  flex-shrink: 0;
+}
+/* Scaled content already fits its measured box. A second max-height or
+   scroll viewport can crop it while the enclosing card changes size. */
+.canvas-card-probe .probe-card-rich > .rich-html-view {
+  max-height: none;
+  overflow: clip;
 }
 /* a list wraps at a natural width (360px) into rows, and that block
    zooms to fit the card like any other view */
@@ -2293,7 +2305,7 @@
   display: block;
 }
 .canvas-node.node-card:has(.probe-card-plain) {
-  background: #d6eed6;
+  --canvas-card-surface: #d6eed6;
 }
 /* a list of a type with a view: the elements' views in a row */
 .rich-livelit-view.rich-livelit-list {
@@ -2346,7 +2358,7 @@
   position: static;
   width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -148,10 +148,11 @@ input.blue-hour-hue::-moz-range-thumb {
    that boundary; charts and composed children do not acquire extra boxes.
    Keep the more specific selection/focus shadow in canvas.css intact. */
 .canvas-node.node-card:has(.blue-hour-view):not(:has(.probe-card.card-selected:focus)) {
-    background: #576e83;
     box-shadow: 0 2px 3px #273e5333, 0 1px 1px #273e5330;
 }
-.canvas-node.node-card:has(.blue-hour-view) { background: #576e83; }
+/* The surface belongs to the whole card at every aspect ratio and in
+   every focus state; it must not depend on the selection shadow. */
+.canvas-node.node-card:has(.blue-hour-view) { --canvas-card-surface: #576e83; }
 /* Draw the outer bevel above the content, so a full-bleed field cannot
    cover it. This is the panel edge, not an inset well around its data. */
 .canvas-node.node-card:has(.blue-hour-view)::after {
@@ -174,9 +175,9 @@ input.blue-hour-hue::-moz-range-thumb {
 .rich-html-view .blue-hour-tools { display: none; }
 @media (hover: none) { .blue-hour-tools { opacity: 1; pointer-events: auto; } }
 .rich-html-view:has(.blue-hour-snug) { padding: 3px 4px; }
-.canvas-node.node-card:has(.blue-hour-verdict) { background: #f2ab98; }
+.canvas-node.node-card:has(.blue-hour-verdict) { --canvas-card-surface: #f2ab98; }
 
-.canvas-node.node-card:has(.blue-hour-verdict-ok) { background: #b3d3b4; }
+.canvas-node.node-card:has(.blue-hour-verdict-ok) { --canvas-card-surface: #b3d3b4; }
 
 /* Flush fields reach the card boundary. The measurement pass sets both
    zooms to 1; lists and ordinary rich views keep the standard gutter. */
