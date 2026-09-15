@@ -72,7 +72,7 @@ let entry_of = (cls: FumolaCls.t): entry =>
     }
   | Hazel => {
       syntax: "hazel <Hazel expression> end",
-      meaning: "A Hazel expression standing where a Fumola term does. It is a real tile subtree, edited as Hazel, and it can appear anywhere a Fumola term can, as many times as the program wants.\n\nIt carries a value written in place, not a variable bound outside it: a Fumola program runs during elaboration, before anything has been substituted. For a program that needs a bound Hazel variable, see the `Fumola (Livelits) / 5. Input` slide -- that integration has one input slot and it takes an ordinary Hazel expression.",
+      meaning: "A Hazel expression standing where a Fumola term does. It is a real tile subtree, edited as Hazel, and it can appear anywhere a Fumola term can, as many times as the program wants.\n\nIt carries a *value* -- and a variable the surrounding Hazel program bound is one, since a Fumola program runs during evaluation, so by the time it is printed its escapes have been reduced. `Fumola (Tiles) / Self-inspection` turns that into a switch: `hazel growTheGraph end` reads a Hazel boolean, and flipping it changes the shape of the graph Fumola records.\n\nWhat an escape cannot carry is a value with no written Fumola form -- a function, a hole. The program says so when it runs.",
       origin: Integration,
     }
   | InstanceName => {
