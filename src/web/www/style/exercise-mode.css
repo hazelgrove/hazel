@@ -141,7 +141,7 @@
 .add-abbr-btn:hover,
 .add-premise-btn:hover {
   background: var(--cell-active);
-  /* filter: drop-shadow(0px 0px 1px var(--BR4)); */
+  /* filter: drop-shadow(0px 0px 1px var(--frame-4)); */
   color: var(--text-muted);
 }
 
@@ -259,7 +259,7 @@
 
 /* Show the dropdown menu on hover */
 /* .deduction-label-wrapper:hover {
-  filter: drop-shadow(0px 0px 4px var(--BR4));
+  filter: drop-shadow(0px 0px 4px var(--frame-4));
 } */
 
 .deduction-label-wrapper:hover .dropdown {
