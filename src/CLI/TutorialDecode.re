@@ -47,7 +47,10 @@ let decode_spec = (spec: Web.Tutorial.spec): string =>
     ++ kv("prompt", spec.prompt)
     ++ (spec.display_hint == "" ? "" : kv("hint", spec.display_hint))
     ++ (
-      spec.task_reference == "" ? "" : kv("reference", spec.task_reference)
+      switch (spec.task_reference) {
+      | None => ""
+      | Some(reference) => kv("reference", reference)
+      }
     )
     ++ (
       spec.hidden_tests.hints == []

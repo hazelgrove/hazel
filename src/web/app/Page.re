@@ -820,8 +820,7 @@ module View = {
     let task_reference: option(string) =
       switch (editors) {
       | Tutorial(t) =>
-        let s = TutorialsMode.Model.get_current(t).editors.task_reference;
-        s == "" ? None : Some(s);
+        TutorialsMode.Model.get_current(t).editors.task_reference
       | _ => None
       };
     let sidebar =

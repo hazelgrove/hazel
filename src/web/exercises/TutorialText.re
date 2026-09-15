@@ -19,7 +19,7 @@ type sections = {
   code: string,
   test: string,
   hint: string,
-  reference: string,
+  reference: option(string),
   hints: list(string),
   wrapper: bool,
   show_report: bool,
@@ -33,7 +33,7 @@ let empty_sections = {
   code: "",
   test: "",
   hint: "",
-  reference: "",
+  reference: None,
   hints: [],
   wrapper: false,
   show_report: false,
@@ -120,6 +120,11 @@ let parse_sections = (content: string): sections => {
     try(List.assoc(k, acc)) {
     | Not_found => ""
     };
+  let trimmed_opt = (body: string): option(string) =>
+    switch (String.trim(body)) {
+    | "" => None
+    | s => Some(s)
+    };
   let s = {
     ...empty_sections,
     title: String.trim(get("title")),
@@ -127,7 +132,7 @@ let parse_sections = (content: string): sections => {
     code: get("code"),
     test: String.trim(get("test")),
     hint: String.trim(get("hint")),
-    reference: String.trim(get("reference")),
+    reference: trimmed_opt(get("reference")),
     hints:
       String.split_on_char('\n', get("hints"))
       |> List.map(String.trim)

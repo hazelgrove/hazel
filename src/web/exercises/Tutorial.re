@@ -44,7 +44,9 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
-  task_reference: string,
+  /* Markdown for the Task Reference sidebar; None for a lesson with no
+     @reference section, which is what hides the tab. */
+  task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
   wrapper: bool,
