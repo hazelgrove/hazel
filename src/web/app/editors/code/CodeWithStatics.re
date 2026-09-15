@@ -251,11 +251,12 @@ module Update = {
       live_typing
       |> Calc.get_saved((StaticsBase.Map.empty, [], 0.))
       |> (((_, _, t)) => t);
-    let dynamics_for_live =
+    let live_throttled =
       eval_pending
       && JsUtil.timestamp()
-      -. last_live_run < live_typing_stream_throttle_ms
-        ? Calc.make_old(dynamics) : dynamics;
+      -. last_live_run < live_typing_stream_throttle_ms;
+    let dynamics_for_live =
+      live_throttled ? Calc.make_old(dynamics) : dynamics;
 
     let live_typing =
       if (settings.live_typing) {
@@ -265,25 +266,31 @@ module Update = {
             let.calc dyn = dynamics_for_live
             and.calc curr_sample_focus = sample_focus_calc;
 
-            let filtered_dynamics =
-              Language.Dynamics.filter_by_focus(curr_sample_focus, dyn);
+            PerfMetrics.time_live_typing(() => {
+              let filtered_dynamics =
+                Language.Dynamics.filter_by_focus(curr_sample_focus, dyn);
 
-            let (live_typing_info_map, _) =
-              Statics.mk(
-                ~dynamics=
-                  Language.Dynamics.to_live_typing_map(filtered_dynamics),
-                settings,
-                ctx_init,
-                statics.term,
-              );
+              let (live_typing_info_map, _) =
+                Statics.mk(
+                  ~dynamics=
+                    Language.Dynamics.to_live_typing_map(filtered_dynamics),
+                  settings,
+                  ctx_init,
+                  statics.term,
+                );
 
-            let live_typing_error_ids =
-              StaticsBase.Map.live_typing_error_ids(
-                ~static_error_ids=statics.error_ids,
+              let live_typing_error_ids =
+                StaticsBase.Map.live_typing_error_ids(
+                  ~static_error_ids=statics.error_ids,
+                  live_typing_info_map,
+                );
+
+              (
                 live_typing_info_map,
+                live_typing_error_ids,
+                JsUtil.timestamp(),
               );
-
-            (live_typing_info_map, live_typing_error_ids, JsUtil.timestamp());
+            });
           }
         );
       } else {
@@ -297,6 +304,22 @@ module Update = {
       live_typing_info_map,
       live_typing_error_ids,
     };
+    /* Calc.update runs its body exactly when the result is NewValue, so is_new
+     * is whether the pass ran, and it is asked before the throttle: a moved
+     * sample focus re-runs the pass inside the throttle window. */
+    PerfMetrics.record_live_typing_counts(
+      ~outcome=
+        if (!settings.live_typing) {
+          Off;
+        } else if (Calc.is_new(live_typing)) {
+          Ran;
+        } else if (live_throttled) {
+          Throttled;
+        } else {
+          Reused;
+        },
+      statics,
+    );
     {
       editor,
       statics,
