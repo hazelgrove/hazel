@@ -73,8 +73,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["1"],
-              mold: Mold.mk_op(Exp, []),
+              // Tok("1") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["1"])),
+              sort: snd(Form.classify_label(Exp, ["1"])),
               shards: [0],
               children: [],
             }),
@@ -87,8 +88,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["\"hello\""],
-              mold: Mold.mk_op(Exp, []),
+              // Tok(string) at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["\"hello\""])),
+              sort: snd(Form.classify_label(Exp, ["\"hello\""])),
               shards: [0],
               children: [],
             }),
@@ -149,8 +151,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["()"],
-              mold: Mold.mk_op(Exp, []),
+              // Tok("()") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["()"])),
+              sort: snd(Form.classify_label(Exp, ["()"])),
               shards: [0],
               children: [],
             }),

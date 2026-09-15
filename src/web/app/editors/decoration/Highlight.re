@@ -108,7 +108,7 @@ let rows_of_segment =
            List.mem(i, t.shards) ? Some((i, m)) : None
          )
       |> List.map(((index, m)) => {
-           let token = List.nth(t.label, index);
+           let token = Tile.token(t, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [Some(shard_svg(~start_shape, m, Tile(shard)))]
@@ -116,7 +116,8 @@ let rows_of_segment =
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
            };
          });
-    let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
+    let shape_at = index =>
+      Some(snd(Mold.nibs(~index, Tile.mold(t))).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {

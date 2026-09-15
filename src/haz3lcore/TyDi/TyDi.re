@@ -13,9 +13,9 @@ let suggest_backpack = (z: Zipper.t): list(t) => {
   | [] => []
   | [t, ..._] =>
     switch (t) {
-    | {label, shards: [idx], _} when Zipper.can_put_down(z) => [
+    | {shards: [idx], _} when Zipper.can_put_down(z) => [
         {
-          content: List.nth(label, idx),
+          content: Tile.token(t, idx),
           strategy: Any(FromBackpack),
         },
       ]
@@ -105,8 +105,8 @@ let token_to_left = (z: Zipper.t): option(string) =>
     z.relatives.siblings |> fst |> List.rev,
     z.relatives.siblings |> snd,
   ) {
-  | (Outer, [Tile({label: [tok_to_left], _}), ..._], _) =>
-    Some(tok_to_left)
+  | (Outer, [Tile(t), ..._], _) when Tile.arity(t) == 1 =>
+    Some(Tile.token(t, 0))
   | _ => None
   };
 
