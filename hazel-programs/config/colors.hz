@@ -27,6 +27,8 @@ type ColorOverrides = ^^fold((
   `editor-cell` = ColorValue,
   # the sort plate's chroma factor, and the lightness it is pinned to #
   `cursor-tint` = Float, `cursor-level` = Float,
+  # the lightness the stepper's next-step plate is pinned to #
+  `step-next-level` = Float,
   `hole-empty` = ColorValue,
   `editor-backpack-outline` = ColorValue,
   `projector-textarea-text` = ColorValue,
@@ -143,7 +145,13 @@ let sort_plate(c) =
       `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
       `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
       `pending` = Fade(p.`ink`, 11.),
-      `pending-edge` = Fade(p.`ink`, 16.)
+      `pending-edge` = Fade(p.`ink`, 16.),
+      # the plate behind an expression the stepper can reduce next. Code #
+      # sits ON it, so each scheme pins the lightness rather than taking #
+      # a fraction of the axis: in high contrast the ink is at an #
+      # extreme, and a fraction of that axis lands on top of the text. #
+      `step-next` =
+        color_with_lightness(p.`success`, role.`step-next-level`)
     ),
     inspector = (
       `badge` = role.`inspector-badge`,
@@ -197,6 +205,7 @@ let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `editor-cell` = p.`code-background`,
   `cursor-tint` = 0.25,
   `cursor-level` = 95.,
+  `step-next-level` = 85.,
   `hole-empty` = p.`attention-1`,
   `editor-backpack-outline` = p.`code-background`,
   `projector-textarea-text` = p.`frame-3`,
@@ -271,6 +280,7 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
   `cursor-tint` = 0.3333,
   `cursor-level` = 40.,
+  `step-next-level` = 31.,
   `hole-empty` = p.`surface-2`,
   `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
   `projector-textarea-text` = p.`ink`,
@@ -375,7 +385,10 @@ let contrast_light = ^^fold(let p = palette_of(
       `surface-4` = 91.
     )
   ) in
-  theme_of(p, light_roles(p) ... (`contrast` = true))) in
+  theme_of(p, light_roles(p) ... (
+    `contrast` = true,
+    `step-next-level` = 90.
+  ))) in
 
 # ── high contrast, dark ── #
 let contrast_dark = ^^fold(let p = palette_of(
@@ -431,6 +444,7 @@ let contrast_dark = ^^fold(let p = palette_of(
     `editor-cell` = color_with_lightness(p.`code-background`, 14.),
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
+    `step-next-level` = 27.,
     `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.)
   ))) in
 

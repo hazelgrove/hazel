@@ -219,7 +219,7 @@
 
 .step-next > svg.shard > path,
 .step-next > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
-  fill: var(--text-success-strong) !important;
+  fill: var(--step-next-fill) !important;
   cursor: pointer;
 }
 .step-refl > svg.shard > path,
@@ -257,6 +257,22 @@
 }
 .step-taken > svg.shard {
   filter: drop-shadow(1px 1px var(--shadow-soft)) !important;
+}
+
+/* In high contrast the plate cannot carry the highlight on its own. The ink
+   sits at an extreme, so a fill far enough from the page to read as a
+   highlight is also close enough to the text to bury it; and a green fill on
+   a neutral page is no highlight at all to a reader who cannot see the hue.
+   So the plate stays beside the page (the Colors slide pins it per scheme)
+   and the highlight moves to a stroke, which costs the text on it nothing.
+
+   `--hazel-contrast` is published by the Colors slide for exactly this (see
+   ../README.md). Gating on it is what keeps the regular schemes pixel-identical. */
+@container style(--hazel-contrast: high) {
+  .step-next > svg.shard > path {
+    stroke: var(--border-success);
+    stroke-width: 1.5px;
+  }
 }
 
 .cell-result .code {

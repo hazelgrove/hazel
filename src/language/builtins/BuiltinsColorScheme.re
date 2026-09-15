@@ -171,7 +171,15 @@ let role_groups: list((string, list(string))) = [
   ("problems", ["row", "row-edge", "row-active"]),
   (
     "results",
-    ["divider", "reused", "reused-edge", "sweep", "pending", "pending-edge"],
+    [
+      "divider",
+      "reused",
+      "reused-edge",
+      "sweep",
+      "pending",
+      "pending-edge",
+      "step-next",
+    ],
   ),
   ("inspector", ["badge", "text", "separator"]),
   (

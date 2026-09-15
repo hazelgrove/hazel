@@ -226,7 +226,7 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "label"), ["token-label", "surface-label"]),
   (
     ("palette", "success-soft"),
-    ["test-pass-active", "surface-success-soft", "text-success-strong"],
+    ["test-pass-active", "surface-success-soft"],
   ),
   (("menu", "background"), ["menu-bkg", "test-panel-bkg"]),
   (("menu", "divider"), ["menu-divider"]),
@@ -271,6 +271,7 @@ let aliases: list(((string, string), list(string))) = [
   (("results", "sweep"), ["incremental-active-sweep"]),
   (("results", "pending"), ["incremental-pending"]),
   (("results", "pending-edge"), ["incremental-pending-edge"]),
+  (("results", "step-next"), ["step-next-fill"]),
   (("inspector", "badge"), ["ci-icon-bkg"]),
   (("inspector", "text"), ["ci-status-text"]),
   (("inspector", "separator"), ["context-inspector-colon"]),
