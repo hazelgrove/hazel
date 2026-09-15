@@ -486,11 +486,97 @@ let hull_sausages_at =
   );
 };
 
+/* Claim keyboard focus after selection's deferred editor focus. Used by
+   Canvas objects and by the sample navigator inside an expanded card. */
+let focus_selector = (sel: string): unit => {
+  open Js_of_ocaml;
+  /* after the render (a deferred editor focus would win otherwise), and
+     WITHOUT scrolling the pane to the element */
+  let later = (f: unit => unit) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.window,
+        "setTimeout",
+        [|Js.Unsafe.inject(Js.Unsafe.callback(f)), Js.Unsafe.inject(30)|],
+      ),
+    );
+  later(() =>
+    switch (
+      Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
+    ) {
+    | Some(el) =>
+      ignore(
+        Js.Unsafe.meth_call(
+          el,
+          "focus",
+          [|
+            Js.Unsafe.inject(
+              Js.Unsafe.obj([|
+                ("preventScroll", Js.Unsafe.inject(Js._true)),
+              |]),
+            ),
+          |],
+        ),
+      )
+    | None => ()
+    }
+  );
+};
+
+let focus_card_probe = key =>
+  focus_selector("#" ++ node_dom_id(key) ++ " .probe-card");
+
+/* Only a Canvas object (or its sample navigator) owns these keys.
+   Inputs, editors and controls nested in a live app keep their own keys. */
+let item_keyboard = (~dom_id, ~on_select, ~on_delete) =>
+  Attr.on_keydown(evt => {
+    open Js_of_ocaml;
+    let target = Js.Unsafe.coerce(evt)##.target;
+    let own = Js.to_string(Js.Unsafe.coerce(target)##.id) == dom_id;
+    let probe =
+      Js.to_bool(
+        Js.Unsafe.meth_call(
+          target,
+          "matches",
+          [|Js.Unsafe.inject(Js.string(".probe-card"))|],
+        ),
+      );
+    let key = Util.Key.get_key(evt);
+    if ((own || probe)
+        && !Js.to_bool(evt##.metaKey)
+        && !Js.to_bool(evt##.ctrlKey)
+        && !Js.to_bool(evt##.altKey)) {
+      switch (key) {
+      | "Delete"
+      | "Backspace" =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          Js.to_bool(Js.Unsafe.coerce(evt)##.repeat)
+            ? Effect.Ignore : on_delete(),
+        ])
+      | "Enter"
+      | " " when own =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          on_select(),
+        ])
+      | _ => Effect.Ignore
+      };
+    } else {
+      Effect.Ignore;
+    };
+  });
+
 let edge_label =
     (
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~focused: option(string),
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~on_edge_contextmenu:
+         (CanvasGraph.edge, (float, float)) => Effect.t(unit),
+      ~on_delete_definition: Haz3lcore.Id.t => Effect.t(unit),
       ~on_edge_hover: option(string) => Effect.t(unit)=_ => Effect.Ignore,
       el: CanvasLayout.edge_layout,
     )
@@ -529,6 +615,33 @@ let edge_label =
       anchor_style(el.label_p),
       Attr.title(tooltip),
       Attr.on_click(_ => on_edge_click(e)),
+      Attr.tabindex(0),
+      Attr.create("role", "button"),
+      Attr.create("aria-label", "Function " ++ e.e_name),
+      Attr.create(
+        "aria-pressed",
+        focused == Some(e.e_name) ? "true" : "false",
+      ),
+      item_keyboard(
+        ~dom_id=edge_dom_id(e.e_name),
+        ~on_select=() => on_edge_click(e),
+        ~on_delete=() => on_delete_definition(e.e_id),
+      ),
+      Attr.on_contextmenu(evt => {
+        Js_of_ocaml.(
+          Effect.Many([
+            Effect.Prevent_default,
+            Effect.Stop_propagation,
+            on_edge_contextmenu(
+              e,
+              (
+                float_of_int(Js.Unsafe.coerce(evt)##.clientX),
+                float_of_int(Js.Unsafe.coerce(evt)##.clientY),
+              ),
+            ),
+          ])
+        )
+      }),
       Attr.on_mouseenter(_ => on_edge_hover(Some(e.e_name))),
       Attr.on_mouseleave(_ => on_edge_hover(None)),
     ],
@@ -569,47 +682,10 @@ let base_glyph = (label: string): option(string) => {
   };
 };
 
-/* keyboard focus to the probe inside a card (its ← → handler): through
-   FocusEffect, after the render — the node click also selects the
-   definition, whose deferred focus would otherwise land on the editor */
-let focus_card_probe = (key: string): unit => {
-  open Js_of_ocaml;
-  let sel = "#" ++ node_dom_id(key) ++ " .probe-card";
-  /* after the render (a deferred editor focus would win otherwise), and
-     WITHOUT scrolling the pane to the element */
-  let later = (f: unit => unit) =>
-    ignore(
-      Js.Unsafe.meth_call(
-        Js.Unsafe.global##.window,
-        "setTimeout",
-        [|Js.Unsafe.inject(Js.Unsafe.callback(f)), Js.Unsafe.inject(30)|],
-      ),
-    );
-  later(() =>
-    switch (
-      Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
-    ) {
-    | Some(el) =>
-      ignore(
-        Js.Unsafe.meth_call(
-          el,
-          "focus",
-          [|
-            Js.Unsafe.inject(
-              Js.Unsafe.obj([|
-                ("preventScroll", Js.Unsafe.inject(Js._true)),
-              |]),
-            ),
-          |],
-        ),
-      )
-    | None => ()
-    }
-  );
-};
-
 let node_view =
     (
+      ~on_node_select: CanvasGraph.tynode => Effect.t(unit),
+      ~on_delete_definition: Haz3lcore.Id.t => Effect.t(unit),
       ~on_node_mousedown:
          (
            CanvasGraph.tynode,
@@ -668,7 +744,27 @@ let node_view =
       }
     );
   let click_attrs = [
-    Attr.on_mousedown(evt => on_node_mousedown(n, evt)),
+    Attr.tabindex(0),
+    Attr.create("role", "button"),
+    Attr.create("aria-label", "Type " ++ n.label),
+    Attr.create(
+      "aria-pressed",
+      focused_ty == Some(n.key) ? "true" : "false",
+    ),
+    item_keyboard(
+      ~dom_id=node_dom_id(n.key),
+      ~on_select=() => on_node_select(n),
+      ~on_delete=
+        () =>
+          switch (n.n_id) {
+          | Some(id) => on_delete_definition(id)
+          | None => Effect.Ignore
+          },
+    ),
+    Attr.on_mousedown(evt =>
+      Js_of_ocaml.Js.Unsafe.coerce(evt)##.button == 0
+        ? on_node_mousedown(n, evt) : Effect.Ignore
+    ),
     Attr.on_contextmenu(evt => {
       open Js_of_ocaml;
       let x = float_of_int(Js.Unsafe.coerce(evt)##.clientX)
@@ -995,6 +1091,10 @@ let view =
       ~collapsed_counts: list((string, int))=[],
       ~on_hull_toggle: string => Effect.t(unit)=_ => Effect.Ignore,
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~on_edge_contextmenu:
+         (CanvasGraph.edge, (float, float)) => Effect.t(unit),
+      ~on_delete_definition: Haz3lcore.Id.t => Effect.t(unit),
+      ~on_node_select: CanvasGraph.tynode => Effect.t(unit),
       ~on_node_mousedown:
          (
            CanvasGraph.tynode,
@@ -1652,6 +1752,8 @@ let view =
               node_view(
                 ~on_node_mousedown,
                 ~on_node_contextmenu,
+                ~on_node_select,
+                ~on_delete_definition,
                 ~just_placed,
                 ~focused_ty,
                 ~card=List.assoc_opt(nl.node.key, cards),
@@ -1665,6 +1767,8 @@ let view =
               ~inject_jump,
               ~focused,
               ~on_edge_click,
+              ~on_edge_contextmenu,
+              ~on_delete_definition,
               ~on_edge_hover,
             ),
             lay.edges,

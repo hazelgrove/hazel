@@ -359,14 +359,13 @@
   cursor: pointer;
 }
 
-/* ONE selection color for the canvas (types and functions alike), chosen
-   free of the semantic colors: purple = types, slate = implementations,
-   green = passing tests, red = errors, yellow = the agent. The selected
-   type's own outline takes the color (a single ring, no halo). */
+/* Selection owns the whole object: green frame, glyph and caption. */
 :root {
-  --canvas-select: #2f6fbf;
+  --canvas-select: #317749;
+  --canvas-select-bg: #dfeddb;
 }
 .canvas-node.node-focused {
+  --token-typ: var(--canvas-select);
   border-color: var(--canvas-select);
   border-width: 2.5px;
 }
@@ -2373,3 +2372,42 @@
 /* The paced code is a read-only view of the same step as the canvas. */
 .presentation-code { padding: 16px 16px 24px; }
 .presentation-note { margin-bottom: 14px; color: #817c69; font: 11px/1.45 system-ui, sans-serif; }
+
+/* A selected type changes its complete type-colored surface. Rich value
+   cards retain their app surface and use the green frame/caption. */
+.canvas-node.node-focused:not(.node-card),
+.canvas-node.node-focused:not(.node-card):hover {
+  background: var(--canvas-select-bg);
+  opacity: 1;
+  color: var(--canvas-select);
+}
+.canvas-node.node-focused .canvas-node-glyph,
+.canvas-node.node-focused .canvas-node-label {
+  color: var(--canvas-select);
+}
+.canvas-edge-label.edge-focused {
+  background: var(--canvas-select-bg);
+  font-weight: 600;
+}
+.canvas-node:focus, .canvas-edge-label:focus, .canvas-scroll:focus { outline: none; }
+.canvas-node:focus-visible:not(.node-focused),
+.canvas-edge-label:focus-visible:not(.edge-focused) {
+  outline: 2px solid var(--canvas-select);
+  outline-offset: 3px;
+}
+.canvas-context-menu .cmenu-delete {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  color: #926354;
+  font: 24px/1 system-ui, sans-serif;
+  padding: 2px 7px;
+  min-width: 30px;
+  cursor: pointer;
+}
+.canvas-context-menu .cmenu-delete:hover,
+.canvas-context-menu .cmenu-delete:focus-visible { color: #ac352b; background: #f2e3db; }
+.canvas-context-menu .cmenu-delete:disabled { opacity: .35; cursor: default; }
+.canvas-context-menu.canvas-function-menu { min-width: 0; width: auto; }

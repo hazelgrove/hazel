@@ -547,6 +547,8 @@ let canvas_menu_at: ref((float, float)) = ref((0., 0.));
 /* Some((key, type syntax)) when opened on a node */
 let canvas_menu_node: ref(option((string, string))) =
   ref(None: option((string, string)));
+let canvas_menu_definition: ref(option((Id.t, string))) = ref(Option.none);
+let canvas_menu_function: ref(bool) = ref(false);
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 /* camera follow: the avatar position last handed to the camera, and
@@ -1457,16 +1459,32 @@ let view_impl =
     );
   let show_panel =
     globals.inject_global(Set(Sidebar(SetCanvasPanelHidden(false))));
-  let select_def = (id: Id.t) =>
+  let select_def = (~reveal=true, id: Id.t) =>
     Effect.Many([
       editors_inject(
         Editors.Update.Scratch(ScratchMode.Update.FocusDef(id)),
       ),
       globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-      show_panel,
+      reveal ? show_panel : Effect.Ignore,
       Ui_effect.of_sync_fun(scroll_outline_to_selection, ()),
       Effect.Stop_propagation,
     ]);
+  let focus_dom = dom_id =>
+    Ui_effect.of_sync_fun(CanvasView.focus_selector, "#" ++ dom_id);
+  let delete_definition = id =>
+    CanvasBuffer.presenting^
+      ? Effect.Ignore
+      : Effect.Many([
+          editors_inject(
+            Editors.Update.Scratch(
+              ScratchMode.Update.OutlineDefOp(OutlineSidebar.Delete, id),
+            ),
+          ),
+          globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+          globals.inject_global(Set(Sidebar(SetCanvasFocus(None)))),
+          focus_dom("canvas-scroll"),
+          Effect.Stop_propagation,
+        ]);
   /* MAIN mode: the selection is the stack's one entry; its canvas
      element (an edge by e_id, a node by n_id) wears the indication and
      feeds the values tab. A glyph node (no definition of its own) can
@@ -1557,7 +1575,8 @@ let view_impl =
             Effect.Stop_propagation,
           ]
       )
-      @ align,
+      @ align
+      @ [focus_dom(CanvasView.edge_dom_id(e.e_name))],
     );
   };
   /* ---- canvas authoring: stubs go through the agent's own edit tools
@@ -1658,35 +1677,37 @@ let view_impl =
     globals.inject_global(Set(Sidebar(SetCanvasPlace(p))));
   /* plain click (no drag, no connect mode): focus the type's values;
      aliases also select their definition */
-  let click_effect = (n: CanvasGraph.tynode) => {
+  let click_effect = (~reveal=true, n: CanvasGraph.tynode) => {
     focused_value := None;
-    switch (main_mode, n.n_id) {
-    /* a definition: select it (the halo and values follow the selection) */
-    | (true, Some(id)) => select_def(id)
-    /* a glyph: look at its values without changing the selected definition */
-    | (true, None) =>
-      Effect.Many([
-        globals.inject_global(
-          Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
-        ),
-        show_panel,
-      ])
-    | (false, _) =>
-      Effect.Many(
-        [
+    let selection =
+      switch (main_mode, n.n_id) {
+      /* a definition: select it (the halo and values follow the selection) */
+      | (true, Some(id)) => select_def(~reveal, id)
+      /* a glyph: look at its values without changing the selected definition */
+      | (true, None) =>
+        Effect.Many([
           globals.inject_global(
             Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
           ),
-          show_panel,
-        ]
-        @ (
-          switch (n.n_id) {
-          | Some(id) => [globals.inject_global(SelectTile(id))]
-          | None => []
-          }
-        ),
-      )
-    };
+          reveal ? show_panel : Effect.Ignore,
+        ])
+      | (false, _) =>
+        Effect.Many(
+          [
+            globals.inject_global(
+              Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
+            ),
+            reveal ? show_panel : Effect.Ignore,
+          ]
+          @ (
+            switch (n.n_id) {
+            | Some(id) => [globals.inject_global(SelectTile(id))]
+            | None => []
+            }
+          ),
+        )
+      };
+    Effect.Many([selection, focus_dom(CanvasView.node_dom_id(n.key))]);
   };
   /* drag-vs-click on a node: document listeners move the div imperatively;
      release either commits a layout delta or fires the click */
@@ -1934,7 +1955,12 @@ let view_impl =
       };
       Effect.Expert.handle_non_dom_event_exn(
         moved^
-          ? commit(delta^)
+          ? Effect.Many([
+              commit(delta^),
+              /* Dropping selects the object without reopening a hidden
+                 info panel over the place where it was just dropped. */
+              expanded ? Effect.Ignore : click_effect(~reveal=false, n),
+            ])
           : expanded
               /* the info panel follows the card's type; no definition
                  select (that would focus the editor) */
@@ -2249,6 +2275,8 @@ let view_impl =
   let menu_close = (): unit => {
     canvas_menu := None;
     canvas_menu_node := None;
+    canvas_menu_definition := None;
+    canvas_menu_function := false;
   };
   /* icon palette: gestures are glyphs with tooltips, not text rows.
      Payloads are THUNKS — building the menu must not run the gesture. */
@@ -2750,6 +2778,22 @@ let view_impl =
       };
     });
   };
+  let delete_menu =
+    switch (canvas_menu_definition^) {
+    | None => []
+    | Some((id, name)) => [
+        button(
+          ~attrs=[
+            clss(["cmenu-delete"]),
+            Attr.title("Delete definition " ++ name),
+            Attr.create("aria-label", "Delete definition " ++ name),
+            CanvasBuffer.presenting^ ? Attr.disabled : Attr.empty,
+            Attr.on_click(_ => menu_act(() => delete_definition(id))),
+          ],
+          [text({js|×|js})],
+        ),
+      ]
+    };
   let menu_rows: list(Node.t) =
     switch (canvas_menu_node^) {
     | Some((key, syntax)) => [
@@ -2788,8 +2832,12 @@ let view_impl =
                 };
               place_stub_at(~kind="list", ~comps=[syntax], pt);
             }),
-          ],
+          ]
+          @ delete_menu,
         ),
+      ]
+    | None when canvas_menu_function^ => [
+        div(~attrs=[clss(["cmenu-row"])], delete_menu),
       ]
     | None =>
       let at = canvas_menu_at^;
@@ -2842,24 +2890,50 @@ let view_impl =
   let open_canvas_menu =
       (
         ~node: option((string, string)),
+        ~definition: option((Id.t, string)),
+        ~is_function: bool,
         ~client: (float, float),
         ~at: (float, float),
       )
       : Effect.t(unit) => {
     canvas_menu_node := node;
+    canvas_menu_definition := definition;
+    canvas_menu_function := is_function;
     canvas_menu_client := client;
     canvas_menu_at := at;
     canvas_menu := Util.Menu.opened;
     nudge;
   };
   let on_canvas_contextmenu = (at: (float, float), client: (float, float)) =>
-    open_canvas_menu(~node=None, ~client, ~at);
-  let on_node_contextmenu = (n: CanvasGraph.tynode, client: (float, float)) =>
     open_canvas_menu(
-      ~node=Some((n.key, ty_syntax(n))),
+      ~node=None,
+      ~definition=None,
+      ~is_function=false,
       ~client,
-      ~at=(0., 0.),
+      ~at,
     );
+  let on_node_contextmenu = (n: CanvasGraph.tynode, client: (float, float)) =>
+    Effect.Many([
+      click_effect(n),
+      open_canvas_menu(
+        ~node=Some((n.key, ty_syntax(n))),
+        ~definition=Option.map(id => (id, n.label), n.n_id),
+        ~is_function=false,
+        ~client,
+        ~at=(0., 0.),
+      ),
+    ]);
+  let on_edge_contextmenu = (e: CanvasGraph.edge, client: (float, float)) =>
+    Effect.Many([
+      on_edge_click(e),
+      open_canvas_menu(
+        ~node=None,
+        ~definition=Some((e.e_id, e.e_name)),
+        ~is_function=true,
+        ~client,
+        ~at=(0., 0.),
+      ),
+    ]);
   let menu_layer =
     div(
       ~attrs=[clss(["canvas-menu-layer"])],
@@ -2870,11 +2944,10 @@ let view_impl =
         [
           div(
             ~attrs=[
-              clss([
-                "context-menu",
-                "canvas-context-menu",
-                "open-down-right",
-              ]),
+              clss(
+                ["context-menu", "canvas-context-menu", "open-down-right"]
+                @ (canvas_menu_function^ ? ["canvas-function-menu"] : []),
+              ),
               Attr.create(
                 "style",
                 Printf.sprintf(
@@ -5017,7 +5090,11 @@ let view_impl =
       hint_row,
       CanvasReplayView.overlay(),
       div(
-        ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
+        ~attrs=[
+          Attr.id("canvas-scroll"),
+          Attr.tabindex(-1),
+          clss(["canvas-scroll"]),
+        ],
         [
           /* the dot field: a viewport-fixed canvas UNDER the board
              (sticky 0x0 holder), redrawn on scroll/zoom with the
@@ -5050,6 +5127,9 @@ let view_impl =
             ~on_canvas_dblclick,
             ~on_canvas_contextmenu,
             ~on_node_contextmenu,
+            ~on_node_select=n => click_effect(n),
+            ~on_delete_definition=delete_definition,
+            ~on_edge_contextmenu,
             ~on_avatar_mousedown,
             ~focused_ty,
             ~on_edge_click,
