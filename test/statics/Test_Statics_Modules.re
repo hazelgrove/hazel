@@ -1500,6 +1500,31 @@ let test_typfun_binder_capture_is_marked =
     | _ => false,
   );
 
+/* The collision is the binder's, so its mark is on the type variable pattern. */
+let test_typfun_binder_capture_marked_on_binder =
+  Alcotest.test_case(
+    "A typfun binder's capture mark is on the type variable pattern",
+    `Quick,
+    () => {
+      let on_binder =
+        Language.Id.Map.exists(
+          (_, info: Language.Info.t) =>
+            switch (info) {
+            | InfoTPat({user_term: {term: Var("X"), _}, marks, _}) =>
+              List.exists(
+                fun
+                | Language.Mark.TypeMemberCapture(["X"]) => true
+                | _ => false,
+                marks,
+              )
+            | _ => false
+            },
+          statics(parse_exp(typfun_binder_source("X"))),
+        );
+      Alcotest.(check(bool))("mark is on the binder", true, on_binder);
+    },
+  );
+
 let test_typfun_binder_without_collision_is_clean =
   no_marks_test(
     "A typfun binder with no same-named type member is clean",
@@ -1680,6 +1705,7 @@ let tests = (
     test_abstract_argument_capture_is_marked,
     test_abstract_argument_without_collision_is_clean,
     test_typfun_binder_capture_is_marked,
+    test_typfun_binder_capture_marked_on_binder,
     test_typfun_binder_without_collision_is_clean,
     test_alias_definition_capture_is_marked,
   ],
