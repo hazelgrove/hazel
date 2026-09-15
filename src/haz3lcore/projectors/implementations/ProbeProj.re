@@ -2221,6 +2221,25 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
   };
 };
 
+/* Leaving the drawer hides a rich view that only fits there, so drop the
+   renderer with it: the menu then offers `View as` again and choosing it
+   reopens the drawer (#2519). Views that fit inline stay active and keep
+   embedding in the chip. */
+let set_drawer_mode =
+    (model: probe_model, info: info, drawer_mode: bool): probe_model => {
+  let needs_drawer =
+    switch (model.active_renderer, rich_drawer_rows(model, info)) {
+    | (Some(_), Some(n)) => n > inline_rows_cap
+    | _ => false
+    };
+  {
+    ...model,
+    drawer_mode,
+    active_renderer:
+      !drawer_mode && needs_drawer ? None : model.active_renderer,
+  };
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
@@ -2296,17 +2315,11 @@ module M: Projector = {
       /* Toggling moves the focusable .live-offside between DOM slots, which
        * drops focus; schedule a restore via after_display. */
       FocusEffect.schedule(info.id);
-      {
-        ...model,
-        drawer_mode: !model.drawer_mode,
-      };
+      set_drawer_mode(model, info, !model.drawer_mode);
     | SetDrawerMode(b) =>
       Settings.version := Settings.version^ + 1;
       FocusEffect.schedule(info.id);
-      {
-        ...model,
-        drawer_mode: b,
-      };
+      set_drawer_mode(model, info, b);
     | ToggleDropdown(did) =>
       Settings.set_open_dropdown(
         Settings.open_dropdown^ == Some(did) ? None : Some(did),
@@ -2326,10 +2339,9 @@ module M: Projector = {
       SampleLength.reset();
       model;
     | ToggleModal(pm) =>
-      switch (model.active_renderer) {
-      | None =>
-        /* activation: content taller than the inline cap opens the
-           drawer (chevron / Cmd+ArrowUp toggles back) */
+      /* activation: content taller than the inline cap opens the
+         drawer (chevron / Cmd+ArrowUp toggles back) */
+      let activate = () => {
         let wants_drawer =
           switch (
             rich_drawer_rows(
@@ -2348,11 +2360,20 @@ module M: Projector = {
           active_renderer: pm,
           drawer_mode: model.drawer_mode || wants_drawer,
         };
-      | Some(_) => {
+      };
+      switch (model.active_renderer, pm) {
+      | (None, _) => activate()
+      | (Some(active), Some(next))
+          when
+            RichProbe.renderer_id_of_model(active)
+            != RichProbe.renderer_id_of_model(next) =>
+        /* a different renderer switches rather than toggling off */
+        activate()
+      | (Some(_), _) => {
           ...model,
           active_renderer: None,
         }
-      }
+      };
     | RendererAction(pa) =>
       switch (
         model.active_renderer,
