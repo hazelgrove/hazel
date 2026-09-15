@@ -2194,16 +2194,10 @@
 .canvas-node.node-card .card-resize:hover {
   opacity: 1;
 }
-/* selection: the card's ONE border takes the color — green when the
-   node's sample is the focus anchor, red while the card has keyboard
-   focus (arrows step samples). Outranks the definition's blue: a card
-   never wears two rings. */
+/* Canvas selection stays green when arrow keys enter the sample stream. */
 .canvas-node.node-card:has(.probe-card.card-selected) {
-  border-color: var(--G0);
+  border-color: var(--canvas-select);
   border-width: 2.5px;
-}
-.canvas-node.node-card:has(.probe-card.card-selected:focus) {
-  border-color: var(--R1);
 }
 /* the info panel's value chip that IS the dynamic focus */
 .agg-value.agg-anchored .value,
@@ -2319,21 +2313,40 @@
 .canvas-card-probe .probe-card-rich .rich-html-view {
   position: static;
 }
-/* the probe's own sample nav (diamond + chevrons), overlaid at the
-   bottom center while the card is selected */
+/* Selected cards expose a quiet occurrence counter; no drawer control. */
 .canvas-card-probe .probe-card-nav {
   position: absolute;
   top: 100%;
-  right: -0.4em;
-  margin-top: 2px;
-  width: 2.2em;
-  height: 2.4em;
-  pointer-events: none;
+  right: 0;
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: max-content;
+  color: var(--canvas-select);
+  background: var(--df-bg, #fdfdf4);
+  border-radius: 3px;
+  padding: 0 3px;
+  font: 11px var(--code-font, monospace);
+  white-space: nowrap;
+  pointer-events: auto;
 }
-.canvas-card-probe .probe-card-nav .nav-bar {
-  position: static;
-  width: 100%;
-  height: 100%;
+.canvas-card-probe .probe-card-nav button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 20px/20px sans-serif;
+  padding: 0 3px;
+  cursor: pointer;
+}
+.canvas-card-probe .probe-card-nav button[aria-disabled="true"] {
+  opacity: .3;
+  cursor: default;
+}
+.canvas-card-probe .probe-card-position {
+  min-width: 4.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 /* an empty card SAYS so (a bare box read as a glitch) */
 .canvas-card-probe .probe-card-empty,

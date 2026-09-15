@@ -261,11 +261,26 @@ let card_view = (~globals, ~editor, ~key, ~app: bool=false, id) =>
    samples from different probes into one navigable stream would break
    the indication/window invariants. Clicking a chip captures that
    value's real occurrence (jump-to-occurrence). */
+let sample_is_anchor =
+    (~editor: CodeWithStatics.Model.t, sample: Language.Sample.t) =>
+  switch (editor.editor.state.zipper.refractors.sample_focus.anchor) {
+  | Some(a) =>
+    a.probe_id == sample.syntax_id
+    && (
+      switch (a.opened) {
+      | Some(o) => o == sample.step_start
+      | None => true
+      }
+    )
+  | None => false
+  };
+
 let value_chip =
     (
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~count: int,
+      ~highlight: bool=false,
       ~target_cols: int=44,
       sample: Language.Sample.t,
     )
@@ -369,20 +384,9 @@ let value_chip =
              ),
            ),
          );
-       /* this occurrence IS the dynamic focus: outlined like a focused
-          sample */
-       let anchored =
-         switch (editor.editor.state.zipper.refractors.sample_focus.anchor) {
-         | Some(a) =>
-           a.probe_id == sample.syntax_id
-           && (
-             switch (a.opened) {
-             | Some(o) => o == sample.step_start
-             | None => true
-             }
-           )
-         | None => false
-         };
+       /* An aggregate represents every occurrence of this value, including
+          a selected occurrence older than its display representative. */
+       let anchored = highlight || sample_is_anchor(~editor, sample);
        div(
          ~attrs=[
            /* the probe pill's own DOM hierarchy, so proj-probe.css

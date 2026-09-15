@@ -2376,6 +2376,94 @@ let card_rich =
     renderers,
   );
 
+/* A card shows one occurrence, so expose its position rather than the
+   probe drawer toggle. Equal consecutive values still give feedback. */
+let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
+  let samples =
+    Sample.Selection.filter_by_pin(
+      ~ap_id=ctx.ap_id,
+      ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+      ~pinned_interval=ctx.dynamics.pinned_interval,
+      ctx.dynamics.samples,
+    );
+  let count = List.length(samples);
+  let index: option(int) =
+    switch (sample) {
+    | None => None
+    | Some(current: Sample.t) =>
+      List.mapi(
+        (i, s: Sample.t) =>
+          s.step_start == current.step_start ? Some(i) : None,
+        samples,
+      )
+      |> List.find_map(x => x)
+    };
+  let button = (~label, ~disabled, ~offset, glyph) =>
+    Node.button(
+      ~attrs=[
+        Attr.create("type", "button"),
+        Attr.create("aria-label", label),
+        Attr.title(label),
+        Attr.create("aria-disabled", disabled ? "true" : "false"),
+        Attr.on_pointerdown(_ => Effect.Stop_propagation),
+        Attr.on_click(_ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            disabled ? Effect.Ignore : move_cursor(ctx, offset),
+          ])
+        ),
+      ],
+      [text(glyph)],
+    );
+  count > 1
+    ? [
+      div(
+        ~attrs=[
+          Attr.classes(["probe-card-nav"]),
+          Attr.on_pointerdown(_ => Effect.Stop_propagation),
+        ],
+        [
+          button(
+            ~label="Previous sample (←)",
+            ~disabled=
+              Option.value(~default=true, Option.map(i => i <= 0, index)),
+            ~offset=1,
+            "‹",
+          ),
+          span(
+            ~attrs=[
+              Attr.classes(["probe-card-position"]),
+              Attr.create("aria-live", "polite"),
+            ],
+            [
+              text(
+                (
+                  switch (index) {
+                  | Some(i) => string_of_int(i + 1)
+                  | None => "–"
+                  }
+                )
+                ++ " / "
+                ++ string_of_int(count),
+              ),
+            ],
+          ),
+          button(
+            ~label="Next sample (→)",
+            ~disabled=
+              Option.value(
+                ~default=true,
+                Option.map(i => i >= count - 1, index),
+              ),
+            ~offset=-1,
+            "›",
+          ),
+        ],
+      ),
+    ]
+    : [];
+};
+
 let card_view =
     (data: offside_data, local, view_seg: View.seg, ~settings as _: settings)
     : Node.t => {
@@ -2448,17 +2536,7 @@ let card_view =
         ["live-offside", "probe-card"] @ (selected ? ["card-selected"] : []),
       ),
     ],
-    content
-    @ (
-      selected && num_total > 1
-        ? [
-          div(
-            ~attrs=[Attr.classes(["probe-card-nav"])],
-            [nav_bar_view(ctx, ~num_total, ~show_arrows=true)],
-          ),
-        ]
-        : []
-    ),
+    content @ (selected ? card_navigation(ctx, sample) : []),
   );
 };
 

@@ -564,7 +564,7 @@ let type_view =
        /* a site inhabits this type if its pretty type matches the node's
           name or (for aliases) its body */
        let names = node_type_names(~graph, n);
-       let tally: Hashtbl.t(string, (int, int, Language.Sample.t)) =
+       let tally: Hashtbl.t(string, (int, int, Language.Sample.t, bool)) =
          Hashtbl.create(16);
        let spans = livelit_spans(~graph, ~syntax=editor.editor.syntax);
        Language.Sample.Map.fold(
@@ -585,15 +585,20 @@ let type_view =
                    ();
                  } else {
                    let v = print_value(s.value);
-                   let (c, latest, repr) =
+                   let (c, latest, repr, highlighted) =
                      Option.value(
-                       ~default=(0, 0, s),
+                       ~default=(0, 0, s, false),
                        Hashtbl.find_opt(tally, v),
                      );
                    Hashtbl.replace(
                      tally,
                      v,
-                     (c + 1, max(latest, s.seq), s.seq >= latest ? s : repr),
+                     (
+                       c + 1,
+                       max(latest, s.seq),
+                       s.seq >= latest ? s : repr,
+                       highlighted || CanvasProbe.sample_is_anchor(~editor, s),
+                     ),
                    );
                  },
                samples,
@@ -605,14 +610,15 @@ let type_view =
        );
        let entries =
          Hashtbl.fold(
-           (v, (c, latest, repr), acc) => [(v, c, latest, repr), ...acc],
+           (v, (c, latest, repr, highlight), acc) =>
+             [(v, c, latest, repr, highlight), ...acc],
            tally,
            [],
          )
-         |> List.sort(((_, _, a, _), (_, _, b, _)) => compare(b, a));
+         |> List.sort(((_, _, a, _, _), (_, _, b, _, _)) => compare(b, a));
        let shown = entries |> List.filteri((i, _) => i < max_type_values);
        let total_obs =
-         List.fold_left((acc, (_, c, _, _)) => acc + c, 0, entries);
+         List.fold_left((acc, (_, c, _, _, _)) => acc + c, 0, entries);
        let head =
          div(
            ~attrs=[clss(["focus-head"])],
@@ -693,8 +699,14 @@ let type_view =
           counts; clicking captures that occurrence */
        let chips =
          shown
-         |> List.filter_map(((_, c, _, repr: Language.Sample.t)) =>
-              CanvasProbe.value_chip(~globals, ~editor, ~count=c, repr)
+         |> List.filter_map(((_, c, _, repr: Language.Sample.t, highlight)) =>
+              CanvasProbe.value_chip(
+                ~globals,
+                ~editor,
+                ~count=c,
+                ~highlight,
+                repr,
+              )
             );
        let agg_nodes =
          chips == []
@@ -742,7 +754,7 @@ let type_view =
                  div(
                    ~attrs=[clss(["type-values"])],
                    List.map(
-                     ((v, c, _, repr: Language.Sample.t)) =>
+                     ((v, c, _, repr: Language.Sample.t, _)) =>
                        div(
                          ~attrs=[clss(["type-value"]), Attr.title(v)],
                          [
