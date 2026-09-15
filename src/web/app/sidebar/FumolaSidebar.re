@@ -222,7 +222,13 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      is looking -- just after a reset into the other mode. */
   let panel_title =
       (~mode: option(Language.FumolaRun.mode)=?, instance: string) =>
-    [text(panel_name ++ instance)]
+    [
+      /* The label is what every instance has in common, the name is what
+         tells one from another -- so the weight goes on the name. The header
+         is bold as a whole, and this turns the constant half back down. */
+      span(~attrs=[clss(["fumola-panel-label"])], [text(panel_name)]),
+      span(~attrs=[clss(["fumola-panel-name"])], [text(instance)]),
+    ]
     @ (
       switch (mode) {
       | None => []
