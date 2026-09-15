@@ -186,7 +186,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when Typ.is_consistent(ctx, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when
+          Typ.is_consistent(
+            ctx,
+            Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
+            sumt' |> Typ.temp,
+          ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -200,8 +205,53 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | Some(None)
       | None => None
       };
+    /* an UNTYPED constructor (raw syntax fed to the evaluator without
+       elaboration — a livelit's model argument, an agent-inserted
+       value) ascribed to a sum that has it takes the sum as its type;
+       an application pushes the ascription into the payload */
+    | (Constructor(c, None), Sum(m))
+        when ConstructorMap.get_entry(c, m) == Some(None) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Constructor(c, Some(Some(t))) |> DHExp.fresh,
+        ),
+      )
+    | (
+        Ap(Forward, {term: Constructor(c, None), _} as con, payload),
+        Sum(m),
+      )
+        when ConstructorMap.get_entry(c, m) != None =>
+      switch (ConstructorMap.get_entry(c, m)) {
+      | Some(Some(t')) =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Ap(
+              Forward,
+              IdTagged.fast_copy(
+                DHExp.rep_id(con),
+                Constructor(c, Some(Some(Typ.temp(Arrow(t', t)))))
+                |> DHExp.fresh,
+              ),
+              recur(Asc(payload, t') |> DHExp.fresh),
+            )
+            |> DHExp.fresh,
+          ),
+        )
+      | _ => None
+      }
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(ctx, Typ.unroll(t), t' |> Typ.temp) =>
+        when
+          Typ.is_consistent(
+            ctx,
+            /* the constructor's own type may be a compact alias of a
+               recursive builtin sum (Null : JSON): resolve it the way
+               the ascription's type was, or the unrolled target never
+               reads as consistent and the cast sticks */
+            Typ.unroll(Typ.weak_head_normalize(ctx, t)),
+            t' |> Typ.temp,
+          ) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(

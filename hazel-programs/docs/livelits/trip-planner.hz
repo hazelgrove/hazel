@@ -1,0 +1,205 @@
+# Trip planner: click the map to add stops; the route, its legs and     #
+# their cost are values with views. `leg_cost` is the frame: one call    #
+# per leg of the route.                                                  #
+
+type Point = + Pt(Int, Int) in
+type Route = [Point] in
+type Leg = (Point, Point) in
+type Money = + Cents(Int) in
+
+# ---- value views (no controls) ---- #
+
+let ^point = {
+  type Model = Point;
+  type Action = + Nothing;
+  let init : Model = Pt(50, 50);
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    case p
+    | Pt(x, y) =>
+      Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
+        [Node("path", [Create("d", "M0 25 H100 M0 50 H100 M0 75 H100 M25 0 V100 M50 0 V100 M75 0 V100"),
+                      Create("fill", "none"), Create("stroke", "#8fa4b5"), Create("stroke-opacity", "0.2"), Create("stroke-width", "0.5")], []),
+         Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "5"),
+                         Create("fill", "#a6d3ee")], [])])
+    end;
+  let expand(p: Model): Point = p;
+  let wrap(p: Point): Model = p;
+  let shape : LivelitShape = Tab(9, 5)
+} in
+
+let ^route = {
+  type Model = Route;
+  type Action = + Nothing;
+  let init : Model = [];
+  let update(m: Model, _: Action): Model = m;
+  let coords(ps: Route): String =
+    fold_left(ps, fun (acc: String, p: Point) ->
+      case p | Pt(x, y) => acc ++ string_of_int(x) ++ "," ++ string_of_int(y) ++ " " end, "");
+  let view(r: Model): HTML =
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
+      [Node("path", [Create("d", "M0 25 H100 M0 50 H100 M0 75 H100 M25 0 V100 M50 0 V100 M75 0 V100"),
+                      Create("fill", "none"), Create("stroke", "#8fa4b5"), Create("stroke-opacity", "0.2"), Create("stroke-width", "0.5")], []),
+       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#f2ab98"),
+                         Create("stroke-width", "2")], [])]
+      @ map(r, fun p: Point -> case p | Pt(x, y) =>
+          Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "3.5"), Create("stroke", "#576e83"), Create("stroke-width", "1"),
+                          Create("fill", "#a6d3ee")], []) end));
+  let expand(r: Model): Route = r;
+  let wrap(r: Route): Model = r;
+  let shape : LivelitShape = Tab(9, 5)
+} in
+
+let ^leg = {
+  type Model = Leg;
+  type Action = + Nothing;
+  let init : Model = (Pt(10, 10), Pt(90, 90));
+  let update(m: Model, _: Action): Model = m;
+  let view((a, b): Model): HTML =
+    case (a, b)
+    | (Pt(ax, ay), Pt(bx, by)) =>
+      Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
+        [Node("path", [Create("d", "M0 25 H100 M0 50 H100 M0 75 H100 M25 0 V100 M50 0 V100 M75 0 V100"),
+                      Create("fill", "none"), Create("stroke", "#8fa4b5"), Create("stroke-opacity", "0.2"), Create("stroke-width", "0.5")], []),
+         Node("line", [Create("x1", string_of_int(ax)), Create("y1", string_of_int(ay)),
+                       Create("x2", string_of_int(bx)), Create("y2", string_of_int(by)),
+                       Create("stroke", "#f2ab98"), Create("stroke-width", "2")], []),
+         Node("circle", [Create("cx", string_of_int(ax)), Create("cy", string_of_int(ay)), Create("r", "3.5"), Create("stroke", "#576e83"), Create("stroke-width", "1"),
+                         Create("fill", "#a6d3ee")], []),
+         Node("circle", [Create("cx", string_of_int(bx)), Create("cy", string_of_int(by)), Create("r", "3.5"), Create("stroke", "#576e83"), Create("stroke-width", "1"),
+                         Create("fill", "#e9c182")], [])])
+    end;
+  let expand(l: Model): Leg = l;
+  let wrap(l: Leg): Model = l;
+  let shape : LivelitShape = Tab(9, 5)
+} in
+
+let ^money = {
+  type Model = Money;
+  type Action = + Nothing;
+  let init : Model = Cents(0);
+  let update(m: Model, _: Action): Model = m;
+  let view(m: Model): HTML =
+    case m | Cents(c) =>
+      let cents = int_mod(c, 100) in
+      let label = string_of_int(c / 100) ++ "." ++ (if cents < 10 then "0" else "") ++ string_of_int(cents) in
+      Node(
+          "svg",
+          [
+              Create("width", "146"),
+              Create("height", "68"),
+              Create("viewBox", "0 0 146 68"),
+              Style(
+                  [
+                      ("display", "block"),
+                      ("background", "#576e83"),
+                      ("font-family", "Helvetica Neue, Arial, sans-serif"),
+                      ("font-variant-numeric", "tabular-nums")
+                  ]
+               ),
+              Class("blue-hour-view blue-hour-bleed")
+          ],
+          [
+              Node("rect", [Create("width", "36"), Create("height", "68"), Create("fill", "#4e657a")], []),
+              Node(
+                  "path",
+                  [Create("d", "M36 0 V68"), Create("stroke", "#304b6059"), Create("stroke-width", ".7")],
+                  []
+               ),
+              Node(
+                  "path",
+                  [Create("d", "M37 0 V68"), Create("stroke", "#d2dce34d"), Create("stroke-width", ".7")],
+                  []
+               ),
+              Node(
+                  "text",
+                  [
+                      Create("x", "18"),
+                      Create("y", "40"),
+                      Create("text-anchor", "middle"),
+                      Create("font-size", "20"),
+                      Create("fill", "#c4d0d5")
+                  ],
+                  [Text("$")]
+               ),
+              Node(
+                  "text",
+                  [
+                      Create("x", "132"),
+                      Create("y", "44"),
+                      Create("text-anchor", "end"),
+                      Create("font-size", "28"),
+                      Create("fill", "#f3f2e9")
+                  ],
+                  [Text(label)]
+                  )
+          ]
+          )
+    end;
+  let expand(m: Model): Money = m;
+  let wrap(m: Money): Model = m;
+  let shape : LivelitShape = Tab(15, 4)
+} in
+
+# ---- the app: click the map to add a stop; click a stop to remove it ---- #
+
+let ^map = {
+  type Model = Route;
+  type Action = + Add(Int, Int) + Remove(Int);
+  let init : Model = [Pt(15, 20), Pt(60, 35), Pt(80, 80)];
+  let update(r: Model, a: Action): Model =
+    case a
+    | Add(x, y) => append(r, [Pt(x, y)])
+    | Remove(i) => filteri(r, fun (j: Int, _: Point) -> j != i)
+    end;
+  let coords(ps: Route): String =
+    fold_left(ps, fun (acc: String, p: Point) ->
+      case p | Pt(x, y) => acc ++ string_of_int(x) ++ "," ++ string_of_int(y) ++ " " end, "");
+  let view(r: Model): HTML =
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "crosshair")]), Create("viewBox", "0 0 100 100"), Width("160"), Height("160"),
+                 OnClickAt(fun (x: Int, y: Int) -> Add(x * 100 / 160, y * 100 / 160))],
+      [Node("path", [Create("d", "M0 25 H100 M0 50 H100 M0 75 H100 M25 0 V100 M50 0 V100 M75 0 V100"),
+                      Create("fill", "none"), Create("stroke", "#8fa4b5"), Create("stroke-opacity", "0.2"), Create("stroke-width", "0.5")], []),
+       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#f2ab98"),
+                         Create("stroke-width", "1.5")], [])]
+      @ mapi(r, fun (i: Int, p: Point) -> case p | Pt(x, y) =>
+          Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "3.5"), Create("stroke", "#576e83"), Create("stroke-width", "1"),
+                          Create("fill", "#a6d3ee"), OnClick(Remove(i)), Style([("cursor", "pointer")])], []) end));
+  let expand(r: Model): Route = r;
+  let wrap(r: Route): Model = r;
+  let shape : LivelitShape = Tab(14, 8)
+} in
+
+# ---- the program ---- #
+
+let isqrt(n: Int): Int =
+  let go(g: Int): Int = if g * g <= n && (g + 1) * (g + 1) > n then g else go(g + 1) in
+  if n <= 0 then 0 else go(0) in
+
+let distance((a, b): Leg): Int =
+  case (a, b)
+  | (Pt(ax, ay), Pt(bx, by)) => isqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by))
+  end in
+
+let legs(r: Route): [Leg] =
+  case r
+  | a::b::rest => (a, b)::legs(b::rest)
+  | _ => []
+  end in
+
+# the frame: one call per leg — 40 cents a unit of distance plus a $2 stop fee #
+let leg_cost(l: Leg): Money =
+  let d : Int = distance(l) in
+  Cents(200 + d * 40) in
+
+let add((a, b): (Money, Money)): Money =
+  case (a, b) | (Cents(x), Cents(y)) => Cents(x + y) end in
+
+let total(r: Route): Money =
+  fold_left(map(legs(r), leg_cost), fun (acc: Money, m: Money) -> add((acc, m)), Cents(0)) in
+
+let route : Route = ^^livelit(^map([Pt(15, 20), Pt(60, 35), Pt(80, 80)])) in
+let fares : [Money] = map(legs(route), leg_cost) in
+let fare : Money = total(route) in
+
+(length(legs(route)), fare)

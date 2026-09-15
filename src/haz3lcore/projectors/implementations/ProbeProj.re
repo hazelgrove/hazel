@@ -28,6 +28,11 @@ type probe_model = {
      state so resizes persist and serialize; ProbePill stays pure. */
   [@default []]
   sample_lengths: list((int, int)),
+  /* canvas type card: the view is the aligned sample alone — its rich
+     rendering when one applies, else the pretty-printed value — with
+     the nav bar only while this site holds the focus anchor */
+  [@default false]
+  card_mode: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -37,6 +42,7 @@ let init_probe_model: probe_model = {
   auto_rich: false,
   rich_off: false,
   sample_lengths: [],
+  card_mode: false,
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -78,6 +84,28 @@ let model_string_auto_rich = (stored: option(string)): string => {
   {
     ...m,
     auto_rich: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
+};
+
+/* Canvas type cards: the stored model (or the default) in card mode. */
+let model_string_card = (stored: option(string)): string => {
+  let m =
+    switch (stored) {
+    | Some(s) =>
+      try(probe_model_of_sexp(Sexplib.Sexp.of_string(s))) {
+      | _ => init_probe_model
+      }
+    | None => init_probe_model
+    };
+  /* rich_off has no toggle in a card: the view is always the rich one
+     when it applies */
+  {
+    ...m,
+    auto_rich: true,
+    rich_off: false,
+    card_mode: true,
   }
   |> sexp_of_probe_model
   |> Sexplib.Sexp.to_string;
@@ -282,6 +310,9 @@ type probe_ctx = {
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
+  /* canvas type card: the chip's own dbl-click toggles do not apply
+     (the card's dbl-click collapses it) */
+  card: bool,
   p_info: info,
 };
 
@@ -699,7 +730,10 @@ let value_view =
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ =>
-        ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
+        ctx.card
+          ? Effect.Ignore
+          : ctx.auto_rich_ready
+              ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
@@ -762,9 +796,19 @@ let value_view =
           switch (find(RichProbe.renderer_id_of_model(pm))) {
           | Some(r)
               when
-                r.can_handle(ctx.sort, sample.value)
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
                 && (
-                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  switch (
+                    r.drawer_rows(
+                      ~statics=Some(ctx.statics),
+                      ctx.sort,
+                      sample.value,
+                    )
+                  ) {
                   | Some(n) => n <= inline_rows_cap
                   | None => true
                   }
@@ -776,20 +820,39 @@ let value_view =
           switch (
             List.find_opt(
               (r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
                 /* a vacuous match (empty hand) still renders when a
                    SIBLING sample at this site is real evidence */
                 && (
-                  r.auto_applies(ctx.sort, sample.value)
+                  r.auto_applies(
+                    ~statics=Some(ctx.statics),
+                    ctx.sort,
+                    sample.value,
+                  )
                   || List.exists(
-                       (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
+                       (s: Sample.t) =>
+                         r.auto_applies(
+                           ~statics=Some(ctx.statics),
+                           ctx.sort,
+                           s.value,
+                         ),
                        ctx.dynamics.samples,
                      )
                 )
                 && (
                   ctx.auto_unbounded
                   || (
-                    switch (r.drawer_rows(ctx.sort, sample.value)) {
+                    switch (
+                      r.drawer_rows(
+                        ~statics=Some(ctx.statics),
+                        ctx.sort,
+                        sample.value,
+                      )
+                    ) {
                     | Some(n) => n <= inline_rows_cap
                     | None => true
                     }
@@ -799,7 +862,13 @@ let value_view =
             )
           ) {
           | Some(r) =>
-            switch (r.init_model(ctx.sort, sample.value)) {
+            switch (
+              r.init_model(
+                ~statics=Some(ctx.statics),
+                ctx.sort,
+                sample.value,
+              )
+            ) {
             | Some(pm) => render_rich(r, pm)
             | None => None
             }
@@ -824,12 +893,13 @@ let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
     List.find_opt(
-      (r: packed_renderer) => r.auto_applies(sort, value),
+      (r: packed_renderer) =>
+        r.auto_applies(~statics=info.statics, sort, value),
       renderers,
     );
   switch (pick) {
   | Some(r) =>
-    switch (r.init_model(sort, value)) {
+    switch (r.init_model(~statics=info.statics, sort, value)) {
     | Some(pm) =>
       r.render_model(
         pm,
@@ -1018,7 +1088,15 @@ let rich_probe_action =
         =>
           Effect.Many([
             Effect.Stop_propagation,
-            ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value))),
+            ctx.local(
+              ToggleModal(
+                r.init_model(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                ),
+              ),
+            ),
           ])
         ),
     ],
@@ -1032,7 +1110,7 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   | Some(indicated) =>
     renderers
     |> List.filter_map(r =>
-         r.can_handle(ctx.sort, indicated.value)
+         r.can_handle(~statics=Some(ctx.statics), ctx.sort, indicated.value)
            ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
   };
@@ -1340,7 +1418,12 @@ let sample_view =
         switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
         | Some(indicated) =>
           List.exists(
-            r => r.can_handle(ctx.sort, indicated.value),
+            r =>
+              r.can_handle(
+                ~statics=Some(ctx.statics),
+                ctx.sort,
+                indicated.value,
+              ),
             renderers,
           )
         | None => false
@@ -1480,8 +1563,26 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     );
   switch (cursor_idx) {
   | Some(idx) =>
-    let next_idx_maybe = idx - offset;
-    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
+    let n = List.length(samples);
+    /* a CARD steps to the next DISTINCT value: a site referenced several
+       times per step, or replayed twice, holds runs of equal samples,
+       and walking them one by one reads as the key doing nothing */
+    let next_idx_maybe =
+      if (ctx.card) {
+        let cur = List.nth(samples, idx).value;
+        let rec find = i =>
+          if (i < 0 || i >= n) {
+            i;
+          } else if (Exp.fast_equal(List.nth(samples, i).value, cur)) {
+            find(i - offset);
+          } else {
+            i;
+          };
+        find(idx - offset);
+      } else {
+        idx - offset;
+      };
+    if (next_idx_maybe >= 0 && next_idx_maybe < n) {
       let sample = List.nth(samples, next_idx_maybe);
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
@@ -1849,7 +1950,8 @@ let prepare_offside =
       && List.exists(
            (sample: Sample.t) =>
              List.exists(
-               (r: packed_renderer) => r.auto_applies(sort, sample.value),
+               (r: packed_renderer) =>
+                 r.auto_applies(~statics=Some(statics), sort, sample.value),
                renderers,
              ),
            dynamics.samples,
@@ -1870,6 +1972,7 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
+      card: model.card_mode,
       lengths: model.sample_lengths,
       p_info: info,
     };
@@ -2128,7 +2231,8 @@ let rich_content =
   switch (model.active_renderer, get_current(~settings, info)) {
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
-    | Some(renderer) when renderer.can_handle(sort, exp) =>
+    | Some(renderer)
+        when renderer.can_handle(~statics=info.statics, sort, exp) =>
       renderer.render_model(
         pm,
         ~info,
@@ -2141,6 +2245,36 @@ let rich_content =
       )
     | _ => None
     }
+  /* no renderer chosen by hand: under auto-rich (the probe's own flag or
+     the global default) the first applicable renderer shows the value,
+     so a widget too tall for the inline chip still appears in the
+     drawer without a menu trip */
+  | (None, Some(exp))
+      when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
+    switch (
+      List.find_opt(
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, exp),
+        renderers,
+      )
+    ) {
+    | Some(r) =>
+      switch (r.init_model(~statics=info.statics, sort, exp)) {
+      | Some(pm) =>
+        r.render_model(
+          pm,
+          ~info,
+          ~exp,
+          ~view_seg,
+          ~local=pa => local(RendererAction(pa)),
+          ~parent,
+          ~sort,
+          (),
+        )
+      | None => None
+      }
+    | None => None
+    }
   | _ => None
   };
 
@@ -2148,6 +2282,264 @@ let rich_content =
  * `overflowing` marks content taller than the reserved rows, letting CSS
  * keep `.below-wrapper`'s overflow clip (for scrolling) only when needed —
  * otherwise the clip would cut off the table's column menus. */
+/* ---- card mode (canvas type cards) ---- */
+
+/* the sample a card shows: the one aligned with the global focus, else
+   the newest (last) of the pin-filtered samples */
+let card_sample = (ctx: probe_ctx): option(Sample.t) => {
+  /* an app site's stream mixes its VIEW samples (HTML) with its values;
+     a card of a non-HTML type shows the values */
+  let site_is_html =
+    switch (ctx.statics) {
+    | InfoExp(e) =>
+      switch (Typ.term_of(Info.exp_ty(e))) {
+      | Var("HTML") => true
+      | _ => false
+      }
+    | _ => false
+    };
+  let values =
+    site_is_html
+      ? ctx.dynamics.samples
+      : List.filter(
+          (s: Sample.t) => !MvuShape.is_html(s.value),
+          ctx.dynamics.samples,
+        );
+  let newest = () =>
+    Sample.Selection.filter_by_pin(
+      ~ap_id=ctx.ap_id,
+      ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+      ~pinned_interval=ctx.dynamics.pinned_interval,
+      values,
+    )
+    |> List.fold_left(
+         (best, s: Sample.t) =>
+           switch (best) {
+           | Some(b: Sample.t) when b.seq >= s.seq => best
+           | _ => Some(s)
+           },
+         None,
+       );
+  let focus = ctx.dynamics.sample_focus;
+  let anchored_here =
+    switch (focus.anchor) {
+    | Some(a) => a.probe_id == ctx.id
+    | None => false
+    };
+  switch (focus.anchor) {
+  /* no sample selected anywhere: the latest value (a pin only filters
+     which samples are in play) */
+  | None => newest()
+  | Some(_) =>
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    /* a real alignment: the selected sample itself, or one in the
+       same call as the selection (tandem); a mere tier fallback to
+       some sample is no reason to leave the latest value */
+    | Some(s)
+        when
+          anchored_here
+          || Sample.Focus.relation(~trimmed=true, ~ap_id=ctx.ap_id, focus, s).
+               is_call_cursor =>
+      Some(s)
+    | _ => newest()
+    }
+  };
+};
+
+/* First registered renderer that takes the value, rendered. A canvas card
+   is an explicit request for a view, so unlike the offside auto path it
+   also accepts the TABLE renderer (which opts out of auto-selection);
+   everything else goes through auto_applies, which is what now rejects
+   the vacuous matches (an empty list as an empty card hand). */
+let card_rich =
+    (ctx: probe_ctx, ~view_seg: View.seg, local, value: Exp.t)
+    : option(Node.t) =>
+  List.find_map(
+    (r: packed_renderer) =>
+      r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
+      || r.id == "table"
+      && r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+        ? Option.bind(
+            r.init_model(~statics=Some(ctx.statics), ctx.sort, value), pm =>
+            r.render_model(
+              pm,
+              ~info=ctx.p_info,
+              ~exp=value,
+              ~view_seg=(sort, seg) => view_seg(sort, seg),
+              ~local=pa => local(RendererAction(pa)),
+              ~parent=ctx.parent,
+              ~sort=ctx.sort,
+              (),
+            )
+          )
+        : None,
+    renderers,
+  );
+
+/* A card shows one occurrence, so expose its position rather than the
+   probe drawer toggle. Equal consecutive values still give feedback. */
+let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
+  let samples =
+    Sample.Selection.filter_by_pin(
+      ~ap_id=ctx.ap_id,
+      ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+      ~pinned_interval=ctx.dynamics.pinned_interval,
+      ctx.dynamics.samples,
+    );
+  let count = List.length(samples);
+  let index: option(int) =
+    switch (sample) {
+    | None => None
+    | Some(current: Sample.t) =>
+      List.mapi(
+        (i, s: Sample.t) =>
+          s.step_start == current.step_start ? Some(i) : None,
+        samples,
+      )
+      |> List.find_map(x => x)
+    };
+  let button = (~label, ~disabled, ~offset, glyph) =>
+    Node.button(
+      ~attrs=[
+        Attr.create("type", "button"),
+        Attr.create("aria-label", label),
+        Attr.title(label),
+        Attr.create("aria-disabled", disabled ? "true" : "false"),
+        Attr.on_pointerdown(_ => Effect.Stop_propagation),
+        Attr.on_click(_ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            disabled ? Effect.Ignore : move_cursor(ctx, offset),
+          ])
+        ),
+      ],
+      [text(glyph)],
+    );
+  count > 1
+    ? [
+      div(
+        ~attrs=[
+          Attr.classes(["probe-card-nav"]),
+          Attr.on_pointerdown(_ => Effect.Stop_propagation),
+        ],
+        [
+          button(
+            ~label="Previous sample (←)",
+            ~disabled=
+              Option.value(~default=true, Option.map(i => i <= 0, index)),
+            ~offset=1,
+            "‹",
+          ),
+          span(
+            ~attrs=[
+              Attr.classes(["probe-card-position"]),
+              Attr.create("aria-live", "polite"),
+            ],
+            [
+              text(
+                (
+                  switch (index) {
+                  | Some(i) => string_of_int(i + 1)
+                  | None => "–"
+                  }
+                )
+                ++ " / "
+                ++ string_of_int(count),
+              ),
+            ],
+          ),
+          button(
+            ~label="Next sample (→)",
+            ~disabled=
+              Option.value(
+                ~default=true,
+                Option.map(i => i >= count - 1, index),
+              ),
+            ~offset=-1,
+            "›",
+          ),
+        ],
+      ),
+    ]
+    : [];
+};
+
+let card_view =
+    (data: offside_data, local, view_seg: View.seg, ~settings as _: settings)
+    : Node.t => {
+  let {ctx, id, num_total, _} = data;
+  /* selected = this site's sample is the focus anchor */
+  let selected =
+    switch (ctx.dynamics.sample_focus.anchor) {
+    | Some(a) => a.probe_id == id
+    | None => false
+    };
+  let sample = card_sample(ctx);
+  let content =
+    switch (sample) {
+    | None => [
+        div(
+          ~attrs=[Attr.classes(["probe-card-empty"])],
+          [text("no sample")],
+        ),
+      ]
+    | Some(sample) =>
+      switch (card_rich(ctx, ~view_seg, local, sample.value)) {
+      | Some(n) => [div(~attrs=[Attr.classes(["probe-card-rich"])], [n])]
+      | None => [
+          div(
+            ~attrs=[Attr.classes(["probe-card-plain"])],
+            [
+              value_view(
+                ~display=Block,
+                ~alt_toggle=() => Effect.Ignore,
+                ctx,
+                ~num_total,
+                (~text_only, segment) =>
+                  view_seg(
+                    ~single_line=false,
+                    ~background=false,
+                    ~text_only,
+                    Sort.Exp,
+                    segment,
+                  ),
+                local,
+                sample,
+              ),
+            ],
+          ),
+        ]
+      }
+    };
+  let select =
+    switch (sample) {
+    | Some(sample) => (
+        _ =>
+          ctx.parent(
+            SampleFocus(
+              Capture(Sample.capture_of_sample(sample), ctx.ap_id),
+            ),
+          )
+      )
+    | None => (_ => Effect.Ignore)
+    };
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.create("data-probe-id", Id.to_string(id)),
+      Attr.tabindex(0),
+      Attr.on_keydown(
+        key_handler(ctx, ~id, ~drawer_mode_active=false, local),
+      ),
+      Attr.on_pointerdown(select),
+      Attr.classes(
+        ["live-offside", "probe-card"] @ (selected ? ["card-selected"] : []),
+      ),
+    ],
+    content @ (selected ? card_navigation(ctx, sample) : []),
+  );
+};
+
 let rich_drawer_view =
     (
       ~local: action => Ui_effect.t(unit),
@@ -2191,17 +2583,22 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       find(RichProbe.renderer_id_of_model(pm)),
       get_current(~settings=Settings.s^, info),
     ) {
-    | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
+    | (Some(r), Some(exp)) => r.drawer_rows(~statics=info.statics, sort, exp)
     | _ => None
     }
-  | None when model.auto_rich =>
+  | None
+      when
+        (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
       List.find_opt(
-        (r: packed_renderer) => r.auto_applies(sort, exp),
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
-      |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
+      |> Option.map((r: packed_renderer) =>
+           r.drawer_rows(~statics=info.statics, sort, exp)
+         )
       |> Option.join
     | None => None
     }
@@ -2442,10 +2839,12 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let drawer = model.drawer_mode;
+    let drawer = model.drawer_mode && !model.card_mode;
     let offside_main =
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
+      | (Some(data), _) when model.card_mode =>
+        card_view(data, local, view_seg, ~settings)
       | (Some(data), false) =>
         /* rich content embeds inside each sample chip (value_view);
            no whole-row replacement in inline mode */

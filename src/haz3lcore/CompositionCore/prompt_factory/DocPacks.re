@@ -150,6 +150,12 @@ let expand(m: Model) = m
   (see read_docs("mvu")); handlers emit Actions
 - `expand : Model -> T` — what a use MEANS to the program: `^pct(25)`
   evaluates to `expand(25)`
+- `wrap : T -> Model` (optional but recommended) — rebuild a display
+  model from a VALUE of the expansion type. With it, every probe and
+  canvas value of type T renders through this view automatically
+  (outputs of functions over T become pictures, not text). Give T its
+  own constructor-wrapped type (`type Curve = Curve([(Int, Int)]) in`)
+  so it is matched unambiguously.
 
 ## Rules
 
@@ -198,6 +204,16 @@ When a program contains values a user would rather manipulate directly
 than type — colors, ranges, coordinates, enums — define a livelit for
 that type and wrap the value uses. Prefer a builtin (`^^slider`,
 `^^check`, ...) when one already fits.
+
+## Leave room for the human
+
+A finished program should be something a non-programmer can operate:
+put tunable parameters behind `^^slider(n)` / `^^sliderf(x)` /
+`^^check(b)` at their binding sites, put structured inputs behind a
+livelit, keep the pipeline `input -> functions -> output` legible at
+the top level, and include a `wrap` member so results show as widgets
+in probes. A value the user will want to change should never be a bare
+literal buried inside a function body.
 |},
 };
 

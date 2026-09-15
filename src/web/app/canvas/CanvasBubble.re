@@ -126,9 +126,8 @@ let set_mode_class = (el, m: mode): unit => {
 
 let rec tick = (): unit => {
   switch (el_by_class("canvas-avatar-bubble")) {
-  | Some(bub) =>
+  | Some(_) =>
     let m = mode();
-    set_mode_class(bub, m);
     switch (m) {
     | Speech =>
       switch (el_by_class("say-text")) {
@@ -277,101 +276,121 @@ let speech_path =
 
 /* the last placement's inputs: a frame that would write the same
    values back skips the writes (each one invalidates style) */
-let last_place: ref(string) = ref("");
 let place = (): unit =>
   switch (CanvasAvatar.body()) {
   | None => ()
   | Some(b) =>
     switch (child(b, ".canvas-avatar-bubble")) {
     | None => ()
-    | Some(bub) when mode() != Hidden =>
+    | Some(bub) =>
       let m = mode();
-      let (cx, cy, r) = CanvasAvatar.bounding_circle();
-      /* which way is there room: the circle's position in the pane */
-      let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
-      let (sx, sy) =
-        switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
-        | Some(pane) =>
-          let pr = Js.Unsafe.meth_call(pane, "getBoundingClientRect", [||])
-          and br = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
-          let px: float = Js.Unsafe.get(pr, "left")
-          and py: float = Js.Unsafe.get(pr, "top")
-          and pw: float = Js.Unsafe.get(pr, "width")
-          and ph: float = Js.Unsafe.get(pr, "height");
-          let bx: float = Js.Unsafe.get(br, "left") +. cx *. zoom
-          and by: float = Js.Unsafe.get(br, "top") +. cy *. zoom;
-          let fx = (bx -. px) /. max(1., pw)
-          and fy = (by -. py) /. max(1., ph);
-          (fx > 0.38 ? (-1.) : 1., fy > 0.3 ? (-1.) : 1.);
-        | None => ((-1.), (-1.))
-        };
-      let d = 0.7071;
-      let dx = sx *. d
-      and dy = sy *. d;
-      let tipx = cx +. dx *. r
-      and tipy = cy +. dy *. r;
-      /* the bubble box: its near corner at gap g beyond the tip */
-      let w: float = Js.Unsafe.get(bub, "offsetWidth")
-      and h: float = Js.Unsafe.get(bub, "offsetHeight");
-      /* speech: the box's near corner sits 9 px beyond the tip (the tail
-         spans the gap). thought: the cloud is ellipse-like, so its box
-         corner is far from its outline — place the OUTLINE point facing
-         the avatar (on an ellipse inset in the box) 17 px beyond the tip,
-         past the two puffs */
-      let (left, top) =
-        switch (m) {
-        | Speech =>
-          let kx = tipx +. dx *. 9.
-          and ky = tipy +. dy *. 9.;
-          (sx < 0. ? kx -. w : kx, sy < 0. ? ky -. h : ky);
-        | Thought
-        | Hidden =>
-          let a = max(1., w /. 2. -. 7.)
-          and b = max(1., h /. 2. -. 5.);
-          let re = 1. /. sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
-          let ccx = tipx +. dx *. (17. +. re)
-          and ccy = tipy +. dy *. (17. +. re);
-          (ccx -. w /. 2., ccy -. h /. 2.);
-        };
-      let key =
-        String.concat(
-          "/",
-          List.map(f1, [left, top, w, h, tipx, tipy, sx, sy])
-          @ [mode_class(m)],
-        );
-      if (key != last_place^) {
-        last_place := key;
-        set_style(bub, "left", f1(left) ++ "px");
-        set_style(bub, "top", f1(top) ++ "px");
-        /* the speech skin's outline, tail included */
-        switch (child(bub, ".say-shape path")) {
-        | Some(path) when m == Speech =>
-          set_attr(
-            path,
-            "d",
-            speech_path(~w, ~h, ~sx, ~sy, (tipx -. left, tipy -. top)),
-          )
-        | _ => ()
-        };
-        /* the cloud's puffs: small, a little space, larger, a little space */
-        switch (child(b, ".bubble-tails")) {
-        | Some(t) =>
-          List.iter(
-            ((sel, along, rad)) =>
-              switch (child(t, sel)) {
-              | Some(c) =>
-                set_attr(c, "cx", f1(tipx +. dx *. along));
-                set_attr(c, "cy", f1(tipy +. dy *. along));
-                set_attr(c, "r", f1(rad));
-                set_attr(c, "opacity", m == Thought ? "1" : "0");
-              | None => ()
-              },
-            [(".cloud-puff-1", 3., 2.4), (".cloud-puff-2", 11., 3.8)],
-          )
-        | None => ()
+      /* Mode, geometry and the tail belong to one frame. Text keeps its
+         slower cadence, but cannot leave the cloud in an old skin. */
+      let cl = Js.Unsafe.get(bub, "classList");
+      if (!
+            Js.to_bool(
+              Js.Unsafe.meth_call(
+                cl,
+                "contains",
+                [|Js.Unsafe.inject(Js.string(mode_class(m)))|],
+              ),
+            )) {
+        set_mode_class(bub, m);
+      };
+      if (m != Hidden) {
+        let (cx, cy, r) = CanvasAvatar.bounding_circle();
+        /* which way is there room: the circle's position in the pane */
+        let zoom = CanvasZoom.clamp(CanvasBuffer.canvas_zoom^);
+        let (sx, sy) =
+          switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+          | Some(pane) =>
+            let pr = Js.Unsafe.meth_call(pane, "getBoundingClientRect", [||])
+            and br = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
+            let px: float = Js.Unsafe.get(pr, "left")
+            and py: float = Js.Unsafe.get(pr, "top")
+            and pw: float = Js.Unsafe.get(pr, "width")
+            and ph: float = Js.Unsafe.get(pr, "height");
+            let bx: float = Js.Unsafe.get(br, "left") +. cx *. zoom
+            and by: float = Js.Unsafe.get(br, "top") +. cy *. zoom;
+            let fx = (bx -. px) /. max(1., pw)
+            and fy = (by -. py) /. max(1., ph);
+            (fx > 0.38 ? (-1.) : 1., fy > 0.3 ? (-1.) : 1.);
+          | None => ((-1.), (-1.))
+          };
+        let d = 0.7071;
+        let dx = sx *. d
+        and dy = sy *. d;
+        let tipx = cx +. dx *. r
+        and tipy = cy +. dy *. r;
+        /* the bubble box: its near corner at gap g beyond the tip */
+        let w: float = Js.Unsafe.get(bub, "offsetWidth")
+        and h: float = Js.Unsafe.get(bub, "offsetHeight");
+        /* speech: the box's near corner sits 9 px beyond the tip (the tail
+           spans the gap). thought: the cloud is ellipse-like, so its box
+           corner is far from its outline — place the OUTLINE point facing
+           the avatar (on an ellipse inset in the box) 17 px beyond the tip,
+           past the two puffs */
+        let (left, top) =
+          switch (m) {
+          | Speech =>
+            let kx = tipx +. dx *. 9.
+            and ky = tipy +. dy *. 9.;
+            (sx < 0. ? kx -. w : kx, sy < 0. ? ky -. h : ky);
+          | Thought
+          | Hidden =>
+            let a = max(1., w /. 2. -. 7.)
+            and b = max(1., h /. 2. -. 5.);
+            let re = 1. /. sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
+            let ccx = tipx +. dx *. (17. +. re)
+            and ccy = tipy +. dy *. (17. +. re);
+            (ccx -. w /. 2., ccy -. h /. 2.);
+          };
+        let key =
+          String.concat(
+            "/",
+            List.map(f1, [left, top, w, h, tipx, tipy, sx, sy])
+            @ [mode_class(m)],
+          );
+        let previous =
+          Js.Optdef.to_option(Js.Unsafe.get(bub, "__canvasBubblePlacement"))
+          |> Option.map(Js.to_string);
+        if (previous != Some(key)) {
+          Js.Unsafe.set(bub, "__canvasBubblePlacement", Js.string(key));
+          set_style(bub, "left", f1(left) ++ "px");
+          set_style(bub, "top", f1(top) ++ "px");
+          /* the speech skin's outline, tail included */
+          switch (child(bub, ".say-shape path")) {
+          | Some(path) when m == Speech =>
+            set_attr(
+              path,
+              "d",
+              speech_path(~w, ~h, ~sx, ~sy, (tipx -. left, tipy -. top)),
+            )
+          | _ => ()
+          };
+          /* the cloud's puffs: small, a little space, larger, a little space */
+          switch (child(b, ".bubble-tails")) {
+          | Some(t) =>
+            /* The tails share the bubble's visibility, while their SVG
+               coordinates stay body-local for the rig's bounding circle. */
+            set_style(t, "left", f1((-300.) -. left) ++ "px");
+            set_style(t, "top", f1((-300.) -. top) ++ "px");
+            List.iter(
+              ((sel, along, rad)) =>
+                switch (child(t, sel)) {
+                | Some(c) =>
+                  set_attr(c, "cx", f1(tipx +. dx *. along));
+                  set_attr(c, "cy", f1(tipy +. dy *. along));
+                  set_attr(c, "r", f1(rad));
+                  set_attr(c, "opacity", m == Thought ? "1" : "0");
+                | None => ()
+                },
+              [(".cloud-puff-1", 3., 2.4), (".cloud-puff-2", 11., 3.8)],
+            );
+          | None => ()
+          };
         };
       };
-    | Some(_) => ()
     }
   };
 

@@ -1,0 +1,162 @@
+# Logic Circuit: four input terminals feed three gates and a lamp.   #
+# Click a gate to cycle its kind (AND, OR, XOR, NAND); click a        #
+# terminal to flip its bit. Live wires glow green. A use expands to   #
+# Circuit(gates, inputs): `lamp_on` reads the lamp, `count_true`      #
+# counts the input patterns that light it, `compose` wires one        #
+# circuit's lamp into another's terminal A, `show` draws any Circuit. #
+
+type Circuit = + Circuit([String], [Bool]) in
+
+let ^circuit = {
+  type Model = ([String], [Bool]);
+  type Action = + Flip(Int) + Cycle(Int);
+
+  let init : Model = (["AND", "OR", "XOR"], [true, false, true, true]);
+
+  let next(g: String): String =
+    case g
+    | "AND" => "OR"
+    | "OR" => "XOR"
+    | "XOR" => "NAND"
+    | _ => "AND"
+    end;
+
+  let apply(g: String, a: Bool, b: Bool): Bool =
+    case g
+    | "AND" => a && b
+    | "OR" => a || b
+    | "XOR" => a != b
+    | _ => !(a && b)
+    end;
+
+  # gate 0 reads inputs 0 and 1, gate 1 reads 2 and 3, gate 2 reads both gates #
+  let signals(gates: [String], ins: [Bool]): (Bool, Bool, Bool) =
+    let g0 = apply(nth(gates, 0), nth(ins, 0), nth(ins, 1)) in
+    let g1 = apply(nth(gates, 1), nth(ins, 2), nth(ins, 3)) in
+    (g0, g1, apply(nth(gates, 2), g0, g1));
+
+  let update((gates, ins): Model, a: Action): Model =
+    case a
+    | Flip(i) =>
+      (gates, mapi(ins, fun (j: Int, b: Bool) -> if j == i then !b else b))
+    | Cycle(i) =>
+      (mapi(gates, fun (j: Int, g: String) -> if j == i then next(g) else g), ins)
+    end;
+
+  let s : Int -> String = string_of_int;
+
+  let glow(on: Bool): String = if on then "#b3d3b4" else "#8295a4";
+
+  let wire(x1: Int, y1: Int, x2: Int, y2: Int, on: Bool): HTML =
+    let mid = (x1 + x2) / 2 in
+    Node("path", [Create("d", "M" ++ s(x1) ++ " " ++ s(y1) ++ " H" ++ s(mid) ++ " V" ++ s(y2) ++ " H" ++ s(x2)),
+                  Create("fill", "none"), Create("stroke", glow(on)), Create("stroke-width", "2.5"),
+                  Create("stroke-linejoin", "round"), Create("stroke-linecap", "round")], []);
+
+  let caption(x: Int, y: Int, size: String, str: String): HTML =
+    Node("text",
+      [Create("x", s(x)), Create("y", s(y)), Create("font-size", size),
+       Create("text-anchor", "middle"), Create("pointer-events", "none")],
+      [Text(str)]);
+
+  let terminal(i: Int, name: String, y: Int, on: Bool): HTML =
+    Node("g", [OnClick(Flip(i)), Style([("cursor", "pointer")])], [
+      Node("circle",
+        [Create("cx", "22"), Create("cy", s(y)), Create("r", "11"),
+         Create("fill", glow(on)), Create("stroke", "#344b60")],
+        []),
+      Node("g", [Create("fill", "#2e465b")], [caption(22, y + 4, "10", name)])]);
+
+  let gate(i: Int, g: String, x: Int, y: Int, on: Bool): HTML =
+    Node("g", [OnClick(Cycle(i)), Style([("cursor", "pointer")])], [
+      Node("path", [Create("d", "M" ++ s(x - 3) ++ " " ++ s(y - 5) ++ " h3 m-3 10 h3 M" ++ s(x + 50) ++ " " ++ s(y) ++ " h3"),
+                    Create("stroke", "#bdc9ce"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+      Node("rect", [Create("x", s(x)), Create("y", s(y - 14)), Create("width", "50"), Create("height", "30"), Create("rx", "3"), Create("fill", "#344b60")], []),
+      Node("rect", [Create("x", s(x)), Create("y", s(y - 15)), Create("width", "50"), Create("height", "29"), Create("rx", "3"),
+                    Create("fill", "#627c91"), Create("stroke", "#9fb2c0"), Create("stroke-width", "0.7")], []),
+      Node("circle", [Create("cx", s(x + 5)), Create("cy", s(y - 9)), Create("r", "1.5"), Create("fill", glow(on))], []),
+      caption(x + 25, y + 4, "10", g)]);
+
+  let view((gates, ins): Model): HTML =
+    let (g0, g1, out) = signals(gates, ins) in
+    let bit(i: Int): Bool = nth(ins, i) in
+    Node("svg",
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 145"), Width("260"), Height("145")],
+      [wire(33, 30, 90, 40, bit(0)), wire(33, 55, 90, 50, bit(1)),
+       wire(33, 90, 90, 95, bit(2)), wire(33, 115, 90, 105, bit(3)),
+       wire(140, 45, 175, 67, g0), wire(140, 100, 175, 77, g1),
+       wire(225, 72, 240, 72, out),
+       terminal(0, "A", 30, bit(0)), terminal(1, "B", 55, bit(1)),
+       terminal(2, "C", 90, bit(2)), terminal(3, "D", 115, bit(3)),
+       gate(0, nth(gates, 0), 90, 45, g0), gate(1, nth(gates, 1), 90, 100, g1),
+       gate(2, nth(gates, 2), 175, 72, out),
+       Node("circle",
+         [Create("cx", "246"), Create("cy", "72"), Create("r", "8"),
+          Create("fill", if out then "#efcb82" else "#405a70"), Create("stroke", "#344b60")],
+         [])]);
+
+  let expand((gates, ins): Model): Circuit = Circuit(gates, ins);
+
+  let wrap(v: Circuit): Model =
+    case v
+    | Circuit(gates, ins) => (gates, ins)
+    end;
+
+  let shape : LivelitShape = Block(26, 6)
+} in
+
+let show(v: Circuit): HTML = ^circuit.view(^circuit.wrap(v)) in
+
+let lamp_on(c: Circuit): Bool =
+  case c
+  | Circuit(gates, ins) =>
+    let (_, _, out) = ^circuit.signals(gates, ins) in
+    out
+  end
+in
+
+let set_inputs(c: Circuit, ins: [Bool]): Circuit =
+  case c
+  | Circuit(gates, _) => Circuit(gates, ins)
+  end
+in
+
+# Wire a's lamp into b's terminal A: the result is b, driven by a #
+let compose(a: Circuit, b: Circuit): Circuit =
+  case b
+  | Circuit(gates, ins) => Circuit(gates, lamp_on(a) :: drop(ins, 1))
+  end
+in
+
+# How many of the 16 input patterns light the lamp #
+let count_true(c: Circuit): Int =
+  let bit(n: Int, k: Int): Bool = int_mod(n / k, 2) == 1 in
+  let lit(n: Int): Bool =
+    lamp_on(set_inputs(c, [bit(n, 8), bit(n, 4), bit(n, 2), bit(n, 1)]))
+  in
+  length(filter(range(0, 15), lit))
+in
+
+let input : Circuit =
+  ^^livelit(^circuit((["AND", "OR", "XOR"], [true, false, true, true])))
+in
+
+# A particular input pattern, set here rather than in the widget #
+let a : Bool = ^^check(true) in
+let b : Bool = ^^check(true) in
+let c : Bool = ^^check(false) in
+let d : Bool = ^^check(false) in
+let pattern : Circuit = set_inputs(input, [a, b, c, d]) in
+
+test lamp_on(Circuit(["AND", "AND", "AND"], [true, true, true, true])) end;
+test count_true(Circuit(["AND", "AND", "AND"], [])) == 1 end;
+test count_true(Circuit(["OR", "OR", "OR"], [])) == 15 end;
+test compose(Circuit(["AND", "AND", "AND"], [true, true, true, true]),
+             Circuit(["OR", "OR", "OR"], [false, false, false, false]))
+     == Circuit(["OR", "OR", "OR"], [true, false, false, false]) end;
+
+(lamp=lamp_on(pattern),
+ patterns=count_true(input),
+ picture=show(pattern),
+ chained=show(compose(input, pattern)))

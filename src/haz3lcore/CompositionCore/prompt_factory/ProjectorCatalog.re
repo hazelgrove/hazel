@@ -40,6 +40,14 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     Some(
       "- **html** — Renders an HTML-valued expression live. An `(init, update, view, subs)` tuple runs as an interactive **app** the user can operate in place; make the app tuple the program's final expression, written as `^^html((init, update, view, subs))`. Call `read_docs(\"mvu\")` before building one.",
     )
+  | Automerge =>
+    Some(
+      "- **Automerge** — Reads a shared Automerge document (a Patchwork/GAIOS tool's state) by URL into a Hazel `JSON` value: `^^Automerge(Null)`, then paste the `automerge:` URL in the widget. The `Jq` module (`Jq.get`, `Jq.select`, ...) queries the JSON.",
+    )
+  | AutomergeWriteBack =>
+    Some(
+      "- **AutomergeWriteBack** — Pushes a Hazel `JSON` value to an Automerge document by URL: `^^AutomergeWriteBack(json)`; another tool showing that document updates live.",
+    )
   | Fold
   | Probe
   | Statics => None

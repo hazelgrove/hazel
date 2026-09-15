@@ -66,3 +66,126 @@
     pointer-events: none;
     z-index: 10;
 }
+
+/* Blue Hour is an opt-in example theme, not a livelit renderer default.
+   View roots carry a portable base surface in their own Style attributes.
+   Keep padding off SVGs: ...At handlers use their local pixel coordinates. */
+.blue-hour-view {
+    color-scheme: dark;
+    accent-color: #b6dbee;
+    font-variant-numeric: tabular-nums;
+}
+.rich-html-view:has(.blue-hour-view) {
+    background: #576e83;
+    color: #f2f4ef;
+    border: 0;
+}
+.rich-html-view:has(.blue-hour-bleed) {
+    padding: 0;
+    overflow: hidden;
+}
+.blue-hour-view svg {
+    display: block;
+}
+.blue-hour-view button {
+    font: inherit;
+    color: #f2f4ef;
+    background: #627c91;
+    border: 1px solid #8fa4b5;
+    border-radius: 3px;
+    box-shadow: inset 0 1px #b4c4d033, 0 1px #344b60;
+    cursor: pointer;
+}
+.blue-hour-action {
+    opacity: 0;
+    transition: opacity 120ms;
+}
+.blue-hour-view:hover .blue-hour-action,
+.blue-hour-view:focus-within .blue-hour-action,
+.blue-hour-action:focus-visible {
+    opacity: 1;
+}
+.rich-livelit-view .blue-hour-action,
+.rich-html-view .blue-hour-action {
+    visibility: hidden;
+}
+@media (hover: none) {
+    .blue-hour-action { opacity: 1; }
+}
+.blue-hour-view input[type="range"] {
+    accent-color: #b6dbee;
+}
+input.blue-hour-hue {
+    appearance: none;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    cursor: ew-resize;
+}
+input.blue-hour-hue::-webkit-slider-runnable-track {
+    background: transparent;
+    height: 16px;
+}
+input.blue-hour-hue::-webkit-slider-thumb {
+    appearance: none;
+    width: 5px;
+    height: 16px;
+    background: transparent;
+    border: 1px solid white;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px #26394e;
+}
+input.blue-hour-hue::-moz-range-track { background: transparent; }
+input.blue-hour-hue::-moz-range-thumb {
+    width: 4px;
+    height: 16px;
+    background: transparent;
+    border: 1px solid white;
+    border-radius: 1px;
+    box-shadow: 0 0 0 1px #26394e;
+}
+/* The existing purple frame stays the Canvas boundary. Relief belongs to
+   that boundary; charts and composed children do not acquire extra boxes.
+   Keep the more specific selection/focus shadow in canvas.css intact. */
+.canvas-node.node-card:has(.blue-hour-view):not(:has(.probe-card.card-selected:focus)) {
+    box-shadow: 0 2px 3px #273e5333, 0 1px 1px #273e5330;
+}
+/* The surface belongs to the whole card at every aspect ratio and in
+   every focus state; it must not depend on the selection shadow. */
+.canvas-node.node-card:has(.blue-hour-view) { --canvas-card-surface: #576e83; }
+/* Draw the outer bevel above the content, so a full-bleed field cannot
+   cover it. This is the panel edge, not an inset well around its data. */
+.canvas-node.node-card:has(.blue-hour-view)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 1.5px .4px #d6e6ef70, inset 1px 0 .3px #c4d7e42b,
+                inset 0 -2px .7px #233d5780, inset -1px 0 .4px #29465f45;
+    pointer-events: none;
+    z-index: 6;
+}
+
+/* Metadata uses the view's hover title; editing tools occupy no resting layout space. */
+.blue-hour-overlay-action { position: absolute; right: 6px; bottom: 6px; font-size: 10px; }
+.blue-hour-tools { opacity: 0; transition: opacity 120ms; }
+.blue-hour-view:hover > .blue-hour-tools,
+.blue-hour-view:focus-within > .blue-hour-tools { opacity: 1; pointer-events: auto; }
+.rich-livelit-view .blue-hour-tools,
+.rich-html-view .blue-hour-tools { display: none; }
+@media (hover: none) { .blue-hour-tools { opacity: 1; pointer-events: auto; } }
+.rich-html-view:has(.blue-hour-snug) { padding: 3px 4px; }
+.canvas-node.node-card:has(.blue-hour-verdict) { --canvas-card-surface: #f2ab98; }
+
+.canvas-node.node-card:has(.blue-hour-verdict-ok) { --canvas-card-surface: #b3d3b4; }
+
+/* Flush fields reach the card boundary. The measurement pass sets both
+   zooms to 1; lists and ordinary rich views keep the standard gutter. */
+.canvas-card-probe .probe-card-rich > .rich-html-view:has(> .MVU-render > .blue-hour-bleed),
+.canvas-node.node-card .canvas-app .user-livelit > .MVU-render:has(> .blue-hour-bleed) {
+    zoom: var(--card-bleed-zoom, var(--card-zoom, 1));
+}
+.canvas-node.node-card:has(.blue-hour-bleed):not(:has(.rich-livelit-list)) .card-body {
+    overflow: hidden;
+    border-radius: inherit;
+}

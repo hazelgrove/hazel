@@ -1,0 +1,156 @@
+# Greenhouse: the app's view is COMPOSED from the value views of its    #
+# parts (weather, tank, plants), and each day is one call of `day`, so   #
+# stepping the samples replays the season while every card follows.    #
+
+type Weather = + Sun + Cloud + Rain in
+# tank level 0..100 #
+type Tank = + Level(Int) in
+type Plant = + Seed + Sprout + Bloom + Wilted in
+type Garden = [Plant] in
+# what the gardener does #
+type Act = + Water + Sow + Next in
+type State = (Weather, Tank, Garden) in
+
+# ---- value views (no controls) ---- #
+
+let ^weather = {
+  type Model = Weather;
+  type Action = + Nothing;
+  let init : Model = Sun;
+  let update(m: Model, _: Action): Model = m;
+  let view(w: Model): HTML =
+    Node("svg", [Class("blue-hour-view"), Create("viewBox", "0 0 76 84"), Width("76"), Height("84"),
+                  Style([("background", "#576e83"), ("font-family", "Inter, system-ui, sans-serif")])],
+      (case w
+       | Sun => [Node("circle", [Create("cx", "38"), Create("cy", "31"), Create("r", "12"), Create("fill", "#efcb82")], [])]
+         @ map(range(0, 7), fun i: Int ->
+             let a = float_of_int(i) *. pi /. 4.0 in
+             Node("line", [Create("x1", to_fixed(38.0 +. 18.0 *. cos(a), 1)), Create("y1", to_fixed(31.0 +. 18.0 *. sin(a), 1)),
+                           Create("x2", to_fixed(38.0 +. 23.0 *. cos(a), 1)), Create("y2", to_fixed(31.0 +. 23.0 *. sin(a), 1)),
+                           Create("stroke", "#efcb82"), Create("stroke-width", "2"), Create("stroke-linecap", "round")], []))
+       | Cloud => [Node("path", [Create("d", "M19 43 C6 43 6 26 19 25 C19 8 43 6 49 23 C66 19 72 44 55 44 H19 Z"), Create("fill", "#d2dee4")], [])]
+       | Rain => [Node("path", [Create("d", "M19 36 C6 36 6 20 19 20 C21 6 43 7 48 19 C66 16 71 37 55 37 H19 Z"), Create("fill", "#b5c9d6")], []),
+                  Node("path", [Create("d", "M24 44 l-3 7 M39 44 l-3 7 M54 44 l-3 7"), Create("stroke", "#a6d3ee"), Create("stroke-width", "2.5"), Create("stroke-linecap", "round")], [])]
+       end)
+      @ [Node("text", [Create("x", "38"), Create("y", "75"), Create("font-size", "16"), Create("text-anchor", "middle"), Create("fill", "#f2f4ef")],
+                      [Text(case w | Sun => "Sun" | Cloud => "Cloud" | Rain => "Rain" end)])]);
+  let expand(w: Model): Weather = w;
+  let wrap(w: Weather): Model = w;
+  let shape : LivelitShape = Tab(8, 5)
+} in
+
+let ^tank = {
+  type Model = Tank;
+  type Action = + Nothing;
+  let init : Model = Level(50);
+  let update(m: Model, _: Action): Model = m;
+  let view(t: Model): HTML =
+    case t | Level(n) =>
+      let level = if n < 0 then 0 else if n > 100 then 100 else n in
+      let h = level * 106 / 100 in
+      Node("svg", [Class("blue-hour-view"), Create("viewBox", "0 0 84 122"), Width("84"), Height("122"),
+                    Style([("background", "#576e83"), ("font-family", "Inter, system-ui, sans-serif")])],
+        [Node("svg", [Create("x", "8"), Create("y", "8"), Width("68"), Height("106"), Create("viewBox", "0 0 68 106"),
+                      Style([("overflow", "hidden"), ("border-radius", "4px")])],
+          [Node("rect", [Width("68"), Height("106"), Create("fill", "#40596f")], []),
+           Node("rect", [Create("y", string_of_int(106 - h)), Width("68"), Height(string_of_int(h)), Create("fill", "#acd1e5")], []),
+           Node("line", [Create("x1", "0"), Create("x2", "68"), Create("y1", string_of_int(106 - h)), Create("y2", string_of_int(106 - h)),
+                         Create("stroke", "#e0f0f4"), Create("stroke-opacity", if h == 0 then "0" else "0.6"), Create("stroke-width", "1")], []),
+           Node("text", [Create("x", "34"), Create("y", if h < 34 then "32" else "96"), Create("font-size", "28"), Create("font-weight", "500"),
+                         Create("text-anchor", "middle"), Create("fill", if h < 34 then "#f2f4ef" else "#2c475d")],
+                        [Text(string_of_int(n)), Node("tspan", [Create("font-size", "15")], [Text("%")])])]),
+         Node("path", [Create("d", "M7 10 V107 Q7 115 15 115 H69 Q77 115 77 107 V10"), Create("fill", "none"),
+                       Create("stroke", "#aec4d0"), Create("stroke-opacity", "0.4"), Create("stroke-width", "1")], []),
+         Node("path", [Create("d", "M8 8 H76 V108 Q76 114 70 114 H14 Q8 114 8 108 Z"), Create("fill", "none"),
+                       Create("stroke", "#31495d"), Create("stroke-opacity", "0.7"), Create("stroke-width", "0.8")], [])])
+    end;
+  let expand(t: Model): Tank = t;
+  let wrap(t: Tank): Model = t;
+  let shape : LivelitShape = Tab(8, 7)
+} in
+
+let ^plant = {
+  type Model = Plant;
+  type Action = + Nothing;
+  let init : Model = Seed;
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 32 48"), Width("32"), Height("48")],
+      [Node("rect", [Create("x", "6"), Create("y", "38"), Create("width", "20"), Create("height", "8"), Create("rx", "3"), Create("fill", "#c29878")], [])]
+      @ (case p
+         | Seed => [Node("circle", [Create("cx", "16"), Create("cy", "36"), Create("r", "3"), Create("fill", "#edcc9e")], [])]
+         | Sprout => [Node("line", [Create("x1", "16"), Create("y1", "38"), Create("x2", "16"), Create("y2", "22"), Create("stroke", "#9abea8"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+                      Node("ellipse", [Create("cx", "21"), Create("cy", "24"), Create("rx", "5"), Create("ry", "3"), Create("fill", "#bdd8b7")], [])]
+         | Bloom => [Node("line", [Create("x1", "16"), Create("y1", "38"), Create("x2", "16"), Create("y2", "14"), Create("stroke", "#9abea8"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+                     Node("circle", [Create("cx", "16"), Create("cy", "11"), Create("r", "7"), Create("fill", "#dfb1c3")], []),
+                     Node("circle", [Create("cx", "16"), Create("cy", "11"), Create("r", "3"), Create("fill", "#efcb82")], [])]
+         | Wilted => [Node("path", [Create("d", "M16 38 C 16 28, 22 26, 24 20"), Create("fill", "none"), Create("stroke", "#b5ada4"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], [])]
+         end));
+  let expand(p: Model): Plant = p;
+  let wrap(p: Plant): Model = p;
+  let shape : LivelitShape = Tab(3, 3)
+} in
+
+# ---- the program: one day at a time ---- #
+
+let grow(p: Plant, watered: Bool): Plant =
+  case (p, watered)
+  | (Seed, true) => Sprout
+  | (Sprout, true) => Bloom
+  | (Bloom, _) => Bloom
+  | (Wilted, _) => Wilted
+  | (Seed, false) => Seed
+  | (Sprout, false) => Wilted
+  end in
+
+let level(t: Tank): Int = case t | Level(n) => n end in
+
+let forecast(i: Int): Weather =
+  case int_mod(i, 4) | 0 => Sun | 1 => Sun | 2 => Cloud | _ => Rain end in
+
+# the frame: one call per act of the season #
+let day((w, t, g): State, a: Act): State =
+  case a
+  | Water => (w, Level(if level(t) < 20 then 0 else level(t) - 20), map(g, fun p: Plant -> grow(p, true)))
+  | Sow => (w, t, append(g, [Seed]))
+  | Next =>
+    let w2 = forecast(length(g) + level(t)) in
+    let rain = w2 == Rain in
+    (w2, Level(if rain then (if level(t) + 30 > 100 then 100 else level(t) + 30) else level(t)),
+     map(g, fun p: Plant -> grow(p, rain)))
+  end in
+
+let season(acts: [Act]): State = fold_left(acts, day, (Sun, Level(60), [Seed, Seed])) in
+
+# the app: a log of acts; its view composes the parts' own views #
+let ^greenhouse = {
+  type Model = [Act];
+  type Action = + Do(Act);
+  let init : Model = [];
+  let update(log: Model, a: Action): Model = case a | Do(act) => append(log, [act]) end;
+  let button(label: String, act: Act): HTML =
+    Button([Class("blue-hour-action"), OnClick(Do(act)),
+            Style([("font-size", "10px"), ("padding", "3px 8px")])], [Text(label)]);
+  let view(log: Model): HTML =
+    let (w, t, g) = season(log) in
+    Div([Class("blue-hour-view blue-hour-greenhouse"),
+         Style([("background", "#576e83"), ("color", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"),
+                ("position", "relative"), ("display", "grid"), ("grid-template-columns", "minmax(80px, 1fr) 84px"),
+                ("gap", "8px"), ("align-items", "center"), ("min-width", "176px"), ("max-width", "260px")])],
+      [Div([Style([("display", "flex"), ("flex-direction", "column"), ("gap", "4px"), ("align-items", "center")])],
+         [^weather.view(w),
+          Div([Style([("display", "flex"), ("flex-wrap", "wrap"), ("justify-content", "center"), ("max-width", "128px")])],
+              map(g, fun p: Plant -> ^plant.view(p)))]),
+       ^tank.view(t),
+       Div([Class("blue-hour-tools"), Style([("position", "absolute"), ("top", "0"), ("right", "0"),
+                ("display", "flex"), ("gap", "3px"), ("padding", "3px"), ("background", "#4e657aee"), ("border-radius", "3px")])],
+           [button("water", Water), button("sow", Sow), button("next", Next)])]);
+  let expand(log: Model): [Act] = log;
+  let shape : LivelitShape = Tab(16, 8)
+} in
+
+let acts : [Act] = ^^livelit(^greenhouse([Water, Water, Next, Sow, Next])) in
+let (weather, tank, garden) : State = season(acts) in
+let blooming : Int = length(filter(garden, fun p: Plant -> p == Bloom)) in
+
+(weather, tank, blooming)

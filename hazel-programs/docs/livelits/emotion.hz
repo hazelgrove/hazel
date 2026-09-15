@@ -11,63 +11,71 @@ let ^mood = {
 
   let init : Model = (50, -1);
 
-  let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
+  let clamp(n: Int): Int = if n < 0 then 0 else if n > 100 then 100 else n;
 
   # dragging DOWN pulls the mouth into a smile (2 mood per px); #
   # moves only count while held #
-  let update = fun ((v, anchor), a) : (Model, Action) ->
+  let update((v, anchor): Model, a: Action): Model =
     case a
     | Down(y) => (v, 200 + v - 2 * y)
-    | MoveTo(y) => if anchor == -1 then (v, anchor)
-                   else (clamp(anchor - 200 + 2 * y), anchor)
+    | MoveTo(y) =>
+      if anchor == -1 then (v, anchor)
+      else (clamp(anchor - 200 + 2 * y), anchor)
     | Up => (v, -1)
     end;
 
-  let word = fun (v, anchor) : Model ->
+  let word((v, _): Model): String =
     if v < 40 then "sad" else if v > 70 then "happy" else "neutral";
 
   # the mouth is a curve whose bend follows the value #
-  let mouth = fun v ->
+  let mouth(v: Int): String =
     "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
 
-  let view = fun (v, anchor) : Model ->
+  let view((v, _): Model): HTML =
     Div(
-      [Create("data-hint", "drag up/down"),
-       Style([("cursor", "ns-resize")])],
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ns-resize")]), Create("data-hint", "drag up/down")],
       [
         Node("svg",
-          [Create("viewBox", "0 0 200 200"),
+          [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 200 200"),
            Width("92"), Height("92"),
-           OnMouseDownAt(fun (x, y) -> Down(y)),
-           OnMouseMoveAt(fun (x, y) -> MoveTo(y)),
-           OnMouseUpAt(fun p -> Up)],
+           OnMouseDownAt(fun (_, y: Int) -> Down(y)),
+           OnMouseMoveAt(fun (_, y: Int) -> MoveTo(y)),
+           OnMouseUpAt(fun _ -> Up)],
           [
             Node("circle",
               [Create("cx", "100"), Create("cy", "100"), Create("r", "90"),
-               Create("fill", "gold"), Create("stroke", "black")], []),
+               Create("fill", "#efcb82"), Create("stroke", "#6b563d")],
+              []),
             Node("circle",
-              [Create("cx", "65"), Create("cy", "80"), Create("r", "10")], []),
+              [Create("cx", "65"), Create("cy", "80"), Create("r", "8"), Create("fill", "#624d36")],
+              []),
             Node("circle",
-              [Create("cx", "135"), Create("cy", "80"), Create("r", "10")], []),
+              [Create("cx", "135"), Create("cy", "80"), Create("r", "8"), Create("fill", "#624d36")],
+              []),
             Node("path",
-              [Create("d", mouth(v)), Create("stroke", "black"),
-               Create("fill", "transparent"), Create("stroke-width", "5")], [])
+              [Create("d", mouth(v)), Create("stroke", "#6b563d"),
+               Create("fill", "transparent"), Create("stroke-width", "5"), Create("stroke-linecap", "round")],
+              [])
           ])
       ]
     );
 
-  let expand = fun m : Model -> word(m);
+  let expand(m: Model): String = word(m);
 
-  let shape = Tab(10, 4)
+  let shape : LivelitShape = Tab(10, 4)
 } in
 
 # A use means its EXPANSION: the mood word, not the number behind it. #
 
-let greeting = fun mood : String ->
+let greeting(mood: String): String =
   case mood
   | "happy" => "What a day!"
   | "sad" => "Hang in there."
   | _ => "Steady on."
-  end in
+  end
+in
+
+test greeting("happy") == "What a day!" end;
+test greeting("neutral") == "Steady on." end;
 
 greeting(^^livelit(^mood(85, -1)))

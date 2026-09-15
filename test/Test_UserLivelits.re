@@ -644,6 +644,44 @@ let module_def_compositional = () => {
   };
 };
 
+/* A livelit's model argument reaches the projector-side evaluation as
+   RAW syntax: its constructors carry no type. Ascribing such a
+   constructor to its sum (the view's `m : Model`) must type it rather
+   than stick, or every `case` on the model in the view is stuck. */
+let untyped_ctor_ascription = () => {
+  let gate: Typ.t =
+    Typ.temp(
+      Sum([
+        ConstructorMap.Variant(
+          "Nand",
+          ConstructorMap.empty_variant_ann,
+          Some(Typ.temp(Atom(Int))),
+        ),
+        ConstructorMap.Variant("Or", ConstructorMap.empty_variant_ann, None),
+      ]),
+    );
+  let asc = e => Exp.fresh(Asc(e, gate));
+  let bare = asc(Exp.fresh(Constructor("Or", None)));
+  switch (Exp.term_of(Ascriptions.transition_multiple(bare))) {
+  | Constructor("Or", Some(Some(_))) => ()
+  | _ => fail("bare untyped constructor did not take the sum's type")
+  };
+  let applied =
+    asc(
+      Exp.fresh(
+        Ap(
+          Forward,
+          Exp.fresh(Constructor("Nand", None)),
+          IdTagged.FreshGrammar.Exp.int(7),
+        ),
+      ),
+    );
+  switch (Exp.term_of(Ascriptions.transition_multiple(applied))) {
+  | Ap(_, {term: Constructor("Nand", Some(Some(_))), _}, _) => ()
+  | _ => fail("applied untyped constructor did not take the sum's type")
+  };
+};
+
 /* Editing a livelit DEFINITION must re-analyze its uses under the
    per-item engine: a use's item holds the LivelitEntry (with the
    definition's elaboration) in its ctx, and the projector renders
@@ -683,6 +721,100 @@ let def_edit_dirties_uses = () => {
   ignore(ds1);
 };
 
+/* A livelit renders VALUES of the type it expands to (the canvas type
+   cards): a sampled constructor-with-payload value must go through
+   wrap and view like a nullary one. */
+let renders_payload_ctor = () => {
+  let text = "type Point = + P(Int, Int) in
+let ^point = {
+  type Model = Point;
+  type Action = + Nothing;
+  let init : Model = P(50, 50);
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    case p
+    | P(x, y) => Node(\"svg\", [Create(\"cx\", string_of_int(x + y))], [])
+    end;
+  let expand(p: Model): Point = p;
+  let wrap(p: Point): Model = p;
+  let shape : LivelitShape = Tab(6, 4)
+} in
+let shift(p: Point): Point = case p | P(x, y) => P(x + 10, y + 10) end in
+let p0 : Point = P(30, 40) in
+shift(p0)";
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, text)) {
+  | None => fail("parse")
+  | Some(z) =>
+    let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let settings = {
+      ...CoreSettings.on,
+      probe_all: true,
+    };
+    let (info_map, elaborated) =
+      Statics.mk(settings, Builtins.ctx_init(Some(Int)), mtr.term);
+    let probe_ids = Haz3lcore.CachedStatics.all_probeable_ids(info_map);
+    let targets =
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings,
+        ~info_map,
+        ~probe_ids,
+      );
+    let (_, state) =
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
+    let probes = EvaluatorState.get_probes(state);
+    /* a site typed Point whose sample is a P(..) application */
+    let site =
+      Id.Map.fold(
+        (id, samples, acc) =>
+          switch (acc, Id.Map.find_opt(id, info_map)) {
+          /* a site OUTSIDE the livelit (its ctx binds ^point): the view's
+             own parameter is Point-typed too, but ^point is not in scope
+             there — and Id.Map order depends on the ids the suite has
+             minted so far */
+          | (None, Some(Info.InfoExp({ty, ctx, _}) as info))
+              when Ctx.lookup_livelit(ctx, "point") != None =>
+            switch (Typ.term_of(ty)) {
+            | Var("Point") =>
+              switch (samples) {
+              | [s, ..._] =>
+                let s: Sample.t = s;
+                switch (Exp.term_of(s.value)) {
+                | Ap(_, {term: Constructor("P", _), _}, _) =>
+                  Some((info, s.value))
+                | _ => acc
+                };
+              | [] => acc
+              }
+            | _ => acc
+            }
+          | _ => acc
+          },
+        probes,
+        None,
+      );
+    switch (site) {
+    | None => fail("no Point-typed site with a P(..) sample")
+    | Some((info, value)) =>
+      let cands = Haz3lcore.LivelitRenderer.candidates(Some(info));
+      check(bool, "^point is a candidate", true, cands != []);
+      let (ctx, _) =
+        Option.get(Haz3lcore.LivelitRenderer.site(Some(info)));
+      let html =
+        Haz3lcore.LivelitRenderer.html_of(~ctx, List.hd(cands), value);
+      check(
+        bool,
+        "P(..) renders through wrap and view: " ++ Exp.show(value),
+        true,
+        html != None,
+      );
+    };
+  };
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -704,9 +836,19 @@ let tests = [
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
       test_case(
+        "livelit renders a payload constructor value",
+        `Quick,
+        renders_payload_ctor,
+      ),
+      test_case(
         "definition edit re-analyzes uses",
         `Quick,
         def_edit_dirties_uses,
+      ),
+      test_case(
+        "untyped constructor takes its sum type under ascription",
+        `Quick,
+        untyped_ctor_ascription,
       ),
       test_case(
         "module definition via compositional engine",

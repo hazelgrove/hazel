@@ -18,7 +18,7 @@ type value = Exp.t;
 
 let update = (m: model, _: action) => m;
 
-let parse = (sort: Sort.t, exp: Exp.t): option(value) =>
+let parse = (~statics as _, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort) {
   | Sort.Exp =>
     /* close_value, not strip_wrappers: a mid-run sample's subterms sit

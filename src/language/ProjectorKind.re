@@ -18,7 +18,9 @@ type t =
   | TextArea
   | Table
   | Csv
-  | HTML;
+  | HTML
+  | Automerge
+  | AutomergeWriteBack;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -54,6 +56,8 @@ let name = (p: t): string =>
   | Table => "table"
   | Csv => "csv"
   | HTML => "html"
+  | Automerge => "Automerge"
+  | AutomergeWriteBack => "AutomergeWriteBack"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

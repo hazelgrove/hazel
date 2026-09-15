@@ -468,6 +468,36 @@ module JSON = {
         ("Null", None),
       ]),
     );
+
+  /* constructor terms and patterns, for builtins over JSON (Jq) */
+  open IdTagged.FreshGrammar;
+  let json_assoc =
+    Exp.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_bool =
+    Exp.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_float =
+    Exp.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_int =
+    Exp.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_list =
+    Exp.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_string =
+    Exp.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_null = Exp.constructor("Null", Some(Some(t)));
+
+  let pat_json_assoc =
+    Pat.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_bool =
+    Pat.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_float =
+    Pat.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_int =
+    Pat.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_list =
+    Pat.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_string =
+    Pat.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_null = Pat.constructor("Null", Some(Some(t)));
 };
 
 // Text footprint of a livelit's GUI: the livelit `shape` member.

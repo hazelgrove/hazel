@@ -34,6 +34,9 @@ let view =
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~key: string,
+      /* card mode: the aligned sample alone (rich view / pretty value),
+         for the canvas type cards */
+      ~card: bool=false,
       id: Id.t,
     )
     : option(Node.t) => {
@@ -56,9 +59,13 @@ let view =
         /* wells auto-render the first applicable rich renderer (html,
            card, ...) — the plain display is the fallback, not the default */
         ~model=
-          Haz3lcore.ProbeProj.model_string_auto_rich(
-            stored_model(~globals, key),
-          ),
+          card
+            ? Haz3lcore.ProbeProj.model_string_card(
+                stored_model(~globals, key),
+              )
+            : Haz3lcore.ProbeProj.model_string_auto_rich(
+                stored_model(~globals, key),
+              ),
         probe_kind,
       );
     let p = Refractors.to_projector(syntax_piece, id, entry);
@@ -129,7 +136,10 @@ let view =
     Some(
       div(
         ~attrs=[
-          clss(["projector", "probe", "canvas-probe", Sort.show(sort)]),
+          clss(
+            ["projector", "probe", "canvas-probe", Sort.show(sort)]
+            @ (card ? ["canvas-card-probe"] : []),
+          ),
         ],
         Option.to_list(v.offside) @ Option.to_list(v.below),
       ),
@@ -137,17 +147,140 @@ let view =
   };
 };
 
+/* A site that IS a livelit invocation (an app instance) renders the
+   real projector — interactive: an action commits the update redex to
+   the master editor, the program re-evaluates, every other card
+   follows. Same construction as the projector panel's cards. */
+let is_app_site = (~editor: CodeWithStatics.Model.t, id: Id.t): bool => {
+  let syntax = editor.editor.syntax;
+  List.mem(id, syntax.projector_list)
+  && (
+    switch (Id.Map.find_opt(id, syntax.projectors)) {
+    | Some(p) => p.kind == ProjectorCore.Kind.Livelit
+    | None => false
+    }
+  );
+};
+
+let app_data_memo:
+  ref(
+    option(
+      (
+        CachedSyntax.t,
+        Language.Statics.Map.t,
+        Language.Dynamics.Map.t,
+        Language.Sample.Focus.t,
+        list(ProjectorView.Model.projector_data),
+      ),
+    ),
+  ) =
+  ref(Option.none);
+
+let app_view =
+    (~globals: Globals.t, ~editor: CodeWithStatics.Model.t, id: Id.t)
+    : option(Node.t) => {
+  let syntax = editor.editor.syntax;
+  let zipper = editor.editor.state.zipper;
+  let inject = (a: Haz3lcore.Action.t) =>
+    switch (master_perform^) {
+    | Option.Some(f) => f(a)
+    | Option.None => globals.inject_global(ActiveEditor(a))
+    };
+  /* projector data for the whole editor, once per (syntax, statics,
+     dynamics, focus): every app card on every render asks */
+  let data =
+    switch (app_data_memo^) {
+    | Option.Some((sy, st, dy, sf, d))
+        when
+          sy === syntax
+          && st === editor.statics.info_map
+          && dy === editor.dynamics
+          && sf == zipper.refractors.sample_focus => d
+    | _ =>
+      let d =
+        ProjectorView.Model.mk(
+          ~syntax,
+          ~indicated=None,
+          ~statics=editor.statics.info_map,
+          ~dynamics=editor.dynamics,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~editor_active=false,
+          ~elaborated=Some(editor.statics.elaborated),
+        );
+      app_data_memo :=
+        Option.some((
+          syntax,
+          editor.statics.info_map,
+          editor.dynamics,
+          zipper.refractors.sample_focus,
+          d,
+        ));
+      d;
+    };
+  switch (
+    List.find_opt(
+      (d: ProjectorView.Model.projector_data) => d.p.id == id,
+      data,
+    )
+  ) {
+  | Some(d) =>
+    let views =
+      ProjectorView.mk_view(
+        inject,
+        globals.font_metrics,
+        ~core_settings=globals.settings.core,
+        d,
+        syntax.projector_list,
+      );
+    Some(
+      div(
+        ~attrs=[
+          clss(
+            ProjectorView.projector_clss(~view_error=views.error, d.status)
+            @ ["canvas-app"],
+          ),
+        ],
+        [views.inline],
+      ),
+    );
+  | None => None
+  };
+};
+
+/* ~app: the card belongs to a livelit's own node — the app itself. A
+   TYPE's card shows values, even at the app's site (its stream holds
+   the app's values too). */
+let card_view = (~globals, ~editor, ~key, ~app: bool=false, id) =>
+  app && is_app_site(~editor, id)
+    ? app_view(~globals, ~editor, id)
+    : view(~globals, ~editor, ~key, ~card=true, id);
+
 /* ---- aggregate value strip (type-node wells) ----
    One chip per distinct value: the sample-display RENDERING (green chip,
    in-chip rich views) without the sample-stream machinery — aggregating
    samples from different probes into one navigable stream would break
    the indication/window invariants. Clicking a chip captures that
    value's real occurrence (jump-to-occurrence). */
+let sample_is_anchor =
+    (~editor: CodeWithStatics.Model.t, sample: Language.Sample.t) =>
+  switch (editor.editor.state.zipper.refractors.sample_focus.anchor) {
+  | Some(a) =>
+    a.probe_id == sample.syntax_id
+    && (
+      switch (a.opened) {
+      | Some(o) => o == sample.step_start
+      | None => true
+      }
+    )
+  | None => false
+  };
+
 let value_chip =
     (
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~count: int,
+      ~highlight: bool=false,
       ~target_cols: int=44,
       sample: Language.Sample.t,
     )
@@ -236,22 +369,33 @@ let value_chip =
              |> ProjectorInfo.utility.seg_to_string;
            t ++ "\n";
          };
+       /* the strip shows the MASTER editor's dynamics: the capture goes
+          there too (the active editor is the open definition cell) */
        let jump =
-         globals.inject_global(
-           ActiveEditor(
-             Project(
-               SampleFocus(
-                 Capture(Language.Sample.capture_of_sample(sample), None),
-               ),
+         (
+           switch (master_perform^) {
+           | Option.Some(f) => f
+           | Option.None => (a => globals.inject_global(ActiveEditor(a)))
+           }
+         )(
+           Project(
+             SampleFocus(
+               Capture(Language.Sample.capture_of_sample(sample), None),
              ),
            ),
          );
+       /* An aggregate represents every occurrence of this value, including
+          a selected occurrence older than its display representative. */
+       let anchored = highlight || sample_is_anchor(~editor, sample);
        div(
          ~attrs=[
            /* the probe pill's own DOM hierarchy, so proj-probe.css
               (backing, ink, typography) applies natively instead of
               being imitated */
-           clss(["live-offside", "Single", "agg-value"]),
+           clss(
+             ["live-offside", "Single", "agg-value"]
+             @ (anchored ? ["agg-anchored"] : []),
+           ),
            Attr.title(
              value_title ++ "click: jump the dynamic focus to this occurrence",
            ),

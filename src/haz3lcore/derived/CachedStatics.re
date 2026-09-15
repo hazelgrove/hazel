@@ -48,13 +48,46 @@ let should_probe = (info: Info.t): bool =>
   | _ => false
   };
 
-/* Collect all expression and pattern IDs from info_map that pass the should_probe predicate. */
-let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
+/* The module ids of livelit definitions (`let ^name = { … }`): a view's
+   insides. Under ProbeAll they would be sampled on every render of the
+   view (every cell of every drawn board), for nobody: no card, panel
+   or probe shows them. */
+let livelit_def_ids = (info_map: Statics.Map.t): list(Id.t) =>
   Id.Map.fold(
-    (id, info, acc) => should_probe(info) ? Id.Map.add(id, (), acc) : acc,
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({user_term, _}) =>
+        switch (user_term.term) {
+        | Let(pat, def, _) when UserLivelit.binder_name(pat) != None =>
+          let rec strip = (e: Exp.t) =>
+            switch (e.term) {
+            | Parens(e) => strip(e)
+            | _ => e
+            };
+          [Exp.rep_id(strip(def)), ...acc];
+        | _ => acc
+        }
+      | _ => acc
+      },
+    info_map,
+    [],
+  );
+
+/* Collect all expression and pattern IDs from info_map that pass the
+   should_probe predicate, leaving out the insides of livelit definitions. */
+let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) => {
+  let views = livelit_def_ids(info_map);
+  let inside_view = (info: Info.t): bool =>
+    views != []
+    && List.exists(a => List.mem(a, views), Info.ancestors_of(info));
+  Id.Map.fold(
+    (id, info, acc) =>
+      should_probe(info) && !inside_view(info)
+        ? Id.Map.add(id, (), acc) : acc,
     info_map,
     Id.Map.empty,
   );
+};
 
 /* Compute targets from probe_ids. For each ID, determine whether it's
  * an expression or pattern target, then look up the appropriate refs to capture.

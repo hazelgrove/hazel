@@ -206,30 +206,10 @@ let formation_svg =
       (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
     )
     : Node.t => {
-  /* gentle curve from component toward its product; shifted off any node
-     it would otherwise run through (a terminal sitting on the line) */
-  let mx = (cp.x +. pp.x) /. 2.;
-  let pp' =
-    pull_back(
-      pp,
-      {
-        x: mx,
-        y: pp.y,
-      },
-      5.,
-    );
-  let (ox, oy) =
-    CanvasLayout.link_offset(~nodes, ~from_key=a, ~to_key=b, cp, pp');
-  let c1 =
-    CanvasLayout.{
-      x: mx +. ox,
-      y: cp.y +. oy,
-    }
-  and c2 =
-    CanvasLayout.{
-      x: mx +. ox,
-      y: pp'.y +. oy,
-    };
+  /* straight from component to product, pulled back for the arrowhead */
+  let pp' = pull_back(pp, cp, 5.);
+  let (c1, c2) =
+    CanvasLayout.route_link(~nodes, ~from_key=a, ~to_key=b, cp, pp');
   svg(
     ~key=formation_dom_id(a, b),
     "path",
@@ -289,7 +269,6 @@ let dep_link_svg =
       Attr.id(dep_dom_id(a, b)),
       clss(["canvas-dep"]),
       Attr.create("d", CanvasLayout.link_d(dp, c1, c2, np')),
-      Attr.create("marker-end", "url(#cnv-arrow-dep)"),
     ],
     [],
   );
@@ -507,11 +486,97 @@ let hull_sausages_at =
   );
 };
 
+/* Claim keyboard focus after selection's deferred editor focus. Used by
+   Canvas objects and by the sample navigator inside an expanded card. */
+let focus_selector = (sel: string): unit => {
+  open Js_of_ocaml;
+  /* after the render (a deferred editor focus would win otherwise), and
+     WITHOUT scrolling the pane to the element */
+  let later = (f: unit => unit) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.window,
+        "setTimeout",
+        [|Js.Unsafe.inject(Js.Unsafe.callback(f)), Js.Unsafe.inject(30)|],
+      ),
+    );
+  later(() =>
+    switch (
+      Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
+    ) {
+    | Some(el) =>
+      ignore(
+        Js.Unsafe.meth_call(
+          el,
+          "focus",
+          [|
+            Js.Unsafe.inject(
+              Js.Unsafe.obj([|
+                ("preventScroll", Js.Unsafe.inject(Js._true)),
+              |]),
+            ),
+          |],
+        ),
+      )
+    | None => ()
+    }
+  );
+};
+
+let focus_card_probe = key =>
+  focus_selector("#" ++ node_dom_id(key) ++ " .probe-card");
+
+/* Only a Canvas object (or its sample navigator) owns these keys.
+   Inputs, editors and controls nested in a live app keep their own keys. */
+let item_keyboard = (~dom_id, ~on_select, ~on_delete) =>
+  Attr.on_keydown(evt => {
+    open Js_of_ocaml;
+    let target = Js.Unsafe.coerce(evt)##.target;
+    let own = Js.to_string(Js.Unsafe.coerce(target)##.id) == dom_id;
+    let probe =
+      Js.to_bool(
+        Js.Unsafe.meth_call(
+          target,
+          "matches",
+          [|Js.Unsafe.inject(Js.string(".probe-card"))|],
+        ),
+      );
+    let key = Util.Key.get_key(evt);
+    if ((own || probe)
+        && !Js.to_bool(evt##.metaKey)
+        && !Js.to_bool(evt##.ctrlKey)
+        && !Js.to_bool(evt##.altKey)) {
+      switch (key) {
+      | "Delete"
+      | "Backspace" =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          Js.to_bool(Js.Unsafe.coerce(evt)##.repeat)
+            ? Effect.Ignore : on_delete(),
+        ])
+      | "Enter"
+      | " " when own =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          on_select(),
+        ])
+      | _ => Effect.Ignore
+      };
+    } else {
+      Effect.Ignore;
+    };
+  });
+
 let edge_label =
     (
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~focused: option(string),
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~on_edge_contextmenu:
+         (CanvasGraph.edge, (float, float)) => Effect.t(unit),
+      ~on_delete_definition: Haz3lcore.Id.t => Effect.t(unit),
       ~on_edge_hover: option(string) => Effect.t(unit)=_ => Effect.Ignore,
       el: CanvasLayout.edge_layout,
     )
@@ -550,6 +615,33 @@ let edge_label =
       anchor_style(el.label_p),
       Attr.title(tooltip),
       Attr.on_click(_ => on_edge_click(e)),
+      Attr.tabindex(0),
+      Attr.create("role", "button"),
+      Attr.create("aria-label", "Function " ++ e.e_name),
+      Attr.create(
+        "aria-pressed",
+        focused == Some(e.e_name) ? "true" : "false",
+      ),
+      item_keyboard(
+        ~dom_id=edge_dom_id(e.e_name),
+        ~on_select=() => on_edge_click(e),
+        ~on_delete=() => on_delete_definition(e.e_id),
+      ),
+      Attr.on_contextmenu(evt => {
+        Js_of_ocaml.(
+          Effect.Many([
+            Effect.Prevent_default,
+            Effect.Stop_propagation,
+            on_edge_contextmenu(
+              e,
+              (
+                float_of_int(Js.Unsafe.coerce(evt)##.clientX),
+                float_of_int(Js.Unsafe.coerce(evt)##.clientY),
+              ),
+            ),
+          ])
+        )
+      }),
       Attr.on_mouseenter(_ => on_edge_hover(Some(e.e_name))),
       Attr.on_mouseleave(_ => on_edge_hover(None)),
     ],
@@ -592,6 +684,8 @@ let base_glyph = (label: string): option(string) => {
 
 let node_view =
     (
+      ~on_node_select: CanvasGraph.tynode => Effect.t(unit),
+      ~on_delete_definition: Haz3lcore.Id.t => Effect.t(unit),
       ~on_node_mousedown:
          (
            CanvasGraph.tynode,
@@ -604,6 +698,31 @@ let node_view =
       ~just_placed: list(string)=[],
       /* the selected type (the sidebar's canvas_focus_ty) wears a halo */
       ~focused_ty: option(string)=None,
+      /* a type node expanded into a CARD: the content (a probe in card
+         mode over a site of this type), its size, the collapse action
+         and the resize-drag start */
+      ~card:
+         option(
+           (
+             Node.t,
+             (float, float),
+             /* the content's natural size, once measured: the view is
+                zoomed to fit the card, proportions kept */
+             option((float, float)),
+             /* no stored size yet: measured after render (autosize) */
+             bool,
+             /* LIVE: the view takes the pointer; else a NODE (inert
+                view, drag anywhere, dbl-click collapses) */
+             bool,
+             Effect.t(unit),
+             Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) =>
+             Effect.t(unit),
+             /* toggle live / node */
+             Effect.t(unit),
+           ),
+         )=None,
+      ~on_node_dblclick: CanvasGraph.tynode => Effect.t(unit)=_ =>
+                                                                 Effect.Ignore,
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -625,7 +744,27 @@ let node_view =
       }
     );
   let click_attrs = [
-    Attr.on_mousedown(evt => on_node_mousedown(n, evt)),
+    Attr.tabindex(0),
+    Attr.create("role", "button"),
+    Attr.create("aria-label", "Type " ++ n.label),
+    Attr.create(
+      "aria-pressed",
+      focused_ty == Some(n.key) ? "true" : "false",
+    ),
+    item_keyboard(
+      ~dom_id=node_dom_id(n.key),
+      ~on_select=() => on_node_select(n),
+      ~on_delete=
+        () =>
+          switch (n.n_id) {
+          | Some(id) => on_delete_definition(id)
+          | None => Effect.Ignore
+          },
+    ),
+    Attr.on_mousedown(evt =>
+      Js_of_ocaml.Js.Unsafe.coerce(evt)##.button == 0
+        ? on_node_mousedown(n, evt) : Effect.Ignore
+    ),
     Attr.on_contextmenu(evt => {
       open Js_of_ocaml;
       let x = float_of_int(Js.Unsafe.coerce(evt)##.clientX)
@@ -667,39 +806,166 @@ let node_view =
         span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
       ]
     };
-  div(
-    /* keyed: canvas children are one flat list, and an unkeyed diff
-       re-purposes elements when the list changes — taking their running
-       animations with them */
-    ~key="n:" ++ n.key,
-    ~attrs=
-      [
-        Attr.id(node_dom_id(n.key)),
-        clss(
-          ["canvas-node", kind_cls(n.kind)]
-          @ (is_module ? ["node-module"] : [])
-          @ (!is_module && n.former != None ? ["node-former"] : [])
-          @ (n.n_err ? ["node-err"] : [])
-          @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
-          @ (base != None ? ["node-glyphed"] : [])
-          /* grows out of the placement-preview dot */
-          @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
-        ),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "left: %spx; top: %spx; width: %spx; height: %spx;",
-            fmt(nl.p.x),
-            fmt(nl.p.y),
-            fmt(d),
-            fmt(d),
+  switch (card) {
+  | Some((
+      content,
+      (w, h),
+      natural,
+      autosize,
+      live,
+      on_collapse,
+      on_resize_start,
+      on_toggle_live,
+    )) =>
+    /* zoom-to-fit: the content's natural box into the card's, with a
+       little air; lists and plain values opt out in CSS */
+    let card_zoom =
+      switch (natural) {
+      | Some((nw, nh)) when nw > 1. && nh > 1. =>
+        Float.min((w -. 8.) /. nw, (h -. 8.) /. nh)
+        |> Float.max(0.15)
+        |> Float.min(6.)
+      | _ => 1.
+      };
+    /* Views with their own edge treatment can opt out of the ordinary
+       gutter without changing the sizing of other cards. */
+    let card_bleed_zoom =
+      switch (natural) {
+      | Some((nw, nh)) when nw > 1. && nh > 1. =>
+        Float.min(w /. nw, h /. nh) |> Float.max(0.15) |> Float.min(6.)
+      | _ => 1.
+      };
+    /* the card is the node: same element (keyed), centered on the node's
+       position, so the circle morphs into the rounded rectangle (CSS
+       transitions on size and radius; FLIP moves it). Only the view and
+       the type caption; the caption's double-click collapses it. */
+    div(
+      ~key="n:" ++ n.key,
+      ~attrs=
+        [
+          Attr.id(node_dom_id(n.key)),
+          clss(
+            ["canvas-node", "node-card", kind_cls(n.kind)]
+            @ [live ? "card-live" : "card-node"]
+            @ (focused_ty == Some(n.key) ? ["node-focused"] : []),
           ),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "left: %spx; top: %spx; width: %spx; height: %spx; --card-zoom: %.4f; --card-bleed-zoom: %.4f;",
+              fmt(nl.p.x),
+              fmt(nl.p.y),
+              fmt(w),
+              fmt(h),
+              card_zoom,
+              card_bleed_zoom,
+            ),
+          ),
+          Attr.create("data-card-key", n.key),
+        ]
+        @ (autosize ? [Attr.create("data-autosize", n.key)] : [])
+        /* NODE mode: dbl-click anywhere collapses; a click gives the
+           card's probe keyboard focus (← → step samples) — the drag's
+           mousedown prevents the default focus */
+        @ (
+          live
+            ? []
+            : [
+              Attr.on_double_click(_ =>
+                Effect.Many([Effect.Stop_propagation, on_collapse])
+              ),
+            ]
+        )
+        @ click_attrs,
+      [
+        div(
+          ~attrs=
+            [clss(["card-body"])]
+            /* LIVE: the view's own gestures must not start a node drag;
+               NODE: mousedown reaches the node, so the card drags */
+            @ (live ? [Attr.on_mousedown(_ => Effect.Stop_propagation)] : []),
+          [content],
         ),
-        Attr.title(tooltip),
-      ]
-      @ click_attrs,
-    label_nodes,
-  );
+        div(
+          ~attrs=[
+            clss(["card-live-toggle"]),
+            Attr.title(
+              live
+                ? "back to a node: drag anywhere, double-click to collapse"
+                : "interact with the view (play the app, use the probe's gestures)",
+            ),
+            Attr.on_mousedown(_ => Effect.Stop_propagation),
+            Attr.on_double_click(_ => Effect.Stop_propagation),
+            Attr.on_click(_ =>
+              Effect.Many([Effect.Stop_propagation, on_toggle_live])
+            ),
+          ],
+          [text(live ? {js|■|js} : {js|▶|js})],
+        ),
+        div(
+          ~attrs=[
+            clss(["card-resize"]),
+            Attr.title("resize"),
+            Attr.on_mousedown(evt =>
+              Effect.Many([
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+                on_resize_start(evt),
+              ])
+            ),
+          ],
+          [],
+        ),
+        span(
+          ~attrs=[
+            clss(["canvas-node-label", "card-caption"]),
+            Attr.title("double-click: back to the type node"),
+            Attr.on_double_click(_ =>
+              Effect.Many([Effect.Stop_propagation, on_collapse])
+            ),
+          ],
+          [text(n.label == "" ? n.key : n.label)],
+        ),
+      ],
+    );
+  | None =>
+    div(
+      /* keyed: canvas children are one flat list, and an unkeyed diff
+         re-purposes elements when the list changes — taking their running
+         animations with them */
+      ~key="n:" ++ n.key,
+      ~attrs=
+        [
+          Attr.id(node_dom_id(n.key)),
+          clss(
+            ["canvas-node", kind_cls(n.kind)]
+            @ (is_module ? ["node-module"] : [])
+            @ (!is_module && n.former != None ? ["node-former"] : [])
+            @ (n.n_err ? ["node-err"] : [])
+            @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
+            @ (base != None ? ["node-glyphed"] : [])
+            /* grows out of the placement-preview dot */
+            @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
+          ),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "left: %spx; top: %spx; width: %spx; height: %spx;",
+              fmt(nl.p.x),
+              fmt(nl.p.y),
+              fmt(d),
+              fmt(d),
+            ),
+          ),
+          Attr.title(tooltip),
+          Attr.on_double_click(_ =>
+            Effect.Many([Effect.Stop_propagation, on_node_dblclick(n)])
+          ),
+        ]
+        @ click_attrs,
+      label_nodes,
+    )
+  };
 };
 
 /* constants as slow-orbiting dots around their type's node: labels only
@@ -825,6 +1091,10 @@ let view =
       ~collapsed_counts: list((string, int))=[],
       ~on_hull_toggle: string => Effect.t(unit)=_ => Effect.Ignore,
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~on_edge_contextmenu:
+         (CanvasGraph.edge, (float, float)) => Effect.t(unit),
+      ~on_delete_definition: Haz3lcore.Id.t => Effect.t(unit),
+      ~on_node_select: CanvasGraph.tynode => Effect.t(unit),
       ~on_node_mousedown:
          (
            CanvasGraph.tynode,
@@ -850,6 +1120,27 @@ let view =
       ~just_placed: list(string)=[],
       /* the selected type node, if any */
       ~focused_ty: option(string)=None,
+      /* type nodes expanded into cards: key -> (content, size, collapse,
+         resize-start) */
+      ~cards:
+         list(
+           (
+             string,
+             (
+               Node.t,
+               (float, float),
+               option((float, float)),
+               bool,
+               bool,
+               Effect.t(unit),
+               Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) =>
+               Effect.t(unit),
+               Effect.t(unit),
+             ),
+           ),
+         )=[],
+      ~on_node_dblclick: CanvasGraph.tynode => Effect.t(unit)=_ =>
+                                                                 Effect.Ignore,
       /* picking the actor up */
       ~on_avatar_mousedown:
          Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) => Effect.t(unit)=
@@ -1457,12 +1748,18 @@ let view =
         ]
         @ telegraph_nodes
         @ List.map(
-            node_view(
-              ~on_node_mousedown,
-              ~on_node_contextmenu,
-              ~just_placed,
-              ~focused_ty,
-            ),
+            (nl: CanvasLayout.node_layout) =>
+              node_view(
+                ~on_node_mousedown,
+                ~on_node_contextmenu,
+                ~on_node_select,
+                ~on_delete_definition,
+                ~just_placed,
+                ~focused_ty,
+                ~card=List.assoc_opt(nl.node.key, cards),
+                ~on_node_dblclick,
+                nl,
+              ),
             lay.nodes,
           )
         @ List.map(
@@ -1470,6 +1767,8 @@ let view =
               ~inject_jump,
               ~focused,
               ~on_edge_click,
+              ~on_edge_contextmenu,
+              ~on_delete_definition,
               ~on_edge_hover,
             ),
             lay.edges,
@@ -1530,7 +1829,12 @@ let view =
                 ~key="avatar-bubble",
                 ~attrs=[clss(["canvas-avatar-bubble", "mode-hidden"])],
                 [
-                  svg("svg", [clss(["say-shape"])], [svg("path", [], [])]),
+                  tails,
+                  svg(
+                    "svg",
+                    [clss(["say-shape"])],
+                    [svg("path", [], [])],
+                  ),
                   div(~attrs=[clss(["say-text"])], []),
                   div(
                     ~attrs=[clss(["bubble-cloud"])],
@@ -1562,7 +1866,7 @@ let view =
               );
             [
               avatar_view(
-                ~bubbles=[tails, bubble],
+                ~bubbles=[bubble],
                 ~on_mousedown=on_avatar_mousedown,
                 a,
               ),

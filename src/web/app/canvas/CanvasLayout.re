@@ -127,8 +127,296 @@ type dock =
    ~offsets are user drag deltas keyed by node key, applied after auto
    placement (edges/rims then derive from the moved positions, and the
    final normalization translates deltas and auto positions together). */
+/* ---- routing for links and arrows ----
+   Lines are STRAIGHT. A chain laid in one row (`Int -> Pos -> World`) would
+   put the middle node on the long link, so `declutter` below moves such a
+   node off the chord at layout time; while a node is being dragged a line
+   may pass under it until the release re-lays the graph. (The earlier
+   router bent a link around whatever it crossed, and re-bent it on every
+   drag frame as the crossings changed: the "waves".) Pure, so the drag
+   follower can re-route from positions alone. */
+let route_link =
+    (
+      ~nodes as _: list(node_layout),
+      ~from_key as _: string,
+      ~to_key as _: string,
+      a: pos,
+      b: pos,
+    )
+    : (pos, pos) => {
+  let c = (t: float) => {
+    x: a.x +. (b.x -. a.x) *. t,
+    y: a.y +. (b.y -. a.y) *. t,
+  };
+  (c(0.33), c(0.67));
+};
+
+let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
+  Printf.sprintf(
+    "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+    a.x,
+    a.y,
+    c1.x,
+    c1.y,
+    c2.x,
+    c2.y,
+    b.x,
+    b.y,
+  );
+
+/* ---- declutter: nodes step OFF the straight lines between other nodes.
+   For every link/arrow chord, a node the chord would run through (not its
+   ends) is nudged perpendicular to the chord by the clearance it lacks;
+   exactly collinear nodes alternate sides. A few rounds settle chains.
+   Fixed nodes (pinned or dragged by the user) stay; a docked satellite
+   rides its anchor. */
+let declutter =
+    (
+      ~chords: list((string, string)),
+      ~fixed: list(string),
+      ~radius_of: string => float,
+      nodes: list(node_layout),
+    )
+    : list(node_layout) => {
+  let clear = 12.;
+  let tbl: Hashtbl.t(string, pos) = Hashtbl.create(32);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(tbl, nl.node.key, nl.p),
+    nodes,
+  );
+  let anchor_of = (nl: node_layout): option(string) =>
+    switch (nl.node.sat) {
+    | Some((a, _)) => Some(a)
+    | None => None
+    };
+  let movable = (nl: node_layout): bool =>
+    !List.mem(nl.node.key, fixed) && anchor_of(nl) == None;
+  let parity: Hashtbl.t(string, float) = Hashtbl.create(32);
+  List.iteri(
+    (i, nl: node_layout) =>
+      Hashtbl.replace(parity, nl.node.key, i mod 2 == 0 ? 1. : (-1.)),
+    nodes,
+  );
+  for (_ in 1 to 6) {
+    let delta: Hashtbl.t(string, (float, float)) = Hashtbl.create(16);
+    List.iter(
+      ((ka, kb)) =>
+        switch (Hashtbl.find_opt(tbl, ka), Hashtbl.find_opt(tbl, kb)) {
+        | (Some(a), Some(b)) =>
+          let dx = b.x -. a.x
+          and dy = b.y -. a.y;
+          let len = sqrt(dx *. dx +. dy *. dy);
+          if (len > 1.) {
+            let (ux, uy) = (dx /. len, dy /. len);
+            let (nx, ny) = (-. uy, ux);
+            List.iter(
+              (nl: node_layout) =>
+                if (nl.node.key != ka && nl.node.key != kb && movable(nl)) {
+                  let p = Hashtbl.find(tbl, nl.node.key);
+                  let r = radius_of(nl.node.key);
+                  let px = p.x -. a.x
+                  and py = p.y -. a.y;
+                  let along = px *. ux +. py *. uy;
+                  let side = px *. nx +. py *. ny;
+                  let need = r +. clear;
+                  if (along > r && along < len -. r && abs_float(side) < need) {
+                    let dir =
+                      abs_float(side) < 0.5
+                        ? Hashtbl.find(parity, nl.node.key)
+                        : side >= 0. ? 1. : (-1.);
+                    let m = need -. abs_float(side);
+                    let (ox, oy) =
+                      Option.value(
+                        ~default=(0., 0.),
+                        Hashtbl.find_opt(delta, nl.node.key),
+                      );
+                    Hashtbl.replace(
+                      delta,
+                      nl.node.key,
+                      (ox +. dir *. nx *. m, oy +. dir *. ny *. m),
+                    );
+                  };
+                },
+              nodes,
+            );
+          };
+        | _ => ()
+        },
+      chords,
+    );
+    Hashtbl.iter(
+      (k, (ox, oy)) => {
+        let p = Hashtbl.find(tbl, k);
+        Hashtbl.replace(
+          tbl,
+          k,
+          {
+            x: p.x +. ox,
+            y: p.y +. oy,
+          },
+        );
+      },
+      delta,
+    );
+    List.iter(
+      (nl: node_layout) =>
+        switch (anchor_of(nl)) {
+        | Some(a) =>
+          switch (Hashtbl.find_opt(delta, a)) {
+          | Some((ox, oy)) =>
+            let p = Hashtbl.find(tbl, nl.node.key);
+            Hashtbl.replace(
+              tbl,
+              nl.node.key,
+              {
+                x: p.x +. ox,
+                y: p.y +. oy,
+              },
+            );
+          | None => ()
+          }
+        | None => ()
+        },
+      nodes,
+    );
+  };
+  List.map(
+    (nl: node_layout) =>
+      {
+        ...nl,
+        p: Hashtbl.find(tbl, nl.node.key),
+      },
+    nodes,
+  );
+};
+
+/* A docked terminal can lie directly on its anchor's other relationship.
+   Move that terminal off the shared chord before applying manual positions;
+   the user's later drag remains rigid and never relocates bystanders. */
+let separate_docked_chords =
+    (~chords: list((string, string)), nodes: list(node_layout)) => {
+  let positions = Hashtbl.create(32);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(positions, nl.node.key, nl.p),
+    nodes,
+  );
+  List.map(
+    (nl: node_layout) => {
+      let p =
+        List.fold_left(
+          (p: pos, (ka, kb)) =>
+            switch (
+              nl.node.kind,
+              nl.node.sat,
+              Hashtbl.find_opt(positions, ka),
+              Hashtbl.find_opt(positions, kb),
+            ) {
+            | (Builtin, Some((anchor, _)), Some(a), Some(b))
+                when
+                  nl.node.key != ka
+                  && nl.node.key != kb
+                  && (anchor == ka || anchor == kb) =>
+              let length = sqrt((b.x -. a.x) ** 2. +. (b.y -. a.y) ** 2.);
+              let u = norm(a, b);
+              let along = (p.x -. a.x) *. u.x +. (p.y -. a.y) *. u.y;
+              let side = (p.y -. a.y) *. u.x -. (p.x -. a.x) *. u.y;
+              if (length > 1.
+                  && along > 0.
+                  && along < length
+                  && abs_float(side) < nl.r
+                  +. 12.) {
+                let candidate = dir => {
+                  x: p.x -. u.y *. dir *. 42.,
+                  y: p.y +. u.x *. dir *. 42.,
+                };
+                let clearance = (q: pos) =>
+                  List.fold_left(
+                    (score, other: node_layout) =>
+                      other.node.key == nl.node.key
+                        ? score
+                        : min(
+                            score,
+                            sqrt(
+                              (q.x -. other.p.x)
+                              ** 2.
+                              +. (q.y -. other.p.y)
+                              ** 2.,
+                            )
+                            -. other.r,
+                          ),
+                    max_float,
+                    nodes,
+                  );
+                let above = candidate(-1.)
+                and below = candidate(1.);
+                clearance(above) >= clearance(below) ? above : below;
+              } else {
+                p;
+              };
+            | _ => p
+            },
+          nl.p,
+          chords,
+        );
+      {
+        ...nl,
+        p,
+      };
+    },
+    nodes,
+  );
+};
+
+/* Manual movement is applied after automatic layout. Docked satellites
+   inherit their anchor's movement; an explicit satellite pin stays put. */
+let apply_manual_positions = (~offsets, ~pins, nodes: list(node_layout)) => {
+  let rec displacement = (seen, nl: node_layout): (float, float) =>
+    if (List.mem(nl.node.key, seen)) {
+      (0., 0.);
+    } else {
+      switch (List.assoc_opt(nl.node.key, pins)) {
+      | Some((x, y)) => (snap(x) -. nl.p.x, snap(y) -. nl.p.y)
+      | None =>
+        let (dx, dy) =
+          Option.value(
+            ~default=(0., 0.),
+            List.assoc_opt(nl.node.key, offsets),
+          );
+        let (ax, ay) =
+          switch (nl.node.sat) {
+          | Some((anchor, _)) =>
+            List.find_opt((n: node_layout) => n.node.key == anchor, nodes)
+            |> Option.map(n => displacement([nl.node.key, ...seen], n))
+            |> Option.value(~default=(0., 0.))
+          | None => (0., 0.)
+          };
+        (dx +. ax, dy +. ay);
+      };
+    };
+  List.map(
+    (nl: node_layout) => {
+      let (dx, dy) = displacement([], nl);
+      {
+        ...nl,
+        p: {
+          x: nl.p.x +. dx,
+          y: nl.p.y +. dy,
+        },
+      };
+    },
+    nodes,
+  );
+};
+
+/* Comparison modes keep the same graph and routing; only the rank
+   constraints change. Combined remains the production default. */
+type ranking =
+  | Combined
+  | FunctionFlow
+  | TypeDependencies;
 let layout_impl =
     (
+      ~ranking=Combined,
       ~x_scale=1.,
       ~y_scale=1.,
       ~center_within: option(float)=None,
@@ -138,10 +426,18 @@ let layout_impl =
       ~origin_override: option(pos)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
+      /* expanded type cards: (w, h) per node key. A card is DISPLAY
+         only: edges land on its rectangle and the board grows to hold
+         it, but it never moves a node — toggling a card is not a
+         relayout (the whole-graph re-solve and re-frame it caused threw
+         the view in a small pane; neighbours may overlap for now). */
+      ~cards: list((string, (float, float)))=[],
       g: CanvasGraph.t,
     )
     : t => {
   let t_pre = Util.PerfTimer.now();
+  let card_of = (k: string): option((float, float)) =>
+    List.assoc_opt(k, cards);
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
@@ -403,13 +699,20 @@ let layout_impl =
   /* pinned nodes with no spec relationships float FREE of the rank
      grid: a freshly placed node would otherwise claim a row and shove
      every auto-laid node down */
+  let unrank =
+    List.map((e: Util.GraphLayout.Spec.edge) =>
+      {
+        ...e,
+        ranked: false,
+      }
+    );
+  let type_edges = es => ranking == FunctionFlow ? unrank(es) : es;
   let all_spec_edges =
-    dep_edges
-    @ derived_edges
-    @ flow_edges
-    @ former_rank_edges
+    type_edges(dep_edges @ derived_edges)
+    @ (ranking == TypeDependencies ? unrank(flow_edges) : flow_edges)
+    @ type_edges(former_rank_edges)
     @ formation_edges
-    @ module_flow_pull;
+    @ type_edges(module_flow_pull);
   let spec_touches = (k: string): bool =>
     List.exists(
       (e: Util.GraphLayout.Spec.edge) => e.src == k || e.dst == k,
@@ -445,13 +748,7 @@ let layout_impl =
                 ),
           grid_nodes,
         ),
-      edges:
-        dep_edges
-        @ derived_edges
-        @ flow_edges
-        @ former_rank_edges
-        @ formation_edges
-        @ module_flow_pull,
+      edges: all_spec_edges,
       attachments,
       col_gap: 160.,
       row_gap: 96.,
@@ -497,45 +794,65 @@ let layout_impl =
         g.nodes,
       );
 
-  /* ---- user drag deltas and click-placement pins ---- */
+  /* Declutter the automatic arrangement once, before manual placement.
+     A pointer movement must not push unrelated nodes out of its new
+     chords. Routing adapts to the final positions below instead. */
   Util.PerfTimer.record("layout/solve", Util.PerfTimer.now() -. t_solve);
   let t_nodes = Util.PerfTimer.now();
   let node_layouts =
     List.map(
       (nl: node_layout) =>
-        switch (
-          List.assoc_opt(nl.node.key, pins),
-          List.assoc_opt(nl.node.key, offsets),
-        ) {
-        | (Some((x, y)), _) => {
-            ...nl,
-            p: {
-              x,
-              y,
-            },
-          }
-        | (None, Some((dx, dy))) => {
-            ...nl,
-            p: {
-              x: nl.p.x +. dx,
-              y: nl.p.y +. dy,
-            },
-          }
-        | (None, None) => nl
+        {
+          ...nl,
+          p: {
+            x: snap(nl.p.x),
+            y: snap(nl.p.y),
+          },
         },
       placed_layouts,
-    )
-    /* snap-to-grid: node centers land on the dot lattice; drags and
-       pins snap too (they pass through here) */
-    |> List.map((nl: node_layout) =>
-         {
-           ...nl,
-           p: {
-             x: snap(nl.p.x),
-             y: snap(nl.p.y),
-           },
-         }
-       );
+    );
+  /* every straight line the render will draw: function arrows and the
+     "made of" links (parts → product, former → alias, element → [T],
+     alias-body deps → alias) */
+  let node_layouts = {
+    let chords =
+      List.map((e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
+      @ List.concat_map(
+          (n: CanvasGraph.tynode) =>
+            switch (n.kind) {
+            | Product =>
+              List.map(pk => (pk, n.key), n.parts)
+              @ (
+                switch (n.sat) {
+                | Some((anchor, _)) => [(n.key, anchor)]
+                | None => []
+                }
+              )
+            | Alias =>
+              List.map(pk => (pk, n.key), n.parts)
+              @ List.filter_map(
+                  d =>
+                    d != n.key && !List.mem(d, n.hidden_deps)
+                      ? Some((d, n.key)) : None,
+                  n.deps,
+                )
+            | Derived =>
+              switch (strip_brackets(n.key)) {
+              | Some(ik) => [(ik, n.key)]
+              | None => []
+              }
+            | _ => []
+            },
+          g.nodes,
+        );
+    let circle_r = (k: string): float =>
+      List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
+      |> Option.map((nl: node_layout) => nl.r)
+      |> Option.value(~default=base_radius);
+    declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts)
+    |> separate_docked_chords(~chords);
+  };
+  let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
     (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
@@ -547,6 +864,28 @@ let layout_impl =
     Hashtbl.find_opt(placed, k)
     |> Option.map(snd)
     |> Option.value(~default=base_radius);
+  /* edge endpoints land on the node's rim: the circle, or for a card
+     the point where the ray toward `b` leaves its rectangle */
+  let rim_toward = (a: pos, b: pos, k: string): pos =>
+    switch (card_of(k)) {
+    | None => offset_along(a, b, radius_of(k))
+    | Some((w, h)) =>
+      let u = norm(a, b);
+      let tx =
+        Float.abs(u.x) < 1e-6 ? Float.infinity : w /. 2. /. Float.abs(u.x);
+      let ty =
+        Float.abs(u.y) < 1e-6 ? Float.infinity : h /. 2. /. Float.abs(u.y);
+      let t = Float.min(tx, ty) +. 1.;
+      {
+        x: a.x +. u.x *. t,
+        y: a.y +. u.y *. t,
+      };
+    };
+  let half_w_of = (k: string): float =>
+    switch (card_of(k)) {
+    | Some((w, _)) => w /. 2. +. 1.
+    | None => radius_of(k)
+    };
 
   /* ---- formation + dependency links (rim-to-rim so arrowheads land) ---- */
   let rim_pair =
@@ -556,8 +895,8 @@ let layout_impl =
       Some((
         from_k,
         to_k,
-        offset_along(fp, tp, radius_of(from_k)),
-        offset_along(tp, fp, radius_of(to_k)),
+        rim_toward(fp, tp, from_k),
+        rim_toward(tp, fp, to_k),
       ))
     | _ => None
     };
@@ -685,8 +1024,8 @@ let layout_impl =
             y: mid.y +. v.y *. 38.,
           };
           /* arrows run rim to rim: the head lands on the codomain node */
-          let s = offset_along(src_p, ctrl, radius_of(e.e_src));
-          let d = offset_along(dst_p, ctrl, radius_of(e.dst));
+          let s = rim_toward(src_p, ctrl, e.e_src);
+          let d = rim_toward(dst_p, ctrl, e.dst);
           {
             edge: e,
             src_p: s,
@@ -708,68 +1047,25 @@ let layout_impl =
         } else {
           let sign = dst_p.x >= src_p.x ? 1. : (-1.);
           let s = {
-            x: src_p.x +. sign *. radius_of(e.e_src),
+            x: src_p.x +. sign *. half_w_of(e.e_src),
             y: src_p.y,
           };
           let d = {
-            x: dst_p.x -. sign *. radius_of(e.dst),
+            x: dst_p.x -. sign *. half_w_of(e.dst),
             y: dst_p.y,
           };
           let bend = max(24., min(90., abs_float(d.x -. s.x) *. 0.5));
-          /* a terminal sits in its anchor's column */
-          let rank_of = k =>
-            switch (List.assoc_opt(k, res.ranks)) {
-            | Some(r) => Some(r)
-            | None =>
-              switch (
-                List.find_opt((m: CanvasGraph.tynode) => m.key == k, g.nodes)
-              ) {
-              | Some({CanvasGraph.sat: Some((anchor, _)), _}) =>
-                List.assoc_opt(anchor, res.ranks)
-              | _ => None
-              }
-            };
-          /* an edge spanning several ranks arcs over the nodes it would
-             otherwise run straight through; one within a single column
-             bows out sideways instead of running down the column */
-          let lift =
-            switch (rank_of(e.e_src), rank_of(e.dst)) {
-            | (Some(r0), Some(r1)) when abs(r1 - r0) >= 2 =>
-              let lo = min(r0, r1)
-              and hi = max(r0, r1);
-              /* bow away from the side of the chord where the skipped
-                 ranks' nodes mostly sit */
-              let chord_y = x =>
-                abs_float(d.x -. s.x) < 1.
-                  ? s.y : s.y +. (d.y -. s.y) *. (x -. s.x) /. (d.x -. s.x);
-              let offs =
-                List.filter_map(
-                  ((k, r)) =>
-                    r > lo && r < hi
-                      ? Option.map(
-                          (p: pos) => p.y -. chord_y(p.x),
-                          pos_of(k),
-                        )
-                      : None,
-                  res.ranks,
-                );
-              let above = List.length(List.filter(o => o < 0., offs));
-              let below = List.length(offs) - above;
-              let mag = min(110., 48. +. 20. *. float_of_int(hi - lo - 2));
-              above > below ? mag : -. mag;
-            | _ => 0.
-            };
+          /* straight: an S with horizontal handles (declutter has moved
+             the nodes off the chord); a same-column arrow runs down the
+             column */
           let same_col = abs_float(d.x -. s.x) < 60.;
-          let bow =
-            same_col
-              ? max(40., min(140., abs_float(d.y -. s.y) *. 0.45)) : 0.;
           let c1 = {
-            x: same_col ? s.x +. bow : s.x +. sign *. bend,
-            y: s.y +. lift,
+            x: same_col ? s.x : s.x +. sign *. bend,
+            y: s.y,
           };
           let c2 = {
-            x: same_col ? d.x +. bow : d.x -. sign *. bend,
-            y: d.y +. lift,
+            x: same_col ? d.x : d.x -. sign *. bend,
+            y: d.y,
           };
           {
             edge: e,
@@ -1238,9 +1534,40 @@ let layout_impl =
       dep_links:
         List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), dep_links),
       /* panned-up content can put the extent above the origin; svg
-         size attrs reject negatives (overlays overflow: visible) */
-      width: max(0., max_x +. dx +. pad),
-      height: max(0., max_y +. dy +. pad),
+         size attrs reject negatives (overlays overflow: visible). The
+         board also reaches past any card's right/bottom edge (cards do
+         not enter the extent that positions the graph, so a card can't
+         shift it — but it must be scrollable to). */
+      width:
+        List.fold_left(
+          (acc, (k, (w, _))) =>
+            switch (
+              List.find_opt(
+                (nl: node_layout) => nl.node.key == k,
+                node_layouts,
+              )
+            ) {
+            | Some(nl) => max(acc, nl.p.x +. dx +. w /. 2. +. pad)
+            | None => acc
+            },
+          max(0., max_x +. dx +. pad),
+          cards,
+        ),
+      height:
+        List.fold_left(
+          (acc, (k, (_, h))) =>
+            switch (
+              List.find_opt(
+                (nl: node_layout) => nl.node.key == k,
+                node_layouts,
+              )
+            ) {
+            | Some(nl) => max(acc, nl.p.y +. dy +. h /. 2. +. pad)
+            | None => acc
+            },
+          max(0., max_y +. dy +. pad),
+          cards,
+        ),
       origin: {
         x: dx,
         y: dy,
@@ -1248,88 +1575,6 @@ let layout_impl =
     };
   };
 };
-
-/* ---- routing for dependency links (the dotted "made of" arrows) ----
-   Dependencies rank the layout, so `Int -> Pos -> World` lands in one row and
-   the long link would run straight through Pos on top of the short ones.
-   Links get the same two rules as function arrows: arc away from any node
-   they would cross; bow sideways when both ends share a column. Pure, so the
-   drag follower can re-route from positions alone. */
-let link_offset =
-    (
-      ~nodes: list(node_layout),
-      ~from_key: string,
-      ~to_key: string,
-      a: pos,
-      b: pos,
-    )
-    : (float, float) => {
-  let dx = b.x -. a.x
-  and dy = b.y -. a.y;
-  let len = max(1., sqrt(dx *. dx +. dy *. dy));
-  let (ux, uy) = (dx /. len, dy /. len);
-  let (nx, ny) = (-. uy, ux); /* left normal */
-  /* nodes the straight segment would cross, with their signed side */
-  let hits =
-    List.filter_map(
-      (nl: node_layout) =>
-        if (nl.node.key == from_key || nl.node.key == to_key) {
-          None;
-        } else {
-          let px = nl.p.x -. a.x
-          and py = nl.p.y -. a.y;
-          let along = px *. ux +. py *. uy;
-          let side = px *. nx +. py *. ny;
-          along > 0. && along < len && abs_float(side) < nl.r +. 12.
-            ? Some((side, nl.r)) : None;
-        },
-      nodes,
-    );
-  let same_col = abs_float(dx) < 60. && abs_float(dy) > 40.;
-  let (lift, bow) =
-    switch (hits) {
-    | [] => (0., same_col ? max(40., min(120., abs_float(dy) *. 0.4)) : 0.)
-    | _ =>
-      let max_r = List.fold_left((m, (_, r)) => max(m, r), 0., hits);
-      let mean_side =
-        List.fold_left((s, (side, _)) => s +. side, 0., hits)
-        /. float_of_int(List.length(hits));
-      /* pass on the side the obstacles are NOT on */
-      let dir = mean_side >= 0. ? (-1.) : 1.;
-      (dir *. (max_r +. 34.), 0.);
-    };
-  (nx *. lift +. bow, ny *. lift);
-};
-
-let route_link =
-    (
-      ~nodes: list(node_layout),
-      ~from_key: string,
-      ~to_key: string,
-      a: pos,
-      b: pos,
-    )
-    : (pos, pos) => {
-  let (ox, oy) = link_offset(~nodes, ~from_key, ~to_key, a, b);
-  let c = (t: float) => {
-    x: a.x +. (b.x -. a.x) *. t +. ox,
-    y: a.y +. (b.y -. a.y) *. t +. oy,
-  };
-  (c(0.33), c(0.67));
-};
-
-let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
-  Printf.sprintf(
-    "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
-    a.x,
-    a.y,
-    c1.x,
-    c1.y,
-    c2.x,
-    c2.y,
-    b.x,
-    b.y,
-  );
 
 /* ---- instrumentation: how often and how long a render lays out ---- */
 let layout_calls: ref(int) = ref(0);
@@ -1347,9 +1592,14 @@ type layout_key = {
   k_origin: option(pos),
   k_offsets: list((string, (float, float))),
   k_pins: list((string, (float, float))),
+  k_cards: list((string, (float, float))),
 };
 let layout_memo: ref(list((layout_key, t))) = ref([]);
 let layout_memo_hits: ref(int) = ref(0);
+/* the expanded cards' extents for the layouts of the current render:
+   set by CanvasSidebar before laying out (every layout call of a render
+   sees the same cards, so this is not threaded through each call) */
+let card_extents: ref(list((string, (float, float)))) = ref([]);
 let layout =
     (
       ~x_scale=1.,
@@ -1358,9 +1608,11 @@ let layout =
       ~origin_override: option(pos)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
+      ~cards: option(list((string, (float, float))))=?,
       g: CanvasGraph.t,
     )
     : t => {
+  let cards = Option.value(~default=card_extents^, cards);
   let key = {
     k_graph: g,
     k_x: x_scale,
@@ -1369,6 +1621,7 @@ let layout =
     k_origin: origin_override,
     k_offsets: offsets,
     k_pins: pins,
+    k_cards: cards,
   };
   let same = (k: layout_key) =>
     k.k_graph === g
@@ -1377,7 +1630,8 @@ let layout =
     && k.k_center == center_within
     && k.k_origin == origin_override
     && k.k_offsets == offsets
-    && k.k_pins == pins;
+    && k.k_pins == pins
+    && k.k_cards == cards;
   switch (List.find_opt(((k, _)) => same(k), layout_memo^)) {
   | Some((_, r)) =>
     incr(layout_memo_hits);
@@ -1394,6 +1648,7 @@ let layout =
         ~origin_override,
         ~offsets,
         ~pins,
+        ~cards,
         g,
       );
     incr(layout_calls);

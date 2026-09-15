@@ -42,6 +42,10 @@ let (suite, exit_with_test_status) =
       Test_Menhir.tests,
       Test_PatRootEditor.tests,
       Test_StackFocus.tests,
+      Test_CanvasTrajectory.tests,
+      Test_CanvasMotion.tests,
+      Test_DefinitionSteps.tests,
+      Test_CanvasPresentation.tests,
       Test_Restructure.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
@@ -74,6 +78,7 @@ let (suite, exit_with_test_status) =
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
+    @ [Test_CanvasManual.tests]
     @ [("Canvas values", Test_CanvasValue.tests)]
     @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
     @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]

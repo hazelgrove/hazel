@@ -55,6 +55,7 @@ type t =
   | ToggleToolsViewExpanded(string)
   | RequestForcedCompaction(Id.t)
   | StopAgenticLoop
+  | CatchUpAgent
   | FlushPendingSend(Id.t)
   | RunSlashCommandCost(Id.t)
   | RunSlashCommandHelp(Id.t)
@@ -71,3 +72,41 @@ type t =
       string,
       string,
     );
+
+/* Actions that consume the program need the live, spliced editor while
+   definitions are focused. Streaming/chat-only actions must stay cheap. */
+let uses_program = (action: t): bool =>
+  switch (action) {
+  | DirectEdit(_)
+  | SendMessage(_)
+  | DispatchSend(_)
+  | HandleLLMResponse(_)
+  | HandleCompactionLLMReply(_)
+  | ReplayToolCalls(_)
+  | ApiErrorResponse(_)
+  | RetryApiError(_)
+  | DoRetryApiSend(_)
+  | RetryEmptyResponse(_)
+  | LoadTimelineSegment(_)
+  | RestoreOriginal
+  | LoadSegmentIntoEditor(_)
+  | RequestForcedCompaction(_)
+  | StopAgenticLoop
+  | CatchUpAgent
+  | FlushPendingSend(_) => true
+  | ChatSystemAction(_)
+  | ReplayStreamTick
+  | ReplayBegin(_)
+  | HandleChatNamingResponse(_)
+  | SetActiveTimelineNode(_)
+  | SetToolEnabled(_)
+  | SetToolsInCategoryEnabled(_)
+  | ToggleToolsViewExpanded(_)
+  | RunSlashCommandCost(_)
+  | RunSlashCommandHelp(_)
+  | RunSlashCommandShowKey(_)
+  | RunSlashCommandFetchCredits(_)
+  | RunSlashCommandFetchUsage(_)
+  | AppendSlashCommandOutput(_)
+  | StreamDelta(_) => false
+  };

@@ -926,6 +926,27 @@ let frame_for =
   };
 };
 
+/* The camera needs rendered edge endpoints as well as node centers.
+   An Edge act has no node site: a node-only lookup silently yields an
+   empty required set and leaves the camera behind during the draw. */
+let with_edge_positions =
+    (
+      ~pos_of: string => option(pos),
+      ~edges: list((string, pos, pos)),
+      key: string,
+    )
+    : option(pos) =>
+  switch (pos_of(key)) {
+  | Some(_) as p => p
+  | None =>
+    List.find_map(
+      ((name, src, dst)) =>
+        key == "edge-src:" ++ name
+          ? Some(src) : key == "edge-end:" ++ name ? Some(dst) : None,
+      edges,
+    )
+  };
+
 /* the positions an act needs in frame */
 let act_targets = (~pos_of: string => option(pos), a: act): list(pos) => {
   let site = site_pos(~pos_of, a.at) |> Option.to_list;

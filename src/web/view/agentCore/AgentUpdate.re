@@ -65,6 +65,13 @@ let update =
     )
   | StopAgenticLoop =>
     AgentSend.stop_agentic_loop(model, editor, schedule_action)
+  | CatchUpAgent =>
+    AgentSend.stop_agentic_loop(
+      ~flush_pending=false,
+      model,
+      editor,
+      schedule_action,
+    )
   | FlushPendingSend(chat_id) =>
     AgentSend.flush_pending_send(chat_id, model, editor, schedule_action)
   | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
