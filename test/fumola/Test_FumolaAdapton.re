@@ -26,6 +26,12 @@ let edge_row_json = {|{"tag":"Record","value":{"edge":{"tag":"Record","value":{"
    hook is never called. */
 let no_eval = (_: string): Yojson.Safe.t => `Null;
 
+/* A node whose space is a COMPOUND symbol -- `1-element`, a BinOp of a Num
+   and a Name -- rather than the bare number the sample above carries. Every
+   name the library and level-tree slides mint has this shape, so it is most
+   of what those instances hold. Verbatim from the `lib` instance. */
+let compound_node_row_json = {|{"tag":"Record","value":{"metaTime":{"tag":"Int","value":"12"},"node":{"tag":"Variant","value":{"name":"nonThunk","value":{"tag":"Variant","value":{"name":"element","value":{"tag":"Record","value":{"element":{"tag":"Int","value":"470"},"symbol":{"tag":"Int","value":"1"}}}}}}},"nodeId":{"tag":"Tuple","value":[{"tag":"Variant","value":{"name":"Symbol","value":{"tag":"Symbol","value":{"left":{"tag":"Num","value":"1"},"op":"-","right":{"tag":"Name","value":"element"},"tag":"BinOp"}}}},{"tag":"Variant","value":{"name":"Now","value":null}},{"tag":"Int","value":"12"}]}}}|};
+
 let translate = (~ana, source: string): TermBase.Exp.t =>
   switch (
     FumolaValue.exp_of_json(
@@ -97,10 +103,38 @@ let edge_row_translates = () => {
   has("edge row", "Here", text);
 };
 
+/* The panel drops a row it cannot translate, so a symbol form with no Hazel
+   form costs that row silently -- the reader sees a shorter list and nothing
+   saying it is shorter. */
+let compound_node_row_translates = () => {
+  switch (
+    FumolaValue.exp_of_json(
+      ~instance_id=0,
+      ~eval=no_eval,
+      ~ana=FumolaAdapton.node_row(),
+      ~tools=FumolaAdapton.tools,
+      Yojson.Safe.from_string(compound_node_row_json),
+    )
+  ) {
+  | Ok(exp) =>
+    let text = printed(exp);
+    has("compound node row", "BinOp", text);
+    has("compound node row", "Num", text);
+    has("compound node row", "element", text);
+  | Error(message) =>
+    failwith("a compound symbol did not translate: " ++ message)
+  };
+};
+
 let tests = (
   "FumolaAdapton",
   [
     test_case("a node row translates", `Quick, node_row_translates),
+    test_case(
+      "a node row with a compound symbol translates",
+      `Quick,
+      compound_node_row_translates,
+    ),
     test_case("an edge row translates", `Quick, edge_row_translates),
   ],
 );

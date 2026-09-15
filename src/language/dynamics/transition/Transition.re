@@ -493,7 +493,7 @@ module Transition = (EV: EV_MODE) => {
            already gives when it cannot run for any other reason. A caller
            that needs the stepped expression cannot use it. */
         ~effects: [
-           | `Perform
+           | `Perform(FumolaRun.pass)
            | `Withhold
          ],
         ~targets: Sample.targets=Sample.no_targets,
@@ -975,8 +975,8 @@ module Transition = (EV: EV_MODE) => {
          Indet, not Value: the quote is not a value, it is a program this
          pass declined to run. */
       | `Withhold => Indet
-      | `Perform =>
-        switch (FumolaRun.run(~ana, ~tools, name, mode, body)) {
+      | `Perform(pass) =>
+        switch (FumolaRun.run(~ana, ~tools, ~pass, name, mode, body)) {
         | Ok(value) =>
           Step({
             expr: value,

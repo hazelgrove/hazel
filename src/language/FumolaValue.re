@@ -207,6 +207,13 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
         }
       | _ => Error("Fumola symbol is missing field `op`")
       }
+    /* Its own source text, which is what FumolaEvents.symbol_text already
+       fell back to. Both spellings of the name agree now. */
+    | (Some(`String("QuotedAst")), _) =>
+      switch (List.assoc_opt("source", obj)) {
+      | Some(`String(source)) => Ok(source)
+      | _ => Error("Fumola quoted symbol is missing its source")
+      }
     | (Some(`String(tag)), _) =>
       Error(
         "This Fumola value cannot be shown in Hazel yet: it is a symbol built
@@ -425,6 +432,43 @@ let rec symbol_exp =
       applied("Call", payload_ana => pair(obj, "fun", "arg", payload_ana))
     | (Some(`String("Dot")), _) =>
       applied("Dot", payload_ana => pair(obj, "left", "right", payload_ana))
+    /* The operator rides in the middle as a String, which is how Fumola sends
+       it. The two operands are symbols and recur; the operator does not. */
+    | (Some(`String("BinOp")), _) =>
+      applied("BinOp", payload_ana =>
+        switch (
+          List.assoc_opt("left", obj),
+          List.assoc_opt("op", obj),
+          List.assoc_opt("right", obj),
+        ) {
+        | (Some(l), Some(`String(op)), Some(r)) =>
+          let (la, _, ra) =
+            switch (element_anas(~tools, payload_ana, 3)) {
+            | [la, oa, ra] => (la, oa, ra)
+            | _ => (unknown(), unknown(), unknown())
+            };
+          switch (
+            symbol_exp(~tools, ~ana=la, l),
+            symbol_exp(~tools, ~ana=ra, r),
+          ) {
+          | (Error(e), _)
+          | (_, Error(e)) => Error(e)
+          | (Ok(l), Ok(r)) =>
+            Ok(DHExp.fresh(Tuple([l, DHExp.fresh(Atom(String(op))), r])))
+          };
+        | (_, Some(_), _) => Error("Fumola symbol has a non-string `op`")
+        | _ => Error("Fumola symbol is missing a component")
+        }
+      )
+    /* Its source text is the whole of it, and it is what makes two quoted
+       programs different names. */
+    | (Some(`String("QuotedAst")), _) =>
+      applied("QuotedAst", _ =>
+        switch (List.assoc_opt("source", obj)) {
+        | Some(`String(source)) => Ok(DHExp.fresh(Atom(String(source))))
+        | _ => Error("Fumola quoted symbol is missing its source")
+        }
+      )
     | (Some(`String(tag)), _) =>
       Error("Fumola symbol form `" ++ tag ++ "` has no Hazel form yet")
     | _ => Error("Fumola symbol has no tag")
@@ -552,6 +596,8 @@ and exp_of_tagged =
           source: "",
           value: DHExp.fresh(EmptyHole),
           holds: shows,
+          /* An opaque value names no cell, so there is no node to ask. */
+          info: "",
         }),
       ),
     )
@@ -592,6 +638,9 @@ and exp_of_tagged =
               source,
               value: DHExp.fresh(EmptyHole),
               holds: "a cell that points to itself",
+              /* Following the cycle to ask about the node would be the
+                 same cycle one step along. */
+              info: "",
             }),
           ),
         );
@@ -634,6 +683,14 @@ and exp_of_tagged =
               source,
               value,
               holds,
+              info:
+                node_info(
+                  ~instance_id,
+                  ~eval,
+                  ~seen=[source, ...seen],
+                  ~tools,
+                  source,
+                ),
             }),
           ),
         );
@@ -748,6 +805,87 @@ and exp_of_tagged =
       "Fumola returned a " ++ tag ++ ", which has no Hazel translation yet",
     )
   }
+
+/* What the DCG knows about the node this cell is, below what the cell holds.
+
+   A cell holding a thunk shows the thunk, which is its code and not its
+   answer. `adaptonPeekCell` goes one step further in and the node says what
+   the force remembered, so this is the line the reader actually wanted:
+   peek shows `@thunk ({ ... })`, and this shows what that came to.
+
+   Empty for everything else. A non-thunk node holds exactly the value the
+   cell already shows, so a second line repeating it would be noise, and a
+   thunk that has not been forced has nothing to report yet.
+
+   Read with peekCell rather than get, so looking costs the graph nothing:
+   three consecutive reads of a history leave it byte-identical. */
+and node_info =
+    (
+      ~instance_id: int,
+      ~eval: string => Yojson.Safe.t,
+      ~seen: list(string),
+      ~tools: FumolaTools.t,
+      source: string,
+    )
+    : string => {
+  let at = (name, json) =>
+    switch (json) {
+    | `Assoc(obj) => List.assoc_opt(name, obj)
+    | _ => None
+    };
+  /* A tagged value, as the boundary renders one: {tag, value}. */
+  let un = (tag, json) =>
+    switch (at("tag", json), at("value", json)) {
+    | (Some(`String(t)), Some(v)) when t == tag => Some(v)
+    | _ => None
+    };
+  let variant = (name, json) =>
+    switch (un("Variant", json)) {
+    | Some(v) =>
+      switch (at("name", v), at("value", v)) {
+      | (Some(`String(n)), Some(payload)) when n == name => Some(payload)
+      | _ => None
+      }
+    | None => None
+    };
+  /* The response carries the tagged value at its own top level -- tag and
+     value sit beside counts and ok -- so the Option is unwrapped from the
+     response itself, not from a field of it. */
+  let node =
+    eval(
+      "prim \"adaptonPeekCell\" (prim \"adaptonPointer\" (" ++ source ++ "))",
+    )
+    |> un("Option")
+    |> Option.map(un("Record"))
+    |> Option.join
+    |> Option.map(at("node"))
+    |> Option.join;
+  /* (metaTime, Any): the moment the force ended, and what it answered. */
+  let result =
+    node
+    |> Option.map(variant("thunk_"))
+    |> Option.join
+    |> Option.map(un("Record"))
+    |> Option.join
+    |> Option.map(at("result"))
+    |> Option.join
+    |> Option.map(un("Option"))
+    |> Option.join
+    |> Option.map(un("Tuple"))
+    |> Option.join;
+  switch (node, result) {
+  | (None, _) => ""
+  | (Some(_), None) => ""
+  | (Some(_), Some(`List([_moment, answer]))) =>
+    switch (
+      exp_of_json(~instance_id, ~eval, ~seen, ~ana=unknown(), ~tools, answer)
+    ) {
+    | Ok(e) => "forced = " ++ describe_value(e)
+    | Error(_) => ""
+    }
+  | (Some(_), Some(_)) => ""
+  };
+}
 
 and all = (results: list(result('a, string))): result(list('a), string) =>
   List.fold_right(

@@ -58,7 +58,7 @@ let rec check_value = (~in_closure=?, env, d) =>
        yet been seen to hit with a Fumola quote in it. Withholding here
        would answer Indet where the caller reads Expr, which changes what
        a stepper filter matches, so it wants its own change. Issue 2564. */
-    ~effects=`Perform,
+    ~effects=`Perform(FumolaRun.ValueCheck),
     ~in_closure?,
     env,
     d,

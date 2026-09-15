@@ -49,23 +49,42 @@ module M: Projector = {
      Erring the other way leaves a moat, which is what this looked like
      before the font was fixed: the widget was inheriting the proportional
      UI font, so a hundred and ten columns of slot held eighty of drawing. */
-  let placeholder = (m: model, _) =>
-    ProjectorCore.Shape.inline(
+  let placeholder = (m: model, _) => {
+    let first =
       Unicode.Width.columns_of_string(m.reads)
       + Unicode.Width.columns_of_string(m.shown)
-      + 7,
-    );
+      + 7;
+    /* The node's line sits under the first, so the widget is two rows tall
+       and as wide as the wider of them. Block rather than Tab: the line
+       belongs to this widget and should arrive with it, not be deferred to
+       wherever the line happens to break. */
+    m.info == ""
+      ? ProjectorCore.Shape.inline(first)
+      : {
+        horizontal: max(first, Unicode.Width.columns_of_string(m.info) + 4),
+        vertical: Block(1),
+      };
+  };
 
   let update = (m, _, _) => m;
   let error = (_, _): option(ProjectorBase.error) => None;
 
   /* With no reference to show -- an opaque Fumola value rather than a peek
      -- there is nothing to put left of the equals, so the value stands
-     alone. */
+     alone.
+
+     The node's line goes below rather than beside, because it is a step
+     further in: the first line is what the cell holds, and a cell holding a
+     thunk holds its code. The second is what the node remembers the force
+     answered, which is what a reader looking at a thunk actually wants. */
   let view = ({model, _}: View.args(model, action)) =>
     ProjectorBase.View.mk(
       div(
-        ~attrs=[Attr.classes(["fumola-peek"])],
+        ~attrs=[
+          Attr.classes(
+            ["fumola-peek"] @ (model.info == "" ? [] : ["fumola-peek-deep"]),
+          ),
+        ],
         (
           model.reads == ""
             ? []
@@ -85,7 +104,17 @@ module M: Projector = {
             ~attrs=[Attr.classes(["fumola-peek-value"])],
             [text(model.shown)],
           ),
-        ],
+        ]
+        @ (
+          model.info == ""
+            ? []
+            : [
+              div(
+                ~attrs=[Attr.classes(["fumola-peek-info"])],
+                [text(model.info)],
+              ),
+            ]
+        ),
       ),
     );
 };

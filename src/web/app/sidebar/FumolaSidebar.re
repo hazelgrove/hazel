@@ -274,6 +274,85 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     ]);
 
+  /* A moment, as a way to what happened at it.
+
+     The third entity the panel names, after pointers and edge ids, and the
+     one that had no way on: a node says which moment it was born at and an
+     edge says which pair it spans, and neither led anywhere. What a moment
+     leads to is the events at it, since the Events view is already the list
+     ordered by moment.
+
+     An event's OWN moment stays plain. Following it would scroll to the row
+     you clicked, which is the same reason a node does not link to itself. */
+  let moment_key = (at: string) => "m:" ++ at;
+
+  let follow_moment = (at: string) =>
+    Virtual_dom.Vdom.Effect.Many([
+      globals.inject_global(FumolaFocus(moment_key(at))),
+      globals.inject_global(
+        Set(Sidebar(SwitchFumolaTab(SidebarModel.Settings.Events))),
+      ),
+    ]);
+
+  /* `at` reads as a moment rather than as a number, so it is worth saying
+     which it is: the title is what tells a reader this leads to the events
+     and not to another row of the list they are already in. */
+  let moment_link = (~stop: bool, at: string) =>
+    span(
+      ~attrs=[
+        clss(["fumola-moment", "fumola-pointer"]),
+        Attr.title("Show what happened at " ++ at),
+        Attr.on_click(_ =>
+          stop
+            ? Virtual_dom.Vdom.Effect.Many([
+                Virtual_dom.Vdom.Effect.Stop_propagation,
+                follow_moment(at),
+              ])
+            : follow_moment(at)
+        ),
+      ],
+      [text(at)],
+    );
+
+  /* A node id, in place, as a way to the node it names.
+
+     The Events view has had this since it had symbols; the Edges view showed
+     the same two node ids and offered no way on, so the link went one way
+     only. `at` is the moment to read the node AS OF -- an edge names a node
+     whose own revision may be older than the edge, and revision_at answers
+     with the newest revision at or before it, which is the one this edge saw.
+
+     A click here must not also work the row's own toggle, which is the div
+     this span sits inside. Stop_propagation is what keeps following a pointer
+     from collapsing the record you were reading it out of.
+
+     The editor's root names no node, so it stays plain rather than pretending
+     to lead somewhere. */
+  let node_link =
+      (
+        ~nodes: list(FumolaHistory.node_row),
+        ~space: string,
+        ~at: string,
+        label: string,
+      ) =>
+    switch (revision_at(~space, ~at, nodes)) {
+    | Some(key) =>
+      span(
+        ~attrs=[
+          clss(["fumola-event-symbol", "fumola-pointer"]),
+          Attr.title("Show this node as it was at " ++ at),
+          Attr.on_click(_ =>
+            Virtual_dom.Vdom.Effect.Many([
+              Virtual_dom.Vdom.Effect.Stop_propagation,
+              follow(key),
+            ])
+          ),
+        ],
+        [text(label)],
+      )
+    | None => span(~attrs=[clss(["fumola-event-symbol"])], [text(label)])
+    };
+
   /* Show, Dim or Hide, applied to one row. Hiding drops it; dimming keeps it
      and says so, which is the point of having three settings rather than a
      checkbox: the editor's own traffic is noise most of the time and the
@@ -290,6 +369,34 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
   let dim_class = (~editor: bool) =>
     editor && editor_mode == SidebarModel.Settings.Dim ? ["fumola-dim"] : [];
 
+  /* Whether a row NAMES something, which is what the bold in it means.
+
+     A symbol is set in bold because it is the part that tells two rows apart:
+     it says which cell the row was about. A row carrying only a verb and an
+     edge id -- `edge added edgeId 1002` -- is the editor going about its
+     business, and is what the Show / Dim / Hide control is for.
+
+     So the editor's own traffic is judged twice over. A row of the editor's
+     that names nothing is traffic, and Dim quietens it and Hide drops it. A
+     row of the editor's that names a cell is how that cell came to exist --
+     `node added Symbol myThunk` is the thunk being made -- and that is
+     content whoever caused it. Dim leaves it at full strength and Hide keeps
+     it, which is the point of Hide: what remains is the story of what the
+     store holds, with the bookkeeping taken out and the naming left in.
+
+     An edge id is a link rather than a name, so it does not count. */
+  let names_a_cell = (subject: list(FumolaEvents.span)) =>
+    List.exists(
+      fun
+      | FumolaEvents.Sym(_) => true
+      | FumolaEvents.Edge(_)
+      | FumolaEvents.Plain(_) => false,
+      subject,
+    );
+
+  /* The editor's, for the purpose of hiding and dimming. */
+  let is_traffic = (ev: event) => ev.editor && !names_a_cell(ev.subject);
+
   /* Hiding the editor empties a list that is not empty, and the empty blurb
      then said this instance had made none of whatever it was -- false, and
      false in the direction that reads as a broken panel rather than a
@@ -303,11 +410,75 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         ++ many
         ++ " here are its own.";
 
+  /* Hazel's passes, in words rather than in the symbol the marker carries.
+     The symbols come from FumolaRun.pass_symbol; an unknown one is shown as
+     itself, since a pass this panel has not heard of is still worth seeing. */
+  let pass_label = (name: string): string =>
+    switch (name) {
+    | "eval" => "evaluation"
+    | "step" => "a stepper step"
+    | "decompose" => "the stepper, finding the redex"
+    | "valueCheck" => "the value check"
+    | other => other
+    };
+
+  /* Rows, with a header wherever the pass changes.
+
+     A header is emitted only above a row that is actually shown, so hiding
+     the editor cannot leave a heading with nothing under it. The pass of a
+     hidden row is still read, so a boundary that falls inside a hidden run
+     is not lost -- the next visible row carries it.
+
+     Rows before the first marker get no header. That is every row an
+     instance recorded before this build of Hazel, and every row a program
+     put there itself; none of them belong to a pass this panel can name. */
+  let by_pass:
+    'a.
+    (
+      ~passes: list((int, string)),
+      ~at: 'a => string,
+      'a => list(Node.t),
+      list('a)
+    ) =>
+    list(Node.t)
+   =
+    (~passes, ~at, row, items) => {
+      let (out, _) =
+        List.fold_left(
+          ((acc, shown), item) => {
+            let rendered = row(item);
+            let pass = FumolaHistory.pass_at(passes, at(item));
+            switch (rendered, pass) {
+            | ([], _) => (acc, shown)
+            | (_, Some(p)) when Some(p) != shown => (
+                acc
+                @ [
+                  div(
+                    ~attrs=[clss(["fumola-pass"])],
+                    [text(pass_label(p))],
+                  ),
+                ]
+                @ rendered,
+                Some(p),
+              )
+            | _ => (acc @ rendered, shown)
+            };
+          },
+          ([], None),
+          items,
+        );
+      out;
+    };
+
   /* The rows of the Events view. The section around it is the panel's, shared
      with the other two views, so this returns its contents rather than a
      section of its own. */
   let events_body =
-      (~nodes: list(FumolaHistory.node_row), events: list(event)) =>
+      (
+        ~passes: list((int, string)),
+        ~nodes: list(FumolaHistory.node_row),
+        events: list(event),
+      ) =>
     switch (events) {
     | [] => [
         div(
@@ -321,13 +492,34 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         ),
       ]
     | events =>
+      /* Several events share a moment, so one of them has to be what a link
+         to that moment lands on. The first, since the list is in order --
+         and only that one carries the scroll, or they would all answer the
+         same focus and fight over it. */
+      let numbered = List.mapi((i, ev) => (i, ev), events);
+      let first_at: Hashtbl.t(string, int) = Hashtbl.create(64);
+      List.iter(
+        ((i, ev: event)) =>
+          if (!Hashtbl.mem(first_at, ev.meta_time)) {
+            Hashtbl.add(first_at, ev.meta_time, i);
+          },
+        numbered,
+      );
+      let anchors_moment = ((i, ev: event)) =>
+        Hashtbl.find_opt(first_at, ev.meta_time) == Some(i);
       let rows =
-        List.concat_map(
-          ev =>
-            with_editor(~editor=ev.editor, () =>
+        by_pass(
+          ~passes,
+          ~at=((_, ev): (int, event)) => ev.meta_time,
+          ((_, ev) as item) =>
+            with_editor(~editor=is_traffic(ev), () =>
               div(
                 ~attrs=[
-                  clss(["fumola-event"] @ dim_class(~editor=ev.editor)),
+                  clss(
+                    ["fumola-event"] @ dim_class(~editor=is_traffic(ev)),
+                  ),
+                  ...anchors_moment(item)
+                       ? scroll_to(moment_key(ev.meta_time)) : [],
                 ],
                 [
                   div(
@@ -385,7 +577,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                 ],
               )
             ),
-          events,
+          numbered,
         );
       /* An empty table renders as nothing at all, which said even less than
          the wrong blurb did on the other two views. */
@@ -544,6 +736,37 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ],
     );
 
+  /* What the store holds and the panel could not show.
+
+     A row that will not translate is dropped, which is right -- one bad row
+     should not cost the list -- but dropping it in silence is not. A shorter
+     list reads as a shorter history, and the reader has no way to tell the
+     difference. That is how a compound name went missing from the library's
+     panel without anyone noticing.
+
+     Reasons are deduplicated: fifty rows failing for one reason is one thing
+     to say, said once. */
+  let missed_note = (~one: string, ~many: string, missed: list(string)) =>
+    switch (missed) {
+    | [] => []
+    | missed =>
+      let n = List.length(missed);
+      [
+        div(
+          ~attrs=[clss(["fumola-missed"])],
+          [
+            text(
+              string_of_int(n)
+              ++ " "
+              ++ (n == 1 ? one : many)
+              ++ " in the store could not be shown here: "
+              ++ String.concat("; ", List.sort_uniq(compare, missed)),
+            ),
+          ],
+        ),
+      ];
+    };
+
   let rows_view =
       (
         ~name: string,
@@ -551,28 +774,43 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
         ~total: int,
         ~one: string,
         ~many: string,
+        ~missed: list(string),
         rows: list(Node.t),
       ) =>
-    switch (rows) {
-    | [] => [
-        div(
-          ~attrs=[clss(["fumola-blurb"])],
-          [text(total == 0 ? empty : all_editor(~total, ~one, ~many))],
-        ),
-      ]
-    | rows => [
-        div(~attrs=[clss(["fumola-rows", "fumola-" ++ name])], rows),
-      ]
-    };
+    (
+      switch (rows) {
+      /* Nothing shown and something missed is not an empty instance, and
+         saying so would be the same lie in a louder voice. */
+      | [] when missed != [] => []
+      | [] => [
+          div(
+            ~attrs=[clss(["fumola-blurb"])],
+            [text(total == 0 ? empty : all_editor(~total, ~one, ~many))],
+          ),
+        ]
+      | rows => [
+          div(~attrs=[clss(["fumola-rows", "fumola-" ++ name])], rows),
+        ]
+      }
+    )
+    @ missed_note(~one, ~many, missed);
 
-  let nodes_view = (nodes: list(FumolaHistory.node_row)) =>
+  let nodes_view =
+      (
+        ~passes: list((int, string)),
+        ~missed: list(string),
+        nodes: list(FumolaHistory.node_row),
+      ) =>
     rows_view(
+      ~missed,
       ~name="nodes",
       ~empty="This instance has made no nodes yet.",
       ~total=List.length(nodes),
       ~one="node",
       ~many="nodes",
-      List.concat_map(
+      by_pass(
+        ~passes,
+        ~at=(row: FumolaHistory.node_row) => row.meta_time,
         (row: FumolaHistory.node_row) => {
           let key = revision_key(row.space, row.meta_time);
           let open_ = is_open(key);
@@ -610,7 +848,8 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                       ~attrs=[clss(["fumola-event-symbol"])],
                       [text(row.space)],
                     ),
-                    text(" at " ++ row.meta_time),
+                    text(" at "),
+                    moment_link(~stop=true, row.meta_time),
                   ],
                 ),
               ]
@@ -659,14 +898,23 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     );
 
-  let edges_view = (edges: list(FumolaHistory.edge_row)) =>
+  let edges_view =
+      (
+        ~passes: list((int, string)),
+        ~nodes: list(FumolaHistory.node_row),
+        ~missed: list(string),
+        edges: list(FumolaHistory.edge_row),
+      ) =>
     rows_view(
+      ~missed,
       ~name="edges",
       ~empty="This instance has made no edges yet.",
       ~total=List.length(edges),
       ~one="edge",
       ~many="edges",
-      List.concat_map(
+      by_pass(
+        ~passes,
+        ~at=(row: FumolaHistory.edge_row) => fst(row.meta_times),
         (row: FumolaHistory.edge_row) => {
           let (from_, to_) = row.meta_times;
           let key = edge_key(row.edge_id);
@@ -702,16 +950,18 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
                       [text(open_ ? "\xE2\x8C\x84" : "\xE2\x80\xBA")],
                     ),
                     text(row.edge_id ++ ": "),
-                    span(
-                      ~attrs=[clss(["fumola-event-symbol"])],
-                      [text(row.source)],
+                    node_link(
+                      ~nodes,
+                      ~space=row.source,
+                      ~at=from_,
+                      row.source,
                     ),
                     text(" to "),
-                    span(
-                      ~attrs=[clss(["fumola-event-symbol"])],
-                      [text(row.target)],
-                    ),
-                    text(" spanning " ++ from_ ++ "-" ++ to_),
+                    node_link(~nodes, ~space=row.target, ~at=to_, row.target),
+                    text(" spanning "),
+                    moment_link(~stop=true, from_),
+                    text("-"),
+                    moment_link(~stop=true, to_),
                   ],
                 ),
                 ...open_ ? [value_view(row.value)] : [],
@@ -757,10 +1007,22 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             @ [editor_strip()]
             @ (
               switch (tab) {
-              | Nodes => nodes_view(history.nodes)
-              | Edges => edges_view(history.edges)
+              | Nodes =>
+                nodes_view(
+                  ~passes=history.passes,
+                  ~missed=history.nodes_missed,
+                  history.nodes,
+                )
+              | Edges =>
+                edges_view(
+                  ~passes=history.passes,
+                  ~nodes=history.nodes,
+                  ~missed=history.edges_missed,
+                  history.edges,
+                )
               | Events =>
                 events_body(
+                  ~passes=history.passes,
                   ~nodes=history.nodes,
                   {
                     /* Which edges are the editor's, by id, and which nodes
