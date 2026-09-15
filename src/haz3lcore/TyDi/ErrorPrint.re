@@ -287,6 +287,7 @@ let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
