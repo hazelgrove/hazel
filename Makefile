@@ -124,6 +124,9 @@ ci-quick: setup-zarith
 # without linking, so it costs no second js_of_ocaml build of the test bundle.
 ci-check:
 	dune build @check --profile release
+	@# Statics substitutes only through StaticsBase.subst_marked, which marks a capture.
+	@if grep -rn 'Typ\.subst(' src/language/statics --include='*.re' | grep -v ':[[:space:]]*//'; then \
+	  echo 'error: statics must substitute via StaticsBase.subst_marked, not Typ.subst'; exit 1; fi
 
 # The weekly extended run (.github/workflows/extended-tests.yml). QCHECK_LONG
 # puts qcheck-core in long mode, where it multiplies every ~count, max_gen and
