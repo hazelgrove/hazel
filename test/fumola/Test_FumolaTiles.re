@@ -1,0 +1,1089 @@
+open Alcotest;
+open Language;
+
+/* The tile route, end to end: text typed into an editor becomes tiles, tiles
+   become a FumolaGrammar term, and FumolaPrint turns that back into Fumola
+   source.
+
+   What each check is for:
+
+   - `parses` is the claim that the tile grammar reads the Fumola form at all.
+     A form Hazel has no tile for comes back as a hole, and the printer refuses
+     to print a hole, so this separates "we can build it" from "we print it
+     right".
+
+   - `prints` is the claim that the term built from tiles prints to the Fumola
+     source we mean. It is the same contract Test_FumolaPrint checks, but
+     reached through the editor rather than by constructing terms by hand,
+     which is what catches a MakeTerm case that reads a tile as the wrong
+     constructor.
+
+   The sources here go into the same corpus the round-trip script feeds to the
+   real Fumola parser, so a tile route that builds something ungrammatical is
+   caught there rather than here. */
+
+let parse = (s: string): Exp.t =>
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
+  | Some(e) => e
+  | None => Alcotest.fail("failed to parse: " ++ s)
+  };
+
+/* Pull the instance, the mode and the program out of a `fumola … end`. */
+type parsed = {
+  instance: FumolaTermBase.t,
+  mode: FumolaTermBase.t,
+  body: FumolaTermBase.t,
+};
+
+let fumola_of = (e: Exp.t): option(parsed) =>
+  switch (e.term) {
+  | FumolaQuote(instance, mode, body) =>
+    Some({
+      instance,
+      mode,
+      body,
+    })
+  | _ => None
+  };
+
+/* Every source here puts the form at the top level, so looking through the
+   wrappers a whole-program parse can add is all that is needed. */
+let rec find_fumola = (e: Exp.t): option(parsed) =>
+  switch (fumola_of(e)) {
+  | Some(p) => Some(p)
+  | None =>
+    switch (e.term) {
+    | Let(_, _, body)
+    | Seq(_, body)
+    | Filter(_, body)
+    | Parens(body) => find_fumola(body)
+    | _ => None
+    }
+  };
+
+/* (name, what is typed into the editor, the instance, the Fumola source) */
+let corpus: list((string, string, string, string)) = [
+  /* The instance's adapton semantics, written beside its name. Changing it
+     resets the instance, so it is not something a program sets in passing;
+     leaving it out asks for no mode rather than for the default, so that one
+     expression cannot reset an instance another has configured. */
+  (
+    "an instance with a mode",
+    "fumola $graphical as store in 1 end",
+    "store",
+    "1",
+  ),
+  ("simple mode", "fumola $simple as store in 1 end", "store", "1"),
+  ("a bare variable", "fumola ? as store in x end", "store", "x"),
+  ("a literal", "fumola ? as store in 1 end", "store", "1"),
+  (
+    "an instance named something else",
+    "fumola ? as other in x end",
+    "other",
+    "x",
+  ),
+  ("addition", "fumola ? as store in 1 + 2 end", "store", "1 + 2"),
+  /* A nullary call. `()` here is one token, not an empty bracket pair: an
+     empty pair is an application whose argument slot is empty, and an empty
+     slot is a hole, which is what `Adapton.peekEvents()` used to be. #2550. */
+  ("a nullary call", "fumola ? as store in f() end", "store", "f ()"),
+  (
+    "a nullary call on a projection, which is what found this",
+    "fumola ? as store in Adapton.peekEvents() end",
+    "store",
+    "Adapton.peekEvents ()",
+  ),
+  (
+    "the explicit spelling means the same and normalises to the short one",
+    "fumola ? as store in f(()) end",
+    "store",
+    "f ()",
+  ),
+  /* `switch` and the patterns that make it worth having. The tile spells a
+     case as a declaration -- `case p => b`, separated by `;` -- so a
+     switch's cases and a block's contents are read by one machine; the
+     printer puts Fumola's own spelling back, which parenthesizes the pattern
+     and drops the arrow. Every line below was run against the real runtime
+     before it was written down. */
+  (
+    "a switch on a variant, with a payload bound",
+    "fumola ? as store in switch x { case $leaf(n) => n } end",
+    "store",
+    "switch x { case (#leaf n) n }",
+  ),
+  (
+    "several cases, separated as a block is",
+    "fumola ? as store in switch x { case $leaf(n) => n; case $bin(b) => 0 } end",
+    "store",
+    "switch x { case (#leaf n) n; case (#bin b) 0 }",
+  ),
+  (
+    "a wildcard case",
+    "fumola ? as store in switch x { case _ => 0 } end",
+    "store",
+    "switch x { case _ 0 }",
+  ),
+  (
+    "a tag with no payload",
+    "fumola ? as store in switch x { case $empty => 0 } end",
+    "store",
+    "switch x { case #empty 0 }",
+  ),
+  (
+    "a name binds the whole scrutinee",
+    "fumola ? as store in switch x { case y => y } end",
+    "store",
+    "switch x { case y y }",
+  ),
+  (
+    "a literal pattern",
+    "fumola ? as store in switch x { case 1 => 0 } end",
+    "store",
+    "switch x { case 1 0 }",
+  ),
+  (
+    "a payload that is itself a variant",
+    "fumola ? as store in switch x { case $bin($leaf(n)) => n } end",
+    "store",
+    "switch x { case (#bin (#leaf n)) n }",
+  ),
+  (
+    "the scrutinee is a read, and the body a projection",
+    "fumola ? as store in switch (@ p) { case $binary(b) => b.level } end",
+    "store",
+    "switch (@ p) { case (#binary b) b.level }",
+  ),
+  (
+    "multiplication binds tighter",
+    "fumola ? as store in 1 + 2 * 3 end",
+    "store",
+    "1 + 2 * 3",
+  ),
+  (
+    "bitor binds tighter than addition, as the grammar has it",
+    "fumola ? as store in 1 | 2 + 3 end",
+    "store",
+    "1 | 2 + 3",
+  ),
+  (
+    "and parentheses come back where they are needed",
+    "fumola ? as store in 1 | (2 + 3) end",
+    "store",
+    "1 | (2 + 3)",
+  ),
+  ("comparison", "fumola ? as store in a == b end", "store", "a == b"),
+  ("a put", "fumola ? as store in 0 := 1 end", "store", "0 := 1"),
+  ("a get", "fumola ? as store in @ cell end", "store", "@ cell"),
+  ("a force", "fumola ? as store in force t end", "store", "force t"),
+  (
+    "a get inside an operator, which Fumola rejects without parentheses",
+    "fumola ? as store in (@ c) + 1 end",
+    "store",
+    "(@ c) + 1",
+  ),
+  ("application", "fumola ? as store in f(a) end", "store", "f a"),
+  ("a block", "fumola ? as store in {x} end", "store", "do { x }"),
+  /* Fumola spells a variant `#tag`, which Hazel cannot tokenize because `#`
+     is its comment delimiter. The tile is `$tag` and the printer puts the
+     `#` back; see Token.is_fumola_tag. */
+  ("a variant", "fumola ? as store in $tag end", "store", "#tag"),
+  (
+    "a variant with a payload",
+    "fumola ? as store in $tag(1) end",
+    "store",
+    "#tag 1",
+  ),
+  (
+    "a variant payload that is not an atom keeps its parentheses",
+    "fumola ? as store in $tag(1 + 2) end",
+    "store",
+    "#tag (1 + 2)",
+  ),
+  (
+    "a variant is tighter than an operator",
+    "fumola ? as store in $tag(1) + 2 end",
+    "store",
+    "#tag 1 + 2",
+  ),
+  /* `hazel … end` is the way back in: a Hazel expression standing where a
+     Fumola term does. The livelit could carry one value, at the boundary of
+     an opaque string; here it is a tile subtree, and there can be several,
+     anywhere in the program. FumolaSource renders each as Fumola source. */
+  /* Fumola spells a string as Hazel does, so unlike `#tag` the token needs
+     no respelling: it carries its quotes from the tile into Lit(Text) and
+     out through the printer unchanged. */
+  (
+    "a string literal",
+    "fumola ? as store in \"abc\" end",
+    "store",
+    "\"abc\"",
+  ),
+  (
+    "a path with slashes in it, which is what imports need one for",
+    "fumola ? as store in \"fumola/collections/levelTree\" end",
+    "store",
+    "\"fumola/collections/levelTree\"",
+  ),
+  /* The `=` is sugar in Fumola's own LetImport production, which accepts it
+     either way; the tile is shaped like `let`, so it is always written. */
+  (
+    "an import",
+    "fumola ? as store in import Seq = \"fumola/collections/levelTree\" end",
+    "store",
+    "do { import Seq = \"fumola/collections/levelTree\" }",
+  ),
+  (
+    "an import and a use of what it binds",
+    "fumola ? as store in {import Seq = \"fumola/collections/levelTree\"; Seq} end",
+    "store",
+    "do { import Seq = \"fumola/collections/levelTree\"; Seq }",
+  ),
+  /* Projection is what makes an import worth having: it is how the module
+     the import binds is reached. */
+  ("a projection", "fumola ? as store in e.x end", "store", "e.x"),
+  (
+    "a projection chains to the left",
+    "fumola ? as store in e.x.y end",
+    "store",
+    "e.x.y",
+  ),
+  (
+    "a numeric projection, which is the same node",
+    "fumola ? as store in e.0 end",
+    "store",
+    "e.0",
+  ),
+  (
+    "a projection applied, which is how a library function is called",
+    "fumola ? as store in Seq.fromList(l) end",
+    "store",
+    "Seq.fromList l",
+  ),
+  ("unit", "fumola ? as store in () end", "store", "()"),
+  /* --- forms landed while acting on #2538 --- */
+  ("an array", "fumola ? as store in [1, 2, 3] end", "store", "[1, 2, 3]"),
+  ("a one-element array", "fumola ? as store in [1] end", "store", "[1]"),
+  (
+    "an index into an array literal",
+    "fumola ? as store in [1, 2][0] end",
+    "store",
+    "[1, 2][0]",
+  ),
+  /* `#` is Hazel's comment delimiter, so the tile says `++`. */
+  (
+    "concatenation, which Fumola spells with a hash",
+    "fumola ? as store in a ++ b end",
+    "store",
+    "a # b",
+  ),
+  (
+    "concatenation binds as addition does",
+    "fumola ? as store in a ++ b * c end",
+    "store",
+    "a # b * c",
+  ),
+  ("unwrap", "fumola ? as store in x! end", "store", "x!"),
+  ("negation", "fumola ? as store in not b end", "store", "not b"),
+  ("subtraction", "fumola ? as store in a - b end", "store", "a - b"),
+  ("assert", "fumola ? as store in assert b end", "store", "assert b"),
+  ("ignore", "fumola ? as store in ignore b end", "store", "ignore b"),
+  ("return", "fumola ? as store in return 1 end", "store", "return 1"),
+  (
+    "a prim, named by a string",
+    "fumola ? as store in prim \"adaptonNow\" end",
+    "store",
+    "prim \"adaptonNow\"",
+  ),
+  /* A quoted name, which the adapton navigation forms use as a dimension. */
+  /* Fumola writes a quoted name with ONE backtick, which Hazel cannot lex:
+     an unclosed backtick swallows the rest of the line. The tile is Hazel's
+     quoted label, `t`, with both, and the printer drops the closing one. */
+  ("a quoted name", "fumola ? as store in `t` end", "store", "`t"),
+  /* Spelled with `then`, which Fumola has not got; printed as Fumola's
+     braces. */
+  (
+    "if and else",
+    "fumola ? as store in if b then 1 else 2 end",
+    "store",
+    "if b 1 else 2",
+  ),
+  (
+    "an if whose condition is an operator, which Fumola needs parenthesized",
+    "fumola ? as store in if 1 < 2 then 10 else 20 end",
+    "store",
+    "if (1 < 2) 10 else 20",
+  ),
+  (
+    "a hazel expression",
+    "fumola ? as store in hazel 1 end end",
+    "store",
+    "(1)",
+  ),
+  (
+    "a hazel expression inside an operator",
+    "fumola ? as store in hazel 1 end + 2 end",
+    "store",
+    "(1) + 2",
+  ),
+  (
+    "a hazel tuple crosses as a fumola tuple",
+    "fumola ? as store in hazel (1, true) end end",
+    "store",
+    "((1, true))",
+  ),
+  (
+    "two of them, which the livelit's single input slot could not do",
+    "fumola ? as store in hazel 1 end + hazel 2 end end",
+    "store",
+    "(1) + (2)",
+  ),
+  (
+    "a hazel expression as the argument of a force",
+    "fumola ? as store in force hazel 1 end end",
+    "store",
+    "force (1)",
+  ),
+];
+
+let test_parses = ((name, src, instance, _)) =>
+  test_case(name ++ " [parses]", `Quick, () => {
+    switch (find_fumola(parse(src))) {
+    | None => fail("no fumola term: " ++ src)
+    | Some({instance: n, body, _}) =>
+      /* Report what could not be written, rather than only that something
+         could not: the reason is the whole content of the failure. */
+      check(
+        string,
+        "the instance and the program are both complete",
+        "complete",
+        Fumola.has_hole(n) || Fumola.has_hole(body)
+          ? Option.value(
+              ~default="incomplete",
+              Fumola.why_unprintable(body),
+            )
+          : "complete",
+      );
+      check(string, "instance", instance, Fumola.of_exp(n));
+    }
+  });
+
+let test_prints = ((name, src, _, expected)) =>
+  test_case(name ++ " [prints]", `Quick, () => {
+    switch (find_fumola(parse(src))) {
+    | None => fail("no fumola term: " ++ src)
+    | Some({body, _}) =>
+      check(string, "fumola source", expected, Fumola.of_exp(body))
+    }
+  });
+
+/* Fumola is a closed sub-language: a Hazel form written inside it must not
+   expand into Hazel's own, or `let` would become `let _ = _ in`. */
+let test_closed = () =>
+  switch (find_fumola(parse("fumola ? as store in x end"))) {
+  | None => fail("no fumola term")
+  | Some({body, _}) =>
+    check(
+      string,
+      "the program is Fumola's, not Hazel's",
+      "x",
+      Fumola.of_exp(body),
+    )
+  };
+
+/* The mode is read from the syntax, and only $simple and $graphical are it. */
+let test_mode = () => {
+  let mode_of = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({mode, _}) =>
+      Fumola.has_hole(mode) ? "none" : Fumola.of_exp(mode)
+    };
+  check(
+    string,
+    "no mode written",
+    "none",
+    mode_of("fumola ? as s in 1 end"),
+  );
+  check(
+    string,
+    "graphical",
+    "#graphical",
+    mode_of("fumola $graphical as s in 1 end"),
+  );
+  check(
+    string,
+    "simple",
+    "#simple",
+    mode_of("fumola $simple as s in 1 end"),
+  );
+  /* A mode can come from Hazel, so an instance's configuration can be written
+     once in Hazel's own terms rather than repeated in Fumola's. */
+  check(
+    string,
+    /* Recased on the way out, so a mode written Hazel's way reaches the
+       runtime spelled Fumola's way. See FumolaCase. */
+    "a mode written in Hazel",
+    "(#graphical)",
+    mode_of("fumola hazel Graphical end as s in 1 end"),
+  );
+};
+
+/* What the runtime is actually asked for, which is where a Hazel-written mode
+   and a Fumola-written one have to agree. */
+let test_mode_resolves = () => {
+  let resolved = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({mode, _}) =>
+      switch (FumolaRun.mode_of(mode)) {
+      | Ok(None) => "leave it alone"
+      | Ok(Some(m)) => FumolaRun.mode_source(m)
+      | Error(message) => "error: " ++ message
+      }
+    };
+  check(
+    string,
+    "hole",
+    "leave it alone",
+    resolved("fumola ? as s in 1 end"),
+  );
+  check(
+    string,
+    "fumola's spelling",
+    "graphical",
+    resolved("fumola $graphical as s in 1 end"),
+  );
+  check(
+    string,
+    "hazel's spelling",
+    "graphical",
+    resolved("fumola hazel Graphical end as s in 1 end"),
+  );
+  check(
+    string,
+    "simple, from hazel",
+    "simple",
+    resolved("fumola hazel Simple end as s in 1 end"),
+  );
+  /* A variable bound to a mode cannot be read here: the program runs during
+     elaboration, before anything is substituted. The message says so rather
+     than silently leaving the mode alone. */
+  check(
+    bool,
+    "a bound variable says why it cannot be read",
+    true,
+    switch (
+      find_fumola(
+        parse("let m = Graphical in fumola hazel m end as s in 1 end"),
+      )
+    ) {
+    | Some({mode, _}) =>
+      switch (FumolaRun.mode_of(mode)) {
+      | Error(message) => String.length(message) > 0
+      | _ => false
+      }
+    | None => false
+    },
+  );
+};
+
+/* Substitution reaches a Hazel expression embedded in a Fumola program. It
+   did not until the traversals in TermBase were taught to enter a Fumola
+   term: a variable bound outside the program never reached the escape that
+   named it, so `hazel m end` rendered the *expression* `m`, which has no
+   Fumola source.
+
+   This is the substitution-mode half. The environment-mode half -- which is
+   what the app runs -- is test_escape_carries_a_bound_variable below: there
+   the escape is reduced by the evaluator rather than substituted into. Both
+   had to be true before `hazel x end` could name anything. */
+let test_substitution = () => {
+  let printed = (body: FumolaTermBase.t) =>
+    Fumola.has_hole(body)
+      ? Option.value(~default="incomplete", Fumola.why_unprintable(body))
+      : Fumola.of_exp(body);
+  switch (find_fumola(parse("fumola ? as s in hazel m end end"))) {
+  | None => fail("no fumola term")
+  | Some({body, _}) =>
+    check(
+      string,
+      "before substitution the escape holds the variable, which has no source",
+      "no Fumola source for this expression",
+      printed(body),
+    );
+    let bound =
+      Substitution.in_exp(
+        Environment.extend(
+          Environment.Empty,
+          ("m", DHExp.fresh(Atom(Int(Bigint.of_int(1))))),
+        ),
+        IdTagged.fresh(
+          Grammar.FumolaQuote(
+            IdTagged.fresh(FumolaGrammar.Var("s")),
+            IdTagged.fresh(FumolaGrammar.Hole(EmptyHole)),
+            body,
+          ),
+        ),
+      );
+    switch (bound.term) {
+    | FumolaQuote(_, _, body) =>
+      check(
+        string,
+        "after substitution it holds the value",
+        "(1)",
+        printed(body),
+      )
+    | _ => fail("not a fumola quote")
+    };
+  };
+};
+
+/* The naming convention on the boundary, in both directions.
+
+   Nothing tested this before, which is how the two directions came to
+   disagree: FumolaValue capitalised on the way in and FumolaSource left the
+   name alone on the way out, so `#leaf` came back as `#Leaf`. A test that
+   only ever went one way could not see it. */
+let test_case_conversion = () => {
+  check(string, "fumola to hazel", "Leaf", FumolaCase.to_hazel("leaf"));
+  check(string, "hazel to fumola", "leaf", FumolaCase.to_fumola("Leaf"));
+  check(
+    string,
+    "a camelCase tag keeps its humps",
+    "AddNode",
+    FumolaCase.to_hazel("addNode"),
+  );
+  check(
+    string,
+    "and gets them back",
+    "addNode",
+    FumolaCase.to_fumola("AddNode"),
+  );
+  /* The whole point: a tag that goes out must come back as itself. */
+  List.iter(
+    tag =>
+      check(
+        string,
+        "round trip of " ++ tag,
+        tag,
+        FumolaCase.to_fumola(FumolaCase.to_hazel(tag)),
+      ),
+    ["leaf", "bin", "addNode", "forceBegin", "x"],
+  );
+  /* And the one shape that cannot: a tag already upper-case. Said plainly
+     rather than left for a caller to discover. */
+  check(
+    bool,
+    "a lower-case tag round trips",
+    true,
+    FumolaCase.round_trips("leaf"),
+  );
+  check(
+    bool,
+    "an upper-case tag does not",
+    false,
+    FumolaCase.round_trips("Leaf"),
+  );
+};
+
+/* The bridge itself, not just the convention: a Hazel constructor must reach
+   Fumola as the tag Fumola would write. */
+let test_source_recases = () => {
+  let rendered = (e: Exp.t) =>
+    switch (FumolaSource.of_exp(e)) {
+    | Ok(s) => s
+    | Error(m) => "error: " ++ m
+    };
+  check(
+    string,
+    "a nullary constructor",
+    "#leaf",
+    rendered(DHExp.fresh(Constructor("Leaf", None))),
+  );
+};
+
+/* The cursor inspector reads the info map, and an id missing from it reports
+   as whitespace -- which is what every Fumola subterm did before there was a
+   traversal to put them there. This checks the map itself rather than the
+   panel: for each id in the program, an InfoFumola entry naming the form. */
+let test_info_map = () =>
+  test_case(
+    "every Fumola subterm is in the info map",
+    `Quick,
+    () => {
+      let e = parse("fumola ? as store in {let x = 1; $tag(x)} end");
+      let (m, _) =
+        Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), e);
+      let classes =
+        Id.Map.bindings(m)
+        |> List.filter_map(((_, info)) =>
+             switch ((info: Info.t)) {
+             | InfoFumola(f) => Some(FumolaCls.show(FumolaInfo.cls_of(f)))
+             | _ => None
+             }
+           );
+      let has = c =>
+        Alcotest.check(
+          Alcotest.bool,
+          c ++ " is reported",
+          true,
+          List.mem(c, classes),
+        );
+      has("Variant");
+      has("Let Declaration");
+      has("Pattern Variable");
+      has("Integer Literal");
+      has("Variable Reference");
+      has("Block");
+    },
+  );
+
+/* The editor looks an info up by the id of the *piece* under the cursor
+   (Indicated.ci_of), so entries filed under some other id never reach the
+   panel. This walks the segment the editor would hold and asks for each
+   tile by its own id. */
+let test_info_map_by_piece = () =>
+  test_case(
+    "every Fumola tile's own id has an info",
+    `Quick,
+    () => {
+      let src = "fumola ? as store in {let x = 1; $tag(x)} end";
+      let seg =
+        switch (Haz3lcore.Parser.to_segment(src, ~root=Exp)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("failed to parse: " ++ src)
+        };
+      /* The term has to come from this same segment: two parses of one string
+         mint different ids, and the ids are the whole point here. */
+      let term =
+        Haz3lcore.MakeTerm.from_zip_for_sem(
+          Haz3lcore.Zipper.unzip(seg),
+          ~root=Exp,
+        ).
+          term;
+      let (m, _) =
+        Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), term);
+      let rec tiles = (seg: Haz3lcore.Segment.t) =>
+        seg
+        |> List.concat_map((p: Haz3lcore.Piece.t) =>
+             switch (p) {
+             | Tile(t) => [t, ...List.concat_map(tiles, t.children)]
+             | _ => []
+             }
+           );
+      let missing =
+        tiles(seg)
+        |> List.filter_map((t: Haz3lcore.Tile.t) =>
+             Id.Map.mem(t.id, m) ? None : Some(String.concat("", t.label))
+           );
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "tiles with no info",
+        [],
+        missing,
+      );
+    },
+  );
+
+/* Typing a program passes through every prefix of it, and Parser.to_segment
+   inserts character by character down the same path the editor uses. A
+   prefix that raises is a crash a reader would hit mid-word -- which no
+   whole-program test can see. */
+let test_prefixes = () =>
+  test_case(
+    "every prefix of every tile program parses",
+    `Quick,
+    () => {
+      let sources = List.map(((_, src, _, _)) => src, corpus);
+      let failures =
+        sources
+        |> List.concat_map(src => {
+             let n = String.length(src);
+             List.init(n, i => String.sub(src, 0, i + 1));
+           })
+        |> List.filter_map(prefix =>
+             switch (Haz3lcore.Parser.to_segment(prefix, ~root=Exp)) {
+             | _ => None
+             | exception exn =>
+               Some(prefix ++ " -> " ++ Printexc.to_string(exn))
+             }
+           );
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "prefixes that raise",
+        [],
+        failures,
+      );
+    },
+  );
+
+/* Running a program without a runtime, which is what the test runner is.
+
+   FumolaRun refuses in a definite order: it renders the program to Fumola
+   source first, and only then asks for the runtime. So the message that
+   comes back says which of the two failed, and "no Fumola source …" is a
+   thing only this side can say. That is what makes the checks below work
+   with no wasm anywhere near them. */
+let no_runtime = "no Fumola runtime available";
+
+let statics_and_elab = (e: Exp.t) =>
+  Language.Statics.mk(CoreSettings.on, Builtins.ctx_init(None), e);
+
+let eval = (src: string): Exp.t => {
+  let (info_map, elab) = statics_and_elab(parse(src));
+  let eval_info =
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
+  let (result, _) =
+    Evaluator.evaluate(
+      ~prev=IncrEval.empty,
+      ~eval_info,
+      ~env=Builtins.env_init,
+      elab,
+    );
+  result;
+};
+
+/* Every Invalid message in a result, which is where a Fumola program that
+   could not run ends up. */
+let invalid_messages = (e: Exp.t): list(string) => {
+  let seen = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) => {
+          switch (e.term) {
+          | Invalid(msg) => seen := [msg, ...seen^]
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  List.rev(seen^);
+};
+
+/* The thing the escape exists for: a value the surrounding Hazel program
+   bound, not one written in place.
+
+   Checked without a runtime, and with power because of the order above. The
+   escape holding `m` reaches the runtime only if it was reduced to 1 first;
+   if it were not, the printer would refuse and say so instead, which is
+   exactly what the second case shows. Verified to fail by putting the run
+   back in elaboration: the first case then reports "no Fumola source". */
+let test_escape_carries_a_bound_variable = () => {
+  check(
+    list(string),
+    "a bound variable reaches the runtime, so only the runtime is missing",
+    [no_runtime],
+    invalid_messages(eval("let m = 1 in fumola ? as s in hazel m end end")),
+  );
+  check(
+    list(string),
+    "so does one computed rather than written",
+    [no_runtime],
+    invalid_messages(
+      eval("let m = 1 in fumola ? as s in hazel m + 1 end end"),
+    ),
+  );
+  check(
+    list(string),
+    "a value with no written Fumola form is still refused, now when it runs",
+    ["no Fumola source for a function"],
+    invalid_messages(
+      eval("let f = fun x -> x in fumola ? as s in hazel f end end"),
+    ),
+  );
+};
+
+/* Every Fumola program in every shipped slide must be able to REACH the
+   runtime: rendered to Fumola source, with every escape reduced to
+   something that has one.
+
+   The old form of this guard read statics marks, because that is where the
+   run was. With the run in evaluation the marks are gone and the slide is
+   evaluated instead -- which is a stronger check than the one it replaces,
+   since it judges the escapes after they have been reduced rather than
+   before. A slide that cannot run merely for want of a runtime is still not
+   caught, which is the point.
+
+   One message has to be excused, and it is the cascade of that same
+   absence: a program with no runtime evaluates to Invalid, and a later
+   `hazel ... end` naming its result then escapes an invalid expression. The
+   only thing that puts an Invalid in a value position in this corpus is a
+   Fumola program that could not run, so under the test runner that is every
+   chained slide. Everything a slide can get wrong on its own -- a function,
+   a hole, a name nothing bound -- says something else and is still caught.
+
+   Written after shipping a slide whose fourth example escaped a bound
+   variable. The text round-trip test passed, because the text was fine;
+   what was broken was what the text meant. */
+let test_slides_printable = () =>
+  test_case(
+    "every slide's Fumola programs reach the runtime",
+    `Quick,
+    () => {
+      let unreachable =
+        Docslides.Slides.all_slides
+        |> List.concat_map(((title, z: Haz3lcore.PersistentZipper.t)) =>
+             switch (Haz3lcore.Parser.to_term(z.backup_text, ~root=Exp)) {
+             | None => []
+             | Some(e) =>
+               let (info_map, elab) = statics_and_elab(e);
+               let eval_info =
+                 EvalInfo.of_info_map(
+                   ~probe_all=CoreSettings.on.probe_all,
+                   ~targets=Id.Map.empty,
+                   info_map,
+                 );
+               switch (
+                 Evaluator.evaluate(
+                   ~prev=IncrEval.empty,
+                   ~eval_info,
+                   ~env=Builtins.env_init,
+                   elab,
+                 )
+               ) {
+               | exception _ => []
+               | (result, _) =>
+                 invalid_messages(result)
+                 |> List.filter(msg =>
+                      Util.StringUtil.plain_match("no Fumola source", msg)
+                      && !
+                           Util.StringUtil.plain_match(
+                             "an invalid expression",
+                             msg,
+                           )
+                    )
+                 |> List.map(msg => title ++ ": " ++ msg)
+               };
+             }
+           )
+        |> List.sort_uniq(compare);
+      Alcotest.check(
+        Alcotest.(list(string)),
+        "slides whose Fumola programs cannot reach the runtime",
+        [],
+        unreachable,
+      );
+    },
+  );
+
+/* A Fumola reference goes back out as the pointer it is.
+
+   `@` wants a pointer and a bare symbol is not one -- the runtime answers "a
+   value of the wrong kind" -- so the crossing turns the symbol back into a
+   pointer with `pointer`, one of the four names the wasm host binds
+   unqualified from fumola/system/prelude.fumola. The parentheses are load
+   bearing: `@ pointer(`x)` is a syntax error and `@ (pointer(`x))` is the
+   read. Checked against the real runtime in the browser:
+
+     @ (pointer(`cell))                       -> 99
+     (pointer(`cell)) := 123; @ (pointer(`cell)) -> 123
+     force thunk { (@ (pointer(`cell))) + 1 }  -> 124
+
+   the last of which is the one that matters: the dependency is recorded, so
+   a reference that crossed through Hazel is as incremental as one written in
+   Fumola. What this test pins is the text; the script and the browser are
+   what tie the text to the runtime. */
+let test_reference_crosses_back = () => {
+  let peek = (~holds="", source) =>
+    DHExp.fresh(
+      Grammar.FumolaPeek({
+        instance_id: 1,
+        reads: "peek(" ++ source ++ ")",
+        source,
+        value: DHExp.fresh(Atom(Int(Bigint.of_int(41)))),
+        holds,
+        /* What the node behind the cell knows. Nothing here: this peek is
+           built for the printer, not read back from a runtime. */
+        info: "",
+      }),
+    );
+  let source = e =>
+    switch (FumolaSource.of_exp(e)) {
+    | Ok(s) => s
+    | Error(message) => message
+    };
+  check(
+    string,
+    "a cell named by a symbol",
+    "(pointer(`cell))",
+    source(peek("`cell")),
+  );
+  check(
+    string,
+    "a cell named by a number",
+    "(pointer(7))",
+    source(peek("7")),
+  );
+  /* An opaque value rides the same term with no source: it names no cell,
+     so there is nothing to send and saying so is the honest answer. */
+  check(
+    string,
+    "an opaque value names no cell",
+    "no Fumola source for a reference into a Fumola runtime",
+    source(peek(~holds="@thunk ({ 1 + 3 })", "")),
+  );
+};
+
+/* A case is spelled as a declaration, so nothing stops one being written
+   outside a `switch`. That is not a Fumola program, and the printer has to
+   say so rather than emit a `case` where Fumola expects a declaration.
+
+   The pattern half matters as much: until `switch` had a tile, no pattern
+   position could hold a hole, so `has_hole` never looked at one. A case
+   whose pattern is a hole prints as `case ?□ …`, which the runtime rejects,
+   and it is this test that keeps the printer and has_hole agreeing about it.
+   Verified to have power by dropping the pattern check: the third case then
+   reports printable. */
+let test_case_outside_switch = () => {
+  let printed = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({body, _}) =>
+      Fumola.has_hole(body) ? "refused" : Fumola.of_exp(body)
+    };
+  check(
+    string,
+    "a case outside a switch is not a program",
+    "refused",
+    printed("fumola ? as s in { case $a => 1 } end"),
+  );
+  check(
+    string,
+    "nor is one where a switch could be",
+    "refused",
+    printed("fumola ? as s in case $a => 1 end"),
+  );
+  check(
+    string,
+    "a case whose pattern is a hole is refused too",
+    "refused",
+    printed("fumola ? as s in switch x { case ? => 1 } end"),
+  );
+  check(
+    string,
+    "and a well formed one is not",
+    "switch x { case #a 1 }",
+    printed("fumola ? as s in switch x { case $a => 1 } end"),
+  );
+};
+
+/* A nullary call is application to unit, not an application with a hole in
+   it (#2550).
+
+   The distinction is invisible in the printed output of a WORKING program --
+   `f ()` either way -- so what this pins is that the program is printable at
+   all. Before the one-token form, every spelling below was a hole, and the
+   printer refused the program rather than the runtime refusing to parse it.
+
+   Found by trying to type `Adapton.peekEvents()`, and it had been papered
+   over twice already: two shipped slides say `f(())` because the short
+   spelling produced a hole, without anyone noticing it was the same bug. */
+let test_nullary_call = () => {
+  let printed = src =>
+    switch (find_fumola(parse(src))) {
+    | None => "no fumola term"
+    | Some({body, _}) =>
+      Fumola.has_hole(body) ? "refused" : Fumola.of_exp(body)
+    };
+  let cases = [
+    ("a bare call", "f()", "f ()"),
+    ("on a projection", "Adapton.peekEvents()", "Adapton.peekEvents ()"),
+    ("on a parenthesised callee", "(g)()", "(g) ()"),
+    ("the explicit spelling", "f(())", "f ()"),
+    ("an argument still works", "f(1)", "f 1"),
+  ];
+  cases
+  |> List.iter(((name, src, want)) =>
+       check(
+         string,
+         name,
+         want,
+         printed("fumola ? as s in " ++ src ++ " end"),
+       )
+     );
+};
+
+let corpus_path = "fumola-tiles-corpus.txt";
+let explicit_corpus_path = "fumola-tiles-corpus-explicit.txt";
+
+/* What the tile route actually produced, both ways, for the round-trip
+   script: the minimal spelling and the one with every grouping explicit.
+   A term with a hole is left out -- it has no Fumola spelling, and sending
+   one would be asking the parser about something we already know is not a
+   program. */
+let write_corpus = () => {
+  let oc = open_out(corpus_path);
+  let oc_x = open_out(explicit_corpus_path);
+  corpus
+  |> List.iter(((_, src, _, _)) =>
+       switch (find_fumola(parse(src))) {
+       | Some({body, _}) when !Fumola.has_hole(body) =>
+         output_string(oc, Fumola.of_exp(body) ++ "\n");
+         output_string(oc_x, Fumola.of_exp(~explicit=true, body) ++ "\n");
+       | _ => ()
+       }
+     );
+  close_out(oc);
+  close_out(oc_x);
+};
+
+let tests = (
+  "FumolaTiles",
+  [
+    test_case("write the tile corpus", `Quick, () => write_corpus()),
+    test_case("fumola is a closed sub-language", `Quick, test_closed),
+    test_info_map(),
+    test_info_map_by_piece(),
+    test_prefixes(),
+    test_slides_printable(),
+    test_case(
+      "the instance's mode is read from the syntax",
+      `Quick,
+      test_mode,
+    ),
+    test_case(
+      "the mode resolves to what the runtime is asked for",
+      `Quick,
+      test_mode_resolves,
+    ),
+    test_case("substitution reaches the escape", `Quick, test_substitution),
+    test_case(
+      "the escape carries a bound variable",
+      `Quick,
+      test_escape_carries_a_bound_variable,
+    ),
+    test_case(
+      "a reference crosses back into Fumola",
+      `Quick,
+      test_reference_crosses_back,
+    ),
+    test_case(
+      "a case outside a switch is refused",
+      `Quick,
+      test_case_outside_switch,
+    ),
+    test_case(
+      "a nullary call is application to unit",
+      `Quick,
+      test_nullary_call,
+    ),
+    test_case(
+      "names recase in both directions",
+      `Quick,
+      test_case_conversion,
+    ),
+    test_case(
+      "the bridge recases on the way out",
+      `Quick,
+      test_source_recases,
+    ),
+  ]
+  @ List.map(test_parses, corpus)
+  @ List.map(test_prints, corpus),
+);

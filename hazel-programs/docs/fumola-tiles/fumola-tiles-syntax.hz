@@ -1,0 +1,200 @@
+# THE SYNTAX, IN FULL #
+
+# Every Fumola form the tiles support, each one beside the Hazel that #
+# means the same thing.  Where Hazel has no counterpart the pair says so, #
+# and that is usually the interesting line. #
+
+# Both columns are live.  Put the caret in either and the bar at the #
+# bottom left says which grammar is in force. #
+
+type Tree = + Leaf(Int) + Bin((Tree, Tree)) in
+
+# LITERALS #
+
+let ^^probe(fLit) = fumola $graphical as syn in (1, "two", true, ()) end in
+let ^^probe(hLit) = (1, "two", true, ()) in
+
+# Fumola's `null` is Hazel's None.  Fumola has no float and no char tile: #
+# both are in the AST and neither has a spelling yet. #
+
+let ^^probe(fNull) = fumola $graphical as syn in null end in
+let ^^probe(hNull): Option = None in
+
+# A quoted name is a Fumola symbol, and crosses as Hazel's Symbol. #
+
+# The annotation is doing work here: a symbol arrives as structure where a #
+# Symbol is expected and as its text everywhere else, so without the type #
+# this line comes back as the string "region". #
+
+let ^^probe(fName): Symbol = fumola $graphical as syn in `region` end in
+let ^^probe(hName): Symbol = Name("region") in
+
+# ARITHMETIC, AND A LADDER THAT IS NOT HAZEL'S #
+
+let ^^probe(fArith) = fumola $graphical as syn in 1 + 2 * 3 end in
+let ^^probe(hArith) = 1 + 2 * 3 in
+
+# Same answer.  This next one is where the two part company: Fumola binds #
+# the bitwise operators TIGHTER than the arithmetic ones, so a bare #
+# 1 | 2 + 3 means (1 | 2) + 3 and not 1 | (2 + 3).  Hazel has no such #
+# operator at all, so there is no second column. #
+
+# This runtime leaves the bitwise operators symbolic rather than reducing #
+# them, so what comes back is the expression itself -- which is a better #
+# demonstration than a number would have been: the grouping is right #
+# there in the value. #
+
+let ^^probe(fLadder) = fumola $graphical as syn in 1 | 2 + 3 end in
+
+# Comparison, negation, and the connectives, which Hazel spells with #
+# symbols where Fumola spells them with words. #
+
+let ^^probe(fLogic) = fumola $graphical as syn in not (1 < 2) and true end in
+let ^^probe(hLogic) = !(1 < 2) && true in
+
+# TUPLES, ARRAYS, INDEXING, CONCATENATION #
+
+# Fumola's array is a purely functional sequence, so it crosses as a Hazel #
+# list.  Concatenation is `++` in the tiles and a hash in Fumola, because #
+# a hash is Hazel's comment delimiter and cannot be a tile. #
+
+let ^^probe(fArray) = fumola $graphical as syn in [1, 2] ++ [3] end in
+let ^^probe(hArray) = [1, 2] @ [3] in
+
+let ^^probe(fIndex) = fumola $graphical as syn in [10, 20, 30][1] end in
+
+# VARIANTS #
+
+# `$tag` in the tiles, a hash-tag in Fumola, and a capitalised #
+# constructor in Hazel.  The boundary recases the first letter. #
+
+let ^^probe(fVariant): Tree = fumola $graphical as syn in $leaf(1) end in
+let ^^probe(hVariant): Tree = Leaf(1) in
+
+# CONDITIONALS #
+
+# Fumola has no `then`, so the tile borrows Hazel's; the printer emits #
+# Fumola's own form.  Otherwise the two are the same line. #
+
+let ^^probe(fIf) = fumola $graphical as syn in if 1 < 2 then 10 else 20 end in
+let ^^probe(hIf) = if 1 < 2 then 10 else 20 in
+
+# TAKING A VARIANT APART #
+
+# A case is spelled as a declaration -- `case p => b`, separated by `;` -- #
+# so a switch's cases and a block's contents read the same way.  Hazel #
+# writes its rules with a bar and its own arrow. #
+
+let ^^probe(fSwitch) =
+  fumola $graphical as syn in
+    switch $leaf(7) { case $leaf(n) => n; case _ => 0 }
+  end in
+
+let ^^probe(hSwitch) =
+  case Leaf(7)
+    | Leaf(n) => n
+    | _ => 0
+  end in
+
+# Patterns that have tiles: a name, `_`, a literal, a tag, a tag with a #
+# payload nested to any depth, and parentheses.  A tuple pattern does #
+# not, which is the gap worth knowing about. #
+
+# BLOCKS AND BINDING #
+
+# Fumola's block is a brace with `;` between declarations and no `in`. #
+
+let ^^probe(fLet) = fumola $graphical as syn in { let a = 1; a + 1 } end in
+let ^^probe(hLet) = let a = 1 in a + 1 in
+
+# APPLICATION AND PROJECTION #
+
+# Fumola writes application by juxtaposition; a tile needs a token, so #
+# the tile is `f(x)` and Fumola reads it as application to a #
+# parenthesised argument, which means the same thing.  A call with no #
+# argument is `f()`, one token rather than an empty pair. #
+
+let ^^probe(fProj) = fumola $graphical as syn in { let r = (10, 20); r.0 } end in
+
+# `import` names a packaged module, and the same `.` reaches into it; the #
+# `The library` slide is entirely about that pair.  Here it is in one #
+# line, naming the prelude and calling one of its functions: #
+
+let ^^probe(fImport) =
+  fumola $graphical as syn in
+    { import P = "fumola/system/prelude";
+      let c = `cell` := 7;
+      P.get(c) }
+  end in
+
+# STATEMENTS #
+
+# `assert`, `ignore` and `return` are Fumola's; Hazel has `test ... end` #
+# for the first and nothing for the other two, because Hazel has no #
+# statements to have them in. #
+
+let ^^probe(fAssert) = fumola $graphical as syn in { assert true; 1 } end in
+
+# `prim` reaches a runtime primitive by name, which is how the Fumola #
+# panel reads an instance's history.  There is no Hazel counterpart. #
+
+let ^^probe(fPrim) = fumola $graphical as syn in prim "adaptonNow"() end in
+
+# `e!` unwraps Fumola's option.  `peek` answers one, so this reads a cell #
+# and unwraps in a single line.  Hazel unwraps with a case instead; `?e`, #
+# which is how Fumola BUILDS an option, has no tile yet. #
+
+let ^^probe(fBang) =
+  fumola $graphical as syn in { let a = 9 := 5; peek(a)! } end in
+
+let ^^probe(hBang) =
+  case Some(5)
+    | Some(n) => n
+    | None => 0
+  end in
+
+# THE ADAPTON CORE, WHICH HAZEL HAS NO WORDS FOR #
+
+# This is the part with no second column.  `:=` puts a value in a named #
+# cell and hands back a pointer, `@` reads one, `thunk` suspends a #
+# computation and `force` runs it.  None of these is Hazel syntax, and #
+# none of them is a library function -- they are the language. #
+
+let ^^probe(fCells) =
+  fumola $graphical as syn in
+    { let a = 1 := 41;
+      let b = 2 := 1;
+      let t = 3 := thunk { (@ a) + (@ b) };
+      force t }
+  end in
+
+# THE BOUNDARY ITSELF #
+
+# `hazel ... end` is a Fumola form whose child is Hazel, so the nesting #
+# goes both ways.  It carries a value -- including one a Hazel variable #
+# is bound to, since a Fumola program runs during evaluation. #
+
+let answer = 41 in
+let ^^probe(fEscape) =
+  fumola $graphical as syn in hazel answer end + 1 end in
+
+# WHAT HAS NO TILE YET #
+
+# In the AST, no spelling: float and char literals; the operators xor, #
+# shift and rotate; `?e` and `~e`; a bare `return`; an `if` with no #
+# `else`; `var` and `func` declarations; the adapton navigation forms; #
+# and tuple and option patterns.  Why each one is blocked, and which are #
+# blocked by the tokenizer rather than by effort, is in #
+# docs/extending-the-tile-grammar.md. #
+
+# Every binding above, so that none of them is unused -- the probes have #
+# already shown each one; this is the list of what evaluated. #
+
+(
+  fLit, hLit, fNull, hNull, fName,
+  hName, fArith, hArith, fLadder, fLogic,
+  hLogic, fArray, hArray, fIndex, fVariant,
+  hVariant, fIf, hIf, fSwitch, hSwitch,
+  fLet, hLet, fProj, fImport, fAssert,
+  fPrim, fBang, hBang, fCells, fEscape
+)

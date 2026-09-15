@@ -99,6 +99,8 @@ let shape_affix =
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
+  | Fumola(_) => remold_template(s, shape, seg)
+  | Bb(_) => remold_template(s, shape, seg)
   | Any => seg
   | Typ => remold_typ(shape, seg)
   | Pat => remold_pat(shape, seg)
@@ -163,6 +165,13 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     | Typ => [Drv(Pat)]
     | TPat => [Drv(Typ), Typ]
     }
+  /* `hazel … end` reopens Hazel inside a Fumola program, so Exp is a subsort
+     here: without it the template keeps remolding in Fumola past the escape,
+     and a Hazel tuple written inside one comes back molded as a Fumola tuple
+     wrapped in a hole. Fumola is still closed to Hazel's *forms* -- see
+     Insert.effective_sort -- and this is the one door. */
+  | Fumola(Exp) => [Exp]
+  | Fumola(Name) => []
   | _ => []
   }
 

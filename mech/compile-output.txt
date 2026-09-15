@@ -1,0 +1,14 @@
+$ rocq --version
+The Rocq Prover, version 9.2
+compiled with OCaml 5.2.0
+
+$ rocq compile Blackboard.v
+Closed under the global context
+Closed under the global context
+Closed under the global context
+Closed under the global context
+Closed under the global context
+Closed under the global context
+Closed under the global context
+Closed under the global context
+exit status: 0

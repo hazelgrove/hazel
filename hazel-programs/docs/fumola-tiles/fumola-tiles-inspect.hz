@@ -1,0 +1,151 @@
+# WHAT THE STORE KNOWS ABOUT ITSELF #
+
+# The graphical mode does not just remember values.  It records what the #
+# program did -- which cells it made, which it read, which forces began #
+# and ended -- and hands that record back as ordinary Fumola values. #
+
+# `Adapton` is bound at the top of every instance, so none of this needs #
+# an import.  The functions are in fumola/system/adapton.fumola. #
+
+# Something to look at first: two cells, and a thunk that reads both. #
+
+let total: Int = fumola $graphical as mustardWatch in
+  { let a = 1 := 41;
+    let b = 2 := 1;
+    let t = 3 := thunk { (@ a) + (@ b) };
+    force t }
+end in
+
+# HOW BIG THE GRAPH IS #
+
+# `nodeValsNow()` is the node map of the run so far and `size` counts it. #
+# Three: the two cells and the thunk. #
+
+let ^^probe(nodes): Int = fumola $graphical as mustardWatch in
+  Adapton.Native.size(Adapton.Native.nodeValsNow())
+end in
+
+# WHERE AND WHEN THE STORE IS #
+
+# A store has a cursor -- a time and a space -- and both are values. #
+# Hazel needs their names declared before it can hold them. #
+
+# A space is either the current one or a symbol naming a cell; a pointer #
+# IS a space, which is why the two share a type.  (The Fumola source's own #
+# Time and Space are marked TO DO and say `time` and `space` where the #
+# runtime emits `Now` and `Symbol`.  These follow the runtime.) #
+
+type Time = + Now + Symbol(Symbol) in
+type Space = + Here + Symbol(Symbol) in
+
+let ^^probe(theTime): Time = fumola $graphical as mustardWatch in Adapton.now() end in
+let ^^probe(theSpace): Space = fumola $graphical as mustardWatch in Adapton.here() end in
+
+# THE EVENT LIST #
+
+# `peekEvents()` hands back the whole record as a list.  It is the same #
+# data the Fumola panel renders -- the tab below Problems -- so this is #
+# one record seen two ways, one of them a value a program can use. #
+
+# The list is long and each event is deep, so index into it.  Fumola has #
+# projection at an index, and a tile for it.  The second event is an edge #
+# being added, which is the smallest event there is: #
+
+# The log's own shape, written out -- all twelve tags, not just the five #
+# this program happens to produce.  Fumola writes them in lower case and #
+# they arrive capitalised, which is how Hazel spells a constructor. #
+
+# A node id is a space, a time and a meta time, which is why AddNode #
+# carries three things.  The last four tags are realignment: a put that #
+# changes a cell signals the edges that read it, and repair walks them #
+# back into alignment. #
+
+type EdgeId = + EdgeId(Int) in
+type NodeId = (Space, Time, Int) in
+type RepairOutcome = + Aligned + Reevaluated in
+type Event =
+  + AddNode(NodeId)
+  + AddEdge(EdgeId)
+  + UpdateEdge(EdgeId)
+  + RemoveEdge(EdgeId)
+  + ForceBegin((EdgeId, Option))
+  + ForceEnd(EdgeId)
+  + SignalingBegin(NodeId)
+  + SignalingEnd(NodeId)
+  + EdgeSignaled(EdgeId)
+  + RepairBegin(NodeId)
+  + RepairEnd((NodeId, RepairOutcome))
+  + EdgeAligned(EdgeId) in
+type EventRow = (metaTime = Int, event = Event) in
+
+let ^^probe(oneEvent): Event = fumola $graphical as mustardWatch in
+  Adapton.peekEvents()[1].event
+end in
+
+# A HAZEL SWITCH, AND A GRAPH THAT ANSWERS TO IT #
+
+# Everything above only reads the store.  This one writes to it, and what #
+# it writes depends on a value Hazel holds -- so flipping one boolean here #
+# changes the shape of the graph Fumola records. #
+
+let ^^probe(growTheGraph) = false in
+
+let ^^probe(howMany): Int = fumola $graphical as mustardWatch in
+  { let grow = hazel growTheGraph end;
+    if grow then { let p = 100 := 1; () } else ();
+    Adapton.peekEvents().size() }
+end in
+
+# Twelve with the switch off and fourteen with it on: a cell, and the edge #
+# that made it.  Change `false` to `true` above and watch both numbers #
+# move -- and the table below grow two rows. #
+
+# That pairing is the point.  A Hazel probe says what the program BELIEVES #
+# at a point: one value, where the caret is.  A Fumola event log says what #
+# the store DID: every node and edge, in order, with the causes attached. #
+# Neither is a reconstruction of the other, and having both means a #
+# question like "why did that recompute" has an answer on the screen #
+# rather than in a reasoning exercise. #
+
+# The switch is also the smallest demonstration of the escape carrying a #
+# bound variable: `grow` is Fumola's name for what `growTheGraph` holds. #
+# Note that the second use has to be `grow` and not `growTheGraph` -- #
+# inside the program you are in Fumola's scope, and only `hazel ... end` #
+# reaches back. #
+
+# THE LOG AS ROWS #
+
+# A list of records is what Hazel's table wants, and that is exactly what #
+# the log already is -- no reshaping in between, which is the point worth #
+# making: the graph's record of itself is ordinary structured data. #
+
+# The annotation below is the log's type, and it is what makes the whole #
+# list land as rows rather than as a heap of unresolved tags. #
+
+# `^^probe_table` draws those rows as a table.  Columns come out in the #
+# order EventRow lists its fields, which is why metaTime is written #
+# first, and the table opens in the drawer below the line. #
+
+let events: [EventRow] = fumola $graphical as mustardWatch in
+  Adapton.peekEvents()
+end in
+
+^^probe_table(events);
+
+# WHAT A THUNK PRODUCED, WITHOUT DEPENDING ON IT #
+
+# `peekForce` answers when a thunk was forced and what it produced.  It is #
+# a peek rather than a get, so looking does not record a dependency the #
+# way `@` would -- which is what makes it safe to inspect a running #
+# computation rather than becoming part of it. #
+
+let ^^probe(forced): Option = fumola $graphical as mustardWatch in
+  Adapton.peekForce(pointer(3))
+end in
+
+# There is more in the module: `peekCell` and `peekInfo` give a node's #
+# incoming and outgoing edges, `peekHistory` the whole graph, `poke` #
+# writes without recording, and `reset` discards the store.  The last is #
+# not run here, for the obvious reason. #
+
+(total, nodes, theTime, theSpace, oneEvent, growTheGraph, howMany, forced, events)

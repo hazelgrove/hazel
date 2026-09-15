@@ -68,6 +68,15 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    /* Which rows the Fumola panel is showing in full. Focus replaces what is
+       open IN ITS OWN NAMESPACE, which is what following a pointer out of
+       the event list means: that node at that moment, and not the same node
+       at another -- while leaving every edge as the reader left it. */
+    | FumolaToggleOpen(string)
+    | FumolaFocus(string)
+    /* Put an instance back to nothing and run the program again, so the graph
+       is rebuilt rather than remembered. */
+    | FumolaReset(string, Language.FumolaRun.mode)
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(
@@ -83,6 +92,24 @@ module Action = {
     | RestoreLastKnownGood;
 };
 
+/* What a `fumola_open` key names: "n" a node revision, "e" an edge.
+
+   The namespace is a dimension of the panel in its own right. A reader
+   expands some nodes and then follows an edge id out of one of them; the
+   edge is what they asked to see, and the nodes are the context they built
+   to ask it in. Replacing the whole set threw that context away, so the one
+   click cost every expansion on the other tab. Focus now replaces only
+   within the namespace it names.
+
+   The moment is a third dimension and is deliberately inside the node key:
+   two revisions of one space are two rows in the list, and a reader
+   comparing them wants both open at once. */
+let fumola_namespace = (key: string): string =>
+  switch (String.index_opt(key, ':')) {
+  | Some(i) => String.sub(key, 0, i)
+  | None => ""
+  };
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -92,6 +119,16 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    /* Fumola panel rows shown in full. Each key carries the namespace of
+       what it names -- see `fumola_namespace`. Not persisted, and
+       deliberately: the runtime mints these ids afresh on every page load,
+       so a persisted set would accumulate dead keys forever. */
+    fumola_open: list(string),
+    /* The row a pointer was just followed to, if any. Separate from the open
+       set because being open and being arrived at are different things: a
+       reader opens several rows and is looking at one of them. Cleared when a
+       row is opened by hand, so only following scrolls. */
+    fumola_focused: option(string),
     // MVU apps, keyed by app-projector syntax id; not persisted
     apps: AppStore.t,
     // Calculated:
@@ -119,6 +156,8 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    fumola_open: [],
+    fumola_focused: None,
     apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>

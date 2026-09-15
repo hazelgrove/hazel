@@ -771,3 +771,268 @@
   font-style: italic;
   margin: 0.2em 0;
 }
+
+/* --- The Fumola panel: the adapton event list of the instance in focus --- */
+
+.fumola-panel {
+  padding: 0.5em;
+  overflow-y: auto;
+}
+
+.fumola-section-header {
+  font-weight: bold;
+  padding: 0.5em 0.5em 0.25em;
+  user-select: none;
+}
+
+/* The mode the instance is in, beside its name. Lighter than the name it
+   qualifies: it is an answer about the instance, not part of what the
+   instance is called. */
+.fumola-mode-key {
+  font-weight: normal;
+  opacity: 0.6;
+}
+
+/* The reset that leaves the mode alone. Bold rather than coloured or boxed:
+   it marks which of two otherwise identical controls is the conservative one,
+   and that is a weight difference, not a state a reader can toggle. */
+.fumola-reset-current {
+  font-weight: bold;
+}
+
+.fumola-blurb {
+  padding: 0.25em 0.5em;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.fumola-example {
+  font-family: var(--code-font), monospace;
+  padding: 0.5em;
+  margin: 0.5em;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 5%);
+  white-space: pre-wrap;
+}
+
+/* One row per event, oldest first: when, what, and to what. The meta-time
+   column repeats across a run of events that share one, which is how a
+   realignment reads as a single step rather than several. */
+.fumola-event-table {
+  display: flex;
+  flex-direction: column;
+  margin: 0.25em 0.5em;
+  font-family: var(--code-font), monospace;
+  /* Smaller than the panel's prose: a symbol can be long -- a composite one
+     prints as an expression -- and the column has to hold it without
+     wrapping every row. */
+  font-size: 0.85em;
+}
+
+.fumola-event {
+  display: grid;
+  grid-template-columns: 2.5em 8em 1fr;
+  gap: 0.5em;
+  padding: 0.15em 0.25em;
+  border-bottom: 1px solid rgb(0 0 0 / 6%);
+}
+
+.fumola-event-time {
+  text-align: right;
+  opacity: 0.6;
+}
+
+.fumola-event-subject {
+  overflow-wrap: anywhere;
+  opacity: 0.8;
+}
+
+/* The symbol a node or cell was named with: the one part of a row that says
+   WHICH thing this event was about. Bold, and at full strength against the
+   dimmed boilerplate around it. */
+.fumola-event-symbol {
+  font-weight: bold;
+  opacity: 1;
+}
+
+/* --- The Nodes and Edges views ------------------------------------------ */
+
+/* The tab strip reuses .problem-view-toggle; this only gives it room. */
+.fumola-tabs {
+  margin: 0.25em 0.5em 0.5em;
+}
+
+/* Where one of Hazel's passes began. Not a row: a divider with a name on it,
+   set apart from the rows it heads so a reader scanning values does not read
+   it as one of them. Dimmer than a row's key, since it is the panel talking
+   about the editor rather than the store talking about itself. */
+.fumola-pass {
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  opacity: 0.7;
+  padding: 0.15em 0 0.1em;
+  margin-top: 0.25em;
+  border-top: 1px solid var(--fumola-pass-rule, rgba(0, 0, 0, 0.18));
+}
+
+/* The first one heads the list, and a rule above it would float free. */
+.fumola-rows > .fumola-pass:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+/* A moment, where it leads to the events at it. Set apart from the prose
+   around it the way a symbol is, but numerically -- a moment is a count, not
+   a name, so it reads as the figure it is rather than as an identifier. */
+.fumola-moment {
+  font-variant-numeric: tabular-nums;
+}
+
+/* What the panel could not show. Not an error -- the instance is fine and so
+   is the program -- but not a footnote either: it is the difference between a
+   short list and a shortened one, and a reader who cannot see it has no way
+   to know which they are looking at. */
+.fumola-missed {
+  margin: 0.5em 0.5em 0.25em;
+  padding: 0.35em 0.5em;
+  line-height: 1.35;
+  border-left: 2px solid var(--fumola-missed-rule, rgba(0, 0, 0, 0.25));
+  opacity: 0.85;
+}
+
+.fumola-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin: 0 0.5em 0.5em;
+}
+
+/* A row is its key -- the name it is filed under -- and its value. The key
+   is the panel's own text; the value is Hazel code, so it keeps the code
+   font it is rendered in and is not restyled here. */
+.fumola-row-key {
+  font-family: var(--code-font), monospace;
+  font-size: 0.85em;
+  opacity: 0.75;
+  padding-bottom: 0.15em;
+}
+
+.fumola-row-value {
+  overflow-x: auto;
+  padding: 0.25em 0.4em;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 4%);
+}
+
+/* A pointer in the event list leads somewhere: the node it names, as it was
+   at that moment. Underlined at rest, because an affordance nobody hovers is
+   not an affordance. */
+.fumola-pointer {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+/* A revision's own line: click to show or hide its value. */
+.fumola-row-key {
+  cursor: pointer;
+  user-select: none;
+}
+
+.fumola-caret {
+  display: inline-block;
+  width: 1em;
+  opacity: 0.6;
+}
+
+/* The edges a node's run left behind, offered as ways on. The same ids are
+   inside the rendered value, but a rendered value is code and code carries
+   no click targets. */
+.fumola-row-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  align-items: baseline;
+  font-family: var(--code-font), monospace;
+  font-size: 0.85em;
+  opacity: 0.75;
+  padding: 0.25em 0 0 1em;
+}
+
+/* The editor control, under the tab strip. */
+.fumola-editor-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0.5em 0.5em;
+}
+
+.fumola-strip-label {
+  font-size: 0.8em;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Dimmed: the editor's own traffic, kept and still readable, but taking less
+   room. Set smaller rather than fainter -- these rows are here to be read
+   when you want them, and a faint row is harder to read without being any
+   shorter. */
+.fumola-dim {
+  font-size: 0.8em;
+  line-height: 1.15;
+  opacity: 0.8;
+}
+
+/* The event grid's columns are in em, so a smaller row would shift them out
+   of line with its neighbours. Scaled by the same factor, the columns keep
+   their absolute width and the three columns stay aligned down the list. */
+.fumola-event.fumola-dim {
+  grid-template-columns: 3.125em 10em 1fr;
+  padding-top: 0.05em;
+  padding-bottom: 0.05em;
+}
+
+/* The two resets: one label, a choice of what to come back as. */
+.fumola-resets {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+/* The tab strip and the reset buttons share a line. */
+.fumola-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  margin-right: 0.5em;
+}
+
+.fumola-reset {
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85em;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  border: 1px solid rgb(0 0 0 / 15%);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.fumola-reset:hover {
+  opacity: 1;
+  background: rgb(0 0 0 / 5%);
+}
+
+/* An edge the editor made, marked whatever the editor setting is: the
+   colour says whose edge it is before anyone opens the record inside. A
+   deeper mustard than the panel's ground, so it reads as the same family as
+   the instance's own colour rather than as a warning. */
+.fumola-row.fumola-editor .fumola-row-value {
+  background: rgb(190 145 20 / 14%);
+}
+
+.fumola-row.fumola-editor .fumola-row-key {
+  color: rgb(120 90 10 / 85%);
+}

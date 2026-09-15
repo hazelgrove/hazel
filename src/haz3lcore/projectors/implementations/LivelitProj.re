@@ -693,7 +693,7 @@ module M: Projector = {
           let action_callback = (action: LivelitCtx.action_exp) =>
             commit_model(ll.update(action, model));
 
-          let list_contents = ll.view(model, action_callback);
+          let list_contents = ll.view(~id=info.id, model, action_callback);
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
             [list_contents],
