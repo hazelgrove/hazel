@@ -290,6 +290,47 @@ let declutter =
   );
 };
 
+/* Manual movement is applied after automatic layout. Docked satellites
+   inherit their anchor's movement; an explicit satellite pin stays put. */
+let apply_manual_positions = (~offsets, ~pins, nodes: list(node_layout)) => {
+  let rec displacement = (seen, nl: node_layout): (float, float) =>
+    if (List.mem(nl.node.key, seen)) {
+      (0., 0.);
+    } else {
+      switch (List.assoc_opt(nl.node.key, pins)) {
+      | Some((x, y)) => (snap(x) -. nl.p.x, snap(y) -. nl.p.y)
+      | None =>
+        let (dx, dy) =
+          Option.value(
+            ~default=(0., 0.),
+            List.assoc_opt(nl.node.key, offsets),
+          );
+        let (ax, ay) =
+          switch (nl.node.sat) {
+          | Some((anchor, _)) =>
+            List.find_opt((n: node_layout) => n.node.key == anchor, nodes)
+            |> Option.map(n => displacement([nl.node.key, ...seen], n))
+            |> Option.value(~default=(0., 0.))
+          | None => (0., 0.)
+          };
+        (dx +. ax, dy +. ay);
+      };
+    };
+  List.map(
+    (nl: node_layout) => {
+      let (dx, dy) = displacement([], nl);
+      {
+        ...nl,
+        p: {
+          x: nl.p.x +. dx,
+          y: nl.p.y +. dy,
+        },
+      };
+    },
+    nodes,
+  );
+};
+
 /* Comparison modes keep the same graph and routing; only the rank
    constraints change. Combined remains the production default. */
 type ranking =
@@ -676,45 +717,23 @@ let layout_impl =
         g.nodes,
       );
 
-  /* ---- user drag deltas and click-placement pins ---- */
+  /* Declutter the automatic arrangement once, before manual placement.
+     A pointer movement must not push unrelated nodes out of its new
+     chords. Routing adapts to the final positions below instead. */
   Util.PerfTimer.record("layout/solve", Util.PerfTimer.now() -. t_solve);
   let t_nodes = Util.PerfTimer.now();
   let node_layouts =
     List.map(
       (nl: node_layout) =>
-        switch (
-          List.assoc_opt(nl.node.key, pins),
-          List.assoc_opt(nl.node.key, offsets),
-        ) {
-        | (Some((x, y)), _) => {
-            ...nl,
-            p: {
-              x,
-              y,
-            },
-          }
-        | (None, Some((dx, dy))) => {
-            ...nl,
-            p: {
-              x: nl.p.x +. dx,
-              y: nl.p.y +. dy,
-            },
-          }
-        | (None, None) => nl
+        {
+          ...nl,
+          p: {
+            x: snap(nl.p.x),
+            y: snap(nl.p.y),
+          },
         },
       placed_layouts,
-    )
-    /* snap-to-grid: node centers land on the dot lattice; drags and
-       pins snap too (they pass through here) */
-    |> List.map((nl: node_layout) =>
-         {
-           ...nl,
-           p: {
-             x: snap(nl.p.x),
-             y: snap(nl.p.y),
-           },
-         }
-       );
+    );
   /* every straight line the render will draw: function arrows and the
      "made of" links (parts → product, former → alias, element → [T],
      alias-body deps → alias) */
@@ -753,13 +772,9 @@ let layout_impl =
       List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
       |> Option.map((nl: node_layout) => nl.r)
       |> Option.value(~default=base_radius);
-    declutter(
-      ~chords,
-      ~fixed=List.map(fst, pins) @ List.map(fst, offsets),
-      ~radius_of=circle_r,
-      node_layouts,
-    );
+    declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts);
   };
+  let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
     (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
