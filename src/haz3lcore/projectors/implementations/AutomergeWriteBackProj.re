@@ -80,6 +80,8 @@ module M: Projector = {
       pointer: Some(focus_pointer),
       keyboard: Some(focus_keyboard),
     };
+  /* Writes the live value of the syntax it replaces back to the document. */
+  let dynamics = true;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
 
