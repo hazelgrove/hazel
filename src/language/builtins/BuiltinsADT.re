@@ -109,8 +109,7 @@ module Symbol = {
    which cannot be compared with the symbol in an event once it is flattened.
    Text also could not be told apart from a symbol that really is a name. */
 module Space = {
-  let t: Typ.t =
-    sum_type([("Symbol", Some(Symbol.t)), ("Here", None)]);
+  let t: Typ.t = sum_type([("Symbol", Some(Symbol.t)), ("Here", None)]);
 };
 
 module Time = {

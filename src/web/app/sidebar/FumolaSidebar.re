@@ -1040,11 +1040,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           let mode = Language.FumolaRun.mode_of_instance(instance);
           section(
             "fumola-events",
-            panel_title(~mode=?mode, instance),
+            panel_title(~mode?, instance),
             [
               div(
                 ~attrs=[clss(["fumola-controls"])],
-                [tab_strip(tab), reset_button(~mode=?mode, instance)],
+                [tab_strip(tab), reset_button(~mode?, instance)],
               ),
             ]
             @ [editor_strip()]
