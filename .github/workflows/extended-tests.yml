@@ -4,7 +4,7 @@
 # qcheck-core's long mode on, so every ~count is multiplied by
 # QCHECK_LONG_FACTOR. It gates nothing -- it exists to turn rare failures into
 # ones you can see and reproduce. Nothing else here notifies anyone when it
-# goes red, so the last step files the failure as an issue.
+# goes red, so a second job files the failure as an issue.
 #
 # On sizing the factor: only the QCheck properties scale. Most Slow-tagged
 # tests are not properties, and neither are the "stats only" harnesses in
@@ -56,12 +56,15 @@ jobs:
     timeout-minutes: 350
     permissions:
       contents: read
-      # For the tracker issue at the end. This widens the token across the
-      # hours-long step that runs the repo's own test code, which is accepted
-      # rather than overlooked: that code is dev's. The alternative is a second
-      # job existing only to hold the write scope while it downloads the
-      # artifact back, which buys isolation from code this job already trusts.
-      issues: write
+    # Read by the Report job below, which cannot see this job's workspace.
+    # suite is the step's outcome rather than the job's, so that the upload or
+    # the reporter going red on its own does not read as a failing suite.
+    outputs:
+      suite: ${{ steps.suite.outcome }}
+      seed: ${{ steps.config.outputs.seed }}
+      factor: ${{ steps.config.outputs.factor }}
+      repro: ${{ steps.config.outputs.repro }}
+      artifact: ${{ steps.junit.outputs.artifact-url }}
     steps:
       - name: Checkout the hazel repo
         uses: actions/checkout@v4
@@ -105,7 +108,7 @@ jobs:
 
       # The three steps below are always: they are most wanted when the run is
       # red, and the step above has already decided the job's outcome. The
-      # tracker step after them has a narrower gate of its own.
+      # artifact they leave is also what the Report job reads.
       - name: Record how to reproduce
         if: ${{ always() }}
         env:
@@ -153,38 +156,59 @@ jobs:
           # job's summary and creates no check run -- see checks.yml for why
           # that is the only placement GitHub actually lets us pick.
 
-      # Nothing else notifies anyone when the weekly run goes red. There is no
-      # Slack hook and no webhook, and GitHub's own mail for a failed scheduled
-      # run reaches whoever last touched the cron on dev and nobody else. So the
-      # failure goes to the issue tracker, which people already read.
-      #
-      # One rolling issue rather than one per run: the known seed-flaky
-      # properties would otherwise open a near-duplicate every Sunday. The
-      # notification shape follows from GitHub's own -- creating an issue
-      # notifies everyone watching the repo, commenting on one notifies only its
-      # participants. So the first failure pings the repo, the weeks after it
-      # are quiet in the thread, and closing the issue is what re-arms the ping:
-      # the lookup below is state `open`, so a closed tracker is never found,
-      # never reopened, and the next failure opens a fresh one. The issue body
-      # says so too, since a reader has no way to guess it.
-      #
-      # Keyed on the suite step's own outcome rather than on failure(): the
-      # steps above are always-steps, so by the time this one is evaluated the
-      # job may have been turned red by the upload or by the reporter rather
-      # than by a test, and a comment saying the suite failed when it passed is
-      # worse than no comment at all. `!= success` rather than `== failure` so
-      # that a skipped suite files too -- that is the toolchain breaking before
-      # the suite ran, which would otherwise go unreported for as long as it
-      # lasted.
-      #
-      # It must be inputs.file-issue and never github.event.inputs.file-issue:
-      # the latter is the string "false", which is truthy, so an unchecked box
-      # would file on every manual run.
+  # Nothing else notifies anyone when the weekly run goes red. There is no
+  # Slack hook and no webhook, and GitHub's own mail for a failed scheduled run
+  # reaches whoever last touched the cron on dev and nobody else. So the failure
+  # goes to the issue tracker, which people already read.
+  #
+  # A separate job so that `issues: write` is nowhere near the hours-long step
+  # that builds and runs the repo's own code. It also survives that job dying
+  # outright: a job-level timeout or a lost runner takes the rest of its steps
+  # with it, but not another job.
+  #
+  # One rolling issue rather than one per run: the known seed-flaky properties
+  # would otherwise open a near-duplicate every Sunday. The notification shape
+  # follows from GitHub's own -- creating an issue notifies everyone watching
+  # the repo, commenting on one notifies only its participants. So the first
+  # failure pings the repo, the weeks after it are quiet in the thread, and
+  # closing the issue is what re-arms the ping: the lookup is state `open`, so
+  # a closed tracker is never found, never reopened, and the next failure opens
+  # a fresh one. The issue body says so too, since a reader has no way to guess
+  # it.
+  #
+  # The gate reads the suite step's outcome rather than needs.Extended.result,
+  # which is the whole job and goes red when the upload or the reporter fails on
+  # its own -- a comment saying the suite failed when it passed is worse than no
+  # comment at all. `!= success` rather than `== failure` covers three things at
+  # once: a red suite, a skipped one where the toolchain broke first, and a job
+  # that died before it could set the output at all.
+  #
+  # It must be inputs.file-issue and never github.event.inputs.file-issue: the
+  # latter is the string "false", which is truthy, so an unchecked box would
+  # file on every manual run.
+  Report:
+    name: Report the failure
+    needs: Extended
+    if: >-
+      !cancelled() &&
+      needs.Extended.outputs.suite != 'success' &&
+      (github.event_name == 'schedule' || inputs.file-issue)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      # continue-on-error because this hard-errors when there is no artifact,
+      # which is the run that was killed before the suite wrote one. The script
+      # below reports that case rather than being stopped by it.
+      - name: Fetch the JUnit results
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: extended-tests-junit-${{ needs.Extended.outputs.seed }}
+          path: junit
+
       - name: File or update the tracker issue
-        if: >-
-          !cancelled() &&
-          steps.suite.outcome != 'success' &&
-          (github.event_name == 'schedule' || inputs.file-issue)
         uses: actions/github-script@v7
         env:
           # Read through env rather than interpolated into the script below. An
@@ -193,10 +217,10 @@ jobs:
           # in one would break the script rather than the string. The other
           # github-script steps in this repo do interpolate directly, but what
           # they interpolate is commit SHAs already matched against [0-9a-fA-F].
-          REPRO: ${{ steps.config.outputs.repro }}
-          SEED: ${{ steps.config.outputs.seed }}
-          FACTOR: ${{ steps.config.outputs.factor }}
-          ARTIFACT_URL: ${{ steps.junit.outputs.artifact-url }}
+          REPRO: ${{ needs.Extended.outputs.repro }}
+          SEED: ${{ needs.Extended.outputs.seed }}
+          FACTOR: ${{ needs.Extended.outputs.factor }}
+          ARTIFACT_URL: ${{ needs.Extended.outputs.artifact }}
         with:
           script: |
             const fs = require('fs');
@@ -237,7 +261,7 @@ jobs:
               return m ? decode(m[1]) : '';
             };
 
-            const globber = await glob.create('_build/default/test/junit_tests*.xml');
+            const globber = await glob.create('junit/junit_tests*.xml');
             const paths = await globber.glob();
 
             const cases = [];
@@ -291,9 +315,17 @@ jobs:
                 ' the step timeout, a crash, or a build that did not get as far as the test' +
                 ' binary. The run log is the only record.';
             } else if (cases.length === 0) {
-              report =
-                'The report lists no failing cases, so the suite exited non-zero for some' +
-                ' other reason. The run log has it.';
+              // Counts on the suite element with no case readable under them
+              // means the XML stops partway, which is what a killed run leaves
+              // behind. Saying "some other reason" there would contradict the
+              // counts printed alongside it.
+              const counted = totals ? Number(totals.failures) + Number(totals.errors) : 0;
+              report = counted > 0
+                ? `The report counts ${counted} failing case${counted === 1 ? '' : 's'} but` +
+                  ' none could be read back from it, so the XML stops partway. The run log' +
+                  ' and the artifact have them.'
+                : 'The report lists no failing cases, so the suite exited non-zero for some' +
+                  ' other reason. The run log has it.';
             } else {
               const lines = cases.slice(0, CAP).map(
                 (c) => `- \`${c.group} :: ${c.name}\`${c.crashed ? ' **(crashed)**' : ''}`);
@@ -375,8 +407,8 @@ jobs:
                   body: [
                     MARKER,
                     `The weekly [Extended Tests](${context.serverUrl}/${owner}/${repo}` +
-                      '/actions/workflows/extended-tests.yml) run failed. The workflow gates' +
-                      ' nothing, so this issue is the notification.',
+                      '/actions/workflows/extended-tests.yml) run failed. Nothing else' +
+                      ' notifies anyone when it does, so this issue is the notification.',
                     '',
                     'It is opened once and then reused: each later failure arrives as a' +
                       ' comment, so this thread is the record of which weeks were red. Those' +
