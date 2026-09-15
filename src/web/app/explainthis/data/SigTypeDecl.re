@@ -16,7 +16,7 @@ let single: Simple.t = {
     ],
     [],
   ),
-  explanation: "A type declaration in a signature defines a type alias within the signature. Note: type declarations in signatures are currently limited -- they are parsed but not yet used during type checking. See the Modules documentation for details.",
+  explanation: "A type declaration in a signature introduces a manifest type member: T stands for the given type, later members may mention T, and a module matching the signature must define T as that type.",
   examples: [
     {
       sub_id: SigType1,
@@ -24,7 +24,7 @@ let single: Simple.t = {
         mk_example(
           "let m : {\ntype T = Int;\nlet x : T\n} = {\ntype T = Int;\nlet x = 5\n} in m",
         ),
-      message: "A signature with a type alias T for Int used to annotate field x. Note: T appears as a static error in `let x : T` because type declarations in signatures are not yet used during type checking.",
+      message: "A signature with a type member T equal to Int, used to annotate member x. The module's own `type T = Int` is checked against it.",
     },
   ],
 };
