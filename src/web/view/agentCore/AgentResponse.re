@@ -206,7 +206,9 @@ let handle_llm_response =
                     ed;
                   };
                 };
-                CanvasBuffer.push_snapshot(
+                CanvasPresentation.capture(
+                  ~enabled=settings.canvas_pace,
+                  ~settings=settings.core,
                   ~label=tc.name,
                   /* capture the tool's work site NOW so the avatar hops
                      with this beat (see CanvasBuffer.beat) */
@@ -232,6 +234,7 @@ let handle_llm_response =
                     | _ => None
                     };
                   },
+                  ce_model.editor,
                   snap,
                 );
                 let failed =

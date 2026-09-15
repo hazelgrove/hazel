@@ -2357,3 +2357,7 @@
   inset: 0;
   border-radius: 12px;
 }
+
+/* The paced code is a read-only view of the same step as the canvas. */
+.presentation-code { padding: 16px 16px 24px; }
+.presentation-note { margin-bottom: 14px; color: #817c69; font: 11px/1.45 system-ui, sans-serif; }

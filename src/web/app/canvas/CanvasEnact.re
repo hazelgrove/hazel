@@ -72,6 +72,7 @@ let clock = (): float =>
   CanvasBuffer.now()
   -. paused_total^
   -. (paused^ ? CanvasBuffer.now() -. pause_started^ : 0.);
+let generation = ref(0);
 let pending: ref(list((float, unit => unit))) = ref([]);
 let ticking: ref(bool) = ref(false);
 let rec tick = (): unit =>
@@ -118,6 +119,7 @@ let canvas_animations = (): list(Js.Unsafe.any) => {
 let paused_anims: ref(list(Js.Unsafe.any)) = ref([]);
 let pause_score = (): unit =>
   if (! paused^) {
+    CanvasBuffer.held := true;
     paused := true;
     pause_started := CanvasBuffer.now();
     paused_anims :=
@@ -140,6 +142,7 @@ let resume_score = (): unit =>
   if (paused^) {
     let since = pause_started^;
     let dt = CanvasBuffer.now() -. since;
+    CanvasBuffer.held := false;
     paused := false;
     paused_total := paused_total^ +. dt;
     CanvasBuffer.shift_hold(~since, dt);
@@ -1528,6 +1531,52 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
   avatar_timeline(~from=None, s, sorted);
 };
 
+/* Catch-up invalidates queued choreography as well as the display queue. */
+let cancel_score = () => {
+  generation := generation^ + 1;
+  pending := [];
+  current_score := None;
+  paused := false;
+  CanvasBuffer.held := false;
+  paused_anims := [];
+  List.iter(
+    a => ignore(Js.Unsafe.meth_call(a, "cancel", [||])),
+    canvas_animations(),
+  );
+  Animation.held := ([], 0.);
+  Animation.tracked_elems := [];
+  Animation.beat := None;
+  Animation.arrival_schedule := [];
+  Animation.geom_schedule := [];
+  /* Geometry held for a future Draw act has an inline dash offset. */
+  Util.JsUtil.ids_with_prefix("cpath-")
+  @ Util.JsUtil.ids_with_prefix("cform-")
+  @ Util.JsUtil.ids_with_prefix("cdep-")
+  @ Util.JsUtil.ids_with_prefix("corbit-")
+  @ Util.JsUtil.ids_with_prefix("clead-")
+  |> List.iter(id =>
+       switch (by_id(id)) {
+       | Some(el) =>
+         let style = Js.Unsafe.get(el, "style");
+         ignore(
+           Js.Unsafe.meth_call(
+             style,
+             "removeProperty",
+             [|str("stroke-dashoffset")|],
+           ),
+         );
+         ignore(
+           Js.Unsafe.meth_call(
+             style,
+             "removeProperty",
+             [|str("stroke-dasharray")|],
+           ),
+         );
+       | None => ()
+       }
+     );
+};
+
 /* re-plan the live score from the actor's current position at the current
    score time (after a node was dragged, or the actor was carried): rides
    still ahead re-arm on their re-routed paths; the actor's timeline is
@@ -1729,16 +1778,26 @@ let check_jumps = (~zoom: float): unit => {
 };
 
 /* run after the current render has been patched into the DOM */
-let after_render = (f: unit => unit): unit =>
+let after_render = (f: unit => unit): unit => {
+  let epoch = generation^;
   later(0., () =>
     ignore(
       Js.Unsafe.meth_call(
         Js.Unsafe.global##.window,
         "requestAnimationFrame",
-        [|Js.Unsafe.inject(Js.Unsafe.callback(f))|],
+        [|
+          Js.Unsafe.inject(
+            Js.Unsafe.callback(() =>
+              if (epoch == generation^) {
+                f();
+              }
+            ),
+          ),
+        |],
       ),
     )
   );
+};
 
 /* console testers: __canvasStage() stages the next render as an agent
    beat; __canvasEnact("edge") replays the ride on an existing edge;

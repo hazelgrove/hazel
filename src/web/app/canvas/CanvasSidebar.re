@@ -967,6 +967,44 @@ let locate =
    replay harness asserts on the last value) */
 let last_static_errs: ref(int) = ref(-1);
 
+let canvas_visible = (s: Settings.t) =>
+  s.canvas_main
+  || s.canvas_split
+  || s.sidebar.show
+  && s.sidebar.panel == Canvas;
+let presentation_slide = ref("");
+let presentation_enabled = ref(false);
+
+/* Page calls this once, before any of the three program views. */
+let present_editor = (~globals: Globals.t, ~editors: Editors.Model.t, editor) => {
+  let enabled =
+    globals.settings.canvas_pace && canvas_visible(globals.settings);
+  let slide = current_slide(editors);
+  if (presentation_slide^ != slide || presentation_enabled^ && !enabled) {
+    CanvasBuffer.reset();
+    CanvasEnact.cancel_score();
+  };
+  presentation_slide := slide;
+  presentation_enabled := enabled;
+  let test_results = test_results_of(editors);
+  let schedule_tick = (delay: float) => {
+    open Js_of_ocaml;
+    let cb =
+      Js.Unsafe.callback(() => {
+        CanvasBuffer.tick_fired();
+        globals.inject_global(Set(CanvasTick)) |> Bonsai.Effect.Expert.handle;
+      });
+    ignore(Js.Unsafe.global##setTimeout(cb, delay));
+  };
+  CanvasEnact.request_tick := schedule_tick;
+  CanvasBuffer.observe(
+    ~enabled,
+    ~weight=graph_delta(~test_results),
+    ~schedule_tick,
+    editor,
+  );
+};
+
 let view_impl =
     (
       ~globals: Globals.t,
@@ -987,7 +1025,8 @@ let view_impl =
       (),
     )
     : Node.t => {
-  let test_results = test_results_of(editors);
+  let test_results =
+    CanvasBuffer.presenting^ ? Option.none : test_results_of(editors);
   let slide = current_slide(editors);
   {
     let n = List.length(editor.statics.error_ids);
@@ -1009,7 +1048,13 @@ let view_impl =
     (
       () =>
         Some(
-          Haz3lcore.Printer.of_zipper(~holes="?", editor.editor.state.zipper),
+          Haz3lcore.Printer.of_zipper(
+            ~holes="?",
+            switch (current_code(editors)) {
+            | Some(c) => c.editor.editor.editor.state.zipper
+            | None => editor.editor.state.zipper
+            },
+          ),
         )
     );
   {
@@ -1035,28 +1080,6 @@ let view_impl =
     last_followed_busy := false;
     CanvasBuffer.beat_avatar := None;
     CanvasCamera.roi := [];
-  };
-  /* temporal pacing: within an agent burst the canvas renders queued
-     snapshots at a max rate so each tool call reads as its own beat */
-  let editor = {
-    let schedule_tick = (delay: float) => {
-      open Js_of_ocaml;
-      let cb =
-        Js.Unsafe.callback(() => {
-          CanvasBuffer.tick_fired();
-          globals.inject_global(Set(CanvasTick))
-          |> Bonsai.Effect.Expert.handle;
-        });
-      ignore(Js.Unsafe.global##setTimeout(cb, delay));
-    };
-    CanvasEnact.request_tick := schedule_tick;
-    CanvasBuffer.observe(
-      ~enabled=globals.settings.canvas_pace,
-      ~viable=(m: CodeWithStatics.Model.t) => viable_cached(m.statics),
-      ~weight=graph_delta(~test_results),
-      ~schedule_tick,
-      editor,
-    );
   };
   /* the graph MUST derive from the PACED editor: extracting from the
      live model rendered every intermediate state instantly (final-state
@@ -1674,7 +1697,7 @@ let view_impl =
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
     /* dragging while the actor works pauses the workload; it resumes on
        release, re-planned around the moved node */
-    let during_score = CanvasBuffer.score_playing();
+    let during_score = CanvasBuffer.pacing_live();
     if (during_score) {
       CanvasEnact.pause_score();
     } else {
@@ -2047,7 +2070,7 @@ let view_impl =
     switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.avatar_dom_id)) {
     | None => Effect.Ignore
     | Some(av) =>
-      if (CanvasBuffer.score_playing()) {
+      if (CanvasBuffer.pacing_live()) {
         CanvasEnact.pause_score();
       };
       let body = Js.Unsafe.get(av, "firstElementChild");
@@ -3868,6 +3891,22 @@ let view_impl =
           ],
         );
   };
+  let catch_up = () => {
+    CanvasTrajectory.stop();
+    CanvasEnact.cancel_score();
+    CanvasBuffer.reset();
+    CanvasBuffer.last_agent_action := 0.;
+    last_layout := Option.none;
+    leaving := Option.none;
+    last_node_snapshot := ("", []);
+    last_pacing_live := false;
+    CanvasCamera.gen := CanvasCamera.gen^ + 1;
+    CanvasCamera.inflight := Option.none;
+    CanvasCamera.scored_until := 0.;
+    CanvasLog.log(
+      "presentation: catch up to accepted program; stop current run",
+    );
+  };
   let toolbar = {
     let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
       div(
@@ -3887,8 +3926,23 @@ let view_impl =
         btn(
           ~cls=globals.settings.canvas_pace ? "tool-active" : "",
           "pace",
-          "play bursts of agent edits as separate animated beats (travel, act, settle; bigger edits dwell longer) instead of one jump-cut",
+          "present definition edits together in the code, outline and canvas",
           globals.inject_global(Set(ToggleCanvasPace)),
+        ),
+        btn(
+          ~on_press=catch_up,
+          "catch up",
+          "stop the current run and show the latest editable program everywhere",
+          Effect.Many([
+            editors_inject(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.CatchUpAgent,
+                ),
+              ),
+            ),
+            globals.inject_global(Set(CanvasTick)),
+          ]),
         ),
         btn(
           ~cls=globals.settings.canvas_follow ? "tool-active" : "",

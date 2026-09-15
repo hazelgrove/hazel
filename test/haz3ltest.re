@@ -44,6 +44,8 @@ let (suite, exit_with_test_status) =
       Test_StackFocus.tests,
       Test_CanvasTrajectory.tests,
       Test_CanvasMotion.tests,
+      Test_DefinitionSteps.tests,
+      Test_CanvasPresentation.tests,
       Test_Restructure.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,

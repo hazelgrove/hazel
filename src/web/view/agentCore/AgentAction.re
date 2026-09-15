@@ -55,6 +55,7 @@ type t =
   | ToggleToolsViewExpanded(string)
   | RequestForcedCompaction(Id.t)
   | StopAgenticLoop
+  | CatchUpAgent
   | FlushPendingSend(Id.t)
   | RunSlashCommandCost(Id.t)
   | RunSlashCommandHelp(Id.t)
@@ -91,6 +92,7 @@ let uses_program = (action: t): bool =>
   | LoadSegmentIntoEditor(_)
   | RequestForcedCompaction(_)
   | StopAgenticLoop
+  | CatchUpAgent
   | FlushPendingSend(_) => true
   | ChatSystemAction(_)
   | ReplayStreamTick
