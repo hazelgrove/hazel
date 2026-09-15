@@ -35,7 +35,7 @@ module Model = {
 
   let config_name_of_type = (config_type: config_type): string => {
     switch (config_type) {
-    | ColorScheme => "Colors"
+    | ColorScheme => "Color Scheme"
     | Shortcuts => "Shortcuts"
     };
   };
