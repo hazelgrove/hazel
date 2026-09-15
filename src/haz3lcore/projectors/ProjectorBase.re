@@ -216,9 +216,9 @@ module type Projector = {
    * caret & keyboard handlers? If so, provide handlers
    * here (see Focusable for more information) */
   let focusable: Focusable.t;
-  /* If dynamics is true, this projector will be
-   * instrumented with a probe to collect dynamic
-   * information during evaluation */
+  /* Opt this projector's term into probe targeting (CachedStatics.
+   * projector_probe_ids) so `info.dynamics` carries the live value of the
+   * syntax it replaces. */
   let dynamics: bool;
   /* Whether this projector needs type-elaborated syntax.
    *
