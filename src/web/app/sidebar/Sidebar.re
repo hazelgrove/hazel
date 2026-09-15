@@ -69,6 +69,15 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let projectors_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Projectors,
+    ~cls=["projectors-button"],
+    ~icon=Icons.library,
+    ~tooltip="Switch to Projectors Panel",
+    ~globals,
+  );
+
 let log_control_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=LogControl,
@@ -163,6 +172,7 @@ let persistent_view =
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
+          projectors_tab(~globals),
           problems_tab(~globals, ~counts),
         ]
         @ (
@@ -328,6 +338,7 @@ let view =
                 ~cursor,
                 ~editor,
               )
+            | Projectors => ProjectorPanel.view(~globals, ~editor)
             | LogControl =>
               LogSidebar.view(
                 ~globals,

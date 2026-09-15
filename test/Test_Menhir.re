@@ -54,7 +54,7 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+      _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
@@ -118,7 +118,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
@@ -261,7 +261,7 @@ let qcheck_menhir_serialized_equivalent_test =
         );
       let normalize = exp =>
         Conversion.Exp.of_menhir_ast(exp)
-        |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp())
+        |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp)
         |> strip_parens
         |> Grammar.map_exp_annotation(_ => false)
         |> Conversion.Exp.of_core;

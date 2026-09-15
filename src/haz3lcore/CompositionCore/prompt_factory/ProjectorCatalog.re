@@ -36,6 +36,10 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     Some(
       "- **table** — Spreadsheet-style editor for a **list of labeled tuples** sharing the same labels; the labels become column headers. Attaches off the **elaborated** form, so it can apply where the surface syntax alone is not yet a table.",
     )
+  | HTML =>
+    Some(
+      "- **html** — Renders an HTML-valued expression live. An `(init, update, view, subs)` tuple runs as an interactive **app** the user can operate in place; make the app tuple the program's final expression, written as `^^html((init, update, view, subs))`. Call `read_docs(\"mvu\")` before building one.",
+    )
   | Fold
   | Probe
   | Statics => None
