@@ -47,6 +47,10 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Fumola (Tiles) / The library", [%blob "fumola-tiles-library.hz"]),
     ("Fumola (Tiles) / Self-inspection", [%blob "fumola-tiles-inspect.hz"]),
     ("Fumola (Tiles) / Node info", [%blob "fumola-tiles-nodeinfo.hz"]),
+    (
+      "Fumola (Tiles) / Livelits into Fumola",
+      [%blob "fumola-tiles-livelits.hz"],
+    ),
     /* Blackboard: an experiment embedding the core logic of the
        Blackboard proof assistant as its own sort. */
     ("Blackboard / 0. Overview", [%blob "blackboard-overview.hz"]),
