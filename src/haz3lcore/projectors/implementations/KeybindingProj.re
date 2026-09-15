@@ -206,7 +206,6 @@ module M: Projector = {
       keyboard: Some((id, _d: Direction.t) => focus_element(id)),
     };
 
-  let dynamics = false;
   /* Projects the raw Shortcut syntax; no elaboration needed. */
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
