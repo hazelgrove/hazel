@@ -151,7 +151,6 @@ module M: Projector = {
     };
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = true;
 
   /* Block reservation roughly matching the SVG's CSS height/width. */
