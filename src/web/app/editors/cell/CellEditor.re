@@ -94,7 +94,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
-        ~statics_mode=CodeWithStatics.StaticsNormal,
+        ~statics_mode=StaticsMode.Normal,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
