@@ -198,6 +198,24 @@ let mk_translation =
               items,
             );
           (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+        /* A fenced block renders as one. Without this case Omd parsed the
+           fence and the fold dropped it, so a doc that opened with a syntax
+           line lost exactly the line a reader looks at first -- silently,
+           since a dropped block leaves no mark. Fences are also the only way
+           to show Fumola syntax at all: a symbol begins with a backtick, so
+           an inline span closes on its own first character. */
+        | Omd.Code_block(_, _, code) => (
+            List.append(
+              msg,
+              [
+                Node.pre(
+                  ~attrs=[clss(["code-block"])],
+                  [Node.code([Node.text(code)])],
+                ),
+              ],
+            ),
+            mapping,
+          )
         | _ => (msg, mapping)
         }
       },
@@ -716,30 +734,18 @@ let decide =
   };
 
   switch (info) {
-  /* Fumola forms have no ExplainThis entries yet; the cursor inspector names
-     the form, and this says so rather than showing Hazel's docs for a
-     same-named Hazel form. */
+  /* Every Fumola form has an entry, in FumolaExplain, whose match over the
+     class list is exhaustive -- so there is no longer a branch that names a
+     form and admits it has nothing to say about it. */
   | Some(InfoFumola(fi)) =>
-    switch (FumolaInfo.cls_of(fi)) {
-    | InstanceName =>
-      let explanation = "The name of the Fumola VM instance this program runs against. It reads like a variable and is not one: nothing in the Hazel program around it binds this name, and nothing in the Fumola program inside it does either. It is a key, written into the program text, that the runtime looks up -- so the same name in two programs means one instance and one adapton store, and changing the name means a different store.\n\nThat is why the name is written rather than derived: the store survives every edit that leaves the name alone.";
-      switch (FumolaInfo.name_of(fi)) {
-      | Some("mustardWatch") =>
-        MarkdownArt(
-          explanation ++ "\n\n" ++ MustardWatch.quote,
-          MustardWatch.art,
-        )
-      | _ => Markdown(explanation)
-      };
-    | Hazel =>
-      Markdown(
-        "A Hazel expression standing where a Fumola term does. It is a real tile subtree, edited as Hazel, and it can appear anywhere a Fumola term can, as many times as the program wants.\n\nIt carries a value written in place, not a variable bound outside it: a Fumola program runs during elaboration, before anything has been substituted. For a program that needs a bound Hazel variable, see the `Fumola (Livelits) / 5. Input` slide -- that integration has one input slot and it takes an ordinary Hazel expression.",
-      )
-    | cls =>
-      Prose(
-        "Fumola " ++ FumolaCls.show(cls) ++ ". No documentation available.",
-      )
-    }
+    let cls = FumolaInfo.cls_of(fi);
+    let doc = FumolaExplain.doc(cls);
+    switch (cls, FumolaInfo.name_of(fi)) {
+    /* One instance has a picture, so it gets the entry plus the picture. */
+    | (InstanceName, Some("mustardWatch")) =>
+      MarkdownArt(doc ++ "\n\n" ++ MustardWatch.quote, MustardWatch.art)
+    | _ => Markdown(doc)
+    };
   | Some(InfoMod({cls, _})) =>
     switch (cls) {
     | Mod(ModLet) => message_single(ModLetDecl.single)
@@ -1598,10 +1604,13 @@ let decide =
     }
   | Some(Secondary(s)) =>
     switch (s.cls) {
-    | Secondary(Whitespace) => Prose("A semantic void, pervading but inert")
     | Secondary(Comment) =>
       Prose("Comments are ignored by systems but treasured by readers")
-    | _ => Prose("No documentation available")
+    /* A secondary piece is whitespace or a comment and nothing else. The
+       class type is wider than the thing, so the remaining cases cannot
+       arise, and whitespace's line is the right one to give them rather than
+       an apology for having nothing to say. */
+    | _ => Prose("A semantic void, pervading but inert")
     }
   | None => NoDoc
   };
