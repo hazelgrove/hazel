@@ -844,4 +844,77 @@ let cyclic_path_tests = {
   );
 };
 
-let tests = [meet_tests, fast_equal_tests, diff_tests, sig_tests, cyclic_path_tests];
+let subst_captures_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let a = F.TPat.var("a");
+  let t_var = F.Typ.var("T");
+  let a_to_int = F.Typ.arrow(F.Typ.var("a"), ti);
+  /* [subst_captures] names exactly the type members on which [subst]
+     degraded the items after them to `?`, and otherwise agrees with it. */
+  let case = (name, s, ty, expected) =>
+    test_case(
+      name,
+      `Quick,
+      () => {
+        let (ty', captured) = Typ.subst_captures(s, a, ty);
+        check(list(string), "captured members", expected, captured);
+        check(typ, "agrees with subst", Typ.subst(s, a, ty), ty');
+        check(
+          bool,
+          "degraded iff captured",
+          switch (expected) {
+          | [] => false
+          | _ => true
+          },
+          Typ.contains_unknown(ty') && !Typ.contains_unknown(ty),
+        );
+      },
+    );
+  (
+    "Typ.SubstCaptures",
+    [
+      case(
+        "a clean substitution captures nothing",
+        ti,
+        sg([st("T", ti), sv("v", a_to_int)]),
+        [],
+      ),
+      case(
+        "a member named like a free variable of s captures the items after it",
+        t_var,
+        sg([st("T", ti), sv("v", a_to_int)]),
+        ["T"],
+      ),
+      case(
+        "a member named like x shadows it: nothing to capture",
+        t_var,
+        sg([st("a", ti), sv("v", a_to_int)]),
+        [],
+      ),
+      case(
+        "a member declared after every use of x does not capture",
+        t_var,
+        sg([sv("v", a_to_int), st("T", ti)]),
+        [],
+      ),
+      case(
+        "a colliding member with no later use of x does not capture",
+        t_var,
+        sg([st("T", ti), sv("w", ti)]),
+        [],
+      ),
+      case(
+        "a capture inside a member's own signature type is found",
+        t_var,
+        sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
+        ["T"],
+      ),
+    ],
+  );
+};
+
+let tests = [meet_tests, fast_equal_tests, diff_tests, sig_tests, cyclic_path_tests, subst_captures_tests];

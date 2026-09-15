@@ -1395,6 +1395,131 @@ let test_cyclic_member_path_module =
     is_type_member_mismatch_on_t,
   );
 
+/* ===== SUBSTITUTING INTO A SIGNATURE ===== */
+
+/* A signature's type member binds its name for the items after it, and
+   cannot be renamed (it is the member's label). Substituting a type of that
+   name into the signature would be captured by the member. An alias argument
+   is normalized away first, so the member's name is irrelevant to the
+   result; an abstract type variable cannot be, and is marked rather than
+   silently degrading the following members to `?`. */
+
+/* No marks at all in the program. */
+let no_marks_test = (name, source) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(int))(name, 0, List.length(marks));
+    },
+  );
+
+/* `f@<T>` where the alias T names Bool and the signature declares a type
+   member [member]: `m.v(1)` must report the same error whether or not the
+   member is also called T. */
+let alias_argument_source = member =>
+  Printf.sprintf(
+    {|type T = Bool in
+let f : poly a -> {type %s = Int; let v : a -> Int} =
+  typfun a -> {type %s = Int; let v = fun x -> 1} in
+let m = f@<T> in
+m.v(1)|},
+    member,
+    member,
+  );
+
+let test_alias_argument_not_captured_by_member =
+  Alcotest.test_case(
+    "An alias type argument is not captured by a same-named type member",
+    `Quick,
+    () => {
+      let issues_of = member =>
+        statics(parse_exp(alias_argument_source(member)))
+        |> errors
+        |> List.map(((_, marks)) => Marks(marks));
+      let (colliding, control) = (issues_of("T"), issues_of("U"));
+      Alcotest.check(
+        Alcotest.neg(Alcotest.list(testable_issue)),
+        "control reports an error",
+        [],
+        control,
+      );
+      Alcotest.check(
+        Alcotest.list(testable_issue),
+        "the member's name does not change the marks",
+        control,
+        colliding,
+      );
+    },
+  );
+
+/* `f@<X>` where X is a type parameter in scope and the signature declares a
+   type member [member]. */
+let abstract_argument_source = member =>
+  Printf.sprintf(
+    {|let f : poly a -> {type %s = Int; let v : a -> Int} =
+  typfun a -> {type %s = Int; let v = fun x -> 1} in
+typfun X -> fun (y : X) -> let m = f@<X> in m.v(y)|},
+    member,
+    member,
+  );
+
+let test_abstract_argument_capture_is_marked =
+  single_mark_test(
+    "An abstract type argument captured by a same-named type member is marked",
+    abstract_argument_source("X"),
+    fun
+    | Language.Mark.TypeMemberCapture(["X"]) => true
+    | _ => false,
+  );
+
+let test_abstract_argument_without_collision_is_clean =
+  no_marks_test(
+    "An abstract type argument with no same-named type member is clean",
+    abstract_argument_source("U"),
+  );
+
+/* `typfun X -> e` checked against `poly a -> S`: aligning the binder names
+   substitutes X into S. */
+let typfun_binder_source = binder =>
+  Printf.sprintf(
+    {|let h : poly a -> {type X = Int; let v : a -> Int} =
+  typfun %s -> {type X = Int; let v = fun x -> 1} in
+h|},
+    binder,
+  );
+
+let test_typfun_binder_capture_is_marked =
+  single_mark_test(
+    "A typfun binder captured by the expected signature's type member is marked",
+    typfun_binder_source("X"),
+    fun
+    | Language.Mark.TypeMemberCapture(["X"]) => true
+    | _ => false,
+  );
+
+let test_typfun_binder_without_collision_is_clean =
+  no_marks_test(
+    "A typfun binder with no same-named type member is clean",
+    typfun_binder_source("b"),
+  );
+
+/* `type A = B in e`: the definition is substituted for A into e's type so
+   that A does not escape, and B can be captured by a type member named B. */
+let test_alias_definition_capture_is_marked =
+  single_mark_test(
+    "An alias definition captured by a type member in the body's type is marked",
+    {|type B = Bool in
+type A = B in
+let m : {type B = Int; let v : A -> Int} = {type B = Int; let v = fun x -> 1} in
+m|},
+    fun
+    | Language.Mark.TypeMemberCapture(["B"]) => true
+    | _ => false,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1550,5 +1675,12 @@ let tests = (
     /* Cyclic member paths */
     test_cyclic_member_path_let,
     test_cyclic_member_path_module,
+    /* Substituting into a signature */
+    test_alias_argument_not_captured_by_member,
+    test_abstract_argument_capture_is_marked,
+    test_abstract_argument_without_collision_is_clean,
+    test_typfun_binder_capture_is_marked,
+    test_typfun_binder_without_collision_is_clean,
+    test_alias_definition_capture_is_marked,
   ],
 );

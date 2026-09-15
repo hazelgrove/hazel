@@ -1823,18 +1823,20 @@ and uexp_to_info_map =
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
-      let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
+      let utyp_norm = Typ.normalize(ctx, utyp);
+      let elab_term = TypAp(fn_elab, utyp_norm) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
+        let (ty_syn, capture_marks) = subst_marked(utyp_norm, name, ty_body);
         add(
           ~elab_term,
-          ~elab_syn_ty=Typ.subst(utyp, name, ty_body),
-          ~marks=[],
+          ~elab_syn_ty=ty_syn,
+          ~marks=capture_marks,
           ~co_ctx=fn.co_ctx,
           ~probe_targets=fn.probe_targets,
           m,
-        )
+        );
       | None =>
         add(
           ~elab_term,
@@ -2012,14 +2014,14 @@ and uexp_to_info_map =
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
+      let (mode_body, ctx_body, capture_marks) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
-          let mode_body = {
+          let (mode_body, capture_marks) = {
             switch (name_expected_opt) {
             | Some(name_expected) =>
-              Typ.subst(Var(name) |> Typ.temp, name_expected, item)
-            | _ => item
+              subst_marked(Var(name) |> Typ.temp, name_expected, item)
+            | _ => (item, [])
             };
           };
           let ctx_body =
@@ -2031,9 +2033,9 @@ and uexp_to_info_map =
                 kind: Abstract,
               },
             );
-          (mode_body, ctx_body);
+          (mode_body, ctx_body, capture_marks);
         | Some(_)
-        | None => (item, ctx)
+        | None => (item, ctx, [])
         };
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
@@ -2042,7 +2044,7 @@ and uexp_to_info_map =
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
-        ~marks=[],
+        ~marks=capture_marks,
         ~co_ctx=body.co_ctx,
         ~probe_targets=body.probe_targets,
         m,
@@ -2591,7 +2593,8 @@ and uexp_to_info_map =
         ) =
           go(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
+        let (ty_escape, capture_marks) =
+          subst_marked(ty_def, typat, ty_body);
         let m =
           utyp_to_info_map(
             ~ctx=ctx_def,
@@ -2609,7 +2612,7 @@ and uexp_to_info_map =
         add(
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
-          ~marks=[],
+          ~marks=capture_marks,
           ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
           ~probe_targets,
           m,

@@ -39,6 +39,22 @@ module Print = {
 
 let prn = Printf.sprintf;
 
+let type_member_capture_string = names =>
+  switch (names) {
+  | [name] =>
+    prn(
+      "Type variable %s collides with a type member named %s in this signature, so %s cannot be mentioned inside it; rename the type variable",
+      name,
+      name,
+      name,
+    )
+  | _ =>
+    prn(
+      "Type variables %s collide with type members of the same names in this signature, so they cannot be mentioned inside it; rename them",
+      String.concat(", ", names),
+    )
+  };
+
 let type_member_mismatch_string = (name, ~expected, ~actual) =>
   prn(
     "Type member %s is %s but its signature declares %s",
@@ -177,6 +193,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -274,6 +291,7 @@ let typ_mark_string: Mark.t => string =
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
