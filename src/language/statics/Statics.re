@@ -2062,13 +2062,19 @@ and uexp_to_info_map =
         | None => (item, ctx, [])
         };
       let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
+        utpat_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~marks=capture_marks,
+          utpat,
+          m,
+        )
         |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
-        ~marks=capture_marks,
+        ~marks=[],
         ~co_ctx=body.co_ctx,
         ~probe_targets=body.probe_targets,
         m,
@@ -4242,7 +4248,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~marks=[], utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -4262,7 +4269,7 @@ and utpat_to_info_map =
     let info: Info.tpat = {
       cls: Cls.TPat(TPat.cls_of_term(utpat.term)),
       ancestors,
-      marks: fst(st),
+      marks: marks @ fst(st),
       message: Option.map(x => Message.TPatOk(x), snd(st)),
       warnings: [],
       ctx,
