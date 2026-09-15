@@ -2,7 +2,8 @@
    from the values the probe sampled.
 
    Samples are already-elaborated values, so a type is read off each one by
-   running statics over it and the results are met. The result is only ever
+   running statics over it and the results are met. A closure is typed under
+   the environment it captured, not the probe site's. The result is only ever
    as precise as the values that happened to flow through: it describes what
    was seen, not what the expression can produce. */
 
@@ -21,11 +22,23 @@ let dynamic_typ_of_samples: (~ctx: Ctx.t, list(Sample.t)) => option(Typ.t);
 type typ_to_seg_with_diff_ids =
   (~ctx: Ctx.t, ~against: Typ.t, Typ.t) => (Base.segment, Id.Set.t);
 
-/* The segment to show in the type probe's Dynamic mode, and the ids of its
-   tokens that came from runtime rather than from [static_typ]. The segment is
-   built here rather than left to the caller because the ids describe that one
-   segment and no other. Shows [static_typ], marking nothing, when nothing can
-   be inferred. */
+/* The segment to show for [dynamic_typ], a type runtime refined, and the ids
+   of its tokens that [static_typ] does not account for. The segment is built
+   here rather than left to the caller because the ids describe that one
+   segment and no other. Live typing supplies the refined type itself, read
+   off the statics pass that ran with the dynamic information. */
+let segment_and_dynamic_ids:
+  (
+    ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,
+    ~ctx: Ctx.t,
+    ~static_typ: Typ.t,
+    ~dynamic_typ: Typ.t
+  ) =>
+  (Base.segment, Id.Set.t);
+
+/* segment_and_dynamic_ids for the type probe's Dynamic mode, with the type
+   inferred from [samples]. Shows [static_typ], marking nothing, when nothing
+   can be inferred. */
 let displayed_segment_and_dynamic_ids:
   (
     ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,

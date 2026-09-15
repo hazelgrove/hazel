@@ -32,6 +32,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      live_typing: false,
       probe_all: false,
       deep_reassociate: true,
       flip_animations: true,
@@ -133,6 +134,7 @@ module Update = {
     | SelectionChunkiness
     | Assist
     | Elaborate
+    | LiveTyping
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -218,6 +220,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | LiveTyping => {
+          ...settings,
+          core: {
+            ...settings.core,
+            live_typing: !settings.core.live_typing,
           },
         }
       | DisplayWarnings => {

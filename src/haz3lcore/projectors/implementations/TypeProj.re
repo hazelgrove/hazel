@@ -120,7 +120,8 @@ module M: Projector = {
       [text(glyph)],
     );
 
-  let typ_view = (content, info: info, utility, view_seg: View.seg, ~ctx) => {
+  let typ_view =
+      (content, info: info, utility, view_seg: View.seg, ~statics: Info.t) => {
     /* Dynamic hands over the exact segment its ids were computed from:
        preparing mints fresh paren ids, so a second one would not answer to
        them. */
@@ -131,12 +132,19 @@ module M: Projector = {
           DynamicTypInfer.displayed_segment_and_dynamic_ids(
             ~typ_to_seg_with_diff_ids=
               utility.typ_to_seg_with_diff_ids(~inline=true),
-            ~ctx,
+            ~ctx=Info.ctx_of(statics),
             ~static_typ=self_ty(info.statics) |> totalize_ty,
+            /* Only the samples the probe focus selects, so pinning a call
+               narrows the type to that call. */
             ~samples=
               switch (info.dynamics) {
               | None => []
-              | Some(d: Dynamics.Info.t) => d.samples
+              | Some(d: Dynamics.Info.t) =>
+                Sample.Selection.filter_by_pin(
+                  ~ap_id=Sample.Focus.cur_var_ap(statics),
+                  ~pinned=d.sample_focus.pinned_stack,
+                  d.samples,
+                )
               },
           );
         ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
@@ -194,13 +202,7 @@ module M: Projector = {
                 reading(model, info.statics);
               [
                 mode_view(glyph, description),
-                typ_view(
-                  content,
-                  info,
-                  info.utility,
-                  view_seg,
-                  ~ctx=Info.ctx_of(statics),
-                ),
+                typ_view(content, info, info.utility, view_seg, ~statics),
               ];
             },
           ),
