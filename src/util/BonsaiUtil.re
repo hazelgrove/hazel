@@ -81,16 +81,22 @@ module SizeObserver = {
             ResizeObserver.observe(
               ~node=node(),
               ~f=
-                (_, _) => {
-                  let el = node();
-                  let rect = el##getBoundingClientRect;
-                  Size.{
-                    width: rect##.right -. rect##.left,
-                    height: rect##.bottom -. rect##.top,
-                  }
-                  |> update
-                  |> Effect.Expert.handle;
-                },
+                (_, _) =>
+                  /* the element can be gone by now (the crash screen
+                     replaced the page): an uncaught assertion here fired
+                     on every frame and kept the crash screen's own
+                     buttons from working */
+                  switch (node()) {
+                  | el =>
+                    let rect = el##getBoundingClientRect;
+                    Size.{
+                      width: rect##.right -. rect##.left,
+                      height: rect##.bottom -. rect##.top,
+                    }
+                    |> update
+                    |> Effect.Expert.handle;
+                  | exception _ => ()
+                  },
               (),
             );
           ();

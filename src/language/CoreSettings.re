@@ -36,6 +36,17 @@ module Evaluation = {
   };
 };
 
+module FormatShortcut = {
+  /* What cmd/ctrl+S does. Cumulative ladder: each level includes the
+   * previous. Cmd+Shift+S is always Breaks regardless. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Nothing /* no formatting */
+    | Indent /* re-indent only */
+    | Spaces /* re-indent + canonicalize within-line spacing */
+    | Breaks; /* full pretty print (may change linebreaks) */
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   statics: bool,
@@ -43,8 +54,21 @@ type t = {
   assist: bool,
   dynamics: bool,
   probe_all: bool,
-  deep_reassociate: bool,
+  /* Completion-triggered local re-indentation (experimental) */
+  auto_reindent: bool,
+  format_shortcut: FormatShortcut.t,
+  /* Indentation-transparent editing: arrow movement skips leading
+     whitespace and backspace at first-content joins lines (deletes
+     indentation + linebreak). Off keeps char-exact caret behavior
+     (test harnesses position carets by counted moves). */
+  indentation_ux: bool,
   flip_animations: bool,
+  /* Experimental: FLIP-ghost every edit's code movement, not just
+   * refactor invocations (see GhostFlip.re) */
+  animate_all_edits: bool,
+  /* Modal drag-to-refactor: plain drag on a token pulls it along
+   * candidate transform tracks (CodeDrag.re) */
+  drag_refactor: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
    * smart-rounded selection (char inside the starting token, whole-token
@@ -61,8 +85,12 @@ let off: t = {
   assist: false,
   dynamics: false,
   probe_all: false,
-  deep_reassociate: false,
+  auto_reindent: false,
+  format_shortcut: FormatShortcut.Spaces,
+  indentation_ux: false,
   flip_animations: false,
+  animate_all_edits: false,
+  drag_refactor: false,
   display_warnings: false,
   selection_chunkiness: false,
   evaluation: Evaluation.init,
@@ -74,8 +102,12 @@ let on: t = {
   assist: true,
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
-  deep_reassociate: false,
+  auto_reindent: true,
+  format_shortcut: FormatShortcut.Spaces,
+  indentation_ux: true,
   flip_animations: true,
+  animate_all_edits: false,
+  drag_refactor: false,
   display_warnings: true,
   selection_chunkiness: false,
   evaluation: Evaluation.init,

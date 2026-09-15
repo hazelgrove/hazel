@@ -94,7 +94,72 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [(None, [editor.editor])]
+      | Code({editor, _}) =>
+        /* open stack cells report their problems too (live, unlike the
+           master's frozen copy of the same definitions) */
+        let stack: list((option(string), list(CodeEditable.Model.t))) =
+          switch (m.focus) {
+          | None => []
+          | Some(f) =>
+            List.map(
+              (e: ScratchMode.Model.stack_entry) =>
+                (
+                  Some(
+                    Option.value(
+                      ScratchMode.Model.header_name(e),
+                      ~default="cell",
+                    ),
+                  ),
+                  /* header too: binder/signature errors (TPatNotAVar,
+                     shadowed type names, …) live in the header editor */
+                  [e.e_header.editor, e.e_body.editor],
+                ),
+              f.f_entries,
+            )
+          };
+        /* dedup: the master's copy of an OPEN definition is frozen while
+           its cell is live — mask master errors/warnings covered by open
+           items so each problem is listed once (under the cell's name) */
+        let master_editor: CodeEditable.Model.t = editor.editor;
+        let master_editor =
+          switch (m.focus, Haz3lcore.DefStatics.current()) {
+          | (Some(f), Some(ds)) =>
+            let open_maps =
+              List.filter_map(
+                (e: ScratchMode.Model.stack_entry) =>
+                  List.find_opt(
+                    (it: Haz3lcore.DefStatics.item) =>
+                      it.d_id == e.e_id
+                      || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+                    ds.items,
+                  )
+                  |> Option.map((it: Haz3lcore.DefStatics.item) => it.d_map),
+                f.f_entries,
+              );
+            let covered = id =>
+              List.exists(map => Haz3lcore.Id.Map.mem(id, map), open_maps);
+            {
+              ...master_editor,
+              statics: {
+                ...master_editor.statics,
+                error_ids:
+                  List.filter(
+                    id => !covered(id),
+                    master_editor.statics.error_ids,
+                  ),
+                warning_ids:
+                  List.filter(
+                    id => !covered(id),
+                    master_editor.statics.warning_ids,
+                  ),
+              },
+            };
+          | _ => master_editor
+          };
+        let master: list((option(string), list(CodeEditable.Model.t))) = [
+          (None, [master_editor]),
+        ];
+        master @ stack;
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -143,6 +208,24 @@ module Update = {
         action: Globals.Update.t,
         model: Model.t,
       ) => {
+    // AppStore effect context: msgs re-enter through AppViewMsg; cmds run
+    // through CmdRunner.
+    let schedule_app_msg = (id, m) =>
+      schedule_action(Globals(AppViewMsg(id, m)));
+    let run_app_cmd = (ctx: Haz3lcore.CmdRunner.context, cmd) =>
+      Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(ctx, cmd));
+    /* The store is an input to projector views that their memo cache can't
+       see (ProjectorView.ViewCache); the counter is how it participates. */
+    let with_apps = (model: Model.t, apps): Model.t => {
+      Haz3lcore.AppBridge.bump();
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          apps,
+        },
+      };
+    };
     switch (action) {
     | SetFontMetrics(fm) =>
       {
@@ -180,9 +263,15 @@ module Update = {
         },
       }
       |> Updated.return(~scroll_active=false);
-    | JumpToTile(id) =>
+    | JumpToTile(id)
+    | SelectTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
+          ~select=
+            switch (action) {
+            | SelectTile(_) => true
+            | _ => false
+            },
           ~settings=model.globals.settings,
           id,
           model.editors,
@@ -232,6 +321,39 @@ module Update = {
           visible_rows: Some(visible_rows),
         },
       }
+      |> return_quiet
+    | AppViewMsg(id, msg) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.dispatch(
+             ~schedule_msg=schedule_app_msg,
+             ~run_cmd=run_app_cmd,
+             id,
+             msg,
+             model.globals.apps,
+           ),
+         )
+      |> return_quiet
+    /* Init doubles as rebind: memos re-derive from the incoming closures;
+       the model survives when the new view accepts it (live-edit keeps app
+       state). See AppStore.init. */
+    | InitAppView(id, source_result, init_model, update_fn, view_fn, subs_fn) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.init(
+             ~schedule_msg=schedule_app_msg,
+             id,
+             ~source_result,
+             ~init_model,
+             ~update_fn,
+             ~view_fn,
+             ~subs_fn=Some(subs_fn),
+             ~checkpoint=AppBridgeInstall.take_checkpoint(id),
+             model.globals.apps,
+           ),
+         )
       |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
@@ -340,6 +462,46 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
+      /* Cross-cell jump-to-definition: a stack cell's jump whose binder
+         lives in another definition is rewritten to (ensure the target
+         is stacked, select it, then a follow-up caret jump) — mirroring
+         the JumpToTile flow above. */
+      let (action, selection, followup) =
+        switch (
+          Editors.Selection.stack_jump_override(
+            ~single=model.globals.settings.canvas_main,
+            action,
+            model.editors,
+          )
+        ) {
+        | Some((action', selection, followup)) => (
+            action',
+            selection,
+            Some(followup),
+          )
+        | None => (action, model.selection, None)
+        };
+      switch (followup) {
+      | Some(k) =>
+        schedule_action(Editors(k));
+        Haz3lcore.FocusEffect.schedule_cell_top();
+      | None => ()
+      };
+      /* outline adds move the selection (and DOM focus, which also
+         scrolls the new cell into view) to the added cell */
+      let selection =
+        switch (followup) {
+        | Some(_) => selection
+        | None =>
+          switch (
+            Editors.Selection.stack_add_selection(action, model.editors)
+          ) {
+          | Some(s) =>
+            Haz3lcore.FocusEffect.schedule_cell_top();
+            s;
+          | None => selection
+          }
+        };
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -362,6 +524,7 @@ module Update = {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -371,6 +534,8 @@ module Update = {
         explain_this,
       };
     | MakeActive(selection) =>
+      // TODO(gc): run AppStore.gc against the live syntax ids here once they
+      // are cheap to obtain; nothing reclaims store entries today.
       {
         ...model,
         selection,
@@ -533,6 +698,16 @@ module Selection = {
          ),
          mk(
            ~section="Settings",
+           ~mdIcon="slow_motion_video",
+           ~action=
+             Bonsai.Effect.of_sync_fun(
+               () => CodeFlip.slow_mo := ! CodeFlip.slow_mo^,
+               (),
+             ),
+           "Toggle Slow Animations (5x)",
+         ),
+         mk(
+           ~section="Settings",
            ~mdIcon="tune",
            ~action=inject(Globals(Set(ShowDebugPanel))),
            "Toggle Debug Sidebar",
@@ -603,6 +778,12 @@ module Selection = {
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
            "Toggle Show Docs Feedback",
          ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="quiver",
+           ~action=inject(Globals(Set(Quiver))),
+           "Toggle Quiver (Completion Preview)",
+         ),
          /* Export / Diagnostics */
          mk(
            ~mdIcon="download",
@@ -621,13 +802,109 @@ module Selection = {
   };
 };
 
+/* Bare-cmd tracking must not depend on events reaching the page's
+   bubble-phase listener — the editor stops propagation on keys it
+   handles, stranding the meta-down flag (stuck ref-underlines).
+   A document-level CAPTURE listener sees every key first. */
+module MetaListener = {
+  open Js_of_ocaml;
+  let dispatch: ref(bool => unit) = ref(_ => ());
+  let installed = ref(false);
+  let state = ref(false);
+  let on_key = (e: Js.t(Dom_html.event)): unit => {
+    let coerced = Js.Unsafe.coerce(e);
+    let bare_meta =
+      Js.to_bool(coerced##.metaKey)
+      && !Js.to_bool(coerced##.ctrlKey)
+      && !Js.to_bool(coerced##.altKey)
+      && !Js.to_bool(coerced##.shiftKey);
+    if (bare_meta != state^) {
+      state := bare_meta;
+      dispatch^(bare_meta);
+    };
+  };
+  let sync = (set: bool => unit): unit => {
+    dispatch := set;
+    if (! installed^) {
+      installed := true;
+      ["keydown", "keyup"]
+      |> List.iter(name => {
+           let _ =
+             Dom_html.addEventListener(
+               Dom_html.document,
+               Dom.Event.make(name),
+               Dom_html.handler(e => {
+                 on_key(e);
+                 Js._true;
+               }),
+               Js._true /* capture */,
+             );
+           ();
+         });
+    };
+  };
+};
+/* single-slot vdom memo for the outline sidebar: the roll-up walk,
+   row construction and diff are O(program) per render at 4k (ledger
+   §14); its inputs change on Force frames and outline interaction,
+   not per keystroke. Key parts compare physically where the value is
+   rebuilt-on-change (statics, the DefStatics slot, test results) and
+   structurally where small. */
+type outline_memo_key = {
+  ok_statics: Haz3lcore.CachedStatics.t,
+  ok_slot: option(Haz3lcore.DefStatics.t),
+  ok_focused: list((Haz3lcore.Id.t, option(string))),
+  ok_is_scratch: bool,
+  ok_name: string,
+  ok_collapsed: list(OutlineTree.path),
+  ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
+  ok_results: option(Language.TestResults.t),
+  ok_main: bool /* constellation main mode rewires the row clicks */
+};
+let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
+  ref(Option.none);
+let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
+  a.ok_statics === b.ok_statics
+  && (
+    switch (a.ok_slot, b.ok_slot) {
+    | (Some(x), Some(y)) => x === y
+    | (None, None) => true
+    | _ => false
+    }
+  )
+  && a.ok_focused == b.ok_focused
+  && a.ok_is_scratch == b.ok_is_scratch
+  && a.ok_name == b.ok_name
+  && a.ok_collapsed == b.ok_collapsed
+  && a.ok_menu == b.ok_menu
+  && a.ok_main == b.ok_main
+  && (
+    switch (a.ok_results, b.ok_results) {
+    | (Some(x), Some(y)) => x === y
+    | (None, None) => true
+    | _ => false
+    }
+  );
+
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+    MetaListener.sync(down =>
+      Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
+    );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
-      let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* meta state is maintained by MetaListener (document capture);
+         the page's bubble listener misses keys the editor consumes */
+      let meta_effects = [];
+      /* Skip page-level shortcuts when the user is typing in a form
+         element (e.g. an <input>/<textarea>/<select> rendered by a
+         HazelDOM sidebar app). The clipboard shim is a textarea but
+         needs page handling, so it carves out by id. */
+      let target_is_input =
+        switch (key.target_tag) {
+        | Some("INPUT" | "TEXTAREA" | "SELECT") =>
+          key.target_id != Some(JsUtil.clipboard_shim_id)
+        | _ => false
+        };
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -706,14 +983,32 @@ module View = {
           Some(Update.Globals(Set(AutoprobeMode)))
         | _ => None
         };
+      let open_palette =
+        switch (key) {
+        | {key: D("K" | "k"), sys: Mac, meta: Down, ctrl: Up, alt: Up, _}
+        | {key: D("K" | "k"), sys: PC, meta: Up, ctrl: Down, alt: Up, _} =>
+          true
+        | _ => false
+        };
+      if (open_palette) {
+        let cursor =
+          Selection.get_cursor_info(
+            ~inject,
+            ~selection=model.selection,
+            model,
+          );
+        NinjaKeys.open_with(
+          cursor.contextual_actions @ cursor.contextual_actions_lazy(),
+        );
+      };
       Effect.(
         switch (page_action) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
-        | Some(action) =>
+        | Some(action) when !target_is_input =>
           Many(
             [Prevent_default, Stop_propagation, inject(action)]
             @ meta_effects,
           )
+        | _ => meta_effects == [] ? Ignore : Many(meta_effects)
         }
       );
     };
@@ -736,6 +1031,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
+        ~cursor,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -756,7 +1052,12 @@ module View = {
             button(
               Icons.command_palette_terminal,
               _ => {
-                NinjaKeys.open_command_palette();
+                NinjaKeys.open_with(
+                  Cursor.(
+                    cursor.contextual_actions
+                    @ cursor.contextual_actions_lazy()
+                  ),
+                );
                 Effect.Ignore;
               },
               ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
@@ -773,7 +1074,8 @@ module View = {
     );
   };
 
-  let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
+  let top_bar =
+      (~globals, ~inject: Update.t => Ui_effect.t(unit), ~cursor, ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
       [
@@ -781,7 +1083,12 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
+        nut_menu(
+          ~globals,
+          ~inject=a => inject(Editors(a)),
+          ~cursor,
+          ~editors,
+        ),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -816,6 +1123,9 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
+    /* Point the core-side app bridge at this frame's store + inject, so
+       inline app projectors (HTMLProj) can reach the AppStore. */
+    AppBridgeInstall.install(~globals);
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(
@@ -858,6 +1168,221 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    /* every stacked definition's id (+ live header name) */
+    let focused_entries =
+      switch (model.editors) {
+      | Scratch(m)
+      | Documentation(m) => ScratchMode.Model.focused_names(m)
+      | _ => []
+      };
+    /* module/definition outline (modular-editors phases 1-2) */
+    let outline = {
+      /* structural def ops only make sense in scratch-style modes */
+      let is_scratch =
+        switch (model.editors) {
+        | Scratch(_)
+        | Documentation(_) => true
+        | _ => false
+        };
+      let (slide_prefix, slide_name) =
+        switch (model.editors) {
+        | Scratch(m) => (
+            "scratch",
+            switch (List.nth_opt(m.scratchpads, m.current)) {
+            | Some(sp) => sp.name
+            | None => ""
+            },
+          )
+        | Documentation(m) => (
+            "doc",
+            switch (List.nth_opt(m.scratchpads, m.current)) {
+            | Some(sp) => sp.name
+            | None => ""
+            },
+          )
+        | _ => ("", "")
+        };
+      let collapsed_paths =
+        ScratchMode.collapse_paths(slide_prefix, slide_name);
+      let menu = is_scratch ? ScratchMode.outline_menu^ : None;
+      let test_results =
+        switch (model.editors) {
+        | Scratch(m)
+        | Documentation(m) =>
+          switch (
+            List.nth_opt(m.scratchpads, m.current)
+            |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
+          ) {
+          | Some(Code({editor, _})) =>
+            EvalResult.Model.test_results(editor.CellEditor.Model.result)
+          | _ => None
+          }
+        | _ => None
+        };
+      let memo_key = {
+        ok_statics: current_editor.statics,
+        ok_slot: Haz3lcore.DefStatics.current(),
+        ok_focused: focused_entries,
+        ok_is_scratch: is_scratch,
+        ok_name: slide_name,
+        ok_collapsed: collapsed_paths,
+        ok_menu: menu,
+        ok_results: test_results,
+        ok_main: globals.settings.canvas_main,
+      };
+      switch (outline_memo^) {
+      | Some((k, node)) when outline_key_same(k, memo_key) => node
+      | _ =>
+        let node = {
+          /* error attribution at OUTLINE granularity: each error badges the
+             DEEPEST row containing it; ancestor rows get a roll-up badge
+             that CSS shows only while collapsed (andrew: error goes on the
+             deepest thing not hidden by a collapse) */
+          /* While a stack is open the master's statics are FROZEN (its
+             calculate is skipped) — only the DefStatics slot tracks the
+             live spliced program (every Force frame). Rows inside open
+             cells (nested defs, renames typed into a cell) update through
+             it; without this the outline only refreshed on restructure
+             ops. Unstacked, the master's own statics are live — but they
+             can be EMPTY right after an undo restores a compacted
+             snapshot, so fall back to the slot then too. */
+          let outline_term = {
+            let term = current_editor.statics.term;
+            let stacked = focused_entries != [];
+            let named = () =>
+              List.exists(
+                (n: OutlineTree.node) => n.o_label != "",
+                OutlineTree.of_term(term),
+              );
+            if (!stacked && named()) {
+              term;
+            } else {
+              switch (Haz3lcore.DefStatics.current()) {
+              | Some(ds) => ds.Haz3lcore.DefStatics.term
+              | None => term
+              };
+            };
+          };
+          let (error_items, error_subtree) = {
+            let term = outline_term;
+            /* prefer the DefStatics slot: it stays live during stacked
+               editing (the master's own statics are frozen then) */
+            let (info_map, error_ids) =
+              switch (Haz3lcore.DefStatics.current()) {
+              | Some(ds) => (
+                  ds.merged,
+                  Haz3lcore.DefStatics.all_error_ids(ds),
+                )
+              | None => (
+                  current_editor.statics.info_map,
+                  current_editor.statics.error_ids,
+                )
+              };
+            let outline_ids = {
+              let rec go = (acc, ns: list(OutlineTree.node)) =>
+                List.fold_left(
+                  (acc, n: OutlineTree.node) =>
+                    go(
+                      switch (n.o_id) {
+                      | Some(id) => [id, ...acc]
+                      | None => acc
+                      },
+                      n.o_children,
+                    ),
+                  acc,
+                  ns,
+                );
+              go([], OutlineTree.of_term(term));
+            };
+            let in_outline = id => List.mem(id, outline_ids);
+            List.fold_left(
+              ((direct, roll), err_id) => {
+                let path =
+                  switch (Haz3lcore.Id.Map.find_opt(err_id, info_map)) {
+                  | Some(info) => [
+                      err_id,
+                      ...Language.Info.ancestors_of(info),
+                    ]
+                  | None => [err_id]
+                  };
+                switch (List.filter(in_outline, path)) {
+                | [] => (direct, roll)
+                | [deepest, ...above] => (
+                    [deepest, ...direct],
+                    above @ roll,
+                  )
+                };
+              },
+              ([], []),
+              error_ids,
+            );
+          };
+          /* constellation MAIN mode: one definition at a time — every
+             outline click SELECTS that definition (the info panel under
+             the constellation edits it); no stacking, no master jumps.
+             The canvas reveals the selection (source = outline). */
+          let select_one = id =>
+            Effect.Many([
+              inject(Editors(Scratch(FocusDef(id)))),
+              globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+              Ui_effect.of_sync_fun(CanvasSidebar.request_reveal, id),
+            ]);
+          let main = globals.settings.canvas_main;
+          OutlineSidebar.view(
+            ~jump=
+              id =>
+                main
+                  ? select_one(id) : globals.inject_global(JumpToTile(id)),
+            /* plain click with a stack open ADDS (or moves to) that cell —
+               never replaces the stack (andrew: replacing was a footgun) */
+            ~focus=
+              id =>
+                main
+                  ? select_one(id)
+                  : inject(Editors(Scratch(FocusEnsure(id)))),
+            ~toggle=
+              id =>
+                main
+                  ? select_one(id)
+                  : inject(Editors(Scratch(FocusToggle(id)))),
+            ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
+            ~is_collapsed=path => List.mem(path, collapsed_paths),
+            ~toggle_collapse=
+              path => inject(Editors(Scratch(OutlineCollapse(path)))),
+            ~error_items,
+            ~error_subtree,
+            ~unfocus=inject(Editors(Scratch(UnfocusDef))),
+            ~focused_entries,
+            ~menu,
+            ~menu_open=
+              (id, is_module, x, y) =>
+                is_scratch
+                  ? inject(
+                      Editors(
+                        Scratch(OutlineMenu(Some((id, is_module, x, y)))),
+                      ),
+                    )
+                  : Virtual_dom.Vdom.Effect.Ignore,
+            ~menu_close=inject(Editors(Scratch(OutlineMenu(None)))),
+            ~def_op=
+              (op, id) => inject(Editors(Scratch(OutlineDefOp(op, id)))),
+            /* live ✓/✗ for test rows, from the master's whole-program
+               result (stays live while a stack is open) */
+            ~test_status=
+              id =>
+                Option.bind(test_results, (tr: Language.TestResults.t) =>
+                  Language.TestMap.lookup(id, tr.test_map)
+                  |> Option.map(Language.TestMap.joint_status)
+                ),
+            /* the master's statics slot when warm; the DefStatics term
+               when the master was restored compacted (undo) */
+            outline_term,
+          );
+        };
+        outline_memo := Some((memo_key, node));
+        node;
+      };
+    };
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
@@ -896,20 +1421,204 @@ module View = {
     };
 
     [
-      top_bar(~globals, ~inject, ~editors),
+      top_bar(~globals, ~inject, ~cursor, ~editors),
       closure_cursor_bar,
       div(
         ~attrs=[
           Attr.id("main"),
           Attr.classes(
             [Editors.Model.mode_string(editors)]
-            @ Editors.Model.extra_main_classes(editors),
+            @ Editors.Model.extra_main_classes(editors)
+            @ (
+              globals.settings.canvas_main
+                ? ["has-canvas-main"]
+                : globals.settings.canvas_split ? ["has-canvas-split"] : []
+            ),
           ),
           Attr.on_scroll(on_scroll),
         ],
-        editors_view,
+        globals.settings.canvas_main
+          /* constellation MAIN: the canvas fills the main area; the
+             editor stack (exactly one definition, selected in the
+             outline or on the canvas) renders inside the info panel
+             under the constellation */
+          ? {
+            let selected_item =
+              switch (focused_entries) {
+              | [(id, _)] => Some(id)
+              | _ => None
+              };
+            [
+              div(
+                ~attrs=[
+                  Attr.id("canvas-main"),
+                  Attr.classes(["canvas-main-full"]),
+                ],
+                [
+                  CanvasSidebar.view(
+                    ~globals,
+                    ~editors,
+                    ~editors_inject=
+                      (a: Editors.Update.t) => inject(Editors(a)),
+                    ~editor=current_editor,
+                    ~use_sidebar_width=false,
+                    ~main_mode=true,
+                    ~selected_item,
+                    ~definition_view=
+                      selected_item == None
+                        ? None
+                        : Some(
+                            div(
+                              ~attrs=[Attr.classes(["canvas-def-stack"])],
+                              editors_view,
+                            ),
+                          ),
+                    (),
+                  ),
+                ],
+              ),
+            ];
+          }
+          : globals.settings.canvas_split
+              ? {
+                let pane_w = globals.settings.canvas_pane_width;
+                let divider = {
+                  /* imperative drag (no per-move renders); one settings action
+                     at drag end re-layouts the canvas and persists the width */
+                  let dragged = ref(None: option(int));
+                  let rec on_move = evt => {
+                    switch (JsUtil.get_elem_by_id_opt("main")) {
+                    | Some(main) =>
+                      let rect =
+                        Js.Unsafe.meth_call(
+                          main,
+                          "getBoundingClientRect",
+                          [||],
+                        );
+                      let right: float = Js.Unsafe.coerce(rect)##.right;
+                      let width: float = Js.Unsafe.coerce(rect)##.width;
+                      let x: int = Js.Unsafe.coerce(evt)##.clientX;
+                      let w =
+                        max(
+                          300,
+                          min(
+                            int_of_float(width) - 360,
+                            int_of_float(right) - x,
+                          ),
+                        );
+                      dragged := Some(w);
+                      let set = (sel, prop, v) =>
+                        switch (
+                          Js.Opt.to_option(
+                            Dom_html.document##querySelector(Js.string(sel)),
+                          )
+                        ) {
+                        | Some(el) =>
+                          Js.Unsafe.set(
+                            Js.Unsafe.coerce(el)##.style,
+                            prop,
+                            Js.string(v),
+                          )
+                        | None => ()
+                        };
+                      set(
+                        ".main-split-editors",
+                        "right",
+                        string_of_int(w) ++ "px",
+                      );
+                      set("#canvas-main", "width", string_of_int(w) ++ "px");
+                      set(
+                        "#canvas-divider",
+                        "right",
+                        string_of_int(w - 4) ++ "px",
+                      );
+                    | None => ()
+                    };
+                    ();
+                  }
+                  and on_up = _ => {
+                    let doc = Js.Unsafe.coerce(Dom_html.document);
+                    let _ = doc##removeEventListener("mousemove", on_move);
+                    let _ = doc##removeEventListener("mouseup", on_up);
+                    switch (dragged^) {
+                    | Some(w) =>
+                      Effect.Expert.handle_non_dom_event_exn(
+                        globals.inject_global(Set(SetCanvasPaneWidth(w))),
+                      )
+                    | None => ()
+                    };
+                    ();
+                  };
+                  div(
+                    ~attrs=[
+                      Attr.id("canvas-divider"),
+                      Attr.create(
+                        "style",
+                        switch (pane_w) {
+                        | Some(w) => Printf.sprintf("right: %dpx;", w - 4)
+                        | None => "right: calc(44% - 4px);"
+                        },
+                      ),
+                      Attr.on_mousedown(_ => {
+                        let doc = Js.Unsafe.coerce(Dom_html.document);
+                        let _ = doc##addEventListener("mousemove", on_move);
+                        let _ = doc##addEventListener("mouseup", on_up);
+                        Effect.Prevent_default;
+                      }),
+                    ],
+                    [],
+                  );
+                };
+                [
+                  div(
+                    ~attrs=
+                      [Attr.classes(["main-split-editors"])]
+                      @ (
+                        switch (pane_w) {
+                        | Some(w) => [
+                            Attr.create(
+                              "style",
+                              Printf.sprintf("right: %dpx;", w),
+                            ),
+                          ]
+                        | None => []
+                        }
+                      ),
+                    editors_view,
+                  ),
+                  div(
+                    ~attrs=
+                      [Attr.id("canvas-main")]
+                      @ (
+                        switch (pane_w) {
+                        | Some(w) => [
+                            Attr.create(
+                              "style",
+                              Printf.sprintf("width: %dpx;", w),
+                            ),
+                          ]
+                        | None => []
+                        }
+                      ),
+                    [
+                      CanvasSidebar.view(
+                        ~globals,
+                        ~editors,
+                        ~editors_inject=
+                          (a: Editors.Update.t) => inject(Editors(a)),
+                        ~editor=current_editor,
+                        ~use_sidebar_width=false,
+                        (),
+                      ),
+                    ],
+                  ),
+                  divider,
+                ];
+              }
+              : editors_view,
       ),
       sidebar,
+      outline,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),

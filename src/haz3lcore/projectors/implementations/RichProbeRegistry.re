@@ -12,6 +12,7 @@ module Sexp = Sexplib.Sexp;
 
 let renderers: list(packed_renderer) = [
   pack_renderer((module TableRenderer), "table"),
+  pack_renderer((module HtmlRenderer), "html"),
   pack_renderer((module CardRenderer), "card"),
 ];
 

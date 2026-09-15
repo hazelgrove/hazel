@@ -1,0 +1,22 @@
+# A Many-mode stressor: one small function called from many distinct #
+# sites, so its wells collect samples across several call stacks.    #
+
+type Score = (Int, Int) in
+
+let clamp : Int -> Int =
+  fun n -> case n > 100 | true => 100 | false => n end in
+
+let quiz : Score -> Int = fun (a, b) -> clamp(a + b) in
+let exam : Score -> Int = fun (a, b) -> clamp(a * 2 + b) in
+let bonus : Score -> Int = fun (a, b) -> clamp(a + b + 15) in
+let retake : Score -> Int = fun (a, b) -> clamp(b * 3) in
+let curve : Int -> Int = fun n -> clamp(n + 10) in
+let final : Score -> Int =
+  fun s -> curve(quiz(s) + exam(s) - bonus(s)) in
+
+test quiz((40, 50)) == 90 end;
+test exam((60, 30)) == 100 end;
+test final((30, 20)) == 55 end;
+
+[quiz((10, 20)), exam((10, 20)), bonus((10, 20)), retake((10, 20)),
+ curve(95), final((10, 20))]

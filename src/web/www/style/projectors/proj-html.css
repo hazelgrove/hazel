@@ -1,0 +1,162 @@
+.projector.html {
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+/* The frame is the projector's visible box and never scrolls. The resize
+ * handles are positioned against it, so they stay pegged to the visible
+ * edges no matter how far the app content overflows or scrolls inside
+ * .html-proj-wrapper. */
+.html-proj-frame {
+  --html-proj-handle: 6px;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.html-proj-wrapper {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+/* Leave the handles a gutter of their own, so a hit zone never sits over
+ * app content (or over the wrapper's scrollbar). */
+/* Matching margins on the non-handle sides keep the content visually
+ * centered — a handle gutter only on right/bottom reads as lopsided
+ * padding. */
+.html-proj-frame.resizable-x > .html-proj-wrapper {
+  margin-right: var(--html-proj-handle);
+  margin-left: var(--html-proj-handle);
+}
+
+.html-proj-frame.resizable-y > .html-proj-wrapper {
+  margin-bottom: var(--html-proj-handle);
+  margin-top: var(--html-proj-handle);
+}
+
+.html-proj-resize {
+  position: absolute;
+  z-index: 1;
+  background: var(--BR2);
+  opacity: 0;
+  transition: opacity 80ms ease-out;
+}
+
+.html-proj-resize:hover,
+.html-proj-resize:active {
+  opacity: 0.4;
+}
+
+.html-proj-resize.edge-x {
+  top: 0;
+  right: 0;
+  width: var(--html-proj-handle);
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.html-proj-resize.edge-y {
+  left: 0;
+  bottom: 0;
+  height: var(--html-proj-handle);
+  width: 100%;
+  cursor: ns-resize;
+}
+
+/* The corner keeps a visible grip and wins the overlap with both edges. */
+.html-proj-resize.corner {
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  z-index: 2;
+  background: none;
+  opacity: 0.3;
+  cursor: nwse-resize;
+}
+
+.html-proj-resize.corner:hover,
+.html-proj-resize.corner:active {
+  opacity: 0.7;
+}
+
+.html-proj-resize.corner::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--BR2);
+  border-bottom: 2px solid var(--BR2);
+}
+
+/* Cursor lock for the duration of a drag: the pointer is captured by the
+ * handle, but it travels over app content, which would otherwise keep
+ * swapping the cursor. */
+body.html-proj-resizing-x,
+body.html-proj-resizing-x * {
+  cursor: ew-resize !important;
+}
+
+body.html-proj-resizing-y,
+body.html-proj-resizing-y * {
+  cursor: ns-resize !important;
+}
+
+body.html-proj-resizing-xy,
+body.html-proj-resizing-xy * {
+  cursor: nwse-resize !important;
+}
+
+body.html-proj-resizing-x *,
+body.html-proj-resizing-y *,
+body.html-proj-resizing-xy * {
+  user-select: none !important;
+}
+
+.MVU-render {
+  height: 100%;
+}
+
+/* Terse status line: no value yet, or a value that is neither app nor HTML */
+.html-proj-message {
+  padding: 4px 6px;
+  color: var(--BR3);
+  font-size: 0.9em;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* DOCKED: the app sizes to its own content.
+ *
+ * Inline, the editor reserves a fixed box and the app fills it (height:100%).
+ * In the panel there is no such box: the panel is the app's container, so a
+ * percentage height would resolve against an auto-height parent and collapse.
+ * Letting content drive the height also keeps the docked size out of the
+ * projector model, which cannot round-trip through a slide's backup_text. */
+#projector-panel .projector.html,
+#projector-panel .projector.html .html-proj-frame,
+#projector-panel .projector.html .html-proj-wrapper,
+#projector-panel .projector.html .MVU-render {
+  height: auto;
+}
+
+/* The wrapper scrolls when a box is imposed; docked there is no box to
+ * overflow, so a scrollbar here would be permanent and pointless. */
+#projector-panel .projector.html .html-proj-wrapper {
+  overflow: visible;
+}
+
+/* Vertical resize is meaningless when the app decides its own height. */
+#projector-panel .projector.html .html-proj-resize.edge-y,
+#projector-panel .projector.html .html-proj-resize.corner {
+  display: none;
+}

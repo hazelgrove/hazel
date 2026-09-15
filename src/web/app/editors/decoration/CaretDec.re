@@ -37,15 +37,8 @@ let main =
     caret_base_path(side, shape),
   );
 
-let view =
-    (
-      ~measured: Haz3lcore.Measured.t,
-      ~font_metrics: FontMetrics.t,
-      z: Haz3lcore.Zipper.t,
-    )
-    : Node.t => {
-  open Haz3lcore;
-  let side =
+let side_of = (z: Haz3lcore.Zipper.t): Direction.t => {
+  Haz3lcore.(
     switch (Indicated.for_decoration(z)) {
     | _
         when
@@ -54,12 +47,29 @@ let view =
       z.selection.focus
     | Some({side, _}) => Direction.toggle(side)
     | _ => Right
-    };
+    }
+  );
+};
+
+let view =
+    (
+      ~measured: Haz3lcore.Measured.t,
+      ~font_metrics: FontMetrics.t,
+      z: Haz3lcore.Zipper.t,
+    )
+    : Node.t => {
+  open Haz3lcore;
+  let side = side_of(z);
+  let origin = Zipper.Caret.point(measured, z);
+  /* the caret's model position doubles as the reveal input: the
+     scroll check reads it instead of the caret's DOM rect
+     (CaretReveal; only the selected editor renders a caret) */
+  CaretReveal.publish(~row=origin.row, ~row_height=font_metrics.row_height);
   main(
     ~font_metrics,
     ~profile={
       side,
-      origin: Zipper.Caret.point(measured, z),
+      origin,
       shape: Zipper.Caret.direction(z),
     },
   );

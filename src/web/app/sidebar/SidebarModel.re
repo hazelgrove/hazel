@@ -6,6 +6,8 @@ module Settings = {
     | LanguageDocumentation
     | HelpfulAssistant
     | Probes
+    | Canvas
+    | Projectors
     | LogControl
     | Problems
     | DebugInfo;
@@ -167,6 +169,53 @@ module Settings = {
                                               [WorkerServer.Marshal]
                                             ]
     worker_encodings: list(WorkerServer.encoding),
+    /* Canvas panel: name of the function focused in the detail strip.
+       Keyed by name (not id) so it survives re-parses. Mutually exclusive
+       with canvas_focus_ty. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_focus: option(string),
+    /* Canvas panel: node key of the TYPE focused in the detail strip
+       (observed inhabitant values). Mutually exclusive with canvas_focus. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_focus_ty: option(string),
+    /* Canvas connect mode: None = off; Some(srcs) = collecting source
+       type syntax. Plain node clicks pick source-then-target (unary);
+       shift-clicks accumulate additional sources for a tuple input. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_connect: option(list(string)),
+    /* Canvas place mode: Some((kind, components)) where kind is
+       "type"/"tuple"/"list"; node clicks collect component type syntax,
+       a canvas click places the stub there. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_place: option((string, list(string))),
+    /* RETIRED (kept so persisted settings still parse): the pre-probes-iv
+       expanded-sample view state. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_expand: option((int, int)),
+    /* Canvas focus strip: per-anchor probe models (serialized ProbeProj
+       models — drawer mode, per-sample widths, active renderer), keyed by
+       a name-stable slot key ("fn/in0", "fn/out", "ty/Model"). The strip's
+       wells are real probe views; this is their model store, since canvas
+       anchors have no refractor entry to hold one. */
+    [@sexp.default []] [@yojson.default []]
+    canvas_probe_models: list((string, string)),
+    /* Sidebar width in px, set at resize-drag end (the drag itself updates
+       styles imperatively). Model state so width-dependent panels (the
+       canvas) re-render, and so the width survives reloads. */
+    [@sexp.default None] [@yojson.default None]
+    width: option(int),
+    /* Canvas info panel (under the constellation): which tab is up —
+       "values" | "definition" | "tests" */
+    [@sexp.default "definition"] [@yojson.default "definition"]
+    canvas_tab: string,
+    /* Canvas info panel max height in px (drag handle on its top edge);
+       None = the default cap */
+    [@sexp.default None] [@yojson.default None]
+    canvas_panel_height: option(int),
+    /* the info panel dismissed (✕): nothing under the constellation
+       until the next selection brings it back */
+    [@sexp.default false] [@yojson.default false]
+    canvas_panel_hidden: bool,
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -208,5 +257,15 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
-    | ToggleWorkerEncoding(WorkerServer.encoding);
+    | ToggleWorkerEncoding(WorkerServer.encoding)
+    | SetCanvasFocus(option(string))
+    | SetCanvasFocusTy(option(string))
+    | SetCanvasConnect(option(list(string)))
+    | SetCanvasPlace(option((string, list(string))))
+    | SetCanvasExpand(option((int, int)))
+    | SetCanvasProbeModel(string, string)
+    | SetCanvasTab(string)
+    | SetCanvasPanelHeight(option(int))
+    | SetCanvasPanelHidden(bool)
+    | SetWidth(int);
 };

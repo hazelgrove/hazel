@@ -6,6 +6,13 @@ open AgentModel;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | ChatSystemAction(ChatSystem.Update.Action.t)
+  | /** Run one edit tool outside the chat loop (canvas authoring): same
+        executor, guardrails, and formatting as agent edits, but no chat
+        message or tool-result bookkeeping. */
+    DirectEdit(
+      string,
+      API.Json.t,
+    )
   | /** Phase 1 of a send: append the message so it paints immediately;
         the expensive context/payload work is deferred to DispatchSend. */
     SendMessage(
@@ -26,6 +33,14 @@ type t =
       int,
     )
   | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
+  | /** Replay a recorded reply's tool calls through the same handler a
+        real reply goes through (canvas trajectory replay; no LLM). */
+    ReplayToolCalls(
+      list(OpenRouter.Reply.Model.tool_call),
+    )
+  | /** Replay one streamed-reasoning render (canvas trajectory replay). */
+    ReplayStreamTick
+  | ReplayBegin(string) /* a replayed trajectory opens as a user turn */
   | HandleChatNamingResponse(string, Id.t)
   | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
   | RetryApiError(Id.t, int)

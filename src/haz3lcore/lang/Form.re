@@ -97,6 +97,7 @@ type atomic_form =
   | DrvVar
   | ExplicitHole
   | ImplicitHoleMarker
+  | ConcaveHoleMarker
   | LLMHole
   | Wild
   | String
@@ -562,8 +563,14 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.filter_map(((form: compound_form, _)) => {
        let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
-       /* Could be pickier here, e.g. just trailing delimiters */
-       | _ when List.length(form.label) >= 2 => Some(form.label)
+       /* NON-LEADING tokens only (matching the comment above):
+          leading-delimiter prefixes live in operand position where
+          the bin mold can never serve their entry path, and
+          including them made any short variable prefixing a keyword
+          (`c` for case, `l` for let) mold as an operator in broken
+          buffers. Leading prefixes are recognized by the completion
+          side instead (expectation-gated leading witnesses). */
+       | _ when List.length(form.label) >= 2 => Some(List.tl(form.label))
        | _ => None
        };
      })
@@ -661,6 +668,19 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       Token.is_implicit_hole_marker,
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
     )
+  /* the concave-grout marker is an OPERATOR hole: it molds as a bin
+     at grout precedence, so the typing parse of `1 ⧖ 2` needs no
+     extra grout and stripping the tile leaves exactly the concave
+     grout it stands for */
+  | ConcaveHoleMarker => (
+      Token.is_concave_hole_marker,
+      [
+        Mold.mk_bin(Precedence.concave_grout, Exp, []),
+        Mold.mk_bin(Precedence.concave_grout, Pat, []),
+        Mold.mk_bin(Precedence.concave_grout, Typ, []),
+        Mold.mk_bin(Precedence.concave_grout, TPat, []),
+      ],
+    )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
   | String => (Token.is_string, [op(Exp), op(Pat)])
@@ -749,14 +769,42 @@ module Molds = {
       assert(molds != []);
       List.hd(molds);
     | None =>
-      /* Fallback: create Any-sorted default mold. This handles tokens
-         not assigned molds by the language definition. */
-      switch (label) {
-      | [t]
-          when
-            Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
-        Mold.mk_bin(Precedence.max, Any, [])
-      | _ => Mold.mk_op(Any, [])
+      switch (label, get_base(label)) {
+      /* A compound form asked for in a sort it does not produce keeps its
+         own shape: an Any operand mold has no inner sorts, so a
+         multi-shard tile wearing one has children its mold cannot
+         account for and MakeTerm indexes past `in_` (Failure "nth" —
+         case rules inside a module member inserted at Mod root). The
+         sort mismatch is for statics to report, not for the mold to
+         erase. */
+      | ([_, _, ..._], [_, ..._] as molds) =>
+        /* stay in the requested language layer: a `|·=>` asked for in an
+           Exp/Rul context is the case rule, not the derivation rule */
+        let drv = (m: Mold.t) =>
+          switch (m.out) {
+          | Drv(_) => true
+          | _ => false
+          };
+        let want_drv =
+          switch (sort) {
+          | Drv(_) => true
+          | _ => false
+          };
+        switch (List.find_opt(m => drv(m) == want_drv, molds)) {
+        | Some(m) => m
+        | None => List.hd(molds)
+        };
+      | _ =>
+        /* Fallback: create Any-sorted default mold. This handles tokens
+           not assigned molds by the language definition. */
+        switch (label) {
+        | [t]
+            when
+              Token.is_potential_operator(t)
+              && !Token.is_potential_operand(t) =>
+          Mold.mk_bin(Precedence.max, Any, [])
+        | _ => Mold.mk_op(Any, [])
+        }
       }
     };
 };
