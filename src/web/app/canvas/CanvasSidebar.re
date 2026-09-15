@@ -1518,11 +1518,16 @@ let view_impl =
               samples,
             );
           [
-            globals.inject_global(
-              ActiveEditor(
-                Project(
-                  SampleFocus(
-                    Capture(Language.Sample.capture_of_sample(first), None),
+            editors_inject(
+              Editors.Update.Scratch(
+                ScratchMode.Update.MasterPerform(
+                  Project(
+                    SampleFocus(
+                      Capture(
+                        Language.Sample.capture_of_sample(first),
+                        None,
+                      ),
+                    ),
                   ),
                 ),
               ),
