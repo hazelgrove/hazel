@@ -1710,6 +1710,7 @@ module Update = {
         | Some(f)
             when
               statics_mode == CodeWithStatics.StaticsForce
+              || editor.editor.statics === Haz3lcore.CachedStatics.empty
               || stacked_statics^ == None
               || stacked_probe_all^
               != Some(settings.Language.CoreSettings.probe_all) =>
@@ -1858,12 +1859,19 @@ module Update = {
              ones; the master's statics stay the frozen copy */
           let dyn = EvalResult.Model.dynamics(result);
           let master: CodeWithStatics.Model.t = editor.editor;
+          /* Undo compacts the hidden master too. Its source is the
+             stack, so restore its whole-program statics from the
+             freshly calculated splice, not its stale hidden zipper. */
+          let statics =
+            master.statics === Haz3lcore.CachedStatics.empty
+              ? synth : master.statics;
           let master: CodeWithStatics.Model.t =
-            dyn === master.dynamics
+            dyn === master.dynamics && statics === master.statics
               ? master
               : {
                 ...master,
                 dynamics: dyn,
+                statics,
               };
           let cell: CellEditor.Model.t = {
             editor: master,

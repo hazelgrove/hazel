@@ -141,6 +141,9 @@ module Update = {
         model |> Updated.raise_invalid_action;
       | [x, ...rest] => {
           ...x,
+          /* Compaction drops derived caches even for view-only edits. */
+          is_edit: true,
+          recalculate: true,
           model: {
             current: x.model,
             undo_stack: rest,
@@ -161,6 +164,8 @@ module Update = {
         model |> Updated.raise_invalid_action;
       | [x, ...rest] => {
           ...x,
+          is_edit: true,
+          recalculate: true,
           model: {
             current: x.model,
             undo_stack: [

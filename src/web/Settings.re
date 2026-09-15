@@ -876,6 +876,12 @@ module Update = {
          ~recalculate=!is_canvas_geometry(action),
          ~historic=
            switch (action) {
+           /* Render ticks and selection chrome must not consume undo
+              entries or clear redo after a Canvas edit. */
+           | CanvasTick
+           | Sidebar(SetCanvasFocus(_))
+           | Sidebar(SetCanvasFocusTy(_))
+           | Sidebar(SetCanvasPanelHidden(_))
            | Evaluation(ShowSettings) => false
            | _ => true
            },
