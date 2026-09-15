@@ -1,7 +1,7 @@
 /* PROJECTOR: FOLD */
 
 :root {
-  --fold-accent: var(--G0);
+  --fold-accent: var(--text-success);
   --fold-bkg: #293445;
 }
 
@@ -20,18 +20,18 @@
 }
 
 .projector.fold > svg {
-  --shadow: var(--BR3);
+  --shadow: var(--shadow-strong);
   filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
 }
 
 .projector.fold.Pat {
-  color: var(--PAT);
+  color: var(--text-pat);
 }
 .projector.fold.Typ {
-  color: var(--TYP);
+  color: var(--text-typ);
 }
 .projector.fold.TPat {
-  color: var(--TPAT);
+  color: var(--text-tpat);
 }
 
 .projector.fold.Pat > svg {
@@ -130,7 +130,7 @@
 
 .projector.fold .hover-view .code-text .token.Exp,
 .projector.fold .hover-view .code-text .token.Rul {
-  color: var(--SAND);
+  color: var(--text-inverse);
 }
 
 .projector.fold .hover-view .code .quick-select-deco + .quick-select-deco {
@@ -168,7 +168,7 @@
 
 .projector.fold div:hover,
 .projector.fold div:has(.hover-view) {
-  color: var(--SAND);
+  color: var(--text-inverse);
 }
 
 .projector.fold.Pat .hover-view svg {

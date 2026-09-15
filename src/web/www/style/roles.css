@@ -1,0 +1,101 @@
+/* SEMANTIC ROLES
+
+   Every role here is a BARE ALIAS for one palette variable — no oklch(),
+   no color-mix(), no literals. That constraint is what makes the migration
+   provable: role -> palette is a total function, so substituting every
+   var(--role) in a component stylesheet back to its palette name must
+   reproduce the pre-migration file byte for byte.
+
+   Component stylesheets consume THESE names, not palette names. The palette
+   itself stays published in variables.css: it is the theme-settable input
+   layer, and saved user themes write those names inline.
+
+   To retheme, change the palette. To re-map what a role means, change the
+   alias here — one edit instead of N call sites. */
+
+:root {
+  /* Foreground: text, icons, SVG fill */
+  --text-accent:         var(--BR3);
+  --text-black:          var(--BLACK);
+  --text-default:        var(--STONE);
+  --text-error:          var(--R1);
+  --text-error-strong:   var(--R2);
+  --text-faint:          var(--BR1);
+  --text-highlight-a:    var(--highlight-a);
+  --text-highlight-b:    var(--highlight-b);
+  --text-highlight-c:    var(--highlight-c);
+  --text-info:           var(--GB0);
+  --text-info-strong:    var(--GB1);
+  --text-inverse:        var(--SAND);
+  --text-muted:          var(--BR2);
+  --text-none:           var(--NONE);
+  --text-pat:            var(--PAT);
+  --text-strong:         var(--BR4);
+  --text-success:        var(--G0);
+  --text-success-muted:  var(--G2);
+  --text-success-strong: var(--G1);
+  --text-sunken:         var(--T3);
+  --text-surface:        var(--T1);
+  --text-tpat:           var(--TPAT);
+  --text-typ:            var(--TYP);
+  --text-warning:        var(--Y3);
+
+  /* Backgrounds */
+  --surface-accent:           var(--BR3);
+  --surface-accent-strong:    var(--BR4);
+  --surface-code:             var(--SAND);
+  --surface-deep:             var(--T4);
+  --surface-default:          var(--T1);
+  --surface-error:            var(--R1);
+  --surface-error-soft:       var(--R0);
+  --surface-error-strong:     var(--R2);
+  --surface-highlight:        var(--Y1);
+  --surface-highlight-a:      var(--highlight-a);
+  --surface-highlight-b:      var(--highlight-b);
+  --surface-highlight-c:      var(--highlight-c);
+  --surface-highlight-soft:   var(--Y0);
+  --surface-highlight-strong: var(--Y2);
+  --surface-inverse:          var(--STONE);
+  --surface-label:            var(--LABEL);
+  --surface-none:             var(--NONE);
+  --surface-pat:              var(--PAT);
+  --surface-raised:           var(--T2);
+  --surface-shard:            var(--BR1);
+  --surface-shard-strong:     var(--BR2);
+  --surface-success:          var(--G0);
+  --surface-success-soft:     var(--G1);
+  --surface-sunken:           var(--T3);
+  --surface-warning:          var(--Y3);
+
+  /* Borders, outlines, SVG stroke */
+  --border-black:            var(--BLACK);
+  --border-default:          var(--BR2);
+  --border-error:            var(--R1);
+  --border-error-strong:     var(--R2);
+  --border-highlight:        var(--Y1);
+  --border-highlight-strong: var(--Y2);
+  --border-info:             var(--GB1);
+  --border-inverse:          var(--STONE);
+  --border-raised:           var(--T2);
+  --border-seam:             var(--SAND);
+  --border-soft:             var(--BR1);
+  --border-strong:           var(--BR3);
+  --border-stronger:         var(--BR4);
+  --border-success:          var(--G0);
+  --border-success-muted:    var(--G2);
+  --border-sunken:           var(--T3);
+  --border-surface:          var(--T1);
+  --border-typ:              var(--TYP);
+  --border-warning:          var(--Y3);
+
+  /* Shadows and filters */
+  --shadow-error:         var(--R1);
+  --shadow-error-soft:    var(--R0);
+  --shadow-highlight:     var(--Y1);
+  --shadow-pat:           var(--PAT);
+  --shadow-soft:          var(--BR1);
+  --shadow-strong:        var(--BR3);
+  --shadow-success:       var(--G0);
+  --shadow-success-muted: var(--G2);
+  --shadow-typ:           var(--TYP);
+}

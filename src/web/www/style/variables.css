@@ -167,6 +167,7 @@
   --error-hole-fill: var(--ERRHOLE);
 
   /* Simplified-mode error/warning term backings (fill-only) */
+  /* Defaults only: the Colors slide emits both as roles and overrides these. */
   --simple-error-backing: oklch(100% 0.2 25);
   --simple-warning-backing: oklch(100% 0.2 80);
 

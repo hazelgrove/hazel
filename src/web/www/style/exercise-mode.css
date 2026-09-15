@@ -60,7 +60,7 @@
 .deduction-prems-label {
   display: flex;
   align-items: flex-end;
-  border-bottom: var(--BR2) 0.1em solid;
+  border-bottom: var(--border-default) 0.1em solid;
   border-bottom-right-radius: 0.6rem;
   position: relative;
 }
@@ -98,7 +98,7 @@
 
 .hline {
   border: none;
-  border-top: var(--BR2) 0.1em solid;
+  border-top: var(--border-default) 0.1em solid;
   width: 100%;
 }
 
@@ -106,7 +106,7 @@
 .add-premise-btn {
   opacity: 0;
   cursor: pointer;
-  color: var(--BR1);
+  color: var(--text-faint);
   border-radius: 2rem;
   -webkit-transition: all 0.3s;
   -moz-transition: all 0.3s;
@@ -131,18 +131,18 @@
 }
 
 .add-abbr-btn .code .token {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 .add-abbr-btn:hover .code .token {
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 .add-abbr-btn:hover,
 .add-premise-btn:hover {
   background: var(--cell-active);
   /* filter: drop-shadow(0px 0px 1px var(--BR4)); */
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 .add-premise-btn:hover,
@@ -188,12 +188,12 @@
   height: 1.1rem;
   min-width: 0.5rem;
   border-radius: 0.6rem;
-  border: 0.1rem solid var(--BR2);
+  border: 0.1rem solid var(--border-default);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-wrap: nowrap;
-  background-color: var(--BR2);
+  background-color: var(--surface-shard-strong);
   position: relative;
   bottom: -0.05rem;
 }
@@ -206,7 +206,7 @@
   left: 0;
   bottom: 1.1rem;
   background-color: var(--ui-bkg);
-  border: var(--BR2) 0.1rem solid;
+  border: var(--border-default) 0.1rem solid;
   border-radius: 0.6em;
   border-bottom-left-radius: 0;
   z-index: var(--top-bar-z);
@@ -289,7 +289,7 @@
   text-wrap: nowrap;
   background: var(--menu-bkg);
   color: var(--token-exp);
-  border-bottom: var(--BR2) 0.1rem solid;
+  border-bottom: var(--border-default) 0.1rem solid;
   border-top-left-radius: 0.6rem;
   border-top-right-radius: 0.6rem;
   display: flex;
@@ -339,12 +339,12 @@
   background: transparent;
   color: var(--ui-text);
   padding: 0.2em 0.8em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 .rule-set-select option {
   color: var(--ui-text);
-  background: var(--T1);
+  background: var(--surface-default);
 }
 
 .rule-set-select:hover {
@@ -353,7 +353,7 @@
 
 .hover-rule-spec {
   background: var(--cell-active);
-  border: solid var(--BR1) 1px;
+  border: solid var(--border-soft) 1px;
   padding: 0.5rem;
   border-radius: 1rem;
   display: block;
@@ -379,7 +379,7 @@
   width: 96%;
   min-height: 100px;
   padding: 0.5em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
   border-radius: 4px;
   color: var(--ui-text);
   font-family: inherit;
@@ -390,5 +390,5 @@
 
 #main.Exercises #prompt-input-box:focus {
   outline: none;
-  border-color: var(--BR2);
+  border-color: var(--border-default);
 }
