@@ -196,7 +196,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      the app no longer calls it. */
   let panel_name = "Fumola VM instance ";
 
-  /* The reset strip offers S and G, and the header decodes the one the
+  /* The reset strip offers G and S, and the header decodes the one the
      instance is actually in. Both spelled out would be a legend, which a
      reader needs once; one spelled out is a statement about this instance,
      which is the half that changes and the half worth the room. */
@@ -640,11 +640,20 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
      header, which names the mode the instance is in and so decodes one of
      them against the thing it is about; the tooltip is left to say what
      pressing one would do, which is the part no label can carry. */
-  let reset_button = (instance: string) => {
-    let into = (mode, label, what) =>
+  /* The one that keeps the instance where it is comes in bold. Both buttons
+     empty the store; only one of them leaves the mode alone, and which one
+     that is depends on the instance rather than on the strip. Nothing is bold
+     when the mode could not be asked, which is the same silence the header
+     keeps. */
+  let reset_button =
+      (~mode: option(Language.FumolaRun.mode)=?, instance: string) => {
+    let into = (into_mode, label, what) =>
       span(
         ~attrs=[
-          clss(["fumola-reset"]),
+          clss(
+            ["fumola-reset"]
+            @ (mode == Some(into_mode) ? ["fumola-reset-current"] : []),
+          ),
           Attr.title(
             "Empty this instance and run the program again, "
             ++ what
@@ -653,7 +662,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
             ++ "own mode is edited.",
           ),
           Attr.on_click(_ =>
-            globals.inject_global(FumolaReset(instance, mode))
+            globals.inject_global(FumolaReset(instance, into_mode))
           ),
         ],
         [text(label)],
@@ -662,8 +671,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ~attrs=[clss(["fumola-resets"])],
       [
         span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
-        into(Language.FumolaRun.Simple, "S", "keeping no graph"),
+        /* Graphical first: it is Fumola's default and the mode that records,
+           so it is the one a reader of this panel is usually coming back to.
+           Simple is the narrowing. */
         into(Language.FumolaRun.Graphical, "G", "recording as it forces"),
+        into(Language.FumolaRun.Simple, "S", "keeping no graph"),
       ],
     );
   };
@@ -1022,16 +1034,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
           )
         | Ok(history) =>
           let tab = globals.settings.sidebar.fumola_tab;
+          /* Asked once and read twice -- the header spells it out, the strip
+             marks the button that would keep it -- so that the two cannot
+             disagree about the same instance in the same render. */
+          let mode = Language.FumolaRun.mode_of_instance(instance);
           section(
             "fumola-events",
-            panel_title(
-              ~mode=?Language.FumolaRun.mode_of_instance(instance),
-              instance,
-            ),
+            panel_title(~mode=?mode, instance),
             [
               div(
                 ~attrs=[clss(["fumola-controls"])],
-                [tab_strip(tab), reset_button(instance)],
+                [tab_strip(tab), reset_button(~mode=?mode, instance)],
               ),
             ]
             @ [editor_strip()]

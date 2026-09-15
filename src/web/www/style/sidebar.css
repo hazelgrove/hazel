@@ -793,6 +793,13 @@
   opacity: 0.6;
 }
 
+/* The reset that leaves the mode alone. Bold rather than coloured or boxed:
+   it marks which of two otherwise identical controls is the conservative one,
+   and that is a weight difference, not a state a reader can toggle. */
+.fumola-reset-current {
+  font-weight: bold;
+}
+
 .fumola-blurb {
   padding: 0.25em 0.5em;
   line-height: 1.4;
