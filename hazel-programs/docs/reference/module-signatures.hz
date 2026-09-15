@@ -104,4 +104,11 @@ module M : {} = {let x = 1} in
 
 # 25. Error: a hole-typed member is still required #
 let m : {let x : ?} = {let y = 1} in
+
+# 26. Error: a type variable passed into a signature that declares a type member #
+# of the same name would be captured by it; rename the type variable. #
+# (An alias of that name is fine: it is expanded first.) #
+let f : poly a -> {type X = Int; let v : a -> Int} =
+  typfun a -> {type X = Int; let v = fun x -> 1} in
+let g = typfun X -> f@<X> in
 ¿
