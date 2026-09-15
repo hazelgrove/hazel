@@ -593,6 +593,37 @@ let update_body_tests = (
   "AgentTools.UpdateBody",
   [
     test_case(
+      "named function edits still reject real type errors",
+      `Quick,
+      () => {
+        expect_any_failure(
+          "let f(x: Int) = x in 0",
+          Update(Definition, "f", "true + 1"),
+          "invalid function definition",
+        );
+        expect_any_failure(
+          "let f(x: Int) = x in 0",
+          Update(Body, "f", "true + 1"),
+          "invalid function continuation",
+        );
+      },
+    ),
+    test_case(
+      "named function added after an annotated constant",
+      `Quick,
+      () => {
+        let code = "type Model = Int in type Action = Int in let init : Model = 0 in ?";
+        let body = "let counter_update(m: Model, a: Action) = m + a in ?";
+        let result = apply_and_render(code, Update(Body, "init", body));
+        check_rendered(
+          "counter update body",
+          "type Model = Int in type Action = Int in let init : Model = 0 in "
+          ++ body,
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_body of first binding",
       `Quick,
       () => {
