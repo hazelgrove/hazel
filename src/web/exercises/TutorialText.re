@@ -77,9 +77,10 @@ let parse_flags = (s: sections, body: string): sections => {
 };
 
 /* The section a marker line opens. Text before any marker is `Code`.
-   Adding a section here is a type error in `marker_of_line` and `add_line`
-   until it is wired through both, which is the point: the marker text, the
-   section it names, and the body it accumulates into stay one thing. */
+   Adding a section here is a type error in `marker_of_line` until its marker
+   text is given, and a section is read back out under the same constructor
+   it was filed under, so there is no second spelling to keep in step. */
+[@deriving eq]
 type marker =
   | Title
   | Prompt
@@ -103,100 +104,49 @@ let marker_of_line = (line: string): option(marker) =>
   | _ => None
   };
 
-/* Each section's lines, joined in file order, before any interpretation. */
-type bodies = {
-  title: string,
-  prompt: string,
-  code: string,
-  test: string,
-  hint: string,
-  reference: string,
-  hints: string,
-  flags: string,
-};
-
-let no_bodies = {
-  title: "",
-  prompt: "",
-  code: "",
-  test: "",
-  hint: "",
-  reference: "",
-  hints: "",
-  flags: "",
-};
-
-let add_line = (m: marker, line: string, b: bodies): bodies => {
-  let line = line ++ "\n";
-  switch (m) {
-  | Title => {
-      ...b,
-      title: b.title ++ line,
-    }
-  | Prompt => {
-      ...b,
-      prompt: b.prompt ++ line,
-    }
-  | Code => {
-      ...b,
-      code: b.code ++ line,
-    }
-  | Test => {
-      ...b,
-      test: b.test ++ line,
-    }
-  | Hint => {
-      ...b,
-      hint: b.hint ++ line,
-    }
-  | Reference => {
-      ...b,
-      reference: b.reference ++ line,
-    }
-  | Hints => {
-      ...b,
-      hints: b.hints ++ line,
-    }
-  | Flags => {
-      ...b,
-      flags: b.flags ++ line,
-    }
-  };
-};
-
-let split_bodies = (content: string): bodies =>
+/* Every content line tagged with the section it fell in, in file order. */
+let tag_lines = (content: string): list((marker, string)) =>
   String.split_on_char('\n', content)
   |> List.fold_left(
-       ((b, cur), line) =>
+       ((tagged, cur), line) =>
          switch (marker_of_line(line)) {
-         | Some(m) => (b, m)
-         | None => (add_line(cur, line, b), cur)
+         | Some(m) => (tagged, m)
+         | None => ([(cur, line), ...tagged], cur)
          },
-       (no_bodies, Code),
+       ([], Code),
      )
-  |> fst;
+  |> fst
+  |> List.rev;
+
+/* One section's lines, newline-terminated, in file order; "" if it has none. */
+let body = (tagged: list((marker, string)), m: marker): string =>
+  tagged
+  |> List.filter_map(((m', line)) =>
+       equal_marker(m, m') ? Some(line ++ "\n") : None
+     )
+  |> String.concat("");
 
 let parse_sections = (content: string): sections => {
-  let b = split_bodies(content);
-  let trimmed_opt = (body: string): option(string) =>
-    switch (String.trim(body)) {
+  let body = body(tag_lines(content));
+  let trimmed_opt = (section: string): option(string) =>
+    switch (String.trim(section)) {
     | "" => None
     | s => Some(s)
     };
   let s = {
     ...empty_sections,
-    title: String.trim(b.title),
-    prompt: String.trim(b.prompt),
-    code: b.code,
-    test: String.trim(b.test),
-    hint: String.trim(b.hint),
-    reference: trimmed_opt(b.reference),
+    title: String.trim(body(Title)),
+    prompt: String.trim(body(Prompt)),
+    code: body(Code),
+    test: String.trim(body(Test)),
+    hint: String.trim(body(Hint)),
+    reference: trimmed_opt(body(Reference)),
     hints:
-      String.split_on_char('\n', b.hints)
+      String.split_on_char('\n', body(Hints))
       |> List.map(String.trim)
       |> List.filter(h => h != ""),
   };
-  parse_flags(s, b.flags);
+  parse_flags(s, body(Flags));
 };
 
 /* Filename -> module_name / title, matching the retired generator so the
