@@ -136,11 +136,20 @@ module Update = {
         model: Model.t,
       )
       : Model.t => {
-    current:
+    let current =
       model.current
-      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
-    undo_stack: model.undo_stack,
-    redo_stack: model.redo_stack,
+      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics);
+    /* Undo/redo depth for the Editor & Memory panel. Ordered after the calculate
+       above, which syncs PerfMetrics' gating for this frame. */
+    PerfMetrics.record_history(
+      ~undo=model.undo_stack,
+      ~redo=model.redo_stack,
+    );
+    {
+      current,
+      undo_stack: model.undo_stack,
+      redo_stack: model.redo_stack,
+    };
   };
 };
 
