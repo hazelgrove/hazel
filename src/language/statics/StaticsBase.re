@@ -276,6 +276,19 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
     }
   };
 
+/* The one way statics substitutes into a type: a substitution Typ.subst had
+   to degrade to `?` (see its `Sig` arm) is marked here, so the degradation is
+   never silent. `make ci-check` rejects a direct Typ.subst under statics. */
+let subst_marked = (s: Typ.t, x: TPat.t, ty: Typ.t): (Typ.t, list(Mark.t)) => {
+  let (ty', captured) = Typ.subst_captures(s, x, ty);
+  let marks =
+    switch (captured) {
+    | [] => []
+    | _ => [Mark.TypeMemberCapture(captured)]
+    };
+  (ty', marks);
+};
+
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
