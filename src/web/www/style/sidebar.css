@@ -785,6 +785,24 @@
   user-select: none;
 }
 
+/* "Fumola VM instance", which is the same on every one of them. Normal
+   weight so the bold falls on the name that follows, which is the half a
+   reader is actually looking for. */
+.fumola-panel-label {
+  font-weight: normal;
+}
+
+/* The instance name, boxed. The same name is a highlighted token in the
+   program, in --token-fumola-name, so the header wears the tile's colour and
+   the panel looks like the thing it is about rather than merely saying its
+   name. Faint fill, because this is a label and not a control. */
+.fumola-panel-name {
+  border: 1px solid var(--token-fumola-name);
+  border-radius: 0.25em;
+  padding: 0 0.3em;
+  background: oklch(from var(--token-fumola-name) l c h / 12%);
+}
+
 /* The mode the instance is in, beside its name. Lighter than the name it
    qualifies: it is an answer about the instance, not part of what the
    instance is called. */

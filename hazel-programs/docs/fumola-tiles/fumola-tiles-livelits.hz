@@ -1,0 +1,332 @@
+# LIVELITS INTO FUMOLA #
+
+# A livelit is a live GUI for a value.  A Fumola block takes a value #
+# into an adapton cell.  Put one inside the other and the widget is #
+# driving a dependency graph: the cell holds whatever the GUI says, a #
+# thunk reads the cell, and moving the GUI signals the thunk. #
+
+# Each block below is the same four lines.  Put the value in a cell, #
+# name a thunk that reads it, force the thunk.  What changes from one #
+# to the next is only what the widget hands over -- a number, a #
+# string, a pair of lists. #
+
+# Open the Fumola panel -- the tab below Problems -- and drag #
+# something.  All four name the same instance, `livelits`, so they #
+# share one store and the panel shows the whole of it. #
+
+# The arithmetic is deliberately dull.  The part worth watching is #
+# the EDGE: a read inside a thunk is recorded, so the runtime knows #
+# which thunk a widget can reach without being told. #
+
+# 1. A SLIDER, WHOSE EXPANSION IS A NUMBER #
+
+let ^pct = {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+
+  let init : Model = 50;
+
+  let update = fun (m, a) : (Model, Action) -> a;
+
+  let view = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.5em"),
+              ("align-items", "center"),
+              ("font-family", "var(--code-font)"),
+              ("font-size", "0.8em")])],
+      [
+        Html.input([
+          Attr.type_("range"), Attr.min("0"), Attr.max("100"),
+          Attr.value(string_of_int(m)),
+          Attr.on_input(fun s -> int_of_string(s))
+        ]),
+        Html.text(string_of_int(m) ++ "%")
+      ]
+    );
+
+  let expand = fun m : Model -> m;
+
+  let shape = Inline(20)
+} in
+
+# Drag it.  The cell takes the new number, the thunk that read the #
+# cell is signaled, and forcing it again realigns rather than #
+# rebuilds -- which is the whole of what the panel is showing. #
+
+let doubled = fumola $graphical as livelits in
+  { let pct = `pct` := hazel ^^livelit(^pct(25)) end;
+    let twice = `twice` := thunk { (@ pct) * 2 };
+    force twice }
+end in
+
+# 2. A FACE, WHOSE EXPANSION IS A WORD #
+
+# The model is a pair of numbers and the expansion is a String, so #
+# the cell holds the word and never sees the numbers behind it.  A #
+# livelit's expansion is what its clients get, and Fumola is a #
+# client like any other. #
+
+let ^mood = {
+  # (value, anchor): anchor is -1 except mid-drag. It stores #
+  # 200 + value - 2 * grab-y (the bias keeps it positive). #
+  type Model = (Int, Int);
+  type Action = + Down(Int) + MoveTo(Int) + Up;
+  type Expansion = String;
+
+  let init : Model = (50, -1);
+
+  let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
+
+  let update = fun ((v, anchor), a) : (Model, Action) ->
+    case a
+    | Down(y) => (v, 200 + v - 2 * y)
+    | MoveTo(y) => if anchor == -1 then (v, anchor)
+                   else (clamp(anchor - 200 + 2 * y), anchor)
+    | Up => (v, -1)
+    end;
+
+  let word = fun (v, anchor) : Model ->
+    if v < 40 then "sad" else if v > 70 then "happy" else "neutral";
+
+  let mouth = fun v ->
+    "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
+
+  let view = fun (v, anchor) : Model ->
+    Html.div(
+      [Attr.create("data-hint", "drag up/down"),
+       Attr.style([("cursor", "ns-resize")])],
+      [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 200 200"),
+           Attr.width("92"), Attr.height("92"),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(y)),
+           Attr.on_mouse_up_at(fun p -> Up)],
+          [
+            Html.node("circle",
+              [Attr.create("cx", "100"), Attr.create("cy", "100"), Attr.create("r", "90"),
+               Attr.create("fill", "gold"), Attr.create("stroke", "black")], []),
+            Html.node("circle",
+              [Attr.create("cx", "65"), Attr.create("cy", "80"), Attr.create("r", "10")], []),
+            Html.node("circle",
+              [Attr.create("cx", "135"), Attr.create("cy", "80"), Attr.create("r", "10")], []),
+            Html.node("path",
+              [Attr.create("d", mouth(v)), Attr.create("stroke", "black"),
+               Attr.create("fill", "transparent"), Attr.create("stroke-width", "5")], [])
+          ])
+      ]
+    );
+
+  let expand = fun m : Model -> word(m);
+
+  let shape = Tab(10, 4)
+} in
+
+# Fumola's `++` is concatenation.  It prints as a hash in Fumola's #
+# own syntax, which a Fumola tile cannot carry -- a hash is Hazel's #
+# comment delimiter -- so the tile spells it `++`. #
+
+let shouted = fumola $graphical as livelits in
+  { let mood = `mood` := hazel ^^livelit(^mood(85, -1)) end;
+    let shout = `shout` := thunk { (@ mood) ++ "!" };
+    force shout }
+end in
+
+# 3. A COLOR PICKER, WHOSE EXPANSION IS CSS #
+
+let ^hwb = {
+  type Model = (Int, Int, Int);
+  type Action = Model;
+  type Expansion = String;
+
+  let css = fun (h, w, b) : Model ->
+    "hwb(" ++ string_of_int(h) ++ " "
+    ++ string_of_int(w) ++ "% "
+    ++ string_of_int(b) ++ "%)";
+
+  let pick = fun (h, x, y) ->
+    let b = y * 100 / 92 in
+    (h, (150 - x) * (100 - b) / 150, b);
+
+  let dot_x = fun (w, b) ->
+    if b == 100 then 0 else 150 - 150 * w / (100 - b);
+
+  let dot_y = fun b -> b * 92 / 100;
+
+  let init : Model = (160, 25, 10);
+
+  let update = fun (m, a) : (Model, Action) -> a;
+
+  let view = fun (h, w, b) : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-direction", "column"),
+              ("gap", "0.35em"),
+              ("font-family", "var(--code-font)"),
+              ("font-size", "0.75em"), ("padding", "2px")])],
+      [
+        Html.div(
+          [Attr.style([("width", "150px"), ("height", "92px"),
+                  ("position", "relative"),
+                  ("cursor", "crosshair"),
+                  ("border-radius", "3px"),
+                  ("background",
+                   "linear-gradient(to top, #000, transparent), "
+                   ++ "linear-gradient(to right, #fff, hsl("
+                   ++ string_of_int(h) ++ " 100% 50%))")]),
+           Attr.on_click_at(fun (x, y) -> pick((h, x, y)))],
+          [
+            Html.div(
+              [Attr.style([("position", "absolute"),
+                      ("left",
+                       string_of_int(dot_x((w, b)) - 4) ++ "px"),
+                      ("top", string_of_int(dot_y(b) - 4) ++ "px"),
+                      ("width", "8px"), ("height", "8px"),
+                      ("border-radius", "50%"),
+                      ("border", "2px solid #fff"),
+                      ("box-shadow", "0 0 2px #000"),
+                      ("pointer-events", "none")])],
+              []
+            )
+          ]
+        ),
+        Html.div(
+          [Attr.style([("display", "flex"), ("gap", "0.5em"),
+                  ("align-items", "center")])],
+          [
+            Html.div(
+              [Attr.style([("width", "26px"), ("height", "14px"),
+                      ("border-radius", "7px"),
+                      ("border", "1px solid var(--BR1)"),
+                      ("background", css((h, w, b)))])],
+              []
+            ),
+            Html.input([
+              Attr.type_("range"), Attr.min("0"), Attr.max("359"),
+              Attr.value(string_of_int(h)),
+              Attr.on_input(fun s -> (int_of_string(s), w, b)),
+              Attr.style([("width", "118px"), ("margin", "0"),
+                     ("background",
+                      "linear-gradient(to right, #f00, #ff0, #0f0, "
+                      ++ "#0ff, #00f, #f0f, #f00)")])
+            ])
+          ]
+        )
+      ]
+    );
+
+  let expand = fun m : Model -> css(m);
+
+  let shape = Tab(16, 5)
+} in
+
+# Click the square or drag the hue.  The string the cell holds is #
+# the same string the swatch is drawn with. #
+
+let styled = fumola $graphical as livelits in
+  { let css = `css` := hazel ^^livelit(^hwb(160, 25, 10)) end;
+    let rule = `rule` := thunk { "background: " ++ (@ css) };
+    force rule }
+end in
+
+# 4. A GRAPH EDITOR, WHOSE EXPANSION IS TWO LISTS #
+
+# The biggest expansion of the four, and it crosses the same way the #
+# others do: lists and tuples have Fumola forms, so the cell holds #
+# the graph itself rather than a description of it. #
+
+type Graph = ([(Int, Int)], [(Int, Int)]) in
+
+let ^graph = {
+  type Model = ([(Int, Int)], [(Int, Int)], Int, Int, Bool);
+  type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up + Clear;
+  type Expansion = Graph;
+  let init : Model = ([(40, 40), (150, 40), (95, 115)], [(0, 1), (1, 2)], -1, -1, false);
+  let len : [(Int, Int)] -> Int = fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+  let near : ([(Int, Int)], Int, Int, Int) -> Int =
+    fun nodes, x, y, i ->
+      case nodes
+      | [] => -1
+      | (nx, ny) :: tl =>
+        let dx = nx - x in let dy = ny - y in
+        if dx * dx + dy * dy <= 256 then i else near(tl, x, y, i + 1)
+      end;
+  let pick : ([(Int, Int)], Int) -> (Int, Int) =
+    fun xs, i -> case xs | [] => (0, 0) | hd :: tl => if i <= 0 then hd else pick(tl, i - 1) end;
+  let set_at : ([(Int, Int)], Int, (Int, Int)) -> [(Int, Int)] =
+    fun xs, i, p ->
+      case xs
+      | [] => []
+      | hd :: tl => if i <= 0 then p :: tl else hd :: set_at(tl, i - 1, p)
+      end;
+  let has_edge : ([(Int, Int)], (Int, Int)) -> Bool =
+    fun edges, e -> case edges | [] => false | hd :: tl => hd == e || has_edge(tl, e) end;
+  let update = fun (m, a) : (Model, Action) ->
+    let (nodes, edges, sel, drag, moved) = m in
+    case a
+    | Clear => ([], [], -1, -1, false)
+    | Down(x, y) =>
+      let hit = near(nodes, x, y, 0) in
+      if hit == -1 then (nodes @ [(x, y)], edges, sel, len(nodes), true)
+      else (nodes, edges, sel, hit, false)
+    | MoveTo(x, y) =>
+      if drag == -1 then m
+      else if moved then (set_at(nodes, drag, (x, y)), edges, sel, drag, true)
+      else
+        let (nx, ny) = pick(nodes, drag) in
+        let dx = nx - x in let dy = ny - y in
+        if dx * dx + dy * dy > 16
+        then (set_at(nodes, drag, (x, y)), edges, sel, drag, true)
+        else m
+    | Up =>
+      if drag == -1 then m
+      else if moved then (nodes, edges, sel, -1, false)
+      else if sel == -1 then (nodes, edges, drag, -1, false)
+      else if sel == drag then (nodes, edges, -1, -1, false)
+      else
+        let e = if sel < drag then (sel, drag) else (drag, sel) in
+        if has_edge(edges, e) then (nodes, edges, -1, -1, false)
+        else (nodes, edges @ [e], -1, -1, false)
+    end;
+  let dot = fun (p, i, sel) ->
+    let (x, y) = p in
+    Html.node("circle", [Attr.create("cx", string_of_int(x)), Attr.create("cy", string_of_int(y)), Attr.create("r", "10"), Attr.create("fill", if i == sel then "coral" else "teal")], []);
+  let line_of = fun (nodes, e) ->
+    let (a, b) = e in
+    let (x1, y1) = pick(nodes, a) in
+    let (x2, y2) = pick(nodes, b) in
+    Html.node("line", [Attr.create("x1", string_of_int(x1)), Attr.create("y1", string_of_int(y1)), Attr.create("x2", string_of_int(x2)), Attr.create("y2", string_of_int(y2)), Attr.create("stroke", "#888"), Attr.create("stroke-width", "2")], []);
+  let dots : ([(Int, Int)], Int, Int) -> [Html.T] =
+    fun nodes, i, sel -> case nodes | [] => [] | hd :: tl => dot((hd, i, sel)) :: dots(tl, i + 1, sel) end;
+  let lines : ([(Int, Int)], [(Int, Int)]) -> [Html.T] =
+    fun nodes, edges -> case edges | [] => [] | hd :: tl => line_of((nodes, hd)) :: lines(nodes, tl) end;
+  let view = fun m : Model ->
+    let (nodes, edges, sel, _, _) = m in
+    Html.div([], [
+      Html.node("svg", [Attr.create("viewBox", "0 0 200 150"), Attr.width("200"), Attr.height("150"), Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")]), Attr.on_mouse_down_at(fun (x, y) -> Down(x, y)), Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)), Attr.on_mouse_up_at(fun _ -> Up)], lines(nodes, edges) @ dots(nodes, 0, sel)),
+      Html.div([], [Html.button([Attr.on_click(Clear)], [Html.text("clear")]), Html.text(string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges")])
+    ]);
+  let shape = Block(32, 8);
+  let expand = fun m : Model ->
+    let (nodes, edges, _, _, _) = m in
+    (nodes, edges) : Graph
+} in
+
+# Drag a node, or click empty space to add one.  The thunk projects #
+# the edge list, which is total -- clearing the graph leaves it an #
+# empty list rather than an error, and the panel still records the #
+# realignment. #
+
+let wiring = fumola $graphical as livelits in
+  { let shape = `shape` := hazel ^^livelit(^graph(([(30, 30), (100, 90), (170, 30)], [(0, 1), (1, 2)], -1, -1, false))) end;
+    let edges = `edges` := thunk { (@ shape).1 };
+    force edges }
+end in
+
+# FOUR WIDGETS, ONE STORE #
+
+# The panel lists all four cells and all four thunks, because every #
+# block above named `livelits`.  A widget you have not touched keeps #
+# its thunk aligned; the one you drag is the one that signals. #
+
+(doubled, shouted, styled, wiring)
