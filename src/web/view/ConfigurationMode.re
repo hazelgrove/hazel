@@ -591,7 +591,7 @@ module View = {
       );
 
     let file_group_scratch =
-      NutMenu.item_group(~inject, "File", [export_button_for_init]);
+      NutMenu.item_group("File", [export_button_for_init]);
 
     let reset_button =
       Widgets.button_named(
@@ -635,11 +635,7 @@ module View = {
       );
 
     let reset_group_scratch =
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     [file_group_scratch, reset_group_scratch];
   };

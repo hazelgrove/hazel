@@ -12,7 +12,7 @@ type setting_item = {
 
 // COMPONENTS
 
-let item_group = (~inject as _, name: string, ts) => {
+let item_group = (name: string, ts) => {
   div_c("group", [div_c("name", [text(name)]), div_c("contents", ts)]);
 };
 
