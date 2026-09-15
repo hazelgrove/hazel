@@ -860,6 +860,47 @@ let splice_all = (focus: Model.focus_t): Segment.t =>
     focus.f_entries,
   );
 
+/* An external editor has changed the spliced program. Keep untouched
+   cells (including their carets/undo), refresh changed cells, and close
+   removed ones. Otherwise the next splice would restore the pre-edit
+   snapshot over the external edit. */
+let rebase =
+    (~info_map, focus: Model.focus_t, master_seg): option(Model.focus_t) => {
+  let entries =
+    List.filter_map(
+      (e: Model.stack_entry) => {
+        let unchanged =
+          switch (cell_content(e, master_seg)) {
+          | None => false
+          | Some(body) =>
+            core_ws(body) == zip_of_cell(e.e_body)
+            && (
+              switch (e.e_sym) {
+              | Some(_) => true
+              | None =>
+                Option.map(core_ws, find_pat(e.e_id, master_seg))
+                == Some(zip_of_cell(e.e_header))
+              }
+            )
+          };
+        unchanged
+          ? Some(e)
+          : e.e_run
+              ? mk_run_entry(~info_map, e.e_id, master_seg)
+              : mk_entry(~info_map, ~sym=?e.e_sym, e.e_id, master_seg);
+      },
+      focus.f_entries,
+    );
+  entries == []
+    ? None
+    : Some(
+        Model.{
+          f_entries: entries,
+          f_master_seg: master_seg,
+        },
+      );
+};
+
 /* the master scratchpad with live stack edits spliced in (pure;
    used by unfocus AND by persistence while the stack is open) */
 let spliced_master = (focus: Model.focus_t, sp: Scratchpad.t): Scratchpad.t =>

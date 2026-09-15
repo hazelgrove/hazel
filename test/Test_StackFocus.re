@@ -225,9 +225,189 @@ let member_restructure = (): unit => {
   );
 };
 
+/* Exercise the actual agent/focus boundary, without an LLM. Keep piece
+   identities as an edit tool does; a whole reparse would merely close
+   all the focused definitions and miss the rollback bug. */
+let focused_model = () => {
+  let seg = parse("let a = 1 in let b = 2 in b");
+  let (term, info_map) = statics_of(seg);
+  let id = outline_id(term, "a");
+  let entry = Option.get(Focus.mk_entry(~info_map, id, seg));
+  let editor = Focus.cell_of_seg(seg);
+  let editor = {
+    ...editor,
+    editor: {
+      ...editor.editor,
+      statics: {
+        ...editor.editor.statics,
+        term,
+        info_map,
+      },
+    },
+  };
+  (
+    SModel.{
+      current: 0,
+      scratchpads: [
+        Web.ScratchModel.Scratchpad.mk_code(~name="Focus test", ~editor, ()),
+      ],
+      focus:
+        Some({
+          f_entries: [entry],
+          f_master_seg: seg,
+        }),
+    },
+    id,
+    outline_id(term, "b"),
+  );
+};
+
+let step = (action, model) =>
+  Web.ScratchMode.Update.update(
+    ~schedule_action=_ => (),
+    ~settings=Web.Settings.Model.init,
+    ~is_documentation=false,
+    action,
+    model,
+  ).
+    model;
+
+let agent_segment = seg =>
+  Web.ScratchMode.Update.AgentAction(
+    Web.Agent.Update.Action.LoadSegmentIntoEditor(seg),
+  );
+
+let master_text = (model: SModel.t) =>
+  switch (List.hd(model.scratchpads).kind) {
+  | Code({editor, _}) => text_of(Focus.zip_of_cell(editor))
+  | _ => failwith("expected code scratchpad")
+  };
+
+let agent_focus_sync = () => {
+  let (model, a, _) = focused_model();
+  let f = Option.get(model.focus);
+  let e = List.hd(f.f_entries);
+  /* A local edit lives only in the cell, then the agent changes b. */
+  let e = {
+    ...e,
+    e_body: Focus.cell_of_seg(parse("10")),
+  };
+  let f = {
+    ...f,
+    f_entries: [e],
+  };
+  let model = {
+    ...model,
+    focus: Some(f),
+  };
+  let live = Focus.splice_all(f);
+  let updated =
+    step(
+      Web.ScratchMode.Update.AgentAction(
+        Web.Agent.Update.Action.DirectEdit(
+          "update_definition",
+          `Assoc([("path", `String("b")), ("code", `String("20"))]),
+        ),
+      ),
+      model,
+    );
+  let f2 = Option.get(updated.focus);
+  check(
+    bool,
+    "unchanged open cell keeps its editor",
+    true,
+    List.hd(f2.f_entries).e_body === e.e_body,
+  );
+  let closed = step(Web.ScratchMode.Update.UnfocusDef, updated);
+  check(
+    bool,
+    "local edit survives",
+    true,
+    contains("10", master_text(closed)),
+  );
+  check(
+    bool,
+    "agent edit survives unfocus",
+    true,
+    contains("20", master_text(closed)),
+  );
+  /* The agent may also edit the OPEN definition. Its cell must refresh. */
+  let updated =
+    step(agent_segment(Focus.splice_def(a, parse("30"), live)), model);
+  let e2 = List.hd(Option.get(updated.focus).f_entries);
+  check(
+    string,
+    "open cell refreshed",
+    "30",
+    text_of(Focus.zip_of_cell(e2.e_body)),
+  );
+  check(
+    bool,
+    "open-cell edit survives unfocus",
+    true,
+    contains(
+      "30",
+      master_text(step(Web.ScratchMode.Update.UnfocusDef, updated)),
+    ),
+  );
+  /* A streaming delta must not rebuild the editor or splice the stack. */
+  let streamed =
+    step(
+      Web.ScratchMode.Update.AgentAction(
+        Web.Agent.Update.Action.ReplayStreamTick,
+      ),
+      model,
+    );
+  check(
+    bool,
+    "stream tick keeps focus identity",
+    true,
+    streamed.focus === model.focus,
+  );
+  check(
+    bool,
+    "stream tick stays cheap",
+    false,
+    Web.Agent.Update.Action.uses_program(ReplayStreamTick),
+  );
+};
+
+let agent_focus_delete = () => {
+  let (model, a, _) = focused_model();
+  let seg = Focus.splice_all(Option.get(model.focus));
+  let (deleted, _) =
+    Option.get(
+      Web.ScratchMode.Restructure.apply(Web.OutlineSidebar.Delete, a, seg),
+    );
+  let updated = step(agent_segment(deleted), model);
+  check(bool, "deleted open definition closes", true, updated.focus == None);
+  check(
+    bool,
+    "deleted definition stays deleted",
+    false,
+    contains("let a", master_text(updated)),
+  );
+  check(
+    bool,
+    "other definitions remain",
+    true,
+    contains("let b", master_text(updated)),
+  );
+};
+
 let tests = (
   "StackFocus",
   [
+    test_case(
+      "agent edits and focused cells stay synchronized",
+      `Quick,
+      agent_focus_sync,
+    ),
+    test_case(
+      "agent deletion closes focused definition",
+      `Quick,
+      agent_focus_delete,
+    ),
     test_case("fun-style def", `Quick, () =>
       check_focus(
         ~src="let inc = fun x -> x + 1 in inc(2)",

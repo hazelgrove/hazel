@@ -651,25 +651,74 @@ module Update = {
       | Code({editor, agent}) =>
         let schedule_agent = (a: Agent.Update.Action.t) =>
           schedule_action(AgentAction(a));
-        let (new_agent, updated_editor) =
-          Agent.Update.update(a, agent, editor, settings, schedule_agent);
-        let* new_ed = updated_editor;
-        let new_sp =
-          ListUtil.put_nth(
-            model.current,
+        let live_editor: CellEditor.Model.t =
+          switch (model.focus) {
+          | Some(f) when Agent.Update.Action.uses_program(a) =>
+            let fresh = Focus.cell_of_seg(Focus.splice_all(f));
             {
-              ...scratchpad,
-              kind:
-                Code({
-                  editor: new_ed,
-                  agent: new_agent,
-                }),
-            },
-            model.scratchpads,
+              editor: {
+                ...fresh.editor,
+                statics: editor.editor.statics,
+              },
+              result: editor.result,
+            };
+          | _ => editor
+          };
+        let (new_agent, updated_editor) =
+          Agent.Update.update(
+            a,
+            agent,
+            live_editor,
+            settings,
+            schedule_agent,
           );
-        {
-          ...model,
-          scratchpads: new_sp,
+        let* new_ed = updated_editor;
+        switch (model.focus) {
+        | Some(f)
+            when
+              new_ed !== live_editor
+              && Focus.zip_of_cell(new_ed) != Focus.zip_of_cell(live_editor) =>
+          let new_seg = Focus.zip_of_cell(new_ed);
+          let focus =
+            Focus.rebase(
+              ~info_map=editor.editor.statics.info_map,
+              f,
+              new_seg,
+            );
+          commit_program_seg(
+            ~schedule_action,
+            ~settings,
+            ~model={
+              ...model,
+              focus,
+            },
+            ~scratchpad,
+            ~editor=new_ed,
+            ~agent=new_agent,
+            ~deleting=false,
+            ~fid=List.hd(f.f_entries).e_id,
+            ~focus_target=None,
+            new_seg,
+          ).
+            model;
+        | _ =>
+          let new_sp =
+            ListUtil.put_nth(
+              model.current,
+              {
+                ...scratchpad,
+                kind:
+                  Code({
+                    editor: model.focus == None ? new_ed : editor,
+                    agent: new_agent,
+                  }),
+              },
+              model.scratchpads,
+            );
+          {
+            ...model,
+            scratchpads: new_sp,
+          };
         };
       | Drv(_) => model |> return_quiet
       };
