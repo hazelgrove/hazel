@@ -98,17 +98,23 @@ module Symbol = {
     );
 };
 
+/* A place and a moment. Each is a symbol or the one distinguished case that
+   is not a symbol -- `here` and `now` name nothing, so they come across as
+   their own case rather than as a symbol of some text.
+
+   The symbol is carried as a symbol, not as its text. It was a String until
+   the runtime started putting structure in these positions and the text
+   stopped being a faithful rendering of it: a pass time is `hazel(52), whose
+   text spelling loses that it is an application of a name to a number, and
+   which cannot be compared with the symbol in an event once it is flattened.
+   Text also could not be told apart from a symbol that really is a name. */
 module Space = {
   let t: Typ.t =
-    sum_type([
-      ("Symbol", Some(Typ.fresh(Atom(String)))),
-      ("Here", None),
-    ]);
+    sum_type([("Symbol", Some(Symbol.t)), ("Here", None)]);
 };
 
 module Time = {
-  let t: Typ.t =
-    sum_type([("Symbol", Some(Typ.fresh(Atom(String)))), ("Now", None)]);
+  let t: Typ.t = sum_type([("Symbol", Some(Symbol.t)), ("Now", None)]);
 };
 
 module Option = {
