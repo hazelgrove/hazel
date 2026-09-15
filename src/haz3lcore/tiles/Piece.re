@@ -108,6 +108,18 @@ let is_convex = (p: t): bool =>
   | _ => false
   };
 
+let is_space: t => bool =
+  fun
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false;
+
+let is_linebreak: t => bool =
+  fun
+  | Secondary(s) => Secondary.is_linebreak(s)
+  | _ => false;
+
+let is_whitespace = (p: t): bool => is_space(p) || is_linebreak(p);
+
 let is_grout: t => bool =
   fun
   | Grout(_) => true

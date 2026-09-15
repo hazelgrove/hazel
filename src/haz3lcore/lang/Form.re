@@ -562,8 +562,17 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.filter_map(((form: compound_form, _)) => {
        let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
-       /* Could be pickier here, e.g. just trailing delimiters */
-       | _ when List.length(form.label) >= 2 => Some(form.label)
+       /* Only NON-leading delimiters contribute prefixes. A
+          non-leading delimiter (the `in` of a let) is typed in infix
+          position, where the backup infix mold smooths entry. A
+          leading delimiter (`let`, `case`) is typed in operand
+          position, where an infix mold can't help — and including
+          its prefixes made ordinary short variables that happen to
+          prefix a keyword (`l`, `c`) mold as operators in broken
+          buffers. Leading-delimiter prefixes are handled by
+          CanonicalCompletion instead (its leading witnesses, gated
+          on the context expecting the delimiter). */
+       | _ when List.length(form.label) >= 2 => Some(List.tl(form.label))
        | _ => None
        };
      })

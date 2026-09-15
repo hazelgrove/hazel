@@ -87,7 +87,7 @@ let sort = (~root, {siblings: (pre, _), ancestors}: t): Sort.t => {
 
 /* Remold the immediate parent ancestor tile based on its
  * sibling context. This handles cases where completing a
- * bidelimited form (e.g. putting down `(` from backpack to
+ * bidelimited form (e.g. putting down a pending `(` to
  * complete `(...)`) leaves the caret inside, and the parent
  * tile needs a different mold (e.g. `ap(...)` instead of
  * plain parens) to fit its neighbors. */

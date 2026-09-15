@@ -282,6 +282,17 @@ let weave =
         /* the printer emits a leading + on sums; the source may not have
            one (both spellings read as the same Sum) — skip the piece */
         weave_seg(rest)
+      | [Tile({label, mold, _}), ..._] as seg
+          when
+            mold.out == Sort.Typ && label != ["+"] && peek(0) == Some("+") =>
+        /* the mirror case: the source spells the optional leading + on a
+           sum the printer omitted (menhir terms lose the leading-plus id
+           evidence this branch's printer reads) — land the prefix tile
+           the typing parser would make */
+        let (gap, _) = expect("+");
+        let tail = weave_seg(seg);
+        gap_pieces(gap)
+        @ [Piece.mk_tile(Form.get(TypSumSingle), []), ...tail];
       | [
           Tile({
             label: ["(", ")"],
