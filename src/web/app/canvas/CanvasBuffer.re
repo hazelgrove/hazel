@@ -453,10 +453,16 @@ let observe =
     };
     was_in_burst := burst;
     let fresh =
-      switch (last_seen^) {
-      | Some(s) => !(s === live)
-      | None => true
-      };
+      /* A calculate-pending editor is not a new presentation state.
+         In particular, do not refresh a prepared beat with empty statics
+         just because its syntax already matches the accepted program. */
+      !Haz3lcore.Id.Map.is_empty(live.statics.info_map)
+      && (
+        switch (last_seen^) {
+        | Some(s) => !(s === live)
+        | None => true
+        }
+      );
     if (fresh) {
       last_seen := Some(live);
       switch (shown^) {

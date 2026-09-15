@@ -67,6 +67,72 @@ let tests = (
       },
     ),
     test_case(
+      "uncalculated accepted edit never presents an empty graph",
+      `Quick,
+      () => {
+        B.reset();
+        let before =
+          model(
+            "type Model = (Int, Bool) in let view : Model -> String = ? in 0",
+          );
+        let accepted =
+          model(
+            "type Model = (Int, Bool) in let view : Model -> String = fun m -> \"ok\" in 0",
+          );
+        let after = {
+          ...accepted,
+          statics: CachedStatics.empty,
+        };
+        Web.CanvasPresentation.capture(
+          ~settings=Language.CoreSettings.on,
+          ~label="update_definition",
+          ~avatar=None,
+          before,
+          after,
+        );
+        List.iter(
+          beat => {
+            let shown = Lazy.force(beat.Web.CanvasBuffer.b_model);
+            check(
+              bool,
+              "statics are populated before the beat is released",
+              false,
+              Id.Map.is_empty(shown.statics.info_map),
+            );
+            let graph = Web.CanvasGraph.extract(shown.statics);
+            check(
+              bool,
+              "Model remains visible",
+              true,
+              List.exists(
+                (n: Web.CanvasGraph.tynode) => n.key == "Model",
+                graph.nodes,
+              ),
+            );
+          },
+          B.queue^,
+        );
+        check(
+          bool,
+          "final syntax still matches the accepted edit",
+          true,
+          B.same_program(
+            Lazy.force(List.hd(List.rev(B.queue^)).b_model),
+            after,
+          ),
+        );
+        B.last_beat := 0.;
+        let presented = watch(after);
+        check(
+          bool,
+          "pending live calculate cannot replace a prepared beat",
+          false,
+          Id.Map.is_empty(presented.statics.info_map),
+        );
+        B.reset();
+      },
+    ),
+    test_case(
       "hold freezes a syntax change invisible to graph weighting",
       `Quick,
       () => {
@@ -94,17 +160,27 @@ let tests = (
         B.reset();
       },
     ),
-    test_case("presentation failure preserves accepted edits", `Quick, () => {
-      B.reset();
-      let before = model("0") and after = model("type A = Int in 0");
-      B.seed(before);
-      B.push_lazy(lazy(failwith("deliberate snapshot failure")));
-      B.push_snapshot(after);
-      B.last_beat := 0.;
-      check(bool,"accepted program remains available",true,B.same_program(watch(after),after));
-      check(int,"invalid history discarded",0,List.length(B.queue^));
-      B.reset();
-    }),
+    test_case(
+      "presentation failure preserves accepted edits",
+      `Quick,
+      () => {
+        B.reset();
+        let before = model("0")
+        and after = model("type A = Int in 0");
+        B.seed(before);
+        B.push_lazy(lazy(failwith("deliberate snapshot failure")));
+        B.push_snapshot(after);
+        B.last_beat := 0.;
+        check(
+          bool,
+          "accepted program remains available",
+          true,
+          B.same_program(watch(after), after),
+        );
+        check(int, "invalid history discarded", 0, List.length(B.queue^));
+        B.reset();
+      },
+    ),
     test_case(
       "catch-up discards history and subsequent ticks stay current",
       `Quick,

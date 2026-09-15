@@ -72,19 +72,26 @@ let capture =
       },
     );
   };
+  /* Tool handlers may return before statics have been calculated. Never
+     present that cache miss as an empty graph: materialize the accepted
+     program just as we do an intermediate definition. */
+  let final_model =
+    lazy(
+      Id.Map.is_empty(after.statics.info_map) ? snapshot(accepted) : after
+    );
   CanvasBuffer.seed(before);
   CanvasBuffer.note_tool();
   /* No future samples leak into intermediate states. The last beat is the
      exact accepted model, including its refractors and current evaluation. */
   let rec publish = states =>
     switch (states) {
-    | [] => CanvasBuffer.push_lazy(~label, ~avatar, lazy(after))
+    | [] => CanvasBuffer.push_lazy(~label, ~avatar, final_model)
     | [(_, target)] =>
       CanvasBuffer.push_lazy(
         ~label,
         ~avatar=
           Option.fold(~none=avatar, ~some=id => Some((id, "edit")), target),
-        lazy(after),
+        final_model,
       )
     | [(seg, target), ...rest] =>
       CanvasBuffer.push_lazy(

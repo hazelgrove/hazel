@@ -365,6 +365,7 @@ let retract = (~delay: float, ~dur: float, el): unit => {
       ("delay", num(delay)),
       ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
       ("fill", str("forwards")),
+      ("id", str("canvas-exit")),
     ],
   );
 };
@@ -383,6 +384,7 @@ let shrink_out = (~delay: float, ~dur: float, el): unit => {
       ("delay", num(delay)),
       ("easing", str("cubic-bezier(0.55, 0, 1, 0.45)")),
       ("fill", str("forwards")),
+      ("id", str("canvas-exit")),
     ],
   );
 };
@@ -403,6 +405,53 @@ let owned_hull_ids =
 };
 let hull_copies = (~prefix: string, name: string): list(string) =>
   owned_hull_ids(~ids=Util.JsUtil.ids_with_prefix(prefix), ~prefix, name);
+
+/* A returning definition can reuse the DOM element of its departing
+   ghost. Its old forwards-filled erasure must not outlive that ghost.
+   Cancel only exit effects; the new arrival/movement keeps its timing. */
+let revive = (~nodes: list(string), ~edges: list(string)): unit => {
+  let ids =
+    List.concat_map(
+      k =>
+        [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
+        @ hull_copies(~prefix="hullc-n-", k),
+      nodes,
+    )
+    @ List.concat_map(
+        k =>
+          [
+            CanvasView.path_dom_id(k),
+            CanvasView.edge_dom_id(k),
+            CanvasView.orbit_dom_id(k),
+            "clead-" ++ CanvasView.sanitize(k),
+          ]
+          @ hull_copies(~prefix="hulls-e-", k)
+          @ hull_copies(~prefix="hullc-l-", k),
+        edges,
+      );
+  List.iter(
+    id =>
+      switch (by_id(id)) {
+      | None => ()
+      | Some(el) =>
+        let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+        let n: int = Js.Unsafe.get(anims, "length");
+        let restored = ref(false);
+        for (i in 0 to n - 1) {
+          let a = Js.Unsafe.get(anims, i);
+          if (Js.to_string(Js.Unsafe.get(a, "id")) == "canvas-exit") {
+            ignore(Js.Unsafe.meth_call(a, "cancel", [||]));
+            restored := true;
+          };
+        };
+        if (restored^) {
+          clear_dash(el);
+          restore_marker(el, stashed_marker(el));
+        };
+      },
+    ids,
+  );
+};
 
 /* screen-space waypoint the avatar passes at a time (ms into the beat) */
 type waypoint = ((float, float), float);

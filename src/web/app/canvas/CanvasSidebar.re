@@ -4285,6 +4285,12 @@ let view_impl =
              );
            }
          );
+    if (added != [] || new_edges != []) {
+      let nodes =
+        List.map((nl: CanvasLayout.node_layout) => nl.node.key, added)
+      and edges = List.map(e => e.CanvasScore.name, new_edges);
+      CanvasEnact.after_render(() => CanvasEnact.revive(~nodes, ~edges));
+    };
     let moved =
       lay.nodes
       |> List.filter_map((nl: CanvasLayout.node_layout) =>
