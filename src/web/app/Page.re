@@ -718,7 +718,10 @@ module View = {
             submenu(
               ~tooltip="Settings",
               ~icon=Icons.gear,
-              NutMenu.settings_menu(~globals),
+              [
+                Editors.View.config_links(~inject),
+                ...NutMenu.settings_menu(~globals),
+              ],
             ),
             submenu(
               ~tooltip="File",

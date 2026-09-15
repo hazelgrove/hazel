@@ -33,6 +33,17 @@ module Model = {
     get_current_config(model) |> fst;
   };
 
+  /* `configs` is built by mapping over `all_of_config_type`, so a config's
+     position in that enumeration is its index into `configs`. */
+  let switch_config = (config_type: config_type, model: t): t =>
+    switch (List.find_index(ct => ct == config_type, all_of_config_type)) {
+    | Some(current) => {
+        ...model,
+        current,
+      }
+    | None => model
+    };
+
   let config_name_of_type = (config_type: config_type): string => {
     switch (config_type) {
     | ColorScheme => "Color Scheme"
