@@ -57,7 +57,16 @@ let instances = (e: Exp.t): list((string, list(Id.t))) => {
           (cont, e) => {
             ids := IdTagged.ids(e) @ ids^;
             switch (e.term) {
-            | FumolaQuote(_, _, body) => fumola_ids(body)
+            /* Name and mode as well as the body. All three are Fumola
+               terms and all three are inside the form a reader is pointing
+               at -- and the name is the likeliest thing to point at, since
+               it is what the panel is titled after. Collecting only the
+               body meant that clicking the very word the panel names
+               emptied it. */
+            | FumolaQuote(name, mode, body) =>
+              fumola_ids(name);
+              fumola_ids(mode);
+              fumola_ids(body);
             | _ => ()
             };
             cont(e);
