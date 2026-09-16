@@ -1459,11 +1459,14 @@ let to_string = Base.segment_to_string;
    PIECE, so this cheap scan distinguishes "moved" from "edited" */
 let ptr_eq = (a: t, b: t): bool => {
   let rec go = (xs, ys) =>
-    switch (xs, ys) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
-    | _ => false
-    };
+    xs === ys
+    || (
+      switch (xs, ys) {
+      | ([], []) => true
+      | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
+      | _ => false
+      }
+    );
   go(a, b);
 };
 

@@ -79,7 +79,8 @@ let update_definition: API.Json.t =
 
 let update_body_description = {|
 Replaces the body (everything after `in`) of the binding at the given path.
-The body is the rest of the program that follows this binding.
+The body is the rest of the program that follows this binding, INCLUDING subsequent definitions and tests. This is a broad replacement, not an append operation.
+Prefer insert_before / insert_after for new bindings and update_definition at the smallest nested/member path for existing ones. Use this tool only when replacing the entire selected body is intended. To change only a terminal expression, first inspect the last binding's body and target that binding; do not copy the program tail through an earlier binding.
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 Module MEMBERS (paths like "M/helper") have no body and are rejected — target the member's definition instead.
 

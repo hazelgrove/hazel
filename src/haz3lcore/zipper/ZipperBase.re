@@ -119,17 +119,22 @@ module MapPiece = {
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let next = of_tile(f, t);
+      next === t ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => Segment.ptr_eq(a, b), t.children, children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
@@ -224,21 +229,27 @@ module MapSegment = {
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
     let seg = f(seg);
-    List.map(of_piece(f), seg);
+    let next = List.map(of_piece(f), seg);
+    Segment.ptr_eq(seg, next) ? seg : next;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let next = of_tile(f, t);
+      next === t ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => Segment.ptr_eq(a, b), t.children, children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (

@@ -83,6 +83,7 @@ let run_insert_at_program_boundary =
          re-indent like the dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
+          ~before=z,
           Materialize.all(new_z, ~root=Exp),
         )
         |> LocalReformat.go_region(~before_pieces),
