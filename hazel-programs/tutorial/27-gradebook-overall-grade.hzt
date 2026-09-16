@@ -1,0 +1,147 @@
+@title
+Tables / Gradebook Overall Grade
+
+@flags
+show_report version=1 id=7eab0859-5c92-419a-92cb-54e2c65c6b89
+
+@prompt
+Implement the `clean_and_add_overall_grade` function. It takes a gradebook
+(a list of labeled tuples where every value is a String) and should return
+a new table with two changes:
+
+**Part 1: Convert columns to proper types**
+```hazelnostatics
+^^table([
+(column=student_id, `type`=Int),
+(column=term, `type`=String),
+(column=quiz1, `type`=Float),
+(column=quiz2, `type`=Float),
+(column=midterm, `type`=Float),
+(column=final, `type`=Float)
+])
+```
+The `term` column should be left unaltered as a String. Preserve the original column order.
+
+**Part 2: Add an `overall_grade` column**
+
+Weighting: 1/3 quizzes, 1/3 midterm, 1/3 final.
+- There are 2 quizzes, each scored out of 10 points.
+- The Midterm and Final are each scored out of 100 points.
+- First convert the quizzes to a percentage:
+quiz_pct = (quiz1 + quiz2) / 20 * 100
+- Then compute:
+overall_grade = (quiz_pct + midterm + final) / 3
+- The final result should be a number out of 100.
+
+**Example:**
+quiz1=8, quiz2=9, midterm=84, final=92
+quiz_pct = (8+9) / 20 * 100 = 85
+overall_grade = (85 + 84 + 92) / 3 = 87
+
+Feel free to define any helper functions you may find useful. The task
+reference to the right provides functions and operations we think may
+be helpful for this task.
+
+@hint
+Use `map` to transform each row. Use tuple extension (`...`) to add the
+overall_grade field to each entry. Remember: quiz_pct = sum of 4 quizzes
+divided by 40 times 100
+
+@reference
+## Quick Reference
+
+### Column Projection
+Access a column from a table (list of labeled tuples):
+```hazel
+let t = [
+(name="A", score=90),
+(name="B", score=80)
+] in
+t.score
+```
+
+
+### Tuple Extension
+Use `...` to update or add fields to a labeled tuple:
+```hazel
+let pet = (name="Spot", age=7) in
+pet ... (age=8, breed="Pug")
+```
+
+
+### map
+```hazelnostatics
+map : ([T], T -> U) -> [U]
+```
+Apply a function to each element:
+```hazel
+map([1, 2, 3], fun x -> x + 1)
+```
+
+
+### Type Conversions
+- `int_of_string : String -> Int`
+- `float_of_string : String -> Float`
+- `float_of_int : Int -> Float`
+
+### Float Arithmetic
+- `2.0 +. 3.0` — addition
+- `5.0 -. 1.0` — subtraction
+- `3.0 *. 2.0` — multiplication
+- `6.0 /. 3.0` — division
+
+Float literals need a decimal point: `0.`, `1.0`, `3.14`
+
+### Partial Application
+Use `_` to defer arguments:
+```hazel
+let double =
+map(_, fun x -> x * 2)
+in
+double([1, 2, 3])
+```
+
+@hints
+student_id
+quiz1
+quiz2
+midterm
+final
+overall grade
+column names
+
+@code
+type GradebookEntry = (student_id=String, term=String, quiz1=String, quiz2=String, midterm=String, final=String) in
+
+let gradebook : [GradebookEntry]  =
+^^table([(student_id="1", term="2025SP", quiz1="7", quiz2="5", midterm="85", final="88"),
+(student_id="2", term="2025FA", quiz1="5", quiz2="8", midterm="90", final="82"),
+(student_id="3", term="2024FA", quiz1="8", quiz2="7", midterm="78", final="80"),
+(student_id="4", term="2025SP", quiz1="9", quiz2="10", midterm="95", final="98"),
+(student_id="5", term="2024FA", quiz1="4", quiz2="3", midterm="60", final="65")])
+in
+
+let clean_and_add_overall_grade = fun (gradebook: [GradebookEntry]) ->
+gradebook
+in
+
+clean_and_add_overall_grade(gradebook)
+
+@test
+let cleaned = clean_and_add_overall_grade(gradebook) in
+let our_cleaned =
+gradebook
+|> map(_, fun (r) -> r ... (student_id=int_of_string(r.student_id),
+quiz1=float_of_string(r.quiz1),
+quiz2=float_of_string(r.quiz2),
+midterm=float_of_string(r.midterm),
+final=float_of_string(r.final)))
+|> map(_, fun r -> r... (overall_grade=(r.midterm +. r.final +. (r.quiz1 +. r.quiz2) *. 5) /. 3))
+in
+test cleaned.student_id == our_cleaned.student_id end;
+test cleaned.quiz1 == our_cleaned.quiz1 end;
+test cleaned.quiz2 == our_cleaned.quiz2 end;
+test cleaned.midterm == our_cleaned.midterm end;
+test cleaned.final == our_cleaned.final end;
+test cleaned.overall_grade == our_cleaned.overall_grade end;
+test to_lvs(head(cleaned)).label == ["student_id", "term", "quiz1", "quiz2", "midterm", "final", "overall_grade"] end
