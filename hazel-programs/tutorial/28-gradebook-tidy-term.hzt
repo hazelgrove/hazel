@@ -1,0 +1,155 @@
+@title
+Tables / Gradebook Tidy Term
+
+@flags
+show_report version=1 id=a40321c5-a92e-472a-8530-71abbdb52b42
+
+@prompt
+Implement the `tidy_term` function. It should take a gradebook as a list of `GradebookEntry` and return a new table that splits the `term` column into separate `year` and `semester` columns.
+
+For example, given a table containing:
+```hazelnostatics
+^^table([(student_id=1, term="2025FA"), (student_id=2, term="2020SP")])
+```
+
+The result should be:
+```hazelnostatics
+^^table([(student_id=1, year=2025, semester=Fall), (student_id=2, year=2020, semester=Spring)])
+```
+
+The `year` should be extracted from the first 4 characters of the `term` string (converted to `Int`), and the `semester` from the last 2 characters: `"FA"` → `Fall`, `"SP"` → `Spring`.
+
+`Semester` is a sum type defined in the prelude: `type Semester = Fall + Spring`. Use the constructors `Fall` and `Spring` directly (not as strings).
+
+The output table should contain all original columns **except** `term`, plus the new `year` and `semester` columns. The order of columns does not matter.
+
+@hint
+Think about how to transform each row independently. What string operations could help you break the `term` field into its components?
+
+@reference
+## Quick Reference
+
+### Semester Type
+`Semester` is a sum type defined in the prelude:
+- `Fall` — represents fall semester (term code `"FA"`)
+- `Spring` — represents spring semester (term code `"SP"`)
+
+### String Operations
+- `string_sub(s, start, len)` — extract substring (0-indexed)
+- `string_length(s)` — length of a string
+- `int_of_string(s)` — convert string to Int
+
+### Case Expression
+   ```hazel
+   case 1
+   | 0 => "zero"
+   | 1 => "one"
+   | _ => "other"
+   end
+   ```
+   `_` is a wildcard that matches anything.
+
+   Pattern matching can also destructure values:
+   ```hazel
+   case (1, "hello")
+   | (0, _) => "zero and something"
+   | (n, s) =>
+  "number "
+  ++ string_of_int(n)
+  ++ " and string "
+  ++ s
+   end
+   ```
+   
+
+### If Expression
+```hazel
+let x = -5 in
+if x < 0 then 0 - x else x
+```
+
+Nested:
+```hazel
+let x = 5 in
+if x < 0 then -1
+else if x == 0 then 0
+else 1
+```
+
+### map
+```hazelnostatics
+map : ([T], T -> U) -> [U]
+```
+Apply a function to each element:
+```hazel
+map([1, 2, 3], fun x -> x + 1)
+```
+
+
+### Tuple Extension
+Use `...` to update or add fields to a labeled tuple:
+```hazel
+let pet = (name="Spot", age=7) in
+pet ... (age=8, breed="Pug")
+```
+
+
+### Column Projection
+Access a column from a table (list of labeled tuples):
+```hazel
+let t = [
+(name="A", score=90),
+(name="B", score=80)
+] in
+t.score
+```
+
+
+@hints
+semester
+year
+term column removed, new columns added
+
+@code
+type Semester = +Spring +Fall in
+type GradebookEntry = (student_id=Int, term=String, quiz1=Float, quiz2=Float, midterm=Float, final=Float) in
+let gradebook : [GradebookEntry]  =
+^^table([(student_id=1, term="2025SP", quiz1=7., quiz2=5., midterm=85., final=88.0),
+(student_id=2, term="2025FA", quiz1=5., quiz2=8., midterm=90., final=82.),
+(student_id=3, term="2024FA", quiz1=8., quiz2=7., midterm=78., final=80.), 
+(student_id=4, term="2025SP", quiz1=9., quiz2=10.,  midterm=95., final=98.),
+(student_id=5, term="2024FA", quiz1=4., quiz2=3., midterm=60., final=65.)])
+in
+
+let tidy_term = fun (gradebook: [GradebookEntry]) ->
+gradebook
+in
+
+tidy_term(gradebook)
+
+@test
+let test_data : [GradebookEntry] =
+[
+(
+student_id= 1,
+term= "2025FA",
+quiz1= 8.,
+quiz2= 9.,
+midterm= 84.,
+final= 92.
+),
+(
+student_id= 2,
+term= "2020SP",
+quiz1= 6.,
+quiz2= 7.,
+midterm= 78.,
+final= 88.
+)
+] in
+let result = tidy_term(test_data) in
+test result . semester == [Fall, Spring] end;
+test result . year == [2025, 2020] end;
+test let columns = ^^probe(to_lvs(head(result)) . label) in
+mem(columns, "semester")
+&& mem(columns, "year") && ! mem(columns, "term") end
