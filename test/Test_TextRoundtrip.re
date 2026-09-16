@@ -6,6 +6,9 @@
  * so all the grout placement decisions have already been settled by the
  * parser before to_text sees them.
  *
+ *   - TutorialLessons (`Slow`): the same check over every shipped .hzt
+ *     lesson's impl and hidden tests. These are authored as text by hand,
+ *     so they are the ones that can spell a hole the round-trip drops.
  *   - DocSlides (`Slow`): per-slide text fixed-point check. The shipped
  *     slides were created via the editor, which routes every keystroke
  *     through the parser, so they qualify. Complemented by
@@ -79,6 +82,21 @@ let doc_slide_cases =
   |> List.filter(((name, _, _)) => !CorpusUtil.mega_scale(name))
   |> List.map(((name, root, p: PersistentZipper.t)) =>
        (name, root, () => PersistentZipper.unpersist(p, ~root))
+     )
+  |> List.map(slide_roundtrip_case);
+
+/* The .hzt lessons are authored as text too, so both halves of each one
+   must be a fixed point: what TutorialText parsed and the editor reprints
+   has to be the text in the file, or `tutorial-decode` would not reproduce
+   its own source. A hole regrout does not re-insert fails here.
+   `hazel tutorial-verify --verbose` prints the diff. */
+let tutorial_lesson_cases =
+  Web.TutorialText.all
+  |> List.concat_map((spec: Web.Tutorial.spec) =>
+       [
+         (spec.title ++ " (impl)", Sort.Exp, () => spec.your_impl),
+         (spec.title ++ " (tests)", Sort.Exp, () => spec.hidden_tests.tests),
+       ]
      )
   |> List.map(slide_roundtrip_case);
 
@@ -354,6 +372,7 @@ let tests = [
   ("TextRoundtrip.ConcaveMarker", concave_marker_cases),
   ("TextRoundtrip.SoleHoles", sole_hole_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
+  ("TextRoundtrip.TutorialLessons", tutorial_lesson_cases),
   (
     "TextRoundtrip.Property",
     [QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_exp_roundtrip)],

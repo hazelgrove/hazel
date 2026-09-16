@@ -73,6 +73,16 @@ jobs:
           # An earlier step failing leaves no report to read, and the job is
           # already red for that reason -- don't stack a second failure on it.
           fail-on-empty: false
+          # Only the failing cases. At `all` every case gets its own row, which
+          # for the full suite is some 3800 of them and several hundred
+          # kilobytes of green, burying the handful of rows anyone opened the
+          # report for. list-suites stays
+          # at its `all` default on purpose: haz3ltest.re builds a single
+          # testsuite, so filtering suites would save one table row while
+          # dropping the summary that carries the totals, and would leave a
+          # green run with a blank report rather than the count that says the
+          # suite ran everything it was meant to.
+          list-tests: failed
           # use-actions-summary defaults to true: the report is written to this
           # job's summary and no check run is created. That is deliberate. A
           # check run is created for a commit, not for a workflow, and GitHub
@@ -109,8 +119,10 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          # See Quick Test Report above for this and for the summary default.
+          # See Quick Test Report above for these, for list-suites staying at
+          # its default, and for the summary default.
           fail-on-empty: false
+          list-tests: failed
 
       - name: Send coverage report to Codecov
         if: ${{ inputs.upload-coverage }}

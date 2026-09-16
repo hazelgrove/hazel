@@ -667,6 +667,13 @@ let piece_rows = (m: t): list(list(Piece.t)) => m.all_piece_rows;
 
 let num_rows = (m: t): int => m.total_rows;
 
+let num_tiles = (m: t): int =>
+  Array.fold_left(
+    (n, ch) => n + Id.Map.cardinal(ch.c_flat.tiles),
+    0,
+    m.chunks,
+  );
+
 /* single-chunk construction: the compatibility path every existing
    of_segment caller keeps using */
 let of_segment =
