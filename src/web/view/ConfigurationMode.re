@@ -577,7 +577,8 @@ module View = {
           ~signal=i => inject(SwitchConfig(i)),
           model.current,
           List.map(
-            ((config_type, _)) => Model.config_name_of_type(config_type),
+            ((config_type, _)) =>
+              SlidePath.of_string(Model.config_name_of_type(config_type)),
             model.configs,
           ),
         ),
