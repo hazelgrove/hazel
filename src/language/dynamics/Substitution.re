@@ -268,7 +268,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         failwith("patterns should be handled separately in substitution"),
     ~f_typ=
       (cont, t) => {
-        let (term, _rewrap) = Typ.unwrap(t);
+        let (term, rewrap) = Typ.unwrap(t);
         switch (term) {
         // Cases without patterns: recurse
         | Unknown(_)
@@ -289,8 +289,10 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdExtension(_, _)
         | ProofOf(_)
         | DrvQuoteTy(_) => cont(t)
-        // Signature items carry patterns, which this traversal cannot visit
-        | Sig(_) => t
+        // The item types only: the generic traversal would also visit the
+        // item patterns
+        | Sig(items) =>
+          Sig(List.map(Sig.map_typ(in_typ(env)), items)) |> rewrap
         };
       },
     typ,
