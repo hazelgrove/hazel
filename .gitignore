@@ -79,3 +79,6 @@ AGENTS.md
 # Python bytecode (scripts/ helpers get imported by ad-hoc tooling)
 __pycache__/
 *.pyc
+
+# ICP CLI local cache (canister id mappings under .icp/data/ are committed)
+.icp/cache/

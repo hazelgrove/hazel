@@ -1,0 +1,20 @@
+# Hazel as an Internet Computer canister.
+#
+# Serves the release web build as certified assets -- the same directory the
+# branch-preview job publishes (.github/workflows/deploy.yml), so a canister and
+# hazel.org/build/<branch>/ serve byte-identical output. This does not replace
+# the branch previews; it is a second, self-hosting target.
+#
+# See docs/internet-computer.md for deploying, costs, and the header choices.
+canisters:
+  - name: hazel
+    recipe:
+      # Pinned deliberately: a recipe upgrade changes which headers reach the
+      # browser, and the CSP below is load-bearing.
+      type: "@dfinity/static-site@v0.3.3"
+      configuration:
+        dir: _build/default/src/web/www
+        # Matches the deploy workflow's build step. Takes tens of minutes from
+        # cold; `make release && icp sync hazel` skips it when already built.
+        build:
+          - opam exec -- dune build src --profile release

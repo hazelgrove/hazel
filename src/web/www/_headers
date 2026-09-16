@@ -1,0 +1,31 @@
+# Response headers for the Internet Computer canister build.
+# See docs/internet-computer.md. Dune copies this file into the build
+# directory via the `(source_tree www)` dep in src/web/dune.
+#
+# The certified-assets canister sends NO headers of its own -- no CSP, no
+# Cache-Control -- so everything the browser sees is declared here. Patterns
+# match the asset path, not the visitor's URL.
+#
+# Each CSP source below is here for a measured reason:
+#
+#   'unsafe-eval'        hazel.js (the js_of_ocaml runtime) and bundled.js both
+#                        evaluate strings as JavaScript. Without it the app
+#                        never gets past the loading spinner.
+#   fonts.googleapis.com  index.html pulls the Material Icons stylesheet, and
+#   fonts.gstatic.com     its font files, from Google. Self-hosting them would
+#                         drop both entries and stop leaking a request to
+#                         Google on every visit.
+#   openrouter.ai        the agent panel calls openrouter.ai/api/v1/* directly
+#                        from the browser (src/util/OpenRouter.re). Drop this
+#                        and the agent silently stops working.
+#   'unsafe-inline'      style only: virtual_dom sets inline style attributes.
+#
+# frame-ancestors 'none' blocks embedding Hazel in an iframe. That is a
+# judgement call, not a measurement -- relax it if course materials embed the
+# editor.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://openrouter.ai; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Cache-Control: public, max-age=0, must-revalidate
