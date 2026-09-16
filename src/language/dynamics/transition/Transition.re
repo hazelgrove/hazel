@@ -1406,14 +1406,14 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(env') =>
-            /* Export the bindings in pattern order. */
-            let order = Pat.bound_vars(dp);
-            let index = x =>
-              List.find_index((==)(x), order) |> Option.value(~default=0);
+            /* Export the bindings in pattern order: each variable the
+               pattern binds, with the value the match gave it. */
             let bound =
-              List.stable_sort(
-                ((x, _), (y, _)) => compare(index(x), index(y)),
-                env',
+              List.filter_map(
+                x =>
+                  List.find_opt(((y, _)) => String.equal(x, y), env')
+                  |> Option.map(((_, v)) => (x, v)),
+                Pat.bound_vars(dp),
               );
             let prefix' =
               List.fold_left(
