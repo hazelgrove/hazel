@@ -1,0 +1,10 @@
+{
+  "name": "smoke",
+  "program": "let x = 5 in\nlet y = 10 in\nx + y",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    { "label": "x := 6", "actions": ["(Structural (Update Definition x 6))"] },
+    { "label": "x := 7", "actions": ["(Structural (Update Definition x 7))"] },
+    { "label": "y := 11", "actions": ["(Structural (Update Definition y 11))"] }
+  ]
+}

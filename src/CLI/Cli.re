@@ -631,6 +631,38 @@ let grade_report_cmd = {
   );
 };
 
+let bench_incr_cmd = {
+  let doc =
+    "Replay an editing trace and time re-evaluation under each incremental "
+    ++ "calculus.";
+  let modes_arg = {
+    let doc =
+      "Calculus to run (repeatable). Defaults to every calculus implemented "
+      ++ "on this branch: "
+      ++ String.concat(
+           ", ",
+           List.map(Language.Calculus.name, Language.Calculus.available),
+         )
+      ++ ".";
+    Arg.(value & opt_all(string, []) & info(["c", "calculus"], ~doc));
+  };
+  let json_arg = {
+    let doc = "Also write raw measurements to this JSON file.";
+    Arg.(
+      value & opt(some(string), None) & info(["json"], ~docv="FILE", ~doc)
+    );
+  };
+  let files_arg = {
+    let doc = "Editing trace JSON files to replay.";
+    Arg.(non_empty & pos_all(string, []) & info([], ~docv="TRACES", ~doc));
+  };
+  let info = Cmd.info("bench-incr", ~doc);
+  Cmd.v(
+    info,
+    Term.(const(BenchIncr.bench_incr) $ modes_arg $ json_arg $ files_arg),
+  );
+};
+
 let bench_eval_cmd = {
   let doc = "Benchmark evaluation performance on one or more .hz files.";
   let iterations_arg = {
@@ -662,6 +694,7 @@ let default_cmd = {
       grade_json_cmd,
       grade_report_cmd,
       bench_eval_cmd,
+      bench_incr_cmd,
     ],
   );
 };

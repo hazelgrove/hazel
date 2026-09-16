@@ -1,0 +1,11 @@
+{
+  "name": "tuple-bottleneck",
+  "program": "let fib : Int -> Int =\n  fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2)\nin\nlet c0 = 21 in\nlet c1 = 22 in\nlet z = (c0, c1) in\nlet (p, q) = z in\nfib(p) + fib(q)",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    { "label": "c0 := 20", "actions": ["(Structural (Update Definition c0 20))"] },
+    { "label": "c0 := 19", "actions": ["(Structural (Update Definition c0 19))"] },
+    { "label": "c1 := 21", "actions": ["(Structural (Update Definition c1 21))"] },
+    { "label": "c0 := 18", "actions": ["(Structural (Update Definition c0 18))"] }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "independent-bindings",
+  "program": "let fib : Int -> Int =\n  fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2)\nin\nlet a = 21 in\nlet b = 22 in\nlet ra = fib(a) in\nlet rb = fib(b) in\nra + rb",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    { "label": "a := 20", "actions": ["(Structural (Update Definition a 20))"] },
+    { "label": "a := 19", "actions": ["(Structural (Update Definition a 19))"] },
+    { "label": "b := 21", "actions": ["(Structural (Update Definition b 21))"] },
+    { "label": "a := 18", "actions": ["(Structural (Update Definition a 18))"] },
+    { "label": "b := 20", "actions": ["(Structural (Update Definition b 20))"] }
+  ]
+}
