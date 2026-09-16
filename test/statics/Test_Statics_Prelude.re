@@ -40,6 +40,8 @@ let equal_builtin = (a: Mark.error_builtin, b: Mark.error_builtin) =>
 let rec equal_mark: (Mark.t, Mark.t) => bool =
   (a, b) =>
     switch (a, b) {
+    | (DynamicError(e1), DynamicError(e2)) =>
+      InvalidOperationError.equal(e1, e2)
     | (NoMeet(j1, s1), NoMeet(j2, s2)) =>
       j1 == j2 && List.equal(source_equal, s1, s2)
     | (DuplicateLabel(l1, t1), DuplicateLabel(l2, t2)) =>
