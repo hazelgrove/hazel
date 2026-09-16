@@ -50,7 +50,6 @@ type item =
   | CodeEx(string, CodeExercise.spec) /* let <name> : Exercise.t = Code(...) */
   | DrvEx(string, DerivationExercise.spec) /* let <name> : Exercise.t = Derivation(...) */
   | ThmEx(string, TheoremExercise.spec) /* let <name> : Exercise.t = Theorem(...) */
-  | TutorialSpec(string, Tutorial.spec) /* let <name> : Tutorial.spec = ... */
   | DrvSpec(string, DerivationExercise.spec); /* let <name> : DerivationExercise.spec = ... */
 
 type file = {
@@ -96,48 +95,6 @@ let files: list(file) = [
   {
     path: "src/web/exercises/examples/Ex_EvaluationDerivation.ml",
     items: [DrvEx("exercise", drv_spec(Ex_EvaluationDerivation.exercise))],
-  },
-  {
-    path: "src/web/exercises/examples/Tu_ExpressiveProgramming.ml",
-    items: [TutorialSpec("exercise", Tu_ExpressiveProgramming.exercise)],
-  },
-  {
-    path: "src/web/exercises/examples/Tu_ComposingArithmetic_and_Scope.ml",
-    items: [
-      TutorialSpec("exercise", Tu_ComposingArithmetic_and_Scope.exercise),
-      TutorialSpec(
-        "scope_exercise",
-        Tu_ComposingArithmetic_and_Scope.scope_exercise,
-      ),
-    ],
-  },
-  {
-    path: "src/web/exercises/examples/Tu_ComputingEquationally_Shadow.ml",
-    items: [
-      TutorialSpec("exercise", Tu_ComputingEquationally_Shadow.exercise),
-      TutorialSpec(
-        "shadow_exercise",
-        Tu_ComputingEquationally_Shadow.shadow_exercise,
-      ),
-    ],
-  },
-  {
-    path: "src/web/exercises/examples/Tu_Variables_and_Compositionality.ml",
-    items: [
-      TutorialSpec("exercise", Tu_Variables_and_Compositionality.exercise),
-      TutorialSpec(
-        "comp_exercise",
-        Tu_Variables_and_Compositionality.comp_exercise,
-      ),
-    ],
-  },
-  {
-    path: "src/web/exercises/examples/Tu_More.ml",
-    items: [
-      TutorialSpec("bools_ex", Tu_More.bools_ex),
-      TutorialSpec("cond_ex", Tu_More.cond_ex),
-      TutorialSpec("func_ex", Tu_More.func_ex),
-    ],
   },
   {
     path: "src/web/derivation/examples/Ex_Conjunction_Commutativity.ml",
@@ -193,12 +150,6 @@ let emit_item = (item: item): string =>
     ++ " : Exercise.t =\n  Theorem\n    (TheoremExercise.of_persistent\n       "
     ++ TheoremExercise.show_persistent_spec(ps)
     ++ ")\n";
-  | TutorialSpec(name, spec) =>
-    "let "
-    ++ name
-    ++ " : Tutorial.spec =\n  Tutorial.of_persistent\n    "
-    ++ Tutorial.show_p(persistent_pp, spec)
-    ++ "\n"
   | DrvSpec(name, spec) =>
     "let "
     ++ name
@@ -266,19 +217,6 @@ let code_fields = (name, s: CodeExercise.spec): list(field) => {
   @ [f("hidden_tests.tests", s.hidden_tests.tests)];
 };
 
-let tutorial_fields = (name, s: Tutorial.spec): list(field) => [
-  {
-    label: name ++ ".your_impl",
-    root: Sort.Exp,
-    zipper: s.your_impl,
-  },
-  {
-    label: name ++ ".hidden_tests.tests",
-    root: Sort.Exp,
-    zipper: s.hidden_tests.tests,
-  },
-];
-
 let drv_fields = (name, s: DerivationExercise.spec): list(field) => {
   let acc = ref([]);
   let _: DerivationExercise.p(Zipper.t) =
@@ -319,7 +257,6 @@ let fields_of_item = (item: item): list(field) =>
   | DrvEx(name, s)
   | DrvSpec(name, s) => drv_fields(name, s)
   | ThmEx(name, s) => thm_fields(name, s)
-  | TutorialSpec(name, s) => tutorial_fields(name, s)
   };
 
 let seg_of_zipper = (z: Zipper.t): Base.segment =>
@@ -385,8 +322,7 @@ let registry_warnings = (): list(string) => {
          | CodeEx(_, s) => s.id
          | DrvEx(_, s)
          | DrvSpec(_, s) => s.id
-         | ThmEx(_, s) => s.id
-         | TutorialSpec(_, s) => s.id,
+         | ThmEx(_, s) => s.id,
        );
   let missing = (kind, title, id) =>
     List.mem(id, covered_ids)
@@ -397,15 +333,12 @@ let registry_warnings = (): list(string) => {
           ++ " not covered by Migrate_exercises table: "
           ++ title,
         );
+  /* Tutorial lessons are .hzt text (no zipper literals) — nothing to migrate. */
   List.filter_map(
     (e: Exercise.t) =>
       missing("exercise", Exercise.title_of(e), Exercise.id_of(e)),
     ExerciseSettings_base.exercises,
   )
-  @ List.filter_map(
-      (t: Tutorial.spec) => missing("tutorial", t.title, t.id),
-      TutorialSettings_base.lessons,
-    )
   @ List.filter_map(
       ((name, s): (string, DerivationExercise.spec)) =>
         missing("derivation slide", name, s.id),

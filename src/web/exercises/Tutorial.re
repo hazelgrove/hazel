@@ -44,6 +44,9 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
+  /* Markdown for the Task Reference sidebar; None for a lesson with no
+     @reference section, which is what hides the tab. */
+  task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
   wrapper: bool,
@@ -53,6 +56,12 @@ type p('code) = {
 let id_of = p => {
   p.id;
 };
+
+/* A lesson's title carries its folder as a SlidePath prefix, the same
+   convention Documentation-mode slide names use: "Basics / Holes" is the
+   lesson "Holes" in the "Basics" folder. Keep every lesson at exactly one
+   folder segment, and never let one title be a proper prefix of another. */
+let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -73,6 +82,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     module_name: p.module_name,
     prompt: p.prompt,
     display_hint: p.display_hint,
+    task_reference: p.task_reference,
     your_impl: f(p.your_impl),
     hidden_tests: {
       tests: f_hidden(p.hidden_tests.tests),
@@ -305,6 +315,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     module_name: spec.module_name,
     prompt: spec.prompt,
     display_hint: spec.display_hint,
+    task_reference: spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
     your_impl,
