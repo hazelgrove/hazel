@@ -33,10 +33,10 @@ let ^mood = {
 
   let view((v, _): Model): HTML =
     Div(
-      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ns-resize")]), Create("data-hint", "drag up/down")],
+      [Style([("cursor", "ns-resize")]), Create("data-hint", "drag up/down")],
       [
         Node("svg",
-          [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 200 200"),
+          [Style([("display", "block")]), Create("viewBox", "0 0 200 200"),
            Width("92"), Height("92"),
            OnMouseDownAt(fun (_, y: Int) -> Down(y)),
            OnMouseMoveAt(fun (_, y: Int) -> MoveTo(y)),
@@ -44,16 +44,16 @@ let ^mood = {
           [
             Node("circle",
               [Create("cx", "100"), Create("cy", "100"), Create("r", "90"),
-               Create("fill", "#efcb82"), Create("stroke", "#6b563d")],
+               Create("fill", "var(--Y1)"), Create("stroke", "var(--BR4)")],
               []),
             Node("circle",
-              [Create("cx", "65"), Create("cy", "80"), Create("r", "8"), Create("fill", "#624d36")],
+              [Create("cx", "65"), Create("cy", "80"), Create("r", "8"), Create("fill", "var(--BR4)")],
               []),
             Node("circle",
-              [Create("cx", "135"), Create("cy", "80"), Create("r", "8"), Create("fill", "#624d36")],
+              [Create("cx", "135"), Create("cy", "80"), Create("r", "8"), Create("fill", "var(--BR4)")],
               []),
             Node("path",
-              [Create("d", mouth(v)), Create("stroke", "#6b563d"),
+              [Create("d", mouth(v)), Create("stroke", "var(--BR4)"),
                Create("fill", "transparent"), Create("stroke-width", "5"), Create("stroke-linecap", "round")],
               [])
           ])

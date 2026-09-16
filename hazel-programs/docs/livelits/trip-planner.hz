@@ -167,7 +167,7 @@ let ^map = {
                           Create("fill", "#a6d3ee"), OnClick(Remove(i)), Style([("cursor", "pointer")])], []) end));
   let expand(r: Model): Route = r;
   let wrap(r: Route): Model = r;
-  let shape : LivelitShape = Tab(14, 8)
+  let shape : LivelitShape = Tab(17, 7)
 } in
 
 # ---- the program ---- #

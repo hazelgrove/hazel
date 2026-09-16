@@ -135,18 +135,18 @@ let ^greenhouse = {
     let (w, t, g) = season(log) in
     Div([Class("blue-hour-view blue-hour-greenhouse"),
          Style([("background", "#576e83"), ("color", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"),
-                ("position", "relative"), ("display", "grid"), ("grid-template-columns", "minmax(80px, 1fr) 84px"),
-                ("gap", "8px"), ("align-items", "center"), ("min-width", "176px"), ("max-width", "260px")])],
+                ("position", "relative"), ("display", "grid"), ("grid-template-columns", "128px 84px"),
+                ("gap", "8px"), ("align-items", "center"), ("width", "220px"), ("height", "142px")])],
       [Div([Style([("display", "flex"), ("flex-direction", "column"), ("gap", "4px"), ("align-items", "center")])],
          [^weather.view(w),
-          Div([Style([("display", "flex"), ("flex-wrap", "wrap"), ("justify-content", "center"), ("max-width", "128px")])],
+          Div([Class("blue-hour-garden"), Style([("display", "flex"), ("justify-content", "center"), ("width", "128px")])],
               map(g, fun p: Plant -> ^plant.view(p)))]),
        ^tank.view(t),
        Div([Class("blue-hour-tools"), Style([("position", "absolute"), ("top", "0"), ("right", "0"),
                 ("display", "flex"), ("gap", "3px"), ("padding", "3px"), ("background", "#4e657aee"), ("border-radius", "3px")])],
            [button("water", Water), button("sow", Sow), button("next", Next)])]);
   let expand(log: Model): [Act] = log;
-  let shape : LivelitShape = Tab(16, 8)
+  let shape : LivelitShape = Tab(22, 6)
 } in
 
 let acts : [Act] = ^^livelit(^greenhouse([Water, Water, Next, Sow, Next])) in

@@ -12,13 +12,13 @@ let ^range = {
 
   let init : Model = (25, 75, -1);
 
-  # the bar runs from x = 8 to x = 178 #
+  # the bar runs from x = 8 to x = 175 #
   let s : Int -> String = string_of_int;
 
-  let x_of(v: Int): Int = 8 + 17 * v / 10;
+  let x_of(v: Int): Int = 8 + 167 * v / 100;
 
   let v_of(x: Int): Int =
-    let v = (x - 8) * 10 / 17 in
+    let v = (x - 8) * 100 / 167 in
     if v < 0 then 0 else if v > 100 then 100 else v;
 
   let update((lo, hi, drag): Model, a: Action): Model =
@@ -35,7 +35,7 @@ let ^range = {
 
   let handle(v: Int, held: Bool): HTML =
     Node("circle",
-      [Create("cx", s(x_of(v))), Create("cy", "11"), Create("r", "6"),
+      [Create("cx", s(x_of(v))), Create("cy", "8"), Create("r", "6"),
        Create("fill", if held then "#e9c182" else "#465d72"),
        Create("stroke", "#a6d3ee"), Create("stroke-width", "2")],
       []);
@@ -45,17 +45,17 @@ let ^range = {
       [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("align-items", "center"), ("gap", "4px"),
               ("font-family", "var(--code-font)"), ("font-size", "0.75em")])],
       [Node("svg",
-         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ew-resize")]), Create("viewBox", "0 0 186 22"), Width("186"), Height("22"),
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ew-resize")]), Create("viewBox", "0 0 183 16"), Width("183"), Height("16"),
 
           OnMouseDownAt(fun (x: Int, _) -> Down(x)),
           OnMouseMoveAt(fun (x: Int, _) -> MoveTo(x)),
           OnMouseUpAt(fun _ -> Up)],
          [Node("rect",
-            [Create("x", "8"), Create("y", "8"), Create("width", "170"),
+            [Create("x", "8"), Create("y", "5"), Create("width", "167"),
              Create("height", "6"), Create("rx", "3"), Create("fill", "#405a70")],
             []),
           Node("rect",
-            [Create("x", s(x_of(lo))), Create("y", "8"),
+            [Create("x", s(x_of(lo))), Create("y", "5"),
              Create("width", s(x_of(hi) - x_of(lo))), Create("height", "6"),
              Create("fill", "#a6d3ee")],
             []),
@@ -71,7 +71,7 @@ let ^range = {
     | Range(lo, hi) => (lo, hi, -1)
     end;
 
-  let shape : LivelitShape = Inline(24)
+  let shape : LivelitShape = Inline(23)
 } in
 
 let show(v: Range): HTML = ^range.view(^range.wrap(v)) in

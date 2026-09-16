@@ -35,13 +35,13 @@ let ^board = {
   let init : Model = [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty];
   let update(m: Model, _: Action): Model = m;
   let view(b: Model): HTML =
-    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 124 124"), Width("124"), Height("124")],
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 124 124"), Width("116"), Height("116")],
          [Node("path", [Create("d", "M37 42 h10 m-5 -5 v10 M77 42 h10 m-5 -5 v10 M37 82 h10 m-5 -5 v10 M77 82 h10 m-5 -5 v10"),
                         Create("fill", "none"), Create("stroke", "#778fa3"), Create("stroke-width", "0.8")], [])]
          @ mapi(b, fun (i: Int, c: Cell) -> cell_svg(i, c)));
   let expand(b: Model): Board = b;
   let wrap(b: Board): Model = b;
-  let shape : LivelitShape = Tab(11, 6)
+  let shape : LivelitShape = Tab(12, 5)
 } in
 
 let ^player = {
@@ -162,12 +162,12 @@ let ^game = {
     case a | Play(i) => append(log, [At(i)]) end;
   let view(log: Model): HTML =
     let (b, _, _) = replay(log) in
-    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 124 124"), Width("124"), Height("124")],
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 124 124"), Width("116"), Height("116")],
          [Node("path", [Create("d", "M37 42 h10 m-5 -5 v10 M77 42 h10 m-5 -5 v10 M37 82 h10 m-5 -5 v10 M77 82 h10 m-5 -5 v10"),
                         Create("fill", "none"), Create("stroke", "#778fa3"), Create("stroke-width", "0.8")], [])]
          @ mapi(b, fun (i: Int, c: Cell) -> cell_svg(i, c)));
   let expand(log: Model): Game = log;
-  let shape : LivelitShape = Tab(11, 6)
+  let shape : LivelitShape = Tab(12, 5)
 } in
 
 let game : Game = ^^livelit(^game([At(4), At(0), At(8), At(2), At(1)])) in

@@ -145,7 +145,7 @@ let ^schedule = {
       @ mapi(s, bar));
   let expand(s: Model): Schedule = s;
   let wrap(s: Schedule): Model = s;
-  let shape : LivelitShape = Tab(20, 5)
+  let shape : LivelitShape = Tab(23, 4)
 } in
 
 # ---- the program ---- #

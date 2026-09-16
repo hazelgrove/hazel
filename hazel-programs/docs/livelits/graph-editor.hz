@@ -103,7 +103,7 @@ let ^graph = {
     let (nodes, edges, sel, _, _) = m in
     Div([Class("blue-hour-view"), Create("title", string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges"), Style([("position", "relative"), ("width", "max-content"), ("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")])], [
       Node("svg",
-        [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83")]), Create("viewBox", "0 0 200 150"), Width("200"), Height("150"),
+        [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83")]), Create("viewBox", "0 0 200 140"), Width("200"), Height("140"),
 
          OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
          OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
@@ -116,7 +116,7 @@ let ^graph = {
     let (nodes, edges, _, _, _) = m in
     (nodes, edges);
 
-  let shape : LivelitShape = Block(32, 8)
+  let shape : LivelitShape = Block(20, 6)
 } in
 
 let counts(g: Graph): (Int, Int) =

@@ -82,7 +82,7 @@ let ^circuit = {
     let bit(i: Int): Bool = nth(ins, i) in
     Node("svg",
       [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
-              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 145"), Width("260"), Height("145")],
+              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 140"), Width("260"), Height("140")],
       [wire(33, 30, 90, 40, bit(0)), wire(33, 55, 90, 50, bit(1)),
        wire(33, 90, 90, 95, bit(2)), wire(33, 115, 90, 105, bit(3)),
        wire(140, 45, 175, 67, g0), wire(140, 100, 175, 77, g1),

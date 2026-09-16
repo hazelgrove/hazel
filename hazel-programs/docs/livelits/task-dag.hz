@@ -103,7 +103,7 @@ let ^plan = {
       [Class("blue-hour-view"), Create("title", s(length(ts)) ++ " tasks, " ++ s(length(deps)) ++ " links"), Style([("position", "relative"), ("width", "max-content"), ("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("flex-direction", "column")]), Create("data-hint", "drag a task; click: select, then link or bump days")],
       [Node("svg",
          [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
-                 ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 150"), Width("260"), Height("150"),
+                 ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 140"), Width("260"), Height("140"),
 
           OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
           OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
@@ -125,7 +125,7 @@ let ^plan = {
        deps, -1, -1, false)
     end;
 
-  let shape : LivelitShape = Block(26, 7)
+  let shape : LivelitShape = Block(26, 6)
 } in
 
 let show(v: Plan): HTML = ^plan.view(^plan.wrap(v)) in

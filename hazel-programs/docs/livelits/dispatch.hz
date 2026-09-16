@@ -90,7 +90,7 @@ let ^fleet = {
          Create("pointer-events", "none")],
         [Text("£" ++ s(c))]),
       Node("text",
-        [Create("x", s(px(x0) + 12 * w / 10)), Create("y", "138"),
+        [Create("x", s(px(x0) + 12 * w / 10)), Create("y", "134"),
          Create("font-size", "8"), Create("text-anchor", "middle"),
          Create("pointer-events", "none")],
         [Text(name)])]);
@@ -107,7 +107,7 @@ let ^fleet = {
   let canvas(extra: [Attr], drawing: HTML): HTML =
     Node("svg",
       [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
-              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 145"), Width("260"), Height("145")]
+              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 140"), Width("260"), Height("140")]
       @ extra,
       [Node("line",
          [Create("x1", "4"), Create("y1", "125"),

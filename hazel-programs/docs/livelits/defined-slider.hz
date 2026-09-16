@@ -40,7 +40,7 @@ let ^pct = {
 
   let expand(m: Model): Int = m;
 
-  let shape : LivelitShape = Inline(20)
+  let shape : LivelitShape = Inline(17)
 } in
 
 # Each use below carries its own model, stored right here in the #

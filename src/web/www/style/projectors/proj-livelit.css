@@ -12,6 +12,26 @@
     overflow: hidden;
 }
 
+/* The MVU host otherwise fills a Block placeholder but leaves its view
+   at the top. Center the actual view in both Block and Tab footprints. */
+.livelit .user-livelit > .MVU-render {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.livelit .user-livelit > .MVU-render > svg {
+    display: block;
+}
+
+/* Round only the outer painted face, not the shapes inside a diagram.
+   Avoid SVG padding or scaling: pointer handlers use local pixels. */
+.livelit .user-livelit > .MVU-render > .blue-hour-view,
+.color-picker-view {
+    border-radius: 4px;
+    overflow: hidden;
+}
+.blue-hour-garden > svg { min-width: 0; }
+
 .livelit > .slider > input {
   margin: 0;
   filter: sepia(1);
@@ -75,12 +95,16 @@
     accent-color: #b6dbee;
     font-variant-numeric: tabular-nums;
 }
+.rich-html-view:has(.color-picker-view) {
+    background: transparent;
+    border: 0;
+}
 .rich-html-view:has(.blue-hour-view) {
     background: #576e83;
     color: #f2f4ef;
     border: 0;
 }
-.rich-html-view:has(.blue-hour-bleed) {
+.rich-html-view:has(.blue-hour-bleed, .livelit-bleed) {
     padding: 0;
     overflow: hidden;
 }
@@ -115,34 +139,34 @@
 .blue-hour-view input[type="range"] {
     accent-color: #b6dbee;
 }
-input.blue-hour-hue {
+input:is(.livelit-hue, .blue-hour-hue) {
     appearance: none;
     border: 0;
     border-radius: 0;
     padding: 0;
     cursor: ew-resize;
 }
-input.blue-hour-hue::-webkit-slider-runnable-track {
+input:is(.livelit-hue, .blue-hour-hue)::-webkit-slider-runnable-track {
     background: transparent;
     height: 16px;
 }
-input.blue-hour-hue::-webkit-slider-thumb {
+input:is(.livelit-hue, .blue-hour-hue)::-webkit-slider-thumb {
     appearance: none;
     width: 5px;
     height: 16px;
     background: transparent;
     border: 1px solid white;
     border-radius: 1px;
-    box-shadow: 0 0 0 1px #26394e;
+    box-shadow: 0 0 0 1px #0008;
 }
-input.blue-hour-hue::-moz-range-track { background: transparent; }
-input.blue-hour-hue::-moz-range-thumb {
+input:is(.livelit-hue, .blue-hour-hue)::-moz-range-track { background: transparent; }
+input:is(.livelit-hue, .blue-hour-hue)::-moz-range-thumb {
     width: 4px;
     height: 16px;
     background: transparent;
     border: 1px solid white;
     border-radius: 1px;
-    box-shadow: 0 0 0 1px #26394e;
+    box-shadow: 0 0 0 1px #0008;
 }
 /* The existing purple frame stays the Canvas boundary. Relief belongs to
    that boundary; charts and composed children do not acquire extra boxes.
@@ -181,11 +205,11 @@ input.blue-hour-hue::-moz-range-thumb {
 
 /* Flush fields reach the card boundary. The measurement pass sets both
    zooms to 1; lists and ordinary rich views keep the standard gutter. */
-.canvas-card-probe .probe-card-rich > .rich-html-view:has(> .MVU-render > .blue-hour-bleed),
-.canvas-node.node-card .canvas-app .user-livelit > .MVU-render:has(> .blue-hour-bleed) {
+.canvas-card-probe .probe-card-rich > .rich-html-view:has(> .MVU-render > :is(.blue-hour-bleed, .livelit-bleed)),
+.canvas-node.node-card .canvas-app .user-livelit > .MVU-render:has(> :is(.blue-hour-bleed, .livelit-bleed)) {
     zoom: var(--card-bleed-zoom, var(--card-zoom, 1));
 }
-.canvas-node.node-card:has(.blue-hour-bleed):not(:has(.rich-livelit-list)) .card-body {
+.canvas-node.node-card:has(.blue-hour-bleed, .livelit-bleed):not(:has(.rich-livelit-list)) .card-body {
     overflow: hidden;
     border-radius: inherit;
 }
