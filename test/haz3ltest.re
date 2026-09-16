@@ -36,6 +36,7 @@ let (suite, exit_with_test_status) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_TaskReferenceSplit.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_HazelProtocol_JsonCodec.tests,
@@ -84,6 +85,9 @@ let (suite, exit_with_test_status) =
       Test_ObsBench.tests,
     ]
     @ [Test_GradingReport.tests]
+    @ Test_SlidePath.tests
+    @ Test_Tutorial.tests
+    @ Test_TutorialText.tests
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
