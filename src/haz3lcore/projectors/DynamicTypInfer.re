@@ -34,25 +34,19 @@ let dynamic_typ_of_samples =
 type typ_to_seg_with_diff_ids =
   (~ctx: Ctx.t, ~against: Typ.t, Typ.t) => (Base.segment, Id.Set.t);
 
-let displayed_segment_and_dynamic_ids =
+let segment_and_dynamic_ids =
     (
       ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,
       ~ctx: Ctx.t,
       ~static_typ: Typ.t,
-      ~samples: list(Sample.t),
+      ~dynamic_typ: Typ.t,
     )
-    : (Base.segment, Id.Set.t) => {
-  /* With nothing to infer from, the static type stands in: it diffs against
-     itself, so nothing is marked. */
-  let displayed =
-    dynamic_typ_of_samples(~ctx, samples)
-    |> Option.value(~default=static_typ);
+    : (Base.segment, Id.Set.t) =>
   /* Statics builds types with Typ.temp, so every node shares the Id.invalid
      sentinel. Distinct ids are a precondition of naming printed tokens, so
      they are minted here, where the type becomes something to print. */
   typ_to_seg_with_diff_ids(
     ~ctx,
     ~against=static_typ,
-    Typ.replace_temp(displayed),
+    Typ.replace_temp(dynamic_typ),
   );
-};

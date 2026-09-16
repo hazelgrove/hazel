@@ -4,17 +4,17 @@ open ProjectorBase;
 open Language;
 open Util;
 
-let expected_ty = (info: option(Info.t)): option(Typ.t) =>
+let expected_ty = (info: Info.t): option(Typ.t) =>
   switch (info) {
-  | Some(InfoExp({ana, _}))
-  | Some(InfoPat({ana, _})) => Some(ana)
+  | InfoExp({ana, _})
+  | InfoPat({ana, _}) => Some(ana)
   | _ => None
   };
 
-let self_ty = (info: option(Info.t)): option(Typ.t) =>
+let self_ty = (info: Info.t): option(Typ.t) =>
   switch (info) {
-  | Some(InfoExp({elab_syn_ty, _}))
-  | Some(InfoPat({elab_syn_ty, _})) => Some(elab_syn_ty)
+  | InfoExp({elab_syn_ty, _})
+  | InfoPat({elab_syn_ty, _}) => Some(elab_syn_ty)
   | _ => None
   };
 
@@ -50,7 +50,7 @@ module M: Projector = {
   /* Whether statics has an expectation to show. An expression in synthetic
      position has none, so Expected mode falls back to Self and toggling
      skips it. */
-  let has_expected = (statics: option(Info.t)): bool =>
+  let has_expected = (statics: Info.t): bool =>
     switch (expected_ty(statics)) {
     | None => false
     | Some(ty) => !Typ.is_syn(ty)
@@ -61,7 +61,7 @@ module M: Projector = {
      compare equal on the Id.invalid sentinel while a written annotation --
      carrying its own tokens' ids -- never equals its synthesized twin. An
      expression with no expectation has nothing to agree with. */
-  let readings_agree = (statics: option(Info.t)): bool =>
+  let readings_agree = (statics: Info.t): bool =>
     has_expected(statics)
     && (
       switch (self_ty(statics), expected_ty(statics)) {
@@ -71,10 +71,15 @@ module M: Projector = {
     );
 
   /* What the cell shows: the model says which reading was asked for, this
-     says which it came to. Runtime carries no type -- its segment is built
-     from the samples and comes with the ids to colour. */
+     says which it came to. The dynamic reading carries the static type
+     beside the one runtime supplied, since colouring names the tokens the
+     static type does not account for; None where runtime supplied nothing,
+     which is not the same as its having supplied `?`. */
   type content =
-    | FromRuntime
+    | FromRuntime({
+        dynamic: option(Typ.t),
+        static: Typ.t,
+      })
     | OfTyp(Typ.t);
 
   /* The arrow, its tooltip and the content are one decision, so one cascade
@@ -85,24 +90,40 @@ module M: Projector = {
     content,
   };
 
-  let reading = (model: model, statics: option(Info.t)): reading => {
+  let samples_of = (info: info): list(Sample.t) =>
+    switch (info.dynamics) {
+    | None => []
+    | Some(dynamics: Dynamics.Info.t) => dynamics.samples
+    };
+
+  let reading =
+      (~samples: list(Sample.t), model: model, statics: Info.t): reading => {
+    let self_typ = self_ty(statics) |> totalize_ty;
     let self = () => {
       glyph: "⇒",
       description: "Self type",
-      content: OfTyp(self_ty(statics) |> totalize_ty),
+      content: OfTyp(self_typ),
     };
     switch (model) {
     | Dynamic => {
         glyph: "⇓",
         description: "Dynamic type (from runtime values)",
-        content: FromRuntime,
+        content:
+          FromRuntime({
+            dynamic:
+              DynamicTypInfer.dynamic_typ_of_samples(
+                ~ctx=Info.ctx_of(statics),
+                samples,
+              ),
+            static: self_typ,
+          }),
       }
     /* ↔ not ⇔: the bundled font has no bidirectional double arrow, and a
        fallback renders differently per browser (see proj-type.css). */
     | _ when readings_agree(statics) => {
         glyph: "↔",
         description: "Self type matches expected type",
-        content: OfTyp(self_ty(statics) |> totalize_ty),
+        content: OfTyp(self_typ),
       }
     | Self => self()
     | Expected when !has_expected(statics) => self()
@@ -120,24 +141,22 @@ module M: Projector = {
       [text(glyph)],
     );
 
-  let typ_view = (content, info: info, utility, view_seg: View.seg, ~ctx) => {
+  let typ_view = (content, utility, view_seg: View.seg, ~ctx) => {
     /* Dynamic hands over the exact segment its ids were computed from:
        preparing mints fresh paren ids, so a second one would not answer to
        them. */
     let (classes, seg) =
       switch (content) {
-      | FromRuntime =>
+      | FromRuntime({dynamic, static}) =>
         let (seg, dynamic_ids) =
-          DynamicTypInfer.displayed_segment_and_dynamic_ids(
+          DynamicTypInfer.segment_and_dynamic_ids(
             ~typ_to_seg_with_diff_ids=
               utility.typ_to_seg_with_diff_ids(~inline=true),
             ~ctx,
-            ~static_typ=self_ty(info.statics) |> totalize_ty,
-            ~samples=
-              switch (info.dynamics) {
-              | None => []
-              | Some(d: Dynamics.Info.t) => d.samples
-              },
+            ~static_typ=static,
+            /* Runtime supplied nothing: the static type stands in, and diffs
+               against itself, so nothing is coloured. */
+            ~dynamic_typ=dynamic |> Option.value(~default=static),
           );
         ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
       | OfTyp(typ) => (
@@ -164,7 +183,8 @@ module M: Projector = {
     );
 
   let update = (model, info, a: action) => {
-    let has_expected = has_expected(info.statics);
+    let has_expected =
+      Option.fold(~none=false, ~some=has_expected, info.statics);
     switch (a, model) {
     | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
     | (ToggleDisplay, Self) => Dynamic
@@ -191,12 +211,11 @@ module M: Projector = {
             | None => [unavailable_view()]
             | Some(statics) =>
               let {glyph, description, content} =
-                reading(model, info.statics);
+                reading(~samples=samples_of(info), model, statics);
               [
                 mode_view(glyph, description),
                 typ_view(
                   content,
-                  info,
                   info.utility,
                   view_seg,
                   ~ctx=Info.ctx_of(statics),
