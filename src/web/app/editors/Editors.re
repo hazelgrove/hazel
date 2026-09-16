@@ -86,7 +86,7 @@ module StoreMode = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Model.mode;
   let key_string = Store.key_to_string(Store.Mode);
-  let default = (): Model.mode => Scratch;
+  let default = (): Model.mode => Tutorial;
 
   let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
 
@@ -695,7 +695,15 @@ module View = {
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
-                | "Tutorial" => inject(Update.SwitchMode(Tutorial))
+                | "Tutorial" =>
+                  // Default the sidebar to the task reference panel so
+                  // tutorial users see the reference material on entry.
+                  Ui_effect.Many([
+                    inject(Update.SwitchMode(Tutorial)),
+                    globals.inject_global(
+                      Set(Sidebar(SwitchPanel(TaskReference))),
+                    ),
+                  ])
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
                 | "Configuration" => inject(Update.SwitchMode(Config))
                 | _ => failwith("Invalid mode")

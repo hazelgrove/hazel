@@ -119,6 +119,7 @@ let aliases: list(((string, string), list(string))) = [
     [
       "menu-scroll-track",
       "cell-result-hidden",
+      "cell-idle-accent",
       "test-indet-active",
       "border-soft",
       "shadow-soft",
