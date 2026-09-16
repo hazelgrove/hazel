@@ -67,7 +67,8 @@ A module synthesizes `module Inner : { … }` for a `module Inner = …` item an
 
 A module analyzed against a signature must define exactly the members the
 signature declares, each value member must have the declared type (with the
-signature's own type members substituted), and each type member must be
+signature's own type members substituted) at its last definition — one a later
+item shadows is only synthesized — and each type member must be
 defined as the declared type. A member's type error is reported on its
 definition; missing members (`ModuleMissingMembers`) and, until width
 subtyping lands, extra members (`ModuleExtraMembers`) are reported on the

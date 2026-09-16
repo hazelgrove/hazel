@@ -35,6 +35,20 @@ let test_shadowing =
     )
   });
 
+/* Shadowing exports the last binding at its own position — the rule
+   Sig.dedup_last applies to the module's type (pinned in
+   Test_Statics_Modules), so statics and the runtime agree on member order. */
+let test_shadowing_keeps_last_position =
+  test_case(
+    "Shadowed binding is exported at the position of its last definition",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      {|{ let y = 2; let x = 3 }|},
+      {|{ let x = 1; let y = 2; let x = 3 }|},
+    )
+  });
+
 /* Test accessing module binding via dot */
 let test_module_access =
   test_case("Access module binding", `Quick, () => {
@@ -214,6 +228,7 @@ let tests = (
     test_single_binding,
     test_multiple_bindings,
     test_shadowing,
+    test_shadowing_keeps_last_position,
     test_module_access,
     test_module_as_tuple,
     test_bare_expression,

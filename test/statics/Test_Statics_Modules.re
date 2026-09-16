@@ -54,6 +54,18 @@ let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
     },
   );
 
+/* No marks at all in the program. */
+let no_marks_test = (name, source) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(int))(name, 0, List.length(marks));
+    },
+  );
+
 /* ===== PROJECTION ERROR ATTRIBUTION ===== */
 
 /* `m.y` with no member y: the label carries the error, the dot only a
@@ -1320,6 +1332,56 @@ let test_shorthand_member_shadowed =
     Some(sig_([val_("f", int())])),
   );
 
+/* A shadowed member keeps the position of its last definition — the rule
+   Sig.dedup_last applies, and the order Mod.add_modval exports at runtime
+   (pinned in Test_Evaluator_Modules). */
+let test_shadowed_member_keeps_last_position =
+  fully_consistent_typecheck(
+    "A shadowed member's type is at the position of its last definition",
+    {|{ let x = 1; let y = 2; let x = 3 }|},
+    Some(sig_([val_("y", int()), val_("x", int())])),
+  );
+
+/* Analyzed against a signature, a member is checked at its last definition
+   only: the definitions it shadows are not exported, so they are not held to
+   the signature's type. */
+let interleaved_shadowing = (sig_x, first_x) =>
+  Printf.sprintf(
+    {|module M : {let y : Int; let x : %s} = {let x = %s; let y = 2; let x = 3} in M|},
+    sig_x,
+    first_x,
+  );
+
+let test_shadowed_member_checked_at_last_definition =
+  Alcotest.test_case(
+    "A shadowed member is checked against the signature at its last definition",
+    `Quick,
+    () => {
+      let source = interleaved_shadowing("Bool", "1");
+      let all_marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      let on_last =
+        subexp_marks(
+          source,
+          fun
+          | Atom(Int(m)) when Bigint.equal(m, Bigint.of_int(3)) => true
+          | _ => false,
+        );
+      Alcotest.(check(int))("exactly one mark", 1, List.length(all_marks));
+      Alcotest.(check(bool))(
+        "it is on the last definition",
+        true,
+        on_last != [],
+      );
+    },
+  );
+
+let test_shadowed_definition_not_checked_against_signature =
+  no_marks_test(
+    "A definition shadowed by a later one is not checked against the signature",
+    interleaved_shadowing("Int", "true"),
+  );
+
 let test_shorthand_parameter_not_member =
   single_mark_test(
     "A shorthand's parameter is not a member",
@@ -1403,18 +1465,6 @@ let test_cyclic_member_path_module =
    is normalized away first, so the member's name is irrelevant to the
    result; an abstract type variable cannot be, and is marked rather than
    silently degrading the following members to `?`. */
-
-/* No marks at all in the program. */
-let no_marks_test = (name, source) =>
-  Alcotest.test_case(
-    name,
-    `Quick,
-    () => {
-      let marks =
-        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
-      Alcotest.(check(int))(name, 0, List.length(marks));
-    },
-  );
 
 /* `f@<T>` where the alias T names Bool and the signature declares a type
    member [member]: `m.v(1)` must report the same error whether or not the
@@ -1695,6 +1745,9 @@ let tests = (
     test_shorthand_member_signature,
     test_shorthand_member_signature_return_type,
     test_shorthand_member_shadowed,
+    test_shadowed_member_keeps_last_position,
+    test_shadowed_member_checked_at_last_definition,
+    test_shadowed_definition_not_checked_against_signature,
     test_shorthand_parameter_not_member,
     test_shorthand_member_mismatch_on_definition,
     /* Cyclic member paths */
