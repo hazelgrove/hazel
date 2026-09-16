@@ -13,6 +13,7 @@ type limited_result =
 
 let evaluate:
   (
+    ~calculus: Calculus.t=?,
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
@@ -22,6 +23,7 @@ let evaluate:
 
 let evaluate_and_limit:
   (
+    ~calculus: Calculus.t=?,
     ~step_limit: int,
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
@@ -34,6 +36,7 @@ let evaluate_and_limit:
 
 let start_yielding_evaluation:
   (
+    ~calculus: Calculus.t=?,
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),

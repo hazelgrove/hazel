@@ -418,7 +418,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack != []) {
+        if (call_stack != [] || !track_reuse) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);
@@ -503,6 +503,7 @@ let finish = (~env, e: DHExp.t): Exp.t =>
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */
 let prepare_evaluation =
     (
+      ~calculus: Calculus.t,
       ~prev,
       ~eval_info: EvalInfo.t,
       ~env,
@@ -511,13 +512,20 @@ let prepare_evaluation =
       d: DHExp.t,
     )
     : (ref(EvaluatorState.t), Trampoline.t(DHExp.t)) => {
+  /* A0 is the non-incremental control: it must not read a cache even if one
+   * is handed to it, so that the mode alone fixes the scheme. Dropping prev
+   * here also drives track_reuse to false, which switches off the re-use map
+   * and entry recording — the control should not pay for bookkeeping it
+   * never reads. */
+  let reuse = Calculus.capabilities(calculus).reuse;
+  let prev = reuse ? prev : IncrEval.empty;
   /* The reuse map is only ever consumed by reuse_check or by incr-entry
    * snapshots, both of which need statics in eval_info (reuse_check also
    * needs a non-empty prev). When neither can fire — e.g. `hazel run`,
    * MVU app dispatch — skip maintaining it: the per-binder
    * remove_pat_bindings walk dominates evaluation otherwise. */
   let track_reuse =
-    !IncrEval.is_empty(prev) || EvalInfo.has_statics(eval_info);
+    reuse && (!IncrEval.is_empty(prev) || EvalInfo.has_statics(eval_info));
   let reuse_map =
     switch (reuse_map) {
     | Some(m) => m
@@ -530,7 +538,9 @@ let prepare_evaluation =
    * non-empty prev and statics; otherwise it is a full walk of the program
    * for a guaranteed-empty result. */
   let reused_ids =
-    IncrEval.is_empty(prev) || !EvalInfo.has_statics(eval_info)
+    !track_reuse
+    || IncrEval.is_empty(prev)
+    || !EvalInfo.has_statics(eval_info)
       ? Id.Map.empty
       : Id.Map.map(
           _ => (),
@@ -557,6 +567,7 @@ let prepare_evaluation =
 
 let evaluate_and_limit =
     (
+      ~calculus: Calculus.t=Calculus.default,
       ~step_limit: int,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
@@ -567,7 +578,15 @@ let evaluate_and_limit =
     )
     : limited_result => {
   let (state, result) =
-    prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
+    prepare_evaluation(
+      ~calculus,
+      ~prev,
+      ~eval_info,
+      ~env,
+      ~reuse_map,
+      ~outbox,
+      d,
+    );
   switch (
     Trampoline.Yielding.run_slice(
       ~step_budget=step_limit,
@@ -592,6 +611,7 @@ type yielding_result =
 
 let start_yielding_evaluation =
     (
+      ~calculus: Calculus.t=Calculus.default,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
@@ -602,6 +622,7 @@ let start_yielding_evaluation =
   let outbox = ref(IncrEval.empty_outbox);
   let (state, result) =
     prepare_evaluation(
+      ~calculus,
       ~prev,
       ~eval_info,
       ~env,
@@ -646,6 +667,7 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
 
 let evaluate =
     (
+      ~calculus: Calculus.t=Calculus.default,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
@@ -654,6 +676,7 @@ let evaluate =
     : (Exp.t, EvaluatorState.t) => {
   let (state, result) =
     prepare_evaluation(
+      ~calculus,
       ~prev,
       ~eval_info,
       ~env,
