@@ -1,4 +1,4 @@
-/* Opt-in layout lab. The default is unchanged. Placement consumes geometry,
+/* Opt-in layout lab. Research engines do not change the default. Placement consumes geometry,
    not editor state; histories are scoped to a slide and a variant. */
 type point = {
   x: float,
@@ -19,7 +19,15 @@ let modes = [
   ("relaxed", "Soft anchors"),
   ("flow", "Function layers"),
   ("dependencies", "Type layers"),
+  ("elk", "ELK layers →"),
+  ("elk-down", "ELK layers ↓"),
+  ("cola", "CoLa modules"),
+  ("cola-live", "CoLa anchored growth"),
 ];
+let research = k => List.mem(k, ["elk", "elk-down", "cola", "cola-live"]);
+let revision = ref(0);
+let on_result = ref(() => ());
+let awaiting_fit = ref(false);
 let mode = ref("current");
 let wires = ref("curves");
 let scene = ref("");
@@ -434,10 +442,141 @@ let relaxed = (items, links, old) => {
     current^,
   );
 };
+/* Engines solve off-thread, returning complete geometry snapshots. Existing
+   placements remain visible while pending. Pin/drag offsets are applied later. */
+let engine_status = () => {
+  Js_of_ocaml.(
+    try(
+      Js.to_string(
+        Js.Unsafe.get(
+          Js.Unsafe.get(Js.Unsafe.global, "__canvasResearchState"),
+          "status",
+        ),
+      )
+    ) {
+    | _ => "Layout engine unavailable"
+    }
+  );
+};
+let engine_place = (kind, items, links, old, clusters, topology) => {
+  let fallback = stable(items, links, old);
+  Js_of_ocaml.(
+    try({
+      let fn = Js.Unsafe.get(Js.Unsafe.global, "__canvasResearchLayout");
+      if (Js.to_string(Js.typeof(fn)) != "function") {
+        fallback;
+      } else {
+        let node = (n: item) =>
+          `Assoc([
+            ("key", `String(n.key)),
+            ("x", `Float(n.p.x)),
+            ("y", `Float(n.p.y)),
+            ("w", `Float(n.w)),
+            ("h", `Float(n.h)),
+          ]);
+        let payload =
+          Yojson.Safe.to_string(
+            `Assoc([
+              (
+                "scope",
+                `String(
+                  scene^ ++ "/" ++ kind ++ "/" ++ string_of_int(generation^),
+                ),
+              ),
+              ("kind", `String(kind)),
+              ("topology", topology),
+              ("items", `List(List.map(node, items))),
+              ("old", `List(List.map(node, old))),
+              (
+                "links",
+                `List(
+                  List.map(
+                    ((a, b)) => `List([`String(a), `String(b)]),
+                    links,
+                  ),
+                ),
+              ),
+              (
+                "clusters",
+                `List(
+                  List.map(
+                    ks => `List(List.map(k => `String(k), ks)),
+                    clusters,
+                  ),
+                ),
+              ),
+            ]),
+          );
+        let result =
+          Js.Unsafe.fun_call(
+            fn,
+            [|
+              Js.Unsafe.inject(Js.string(payload)),
+              Js.Unsafe.inject(
+                Js.Unsafe.callback(() => {
+                  incr(revision);
+                  on_result^();
+                }),
+              ),
+            |],
+          )
+          |> Js.to_string
+          |> Yojson.Safe.from_string;
+        let float = j =>
+          switch (j) {
+          | `Float(f) => f
+          | `Int(i) => float_of_int(i)
+          | _ => failwith("coordinate")
+          };
+        let positions =
+          Yojson.Safe.Util.to_list(result)
+          |> List.map(j => {
+               let get = k => Yojson.Safe.Util.member(k, j);
+               (
+                 Yojson.Safe.Util.to_string(get("key")),
+                 {
+                   x: float(get("x")),
+                   y: float(get("y")),
+                 },
+               );
+             });
+        if (positions != []) {
+          awaiting_fit := false;
+        };
+        positions == []
+          ? fallback
+          : List.map(
+              (n: item) =>
+                {
+                  ...n,
+                  p:
+                    Option.value(
+                      ~default=n.p,
+                      List.assoc_opt(n.key, positions),
+                    ),
+                },
+              items,
+            );
+      };
+    }) {
+    | _ => fallback
+    }
+  );
+};
+
 /* Layout operates on host groups. A terminal remains at its local dock;
    it must not acquire an independent grid cell, relaxation force, or stable
    insertion slot. The root reserves the group's entire occupied envelope. */
-let place = (kind, items, links, old) => {
+let place = (~clusters=[], ~labels=[], kind, items, links, old) => {
+  let topology =
+    `List([
+      `List(List.map(k => `String(k), labels)),
+      `List(List.map((n: item) => `String(n.key), items)),
+      `List(
+        List.map(((a, b)) => `List([`String(a), `String(b)]), links),
+      ),
+    ]);
+
   let rec root = (seen, n: item) =>
     switch (n.anchor) {
     | Some(k) when !List.mem(k, seen) =>
@@ -512,6 +651,18 @@ let place = (kind, items, links, old) => {
     | "stable" => stable(units, links, old_units)
     | "grid" => grid(units, links)
     | "relaxed" => relaxed(units, links, old_units)
+    | k when research(k) =>
+      engine_place(
+        k,
+        units,
+        links,
+        old_units,
+        List.map(
+          ks => List.filter_map(root_of, ks) |> List.sort_uniq(compare),
+          clusters,
+        ),
+        topology,
+      )
     | _ => units
     };
   List.map(

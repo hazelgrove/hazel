@@ -1068,6 +1068,16 @@ let view_impl =
     CanvasBuffer.presenting^ ? Option.none : test_results_of(editors);
   let slide = current_slide(editors);
   init_layout_lab();
+  CanvasLayoutExperiments.on_result :=
+    (
+      () => {
+        if (CanvasLayoutExperiments.awaiting_fit^) {
+          CanvasLayoutExperiments.awaiting_fit := false;
+          fit_pending := true;
+        };
+        globals.inject_global(Set(CanvasTick)) |> Bonsai.Effect.Expert.handle;
+      }
+    );
   CanvasLayoutExperiments.scene :=
     (
       switch (editors) {
@@ -4088,6 +4098,8 @@ let view_impl =
   let change_layout = (~reset=false, mode, wires) => {
     if (CanvasLayoutExperiments.known(mode)) {
       CanvasLayoutExperiments.mode := mode;
+      CanvasLayoutExperiments.awaiting_fit :=
+        CanvasLayoutExperiments.research(mode);
       CanvasLayoutExperiments.wires :=
         wires == "circuit" ? "circuit" : "curves";
       if (reset) {
@@ -4149,6 +4161,9 @@ let view_impl =
               ~attrs=[clss(["layout-lab-heading"])],
               [text("Layout experiments")],
             ),
+            CanvasLayoutExperiments.research(CanvasLayoutExperiments.mode^)
+              ? Node.p([text(CanvasLayoutExperiments.engine_status())])
+              : Node.none,
             lab_select(
               "Placement",
               CanvasLayoutExperiments.mode^,

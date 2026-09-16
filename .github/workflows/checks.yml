@@ -37,6 +37,9 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
+      - name: Check research layout engines
+        run: node test/layout_research.cjs
+
       # No --auto-promote: a misformatted commit should fail, not be rewritten
       # into a checkout that is then thrown away.
       - name: Check formatting

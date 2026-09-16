@@ -1043,7 +1043,11 @@ let layout_impl =
                 max(98., 2. *. n.r +. extra +. 36.),
                 max(94., 2. *. n.r +. extra +. 44.),
               ),
-              List.mem(experiment, ["packed", "stable", "grid", "relaxed"])
+              Lab.research(experiment)
+              || List.mem(
+                   experiment,
+                   ["packed", "stable", "grid", "relaxed"],
+                 )
                 ? List.assoc_opt(n.node.key, card_extents^ @ cards) : None,
             );
           Lab.{
@@ -1083,8 +1087,49 @@ let layout_impl =
     let keys = List.map((n: Lab.item) => n.key, items);
     let topology = Lab.links_of(items, links);
     let (old_scope, old_keys, old_links, cached) = placement_cache^;
+    let clusters =
+      List.filter_map(
+        (n: CanvasGraph.tynode) =>
+          switch (n.m_path) {
+          | [root, ..._] => Some(root)
+          | [] => None
+          },
+        g.nodes,
+      )
+      |> List.sort_uniq(compare)
+      |> List.map(root =>
+           [
+             "{}@" ++ root,
+             ...List.filter_map(
+                  (n: CanvasGraph.tynode) =>
+                    switch (n.m_path) {
+                    | [r, ..._] when r == root => Some(n.key)
+                    | _ => None
+                    },
+                  g.nodes,
+                ),
+           ]
+         );
     let placed =
-      if (!List.mem(experiment, ["packed", "stable", "grid", "relaxed"])) {
+      if (Lab.research(experiment)) {
+        let result =
+          Lab.place(
+            ~clusters,
+            ~labels=List.map((e: CanvasGraph.edge) => e.e_name, g.edges),
+            experiment,
+            items,
+            links,
+            Lab.previous(),
+          );
+        Lab.remember(result);
+        result;
+      } else if (!(
+                   Lab.research(experiment)
+                   || List.mem(
+                        experiment,
+                        ["packed", "stable", "grid", "relaxed"],
+                      )
+                 )) {
         Lab.place("components", items, links, []);
       } else if (old_scope == signature
                  && old_keys == keys
@@ -1907,7 +1952,9 @@ let layout_impl =
       switch (origin_override) {
       | Some(o) => (o.x, o.y)
       | None
-          when List.mem(experiment, ["stable", "relaxed", "grid", "packed"]) => (
+          when
+            Lab.research(experiment)
+            || List.mem(experiment, ["stable", "relaxed", "grid", "packed"]) => (
           0.,
           0.,
         )
@@ -2032,7 +2079,12 @@ let layout =
     )
     : t => {
   let cards = Option.value(~default=card_extents^, cards);
-  let experiment = (Lab.mode^, Lab.wires^, Lab.scene^, Lab.generation^);
+  let experiment = (
+    Lab.mode^,
+    Lab.wires^,
+    Lab.scene^,
+    Lab.generation^ + Lab.revision^,
+  );
   let key = {
     k_experiment: experiment,
     k_graph: g,
