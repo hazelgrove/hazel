@@ -79,7 +79,7 @@ module StoreMode = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Model.mode;
   let key_string = Store.key_to_string(Store.Mode);
-  let default = (): Model.mode => Scratch;
+  let default = (): Model.mode => Tutorial;
 
   let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
 
@@ -592,8 +592,7 @@ module View = {
     if (Haz3lcore.PatchworkComm.is_in_iframe()) {
       div(~attrs=[Attr.id("editor-mode")], []);
     } else {
-      let mode_menu = [
-        text("/"),
+      let mode_menu = {
         div(
           ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
           [
@@ -604,7 +603,15 @@ module View = {
                   | "Scratch" => inject(Update.SwitchMode(Scratch))
                   | "Documentation" =>
                     inject(Update.SwitchMode(Documentation))
-                  | "Tutorial" => inject(Update.SwitchMode(Tutorial))
+                  | "Tutorial" =>
+                    // Default the sidebar to the task reference panel so
+                    // tutorial users see the reference material on entry.
+                    Ui_effect.Many([
+                      inject(Update.SwitchMode(Tutorial)),
+                      globals.inject_global(
+                        Set(Sidebar(SwitchPanel(TaskReference))),
+                      ),
+                    ])
                   | "Exercises" => inject(Update.SwitchMode(Exercises))
                   | _ => failwith("Invalid mode")
                 ),
@@ -627,9 +634,8 @@ module View = {
               ),
             ),
           ],
-        ),
-        text("/"),
-      ];
+        );
+      };
       let contents =
         switch (editors) {
         | Scratch(m) =>
@@ -659,6 +665,9 @@ module View = {
             m,
           )
         };
-      div(~attrs=[Attr.id("editor-mode")], mode_menu @ contents);
+      div(
+        ~attrs=[Attr.id("editor-mode")],
+        [text("/"), mode_menu, text("/")] @ contents,
+      );
     };
 };
