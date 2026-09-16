@@ -93,11 +93,6 @@ module Model = {
     Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
 };
 
-type statics_mode =
-  | StaticsNormal
-  | StaticsDefer
-  | StaticsForce;
-
 /* Debounce statics computation during rapid typing. Only one mode is
    active at a time, so a single timer/flag is shared across all modes. */
 module StaticsDebounce = {
@@ -107,7 +102,7 @@ module StaticsDebounce = {
 
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
     let force_now = force_on_next^;
     force_on_next := false;
     if (is_edited && debounce_ms > 0.0) {
@@ -125,11 +120,11 @@ module StaticsDebounce = {
             debounce_ms,
           ),
         );
-      StaticsDefer;
+      Defer;
     } else if (force_now) {
-      StaticsForce;
+      Force;
     } else {
-      StaticsNormal;
+      Normal;
     };
   };
 };
@@ -144,7 +139,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
-        ~statics_mode=StaticsNormal,
+        ~statics_mode: StaticsMode.t=Normal,
         ~compositional=false,
         ~ctx=?,
         /* PROJECTED statics (stack cells): the whole-program item
@@ -180,43 +175,45 @@ module Update = {
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
      * not a stale captured one */
     let do_init = (editor: Editor.t) =>
-      editor.root == Sort.Typ
-        /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
-           entries for the inspector) under the provided ctx */
-        ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
-        : editor.root == Sort.Pat
-            ? CachedStatics.init_pat(~settings, ~ctx?, editor.state.zipper)
-            : editor.root == Sort.TPat
-                ? CachedStatics.init_tpat(
-                    ~settings,
-                    ~ctx?,
-                    editor.state.zipper,
-                  )
-                : compositional
-                    /* whole-program editors: per-item statics (DefStatics) —
-                       only the dirty items re-analyze, and no monolithic
-                       whole-program recursion runs (browser stack overflow on
-                       large programs) */
-                    ? CachedStatics.init_compositional(
-                        ~settings,
-                        ~stitch,
-                        ~root=editor.root,
-                        editor.state.zipper,
-                      )
-                    : CachedStatics.init(
-                        ~settings,
-                        ~stitch,
-                        ~ctx?,
-                        ~ana?,
-                        ~is_dynamic_term,
-                        ~root=editor.root,
-                        editor.state.zipper,
-                      );
+      PerfMetrics.time_statics(() =>
+        editor.root == Sort.Typ
+          /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+             entries for the inspector) under the provided ctx */
+          ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+          : editor.root == Sort.Pat
+              ? CachedStatics.init_pat(~settings, ~ctx?, editor.state.zipper)
+              : editor.root == Sort.TPat
+                  ? CachedStatics.init_tpat(
+                      ~settings,
+                      ~ctx?,
+                      editor.state.zipper,
+                    )
+                  : compositional
+                      /* whole-program editors: per-item statics (DefStatics) —
+                         only the dirty items re-analyze, and no monolithic
+                         whole-program recursion runs (browser stack overflow on
+                         large programs) */
+                      ? CachedStatics.init_compositional(
+                          ~settings,
+                          ~stitch,
+                          ~root=editor.root,
+                          editor.state.zipper,
+                        )
+                      : CachedStatics.init(
+                          ~settings,
+                          ~stitch,
+                          ~ctx?,
+                          ~ana?,
+                          ~is_dynamic_term,
+                          ~root=editor.root,
+                          editor.state.zipper,
+                        )
+      );
     let needs_refresh =
-      statics_mode == StaticsForce
+      statics_mode == StaticsMode.Force
       || probes_differ(editor.state.zipper, statics)
       || is_edited
-      && statics_mode != StaticsDefer;
+      && statics_mode != StaticsMode.Defer;
     let statics =
       needs_refresh
         ? switch (projected) {
@@ -224,16 +221,24 @@ module Update = {
           | None => do_init(editor)
           }
         : statics;
+    PerfMetrics.record_statics_counts(
+      ~recompute=needs_refresh,
+      ~mode=statics_mode,
+      statics,
+    );
 
     let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
+      PerfMetrics.time_syntax(() =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          statics,
+          dynamics,
+          editor,
+        )
       );
+    PerfMetrics.record_syntax_counts(editor.syntax);
 
     /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
      * probe_targets match. Compared against the statics computed above, so
