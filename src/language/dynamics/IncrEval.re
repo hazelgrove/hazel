@@ -18,7 +18,44 @@ type projection =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type flag =
   | Clean
-  | Dirty;
+  | Dirty
+  /* aM: one flag per component of a tuple, so that a value can be clean in
+   * some components and dirty in others. Kept normalized — `norm` collapses
+   * an all-clean or all-dirty list — which is what lets the re-use check stay
+   * a structural comparison of flags. */
+  | Parts(list(flag));
+
+/* Build a tuple flag from its components, collapsing the uniform cases so
+ * that flags stay normalized. */
+let norm = (fs: list(flag)): flag =>
+  if (List.for_all(f => f == Clean, fs)) {
+    Clean;
+  } else if (List.for_all(f => f == Dirty, fs)) {
+    Dirty;
+  } else {
+    Parts(fs);
+  };
+
+/* The flag of one component of a value the flag `f` describes. A bare
+ * clean/dirty flag applies to every component alike. */
+let split = (~arity: int, ~index: int, f: flag): flag =>
+  switch (f) {
+  | Clean => Clean
+  | Dirty => Dirty
+  | Parts(fs) when List.length(fs) == arity => List.nth(fs, index)
+  /* The flag describes a differently shaped value than the pattern is
+   * destructuring. Stay conservative rather than guess a correspondence. */
+  | Parts(_) => Dirty
+  };
+
+/* Pass a flag through a pattern form that does not project componentwise.
+ * A component-shaped flag carries no information about where such a form's
+ * sub-values sit, so it degrades to dirty. */
+let opaque = (f: flag): flag =>
+  switch (f) {
+  | Parts(_) => Dirty
+  | f => f
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type provenance = {
@@ -245,9 +282,14 @@ let pat_label = (pat: Pat.t): option(string) =>
   | _ => None
   };
 
+/* Descending a tuple pattern extends the path with a step (recording WHERE
+ * the binding sits in the cached value) and splits the flag (recording WHICH
+ * parts of it are clean). The two are filled in independently: the path comes
+ * from aP, the flag from aM. */
 let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
   let rec go =
-          (path: list(projection), pat: Pat.t): list((string, provenance)) =>
+          (path: list(projection), flag: flag, pat: Pat.t)
+          : list((string, provenance)) =>
     switch (pat.term) {
     | EmptyHole
     | MultiHole(_)
@@ -267,29 +309,42 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
           },
         ),
       ]
+    /* Transparent wrappers: same value, so same flag. */
     | Parens(p)
-    | Projector(_, p) => go(path, p)
-    | Asc(p, _) => go([Ascribed, ...path], p)
-    | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
+    | Projector(_, p) => go(path, flag, p)
+    | Asc(p, _) => go([Ascribed, ...path], flag, p)
+    | TupLabel(label, p) =>
+      go([TupleLabel(pat_label(label)), ...path], flag, p)
     | Ap(ctr, p) =>
       switch (Pat.ctr_name(ctr)) {
-      | Some(name) => go([ConstructorArg(name), ...path], p)
-      | None => go(path, p)
+      | Some(name) => go([ConstructorArg(name), ...path], opaque(flag), p)
+      | None => go(path, opaque(flag), p)
       }
     | Tuple(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([TupleIndex(arity, i), ...path], p))
+      |> List.mapi((i, p) =>
+           go(
+             [TupleIndex(arity, i), ...path],
+             split(~arity, ~index=i, flag),
+             p,
+           )
+         )
       |> List.flatten;
+    /* Only tuples carry componentwise flags (see `exp_flag`), so list and
+     * cons patterns take the conservative reading of a component flag. */
     | ListLit(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([ListIndex(arity, i), ...path], p))
+      |> List.mapi((i, p) =>
+           go([ListIndex(arity, i), ...path], opaque(flag), p)
+         )
       |> List.flatten;
     | Cons(hd, tl) =>
-      go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
+      go([ConsHead, ...path], opaque(flag), hd)
+      @ go([ConsTail, ...path], opaque(flag), tl)
     };
-  go([], pat) |> List.to_seq |> Maps.StringMap.of_seq;
+  go([], flag, pat) |> List.to_seq |> Maps.StringMap.of_seq;
 };
 
 let with_pat_provenance =
@@ -303,12 +358,46 @@ let with_pat_provenance =
     remove_pat_bindings(pat, reuse_map),
   );
 
+/* Which parts of `e`'s value come from the cache.
+ *
+ * Without tuple flags this is the clean/dirty bit Hazel already used: the
+ * whole value is clean exactly when the expression itself was re-used. With
+ * them, section 8's Pair rule applies — a tuple is clean componentwise, so
+ * editing one component leaves bindings projected from the others re-usable.
+ *
+ * A variable reports the flag of its binding, which is how partial
+ * cleanliness reaches a `let (p, q) = z`: the flag was computed when `z` was
+ * bound and is read back here rather than re-derived from the occurrence. */
+let rec exp_flag =
+        (
+          ~tuple_flags: bool,
+          ~reused: Id.t => bool,
+          ~reuse_map: reuse_map,
+          e: Exp.t,
+        )
+        : flag =>
+  if (reused(Exp.rep_id(e))) {
+    Clean;
+  } else if (!tuple_flags) {
+    Dirty;
+  } else {
+    let recur = exp_flag(~tuple_flags, ~reused, ~reuse_map);
+    switch (e.term) {
+    | Tuple(es) => norm(List.map(recur, es))
+    | Parens(e) => recur(e)
+    | Var(name) =>
+      switch (Maps.StringMap.find_opt(name, reuse_map)) {
+      | Some(prov) => prov.flag
+      | None => Dirty
+      }
+    | _ => Dirty
+    };
+  };
+
 let update_maps_after_binding =
-    (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
-    : reuse_map => {
-  let flag = rhs_reused ? Clean : Dirty;
+    (~flag: flag, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
+    : reuse_map =>
   with_pat_provenance(~source_id, ~flag, pat, reuse_map);
-};
 
 let reuse_check =
     (

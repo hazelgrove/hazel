@@ -43,7 +43,7 @@ type capabilities = {
 
 /* Flipped as each calculus's machinery lands. Separate declarations so that
  * landing one does not touch the other's line. */
-let supports_tuple_flags = false;
+let supports_tuple_flags = true;
 let supports_callstack_keys = false;
 
 /* Depth limit for a2's guard G(e, c): an expression is cacheable only when

@@ -1,6 +1,7 @@
 let update_reuse_map_after_effects:
   (
-    ~rhs_reused: Id.t => bool,
+    ~tuple_flags: bool,
+    ~reused: Id.t => bool,
     ~reuse_map: IncrEval.reuse_map,
     list(EvaluatorState.effect)
   ) =>
@@ -8,6 +9,7 @@ let update_reuse_map_after_effects:
 
 let reuse_pass:
   (
+    ~tuple_flags: bool=?,
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),

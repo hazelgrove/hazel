@@ -94,6 +94,7 @@ let rec evaluate =
         (
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
           ~track_reuse: bool,
+          ~tuple_flags: bool,
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
           // Call Stack
@@ -115,7 +116,14 @@ let rec evaluate =
    * running. */
 
   let evaluate =
-    evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~outbox);
+    evaluate(
+      ~prev,
+      ~track_reuse,
+      ~tuple_flags,
+      ~reused_ids,
+      ~eval_info,
+      ~outbox,
+    );
   let expr_id = DHExp.rep_id(exp);
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).
@@ -216,7 +224,8 @@ let rec evaluate =
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
-          ~rhs_reused=source_id => Id.Map.mem(source_id, reused_ids),
+          ~tuple_flags,
+          ~reused=id => Id.Map.mem(id, reused_ids),
           ~reuse_map,
           effects,
         );
@@ -517,7 +526,9 @@ let prepare_evaluation =
    * here also drives track_reuse to false, which switches off the re-use map
    * and entry recording — the control should not pay for bookkeeping it
    * never reads. */
-  let reuse = Calculus.capabilities(calculus).reuse;
+  let caps = Calculus.capabilities(calculus);
+  let reuse = caps.reuse;
+  let tuple_flags = caps.tuple_flags;
   let prev = reuse ? prev : IncrEval.empty;
   /* The reuse map is only ever consumed by reuse_check or by incr-entry
    * snapshots, both of which need statics in eval_info (reuse_check also
@@ -544,13 +555,21 @@ let prepare_evaluation =
       ? Id.Map.empty
       : Id.Map.map(
           _ => (),
-          ReusePass.reuse_pass(~prev, ~eval_info, ~env, ~reuse_map, d).
+          ReusePass.reuse_pass(
+            ~tuple_flags,
+            ~prev,
+            ~eval_info,
+            ~env,
+            ~reuse_map,
+            d,
+          ).
             entries,
         );
   let result =
     evaluate(
       ~prev,
       ~track_reuse,
+      ~tuple_flags,
       ~eval_info,
       ~call_stack=CallStack.empty,
       ~delegations=[],

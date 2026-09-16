@@ -190,42 +190,40 @@ let run_trace = (~calculus: Calculus.t, trace: Trace.t): list(measurement) => {
  * number meaningful: a scheme that re-uses a stale entry would otherwise just
  * look fast. Returns the disagreements, empty when all calculi agree.
  *
- * a0 is the reference. When it was not run there is nothing to check against,
- * so the comparison falls back to the first calculus that did run. */
-let disagreements = (results: list(measurement)): list(string) => {
-  let reference =
-    switch (
-      List.find_opt((m: measurement) => m.calculus == Calculus.A0, results)
-    ) {
-    | Some(_) => Calculus.A0
-    | None =>
-      switch (results) {
-      | [] => Calculus.A0
-      | [m, ..._] => m.calculus
-      }
-    };
+ * a0 is the only admissible reference: it is the calculus with no cache to be
+ * stale. Comparing the selected calculi against each other instead would let a
+ * single-mode run agree with itself and certify a provably wrong answer, so a
+ * caller that has not run a0 gets no verdict rather than a vacuous pass. */
+let disagreements = (results: list(measurement)): option(list(string)) => {
+  let reference = Calculus.A0;
   let expected =
     results
     |> List.filter((m: measurement) => m.calculus == reference)
     |> List.map((m: measurement) => (m.step_index, m.result));
-  results
-  |> List.filter_map((m: measurement) =>
-       switch (List.assoc_opt(m.step_index, expected)) {
-       | Some(want) when want != m.result =>
-         Some(
-           Printf.sprintf(
-             "step %d (%s): %s gave %s, %s gave %s",
-             m.step_index,
-             m.label,
-             Calculus.name(m.calculus),
-             m.result,
-             Calculus.name(reference),
-             want,
-           ),
-         )
-       | _ => None
-       }
-     );
+  switch (expected) {
+  | [] => None
+  | _ =>
+    Some(
+      results
+      |> List.filter_map((m: measurement) =>
+           switch (List.assoc_opt(m.step_index, expected)) {
+           | Some(want) when want != m.result =>
+             Some(
+               Printf.sprintf(
+                 "step %d (%s): %s gave %s, %s gave %s",
+                 m.step_index,
+                 m.label,
+                 Calculus.name(m.calculus),
+                 m.result,
+                 Calculus.name(reference),
+                 want,
+               ),
+             )
+           | _ => None
+           }
+         ),
+    )
+  };
 };
 
 let json_of_measurement = (m: measurement): Yojson.Safe.t =>
@@ -310,8 +308,27 @@ let print_table = (trace: Trace.t, results: list(measurement)): unit => {
  * did not run at all. */
 let report_disagreements = (trace: Trace.t, results: list(measurement)): bool =>
   switch (disagreements(results)) {
-  | [] => true
-  | problems =>
+  | None =>
+    Printf.eprintf(
+      "UNCHECKED: %s ran without a0, so nothing verified these answers.\n",
+      trace.name,
+    );
+    false;
+  | Some([]) =>
+    /* Print.print renders every hole as `?`, so two different indeterminate
+     * results compare equal. Say so rather than let a trace that goes
+     * indeterminate bank an agreement it did not really earn. */
+    if (List.exists(
+          (m: measurement) => String.contains(m.result, '?'),
+          results,
+        )) {
+      Printf.eprintf(
+        "WEAK CHECK: %s produced indeterminate results, which all compare equal.\n",
+        trace.name,
+      );
+    };
+    true;
+  | Some(problems) =>
     Printf.eprintf(
       "UNSOUND: calculi disagreed on %s; timings below are meaningless.\n",
       trace.name,
@@ -355,8 +372,14 @@ let bench_incr =
         let trace = Trace.load(path);
         let results =
           List.concat_map(calculus => run_trace(~calculus, trace), selected);
+        /* Timing one scheme in isolation is the normal way to use this, and it
+         * must not cost the soundness check, so run the control regardless and
+         * keep it out of the table when it was not asked for. */
+        let reference =
+          List.mem(Calculus.A0, selected)
+            ? [] : run_trace(~calculus=Calculus.A0, trace);
         print_table(trace, results);
-        if (!report_disagreements(trace, results)) {
+        if (!report_disagreements(trace, reference @ results)) {
           sound := false;
         };
         List.map(m => (path, m), results);

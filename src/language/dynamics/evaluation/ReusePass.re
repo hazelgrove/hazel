@@ -27,7 +27,8 @@ module ReusePassTransition = Transition(ReusePassEVMode);
 
 let update_reuse_map_after_effects =
     (
-      ~rhs_reused: Id.t => bool,
+      ~tuple_flags: bool,
+      ~reused: Id.t => bool,
       ~reuse_map: IncrEval.reuse_map,
       effects: list(EvaluatorState.effect),
     )
@@ -36,13 +37,14 @@ let update_reuse_map_after_effects =
     (reuse_map, effect) =>
       switch (effect) {
       | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
-        let source_id = DHExp.rep_id(rhs);
+        /* rhs is the binding's right-hand side before evaluation, so its flag
+         * is read off the re-use map rather than off a value. */
         IncrEval.update_maps_after_binding(
-          ~rhs_reused=rhs_reused(source_id),
-          ~source_id,
+          ~flag=IncrEval.exp_flag(~tuple_flags, ~reused, ~reuse_map, rhs),
+          ~source_id=DHExp.rep_id(rhs),
           pat,
           ~reuse_map,
-        );
+        )
       | _ => reuse_map
       },
     reuse_map,
@@ -51,6 +53,7 @@ let update_reuse_map_after_effects =
 
 let rec reuse_pass_for =
         (
+          ~tuple_flags: bool,
           ~prev: EvaluatorState.incr_eval,
           ~eval_info: EvalInfo.t,
           ~reuse_map: IncrEval.reuse_map,
@@ -65,7 +68,10 @@ let rec reuse_pass_for =
       ReusePassTransition.transition(
         (~in_closure=?, _env, child) => {
           ignore(in_closure);
-          (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet);
+          (
+            reuse_pass_for(~tuple_flags, ~prev, ~eval_info, ~reuse_map, child),
+            Indet,
+          );
         },
         ~mode=`Environment,
         ~targets=eval_info.targets,
@@ -76,13 +82,14 @@ let rec reuse_pass_for =
     | Step({expr, side_effects, is_value: false, _}) =>
       let reuse_map =
         update_reuse_map_after_effects(
-          ~rhs_reused=source_id => Id.Map.mem(source_id, req_stream.entries),
+          ~tuple_flags,
+          ~reused=id => Id.Map.mem(id, req_stream.entries),
           ~reuse_map,
           side_effects,
         );
       IncrEval.add_stream(
         req_stream,
-        reuse_pass_for(~prev, ~eval_info, ~reuse_map, expr),
+        reuse_pass_for(~tuple_flags, ~prev, ~eval_info, ~reuse_map, expr),
       );
     | Step({is_value: true, _})
     | Constructor
@@ -94,6 +101,7 @@ let rec reuse_pass_for =
 
 let reuse_pass =
     (
+      ~tuple_flags: bool=false,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
@@ -101,4 +109,4 @@ let reuse_pass =
       d: DHExp.t,
     )
     : IncrEval.t(EvaluatorState.t) =>
-  reuse_pass_for(~prev, ~eval_info, ~reuse_map, d);
+  reuse_pass_for(~tuple_flags, ~prev, ~eval_info, ~reuse_map, d);
