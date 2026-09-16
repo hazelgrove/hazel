@@ -31,14 +31,6 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ]
     |> List.map(((name, text)) => ("Type Cards / " ++ name, text))
   )
-  @ (
-    /* Hazel as computational glue: Automerge documents in and out */
-    [
-      ("TLDraw to Petrinaut", [%blob "tldraw-petrinaut.hz"]),
-      ("TLDraw Shadow", [%blob "tldraw-shadow.hz"]),
-    ]
-    |> List.map(((name, text)) => ("Glue / " ++ name, text))
-  )
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );

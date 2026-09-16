@@ -18,8 +18,6 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | HTML => (module Cook(HTMLProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
-  | Automerge => (module Cook(AutomergeProj.M))
-  | AutomergeWriteBack => (module Cook(AutomergeWriteBackProj.M))
   };
 
 let init =

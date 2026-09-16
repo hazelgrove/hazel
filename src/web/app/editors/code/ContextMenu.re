@@ -423,8 +423,6 @@ module Projectors = {
     | Livelit => "Livelit"
     | HTML => "HTML"
     | Probe => "Probe" /* shouldn't appear in menu */
-    | Automerge => "Automerge"
-    | AutomergeWriteBack => "Automerge (Write-back)"
     };
 
   let applicable_kinds =

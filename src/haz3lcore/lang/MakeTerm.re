@@ -1835,14 +1835,9 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
-      let inner =
-        switch (ProjectorCore.get_bypass(id)) {
-        | Some(exp) => Grammar.Exp(exp)
-        | None =>
-          let sort = Piece.sort(syntax) |> fst;
-          let seg = Piece.unparenthesize(syntax);
-          go_s(sort, Segment.skel(seg), seg);
-        };
+      let sort = Piece.sort(syntax) |> fst;
+      let seg = Piece.unparenthesize(syntax);
+      let inner = go_s(sort, Segment.skel(seg), seg);
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -2169,30 +2164,10 @@ module Incr = {
 
   let seg_eq = Segment.ptr_eq;
 
-  /* does this slice hold a projector whose term comes from the bypass
-     table (ProjectorCore)? Such a slice's memo is valid only for the
-     bypass generation it was parsed under: a data arrival re-puts the
-     same pieces, so identity alone would keep the pre-data term. */
-  let rec seg_has_bypass = (seg: Segment.t): bool =>
-    List.exists(
-      (p: Piece.t) =>
-        switch (p) {
-        | Projector(pr) =>
-          ProjectorCore.get_bypass(pr.id) != None
-          || seg_has_bypass([pr.syntax])
-        | Tile(t) => List.exists(seg_has_bypass, t.children)
-        | _ => false
-        },
-      seg,
-    );
-  let bypass_fresh = (gen: int, ps: Segment.t): bool =>
-    gen == ProjectorCore.bypass_gen^ || !seg_has_bypass(ps);
-
   type entry = {
     e_pieces: Segment.t,
     e_term: Exp.t,
-    e_hole: option(Id.t), /* the synthetic body hole to graft into */
-    e_gen: int,
+    e_hole: option(Id.t) /* the synthetic body hole to graft into */
   };
 
   /* keyed by the item's FIRST piece id (stable across splices for
@@ -2200,7 +2175,7 @@ module Incr = {
      Module-level single slot: only the one whole-program master
      editor takes this path (view builds use the per-editor cache) */
   let memo: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
-  let last: ref(option((Segment.t, Exp.t, int))) = ref(None);
+  let last: ref(option((Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
 
   let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
@@ -2322,8 +2297,7 @@ module Incr = {
   let term_of = (seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
-    | Some((prev_seg, prev_term, gen))
-        when seg_eq(prev_seg, seg) && bypass_fresh(gen, seg) => prev_term
+    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let items = slices(seg);
       let keyed =
@@ -2339,11 +2313,7 @@ module Incr = {
         List.map(
           ((key, ps)) =>
             switch (Id.Map.find_opt(key, memo^)) {
-            | Some(e)
-                when seg_eq(e.e_pieces, ps) && bypass_fresh(e.e_gen, ps) => (
-                key,
-                e,
-              )
+            | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
             | _ =>
               incr(analyzed);
               let (term, hole) = parse_item(ps);
@@ -2351,7 +2321,6 @@ module Incr = {
                 e_pieces: ps,
                 e_term: term,
                 e_hole: hole,
-                e_gen: ProjectorCore.bypass_gen^,
               };
               (key, e);
             },
@@ -2379,7 +2348,7 @@ module Incr = {
           };
         };
       let term = graft(entries);
-      last := Some((seg, term, ProjectorCore.bypass_gen^));
+      last := Some((seg, term));
       term;
     };
   };
@@ -2390,15 +2359,13 @@ module Incr = {
   type mod_entry = {
     me_pieces: Segment.t,
     me_items: list(Mod.t),
-    me_gen: int,
   };
   let mod_memo: ref(Id.Map.t(mod_entry)) = ref(Id.Map.empty);
 
   let term_of_mod = (seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
-    | Some((prev_seg, prev_term, gen))
-        when seg_eq(prev_seg, seg) && bypass_fresh(gen, seg) => prev_term
+    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let keyed =
         List.filter_map(
@@ -2413,11 +2380,7 @@ module Incr = {
         List.map(
           ((key, ps)) =>
             switch (Id.Map.find_opt(key, mod_memo^)) {
-            | Some(e)
-                when seg_eq(e.me_pieces, ps) && bypass_fresh(e.me_gen, ps) => (
-                key,
-                e,
-              )
+            | Some(e) when seg_eq(e.me_pieces, ps) => (key, e)
             | _ =>
               incr(analyzed);
               let (items, _) = parse_item_mod(ps);
@@ -2426,7 +2389,6 @@ module Incr = {
                 {
                   me_pieces: ps,
                   me_items: items,
-                  me_gen: ProjectorCore.bypass_gen^,
                 },
               );
             },
@@ -2440,7 +2402,7 @@ module Incr = {
         );
       let term =
         wrap_module(List.concat_map(((_, e)) => e.me_items, entries));
-      last := Some((seg, term, ProjectorCore.bypass_gen^));
+      last := Some((seg, term));
       term;
     };
   };
@@ -2462,7 +2424,6 @@ module Incr = {
      Exact parity with go is test-gated (Test_MakeTermIncr). */
 
   type entry_full = {
-    f_gen: int,
     f_pieces: Segment.t,
     f_term: Exp.t, /* Exp mode; EmptyHole placeholder in Mod mode */
     f_hole: option(Id.t),
@@ -2513,7 +2474,6 @@ module Incr = {
       consolidate_adopted();
       let (f_map, f_td) = scrub_hole(hole, (map^, term_data^));
       {
-        f_gen: ProjectorCore.bypass_gen^,
         f_pieces: ps,
         f_term: Exp.fresh(EmptyHole),
         f_hole: None,
@@ -2529,7 +2489,6 @@ module Incr = {
       consolidate_adopted();
       let (f_map, f_td) = scrub_hole(hole, (map^, term_data^));
       {
-        f_gen: ProjectorCore.bypass_gen^,
         f_pieces: ps,
         f_term: term,
         f_hole: hole,
@@ -2658,7 +2617,7 @@ module Incr = {
       List.map(
         ((key, ps)) =>
           switch (Hashtbl.find_opt(prev_tbl, key)) {
-          | Some(e) when seg_eq(e.f_pieces, ps) && bypass_fresh(e.f_gen, ps) =>
+          | Some(e) when seg_eq(e.f_pieces, ps) =>
             incr(incr_hits);
             (key, e);
           | Some(_) =>
@@ -2748,7 +2707,7 @@ module Incr = {
           };
         graft(entries);
       };
-    last := Some((seg, term, ProjectorCore.bypass_gen^)); /* share with term_of (statics path) */
+    last := Some((seg, term)); /* share with term_of (statics path) */
     let terms =
       root == Sort.Mod
         ? TermMap.add_all(term.annotation.ids, Exp(term), m_map^)

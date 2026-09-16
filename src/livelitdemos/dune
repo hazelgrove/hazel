@@ -2,8 +2,6 @@
 
 (copy_files ../../hazel-programs/docs/livelits/*.hz)
 
-(copy_files ../../hazel-programs/docs/glue/*.hz)
-
 (library
  (name livelitdemos)
  (libraries haz3lcore)

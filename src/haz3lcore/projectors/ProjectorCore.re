@@ -65,28 +65,3 @@ let toggle_placement = (p: t('syntax)): t('syntax) => {
 module Shape = Util.ProjectorShape;
 /* Projectors currently are all convex */
 let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);
-
-/* Serialization bypass: projectors store their Exp.t here instead of
-   round-tripping through segment/term serialization. Keyed by projector
-   piece ID. Used by the Automerge projectors to avoid serializing loaded
-   JSON docs through editor segment text. */
-let bypass_table: ref(Id.Map.t(Language.Exp.t)) = ref(Id.Map.empty);
-
-/* The bypass is a term-construction INPUT that leaves no trace in the
-   pieces: a data arrival re-puts the same syntax. Incremental parse
-   memos (MakeTerm.Incr) that saw a bypassed projector record the
-   generation they were built under and are stale once it moves. */
-let bypass_gen: ref(int) = ref(0);
-
-let set_bypass = (id: Id.t, exp: Language.Exp.t): unit => {
-  bypass_table := Id.Map.add(id, exp, bypass_table^);
-  incr(bypass_gen);
-};
-
-let get_bypass = (id: Id.t): option(Language.Exp.t) =>
-  Id.Map.find_opt(id, bypass_table^);
-
-let remove_bypass = (id: Id.t): unit => {
-  bypass_table := Id.Map.remove(id, bypass_table^);
-  incr(bypass_gen);
-};
