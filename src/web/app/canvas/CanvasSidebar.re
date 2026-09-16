@@ -1068,6 +1068,21 @@ let view_impl =
     CanvasBuffer.presenting^ ? Option.none : test_results_of(editors);
   let slide = current_slide(editors);
   init_layout_lab();
+  /* Keep related value cards and the values panel on one completed
+     evaluation. The live app still uses its optimistic/streamed view;
+     replay snapshots must keep their own historical dynamics. */
+  let value_editor =
+    switch (CanvasBuffer.presenting^, current_code(editors)) {
+    | (false, Some({editor: cell, _})) =>
+      let dynamics = EvalResult.Model.card_dynamics(cell.result);
+      dynamics === editor.dynamics
+        ? editor
+        : {
+          ...editor,
+          dynamics,
+        };
+    | _ => editor
+    };
   CanvasLayoutExperiments.on_result :=
     (
       () => {
@@ -1586,18 +1601,19 @@ let view_impl =
         };
       switch (
         Option.bind(anchor, a =>
-          Language.Dynamics.Map.lookup(a, editor.dynamics)
+          Language.Dynamics.Map.lookup(a, value_editor.dynamics)
         )
       ) {
       | Some([_, ..._] as samples) =>
         let sf = editor.editor.state.zipper.refractors.sample_focus;
         let cursor_stack = Language.Sample.Focus.effective_stack(sf);
         let aligned =
-          List.exists(
-            (smp: Language.Sample.t) =>
-              Language.CallStack.equal(smp.call_stack, cursor_stack),
-            samples,
-          );
+          sf.anchor != None
+          && List.exists(
+               (smp: Language.Sample.t) =>
+                 Language.CallStack.equal(smp.call_stack, cursor_stack),
+               samples,
+             );
         if (aligned) {
           [];
         } else {
@@ -2623,16 +2639,6 @@ let view_impl =
             |> Option.join
           | None => None
           };
-        let site =
-          CanvasFocus.value_site(
-            ~dynamics=editor.dynamics,
-            ~info_map=editor.statics.info_map,
-            ~graph,
-            ~focus=editor.editor.state.zipper.refractors.sample_focus,
-            ~within?,
-            ~syntax=editor.editor.syntax,
-            key,
-          );
         let is_livelit_node =
           switch (
             List.find_opt(
@@ -2643,6 +2649,17 @@ let view_impl =
           | Some(n) => Language.UserLivelit.is_livelit_name(n.label)
           | None => false
           };
+        let editor = is_livelit_node ? editor : value_editor;
+        let site =
+          CanvasFocus.value_site(
+            ~dynamics=editor.dynamics,
+            ~info_map=editor.statics.info_map,
+            ~graph,
+            ~focus=editor.editor.state.zipper.refractors.sample_focus,
+            ~within?,
+            ~syntax=editor.editor.syntax,
+            key,
+          );
         let content =
           switch (site) {
           | Some(id) =>
@@ -3442,7 +3459,7 @@ let view_impl =
       |> Option.map(v =>
            CanvasFocus.value_info(
              ~globals,
-             ~editor,
+             ~editor=value_editor,
              ~inject_jump,
              ~on_close=
                () => {
@@ -3473,7 +3490,7 @@ let view_impl =
         | Some(v) => [
             CanvasFocus.value_info(
               ~globals,
-              ~editor,
+              ~editor=value_editor,
               ~inject_jump,
               ~on_close=
                 () =>
@@ -3486,11 +3503,11 @@ let view_impl =
         | None =>
           CanvasFocus.type_view(
             ~globals,
-            ~editor,
+            ~editor=value_editor,
             ~inject_jump,
             ~on_close=
               globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-            ~dynamics=editor.dynamics,
+            ~dynamics=value_editor.dynamics,
             ~info_map=editor.statics.info_map,
             ~graph,
             key,
@@ -3500,7 +3517,7 @@ let view_impl =
       | (None, Some(name)) =>
         CanvasFocus.view(
           ~globals,
-          ~editor,
+          ~editor=value_editor,
           ~inject_jump,
           ~on_close=
             main_mode

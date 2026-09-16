@@ -82,6 +82,7 @@ let (suite, exit_with_test_status) =
     @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
     @ [Test_CanvasManual.tests, Test_CanvasLayoutExperiments.tests]
     @ [("Canvas values", Test_CanvasValue.tests)]
+    @ [("Canvas card focus", Test_CanvasCardFocus.tests)]
     @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
     @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]
     @ [("Node map (dungeon program)", Test_MergeProbe.tests)]

@@ -181,11 +181,19 @@ let app_view =
     : option(Node.t) => {
   let syntax = editor.editor.syntax;
   let zipper = editor.editor.state.zipper;
-  let inject = (a: Haz3lcore.Action.t) =>
+  let perform = (a: Haz3lcore.Action.t) =>
     switch (master_perform^) {
     | Option.Some(f) => f(a)
     | Option.None => globals.inject_global(ActiveEditor(a))
     };
+  /* An app edit resumes live values. Captured sample positions belong
+     to the previous evaluation: retaining them can make the cards
+     jump back to an earlier move while the app shows the new state.
+     Keep ordinary projector focus/model actions from ending inspection. */
+  let inject = (a: Haz3lcore.Action.t) =>
+    Haz3lcore.Action.is_edit(a)
+      ? Effect.Many([perform(a), perform(Project(SampleFocus(Reset)))])
+      : perform(a);
   /* projector data for the whole editor, once per (syntax, statics,
      dynamics, focus): every app card on every render asks */
   let data =

@@ -272,11 +272,10 @@ let node_type_names = (~graph: CanvasGraph.t, n: CanvasGraph.tynode) => {
   };
 };
 
-/* the sample site to show for a type node: among the probed sites whose
-   type is this node's, prefer one a rich renderer applies to (a site
-   inside a livelit's own definition can't be shown through that
-   livelit — its name isn't in scope there), then the newest sample; the
-   well is then navigable through that site's history */
+/* A type card defaults to the latest outer result, rather than an
+   arbitrary helper with a more varied history. An explicit sample
+   selection keeps its site and aligns the other cards to that call;
+   selecting a function is how we inspect its intermediate values. */
 let rec value_site =
         (
           ~dynamics: Language.Dynamics.Map.t,
@@ -412,8 +411,8 @@ and value_site_impl =
       | None => false
       };
     let inside = (id: Id.t): bool =>
-      switch (within, syntax) {
-      | (Some((l, r)), Some(syntax)) =>
+      switch (within, syntax, focus) {
+      | (Some((l, r)), Some(syntax), Some({anchor: Some(_), _})) =>
         switch (
           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
         ) {
@@ -521,17 +520,25 @@ and value_site_impl =
             /* an app's own site last: its stream is the app's, and the
                app has its own node */
             is_app_site(id) ? 0 : 1,
+            /* Do not move the card to another site underneath a
+               selected sample (including keyboard history browsing). */
+            switch (focus) {
+            | Some({anchor: Some(a), _}) when a.probe_id == id => 1
+            | _ => 0
+            },
             aligned(id, samples) ? 1 : 0,
             inside(id) ? 1 : 0,
             nominal(t) ? 1 : 0,
             rich_ok(id, newest_s) ? 1 : 0,
+            /* Prefer the program's result over temporary helper values.
+               Counting distinct values first picked a win-checker's
+               `r : Player` over the actual `to_move`, and changed sites
+               as each move changed the helper's sample counts. */
+            - depth,
             /* the richest history (← → walk it) … */
             distinct,
             /* … told in the fewest samples … */
             - n_samples,
-            /* … at the shallowest call (the step function's own frame,
-               where the other cards' sites align exactly) */
-            - depth,
             newest,
           );
           switch (best) {

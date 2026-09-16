@@ -889,12 +889,33 @@ let live_presentation_editor =
     let seg = ScratchFocus.splice_all(f);
     switch (presentation_master^) {
     | Some((old, st, ed)) when old === seg && st === settings.core =>
-      ed.dynamics === fallback.dynamics
-        ? ed
-        : {
-          ...ed,
-          dynamics: fallback.dynamics,
-        }
+      /* The source can be unchanged while sample focus moves or resets.
+         Reusing the cached zipper's refractors silently resurrected the
+         previous focus on the next render (notably after app clicks). */
+      let refractors = fallback.editor.state.zipper.refractors;
+      let editor =
+        ed.editor.state.zipper.refractors === refractors
+          ? ed.editor
+          : {
+            ...ed.editor,
+            state: {
+              ...ed.editor.state,
+              zipper: {
+                ...ed.editor.state.zipper,
+                refractors,
+              },
+            },
+          };
+      let ed =
+        ed.dynamics === fallback.dynamics && editor === ed.editor
+          ? ed
+          : {
+            ...ed,
+            editor,
+            dynamics: fallback.dynamics,
+          };
+      presentation_master := Some((seg, settings.core, ed));
+      ed;
     | _ =>
       let z = Haz3lcore.Zipper.unzip(seg);
       let z = {
