@@ -147,6 +147,14 @@ let core_mark_err_view =
         text("but expected label"),
         code(an_label),
       ]
+    | _ when Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana)) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("is wider than expected type"),
+        view_type(ana) |> code_box_container,
+        text("; an ascription seals the extra members"),
+      ]
     | _ =>
       colon_prefix(show_type_colon)
       @ [
@@ -279,6 +287,7 @@ let core_mark_err_view =
     | TypWantProduct(_)
     | ModuleTypeMemberNotFound(_)
     | TypWantModule(_)
+    | TypAbstractMemberOfSignature(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -460,13 +469,20 @@ let underdetermined_typ_view =
         ]
       }
     )
+  | AbstractMemberOfSignature(name) => [
+      label_view(name),
+      text(
+        "is abstract in this signature and no module is named here; a module M of this signature names it as M."
+        ++ name,
+      ),
+    ]
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
       switch (product) {
       | Some(ty) => [
           text("type"),
           view_type(ty),
-          text("is not a tuple type"),
+          text("is not a tuple or module type"),
         ]
       | None => []
       };
@@ -515,6 +531,10 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
       text("is equal to"),
       view_type(whnormalized),
     ]
+  | PathAbstract(ty) => [
+      view_type(ty),
+      text("is an abstract type: its definition is hidden by the signature"),
+    ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
@@ -525,9 +545,20 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   };
 };
 
+let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
+  text("Type member "),
+  code(name),
+  text(" is defined as "),
+  view_type(actual),
+  text(" but its signature declares "),
+  view_type(expected),
+];
+
 let typ_mark_err_view = (~globals, m: Mark.t) => {
   let view_type = view_type(~globals);
   switch (m) {
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_view(~view_type, name, ~expected, ~actual)
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
@@ -564,9 +595,25 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("already used in this sum"),
     ]
   | TypParseFailure => [text("Parse failure")]
-  | TypWantProduct(ty) => [
-      text("Expected a module or tuple type, found type"),
-      view_type(ty),
+  | TypWantProduct(ty) =>
+    switch (ty.term) {
+    | Atom(_) => [
+        view_type(ty),
+        text(
+          "is a base type, not a module; a module with the name of a type cannot start a type path",
+        ),
+      ]
+    | _ => [
+        text("Expected a module or tuple type, found type"),
+        view_type(ty),
+      ]
+    }
+  | TypAbstractMemberOfSignature(name) => [
+      label_view(name),
+      text(
+        "is an abstract member of a signature, not of a module; name it through a module of that signature, as M."
+        ++ name,
+      ),
     ]
   | ModuleTypeMemberNotFound({name, members, submodule}) =>
     let what = submodule ? "sub-module" : "type member";
@@ -794,14 +841,7 @@ let exp_mark_err_view =
       );
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    div_err([
-      text("Type member "),
-      code(name),
-      text(" is defined as "),
-      view_type(actual),
-      text(" but its signature declares "),
-      view_type(expected),
-    ])
+    div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadLivelitExpansion({declared, actual}) =>
     div_err([
@@ -829,6 +869,17 @@ let exp_mark_err_view =
       text("Livelit definition is missing type members: "),
       ...List.map(code, missing),
     ])
+  | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
+    div_err([
+      text("Livelit member "),
+      code(name),
+      text(" has type "),
+      view_type(actual),
+      text(" but "),
+      code("Livelit"),
+      text(" requires "),
+      view_type(expected),
+    ])
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),
@@ -842,6 +893,7 @@ let exp_mark_err_view =
   | TypWantProduct(_)
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
+  | TypAbstractMemberOfSignature(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure

@@ -539,7 +539,7 @@ type Action = Int;
 type Expansion = String;
 let init : Model = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = fun m : Model -> m
 }|};
 

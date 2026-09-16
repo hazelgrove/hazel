@@ -697,6 +697,7 @@ and Sig: {
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | SigLet(p) => SigLet(pat_map_term(p))
         | SigType(tp, t) => SigType(tpat_map_term(tp), typ_map_term(t))
+        | SigTypeAbstract(tp) => SigTypeAbstract(tpat_map_term(tp))
         | SigModule(mp) =>
           SigModule(
             MPat.map_term(

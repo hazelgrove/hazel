@@ -32,7 +32,17 @@ type error_builtin =
 type livelit_def_error =
   | DefNotModule
   | DefMissingMembers(list(string))
-  | DefMissingTypes(list(string));
+  | DefMissingTypes(list(string))
+  /* A member whose type disagrees with what the builtin `Livelit`
+     signature requires of it, once that signature's abstract Model,
+     Action and Expansion are realized by this definition's own types.
+     `expand` failing this is the definition-site half of the expansion
+     obligation the paper checks only per use. */
+  | DefMemberMismatch({
+      name: string,
+      expected: Typ.t,
+      actual: Typ.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
@@ -123,6 +133,9 @@ type t =
       name: Var.t,
       typ: Typ.t,
     })
+  /* `S.T` where S is a signature alias and T is abstract in it: no module is
+     named, so there is no T to name. */
+  | TypAbstractMemberOfSignature(Var.t)
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure

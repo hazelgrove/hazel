@@ -105,42 +105,123 @@ let module_members =
 let missing = (required: list(string), have: list((string, 'a))) =>
   List.filter(r => !List.mem_assoc(r, have), required);
 
+/* Check the definition's members against the builtin `Livelit` signature
+   (BuiltinsADT.livelit_sig, in scope as the type alias `Livelit`), which is
+   the one place the livelit interface is written down.
+
+   The signature declares Model, Action and Expansion abstract; here they are
+   REALIZED by this definition's own manifest types, and each required value
+   member is then checked at the type the signature gives it. So `expand` is
+   checked as `Model -> Expansion` with this livelit's actual types -- the
+   definition-site half of the obligation that PLDI 2021 discharges only at
+   each use. The use-site check stays: it is what catches an expansion whose
+   type depends on the model VALUE, which no definition-site check can see.
+
+   Consistency, not equality: a member may be more precise than declared, and
+   a member still containing holes must not be reported as wrong. */
+let check_against_livelit_sig =
+    (
+      ~ctx: Ctx.t,
+      ~types: list((string, Typ.t)),
+      ~vals: list((string, Typ.t)),
+    )
+    : option(Mark.livelit_def_error) => {
+  let realize = (ty: Typ.t): Typ.t =>
+    List.fold_left(
+      (ty, name) =>
+        switch (List.assoc_opt(name, types)) {
+        | Some(def) =>
+          Typ.subst(def, IdTagged.FreshGrammar.TPat.var(name), ty)
+        | None => ty
+        },
+      ty,
+      required_types,
+    );
+  let declared =
+    switch (Ctx.lookup_alias(ctx, "Livelit")) {
+    | Some(ty) =>
+      switch (Typ.term_of(ty)) {
+      | Sig(items) =>
+        Sig.members(items)
+        |> List.filter_map((mem: Sig.member) =>
+             switch (mem) {
+             | Val(n, ty) => Some((n, ty))
+             | _ => None
+             }
+           )
+      | _ => []
+      }
+    | None => []
+    };
+  List.fold_left(
+    (acc, (name, want)) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        let expected = realize(want);
+        switch (List.assoc_opt(name, vals)) {
+        | None => None /* absence is DefMissingMembers' to report */
+        | Some(actual) =>
+          Typ.is_consistent(ctx, expected, actual)
+            ? None
+            : Some(
+                Mark.DefMemberMismatch({
+                  name,
+                  expected,
+                  actual,
+                }),
+              )
+        };
+      },
+    None,
+    declared,
+  );
+};
+
 /* The definition is the trailing module, looking through helper bindings:
    `let helper = ... in {...}`. A helper type alias is brought into scope on
    the way down, so a member type may be stated in terms of it. */
 let rec detect =
-        (~ctx: Ctx.t, def: TermBase.Exp.t)
+        (~ctx: Ctx.t, ~m: StaticsBase.Map.t, def: TermBase.Exp.t)
         : result(def, Mark.livelit_def_error) =>
   switch (strip_parens(def).term) {
-  | Let(_, _, body) => detect(~ctx, body)
+  | Let(_, _, body) => detect(~ctx, ~m, body)
   | TyAlias(tp, ty, body) =>
     let ctx =
       switch (tp.term) {
       | Var(name) => Ctx.extend_alias(ctx, name, TPat.rep_id(tp), ty)
       | _ => ctx
       };
-    detect(~ctx, body);
+    detect(~ctx, ~m, body);
   | Module(items) =>
     let members = module_members(items);
-    /* The module's declared type members, read from the signature Modules
-       II synthesizes for it, so a member type may name an earlier one
-       (`type Expansion = Model`) exactly as it does for `M.Expansion`. Only
-       type members are needed here, so no statics map is supplied; value
-       members come out Unknown and are ignored. */
-    let types =
-      switch (
-        ModuleHelpers.module_sig_type(~ctx, items, StaticsBase.Map.empty).term
-      ) {
-      | Sig(sig_items) =>
-        Sig.members(sig_items)
-        |> List.filter_map((m: Sig.member) =>
-             switch (m) {
-             | TypeManifest(n, ty) => Some((n, ty))
-             | _ => None
-             }
-           )
+    /* The module's members, read from the signature Modules II synthesizes
+       for it, so a member type may name an earlier one (`type Expansion =
+       Model`) exactly as it does for `M.Expansion`. The statics map is
+       supplied so VALUE members carry their synthesized types too: without
+       it they come out Unknown, and checking them against the Livelit
+       signature would pass vacuously. */
+    let sig_members =
+      switch (ModuleHelpers.module_sig_type(~ctx, items, m).term) {
+      | Sig(sig_items) => Sig.members(sig_items)
       | _ => []
       };
+    let types =
+      sig_members
+      |> List.filter_map((mem: Sig.member) =>
+           switch (mem) {
+           | TypeManifest(n, ty) => Some((n, ty))
+           | _ => None
+           }
+         );
+    let vals =
+      sig_members
+      |> List.filter_map((mem: Sig.member) =>
+           switch (mem) {
+           | Val(n, ty) => Some((n, ty))
+           | _ => None
+           }
+         );
     switch (
       missing(required_members, members),
       missing(required_types, types),
@@ -148,12 +229,16 @@ let rec detect =
     | ([_, ..._] as ms, _) => Error(DefMissingMembers(ms))
     | ([], [_, ..._] as ts) => Error(DefMissingTypes(ts))
     | ([], []) =>
-      Ok({
-        members,
-        model_t: List.assoc("Model", types),
-        action_t: List.assoc("Action", types),
-        expansion_t: List.assoc("Expansion", types),
-      })
+      switch (check_against_livelit_sig(~ctx, ~types, ~vals)) {
+      | Some(err) => Error(err)
+      | None =>
+        Ok({
+          members,
+          model_t: List.assoc("Model", types),
+          action_t: List.assoc("Action", types),
+          expansion_t: List.assoc("Expansion", types),
+        })
+      }
     };
   | _ => Error(DefNotModule)
   };
@@ -332,13 +417,14 @@ let instrument_view =
 let mk =
     (
       ~ctx: Ctx.t,
+      ~m: StaticsBase.Map.t,
       ~name: string,
       ~id: Id.t,
       ~def_user: TermBase.Exp.t,
       ~def_elab: TermBase.Exp.t,
     )
     : result(LivelitCtx.raw_livelit, Mark.livelit_def_error) =>
-  switch (detect(~ctx, def_user)) {
+  switch (detect(~ctx, ~m, def_user)) {
   | Error(e) => Error(e)
   | Ok({members, model_t, action_t, expansion_t}) =>
     Ok({

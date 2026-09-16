@@ -661,6 +661,42 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
   | None => None
   };
 
+/* THE LIVELIT TYPE. The signature every user-defined livelit definition is
+   checked against, at the definition site (UserLivelit.detect). Writing it
+   once, here, is what lets the check be a signature check rather than four
+   hand-rolled member comparisons.
+
+   Model, Action and Expansion are ABSTRACT: each livelit chooses them, and
+   the signature only says that the four members agree about them. The check
+   realizes each abstract member by the definition's own manifest type
+   (Typ.sig_sub), so `expand` is checked as `Model -> Expansion` with that
+   livelit's actual types -- which is the obligation the paper discharges
+   per use, moved to the definition.
+
+   Nothing SEALS a livelit with this signature: sealing would hide
+   Expansion, and a use of ^name must keep synthesizing it concretely for
+   clients to reason about. `shape` and helper members are deliberately
+   absent -- they are optional, and extra members are allowed by width
+   subtyping. */
+let livelit_sig: Typ.t = {
+  let model = var("Model");
+  let action = var("Action");
+  let expansion = var("Expansion");
+  sig_([
+    Sig.item_of_member(Sig.TypeAbstract("Model")),
+    Sig.item_of_member(Sig.TypeAbstract("Action")),
+    Sig.item_of_member(Sig.TypeAbstract("Expansion")),
+    Sig.item_of_member(Sig.Val("init", model)),
+    Sig.item_of_member(
+      Sig.Val("update", arrow(prod([model, action]), model)),
+    ),
+    Sig.item_of_member(
+      Sig.Val("view", arrow(model, HtmlModules.path("Html", "T"))),
+    ),
+    Sig.item_of_member(Sig.Val("expand", arrow(model, expansion))),
+  ]);
+};
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
@@ -668,6 +704,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("JSON", JSON.t),
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
+  ("Livelit", livelit_sig),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>

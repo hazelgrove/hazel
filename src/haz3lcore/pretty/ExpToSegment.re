@@ -727,11 +727,11 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    /* No defensive parens on the content: the wrapper we are emitting is
+       already the protection, and adding another made printing
+       non-idempotent for every type whose precedence IS min -- a Sig, a bare
+       sum, a multihole -- which gained a paren layer on every trip. */
+    Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
@@ -993,8 +993,12 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=":") => false
   | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
+    /* `:` is an operator character, so anything glued to it that also starts
+       with one lexes as a single operator token -- `let _ :+ T` in a sig came
+       back as `:+`, which is no form at all. `$` is a name character but still
+       needs the gap. */
     String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
+    || Token.begins_with_potential_operator(s2)
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
@@ -2874,6 +2878,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                  @ mpat_to_seg(~settings, mp),
                ),
              )
+           | SigTypeAbstract(tp) =>
+             let+ tp = tpat_to_pretty(~settings, tp);
+             wrap_item(
+               item,
+               [mk_form(SigTypeAbstract, item |> Sig.rep_id, [])] @ tp,
+             );
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
              p_just(
@@ -3032,6 +3042,12 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
         @ mpat_to_seg(~settings, mp),
       ),
     )
+  | SigTypeAbstract(tp) =>
+    let+ tp = tpat_to_pretty(~settings, tp);
+    wrap_item(
+      item,
+      [mk_form(SigTypeAbstract, item |> Sig.rep_id, [])] @ tp,
+    );
   | EmptyHole =>
     p_just(
       wrap_item(

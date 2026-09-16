@@ -185,7 +185,8 @@ let rec has_fun = (typ: t) =>
       (m: Sig.member) =>
         switch (m) {
         | Val(_, ty) => has_fun(ty)
-        | TypeManifest(_) => false
+        | TypeManifest(_)
+        | TypeAbstract(_) => false
         },
       Sig.members(items),
     )
@@ -282,6 +283,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
                [name, ...bound],
                acc @ free_vars(~bound, ty),
              )
+           | Some(TypeAbstract(name)) => ([name, ...bound], acc)
            | None => (bound, acc)
            },
          (bound, []),
@@ -334,6 +336,7 @@ let rec count_unknowns = (ty: t): int =>
         switch (m) {
         | Val(_, ty)
         | TypeManifest(_, ty) => acc + count_unknowns(ty)
+        | TypeAbstract(_) => acc
         },
       0,
       Sig.members(items),
@@ -466,8 +469,12 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
         | [item, ...rest] =>
           let item' = Sig.map_typ(subst(s, x), item);
           switch (Sig.member_of_item(item)) {
-          | Some(TypeManifest(n, _)) when n == str => [item', ...rest]
-          | Some(TypeManifest(n, _)) when List.mem(n, fv_s) => [
+          | Some(TypeManifest(n, _) | TypeAbstract(n)) when n == str => [
+              item',
+              ...rest,
+            ]
+          | Some(TypeManifest(n, _) | TypeAbstract(n))
+              when List.mem(n, fv_s) => [
               item',
               ...List.map(
                    Sig.map_typ(subst(Unknown(Internal) |> temp, x)),
@@ -527,13 +534,27 @@ let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): t =>
     sigma,
   );
 
+/* What an abstract type member [name] stands for outside its signature:
+   the path `self.T` when the signature is that of a module path, `?` when it
+   is not (a non-path expression's abstract types cannot be named), or its own
+   bare name when [keep_local] (the enclosing module body binds it). */
+let abstract_replacement =
+    (~self: option(t), ~keep_local: Var.t => bool, name: Var.t): option(t) =>
+  switch (self, keep_local(name)) {
+  | (_, true) => None
+  | (Some(path), false) =>
+    Some(ProdProjection(path, Label(name) |> temp) |> temp)
+  | (None, false) => Some(Unknown(Internal) |> temp)
+  };
+
 /* Each well-formed member paired with its type after substituting the
    type members declared before it. */
-/* [keep_local name]: leave type member [name] as a bare name for later
-   members instead of substituting its definition (the enclosing module body
-   binds it). */
+/* [keep_local name]: leave member [name] as a bare name for later members
+   instead of substituting its definition or replacement (the enclosing module
+   body binds it). */
 let sig_members_closed =
-    (~keep_local=_ => false, items: list(Sig.t)): list((Sig.member, t)) => {
+    (~self=?, ~keep_local=_ => false, items: list(Sig.t))
+    : list((Sig.member, t)) => {
   let (_, rev) =
     List.fold_left(
       ((sigma, acc), item) =>
@@ -546,6 +567,11 @@ let sig_members_closed =
           let def = apply_sig_subst(sigma, def);
           let sigma = keep_local(name) ? sigma : [(name, def), ...sigma];
           (sigma, [(m, def), ...acc]);
+        | Some(TypeAbstract(name) as m) =>
+          switch (abstract_replacement(~self, ~keep_local, name)) {
+          | Some(ty) => ([(name, ty), ...sigma], [(m, ty), ...acc])
+          | None => (sigma, [(m, Var(name) |> temp), ...acc])
+          }
         | None => (sigma, acc)
         },
       ([], []),
@@ -555,71 +581,50 @@ let sig_members_closed =
 };
 
 /* The type of value member [name] (last declaration wins), closed with
-   respect to the signature's own type members. Only the requested member
-   is substituted into: closing every member to read one made each `M.x`
-   and `M.T` cost a pass over the whole signature (Html has ~50 members
-   whose T is a 47-constructor sum). */
+   respect to the signature's own type members. */
 let sig_project_value =
-    (~keep_local=_ => false, items: list(Sig.t), name: Var.t): option(t) => {
-  let (_, found) =
-    List.fold_left(
-      ((sigma, found), item) =>
-        switch (Sig.member_of_item(item)) {
-        | Some(Val(x, ty)) when x == name => (
-            sigma,
-            Some(apply_sig_subst(sigma, ty)),
-          )
-        | Some(Val(_)) => (sigma, found)
-        | Some(TypeManifest(n, def)) =>
-          let sigma =
-            keep_local(n)
-              ? sigma : [(n, apply_sig_subst(sigma, def)), ...sigma];
-          (sigma, found);
-        | None => (sigma, found)
-        },
-      ([], None),
-      items,
-    );
-  found;
-};
-
-/* The definition of type member [name] (last declaration wins), closed
-   with respect to the type members declared before it. Value members are
-   not visited. */
-let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) => {
-  let (_, found) =
-    List.fold_left(
-      ((sigma, found), item) =>
-        switch (Sig.member_of_item(item)) {
-        | Some(TypeManifest(n, def)) =>
-          let def = apply_sig_subst(sigma, def);
-          ([(n, def), ...sigma], n == name ? Some(def) : found);
-        | _ => (sigma, found)
-        },
-      ([], None),
-      items,
-    );
-  found;
-};
-
-/* The type of value member [name] of the module at [path], with the
-   signature's own type members left as PATHS (`M.T`) rather than replaced
-   by their definitions: `M.x : S.x[T := M.T]`, the dependent-record
-   projection. A path stays compact where a definition would expand (the
-   builtin Html.T is a 47-constructor sum), and two equal paths meet
-   without normalizing. */
-let sig_project_value_along = (~path: t, items: list(Sig.t), name: Var.t) => {
-  let type_names = Sig.members(items) |> Sig.type_names;
-  let to_path = n => ProdProjection(path, Label(n) |> temp) |> temp;
-  sig_project_value(~keep_local=n => List.mem(n, type_names), items, name)
-  |> Option.map(ty =>
-       List.fold_left(
-         (ty, n) => subst(to_path(n), Var(n) |> TPat.fresh, ty),
-         ty,
-         type_names,
-       )
+    (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
+    : option(t) =>
+  sig_members_closed(~self?, ~keep_local, items)
+  |> List.fold_left(
+       (acc, (m: Sig.member, ty)) =>
+         switch (m) {
+         | Val(x, _) when x == name => Some(ty)
+         | _ => acc
+         },
+       None,
      );
-};
+
+/* The last type member named [name] with what it stands for: its definition
+   when manifest, its replacement (see abstract_replacement) when abstract. */
+let sig_project_type_member =
+    (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
+    : option((Sig.member, t)) =>
+  sig_members_closed(~self?, ~keep_local, items)
+  |> List.fold_left(
+       (acc, (m: Sig.member, ty)) =>
+         switch (m) {
+         | TypeManifest(x, _)
+         | TypeAbstract(x) when x == name => Some((m, ty))
+         | _ => acc
+         },
+       None,
+     );
+
+let sig_project_type =
+    (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
+    : option(t) =>
+  sig_project_type_member(~self?, ~keep_local, items, name)
+  |> Option.map(snd);
+
+/* An abstract type member projected out of a module path, `M.T`, does not
+   reduce: weak_head_normalize returns it as it is. Only meaningful on a
+   weak-head-normalized type. */
+let is_stuck_path_term = (ty: t): bool =>
+  switch (term_of(ty)) {
+  | ProdProjection(_, {term: Label(_), _}) => true
+  | _ => false
+  };
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
@@ -692,69 +697,77 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+/* Out of fuel the type comes back unreduced -- stuck, which is what this
+   function already returns for anything else it cannot reduce -- so a type
+   with no weak head normal form is a type error where it is used, not a crash
+   of the whole analysis. A signature can name itself through a same-named
+   outer binding (`let m : { type T = m.T } = ...` with an `m` already in
+   scope), and path_sig hands `m.T` straight back here. */
+let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
-    failwith("weak_head_normalize exceeded 1000 recursive calls");
-  };
-  switch (term_of(ty)) {
-  | Parens(t)
-  | Projector(_, t) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-    | None => ty
-    }
-  | TupLabel({term: ExplicitNonlabel, _}, ty) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-  | ProdProjection(t, label) =>
-    let (_, rewrap) = unwrap(ty);
-    let default = Unknown(Internal) |> rewrap;
-    switch (label.term) {
-    | Label(l) =>
-      switch (path_sig(~rec_counter=rec_counter + 1, ctx, t)) {
-      | Some(items) =>
-        /* `M.T`: type member of a module path or of a signature alias. */
-        switch (sig_project_type(items, l)) {
-        | Some(ty') =>
-          weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
-        | None => default
-        }
-      | None =>
-        /* `P.x`: label of a labeled tuple type. */
-        let normalized_t =
-          weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t);
-        switch (normalized_t.term) {
-        | Prod(tys) => project_type(tys, l) |> Option.value(~default)
-        | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
-        };
+    ty;
+  } else {
+    switch (term_of(ty)) {
+    | Parens(t)
+    | Projector(_, t) =>
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+    | Var(x) =>
+      switch (Ctx.lookup_alias(ctx, x)) {
+      | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+      | None => ty
       }
-    | _ => default
-    };
-  | Prod(ts) =>
-    let (_, rewrap) = unwrap(ty);
-    let duplicate_labels =
-      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
-    if (List.is_empty(duplicate_labels)) {
-      ty;
-    } else {
-      let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
-      Prod(cleaned_ts) |> rewrap;
-    };
-  | ProdExtension(t1, t2) =>
-    let (_, rewrap) = unwrap(ty);
+    | TupLabel({term: ExplicitNonlabel, _}, ty) =>
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | ProdProjection(t, label) =>
+      let (_, rewrap) = unwrap(ty);
+      let default = Unknown(Internal) |> rewrap;
+      switch (label.term) {
+      | Label(l) =>
+        switch (path_sig(~rec_counter=rec_counter + 1, ctx, t)) {
+        | Some((items, self)) =>
+          /* `M.T`: type member of a module path or of a signature alias. An
+             abstract member is a stuck path and is returned as it is. */
+          switch (sig_project_type_member(~self?, items, l)) {
+          | Some((TypeAbstract(_), ty')) => ty'
+          | Some((_, ty')) =>
+            weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
+          | None => default
+          }
+        | None =>
+          /* `P.x`: label of a labeled tuple type. */
+          let normalized_t =
+            weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t);
+          switch (normalized_t.term) {
+          | Prod(tys) => project_type(tys, l) |> Option.value(~default)
+          | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
+          };
+        }
+      | _ => default
+      };
+    | Prod(ts) =>
+      let (_, rewrap) = unwrap(ty);
+      let duplicate_labels =
+        LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+      if (List.is_empty(duplicate_labels)) {
+        ty;
+      } else {
+        let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
+        Prod(cleaned_ts) |> rewrap;
+      };
+    | ProdExtension(t1, t2) =>
+      let (_, rewrap) = unwrap(ty);
 
-    let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
-    let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
-    switch (t1.term, t2.term) {
-    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
-    | _ =>
-      // It would be better to do this via a more direct error recovery mechanism in statics
-      Unknown(Internal) |> rewrap
+      let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+      let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
+      switch (t1.term, t2.term) {
+      | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+      | _ =>
+        // It would be better to do this via a more direct error recovery mechanism in statics
+        Unknown(Internal) |> rewrap
+      };
+    | _ => ty
     };
-  | _ => ty
-  };
-}
+  }
 /* The signature items a module path denotes, if any. A path is a variable
    naming a module (looked up in the value namespace once it is not a type
    alias) or a projection of a value member out of another path. A type
@@ -762,7 +775,11 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    `type S = { type T = Int }`. Never uses Ctx.lookup_alias: it returns an
    invalid-hole type for unbound names, which would shadow the value
    namespace. */
-and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
+/* Returns the signature's items and, when the path is rooted at a module
+   VALUE (as opposed to a signature alias), the path itself: abstract type
+   members are then named through it (`M.T`, `M.P.T`). */
+and path_sig =
+    (~rec_counter=0, ctx: Ctx.t, t: t): option((list(Sig.t), option(t))) =>
   if (rec_counter > 1000) {
     None;
   } else {
@@ -771,21 +788,31 @@ and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
     | Projector(_, t) => path_sig(~rec_counter=rec_counter + 1, ctx, t)
     | Var(n) =>
       switch (Ctx.lookup_tvar(ctx, n)) {
-      | Some(Singleton(alias)) => as_sig(~rec_counter, ctx, alias)
+      | Some(Singleton(alias)) =>
+        as_sig(~rec_counter, ctx, alias)
+        |> Option.map(items => (items, None))
       | Some(Abstract) => None
       | None =>
         switch (Ctx.lookup_var(ctx, n)) {
-        | Some({typ, _}) => as_sig(~rec_counter, ctx, typ)
+        | Some({typ, _}) =>
+          as_sig(~rec_counter, ctx, typ)
+          |> Option.map(items => (items, Some(Var(n) |> temp)))
         | None => None
         }
       }
-    | ProdProjection(p, {term: Label(l), _}) =>
+    | ProdProjection(p, {term: Label(l), _} as label) =>
       switch (path_sig(~rec_counter=rec_counter + 1, ctx, p)) {
-      | Some(items) =>
-        switch (sig_project_value(items, l)) {
-        | Some(ty) => as_sig(~rec_counter, ctx, ty)
+      | Some((items, Some(self))) =>
+        switch (sig_project_value(~self, items, l)) {
+        | Some(ty) =>
+          as_sig(~rec_counter, ctx, ty)
+          |> Option.map(items' =>
+               (items', Some(ProdProjection(self, label) |> temp))
+             )
         | None => None
         }
+      /* A signature alias has no value members to project through. */
+      | Some((_, None))
       | None => None
       }
     | _ => None
@@ -805,8 +832,41 @@ and as_sig = (~rec_counter, ctx: Ctx.t, ty: t): option(list(Sig.t)) => {
   };
 };
 
-/* Value members of a signature whose own type is a signature: the
-   sub-modules a type-level path may continue through (`M.P.T`). */
+/* Selfification: seen through the path [path] (`M`, `M.P`), a signature's
+   abstract type members are the manifest paths `M.T`, so that an alias of M
+   shares M's abstract types (`module N = M` gives `N.T = M.T`) and a member
+   `x : T` projects to `M.T`. Identity on types without abstract members. */
+let strengthen = (ctx: Ctx.t, ty: t, ~path: t): t => {
+  let w = weak_head_normalize(ctx, ty);
+  let is_abstract = (item: Sig.t) =>
+    switch (item.term) {
+    | SigTypeAbstract(_) => true
+    | _ => false
+    };
+  switch (term_of(w)) {
+  | Sig(items) when List.exists(is_abstract, items) =>
+    Sig(
+      List.map(
+        (item: Sig.t) =>
+          switch (item.term) {
+          | SigTypeAbstract({term: Var(name), _} as tp) => {
+              ...item,
+              term: (
+                SigType(
+                  tp,
+                  ProdProjection(path, Label(name) |> temp) |> temp,
+                ): Sig.term
+              ),
+            }
+          | _ => item
+          },
+        items,
+      ),
+    )
+    |> temp
+  | _ => ty
+  };
+};
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) =>
   Sig.members(items)
   |> Sig.value_names
@@ -856,7 +916,12 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
         ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
     List.length(ts) == List.length(ts'') && List.for_all2((===), ts, ts'')
       ? ty : Prod(ts'') |> rewrap;
-  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | ProdProjection(_) =>
+    /* An abstract member projected from a module path is stuck: normalizing
+       it again would not make progress, and recurring on it does not
+       terminate. */
+    let w = weak_head_normalize(ctx, ty);
+    is_stuck_path_term(w) ? w : normalize(ctx, w);
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty)
   | TupLabel(label, t) =>
@@ -881,13 +946,16 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
       List.fold_left(
         ((ctx, acc), item: Sig.t) =>
           switch (Sig.member_of_item(item)) {
-          | Some(Val(_)) => (
-              ctx,
-              [Sig.map_typ(normalize(ctx), item), ...acc],
-            )
+          | Some(Val(_)) =>
+            let item' = Sig.map_typ(normalize(ctx), item);
+            (Ctx.extend_sig_item(ctx, item'), [item', ...acc]);
           | Some(TypeManifest(_)) =>
             let item' = Sig.map_typ(normalize(ctx), item);
             (Ctx.extend_sig_item(ctx, item'), [item', ...acc]);
+          | Some(TypeAbstract(_)) => (
+              Ctx.extend_sig_item(ctx, item),
+              [item, ...acc],
+            )
           | None => (ctx, acc)
           },
         (ctx, []),
@@ -936,7 +1004,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
                      ctx,
                      found || go(~depth=depth + 1, ctx, t),
                    )
-                 | Some(TypeManifest(_)) => (
+                 | Some(TypeManifest(_) | TypeAbstract(_)) => (
                      Ctx.extend_sig_item(ctx, item),
                      found,
                    )
@@ -988,6 +1056,8 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       let b = weak_head_normalize(ctx, b);
       switch (term_of(a), term_of(b)) {
       | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
+      /* Stuck paths (abstract type members) are equal only to themselves. */
+      | (ProdProjection(_), ProdProjection(_)) => fast_equal(a, b)
       | (Sig(xs), Sig(ys)) =>
         /* Positional: type members bind their name for later items. */
         let rec go_members = (ctx, xs: list(Sig.t), ys: list(Sig.t)) =>
@@ -996,10 +1066,19 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
           | ([x, ...xs], [y, ...ys]) =>
             switch (Sig.member_of_item(x), Sig.member_of_item(y)) {
             | (Some(Val(n1, t1)), Some(Val(n2, t2))) =>
-              n1 == n2 && go(ctx, t1, t2) && go_members(ctx, xs, ys)
+              n1 == n2
+              && go(ctx, t1, t2)
+              && go_members(Ctx.extend_sig_item(ctx, x), xs, ys)
             | (Some(TypeManifest(n1, d1)), Some(TypeManifest(n2, d2))) =>
               n1 == n2
               && go(ctx, d1, d2)
+              && go_members(
+                   Ctx.extend_dummy_tvar(ctx, Var(n1) |> TPat.fresh),
+                   xs,
+                   ys,
+                 )
+            | (Some(TypeAbstract(n1)), Some(TypeAbstract(n2))) =>
+              n1 == n2
               && go_members(
                    Ctx.extend_dummy_tvar(ctx, Var(n1) |> TPat.fresh),
                    xs,
@@ -1044,277 +1123,241 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
-  if (ty1 === ty2) {
-    Some(ty1);
-  } else {
-    let meet' = meet(ctx);
-    switch (term_of(ty1), term_of(ty2)) {
-    | (_, Parens(ty2))
-    | (_, Projector(_, ty2)) => meet'(ty1, ty2)
-    | (Parens(ty1), _)
-    | (Projector(_, ty1), _) => meet'(ty1, ty2)
-    | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
-    | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
-    | (Unknown(p1), Unknown(p2)) =>
-      if (p1 == p2) {
-        Some(ty1);
-      } else {
-        Some(Unknown(meet_type_provenance(p1, p2)) |> temp);
+let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(ctx);
+  switch (term_of(ty1), term_of(ty2)) {
+  | (_, Parens(ty2))
+  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (Parens(ty1), _)
+  | (Projector(_, ty1), _) => meet'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
+  | (Unknown(p1), Unknown(p2)) =>
+    Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
+  | (Unknown(_), _) => Some(ty2)
+  | (_, Unknown(_)) => Some(ty1)
+  | (Var(n1), Var(n2)) =>
+    if (n1 == n2) {
+      Some(ty1);
+    } else {
+      let ty1' = Ctx.lookup_alias(ctx, n1);
+      let ty2' = Ctx.lookup_alias(ctx, n2);
+      switch (ty1', ty2') {
+      | (Some(ty1), Some(ty2)) => meet'(ty1, ty2)
+      | (Some(ty1), None) => meet'(ty1, ty2)
+      | (None, Some(ty2)) => meet'(ty1, ty2)
+      | (None, None) => None
+      };
+    }
+  | (Var(name), _) =>
+    let* ty_name = Ctx.lookup_alias(ctx, name);
+    let+ ty_meet = meet'(ty_name, ty2);
+    equal(ty_name, ty_meet) ? ty1 : ty_meet;
+  | (_, Var(name)) =>
+    let* ty_name = Ctx.lookup_alias(ctx, name);
+    let+ ty_meet = meet'(ty_name, ty1);
+    equal(ty_name, ty_meet) ? ty2 : ty_meet;
+  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  | (ProdProjection(_), _)
+  | (_, ProdProjection(_)) =>
+    /* A projection reduces to its member's type, or is stuck on an abstract
+       type member: such a path meets only itself (and Unknown). */
+    let w1 = weak_head_normalize(ctx, ty1);
+    let w2 = weak_head_normalize(ctx, ty2);
+    switch (is_stuck_path_term(w1), is_stuck_path_term(w2)) {
+    | (true, true) => fast_equal(w1, w2) ? Some(w1) : None
+    | (true, false) =>
+      switch (term_of(w2)) {
+      | Unknown(_) => Some(w1)
+      | _ => None
       }
-    | (Unknown(_), _) => Some(ty2)
-    | (_, Unknown(_)) => Some(ty1)
-    | (Var(n1), Var(n2)) =>
-      if (n1 == n2) {
-        Some(ty1);
-      } else {
-        let ty1' = Ctx.lookup_alias(ctx, n1);
-        let ty2' = Ctx.lookup_alias(ctx, n2);
-        switch (ty1', ty2') {
-        | (Some(ty1), Some(ty2)) => meet'(ty1, ty2)
-        | (Some(ty1), None) => meet'(ty1, ty2)
-        | (None, Some(ty2)) => meet'(ty1, ty2)
-        | (None, None) => None
-        };
+    | (false, true) =>
+      switch (term_of(w1)) {
+      | Unknown(_) => Some(w2)
+      | _ => None
       }
-    /* Var-Rec fast path: when a Var resolves to the very Rec we're
-       meeting with, return the compact Var form without meeting the
-       (possibly large) bodies. Matching the bound tyvar name alone is
-       NOT sufficient — two structurally different recursive types can
-       share a bound name — so the alias body is verified against the
-       Rec: `===` catches the common case (the Rec originates from this
-       ctx entry, and subst/normalize preserve sharing), `equal` the
-       rest. Unrolled-but-equivalent bodies fall through to the general
-       expansion, which still re-compacts to the Var when the meet
-       equals the alias. */
-    | (Var(name), Rec(tp2, _)) =>
-      switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(rec_name) when rec_name == name =>
-        switch (Ctx.lookup_alias(ctx, name)) {
-        | Some({term: Rec(tp1, _), _} as ty_alias)
-            when
-              TPat.tyvar_of_utpat(tp1) == Some(name)
-              && (ty_alias === ty2 || equal(ty_alias, ty2)) =>
-          Some(ty1)
-        | _ =>
-          /* Var resolves to something other than the same Rec;
-             fall through to general Var expansion */
-          let* ty_name = Ctx.lookup_alias(ctx, name);
-          let+ ty_meet = meet'(ty_name, ty2);
-          equal(ty_name, ty_meet) ? ty1 : ty_meet;
-        }
-      | _ =>
-        let* ty_name = Ctx.lookup_alias(ctx, name);
-        let+ ty_meet = meet'(ty_name, ty2);
-        equal(ty_name, ty_meet) ? ty1 : ty_meet;
-      }
-    | (Rec(tp1, _), Var(name)) =>
-      switch (TPat.tyvar_of_utpat(tp1)) {
-      | Some(rec_name) when rec_name == name =>
-        switch (Ctx.lookup_alias(ctx, name)) {
-        | Some({term: Rec(tp2, _), _} as ty_alias)
-            when
-              TPat.tyvar_of_utpat(tp2) == Some(name)
-              && (ty_alias === ty1 || equal(ty_alias, ty1)) =>
-          Some(ty2)
-        | _ =>
-          let* ty_name = Ctx.lookup_alias(ctx, name);
-          let+ ty_meet = meet'(ty_name, ty1);
-          equal(ty_name, ty_meet) ? ty2 : ty_meet;
-        }
-      | _ =>
-        let* ty_name = Ctx.lookup_alias(ctx, name);
-        let+ ty_meet = meet'(ty_name, ty1);
-        equal(ty_name, ty_meet) ? ty2 : ty_meet;
-      }
-    | (Var(name), _) =>
-      let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_meet = meet'(ty_name, ty2);
-      equal(ty_name, ty_meet) ? ty1 : ty_meet;
-    | (_, Var(name)) =>
-      let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_meet = meet'(ty_name, ty1);
-      equal(ty_name, ty_meet) ? ty2 : ty_meet;
-    /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-    /* The same path (`Html.T` twice) is consistent without expanding it. */
-    | (ProdProjection(_), ProdProjection(_)) when equal(ty1, ty2) =>
-      Some(ty1)
-    | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-    | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-    | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-    | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-    | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-      let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
-      let ty1' =
-        switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
-        | (Some(x1), Some(x2)) when x1 == x2 => ty1 /* Same var name, skip subst */
-        | (_, Some(x2)) => subst(Var(x2) |> temp, tp1, ty1)
-        | (_, None) => ty1
-        };
-      let+ ty_body = meet(ctx, ty1', ty2);
-      Rec(tp1, ty_body) |> temp;
-    | (Rec(_), _) => None
-    | (Poly(x1, ty1), Poly(x2, ty2)) =>
-      let ty1' =
-        switch (TPat.tyvar_of_utpat(x2)) {
-        | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-        | None => ty1
-        };
-      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-      let+ ty_body = meet(ctx, ty1', ty2);
-      Poly(x2, ty_body) |> temp;
-    /* Note for above: there is no danger of free variable capture as
-       subst itself performs capture avoiding substitution. However this
-       may generate internal type variable names that in corner cases can
-       be exposed to the user. We preserve the variable name of the
-       second type to preserve synthesized type variable names, which
-       come from user annotations. */
-    | (Poly(_), _) => None
-    | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
-    | (Atom(_), _) => None
-    | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
-    | (DrvQuoteTy(_), _) => None
-    | (Label(_), Label("")) => Some(ty1)
-    | (Label(""), Label(_)) => Some(ty2)
-    | (Label(name1), Label(name2))
-        when LabeledTuple.match_labels(name1, name2) =>
-      Some(ty1)
-    | (Label(_), _) => None
-    | (Arrow(a1, a2), Arrow(b1, b2)) =>
-      let* r1 = meet'(a1, b1);
-      let+ r2 = meet'(a2, b2);
-      if (r1 === a1 && r2 === a2) {
-        ty1;
-      } else if (r1 === b1 && r2 === b2) {
-        ty2;
-      } else {
-        Grammar.Arrow(r1, r2) |> temp;
-      };
-    | (Arrow(_), _) => None
-    | (TupLabel(la, a), TupLabel(lb, b)) =>
-      let* rl = meet'(la, lb);
-      let+ r = meet'(a, b);
-      if (rl === la && r === a) {
-        ty1;
-      } else if (rl === lb && r === b) {
-        ty2;
-      } else {
-        Grammar.TupLabel(rl, r) |> temp;
-      };
-    | (TupLabel(_), _) => None
-    | (Prod(tys1), Prod(tys2)) =>
-      let tys1 =
-        remove_duplicate_labels(
-          ~duplicate_labels=
-            LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
-          tys1,
-        );
-      let tys2 =
-        remove_duplicate_labels(
-          ~duplicate_labels=
-            LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
-          tys2,
-        );
-
-      if (List.length(tys1) != List.length(tys2)) {
-        None;
-      } else {
-        let* tys = ListUtil.map2_opt(meet', tys1, tys2);
-        let+ tys = OptUtil.sequence(tys);
-        Prod(tys) |> temp;
-      };
-    | (Prod(_), _) => None
-    | (Sum(sm1), Sum(sm2)) =>
-      let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
-      Sum(sm') |> temp;
-    | (Sum(_), _) => None
-    | (List(a), List(b)) =>
-      let+ r = meet'(a, b);
-      if (r === a) {
-        ty1;
-      } else if (r === b) {
-        ty2;
-      } else {
-        Grammar.List(r) |> temp;
-      };
-    | (List(_), _) => None
-    | (ProofOf(e1), ProofOf(e2)) =>
-      Equality.semantic.exp(e1, e2) ? Some(ty1) : None
-    | (ProofOf(_), _) => None
-    // We would prefer for this to be a sort difference and never appear in a meet.
-    // These get marked in statics but that does not remove them from the utyp's propagated on parents.
-    | (ExplicitNonlabel, _) => None
-    | (Sig(xs), Sig(ys)) =>
-      /* Exact consistency: the same value-member names and the same
-         type-member names (order-insensitive), members pairwise consistent.
-         Subtyping between signatures lives in ana_meet, not here. */
-      let xs = Sig.dedup_last_items(xs);
-      let mx = Sig.members(xs);
-      let my = Sig.members(ys) |> Sig.dedup_last;
-      let same_names = (a, b) =>
-        List.sort_uniq(compare, a) == List.sort_uniq(compare, b);
-      if (!same_names(Sig.value_names(mx), Sig.value_names(my))
-          || !same_names(Sig.type_names(mx), Sig.type_names(my))) {
-        None;
-      } else {
-        /* Rebuild from the left operand's items so each keeps its form. */
-        let rec go_items = (ctx, items: list(Sig.t), acc) =>
-          switch (items) {
-          | [] => Some(List.rev(acc))
-          | [item, ...items] =>
-            switch (Sig.member_of_item(item)) {
-            | Some(Val(x, t1)) =>
-              let* t2 = Sig.find_value(my, x);
-              let* t = meet(ctx, t1, t2);
-              go_items(ctx, items, [Sig.map_typ(_ => t, item), ...acc]);
-            | Some(TypeManifest(n, d1)) =>
-              let* d2 = Sig.find_type_def(my, n);
-              let* d = meet(ctx, d1, d2);
-              go_items(
-                Ctx.extend_alias(ctx, n, Id.invalid, d),
-                items,
-                [Sig.map_typ(_ => d, item), ...acc],
-              );
-            | None => go_items(ctx, items, acc)
-            }
-          };
-        let+ items = go_items(ctx, xs, []);
-        Sig(items) |> temp;
-      };
-    | (Sig(_), _) => None
+    | (false, false) => meet'(w1, w2)
     };
-  };
+  | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
+    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | None => ty1
+      };
+    let+ ty_body = meet(ctx, ty1', ty2);
+    Rec(tp1, ty_body) |> temp;
+  | (Rec(_), _) => None
+  | (Poly(x1, ty1), Poly(x2, ty2)) =>
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(x2)) {
+      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | None => ty1
+      };
+    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let+ ty_body = meet(ctx, ty1', ty2);
+    Poly(x2, ty_body) |> temp;
+  /* Note for above: `subst` is capture-avoiding (see its definition),
+     so renaming `x1` to `x2` via substitution is safe. In rare cases
+     where capture does trigger, `subst` generates fresh internal type
+     variable names via `fresh_var` that may be exposed to the user. We
+     preserve the variable name of the second type to preserve
+     synthesized type variable names, which come from user annotations. */
+  | (Poly(_), _) => None
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(_), _) => None
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
+  | (DrvQuoteTy(_), _) => None
+  | (Label(_), Label("")) => Some(ty1)
+  | (Label(""), Label(_)) => Some(ty2)
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) =>
+    Some(ty1)
+  | (Label(_), _) => None
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    let* ty1 = meet'(ty1, ty1');
+    let+ ty2 = meet'(ty2, ty2');
+    Arrow(ty1, ty2) |> temp;
+  | (Arrow(_), _) => None
+  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+    let* lab = meet'(lab1, lab2);
+    let+ ty = meet'(ty1', ty2');
+    TupLabel(lab, ty) |> temp;
+  | (TupLabel(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    let tys1 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
+        tys1,
+      );
+    let tys2 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
+        tys2,
+      );
 
-/* ==================== Analysis-position subtyping ====================
-   Consistency (`meet`) is exact. Where an expression is ANALYZED against a
-   type, a module may additionally be wider than the expected signature
-   (width subtyping: the extra members are sealed away), its value members
-   may themselves be wider, and a function may accept a wider module than
-   expected (contravariant domain). `ana_meet` is the single entry point and
-   returns `ana` when such a subtyping step was needed. Joins of branches,
-   equality and `is_consistent` keep the exact `meet`. */
-let rec ana_meet = (ctx: Ctx.t, ~ana: t, ~syn: t): option(t) =>
-  switch (meet(ctx, ana, syn)) {
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let* tys = ListUtil.map2_opt(meet', tys1, tys2);
+      let+ tys = OptUtil.sequence(tys);
+      Prod(tys) |> temp;
+    };
+  | (Prod(_), _) => None
+  | (Sum(sm1), Sum(sm2)) =>
+    let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
+    Sum(sm') |> temp;
+  | (Sum(_), _) => None
+  | (List(ty1), List(ty2)) =>
+    let+ ty = meet'(ty1, ty2);
+    List(ty) |> temp;
+  | (List(_), _) => None
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.semantic.exp(e1, e2) ? Some(ty1) : None
+  | (ProofOf(_), _) => None
+  // We would prefer for this to be a sort difference and never appear in a meet.
+  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, _) => None
+  | (Sig(xs), Sig(ys)) =>
+    /* Exact consistency: the same value-member names and the same
+       type-member names (order-insensitive), members pairwise consistent.
+       Sealing between signatures lives in `coercion`, not here. */
+    let xs = Sig.dedup_last_items(xs);
+    let mx = Sig.members(xs);
+    let my = Sig.members(ys) |> Sig.dedup_last;
+    let same_names = (a, b) =>
+      List.sort_uniq(compare, a) == List.sort_uniq(compare, b);
+    if (!same_names(Sig.value_names(mx), Sig.value_names(my))
+        || !same_names(Sig.type_names(mx), Sig.type_names(my))) {
+      None;
+    } else {
+      /* Rebuild from the left operand's items so each keeps its form. */
+      let rec go_items = (ctx, items: list(Sig.t), acc) =>
+        switch (items) {
+        | [] => Some(List.rev(acc))
+        | [item, ...items] =>
+          switch (Sig.member_of_item(item)) {
+          | Some(Val(x, t1)) =>
+            let* t2 = Sig.find_value(my, x);
+            let* t = meet(ctx, t1, t2);
+            let item' = Sig.map_typ(_ => t, item);
+            go_items(
+              Ctx.extend_sig_item(ctx, item'),
+              items,
+              [item', ...acc],
+            );
+          | Some(TypeManifest(n, d1)) =>
+            /* A manifest member is not consistent with an abstract one. */
+            let* d2 = Sig.find_type_def(my, n);
+            let* d = meet(ctx, d1, d2);
+            go_items(
+              Ctx.extend_alias(ctx, n, Id.invalid, d),
+              items,
+              [Sig.map_typ(_ => d, item), ...acc],
+            );
+          | Some(TypeAbstract(n)) =>
+            switch (Sig.find_type(my, n)) {
+            | Some(TypeAbstract(_)) =>
+              go_items(
+                Ctx.extend_dummy_tvar(ctx, Var(n) |> TPat.fresh),
+                items,
+                [item, ...acc],
+              )
+            | _ => None
+            }
+          | None => go_items(ctx, items, acc)
+          }
+        };
+      let+ items = go_items(ctx, xs, []);
+      Sig(items) |> temp;
+    };
+  | (Sig(_), _) => None
+  };
+};
+
+/* Coercive subtyping `from ≲ to_`, checked only at coercion sites: an
+   ascription, an annotated binder, an application argument. Consistency, or,
+   structurally through tuple components, a signature with more members than
+   `to_` declares; the runtime coercion is the sealing cast in Ascriptions.re.
+   Returns the coerced expression's type: the meet, or the sealed signature.
+   Everywhere else the relation is `meet`. */
+let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
+  switch (meet(ctx, to_, from)) {
   | Some(_) as r => r
   | None =>
     switch (
-      term_of(weak_head_normalize(ctx, ana)),
-      term_of(weak_head_normalize(ctx, syn)),
+      term_of(weak_head_normalize(ctx, from)),
+      term_of(weak_head_normalize(ctx, to_)),
     ) {
-    | (Sig(a), Sig(s)) => sig_sub(ctx, ~ana=a, ~syn=s) ? Some(ana) : None
-    | (Arrow(a1, r1), Arrow(a2, r2)) =>
-      Option.is_some(ana_meet(ctx, ~ana=a2, ~syn=a1))
-      && Option.is_some(ana_meet(ctx, ~ana=r1, ~syn=r2))
-        ? Some(ana) : None
+    | (Parens(f), _) => coercion(ctx, ~from=f, ~to_)
+    | (_, Parens(t)) => coercion(ctx, ~from, ~to_=t)
+    | (TupLabel({term: ExplicitNonlabel, _}, f), _) =>
+      coercion(ctx, ~from=f, ~to_)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, t)) =>
+      coercion(ctx, ~from, ~to_=t)
+    | (Sig(f), Sig(t)) => sig_sub(ctx, ~from=f, ~to_=t) ? Some(to_) : None
+    | (Prod(fs), Prod(ts)) when List.length(fs) == List.length(ts) =>
+      let+ tys =
+        List.map2((f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)
+        |> OptUtil.sequence;
+      Prod(tys) |> temp;
+    | (TupLabel(lf, f), TupLabel(lt, t)) =>
+      let* l = meet(ctx, lt, lf);
+      let+ t = coercion(ctx, ~from=f, ~to_=t);
+      TupLabel(l, t) |> temp;
     | _ => None
     }
   }
-/* syn <: ana for signatures: every member ana declares is provided by syn
-   with a type that fits it; extra syn members are ignored. */
-and sig_sub = (ctx: Ctx.t, ~ana: list(Sig.t), ~syn: list(Sig.t)): bool => {
-  let syn_members = Sig.members(syn) |> Sig.dedup_last;
-  /* Open syn: its type members get fresh names so they cannot collide with
-     ana's; references inside syn's member types follow the renaming. */
+/* `from <: to_` for signatures: every member `to_` declares is provided by
+   `from` with a type that coerces to it; extra `from` members are ignored. */
+and sig_sub = (ctx: Ctx.t, ~from: list(Sig.t), ~to_: list(Sig.t)): bool => {
+  let from_members = Sig.members(from) |> Sig.dedup_last;
+  /* Open `from`: its type members get fresh names so they cannot collide
+     with `to_`'s; references inside its member types follow the renaming. */
   let (ctx, sigma) =
     List.fold_left(
       ((ctx, sigma), m: Sig.member) =>
@@ -1325,33 +1368,76 @@ and sig_sub = (ctx: Ctx.t, ~ana: list(Sig.t), ~syn: list(Sig.t)): bool => {
             Ctx.extend_alias(ctx, f, Id.invalid, apply_sig_subst(sigma, def)),
             [(name, Var(f) |> temp), ...sigma],
           );
+        | TypeAbstract(name) =>
+          /* An abstract member of syn is an opaque type: only itself and
+             an abstract ana member fit it. */
+          let f = fresh_var(name);
+          (
+            Ctx.extend_tvar(
+              ctx,
+              {
+                name: f,
+                id: Id.invalid,
+                kind: Abstract,
+              },
+            ),
+            [(name, Var(f) |> temp), ...sigma],
+          );
         | Val(_) => (ctx, sigma)
         },
       (ctx, []),
-      syn_members,
+      from_members,
     );
-  let syn_value = x =>
-    Sig.find_value(syn_members, x) |> Option.map(apply_sig_subst(sigma));
-  let syn_type = t =>
-    Sig.find_type_def(syn_members, t) |> Option.map(apply_sig_subst(sigma));
+  let from_value = x =>
+    Sig.find_value(from_members, x) |> Option.map(apply_sig_subst(sigma));
+  /* What `from`'s type member [t] stands for: its (renamed) definition when
+     manifest, its opaque fresh name when abstract. */
+  let from_type = t =>
+    switch (Sig.find_type(from_members, t)) {
+    | Some(TypeManifest(_, def)) => Some(apply_sig_subst(sigma, def))
+    | Some(TypeAbstract(_)) => List.assoc_opt(t, sigma)
+    | Some(Val(_))
+    | None => None
+    };
   let rec go = (ctx, ms: list(Sig.member)) =>
     switch (ms) {
     | [] => true
-    | [Sig.Val(x, ta), ...ms] =>
-      switch (syn_value(x)) {
-      | Some(ts) =>
-        Option.is_some(ana_meet(ctx, ~ana=ta, ~syn=ts)) && go(ctx, ms)
+    | [Sig.Val(x, t_to), ...ms] =>
+      switch (from_value(x)) {
+      | Some(t_from) =>
+        /* Later required members may name x's type members through it
+           (`x.T`); like an abstract T, they mean what the module actually
+           provides for x, so x is bound to the provided type. */
+        let ctx' =
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name: x,
+              id: Id.invalid,
+              typ: t_from,
+              custom_statics: None,
+            }),
+          );
+        Option.is_some(coercion(ctx, ~from=t_from, ~to_=t_to))
+        && go(ctx', ms);
       | None => false
       }
-    | [Sig.TypeManifest(t, da), ...ms] =>
-      switch (syn_type(t)) {
-      | Some(ds) =>
-        Option.is_some(meet(ctx, da, ds))
-        && go(Ctx.extend_alias(ctx, t, Id.invalid, da), ms)
+    | [Sig.TypeManifest(t, d_to), ...ms] =>
+      switch (from_type(t)) {
+      | Some(d_from) =>
+        Option.is_some(meet(ctx, d_to, d_from))
+        && go(Ctx.extend_alias(ctx, t, Id.invalid, d_to), ms)
+      | None => false
+      }
+    | [Sig.TypeAbstract(t), ...ms] =>
+      /* Sealing: `to_`'s abstract T is realized by whatever `from`
+         provides. */
+      switch (from_type(t)) {
+      | Some(ds) => go(Ctx.extend_alias(ctx, t, Id.invalid, ds), ms)
       | None => false
       }
     };
-  go(ctx, Sig.members(ana) |> Sig.dedup_last);
+  go(ctx, Sig.members(to_) |> Sig.dedup_last);
 };
 
 /* REQUIRES NORMALIZED TYPES
@@ -1639,6 +1725,7 @@ let rec pretty_print = (ty: t): string =>
         )
       | SigType(tp, t) =>
         "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | SigTypeAbstract(tp) => "type " ++ pretty_print_tvar(tp)
       | SigModule(mp) =>
         let rec mpat_str = (mp: TermBase.MPat.t) =>
           switch (IdTagged.term_of(mp)) {
