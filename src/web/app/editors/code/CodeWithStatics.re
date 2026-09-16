@@ -89,11 +89,6 @@ module Model = {
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
 };
 
-type statics_mode =
-  | StaticsNormal
-  | StaticsDefer
-  | StaticsForce;
-
 /* Debounce statics computation during rapid typing. Only one mode is
    active at a time, so a single timer/flag is shared across all modes. */
 module StaticsDebounce = {
@@ -103,7 +98,7 @@ module StaticsDebounce = {
 
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
     let force_now = force_on_next^;
     force_on_next := false;
     /* a projector commit is one discrete edit: run statics now rather
@@ -117,7 +112,7 @@ module StaticsDebounce = {
         timer_id := None;
       | None => ()
       };
-      StaticsForce;
+      Force;
     } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
@@ -133,11 +128,11 @@ module StaticsDebounce = {
             debounce_ms,
           ),
         );
-      StaticsDefer;
+      Defer;
     } else if (force_now) {
-      StaticsForce;
+      Force;
     } else {
-      StaticsNormal;
+      Normal;
     };
   };
 };
@@ -152,7 +147,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
-        ~statics_mode=StaticsNormal,
+        ~statics_mode: StaticsMode.t=Normal,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -180,32 +175,42 @@ module Update = {
       switch (CachedStatics.offered_for(editor.state.zipper)) {
       | Some(st) => st
       | None =>
-        CachedStatics.init(
-          ~settings,
-          ~stitch,
-          ~ctx?,
-          ~ana?,
-          ~is_dynamic_term,
-          ~root=editor.root,
-          editor.state.zipper,
+        PerfMetrics.time_statics(() =>
+          CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            ~root=editor.root,
+            editor.state.zipper,
+          )
         )
       };
     let needs_refresh =
-      statics_mode == StaticsForce
+      statics_mode == StaticsMode.Force
       || probes_differ(editor.state.zipper, statics)
       || is_edited
-      && statics_mode != StaticsDefer;
+      && statics_mode != StaticsMode.Defer;
     let statics = needs_refresh ? do_init(editor) : statics;
+    PerfMetrics.record_statics_counts(
+      ~recompute=needs_refresh,
+      ~mode=statics_mode,
+      statics,
+    );
 
     let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
+      PerfMetrics.time_syntax(() =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          statics,
+          dynamics,
+          editor,
+        )
       );
+    PerfMetrics.record_syntax_counts(editor.syntax);
 
     /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
      * probe_targets match. Compared against the statics computed above, so
