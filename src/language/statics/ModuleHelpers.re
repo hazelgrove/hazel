@@ -248,7 +248,9 @@ let wrap_item =
    wrappers carry the Mod item ids. The tail mentions every exported binding
    so that exports count as used; its type is otherwise irrelevant: the
    module's type is computed by `module_sig_type` and its elaboration is
-   refolded by `refold_module_elab`. */
+   refolded by `refold_module_elab`. Only the binders an item exports are
+   annotated with the signature's expectation: a definition a later item
+   shadows is synthesized, not checked against the signature. */
 let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
   let defined =
     List.concat_map(
@@ -270,7 +272,19 @@ let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
     Exp.fresh(
       Tuple(List.map(name => Exp.fresh(Var(name)), exported(items))),
     );
-  List.fold_right(wrap_item(~ana_labels), items, tail);
+  let rec wrap = (items: list(Mod.t)): Exp.t =>
+    switch (items) {
+    | [] => tail
+    | [item, ...rest] =>
+      let exported_here = List.map(fst, item_exports(item, ~later=rest));
+      let ana_labels =
+        List.filter(
+          ((name, _)) => List.mem(name, exported_here),
+          ana_labels,
+        );
+      wrap_item(~ana_labels, item, wrap(rest));
+    };
+  wrap(items);
 };
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
