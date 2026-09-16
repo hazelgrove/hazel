@@ -118,5 +118,28 @@ let tests = (
         check(exp, "x is the member, not 9", expected, result);
       },
     ),
+    /* A signature's item types are types like any other: an expression a
+       member's type mentions is substituted. */
+    test_case(
+      "a signature member's type is substituted",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(42))]);
+        let ascribed = e =>
+          Exp.asc(
+            Exp.int(1),
+            Typ.sig_([
+              Sig.sig_let(Pat.asc(Pat.var("p"), Typ.proof_of(e))),
+            ]),
+          );
+        let result = Substitution.in_exp(env, ascribed(Exp.var("x")));
+        check(
+          exp,
+          "x -> 42 in 1 : { let p : proof_of x end }",
+          ascribed(Exp.int(42)),
+          result,
+        );
+      },
+    ),
   ],
 );
