@@ -582,34 +582,73 @@ let sig_members_closed =
 
 /* The type of value member [name] (last declaration wins), closed with
    respect to the signature's own type members. */
+/* Only the REQUESTED member is substituted into. Closing every member to
+   read one made each `M.x` cost a pass over the whole signature, and `Html`
+   has ~50 members whose T is a 47-constructor sum: that alone took
+   `cli analyze` on nutrient-rotation.hz from 2.1s to 30s. The substitution
+   sigma is built from TYPE members only, so skipping the other VALUE
+   members is exact, not an approximation -- sig_members_closed's own fold
+   never reads a Val when extending sigma. Last declaration wins, as there. */
 let sig_project_value =
     (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
-    : option(t) =>
-  sig_members_closed(~self?, ~keep_local, items)
-  |> List.fold_left(
-       (acc, (m: Sig.member, ty)) =>
-         switch (m) {
-         | Val(x, _) when x == name => Some(ty)
-         | _ => acc
-         },
-       None,
-     );
+    : option(t) => {
+  let (_, found) =
+    List.fold_left(
+      ((sigma, found), item) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(Val(x, ty)) when x == name => (
+            sigma,
+            Some(apply_sig_subst(sigma, ty)),
+          )
+        | Some(Val(_)) => (sigma, found)
+        | Some(TypeManifest(n, def)) =>
+          let def = apply_sig_subst(sigma, def);
+          let sigma = keep_local(n) ? sigma : [(n, def), ...sigma];
+          (sigma, found);
+        | Some(TypeAbstract(n)) =>
+          switch (abstract_replacement(~self, ~keep_local, n)) {
+          | Some(ty) => ([(n, ty), ...sigma], found)
+          | None => (sigma, found)
+          }
+        | None => (sigma, found)
+        },
+      ([], None),
+      items,
+    );
+  found;
+};
 
 /* The last type member named [name] with what it stands for: its definition
    when manifest, its replacement (see abstract_replacement) when abstract. */
+/* As sig_project_value: value members are never read when extending sigma,
+   so reading one TYPE member does not need the others substituted into. */
 let sig_project_type_member =
     (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
-    : option((Sig.member, t)) =>
-  sig_members_closed(~self?, ~keep_local, items)
-  |> List.fold_left(
-       (acc, (m: Sig.member, ty)) =>
-         switch (m) {
-         | TypeManifest(x, _)
-         | TypeAbstract(x) when x == name => Some((m, ty))
-         | _ => acc
-         },
-       None,
-     );
+    : option((Sig.member, t)) => {
+  let (_, found) =
+    List.fold_left(
+      ((sigma, found), item) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(TypeManifest(n, def) as m) =>
+          let def = apply_sig_subst(sigma, def);
+          let sigma = keep_local(n) ? sigma : [(n, def), ...sigma];
+          (sigma, n == name ? Some((m, def)) : found);
+        | Some(TypeAbstract(n) as m) =>
+          switch (abstract_replacement(~self, ~keep_local, n)) {
+          | Some(ty) => (
+              [(n, ty), ...sigma],
+              n == name ? Some((m, ty)) : found,
+            )
+          | None => (sigma, n == name ? Some((m, Var(n) |> temp)) : found)
+          }
+        | Some(Val(_))
+        | None => (sigma, found)
+        },
+      ([], None),
+      items,
+    );
+  found;
+};
 
 let sig_project_type =
     (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
@@ -1123,7 +1162,14 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+/* Physically equal types meet themselves. A path like `Html.T` is compared
+   against itself constantly, and normalizing a 47-constructor sum each time
+   is what the path-preserving projection exists to avoid. Split from the
+   body so the fast path costs one pointer comparison. */
+let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
+  ty1 === ty2 ? Some(ty1) : meet_body(ctx, ty1, ty2)
+
+and meet_body = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
