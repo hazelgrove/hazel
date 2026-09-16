@@ -621,6 +621,54 @@ let test_type_alias_shadowing_nested_module =
     Some(string()),
   );
 
+/* ===== SUGARED FUNCTION MEMBERS (#2467) =====
+   `let f(x) = e` inside a module binds `f`, not `x`. */
+let test_funlet_member_exports_function =
+  fully_consistent_typecheck(
+    "Sugared function member exports the function",
+    {|{ let f(x) = x + 1 }|},
+    Some(prod([tup_label(label("f"), arrow(unknown(Internal), int()))])),
+  );
+
+let test_funlet_member_return_type =
+  fully_consistent_typecheck(
+    "Sugared function member with a return type",
+    {|{ let f(x: Int): Int = x + 1 }|},
+    Some(prod([tup_label(label("f"), arrow(int(), int()))])),
+  );
+
+let test_funlet_member_projection =
+  fully_consistent_typecheck(
+    "Sugared function member is reachable by projection",
+    {|module M = { let f(x) = x + 1 } in M.f(1)|},
+    Some(int()),
+  );
+
+let test_funlet_member_used_later =
+  fully_consistent_typecheck(
+    "Later member calls a sugared function member",
+    {|module M = {
+  let f(x) = x + 1;
+  let g : Int -> Int = fun y -> f(y)
+} in
+M.g(1)|},
+    Some(int()),
+  );
+
+let test_funlet_member_sig =
+  fully_consistent_typecheck(
+    "Sugared function member is checked against the signature",
+    {|module M : { let f : Int -> Int } = { let f(x) = x } in M.f(1)|},
+    Some(int()),
+  );
+
+let test_error_funlet_member_sig_mismatch =
+  inconsistent_typecheck(
+    "Sugared function member inconsistent with the signature",
+    {|module M : { let f : Int -> Int } = { let f(x) = true } in M.f(1)|}
+    |> parse_exp,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -707,5 +755,12 @@ let tests = (
     test_type_alias_shadowing_in_nested_module,
     test_type_alias_shadowing_sequential,
     test_type_alias_shadowing_nested_module,
+    /* Sugared function members (#2467) */
+    test_funlet_member_exports_function,
+    test_funlet_member_return_type,
+    test_funlet_member_projection,
+    test_funlet_member_used_later,
+    test_funlet_member_sig,
+    test_error_funlet_member_sig_mismatch,
   ],
 );

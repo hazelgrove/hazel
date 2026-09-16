@@ -128,6 +128,27 @@ let test_module_keyword_sig_annotated =
     )
   });
 
+/* Sugared function members (#2467) */
+let test_funlet_member_projection =
+  test_case("Sugared function member by projection", `Quick, () => {
+    parse_and_evaluate_test(
+      "2",
+      {|module M = { let f(x) = x + 1 } in M.f(1)|},
+    )
+  });
+
+let test_funlet_member_used_later =
+  test_case("Later member calls a sugared function member", `Quick, () => {
+    parse_and_evaluate_test(
+      "3",
+      {|module M = {
+  let f(x) = x + 1;
+  let g : Int -> Int = fun y -> f(y)
+} in
+M.g(1) + M.f(0)|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -151,5 +172,8 @@ let tests = (
     test_nested_module_keyword,
     test_module_keyword_annotated,
     test_module_keyword_sig_annotated,
+    /* Sugared function members (#2467) */
+    test_funlet_member_projection,
+    test_funlet_member_used_later,
   ],
 );

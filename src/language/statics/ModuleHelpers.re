@@ -97,9 +97,17 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
+/* Names a `let` member binds. A sugared function definition
+   `let f(x) = e` binds `f`, not its parameters (#2467). */
+let modlet_bound_vars = (pat: Pat.t): list(Var.t) =>
+  switch (FunctionSugar.detect(pat)) {
+  | Some((f_name, _, _)) => Pat.bound_vars(f_name)
+  | None => Pat.bound_vars(pat)
+  };
+
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
-  | ModLet(pat, _) => Pat.bound_vars(pat)
+  | ModLet(pat, _) => modlet_bound_vars(pat)
   | ModuleMod(mp, _) => mpat_names(mp)
   | ModType(_, _)
   | ModExp(_)
@@ -121,7 +129,7 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
       let exports =
         switch (item.term) {
         | ModLet(pat, _) =>
-          Pat.bound_vars(pat)
+          modlet_bound_vars(pat)
           |> List.filter(keep)
           |> List.map(name =>
                {
@@ -276,10 +284,32 @@ let wrap_item =
     (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
   switch (item.term) {
   | ModLet(pat, def) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
-    )
+    switch (FunctionSugar.detect(pat)) {
+    | Some((f_name, args, ret_ty)) =>
+      /* Desugar `let f(x) = e` here rather than leaving it to the Let
+         case of statics, so the signature ascription lands on `f` (an
+         ascription on the whole binder would read as a return type).
+         Statics patches the binder's info afterwards, see the Module
+         case. */
+      let orig_let =
+        IdTagged.fast_copy(
+          Mod.rep_id(item),
+          Exp.fresh(Let(pat, def, body)),
+        );
+      FunctionSugar.rewrite(
+        ~orig_let,
+        ~f_name=modlet_pat(ana_labels, f_name),
+        ~args,
+        ~ret_ty,
+        ~def,
+        ~body,
+      );
+    | None =>
+      IdTagged.fast_copy(
+        Mod.rep_id(item),
+        Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
+      )
+    }
   | ModType(tpat, typ) =>
     IdTagged.fast_copy(
       Mod.rep_id(item),
