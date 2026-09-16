@@ -38,14 +38,14 @@ module Update = {
     let perform = (action: Action.t, model: Model.t) =>
       switch (
         PerfMetrics.time_perform(~action, () =>
-        Editor.Update.update(
-          ~settings=settings.core,
-          action,
-          model.statics,
-          model.dynamics,
-          model.editor,
+          Editor.Update.update(
+            ~settings=settings.core,
+            action,
+            model.statics,
+            model.dynamics,
+            model.editor,
+          )
         )
-      )
       ) {
       | Error(Action.Failure.Cant_refactor) =>
         /* dead press: gated-not-fall-through is the rule, but
