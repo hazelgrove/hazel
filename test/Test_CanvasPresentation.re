@@ -18,6 +18,33 @@ let tests = (
   "Canvas presentation",
   [
     test_case(
+      "identity-only repairs do not create a beat for every definition",
+      `Quick,
+      () => {
+        B.reset();
+        let src = "let m = {\n  let x = 1;\n  let y = 2\n} in\n\nlet a = 3 in\n\nlet b = 4 in a + b";
+        /* Separately parsed models have equal content and entirely fresh ids,
+           including newline ids. Publish the exact accepted model once. */
+        let before = model(src)
+        and after = model(src);
+        Web.CanvasPresentation.capture(
+          ~settings=Language.CoreSettings.on,
+          ~label="update_body",
+          ~avatar=None,
+          before,
+          after,
+        );
+        check(int, "one synchronization beat", 1, List.length(B.queue^));
+        check(
+          bool,
+          "accepted identities are installed",
+          true,
+          B.same_program(Lazy.force(List.hd(B.queue^).b_model), after),
+        );
+        B.reset();
+      },
+    ),
+    test_case(
       "one accepted tool creates a lossless definition queue",
       `Quick,
       () => {

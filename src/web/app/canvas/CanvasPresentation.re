@@ -23,7 +23,7 @@ let capture =
             /* Identity-only repair travels with the preceding edit, without another
                visual dwell. Durable syntax ids still exactly match the accepted edit. */
             let states =
-              Segment.equal(seg, next)
+              EditIdentity.same_content(seg, next)
                 ? switch (states) {
                   | [(_, target), ...rest] => [(next, target), ...rest]
                   | [] => []
