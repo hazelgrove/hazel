@@ -50,6 +50,7 @@ let (suite, exit_with_test_status) =
       Test_CanvasPresentation.tests,
       Test_Restructure.tests,
       Test_MeasuredChunks.tests,
+      Test_DrawerMeasurement.tests,
       Test_MakeTermIncr.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,

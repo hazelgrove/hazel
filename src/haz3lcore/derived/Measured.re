@@ -445,17 +445,22 @@ let of_segment_inner =
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
+      /* Reserve a drawer after the tile's last shard, matching Code.view.
+         Reserving before the fold lets an argument's internal newline
+         consume the space and displaces the rest of the measurements. */
+      let acc =
+        Aba.fold_left(
+          add_shard(acc, t),
+          (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
+          Aba.mk(t.shards, t.children),
+        );
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-      | Some(_) =>
-        DeferredLinebreaks.update(2) |> ignore;
+      | Some(n) =>
+        DeferredLinebreaks.update(n) |> ignore;
         ();
       | None => ()
       };
-      Aba.fold_left(
-        add_shard(acc, t),
-        (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
-        Aba.mk(t.shards, t.children),
-      );
+      acc;
     };
   let (_, _, _, map) =
     go(~top_level=final, ([], 0, Point.zero, empty_flat), seg);
