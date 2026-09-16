@@ -246,6 +246,9 @@ module M: Projector = {
   };
 
   let focusable = Focusable.non;
+  /* Instruments this projector with a probe, so `info.dynamics` carries the
+     live value of the syntax it replaces (see live_value). */
+  let dynamics = true;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
 
