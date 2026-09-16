@@ -268,6 +268,7 @@ let start = default_model => {
           JsUtil.set_main_scroll_top(target);
         | None => ()
         };
+        /* Handle scheduled probe focus from step-into (see FocusEffect) */
         let _ = Haz3lcore.FocusEffect.execute();
         /* restore probe focus dropped by vdom reorder moves */
         Haz3lcore.FocusEffect.keep_focus();

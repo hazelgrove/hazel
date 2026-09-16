@@ -44,7 +44,9 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
-  task_reference: string,
+  /* Markdown for the Task Reference sidebar; None for a lesson with no
+     @reference section, which is what hides the tab. */
+  task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
   wrapper: bool,
@@ -54,6 +56,21 @@ type p('code) = {
 let id_of = p => {
   p.id;
 };
+
+/* A lesson's title carries its folder as a SlidePath prefix, the same
+   convention Documentation-mode slide names use: "Basics / Holes" is the
+   lesson "Holes" in the "Basics" folder. Keep every lesson at exactly one
+   folder segment, and never let one title be a proper prefix of another. */
+let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
+
+/* The probes tutorial's folder. Its lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode) and their Task
+   Reference panel carries the probe strip. Named here rather than in the
+   probe modules because the view layer cannot reach those: ProbeSidebar
+   depends on Editors, which depends on TutorialMode. */
+let probes_folder = "Probes";
+let is_probes_lesson = (p: p('a)): bool =>
+  SlidePath.folders(path_of(p)) == [probes_folder];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =

@@ -15,11 +15,19 @@ make dev
 ```
 
 Slide order is the order of the list in `src/tutorialslides/Slides.re`
-(filenames are unnumbered; the list is the only ordering). **Adding,
-removing, or renaming a slide** means updating that list too — one
-`[%blob]` line per file. Renaming also changes the slide's `module_name`,
-which keys the per-slide config tables (`TutorialSlideInit`,
-`TutorialProbeStrip`) — update those keys in the same pass.
+(filename sort by convention). **Adding, removing, or renaming a slide**
+means updating that list too — one `[%blob]` line per file.
+
+Two lesson sets share this directory, told apart by the folder in each
+lesson's `@title` (see below) rather than by where the file sits: the
+numbered `NN-name.hzt` onboarding lessons (`Basics`, `Tuple Structural
+Operations`, `Tables`), and the unnumbered probes tutorial (`Probes`),
+whose filenames carry no order of their own — the `Slides.re` list is it.
+Keep a folder's lessons adjacent in that list; prev/next walks one folder.
+
+Renaming a probes lesson also changes its `module_name`, which keys the
+per-slide config tables (`TutorialSlideInit`, `TutorialProbeStrip`) — update
+those keys in the same pass.
 
 ## File format
 
@@ -31,6 +39,7 @@ Marker lines are *exactly*:
 
 | marker | maps to | notes |
 |---|---|---|
+| `@title` | `title` | the lesson name; defaults to one derived from the filename |
 | `@prompt` | `prompt` | markdown for the instructions panel |
 | `@code` | `your_impl` | editor contents (parsed with `MarkerParse.of_text`) |
 | `@test` | `hidden_tests.tests` | defaults to `test true end` |
@@ -40,12 +49,21 @@ Marker lines are *exactly*:
 | `@flags` | misc | space-separated: `wrapper`, `show_report`, `version=N`, `id=<uuid>` |
 
 - **No markers** → the whole file is `@code`.
-- Holes are written as `¿` (the implicit-hole marker). For a hole you want to
-  *survive* re-parsing inside a container (e.g. a fillable list element), prefer
-  the explicit hole token `?` — `[?]` round-trips, whereas implicit `[¿]` may
-  collapse to `[]`. Probes/projectors round-trip as `^^probe(...)`.
-- `wrapper` wraps the impl as `let answer = <impl> in …` so the hidden tests
-  reference `answer` (used by "write one expression" lessons).
+- Holes are `¿` — the editor's implicit Grout, and what you are asking the
+  student to fill. Probes and projectors round-trip as `^^probe(...)`.
+  - In *expression* position `?` is an explicit hole *tile*, which the student
+    deletes rather than fills. It is not the same thing — prefer `¿`.
+  - In *type* position `?` means the unknown type (as in lesson 22), which is
+    neither of the above.
+- `wrapper` binds the **whole** `@code` as `answer` — `let answer = <impl> in
+  <tests>` — so the tests see `answer` and nothing else the impl defined. Use
+  it for "write one expression" lessons, where there is no binding to name.
+
+  Without it the tests are appended *inside* the impl's own `let` chain
+  (`EditorUtil.append_exp` recurses into `Let` bodies), so every binding the
+  impl introduces is in scope for them. That is how a lesson whose tests
+  reference `first_four` works — and it is why a lesson needing more than one
+  name must leave `wrapper` off.
 
 ## Decoding lessons → text
 
@@ -55,8 +73,8 @@ Marker lines are *exactly*:
 ./hazel tutorial-decode "Holes"    # prints matching lessons to stdout
 ```
 
-`tutorial-imported/` is a sibling dir (NOT under this one) so it isn't picked
-up by `gen-tutorial` unless you deliberately move files in.
+`tutorial-imported/` is a sibling dir (NOT under this one, and gitignored) so
+its files are not compiled in until you deliberately move them here.
 
 ## Verifying
 
@@ -67,13 +85,16 @@ up by `gen-tutorial` unless you deliberately move files in.
 
 `tutorial-verify` checks that each slide's impl/tests text is a **fixed point**
 of the text round-trip (`to_text` == `to_text ∘ of_text ∘ to_text`). A clean
-slide is reproduced faithfully by decode→encode (IDs aside). The known
-non-fixed-point class is grout-placement quirks (e.g. `[¿]`→`[]`) — see the
-`?`-vs-`¿` note above.
+slide is reproduced faithfully by decode→encode (IDs aside).
+
+`Test_TextRoundtrip.re`'s `TutorialLessons` group asserts the same property
+over every shipped lesson, so the CLI is for *diagnosing* a mismatch
+(`--verbose` prints before and after), not for catching one.
 
 ## Source pointers
 
 `src/tutorialslides/Slides.re` (the embedded file list),
 `src/web/exercises/TutorialText.re` (text→spec, at startup),
 `src/CLI/TutorialDecode.re` (spec→text + verify). The text round-trip
-engine is `src/haz3lcore/zipper/TextRoundtrip.re`.
+engine is `src/haz3lcore/zipper/MarkerParse.re` (`to_text` / `of_text`, and
+the `¿` convention) over `src/haz3lcore/zipper/PersistentZipper.re`.

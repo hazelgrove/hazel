@@ -117,6 +117,7 @@ select {
   flex-direction: column;
 }
 
+
 #side-bar {
   display: flex;
   flex-direction: column;
@@ -236,6 +237,7 @@ select {
   overflow: hidden;
   min-width: 0;
 }
+
 
 /* Inner h4 inside an open section keeps the heading style from
    .prompt-content rules; we only override h3 above (none expected). */
