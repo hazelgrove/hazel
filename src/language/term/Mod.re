@@ -144,10 +144,10 @@ let modval_lookup = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
     items,
   );
 
-/* Record an evaluated binding, replacing an earlier binding of the same
-   name so a module value has one entry per exported name. */
-/* A later binding shadows an earlier one and is exported at its own
-   position: the order Sig.dedup_last gives the module's type. */
+/* Record an evaluated binding. A later binding of the same name replaces
+   an earlier one and is exported at its own position, so a module value
+   has one entry per exported name, in the order Sig.dedup_last gives its
+   type. */
 let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
   List.filter(
     (item: t) =>
