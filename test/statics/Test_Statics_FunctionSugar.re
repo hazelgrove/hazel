@@ -180,10 +180,6 @@ let tests = (
       "ids preserved: recursive",
       "let fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1) in fact(3)",
     ),
-    info_map_preserves_ids(
-      "ids preserved: module member (#2467)",
-      "module M = { let f(x: Int): Int = x + 1; let g(y) = f(y) } in M.g(1)",
-    ),
     /* ===== Cursor inspector display =====
        The binder `f(args)` (and its outer `Asc` wrapper if present)
        should report the function's arrow type directly, so the

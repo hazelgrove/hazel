@@ -2664,23 +2664,6 @@ and uexp_to_info_map =
       let lowered = ModuleHelpers.lower(~ctx, ~ana, items);
       let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
-      /* Sugared function members were desugared by `lower`; give their
-         `f(x)` binders the info the Let sugar case would have. */
-      let m =
-        List.fold_left(
-          (m, item: Mod.t) =>
-            switch (item.term) {
-            | ModLet(p, _) =>
-              switch (FunctionSugar.detect(p)) {
-              | Some((f_name, _, _)) =>
-                FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name)
-              | None => m
-              }
-            | _ => m
-            },
-          m,
-          items,
-        );
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
       let actual_ty =
