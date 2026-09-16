@@ -7,6 +7,7 @@
 # update: (Model, Action) -> Model, run when the GUI acts #
 # view:   Model -> HTML, whose handlers emit Actions #
 # expand: Model -> value, what a use means to the program #
+# This example uses Hazel's palette; a view can choose its own style. #
 
 let ^pct = {
   type Model = Int;
@@ -18,17 +19,22 @@ let ^pct = {
 
   let view(m: Model): HTML =
     Div(
-      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("gap", "0.5em"),
+      [Style([("display", "flex"), ("gap", "0.6em"),
               ("align-items", "center"),
+              ("color", "var(--STONE)"),
               ("font-family", "var(--code-font)"),
-              ("font-size", "0.8em")])],
+              ("font-size", "0.8em"),
+              ("font-variant-numeric", "tabular-nums")])],
       [
         Input([
           Create("aria-label", "Percent"), Type("range"), Min("0"), Max("100"),
+          Style([("accent-color", "var(--BR3)"), ("margin", "0"),
+                 ("min-width", "0"), ("cursor", "pointer")]),
           Value(string_of_int(m)),
           OnInput(fun (s: String) -> int_of_string(s))
         ]),
-        Text(string_of_int(m) ++ "%")
+        Span([Style([("min-width", "4ch"), ("text-align", "right")])],
+             [Text(string_of_int(m) ++ "%")])
       ]
     );
 
