@@ -738,28 +738,13 @@ module LayoutDom = {
           | None => ()
           };
         } else {
-          let dstp = pull_back(el.dst_p, el.c2, 7.);
           switch (
             Util.JsUtil.get_elem_by_id_opt(
               "cpath-" ++ CanvasView.sanitize(e.e_name),
             )
           ) {
           | Some(path_el) =>
-            set_attr(
-              path_el,
-              "d",
-              Printf.sprintf(
-                "M %f,%f C %f,%f %f,%f %f,%f",
-                el.src_p.x,
-                el.src_p.y,
-                el.c1.x,
-                el.c1.y,
-                el.c2.x,
-                el.c2.y,
-                dstp.x,
-                dstp.y,
-              ),
-            )
+            set_attr(path_el, "d", CanvasLayout.edge_path(~pull=9., el))
           | None => ()
           };
         };
@@ -793,15 +778,17 @@ module LayoutDom = {
           Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
         ) {
         | Some(el) =>
-          let (c1, c2) =
-            CanvasLayout.route_link(
+          set_attr(
+            el,
+            "d",
+            CanvasLayout.relation_path(
               ~nodes=l.nodes,
               ~from_key=a,
               ~to_key=b,
               cp,
               pp',
-            );
-          set_attr(el, "d", CanvasLayout.link_d(cp, c1, c2, pp'));
+            ),
+          )
         | None => ()
         };
       },
@@ -815,15 +802,17 @@ module LayoutDom = {
         let tp' = pull_back(tp, dp, 5.);
         switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))) {
         | Some(el) =>
-          let (c1, c2) =
-            CanvasLayout.route_link(
+          set_attr(
+            el,
+            "d",
+            CanvasLayout.relation_path(
               ~nodes=l.nodes,
               ~from_key=a,
               ~to_key=b,
               dp,
               tp',
-            );
-          set_attr(el, "d", CanvasLayout.link_d(dp, c1, c2, tp'));
+            ),
+          )
         | None => ()
         };
       },
@@ -1012,6 +1001,49 @@ let present_editor = (~globals: Globals.t, ~editors: Editors.Model.t, editor) =>
   );
 };
 
+let lab_initialized = ref(false);
+let init_layout_lab = () =>
+  if (! lab_initialized^) {
+    lab_initialized := true;
+    let query = key => {
+      Js_of_ocaml.(
+        try({
+          let search =
+            Js.Unsafe.get(
+              Js.Unsafe.get(Js.Unsafe.global, "location"),
+              "search",
+            );
+          let params =
+            Js.Unsafe.new_obj(
+              Js.Unsafe.get(Js.Unsafe.global, "URLSearchParams"),
+              [|Js.Unsafe.inject(search)|],
+            );
+          Js.Opt.to_option(
+            Js.Unsafe.meth_call(
+              params,
+              "get",
+              [|Js.Unsafe.inject(Js.string(key))|],
+            ),
+          )
+          |> Option.map(Js.to_string);
+        }) {
+        | _ => None
+        }
+      );
+    };
+    let get = (url, key, default) =>
+      Option.value(
+        ~default=Option.value(~default, CanvasAvatar.storage_get(key)),
+        query(url),
+      );
+    let mode = get("layout", "constellation.layoutExperiment", "current");
+    CanvasLayoutExperiments.mode :=
+      CanvasLayoutExperiments.known(mode) ? mode : "current";
+    CanvasLayoutExperiments.wires :=
+      get("wires", "constellation.wireExperiment", "curves") == "circuit"
+        ? "circuit" : "curves";
+  };
+
 let view_impl =
     (
       ~globals: Globals.t,
@@ -1035,6 +1067,19 @@ let view_impl =
   let test_results =
     CanvasBuffer.presenting^ ? Option.none : test_results_of(editors);
   let slide = current_slide(editors);
+  init_layout_lab();
+  CanvasLayoutExperiments.scene :=
+    (
+      switch (editors) {
+      | Scratch(m) => "scratch/" ++ string_of_int(m.current)
+      | Documentation(m) => "docs/" ++ string_of_int(m.current)
+      | Tutorial(_) => "tutorial"
+      | Exercises(_) => "exercises"
+      }
+    )
+    ++ "/"
+    ++ slide;
+
   {
     let n = List.length(editor.statics.error_ids);
     /* readable by harnesses at any time (the journal's ring evicts) */
@@ -1434,6 +1479,15 @@ let view_impl =
       );
     };
   };
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__canvasLayoutSnapshot",
+    Js_of_ocaml.Js.Unsafe.callback(() =>
+      Js_of_ocaml.Js.string(
+        Yojson.Safe.to_string(CanvasLayoutStudy.json(lay)),
+      )
+    ),
+  );
   /* zoom while the agent works is the camera's job now: CanvasCamera.follow
      frames the sites touched this burst (with hysteresis) on each hop */
   /* canvas clicks SELECT the definition (caret at front, cell focused) */
@@ -4031,6 +4085,111 @@ let view_impl =
       "presentation: catch up to accepted program; stop current run",
     );
   };
+  let change_layout = (~reset=false, mode, wires) => {
+    if (CanvasLayoutExperiments.known(mode)) {
+      CanvasLayoutExperiments.mode := mode;
+      CanvasLayoutExperiments.wires :=
+        wires == "circuit" ? "circuit" : "curves";
+      if (reset) {
+        CanvasLayoutExperiments.reset();
+      };
+      CanvasAvatar.storage_set("constellation.layoutExperiment", mode);
+      CanvasAvatar.storage_set(
+        "constellation.wireExperiment",
+        CanvasLayoutExperiments.wires^,
+      );
+      cached_frame := None;
+      CanvasBuffer.stage_beat(~slow=true, ());
+      fit_pending := true;
+      CanvasLog.log("layout lab: " ++ mode ++ "/" ++ wires);
+    };
+    globals.inject_global(Set(CanvasTick));
+  };
+  let lab_select = (label, current, choices, action) =>
+    Node.label([
+      text(label),
+      select(
+        ~attrs=[
+          Attr.create("aria-label", label),
+          Attr.on_change((_, v) => action(v)),
+        ],
+        List.map(
+          ((value, label)) =>
+            option(
+              ~attrs=
+                [Attr.value(value)]
+                @ (
+                  value == current
+                    ? [Attr.create("selected", "selected")] : []
+                ),
+              [text(label)],
+            ),
+          choices,
+        ),
+      ),
+    ]);
+  let layout_lab =
+    Node.create(
+      "details",
+      ~attrs=[clss(["canvas-layout-lab"])],
+      [
+        Node.create(
+          "summary",
+          ~attrs=[
+            Attr.title(
+              "Compare experimental layouts while editing or running the agent",
+            ),
+          ],
+          [text("layout")],
+        ),
+        div(
+          ~attrs=[clss(["canvas-layout-options"])],
+          [
+            div(
+              ~attrs=[clss(["layout-lab-heading"])],
+              [text("Layout experiments")],
+            ),
+            lab_select(
+              "Placement",
+              CanvasLayoutExperiments.mode^,
+              CanvasLayoutExperiments.modes,
+              mode =>
+              change_layout(mode, CanvasLayoutExperiments.wires^)
+            ),
+            lab_select(
+              "Connections",
+              CanvasLayoutExperiments.wires^,
+              [
+                ("curves", "Original curves"),
+                ("circuit", "Circuit routes"),
+              ],
+              wires =>
+              change_layout(CanvasLayoutExperiments.mode^, wires)
+            ),
+            Node.button(
+              ~attrs=[
+                Attr.on_click(_ =>
+                  change_layout(
+                    ~reset=true,
+                    CanvasLayoutExperiments.mode^,
+                    CanvasLayoutExperiments.wires^,
+                  )
+                ),
+                Attr.title(
+                  "Recompute automatic positions using the current graph; keep your manual placements",
+                ),
+              ],
+              [text("Rearrange automatic nodes")],
+            ),
+            Node.p([
+              text(
+                "Applies to live agent edits and replay. Manual placements are retained. Current + Original curves restores the baseline.",
+              ),
+            ]),
+          ],
+        ),
+      ],
+    );
   let toolbar = {
     let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
       div(
@@ -4107,6 +4266,7 @@ let view_impl =
             ),
           ),
         ),
+        layout_lab,
         div(~attrs=[clss(["toolbar-spacer"])], []),
         div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
         CanvasReplayView.rec_dot(),
@@ -4813,6 +4973,8 @@ let view_impl =
               let fire = prev_n >= 0 && n > prev_n && nowt -. last_t > 1000.;
               if (fire) {
                 CanvasRipple.pulse_edge(
+                  ~wire=
+                    List.map((p: CanvasLayout.pos) => (p.x, p.y), el.wire),
                   (el.src_p.x, el.src_p.y),
                   (el.c1.x, el.c1.y),
                   (el.c2.x, el.c2.y),

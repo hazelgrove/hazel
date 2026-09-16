@@ -166,7 +166,7 @@ let edge_svg =
   } else {
     /* the marker is 9 long from the path end: pull back exactly that, so
        the arrowhead's tip lands on the rim point */
-    let dst = pull_back(el.dst_p, el.c2, 9.);
+
     let marker =
       List.mem("edge-focused", cls)
         ? "url(#cnv-arrow-focus)" : "url(#cnv-arrow)";
@@ -177,20 +177,7 @@ let edge_svg =
         [
           Attr.id(path_dom_id(e.e_name)),
           clss(["canvas-line", "edge-arrow", ...cls]),
-          Attr.create(
-            "d",
-            Printf.sprintf(
-              "M %s,%s C %s,%s %s,%s %s,%s",
-              fmt(el.src_p.x),
-              fmt(el.src_p.y),
-              fmt(el.c1.x),
-              fmt(el.c1.y),
-              fmt(el.c2.x),
-              fmt(el.c2.y),
-              fmt(dst.x),
-              fmt(dst.y),
-            ),
-          ),
+          Attr.create("d", CanvasLayout.edge_path(~pull=9., el)),
           Attr.create("marker-end", marker),
         ],
         [],
@@ -208,8 +195,7 @@ let formation_svg =
     : Node.t => {
   /* straight from component to product, pulled back for the arrowhead */
   let pp' = pull_back(pp, cp, 5.);
-  let (c1, c2) =
-    CanvasLayout.route_link(~nodes, ~from_key=a, ~to_key=b, cp, pp');
+
   svg(
     ~key=formation_dom_id(a, b),
     "path",
@@ -218,7 +204,10 @@ let formation_svg =
          renders (an index would pair different lines) */
       Attr.id(formation_dom_id(a, b)),
       clss(["canvas-formation"]),
-      Attr.create("d", CanvasLayout.link_d(cp, c1, c2, pp')),
+      Attr.create(
+        "d",
+        CanvasLayout.relation_path(~nodes, ~from_key=a, ~to_key=b, cp, pp'),
+      ),
       /* the end is pulled back for this arrowhead (lost in round 105) */
       Attr.create("marker-end", "url(#cnv-arrow-sm)"),
     ],
@@ -260,15 +249,17 @@ let dep_link_svg =
     : Node.t => {
   let np' = pull_back(np, dp, 5.);
   /* routed like a function arrow: arcs over nodes it would cross */
-  let (c1, c2) =
-    CanvasLayout.route_link(~nodes, ~from_key=a, ~to_key=b, dp, np');
+
   svg(
     ~key=dep_dom_id(a, b),
     "path",
     [
       Attr.id(dep_dom_id(a, b)),
       clss(["canvas-dep"]),
-      Attr.create("d", CanvasLayout.link_d(dp, c1, c2, np')),
+      Attr.create(
+        "d",
+        CanvasLayout.relation_path(~nodes, ~from_key=a, ~to_key=b, dp, np'),
+      ),
     ],
     [],
   );
@@ -451,17 +442,7 @@ let hull_targets =
    blur+threshold unions it with the circles). Ancestor copies widen
    by the depth difference like circles do. */
 let hull_sausage_d = (el: CanvasLayout.edge_layout): string =>
-  Printf.sprintf(
-    "M %s,%s C %s,%s %s,%s %s,%s",
-    fmt(el.src_p.x),
-    fmt(el.src_p.y),
-    fmt(el.c1.x),
-    fmt(el.c1.y),
-    fmt(el.c2.x),
-    fmt(el.c2.y),
-    fmt(el.dst_p.x),
-    fmt(el.dst_p.y),
-  );
+  CanvasLayout.edge_path(el);
 
 let hull_sausages_at =
     (lay: CanvasLayout.t, path: list(string))

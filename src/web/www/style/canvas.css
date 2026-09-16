@@ -2424,3 +2424,15 @@
 .canvas-context-menu .cmenu-delete:focus-visible { color: #ac352b; background: #f2e3db; }
 .canvas-context-menu .cmenu-delete:disabled { opacity: .35; cursor: default; }
 .canvas-context-menu.canvas-function-menu { min-width: 0; width: auto; }
+
+/* Opt-in layout comparisons: one disclosure, rather than more toolbar buttons. */
+.canvas-layout-lab { position: relative; font: inherit; }
+.canvas-layout-lab > summary { cursor: pointer; list-style: none; padding: 2px 6px; }
+.canvas-layout-lab > summary::-webkit-details-marker { display: none; }
+.canvas-layout-lab[open] > summary { background: var(--T2, #e3eee8); border-radius: 3px; }
+.canvas-layout-options { position: absolute; z-index: 100; right: 0; top: calc(100% + 6px); width: 275px; padding: 14px; background: var(--BG, #faf8f0); color: var(--STONE, #34494c); border: 1px solid #aeb9af; border-radius: 5px; box-shadow: 0 4px 12px #293f4220; display: flex; flex-direction: column; gap: 12px; font: 12px/1.4 system-ui, sans-serif; }
+.canvas-layout-options label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.canvas-layout-options select { width: 153px; font: inherit; padding: 3px; }
+.canvas-layout-options button { font: inherit; padding: 5px; cursor: pointer; }
+.canvas-layout-options p { margin: 0; color: #64736b; }
+.layout-lab-heading { font-weight: 600; }

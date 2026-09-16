@@ -468,6 +468,7 @@ let field: ref(option((float, float))) =
    (model coords) when that function's samples change; on arrival it
    deposits a little energy into the medium. */
 type pulse = {
+  wire: list((float, float)),
   p0: (float, float),
   p1: (float, float),
   p2: (float, float),
@@ -514,6 +515,25 @@ let bezier =
     a *. y0 +. b *. y1 +. c *. y2 +. d *. y3,
   );
 };
+
+let pulse_at = (p: pulse, t) =>
+  p.wire == []
+    ? bezier((p.p0, p.p1, p.p2, p.p3), t)
+    : {
+      let p =
+        CanvasLayoutExperiments.along(
+          List.map(
+            ((x, y)) =>
+              CanvasLayoutExperiments.{
+                x,
+                y,
+              },
+            p.wire,
+          ),
+          t,
+        );
+      (p.x, p.y);
+    };
 
 let raf_running: ref(bool) = ref(false);
 let draw_queued: ref(bool) = ref(false);
@@ -828,7 +848,7 @@ let rec draw = (): unit => {
               List.fold_left(
                 (acc, back) => {
                   let tk = fmax(0., tt -. back);
-                  let (mx, my) = bezier((p.p0, p.p1, p.p2, p.p3), tk);
+                  let (mx, my) = pulse_at(p, tk);
                   let cx = mx *. z +. pan_slack
                   and cy = my *. z +. pan_slack;
                   box_union(
@@ -1039,7 +1059,7 @@ let rec draw = (): unit => {
       pulses := live_pulses;
       List.iter(
         (p: pulse) => {
-          let (mx, my) = bezier((p.p0, p.p1, p.p2, p.p3), 1.);
+          let (mx, my) = pulse_at(p, 1.);
           let (cx, cy) = model_to_content((mx, my));
           deposit(cx, cy, 3.5);
         },
@@ -1052,7 +1072,7 @@ let rec draw = (): unit => {
           List.iteri(
             (k, back) => {
               let tk = max(0., tt -. back);
-              let (mx, my) = bezier((p.p0, p.p1, p.p2, p.p3), tk);
+              let (mx, my) = pulse_at(p, tk);
               let cx = mx *. z +. pan_slack
               and cy = my *. z +. pan_slack;
               let (ddx, ddy) = displacement_at(cx, cy);
@@ -1123,6 +1143,7 @@ let request_draw = (): unit =>
 /* launch a pulse along an edge's bezier (model-space control points) */
 let pulse_edge =
     (
+      ~wire=[],
       p0: (float, float),
       p1: (float, float),
       p2: (float, float),
@@ -1132,6 +1153,7 @@ let pulse_edge =
   pulses :=
     [
       {
+        wire,
         p0,
         p1,
         p2,

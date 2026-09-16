@@ -26,6 +26,7 @@ type edge_layout = {
   dst_p: pos,
   c1: pos, /* bézier control points (horizontal tangents) */
   c2: pos,
+  wire: list(pos), /* optional orthogonal route, including rim endpoints */
   endo: bool, /* src == dst: render as orbit */
   orbit_rank: int, /* stacking index among orbits on the same node */
   label_p: pos,
@@ -61,6 +62,71 @@ type t = {
 
 let margin = 70.;
 
+module Lab = CanvasLayoutExperiments;
+/* Expanded cards for the current render, set by CanvasSidebar before all
+   layout calls, including the automatic layout before manual placement. */
+let card_extents: ref(list((string, (float, float)))) = ref([]);
+let to_lab = (p: pos): Lab.point => {
+  x: p.x,
+  y: p.y,
+};
+let from_lab = (p: Lab.point): pos => {
+  x: p.x,
+  y: p.y,
+};
+let wire_at = (ps, t) => Lab.along(List.map(to_lab, ps), t) |> from_lab;
+let edge_path = (~pull=0., el: edge_layout) =>
+  if (el.wire != []) {
+    let reversed = List.rev(el.wire);
+    let points =
+      switch (reversed) {
+      | [last, prev, ...rest] =>
+        let d = max(1., Float.hypot(last.x -. prev.x, last.y -. prev.y));
+        List.rev([
+          {
+            x: last.x +. (prev.x -. last.x) *. pull /. d,
+            y: last.y +. (prev.y -. last.y) *. pull /. d,
+          },
+          prev,
+          ...rest,
+        ]);
+      | _ => el.wire
+      };
+    Lab.path(List.map(to_lab, points));
+  } else {
+    let d =
+      max(1., Float.hypot(el.dst_p.x -. el.c2.x, el.dst_p.y -. el.c2.y));
+    Printf.sprintf(
+      "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+      el.src_p.x,
+      el.src_p.y,
+      el.c1.x,
+      el.c1.y,
+      el.c2.x,
+      el.c2.y,
+      el.dst_p.x +. (el.c2.x -. el.dst_p.x) *. pull /. d,
+      el.dst_p.y +. (el.c2.y -. el.dst_p.y) *. pull /. d,
+    );
+  };
+let obstacles = (~cards=[], nodes) =>
+  List.map(
+    (n: node_layout) => {
+      let (w, h) =
+        Option.value(
+          ~default=(2. *. n.r +. 24., 2. *. n.r +. 34.),
+          List.assoc_opt(n.node.key, cards),
+        );
+      Lab.{
+        key: n.node.key,
+        p: to_lab(n.p),
+        w,
+        h,
+        anchor: Option.map(fst, n.node.sat),
+      };
+    },
+    nodes,
+  );
+let placement_cache = ref(("", [], [], []));
 /* dot-grid pitch (kept in sync with canvas.css --canvas-grid) */
 let grid = 14.;
 let snap = (v: float): float => Float.round(v /. grid) *. grid;
@@ -163,6 +229,21 @@ let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
     b.x,
     b.y,
   );
+
+let relation_path = (~nodes, ~from_key, ~to_key, a, b) =>
+  if (Lab.wires^ == "circuit") {
+    Lab.route(
+      ~obstacles=obstacles(nodes),
+      ~src=from_key,
+      ~dst=to_key,
+      to_lab(a),
+      to_lab(b),
+    )
+    |> Lab.path;
+  } else {
+    let (c1, c2) = route_link(~nodes, ~from_key, ~to_key, a, b);
+    link_d(a, c1, c2, b);
+  };
 
 /* ---- declutter: nodes step OFF the straight lines between other nodes.
    For every link/arrow chord, a node the chord would run through (not its
@@ -417,6 +498,8 @@ type ranking =
 let layout_impl =
     (
       ~ranking=Combined,
+      ~experiment="current",
+      ~circuit=false,
       ~x_scale=1.,
       ~y_scale=1.,
       ~center_within: option(float)=None,
@@ -436,6 +519,16 @@ let layout_impl =
     )
     : t => {
   let t_pre = Util.PerfTimer.now();
+  let x_scale =
+    experiment == "current"
+    || experiment == "flow"
+    || experiment == "dependencies"
+      ? x_scale : 1.;
+  let y_scale =
+    experiment == "current"
+    || experiment == "flow"
+    || experiment == "dependencies"
+      ? y_scale : 1.;
   let card_of = (k: string): option((float, float)) =>
     List.assoc_opt(k, cards);
   /* ---- classify: grid vs docked ---- */
@@ -852,6 +945,88 @@ let layout_impl =
     declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts)
     |> separate_docked_chords(~chords);
   };
+  let node_layouts =
+    if (List.mem(experiment, ["packed", "stable", "grid", "relaxed"])) {
+      let items =
+        List.map(
+          (n: node_layout) => {
+            let orbit_count =
+              List.length(
+                List.filter(
+                  (e: CanvasGraph.edge) =>
+                    e.e_src == n.node.key && e.dst == n.node.key,
+                  g.edges,
+                ),
+              );
+            let extra = float_of_int(orbit_count) *. 30.;
+            let (w, h) =
+              Option.value(
+                ~default=(
+                  max(98., 2. *. n.r +. extra +. 36.),
+                  max(94., 2. *. n.r +. extra +. 44.),
+                ),
+                List.assoc_opt(n.node.key, card_extents^ @ cards),
+              );
+            Lab.{
+              key: n.node.key,
+              p: to_lab(n.p),
+              w: w +. 20.,
+              h: h +. 20.,
+              anchor:
+                List.find_opt(
+                  (a: Util.GraphLayout.Spec.attachment) => a.id == n.node.key,
+                  attachments,
+                )
+                |> Option.map((a: Util.GraphLayout.Spec.attachment) => a.host),
+            };
+          },
+          node_layouts,
+        );
+      let links =
+        List.map((e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
+        @ List.concat_map(
+            (n: CanvasGraph.tynode) =>
+              List.map(
+                k => (n.key, k),
+                n.deps
+                @ n.parts
+                @ (
+                  switch (n.m_path) {
+                  | [root, ..._] => ["{}@" ++ root]
+                  | [] => []
+                  }
+                ),
+              ),
+            g.nodes,
+          );
+      let signature =
+        Lab.scene^ ++ "/" ++ experiment ++ string_of_int(Lab.generation^);
+      let keys = List.map((n: Lab.item) => n.key, items);
+      let topology = Lab.links_of(items, links);
+      let (old_scope, old_keys, old_links, cached) = placement_cache^;
+      let placed =
+        if (old_scope == signature && old_keys == keys && old_links == topology) {
+          cached;
+        } else {
+          let placed = Lab.place(experiment, items, links, Lab.previous());
+          Lab.remember(placed);
+          placement_cache := (signature, keys, topology, placed);
+          placed;
+        };
+      List.map(
+        (n: node_layout) =>
+          switch (Lab.at(placed, n.node.key)) {
+          | Some(p) => {
+              ...n,
+              p: from_lab(p.p),
+            }
+          | None => n
+          },
+        node_layouts,
+      );
+    } else {
+      node_layouts;
+    };
   let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
@@ -983,6 +1158,7 @@ let layout_impl =
             y: dst_p.y -. orbit_r -. 10.,
           };
           {
+            wire: [],
             edge: e,
             src_p,
             dst_p,
@@ -1027,6 +1203,7 @@ let layout_impl =
           let s = rim_toward(src_p, ctrl, e.e_src);
           let d = rim_toward(dst_p, ctrl, e.dst);
           {
+            wire: [],
             edge: e,
             src_p: s,
             dst_p: d,
@@ -1068,6 +1245,7 @@ let layout_impl =
             y: d.y,
           };
           {
+            wire: [],
             edge: e,
             src_p: s,
             dst_p: d,
@@ -1095,6 +1273,41 @@ let layout_impl =
       },
       g.edges,
     );
+
+  let routed = ref([]);
+  let edge_layouts =
+    circuit
+      ? List.map(
+          (el: edge_layout) =>
+            if (el.endo) {
+              el;
+            } else {
+              let route =
+                Lab.route(
+                  ~obstacles=obstacles(~cards, node_layouts),
+                  ~src=el.edge.e_src,
+                  ~dst=el.edge.dst,
+                  ~lane=abs(Hashtbl.hash(el.edge.e_name)) mod 3,
+                  ~occupied=routed^,
+                  to_lab(el.src_p),
+                  to_lab(el.dst_p),
+                )
+                |> List.map(from_lab);
+              routed := [List.map(to_lab, route), ...routed^];
+              let mid = wire_at(route, 0.5);
+              {
+                ...el,
+                wire: route,
+                label_p: {
+                  x: mid.x,
+                  y: mid.y -. 6.,
+                },
+                label_anchor: mid,
+              };
+            },
+          edge_layouts,
+        )
+      : edge_layouts;
 
   /* ---- label placement: multi-direction search avoiding BOTH other
      labels and node circles. A label chip renders translate(-50%,-100%):
@@ -1275,32 +1488,39 @@ let layout_impl =
             && !label_hits_ring(p, w);
           /* labels prefer LIVING ON THEIR EDGE: before jumping off,
              slide along the curve to nearby parameters */
-          let curve_at = (t: float): pos => {
-            let u = 1. -. t;
-            let b = (a, b, c, d) =>
-              u
-              *. u
-              *. u
-              *. a
-              +. 3.
-              *. u
-              *. u
-              *. t
-              *. b
-              +. 3.
-              *. u
-              *. t
-              *. t
-              *. c
-              +. t
-              *. t
-              *. t
-              *. d;
-            {
-              x: b(el.src_p.x, el.c1.x, el.c2.x, el.dst_p.x),
-              y: b(el.src_p.y, el.c1.y, el.c2.y, el.dst_p.y) -. 6.,
+          let curve_at = (t: float): pos =>
+            if (el.wire != []) {
+              let p = wire_at(el.wire, t);
+              {
+                x: p.x,
+                y: p.y -. 6.,
+              };
+            } else {
+              let u = 1. -. t;
+              let b = (a, b, c, d) =>
+                u
+                *. u
+                *. u
+                *. a
+                +. 3.
+                *. u
+                *. u
+                *. t
+                *. b
+                +. 3.
+                *. u
+                *. t
+                *. t
+                *. c
+                +. t
+                *. t
+                *. t
+                *. d;
+              {
+                x: b(el.src_p.x, el.c1.x, el.c2.x, el.dst_p.x),
+                y: b(el.src_p.y, el.c1.y, el.c2.y, el.dst_p.y) -. 6.,
+              };
             };
-          };
           let snap_label = (p: pos): pos => {
             /* chip renders translate(-50%,-100%): its text center sits
                ~10px above label_p. Dot centers are at grid multiples
@@ -1348,10 +1568,25 @@ let layout_impl =
                 [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
               )
               |> List.find_opt((c: pos) =>
-                   ok({
-                     x: c.x,
-                     y: c.y +. 9.,
-                   })
+                   (
+                     el.wire == []
+                     || List.exists(
+                          ((a: pos, b: pos)) =>
+                            abs_float(a.y -. b.y) < 0.1
+                            && abs_float(c.y -. a.y) < 0.1
+                            && c.x
+                            -. w > min(a.x, b.x)
+                            +. 10.
+                            && c.x
+                            +. w < max(a.x, b.x)
+                            -. 10.,
+                          Lab.segments(el.wire),
+                        )
+                   )
+                   && ok({
+                        x: c.x,
+                        y: c.y +. 9.,
+                      })
                  );
             } else {
               None;
@@ -1441,6 +1676,18 @@ let layout_impl =
       );
     let b =
       List.fold_left(
+        (bounds, el: edge_layout) =>
+          List.fold_left(
+            ((x0, y0, x1, y1), p: pos) =>
+              (min(x0, p.x), min(y0, p.y), max(x1, p.x), max(y1, p.y)),
+            bounds,
+            el.wire,
+          ),
+        b,
+        edge_layouts,
+      );
+    let b =
+      List.fold_left(
         ((x0, y0, x1, y1), el: edge_layout) =>
           (
             min(x0, el.label_p.x -. 62.),
@@ -1490,6 +1737,11 @@ let layout_impl =
     let (dx, dy) =
       switch (origin_override) {
       | Some(o) => (o.x, o.y)
+      | None
+          when List.mem(experiment, ["stable", "relaxed", "grid", "packed"]) => (
+          0.,
+          0.,
+        )
       | None => (snap(pad -. min_x) +. center_pad, snap(pad -. min_y))
       };
     let sh = (p: pos): pos => {
@@ -1511,6 +1763,7 @@ let layout_impl =
           (el: edge_layout) =>
             {
               ...el,
+              wire: List.map(sh, el.wire),
               src_p: sh(el.src_p),
               dst_p: sh(el.dst_p),
               c1: sh(el.c1),
@@ -1585,6 +1838,7 @@ let layout_ms: ref(float) = ref(0.);
    on the graph's identity (extract is memoized per statics, so it is
    stable) and the parameters by value; the last few results are kept. */
 type layout_key = {
+  k_experiment: (string, string, string, int),
   k_graph: CanvasGraph.t,
   k_x: float,
   k_y: float,
@@ -1596,10 +1850,6 @@ type layout_key = {
 };
 let layout_memo: ref(list((layout_key, t))) = ref([]);
 let layout_memo_hits: ref(int) = ref(0);
-/* the expanded cards' extents for the layouts of the current render:
-   set by CanvasSidebar before laying out (every layout call of a render
-   sees the same cards, so this is not threaded through each call) */
-let card_extents: ref(list((string, (float, float)))) = ref([]);
 let layout =
     (
       ~x_scale=1.,
@@ -1613,7 +1863,9 @@ let layout =
     )
     : t => {
   let cards = Option.value(~default=card_extents^, cards);
+  let experiment = (Lab.mode^, Lab.wires^, Lab.scene^, Lab.generation^);
   let key = {
+    k_experiment: experiment,
     k_graph: g,
     k_x: x_scale,
     k_y: y_scale,
@@ -1624,7 +1876,8 @@ let layout =
     k_cards: cards,
   };
   let same = (k: layout_key) =>
-    k.k_graph === g
+    k.k_experiment == experiment
+    && k.k_graph === g
     && k.k_x == x_scale
     && k.k_y == y_scale
     && k.k_center == center_within
@@ -1642,6 +1895,12 @@ let layout =
     let t0 = now();
     let r =
       layout_impl(
+        ~experiment=Lab.mode^,
+        ~circuit=Lab.wires^ == "circuit",
+        ~ranking=
+          Lab.mode^ == "flow"
+            ? FunctionFlow
+            : Lab.mode^ == "dependencies" ? TypeDependencies : Combined,
         ~x_scale,
         ~y_scale,
         ~center_within,
