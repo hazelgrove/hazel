@@ -1587,7 +1587,7 @@ module Update = {
         switch (model.focus) {
         | Some(f)
             when
-              statics_mode == CodeWithStatics.StaticsForce
+              statics_mode == StaticsMode.Force
               || stacked_statics^ == None
               || stacked_probe_all^
               != Some(settings.Language.CoreSettings.probe_all) =>
@@ -1774,7 +1774,7 @@ module Update = {
         };
       let calc_entry = (e: Model.stack_entry): Model.stack_entry => {
         let reuse =
-          statics_mode != CodeWithStatics.StaticsForce
+          statics_mode != StaticsMode.Force
             ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
               | Some((s', d', prev))
                   when prev === e && s' === settings && d' === extra_dyn =>
@@ -1793,7 +1793,7 @@ module Update = {
              Built only on Force — the statics gate inside only
              consults it then. */
           let (proj_header, proj_body) =
-            statics_mode == CodeWithStatics.StaticsForce
+            statics_mode == StaticsMode.Force
               ? {
                 switch (Haz3lcore.DefStatics.current()) {
                 | Some(ds) =>
@@ -2837,19 +2837,10 @@ module View = {
       ~add_tooltip,
       ~signal=
         fun
-        | Previous =>
-          inject(
-            SwitchSlide(
-              (model.current + List.length(model.scratchpads) - 1)
-              mod List.length(model.scratchpads),
-            ),
-          )
-        | Next =>
-          inject(
-            SwitchSlide(
-              (model.current + 1) mod List.length(model.scratchpads),
-            ),
-          )
+        /* No arrows in these modes (~nav_buttons=false above): slides are
+           reached through the breadcrumb dropdowns. */
+        | Previous
+        | Next => Virtual_dom.Vdom.Effect.Ignore
         | Add => inject(AddSlide)
         | Rename => inject(RenameSlide)
         | Delete => inject(DeleteSlide),
@@ -2857,7 +2848,10 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map((s: Scratchpad.t) => s.name, model.scratchpads),
+          List.map(
+            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            model.scratchpads,
+          ),
         ),
       (),
     );

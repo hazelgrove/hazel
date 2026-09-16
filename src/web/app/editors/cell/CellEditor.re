@@ -97,7 +97,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
-        ~statics_mode=CodeWithStatics.StaticsNormal,
+        ~statics_mode=StaticsMode.Normal,
         ~compositional=false,
         ~ctx=?,
         ~projected: option(Haz3lcore.CachedStatics.t)=?,

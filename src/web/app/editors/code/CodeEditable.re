@@ -43,12 +43,14 @@ module Update = {
          new probe its bindings. */
       let is_edit = Action.is_edit(action);
       switch (
-        Editor.Update.update(
-          ~settings=settings.core,
-          action,
-          model.statics,
-          model.dynamics,
-          model.editor,
+        PerfMetrics.time_perform(~action, () =>
+          Editor.Update.update(
+            ~settings=settings.core,
+            action,
+            model.statics,
+            model.dynamics,
+            model.editor,
+          )
         )
       ) {
       | Error(Action.Failure.Cant_refactor) =>
