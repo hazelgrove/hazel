@@ -23,6 +23,97 @@ let tests = (
   "Canvas layout experiments",
   [
     test_case(
+      "only private unknown components dock to their consumer",
+      `Quick,
+      () => {
+        module G = Web.CanvasGraph;
+        let unknown = G.mk_node(~kind=Ghost, ~label="?", "?component");
+        let consumer = name =>
+          G.mk_node(~kind=Alias, ~label=name, ~parts=[unknown.key], name);
+        let base = Test_CanvasGraphFold.graph_of("()");
+        let layout = hosts =>
+          L.layout_impl({
+            ...base,
+            nodes: [unknown, ...hosts],
+            edges: [],
+            values: [],
+          });
+        let one = layout([consumer("Carrier")]);
+        let at = l =>
+          List.find(
+            (n: L.node_layout) => n.node.key == unknown.key,
+            l.L.nodes,
+          );
+        check(
+          option(string),
+          "private component has a host",
+          Some("Carrier"),
+          Option.map(fst, at(one).node.sat),
+        );
+        let shared = layout([consumer("Carrier"), consumer("Other")]);
+        check(
+          option(string),
+          "shared component remains independent",
+          None,
+          Option.map(fst, at(shared).node.sat),
+        );
+      },
+    ),
+    test_case(
+      "host fans remain local in every placement",
+      `Quick,
+      () => {
+        let fan = [
+          item("host", 240., 180.),
+          {
+            ...item("i0", 160., 160.),
+            anchor: Some("host"),
+          },
+          {
+            ...item("i1", 160., 200.),
+            anchor: Some("host"),
+          },
+          item("peer", 540., 180.),
+        ];
+        List.iter(
+          ((mode, _)) => {
+            let result = E.place(mode, fan, [("host", "peer")], []);
+            let h = at(result, "host");
+            List.iter(
+              ((k, dy)) => {
+                let p = at(result, k);
+                same(
+                  mode ++ "/" ++ k,
+                  {
+                    x: (-80.),
+                    y: dy,
+                  },
+                  {
+                    x: p.x -. h.x,
+                    y: p.y -. h.y,
+                  },
+                );
+              },
+              [("i0", (-20.)), ("i1", 20.)],
+            );
+          },
+          E.modes,
+        );
+      },
+    ),
+    test_case(
+      "feedback curves reserve a label corridor",
+      `Quick,
+      () => {
+        let g = Test_CanvasGraphFold.graph_of(Test_CanvasGraphFold.prog);
+        let l = L.layout_impl(g);
+        let e =
+          List.find((e: L.edge_layout) => e.edge.e_name == "step", l.edges);
+        check(bool, "separate smooth handles", true, e.c1 != e.c2);
+        check(bool, "label stays on its own function", true, e.on_wire);
+      },
+    ),
+    test_case(
       "stable growth and deletion retain survivors",
       `Quick,
       () => {

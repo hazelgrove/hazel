@@ -466,29 +466,67 @@ let layout = (spec: Spec.t): result => {
         },
         col,
       );
-    /* top-down gap enforcement over the target ys, in column order */
-    let _ =
+    /* Project neighbor targets onto the ordered, separated rows. Pooling
+       adjacent violations minimizes squared displacement in both directions;
+       a top-down-only clamp ratchets whole columns downward on every sweep. */
+    let (_, _, entries) =
       List.fold_left(
-        ((prev_bottom, _), (id, ty)) => {
-          let h = v_half(id);
-          let y = max(ty, prev_bottom +. h);
-          let (p, r) = Hashtbl.find(posed, id);
-          Hashtbl.replace(
-            posed,
-            id,
-            (
-              {
-                x: p.x,
-                y,
-              },
-              r,
-            ),
-          );
-          (y +. h +. row_gap, ());
+        ((offset, previous_half, entries), (id, target)) => {
+          let half = v_half(id);
+          let offset =
+            entries == [] ? 0. : offset +. previous_half +. row_gap +. half;
+          (offset, half, entries @ [(id, target -. offset, offset)]);
         },
-        (spec.margin, ()),
+        (0., 0., []),
         targets,
       );
+    let rec push = ((mean, count, members) as block, stack) =>
+      switch (stack) {
+      | [(last, n, earlier), ...rest] when last > mean =>
+        push(
+          (
+            (last *. float_of_int(n) +. mean *. float_of_int(count))
+            /. float_of_int(n + count),
+            n + count,
+            earlier @ members,
+          ),
+          rest,
+        )
+      | _ => [block, ...stack]
+      };
+    let blocks =
+      List.fold_left(
+        (stack, (id, target, offset)) =>
+          push((target, 1, [(id, offset)]), stack),
+        [],
+        entries,
+      );
+    let lower =
+      switch (col) {
+      | [id, ..._] => spec.margin +. v_half(id)
+      | [] => spec.margin
+      };
+    List.iter(
+      ((mean, _, members)) =>
+        List.iter(
+          ((id, offset)) => {
+            let (p, r) = Hashtbl.find(posed, id);
+            Hashtbl.replace(
+              posed,
+              id,
+              (
+                {
+                  x: p.x,
+                  y: max(lower, mean) +. offset,
+                },
+                r,
+              ),
+            );
+          },
+          members,
+        ),
+      blocks,
+    );
     ();
   };
   for (_ in 1 to 2) {
@@ -630,6 +668,36 @@ let layout = (spec: Spec.t): result => {
         let try_ring = (ring: int): option(pos) => {
           let dist =
             hr +. a.dist +. float_of_int(ring) *. (a.radius *. 2. +. 10.);
+          let fan =
+            switch (a.prefer) {
+            | In
+            | Out =>
+              let key = (a.host, a.prefer);
+              let count =
+                Option.value(~default=1, Hashtbl.find_opt(group_total, key));
+              let index =
+                Option.value(~default=1, Hashtbl.find_opt(group_seen, key))
+                - 1;
+              let half =
+                List.fold_left(
+                  (v, b: attachment) =>
+                    b.host == a.host && b.prefer == a.prefer
+                      ? max(v, b.radius) : v,
+                  a.radius,
+                  spec.attachments,
+                );
+              let step = max(42., 2. *. half +. 10.);
+              Some({
+                x: hp.x +. (a.prefer == In ? -. dist : dist),
+                y:
+                  hp.y
+                  +. (float_of_int(index) -. float_of_int(count - 1) /. 2.)
+                  *. step,
+              });
+            | _ => None
+            };
+          let preferred =
+            Option.bind(fan, p => collides(p, a.radius) ? None : Some(p));
           List.fold_left(
             (found, off) =>
               switch (found) {
@@ -643,7 +711,7 @@ let layout = (spec: Spec.t): result => {
                 };
                 collides(p, a.radius) ? None : Some(p);
               },
-            None,
+            preferred,
             angle_offsets,
           );
         };

@@ -94,16 +94,31 @@ let packed = (items, links) => {
             infinity,
             ns,
           );
-        let ys =
-          List.map((n: item) => n.p.y, ns) |> List.sort_uniq(compare);
-        let (_, _, ymap) =
+        /* Remove only genuinely empty strips. Rows in different columns
+           may overlap in y; forcing a gap between every y-coordinate would
+           turn a compact graph into a staircase. */
+        let intervals =
+          List.map(
+            (n: item) => (n.p.y -. n.h /. 2., n.p.y +. n.h /. 2.),
+            ns,
+          )
+          |> List.sort(compare);
+        let (_, gaps) =
           List.fold_left(
-            ((last, cy, acc), y) => {
-              let gap = last < 0. ? 0. : min(y -. last, 140.);
-              (y, cy +. gap, acc @ [(y, cy +. gap)]);
-            },
-            ((-1.), 0., []),
-            ys,
+            ((end_y, gaps), (lo, hi)) =>
+              (
+                max(end_y, hi),
+                lo -. end_y > 100. && end_y != neg_infinity
+                  ? gaps @ [(lo, lo -. end_y -. 100.)] : gaps,
+              ),
+            (neg_infinity, []),
+            intervals,
+          );
+        let miny =
+          List.fold_left(
+            (v, n: item) => min(v, n.p.y -. n.h /. 2.),
+            infinity,
+            ns,
           );
         let ns =
           List.map(
@@ -112,11 +127,19 @@ let packed = (items, links) => {
                 ...n,
                 p: {
                   x: n.p.x -. minx,
-                  y: List.assoc(n.p.y, ymap) +. n.h /. 2.,
+                  y:
+                    n.p.y
+                    -. miny
+                    -. List.fold_left(
+                         (v, (at, amount)) => n.p.y >= at ? v +. amount : v,
+                         0.,
+                         gaps,
+                       ),
                 },
               },
             ns,
           );
+
         let w =
           List.fold_left(
             (v, n: item) => max(v, n.p.x +. n.w /. 2.),
@@ -411,15 +434,102 @@ let relaxed = (items, links, old) => {
     current^,
   );
 };
+/* Layout operates on host groups. A terminal remains at its local dock;
+   it must not acquire an independent grid cell, relaxation force, or stable
+   insertion slot. The root reserves the group's entire occupied envelope. */
 let place = (kind, items, links, old) => {
-  let links = links_of(items, links);
-  switch (kind) {
-  | "packed" => packed(items, links)
-  | "stable" => stable(items, links, old)
-  | "grid" => grid(items, links)
-  | "relaxed" => relaxed(items, links, old)
-  | _ => items
-  };
+  let rec root = (seen, n: item) =>
+    switch (n.anchor) {
+    | Some(k) when !List.mem(k, seen) =>
+      switch (at(items, k)) {
+      | Some(host) => root([n.key, ...seen], host)
+      | None => n.key
+      }
+    | _ => n.key
+    };
+  let root_of = k => Option.map(n => root([], n), at(items, k));
+  let roots = List.filter((n: item) => root([], n) == n.key, items);
+  let units =
+    List.map(
+      (host: item) => {
+        let members =
+          List.filter((n: item) => root([], n) == host.key, items);
+        let (left, top, right, bottom) =
+          List.fold_left(
+            ((left, top, right, bottom), n: item) =>
+              (
+                min(left, n.p.x -. n.w /. 2.),
+                min(top, n.p.y -. n.h /. 2.),
+                max(right, n.p.x +. n.w /. 2.),
+                max(bottom, n.p.y +. n.h /. 2.),
+              ),
+            (infinity, infinity, neg_infinity, neg_infinity),
+            members,
+          );
+        {
+          ...host,
+          p: {
+            x: (left +. right) /. 2.,
+            y: (top +. bottom) /. 2.,
+          },
+          w: right -. left,
+          h: bottom -. top,
+          anchor: None,
+        };
+      },
+      roots,
+    );
+  let links =
+    links_of(items, links)
+    |> List.filter_map(((a, b)) =>
+         switch (root_of(a), root_of(b)) {
+         | (Some(a), Some(b)) when a != b => Some((a, b))
+         | _ => None
+         }
+       )
+    |> List.sort_uniq(compare);
+  let old_units =
+    List.filter_map(
+      (n: item) =>
+        switch (at(old, n.key), at(items, n.key)) {
+        | (Some(previous), Some(host)) =>
+          Some({
+            ...n,
+            p: {
+              x: previous.p.x +. n.p.x -. host.p.x,
+              y: previous.p.y +. n.p.y -. host.p.y,
+            },
+          })
+        | _ => None
+        },
+      units,
+    );
+
+  let result =
+    switch (kind) {
+    | "packed"
+    | "components" => packed(units, links)
+    | "stable" => stable(units, links, old_units)
+    | "grid" => grid(units, links)
+    | "relaxed" => relaxed(units, links, old_units)
+    | _ => units
+    };
+  List.map(
+    (n: item) => {
+      let k = root([], n);
+      switch (at(units, k), at(result, k)) {
+      | (Some(before), Some(after)) => {
+          ...n,
+          p: {
+            x: n.p.x +. after.p.x -. before.p.x,
+            y: n.p.y +. after.p.y -. before.p.y,
+          },
+        }
+      | _ => n
+      };
+    },
+    items,
+  );
 };
 
 /* Bounded Manhattan candidate search. A route may use an outside corridor
@@ -443,7 +553,7 @@ let route =
       b: point,
     ) => {
   let pad = 12.
-  and stub = 36.;
+  and stub = min(30., max(8., distance(a, b) *. 0.2));
   let outward = (key, p: point, fallback) =>
     switch (at(obstacles, key)) {
     | None => {
@@ -537,7 +647,17 @@ let route =
           ],
         ys,
       );
-  let score = ps =>
+  let score = ps => {
+    let nonzero =
+      segments(ps) |> List.filter(((p, q)) => distance(p, q) > 0.01);
+    let rec turns = ss =>
+      switch (ss) {
+      | [(p, q), (r, s), ...rest] =>
+        let dot = (q.x -. p.x) *. (s.x -. r.x) +. (q.y -. p.y) *. (s.y -. r.y);
+        (dot < 0. ? 100000. : dot == 0. ? 16. : 0.)
+        +. turns([(r, s), ...rest]);
+      | _ => 0.
+      };
     List.fold_left(
       (score, (u: point, v: point)) => {
         let hits =
@@ -598,11 +718,37 @@ let route =
                 0.,
                 occupied,
               );
-        score +. distance(u, v) +. hits +. overlap;
+        let crossings =
+          List.fold_left(
+            (sum, path) =>
+              List.fold_left(
+                (sum, (p: point, q: point)) => {
+                  let cross = (a: point, b: point, c: point) =>
+                    (b.x -. a.x)
+                    *. (c.y -. a.y)
+                    -. (b.y -. a.y)
+                    *. (c.x -. a.x);
+                  sum
+                  +. (
+                    cross(u, v, p)
+                    *. cross(u, v, q) < 0.
+                    && cross(p, q, u)
+                    *. cross(p, q, v) < 0.
+                      ? 40. : 0.
+                  );
+                },
+                sum,
+                segments(path),
+              ),
+            0.,
+            occupied,
+          );
+        score +. distance(u, v) +. hits +. overlap +. crossings;
       },
-      0.,
+      turns(nonzero),
       segments(ps),
     );
+  };
   List.fold_left(
     (best, ps) => score(ps) < score(best) ? ps : best,
     List.hd(candidates),
