@@ -11,7 +11,16 @@ type Mood = + Happy(MoodIntensity) + Sad(MoodIntensity) + Neutral in
 
 let ^mood = {
   type Model = (Int, Drag);
+
+  # Three actions, and each one earns its place: #
+  #   Down(y)    Idle -> Held: records the mood AND the grab point, #
+  #              so a later move knows what it is measuring from. #
+  #   MoveTo(y)  the only action that changes the mood, and only #
+  #              while Held -- see its Idle branch below. #
+  #   Up         Held -> Idle. Without it the face would go on #
+  #              following the pointer after you let go. #
   type Action = + Down(Int) + MoveTo(Int) + Up;
+
   type Expansion = Mood;
 
   let init : Model = (50, Idle);
@@ -25,6 +34,9 @@ let ^mood = {
     | Down(y) => (v, Held(v, y))
     | MoveTo(y) =>
       case drag
+      # not dragging: pointer moves over the face are ignored. This is #
+      # the branch that makes Up worth having -- the two only pay off #
+      # together, and hovering leaving the mood alone is how you see it. #
       | Idle => (v, drag)
       | Held(v0, y0) => (clamp(v0 + 2 * (y - y0)), drag)
       end
