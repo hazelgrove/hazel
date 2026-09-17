@@ -133,8 +133,11 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
+  | BbQuote(_)
   | ExplicitNonlabel
   | LivelitName(_)
+  | FumolaPeek(_)
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
@@ -196,10 +199,13 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
+  | BbQuote(_)
   | ExplicitNonlabel
   | Constructor(_)
   | Undefined
   | LivelitName(_)
+  | FumolaPeek(_)
   | Deferral(_) => false
   | Module(items) =>
     List.exists(
@@ -287,10 +293,13 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
+  | BbQuote(_)
   | ExplicitNonlabel
   | Constructor(_)
   | Undefined
   | LivelitName(_)
+  | FumolaPeek(_)
   | Deferral(_) => false
   | Module(items) =>
     List.exists(
@@ -408,10 +417,13 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Atom(_)
   | Label(_)
   | DrvQuote(_)
+  | FumolaQuote(_)
+  | BbQuote(_)
   | Constructor(_)
   | Undefined
   | Var(_)
   | LivelitName(_)
+  | FumolaPeek(_)
   | BuiltinFun(_) => true
   | Module(items) =>
     /* Module items are not in tail position; check that none mention the variable */

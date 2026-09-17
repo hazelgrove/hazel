@@ -1,0 +1,99 @@
+# THE LIBRARY IS ALREADY HERE #
+
+# The Fumola runtime this build loads is not empty.  It ships eighteen #
+# modules -- collections, examples, and the system modules -- and a tile #
+# program can reach all of them today.  Three tile forms are all it takes: #
+# a string, `import`, and the `.` that reaches into what was imported. #
+
+# The path is the packaged module path, not a file on your disk. #
+
+# A level tree node is a Fumola variant, and the tags it uses -- empty, #
+# element, binary -- are not names Hazel knows.  Declaring the type is #
+# what lets them land as constructors rather than as unbound names, and #
+# it is also what tells the bridge which sum to build.  The children are #
+# pointers, and a pointer's Hazel type is the type of what it points at, #
+# so `left` and `right` are Nodes. #
+
+type Node =
+  + Empty
+  + Element((element = Int, symbol = Int))
+  + Binary((left = Node, level = Int, right = Node, symbol = Int))
+in
+
+let ^^probe(root): Node = fumola $graphical as lib in
+  { import Seq = "fumola/collections/levelTree";
+    Seq.testFromList()! }
+end in
+
+# `testFromList` builds a level tree in the store and answers an option #
+# holding a pointer to its root.  `!` is Fumola's option unwrap, so what #
+# arrives in Hazel is the pointer itself -- a reference, which the probe #
+# shows along with what the cell it names holds. #
+
+# Nothing above was written here.  The tree is library code's, and the #
+# only thing this slide did was ask for it by name. #
+
+# THE PRELUDE, WHICH NEEDS NO IMPORT #
+
+# Four names are bound at the top of every instance, from the module #
+# `fumola/system/prelude`: `pointer`, `get`, `peek` and `print`.  They are #
+# the short spellings of the Adapton operations, so that a program writes #
+# `get(...)` rather than `Adapton.get(...)`. #
+
+# All the reading forms take either a symbol or a pointer, so a reference #
+# that came through Hazel is an argument like any other: #
+
+let ^^probe(viaGet): Node = fumola $graphical as lib in
+  { get(hazel root end) }
+end in
+
+# `get` records a dependency on the cell it read; `peek` does not.  That #
+# is the whole difference between them, and the Fumola panel is where it #
+# shows -- put the cursor in either program and read what `lib` recorded. #
+
+let ^^probe(viaPeek) = fumola $graphical as lib in
+  { peek(hazel root end) }
+end in
+
+# `pointer` is the name the boundary itself uses.  Every `hazel ... end` #
+# above that names `root` prints as `(pointer(...))`: a reference that #
+# came into Hazel goes back out as the pointer it is, not as the value it #
+# was holding at the time. #
+
+# WALKING THE STRUCTURE, IN FUMOLA #
+
+# A level tree node is a variant wrapping a record, so reading one means #
+# taking a variant apart.  `switch` does that, and the tile spells a case #
+# as a declaration -- `case p => b`, separated by `;` exactly as a block's #
+# contents are.  The printer puts Fumola's own spelling back, which #
+# parenthesizes the pattern and has no arrow. #
+
+let level = fumola $graphical as lib in
+  { switch (@ hazel root end) {
+      case $binary(b) => b.level;
+      case _ => 0 } }
+end in
+
+# The child pointers are fields of that same record, so the walk carries #
+# on: the left child comes back as another reference, which the probe #
+# shows the way it showed the root. #
+
+let ^^probe(leftChild): Node = fumola $graphical as lib in
+  { switch (@ hazel root end) {
+      case $binary(b) => b.left;
+      case _ => hazel root end } }
+end in
+
+# Nothing above is Hazel's doing.  The tree was built by library code, the #
+# walk is a Fumola program, and Hazel's part is holding the reference #
+# between the two. #
+
+# STILL OUT OF REACH #
+
+# `var` and `func` have no tile, so a program can read the library and not #
+# yet define a function of its own.  The other modules are reachable the #
+# same way this one is: `List` makes every cons cell a named cell and #
+# `pureList` names nothing, which is the whole argument for naming -- run #
+# each and compare what the panel recorded. #
+
+(root, viaGet, viaPeek, level, leftChild)

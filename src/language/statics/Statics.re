@@ -11,6 +11,164 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* BLACKBOARD STATICS
+
+   The Blackboard sort contains no Hazel subterms, so this does not take
+   part in the mutual recursion below.
+
+   Checking is per entry, not per document. A document that is half written,
+   or that has one malformed entry, must still report what it can about the
+   rest: an all-or-nothing check goes silent exactly when the user has just
+   made a mistake. So each signature entry is read and checked on its own,
+   in the context of the entries before it, and produces either a syntax
+   error (it could not be read as an entry at all) or the checker's errors.
+
+   Errors land on the name the user got wrong where that name is
+   identifiable, and on the entry otherwise. */
+let bb_to_info_map = (b: Bb.Term.t, m: Map.t, ~ancestors): Map.t => {
+  let statuses: ref(Id.Map.t(BbInfo.status)) = ref(Id.Map.empty);
+  let mark = (id, st) => statuses := Id.Map.add(id, st, statuses^);
+
+  /* Put an unbound-name error on every occurrence of that name. */
+  let rec mark_var = (t: Bb.Term.t, x: string, st) => {
+    switch (Bb.Term.term_of(t)) {
+    | Var(y) when y == x => mark(Bb.Term.rep_id(t), st)
+    | Var(_)
+    | Type
+    | Hole(Invalid(_) | EmptyHole) => ()
+    | Parens(a) => mark_var(a, x, st)
+    | Mem(a, b)
+    | Arrow(a, b)
+    | Ap(a, b) =>
+      mark_var(a, x, st);
+      mark_var(b, x, st);
+    | Tuple(ts)
+    | Seq(ts)
+    | Hole(MultiHole(ts)) => List.iter(t => mark_var(t, x, st), ts)
+    | Assume(a, b)
+    | Construct(a, b) =>
+      mark_var(a, x, st);
+      mark_var(b, x, st);
+    };
+  };
+
+  /* Check one entry in ctx, recording its errors; return the extended ctx. */
+  let check_entry = (item: Bb.Term.t, ctx: BbCheck.ctx): BbCheck.ctx =>
+    switch (Bb.rotate_entry(item)) {
+    | None =>
+      mark(
+        Bb.Term.rep_id(item),
+        BbInfo.InHole(
+          Malformed("a signature entry has the form  name : type"),
+        ),
+      );
+      ctx;
+    | Some((name, ty_term)) =>
+      switch (Bb.term_to_kernel(ty_term)) {
+      | Error({id, message}) =>
+        mark(id, BbInfo.InHole(Malformed(message)));
+        ctx;
+      | Ok(ty) =>
+        List.iter(
+          (err: BbError.t) =>
+            switch (err) {
+            | Unbound(x) => mark_var(ty_term, x, BbInfo.InHole(Check(err)))
+            | _ =>
+              let on =
+                switch (BbError.subject(err)) {
+                | Some(sub) =>
+                  /* place it on the subterm that is wrong, when we can find
+                     it; otherwise on the entry */
+                  let found = ref(None);
+                  let rec search = (t: Bb.Term.t) =>
+                    if (found^ == None) {
+                      switch (Bb.term_to_kernel(t)) {
+                      | Ok(k) when BbTerm.alpha_eq(k, sub) =>
+                        found := Some(Bb.Term.rep_id(t))
+                      | _ =>
+                        switch (Bb.Term.term_of(t)) {
+                        | Parens(a) => search(a)
+                        | Mem(a, b)
+                        | Arrow(a, b)
+                        | Ap(a, b) =>
+                          search(a);
+                          search(b);
+                        | Tuple(ts)
+                        | Seq(ts)
+                        | Hole(MultiHole(ts)) => List.iter(search, ts)
+                        | _ => ()
+                        }
+                      };
+                    };
+                  search(ty_term);
+                  Option.value(found^, ~default=Bb.Term.rep_id(item));
+                | None => Bb.Term.rep_id(item)
+                };
+              mark(on, BbInfo.InHole(Check(err)));
+            },
+          BbCheck.is_type(ctx, ty),
+        );
+        [(name, ty), ...ctx];
+      }
+    };
+
+  /* Walk the document, threading the context across blocks so a construct
+     block sees the names an earlier assume block introduced. */
+  let check_block = (blk: Bb.Term.t, ctx: BbCheck.ctx): BbCheck.ctx =>
+    switch (Bb.Term.term_of(blk)) {
+    | Assume(entries, _)
+    | Construct(entries, _) =>
+      List.fold_left(
+        (ctx, item) => check_entry(item, ctx),
+        ctx,
+        Bb.items_of(entries),
+      )
+    /* Not a block: nothing to check here. A bare term is a legitimate
+       thing to be holding mid-edit. */
+    | _ => ctx
+    };
+  let _ =
+    List.fold_left(
+      (ctx, blk) => check_block(blk, ctx),
+      [],
+      Bb.items_of(b),
+    );
+
+  /* Second pass: give every node an info entry, so the cursor inspector has
+     something to say anywhere, and attach the statuses found above. */
+  let rec go = (t: Bb.Term.t, m: Map.t, ~modality, ~ancestors): Map.t => {
+    let term = Bb.Term.term_of(t);
+    let status =
+      Id.Map.find_opt(Bb.Term.rep_id(t), statuses^)
+      |> Option.value(~default=BbInfo.NotInHole);
+    let info = BbInfo.derived(t, ~ancestors, ~modality, ~status);
+    let anc = [Bb.Term.rep_id(t), ...ancestors];
+    let child = (x, m) => go(x, m, ~modality, ~ancestors=anc);
+    let block = (entries, tactic, mod_, m) =>
+      m
+      |> go(entries, ~modality=Some(mod_), ~ancestors=anc)
+      |> go(tactic, ~modality=Some(mod_), ~ancestors=anc);
+    let m =
+      switch (term) {
+      | Hole(MultiHole(ts)) => List.fold_left((m, x) => child(x, m), m, ts)
+      | Hole(_)
+      | Var(_)
+      | Type => m
+      | Parens(x) => child(x, m)
+      | Mem(a, b)
+      | Arrow(a, b)
+      | Ap(a, b) => m |> child(a) |> child(b)
+      | Tuple(ts)
+      | Seq(ts) => List.fold_left((m, x) => child(x, m), m, ts)
+      | Assume(entries, tactic) => block(entries, tactic, BbInfo.Assume, m)
+      | Construct(entries, tactic) =>
+        block(entries, tactic, BbInfo.Construct, m)
+      };
+    add_info(Bb.Term.ids(t), InfoBb(info), m);
+  };
+  go(b, m, ~modality=None, ~ancestors);
+};
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -47,6 +205,17 @@ let rec any_to_info_map =
   | Drv(drv) =>
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
+  /* Fumola has no statics in Hazel -- no types, one closed sort -- but the
+     info map is also what the cursor inspector reads, and an id missing from
+     it reports as whitespace. So the traversal here is for the inspector's
+     sake: it names the form at every id and says nothing else. */
+  | Fumola(f) => (
+      CoCtx.empty,
+      Fumola(f),
+      fumola_to_info_map(f, m, ~ancestors),
+    )
+  /* Blackboard statics arrive with the next milestone. */
+  | Bb(b) => (CoCtx.empty, Bb(b), bb_to_info_map(b, m, ~ancestors))
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
@@ -66,6 +235,129 @@ and multi =
     ([], [], m),
     tms,
   )
+/* One entry per node, carrying its syntactic class and its ancestry. The
+   embedded `hazel … end` terms are deliberately not descended into here:
+   uexp_to_info_map already visits them with a context and a type, and
+   overwriting those entries with class-only ones would lose the statics that
+   make the embedded expression worth having. */
+/* [instance_name] applies to the ROOT of this traversal only, which is how
+   the `as` slot is told apart from a Fumola variable that happens to spell
+   the same name inside the program. */
+and fumola_to_info_map =
+    (~instance_name=false, f: FumolaTermBase.t, m: Map.t, ~ancestors): Map.t => {
+  let rec go =
+          (~ancestors, ~instance_name=false, e: FumolaTermBase.t, m: Map.t)
+          : Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(e),
+        InfoFumola(FumolaInfo.of_exp(~ancestors, ~instance_name, e)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(e), ...ancestors];
+    let go = go(~ancestors);
+    let go_ds = (ds, m) =>
+      List.fold_left((m, d) => dec(~ancestors, d, m), m, ds);
+    switch (e.term) {
+    | Hole(EmptyHole)
+    | Hole(Invalid(_))
+    | Var(_)
+    | Lit(_)
+    | QuotedId(_)
+    | Prim(_)
+    /* Descending would overwrite the statics uexp_to_info_map put there. */
+    | Hazel(_) => m
+    | Hole(MultiHole(es))
+    | Tuple(es)
+    | Array(_, es) => List.fold_left((m, e) => go(e, m), m, es)
+    | Paren(e)
+    | Proj(e, _)
+    | Bang(e)
+    | Opt(e)
+    | Un(_, e)
+    | Not(e)
+    | Unquote(e)
+    | Assert(e)
+    | Ignore(e)
+    | Force(e)
+    | Get(e) => go(e, m)
+    | Return(e) => Option.fold(~none=m, ~some=e => go(e, m), e)
+    | Variant(_, e) => Option.fold(~none=m, ~some=e => go(e, m), e)
+    | Ap(a, b)
+    | Index(a, b)
+    | Bin(a, _, b)
+    | Rel(a, _, b)
+    | And(a, b)
+    | Or(a, b)
+    | Put(a, b)
+    | DoPutForce(a, b) => m |> go(a) |> go(b)
+    | If(c, t, f) =>
+      let m = m |> go(c) |> go(t);
+      Option.fold(~none=m, ~some=e => go(e, m), f);
+    | Switch(e, cs) =>
+      List.fold_left(
+        (m, c: FumolaGrammar.case(_, _)) =>
+          m |> pat(~ancestors, c.pat) |> go(c.body),
+        go(e, m),
+        cs,
+      )
+    | Block(ds)
+    | Thunk(ds) => go_ds(ds, m)
+    | DoNav(_, d, e, ds) => m |> go(d) |> go(e) |> go_ds(ds)
+    };
+  }
+  and dec = (~ancestors, d: FumolaTermBase.dec, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(d),
+        InfoFumola(FumolaInfo.of_dec(~ancestors, d)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(d), ...ancestors];
+    switch (d.term) {
+    | DHole(EmptyHole)
+    | DHole(Invalid(_)) => m
+    | DHole(MultiHole(es)) =>
+      List.fold_left((m, e) => go(~ancestors, e, m), m, es)
+    | DExp(e) => go(~ancestors, e, m)
+    | DLet(p, e)
+    | DVar(p, e)
+    | DCase(p, e)
+    | DImport(p, e) => m |> pat(~ancestors, p) |> go(~ancestors, e)
+    | DFunc(_, p, ds) =>
+      List.fold_left(
+        (m, d) => dec(~ancestors, d, m),
+        pat(~ancestors, p, m),
+        ds,
+      )
+    };
+  }
+  and pat = (~ancestors, p: FumolaTermBase.pat, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(p),
+        InfoFumola(FumolaInfo.of_pat(~ancestors, p)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(p), ...ancestors];
+    switch (p.term) {
+    | PHole(EmptyHole)
+    | PHole(Invalid(_))
+    | PVar(_)
+    | PWild
+    | PLit(_) => m
+    | PHole(MultiHole(es)) =>
+      List.fold_left((m, e) => go(~ancestors, e, m), m, es)
+    | PParen(p)
+    | POpt(p) => pat(~ancestors, p, m)
+    | PTuple(ps) => List.fold_left((m, p) => pat(~ancestors, p, m), m, ps)
+    | PVariant(_, p) =>
+      Option.fold(~none=m, ~some=p => pat(~ancestors, p, m), p)
+    };
+  };
+  go(~ancestors, ~instance_name, f, m);
+}
+
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -192,6 +484,7 @@ and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
       ~ana=syn,
+      ~coercible=false,
       ~is_in_filter=false,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
@@ -222,7 +515,7 @@ and uexp_to_info_map =
       )
       : (Info.exp, Exp.t, Map.t) => {
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (expectation_mismatch_mark(~coercible, ctx, ana, elab_syn_ty)) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -233,12 +526,14 @@ and uexp_to_info_map =
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
           | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+            Message.Exp(
+              Common(syn_ana_ok_common(~coercible, ctx, ana, elab_syn_ty)),
+            )
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = fixed_typ(~coercible, ctx, ana, elab_syn_ty);
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
@@ -273,6 +568,7 @@ and uexp_to_info_map =
       (
         ~ctx=ctx,
         ~ana=syn,
+        ~coercible=false,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
@@ -282,6 +578,7 @@ and uexp_to_info_map =
     uexp_to_info_map(
       ~ctx,
       ~ana,
+      ~coercible,
       ~is_in_filter,
       ~ancestors,
       ~probe_ids,
@@ -376,7 +673,7 @@ and uexp_to_info_map =
     switch (term) {
     | Closure(env, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -410,7 +707,7 @@ and uexp_to_info_map =
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       let t_ty = t.user_term;
-      let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let (e, e_elab, m) = go(~ana=t_ty, ~coercible=true, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -461,12 +758,96 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.empty,
         m,
       )
+    /* A Fumola program elaborates to itself, and runs during evaluation.
+       See Transition's FumolaQuote case for the run, and
+       src/language/fumola/README.md for why it is not here.
+
+       The short version: the program is printed with its `hazel … end`
+       escapes rendered as Fumola source, and an escape that names something
+       bound outside has no value until evaluation has reached it. Running at
+       elaboration -- as this did, and as livelit expansion does -- means
+       every escape carries an expression, so a literal crosses and a
+       variable does not.
+
+       What stays here is what statics is for: the escapes are Hazel
+       expressions and are elaborated and type-checked in this expression's
+       own context, so `hazel x end` resolves x the way any other occurrence
+       of x would. Nothing else about the program is Hazel's business. */
+    | FumolaQuote(name, mode, body) =>
+      /* The three Fumola children first: the info map is what the cursor
+         inspector reads, and an id missing from it reports as whitespace
+         rather than as the form it is. */
+      let m =
+        [(true, name), (false, mode), (false, body)]
+        |> List.fold_left(
+             (m, (instance_name, f)) =>
+               fumola_to_info_map(
+                 ~instance_name,
+                 f,
+                 m,
+                 ~ancestors=ancestors_inclusive,
+               ),
+             m,
+           );
+      /* Every `hazel … end` in the program, elaborated where it stands.
+         Synthetic rather than analytic: what a Fumola program expects of an
+         embedded Hazel expression is not something Hazel can see, so the
+         escape is judged on its own and the crossing is checked by
+         FumolaSource at run time. */
+      let (fumola_elabs, co_ctxs, m) =
+        List.fold_left(
+          ((elabs, co_ctxs, m), f) => {
+            let (escapes, co_ctxs, m) =
+              List.fold_left(
+                ((escapes, co_ctxs, m), escape) => {
+                  let (info, elab, m) = go(escape, m);
+                  (escapes @ [elab], co_ctxs @ [info.co_ctx], m);
+                },
+                ([], co_ctxs, m),
+                Fumola.escapes(f),
+              );
+            (elabs @ [Fumola.set_escapes(f, escapes)], co_ctxs, m);
+          },
+          ([], [], m),
+          [name, mode, body],
+        );
+      let (name, mode, body) =
+        switch (fumola_elabs) {
+        | [name, mode, body] => (name, mode, body)
+        /* Unreachable: the fold is over a three-element list. */
+        | _ => (name, mode, body)
+        };
+      add(
+        ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
+        /* Unknown, because what a program produces is not decided until it
+           has run. The expected type still reaches the run -- through
+           FumolaCtx, which is how the result gets its shape -- but it is not
+           something this expression can claim to synthesize. */
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[],
+        /* A variable used inside an escape is used, and saying otherwise
+           would have Hazel report it unused. */
+        ~co_ctx=CoCtx.union(co_ctxs),
+        m,
+      );
     | DrvQuote(term, sort) =>
       let m =
         drv_to_info_map(term, m, ~ctx, ~ancestors=ancestors_inclusive, ~sort);
       add(
         ~elab_term=DrvQuote(term, sort) |> rewrap,
         ~elab_syn_ty=DrvQuoteTy(sort) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      );
+    /* A Blackboard document is inert in an expression: it has no value and
+       no interesting Hazel type yet.  Checking the document itself, and a
+       type that reflects it, arrive with the Blackboard statics. */
+    | BbQuote(b) =>
+      let m = bb_to_info_map(b, m, ~ancestors=ancestors_inclusive);
+      add(
+        ~elab_term=BbQuote(b) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -507,6 +888,29 @@ and uexp_to_info_map =
         ~marks=marks_lit,
         /* caret-prefixed to match the `let ^name` binder's Var entry */
         ~co_ctx=CoCtx.singleton("^" ++ name, Exp.rep_id(uexp), ana),
+        m,
+      );
+    /* A reference synthesizes the type of the value it carries, which came
+       from dereferencing the cell in the runtime. So a reference to a cell
+       holding an Int is an Int, and no annotation is needed anywhere: the
+       type is established rather than asserted. */
+    | FumolaPeek({instance_id, reads, source, value, holds, info}) =>
+      let (value_info, value_elab, m) = go(~ana, value, m);
+      add(
+        ~elab_term=
+          FumolaPeek({
+            instance_id,
+            reads,
+            source,
+            value: value_elab,
+            holds,
+            info,
+          })
+          |> rewrap,
+        ~elab_syn_ty=value_info.elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=value_info.co_ctx,
+        ~probe_targets=value_info.probe_targets,
         m,
       );
     | ListLit(es) =>
@@ -672,7 +1076,10 @@ and uexp_to_info_map =
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
-        | Some(var) => (var.typ, [])
+        | Some(var) =>
+          /* A module variable names its own abstract types: `M : { type T }`
+             synthesizes `{ type T = M.T }`. */
+          (Typ.strengthen(ctx, var.typ, ~path=Var(name) |> Typ.temp), [])
         };
       add(
         ~elab_term=Var(name) |> rewrap,
@@ -682,7 +1089,7 @@ and uexp_to_info_map =
         m,
       );
     | DynamicErrorHole(e, err) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -692,7 +1099,7 @@ and uexp_to_info_map =
         m,
       );
     | Parens(e) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -702,7 +1109,7 @@ and uexp_to_info_map =
         m,
       );
     | Projector(data, e) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let (e, e_elab, m) = go(~ana, ~coercible, e, m);
       /* A probed livelit projector also computes view(model) in this run,
          sampled at the projector's id for the projector to render */
       let e_elab =
@@ -978,7 +1385,7 @@ and uexp_to_info_map =
           ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) =>
             switch (e.term) {
             | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (e_info, elab, m) = go(~ana, e, m);
+              let (e_info, elab, m) = go(~ana, ~coercible, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -989,7 +1396,8 @@ and uexp_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+              let (value_info, value_elab, m) =
+                go(~ana=val_mode, ~coercible, value, m);
               let (lab_name, label_invalid, m) =
                 switch (label.term) {
                 | Label(name) =>
@@ -1083,7 +1491,7 @@ and uexp_to_info_map =
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | _ =>
-              let (e_info, elab, m) = go(~ana, e, m);
+              let (e_info, elab, m) = go(~ana, ~coercible, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1152,7 +1560,7 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
-      let (e, elab_inner, m) = go(~ana, e, m);
+      let (e, elab_inner, m) = go(~ana, ~coercible, e, m);
       /* Add info for the ExplicitNonlabel directly */
       let (_, elab_label, m) =
         add(
@@ -1183,7 +1591,7 @@ and uexp_to_info_map =
     | TupLabel(label, e) =>
       let (labmode, val_mode) =
         LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-      let (e, elab_child, m) = go(~ana=val_mode, e, m);
+      let (e, elab_child, m) = go(~ana=val_mode, ~coercible, e, m);
       let (lab_name, m) =
         switch (label.term) {
         | Label(name) =>
@@ -1499,22 +1907,11 @@ and uexp_to_info_map =
         };
       | Sig(items) =>
         /* Value member of a module. Manifest type members declared in the
-           signature are substituted into the member's type. */
+           signature are substituted into the member's type; abstract ones
+           become paths through the module when the module is a path
+           (`m.x : m.T`), `?` otherwise. */
         let labels = Sig.value_names(Sig.members(items));
-        /* For a builtin module (Html, Attr, Cmd, Sub; always in scope) the
-           member type keeps the module's type members as paths, `Html.T`,
-           which stay compact. A user module's members get the definitions
-           substituted, since its path may leave scope. */
-        let project = name =>
-          switch (Exp.term_of(e1)) {
-          | Var(m)
-              when
-                Ctx.lookup_var(ctx, m)
-                |> Option.map((v: Ctx.var_entry) => v.id == Id.invalid)
-                |> Option.value(~default=false) =>
-            Typ.sig_project_value_along(~path=Typ.temp(Var(m)), items, name)
-          | _ => Typ.sig_project_value(items, name)
-          };
+        let self = ModuleHelpers.path_of_exp(ctx, e1);
         /* A builtin module's member IS a constructor: elaborate to it, so
            the runtime never carries the module value (which substitution
            would otherwise copy into every closure that names `Html`). */
@@ -1533,8 +1930,21 @@ and uexp_to_info_map =
           };
         switch (e2.term) {
         | Label(name) =>
-          switch (project(name)) {
+          switch (Typ.sig_project_value(~self?, items, name)) {
           | Some(typ) =>
+            /* A sub-module member names its abstract types through the
+               extended path (`m.inner.T`). */
+            let typ =
+              switch (self) {
+              | Some(path) =>
+                Typ.strengthen(
+                  ctx,
+                  typ,
+                  ~path=
+                    ProdProjection(path, Label(name) |> Typ.temp) |> Typ.temp,
+                )
+              | None => typ
+              };
             add(
               ~elab_term=member_elab(name),
               ~elab_syn_ty=typ,
@@ -1543,7 +1953,7 @@ and uexp_to_info_map =
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,
               m,
-            )
+            );
           | None =>
             add(
               ~elab_term=dot_elab,
@@ -1680,7 +2090,7 @@ and uexp_to_info_map =
       );
     | Filter(Filter({pat: cond, act}), body) =>
       let (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
-      let (body, body_elab, m) = go(~ana, body, m);
+      let (body, body_elab, m) = go(~ana, ~coercible, body, m);
       add(
         ~elab_term=
           Filter(
@@ -1702,7 +2112,7 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Residue(i, act), body) =>
-      let (body, body_elab, m) = go(~ana, body, m);
+      let (body, body_elab, m) = go(~ana, ~coercible, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
         ~elab_syn_ty=body.elab_syn_ty,
@@ -1735,6 +2145,7 @@ and uexp_to_info_map =
         | Some({typ, _}) =>
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
+          let typ = Typ.strengthen(ctx, typ, ~path=Var(name) |> Typ.temp);
           let (info, _, m) =
             add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
           let m =
@@ -1784,9 +2195,58 @@ and uexp_to_info_map =
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
-        | Some({expansion_t, model_t, expand, user_def, _}) =>
-          let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
+        | Some({
+            expansion_t,
+            model_t,
+            expand,
+            requires_annotation,
+            user_def,
+            _,
+          }) =>
+          /* A livelit that requires an annotation expands against the type
+             expected here, and the expansion has that type. Without one it
+             cannot know what to produce -- the fumola livelit's result shape
+             depends on both its program and the type asked of it -- so it
+             says so rather than guessing. */
+          let annotated =
+            switch (Typ.normalize(ctx, ana).term) {
+            | Unknown(_) => false
+            | _ => true
+            };
+          let expansion_ty =
+            requires_annotation && annotated ? ana : expansion_t;
+          let (fn, fn_elab, m) = go(~ana=expansion_ty, fn, m);
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
+
+          /* What a livelit needs from the context in order to expand: resolve
+             a constructor name, and unfold aliases so an expected type
+             written as a name can be destructured. Closures rather than the
+             context itself, because Ctx depends on LivelitCtx and so the
+             livelit interface cannot name Ctx.t. */
+          let tools: LivelitCtx.type_tools = {
+            resolve_ctr: (~ana, name) =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty) => Some(ty)
+              | None =>
+                switch (Ctx.lookup_ctr(ctx, name)) {
+                | Some({typ, _}) => Some(typ)
+                | None => None
+                }
+              },
+            normalize: ty => Typ.normalize(ctx, ty),
+          };
+
+          /* Expansion at this use site. A livelit that only expands in
+             checking mode produces nothing when no type is expected here. */
+          let try_expand = (model: Exp.t) =>
+            requires_annotation && !annotated
+              ? None
+              : expand(
+                  ~id=Exp.rep_id(uexp),
+                  ~ana=expansion_ty,
+                  ~tools,
+                  model,
+                );
 
           /* A user-defined livelit's expansion embeds the model, so give it
              the ELABORATED model — the surface form of e.g. a committed
@@ -1810,7 +2270,7 @@ and uexp_to_info_map =
           let expansion_marks = (expanded: Exp.t) => {
             let to_check =
               Option.is_some(user_def)
-                ? expand(arg.user_term) : Some(expanded);
+                ? try_expand(arg.user_term) : Some(expanded);
             switch (to_check) {
             /* mk_expand_dot always expands, so None is unreachable for a
                user livelit; skipping the check is the safe reading if
@@ -1827,12 +2287,12 @@ and uexp_to_info_map =
           };
 
           // try to expand
-          switch (expand(model_for_expand)) {
+          switch (try_expand(model_for_expand)) {
           | Some(expanded) =>
             let (info, elab, m) =
               add(
                 ~elab_term=expanded,
-                ~elab_syn_ty=expansion_t,
+                ~elab_syn_ty=expansion_ty,
                 ~marks=expansion_marks(expanded),
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
@@ -1852,8 +2312,12 @@ and uexp_to_info_map =
             // if we can't expand, flag as improper model
             add(
               ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-              ~elab_syn_ty=expansion_t,
-              ~marks=[BadLivelitModel(expansion_t)],
+              ~elab_syn_ty=expansion_ty,
+              ~marks=[
+                requires_annotation && !annotated
+                  ? Mark.LivelitNeedsAnnotation(s)
+                  : Mark.BadLivelitModel(expansion_t),
+              ],
               ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
               ~probe_targets=
                 SubexpProbeTargets.union_all([
@@ -1938,7 +2402,7 @@ and uexp_to_info_map =
           )
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
-          let (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
+          let (arg, arg_elab, m) = go(~ana=ty_in, ~coercible=true, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
           let probe_targets_ap =
@@ -2110,7 +2574,10 @@ and uexp_to_info_map =
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      /* The body is the function's result: at a coercion site it is sealed
+         to the expected codomain, as a functor body is to its result
+         signature. The parameter stays exact. */
+      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, ~coercible, e, m);
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
          Use `p'.ty` (the ana-meet'd type) rather than `p'.elab_syn_ty`.
          For bare `Var`/`EmptyHole` patterns `elab_syn_ty` is `?`, which
@@ -2119,7 +2586,13 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      /* At a coercion site the body's checked type is the codomain, and the
+         elaborated body carries the sealing cast. */
+      let e_elab =
+        coercible
+          ? fresh_ascription(ctx, e_elab, e.elab_syn_ty, Some(e.ty)) : e_elab;
+      let syn_ty_fun =
+        Arrow(p.ty, coercible ? e.ty : e.elab_syn_ty) |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
@@ -2260,7 +2733,10 @@ and uexp_to_info_map =
           |> def_rewrap
         | (_, _) => def
         };
-      let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+      /* The definition is coerced to the binder's annotation: every analysis
+         of it below is a coercion site. */
+      let (def_rec_probe, _, _) =
+        go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
       let rec_check_ty =
         switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
         | Unknown(SynSwitch) => def_rec_probe.ty
@@ -2269,7 +2745,8 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+          let (def, def_elab, m) =
+            go(~ana=p_syn.ty, ~coercible=true, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
@@ -2281,7 +2758,8 @@ and uexp_to_info_map =
             );
           (def, def_elab, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+          let (def_base, _, _) =
+            go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _, _) =
@@ -2293,7 +2771,8 @@ and uexp_to_info_map =
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
+          let (def_base2, _, _) =
+            go(~ctx=def_ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
             Typ.term_of(ty_p) == Unknown(SynSwitch)
             && !Typ.equal(ty_fn1, ty_fn2)
@@ -2311,7 +2790,8 @@ and uexp_to_info_map =
             | ((_, _), _) =>
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
             };
-          let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+          let (def, def_elab, m) =
+            go(~ctx=def_ctx, ~ana, ~coercible=true, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
         };
       /* Bind a livelit: `let ^name = { ...members } in ...` additionally
@@ -2323,18 +2803,21 @@ and uexp_to_info_map =
       let (p_ana_ctx, livelit_marks) =
         switch (UserLivelit.binder_name(p)) {
         | Some(ll_name) =>
-          switch (
+          let (ll, marks) =
             UserLivelit.mk(
               ~ctx,
+              ~m,
               ~name=ll_name,
               ~id=Pat.rep_id(p),
               ~def_user=def.user_term,
               ~def_elab,
-            )
-          ) {
-          | Ok(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), [])
-          | Error(e) => (p_ana_ctx, [Mark.InvalidLivelitDef(e)])
-          }
+            );
+          /* A definition with a bad member type is still bound, so its
+             uses resolve and get their own check. */
+          switch (ll) {
+          | Some(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), marks)
+          | None => (p_ana_ctx, marks)
+          };
         | None => (p_ana_ctx, [])
         };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
@@ -2887,12 +3370,24 @@ and uexp_to_info_map =
       let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
       let (m, mismatched_types) =
         ModuleHelpers.check_ana_type_members(~ana_items, items, m);
-      /* Extra members are fine: the signature seals them away (width
-         subtyping, see Typ.ana_meet). Missing members are an error. */
-      let marks =
-        switch (ModuleHelpers.missing_members(~ana_items, sig_ty)) {
-        | [] => []
-        | names => [Mark.ModuleMissingMembers(names)]
+      /* Extra members are not marked here: the module's own add() seals them
+         away at a coercion site (Typ.coercion) and reports the mismatch
+         anywhere else. A hole among the items may still bind the members the
+         signature declares and the module lacks: they are assumed, not
+         reported. Only a hole where a member could be bound counts. */
+      let (sig_ty, marks) =
+        switch (ModuleHelpers.missing_items(~ana_items, sig_ty)) {
+        | [] => (sig_ty, [])
+        | missing when ModuleHelpers.has_hole_binder(items) => (
+            ModuleHelpers.assume_members(sig_ty, missing),
+            [],
+          )
+        | missing => (
+            sig_ty,
+            [
+              Mark.ModuleMissingMembers(ModuleHelpers.member_names(missing)),
+            ],
+          )
         };
       add(
         ~elab_term=
@@ -2944,7 +3439,8 @@ and uexp_to_info_map =
         | Asc(_, typ) => typ
         | _ => syn
         };
-      let (_, def_elab_direct, m) = go(~ana=def_ana, def, m);
+      let (_, def_elab_direct, m) =
+        go(~ana=def_ana, ~coercible=true, def, m);
       let moduleexp_elab =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
@@ -3016,7 +3512,7 @@ and upat_to_info_map =
       if (marks != []) {
         marks;
       } else {
-        switch (expectation_mismatch_mark_pat(ctx, ana, elab_syn_ty)) {
+        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
         | None => marks
         | Some(m) => marks @ [m]
         };
@@ -3027,12 +3523,11 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ =>
-              Message.Common(syn_ana_ok_common_pat(ctx, ana, elab_syn_ty))
+            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ_pat(ctx, ana, elab_syn_ty);
+    let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let warning_acc =
       warnings
       @ (
@@ -3931,13 +4426,25 @@ and utyp_to_info_map =
         | _ => None
         };
       switch (whole_path, Typ.path_sig(ctx, pty), l.term) {
-      | (Some(items), _, _) =>
+      | (Some((items, _)), _, _) =>
         /* A module path (`M.P`) used as the left of a further projection. */
         ok(Message.Type(Sig(items) |> Typ.temp))
-      | (None, Some(items), Label(l)) =>
+      | (None, Some((items, self)), Label(l)) =>
         /* `M.T`: a type member of a module path or signature alias. */
-        switch (Typ.sig_project_type(items, l)) {
-        | Some(ty') =>
+        switch (Typ.sig_project_type_member(~self?, items, l)) {
+        | Some((TypeAbstract(_), ty')) =>
+          switch (self) {
+          | Some(_) => ok(Message.PathAbstract(ty'))
+          | None =>
+            /* A signature alias names no module, so it names no abstract
+               member either; the error is on the label. */
+            ok(
+              Message.TypeUnderdetermined(
+                Message.AbstractMemberOfSignature(l),
+              ),
+            )
+          }
+        | Some((_, ty')) =>
           ok(
             Message.WHNormalizedTo({
               unnormalized: utyp,
@@ -4039,7 +4546,7 @@ and utyp_to_info_map =
       }
     | (ProductExpected, _) =>
       switch (Typ.path_sig(ctx, utyp)) {
-      | Some(items) =>
+      | Some((items, _)) =>
         /* A module variable used as the left of a type projection. */
         ok(Message.Type(Sig(items) |> Typ.temp))
       | None =>
@@ -4048,15 +4555,20 @@ and utyp_to_info_map =
         | ty_n =>
           switch (utyp.term) {
           | Var(name) when Ctx.lookup_tvar(ctx, name) == None =>
-            /* A value variable that is not a module. */
+            /* A value variable: a module root only if its type is a
+               signature, or unknown (it may be a module). */
             switch (Ctx.lookup_var(ctx, name)) {
             | Some({typ, _}) =>
-              err(
-                TypWantModule({
-                  name,
-                  typ,
-                }),
-              )
+              switch (Typ.weak_head_normalize(ctx, typ).term) {
+              | Unknown(_) => ok(Message.Type(typ))
+              | _ =>
+                err(
+                  TypWantModule({
+                    name,
+                    typ,
+                  }),
+                )
+              }
             | None => err(TypWantProduct(ty_n))
             }
           | _ => err(TypWantProduct(ty_n))
@@ -4091,16 +4603,20 @@ and utyp_to_info_map =
         ? ok(Message.Type(utyp)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
-    | (ModuleMemberExpected({members, submodule}), Label(name)) =>
-      List.mem(name, members)
-        ? ok(Message.Type(utyp))
-        : err(
-            ModuleTypeMemberNotFound({
-              name,
-              members,
-              submodule,
-            }),
-          )
+    | (ModuleMemberExpected({members, submodule, unnameable}), Label(name)) =>
+      if (List.mem(name, unnameable)) {
+        err(TypAbstractMemberOfSignature(name));
+      } else if (List.mem(name, members)) {
+        ok(Message.Type(utyp));
+      } else {
+        err(
+          ModuleTypeMemberNotFound({
+            name,
+            members,
+            submodule,
+          }),
+        );
+      }
     | (ConstructorExpected(_), Label(_))
     | (VariantExpected(_), Label(_)) =>
       err(TypWantConstructorFoundType(utyp))
@@ -4186,20 +4702,37 @@ and utyp_to_info_map =
   | ProdProjection(t, label) =>
     let label_expects: TypExpectation.t =
       switch (Typ.path_sig(ctx, t)) {
-      | Some(items) =>
+      | Some((items, self)) =>
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
-           at the end it names a type member. */
+           at the end it names a type member. Through a signature alias (no
+           module path) an abstract member cannot be named. */
         switch (expects) {
         | ProductExpected =>
           ModuleMemberExpected({
             members: Typ.sig_module_member_names(ctx, items),
             submodule: true,
+            unnameable: [],
           })
         | _ =>
+          let members = Sig.members(items);
           ModuleMemberExpected({
-            members: Sig.type_names(Sig.members(items)),
+            members: Sig.type_names(members),
             submodule: false,
-          })
+            unnameable:
+              switch (self) {
+              | Some(_) => []
+              | None =>
+                List.filter_map(
+                  (m: Sig.member) =>
+                    switch (m) {
+                    | TypeAbstract(n) => Some(n)
+                    | TypeManifest(_)
+                    | Val(_) => None
+                    },
+                  members,
+                )
+              },
+          });
         }
       | None =>
         switch (Typ.weak_head_normalize(ctx, t).term) {
@@ -4602,6 +5135,9 @@ and sig_to_info_map =
   | SigModule(mp) =>
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
+  | SigTypeAbstract(tp) =>
+    let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
+    (CoCtx.empty, Sig(s_term), add_sig_info(m));
   };
 }
 and mpat_to_info_map =
@@ -4643,10 +5179,27 @@ and mpat_to_info_map =
   };
 };
 
+/* Elaboration does not depend on the program alone.
+ *
+ * A Fumola livelit expands by asking a runtime that loads asynchronously, so
+ * the same term elaborates to "the runtime is not loaded" before it arrives
+ * and to a value after. The memo below is keyed on the term, which cannot
+ * see that difference, so the first answer would stand for the life of the
+ * page -- no edit helps, because an unedited zipper yields an equal term and
+ * hits the cache.
+ *
+ * Bumping this generation is how something outside the program says the
+ * answer may have changed. It is part of the memo key, so a bump costs one
+ * recomputation per live term and nothing after that. Core.Memo offers no
+ * way to clear an entry, which is why the key carries this instead. */
+let generation = ref(0);
+
+let invalidate = () => incr(generation);
+
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
+    ((ana, ctx, e, probe_ids, _generation: int)) => {
       let (_, elab, m) =
         uexp_to_info_map(
           ~ana,
@@ -4685,4 +5238,49 @@ let mk =
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((ana, ctx, exp, probe_ids, generation^))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));
+
+/* Whether this pass saw a Fumola program. Only fumola_to_info_map writes an
+   InfoFumola entry, so the question is exactly "is there a Fumola term
+   here", and the answer decides where the cell is evaluated: a Fumola
+   program runs against `window.fumola`, which exists on the main thread and
+   not in the worker. */
+let has_fumola = (m: Map.t): bool =>
+  Id.Map.exists(
+    (_, info: Info.t) =>
+      switch (info) {
+      | InfoFumola(_) => true
+      | _ => false
+      },
+    m,
+  );
+
+/* The context a Fumola run needs, read back out of the pass that recorded
+   it. Keyed by the id of the `fumola … end` expression, which elaboration
+   preserves, so the run can ask for the type expected of it and for the two
+   type questions reading a result back raises.
+
+   This is the producing half of FumolaCtx; see there for why the context
+   travels this way rather than on the term. */
+let fumola_resolve = (m: Map.t): FumolaCtx.resolve =>
+  (id: Id.t) =>
+    switch (Map.lookup(id, m)) {
+    | Some(InfoExp({ana, ctx, _})) =>
+      Some({
+        ana,
+        tools: {
+          resolve_ctr: (~ana, ctr_name) =>
+            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr_name)) {
+            | Some(ty) => Some(ty)
+            | None =>
+              switch (Ctx.lookup_ctr(ctx, ctr_name)) {
+              | Some({typ, _}) => Some(typ)
+              | None => None
+              }
+            },
+          normalize: ty => Typ.normalize(ctx, ty),
+        },
+      })
+    | _ => None
+    };

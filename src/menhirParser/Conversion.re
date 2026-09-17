@@ -426,7 +426,13 @@ module rec Exp: {
        converting core DrvQuote values back to the menhir AST is not
        meaningful. */
     | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
+    | FumolaQuote(_) => raise(Failure("FumolaQuote not supported"))
+    | BbQuote(_) => raise(Failure("BbQuote not supported"))
     | Projector(_, e) => of_core(e)
+    /* A reference has no concrete syntax -- it is only ever produced by
+       translating a Fumola result, never written or parsed -- so it converts
+       as the value it denotes. */
+    | FumolaPeek({value, _}) => of_core(value)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
       ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
@@ -700,6 +706,7 @@ and SigItem: {
     | SigItemType(tp, t) =>
       sig_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
     | SigItemModule(p) => sig_module(mpat_of_pat(Pat.of_menhir_ast(p)))
+    | SigItemTypeAbstract(tp) => sig_type_abstract(TPat.of_menhir_ast(tp))
     };
   };
 
@@ -707,6 +714,7 @@ and SigItem: {
     switch (sig_.term) {
     | SigLet(p) => SigItemLet(Pat.of_core(p))
     | SigType(tp, t) => SigItemType(TPat.of_core(tp), Typ.of_core(t))
+    | SigTypeAbstract(tp) => SigItemTypeAbstract(TPat.of_core(tp))
     | SigModule(mp) => SigItemModule(Exp.pat_of_mpat(mp))
     | Invalid(_)
     | EmptyHole

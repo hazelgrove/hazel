@@ -50,7 +50,19 @@ module ValueCheckerEVMode: {
 module CV = Transition(ValueCheckerEVMode);
 
 let rec check_value = (~in_closure=?, env, d) =>
-  CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
+  CV.transition(
+    check_value,
+    ~mode=`Environment,
+    /* Only the shape of the rule is read, so this performs effects it
+       throws away -- the same fault ReusePass had, on a path nothing has
+       yet been seen to hit with a Fumola quote in it. Withholding here
+       would answer Indet where the caller reads Expr, which changes what
+       a stepper filter matches, so it wants its own change. Issue 2564. */
+    ~effects=`Perform(FumolaRun.ValueCheck),
+    ~in_closure?,
+    env,
+    d,
+  );
 
 /* Check if an expression is a fully-evaluated value */
 let is_value = (exp: Exp.t): bool =>

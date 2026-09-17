@@ -514,6 +514,18 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
+      /* A Fumola program reaching a value display did not evaluate, so what
+         a reader wants from it is which instance it was going to run
+         against -- the one thing about it that is not on screen beside it.
+         `<fumola program>` said only that it is one. */
+      | FumolaQuote(name, _, _) =>
+        Invalid(
+          switch (FumolaRun.name_of(name)) {
+          | Some(instance) => "<fumola instance, " ++ instance ++ ">"
+          | None => "<fumola instance, unnamed>"
+          },
+        )
+      | BbQuote(_) => Invalid("<blackboard document>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {
@@ -523,6 +535,17 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | ExplicitNonlabel => ExplicitNonlabel
       | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
+      /* Abbreviated by the value it denotes: the reference text is
+         incidental to reading a shortened result. */
+      | FumolaPeek({instance_id, reads, source, value, holds, info}) =>
+        FumolaPeek({
+          instance_id,
+          reads,
+          source,
+          value: abbreviate_exp(value),
+          holds,
+          info,
+        })
 
       // Other atomic cases
       | EmptyHole =>
@@ -1286,6 +1309,13 @@ and abbreviate_sig_item = (item: Sig.t): Sig.t => {
         available := available^ - 7; /* "module " */
         SigModule(abbreviate_mpat(mp));
       }
+    | SigTypeAbstract(tp) =>
+      if (available^ <= 4) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 5; /* "type " */
+        SigTypeAbstract(abbreviate_tpat(tp));
+      }
     };
   rewrap(term);
 }
@@ -1809,6 +1839,8 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
   | Drv(_) => any
+  | Fumola(_) => any
+  | Bb(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))

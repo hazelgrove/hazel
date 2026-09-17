@@ -75,6 +75,7 @@ let rec pat_name = (p: TermBase.Pat.t): option(string) =>
    the optional `shape`) and the three declared interface types. */
 [@deriving show({with_path: false})]
 type def = {
+  mismatch: option(Mark.livelit_def_error),
   members: list((string, TermBase.Exp.t)), /* member -> bound syntax */
   model_t: TermBase.Typ.t,
   action_t: TermBase.Typ.t,
@@ -105,42 +106,128 @@ let module_members =
 let missing = (required: list(string), have: list((string, 'a))) =>
   List.filter(r => !List.mem_assoc(r, have), required);
 
+/* Check the definition's members against the builtin `Livelit` signature
+   (BuiltinsADT.livelit_sig, in scope as the type alias `Livelit`), which is
+   the one place the livelit interface is written down.
+
+   The signature declares Model, Action and Expansion abstract; here they are
+   REALIZED by this definition's own manifest types, and each required value
+   member is then checked at the type the signature gives it. So `expand` is
+   checked as `Model -> Expansion` with this livelit's actual types -- the
+   definition-site half of the obligation that PLDI 2021 discharges only at
+   each use. The use-site check stays: it is what catches an expansion whose
+   type depends on the model VALUE, which no definition-site check can see.
+
+   Consistency, not equality: a member may be more precise than declared, and
+   a member still containing holes must not be reported as wrong. */
+let check_against_livelit_sig =
+    (
+      ~ctx: Ctx.t,
+      ~types: list((string, Typ.t)),
+      ~vals: list((string, Typ.t)),
+    )
+    : option(Mark.livelit_def_error) => {
+  let realize = (ty: Typ.t): Typ.t =>
+    List.fold_left(
+      (ty, name) =>
+        switch (List.assoc_opt(name, types)) {
+        | Some(def) =>
+          Typ.subst(def, IdTagged.FreshGrammar.TPat.var(name), ty)
+        | None => ty
+        },
+      ty,
+      required_types,
+    );
+  let declared =
+    switch (Ctx.lookup_alias(ctx, "Livelit")) {
+    | Some(ty) =>
+      switch (Typ.term_of(ty)) {
+      | Sig(items) =>
+        Sig.members(items)
+        |> List.filter_map((mem: Sig.member) =>
+             switch (mem) {
+             | Val(n, ty) => Some((n, ty))
+             | _ => None
+             }
+           )
+      | _ => []
+      }
+    | None => []
+    };
+  List.fold_left(
+    (acc, (name, want)) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        let expected = realize(want);
+        switch (List.assoc_opt(name, vals)) {
+        | None => None /* absence is DefMissingMembers' to report */
+        | Some(actual) =>
+          /* Realize the member's OWN type too. It is stated in terms of
+             Model, Action and Expansion, which name nothing in the ctx
+             outside the module: left alone they degrade to ? and the
+             comparison passes whatever expand returns. */
+          let actual = realize(actual);
+          Typ.is_consistent(ctx, expected, actual)
+            ? None
+            : Some(
+                Mark.DefMemberMismatch({
+                  name,
+                  expected,
+                  actual,
+                }),
+              );
+        };
+      },
+    None,
+    declared,
+  );
+};
+
 /* The definition is the trailing module, looking through helper bindings:
    `let helper = ... in {...}`. A helper type alias is brought into scope on
    the way down, so a member type may be stated in terms of it. */
 let rec detect =
-        (~ctx: Ctx.t, def: TermBase.Exp.t)
+        (~ctx: Ctx.t, ~m: StaticsBase.Map.t, def: TermBase.Exp.t)
         : result(def, Mark.livelit_def_error) =>
   switch (strip_parens(def).term) {
-  | Let(_, _, body) => detect(~ctx, body)
+  | Let(_, _, body) => detect(~ctx, ~m, body)
   | TyAlias(tp, ty, body) =>
     let ctx =
       switch (tp.term) {
       | Var(name) => Ctx.extend_alias(ctx, name, TPat.rep_id(tp), ty)
       | _ => ctx
       };
-    detect(~ctx, body);
+    detect(~ctx, ~m, body);
   | Module(items) =>
     let members = module_members(items);
-    /* The module's declared type members, read from the signature Modules
-       II synthesizes for it, so a member type may name an earlier one
-       (`type Expansion = Model`) exactly as it does for `M.Expansion`. Only
-       type members are needed here, so no statics map is supplied; value
-       members come out Unknown and are ignored. */
-    let types =
-      switch (
-        ModuleHelpers.module_sig_type(~ctx, items, StaticsBase.Map.empty).term
-      ) {
-      | Sig(sig_items) =>
-        Sig.members(sig_items)
-        |> List.filter_map((m: Sig.member) =>
-             switch (m) {
-             | TypeManifest(n, ty) => Some((n, ty))
-             | _ => None
-             }
-           )
+    /* The module's members, read from the signature Modules II synthesizes
+       for it, so a member type may name an earlier one (`type Expansion =
+       Model`) exactly as it does for `M.Expansion`. The statics map is
+       supplied so VALUE members carry their synthesized types too: without
+       it they come out Unknown, and checking them against the Livelit
+       signature would pass vacuously. */
+    let sig_members =
+      switch (ModuleHelpers.module_sig_type(~ctx, items, m).term) {
+      | Sig(sig_items) => Sig.members(sig_items)
       | _ => []
       };
+    let types =
+      sig_members
+      |> List.filter_map((mem: Sig.member) =>
+           switch (mem) {
+           | TypeManifest(n, ty) => Some((n, ty))
+           | _ => None
+           }
+         );
+    let vals =
+      sig_members
+      |> List.filter_map((mem: Sig.member) =>
+           switch (mem) {
+           | Val(n, ty) => Some((n, ty))
+           | _ => None
+           }
+         );
     switch (
       missing(required_members, members),
       missing(required_types, types),
@@ -153,6 +240,11 @@ let rec detect =
         model_t: List.assoc("Model", types),
         action_t: List.assoc("Action", types),
         expansion_t: List.assoc("Expansion", types),
+        /* A member whose type is wrong is reported, but does NOT stop the
+           livelit being bound: its uses should keep resolving, and keep
+           being checked themselves. Only a definition we cannot read at
+           all -- not a module, missing members or types -- is fatal. */
+        mismatch: check_against_livelit_sig(~ctx, ~types, ~vals),
       })
     };
   | _ => Error(DefNotModule)
@@ -223,7 +315,22 @@ let default_shape: ProjectorShape.t = {
    form, so typing it consults the definition's ACTUAL expand member rather
    than the interface `member_ty` advertises — which is what makes the
    use-site expansion check below non-vacuous. */
-let mk_expand_dot = (~name: string, model: TermBase.Exp.t) => {
+/* The three labelled arguments are the builtin livelits' expansion context
+   -- the occurrence's id, the expected type, and the type tools for
+   resolving constructors -- and a user-defined livelit needs none of them:
+   it expands by applying its own `expand` member to the model, and whatever
+   that member needs it takes from the program's own scope. They are accepted
+   and ignored so that user-defined and builtin livelits share one `expand`
+   contract, which is what lets a Fumola livelit (which does use all three)
+   sit in the same table. */
+let mk_expand_dot =
+    (
+      ~name: string,
+      ~id as _: Id.t,
+      ~ana as _: TermBase.Typ.t,
+      ~tools as _: LivelitCtx.type_tools,
+      model: TermBase.Exp.t,
+    ) => {
   IdTagged.FreshGrammar.(
     Some(
       Exp.ap(
@@ -332,33 +439,46 @@ let instrument_view =
 let mk =
     (
       ~ctx: Ctx.t,
+      ~m: StaticsBase.Map.t,
       ~name: string,
       ~id: Id.t,
       ~def_user: TermBase.Exp.t,
       ~def_elab: TermBase.Exp.t,
     )
-    : result(LivelitCtx.raw_livelit, Mark.livelit_def_error) =>
-  switch (detect(~ctx, def_user)) {
-  | Error(e) => Error(e)
-  | Ok({members, model_t, action_t, expansion_t}) =>
-    Ok({
-      LivelitCtx.name,
-      id,
-      model_t,
-      model_default: Exp.replace_all_ids(List.assoc("init", members)),
-      expansion_t,
-      expand: mk_expand_dot(~name),
-      action_t,
-      update: (_action, model) => model,
-      view: (_model, _send) =>
-        Virtual_dom.Vdom.Node.text("user-defined livelit"),
-      shape:
-        switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {
-        | Some(shape) => shape
-        | None => default_shape
-        },
-      user_def: Some(def_elab),
-    })
+    : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
+  switch (detect(~ctx, ~m, def_user)) {
+  | Error(e) => (None, [Mark.InvalidLivelitDef(e)])
+  | Ok({mismatch, members, model_t, action_t, expansion_t}) => (
+      Some({
+        LivelitCtx.name,
+        id,
+        model_t,
+        model_default: Exp.replace_all_ids(List.assoc("init", members)),
+        expansion_t,
+        expand: mk_expand_dot(~name),
+        /* False: a user-defined livelit's expansion is whatever its own
+           `expand` member returns, so it has something to produce whether or
+           not an expected type is in scope. The flag exists for livelits that
+           cannot know their expansion without one -- the Fumola livelits,
+           which shape a runtime value by the type it is being read at. */
+        requires_annotation: false,
+        action_t,
+        update: (_action, model) => model,
+        /* A placeholder: a user-defined livelit's real view comes from its own
+           `view` member, rendered by LivelitProj rather than from here. `~id`
+           is the occurrence's id, which the Fumola livelits use to tell two
+           live uses apart; this one has no use for it. */
+        view: (~id as _, _model, _send) =>
+          Virtual_dom.Vdom.Node.text("user-defined livelit"),
+        shape:
+          switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {
+          | Some(shape) => shape
+          | None => default_shape
+          },
+        user_def: Some(def_elab),
+      }),
+      Option.to_list(Option.map(e => Mark.InvalidLivelitDef(e), mismatch)),
+    )
   };
 
 /* The use-site expansion obligation: a use of ^name synthesizes the DECLARED
@@ -371,12 +491,11 @@ let mk =
 let expansion_mark =
     (ctx: Ctx.t, ~declared: TermBase.Typ.t, ~actual: TermBase.Typ.t)
     : list(Mark.t) =>
-  switch (Typ.meet(ctx, declared, actual)) {
-  | Some(_) => []
-  | None => [
+  Typ.is_consistent(ctx, declared, actual)
+    ? []
+    : [
       Mark.BadLivelitExpansion({
         declared,
         actual,
       }),
-    ]
-  };
+    ];

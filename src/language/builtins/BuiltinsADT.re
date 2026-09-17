@@ -41,6 +41,81 @@ module Either = {
     Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
 };
 
+/* Adapton spaces and times, shaped as Fumola defines them.
+
+   Each is mostly just a symbol -- a name for a place, or for a moment -- with
+   one case that is not: `here` and `now` are relative to where evaluation is,
+   and name nothing. A symbol arrives in Hazel as its text, so that is what
+   the Symbol case carries.
+
+   Fumola's Space has a third case, an expression rather than a name. It is
+   left out: nothing on this side has a use for it, and a value carrying one
+   fails to translate rather than arriving mis-shapen. */
+/* Fumola symbols, as Hazel data.
+
+   A symbol is Fumola's notion of a name, and they are first-order: a number
+   is a symbol, an identifier is a symbol, and they compose. Recursive through
+   its own alias name, the way `type MyList = Nil + Cons(Int, MyList)` is.
+
+   A symbol also arrives as plain text where a String is expected. Which one
+   you get is decided by the type asked for, so the text form -- the only way
+   to produce a String from a livelit, since a Hazel string literal cannot
+   contain a quote -- stays available. */
+module Symbol = {
+  /* The alias refers to itself; a Hazel type alias is an implicit least
+     fixed point on its own name. */
+  let self: Typ.t = Typ.fresh(Var("Symbol"));
+
+  /* Wrapped in Rec, the way statics wraps a user-written recursive alias:
+     `type X = ... X ...` becomes Rec(X, ...) precisely so that unfolding it
+     terminates. Registering the bare sum instead makes Typ.normalize unfold
+     Var("Symbol") forever -- "normalize exceeded 1000 recursive calls". */
+  let t: Typ.t =
+    Typ.fresh(
+      Rec(
+        IdTagged.FreshGrammar.TPat.var("Symbol"),
+        sum_type([
+          ("Num", Some(Typ.fresh(Atom(Int)))),
+          ("Name", Some(Typ.fresh(Atom(String)))),
+          ("Call", Some(Typ.fresh(Prod([self, self])))),
+          ("Dot", Some(Typ.fresh(Prod([self, self])))),
+          /* An operator Fumola did not reduce. `1 - `element` is one, and
+             every name the library and level-tree examples mint has this
+             shape, so it is most of what those instances hold. The operator
+             is a String rather than a sum of its own: Fumola sends it as one,
+             and a closed sum here would be a claim about which operators
+             exist that would go stale the first time one was added. */
+          (
+            "BinOp",
+            Some(Typ.fresh(Prod([self, Typ.fresh(Atom(String)), self]))),
+          ),
+          /* A quoted program used as a name -- ``(1 - element)`` is one, which
+             is NOT the same symbol as `1 - `element` even though it reads
+             alike. It carries its own source text and nothing else. */
+          ("QuotedAst", Some(Typ.fresh(Atom(String)))),
+        ]),
+      ),
+    );
+};
+
+/* A place and a moment. Each is a symbol or the one distinguished case that
+   is not a symbol -- `here` and `now` name nothing, so they come across as
+   their own case rather than as a symbol of some text.
+
+   The symbol is carried as a symbol, not as its text. It was a String until
+   the runtime started putting structure in these positions and the text
+   stopped being a faithful rendering of it: a pass time is `hazel(52), whose
+   text spelling loses that it is an application of a name to a number, and
+   which cannot be compared with the symbol in an event once it is flattened.
+   Text also could not be told apart from a symbol that really is a name. */
+module Space = {
+  let t: Typ.t = sum_type([("Symbol", Some(Symbol.t)), ("Here", None)]);
+};
+
+module Time = {
+  let t: Typ.t = sum_type([("Symbol", Some(Symbol.t)), ("Now", None)]);
+};
+
 module Option = {
   let t: Typ.t =
     sum_type([
@@ -661,13 +736,53 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
   | None => None
   };
 
+/* THE LIVELIT TYPE. The signature every user-defined livelit definition is
+   checked against, at the definition site (UserLivelit.detect). Writing it
+   once, here, is what lets the check be a signature check rather than four
+   hand-rolled member comparisons.
+
+   Model, Action and Expansion are ABSTRACT: each livelit chooses them, and
+   the signature only says that the four members agree about them. The check
+   realizes each abstract member by the definition's own manifest type
+   (Typ.sig_sub), so `expand` is checked as `Model -> Expansion` with that
+   livelit's actual types -- which is the obligation the paper discharges
+   per use, moved to the definition.
+
+   Nothing SEALS a livelit with this signature: sealing would hide
+   Expansion, and a use of ^name must keep synthesizing it concretely for
+   clients to reason about. `shape` and helper members are deliberately
+   absent -- they are optional, and extra members are allowed by width
+   subtyping. */
+let livelit_sig: Typ.t = {
+  let model = var("Model");
+  let action = var("Action");
+  let expansion = var("Expansion");
+  sig_([
+    Sig.item_of_member(Sig.TypeAbstract("Model")),
+    Sig.item_of_member(Sig.TypeAbstract("Action")),
+    Sig.item_of_member(Sig.TypeAbstract("Expansion")),
+    Sig.item_of_member(Sig.Val("init", model)),
+    Sig.item_of_member(
+      Sig.Val("update", arrow(prod([model, action]), model)),
+    ),
+    Sig.item_of_member(
+      Sig.Val("view", arrow(model, HtmlModules.path("Html", "T"))),
+    ),
+    Sig.item_of_member(Sig.Val("expand", arrow(model, expansion))),
+  ]);
+};
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
+  ("Symbol", Symbol.t),
+  ("Space", Space.t),
+  ("Time", Time.t),
   ("Either", Either.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
+  ("Livelit", livelit_sig),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>

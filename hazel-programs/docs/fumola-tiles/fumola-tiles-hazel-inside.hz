@@ -1,0 +1,42 @@
+# HAZEL INSIDE FUMOLA #
+
+# `fumola ... end` takes Hazel into Fumola.  `hazel ... end` takes it back: #
+# inside a Fumola program it is a Fumola form whose child is Hazel, edited #
+# as Hazel, with Hazel's types and completion. #
+
+let sum = fumola $graphical as store in
+  hazel 1 end + hazel 2 end
+end in
+
+# The Hazel value is rendered as Fumola source on the way in, so the two #
+# above reach the runtime as (1) + (2).  Anything with a written Fumola #
+# form can cross: numbers, booleans, tuples, lists, constructors. #
+
+let pair = fumola $graphical as store in
+  hazel (1, true) end
+end in
+
+# The mode is a Fumola notion, so Hazel needs a type declaring its two #
+# names before it can hold one.  Without it `Graphical` is a constructor #
+# belonging to no sum, which Hazel is right to mark -- and it is used #
+# twice below, so the declaration goes above them both. #
+
+type Mode = + Simple + Graphical in
+
+# The mode slot takes one too, so an instance can be configured in Hazel's #
+# own words rather than Fumola's: #
+
+let configured: Int = fumola hazel Graphical end as store in 1 end in
+
+# An escape carries a *value*, and a variable the surrounding Hazel program #
+# bound is one: a Fumola program runs during evaluation, so by the time it #
+# is printed its escapes have been reduced.  That holds in the mode slot #
+# too, which is what lets a mode be named once and referred to: #
+
+let named = let m: Mode = Graphical in
+  fumola hazel m end as store in 1 + 1 end in
+
+# What an escape cannot carry is a value with no written Fumola form -- a #
+# function, a hole.  The program says so when it runs. #
+
+(sum, pair, configured, named)

@@ -32,7 +32,17 @@ type error_builtin =
 type livelit_def_error =
   | DefNotModule
   | DefMissingMembers(list(string))
-  | DefMissingTypes(list(string));
+  | DefMissingTypes(list(string))
+  /* A member whose type disagrees with what the builtin `Livelit`
+     signature requires of it, once that signature's abstract Model,
+     Action and Expansion are realized by this definition's own types.
+     `expand` failing this is the definition-site half of the expansion
+     obligation the paper checks only per use. */
+  | DefMemberMismatch({
+      name: string,
+      expected: Typ.t,
+      actual: Typ.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
@@ -75,6 +85,12 @@ type t =
       type_member: bool,
     })
   | BadOperator(string)
+  /* A Fumola program that could not produce a Hazel value: the runtime is
+     missing, the program went wrong, or what it produced has no Hazel form.
+     Carries what the runtime said, which is the only useful thing to show.
+     Not used for a syntax error -- a half-written program is one on nearly
+     every keystroke, and the editor already says so better than a mark. */
+  | FumolaFailed(string)
   | BadLivelitModel(Typ.t)
   /* The livelit's expansion does not have the type the definition
      declares for it (`type Expansion`). The declared type is what
@@ -84,6 +100,11 @@ type t =
       actual: Typ.t,
     })
   | InvalidLivelitDef(livelit_def_error)
+  /* A livelit that only expands in checking mode, used with no expected
+     type. It cannot know what to produce, so it says so. Only the builtin
+     Fumola livelits ask for this: what they produce depends on the type
+     asked of them as well as on the program they run. */
+  | LivelitNeedsAnnotation(string)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,
@@ -123,6 +144,9 @@ type t =
       name: Var.t,
       typ: Typ.t,
     })
+  /* `S.T` where S is a signature alias and T is abstract in it: no module is
+     named, so there is no T to name. */
+  | TypAbstractMemberOfSignature(Var.t)
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure

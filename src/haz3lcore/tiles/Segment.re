@@ -99,6 +99,8 @@ let shape_affix =
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
+  | Fumola(_) => remold_template(s, shape, seg)
+  | Bb(_) => remold_template(s, shape, seg)
   | Any => seg
   | Typ => remold_typ(shape, seg)
   | Pat => remold_pat(shape, seg)
@@ -111,8 +113,31 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
-  let+ remolded =
+  /* A label with no form in this sort: an incomplete tile whose present
+     shards spell a complete compound form of the sort takes that form, so
+     `let y = 2` still owed its `in` becomes the module item once a `;` puts
+     it in a module body. Compound only: a lone keyword shard must not
+     become a variable. */
+  let (t, molds) =
     switch (Form.Molds.try_get(s, t.label)) {
+    | Some(_) as molds => (t, molds)
+    | None when Tile.is_complete(t) => (t, None)
+    | None =>
+      let label = Tile.effective_label(t);
+      switch (Form.Molds.try_get_compound(s, label)) {
+      | Some(_) as molds => (
+          {
+            ...t,
+            label,
+            shards: List.init(List.length(t.shards), Fun.id),
+          },
+          molds,
+        )
+      | None => (t, None)
+      };
+    };
+  let+ remolded =
+    switch (molds) {
     | None => None
     | Some(molds) =>
       molds
@@ -163,6 +188,13 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     | Typ => [Drv(Pat)]
     | TPat => [Drv(Typ), Typ]
     }
+  /* `hazel … end` reopens Hazel inside a Fumola program, so Exp is a subsort
+     here: without it the template keeps remolding in Fumola past the escape,
+     and a Hazel tuple written inside one comes back molded as a Fumola tuple
+     wrapped in a hole. Fumola is still closed to Hazel's *forms* -- see
+     Insert.effective_sort -- and this is the one door. */
+  | Fumola(Exp) => [Exp]
+  | Fumola(Name) => []
   | _ => []
   }
 

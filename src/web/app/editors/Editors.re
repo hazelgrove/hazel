@@ -129,24 +129,63 @@ module Store = {
 
   let load_scratch = (~settings) => {
     let (default_current, default_names) = scratch_defaults();
+    /* No reconcile: the scratch default is a seed ("Scratchpad 1"), not
+       shipped content, so splicing it back in would hand a fresh empty
+       pad to everyone who renamed or deleted theirs. */
     ScratchMode.Persist.load_all(
       "scratch",
       ~settings,
       ~default_names,
       ~default_current,
+      ~reconcile=false,
     )
     |> ScratchMode.integrate_share(~settings);
   };
 
   let load_documentation = (~settings) => {
     let (default_current, default_names) = doc_defaults();
+    /* Reconcile: these are shipped reference slides, so a browser that
+       has been here before still has to pick up ones added since. */
     ScratchMode.Persist.load_all(
       "doc",
       ~settings,
       ~default_names,
       ~default_current,
+      ~reconcile=true,
     );
   };
+
+  /* A `?slide=` names a documentation slide, so open the deck there instead
+     of wherever this browser left it. Matching against the deck as loaded
+     rather than the shipped names is what survives a slide added, removed or
+     renamed since this browser last visited. A name that matches nothing is
+     ignored rather than opening the deck somewhere arbitrary: a link that has
+     gone stale should be no worse than no link at all.
+
+     `hydrate_current` is not optional: `load_all` reads only the slide it
+     opens on and leaves every other one dormant, so moving `current` without
+     it lands on a placeholder -- the deck names the right slide, the
+     breadcrumb agrees, and the editor is empty. */
+  let linked_slide = (~settings): option(ScratchMode.Model.t) =>
+    switch (DeepLink.slide()) {
+    | None => None
+    | Some(_) =>
+      let m = load_documentation(~settings);
+      switch (DeepLink.slide_index(ScratchMode.Model.scratchpad_names(m))) {
+      | None => None
+      | Some(current) =>
+        Some(
+          ScratchMode.Persist.hydrate_current(
+            ~settings,
+            "doc",
+            {
+              ...m,
+              current,
+            },
+          ),
+        )
+      };
+    };
 
   let load = (~settings, ~instructor_mode) => {
     let has_share_params =
@@ -156,20 +195,23 @@ module Store = {
     if (has_share_params) {
       Model.Scratch(load_scratch(~settings));
     } else {
-      let mode = StoreMode.load();
-      switch (mode) {
-      | Scratch => Model.Scratch(load_scratch(~settings))
-      | Documentation => Model.Documentation(load_documentation(~settings))
-      | Tutorial =>
-        Model.Tutorial(
-          TutorialsMode.Store.load(~settings, ~instructor_mode)
-          |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
-        )
-      | Exercises =>
-        Model.Exercises(
-          ExercisesMode.Store.load(~settings, ~instructor_mode)
-          |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
-        )
+      switch (linked_slide(~settings)) {
+      | Some(m) => Model.Documentation(m)
+      | None =>
+        switch (StoreMode.load()) {
+        | Scratch => Model.Scratch(load_scratch(~settings))
+        | Documentation => Model.Documentation(load_documentation(~settings))
+        | Tutorial =>
+          Model.Tutorial(
+            TutorialsMode.Store.load(~settings, ~instructor_mode)
+            |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
+          )
+        | Exercises =>
+          Model.Exercises(
+            ExercisesMode.Store.load(~settings, ~instructor_mode)
+            |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
+          )
+        }
       };
     };
   };

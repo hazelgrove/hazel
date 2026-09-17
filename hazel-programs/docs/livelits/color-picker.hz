@@ -27,7 +27,7 @@ let ^hwb = {
 
   let init : Model = (160, 25, 10);
 
-  let update = fun (m, a) : (Model, Action) -> a;
+  let update = fun (_m, a) : (Model, Action) -> a;
 
   let view = fun (h, w, b) : Model ->
     Html.div(

@@ -138,37 +138,89 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
 /* Expected types for the module's value members when it is analyzed
    against a signature: each member's declared type with the signature's own
    manifest type members substituted away, so `{ type T = Int; let x : T }`
-   expects `x : Int`. */
+   expects `x : Int`. An abstract member, or a sibling member a path goes
+   through, keeps its bare name: inside the lowered body it resolves to the
+   module's own definition (the ML rule that a sealed member is checked
+   against the module's realization of T). A member whose type mentions a
+   signature name the module does not define ([defined]) gets no expectation:
+   the missing member is reported on the module, and a free name here would
+   be reported on the signature. Expectations get fresh ids so that checking
+   them never records info under the signature's own type nodes. */
 let ana_value_types =
     (~defined: list(Var.t), ana_items: option(list(Sig.t)))
     : list((Var.t, Typ.t)) =>
   switch (ana_items) {
   | None => []
   | Some(items) =>
-    Sig.members(items)
-    |> Sig.value_names
+    let members = Sig.members(items);
+    /* Names a member's type can only mean through the module's own
+       definitions: abstract type members and value members (paths). A
+       manifest type member has a definition to substitute instead. */
+    let opaque_locals =
+      List.filter_map(
+        (m: Sig.member) =>
+          switch (m) {
+          | TypeAbstract(x)
+          | Val(x, _) => Some(x)
+          | TypeManifest(_) => None
+          },
+        members,
+      );
+    let mentions_undefined = (ty: Typ.t) =>
+      Typ.free_vars(ty)
+      |> List.exists(v =>
+           List.mem(v, opaque_locals) && !List.mem(v, defined)
+         );
+    Sig.value_names(members)
     |> List.filter_map(name =>
-         Typ.sig_project_value(
-           ~keep_local=name => List.mem(name, defined),
-           items,
-           name,
-         )
-         |> Option.map(ty =>
-              (
-                name,
-                Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+         switch (Typ.sig_project_value(~keep_local=_ => true, items, name)) {
+         | Some(bare) when mentions_undefined(bare) => None
+         | Some(_) =>
+           Typ.sig_project_value(
+             ~keep_local=n => List.mem(n, defined),
+             items,
+             name,
+           )
+           |> Option.map(ty =>
+                (
+                  name,
+                  Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+                )
               )
-            )
-       )
+         | None => None
+         }
+       );
   };
 
-/* Annotate a bare variable pattern with the type its signature expects, so
-   a mismatch is reported on the definition rather than on the module. The
-   function shorthand `let f(x) = ...` is annotated at its name: the `Let`
-   case of statics then desugars it as it does any other shorthand. */
-let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
+/* The module path an expression denotes, if any: a module variable
+   (possibly written capitalized), or a member projection out of one. */
+let rec path_of_exp = (ctx: Ctx.t, e: Exp.t): option(Typ.t) =>
+  switch (e.term) {
+  | Var(x)
+  | Constructor(x, _) when Ctx.lookup_var(ctx, x) != None =>
+    Some(Var(x) |> Typ.temp)
+  | Dot(e, {term: Label(l), _}) =>
+    path_of_exp(ctx, e)
+    |> Option.map(p => ProdProjection(p, Label(l) |> Typ.temp) |> Typ.temp)
+  | Parens(e) => path_of_exp(ctx, e)
+  | _ => None
+  };
+
+/* Annotate each bare variable binder in a pattern with the type its
+   signature expects, so a mismatch is reported on the definition (or on the
+   component of a destructured definition) rather than on the module:
+   `(a, b)` becomes `(a : Int, b : Int)`. A binder the user annotated keeps
+   its annotation. The function shorthand `let f(x) = ...` is annotated at
+   its name: the `Let` case of statics then desugars it as it does any other
+   shorthand. */
+let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
+  let go = modlet_pat(ana_labels);
+  let rewrap = (term: Pat.term): Pat.t => {
+    ...pat,
+    term,
+  };
   switch (FunctionSugar.detect(pat)) {
-  | Some(_) => FunctionSugar.map_binder(modlet_pat(ana_labels), pat)
+  | Some(_) => FunctionSugar.map_binder(go, pat)
   | None =>
     switch (pat.term) {
     | Var(name) =>
@@ -176,9 +228,25 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
       | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
       | None => pat
       }
-    | _ => pat
+    | Tuple(ps) => rewrap(Tuple(List.map(go, ps)))
+    | ListLit(ps) => rewrap(ListLit(List.map(go, ps)))
+    | Cons(p1, p2) => rewrap(Cons(go(p1), go(p2)))
+    | TupLabel(l, p) => rewrap(TupLabel(l, go(p)))
+    | Parens(p) => rewrap(Parens(go(p)))
+    | Projector(d, p) => rewrap(Projector(d, go(p)))
+    | Ap(ctr, p) => rewrap(Ap(ctr, go(p)))
+    | Asc(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | Constructor(_)
+    | Label(_) => pat
     }
   };
+};
 
 let wrap_item =
     (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
@@ -195,9 +263,11 @@ let wrap_item =
     )
   | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
   | ModuleMod(mp, def) =>
+    /* A sub-module gets its declared signature as expectation too, so a
+       member it lacks or defines wrongly is reported inside it. */
     IdTagged.fast_copy(
       Mod.rep_id(item),
-      Exp.fresh(Let(mpat_to_pat(mp), def, body)),
+      Exp.fresh(Let(modlet_pat(ana_labels, mpat_to_pat(mp)), def, body)),
     )
   | ModVal(x, def) =>
     IdTagged.fast_copy(
@@ -368,20 +438,67 @@ let module_sig_type =
 };
 
 /* Members the analyzed signature requires that the module does not export. */
-let missing_members =
-    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
+/* The analyzed signature's items the module does not define. */
+let missing_items =
+    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Sig.t) =>
   switch (ana_items, sig_ty.term) {
   | (Some(ana_items), Sig(items)) =>
     let have = Sig.members(items);
-    let want = Sig.members(ana_items);
-    let missing_values =
-      Sig.value_names(want)
-      |> List.filter(x => Sig.find_value(have, x) == None);
-    let missing_types =
-      Sig.type_names(want)
-      |> List.filter(t => Sig.find_type_def(have, t) == None);
-    missing_values @ missing_types;
+    ana_items
+    |> List.filter(item =>
+         switch (Sig.member_of_item(item)) {
+         | Some(Val(x, _)) => Option.is_none(Sig.find_value(have, x))
+         | Some(TypeManifest(t, _) | TypeAbstract(t)) =>
+           Option.is_none(Sig.find_type(have, t))
+         | None => false
+         }
+       );
   | _ => []
+  };
+
+let member_names = (items: list(Sig.t)): list(Var.t) => {
+  let ms = Sig.members(items);
+  Sig.value_names(ms) @ Sig.type_names(ms);
+};
+
+let rec mpat_has_hole = (mp: MPat.t): bool =>
+  switch (mp.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | Asc(inner, _) => mpat_has_hole(inner)
+  | Var(_)
+  | Invalid(_) => false
+  };
+
+/* Whether an item has a hole where a member could be bound: a hole item, a
+   hole in a binding position of a `let` pattern, or a hole module or type
+   name. Holes in definitions and annotations do not count. */
+let has_hole_binder = (items: list(Mod.t)): bool =>
+  List.exists(
+    (item: Mod.t) =>
+      switch (item.term) {
+      | EmptyHole
+      | MultiHole(_) => true
+      | ModLet(pat, _) => Pat.has_hole_binder(pat)
+      | ModuleMod(mp, _) => mpat_has_hole(mp)
+      | ModType({term: EmptyHole | MultiHole(_), _}, _) => true
+      | ModType(_)
+      | ModExp(_)
+      | ModVal(_)
+      | Invalid(_) => false
+      },
+    items,
+  );
+
+/* The module's signature with [items] appended: what the module provides
+   once a hole among its items binds them. */
+let assume_members = (sig_ty: Typ.t, items: list(Sig.t)): Typ.t =>
+  switch (sig_ty.term) {
+  | Sig(have) => {
+      ...sig_ty,
+      term: Sig(have @ items),
+    }
+  | _ => sig_ty
   };
 
 /* Mark each exported `type T = ...` whose definition differs from the
@@ -416,22 +533,36 @@ let check_ana_type_members =
                   Typ.count_unknowns(expected) == 0
                   && Typ.count_unknowns(def) == 0
                   && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
+              let mark =
+                Mark.ModuleTypeMemberMismatch({
+                  name,
+                  expected,
+                  actual: def,
+                });
+              /* The definition type carries the mark; the item only if the
+                 type has no info of its own. */
               let m =
-                StaticsBase.Map.add_info(
-                  IdTagged.ids(item),
-                  Info.InfoExp({
-                    ...info,
-                    marks: [
-                      Mark.ModuleTypeMemberMismatch({
-                        name,
-                        expected,
-                        actual: def,
-                      }),
-                      ...info.marks,
-                    ],
-                  }),
-                  m,
-                );
+                switch (StaticsBase.Map.lookup_typ(IdTagged.rep_id(def), m)) {
+                | Some(ti) =>
+                  StaticsBase.Map.add_info(
+                    IdTagged.ids(def),
+                    Info.InfoTyp({
+                      ...ti,
+                      marks: [mark, ...ti.marks],
+                      message: None,
+                    }),
+                    m,
+                  )
+                | None =>
+                  StaticsBase.Map.add_info(
+                    IdTagged.ids(item),
+                    Info.InfoExp({
+                      ...info,
+                      marks: [mark, ...info.marks],
+                    }),
+                    m,
+                  )
+                };
               (m, [name, ...marked]);
             | _ => (m, marked)
             }
@@ -449,11 +580,36 @@ let check_ana_type_members =
    `module M : S = ...` item keeps its elaborated (ascribed) binder. A
    shorthand item `let f(x) = ...` elaborates to a binding of `f`. */
 let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
-  let strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t =>
-    switch (FunctionSugar.binder(user_pat).term, p_elab.term) {
+  /* Walk the user's pattern and its elaboration together: an ascription the
+     elaboration has where the user wrote a bare variable is synthetic. */
+  let rec strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t => {
+    let rewrap = (term: Pat.term): Pat.t => {
+      ...p_elab,
+      term,
+    };
+    let map2 = (us, es) =>
+      List.length(us) == List.length(es)
+        ? List.map2(strip_synthetic_asc, us, es) : es;
+    switch (user_pat.term, p_elab.term) {
     | (Var(_), Asc(inner, _)) => inner
+    | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))
+    | (ListLit(us), ListLit(es)) => rewrap(ListLit(map2(us, es)))
+    | (Cons(u1, u2), Cons(e1, e2)) =>
+      rewrap(
+        Cons(strip_synthetic_asc(u1, e1), strip_synthetic_asc(u2, e2)),
+      )
+    | (TupLabel(_, u), TupLabel(l, e)) =>
+      rewrap(TupLabel(l, strip_synthetic_asc(u, e)))
+    | (Parens(u), Parens(e)) => rewrap(Parens(strip_synthetic_asc(u, e)))
+    | (Projector(_, u), Projector(d, e)) =>
+      rewrap(Projector(d, strip_synthetic_asc(u, e)))
+    | (Ap(_, u), Ap(ctr, e)) =>
+      rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
+    | (Asc(u, _), Asc(e, ty)) =>
+      rewrap(Asc(strip_synthetic_asc(u, e), ty))
     | _ => p_elab
     };
+  };
   switch (items) {
   | [] => []
   | [{term: ModType(_, _), _}, ...rest] => refold_module_elab(rest, elab)
@@ -463,8 +619,12 @@ let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
       let term: Mod.term =
         switch (item.term) {
         | ModLet(user_pat, _) =>
-          ModLet(strip_synthetic_asc(user_pat, p), def)
-        | ModuleMod(_, _) => ModLet(p, def)
+          ModLet(
+            strip_synthetic_asc(FunctionSugar.binder(user_pat), p),
+            def,
+          )
+        | ModuleMod(mp, _) =>
+          ModLet(strip_synthetic_asc(mpat_to_pat(mp), p), def)
         | ModExp(_) => ModExp(def)
         | ModVal(x, _) => ModVal(x, def)
         | ModType(_, _)

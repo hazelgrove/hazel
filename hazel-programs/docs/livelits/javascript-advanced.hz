@@ -1,0 +1,53 @@
+# JavaScript Livelits (advanced) #
+
+# The livelit that ships built in, ^js, evaluates JavaScript. It is #
+# here at the end of the deck because it is the least typical one: #
+# most livelits are defined in the program, as the earlier slides #
+# show, and need no escape hatch. #
+
+# A livelit is a live GUI widget which can be inserted into expressions. #
+# It elaborates to a value of some given type. #
+
+# Invocation: #
+# To invoke a livelit, insert the name of the livelit (always prefixed with ^) then space. #
+# The context inspector shows which livelits are available and their elaboration type. #
+
+# Each livelit maintains an internal model, which is not generally something the #
+# programmer should need to look at. You can see the internal model by toggling #
+# the livelit projector off (bottom right corner of Hazel). #
+
+# Livelits are DEFINED IN THE PROGRAM: a module bound to a livelit name #
+# provides init, update, view, and expand members, plus an optional #
+# shape -- Inline(w), Block(w, h), or Tab(w, h) -- for its footprint. #
+# The following slides each define one. #
+
+# Five livelits ship built in, each reaching something Hazel itself cannot #
+# say: one evaluates JavaScript, and four run Fumola. #
+
+# ^js #
+# Elaboration Type: String                                    #
+# Elaboration: The result of evaluating the code as JavaScript. #
+# Internal Model: (String, String) -- the code and its result.  #
+let greeting = ^^livelit(^js("['hi', 'from js'].join(' ')", "hi from js")) in
+
+# The Fumola livelits #
+# Fumola is an experimental language whose execution model is Adapton:    #
+# a run leaves behind a graph of what it named, read and demanded, and    #
+# the next run repairs that graph instead of redoing the work. Four       #
+# livelits run Fumola programs inside a Hazel one:                        #
+#                                                                         #
+#   ^fumola_new(id, mode)             declare a runtime                   #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk            #
+#   ^fumola_eval(id, src)             run src on a force-free stack       #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input     #
+#                                                                         #
+# Each names the runtime it talks to by id, so livelits sharing an id     #
+# share one runtime, and the state written through one is there for the   #
+# next. ^fumola_new expands to that id, and its mode -- Simple or         #
+# Graphical -- says which Adapton semantics that runtime runs; the other  #
+# three expand to whatever their type annotation says, so each needs one. #
+#                                                                         #
+# These are built in because they drive a Fumola runtime compiled to      #
+# wasm, outside Hazel; see scripts/build-fumola-wasm.sh. The Fumola       #
+# (Livelits) slides take them one idea at a time, with examples.          #
+greeting

@@ -242,6 +242,62 @@ module Update = {
             },
           }
           |> return_quiet
+    /* Two steps, and the second is the one that is easy to get wrong. The
+       reset empties the instance; nothing in the program's syntax changes, so
+       every test evaluation makes before reusing a cached value still passes
+       and the panel would go on showing the graph that is no longer there.
+       ForceReeval is what makes evaluation forget. */
+    | FumolaReset(instance, mode) =>
+      if (Language.FumolaRun.reset_instance(~mode, instance)) {
+        let* editors =
+          Editors.Update.update(
+            ~globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            Scratch(CellAction(ResultAction(ForceReeval))),
+            model.editors,
+          );
+        {
+          ...model,
+          editors,
+        };
+      } else {
+        model |> Updated.return_quiet;
+      }
+    | FumolaToggleOpen(key) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          fumola_open:
+            List.mem(key, model.globals.fumola_open)
+              ? List.filter(k => k != key, model.globals.fumola_open)
+              : [key, ...model.globals.fumola_open],
+          /* Opening a row by hand means the reader is already looking at it. */
+          fumola_focused: None,
+        },
+      }
+      |> return_quiet
+    /* Replace what is focused among things of this kind, and leave the other
+       kinds as the reader left them: an edge followed out of a node's value
+       must not collapse the nodes that were open to find it. */
+    | FumolaFocus(key) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          fumola_open: [
+            key,
+            ...List.filter(
+                 k =>
+                   Globals.fumola_namespace(k)
+                   != Globals.fumola_namespace(key),
+                 model.globals.fumola_open,
+               ),
+          ],
+          fumola_focused: Some(key),
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -891,6 +947,12 @@ module View = {
       get_log_count: _ =>
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
+      slide_name:
+        switch (editors) {
+        | Documentation(m) =>
+          List.nth_opt(ScratchMode.Model.scratchpad_names(m), m.current)
+        | _ => None
+        },
     };
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */

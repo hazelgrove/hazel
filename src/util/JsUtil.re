@@ -621,6 +621,26 @@ let font_metrics_from_specimen = (): (float, float) =>
   | None => (10.0, 10.0)
   };
 
+/* Listen for the Fumola runtime finishing its asynchronous load.
+ *
+ * The runtime is several megabytes of wasm, usually fetched cross-origin, so
+ * a program can be elaborated before it exists. A Fumola livelit elaborated
+ * then expands to a message saying the runtime is not loaded, and nothing
+ * would revisit that on its own -- so the shim announces itself and the
+ * editor recalculates. Dispatched once, after the outcome is settled, and on
+ * failure as well as success, so the message can settle too. */
+let on_fumola_ready = (callback: unit => unit): unit =>
+  ignore(
+    Js.Unsafe.meth_call(
+      Dom_html.window,
+      "addEventListener",
+      [|
+        Js.Unsafe.inject(Js.string("fumola-runtime-ready")),
+        Js.Unsafe.inject(Js.wrap_callback((_: Js.t({..})) => callback())),
+      |],
+    ),
+  );
+
 /* Listen for devicePixelRatio changes (triggered by browser zoom).
  * Uses matchMedia to detect when the current DPR no longer matches,
  * then re-registers for the next change. */
@@ -694,6 +714,37 @@ module QueryParams = {
     | _ => None
     };
   };
+
+  /* Drop the fragment, which is a mode of its own (`#debug`) and never part
+     of a link to a place in the document. */
+  let clear_fragment = (url: Url.url): Url.url =>
+    switch (url) {
+    | Http(u) =>
+      Http({
+        ...u,
+        hu_fragment: "",
+      })
+    | Https(u) =>
+      Https({
+        ...u,
+        hu_fragment: "",
+      })
+    | File(u) =>
+      File({
+        ...u,
+        fu_fragment: "",
+      })
+    };
+
+  /* This page with exactly these parameters: the link to hand someone else,
+     rather than the one in the address bar, which still carries whatever
+     parameters brought this reader here. */
+  let url_with = (args: list((string, string))): string =>
+    switch (Url.Current.get()) {
+    | None => ""
+    | Some(url) =>
+      url |> clear_fragment |> set_arguments(_, args) |> Url.string_of_url
+    };
 
   let set_param = (name: string, value: string) => {
     Url.Current.get()

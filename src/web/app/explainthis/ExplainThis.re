@@ -209,7 +209,15 @@ let mk_translation_doc =
         | Omd.Thematic_break(_) => (List.append(msg, [Node.hr()]), mapping)
         | Omd.Code_block(_, lang, code) =>
           let core = globals.settings.core;
-          let plain = () => Node.pre([Node.code([Node.text(code)])]);
+          /* `code-block` is what explainthis.css styles: preserved spacing and
+             a scroll rather than a wrap, which is the only way a Fumola form
+             stays on one line -- a symbol opens with a backtick, so an inline
+             span would close on its own first character. */
+          let plain = () =>
+            Node.pre(
+              ~attrs=[clss(["code-block"])],
+              [Node.code([Node.text(code)])],
+            );
           let hazel_settings =
             switch (String.trim(lang)) {
             | "hazel" => Some(core)
@@ -544,6 +552,9 @@ type decision =
      Distinct from `Prose`, whose ~30 one-off messages are shown verbatim;
      routing those through markdown would change what they display. */
   | Markdown(string)
+  /* Markdown with a picture under it. The markdown translator drops images,
+     so the picture is a node rather than a URL in the text. */
+  | MarkdownArt(string, Node.t)
   /* Derivation terms document themselves: DrvDoc supplies both the abstract
      syntax to show and the markdown describing it. */
   | DrvSyntax(Segment.t, string)
@@ -801,6 +812,18 @@ let decide =
   };
 
   switch (info) {
+  /* Every Fumola form has an entry, in FumolaExplain, whose match over the
+     class list is exhaustive -- so there is no longer a branch that names a
+     form and admits it has nothing to say about it. */
+  | Some(InfoFumola(fi)) =>
+    let cls = FumolaInfo.cls_of(fi);
+    let doc = FumolaExplain.doc(cls);
+    switch (cls, FumolaInfo.name_of(fi)) {
+    /* One instance has a picture, so it gets the entry plus the picture. */
+    | (InstanceName, Some("mustardWatch")) =>
+      MarkdownArt(doc ++ "\n\n" ++ MustardWatch.quote, MustardWatch.art)
+    | _ => Markdown(doc)
+    };
   | Some(InfoMod({cls, _})) =>
     switch (cls) {
     | Mod(ModLet) => message_single(ModLetDecl.single)
@@ -812,6 +835,7 @@ let decide =
     switch (cls) {
     | Sig(SigLet) => message_single(SigLetDecl.single)
     | Sig(SigType) => message_single(SigTypeDecl.single)
+    | Sig(SigTypeAbstract) => message_single(SigTypeAbstractDecl.single)
     | _ => Prose("Signature item")
     }
   | Some(InfoMPat(_)) => Prose("Module name")
@@ -825,9 +849,17 @@ let decide =
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp = (term): decision =>
       switch ((term: Exp.term)) {
+      | FumolaQuote(_) =>
+        Markdown(
+          "A Fumola program, running against the Fumola VM instance named after `fumola`. The instance is named in the program text rather than derived, so the adapton store it holds survives an edit.",
+        )
       | DrvQuote(_) =>
         Markdown(
           "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
+        )
+      | BbQuote(_) =>
+        Markdown(
+          "A `blackboard ... end` block embeds a Blackboard document into a regular expression. A document is a sequence of `assume` and `construct` blocks, separated by `;`.",
         )
       | Invalid(_) => Prose("Not a valid expression")
       | DynamicErrorHole(_)
@@ -842,6 +874,12 @@ let decide =
         )
       | BuiltinFun(_) => Prose("Internal expression")
       | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
+      | FumolaPeek({reads, _}) =>
+        Prose(
+          "A reference to the Fumola cell read by `"
+          ++ reads
+          ++ "`, carrying the value it held. It is a value, so a program can use it as that value while still showing which cell it came from.",
+        )
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -1631,12 +1669,27 @@ let decide =
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
     DrvSyntax(syntax, msg);
+  | Some(InfoBb(i)) =>
+    switch (BbInfo.modality_of(i)) {
+    | Some(Assume) =>
+      Prose(
+        "An assumption block postulates names. Its only obligation is that each declared type is a type.",
+      )
+    | Some(Construct) =>
+      Prose(
+        "A construction block claims a conservative extension: the signature must be shown inhabited, and the witness is then discarded.",
+      )
+    | None => Prose("A Blackboard term")
+    }
   | Some(Secondary(s)) =>
     switch (s.cls) {
-    | Secondary(Whitespace) => Prose("A semantic void, pervading but inert")
     | Secondary(Comment) =>
       Prose("Comments are ignored by systems but treasured by readers")
-    | _ => Prose("No documentation available")
+    /* A secondary piece is whitespace or a comment and nothing else. The
+       class type is wider than the thing, so the remaining cases cannot
+       arise, and whitespace's line is the right one to give them rather than
+       an apology for having nothing to say. */
+    | _ => Prose("A semantic void, pervading but inert")
     }
   | None => NoDoc
   };
@@ -1655,6 +1708,13 @@ let view_doc =
   | NoDoc => ([], ([text("No docs available")], ColorSteps.empty), [])
   | Prose(msg) => ([], ([text(msg)], ColorSteps.empty), [])
   | Markdown(msg) => ([], mk_translation(~globals, ~inject=_ => (), msg), [])
+  | MarkdownArt(msg, art) =>
+    let (nodes, mapping) = mk_translation(~globals, ~inject=_ => (), msg);
+    (
+      [],
+      (nodes @ [div(~attrs=[clss(["explain-art"])], [art])], mapping),
+      [],
+    );
   | DrvSyntax(syntax, msg) => (
       [syntax |> CodeViewable.view_segment(~globals)],
       (
@@ -1734,7 +1794,9 @@ let color_map_of = (~globals: Globals.t, decision: decision): ColorSteps.t =>
   | NoDoc
   | Prose(_)
   | DrvSyntax(_) => ColorSteps.empty
-  | Markdown(msg) => snd(mk_translation(~globals, ~inject=_ => (), msg))
+  | Markdown(msg)
+  | MarkdownArt(msg, _) =>
+    snd(mk_translation(~globals, ~inject=_ => (), msg))
   | Doc({color_map: Some(color_map), _}) => color_map
   | Doc({explanation, _}) =>
     snd(mk_translation(~globals, ~inject=_ => (), explanation))
@@ -1744,6 +1806,36 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
     ~attrs=[clss(["section", section_clss])],
     [div(~attrs=[clss(["section-title"])], [text(title)])] @ contents,
+  );
+
+/* A way in to the Fumola panel, shown whenever the cursor is on an instance
+   name.
+
+   The panel is the thing this explanation is describing -- the store the
+   instance keeps, and what it did -- and until now nothing said it existed.
+   The only way to find it was to try an unlabelled tab on the rail, and the
+   two panels replace each other, so a reader who found it lost the prose that
+   sent them. Carrying the rail's own glyph is the point: it says which tab to
+   press to come back.
+
+   The effect is Sidebar.switch_to's, spelled again rather than called, since
+   Sidebar renders this module and cannot be referred to from inside it. */
+let fumola_panel_link = (~globals: Globals.t): Node.t =>
+  div(
+    ~attrs=[
+      clss(["fumola-panel-link"]),
+      Attr.title("Switch to the Fumola VM instance panel"),
+      Attr.on_mousedown(_ =>
+        Effect.Many([
+          globals.inject_global(Set(Sidebar(SwitchPanel(Fumola)))),
+          Effect.Stop_propagation,
+          /* Keep editor focus, as the rail's own tabs do: the panel reads the
+             cursor to decide which instance to show. */
+          Effect.Prevent_default,
+        ])
+      ),
+    ],
+    [Icons.fumolaIcon, text(" Watch this instance's VM")],
   );
 
 let get_color_map =
@@ -1766,6 +1858,17 @@ let view =
     ) => {
   // This gets the info from the infomap before singleton autolabelling
   let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
+  /* Same test `decide` uses for the InstanceName explanation, so the link
+     appears for every instance name and is not tied to what that explanation
+     happens to say. */
+  let instance_link =
+    switch (info_cursor) {
+    | Some(InfoFumola(fi))
+        when FumolaInfo.cls_of(fi) == FumolaCls.InstanceName => [
+        fumola_panel_link(~globals),
+      ]
+    | _ => []
+    };
   let (syn_form, (explanation, _), example) =
     view_doc(
       ~globals,
@@ -1823,7 +1926,7 @@ let view =
           | None => "Whitespace or Comment"
           | Some(info) => Info.cls_label(info)
           },
-        syn_form @ explanation,
+        syn_form @ explanation @ instance_link,
       ),
     ]
     @ (

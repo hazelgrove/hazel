@@ -133,7 +133,9 @@ type step_kind =
   | RemoveParens
   | ModuleBind(string)
   | ModuleDiscardExp
-  | ModuleDiscardType;
+  | ModuleDiscardType
+  /* Running a Fumola program against the instance it names. */
+  | RunFumola(string);
 
 /* Whether a step interprets the user's program (Proper) or performs
    implementation bookkeeping that the surface semantics treats as
@@ -180,7 +182,8 @@ let provenance_of_kind: step_kind => provenance =
   | CaseApply
   | FixUnwrap
   | RemoveTypeAlias
-  | RemoveUse => Proper
+  | RemoveUse
+  | RunFumola(_) => Proper
   | WrapClosure
   | FixClosure
   | CompleteClosure
@@ -475,6 +478,23 @@ module Transition = (EV: EV_MODE) => {
         ~mode: [
            | `Substitution
            | `Environment
+         ],
+        /* Whether a rule whose step reaches outside Hazel may fire.
+
+           Only one rule's does. A Fumola quote runs a program against an
+           adapton store the editor does not own, and a store remembers: the
+           put and the get stay in it. Every other rule is pure, so a pass
+           that asks for a rule and keeps only its shape -- is this a value,
+           where is the redex, what would the cache reuse -- pays only time
+           for the ones it discards. This one pays in somebody's store, and
+           the program's own effects come out doubled.
+
+           `Withhold` makes such a rule answer Indet, which is the answer it
+           already gives when it cannot run for any other reason. A caller
+           that needs the stepped expression cannot use it. */
+        ~effects: [
+           | `Perform(FumolaRun.pass)
+           | `Withhold
          ],
         ~targets: Sample.targets=Sample.no_targets,
         ~in_closure=?,
@@ -898,12 +918,89 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* A value: it carries its result rather than stepping to one, so that a
+       reference stays visible in the output instead of collapsing into the
+       thing it refers to. Its carried value is already a value, having been
+       built by translation. */
+    | FumolaPeek(_)
     | Atom(_)
     | LivelitName(_)
     | Label(_)
     | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    /* A Fumola program runs here, once its `hazel … end` escapes have been
+       reduced to values.
+
+       That ordering is the whole reason running is not in elaboration any
+       more. The program reaches the runtime as text, with each escape
+       rendered as Fumola source by FumolaSource -- and a variable has no
+       Fumola source, only the value it stands for does. Waiting until
+       evaluation is what lets an escape name something the surrounding Hazel
+       program bound; before it, the escape holds an expression and the
+       program is refused.
+
+       The expected type comes from FumolaCtx rather than from the term. It
+       decides the shape a Fumola result takes on the way into Hazel, and it
+       cannot travel with the elaborated term; see FumolaCtx for why. Where
+       there is none -- the worker, the test runner -- the result is still
+       built, just with nothing to shape it. */
+    | FumolaQuote(name, mode, body) =>
+      let children = (name, mode, body);
+      let. _ =
+        otherwise(env, escapes =>
+          {
+            let (name, mode, body) =
+              Fumola.set_quote_escapes(children, escapes);
+            FumolaQuote(name, mode, body);
+          }
+          |> rewrap
+        )
+      and. escapes =
+        req_all_final(
+          req(env),
+          (d1, ds) => FumolaQuote(children, d1, ds) |> wrap_ctx,
+          Fumola.quote_escapes(children),
+        );
+      let (name, mode, body) = Fumola.set_quote_escapes(children, escapes);
+      let (ana, tools) =
+        switch (FumolaCtx.lookup(rep_id(d))) {
+        | Some({ana, tools}) => (ana, tools)
+        | None => (Typ.temp(Unknown(Internal)), FumolaTools.unknown)
+        };
+      switch (effects) {
+      /* Nothing ran, so there is nothing to say about what it would answer.
+         Indet, not Value: the quote is not a value, it is a program this
+         pass declined to run. */
+      | `Withhold => Indet
+      | `Perform(pass) =>
+        switch (FumolaRun.run(~ana, ~tools, ~pass, name, mode, body)) {
+        | Ok(value) =>
+          Step({
+            expr: value,
+            side_effects: [],
+            kind: RunFumola(FumolaRun.instance_name(name)),
+            /* The runtime hands back a term to evaluate, not a value: a
+               variant arrives as a constructor applied to its payload. */
+            is_value: false,
+          })
+        /* A half-written program is a syntax error on nearly every keystroke,
+           and the editor says so better than a result can. Indeterminate
+           leaves the program itself standing. */
+        | Error({syntax: true, _}) => Indet
+        | Error({message, _}) =>
+          Step({
+            expr: Invalid(message) |> rewrap,
+            side_effects: [],
+            kind: RunFumola(FumolaRun.instance_name(name)),
+            is_value: false,
+          })
+        }
+      };
+    /* A Blackboard document does not evaluate; it is already a value. */
+    | BbQuote(_) =>
       let. _ = otherwise(env, d);
       Constructor;
     | DrvQuote(_) =>
@@ -1511,6 +1608,9 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | FixClosure
   | MarkIncomparable
   | RecordTheorem
+  /* Shown: a program running against its instance is the step a reader of a
+     Fumola cell is there for. */
+  | RunFumola(_) => false
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
@@ -1566,4 +1666,5 @@ let stepper_justification: step_kind => string =
   | ModuleDiscardType => "define module type"
   | Dot => "member access"
   | TupleExtension => "Tuple extension"
-  | MarkIncomparable => "mark equality as incomparable";
+  | MarkIncomparable => "mark equality as incomparable"
+  | RunFumola(instance) => String.cat("run in Fumola instance ", instance);

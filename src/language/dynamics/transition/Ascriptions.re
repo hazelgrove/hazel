@@ -74,11 +74,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
     let t_resolved = resolve(ctx, t);
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
-    | (Asc(e, t'), _)
+    | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(ctx, Typ.unroll(t), Typ.unroll(t')) =>
       switch (Typ.meet(ctx, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
+      | Some(t) =>
+        Some(
+          recur(
+            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+          ),
+        )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
     | (e, Parens(t)) =>
@@ -109,18 +114,24 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       )
     | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
       /* Sealing: keep the signature's value members, in signature order,
-         ascribing each to its declared type. Type members have no runtime
-         content. A member the module lacks leaves the ascription stuck;
-         statics has already marked it. */
+         ascribing each to its declared type with the signature's own type
+         members substituted: a manifest member by its definition, an
+         abstract one by `?` (abstract types have no runtime content, so the
+         cast is a no-op). A member the module lacks leaves the ascription
+         stuck; statics has already marked it. */
       let members =
-        Sig.members(sig_items)
-        |> Sig.dedup_last
-        |> List.filter_map((m: Sig.member) =>
+        Typ.sig_members_closed(sig_items)
+        |> List.filter_map(((m: Sig.member, ty)) =>
              switch (m) {
-             | Val(x, ty) => Some((x, ty))
-             | TypeManifest(_) => None
+             | Val(x, _) => Some((x, ty))
+             | TypeManifest(_)
+             | TypeAbstract(_) => None
              }
-           );
+           )
+        /* Last declaration of a name wins. */
+        |> List.rev
+        |> Util.ListUtil.dedup_f(((x, _), (y, _)) => x == y)
+        |> List.rev;
       let picked =
         members
         |> List.map(((x, ty)) =>
@@ -370,11 +381,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (DeferredAp(_), _)
     | (Deferral(_), _)
     | (LivelitName(_), _)
+    | (FumolaPeek(_), _)
     | (TupleExtension(_, _), _)
     | (ListConcat(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
     | (DrvQuote(_), _)
+    | (FumolaQuote(_), _)
+    | (BbQuote(_), _)
     | (ListLit(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)

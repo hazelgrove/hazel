@@ -1,0 +1,44 @@
+# BLACKBOARD: SIGNATURES AND BLOCKS #
+
+# A document is a sequence of blocks, separated by `;`. Each block has #
+# a signature -- a list of `name : type` entries -- and a tactic after #
+# `by`. The two kinds of block differ in what they OWE. #
+
+# ASSUME owes only well-typedness: each declared type must be a type. #
+# What you assume is yours to justify; results depend on it. #
+
+blackboard
+
+assume
+  int : type;
+  zero : int;
+  succ : int -> int;
+  pred : int -> int
+by tychk
+
+# CONSTRUCT owes inhabitation. To add these names you must prove #
+#   (M : type) -> ((x1 : T1) -> ... -> (xn : Tn) -> M) -> M #
+# which says the signature could have been filled in. The filling is #
+# then thrown away: the interface is the meaning, the witness is not. #
+# This is why 1 is not an element of 3 here, even if the integers are #
+# built from von Neumann ordinals underneath. #
+
+; construct
+  eq : (A : type) -> (a1 : A) -> (a2 : A) -> type;
+  succ_pred : (x : int) -> eq(int, succ(pred(x)), x);
+  pred_succ : (x : int) -> eq(int, pred(succ(x)), x)
+by quotient
+
+end
+
+# WHY THIS IS SAFE #
+# Conservativity is proved, not assumed: a construct block whose #
+# obligation is met adds no new theorems about the names that were #
+# already there. The proof is machine-checked; see the Metatheory #
+# slide. It needs one hypothesis the paper does not state -- that the #
+# goal is itself a type. #
+
+# TACTICS #
+# `by tychk`, `by definition`, `by quotient` name the tactic that would #
+# discharge the obligation. No tactic language exists yet, so the #
+# editor records the obligation as pending and checks the signature. #

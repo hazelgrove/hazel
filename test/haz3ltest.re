@@ -18,9 +18,14 @@ let (suite, exit_with_test_status) =
     "HazelTests",
     [
       Test_AgentPersist.tests,
+      Test_FumolaPrint.tests,
+      Test_FumolaTiles.tests,
+      Test_FumolaParse.tests,
+      Test_FumolaAdapton.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
+      Test_SlideReconcile.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,
@@ -34,6 +39,8 @@ let (suite, exit_with_test_status) =
       Test_Grammar.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
+      Test_FumolaValue.tests,
+      Test_FumolaSource.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
@@ -55,10 +62,12 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_TypToSegment.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
+    @ Test_DynamicTypInfer.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
@@ -91,6 +100,10 @@ let (suite, exit_with_test_status) =
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_Derivation.tests]
+    @ [Test_Blackboard.tests]
+    @ [Test_BlackboardEditor.tests]
+    @ [Test_BlackboardSlides.tests]
+    @ [Test_BlackboardStatics.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
