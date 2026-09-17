@@ -3142,6 +3142,8 @@ let rec diff =
   | (ExplicitNonlabel, _) => get_ids()
   | (TypeMember(x1), TypeMember(x2)) when String.equal(x1, x2) => []
   | (TypeMember(_), _) => get_ids()
+  | (Escaped(e1), Escaped(e2)) when Grammar.escaped_equal(e1, e2) => []
+  | (Escaped(_), _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(name), _) =>
     switch (expand(name)) {
@@ -3233,7 +3235,5 @@ let rec diff =
   | (Sum(_), _) => get_ids()
   | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
   | (Sig(_), _) => get_ids()
-  | (Escaped(_), Escaped(_)) when fast_equal(ty, ty') => []
-  | (Escaped(_), _) => get_ids()
   };
 };
