@@ -148,7 +148,8 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | ExplicitNonlabel
     | Var(_)
     | ProofOf(_)
-    | Escaped(_) => ty.term
+    | Escaped(_)
+    | Implicit(_) => ty.term
     };
   {
     ...ty,
