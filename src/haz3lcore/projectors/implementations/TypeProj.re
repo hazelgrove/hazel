@@ -3,7 +3,6 @@ open Node;
 open ProjectorBase;
 open Language;
 open Util;
-open Poly;
 
 /* The expectation statics holds a term to, where it holds it to one. A term in
    synthetic position is held to none: statics writes Unknown(SynSwitch) for the
@@ -179,7 +178,7 @@ module M: Projector = {
 
   let update = (model, info, a: action) => {
     let has_expected =
-      Option.bind(info.statics, expected_ty) |> Option.is_some;
+      Option.bind(info.statics, ~f=expected_ty) |> Option.is_some;
     switch (a, model) {
     | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
     | (ToggleDisplay, Self) => Dynamic
