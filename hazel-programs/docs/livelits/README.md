@@ -6,6 +6,24 @@ Each `.hz` here defines a livelit and uses it several times, and ships as a
 `^^livelit(...)` wrappers materialize the GUI in the editor and are inert on
 the command line.
 
+Every definition is checked against one builtin module signature, `Livelit`,
+which is the whole interface:
+
+```
+type Livelit = {
+  type Model; type Action; type Expansion;
+  let init   : Model;
+  let update : (Model, Action) -> Model;
+  let view   : Model -> Html.T;
+  let expand : Model -> Expansion
+}
+```
+
+Its three type members are abstract, which is what lets each livelit choose
+its own; a definition's own `type Model = ...` realizes them, and the four
+value members are then checked at those types. Nothing seals a livelit with
+this signature — sealing would hide `Expansion`, which clients must see.
+
 A livelit definition binds a livelit name to a module:
 
 ```
@@ -26,8 +44,12 @@ All three type members are required — they are the livelit's interface:
 - `type Action`: what the view's handlers emit
 - `type Expansion`: what a use means to the program. This is the type
   clients see, so a use of `^name` has type `Expansion` however `expand`
-  is written; statics checks each use's expansion against the declaration
-  and marks the use when the two are inconsistent.
+  is written. This is checked twice: at the DEFINITION, where `expand` must
+  produce the declared `Expansion` (the `Livelit` signature check above),
+  and at each USE, where the expansion is checked again and the use marked
+  if the two are inconsistent. The use-site check is not redundant — an
+  expansion whose type depends on the model VALUE is invisible at the
+  definition.
 
 and the four value members:
 

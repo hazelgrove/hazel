@@ -196,6 +196,17 @@ let test_sealing_nested =
     )
   });
 
+let test_pattern_binding_sealed =
+  test_case(
+    "A destructured definition checked against a signature evaluates",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "{ let a = 1; let b = 2 }",
+      {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, 2) } in M|},
+    )
+  });
+
 /* Sealing keeps the signature's members, in signature order */
 let test_sealing_reorders =
   test_case("Sealing reorders members to signature order", `Quick, () => {
@@ -228,6 +239,32 @@ let test_sealing_bound_variable =
     parse_and_evaluate_test(
       "{ let x = 1 }",
       {|let big = { let x = 1; let y = 2 } in let m : { let x : Int } = big in m|},
+    )
+  });
+
+/* Abstract type members have no runtime content */
+let test_abstract_member_no_runtime_effect =
+  test_case("Abstract type members have no runtime effect", `Quick, () => {
+    parse_and_evaluate_test(
+      "0",
+      {|module C : { type T; let zero : T; let get : T -> Int } = { type T = Int; let zero = 0; let get = fun t -> t } in C.get(C.zero)|},
+    )
+  });
+
+let test_sealing_abstract_type_member =
+  test_case(
+    "Sealing with an abstract type member keeps the values", `Quick, () => {
+    parse_and_evaluate_test(
+      "{ let x = 1 }",
+      {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in M|},
+    )
+  });
+
+let test_abstract_function_argument =
+  test_case("A module with an abstract type passed to a function", `Quick, () => {
+    parse_and_evaluate_test(
+      "20",
+      {|let f = fun (m : { type T; let x : T; let g : T -> Int }) -> m.g(m.x) in f({ type T = Int; let x = 2; let g = fun t -> t * 10 })|},
     )
   });
 
@@ -264,9 +301,13 @@ let tests = (
     test_sig_type_member_erased,
     test_sealing_drops_extras,
     test_sealing_nested,
+    test_pattern_binding_sealed,
     test_sealing_reorders,
     test_width_function_argument,
     test_width_function_argument_projection,
     test_sealing_bound_variable,
+    test_abstract_member_no_runtime_effect,
+    test_sealing_abstract_type_member,
+    test_abstract_function_argument,
   ],
 );

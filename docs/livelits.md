@@ -7,20 +7,48 @@ Hazel implements a version of the live literals (livelits) mechanism described i
 - No parameters
 - No splices
 
-Splices are the remaining gap, and they will arrive as a `SpliceRef` primitive type with
-operations over it (`new_splice`, `set_splice`, `eval_splice`, in the paper's `UpdateCmd`
-and `ViewCmd` monads). When they land, `expand` extends to return a pair with the list of
-`SpliceRef`s, as in Fig. 3 of the paper:
+### Functional livelits and macro livelits
+
+Two terms for the two points in the design space. Use them; they keep the
+distinction from being re-argued each time.
+
+A **functional livelit** produces a *value*. Its `expand` is an ordinary
+function from the model to the expansion type:
+
+```
+expand : Model -> Expansion
+```
+
+Everything in Hazel today is a functional livelit. The GUI edits the model, the
+model determines a value, and clients type against `Expansion`.
+
+A **macro livelit** produces a *program fragment*. Its `expand` returns an AST
+together with the list of splices that fragment takes as arguments, as in Fig. 3
+of the paper:
 
 ```
 expand : Model -> (Exp, List(SpliceRef))
 ```
 
-The pair is there because the expansion must treat splices parametrically: the first
-component takes one argument per listed `SpliceRef` and returns the expansion type.
-`expand` itself stays pure — splices bring the monads, but not to `expand`. Until then the
-splice list is empty, so `expand : Model -> Expansion` is an equivalent encoding of the
-paper's closed expansion rather than a deviation from it.
+The pair is there because the expansion must treat splices parametrically: the
+first component takes one argument per listed `SpliceRef` and returns the
+expansion type. `expand` itself stays pure — splices bring the monads, but not
+to `expand`.
+
+**Macro livelits subsume functional ones, not the other way round.** A macro
+livelit whose splice list is empty and whose `Exp` is a closed encoding of a
+value is exactly a functional livelit; a functional livelit cannot embed a
+client's expression, because it never handles syntax. So today's
+`expand : Model -> Expansion` is an equivalent encoding of the paper's closed
+expansion rather than a deviation from it, and the macro form is a
+generalization rather than a replacement.
+
+Reaching the macro form needs a `SpliceRef` primitive type with operations over
+it (`new_splice`, `set_splice`, `eval_splice`, in the paper's `UpdateCmd` and
+`ViewCmd` monads), a reflected `Exp` type, and splice editors in the GUI. The
+statics side is already shaped for it: the use-site expansion check below
+becomes a check of the pair's parameterized first component, which degenerates
+to what it does now when the splice list is empty.
 
 ## Overview
 
@@ -32,7 +60,8 @@ Livelits live in the typing context, so they can be viewed using the context ins
 
 ## User-Defined Livelits
 
-A Hazel program can define a livelit by binding a livelit name to a module:
+A Hazel program can define a functional livelit by binding a livelit name to a
+module:
 
 ```
 let ^pct = {
@@ -72,9 +101,9 @@ Checking at the use site is the PLDI 2021 paper's own strategy rather than a
 deviation from it. §3.2.5 records that Hazel does not statically check
 `expand`'s definition, and that the parameterized expansion is instead
 "validated at each livelit invocation site, with errors reported to the
-client". With no splices that expansion takes no arguments, so validating it
-degenerates to checking the expansion at the expansion type, which is what
-happens here. The paper names definition-site verification via "a typed
+client". For a functional livelit that expansion takes no arguments, so
+validating it degenerates to checking the expansion at the expansion type,
+which is what happens here; the macro form generalizes the same check. The paper names definition-site verification via "a typed
 quotation system as in, e.g., MetaOCaml" as the alternative, awkward because
 "the type of the quotation depends on the type of each splice in the splice
 list".

@@ -163,9 +163,23 @@ let test_value_used_as_module_path_mark =
     | _ => false,
   );
 
-/* A differing manifest type member is reported once, on the type item: the
-   members are checked against the module's own definition of T, and the
-   module is not reported a second time. */
+/* A root whose type is unknown may be a module, so `n.T` is not an error. */
+let test_unknown_typed_root_is_not_an_error =
+  Alcotest.test_case(
+    "A root of unknown type may be a module: its type path is not an error",
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp({|let n : ? = 1 in let y : n.T = 2 in y|}))
+        |> errors
+        |> List.concat_map(snd);
+      Alcotest.(check(bool))("no marks", true, List.is_empty(marks));
+    },
+  );
+
+/* A differing manifest type member is reported once, on the member's
+   definition type: the members are checked against the module's own
+   definition of T, and the module is not reported a second time. */
 let test_type_member_mismatch_single_error =
   single_mark_test(
     "A differing type member is the module's only error",
@@ -173,6 +187,46 @@ let test_type_member_mismatch_single_error =
     fun
     | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
     | _ => false,
+  );
+
+/* The marks on the type whose term satisfies [pred]. */
+let subtyp_marks =
+    (source, pred: Language.Typ.term => bool): list(Language.Mark.t) =>
+  Language.Id.Map.fold(
+    (_, info: Language.Info.t, acc) =>
+      switch (acc, info) {
+      | (None, InfoTyp({user_term, marks, _})) when pred(user_term.term) =>
+        Some(marks)
+      | _ => acc
+      },
+    statics(parse_exp(source)),
+    None,
+  )
+  |> Option.value(~default=[]);
+
+let test_type_member_mismatch_on_the_definition =
+  Alcotest.test_case(
+    "A differing type member is marked on its definition type",
+    `Quick,
+    () => {
+      let marks =
+        subtyp_marks(
+          {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|},
+          fun
+          | Atom(Bool) => true
+          | _ => false,
+        );
+      Alcotest.(check(bool))(
+        "Bool marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+          | _ => false,
+          marks,
+        ),
+      );
+    },
   );
 
 let test_type_member_mismatch_with_wrong_definition =
@@ -206,6 +260,218 @@ let test_type_member_mismatch_with_wrong_definition =
            ),
       );
     },
+  );
+
+/* ===== HOLE BINDERS ===== */
+
+/* A hole among the items could still become the members the signature
+   declares and the module lacks, so they are assumed rather than reported;
+   a wildcard binds nothing and assumes nothing. */
+let test_hole_binder_assumes_missing_members =
+  fully_consistent_typecheck(
+    "A hole binder stands in for the missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; let ? = 2 } in M.y|},
+    Some(int()),
+  );
+
+let test_hole_item_assumes_missing_members =
+  fully_consistent_typecheck(
+    "A hole item stands in for the missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
+    Some(int()),
+  );
+
+let test_hole_in_destructuring_binder_assumes_missing_members =
+  fully_consistent_typecheck(
+    "A hole inside a destructuring binder stands in for the missing members",
+    {|module M : { let x : Int; let y : Int } = { let (x, ?) = (1, 2) } in M.y|},
+    Some(int()),
+  );
+
+let test_hole_item_assumes_missing_type_member =
+  fully_consistent_typecheck(
+    "A hole item stands in for a missing type member",
+    {|module M : { type T = Int; let x : Int } = { let x = 1; ? } in let y : M.T = 3 in y + 1|},
+    Some(int()),
+  );
+
+let test_error_wildcard_binder_does_not_assume =
+  has_mark_test(
+    "A wildcard binder does not stand in for missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; let _ = 2 } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+/* Only a hole where a member could be bound counts: not one in a definition
+   or in a type annotation. */
+let test_error_non_binder_holes_do_not_assume =
+  Alcotest.test_case(
+    "Holes in a definition or an annotation do not stand in for members",
+    `Quick,
+    () => {
+      let missing_y = src =>
+        List.exists(
+          fun
+          | Language.Mark.ModuleMissingMembers(["y"]) => true
+          | _ => false,
+          statics(parse_exp(src)) |> errors |> List.concat_map(snd),
+        );
+      Alcotest.(check(bool))(
+        "definition hole",
+        true,
+        missing_y(
+          {|module M : { let x : Int; let y : Int } = { let x = ? } in M|},
+        ),
+      );
+      Alcotest.(check(bool))(
+        "annotation hole",
+        true,
+        missing_y(
+          {|module M : { let x : Int; let y : Int } = { let x : ? = 1 } in M|},
+        ),
+      );
+    },
+  );
+
+/* ===== NESTED EXPECTATIONS ===== */
+
+/* The signature's expectations reach sub-modules and the variables inside
+   destructuring patterns, so a problem is reported where it is. */
+let is_int_vs = (syn_cls, m: Language.Mark.t) =>
+  switch (m) {
+  | ExpectationMismatch({ana, syn}) =>
+    switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+    | (Atom(Int), Atom(c)) => c == syn_cls
+    | _ => false
+    }
+  | _ => false
+  };
+
+let test_nested_missing_member_localized =
+  single_mark_test(
+    "A sub-module lacking a member is reported once, inside it",
+    {|module M : { module Inner : { let x : Int; let y : Int } } = { module Inner = { let x = 1 } } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_nested_type_member_mismatch_localized =
+  single_mark_test(
+    "A sub-module's differing type member is reported once, on its item",
+    {|module M : { module Inner : { type T = Int } } = { module Inner = { type T = Bool } } in M|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
+let test_nested_definition_mismatch_localized =
+  single_mark_test(
+    "A sub-module's wrong definition is reported once, on the definition",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = true } } in M|},
+    is_int_vs(Bool),
+  );
+
+let test_nested_user_annotation_kept =
+  Alcotest.test_case(
+    "A sub-module's own annotation is kept: its definition is checked against it",
+    `Quick,
+    () => {
+      /* Inner's own annotation disagrees with the outer expectation. Were it
+         replaced by the expectation, `true` would be marked against Int. */
+      let marks =
+        statics(
+          parse_exp(
+            {|module M : { module Inner : { let x : Int } } = { module Inner : { let x : Bool } = { let x = true } } in M|},
+          ),
+        )
+        |> errors
+        |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        "the disagreement is marked",
+        false,
+        List.is_empty(marks),
+      );
+      Alcotest.(check(bool))(
+        "the definition is not marked against Int",
+        false,
+        List.exists(is_int_vs(Bool), marks),
+      );
+    },
+  );
+
+let test_error_nested_module_sealed =
+  inconsistent_typecheck(
+    "A sub-module is sealed by the outer signature",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = 1; let y = 2 } } in M.Inner.y|}
+    |> parse_exp,
+  );
+
+/* The component carries the mismatch and the module does not. The tuple
+   literal is also marked, as it is for a top-level
+   `let (a : Int, b : Int) = (1, "s")`: that cascade is not module-specific. */
+let component_mismatch_test = (name, source, syn_cls) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        "component marked",
+        true,
+        List.exists(is_int_vs(syn_cls), marks),
+      );
+      Alcotest.(check(bool))(
+        "module unmarked",
+        true,
+        subexp_marks(
+          source,
+          fun
+          | Module(_) => true
+          | _ => false,
+        )
+        == [],
+      );
+    },
+  );
+
+let test_tuple_binder_mismatch_localized =
+  component_mismatch_test(
+    "A destructured member with the wrong type is reported on the component",
+    {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, "s") } in M|},
+    String,
+  );
+
+let test_tuple_binder_ok =
+  fully_consistent_typecheck(
+    "A destructured definition matching its signature",
+    {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, 2) } in M.a + M.b|},
+    Some(int()),
+  );
+
+let test_labeled_tuple_binder_ok =
+  fully_consistent_typecheck(
+    "A labeled destructured definition matching its signature",
+    {|module M : { let a : Int; let b : Int } = { let (x=a, y=b) = (x=1, y=2) } in M.a + M.b|},
+    Some(int()),
+  );
+
+let test_nested_tuple_binder_mismatch_localized =
+  component_mismatch_test(
+    "A nested destructured member with the wrong type is reported on the component",
+    {|module M : { let a : Int; let b : Int; let c : Int } = { let ((a, b), c) = ((1, 2), "s") } in M|},
+    String,
+  );
+
+/* A cons pattern is also inexhaustive, as at top level. */
+let test_cons_binder_mismatch_localized =
+  component_mismatch_test(
+    "A cons-destructured member with the wrong type is reported on the element",
+    {|module M : { let h : Int; let t : [Int] } = { let h :: t = ["s"] } in M|},
+    String,
   );
 
 /* ===== WELL-TYPED MODULE TESTS ===== */
@@ -718,10 +984,11 @@ let test_module_tuple_equality_rejected =
     {|test (x=1) == { let x = 1 } end|} |> parse_exp,
   );
 
-/* ===== WIDTH SUBTYPING AT ANALYSIS POSITIONS ===== */
-/* A module may export more than its signature declares where it is analyzed
-   against that signature; the extras are sealed away and the binder has
-   exactly the signature's type. */
+/* ===== SEALING AT COERCION SITES ===== */
+/* At an ascription, an annotated binder or an application argument a module
+   may export more than the signature declares; the extras are sealed away and
+   the binder has exactly the signature's type. Everywhere else signatures
+   match exactly. */
 let test_width_empty_sig =
   fully_consistent_typecheck(
     "Extra member is sealed away by an empty signature",
@@ -758,35 +1025,35 @@ let test_sealed_member_inaccessible =
 
 let test_width_in_asc =
   fully_consistent_typecheck(
-    "Width subtyping at an ascription",
+    "Sealing at an ascription",
     {|({ let x = 1; let y = 2 } : { let x : Int })|},
     Some(sig_([val_("x", int())])),
   );
 
 let test_width_in_module_keyword =
   fully_consistent_typecheck(
-    "Width subtyping with the module keyword",
+    "Sealing with the module keyword",
     {|module M : { let x : Int } = { let x = 1; let y = 2 } in M|},
     Some(sig_([val_("x", int())])),
   );
 
 let test_width_function_argument_literal =
   fully_consistent_typecheck(
-    "Width subtyping for a module literal argument",
+    "Sealing a module literal argument",
     {|let f = fun (m : { let x : Int }) -> m.x in f({ let x = 1; let y = 2 })|},
     Some(int()),
   );
 
 let test_width_function_argument_variable =
   fully_consistent_typecheck(
-    "Width subtyping for a module variable argument",
+    "Sealing a module variable argument",
     {|let big = { let x = 1; let y = 2 } in let f = fun (m : { let x : Int }) -> m.x in f(big)|},
     Some(int()),
   );
 
 let test_width_bound_variable =
   fully_consistent_typecheck(
-    "Width subtyping when binding a module variable",
+    "Sealing when binding a module variable",
     {|let big = { let x = 1; let y = 2 } in let m : { let x : Int } = big in m|},
     Some(sig_([val_("x", int())])),
   );
@@ -800,16 +1067,18 @@ let test_width_hole_member =
 
 let test_width_depth =
   fully_consistent_typecheck(
-    "Width subtyping through a nested module member",
+    "Sealing through a nested module member",
     {|let n : { let m : { let x : Int } } = { let m = { let x = 1; let y = 2 } } in n|},
     Some(sig_([val_("m", sig_([val_("x", int())]))])),
   );
 
-let test_width_contravariant_domain =
-  fully_consistent_typecheck(
-    "A function on a narrower module accepts a wider one",
-    {|let g : { let x : Int; let y : Int } -> Int = fun (m : { let x : Int }) -> m.x in g|},
-    Some(arrow(sig_([val_("x", int()), val_("y", int())]), int())),
+/* Function types match exactly: a function on a narrower module is not
+   coerced to one on a wider module (eta-expand instead). */
+let test_error_width_no_contravariance =
+  inconsistent_typecheck(
+    "A function on a narrower module is not coerced to a wider domain",
+    {|let g : { let x : Int; let y : Int } -> Int = fun (m : { let x : Int }) -> m.x in g|}
+    |> parse_exp,
   );
 
 let test_error_width_covariant_domain =
@@ -826,11 +1095,31 @@ let test_error_width_not_in_if =
     {|if true then { let x = 1 } else { let x = 1; let y = 2 }|} |> parse_exp,
   );
 
+/* If branches are not coercion sites: under an annotation the wider branch
+   itself carries the mismatch. */
 let test_error_width_not_in_if_annotated =
-  inconsistent_typecheck(
-    "Width does not apply across if branches even under an annotation",
-    {|let m : { let x : Int } = if true then { let x = 1 } else { let x = 1; let y = 2 } in m|}
-    |> parse_exp,
+  Alcotest.test_case(
+    "Under an annotation a wider if branch is marked on the branch",
+    `Quick,
+    () => {
+      let marks =
+        subexp_marks(
+          {|let m : { let x : Int } = if true then { let x = 1 } else { let x = 1; let y = 2 } in m|},
+          fun
+          | Module(items) => List.length(items) == 2
+          | _ => false,
+        );
+      Alcotest.(check(bool))(
+        "wider branch marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ExpectationMismatch(_) => true
+          | _ => false,
+          marks,
+        ),
+      );
+    },
   );
 
 let test_if_identical_sigs =
@@ -842,11 +1131,11 @@ let test_if_identical_sigs =
 
 let test_width_not_for_tuples =
   inconsistent_typecheck(
-    "Width subtyping does not apply to labeled tuples",
+    "Labeled tuples are not sealed by width",
     {|let t : (x=Int) = (x=1, y=2) in t|} |> parse_exp,
   );
 
-/* Slide examples: width subtyping in use */
+/* Slide examples: sealing in use */
 let test_width_interface_function =
   fully_consistent_typecheck(
     "A function over any module with the members it needs",
@@ -902,6 +1191,128 @@ let test_width_if_branch_ascribed =
     Some(int()),
   );
 
+/* Non-sites: the same wider module is a mismatch anywhere but under an
+   ascription, an annotated binder or in argument position, up to parentheses
+   and tuple structure. */
+let test_error_sealing_not_in_list =
+  inconsistent_typecheck(
+    "A wider module is not sealed as a list element",
+    {|let wide = { let x = 1; let y = 2 } in let l : [{ let x : Int }] = [wide] in l|}
+    |> parse_exp,
+  );
+
+let test_sealing_in_list_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing a list element seals it",
+    {|let wide = { let x = 1; let y = 2 } in let l : [{ let x : Int }] = [(wide : { let x : Int })] in l|},
+    Some(list(sig_([val_("x", int())]))),
+  );
+
+let test_error_sealing_module_literal_in_list =
+  has_mark_test(
+    "A module literal with extra members as a list element is a mismatch",
+    {|let l : [{ let x : Int }] = [{ let x = 1; let y = 2 }] in l|},
+    fun
+    | Language.Mark.ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
+let test_sealing_tuple_argument =
+  fully_consistent_typecheck(
+    "Each component of a tuple argument is sealed",
+    {|let f = fun (m : { let x : Int }, n : Int) -> m.x + n in
+let wide = { let x = 1; let y = 2 } in
+f(wide, 1)|},
+    Some(int()),
+  );
+
+let test_sealing_tuple_literal_annotated =
+  fully_consistent_typecheck(
+    "An annotation seals the components of a tuple literal",
+    {|let wide = { let x = 1; let y = 2 } in let p : (Int, { let x : Int }) = (1, wide) in p|},
+    Some(prod([int(), sig_([val_("x", int())])])),
+  );
+
+let test_sealing_labeled_tuple_component =
+  fully_consistent_typecheck(
+    "An annotation seals a labeled tuple component",
+    {|let wide = { let x = 1; let y = 2 } in let p : (m={ let x : Int }, n=Int) = (m=wide, n=1) in p.n|},
+    Some(int()),
+  );
+
+/* The coercion is structural through tuples, so a variable of tuple type is
+   coerced componentwise at a site too. */
+let test_sealing_tuple_variable =
+  fully_consistent_typecheck(
+    "A variable of tuple type is coerced componentwise at a site",
+    {|let wide = { let x = 1; let y = 2 } in let q = (1, wide) in let p : (Int, { let x : Int }) = q in p|},
+    Some(prod([int(), sig_([val_("x", int())])])),
+  );
+
+let test_error_sealing_not_in_case_pattern =
+  inconsistent_typecheck(
+    "A pattern annotation narrower than the scrutinee is a mismatch",
+    {|let wide = { let x = 1; let y = 2 } in case wide | (m : { let x : Int }) => m.x end|}
+    |> parse_exp,
+  );
+
+let test_sealing_scrutinee_ascribed =
+  fully_consistent_typecheck(
+    "Ascribing the scrutinee seals it",
+    {|let wide = { let x = 1; let y = 2 } in case (wide : { let x : Int }) | m => m.x end|},
+    Some(int()),
+  );
+
+/* A function literal's body is its result: under an expected arrow type it
+   is sealed to the codomain, like a functor body to its result signature.
+   The parameter is still matched exactly (no contravariance). */
+let test_sealing_function_body =
+  fully_consistent_typecheck(
+    "A function body is sealed to the expected codomain",
+    {|let f : { let x : Int } -> { let x : Int } = fun m -> { let x = m.x; let y = 1 } in f({ let x = 1 })|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_sealing_through_parens =
+  fully_consistent_typecheck(
+    "Parentheses do not block sealing",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = ((wide)) in n|},
+    Some(sig_([val_("x", int())])),
+  );
+
+let test_error_sealing_not_through_let_body =
+  inconsistent_typecheck(
+    "A let body is not a coercion site",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = (let h = 1 in wide) in n|}
+    |> parse_exp,
+  );
+
+let test_error_sealing_not_in_if_branches =
+  inconsistent_typecheck(
+    "If branches are not coercion sites",
+    {|let wide = { let x = 1; let y = 2 } in let n : { let x : Int } = if true then wide else wide in n|}
+    |> parse_exp,
+  );
+
+let test_sealing_constructor_argument =
+  fully_consistent_typecheck(
+    "A constructor argument is sealed like any application argument",
+    {|type Box = Wrap({ let x : Int }) + Empty in
+let b : Box = Wrap({ let x = 1; let y = 2 }) in
+case b | Wrap(m) => m.x | Empty => 0 end|},
+    Some(int()),
+  );
+
+let test_error_sealing_not_through_sum_variable =
+  inconsistent_typecheck(
+    "A variable of a wider sum type is not coerced",
+    {|type Box = Wrap({ let x : Int }) + Empty in
+type Wide = Wrap({ let x : Int; let y : Int }) + Empty in
+let w : Wide = Wrap({ let x = 1; let y = 2 }) in
+let b : Box = w in b|}
+    |> parse_exp,
+  );
+
 /* A hole-named signature member is not a required member, and the module's
    binding is an extra member the signature seals away. */
 let test_hole_named_member_matches_any =
@@ -916,6 +1327,265 @@ let test_label_mismatch_hole =
   inconsistent_typecheck(
     "Label mismatch with hole type is a missing member",
     {|let m : { let x : ? } = { let y = 1 } in m|} |> parse_exp,
+  );
+
+/* ===== ABSTRACT TYPE MEMBERS ===== */
+
+/* `type T` with no definition. A module sealed by such a signature must
+   define T, but outside the module T is known only as the path `M.T`. */
+let abs_ = t => Sig.sig_type_abstract(TPat.var(t));
+let path = (m, t) => prod_projection(var(m), label(t));
+let sealed_m = {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in |};
+
+let test_abstract_member_wellformed =
+  fully_consistent_typecheck(
+    "A signature may declare an abstract type member",
+    {|type S = { type T; let x : T } in 1|},
+    Some(int()),
+  );
+
+/* A module variable names its own abstract types: M's signature is seen as
+   `{ type T = M.T; let x : T }`. */
+let test_sealed_module_type =
+  fully_consistent_typecheck(
+    "A sealed module names its abstract member by the path M.T",
+    sealed_m ++ {|M|},
+    Some(sig_([type_("T", path("M", "T")), val_("x", var("T"))])),
+  );
+
+let test_sealed_member_has_path_type =
+  fully_consistent_typecheck(
+    "A member of abstract type has the path type",
+    sealed_m ++ {|M.x|},
+    Some(path("M", "T")),
+  );
+
+let test_error_sealed_representation_hidden =
+  inconsistent_typecheck(
+    "Sealing hides the representation",
+    sealed_m ++ {|M.x + 1|} |> parse_exp,
+  );
+
+let test_abstract_member_used_through_interface =
+  fully_consistent_typecheck(
+    "Values of abstract type flow through the module's own functions",
+    {|module C : { type T; let zero : T; let get : T -> Int } = { type T = Int; let zero = 0; let get = fun t -> t } in C.get(C.zero)|},
+    Some(int()),
+  );
+
+let test_abstract_path_annotation =
+  fully_consistent_typecheck(
+    "An abstract path annotates a binding",
+    sealed_m ++ {|let q : M.T = M.x in q|},
+    Some(path("M", "T")),
+  );
+
+let test_error_distinct_sealings =
+  inconsistent_typecheck(
+    "Separately sealed modules have distinct abstract types",
+    sealed_m
+    ++ {|module N : { type T; let x : T } = { type T = Int; let x = 1 } in let y : N.T = M.x in y|}
+    |> parse_exp,
+  );
+
+let test_error_same_sig_alias_distinct_instances =
+  inconsistent_typecheck(
+    "Two modules sealed by the same signature alias are distinct",
+    {|type S = { type T; let x : T } in module M : S = { type T = Int; let x = 1 } in module N : S = { type T = Int; let x = 1 } in let y : N.T = M.x in y|}
+    |> parse_exp,
+  );
+
+let test_module_alias_shares_abstract_type =
+  fully_consistent_typecheck(
+    "module N = M shares M's abstract type",
+    sealed_m ++ {|module N = M in let y : N.T = M.x in y|},
+    Some(path("N", "T")),
+  );
+
+let test_variable_alias_shares_abstract_type =
+  fully_consistent_typecheck(
+    "let m = M shares M's abstract type",
+    sealed_m ++ {|let m = M in let z : m.T = m.x in z|},
+    Some(path("m", "T")),
+  );
+
+let test_manifest_member_stays_transparent =
+  fully_consistent_typecheck(
+    "A manifest type member is transparent",
+    {|module M : { type T = Int; let x : T } = { type T = Int; let x = 1 } in M.x + 1|},
+    Some(int()),
+  );
+
+let test_unsealed_module_stays_transparent =
+  fully_consistent_typecheck(
+    "An unsealed module's type members are transparent",
+    {|module M = { type T = Int; let x = 1 : T } in M.x + 1|},
+    Some(int()),
+  );
+
+let test_missing_type_member_mark =
+  has_mark_test(
+    "A module lacking an abstract member's definition is missing it",
+    {|module M : { type T; let x : T } = { let x = 1 } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["T"]) => true
+    | _ => false,
+  );
+
+/* Later signature items may reach an earlier module member's type members
+   through it. */
+let test_sig_member_path_through_sibling_module =
+  fully_consistent_typecheck(
+    "A signature member may be typed by a sibling module member's type",
+    {|type S = { module Inner : { type T }; let y : Inner.T } in 1|},
+    Some(int()),
+  );
+
+let test_sig_member_path_through_sibling_value =
+  fully_consistent_typecheck(
+    "A signature member may be typed by a sibling value member's type",
+    {|type S = { let inner : { type T = Int }; let y : inner.T } in 1|},
+    Some(int()),
+  );
+
+let test_module_matches_sibling_path_member =
+  fully_consistent_typecheck(
+    "A module matches a signature whose member is typed through a sibling",
+    {|module M : { module Inner : { type T; let x : T }; let y : Inner.T } = { module Inner = { type T = Int; let x = 1 }; let y = Inner.x } in 1|},
+    Some(int()),
+  );
+
+/* Every mark in the program satisfies [pred], and there is at least one. */
+let only_marks_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        name,
+        true,
+        marks != [] && List.for_all(pred, marks),
+      );
+    },
+  );
+
+let is_missing_members: Language.Mark.t => bool =
+  fun
+  | ModuleMissingMembers(_) => true
+  | _ => false;
+
+/* The signature is well-formed: the missing member is reported on the
+   module only, not as a free type variable on the signature's `T`. */
+let test_missing_type_member_only_error =
+  only_marks_test(
+    "A missing abstract member is the module's only error",
+    {|module M : { type T; let x : T } = { let x = 1 } in M|},
+    is_missing_members,
+  );
+
+let test_missing_sibling_module_only_error =
+  only_marks_test(
+    "A missing sub-module that a member's type goes through is the only error",
+    {|module M : { module Inner : { type T }; let y : Inner.T } = { let y = 1 } in M|},
+    is_missing_members,
+  );
+
+let test_error_type_member_kind_mismatch =
+  inconsistent_typecheck(
+    "A value member does not satisfy a type member of the same name",
+    {|module M : { type x } = { let x = 1 } in M|} |> parse_exp,
+  );
+
+let test_error_forward_reference_in_sig =
+  inconsistent_typecheck(
+    "Signature members cannot mention a later type member",
+    {|type S = { let x : T; type T } in 1|} |> parse_exp,
+  );
+
+let test_sealing_through_abstract_path =
+  fully_consistent_typecheck(
+    "A module may realize its abstract type by another module's path",
+    sealed_m
+    ++ {|module N : { type U; let y : U } = { type U = M.T; let y = M.x } in N.y|},
+    Some(path("N", "U")),
+  );
+
+/* A signature alias names no module, so it cannot name an abstract member:
+   `S.T` is an error on the label. Manifest members through an alias, and
+   abstract members through a module, are unaffected. */
+let test_error_abstract_member_through_alias =
+  single_mark_test(
+    "An abstract member cannot be named through a signature alias",
+    {|type S = { type T; let x : T } in let y : S.T = 1 in y|},
+    fun
+    | Language.Mark.TypAbstractMemberOfSignature("T") => true
+    | _ => false,
+  );
+
+let test_error_abstract_member_through_alias_of_module_value =
+  single_mark_test(
+    "The alias error is reported even when a module of that signature exists",
+    {|type S = { type T; let x : T } in module M : S = { type T = Int; let x = 1 } in let y : S.T = M.x in 1|},
+    fun
+    | Language.Mark.TypAbstractMemberOfSignature("T") => true
+    | _ => false,
+  );
+
+let test_manifest_member_through_alias_ok =
+  fully_consistent_typecheck(
+    "A manifest member is named through a signature alias",
+    {|type S = { type T = Int; let x : T } in let y : S.T = 1 in y + 0|},
+    Some(int()),
+  );
+
+let test_abstract_member_through_module_of_alias_ok =
+  fully_consistent_typecheck(
+    "An abstract member is named through a module of the alias's signature",
+    {|type S = { type T; let x : T } in module M : S = { type T = Int; let x = 1 } in let y : M.T = M.x in 1|},
+    Some(int()),
+  );
+
+let test_error_missing_member_through_alias =
+  has_mark_test(
+    "A missing type member through an alias is still a missing member",
+    {|type S = { type T; let x : T } in let y : S.Fake = 1 in y|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound({name: "Fake", _}) => true
+    | _ => false,
+  );
+
+/* Only a path can name an abstract member; projecting from any other
+   expression of the signature's type yields `?`. */
+let test_non_path_projection_is_unknown =
+  fully_consistent_typecheck(
+    "An abstract member projected from a non-path is unknown",
+    sealed_m ++ {|(M : { type T; let x : T }).x|},
+    Some(unknown(Internal)),
+  );
+
+let test_error_unknown_member_on_sealed =
+  inconsistent_typecheck(
+    "A member absent from the sealing signature is not accessible",
+    sealed_m ++ {|M.y|} |> parse_exp,
+  );
+
+/* Matching on a member of abstract type: the stuck path is opaque to the
+   coverage check, like a type variable, so a variable or wildcard pattern
+   exhausts it (the checker used to fail on the path as non-normalized). */
+let test_match_on_abstract_member =
+  fully_consistent_typecheck(
+    "Matching on a member of abstract type is checked for coverage",
+    {|fun (m : { type T; let x : T }) -> case m.x | y => 1 end|},
+    Some(arrow(sig_([abs_("T"), val_("x", var("T"))]), int())),
+  );
+
+let test_match_on_abstract_list =
+  fully_consistent_typecheck(
+    "Matching on a list of an abstract type is checked for coverage",
+    {|fun (m : { type T; let xs : [T] }) -> case m.xs | [] => 0 | y::rest => 1 end|},
+    Some(arrow(sig_([abs_("T"), val_("xs", list(var("T")))]), int())),
   );
 
 /* ===== MODULE KEYWORD TESTS ===== */
@@ -1245,6 +1915,32 @@ let test_shorthand_member_mismatch_on_definition =
     },
   );
 
+/* ===== CYCLIC MEMBER PATHS ===== */
+
+/* A signature that names a same-named outer binding has no weak head normal
+   form: `m.T` inside the inner `m`'s own signature resolves to the inner `m`.
+   Normalizing it used to abort the whole analysis with
+   Failure("weak_head_normalize exceeded 1000 recursive calls"); the stuck path
+   is now an ordinary type error on the member that fails to match it. */
+let is_type_member_mismatch_on_t: Language.Mark.t => bool =
+  fun
+  | ModuleTypeMemberMismatch({name: "T", _}) => true
+  | _ => false;
+
+let test_cyclic_member_path_let =
+  single_mark_test(
+    "A signature naming a same-named outer binding is a type error, not a crash",
+    {|let m = { type T = Int } in let m : { type T = m.T } = { type T = Int } in let y : m.T = 1 in y|},
+    is_type_member_mismatch_on_t,
+  );
+
+let test_cyclic_member_path_module =
+  single_mark_test(
+    "The module form of a self-referential signature is a type error, not a crash",
+    {|module M = { type T = Int } in module M : { type T = M.T } = { type T = Int } in let y : M.T = 1 in y|},
+    is_type_member_mismatch_on_t,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1300,8 +1996,27 @@ let tests = (
     test_no_type_members_mark,
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
+    test_unknown_typed_root_is_not_an_error,
     test_type_member_mismatch_single_error,
+    test_type_member_mismatch_on_the_definition,
+    test_hole_binder_assumes_missing_members,
+    test_hole_item_assumes_missing_members,
+    test_hole_in_destructuring_binder_assumes_missing_members,
+    test_hole_item_assumes_missing_type_member,
+    test_error_wildcard_binder_does_not_assume,
+    test_error_non_binder_holes_do_not_assume,
     test_type_member_mismatch_with_wrong_definition,
+    /* Nested expectations */
+    test_nested_missing_member_localized,
+    test_nested_type_member_mismatch_localized,
+    test_nested_definition_mismatch_localized,
+    test_nested_user_annotation_kept,
+    test_error_nested_module_sealed,
+    test_tuple_binder_mismatch_localized,
+    test_tuple_binder_ok,
+    test_labeled_tuple_binder_ok,
+    test_nested_tuple_binder_mismatch_localized,
+    test_cons_binder_mismatch_localized,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,
@@ -1328,7 +2043,7 @@ let tests = (
     test_empty_module_is_not_unit,
     test_unit_is_not_empty_module,
     test_module_tuple_equality_rejected,
-    /* Width subtyping at analysis positions */
+    /* Sealing at coercion sites */
     test_width_empty_sig,
     test_width_extra_member,
     test_width_narrower_sig,
@@ -1341,7 +2056,7 @@ let tests = (
     test_width_bound_variable,
     test_width_hole_member,
     test_width_depth,
-    test_width_contravariant_domain,
+    test_error_width_no_contravariance,
     test_error_width_covariant_domain,
     test_error_width_not_in_if,
     test_error_width_not_in_if_annotated,
@@ -1352,8 +2067,55 @@ let tests = (
     test_error_width_hidden_helper,
     test_width_nested_member_wider,
     test_width_if_branch_ascribed,
+    /* Non-sites */
+    test_error_sealing_not_in_list,
+    test_sealing_in_list_ascribed,
+    test_error_sealing_module_literal_in_list,
+    test_sealing_tuple_argument,
+    test_sealing_tuple_literal_annotated,
+    test_sealing_labeled_tuple_component,
+    test_sealing_tuple_variable,
+    test_error_sealing_not_in_case_pattern,
+    test_sealing_scrutinee_ascribed,
+    test_sealing_function_body,
+    test_sealing_through_parens,
+    test_error_sealing_not_through_let_body,
+    test_error_sealing_not_in_if_branches,
+    test_sealing_constructor_argument,
+    test_error_sealing_not_through_sum_variable,
     test_hole_named_member_matches_any,
     test_label_mismatch_hole,
+    /* Abstract type members */
+    test_abstract_member_wellformed,
+    test_sealed_module_type,
+    test_sealed_member_has_path_type,
+    test_error_sealed_representation_hidden,
+    test_abstract_member_used_through_interface,
+    test_abstract_path_annotation,
+    test_error_distinct_sealings,
+    test_error_same_sig_alias_distinct_instances,
+    test_module_alias_shares_abstract_type,
+    test_variable_alias_shares_abstract_type,
+    test_manifest_member_stays_transparent,
+    test_unsealed_module_stays_transparent,
+    test_missing_type_member_mark,
+    test_missing_type_member_only_error,
+    test_missing_sibling_module_only_error,
+    test_sig_member_path_through_sibling_module,
+    test_sig_member_path_through_sibling_value,
+    test_module_matches_sibling_path_member,
+    test_error_type_member_kind_mismatch,
+    test_error_forward_reference_in_sig,
+    test_sealing_through_abstract_path,
+    test_non_path_projection_is_unknown,
+    test_match_on_abstract_member,
+    test_match_on_abstract_list,
+    test_error_abstract_member_through_alias,
+    test_error_abstract_member_through_alias_of_module_value,
+    test_manifest_member_through_alias_ok,
+    test_abstract_member_through_module_of_alias_ok,
+    test_error_missing_member_through_alias,
+    test_error_unknown_member_on_sealed,
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
@@ -1396,5 +2158,8 @@ let tests = (
     test_shorthand_member_shadowed,
     test_shorthand_parameter_not_member,
     test_shorthand_member_mismatch_on_definition,
+    /* Cyclic member paths */
+    test_cyclic_member_path_let,
+    test_cyclic_member_path_module,
   ],
 );

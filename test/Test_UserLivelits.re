@@ -38,7 +38,7 @@ type Action = Int;
 type Expansion = Int;
 let init : Model = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = fun m -> m * 2
 }";
 
@@ -51,7 +51,7 @@ type Action = Int;
 type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = fun m -> m * 2"
   ++ (extra == "" ? "" : ";\n" ++ extra)
   ++ "
@@ -68,7 +68,7 @@ type Expansion = "
   ++ ";
 let init : Model = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = "
   ++ expand
   ++ "
@@ -107,7 +107,7 @@ let members_out_of_order = () =>
     "let ^dbl = {
 let expand = fun m -> m * 2;
 type Expansion = Int;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 type Model = Int;
 let init = 0;
 type Action = Int;
@@ -166,7 +166,7 @@ type Expansion = Int;
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = fun m -> bump(m)
 } in ^inc(4) + ^inc(9)",
   );
@@ -181,10 +181,138 @@ type Action = Int;
 type Expansion = Int;
 let init = 0;
 let update(m, a) = a;
-let view(m) = 0;
+let view(m) = Html.text(\"\");
 let expand(m) = m * 2
 } in ^dbl(4)",
   );
+
+/* The definition-site check: `expand` must produce the type the definition
+   DECLARES as Expansion. Here Expansion is Int but expand returns a String,
+   which no use-site check would be needed to catch -- the definition alone
+   is already wrong. */
+/* REGRESSION. The definition-site check must fire on a member whose type
+   is stated through the livelit's OWN type members, not only on one whose
+   wrongness is visible without them. `expand = fun m : Model -> m` under
+   `Expansion = String` types as Model -> Model; left unrealized, those
+   names mean nothing outside the module, degrade to ?, and the check
+   passes whatever expand returns -- which is exactly what it used to do,
+   leaving the error to appear only at the uses. */
+let module_expand_mismatch_through_aliases = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m : Model -> m")
+      ++ " in ^s(1)",
+    );
+  check(
+    bool,
+    "a mismatch stated in Model/Expansion is caught at the definition",
+    true,
+    has_mark(
+      fun
+      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand", _})) =>
+        true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+/* A bad member type is reported, but must not unbind the livelit: its uses
+   should still resolve, so they keep getting their own check rather than
+   collapsing into "variable not bound". */
+let module_mismatch_still_binds = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m : Model -> m")
+      ++ " in ^s(1)",
+    );
+  check(
+    bool,
+    "the use does not become unbound",
+    false,
+    has_mark(
+      fun
+      | Mark.Free(_) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+let module_expand_mismatch = () => {
+  let (m, _) =
+    statics(
+      "let ^x = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init : Model = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> Html.text(\"\");
+let expand = fun m -> \"not an Int\"
+} in 1",
+    );
+  check(
+    bool,
+    "expand's result type is checked against Expansion at the definition",
+    true,
+    has_mark(
+      fun
+      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand", _})) =>
+        true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+/* The same check, on the member whose type mentions Action: `update` must
+   take (Model, Action) and give back a Model. */
+let module_update_mismatch = () => {
+  let (m, _) =
+    statics(
+      "let ^x = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init : Model = 0;
+let update = fun (m, a) -> \"wrong\";
+let view = fun m -> Html.text(\"\");
+let expand = fun m -> m
+} in 1",
+    );
+  check(
+    bool,
+    "update's result type is checked against Model",
+    true,
+    has_mark(
+      fun
+      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "update", _})) =>
+        true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+/* A definition that satisfies the signature reports no mismatch at all --
+   the check must not fire on the livelits that already work. */
+let module_well_typed_no_mismatch = () => {
+  let (m, _) = statics("let ^x = " ++ dbl_def ++ " in ^x(1)");
+  check(
+    bool,
+    "a well-typed definition raises no member mismatch",
+    false,
+    has_mark(
+      fun
+      | Mark.InvalidLivelitDef(DefMemberMismatch(_)) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
 
 let module_missing_members = () => {
   let (m, _) =
@@ -207,12 +335,12 @@ let module_missing_members = () => {
 let mk_ll = (def_text: string): LivelitCtx.raw_livelit => {
   let def_user = parse_exp(def_text);
   let ctx = Builtins.ctx_init(Some(Int));
-  let (_, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
+  let (m, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
   switch (
-    UserLivelit.mk(~ctx, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
+    UserLivelit.mk(~ctx, ~m, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
   ) {
-  | Ok(ll) => ll
-  | Error(_) => fail("adapter rejected a well-formed module definition")
+  | (Some(ll), _) => ll
+  | (None, _) => fail("adapter rejected a well-formed module definition")
   };
 };
 
@@ -320,7 +448,7 @@ let missing_types_marked = () => {
       "let ^x = {
 let init = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = fun m -> m
 } in 1",
     );
@@ -386,13 +514,20 @@ let expand = fun m -> m
 }";
   let def_user = parse_exp(def_text);
   let ctx = Builtins.ctx_init(Some(Int));
-  let (_, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
+  let (m, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
   let ll =
     switch (
-      UserLivelit.mk(~ctx, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
+      UserLivelit.mk(
+        ~ctx,
+        ~m,
+        ~name="s",
+        ~id=Id.invalid,
+        ~def_user,
+        ~def_elab,
+      )
     ) {
-    | Ok(ll) => ll
-    | Error(_) => fail("adapter rejected a well-formed definition")
+    | (Some(ll), _) => ll
+    | (None, _) => fail("adapter rejected a well-formed definition")
     };
   /* model_default comes from init */
   check(
@@ -903,6 +1038,23 @@ let tests = [
       test_case("expansion evaluates", `Quick, evaluates),
       test_case("module helpers", `Quick, module_helpers),
       test_case("module funlet members", `Quick, module_funlet_members),
+      test_case("module expand mismatch", `Quick, module_expand_mismatch),
+      test_case(
+        "module expand mismatch through aliases",
+        `Quick,
+        module_expand_mismatch_through_aliases,
+      ),
+      test_case(
+        "module mismatch still binds",
+        `Quick,
+        module_mismatch_still_binds,
+      ),
+      test_case("module update mismatch", `Quick, module_update_mismatch),
+      test_case(
+        "module well typed no mismatch",
+        `Quick,
+        module_well_typed_no_mismatch,
+      ),
       test_case("module missing members", `Quick, module_missing_members),
       test_case("module missing types", `Quick, missing_types_marked),
       test_case("module adapter", `Quick, module_adapter),

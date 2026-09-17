@@ -532,14 +532,19 @@ let parens_report_the_marked_term = () => {
 };
 
 /* A livelit use is always inside a projector, so its expansion error hit
-   this every time: once on `^s(model)`, once on the projector. */
+   this every time: once on `^s(model)`, once on the projector.
+
+   This definition is wrong in a way BOTH checks see: expand returns the
+   Model where Expansion says String. So two problems are correct here --
+   one at the definition, one at the deduplicated use -- and the dedup
+   this test exists for is the difference between two and three. */
 let livelit_def = {|{
 type Model = Int;
 type Action = Int;
 type Expansion = String;
 let init : Model = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> 0;
+let view = fun m -> Html.text(\"\");
 let expand = fun m : Model -> m
 }|};
 
@@ -550,14 +555,14 @@ let projected_use_reports_one_error = () => {
   };
   check(
     int,
-    "bare use of a livelit with a mistyped expansion",
-    1,
+    "bare use of a livelit with a mistyped expansion: definition and use",
+    2,
     count("let ^s = " ++ livelit_def ++ " in ^s(1)"),
   );
   check(
     int,
-    "the same use inside its projector",
-    1,
+    "the same use inside its projector: the projector adds none",
+    2,
     count("let ^s = " ++ livelit_def ++ " in ^^livelit(^s(1))"),
   );
 };
@@ -568,19 +573,21 @@ let projected_use_reports_a_visible_id = () => {
      the user can see and click. */
   let (ctx, problems) =
     from_string_exn("let ^s = " ++ livelit_def ++ " in ^^livelit(^s(1))");
-  switch (static_ids(problems)) {
-  | [id] =>
-    check(
-      bool,
-      "reported id is in measured",
-      true,
-      Haz3lcore.Measured.find_by_id(id, ctx.measured) != None,
-    )
-  | ids =>
-    fail(
-      "expected one static error, got " ++ string_of_int(List.length(ids)),
-    )
-  };
+  /* Asserted of EVERY reported id rather than of a single one: the
+     definition-site check reports beside the use, and the property that
+     matters -- a row lands somewhere the reader can click -- is owed by
+     both. */
+  let ids = static_ids(problems);
+  check(bool, "the use is reported at all", true, ids != []);
+  check(
+    bool,
+    "every reported id is in measured",
+    true,
+    List.for_all(
+      id => Haz3lcore.Measured.find_by_id(id, ctx.measured) != None,
+      ids,
+    ),
+  );
 };
 
 let collect_cases = [

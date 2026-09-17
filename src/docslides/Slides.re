@@ -11,11 +11,12 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("ADTs", [%blob "adts.hz"]),
     ("Tuples", [%blob "tuples.hz"]),
     ("Modules", [%blob "modules.hz"]),
+    ("Module Signatures", [%blob "module-signatures.hz"]),
+    ("Module Sealing", [%blob "module-sealing.hz"]),
     ("Tables", [%blob "tables.hz"]),
     ("Polymorphism", [%blob "polymorphism.hz"]),
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
-    ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
     /* Fumola through livelits, as a series in successive complexity: the map first, then
        what values are, then
        how they are named, then the state that makes editing incremental,

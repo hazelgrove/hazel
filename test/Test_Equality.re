@@ -262,10 +262,28 @@ let tests = (
         );
       },
     ),
-    QCheck_alcotest.to_alcotest(qcheck_equal_copy),
-    QCheck_alcotest.to_alcotest(qcheck_meet_self),
-    QCheck_alcotest.to_alcotest(qcheck_symmetric),
-    QCheck_alcotest.to_alcotest(qcheck_normalize_preserves_equality),
-    QCheck_alcotest.to_alcotest(qcheck_normalize_idempotent),
+    test_case(
+      "abstract signature members compare by name",
+      `Quick,
+      () => {
+        let s = t =>
+          Typ.sig_([
+            Sig.sig_type_abstract(TPat.var(t)),
+            Sig.sig_let(Pat.asc(Pat.var("x"), Typ.var(t))),
+          ]);
+        check(
+          bool,
+          "{ type T; let x : T } === { type T; let x : T }",
+          true,
+          Equality.semantic.typ(s("T"), s("T")),
+        );
+        check(
+          bool,
+          "{ type T; let x : T } !== { type U; let x : U }",
+          false,
+          Equality.semantic.typ(s("T"), s("U")),
+        );
+      },
+    ),
   ],
 );

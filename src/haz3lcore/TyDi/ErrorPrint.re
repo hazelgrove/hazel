@@ -39,14 +39,34 @@ module Print = {
 
 let prn = Printf.sprintf;
 
+/* See member_mismatch_view in CursorInspector: one phrasing, and [what]
+   names the kind of member. */
+let member_mismatch_string = (~what, name, ~expected, ~actual) =>
+  prn(
+    "%s%s is %s but its signature declares %s",
+    what,
+    name,
+    Print.typ(actual),
+    Print.typ(expected),
+  );
+
+let type_member_mismatch_string = (name, ~expected, ~actual) =>
+  member_mismatch_string(~what="Type member ", name, ~expected, ~actual);
+
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
-    prn(
-      "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
-    );
+    Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana))
+      ? prn(
+          "Expecting type %s but got the wider type %s; an ascription seals the extra members",
+          Print.typ(ana),
+          Print.typ(syn),
+        )
+      : prn(
+          "Expecting type %s but got inconsistent type %s",
+          Print.typ(ana),
+          Print.typ(syn),
+        );
   switch (m) {
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
@@ -162,6 +182,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       "Livelit definition is missing type members: %s",
       String.concat(", ", missing),
     )
+  | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
+    member_mismatch_string(~what="Member ", name, ~expected, ~actual)
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
@@ -185,12 +207,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       };
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    prn(
-      "Type member %s is %s but its signature declares %s",
-      name,
-      Print.typ(actual),
-      Print.typ(expected),
-    )
+    type_member_mismatch_string(name, ~expected, ~actual)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -204,6 +221,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantProduct(_)
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
+  | TypAbstractMemberOfSignature(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -269,7 +287,21 @@ let typ_mark_string: Mark.t => string =
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
-    prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+    switch (ty.term) {
+    | Atom(_) =>
+      prn(
+        "%s is a base type, not a module; a module with the name of a type cannot start a type path",
+        Print.typ(ty),
+      )
+    | _ =>
+      prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+    }
+  | TypAbstractMemberOfSignature(name) =>
+    prn(
+      "%s is an abstract member of a signature, not of a module; name it through a module of that signature, as M.%s",
+      name,
+      name,
+    )
   | ModuleTypeMemberNotFound({name, members, submodule}) => {
       let what = submodule ? "sub-module" : "type member";
       switch (members) {
@@ -286,6 +318,8 @@ let typ_mark_string: Mark.t => string =
     }
   | TypWantModule({name, typ}) =>
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =

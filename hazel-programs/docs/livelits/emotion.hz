@@ -1,37 +1,63 @@
 # An Emotion Livelit #
 
-# A draggable face whose EXPANSION is a String naming a mood: the #
-# face itself is the control -- drag it up or down to change it. #
+# A draggable face whose EXPANSION is a Mood: the face itself is #
+# the control -- drag it up or down to change it. #
+
+# The constructors live out here: a use writes its own model in the #
+# program text (last line), and clients match on what it means. #
+type Drag = + Idle + Held(Int, Int) in
+type MoodIntensity = + Somewhat + Very in
+type Mood = + Happy(MoodIntensity) + Sad(MoodIntensity) + Neutral in
 
 let ^mood = {
-  # (value, anchor): anchor is -1 except mid-drag. It stores #
-  # 200 + value - 2 * grab-y (the bias keeps it positive). #
-  type Model = (Int, Int);
-  type Action = + Down(Int) + MoveTo(Int) + Up;
-  type Expansion = String;
+  type Model = (Int, Drag);
 
-  let init : Model = (50, -1);
+  # Three actions, and each one earns its place: #
+  #   Down(y)    Idle -> Held: records the mood AND the grab point, #
+  #              so a later move knows what it is measuring from. #
+  #   MoveTo(y)  the only action that changes the mood, and only #
+  #              while Held -- see its Idle branch below. #
+  #   Up         Held -> Idle. Without it the face would go on #
+  #              following the pointer after you let go. #
+  type Action = + Down(Int) + MoveTo(Int) + Up;
+
+  type Expansion = Mood;
+
+  let init : Model = (50, Idle);
 
   let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
 
-  # dragging DOWN pulls the mouth into a smile (2 mood per px); #
-  # moves only count while held #
-  let update = fun ((v, anchor), a) : (Model, Action) ->
+  # Held remembers the mood and the y where the grab began, so a #
+  # move is just the distance dragged: DOWN smiles, 2 mood per px. #
+  let update = fun ((v, drag), a) : (Model, Action) ->
     case a
-    | Down(y) => (v, 200 + v - 2 * y)
-    | MoveTo(y) => if anchor == -1 then (v, anchor)
-                   else (clamp(anchor - 200 + 2 * y), anchor)
-    | Up => (v, -1)
+    | Down(y) => (v, Held(v, y))
+    | MoveTo(y) =>
+      case drag
+      # not dragging: pointer moves over the face are ignored. This is #
+      # the branch that makes Up worth having -- the two only pay off #
+      # together, and hovering leaving the mood alone is how you see it. #
+      | Idle => (v, drag)
+      | Held(v0, y0) => (clamp(v0 + 2 * (y - y0)), drag)
+      end
+    | Up => (v, Idle)
     end;
 
-  let word = fun (v, anchor) : Model ->
-    if v < 40 then "sad" else if v > 70 then "happy" else "neutral";
+  # The mouth is a quadratic whose control point sits at 90 + 4v/5, #
+  # while its corners stay at 130: the lip is flat at exactly v = 50. #
+  # Neutral brackets that crossing, and each expression takes a fifth. #
+  let mood = fun (v, _drag) : Model ->
+    if v < 20 then Sad(Very)
+    else if v < 40 then Sad(Somewhat)
+    else if v < 60 then Neutral
+    else if v < 80 then Happy(Somewhat)
+    else Happy(Very);
 
   # the mouth is a curve whose bend follows the value #
   let mouth = fun v ->
     "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
 
-  let view = fun (v, anchor) : Model ->
+  let view = fun (v, _drag) : Model ->
     Html.div(
       [Attr.create("data-hint", "drag up/down"),
        Attr.style([("cursor", "ns-resize")])],
@@ -39,9 +65,9 @@ let ^mood = {
         Html.node("svg",
           [Attr.create("viewBox", "0 0 200 200"),
            Attr.width("92"), Attr.height("92"),
-           Attr.on_mouse_down_at(fun (x, y) -> Down(y)),
-           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(y)),
-           Attr.on_mouse_up_at(fun p -> Up)],
+           Attr.on_mouse_down_at(fun (_x, y) -> Down(y)),
+           Attr.on_mouse_move_at(fun (_x, y) -> MoveTo(y)),
+           Attr.on_mouse_up_at(fun _p -> Up)],
           [
             Html.node("circle",
               [Attr.create("cx", "100"), Attr.create("cy", "100"), Attr.create("r", "90"),
@@ -57,18 +83,22 @@ let ^mood = {
       ]
     );
 
-  let expand = fun m : Model -> word(m);
+  let expand = fun m : Model -> mood(m);
 
   let shape = Tab(10, 4)
 } in
 
-# A use means its EXPANSION: the mood word, not the number behind it. #
+# A use means its EXPANSION. Binding it gives the reader all three #
+# things at once: the WIDGET, the Mood it expands to as Hazel data #
+# (the probe below), and the String that greeting turns it into. #
 
-let greeting = fun mood : String ->
-  case mood
-  | "happy" => "What a day!"
-  | "sad" => "Hang in there."
-  | _ => "Steady on."
+let greeting = fun m : Mood ->
+  case m
+  | Happy(Very) => "What a day!"
+  | Happy(Somewhat) => "Not bad at all."
+  | Neutral => "Steady on."
+  | Sad(Somewhat) => "Hang in there."
+  | Sad(Very) => "Sorry it's rough."
   end in
 
-greeting(^^livelit(^mood(85, -1)))
+greeting(let ^^probe(mood) = ^^livelit(^mood(85, Idle)) in mood)
