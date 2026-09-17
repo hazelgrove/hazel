@@ -258,10 +258,82 @@ let app_view =
 /* ~app: the card belongs to a livelit's own node — the app itself. A
    TYPE's card shows values, even at the app's site (its stream holds
    the app's values too). */
-let card_view = (~globals, ~editor, ~key, ~app: bool=false, id) =>
-  app && is_app_site(~editor, id)
-    ? app_view(~globals, ~editor, id)
-    : view(~globals, ~editor, ~key, ~card=true, id);
+type card_inputs = {
+  key: string,
+  id: Id.t,
+  app: bool,
+  syntax: CachedSyntax.t,
+  statics: Language.Statics.Map.t,
+  dynamics: Language.Dynamics.Map.t,
+  focus: Language.Sample.Focus.t,
+  model: option(string),
+  core_settings: Language.CoreSettings.t,
+  font_metrics: FontMetrics.t,
+  settings_version: int,
+  app_version: int,
+};
+
+/* Animation, camera and card-size changes do not change the probe's
+   value. The normal projector path caches P.view; canvas probes need
+   their own cache because their model/actions live in sidebar settings.
+   Keep the resulting node's identity too: natural-size measurement can
+   then distinguish new content from a canvas-only render. */
+let card_views: ref(list((card_inputs, option(Node.t)))) = ref([]);
+
+/* Closed cards must not retain old evaluation maps and their closures. */
+let retain_card_views = keys =>
+  card_views := List.filter(((i, _)) => List.mem(i.key, keys), card_views^);
+
+let card_view =
+    (
+      ~globals: Globals.t,
+      ~editor: CodeWithStatics.Model.t,
+      ~key,
+      ~app: bool=false,
+      id,
+    ) => {
+  let inputs = {
+    key,
+    id,
+    app,
+    syntax: editor.editor.syntax,
+    statics: editor.statics.info_map,
+    dynamics: editor.dynamics,
+    focus: editor.editor.state.zipper.refractors.sample_focus,
+    model: stored_model(~globals, key),
+    core_settings: globals.settings.core,
+    font_metrics: globals.font_metrics,
+    settings_version: Haz3lcore.ProbeProj.Settings.version^,
+    app_version: app ? Haz3lcore.LivelitProj.optimistic_version^ : 0,
+  };
+  switch (List.find_opt(((i, _)) => i.key == key, card_views^)) {
+  | Some((i, content))
+      when
+        i.id == id
+        && i.app == app
+        && i.syntax === inputs.syntax
+        && i.statics === inputs.statics
+        && i.dynamics === inputs.dynamics
+        && Language.Sample.Focus.equal(i.focus, inputs.focus)
+        && i.model == inputs.model
+        && i.core_settings == inputs.core_settings
+        && i.font_metrics == inputs.font_metrics
+        && i.settings_version == inputs.settings_version
+        && i.app_version == inputs.app_version => content
+  | _ =>
+    let content =
+      app && is_app_site(~editor, id)
+        ? app_view(~globals, ~editor, id)
+        : view(~globals, ~editor, ~key, ~card=true, id);
+    /* One generation per open slot; the caller drops closed slots. */
+    card_views :=
+      [
+        (inputs, content),
+        ...List.filter(((i, _)) => i.key != key, card_views^),
+      ];
+    content;
+  };
+};
 
 /* ---- aggregate value strip (type-node wells) ----
    One chip per distinct value: the sample-display RENDERING (green chip,

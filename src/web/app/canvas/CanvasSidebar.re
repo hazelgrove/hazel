@@ -20,6 +20,12 @@ let request_reveal = (id: Id.t): unit => reveal_request := Some(id);
 let resizing_card: ref(option((string, string, (float, float)))) =
   ref(Option.none);
 
+/* Content identity comes from CanvasProbe's value-view cache. Measuring
+   unchanged content during every agent/camera frame forces layout and
+   can feed animated geometry back into the stored natural size. */
+let measured_card_content: ref(list(((string, string), Node.t))) =
+  ref([]);
+
 /* the outline row of a definition selected on the CANVAS scrolls into
    view after the render that highlights it */
 let scroll_outline_to_selection = (): unit => {
@@ -2614,6 +2620,12 @@ let view_impl =
     fit_pending := false;
     CanvasEnact.after_render(fit_view);
   };
+  CanvasProbe.retain_card_views(
+    List.map(
+      key => "ty/" ++ key,
+      globals.settings.sidebar.canvas_value_nodes,
+    ),
+  );
   let cards =
     List.filter_map(
       key => {
@@ -2712,151 +2724,205 @@ let view_impl =
       },
       globals.settings.sidebar.canvas_value_nodes,
     );
-  /* MEASURE every card's content at its natural size (zoom 1,
+  measured_card_content :=
+    List.filter(
+      (((s, key), _)) => s == slide && List.mem_assoc(key, cards),
+      measured_card_content^,
+    );
+  let needs_measure = (key, content) =>
+    switch (List.assoc_opt((slide, key), measured_card_content^)) {
+    | Some(previous) =>
+      previous !== content
+      || !
+           List.mem_assoc(
+             (slide, key),
+             globals.settings.sidebar.canvas_card_natural,
+           )
+      || !
+           List.mem_assoc(
+             (slide, key),
+             globals.settings.sidebar.canvas_card_sizes,
+           )
+    | None => true
+    };
+  let pending_measure =
+    List.filter(
+      ((key, (content, _, _, _, _, _, _, _))) =>
+        needs_measure(key, content),
+      cards,
+    );
+  /* MEASURE changed card content at its natural size (zoom 1,
      shrink-wrapped) after the render: the natural size drives the
      zoom-to-fit, and a card without a stored size opens at a standard
      size with the content's proportions (long side 168px; plain values
      at their own size, capped 360x260). Stored only on change. */
-  if (cards != [] && resizing_card^ == None) {
+  if (pending_measure != [] && resizing_card^ == None) {
     CanvasEnact.after_render(() => {
-      open Js_of_ocaml;
-      let els =
-        Dom_html.document##querySelectorAll(Js.string("[data-card-key]"));
-      for (i in 0 to els##.length - 1) {
-        switch (Js.Opt.to_option(els##item(i))) {
-        | Some(el) =>
-          let key =
-            Js.to_string(
-              Js.Opt.get(el##getAttribute(Js.string("data-card-key")), () =>
-                Js.string("")
-              ),
-            );
-          let inner =
-            el##querySelector(
-              Js.string(".probe-card-rich, .probe-card-plain, .canvas-app"),
-            );
-          let rich =
-            Js.Opt.test(
-              el##querySelector(Js.string(".probe-card-rich, .canvas-app")),
-            );
-          let is_list =
-            Js.Opt.test(el##querySelector(Js.string(".rich-livelit-list")));
-          switch (Js.Opt.to_option(inner)) {
-          | Some(c) =>
-            let z = {
-              let root =
-                Dom_html.document##querySelector(Js.string(".canvas-root"));
-              switch (Js.Opt.to_option(root)) {
-              | Some(r) =>
-                let cs = Dom_html.window##getComputedStyle(r);
-                let zs = Js.to_string(Js.Unsafe.get(cs, "zoom"));
-                switch (float_of_string_opt(zs)) {
-                | Some(z) when z > 0.05 => z
-                | _ => 1.
-                };
-              | None => 1.
-              };
-            };
-            /* natural size: content zoom 1 (override the card's
-               --card-zoom), shrink-wrapped; union of descendants */
-            let est = Js.Unsafe.coerce(el)##.style;
-            let saved_card = Js.to_string(Js.Unsafe.get(est, "cssText"));
-            Js.Unsafe.set(
-              est,
-              "cssText",
-              Js.string(
-                saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;",
-              ),
-            );
-            let cst = Js.Unsafe.coerce(c)##.style;
-            let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
-            Js.Unsafe.set(
-              cst,
-              "cssText",
-              Js.string(
-                saved
-                ++ "; position: absolute; width: max-content; height: max-content; max-width: none; max-height: none; overflow: visible;",
-              ),
-            );
-            let r0 = c##getBoundingClientRect;
-            let x0 = r0##.left
-            and y0 = r0##.top;
-            let (x1, y1) = {
-              let ds = c##querySelectorAll(Js.string("*"));
-              let mx = ref(x0)
-              and my = ref(y0);
-              for (j in 0 to min(ds##.length, 600) - 1) {
-                switch (Js.Opt.to_option(ds##item(j))) {
-                | Some(d) =>
-                  let r = d##getBoundingClientRect;
-                  let w = Js.Optdef.get(r##.width, () => 0.);
-                  if (w > 0.) {
-                    mx := Float.max(mx^, r##.right);
-                    my := Float.max(my^, r##.bottom);
+      Js_of_ocaml.
+        /* Another queued render may already have measured this content. */
+        (
+          List.iter(
+            ((key, (content, _, _, _, _, _, _, _))) =>
+              if (needs_measure(key, content) && resizing_card^ == None) {
+                switch (
+                  Js.Opt.to_option(
+                    Dom_html.document##getElementById(
+                      Js.string(CanvasView.node_dom_id(key)),
+                    ),
+                  )
+                ) {
+                | Some(el) =>
+                  let inner =
+                    el##querySelector(
+                      Js.string(
+                        ".probe-card-rich, .probe-card-plain, .canvas-app",
+                      ),
+                    );
+                  let rich =
+                    Js.Opt.test(
+                      el##querySelector(
+                        Js.string(".probe-card-rich, .canvas-app"),
+                      ),
+                    );
+                  let is_list =
+                    Js.Opt.test(
+                      el##querySelector(Js.string(".rich-livelit-list")),
+                    );
+                  switch (Js.Opt.to_option(inner)) {
+                  | Some(c) =>
+                    let z = {
+                      let root =
+                        Dom_html.document##querySelector(
+                          Js.string(".canvas-root"),
+                        );
+                      switch (Js.Opt.to_option(root)) {
+                      | Some(r) =>
+                        let cs = Dom_html.window##getComputedStyle(r);
+                        let zs = Js.to_string(Js.Unsafe.get(cs, "zoom"));
+                        switch (float_of_string_opt(zs)) {
+                        | Some(z) when z > 0.05 => z
+                        | _ => 1.
+                        };
+                      | None => 1.
+                      };
+                    };
+                    /* natural size: content zoom 1 (override the card's
+                       --card-zoom), shrink-wrapped; union of descendants */
+                    let est = Js.Unsafe.coerce(el)##.style;
+                    let saved_card =
+                      Js.to_string(Js.Unsafe.get(est, "cssText"));
+                    Js.Unsafe.set(
+                      est,
+                      "cssText",
+                      Js.string(
+                        saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;",
+                      ),
+                    );
+                    let cst = Js.Unsafe.coerce(c)##.style;
+                    let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
+                    Js.Unsafe.set(
+                      cst,
+                      "cssText",
+                      Js.string(
+                        saved
+                        ++ "; position: absolute; width: max-content; height: max-content; max-width: none; max-height: none; overflow: visible;",
+                      ),
+                    );
+                    let r0 = c##getBoundingClientRect;
+                    let x0 = r0##.left
+                    and y0 = r0##.top;
+                    let (x1, y1) = {
+                      let ds = c##querySelectorAll(Js.string("*"));
+                      let mx = ref(x0)
+                      and my = ref(y0);
+                      for (j in 0 to min(ds##.length, 600) - 1) {
+                        switch (Js.Opt.to_option(ds##item(j))) {
+                        | Some(d) =>
+                          let r = d##getBoundingClientRect;
+                          let w = Js.Optdef.get(r##.width, () => 0.);
+                          if (w > 0.) {
+                            mx := Float.max(mx^, r##.right);
+                            my := Float.max(my^, r##.bottom);
+                          };
+                        | None => ()
+                        };
+                      };
+                      (mx^, my^);
+                    };
+                    Js.Unsafe.set(cst, "cssText", Js.string(saved));
+                    Js.Unsafe.set(est, "cssText", Js.string(saved_card));
+                    measured_card_content :=
+                      [
+                        ((slide, key), content),
+                        ...List.remove_assoc(
+                             (slide, key),
+                             measured_card_content^,
+                           ),
+                      ];
+                    let nw = Float.max(8., (x1 -. x0) /. z)
+                    and nh = Float.max(8., (y1 -. y0) /. z);
+                    let stored =
+                      List.assoc_opt(
+                        (slide, key),
+                        globals.settings.sidebar.canvas_card_natural,
+                      );
+                    let changed =
+                      switch (stored) {
+                      | Some((sw, sh)) =>
+                        Float.abs(sw -. nw) > 1.5
+                        || Float.abs(sh -. nh) > 1.5
+                      | None => true
+                      };
+                    if (changed) {
+                      Effect.Expert.handle_non_dom_event_exn(
+                        globals.inject_global(
+                          Set(
+                            Sidebar(
+                              SetCanvasCardNatural(slide, key, nw, nh),
+                            ),
+                          ),
+                        ),
+                      );
+                    };
+                    if (!
+                          List.mem_assoc(
+                            (slide, key),
+                            globals.settings.sidebar.canvas_card_sizes,
+                          )) {
+                      let (w, h) =
+                        if (rich && !is_list) {
+                          /* standard size, the content's proportions */
+                          let long = 168.;
+                          let k = long /. Float.max(nw, nh);
+                          (
+                            Float.max(48., nw *. k +. 8.),
+                            Float.max(48., nh *. k +. 8.),
+                          );
+                        } else if (rich) {
+                          (
+                            Float.max(64., Float.min(360., nw +. 12.)),
+                            Float.max(48., Float.min(260., nh +. 12.)),
+                          );
+                        } else {
+                          (
+                            Float.max(40., Float.min(360., nw +. 22.)),
+                            Float.max(28., Float.min(260., nh +. 16.)),
+                          );
+                        };
+                      Effect.Expert.handle_non_dom_event_exn(
+                        globals.inject_global(
+                          Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+                        ),
+                      );
+                    };
+                  | None => ()
                   };
                 | None => ()
                 };
-              };
-              (mx^, my^);
-            };
-            Js.Unsafe.set(cst, "cssText", Js.string(saved));
-            Js.Unsafe.set(est, "cssText", Js.string(saved_card));
-            let nw = Float.max(8., (x1 -. x0) /. z)
-            and nh = Float.max(8., (y1 -. y0) /. z);
-            let stored =
-              List.assoc_opt(
-                (slide, key),
-                globals.settings.sidebar.canvas_card_natural,
-              );
-            let changed =
-              switch (stored) {
-              | Some((sw, sh)) =>
-                Float.abs(sw -. nw) > 1.5 || Float.abs(sh -. nh) > 1.5
-              | None => true
-              };
-            if (changed) {
-              Effect.Expert.handle_non_dom_event_exn(
-                globals.inject_global(
-                  Set(Sidebar(SetCanvasCardNatural(slide, key, nw, nh))),
-                ),
-              );
-            };
-            if (!
-                  List.mem_assoc(
-                    (slide, key),
-                    globals.settings.sidebar.canvas_card_sizes,
-                  )) {
-              let (w, h) =
-                if (rich && !is_list) {
-                  /* standard size, the content's proportions */
-                  let long = 168.;
-                  let k = long /. Float.max(nw, nh);
-                  (
-                    Float.max(48., nw *. k +. 8.),
-                    Float.max(48., nh *. k +. 8.),
-                  );
-                } else if (rich) {
-                  (
-                    Float.max(64., Float.min(360., nw +. 12.)),
-                    Float.max(48., Float.min(260., nh +. 12.)),
-                  );
-                } else {
-                  (
-                    Float.max(40., Float.min(360., nw +. 22.)),
-                    Float.max(28., Float.min(260., nh +. 16.)),
-                  );
-                };
-              Effect.Expert.handle_non_dom_event_exn(
-                globals.inject_global(
-                  Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
-                ),
-              );
-            };
-          | None => ()
-          };
-        | None => ()
-        };
-      };
+              },
+            pending_measure,
+          )
+        )
     });
   };
   let delete_menu =
