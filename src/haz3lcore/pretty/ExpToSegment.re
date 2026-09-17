@@ -1266,7 +1266,10 @@ let rec drv_exp_to_pretty =
     let* x = go(x, ~sort=Prop)
     and* xs = xs |> List.map(~f=go(~sort=Prop)) |> all;
     let ids =
-      syntax |> IdTagged.ids |> List.tl_exn |> PadIds.pad_ids(List.length(xs));
+      syntax
+      |> IdTagged.ids
+      |> List.tl_exn
+      |> PadIds.pad_ids(List.length(xs));
     let map2_safe = (f, l1, l2) =>
       List.length(l1) == List.length(l2)
         ? List.map2_exn(l1, l2, ~f) : raise(Invalid_argument("map2_safe"));
@@ -2341,7 +2344,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(exp) |> List.tl_exn |> PadIds.pad_ids(List.length(items) - 1);
+      IdTagged.ids(exp)
+      |> List.tl_exn
+      |> PadIds.pad_ids(List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -2689,7 +2694,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       t
       @ List.concat(
           List.map2_exn(
-            IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ)), ts, ~f=(id, t) =>
+            IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ)),
+            ts,
+            ~f=(id, t) =>
             [mk_form(CommaTyp, id, [])] @ t
           ),
         ),
@@ -2804,7 +2811,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go_constructor(t);
     wrap(typ, [mk_form(TypSumSingle, id, [])] @ t);
   | Sum([t, ...ts]) =>
-    let ids = IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
+    let ids =
+      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
     let id = List.hd_exn(ids);
     let ids = List.tl_exn(ids);
     let+ t = go_constructor(t)
@@ -2826,8 +2834,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
     let ids =
       IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
-    let id = List.hd(ids);
-    let ids = List.tl(ids);
+    let id = List.hd_exn(ids);
+    let ids = List.tl_exn(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
@@ -3066,7 +3074,7 @@ let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
           ...ty,
           annotation: {
             ...ty.annotation,
-            ids: List.map(distinct, ty.annotation.ids),
+            ids: List.map(~f=distinct, ty.annotation.ids),
           },
         }),
     ty,
