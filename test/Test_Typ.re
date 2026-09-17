@@ -917,4 +917,11 @@ let subst_captures_tests = {
   );
 };
 
-let tests = [meet_tests, fast_equal_tests, diff_tests, sig_tests, cyclic_path_tests, subst_captures_tests];
+let tests = [
+  meet_tests,
+  fast_equal_tests,
+  diff_tests,
+  sig_tests,
+  cyclic_path_tests,
+  subst_captures_tests,
+];
