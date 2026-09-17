@@ -381,5 +381,36 @@ let tests = (
         );
       },
     ),
+    /* Regression: a builtin recursive ADT's constructors keep a COMPACT
+       annotation (Var("HTML"), per the test above), so `case` on a value
+       ascribed with that alias only reduces if the constructor's own type
+       is resolved before it is compared against the unrolled sum. Without
+       that, matching gets stuck and the whole case is returned unreduced —
+       which reaches the user as a half-evaluated program. */
+    test_case(
+      "case matches through a builtin recursive ascription", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        ~msg="HTML -> HTML annotation does not block matching",
+        {|Div([], [Li([], [Text("A")]), Li([], [Text("more")])])|},
+        {|let bump : HTML -> HTML =
+            fun node ->
+              case node
+              | Div(attrs, kids) => Div(attrs, kids @ [Li([], [Text("more")])])
+              | _ => node
+              end
+          in
+          bump(Div([], [Li([], [Text("A")])]))|},
+      )
+    ),
+    test_case("the same holds for a nullary builtin constructor", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        ~msg="JSON -> JSON annotation does not block matching",
+        {|Null|},
+        {|let f : JSON -> JSON = fun j -> case j | Null => Null | _ => Null end in
+          f(Null)|},
+      )
+    ),
   ],
 );
