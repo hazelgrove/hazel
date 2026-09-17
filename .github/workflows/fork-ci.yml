@@ -19,8 +19,7 @@ jobs:
   checks:
     if: ${{ github.event.pull_request.head.repo.fork }}
     uses: ./.github/workflows/checks.yml
-    # No secrets and no report check runs: a fork's GITHUB_TOKEN is read-only,
-    # so publishing one would fail and mark the pull request red, and no
-    # CODECOV_TOKEN is available to upload with.
+    # No secrets, so no CODECOV_TOKEN to upload with. The test reports are job
+    # summaries rather than check runs, so they need no token and still render.
     with:
-      publish-reports: false
+      upload-coverage: false

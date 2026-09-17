@@ -44,6 +44,7 @@ let (suite, exit_with_test_status) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_TaskReferenceSplit.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -61,10 +62,12 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_TypToSegment.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
+    @ Test_DynamicTypInfer.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
@@ -93,6 +96,9 @@ let (suite, exit_with_test_status) =
       Test_ObsBench.tests,
     ]
     @ [Test_GradingReport.tests]
+    @ Test_SlidePath.tests
+    @ Test_Tutorial.tests
+    @ Test_TutorialText.tests
     @ [Test_Derivation.tests]
     @ [Test_Blackboard.tests]
     @ [Test_BlackboardEditor.tests]

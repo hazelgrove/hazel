@@ -94,3 +94,7 @@ fumola-tiles-corpus-explicit.txt
 # the branch preview directory, which is what made GitHub Pages fail to build
 # the whole hazelgrove/build site.
 src/web/www/fumola/
+
+# `./hazel tutorial-decode` scratch output (a sibling of hazel-programs/tutorial
+# so it is not picked up as slide sources)
+hazel-programs/tutorial-imported/
