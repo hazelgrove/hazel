@@ -48,6 +48,8 @@ let tests = (
           "module = -> module",
           "module = in -> module",
           "module = in -> module =",
+          "type = -> type",
+          "type = in -> type",
           "type = in -> type =",
         ],
         prefix_forms(),
