@@ -715,6 +715,37 @@ module QueryParams = {
     };
   };
 
+  /* Drop the fragment, which is a mode of its own (`#debug`) and never part
+     of a link to a place in the document. */
+  let clear_fragment = (url: Url.url): Url.url =>
+    switch (url) {
+    | Http(u) =>
+      Http({
+        ...u,
+        hu_fragment: "",
+      })
+    | Https(u) =>
+      Https({
+        ...u,
+        hu_fragment: "",
+      })
+    | File(u) =>
+      File({
+        ...u,
+        fu_fragment: "",
+      })
+    };
+
+  /* This page with exactly these parameters: the link to hand someone else,
+     rather than the one in the address bar, which still carries whatever
+     parameters brought this reader here. */
+  let url_with = (args: list((string, string))): string =>
+    switch (Url.Current.get()) {
+    | None => ""
+    | Some(url) =>
+      url |> clear_fragment |> set_arguments(_, args) |> Url.string_of_url
+    };
+
   let set_param = (name: string, value: string) => {
     Url.Current.get()
     |> Option.iter(url => {

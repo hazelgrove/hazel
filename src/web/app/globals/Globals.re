@@ -129,6 +129,11 @@ module Model = {
        reader opens several rows and is looking at one of them. Cleared when a
        row is opened by hand, so only following scrolls. */
     fumola_focused: option(string),
+    /* The documentation slide showing, when one is: what a copied link names,
+       and the only deck `?slide=` can address. Assembled per frame in
+       `Page.main_view`, which is the first place that knows both the mode and
+       the slide -- an editor does not know it is on a slide at all. */
+    slide_name: option(string),
     // MVU apps, keyed by app-projector syntax id; not persisted
     apps: AppStore.t,
     // Calculated:
@@ -158,6 +163,7 @@ module Model = {
     visible_rows: None,
     fumola_open: [],
     fumola_focused: None,
+    slide_name: None,
     apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>
