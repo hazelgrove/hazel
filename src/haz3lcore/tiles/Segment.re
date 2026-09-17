@@ -313,6 +313,17 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
     }
   };
 }
+/* A tile with no form in the sort being remolded keeps its mold. While it
+   is still owed shards, what follows it is its next child and is molded in
+   that child's sort, not in this one: `x : T` typed after a `let` still
+   owed its `=` is a pattern whatever came before the `let`. */
+and remold_after = (t: Tile.t, tl: t, same_sort: (Nib.Shape.t, t) => t): t =>
+  if (Tile.has_end(Right, t)) {
+    [Tile(t), ...same_sort(snd(Tile.shapes(t)), tl)];
+  } else {
+    let (_, r) = Tile.nibs(t);
+    [Tile(t), ...remold(~shape=r.shape, tl, r.sort)];
+  }
 and remold_typ = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
@@ -323,7 +334,7 @@ and remold_typ = (shape, seg: t): t =>
     | Projector(p) => [hd, ...remold_typ(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
-      | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      | None => remold_after(t, tl, remold_typ)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -433,7 +444,7 @@ and remold_pat = (shape, seg: t): t =>
     | Projector(p) => [hd, ...remold_pat(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
-      | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
+      | None => remold_after(t, tl, remold_pat)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -493,7 +504,7 @@ and remold_tpat = (shape, seg: t): t =>
       ]
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
-      | None => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
+      | None => remold_after(t, tl, remold_tpat)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -625,7 +636,7 @@ and remold_exp = (shape, seg: t): t =>
     | Projector(p) => [hd, ...remold_exp(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
-      | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
+      | None => remold_after(t, tl, remold_exp)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -722,7 +733,10 @@ and remold_mod = (shape, seg: t): t =>
       | None =>
         /* No Mod form - try Exp since bare expressions are valid module items */
         switch (remold_tile(Exp, shape, t)) {
-        | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
+        | None => remold_after(t, tl, remold_mod)
+        | Some(t) when !Tile.has_end(Right, t) =>
+          let (_, r) = Tile.nibs(t);
+          [Tile(t), ...remold(~shape=r.shape, tl, r.sort)];
         | Some(t) =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
@@ -761,7 +775,7 @@ and remold_sig = (shape, seg: t): t =>
     | Projector(p) => [hd, ...remold_sig(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
       switch (remold_tile(Sig, shape, t)) {
-      | None => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
+      | None => remold_after(t, tl, remold_sig)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -839,7 +853,7 @@ and remold_mpat = (shape, seg: t): t =>
       ]
     | Tile(t) =>
       switch (remold_tile(MPat, shape, t)) {
-      | None => [Tile(t), ...remold_mpat(snd(Tile.shapes(t)), tl)]
+      | None => remold_after(t, tl, remold_mpat)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
