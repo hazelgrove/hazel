@@ -5,8 +5,8 @@
 let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     ("Overview", [%blob "overview.hz"]),
-    ("The Expansion", [%blob "expansion.hz"]),
     ("Define a Slider", [%blob "defined-slider.hz"]),
+    ("The Expansion", [%blob "expansion.hz"]),
     ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
     ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),

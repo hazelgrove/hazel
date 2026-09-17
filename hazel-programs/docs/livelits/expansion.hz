@@ -39,49 +39,112 @@
 # INTERESTING: AN EXPANSION THE MODEL COULD NOT BE #
 
 # Pick one color, and mean a whole RAMP of them. This livelit's #
-# Expansion is a FUNCTION, Int -> String: give it a lightness offset #
+# Expansion is a FUNCTION, Int -> Color: give it a lightness offset #
 # and it gives back that shade of the color you picked. #
 
 # A model could not hold this function -- it has to be written into #
 # the program text. The expansion has no such limit, so expand is #
 # where a picked color becomes a family of colors. #
 
+# And a Color is not a string. It is the same color in three #
+# coordinate systems, each still numeric, so a client can compute #
+# with it -- compare channels, sort by lightness, interpolate. #
+# Turning one into text is a separate step, further down. #
+
+type Rgb = (r=Int, g=Int, b=Int) in
+type Hsl = (h=Int, s=Int, l=Int) in
+type Hwb = (h=Int, w=Int, b=Int) in
+type Color = (rgb=Rgb, hsl=Hsl, hwb=Hwb) in
+
 let ^ramp = {
-  type Model = (Int, Int, Int);
-  type Action = (Int, Int, Int);
-  type Expansion = Int -> String;
+  type Model = Hwb;
+  type Action = Hwb;
+  type Expansion = Int -> Color;
 
-  let css = fun (h, w, b) : Model ->
-    "hwb(" ++ string_of_int(h) ++ " "
-    ++ string_of_int(w) ++ "% "
-    ++ string_of_int(b) ++ "%)";
+  let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
-  let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
+  # the hue at full strength, walked around the six sectors #
+  let hue_rgb = fun h : Int ->
+    let sector = h / 60 in
+    let up = (h - sector * 60) * 255 / 60 in
+    let down = 255 - up in
+    if sector == 0 then (r=255, g=up, b=0)
+    else if sector == 1 then (r=down, g=255, b=0)
+    else if sector == 2 then (r=0, g=255, b=up)
+    else if sector == 3 then (r=0, g=down, b=255)
+    else if sector == 4 then (r=up, g=0, b=255)
+    else (r=255, g=0, b=down);
 
-  let init : Model = (200, 20, 10);
+  # whiteness and blackness shrink the pure hue toward grey #
+  let to_rgb = fun c : Hwb ->
+    if c.w + c.b >= 100 then
+      let grey = c.w * 255 / (c.w + c.b) in (r=grey, g=grey, b=grey)
+    else
+      let pure = hue_rgb(c.h) in
+      let span = 100 - c.w - c.b in
+      let mix = fun v : Int -> v * span / 100 + c.w * 255 / 100 in
+      (r=mix(pure.r), g=mix(pure.g), b=mix(pure.b));
+
+  let to_hsl = fun c : Hwb ->
+    let value = 100 - c.b in
+    if value == 0 then (h=c.h, s=0, l=0)
+    else
+      let sat_v = 100 - c.w * 100 / value in
+      let l = value * (200 - sat_v) / 200 in
+      let edge = if l < 100 - l then l else 100 - l in
+      (h=c.h, s=if edge == 0 then 0 else (value - l) * 100 / edge, l=l);
+
+  let color = fun c : Hwb -> (rgb=to_rgb(c), hsl=to_hsl(c), hwb=c);
+
+  # the view needs text, so it makes its own; the EXPANSION does not #
+  let css = fun c : Hwb ->
+    "hwb(" ++ string_of_int(c.h) ++ " "
+    ++ string_of_int(c.w) ++ "% " ++ string_of_int(c.b) ++ "%)";
+
+  let init : Model = (h=200, w=20, b=10);
 
   let update = fun (m, a) : (Model, Action) -> a;
 
-  let view = fun (h, w, b) : Model ->
+  let swatch = fun c : Hwb ->
+    Html.div([Attr.style([("width", "18px"), ("height", "18px"),
+                          ("border", "1px solid black"),
+                          ("background", css(c))])], []);
+
+  let view = fun m : Model ->
     Html.div(
       [Attr.style([("display", "flex"), ("gap", "0.4em"),
                    ("align-items", "center")])],
       [Html.input([Attr.type_("range"), Attr.min("0"), Attr.max("360"),
-                   Attr.value(string_of_int(h)),
-                   Attr.on_input(fun s -> (int_of_string(s), w, b))]),
-       Html.div([Attr.style([("width", "18px"), ("height", "18px"),
-                             ("border", "1px solid black"),
-                             ("background", css((h, w, b)))])], []),
-       Html.div([Attr.style([("width", "18px"), ("height", "18px"),
-                             ("border", "1px solid black"),
-                             ("background", css((h, clamp(w + 35), b)))])], [])]);
+                   Attr.value(string_of_int(m.h)),
+                   Attr.on_input(fun s -> (h=int_of_string(s), w=m.w, b=m.b))]),
+       swatch(m),
+       swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]);
 
-  # the expansion: not a color, but a function FROM lightness TO color #
-  let expand = fun (h, w, b) : Model ->
-    fun k : Int -> css((h, clamp(w + k), b));
+  # not a color, and not text: a function FROM lightness TO structure #
+  let expand = fun m : Model ->
+    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b));
 
   let shape = Inline(14)
 } in
+
+# TEXT COMES LAST #
+
+# Each coordinate system gets its own to_string, out here, where the #
+# client can choose one -- or none. The expansion handed over #
+# structure; these are what you reach for only once you want to LOOK #
+# at it. #
+
+let rgb_string = fun c : Rgb ->
+  "rgb(" ++ string_of_int(c.r) ++ " " ++ string_of_int(c.g)
+  ++ " " ++ string_of_int(c.b) ++ ")" in
+
+let hsl_string = fun c : Hsl ->
+  "hsl(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.s)
+  ++ "% " ++ string_of_int(c.l) ++ "%)" in
+
+let hwb_string = fun c : Hwb ->
+  "hwb(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.w)
+  ++ "% " ++ string_of_int(c.b) ++ "%)" in
 
 # WHERE A WRONG EXPAND IS CAUGHT #
 
@@ -125,12 +188,21 @@ let ^good = {
   let shape = Inline(3)
 } in
 
-# The use below IS a function: drag the hue and all three shades move #
-# together, because all three come from the one expansion. Beside it, #
-# ^good's use is an ordinary Int. #
+# The use below IS a function. Drag the hue and every shade moves, #
+# because they all come from the one expansion. #
 
-let shade = ^^livelit(^ramp(200, 20, 10)) in
-(shade(0), shade(25), shade(50), ^^livelit(^good(3)) + 1)
+# Note what the client gets to do: read a channel as a number, and #
+# pick which coordinate system to render -- decisions the livelit #
+# never made for it. #
+
+let shade = ^^livelit(^ramp((h=200, w=20, b=10))) in
+let mid = shade(25) in
+(mid.rgb.r,
+ mid.hsl.l,
+ rgb_string(mid.rgb),
+ hsl_string(mid.hsl),
+ hwb_string(shade(50).hwb),
+ ^^livelit(^good(3)) + 1)
 
 # WHAT SPLICES WILL ADD #
 
