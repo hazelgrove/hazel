@@ -213,6 +213,70 @@ let fn_sugar_evaluates = () => {
   );
 };
 
+/* The drag idiom documented in the mvu pack: MoveTo moves only while held. */
+let drag_idiom_evaluates = () => {
+  let drag = (result: string) =>
+    "type DragAction = Press + MoveTo(Int, Int) + Release in\n"
+    ++ "let update(m, a) =\n"
+    ++ "let (x, y, held) = m in\n"
+    ++ "case a\n"
+    ++ "| Press => (x, y, true)\n"
+    ++ "| MoveTo(nx, ny) => if held then (nx, ny, true) else m\n"
+    ++ "| Release => (x, y, false)\n"
+    ++ "end in\n"
+    ++ result;
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "100",
+    drag("let (x, y, held) = update(((100, 50, false), MoveTo(7, 7))) in x"),
+  );
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "8",
+    drag(
+      "let (x, y, held) = update((update(((100, 50, false), Press)), MoveTo(3, 8))) in y",
+    ),
+  );
+};
+
+/* The creative pack's documented idioms: the LCG PRNG is deterministic,
+   and the sequencer update advances/gates on the running flag. */
+let creative_idioms_evaluate = () => {
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "1250496027",
+    "let next(s) = int_mod(s * 1103515245 + 12345, 2147483648) in next(42)",
+  );
+  let seq = (result: string) =>
+    "type SeqAction = Tick + Toggle in\n"
+    ++ "let notes = [262., 330., 392., 523.] in\n"
+    ++ "let update(m, a) =\n"
+    ++ "let (i, on) = m in\n"
+    ++ "case a\n"
+    ++ "| Toggle => ((i, if on then false else true), CmdNone)\n"
+    ++ "| Tick =>\n"
+    ++ "if on\n"
+    ++ "then ((int_mod(i + 1, 4), on), PlayTone(nth(notes, i), 120.))\n"
+    ++ "else (m, CmdNone)\n"
+    ++ "end in\n"
+    ++ result;
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "1",
+    seq("let ((i, on), c) = update(((0, true), Tick)) in i"),
+  );
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "true",
+    seq("let ((i, on), c) = update(((0, false), Toggle)) in on"),
+  );
+};
+
+/* Negation adapts to floats (Statics re-kinds via replace_un_op_cls), so
+   the prompts carry no unary-minus warning. If one of these regresses,
+   restore the `0. -. x` workaround guidance in HazelSyntaxNotes and the
+   creative pack. */
+let float_negation_supported = () =>
+  List.iter(
+    assert_clean,
+    ["-1.5 ==. 0. -. 1.5", "let x: Float = -5 in x", "let x = 2.5 in -x"],
+  );
+
 /* Parse + statics only (big samples may deliberately end in a hole). */
 let assert_parses_clean = (prog: string): unit => {
   let head = String.sub(prog, 0, min(60, String.length(prog)));
@@ -251,7 +315,7 @@ let doc_examples_clean = () =>
       "module M = { type T = Int } in\nlet x : M.T = 6 in x",
       /* HazelSyntaxNotes: mutual recursion via tuple binding */
       "let (even : Int -> Bool, odd : Int -> Bool) =\n  (fun n -> if n == 0 then true else odd(n - 1),\n   fun n -> if n == 0 then false else even(n - 1))\nin\neven(4)",
-      /* HazelDocumentation: implicit recursive type alias */
+      /* implicit recursive type alias */
       "type MyList = Nil + Cons(Int, MyList) in\nlet x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in x",
       /* CompositionPrompt: projector concrete syntax */
       "let speed = ^^slider(60) in speed",
@@ -264,24 +328,14 @@ let fenced_blocks = (s: string): list(string) => {
   List.filteri((i, _) => i mod 2 == 1, parts);
 };
 
-/* The complete sample programs shipped in HazelDocumentation. */
-let big_samples_clean = () => {
+/* Every fenced program in every read_docs pack must be statics-clean —
+   these are the guides the agent follows verbatim. */
+let doc_packs_clean = () =>
   List.iter(
-    s => List.iter(assert_parses_clean, fenced_blocks(s)),
-    [
-      HazelDocumentation.sample_tic_tac_toe_program,
-      HazelDocumentation.sample_emoji_paint,
-    ],
+    (pack: DocPacks.pack) =>
+      List.iter(assert_parses_clean, fenced_blocks(pack.body)),
+    DocPacks.all,
   );
-  let poly_doc =
-    HazelDocumentation.polymorphism_documentation
-    |> String.split_on_char('\n')
-    |> List.filter(l =>
-         Util.StringUtil.plain_search("polymorphismDocumentation", l, 0) < 0
-       )
-    |> String.concat("\n");
-  assert_parses_clean(poly_doc);
-};
 
 let tests = [
   (
@@ -297,14 +351,25 @@ let tests = [
       ),
       test_case("fn-definition sugar evaluates", `Quick, fn_sugar_evaluates),
       test_case(
+        "documented drag idiom evaluates",
+        `Quick,
+        drag_idiom_evaluates,
+      ),
+      test_case(
+        "documented creative idioms evaluate",
+        `Quick,
+        creative_idioms_evaluate,
+      ),
+      test_case("float negation supported", `Quick, float_negation_supported),
+      test_case(
         "documented examples are statics-clean",
         `Quick,
         doc_examples_clean,
       ),
       test_case(
-        "shipped sample programs are statics-clean",
+        "read_docs pack programs are statics-clean",
         `Quick,
-        big_samples_clean,
+        doc_packs_clean,
       ),
     ],
   ),

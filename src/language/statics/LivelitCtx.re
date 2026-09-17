@@ -25,7 +25,12 @@ type raw_livelit = {
   action_t: TermBase.Typ.t,
   update: (action_exp, model_exp) => model_exp,
   view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
-  size: ProjectorShape.t,
+  shape: ProjectorShape.t,
+  /* User-defined livelits only: the elaborated definition module, whose
+     members are init, update, view, expand (plus helpers). The projector
+     evaluates it at render time; `update`/`view` above are unused
+     placeholders in that case. */
+  user_def: option(TermBase.Exp.t),
 };
 
 // referenced in docs/livelits.md
@@ -51,7 +56,7 @@ module type BuiltinLivelit = {
   let update: (action_t, model_t) => model_t;
   let view:
     (model_t, action_t => Ui_effect.t(unit)) => Virtual_dom.Vdom.Node.t;
-  let size: ProjectorShape.t;
+  let shape: ProjectorShape.t;
 };
 
 /* Convert a BuiltinLivelit module into a rawLivelit record */
@@ -80,5 +85,6 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
     | None => Virtual_dom.Vdom.Node.text("Error: invalid model")
     };
   },
-  size: B.size,
+  shape: B.shape,
+  user_def: None,
 };
