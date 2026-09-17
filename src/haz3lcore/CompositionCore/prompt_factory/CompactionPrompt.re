@@ -288,7 +288,7 @@ let preamble =
    does not call tools or emit agent-formatted turns) */
 let agent_prompt_excerpt = () =>
   String.concat(
-    "\n",
+    ~sep="\n",
     CompositionPrompt.identity
     @ CompositionPrompt.session_modes
     @ CompositionPrompt.hazel_language_guide

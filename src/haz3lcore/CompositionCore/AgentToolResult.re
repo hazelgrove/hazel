@@ -13,25 +13,28 @@ let migrate_snapshots = (fields, sexp) => {
   | List(xs) =>
     List(
       List.map(
-        field =>
-          switch (field) {
-          | List([Atom(name), value]) =>
-            switch (
-              List.find_opt(((old_name, _, _)) => old_name == name, fields)
-            ) {
-            | Some((_, name, optional)) =>
-              let value =
-                optional
-                  ? switch (value) {
-                    | List(values) => List(List.map(text, values))
-                    | _ => value
-                    }
-                  : text(value);
-              List([Atom(name), value]);
-            | None => field
-            }
-          | _ => field
-          },
+        ~f=
+          field =>
+            switch (field) {
+            | List([Atom(name), value]) =>
+              switch (
+                List.find(fields, ~f=((old_name, _, _)) =>
+                  String.equal(old_name, name)
+                )
+              ) {
+              | Some((_, name, optional)) =>
+                let value =
+                  optional
+                    ? switch (value) {
+                      | List(values) => List(List.map(values, ~f=text))
+                      | _ => value
+                      }
+                    : text(value);
+                List([Atom(name), value]);
+              | None => field
+              }
+            | _ => field
+            },
         xs,
       ),
     )
