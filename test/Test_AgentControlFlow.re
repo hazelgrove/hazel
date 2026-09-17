@@ -747,9 +747,10 @@ let test_eval_gate_waits_while_pending = () => {
     "a retry DispatchSend was scheduled",
     true,
     List.exists(
-      fun
-      | Agent.Update.Action.DispatchSend(id) => id == chat_id
-      | _ => false,
+      ~f=
+        fun
+        | Agent.Update.Action.DispatchSend(id) => Id.equal(id, chat_id)
+        | _ => false,
       scheduled^,
     ),
   );
@@ -800,9 +801,10 @@ let test_eval_gate_settled_dispatches = () => {
     agent'.pending_dispatch_send == None
     && !
          List.exists(
-           fun
-           | Agent.Update.Action.DispatchSend(_) => true
-           | _ => false,
+           ~f=
+             fun
+             | Agent.Update.Action.DispatchSend(_) => true
+             | _ => false,
            scheduled^,
          ),
   );

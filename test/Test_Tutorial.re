@@ -49,24 +49,22 @@ let test_results_with = (spec: Tutorial.spec, solution): TestResults.t => {
 
 let solution_cases =
   lessons
-  |> List.filter_map((spec: Tutorial.spec) =>
-       Option.map(
-         solution =>
-           test_case(
-             spec.title ++ " @solution passes its tests",
-             `Quick,
-             () => {
-               let results = test_results_with(spec, solution);
-               check(bool, "has tests", true, results.total > 0);
-               check(
-                 int,
-                 TestResults.test_summary_str(results),
-                 results.total,
-                 results.passing,
-               );
-             },
-           ),
-         spec.solution,
+  |> List.filter_map(~f=(spec: Tutorial.spec) =>
+       Option.map(spec.solution, ~f=solution =>
+         test_case(
+           spec.title ++ " @solution passes its tests",
+           `Quick,
+           () => {
+             let results = test_results_with(spec, solution);
+             check(bool, "has tests", true, results.total > 0);
+             check(
+               int,
+               TestResults.test_summary_str(results),
+               results.total,
+               results.passing,
+             );
+           },
+         )
        )
      );
 
