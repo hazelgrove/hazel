@@ -53,9 +53,9 @@ let ^mood = {
         Html.node("svg",
           [Attr.create("viewBox", "0 0 200 200"),
            Attr.width("92"), Attr.height("92"),
-           Attr.on_mouse_down_at(fun (x, y) -> Down(y)),
-           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(y)),
-           Attr.on_mouse_up_at(fun p -> Up)],
+           Attr.on_mouse_down_at(fun (_x, y) -> Down(y)),
+           Attr.on_mouse_move_at(fun (_x, y) -> MoveTo(y)),
+           Attr.on_mouse_up_at(fun _p -> Up)],
           [
             Html.node("circle",
               [Attr.create("cx", "100"), Attr.create("cy", "100"), Attr.create("r", "90"),
