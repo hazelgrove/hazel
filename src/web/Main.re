@@ -249,6 +249,17 @@ let start = default_model => {
     });
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
+    /* A deep link's slide and panel are settled before Bonsai starts, but its
+       caret is an action, and there is no editor to act on until the model is
+       up. `scroll_to_caret` because a Point move does not ask for a scroll --
+       it comes from a click, which is already in view -- and a link's does
+       not: the span it names is the whole reason someone followed it. */
+    switch (DeepLink.action()) {
+    | None => ()
+    | Some(action) =>
+      schedule_action(Page.Update.Globals(ActiveEditor(action)));
+      scroll_to_caret := true;
+    };
     // Sync log count from database
     Log.sync_count();
   };

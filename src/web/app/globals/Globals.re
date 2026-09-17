@@ -181,7 +181,10 @@ module Model = {
   };
 
   let load = () => {
-    let settings = Settings.Store.load();
+    /* A link's `?panel=` and the rest sit over the stored settings: the
+       reader arriving is shown what the link is about, and everything they
+       have not been sent to stays as they left it. */
+    let settings = Settings.Store.load() |> DeepLink.settings;
     init(~settings, ());
   };
 
