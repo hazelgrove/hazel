@@ -1246,12 +1246,13 @@ let all_ids = (ty: t): list(Id.t) => {
     switch (term_of(ty)) {
     | Sum(variants) =>
       List.iter(
-        fun
-        | ConstructorMap.Variant(_, ann, opt) => {
-            ids := ann.ids @ ids^;
-            Option.iter(collect_ann_ids, opt);
-          }
-        | BadEntry(t) => collect_ann_ids(t),
+        ~f=
+          fun
+          | ConstructorMap.Variant(_, ann, opt) => {
+              ids := ann.ids @ ids^;
+              Option.iter(~f=collect_ann_ids, opt);
+            }
+          | BadEntry(t) => collect_ann_ids(t),
         variants,
       )
     | Arrow(t1, t2)
@@ -1265,7 +1266,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | Projector(_, t)
     | Rec(_, t)
     | Poly(_, t) => collect_ann_ids(t)
-    | Prod(ts) => List.iter(collect_ann_ids, ts)
+    | Prod(ts) => List.iter(~f=collect_ann_ids, ts)
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -1307,10 +1308,10 @@ let rec diff =
         : list(Id.t) => {
   let get_ids = () => all_ids(ty');
   let expand = name =>
-    if (List.exists(String.equal(name), expanded_aliases)) {
+    if (List.exists(expanded_aliases, ~f=String.equal(name))) {
       None;
     } else {
-      ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
+      ctx |> Option.map(~f=Ctx.lookup_alias(_, name)) |> Option.join;
     };
   switch (term_of(ty), term_of(ty')) {
   | (Parens(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
@@ -1324,21 +1325,22 @@ let rec diff =
   | (_, Parens(t2)) =>
     let inner = diff(~ctx?, ~expanded_aliases, ty, t2);
     let wrapped_replaced =
-      IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
+      IdTagged.ids(t2)
+      |> List.exists(~f=id => List.mem(inner, id, ~equal=Id.equal));
     wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
   /* Runtime knowing less than statics is not something runtime supplied:
      `?` on the right is unmarked whatever stands on the left. */
   | (_, Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
-  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(c1), Atom(c2)) when Atom.equal_cls(c1, c2) => []
   | (Atom(_), _) => get_ids()
-  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => []
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when Poly.equal(d1, d2) => []
   | (DrvQuoteTy(_), _) => get_ids()
-  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(l1), Label(l2)) when String.equal(l1, l2) => []
   | (Label(_), _) => get_ids()
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
-  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(v1), Var(v2)) when String.equal(v1, v2) => []
   | (Var(name), _) =>
     switch (expand(name)) {
     | Some(expanded) =>
@@ -1356,13 +1358,14 @@ let rec diff =
   | (_, Var(name)) =>
     switch (expand(name)) {
     | Some(expanded) =>
-      diff(
-        ~ctx?,
-        ~expanded_aliases=[name, ...expanded_aliases],
-        ty,
-        expanded,
+      List.is_empty(
+        diff(
+          ~ctx?,
+          ~expanded_aliases=[name, ...expanded_aliases],
+          ty,
+          expanded,
+        ),
       )
-      == []
         ? [] : get_ids()
     | None => get_ids()
     }
@@ -1379,7 +1382,7 @@ let rec diff =
     diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
   | (Arrow(_), _) => get_ids()
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
+    List.map2_exn(tys1, tys2, ~f=diff(~ctx?)) |> List.concat
   | (Prod(_), _) => get_ids()
   | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
     diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
@@ -1399,31 +1402,32 @@ let rec diff =
         sm1,
         sm2,
       );
-    if (left != []) {
+    if (!List.is_empty(left)) {
       /* A constructor missing on the right makes the whole Sum different. */
       get_ids();
     } else {
       let matched_ids =
         List.concat_map(
-          ((v1, v2)) =>
-            switch (v1, v2) {
-            | (
-                ConstructorMap.Variant(_, _, Some(t1)),
-                ConstructorMap.Variant(_, _, Some(t2)),
-              ) =>
-              diff(~ctx?, t1, t2)
-            | (
-                ConstructorMap.Variant(_, _, None),
-                ConstructorMap.Variant(_, _, None),
-              ) =>
-              []
-            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
-              diff(~ctx?, t1, t2)
-            | (_, v2) => variant_all_ids(v2)
-            },
+          ~f=
+            ((v1, v2)) =>
+              switch (v1, v2) {
+              | (
+                  ConstructorMap.Variant(_, _, Some(t1)),
+                  ConstructorMap.Variant(_, _, Some(t2)),
+                ) =>
+                diff(~ctx?, t1, t2)
+              | (
+                  ConstructorMap.Variant(_, _, None),
+                  ConstructorMap.Variant(_, _, None),
+                ) =>
+                []
+              | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+                diff(~ctx?, t1, t2)
+              | (_, v2) => variant_all_ids(v2)
+              },
           inter,
         );
-      let right_ids = List.concat_map(variant_all_ids, right);
+      let right_ids = List.concat_map(~f=variant_all_ids, right);
       matched_ids @ right_ids;
     };
   | (Sum(_), _) => get_ids()
