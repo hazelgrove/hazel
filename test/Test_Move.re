@@ -6,40 +6,44 @@ open Haz3lcore;
    and all, as Move.jump_to_side_of_id_by_walking. */
 
 let resolve = path =>
-  List.find_opt(Sys.file_exists, [path, Filename.concat("../../..", path)])
+  List.find(
+    [path, Filename.concat("../../..", path)],
+    ~f=Stdlib.Sys.file_exists,
+  )
   |> Option.value(~default=path);
 
 let read_file = path => {
-  let ic = open_in_bin(path);
-  let s = really_input_string(ic, in_channel_length(ic));
-  close_in(ic);
+  let ic = Stdlib.open_in_bin(path);
+  let s = Stdlib.really_input_string(ic, Stdlib.in_channel_length(ic));
+  Stdlib.close_in(ic);
   s;
 };
 
-let slides = (~limit=max_int, dir) => {
+let slides = (~limit=Int.max_value, dir) => {
   let dir = resolve(dir);
-  Sys.readdir(dir)
+  Stdlib.Sys.readdir(dir)
   |> Array.to_list
-  |> List.filter(f => Filename.check_suffix(f, ".hz"))
-  |> List.sort(compare)
-  |> List.filteri((i, _) => i < limit)
-  |> List.map(f => (f, read_file(Filename.concat(dir, f))));
+  |> List.filter(~f=f => Filename.check_suffix(f, ".hz"))
+  |> List.sort(~compare=String.compare)
+  |> List.filteri(~f=(i, _) => i < limit)
+  |> List.map(~f=f => (f, read_file(Filename.concat(dir, f))));
 };
 
 /* Every piece id, in document order, including inside projectors (whose
    targets the direct path leaves to the walk). */
 let rec ids = (seg: Segment.t): list(Id.t) =>
   List.concat_map(
-    (p: Piece.t) =>
-      [
-        Piece.id(p),
-        ...switch (p) {
-           | Tile(t) => List.concat_map(ids, t.children)
-           | Projector(pr) => ids([pr.syntax])
-           | Grout(_)
-           | Secondary(_) => []
-           },
-      ],
+    ~f=
+      (p: Piece.t) =>
+        [
+          Piece.id(p),
+          ...switch (p) {
+             | Tile(t) => List.concat_map(t.children, ~f=ids)
+             | Projector(pr) => ids([pr.syntax])
+             | Grout(_)
+             | Secondary(_) => []
+             },
+        ],
     seg,
   );
 
@@ -62,32 +66,39 @@ let agree = (name, text) =>
     /* ~15 targets a slide: each is checked against a full walk, which is
        the test's whole cost. */
     let step = max(1, n / 15);
-    let targets = List.filteri((i, _) => i mod step == 0, all);
+    let targets = List.filteri(all, ~f=(i, _) => i mod step == 0);
     /* Two starting carets: the top, and part way down. */
     let starts = [z0, nth_right(n / 3, z0)];
     List.iter(
-      z =>
-        List.iter(
-          id =>
-            List.iter(
-              (d: Util.Direction.t) => {
-                let fast = Move.jump_to_side_of_id(d, z, id);
-                let walked = Move.jump_to_side_of_id_by_walking(d, z, id);
-                if (fast != walked) {
-                  fail(
-                    Printf.sprintf(
-                      "%s: %s side of %s differs",
-                      name,
-                      d == Left ? "left" : "right",
-                      Id.to_string(id),
-                    ),
-                  );
-                };
-              },
-              [Left, Right],
-            ),
-          targets,
-        ),
+      ~f=
+        z =>
+          List.iter(
+            ~f=
+              id =>
+                List.iter(
+                  ~f=
+                    (d: Util.Direction.t) => {
+                      let fast = Move.jump_to_side_of_id(d, z, id);
+                      let walked =
+                        Move.jump_to_side_of_id_by_walking(d, z, id);
+                      if (!Poly.equal(fast, walked)) {
+                        fail(
+                          Stdlib.Printf.sprintf(
+                            "%s: %s side of %s differs",
+                            name,
+                            switch (d) {
+                            | Left => "left"
+                            | Right => "right"
+                            },
+                            Id.to_string(id),
+                          ),
+                        );
+                      };
+                    },
+                  [Util.Direction.Left, Right],
+                ),
+            targets,
+          ),
       starts,
     );
     List.length(targets);
@@ -97,7 +108,7 @@ let slides_agree = (~limit=?, dir, ()) => {
   let before = Move.direct_jumps^;
   let checked =
     slides(~limit?, dir)
-    |> List.fold_left((acc, (name, text)) => acc + agree(name, text), 0);
+    |> List.fold(~init=0, ~f=(acc, (name, text)) => acc + agree(name, text));
   check(bool, "some targets", true, checked > 0);
   /* The control: most jumps took the direct path, so the comparison is of
      it and not only of the walk against itself. */
