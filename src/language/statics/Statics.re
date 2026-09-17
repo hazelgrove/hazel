@@ -2351,7 +2351,7 @@ and uexp_to_info_map =
       let (p_ana_ctx, livelit_marks) =
         switch (UserLivelit.binder_name(p)) {
         | Some(ll_name) =>
-          switch (
+          let (ll, marks) =
             UserLivelit.mk(
               ~ctx,
               ~m,
@@ -2359,11 +2359,13 @@ and uexp_to_info_map =
               ~id=Pat.rep_id(p),
               ~def_user=def.user_term,
               ~def_elab,
-            )
-          ) {
-          | Ok(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), [])
-          | Error(e) => (p_ana_ctx, [Mark.InvalidLivelitDef(e)])
-          }
+            );
+          /* A definition with a bad member type is still bound, so its
+             uses resolve and get their own check. */
+          switch (ll) {
+          | Some(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), marks)
+          | None => (p_ana_ctx, marks)
+          };
         | None => (p_ana_ctx, [])
         };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);

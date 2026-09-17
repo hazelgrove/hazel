@@ -75,6 +75,7 @@ let rec pat_name = (p: TermBase.Pat.t): option(string) =>
    the optional `shape`) and the three declared interface types. */
 [@deriving show({with_path: false})]
 type def = {
+  mismatch: option(Mark.livelit_def_error),
   members: list((string, TermBase.Exp.t)), /* member -> bound syntax */
   model_t: TermBase.Typ.t,
   action_t: TermBase.Typ.t,
@@ -162,6 +163,11 @@ let check_against_livelit_sig =
         switch (List.assoc_opt(name, vals)) {
         | None => None /* absence is DefMissingMembers' to report */
         | Some(actual) =>
+          /* Realize the member's OWN type too. It is stated in terms of
+             Model, Action and Expansion, which name nothing in the ctx
+             outside the module: left alone they degrade to ? and the
+             comparison passes whatever expand returns. */
+          let actual = realize(actual);
           Typ.is_consistent(ctx, expected, actual)
             ? None
             : Some(
@@ -170,7 +176,7 @@ let check_against_livelit_sig =
                   expected,
                   actual,
                 }),
-              )
+              );
         };
       },
     None,
@@ -229,16 +235,17 @@ let rec detect =
     | ([_, ..._] as ms, _) => Error(DefMissingMembers(ms))
     | ([], [_, ..._] as ts) => Error(DefMissingTypes(ts))
     | ([], []) =>
-      switch (check_against_livelit_sig(~ctx, ~types, ~vals)) {
-      | Some(err) => Error(err)
-      | None =>
-        Ok({
-          members,
-          model_t: List.assoc("Model", types),
-          action_t: List.assoc("Action", types),
-          expansion_t: List.assoc("Expansion", types),
-        })
-      }
+      Ok({
+        members,
+        model_t: List.assoc("Model", types),
+        action_t: List.assoc("Action", types),
+        expansion_t: List.assoc("Expansion", types),
+        /* A member whose type is wrong is reported, but does NOT stop the
+           livelit being bound: its uses should keep resolving, and keep
+           being checked themselves. Only a definition we cannot read at
+           all -- not a module, missing members or types -- is fatal. */
+        mismatch: check_against_livelit_sig(~ctx, ~types, ~vals),
+      })
     };
   | _ => Error(DefNotModule)
   };
@@ -423,28 +430,30 @@ let mk =
       ~def_user: TermBase.Exp.t,
       ~def_elab: TermBase.Exp.t,
     )
-    : result(LivelitCtx.raw_livelit, Mark.livelit_def_error) =>
+    : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
   switch (detect(~ctx, ~m, def_user)) {
-  | Error(e) => Error(e)
-  | Ok({members, model_t, action_t, expansion_t}) =>
-    Ok({
-      LivelitCtx.name,
-      id,
-      model_t,
-      model_default: Exp.replace_all_ids(List.assoc("init", members)),
-      expansion_t,
-      expand: mk_expand_dot(~name),
-      action_t,
-      update: (_action, model) => model,
-      view: (_model, _send) =>
-        Virtual_dom.Vdom.Node.text("user-defined livelit"),
-      shape:
-        switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {
-        | Some(shape) => shape
-        | None => default_shape
-        },
-      user_def: Some(def_elab),
-    })
+  | Error(e) => (None, [Mark.InvalidLivelitDef(e)])
+  | Ok({mismatch, members, model_t, action_t, expansion_t}) => (
+      Some({
+        LivelitCtx.name,
+        id,
+        model_t,
+        model_default: Exp.replace_all_ids(List.assoc("init", members)),
+        expansion_t,
+        expand: mk_expand_dot(~name),
+        action_t,
+        update: (_action, model) => model,
+        view: (_model, _send) =>
+          Virtual_dom.Vdom.Node.text("user-defined livelit"),
+        shape:
+          switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {
+          | Some(shape) => shape
+          | None => default_shape
+          },
+        user_def: Some(def_elab),
+      }),
+      Option.to_list(Option.map(e => Mark.InvalidLivelitDef(e), mismatch)),
+    )
   };
 
 /* The use-site expansion obligation: a use of ^name synthesizes the DECLARED

@@ -190,6 +190,57 @@ let expand(m) = m * 2
    DECLARES as Expansion. Here Expansion is Int but expand returns a String,
    which no use-site check would be needed to catch -- the definition alone
    is already wrong. */
+/* REGRESSION. The definition-site check must fire on a member whose type
+   is stated through the livelit's OWN type members, not only on one whose
+   wrongness is visible without them. `expand = fun m : Model -> m` under
+   `Expansion = String` types as Model -> Model; left unrealized, those
+   names mean nothing outside the module, degrade to ?, and the check
+   passes whatever expand returns -- which is exactly what it used to do,
+   leaving the error to appear only at the uses. */
+let module_expand_mismatch_through_aliases = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m : Model -> m")
+      ++ " in ^s(1)",
+    );
+  check(
+    bool,
+    "a mismatch stated in Model/Expansion is caught at the definition",
+    true,
+    has_mark(
+      fun
+      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand", _})) =>
+        true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+/* A bad member type is reported, but must not unbind the livelit: its uses
+   should still resolve, so they keep getting their own check rather than
+   collapsing into "variable not bound". */
+let module_mismatch_still_binds = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m : Model -> m")
+      ++ " in ^s(1)",
+    );
+  check(
+    bool,
+    "the use does not become unbound",
+    false,
+    has_mark(
+      fun
+      | Mark.Free(_) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
 let module_expand_mismatch = () => {
   let (m, _) =
     statics(
@@ -288,8 +339,8 @@ let mk_ll = (def_text: string): LivelitCtx.raw_livelit => {
   switch (
     UserLivelit.mk(~ctx, ~m, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
   ) {
-  | Ok(ll) => ll
-  | Error(_) => fail("adapter rejected a well-formed module definition")
+  | (Some(ll), _) => ll
+  | (None, _) => fail("adapter rejected a well-formed module definition")
   };
 };
 
@@ -475,8 +526,8 @@ let expand = fun m -> m
         ~def_elab,
       )
     ) {
-    | Ok(ll) => ll
-    | Error(_) => fail("adapter rejected a well-formed definition")
+    | (Some(ll), _) => ll
+    | (None, _) => fail("adapter rejected a well-formed definition")
     };
   /* model_default comes from init */
   check(
@@ -988,6 +1039,16 @@ let tests = [
       test_case("module helpers", `Quick, module_helpers),
       test_case("module funlet members", `Quick, module_funlet_members),
       test_case("module expand mismatch", `Quick, module_expand_mismatch),
+      test_case(
+        "module expand mismatch through aliases",
+        `Quick,
+        module_expand_mismatch_through_aliases,
+      ),
+      test_case(
+        "module mismatch still binds",
+        `Quick,
+        module_mismatch_still_binds,
+      ),
       test_case("module update mismatch", `Quick, module_update_mismatch),
       test_case(
         "module well typed no mismatch",
