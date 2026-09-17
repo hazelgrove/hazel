@@ -83,11 +83,54 @@ let ^ramp = {
   let shape = Inline(14)
 } in
 
-# The use below IS a function. Drag the hue and all three shades #
-# move together, because all three come from the one expansion. #
+# WHERE A WRONG EXPAND IS CAUGHT #
+
+# expand is checked in TWO places, and both earn their keep. #
+
+# At the DEFINITION, the module is checked against the builtin #
+# `Livelit` signature with Model, Action and Expansion realized by #
+# the definition's own types. So this is an error where it is #
+# written, before any use exists: #
+
+#   type Model = Bool;  type Expansion = String;   #
+#   let expand = fun m : Model -> m                #
+#                                                  #
+#   Member expand is Bool -> Bool                  #
+#   but its signature declares Bool -> String      #
+
+# Note the member's type is spelled Model -> Model, not Bool -> Bool. #
+# The check realizes the type members on both sides before comparing; #
+# without that, Model means nothing outside the module, becomes ?, #
+# and ? is consistent with anything. #
+
+# At each USE, the expansion is checked again against the declared #
+# Expansion. That is not redundant: an expansion whose type depends #
+# on the model VALUE is invisible at the definition, so only the use #
+# can catch it. A definition with a bad member is still bound, so #
+# its uses keep resolving and keep being checked. #
+
+# Try it: the ^good livelit below type-checks. Change its Expansion #
+# to String and the error appears on the DEFINITION immediately, as #
+# well as on each use. #
+
+let ^good = {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+  let init : Model = 3;
+  let update = fun (m, a) : (Model, Action) -> a;
+  let view = fun m : Model ->
+    Html.text(string_of_int(m));
+  let expand = fun m : Model -> m;
+  let shape = Inline(3)
+} in
+
+# The use below IS a function: drag the hue and all three shades move #
+# together, because all three come from the one expansion. Beside it, #
+# ^good's use is an ordinary Int. #
 
 let shade = ^^livelit(^ramp(200, 20, 10)) in
-(shade(0), shade(25), shade(50))
+(shade(0), shade(25), shade(50), ^^livelit(^good(3)) + 1)
 
 # WHAT SPLICES WILL ADD #
 
