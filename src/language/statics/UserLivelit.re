@@ -457,12 +457,11 @@ let mk =
 let expansion_mark =
     (ctx: Ctx.t, ~declared: TermBase.Typ.t, ~actual: TermBase.Typ.t)
     : list(Mark.t) =>
-  switch (Typ.meet(ctx, declared, actual)) {
-  | Some(_) => []
-  | None => [
+  Typ.is_consistent(ctx, declared, actual)
+    ? []
+    : [
       Mark.BadLivelitExpansion({
         declared,
         actual,
       }),
-    ]
-  };
+    ];
