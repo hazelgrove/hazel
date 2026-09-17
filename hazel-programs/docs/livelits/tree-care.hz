@@ -216,11 +216,18 @@ let ^tree = {
       @ draw((r, x + dx, y - dy, dx * 3 / 4, dy, season, path @ [R], d + 1))
     end;
 
+  # The season you are in reads as a pressed key: inverted, not just #
+  # bolder. Weight alone is hard to spot across four small buttons. #
   let season_button = fun (s, current) : (Season, Season) ->
+    let here = s == current in
     Html.button(
       [Attr.on_click(SkipTo(s)),
        Attr.style([("font-size", "0.7em"),
-                   ("font-weight", if s == current then "bold" else "normal")])],
+                   ("font-weight", if here then "bold" else "normal"),
+                   ("background", if here then "#3e2723" else "#f3efe6"),
+                   ("color", if here then "#fdfcf7" else "#3e2723"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px")])],
       [Html.text(case s | Spring => "spr" | Summer => "sum"
                         | Fall => "fall" | Winter => "win" end)]);
 
