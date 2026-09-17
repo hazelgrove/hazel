@@ -204,15 +204,92 @@ let mid = shade(25) in
  hwb_string(shade(50).hwb),
  ^^livelit(^good(3)) + 1)
 
-# WHAT SPLICES WILL ADD #
+# WHAT SPLICES CHANGE #
 
-# In the livelits paper (Omar et al., PLDI 2021, Fig. 1b) the color #
-# livelit goes further: its GUI holds four SPLICES, one per channel, #
-# and the client writes an expression into each -- so one component #
-# can be defined in terms of a variable the client bound outside: #
+# DESIGN SKETCH. None of this runs on this branch yet -- it is what #
+# the splices work is aiming at, written down so the target is #
+# legible. Everything ABOVE this line works today. #
 
-#   let baseline = $slider 0 255 in                 #
-#   $color [r: baseline] [g: baseline + 50] [b: baseline] #
+# A splice is a hole in the widget that holds the CLIENT's code. #
+# Not a value the widget computed: an expression the client wrote, #
+# edited in place inside the GUI, and typed in the client's scope. #
 
-# There the expansion embeds the client's own code. Splices are not #
-# in this branch yet; everything above works without them. #
+# The livelits paper (Omar et al., PLDI 2021) opens with a color #
+# livelit whose four channels are splices, Fig. 1b: #
+
+#   let baseline = $slider 0 255 in                         #
+#   $color [r: baseline] [g: baseline + 50] [b: baseline]   #
+
+# `baseline` is the CLIENT's variable. The widget shows a color, but #
+# the green channel is an expression mentioning something the widget #
+# has never heard of. That is what splices buy. #
+
+# HOW expand CHANGES #
+
+# Today, on the branch without splices: #
+
+#   let expand : Model -> Expansion      (a VALUE) #
+
+# The paper's signature (Fig. 3, line 55): #
+
+#   let expand : Model -> (Exp, List(SpliceRef)) #
+
+# Two changes, and the second is the interesting one. #
+
+# FIRST, the expansion becomes SYNTAX. `Exp` is quoted code, not a #
+# value -- so expand writes a program rather than computing an #
+# answer. Hazel's own $color expands to a quoted function: #
+
+#   fun model -> (`fun r g b a -> (r, g, b, a)`,          #
+#                 [model.r, model.g, model.b, model.a])   #
+
+# SECOND, the splices come back as a LIST beside it, and the quoted #
+# expression is a FUNCTION of them. The client's four expressions #
+# become the four arguments. #
+
+# That shape is not decoration. It is how the paper gets CAPTURE #
+# AVOIDANCE: a splice passed as a function argument cannot be caught #
+# by a binding inside the expansion, because it is evaluated outside #
+# it. Splice the client wrote `len` into a livelit whose expansion #
+# happens to bind `len`, and nothing goes wrong. #
+
+# WHAT ELSE MOVES #
+
+# The MODEL stops holding the data. Fig. 3 line 3: #
+
+#   type Model = (.r SpliceRef, .g SpliceRef, #
+#                 .b SpliceRef, .a SpliceRef) #
+
+# Four references, no colors. The content lives in the splices, as #
+# program text; the model only says where. Compare the Tree Care #
+# slide, whose model IS the tree. #
+
+# init stops being a value and becomes a COMMAND, because making a #
+# splice is an effect on the program: #
+
+#   new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) #
+
+# view gains the ability to RUN a splice, which is what lets the #
+# widget show a live preview of code the client wrote: #
+
+#   eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) #
+#   type Result = Val(Exp) | Indet(Exp) #
+
+# Indet is the honest case: the client's expression may not reduce #
+# to a value, and a widget that demands one would be lying. Fig. 3 #
+# disables the color preview when any channel is indeterminate. #
+
+# And a livelit declares the definition-site bindings its expansion #
+# may use, so a client never inherits a hidden dependency: #
+
+#   context { } #
+
+# WHERE THIS BRANCH IS #
+
+# Matt Keenan's splices work, PR 2415, supplies the editor half: a #
+# Splice form in the grammar, sub-editors that share the host's #
+# zipper and statics, and a projector API for rendering them. #
+
+# SpliceRef -- the TYPE above, the thing expand hands back -- exists #
+# nowhere in the repo yet. So this branch is a merge plus a build, #
+# and only the merge can be taken from somewhere else. #
