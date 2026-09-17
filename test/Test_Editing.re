@@ -2939,10 +2939,10 @@ let module_obligation_tests = [
     ~owed=[["}"], ["="], ["in"]],
   ),
   test_backpack(
-    ~name="Signature: type owes its =",
+    ~name="Signature: type is complete alone",
     ~acts=string_to_ltr_actions("let m : { type"),
     ~goal={|let m : { type¦?|},
-    ~owed=[["="], ["}"], ["="], ["in"]],
+    ~owed=[["}"], ["="], ["in"]],
   ),
   test_backpack(
     ~name="Signature: module is complete alone",
