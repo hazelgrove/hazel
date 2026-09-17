@@ -2782,6 +2782,14 @@ x + y¦|},
    NOTE: These test basic module syntax editing behavior.
    `{` is an instant-expanding delimiter that creates `{¦}`.
    Inside braces is Mod sort, where `let` creates ModLet forms. */
+/* The delimiters each incomplete tile still owes, in document order: one
+   list per run of missing shards. */
+let owed_delimiters = (z: Zipper.t): list(list(string)) =>
+  Zipper.unselect_and_zip(~erase_buffer=true, z)
+  |> Segment.incomplete_tiles_deep
+  |> List.concat_map(Tile.missing_shards)
+  |> List.map(Tile.effective_label);
+
 let module_tests = [
   /* { is an instant expander: typing { puts } in the backpack.
      The printer shows backpack contents as missing, so } doesn't
@@ -2883,6 +2891,58 @@ let module_tests = [
       @ mv_l(13)
       @ [Insert(";")],
     ~goal={|{let x = 1 ;¦type T = Int}|},
+  ),
+  test_complete(
+    ~name="Module: a module item typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{ module Inner = { let y = 1 } ¦let x = Inner.y }|})
+      @ [Insert(";")],
+    ~goal={|{ module Inner = { let y = 1 } ;¦let x = Inner.y }|},
+  ),
+  test_complete(
+    ~name=
+      "Module: a tuple-pattern let typed before the missing ; becomes an item",
+    ~acts=mk({|{ let x = 1 ¦let (a, b) = (2, 3) }|}) @ [Insert(";")],
+    ~goal={|{ let x = 1 ;¦let (a, b) = (2, 3) }|},
+  ),
+  test_complete(
+    ~name=
+      "Signature: a type member typed before the missing ; becomes an item",
+    ~acts=
+      mk(
+        {|let m : { let x : Int ¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+      )
+      @ [Insert(";")],
+    ~goal=
+      {|let m : { let x : Int ;¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+  ),
+  /* Deleting an item's keyword leaves its `=` owing the keyword: the lone
+     `=` spells the labeled-tuple form, which a tile missing its first shard
+     must not take up. */
+  test_case(
+    "Module: deleting an item's let leaves the = owing let",
+    `Quick,
+    () => {
+      let z =
+        mk({|{ let¦ x = 1 }|})
+        @ List.init(3, _ => Action.Destruct(Local(Left, ByChar)))
+        |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        {|{ ¦ x = 1 }|},
+        printer(z),
+      );
+      check(
+        testable(
+          Fmt.(list(list(string))),
+          List.equal(List.equal(String.equal)),
+        ),
+        "owed delimiters",
+        [["let"]],
+        owed_delimiters(z),
+      );
+    },
   ),
 ];
 
