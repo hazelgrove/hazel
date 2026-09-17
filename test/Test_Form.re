@@ -1,8 +1,13 @@
 open Alcotest;
 open Haz3lcore;
 
-/* Form labels that are a proper prefix of another form's label: the forms
-   Segment.remold_tile can re-form an incomplete tile into. */
+/* Segment.remold_tile lets an incomplete tile whose present shards, the
+   first included, spell a complete compound form take that form. The labels
+   that can happen to are the forms whose label is a proper prefix of another
+   form's label, so a new form with such a label becomes a re-forming target
+   the moment it is added. Today those are the module and signature items,
+   reached from the expression forms owed their `in`, and the `implicit`
+   binder inside a function parameter. */
 let prefix_forms = (): list(string) => {
   let labels =
     Form.forms
@@ -31,15 +36,13 @@ let tests = (
   "Form",
   [
     test_case(
-      "the only forms a shorter form spells are the module and signature items and the implicit binder",
+      "the only forms a shorter form spells are the item and implicit binders",
       `Quick,
       () =>
       check(
         testable(Fmt.(list(string)), List.equal(String.equal)),
         "form labels that are prefixes of another form's label",
         [
-          /* The type form's `:` is a second shard, since the type-level
-             comma binds tighter than the module pattern's `:`. */
           "implicit : -> implicit",
           "let = -> let",
           "let = in -> let",
