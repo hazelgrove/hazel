@@ -180,6 +180,7 @@ let aliases: list(((string, string), list(string))) = [
       "primary-accent",
       "test-pass",
       "exp-indicated",
+      "dynamic-token",
       "border-success",
       "shadow-success",
       "surface-success",
