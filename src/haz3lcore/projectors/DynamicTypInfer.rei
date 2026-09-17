@@ -22,28 +22,15 @@ let dynamic_typ_of_samples: (~ctx: Ctx.t, list(Sample.t)) => option(Typ.t);
 type typ_to_seg_with_diff_ids =
   (~ctx: Ctx.t, ~against: Typ.t, Typ.t) => (Base.segment, Id.Set.t);
 
-/* The segment to show for [dynamic_typ], a type runtime refined, and the ids
-   of its tokens that [static_typ] does not account for. The segment is built
-   here rather than left to the caller because the ids describe that one
-   segment and no other. Live typing supplies the refined type itself, read
-   off the statics pass that ran with the dynamic information. */
+/* The segment to show for [dynamic_typ], and the ids of its tokens that
+   [static_typ] does not account for -- the ones runtime supplied rather than
+   statics. The segment is built here rather than left to the caller because
+   the ids describe that one segment and no other. */
 let segment_and_dynamic_ids:
   (
     ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,
     ~ctx: Ctx.t,
     ~static_typ: Typ.t,
     ~dynamic_typ: Typ.t
-  ) =>
-  (Base.segment, Id.Set.t);
-
-/* segment_and_dynamic_ids for the type probe's Dynamic mode, with the type
-   inferred from [samples]. Shows [static_typ], marking nothing, when nothing
-   can be inferred. */
-let displayed_segment_and_dynamic_ids:
-  (
-    ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,
-    ~ctx: Ctx.t,
-    ~static_typ: Typ.t,
-    ~samples: list(Sample.t)
   ) =>
   (Base.segment, Id.Set.t);

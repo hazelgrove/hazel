@@ -211,8 +211,8 @@ in g(f)|},
 /* When statics knew nothing, the whole type came from runtime, so every tile
    of the printed segment must be green.
 
-   Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility,
-   the composition the projector runs, because the ids that reach the printer
+   Driven through segment_and_dynamic_ids with ProjectorInfo.utility, the
+   composition the projector runs, because the ids that reach the printer
    come from statics -- which stamps every node with the same Id.invalid.
    QCheck_Util.arb_typ mints a distinct id per node, so a generator cannot
    reach this; it takes a real program. */
@@ -222,13 +222,18 @@ let uncoloured_tiles_test = (name: string, code: string) =>
     `Quick,
     () => {
       let (samples, ctx) = first_probe_samples_and_ctx(code);
+      let dynamic_typ =
+        switch (DynamicTypInfer.dynamic_typ_of_samples(~ctx, samples)) {
+        | None => failf("no dynamic type inferred from: %s", code)
+        | Some(typ) => typ
+        };
       let (seg, dynamic_ids) =
-        DynamicTypInfer.displayed_segment_and_dynamic_ids(
+        DynamicTypInfer.segment_and_dynamic_ids(
           ~typ_to_seg_with_diff_ids=
             ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
           ~ctx,
           ~static_typ=Typ.fresh(Unknown(Internal)),
-          ~samples,
+          ~dynamic_typ,
         );
       check(
         list(string),

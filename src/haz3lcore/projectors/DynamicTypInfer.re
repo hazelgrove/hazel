@@ -58,22 +58,3 @@ let segment_and_dynamic_ids =
     ~against=static_typ,
     Typ.replace_temp(dynamic_typ),
   );
-
-let displayed_segment_and_dynamic_ids =
-    (
-      ~typ_to_seg_with_diff_ids: typ_to_seg_with_diff_ids,
-      ~ctx: Ctx.t,
-      ~static_typ: Typ.t,
-      ~samples: list(Sample.t),
-    )
-    : (Base.segment, Id.Set.t) =>
-  /* With nothing to infer from, the static type stands in: it diffs against
-     itself, so nothing is marked. */
-  segment_and_dynamic_ids(
-    ~typ_to_seg_with_diff_ids,
-    ~ctx,
-    ~static_typ,
-    ~dynamic_typ=
-      dynamic_typ_of_samples(~ctx, samples)
-      |> Option.value(~default=static_typ),
-  );
