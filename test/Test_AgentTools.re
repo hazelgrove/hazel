@@ -2645,7 +2645,7 @@ let sequential_operations_tests = (
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
           try(run_agent_action(prog, Insert(After, "M/a", code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn => Alcotest.fail("raised: " ++ Exn.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2662,7 +2662,7 @@ let sequential_operations_tests = (
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
           try(run_agent_action(prog, Insert(After, "M/a", code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn => Alcotest.fail("raised: " ++ Exn.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2679,7 +2679,7 @@ let sequential_operations_tests = (
         let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
         switch (
           try(run_agent_action(prog, Insert(After, "Outer/M/a", code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn => Alcotest.fail("raised: " ++ Exn.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2728,7 +2728,7 @@ let blast_amount(i: Item): Int =
               Insert(After, "Creatures/Items/name", code),
             )
           ) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn => Alcotest.fail("raised: " ++ Exn.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -5374,7 +5374,7 @@ let module_member_tests = (
         /* The size cap guards only the quadratic fallback; Menhir-
            parseable chunks of any size take the linear fast path. */
         let big =
-          String.concat(" + ", List.init(400, i => string_of_int(i)));
+          String.concat(~sep=" + ", List.init(400, ~f=string_of_int));
         switch (
           run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
         ) {
@@ -5394,7 +5394,7 @@ let module_member_tests = (
         /* Bare comma tuple: editor-parseable, Menhir-rejected even with
            hole completion, so this reliably exercises the capped
            fallback. */
-        let big = String.concat(", ", List.init(900, i => string_of_int(i)));
+        let big = String.concat(~sep=", ", List.init(900, ~f=string_of_int));
         switch (
           run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
         ) {
