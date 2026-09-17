@@ -347,10 +347,10 @@ module Local = {
             switch (prev) {
             | Some(Piece.Tile(t)) when Tile.is_semi(t) =>
               Option.to_list(member)
-            | _ => Option.to_list(Option.map(Piece.id, prev))
+            | _ => Option.to_list(Option.map(prev, ~f=Piece.id))
             };
           [
-            `Run((prev, run, List.nth_opt(rest, 0), witness)),
+            `Run((prev, run, List.hd(rest), witness)),
             ...runs(prev, member, rest),
           ];
         | [p, ...rest] =>
@@ -365,82 +365,86 @@ module Local = {
             };
           [`Tok(p), ...runs(Some(p), member, rest)];
         };
-      let id = Option.map(Piece.id);
+      let id = Option.map(~f=Piece.id);
       let old_runs =
         runs(None, None, before)
         |> List.filter_map(
-             fun
-             | `Run(_, [p, ..._] as run, r, witness) =>
-               Some((Piece.id(p), (witness, run, id(r))))
-             | _ => None,
+             ~f=
+               fun
+               | `Run(_, [p, ..._] as run, r, witness) =>
+                 Some((Piece.id(p), (witness, run, id(r))))
+               | _ => None,
            )
-        |> List.to_seq
+        |> Stdlib.List.to_seq
         |> Id.Map.of_seq;
       runs(None, None, seg)
       |> List.concat_map(
-           fun
-           | `Tok(p) => [p]
-           | `Run(left, run, right, witness) => {
-               let preserved =
-                 switch (Id.Map.find_opt(Piece.id(List.hd(run)), old_runs)) {
-                 | Some((l, old, r)) =>
-                   l == witness && r == id(right) && old == run
-                 | None => false
-                 };
-               if (preserved) {
-                 run;
-               } else {
-                 let n =
-                   module_body
-                     ? switch (left) {
-                       | Some(Piece.Tile(t)) when Tile.is_semi(t) => 2
-                       | _ => 1
-                       }
-                     : (
-                       switch (left, right) {
-                       | (None, _) => 0
-                       | (Some(l), Some(r))
-                           when is_binding_tile(l) && is_binding_tile(r) => 2
-                       | _ => 1
-                       }
-                     );
-                 if (module_body) {
-                   /* A retained newline keeps its indent pieces too. The
-                      region reindenter only visits newly allocated lines. */
-                   let rec lines = ps =>
-                     switch (ps) {
-                     | [] => []
-                     | [lb, ...rest] =>
-                       let rec spaces = (acc, ps) =>
-                         switch (ps) {
-                         | [p, ...rest] when !is_linebreak(p) =>
-                           spaces([p, ...acc], rest)
-                         | _ => (List.rev(acc), ps)
-                         };
-                       let (indent, rest) = spaces([], rest);
-                       [(lb, indent), ...lines(rest)];
-                     };
-                   let existing = lines(run);
-                   let last_indent = snd(List.hd(List.rev(existing)));
-                   List.init(n, i =>
-                     switch (List.nth_opt(existing, i)) {
-                     | Some((lb, indent)) => [
-                         lb,
-                         ...i == n - 1 ? last_indent : indent,
-                       ]
-                     | None => [linebreak()]
-                     }
-                   )
-                   |> List.concat;
+           ~f=
+             fun
+             | `Tok(p) => [p]
+             | `Run(left, run, right, witness) => {
+                 let preserved =
+                   switch (
+                     Id.Map.find_opt(Piece.id(List.hd_exn(run)), old_runs)
+                   ) {
+                   | Some((l, old, r)) =>
+                     l == witness && r == id(right) && old == run
+                   | None => false
+                   };
+                 if (preserved) {
+                   run;
                  } else {
-                   let kept = List.filteri((i, _) => i < n, run);
-                   kept
-                   @ List.init(max(0, n - List.length(kept)), _ =>
-                       linebreak()
-                     );
+                   let n =
+                     module_body
+                       ? switch (left) {
+                         | Some(Piece.Tile(t)) when Tile.is_semi(t) => 2
+                         | _ => 1
+                         }
+                       : (
+                         switch (left, right) {
+                         | (None, _) => 0
+                         | (Some(l), Some(r))
+                             when is_binding_tile(l) && is_binding_tile(r) => 2
+                         | _ => 1
+                         }
+                       );
+                   if (module_body) {
+                     /* A retained newline keeps its indent pieces too. The
+                        region reindenter only visits newly allocated lines. */
+                     let rec lines = ps =>
+                       switch (ps) {
+                       | [] => []
+                       | [lb, ...rest] =>
+                         let rec spaces = (acc, ps) =>
+                           switch (ps) {
+                           | [p, ...rest] when !is_linebreak(p) =>
+                             spaces([p, ...acc], rest)
+                           | _ => (List.rev(acc), ps)
+                           };
+                         let (indent, rest) = spaces([], rest);
+                         [(lb, indent), ...lines(rest)];
+                       };
+                     let existing = lines(run);
+                     let last_indent = snd(List.last_exn(existing));
+                     List.init(n, ~f=i =>
+                       switch (List.nth(existing, i)) {
+                       | Some((lb, indent)) => [
+                           lb,
+                           ...i == n - 1 ? last_indent : indent,
+                         ]
+                       | None => [linebreak()]
+                       }
+                     )
+                     |> List.concat;
+                   } else {
+                     let kept = List.filteri(run, ~f=(i, _) => i < n);
+                     kept
+                     @ List.init(max(0, n - List.length(kept)), ~f=_ =>
+                         linebreak()
+                       );
+                   };
                  };
-               };
-             },
+               },
          );
     };
     let normalize_top_level_whitespace =
@@ -476,7 +480,7 @@ module Local = {
         };
       /* Cleanup is confined to new joins. Even an incomplete old member or
          hand-spaced separator elsewhere in this module is outside the edit. */
-      let id = Option.map(Piece.id);
+      let id = Option.map(~f=Piece.id);
       let rec boundaries = (prev, ps, acc) =>
         switch (ps) {
         | [] => acc
@@ -566,12 +570,12 @@ module Local = {
     let normalize_module_bodies = (~before=[], seg: Segment.t): Segment.t => {
       let originals = EditIdentity.index(before);
       let rec walk = ps => {
-        let next = List.map(piece, ps);
+        let next = List.map(ps, ~f=piece);
         Segment.ptr_eq(next, ps) ? ps : next;
       }
       and piece = (p: Piece.t) =>
         switch (Id.Map.find_opt(Piece.id(p), originals)) {
-        | Some(old) when old === p || compare(old, p) == 0 => old
+        | Some(old) when phys_equal(old, p) || Poly.compare(old, p) == 0 => old
         | previous =>
           switch (p) {
           | Tile(t) =>
@@ -580,11 +584,13 @@ module Local = {
               | Some(Tile(old))
                   when List.length(old.children) == List.length(t.children) =>
                 old.children
-              | _ => List.map(_ => [], t.children)
+              | _ => List.map(t.children, ~f=_ => [])
               };
             let children =
-              List.map2(
-                (old, child) => {
+              List.map2_exn(
+                old_children,
+                t.children,
+                ~f=(old, child) => {
                   let child = walk(child);
                   is_mod_body(t)
                     ? normalize_member_whitespace(
@@ -593,14 +599,8 @@ module Local = {
                       )
                     : child;
                 },
-                old_children,
-                t.children,
               );
-            List.for_all2(
-              (a, b) => Segment.ptr_eq(a, b),
-              children,
-              t.children,
-            )
+            List.for_all2_exn(children, t.children, ~f=Segment.ptr_eq)
               ? p
               : Piece.Tile({
                   ...t,
@@ -618,7 +618,7 @@ module Local = {
     let normalize_top_level = (~before=?, z: Zipper.t): Zipper.t => {
       let after = Zipper.unselect_and_zip(z);
       let old =
-        Option.map(Zipper.unselect_and_zip, before)
+        Option.map(before, ~f=Zipper.unselect_and_zip)
         |> Option.value(~default=[]);
       let next =
         after
@@ -708,8 +708,7 @@ module Local = {
        attach it to rejections. */
     let parse_hint = (): string =>
       switch (FastParse.bail_note^) {
-      | Some(n)
-          when String.length(n) >= 7 && String.sub(n, 0, 7) == "menhir:" =>
+      | Some(n) when String.is_prefix(n, ~prefix="menhir:") =>
         "\nSyntax hint (batch parser): "
         ++ n
         ++ " — if the code was meant to be complete, start there."
@@ -721,8 +720,8 @@ module Local = {
        must survive the fast path's trim: re-attach it as Secondary. */
     let ws_secondaries = (ws: string): Segment.t =>
       ws
-      |> String.to_seq
-      |> Seq.filter_map(c =>
+      |> String.to_list
+      |> List.filter_map(~f=c =>
            switch (c) {
            | ' '
            | '\t' =>
@@ -741,17 +740,16 @@ module Local = {
              )
            | _ => None
            }
-         )
-      |> List.of_seq;
+         );
     let edge_ws = (code: string): (string, string) => {
-      let trimmed = String.trim(code);
+      let trimmed = String.strip(code);
       switch (Util.StringUtil.plain_search(trimmed, code, 0)) {
       | i when i >= 0 => (
-          String.sub(code, 0, i),
+          String.sub(code, ~pos=0, ~len=i),
           String.sub(
             code,
-            i + String.length(trimmed),
-            String.length(code) - i - String.length(trimmed),
+            ~pos=i + String.length(trimmed),
+            ~len=String.length(code) - i - String.length(trimmed),
           ),
         )
       | _ => ("", "")
@@ -769,18 +767,18 @@ module Local = {
     let split_separators =
         (code: string): (option(string), string, option(string)) => {
       let is_ws = c => c == ' ' || c == '\t' || c == '\n' || c == '\r';
-      let t = String.trim(code);
+      let t = String.strip(code);
       let n = String.length(t);
       let (lead, t) =
         if (n > 0 && t.[0] == ';') {
-          let rest = String.sub(t, 1, n - 1);
+          let rest = String.sub(t, ~pos=1, ~len=n - 1);
           let k = ref(0);
           while (k^ < String.length(rest) && is_ws(rest.[k^])) {
             incr(k);
           };
           (
-            Some(String.sub(rest, 0, k^)),
-            String.sub(rest, k^, String.length(rest) - k^),
+            Some(String.sub(rest, ~pos=0, ~len=k^)),
+            String.sub(rest, ~pos=k^, ~len=String.length(rest) - k^),
           );
         } else {
           (None, t);
@@ -788,14 +786,14 @@ module Local = {
       let n = String.length(t);
       let (trail, t) =
         if (n > 0 && t.[n - 1] == ';') {
-          let rest = String.sub(t, 0, n - 1);
+          let rest = String.sub(t, ~pos=0, ~len=n - 1);
           let k = ref(String.length(rest));
           while (k^ > 0 && is_ws(rest.[k^ - 1])) {
             decr(k);
           };
           (
-            Some(String.sub(rest, k^, String.length(rest) - k^)),
-            String.sub(rest, 0, k^),
+            Some(String.sub(rest, ~pos=k^, ~len=String.length(rest) - k^)),
+            String.sub(rest, ~pos=0, ~len=k^),
           );
         } else {
           (None, t);
@@ -857,7 +855,7 @@ module Local = {
                 ~materialize=Triggers.invoked_projector,
                 ~collect_refractors=false,
                 ~root,
-                String.trim(core),
+                String.strip(core),
               )
             )
           : None
@@ -1069,17 +1067,18 @@ module Local = {
           | ']'
           | '}' => decr(depth)
           | ';' when depth^ == 0 =>
-            parts := [String.sub(code, start^, i^ - start^), ...parts^];
+            parts :=
+              [String.sub(code, ~pos=start^, ~len=i^ - start^), ...parts^];
             start := i^ + 1;
           | _ => ()
           };
         };
         incr(i);
       };
-      let last = String.sub(code, start^, n - start^);
+      let last = String.sub(code, ~pos=start^, ~len=n - start^);
       List.rev([last, ...parts^])
-      |> List.map(String.trim)
-      |> List.filter(m => m != "");
+      |> List.map(~f=String.strip)
+      |> List.filter(~f=m => !String.is_empty(m));
     };
 
     let insert_member =
@@ -1116,21 +1115,18 @@ module Local = {
           | [] => [code]
           | ms => ms
           };
-        List.fold_left(
-          (acc, m) =>
-            switch (acc) {
-            | Error(e) => Error(e)
-            | Ok(z) =>
-              introduce(
-                ~root,
-                ~fast,
-                ~keep_edge_ws=true,
-                z,
-                d == Left ? m ++ ";\n" : ";\n" ++ m,
-              )
-            },
-          Ok(z_caret),
-          members,
+        List.fold(members, ~init=Ok(z_caret), ~f=(acc, m) =>
+          switch (acc) {
+          | Error(e) => Error(e)
+          | Ok(z) =>
+            introduce(
+              ~root,
+              ~fast,
+              ~keep_edge_ws=true,
+              z,
+              d == Left ? m ++ ";\n" : ";\n" ++ m,
+            )
+          }
         );
       };
     };
