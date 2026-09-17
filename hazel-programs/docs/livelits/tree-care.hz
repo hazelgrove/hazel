@@ -154,11 +154,11 @@ let ^tree = {
 
   let str = string_of_int;
 
-  # Branches thicken with the size of what they carry. #
-  let thickness = fun t : Tree ->
-    let c = count(t) in
-    let n = c.leaves + c.branches in
-    if n > 6 then 6 else if n < 1 then 1 else n;
+  # Branches thin as they divide: the trunk is thickest, twigs are #
+  # hairlines. Taken from DEPTH, not from counting the subtree -- #
+  # counting at every limb made drawing quadratic in the tree. #
+  let thickness = fun d : Int ->
+    let t = 7 - d in if t < 1 then 1 else t;
 
   let leaf_at = fun (s, season, x, y) : (LeafShape, Season, Int, Int) ->
     let r = leaf_size(season) in
@@ -184,11 +184,14 @@ let ^tree = {
            Attr.create("fill", leaf_color((s, season)))], [])
       end;
 
-  # Lay the tree out by halving the horizontal spread each level, so no #
-  # trigonometry is needed. Each branch carries the path that reaches #
-  # it, which is what a click sends back as Trim. #
-  let draw = fun (t, x, y, dx, dy, season, path)
-      : (Tree, Int, Int, Int, Int, Season, [Step]) ->
+  # Lay the tree out by shrinking the horizontal spread three quarters #
+  # each level, so no trigonometry is needed. Shrinking SLOWLY is what #
+  # keeps a deep tree spreading: halving pinches the canopy shut into a #
+  # spire, since by the sixth fork the siblings are a pixel apart. #
+  # Each branch carries the path that reaches it, which is what a click #
+  # sends back as Trim. #
+  let draw = fun (t, x, y, dx, dy, season, path, d)
+      : (Tree, Int, Int, Int, Int, Season, [Step], Int) ->
     case t
     | Leaf(s) => [leaf_at((s, season, x, y))]
     | Scar(b, n) =>
@@ -199,18 +202,18 @@ let ^tree = {
           Attr.create("stroke", bark_color(b))],
          [])]
     | Branch(b, l, r) =>
-      let limb = fun (cx, cy, child, side) : (Int, Int, Tree, Step) ->
+      let limb = fun (cx, cy) : (Int, Int) ->
         Html.node("line",
           [Attr.create("x1", str(x)), Attr.create("y1", str(y)),
            Attr.create("x2", str(cx)), Attr.create("y2", str(cy)),
            Attr.create("stroke", bark_color(b)),
-           Attr.create("stroke-width", str(thickness(child))),
+           Attr.create("stroke-width", str(thickness(d))),
            Attr.create("cursor", "pointer"),
            Attr.on_click(Trim(path))],
           []) in
-      [limb((x - dx, y - dy, l, L)), limb((x + dx, y - dy, r, R))]
-      @ draw((l, x - dx, y - dy, dx / 2, dy, season, path @ [L]))
-      @ draw((r, x + dx, y - dy, dx / 2, dy, season, path @ [R]))
+      [limb((x - dx, y - dy)), limb((x + dx, y - dy))]
+      @ draw((l, x - dx, y - dy, dx * 3 / 4, dy, season, path @ [L], d + 1))
+      @ draw((r, x + dx, y - dy, dx * 3 / 4, dy, season, path @ [R], d + 1))
     end;
 
   let season_button = fun (s, current) : (Season, Season) ->
@@ -226,9 +229,9 @@ let ^tree = {
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
                    ("gap", "0.2em")])],
       [Html.node("svg",
-         [Attr.create("viewBox", "0 0 200 200"),
-          Attr.width("150"), Attr.height("150")],
-         draw((m.tree, 100, 185, 44, 34, m.season, []))),
+         [Attr.create("viewBox", "0 0 260 170"),
+          Attr.width("186"), Attr.height("122")],
+         draw((m.tree, 130, 150, 34, 20, m.season, [], 0))),
        Html.div([Attr.style([("display", "flex"), ("gap", "0.2em")])],
          [Html.button([Attr.on_click(Prev),
                        Attr.style([("font-size", "0.7em")])],
@@ -248,7 +251,7 @@ let ^tree = {
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season);
 
-  let shape = Tab(22, 11)
+  let shape = Tab(20, 7)
 } in
 
 # The use below carries its whole tree in its argument. Grow it and #
