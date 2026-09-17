@@ -1,0 +1,95 @@
+# What is a Livelit? #
+
+# A livelit is a live GUI for one value in your program. You write #
+# the GUI once; then every USE of it is a widget you can click or #
+# drag, sitting in the code where the value goes. #
+
+# The widget is not a preview. Its state lives in the program text, #
+# so each use remembers what you did to it, and the program means #
+# whatever that state expands to. #
+
+# A livelit definition is a MODULE bound to a livelit name -- a #
+# name written with a leading caret, like ^flag below. #
+
+# THE LIVELIT TYPE #
+
+# Every definition is checked against one builtin module signature, #
+# named Livelit. It is the whole interface, and nothing else is #
+# required: #
+
+#   type Livelit = {            #
+#     type Model;               #
+#     type Action;              #
+#     type Expansion;           #
+#     let init   : Model;                      #
+#     let update : (Model, Action) -> Model;   #
+#     let view   : Model -> Html.T;            #
+#     let expand : Model -> Expansion          #
+#   }                                          #
+
+# The three types are abstract in that signature, which is what #
+# lets each livelit choose its own. YOUR definition says what they #
+# are, and the four members are then checked at those types. #
+
+# Model     the state one use carries, stored in its argument #
+# Action    what the GUI emits when the reader interacts #
+# Expansion what a use MEANS to the program #
+
+# Expansion is the one clients see. A use of ^flag has type #
+# Expansion no matter how expand is written, so a reader can reason #
+# about the use without reading the widget's code. #
+
+# A LIVELIT IN FULL #
+
+# Everything above, in the smallest thing that is still a livelit: #
+# a toggle whose expansion is a Bool. #
+
+let ^flag = {
+  type Model = Bool;
+  type Action = Bool;
+  type Expansion = Bool;
+
+  # what a fresh use starts as: typing ^flag then space inserts it #
+  let init : Model = false;
+
+  # the GUI acted; give back the next model #
+  let update = fun (m, a) : (Model, Action) -> a;
+
+  # the GUI itself. Handlers carry Actions, not functions: #
+  # on_click(...) says which Action a click emits #
+  let view = fun m : Model ->
+    Html.button(
+      [Attr.on_click(if m then false else true),
+       Attr.style([("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.text(if m then "yes" else "no")]);
+
+  # what the use means: here, the model itself #
+  let expand = fun m : Model -> m;
+
+  # optional: the widget's footprint, in character cells #
+  let shape = Inline(5)
+} in
+
+# Each use below carries its own model, right here in the text: #
+# click one and watch its argument change, and the result with it. #
+# The two toggles are independent -- one use knows nothing of the #
+# other. #
+
+(^^livelit(^flag(true)), ^^livelit(^flag(false)))
+
+# WHAT IS CHECKED, AND WHERE #
+
+# At the DEFINITION: your module is checked against Livelit above, #
+# so expand really does produce an Expansion, update really does #
+# take a (Model, Action), and view really does produce Html.T. #
+
+# At each USE: the expansion is checked again, against the declared #
+# Expansion. A definition-site check cannot see an expansion whose #
+# type depends on the model VALUE, so both checks earn their keep. #
+
+# WHERE TO GO NEXT #
+
+# Define a Slider  a number you drag, expanding to that number #
+# Emotion          the widget IS the control: drag a face #
+# Color Picker     helpers are ordinary members of the module #

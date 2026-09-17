@@ -4,6 +4,7 @@
  * triggers are written in the text itself. */
 let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
+    ("Overview", [%blob "overview.hz"]),
     ("Define a Slider", [%blob "defined-slider.hz"]),
     ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
