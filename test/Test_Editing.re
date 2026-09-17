@@ -2474,34 +2474,6 @@ let module_tests = [
     ~goal=
       {|let m : { let x : Int ;¦type T = Int } = { let x = 1; type T = Int } in m.x|},
   ),
-  /* Deleting an item's keyword leaves its `=` owing the keyword: the lone
-     `=` spells the labeled-tuple form, which a tile missing its first shard
-     must not take up. */
-  test_case(
-    "Module: deleting an item's let leaves the = owing let",
-    `Quick,
-    () => {
-      let z =
-        mk({|{ let¦ x = 1 }|})
-        @ List.init(3, _ => Action.Destruct(Left))
-        |> perform(Zipper.init());
-      check(
-        testable(Fmt.string, String.equal),
-        "printer output",
-        {|{ ¦ x = 1 }|},
-        printer(z),
-      );
-      check(
-        testable(
-          Fmt.(list(list(string))),
-          List.equal(List.equal(String.equal)),
-        ),
-        "backpack",
-        [["let"]],
-        List.map(Tile.effective_label, Zipper.local_backpack(z)),
-      );
-    },
-  ),
 ];
 
 /* ===== SHARD THEFT / PREPEND EDITING TESTS =====
@@ -2845,6 +2817,124 @@ let remold_sort_tests = [
     ~acts=mk({|1:(Int¦)|}),
     ~label=["(", ")"],
     ~sorts=[Typ],
+  ),
+];
+
+/* The printed state and what the caret-local backpack owes: the missing
+   shards of each incomplete tile it reaches. */
+let test_backpack =
+    (~name, ~acts, ~goal, ~owed: list(list(string))): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+      check(
+        testable(
+          Fmt.(list(list(string))),
+          List.equal(List.equal(String.equal)),
+        ),
+        "backpack",
+        owed,
+        List.map(Tile.effective_label, Zipper.local_backpack(z)),
+      );
+    },
+  );
+
+let backspace = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Destruct(Left));
+
+/* Module and signature bodies mold their keywords in their own sorts, so
+   a `let` there owes only what its item form owes. */
+let module_obligation_tests = [
+  test_backpack(
+    ~name="Module body: let owes only its =",
+    ~acts=string_to_ltr_actions("{ let"),
+    ~goal={|{ let¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_backpack(
+    ~name="Module body: type after an item owes only its =",
+    ~acts=string_to_ltr_actions("{ let x = 1; type"),
+    ~goal={|{ let x = 1; type¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_backpack(
+    ~name="Module body: module owes only its =",
+    ~acts=string_to_ltr_actions("{ module"),
+    ~goal={|{ module¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_tile_sorts(
+    ~name="Signature: { after : is a signature body",
+    ~acts=string_to_ltr_actions("let m : {"),
+    ~label=["{", "}"],
+    ~sorts=[Typ],
+  ),
+  test_backpack(
+    ~name="Signature: let is complete alone",
+    ~acts=string_to_ltr_actions("let m : { let"),
+    ~goal={|let m : { let¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_backpack(
+    ~name="Signature: type owes its =",
+    ~acts=string_to_ltr_actions("let m : { type"),
+    ~goal={|let m : { type¦?|},
+    ~owed=[["="], ["}"], ["="], ["in"]],
+  ),
+  test_backpack(
+    ~name="Signature: module is complete alone",
+    ~acts=string_to_ltr_actions("let m : { module"),
+    ~goal={|let m : { module¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_backpack(
+    ~name="Module body after a signature: { owes } inside the let",
+    ~acts=string_to_ltr_actions("let m : { let x : Int } = {"),
+    ~goal={|let m : { let x : Int } = {¦?|},
+    ~owed=[["}"], ["in"]],
+  ),
+  test_tile_sorts(
+    ~name="Module body after a signature: signature then module body",
+    ~acts=string_to_ltr_actions("let m : { let x : Int } = {"),
+    ~label=["{", "}"],
+    ~sorts=[Typ, Exp],
+  ),
+  /* Deleting an item's keyword leaves its `=` owing the keyword: the lone
+     `=` spells the labeled-tuple form, which a tile missing its first shard
+     must not take up. */
+  test_backpack(
+    ~name="Module: deleting an item's let leaves the = owing let",
+    ~acts=mk({|{ let¦ x = 1 }|}) @ backspace(3),
+    ~goal={|{ ¦ x = 1 }|},
+    ~owed=[["let"]],
+  ),
+  test_backpack(
+    ~name="Module: deleting an item's type leaves the = owing type",
+    ~acts=mk({|{ type¦ T = Int }|}) @ backspace(4),
+    ~goal={|{ ¦ T = Int }|},
+    ~owed=[["type"]],
+  ),
+  test_backpack(
+    ~name="Module: deleting an item's module leaves the = owing module",
+    ~acts=mk({|{ module¦ M = { let y = 1 } }|}) @ backspace(6),
+    ~goal={|{ ¦ M = { let y = 1 } }|},
+    ~owed=[["module"]],
+  ),
+  /* The same rule outside modules: the `->` left when `poly` is deleted
+     spells the arrow type and must keep owing its `poly`. */
+  test_backpack(
+    ~name="Type: deleting poly leaves the -> owing poly",
+    ~acts=mk({|let f : poly¦ X -> Int = 1 in f|}) @ backspace(4),
+    ~goal={|let f : ¦ X -> Int = 1 in f|},
+    ~owed=[["poly"]],
   ),
 ];
 
@@ -5555,6 +5645,7 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.ModuleObligation", module_obligation_tests),
   ("Editing.IncompleteChildSort", incomplete_child_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
   ("Editing.WrapCalculate", wrap_calculate_test),
