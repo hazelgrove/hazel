@@ -121,18 +121,46 @@ let rest_position =
     };
   };
 
+/* The implicit marker in a completion payload is rendered as a hole, never
+   as source text. Literal spaces are retained by the chip's white-space CSS. */
+let padding_nodes =
+    (~font_metrics: FontMetrics.t, ~shape=Grout.Convex, text: string)
+    : list(Node.t) =>
+  Token.to_list(text)
+  |> List.map(c =>
+       c == Token.implicit_hole_marker
+         ? EmptyHoleDec.view(
+             FontMetrics.{
+               col_width: font_metrics.col_width *. chip_font_scale,
+               row_height: font_metrics.row_height *. chip_font_scale,
+             },
+             shape,
+           )
+         : Node.text(c)
+     );
+
 /* Chip segments: the remainder is the payload (full contrast); the
    typed prefix and later coalesced segments fade. */
 let delimiter_nodes =
     (
       ~font_metrics: FontMetrics.t,
       ~on_apply: option(Id.t => Ui_effect.t(unit)),
+      ~head_padding: option((string, string))=None,
       delimiters: list(CanonicalCompletion.delimiter_info),
     )
     : list(Node.t) =>
   delimiters
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
-       let sep = k > 0 ? [Node.text(" ")] : [];
+       let (before, after) =
+         switch (k, head_padding) {
+         | (0, Some(padding)) => padding
+         | _ => (
+             (k > 0 ? " " : "")
+             ++ (d.leading_hole ? Token.implicit_hole_marker ++ " " : ""),
+             Option.is_some(d.trailing_hole) ? " " : "",
+           )
+         };
+       let sep = padding_nodes(~font_metrics, before);
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
        /* modifier-click completes this delimiter's tile; unmodified
           pointer events fall through to the editor */
@@ -169,32 +197,99 @@ let delimiter_nodes =
          | _ => [Node.text(d.text)]
          };
        let suffix =
-         d.needs_hole
-           ? [
-             Node.text(" "),
-             EmptyHoleDec.view(
-               FontMetrics.{
-                 col_width: font_metrics.col_width *. chip_font_scale,
-                 row_height: font_metrics.row_height *. chip_font_scale,
-               },
-               Grout.Convex,
-             ),
-           ]
-           : [];
+         padding_nodes(
+           ~font_metrics,
+           ~shape=Option.value(~default=Grout.Convex, d.trailing_hole),
+           after
+           ++ (
+             Option.is_some(d.trailing_hole) ? Token.implicit_hole_marker : ""
+           ),
+         );
        sep
        @ [Node.span(~attrs=[Attr.classes(seg_cls)] @ apply_attrs, body)]
        @ suffix;
      })
   |> List.concat;
 
-/* One interline chip: bubble centered on the line boundary above
-   the insertion point, pole below. */
+/* Backpack.main's top-edge rule (before cefc46bb86): rise at most four
+   rows, with a special first-row position above the editor. */
+let flagpole_top = (~row: int, ~row_height: float): float => {
+  let displacement = min(row, 4);
+  let baseline = float_of_int(row - displacement + (row == 0 ? 0 : 1));
+  (baseline -. 1.33) *. row_height;
+};
+
+/* Match the actual caret's top edge: no overlap with its chevron and
+   no fixed pixel width. Backpack used a side/shape-specific pixel offset;
+   sharing CaretDec's edge also keeps this correct when font size changes. */
+let flagpole_geometry =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~row,
+      ~col,
+      ~caret_form: option((Direction.t, option(Direction.t))),
+    )
+    : DecUtil.fdims => {
+  let (side, shape) =
+    Option.value(caret_form, ~default=(Direction.Right, None));
+  let (edge_left, edge_width) = CaretDec.top_edge(side, shape);
+  let top = flagpole_top(~row, ~row_height=font_metrics.row_height);
+  {
+    top,
+    left: (float_of_int(col) +. edge_left) *. font_metrics.col_width,
+    width: edge_width *. font_metrics.col_width,
+    height: float_of_int(row) *. font_metrics.row_height -. top,
+  };
+};
+
+let flagpole_view = (~font_metrics, ~row, ~col, ~caret_form, body) => {
+  let {top, left, width, height}: DecUtil.fdims =
+    flagpole_geometry(~font_metrics, ~row, ~col, ~caret_form);
+  div(
+    ~attrs=[
+      Attr.classes([
+        "quiver-chip",
+        "chip-live",
+        "quiver-flagpole",
+        "floating-fixed",
+      ]),
+      Attr.create("data-float-anchor-class", "code-container"),
+      Attr.create("data-float-local-top", Float.to_string(top)),
+      Attr.create("data-float-local-left", Float.to_string(left)),
+      Attr.create("data-float-min-top", "2"),
+      Attr.create("data-float-local-bottom", Float.to_string(top +. height)),
+      Attr.create(
+        "style",
+        "position: fixed; visibility: hidden; top: 0; left: 0;",
+      ),
+    ],
+    [
+      div(
+        ~attrs=[
+          Attr.classes(["quiver-flagpole-stem"]),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "width: %fpx; height: max(0px, calc(%fpx - var(--float-top-shift, 0px)));",
+              width,
+              height,
+            ),
+          ),
+        ],
+        [],
+      ),
+      div(~attrs=[Attr.classes(["quiver-chip-body"])], body),
+    ],
+  );
+};
+
+/* Inline chips dock to the caret; resting chips point at their insertion
+   site with a short tail, independent of the syntax's nib shape. */
 let chip_view =
     (
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
-      ~shape: option(Direction.t),
       ~caret_form: option((Direction.t, option(Direction.t))),
       ~live: bool,
       ~at_caret: bool,
@@ -203,52 +298,21 @@ let chip_view =
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  /* the pole is a ghost caret: the path the real caret would draw
-     here; hidden at coincidence */
-  let pole =
-    DecUtil.code_svg(
-      ~font_metrics,
-      ~origin={
-        row,
-        col,
-      },
-      ~base_cls=["quiver-chip-pole"],
-      ~path_cls=["quiver-chip-pole-path"],
-      ~scale=1.0,
-      ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
-      CaretDec.caret_base_path(Direction.Right, shape),
-    );
-  /* flag left edge = top-left corner of whichever caret stands at
-     its foot: x = -(shape_adjust + caret_width/2) */
-  let (dock_side, dock_shape) =
-    switch (at_caret, caret_form) {
-    | (true, Some((cs, csh))) => (cs, csh)
-    | _ => (Direction.Right, shape)
-    };
   let body_left =
-    -. (
-      ShardDec.shape_adjust(dock_side, dock_shape)
-      +. 0.5
-      *. CaretDec.caret_width
-    )
-    *. font_metrics.col_width;
+    switch (at_caret, caret_form) {
+    | (true, Some((side, shape))) =>
+      fst(CaretDec.top_edge(side, shape)) *. font_metrics.col_width
+    | _ => 0.
+    };
   div(
     ~attrs=[
       Attr.classes(
         ["quiver-chip"]
-        @ (
-          switch (dock_shape) {
-          | Some(Direction.Left) => ["chip-bend-left"]
-          | Some(Right) => ["chip-bend-right"]
-          | None => ["chip-straight"]
-          }
-        )
         @ (live ? ["chip-live"] : [])
         @ (at_caret ? ["chip-at-caret"] : []),
       ),
     ],
     [
-      pole,
       div(
         ~attrs=[
           Attr.classes(["quiver-chip-anchor"]),
@@ -276,7 +340,9 @@ let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
   delimiters
   |> List.map((d: CanonicalCompletion.delimiter_info) =>
-       String.length(d.text) + (d.needs_hole ? 2 : 0)
+       String.length(d.text)
+       + (Option.is_some(d.trailing_hole) ? 2 : 0)
+       + (d.leading_hole ? 2 : 0)
      )
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
@@ -404,6 +470,8 @@ let view =
     (
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
+      ~flagpole=false,
+      ~head_padding: option((string, string))=None,
       ~droppable: option((Id.t, int))=None,
       ~caret_pos: option((int, int))=None,
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
@@ -429,23 +497,37 @@ let view =
   | bs =>
     let chips =
       bs
-      |> List.map((ins: positioned_insertion) =>
-           chip_view(
-             ~font_metrics,
-             ~row=ins.row,
-             ~col=ins.col,
-             ~shape=ins.shape,
-             ~caret_form,
-             /* live = what Tab does: the caret's bubble when there is
-                one, else the chip holding Put_down's shard */
-             ~live=
-               ins.owned
-               || owned == []
-               && matches_droppable(droppable, ins.delimiters),
-             ~at_caret=ins.owned,
-             delimiter_nodes(~font_metrics, ~on_apply, ins.delimiters),
-           )
-         );
+      |> List.map((ins: positioned_insertion) => {
+           let body =
+             delimiter_nodes(
+               ~font_metrics,
+               ~on_apply,
+               ~head_padding=ins.owned ? head_padding : None,
+               ins.delimiters,
+             );
+           flagpole && ins.owned
+             ? flagpole_view(
+                 ~font_metrics,
+                 ~row=ins.row,
+                 ~col=ins.col,
+                 ~caret_form,
+                 body,
+               )
+             : chip_view(
+                 ~font_metrics,
+                 ~row=ins.row,
+                 ~col=ins.col,
+                 ~caret_form,
+                 /* live = what Tab does: the caret's bubble when there is
+                    one, else the chip holding Put_down's shard */
+                 ~live=
+                   ins.owned
+                   || owned == []
+                   && matches_droppable(droppable, ins.delimiters),
+                 ~at_caret=ins.owned,
+                 body,
+               );
+         });
     div(~attrs=[Attr.classes(["quiver-decorations"])], chips);
   };
 };

@@ -1,5 +1,8 @@
 type cursor('update) = {
   info: option(Language.Info.t),
+  /* Used only by the bottom inspector; ordinary indication still supplies
+     context, navigation, explanations, and sidebars. Lazy when quiver is off. */
+  implied_hole: Lazy.t(option(Language.Info.t)),
   selected_text: option(unit => string),
   selection: option(Haz3lcore.Segment.t),
   indicated_piece: option(Haz3lcore.Piece.t),
@@ -32,6 +35,7 @@ let map_opt = (f: 'a => option('b), cursor) => {
 
 let empty = {
   info: None,
+  implied_hole: Lazy.from_val(None),
   selected_text: None,
   selection: None,
   indicated_piece: None,

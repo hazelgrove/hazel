@@ -166,6 +166,13 @@ module Selection = {
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
+      implied_hole:
+        Lazy.from_fun(() =>
+          ImpliedHole.at_caret(
+            ~statics=model.statics,
+            model.editor.state.zipper,
+          )
+        ),
     }
     |> Cursor.with_actions([
          /* Navigation */
@@ -553,6 +560,16 @@ module View = {
       globals.settings.quiver
         ? [
           QuiverDec.view(
+            ~flagpole=globals.settings.quiver_flagpole,
+            ~head_padding=
+              CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
+              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
+                   List.nth_opt(i.delimiters, 0)
+                 )
+              |> Option.bind(_, (d: CanonicalCompletion.delimiter_info) =>
+                   d.typed_len == None
+                     ? Some(CompletionQuery.padding(z, d)) : None
+                 ),
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
             ~caret_pos={

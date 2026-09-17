@@ -1533,14 +1533,8 @@ let move_r = Action.Move(Local(Right, ByChar));
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  switch (CompletionQuery.chip_at_caret(z)) {
-  | Some(ins) =>
-    switch (CompletionQuery.tab_text(z, ins)) {
-    | Some(text) => Some(Test_Editing.perform(z, [Paste(text)]))
-    | None => None
-    }
-  | None => None
-  };
+  CompletionQuery.tab_action(z)
+  |> Option.map(a => Test_Editing.perform(z, [a]));
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
@@ -1589,14 +1583,14 @@ let tab_dispatch_tests = [
   tab_case(
     ~name="multi-delimiter chip: one delimiter per tab",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
-    ~expected="let _: (Int, Bool) =¦?",
+    ~expected="let _: (Int, Bool) = ¦?",
     (),
   ),
   tab_case(
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) =? in ¦?",
+    ~expected="let _: (Int, Bool) = ? in ¦?",
     (),
   ),
   tab_case(
@@ -1615,7 +1609,7 @@ let tab_dispatch_tests = [
   tab_case(
     ~name="coalesced end+paren: innermost only, symbolic spacing",
     ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
-    ~expected="(case x | 1 => 2 end ¦",
+    ~expected="(case x | 1 => 2 end¦",
     (),
   ),
 ];
