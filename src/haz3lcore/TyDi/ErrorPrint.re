@@ -39,13 +39,19 @@ module Print = {
 
 let prn = Printf.sprintf;
 
-let type_member_mismatch_string = (name, ~expected, ~actual) =>
+/* See member_mismatch_view in CursorInspector: one phrasing, and [what]
+   names the kind of member. */
+let member_mismatch_string = (~what, name, ~expected, ~actual) =>
   prn(
-    "Type member %s is %s but its signature declares %s",
+    "%s%s is %s but its signature declares %s",
+    what,
     name,
     Print.typ(actual),
     Print.typ(expected),
   );
+
+let type_member_mismatch_string = (name, ~expected, ~actual) =>
+  member_mismatch_string(~what="Type member ", name, ~expected, ~actual);
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
@@ -172,12 +178,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       String.concat(", ", missing),
     )
   | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
-    prn(
-      "Livelit member %s has type %s but Livelit requires %s",
-      name,
-      Print.typ(actual),
-      Print.typ(expected),
-    )
+    member_mismatch_string(~what="Member ", name, ~expected, ~actual)
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"

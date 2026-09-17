@@ -545,14 +545,26 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   };
 };
 
-let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
-  text("Type member "),
+/* One phrasing for "this member disagrees with its signature", whether the
+   signature is a module's own or the builtin `Livelit`. [what] names the
+   kind of member, since only type members are called that. */
+let member_mismatch_view = (~view_type, ~what, name, ~expected, ~actual) => [
+  text(what),
   code(name),
   text(" is defined as "),
   view_type(actual),
   text(" but its signature declares "),
   view_type(expected),
 ];
+
+let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) =>
+  member_mismatch_view(
+    ~view_type,
+    ~what="Type member ",
+    name,
+    ~expected,
+    ~actual,
+  );
 
 let typ_mark_err_view = (~globals, m: Mark.t) => {
   let view_type = view_type(~globals);
@@ -870,16 +882,15 @@ let exp_mark_err_view =
       ...List.map(code, missing),
     ])
   | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
-    div_err([
-      text("Livelit member "),
-      code(name),
-      text(" has type "),
-      view_type(actual),
-      text(" but "),
-      code("Livelit"),
-      text(" requires "),
-      view_type(expected),
-    ])
+    div_err(
+      member_mismatch_view(
+        ~view_type,
+        ~what="Member ",
+        name,
+        ~expected,
+        ~actual,
+      ),
+    )
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),
