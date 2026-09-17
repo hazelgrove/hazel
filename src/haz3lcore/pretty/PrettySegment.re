@@ -450,22 +450,24 @@ let split_at_next_rule =
   go([], pieces);
 };
 
-/* Split pieces at the first comma. Returns None if no comma found.
-   Commas bind more loosely than compound prefixes (fun, if, let),
-   so we scan ahead to ensure commas split the segment before
-   compound prefixes absorb past them. */
-let split_at_comma =
-    (pieces: list(Piece.t))
+/* Split pieces at the first separator satisfying [sep]. Returns None if
+   there is none. Separators bind more loosely than compound prefixes
+   (fun, if, let), so we scan ahead to ensure they split the segment
+   before compound prefixes absorb past them. */
+let split_at =
+    (sep: Piece.t => bool, pieces: list(Piece.t))
     : option((list(Piece.t), Piece.t, list(Piece.t))) => {
   let rec go = (before_rev, pieces) =>
     switch (pieces) {
     | [] => None
-    | [p, ...rest] when is_comma(p) =>
-      Some((List.rev(before_rev), p, rest))
+    | [p, ...rest] when sep(p) => Some((List.rev(before_rev), p, rest))
     | [p, ...rest] => go([p, ...before_rev], rest)
     };
   go([], pieces);
 };
+
+let split_at_comma = split_at(is_comma);
+let split_at_semi = split_at(is_semi);
 
 /* === Doc construction from segment content === */
 
@@ -583,6 +585,38 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     };
 
   switch (t.label) {
+  /* Module and signature items: `let x = e`, `type T = ty`, `module M = e`.
+     The definition is not a child of the tile the way a `let … in` binding
+     is: it is the segment up to the item's `;`, so the group that keeps the
+     item on one line has to be built around that split. */
+  | [_, "="] when Sort.is_mod_or_sig(t.mold.out) =>
+    switch (triples) {
+    | [(_, pat_child, _)] =>
+      let prefix =
+        cats([
+          shard(0),
+          Space,
+          Group(child_doc(s, pat_child)),
+          Space,
+          shard(last_shard_idx),
+        ]);
+      let item = (def: list(Piece.t)) =>
+        Group(cats([prefix, Break, Group(segment_to_doc(s, def))]));
+      switch (split_at_semi(rest)) {
+      | None => item(rest)
+      | Some((def, semi, items)) =>
+        cats([
+          item(def),
+          piece_doc(semi),
+          switch (items) {
+          | [] => Empty
+          | _ => cats([HardBreak, segment_to_doc(s, items)])
+          },
+        ])
+      };
+    | _ => fallback()
+    }
+
   /* Binding forms: let/=/in, type/=/in, theorem/=/in */
   | [_, "=", "in"] =>
     switch (triples) {
