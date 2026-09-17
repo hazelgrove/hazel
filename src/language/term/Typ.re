@@ -2384,7 +2384,8 @@ let all_ids = (ty: t): list(Id.t) => {
     | ExplicitNonlabel
     | Var(_)
     | ProofOf(_)
-    | Escaped(_) => ()
+    | Escaped(_)
+    | Implicit(_) => ()
     /* A signature's item types, a sum among which has variant ids of its own
        -- the generic traversal reaches the items but not those. Syntactic,
        not `Sig.members`: an item whose name is a hole still prints. */
@@ -2558,5 +2559,7 @@ let rec diff =
   | (Sum(_), _) => get_ids()
   | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
   | (Sig(_), _) => get_ids()
+  | (Implicit(_), Implicit(_)) when fast_equal(ty, ty') => []
+  | (Implicit(_), _) => get_ids()
   };
 };
