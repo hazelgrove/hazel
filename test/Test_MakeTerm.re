@@ -391,5 +391,61 @@ let tests =
       test_case("Module with bare expression", `Quick, () =>
         exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
+      test_case("Signature with abstract type member", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(
+              Pat.var("m"),
+              Typ.sig_([
+                Sig.sig_type_abstract(TPat.var("T")),
+                Sig.sig_let(Pat.asc(Pat.var("x"), Typ.var("T"))),
+              ]),
+            ),
+            module_([
+              Mod.mod_type(TPat.var("T"), Typ.int()),
+              Mod.mod_let(Pat.var("x"), int(1)),
+            ]),
+            var("m"),
+          ),
+          {|let m : { type T; let x : T } = { type T = Int; let x = 1 } in m|},
+        )
+      ),
+      test_case("Signature with only an abstract type member", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("S"),
+            Typ.sig_([Sig.sig_type_abstract(TPat.var("T"))]),
+            int(1),
+          ),
+          {|type S = { type T } in 1|},
+        )
+      ),
+      test_case("Signature with module item", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(
+              Pat.var("m"),
+              Typ.sig_([
+                Sig.sig_module(
+                  MPat.asc(
+                    MPat.var("Inner"),
+                    Typ.sig_([
+                      Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int())),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+            module_([
+              Mod.module_mod(
+                MPat.var("Inner"),
+                module_([Mod.mod_let(Pat.var("x"), int(1))]),
+              ),
+            ]),
+            var("m"),
+          ),
+          {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
+        )
+      ),
     ],
   );

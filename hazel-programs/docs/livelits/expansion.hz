@@ -1,0 +1,295 @@
+# The Expansion #
+
+# Every livelit has a member called expand, and a type member called #
+# Expansion. Together they answer one question: what does a use of #
+# this livelit MEAN to the program around it? #
+
+#   let expand : Model -> Expansion #
+
+# expand is a boundary. On one side is the MODEL: the widget's state, #
+# written into the program text so it survives. Because it is stored #
+# as syntax, a model must be plain serializable data -- a model can #
+# never hold a function. #
+
+# On the other side is the EXPANSION: an ordinary Hazel expression, #
+# under no such restriction. Everything interesting a livelit does, #
+# it does here. #
+
+# THE DULL CASE: EXPANSION = MODEL #
+
+# A slider stores an Int and means that Int. expand is the identity, #
+# and the livelit is a nicer way to type a number. #
+
+#   type Model = Int;  type Expansion = Int; #
+#   let expand = fun m : Model -> m #
+
+# BETTER: THE EXPANSION IS NOT THE MODEL #
+
+# The Color Picker slide in this deck stores (hue, whiteness, blackness) #
+# and expands to a CSS string. The client never sees the triple, and #
+# never has to know the hwb geometry the widget uses to read a click: #
+
+#   type Model = (Int, Int, Int);  type Expansion = String; #
+#   let expand = fun m : Model -> css(m) #
+
+# The GUI absorbs the domain knowledge. That is already the point of #
+# the Expansion type: a use has that type however expand is written, #
+# so a reader reasons about the use without reading the widget. #
+
+# INTERESTING: AN EXPANSION THE MODEL COULD NOT BE #
+
+# Pick one color, and mean a whole RAMP of them. This livelit's #
+# Expansion is a FUNCTION, Int -> Color: give it a lightness offset #
+# and it gives back that shade of the color you picked. #
+
+# A model could not hold this function -- it has to be written into #
+# the program text. The expansion has no such limit, so expand is #
+# where a picked color becomes a family of colors. #
+
+# And a Color is not a string. It is the same color in three #
+# coordinate systems, each still numeric, so a client can compute #
+# with it -- compare channels, sort by lightness, interpolate. #
+# Turning one into text is a separate step, further down. #
+
+type Rgb = (r=Int, g=Int, b=Int) in
+type Hsl = (h=Int, s=Int, l=Int) in
+type Hwb = (h=Int, w=Int, b=Int) in
+type Color = (rgb=Rgb, hsl=Hsl, hwb=Hwb) in
+
+let ^ramp = {
+  type Model = Hwb;
+  type Action = Hwb;
+  type Expansion = Int -> Color;
+
+  let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
+
+  # the hue at full strength, walked around the six sectors #
+  let hue_rgb = fun h : Int ->
+    let sector = h / 60 in
+    let up = (h - sector * 60) * 255 / 60 in
+    let down = 255 - up in
+    if sector == 0 then (r=255, g=up, b=0)
+    else if sector == 1 then (r=down, g=255, b=0)
+    else if sector == 2 then (r=0, g=255, b=up)
+    else if sector == 3 then (r=0, g=down, b=255)
+    else if sector == 4 then (r=up, g=0, b=255)
+    else (r=255, g=0, b=down);
+
+  # whiteness and blackness shrink the pure hue toward grey #
+  let to_rgb = fun c : Hwb ->
+    if c.w + c.b >= 100 then
+      let grey = c.w * 255 / (c.w + c.b) in (r=grey, g=grey, b=grey)
+    else
+      let pure = hue_rgb(c.h) in
+      let span = 100 - c.w - c.b in
+      let mix = fun v : Int -> v * span / 100 + c.w * 255 / 100 in
+      (r=mix(pure.r), g=mix(pure.g), b=mix(pure.b));
+
+  let to_hsl = fun c : Hwb ->
+    let value = 100 - c.b in
+    if value == 0 then (h=c.h, s=0, l=0)
+    else
+      let sat_v = 100 - c.w * 100 / value in
+      let l = value * (200 - sat_v) / 200 in
+      let edge = if l < 100 - l then l else 100 - l in
+      (h=c.h, s=if edge == 0 then 0 else (value - l) * 100 / edge, l=l);
+
+  let color = fun c : Hwb -> (rgb=to_rgb(c), hsl=to_hsl(c), hwb=c);
+
+  # the view needs text, so it makes its own; the EXPANSION does not #
+  let css = fun c : Hwb ->
+    "hwb(" ++ string_of_int(c.h) ++ " "
+    ++ string_of_int(c.w) ++ "% " ++ string_of_int(c.b) ++ "%)";
+
+  let init : Model = (h=200, w=20, b=10);
+
+  let update = fun (_m, a) : (Model, Action) -> a;
+
+  let swatch = fun c : Hwb ->
+    Html.div([Attr.style([("width", "18px"), ("height", "18px"),
+                          ("border", "1px solid black"),
+                          ("background", css(c))])], []);
+
+  let view = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center")])],
+      [Html.input([Attr.type_("range"), Attr.min("0"), Attr.max("360"),
+                   Attr.value(string_of_int(m.h)),
+                   Attr.on_input(fun s -> (h=int_of_string(s), w=m.w, b=m.b))]),
+       swatch(m),
+       swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]);
+
+  # not a color, and not text: a function FROM lightness TO structure #
+  let expand = fun m : Model ->
+    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b));
+
+  let shape = Inline(14)
+} in
+
+# TEXT COMES LAST #
+
+# Each coordinate system gets its own to_string, out here, where the #
+# client can choose one -- or none. The expansion handed over #
+# structure; these are what you reach for only once you want to LOOK #
+# at it. #
+
+let rgb_string = fun c : Rgb ->
+  "rgb(" ++ string_of_int(c.r) ++ " " ++ string_of_int(c.g)
+  ++ " " ++ string_of_int(c.b) ++ ")" in
+
+let hsl_string = fun c : Hsl ->
+  "hsl(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.s)
+  ++ "% " ++ string_of_int(c.l) ++ "%)" in
+
+let hwb_string = fun c : Hwb ->
+  "hwb(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.w)
+  ++ "% " ++ string_of_int(c.b) ++ "%)" in
+
+# WHERE A WRONG EXPAND IS CAUGHT #
+
+# expand is checked in TWO places, and both earn their keep. #
+
+# At the DEFINITION, the module is checked against the builtin #
+# `Livelit` signature with Model, Action and Expansion realized by #
+# the definition's own types. So this is an error where it is #
+# written, before any use exists: #
+
+#   type Model = Bool;  type Expansion = String;   #
+#   let expand = fun m : Model -> m                #
+#                                                  #
+#   Member expand is Bool -> Bool                  #
+#   but its signature declares Bool -> String      #
+
+# Note the member's type is spelled Model -> Model, not Bool -> Bool. #
+# The check realizes the type members on both sides before comparing; #
+# without that, Model means nothing outside the module, becomes ?, #
+# and ? is consistent with anything. #
+
+# At each USE, the expansion is checked again against the declared #
+# Expansion. That is not redundant: an expansion whose type depends #
+# on the model VALUE is invisible at the definition, so only the use #
+# can catch it. A definition with a bad member is still bound, so #
+# its uses keep resolving and keep being checked. #
+
+# Try it: the ^good livelit below type-checks. Change its Expansion #
+# to String and the error appears on the DEFINITION immediately, as #
+# well as on each use. #
+
+let ^good = {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+  let init : Model = 3;
+  let update = fun (_m, a) : (Model, Action) -> a;
+  let view = fun m : Model ->
+    Html.text(string_of_int(m));
+  let expand = fun m : Model -> m;
+  let shape = Inline(3)
+} in
+
+# The use below IS a function. Drag the hue and every shade moves, #
+# because they all come from the one expansion. #
+
+# Note what the client gets to do: read a channel as a number, and #
+# pick which coordinate system to render -- decisions the livelit #
+# never made for it. #
+
+let shade = ^^livelit(^ramp((h=200, w=20, b=10))) in
+let mid = shade(25) in
+(mid.rgb.r,
+ mid.hsl.l,
+ rgb_string(mid.rgb),
+ hsl_string(mid.hsl),
+ hwb_string(shade(50).hwb),
+ ^^livelit(^good(3)) + 1)
+
+# WHAT SPLICES CHANGE #
+
+# DESIGN SKETCH. None of this runs on this branch yet -- it is what #
+# the splices work is aiming at, written down so the target is #
+# legible. Everything ABOVE this line works today. #
+
+# A splice is a hole in the widget that holds the CLIENT's code. #
+# Not a value the widget computed: an expression the client wrote, #
+# edited in place inside the GUI, and typed in the client's scope. #
+
+# The livelits paper (Omar et al., PLDI 2021) opens with a color #
+# livelit whose four channels are splices, Fig. 1b: #
+
+#   let baseline = $slider 0 255 in                         #
+#   $color [r: baseline] [g: baseline + 50] [b: baseline]   #
+
+# `baseline` is the CLIENT's variable. The widget shows a color, but #
+# the green channel is an expression mentioning something the widget #
+# has never heard of. That is what splices buy. #
+
+# HOW expand CHANGES #
+
+# Today, on the branch without splices: #
+
+#   let expand : Model -> Expansion      (a VALUE) #
+
+# The paper's signature (Fig. 3, line 55): #
+
+#   let expand : Model -> (Exp, List(SpliceRef)) #
+
+# Two changes, and the second is the interesting one. #
+
+# FIRST, the expansion becomes SYNTAX. `Exp` is quoted code, not a #
+# value -- so expand writes a program rather than computing an #
+# answer. Hazel's own $color expands to a quoted function: #
+
+#   fun model -> (`fun r g b a -> (r, g, b, a)`,          #
+#                 [model.r, model.g, model.b, model.a])   #
+
+# SECOND, the splices come back as a LIST beside it, and the quoted #
+# expression is a FUNCTION of them. The client's four expressions #
+# become the four arguments. #
+
+# That shape is not decoration. It is how the paper gets CAPTURE #
+# AVOIDANCE: a splice passed as a function argument cannot be caught #
+# by a binding inside the expansion, because it is evaluated outside #
+# it. Splice the client wrote `len` into a livelit whose expansion #
+# happens to bind `len`, and nothing goes wrong. #
+
+# WHAT ELSE MOVES #
+
+# The MODEL stops holding the data. Fig. 3 line 3: #
+
+#   type Model = (.r SpliceRef, .g SpliceRef, #
+#                 .b SpliceRef, .a SpliceRef) #
+
+# Four references, no colors. The content lives in the splices, as #
+# program text; the model only says where. Compare the Tree Care #
+# slide, whose model IS the tree. #
+
+# init stops being a value and becomes a COMMAND, because making a #
+# splice is an effect on the program: #
+
+#   new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) #
+
+# view gains the ability to RUN a splice, which is what lets the #
+# widget show a live preview of code the client wrote: #
+
+#   eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) #
+#   type Result = Val(Exp) | Indet(Exp) #
+
+# Indet is the honest case: the client's expression may not reduce #
+# to a value, and a widget that demands one would be lying. Fig. 3 #
+# disables the color preview when any channel is indeterminate. #
+
+# And a livelit declares the definition-site bindings its expansion #
+# may use, so a client never inherits a hidden dependency: #
+
+#   context { } #
+
+# WHERE THIS BRANCH IS #
+
+# Matt Keenan's splices work, PR 2415, supplies the editor half: a #
+# Splice form in the grammar, sub-editors that share the host's #
+# zipper and statics, and a projector API for rendering them. #
+
+# SpliceRef -- the TYPE above, the thing expand hands back -- exists #
+# nowhere in the repo yet. So this branch is a merge plus a build, #
+# and only the merge can be taken from somewhere else. #
