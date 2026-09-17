@@ -134,16 +134,17 @@ let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
  * agree. */
 let rec has_id_deep = (id: Id.t, seg: Segment.t): bool =>
   List.exists(
-    (p: Piece.t) =>
-      Piece.id(p) == id
-      || (
-        switch (p) {
-        | Tile(t) => List.exists(has_id_deep(id), t.children)
-        | Projector(pr) => has_id_deep(id, [pr.syntax])
-        | Grout(_)
-        | Secondary(_) => false
-        }
-      ),
+    ~f=
+      (p: Piece.t) =>
+        Id.equal(Piece.id(p), id)
+        || (
+          switch (p) {
+          | Tile(t) => List.exists(t.children, ~f=has_id_deep(id))
+          | Projector(pr) => has_id_deep(id, [pr.syntax])
+          | Grout(_)
+          | Secondary(_) => false
+          }
+        ),
     seg,
   );
 

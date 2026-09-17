@@ -1,6 +1,7 @@
 open Util;
 open PrettySegment;
 open Base;
+open Poly;
 let mk_space = Secondary.mk_space;
 let mk_newline = Secondary.mk_newline;
 open Language;
@@ -1146,38 +1147,37 @@ and parenthesize_any =
 
 let should_add_space = (s1, s2) =>
   switch () {
-  | _ when String.ends_with(s1, ~suffix="(") => false
-  | _ when String.ends_with(s1, ~suffix="[") => false
-  | _ when String.starts_with(s2, ~prefix=")") => false
-  | _ when String.starts_with(s2, ~prefix="]") => false
-  | _ when String.starts_with(s2, ~prefix=",") => false
-  | _ when String.starts_with(s2, ~prefix=";") => false
-  | _ when String.starts_with(s2, ~prefix=":") => false
-  | _ when String.ends_with(s1, ~suffix="::") => true
-  | _ when String.ends_with(s1, ~suffix=":") =>
-    String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
-  | _ when String.ends_with(s1, ~suffix=" ") => false
-  | _ when String.starts_with(s2, ~prefix=" ") => false
-  | _ when String.ends_with(s1, ~suffix="\n") => false
-  | _ when String.starts_with(s2, ~prefix="\n") => false
+  | _ when String.is_suffix(s1, ~suffix="(") => false
+  | _ when String.is_suffix(s1, ~suffix="[") => false
+  | _ when String.is_prefix(s2, ~prefix=")") => false
+  | _ when String.is_prefix(s2, ~prefix="]") => false
+  | _ when String.is_prefix(s2, ~prefix=",") => false
+  | _ when String.is_prefix(s2, ~prefix=";") => false
+  | _ when String.is_prefix(s2, ~prefix=":") => false
+  | _ when String.is_suffix(s1, ~suffix="::") => true
+  | _ when String.is_suffix(s1, ~suffix=":") =>
+    String.is_prefix(s2, ~prefix="$") || String.is_prefix(s2, ~prefix="!")
+  | _ when String.is_suffix(s1, ~suffix=" ") => false
+  | _ when String.is_prefix(s2, ~prefix=" ") => false
+  | _ when String.is_suffix(s1, ~suffix="\n") => false
+  | _ when String.is_prefix(s2, ~prefix="\n") => false
   | _
       when
-        String.ends_with(s1, ~suffix="PROJECTOR")
-        && String.starts_with(s2, ~prefix="(") =>
+        String.is_suffix(s1, ~suffix="PROJECTOR")
+        && String.is_prefix(s2, ~prefix="(") =>
     false
   | _
       when
-        String.ends_with(s1, ~suffix=")")
-        && String.starts_with(s2, ~prefix="(") =>
+        String.is_suffix(s1, ~suffix=")")
+        && String.is_prefix(s2, ~prefix="(") =>
     false
   | _
       when
         Token.is_potential_operand(s1)
         && !Token.is_keyword(s1)
-        && String.starts_with(s2, ~prefix="(") =>
+        && String.is_prefix(s2, ~prefix="(") =>
     false
-  | _ when String.ends_with(s1, ~suffix="…") =>
+  | _ when String.is_suffix(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
     false
   | _
@@ -1194,7 +1194,7 @@ let should_add_space = (s1, s2) =>
           Token.is_quoted_label(s1)
           || Token.is_var(s1)
           || Token.is_ctr(s1)
-          || String.ends_with(s1, ~suffix=")")
+          || String.is_suffix(s1, ~suffix=")")
         ) =>
     false
   | _ => true
@@ -1286,7 +1286,7 @@ let mk_form =
     id,
     form: Form.Compound(fam),
     sort,
-    shards: List.init(List.length(children) + 1, n => n),
+    shards: List.init(List.length(children) + 1, ~f=n => n),
     children,
   });
 };
@@ -1452,11 +1452,11 @@ let rec drv_exp_to_pretty =
       let ids =
         syntax
         |> IdTagged.ids
-        |> List.tl
+        |> List.tl_exn
         |> PadIds.pad_ids(~base=id, List.length(xs));
       let map2_safe = (f, l1, l2) =>
         List.length(l1) == List.length(l2)
-          ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
+          ? List.map2_exn(l1, l2, ~f) : raise(Invalid_argument("map2_safe"));
       [
         mk_form(
           ListLit,
@@ -1767,7 +1767,7 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
     let mk_form = (~sort=Sort.Drv(Exp), fam, id, children) =>
       mk_form(~secondary=Settings.AutoFormat, ~sort, fam, id, children);
     let go = drv_formula_to_pretty;
-    let id = List.hd(formula.annotation.ids);
+    let id = List.hd_exn(formula.annotation.ids);
     let mk_jdmt_binop = (op, l, r, sort_l, sort_r) => {
       let+ l = go(l, sort_l)
       and+ r = go(r, sort_r);
@@ -1972,10 +1972,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* x = go(x)
     and* xs = xs |> List.map(~f=go) |> all;
     let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
+      IdTagged.ids(exp) |> List.hd_exn,
       IdTagged.ids(exp)
-      |> List.tl
-      |> PadIds.pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(xs)),
+      |> List.tl_exn
+      |> PadIds.pad_ids(
+           ~base=IdTagged.ids(exp) |> List.hd_exn,
+           List.length(xs),
+         ),
     );
     let form = (x, xs) =>
       mk_form(
@@ -1984,7 +1987,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         [
           x
           @ List.concat(
-              List.map2((id, x) => [mk_form(Comma, id, [])] @ x, ids, xs),
+              List.map2_exn(ids, xs, ~f=(id, x) =>
+                [mk_form(Comma, id, [])] @ x
+              ),
             ),
         ],
       );
@@ -2059,17 +2064,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -2081,7 +2083,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
     let name =
-      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+      if (settings.hide_fixpoints && String.is_suffix(~suffix="+", name)) {
         String.sub(name, ~pos=0, ~len=String.length(name) - 1);
       } else {
         name;
@@ -2126,7 +2128,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
     let name =
-      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+      if (settings.hide_fixpoints && String.is_suffix(~suffix="+", name)) {
         String.sub(name, ~pos=0, ~len=String.length(name) - 1);
       } else {
         name;
@@ -2177,7 +2179,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       exp,
       x
       @ List.concat(
-          List.map2((id, x) => [mk_form(Comma, id, [])] @ x, ids, xs),
+          List.map2_exn(ids, xs, ~f=(id, x) =>
+            [mk_form(Comma, id, [])] @ x
+          ),
         ),
     );
   | Label(l) =>
@@ -2228,7 +2232,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         | AutoFormat =>
           let first = Segment.first_string(e);
           if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
+              && !String.is_prefix(first, ~prefix="…")) {
             [Secondary(mk_space(Id.mk())), ...e];
           } else {
             e;
@@ -2352,11 +2356,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
        the tail to n-1 and use it directly (padding to n and dropping
        the head would mint a fresh id for the first comma) */
     let (id, comma_ids) = (
-      IdTagged.ids(exp) |> List.hd,
+      IdTagged.ids(exp) |> List.hd_exn,
       IdTagged.ids(exp)
-      |> List.tl
+      |> List.tl_exn
       |> PadIds.pad_ids(
-           ~base=IdTagged.ids(exp) |> List.hd,
+           ~base=IdTagged.ids(exp) |> List.hd_exn,
            List.length(es) - 1,
          ),
     );
@@ -2368,12 +2372,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           Ap,
           id,
           [
-            (es |> List.hd)
+            (es |> List.hd_exn)
             @ List.concat(
-                List.map2(
-                  (id, e) => [mk_form(Comma, id, [])] @ e,
-                  comma_ids,
-                  es |> List.tl,
+                List.map2_exn(comma_ids, es |> List.tl_exn, ~f=(id, e) =>
+                  [mk_form(Comma, id, [])] @ e
                 ),
               ),
           ],
@@ -2472,11 +2474,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> all;
     };
     let all_exp_ids = IdTagged.ids(exp);
-    let case_id = all_exp_ids |> List.hd;
+    let case_id = all_exp_ids |> List.hd_exn;
     let (id, ids) = (
       case_id,
       all_exp_ids
-      |> List.tl
+      |> List.tl_exn
       |> PadIds.pad_ids(
            ~forbidden=[case_id],
            ~base=case_id,
@@ -2492,13 +2494,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           [
             e
             @ (
-              List.map2(
-                (id, (p, e)) =>
-                  (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
-                  @ [mk_form(~sort=Sort.Rul, Rule, id, [p])]
-                  @ (e |> fold_if(settings.fold_case_clauses)),
-                ids,
-                rs,
+              List.map2_exn(ids, rs, ~f=(id, (p, e)) =>
+                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                @ [mk_form(~sort=Sort.Rul, Rule, id, [p])]
+                @ (e |> fold_if(settings.fold_case_clauses))
               )
               |> List.concat
             )
@@ -2587,9 +2586,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     /* Join items with semicolons and wrap in braces */
     let ids =
       IdTagged.ids(exp)
-      |> List.tl
+      |> List.tl_exn
       |> PadIds.pad_ids(
-           ~base=IdTagged.ids(exp) |> List.hd,
+           ~base=IdTagged.ids(exp) |> List.hd_exn,
            List.length(items) - 1,
          );
     let body =
@@ -2598,11 +2597,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (semi_id, item) =>
-                [mk_form(~sort=Sort.Mod, CellJoin, semi_id, [])] @ item,
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(semi_id, item) =>
+              [mk_form(~sort=Sort.Mod, CellJoin, semi_id, [])] @ item
             ),
           )
       };
@@ -2693,10 +2689,13 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let* x = go(x)
     and* xs = xs |> List.map(~f=go) |> all;
     let (id, ids) = (
-      IdTagged.ids(pat) |> List.hd,
+      IdTagged.ids(pat) |> List.hd_exn,
       IdTagged.ids(pat)
-      |> List.tl
-      |> PadIds.pad_ids(~base=IdTagged.ids(pat) |> List.hd, List.length(xs)),
+      |> List.tl_exn
+      |> PadIds.pad_ids(
+           ~base=IdTagged.ids(pat) |> List.hd_exn,
+           List.length(xs),
+         ),
     );
     wrap(
       pat,
@@ -2707,10 +2706,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           [
             x
             @ List.concat(
-                List.map2(
-                  (id, x) => [mk_form(Comma, id, [])] @ x,
-                  ids,
-                  xs,
+                List.map2_exn(ids, xs, ~f=(id, x) =>
+                  [mk_form(Comma, id, [])] @ x
                 ),
               ),
           ],
@@ -2732,7 +2729,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       x
       @ List.concat(
-          List.map2((id, x) => [mk_form(Comma, id, [])] @ x, ids, xs),
+          List.map2_exn(ids, xs, ~f=(id, x) =>
+            [mk_form(Comma, id, [])] @ x
+          ),
         ),
     );
   | TupLabel(l, p) =>
@@ -2770,7 +2769,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         | AutoFormat =>
           let first = Segment.first_string(p);
           if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
+              && !String.is_prefix(first, ~prefix="…")) {
             [Secondary(mk_space(Id.mk())), ...p];
           } else {
             p;
@@ -2824,17 +2823,14 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -2954,17 +2950,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -2993,10 +2986,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       typ,
       t
       @ List.concat(
-          List.map2(
-            (id, t) => [mk_form(Comma, id, [])] @ t,
+          List.map2_exn(
             IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ)),
             ts,
+            ~f=(id, t) =>
+            [mk_form(Comma, id, [])] @ t
           ),
         ),
     );
@@ -3047,7 +3041,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         | AutoFormat =>
           let first = Segment.first_string(t);
           if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
+              && !String.is_prefix(first, ~prefix="…")) {
             [Secondary(mk_space(Id.mk())), ...t];
           } else {
             t;
@@ -3130,14 +3124,16 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     and+ ts = ts |> List.map(~f=go_constructor) |> all;
     if (has_leading) {
       let ids = IdTagged.ids(typ) |> PadIds.pad_ids(n);
-      let id = List.hd(ids);
-      let ids = List.tl(ids);
+      let id = List.hd_exn(ids);
+      let ids = List.tl_exn(ids);
       wrap(
         typ,
         [mk_form(SumSingle, id, [])]
         @ t
         @ List.concat(
-            List.map2((id, t) => [mk_form(Plus, id, [])] @ t, ids, ts),
+            List.map2_exn(ids, ts, ~f=(id, t) =>
+              [mk_form(Plus, id, [])] @ t
+            ),
           ),
       );
     } else {
@@ -3146,7 +3142,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         typ,
         t
         @ List.concat(
-            List.map2((id, t) => [mk_form(Plus, id, [])] @ t, ids, ts),
+            List.map2_exn(ids, ts, ~f=(id, t) =>
+              [mk_form(Plus, id, [])] @ t
+            ),
           ),
       );
     };
@@ -3160,8 +3158,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
     let ids =
       IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
-    let id = List.hd(ids);
-    let ids = List.tl(ids);
+    let id = List.hd_exn(ids);
+    let ids = List.tl_exn(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
@@ -3214,11 +3212,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (semi_id, item) =>
-                [mk_form(~sort=Sort.Sig, CellJoin, semi_id, [])] @ item,
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(semi_id, item) =>
+              [mk_form(~sort=Sort.Sig, CellJoin, semi_id, [])] @ item
             ),
           )
       };
@@ -3257,17 +3252,14 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (id, x) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...x,
-                ],
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(id, x) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...x,
+              ]
             ),
           )
       };
@@ -3397,17 +3389,14 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
       | [first, ...rest] =>
         first
         @ List.concat(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -3427,7 +3416,9 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
       rul,
       scrut
       @ (
-        List.map2((id, (p, e)) => [mk_form(Rule, id, [p])] @ e, ids, rs)
+        List.map2_exn(ids, rs, ~f=(id, (p, e)) =>
+          [mk_form(Rule, id, [p])] @ e
+        )
         |> List.concat
       ),
     );
@@ -3580,19 +3571,19 @@ let rec strip_synthesized_shards =
                  }
                )
              };
-           let child = i => List.nth(children, i);
+           let child = i => List.nth_exn(children, i);
            /* children a..b-1 with prefix tokens at interior dropped-
               shard boundaries; ~end_tok also emits the token for
               shard b (used past the last kept shard) */
            let span = (~end_tok, a: int, b: int): list(Piece.t) =>
-             List.init(b - a, k => a + k)
+             List.init(b - a, ~f=k => a + k)
              |> List.concat_map(~f=i =>
                   child(i) @ (i + 1 < b || end_tok ? tok(i + 1) : [])
                 );
-           let first = List.hd(orig);
-           let last = List.nth(orig, List.length(orig) - 1);
+           let first = List.hd_exn(orig);
+           let last = List.nth_exn(orig, List.length(orig) - 1);
            let before =
-             List.init(first, i => i)
+             List.init(first, ~f=i => i)
              |> List.concat_map(~f=i => tok(i) @ child(i));
            let after = span(~end_tok=true, last, List.length(children));
            let rec kept_slots = m =>

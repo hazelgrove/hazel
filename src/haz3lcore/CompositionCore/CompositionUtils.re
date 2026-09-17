@@ -13,7 +13,7 @@ module Local = {
   type t = list(API.Json.t);
 
   /* read_docs is offered only when the pack registry is non-empty */
-  let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
+  let docs_tools = List.is_empty(DocPacks.all) ? [] : [DocsTools.read_docs];
   let tools =
     [ViewTools.expand, ViewTools.collapse]
     @ docs_tools
@@ -80,7 +80,7 @@ module Local = {
   let rec action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
     /* read_docs is answered from DocPacks without touching the editor, so
        it lives at the wrapper level rather than in the action type */
-    if (tool_name == "read_docs") {
+    if (String.equal(tool_name, "read_docs")) {
       switch (API.Json.dot("topic", args)) {
       | Some(`String(topic)) => DocsRequest(topic)
       | _ => Failure("read_docs requires a `topic` string argument")

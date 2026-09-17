@@ -27,10 +27,9 @@ let subtree_of =
           @ (of_body ? [Exp.rep_id(body)] : []);
         Id.Map.filter(
           (id, child) =>
-            List.mem(id, roots)
-            || List.exists(
-                 root => List.mem(root, Info.ancestors_of(child)),
-                 roots,
+            List.mem(roots, id, ~equal=Id.equal)
+            || List.exists(roots, ~f=root =>
+                 List.mem(Info.ancestors_of(child), root, ~equal=Id.equal)
                ),
           orig_info_map,
         );

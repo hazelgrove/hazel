@@ -53,7 +53,7 @@ let pad_ids =
     };
   let truncated =
     if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => derived());
+      ids @ List.init(n - List.length(ids), ~f=_ => derived());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
@@ -92,7 +92,7 @@ let pad_variant_ann =
   | Variant(c, ann, payload) =>
     let needed = necessary_variant_ann_ids(v);
     let current = List.length(ann.ids);
-    let ids = ann.ids @ List.init(max(0, needed - current), _ => Id.mk());
+    let ids = ann.ids @ List.init(max(0, needed - current), ~f=_ => Id.mk());
     Variant(
       c,
       {
@@ -163,7 +163,7 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
           let needed_ids = necessary_ids(ty);
           let ids =
             current_ids
-            @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
+            @ List.init(max(0, needed_ids - List.length(current_ids)), ~f=_ =>
                 Id.mk()
               );
           cont({

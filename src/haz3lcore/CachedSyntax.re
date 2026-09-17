@@ -206,7 +206,7 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {
     let selection_ids = Selection.selection_ids(z.selection);
-    selection_ids == old.selection_ids
+    List.equal(Id.equal, selection_ids, old.selection_ids)
       ? old
       : {
         ...old,
