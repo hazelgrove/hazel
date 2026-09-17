@@ -63,5 +63,20 @@ let tests = (
         ),
       )
     }),
+    /* Stepping substitutes, where the evaluator closes over an environment:
+       a module binding has to reach the items that follow it either way. */
+    test_case("Module bindings reach the items that follow", `Quick, () => {
+      check(
+        step_limited,
+        "{ let a = 1; let b = a * 2 } -> { let a = 1; let b = 2 }",
+        LimitedCompleted((
+          elaborate(parse_exp({|{ let a = 1; let b = 2 }|})),
+          EvaluatorState.empty,
+        )),
+        full_small_step_reduction(
+          elaborate(parse_exp({|{ let a = 1; let b = a * 2 }|})),
+        ),
+      )
+    }),
   ],
 );
