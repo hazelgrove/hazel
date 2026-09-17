@@ -74,14 +74,14 @@ let group_regions =
       }
   and collect = (status, acc, rest) =>
     switch (rest) {
-    | [(text, s), ...rest'] when s == status =>
+    | [(text, s), ...rest'] when List.equal(String.equal, s, status) =>
       collect(status, acc ++ text, rest')
     /* Absorb whitespace-only fragments into current group */
-    | [(text, _), ...rest'] when String.strip(text) == "" =>
+    | [(text, _), ...rest'] when String.is_empty(String.strip(text)) =>
       collect(status, acc ++ text, rest')
     | _ => (acc, rest)
     };
-  go(fragments) |> List.filter(~f=((text, _)) => text != "");
+  go(fragments) |> List.filter(~f=((text, _)) => !String.is_empty(text));
 };
 
 /* A type written as source, so a test reads as the type it is about. Not for
@@ -125,7 +125,8 @@ let region =
       },
       Fmt.string,
     ),
-    (==),
+    ((t1, c1), (t2, c2)) =>
+    String.equal(t1, t2) && List.equal(String.equal, c1, c2)
   );
 
 let s = text => (text, []);

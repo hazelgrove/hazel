@@ -9,11 +9,11 @@ module A = Web.ShortcutAction;
    label into a record field, so two actions sharing one would be ambiguous
    in both places. */
 let labels_unique = () => {
-  let labels = List.map(A.label, A.all);
+  let labels = List.map(~f=A.label, A.all);
   let dupes =
     List.filter(
-      l => List.length(List.filter((==)(l), labels)) > 1,
-      List.sort_uniq(compare, labels),
+      ~f=l => List.count(labels, ~f=String.equal(l)) > 1,
+      List.dedup_and_sort(~compare=String.compare, labels),
     );
   check(list(string), "no two actions share a label", [], dupes);
 };
@@ -23,7 +23,7 @@ let labels_unique = () => {
    and its analyzed type, with nothing else to catch it. */
 let every_action_reachable = () => {
   let reachable =
-    List.concat_map(A.in_section, A.populated_sections) |> List.length;
+    List.concat_map(~f=A.in_section, A.populated_sections) |> List.length;
   check(
     int,
     "every action appears under some section in all_sections",

@@ -82,7 +82,7 @@ let tutorial_lesson_cases =
          (spec.title ++ " (impl)", spec.your_impl),
          (spec.title ++ " (tests)", spec.hidden_tests.tests),
          ...Option.to_list(spec.solution)
-            |> List.map(z => (spec.title ++ " (solution)", z)),
+            |> List.map(~f=z => (spec.title ++ " (solution)", z)),
        ]
      )
   |> List.map(~f=slide_roundtrip_case);

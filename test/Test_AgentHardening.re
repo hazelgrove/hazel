@@ -22,13 +22,14 @@ let tests = (
           | Sexplib.Sexp.List(fields) =>
             Sexplib.Sexp.List(
               List.filter(
-                fun
-                | Sexplib.Sexp.List([
-                    Sexplib.Sexp.Atom("content_is_payload"),
-                    ..._,
-                  ]) =>
-                  false
-                | _ => true,
+                ~f=
+                  fun
+                  | Sexplib.Sexp.List([
+                      Sexplib.Sexp.Atom("content_is_payload"),
+                      ..._,
+                    ]) =>
+                    false
+                  | _ => true,
                 fields,
               ),
             )
@@ -43,7 +44,7 @@ let tests = (
       () => {
         let code =
           "let big = ["
-          ++ String.concat(", ", List.init(850, string_of_int))
+          ++ String.concat(~sep=", ", List.init(850, ~f=string_of_int))
           ++ "] in";
         check(
           bool,
@@ -180,7 +181,10 @@ let tests = (
           bool,
           "agent edit forces statics",
           true,
-          statics_mode == StaticsMode.Force,
+          switch (statics_mode) {
+          | StaticsMode.Force => true
+          | _ => false
+          },
         );
         let ce =
           CellEditor.Update.calculate(
@@ -234,7 +238,7 @@ let tests = (
           ZipperBase.MapPiece.go(
             p =>
               switch (p) {
-              | Tile(t) when t.form == Form.Tok("1") => [
+              | Tile(t) when Poly.equal(t.form, Form.Tok("1")) => [
                   Tile({
                     ...t,
                     form: Form.Tok("true"),
@@ -263,7 +267,7 @@ let tests = (
           bool,
           "changed program has type errors",
           true,
-          m.statics.error_ids != [],
+          !List.is_empty(m.statics.error_ids),
         );
         CachedStatics.offered := [];
       },
@@ -304,8 +308,8 @@ let tests = (
         let content =
           ChatSystem.Utils.find_chat(chat_id, agent.chat_system)
           |> Chat.Utils.get
-          |> List.map((m: Message.Model.t) => m.content)
-          |> String.concat("\n");
+          |> List.map(~f=(m: Message.Model.t) => m.content)
+          |> String.concat(~sep="\n");
         check(
           bool,
           "new errors appear in context",
@@ -341,29 +345,34 @@ let tests = (
         let saved_attempts = AgentSend.eval_wait_attempts^;
         AgentSend.max_eval_wait_attempts := 3;
         List.iter(
-          dynamics => {
-            CodeWithStatics.StaticsDebounce.force_on_next := true;
-            AgentSend.eval_wait_attempts := 0;
-            let settings = {
-              ...Settings.Model.init,
-              core: {
-                ...CoreSettings.on,
-                dynamics,
-              },
-            };
-            let scheduled = ref([]);
-            let (agent, _) =
-              AgentSend.handle_dispatch_send(chat_id, agent, ce, settings, a =>
-                scheduled := [a, ...scheduled^]
+          ~f=
+            dynamics => {
+              CodeWithStatics.StaticsDebounce.force_on_next := true;
+              AgentSend.eval_wait_attempts := 0;
+              let settings = {
+                ...Settings.Model.init,
+                core: {
+                  ...CoreSettings.on,
+                  dynamics,
+                },
+              };
+              let scheduled = ref([]);
+              let (agent, _) =
+                AgentSend.handle_dispatch_send(chat_id, agent, ce, settings, a =>
+                  scheduled := [a, ...scheduled^]
+                );
+              check(
+                bool,
+                "send remains pending",
+                true,
+                Option.equal(
+                  Id.equal,
+                  agent.pending_dispatch_send,
+                  Some(chat_id),
+                ),
               );
-            check(
-              bool,
-              "send remains pending",
-              true,
-              agent.pending_dispatch_send == Some(chat_id),
-            );
-            check(int, "retry scheduled", 1, List.length(scheduled^));
-          },
+              check(int, "retry scheduled", 1, List.length(scheduled^));
+            },
           [true, false],
         );
         AgentSend.max_eval_wait_attempts := saved_budget;
