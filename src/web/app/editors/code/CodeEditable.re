@@ -602,6 +602,49 @@ module View = {
           : Effect.Ignore;
       Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
     };
+    /* The span a copied link should carry: the selection if there is one, and
+       otherwise the term the cursor is in -- the same unit "Select term"
+       selects, computed the same way, so the link selects what the reader
+       would have got by asking for it. Somewhere with no term (whitespace
+       between two of them) falls back to the caret. */
+    let deep_link_span = (): option((Point.t, Point.t)) => {
+      let z = model.editor.state.zipper;
+      let syntax = model.editor.syntax;
+      let selected =
+        Haz3lcore.Selection.is_empty(z.selection)
+          ? Select.select_enclosing_term(
+              syntax.term_data,
+              syntax.measured,
+              model.statics.info_map,
+              z,
+            )
+          : Some(z);
+      let caret = () => {
+        let p = Zipper.Caret.point(syntax.measured, z);
+        Some((p, p));
+      };
+      switch (selected) {
+      | None => caret()
+      | Some(z') =>
+        switch (z'.selection.content) {
+        | [] => caret()
+        | [first, ..._] as content =>
+          switch (
+            try(
+              Some((
+                Measured.find_p(first, syntax.measured),
+                Measured.find_p(ListUtil.last(content), syntax.measured),
+              ))
+            ) {
+            | _ => None
+            }
+          ) {
+          | None => caret()
+          | Some((head, tail)) => Some((head.origin, tail.last))
+          }
+        }
+      };
+    };
     let paste_from_clipboard = () =>
       Effect.bind(JsUtil.read_clipboard(), ~f=text =>
         inject(
@@ -627,6 +670,17 @@ module View = {
           paste_from_clipboard(),
           inject(ContextMenu(ContextMenu.Model.Close)),
         ])
+      | CopyDeepLink =>
+        Effect.Many([
+          JsUtil.write_clipboard(
+            DeepLink.url(
+              ~slide=globals.slide_name,
+              ~sidebar=globals.settings.sidebar,
+              ~span=deep_link_span(),
+            ),
+          ),
+          inject(ContextMenu(ContextMenu.Model.Close)),
+        ])
       | Perform(a) => inject(Perform(a))
       };
     /* Sync document-level listeners (click-outside + keyboard) for the
@@ -638,6 +692,7 @@ module View = {
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
+            ~linkable=globals.slide_name != None,
             ~info_map=model.statics.info_map,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
@@ -679,6 +734,7 @@ module View = {
                   [],
                 ),
                 ContextMenu.view(
+                  ~linkable=globals.slide_name != None,
                   ~inject=perform_from_menu,
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
