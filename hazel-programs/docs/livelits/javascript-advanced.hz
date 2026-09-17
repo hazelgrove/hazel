@@ -1,4 +1,10 @@
-# LIVELITS #
+# JavaScript Livelits (advanced) #
+
+# The livelit that ships built in, ^js, evaluates JavaScript. It is #
+# here at the end of the deck because it is the least typical one: #
+# most livelits are defined in the program, as the earlier slides #
+# show, and need no escape hatch. #
+
 # A livelit is a live GUI widget which can be inserted into expressions. #
 # It elaborates to a value of some given type. #
 

@@ -1,0 +1,103 @@
+# The Expansion #
+
+# Every livelit has a member called expand, and a type member called #
+# Expansion. Together they answer one question: what does a use of #
+# this livelit MEAN to the program around it? #
+
+#   let expand : Model -> Expansion #
+
+# expand is a boundary. On one side is the MODEL: the widget's state, #
+# written into the program text so it survives. Because it is stored #
+# as syntax, a model must be plain serializable data -- a model can #
+# never hold a function. #
+
+# On the other side is the EXPANSION: an ordinary Hazel expression, #
+# under no such restriction. Everything interesting a livelit does, #
+# it does here. #
+
+# THE DULL CASE: EXPANSION = MODEL #
+
+# A slider stores an Int and means that Int. expand is the identity, #
+# and the livelit is a nicer way to type a number. #
+
+#   type Model = Int;  type Expansion = Int; #
+#   let expand = fun m : Model -> m #
+
+# BETTER: THE EXPANSION IS NOT THE MODEL #
+
+# The Color Picker slide in this deck stores (hue, whiteness, blackness) #
+# and expands to a CSS string. The client never sees the triple, and #
+# never has to know the hwb geometry the widget uses to read a click: #
+
+#   type Model = (Int, Int, Int);  type Expansion = String; #
+#   let expand = fun m : Model -> css(m) #
+
+# The GUI absorbs the domain knowledge. That is already the point of #
+# the Expansion type: a use has that type however expand is written, #
+# so a reader reasons about the use without reading the widget. #
+
+# INTERESTING: AN EXPANSION THE MODEL COULD NOT BE #
+
+# Pick one color, and mean a whole RAMP of them. This livelit's #
+# Expansion is a FUNCTION, Int -> String: give it a lightness offset #
+# and it gives back that shade of the color you picked. #
+
+# A model could not hold this function -- it has to be written into #
+# the program text. The expansion has no such limit, so expand is #
+# where a picked color becomes a family of colors. #
+
+let ^ramp = {
+  type Model = (Int, Int, Int);
+  type Action = (Int, Int, Int);
+  type Expansion = Int -> String;
+
+  let css = fun (h, w, b) : Model ->
+    "hwb(" ++ string_of_int(h) ++ " "
+    ++ string_of_int(w) ++ "% "
+    ++ string_of_int(b) ++ "%)";
+
+  let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
+
+  let init : Model = (200, 20, 10);
+
+  let update = fun (m, a) : (Model, Action) -> a;
+
+  let view = fun (h, w, b) : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center")])],
+      [Html.input([Attr.type_("range"), Attr.min("0"), Attr.max("360"),
+                   Attr.value(string_of_int(h)),
+                   Attr.on_input(fun s -> (int_of_string(s), w, b))]),
+       Html.div([Attr.style([("width", "18px"), ("height", "18px"),
+                             ("border", "1px solid black"),
+                             ("background", css((h, w, b)))])], []),
+       Html.div([Attr.style([("width", "18px"), ("height", "18px"),
+                             ("border", "1px solid black"),
+                             ("background", css((h, clamp(w + 35), b)))])], [])]);
+
+  # the expansion: not a color, but a function FROM lightness TO color #
+  let expand = fun (h, w, b) : Model ->
+    fun k : Int -> css((h, clamp(w + k), b));
+
+  let shape = Inline(14)
+} in
+
+# The use below IS a function. Drag the hue and all three shades #
+# move together, because all three come from the one expansion. #
+
+let shade = ^^livelit(^ramp(200, 20, 10)) in
+(shade(0), shade(25), shade(50))
+
+# WHAT SPLICES WILL ADD #
+
+# In the livelits paper (Omar et al., PLDI 2021, Fig. 1b) the color #
+# livelit goes further: its GUI holds four SPLICES, one per channel, #
+# and the client writes an expression into each -- so one component #
+# can be defined in terms of a variable the client bound outside: #
+
+#   let baseline = $slider 0 255 in                 #
+#   $color [r: baseline] [g: baseline + 50] [b: baseline] #
+
+# There the expansion embeds the client's own code. Splices are not #
+# in this branch yet; everything above works without them. #
