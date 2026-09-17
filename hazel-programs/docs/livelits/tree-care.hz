@@ -1,0 +1,264 @@
+# A Tree-Care Livelit #
+
+# The biggest example in this deck, and the one whose MODEL is a data #
+# structure rather than a number. Feed the tree to grow it, click a #
+# branch to trim it, and walk the seasons to see the same tree dressed #
+# four ways. #
+
+# Everything the widget knows is in the model, and the model is #
+# written into the program text -- so the tree you grow is literally #
+# part of your program. #
+
+type Season = + Fall + Winter + Spring + Summer in
+type LeafShape = + Oak + Maple + Elm + Aspen in
+
+# Aspen names a leaf AND a bark: two sum types may share a #
+# constructor, since analysis picks by the type expected. #
+type BarkType = + Smooth + Rough + Aspen in
+
+# A trim leaves a Scar, which carries the seasons left before it #
+# heals over into ordinary bark. #
+type Tree =
+  + Leaf(LeafShape)
+  + Branch(BarkType, Tree, Tree)
+  + Scar(BarkType, Int) in
+
+# Where a trim happened, as a walk from the root: L and R pick a side. #
+type Step = + L + R in
+
+# What a use MEANS: a census, not a picture. #
+type Census = (leaves=Int, branches=Int, scars=Int, season=Season) in
+
+let ^tree = {
+  type Model = (tree=Tree, season=Season);
+
+  # The three sub-languages of this widget, in one Action type. #
+  #   season:  Next, Prev, SkipTo -- the same walk, three ways #
+  #   growth:  Feed puts a new fork wherever a leaf is #
+  #   pruning: Trim(path) cuts at a branch and leaves a Scar #
+  type Action = + Next + Prev + SkipTo(Season) + Feed + Trim([Step]);
+
+  type Expansion = Census;
+
+  let init : Model = (
+    tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
+    season=Spring
+  );
+
+  # SEASONS #
+
+  let next_of = fun s : Season ->
+    case s | Spring => Summer | Summer => Fall | Fall => Winter
+           | Winter => Spring end;
+
+  let prev_of = fun s : Season ->
+    case s | Spring => Winter | Winter => Fall | Fall => Summer
+           | Summer => Spring end;
+
+  # How many seasons a fresh scar takes to heal. Winter wood is slow; #
+  # summer wood closes over fast. #
+  let heal_time = fun s : Season ->
+    case s | Winter => 4 | Fall => 3 | Spring => 2 | Summer => 1 end;
+
+  # A season passing ages every scar by one. At zero it stops, and the #
+  # renderer draws it as ordinary bark. #
+  let age = fun t : Tree ->
+    case t
+    | Leaf(_) => t
+    | Scar(b, n) => if n <= 0 then Scar(b, 0) else Scar(b, n - 1)
+    | Branch(b, l, r) => Branch(b, age(l), age(r))
+    end;
+
+  # GROWTH #
+
+  # Feeding forks every leaf: the tree grows at its tips, as trees do. #
+  let bark_for : LeafShape -> BarkType = fun s ->
+    case s | Oak => Rough | Maple => Smooth | Elm => Smooth
+           | Aspen => Aspen end;
+
+  let next_shape : LeafShape -> LeafShape = fun s ->
+    case s | Oak => Maple | Maple => Elm | Elm => Aspen | Aspen => Oak end;
+
+  let feed = fun t : Tree ->
+    case t
+    | Leaf(s) => Branch(bark_for(s), Leaf(s), Leaf(next_shape(s)))
+    | Scar(_, _) => t
+    | Branch(b, l, r) => Branch(b, feed(l), feed(r))
+    end;
+
+  # PRUNING #
+
+  # Walk to the named branch and replace it with a Scar, keeping its #
+  # bark. A path that runs off a leaf changes nothing. #
+  let cut = fun (t, path, ttl) : (Tree, [Step], Int) ->
+    case path
+    | [] => case t | Branch(b, _, _) => Scar(b, ttl) | _ => t end
+    | step :: rest =>
+      case t
+      | Branch(b, l, r) =>
+        case step
+        | L => Branch(b, cut((l, rest, ttl)), r)
+        | R => Branch(b, l, cut((r, rest, ttl)))
+        end
+      | _ => t
+      end
+    end;
+
+  let update = fun (m, a) : (Model, Action) ->
+    case a
+    | Next => (tree=age(m.tree), season=next_of(m.season))
+    | Prev => (tree=age(m.tree), season=prev_of(m.season))
+    | SkipTo(s) => (tree=age(m.tree), season=s)
+    | Feed => (tree=feed(m.tree), season=m.season)
+    | Trim(path) => (
+        tree=cut((m.tree, path, heal_time(m.season))),
+        season=m.season
+      )
+    end;
+
+  # THE CENSUS #
+
+  let count = fun t : Tree ->
+    case t
+    | Leaf(_) => (leaves=1, branches=0, scars=0)
+    | Scar(_, _) => (leaves=0, branches=0, scars=1)
+    | Branch(_, l, r) =>
+      let a = count(l) in
+      let b = count(r) in
+      (leaves=a.leaves + b.leaves,
+       branches=a.branches + b.branches + 1,
+       scars=a.scars + b.scars)
+    end;
+
+  # DRAWING #
+
+  # A leaf wears the season: bare in winter, small and green in #
+  # spring, full in summer, and its own color in fall. #
+  let leaf_color = fun (s, season) : (LeafShape, Season) ->
+    case season
+    | Spring => "#7cb342"
+    | Summer => "#2e7d32"
+    | Winter => "none"
+    | Fall =>
+      case s
+      | Oak => "#a1541f" | Maple => "#c62828"
+      | Elm => "#f9a825" | Aspen => "#fdd835"
+      end
+    end;
+
+  let leaf_size = fun season : Season ->
+    case season | Spring => 3 | Summer => 6 | Fall => 5 | Winter => 0 end;
+
+  let bark_color = fun b : BarkType ->
+    case b | Smooth => "#8d6e63" | Rough => "#5d4037" | Aspen => "#cfd8dc" end;
+
+  let str = string_of_int;
+
+  # Branches thicken with the size of what they carry. #
+  let thickness = fun t : Tree ->
+    let c = count(t) in
+    let n = c.leaves + c.branches in
+    if n > 6 then 6 else if n < 1 then 1 else n;
+
+  let leaf_at = fun (s, season, x, y) : (LeafShape, Season, Int, Int) ->
+    let r = leaf_size(season) in
+    if r == 0 then Html.node("g", [], [])
+    else
+      case s
+      | Maple =>
+        Html.node("polygon",
+          [Attr.create("points",
+             str(x) ++ "," ++ str(y - r) ++ " " ++ str(x + r) ++ "," ++ str(y)
+             ++ " " ++ str(x) ++ "," ++ str(y + r) ++ " "
+             ++ str(x - r) ++ "," ++ str(y)),
+           Attr.create("fill", leaf_color((s, season)))], [])
+      | Elm =>
+        Html.node("ellipse",
+          [Attr.create("cx", str(x)), Attr.create("cy", str(y)),
+           Attr.create("rx", str(r + 2)), Attr.create("ry", str(r)),
+           Attr.create("fill", leaf_color((s, season)))], [])
+      | _ =>
+        Html.node("circle",
+          [Attr.create("cx", str(x)), Attr.create("cy", str(y)),
+           Attr.create("r", str(r)),
+           Attr.create("fill", leaf_color((s, season)))], [])
+      end;
+
+  # Lay the tree out by halving the horizontal spread each level, so no #
+  # trigonometry is needed. Each branch carries the path that reaches #
+  # it, which is what a click sends back as Trim. #
+  let draw = fun (t, x, y, dx, dy, season, path)
+      : (Tree, Int, Int, Int, Int, Season, [Step]) ->
+    case t
+    | Leaf(s) => [leaf_at((s, season, x, y))]
+    | Scar(b, n) =>
+      [Html.node("circle",
+         [Attr.create("cx", str(x)), Attr.create("cy", str(y)),
+          Attr.create("r", if n <= 0 then "3" else "5"),
+          Attr.create("fill", if n <= 0 then bark_color(b) else "#3e2723"),
+          Attr.create("stroke", bark_color(b))],
+         [])]
+    | Branch(b, l, r) =>
+      let limb = fun (cx, cy, child, side) : (Int, Int, Tree, Step) ->
+        Html.node("line",
+          [Attr.create("x1", str(x)), Attr.create("y1", str(y)),
+           Attr.create("x2", str(cx)), Attr.create("y2", str(cy)),
+           Attr.create("stroke", bark_color(b)),
+           Attr.create("stroke-width", str(thickness(child))),
+           Attr.create("cursor", "pointer"),
+           Attr.on_click(Trim(path))],
+          []) in
+      [limb((x - dx, y - dy, l, L)), limb((x + dx, y - dy, r, R))]
+      @ draw((l, x - dx, y - dy, dx / 2, dy, season, path @ [L]))
+      @ draw((r, x + dx, y - dy, dx / 2, dy, season, path @ [R]))
+    end;
+
+  let season_button = fun (s, current) : (Season, Season) ->
+    Html.button(
+      [Attr.on_click(SkipTo(s)),
+       Attr.style([("font-size", "0.7em"),
+                   ("font-weight", if s == current then "bold" else "normal")])],
+      [Html.text(case s | Spring => "spr" | Summer => "sum"
+                        | Fall => "fall" | Winter => "win" end)]);
+
+  let view = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-direction", "column"),
+                   ("gap", "0.2em")])],
+      [Html.node("svg",
+         [Attr.create("viewBox", "0 0 200 200"),
+          Attr.width("150"), Attr.height("150")],
+         draw((m.tree, 100, 185, 44, 34, m.season, []))),
+       Html.div([Attr.style([("display", "flex"), ("gap", "0.2em")])],
+         [Html.button([Attr.on_click(Prev),
+                       Attr.style([("font-size", "0.7em")])],
+                      [Html.text("<")]),
+          season_button((Spring, m.season)),
+          season_button((Summer, m.season)),
+          season_button((Fall, m.season)),
+          season_button((Winter, m.season)),
+          Html.button([Attr.on_click(Next),
+                       Attr.style([("font-size", "0.7em")])],
+                      [Html.text(">")]),
+          Html.button([Attr.on_click(Feed),
+                       Attr.style([("font-size", "0.7em")])],
+                      [Html.text("water + feed")])])]);
+
+  let expand = fun m : Model ->
+    let c = count(m.tree) in
+    (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season);
+
+  let shape = Tab(22, 11)
+} in
+
+# The use below carries its whole tree in its argument. Grow it and #
+# the argument grows with it; trim a branch and a Scar appears in the #
+# text. The EXPANSION stays a census either way, so a client counts #
+# without ever matching on the tree. #
+
+let census = ^^livelit(^tree((
+  tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
+  season=Spring
+))) in
+
+(census.leaves, census.branches, census.scars)

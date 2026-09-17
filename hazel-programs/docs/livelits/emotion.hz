@@ -88,7 +88,9 @@ let ^mood = {
   let shape = Tab(10, 4)
 } in
 
-# A use means its EXPANSION: the mood word, not the number behind it. #
+# A use means its EXPANSION. Binding it gives the reader all three #
+# things at once: the WIDGET, the Mood it expands to as Hazel data #
+# (the probe below), and the String that greeting turns it into. #
 
 let greeting = fun m : Mood ->
   case m
@@ -99,4 +101,4 @@ let greeting = fun m : Mood ->
   | Sad(Very) => "Sorry it's rough."
   end in
 
-greeting(^^livelit(^mood(85, Idle)))
+greeting(let ^^probe(mood) = ^^livelit(^mood(85, Idle)) in mood)
