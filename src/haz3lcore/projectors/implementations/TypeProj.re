@@ -4,10 +4,13 @@ open ProjectorBase;
 open Language;
 open Util;
 
+/* The expectation statics holds a term to, where it holds it to one. A term in
+   synthetic position is held to none: statics writes Unknown(SynSwitch) for the
+   expectation there, and that is the absence of one, not an unknown type. */
 let expected_ty = (info: Info.t): option(Typ.t) =>
   switch (info) {
   | InfoExp({ana, _})
-  | InfoPat({ana, _}) => Some(ana)
+  | InfoPat({ana, _}) => Typ.is_syn(ana) ? None : Some(ana)
   | _ => None
   };
 
@@ -47,28 +50,16 @@ module M: Projector = {
   let elaborate_syntax = false;
   let focusable = Focusable.non;
 
-  /* Whether statics has an expectation to show. An expression in synthetic
-     position has none, so Expected mode falls back to Self and toggling
-     skips it. */
-  let has_expected = (statics: Info.t): bool =>
-    switch (expected_ty(statics)) {
-    | None => false
-    | Some(ty) => !Typ.is_syn(ty)
-    };
-
   /* Whether the two readings are the same type. Not (==): that compares ids
      too, and statics builds types with Typ.temp, so two types it built
      compare equal on the Id.invalid sentinel while a written annotation --
      carrying its own tokens' ids -- never equals its synthesized twin. An
      expression with no expectation has nothing to agree with. */
   let readings_agree = (statics: Info.t): bool =>
-    has_expected(statics)
-    && (
-      switch (self_ty(statics), expected_ty(statics)) {
-      | (Some(self), Some(expected)) => Typ.fast_equal(self, expected)
-      | _ => false
-      }
-    );
+    switch (self_ty(statics), expected_ty(statics)) {
+    | (Some(self), Some(expected)) => Typ.fast_equal(self, expected)
+    | _ => false
+    };
 
   /* What the cell shows: the model says which reading was asked for, this
      says which it came to. The dynamic reading carries the static type
@@ -126,11 +117,14 @@ module M: Projector = {
         content: OfTyp(self_typ),
       }
     | Self => self()
-    | Expected when !has_expected(statics) => self()
-    | Expected => {
-        glyph: "⇐",
-        description: "Expected type",
-        content: OfTyp(expected_ty(statics) |> totalize_ty),
+    | Expected =>
+      switch (expected_ty(statics)) {
+      | None => self()
+      | Some(expected) => {
+          glyph: "⇐",
+          description: "Expected type",
+          content: OfTyp(expected),
+        }
       }
     };
   };
@@ -184,7 +178,7 @@ module M: Projector = {
 
   let update = (model, info, a: action) => {
     let has_expected =
-      Option.fold(~none=false, ~some=has_expected, info.statics);
+      Option.bind(info.statics, expected_ty) |> Option.is_some;
     switch (a, model) {
     | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
     | (ToggleDisplay, Self) => Dynamic
