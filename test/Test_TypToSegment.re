@@ -19,7 +19,7 @@ let settings = ProjectorInfo.seg_settings(~inline=true);
 /* The ids of the tiles alone. Code.re classes tiles and ignores Grout and
    Secondary, so this is the set of ids a decoration can actually colour. */
 let rec tile_ids = (s: Segment.t): list(Id.t) =>
-  List.concat_map(tile_ids_of_piece, s)
+  List.concat_map(~f=tile_ids_of_piece, s)
 and tile_ids_of_piece = (p: Piece.t): list(Id.t) =>
   switch (p) {
   | Tile(t) => [Piece.id(p), ...tile_ids(List.concat(t.children))]
@@ -32,7 +32,7 @@ and tile_ids_of_piece = (p: Piece.t): list(Id.t) =>
 let rec segment_fragments =
         (classes: Id.t => list(string), seg: Segment.t)
         : list((string, list(string))) =>
-  List.concat_map(piece_fragments(classes), seg)
+  List.concat_map(~f=piece_fragments(classes), seg)
 and piece_fragments =
     (classes: Id.t => list(string), p: Piece.t)
     : list((string, list(string))) =>
@@ -54,7 +54,7 @@ and tile_fragments =
   let clss = classes(t.id);
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       shard => [(List.nth(t.label, shard), clss)],
+       shard => [(List.nth_exn(t.label, shard), clss)],
        segment_fragments(classes),
      )
   |> List.concat;
@@ -70,18 +70,18 @@ let group_regions =
     | [] => []
     | [(text, status), ...rest] => {
         let (group_text, remaining) = collect(status, text, rest);
-        [(String.trim(group_text), status), ...go(remaining)];
+        [(String.strip(group_text), status), ...go(remaining)];
       }
   and collect = (status, acc, rest) =>
     switch (rest) {
-    | [(text, s), ...rest'] when s == status =>
+    | [(text, s), ...rest'] when List.equal(String.equal, s, status) =>
       collect(status, acc ++ text, rest')
     /* Absorb whitespace-only fragments into current group */
-    | [(text, _), ...rest'] when String.trim(text) == "" =>
+    | [(text, _), ...rest'] when String.is_empty(String.strip(text)) =>
       collect(status, acc ++ text, rest')
     | _ => (acc, rest)
     };
-  go(fragments) |> List.filter(((text, _)) => text != "");
+  go(fragments) |> List.filter(~f=((text, _)) => !String.is_empty(text));
 };
 
 /* A type written as source, so a test reads as the type it is about. Not for
@@ -89,7 +89,8 @@ let group_regions =
    constructor annotations, ids shared with a context. */
 let typ = (src: string): Typ.t =>
   switch (
-    Parser.to_segment(src, ~root=Typ) |> Option.map(MakeTerm.for_projection)
+    Parser.to_segment(src, ~root=Typ)
+    |> Option.map(~f=MakeTerm.for_projection)
   ) {
   | Some(Some(Typ(t))) => t
   | _ => Alcotest.failf("could not parse the type `%s`", src)
@@ -118,13 +119,14 @@ let region =
         let label =
           switch (clss) {
           | [] => "static"
-          | _ => String.concat(" ", clss)
+          | _ => String.concat(~sep=" ", clss)
           };
         label ++ "(\"" ++ text ++ "\")";
       },
       Fmt.string,
     ),
-    (==),
+    ((t1, c1), (t2, c2)) =>
+    String.equal(t1, t2) && List.equal(String.equal, c1, c2)
   );
 
 let s = text => (text, []);
