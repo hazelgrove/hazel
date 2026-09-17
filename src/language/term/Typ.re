@@ -2030,7 +2030,8 @@ let all_ids = (ty: t): list(Id.t) => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_) => ()
+    | ProofOf(_)
+    | Escaped(_) => ()
     /* A signature's item types, a sum among which has variant ids of its own
        -- the generic traversal reaches the items but not those. Syntactic,
        not `Sig.members`: an item whose name is a hole still prints. */
@@ -2111,6 +2112,8 @@ let rec diff =
   | (Label(_), _) => get_ids()
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
+  | (Escaped(e1), Escaped(e2)) when Grammar.escaped_equal(e1, e2) => []
+  | (Escaped(_), _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(name), _) =>
     switch (expand(name)) {
