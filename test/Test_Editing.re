@@ -2450,6 +2450,58 @@ let module_tests = [
       @ [Insert(";")],
     ~goal={|{let x = 1 ;¦type T = Int}|},
   ),
+  test_complete(
+    ~name="Module: a module item typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{ module Inner = { let y = 1 } ¦let x = Inner.y }|})
+      @ [Insert(";")],
+    ~goal={|{ module Inner = { let y = 1 } ;¦let x = Inner.y }|},
+  ),
+  test_complete(
+    ~name=
+      "Module: a tuple-pattern let typed before the missing ; becomes an item",
+    ~acts=mk({|{ let x = 1 ¦let (a, b) = (2, 3) }|}) @ [Insert(";")],
+    ~goal={|{ let x = 1 ;¦let (a, b) = (2, 3) }|},
+  ),
+  test_complete(
+    ~name=
+      "Signature: a type member typed before the missing ; becomes an item",
+    ~acts=
+      mk(
+        {|let m : { let x : Int ¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+      )
+      @ [Insert(";")],
+    ~goal=
+      {|let m : { let x : Int ;¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+  ),
+  /* Deleting an item's keyword leaves its `=` owing the keyword: the lone
+     `=` spells the labeled-tuple form, which a tile missing its first shard
+     must not take up. */
+  test_case(
+    "Module: deleting an item's let leaves the = owing let",
+    `Quick,
+    () => {
+      let z =
+        mk({|{ let¦ x = 1 }|})
+        @ List.init(3, _ => Action.Destruct(Left))
+        |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        {|{ ¦ x = 1 }|},
+        printer(z),
+      );
+      check(
+        testable(
+          Fmt.(list(list(string))),
+          List.equal(List.equal(String.equal)),
+        ),
+        "backpack",
+        [["let"]],
+        List.map(Tile.effective_label, Zipper.local_backpack(z)),
+      );
+    },
+  ),
 ];
 
 /* ===== SHARD THEFT / PREPEND EDITING TESTS =====

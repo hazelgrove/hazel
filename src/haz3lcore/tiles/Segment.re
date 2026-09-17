@@ -114,12 +114,13 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   /* A label with no form in this sort: an incomplete tile whose present
      shards spell a complete compound form of the sort takes that form, so
      `let y = 2` still owed its `in` becomes the module item once a `;` puts
-     it in a module body. Compound only: a lone keyword shard must not
-     become a variable. */
+     it in a module body. Only with its first shard present: the `=` left
+     when an item's `let` is deleted spells the labeled-tuple `=`, and must
+     keep owing its `let` instead. */
   let (t, molds) =
     switch (Form.Molds.try_get(s, t.label)) {
     | Some(_) as molds => (t, molds)
-    | None when Tile.is_complete(t) => (t, None)
+    | None when Tile.is_complete(t) || !List.mem(0, t.shards) => (t, None)
     | None =>
       let label = Tile.effective_label(t);
       switch (Form.Molds.try_get_compound(s, label)) {
