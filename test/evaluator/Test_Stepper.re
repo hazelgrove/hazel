@@ -2,6 +2,28 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
+let id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
+
+let module_bind_step = (exp: Exp.t) =>
+  switch (
+    EvaluatorStep.get_status(
+      ~settings=CoreSettings.on,
+      exp,
+      Environment.empty,
+    )
+  ) {
+  | AutoStep(step) => Some(step)
+  | AvailableSteps(steps) =>
+    List.find_opt(
+      step =>
+        switch (EvaluatorStep.get_step_kind(step)) {
+        | ModuleBind(_) => true
+        | _ => false
+        },
+      steps,
+    )
+  };
+
 let tests = (
   "Evaluator.Stepper",
   [
@@ -78,5 +100,29 @@ let tests = (
         ),
       )
     }),
+    /* The binding rewrites the whole module, but the step belongs to the item:
+       that is what the stepper highlights and what the user clicks. */
+    test_case(
+      "A module binding step is anchored on its item",
+      `Quick,
+      () => {
+        let exp = elaborate(parse_exp({|{ let a = 1; let b = a * 2 }|}));
+        let item_id =
+          switch (Exp.term_of(exp)) {
+          | Module([item, ..._]) => Mod.rep_id(item)
+          | _ => fail("expected a module with items")
+          };
+        switch (module_bind_step(exp)) {
+        | Some(step) =>
+          check(
+            id,
+            "the item, not the module",
+            item_id,
+            EvaluatorStep.get_step_id(step),
+          )
+        | None => fail("expected a module binding step")
+        };
+      },
+    ),
   ],
 );
