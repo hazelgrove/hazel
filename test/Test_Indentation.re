@@ -450,6 +450,21 @@ let x = 1
 }|},
   ),
   test_indent(
+    ~name="A broken item does not indent the next",
+    ~init={|{
+let a = 1;
+let wide =
+[1, 2, 3];
+let b = 2
+}|},
+    ~goal={|{
+  let a = 1;
+  let wide =
+    [1, 2, 3];
+  let b = 2
+}|},
+  ),
+  test_indent(
     ~name="Module keyword indents",
     ~init={|module m = {
 let x = 1
