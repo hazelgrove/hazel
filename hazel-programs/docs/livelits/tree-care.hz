@@ -251,7 +251,7 @@ let ^tree = {
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season);
 
-  let shape = Tab(20, 7)
+  let shape = Block(20, 7)
 } in
 
 # The use below carries its whole tree in its argument. Grow it and #
@@ -259,7 +259,7 @@ let ^tree = {
 # text. The EXPANSION stays a census either way, so a client counts #
 # without ever matching on the tree. #
 
-let census = ^^livelit(^tree((
+let ^^probe(census) = ^^livelit(^tree((
   tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
   season=Spring
 ))) in
