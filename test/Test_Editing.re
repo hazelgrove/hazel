@@ -3248,61 +3248,142 @@ let rec find_tiles_by_label =
     seg,
   );
 
+/* The tiles with this label, in document order, have their molds in these
+   sorts. */
+let test_tile_sorts =
+    (~name, ~acts, ~label, ~sorts: list(Sort.t)): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      switch (find_tiles_by_label(label, Zipper.zip(z))) {
+      | [] => Alcotest.fail("No tile labeled " ++ String.concat(" ", label))
+      | tiles =>
+        check(
+          testable(Fmt.(list(string)), List.equal(String.equal)),
+          "mold sorts",
+          List.map(Sort.show, sorts),
+          List.map((t: Tile.t) => Sort.show(Tile.mold(t).out), tiles),
+        )
+      };
+    },
+  );
+
 let remold_sort_tests = [
   /* BUG: Type `1:(Int)`, place caret inside parens at `1:(Int|)`,
    * press space. The parentheses should remain molded as Typ (they
    * are in the type position of an ascription), but they get
    * incorrectly remolded as Exp. */
-  test_case(
-    "Remold: space inside type parens preserves Typ sort",
-    `Quick,
-    () => {
-      let z = mk({|1:(Int¦)|}) @ [Insert(" ")] |> perform(Zipper.init());
-      let seg = Zipper.zip(z);
-      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
-      switch (paren_tiles) {
-      | [] => Alcotest.fail("No paren tiles found in segment")
-      | _ =>
-        List.iter(
-          (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
-              Alcotest.fail(
-                Printf.sprintf(
-                  "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(Tile.mold(t).out),
-                ),
-              );
-            },
-          paren_tiles,
-        )
-      };
-    },
+  test_tile_sorts(
+    ~name="Remold: space inside type parens preserves Typ sort",
+    ~acts=mk({|1:(Int¦)|}) @ [Insert(" ")],
+    ~label=["(", ")"],
+    ~sorts=[Typ],
   ),
   /* Baseline: the same program without the space edit should have Typ parens. */
+  test_tile_sorts(
+    ~name="Baseline: type parens in 1:(Int) have Typ sort",
+    ~acts=mk({|1:(Int¦)|}),
+    ~label=["(", ")"],
+    ~sorts=[Typ],
+  ),
+];
+
+/* Typing in this order reaches the term that typing `goal` left to right
+   reaches, not only its text: a piece molded before its tile was complete
+   can keep the wrong sort and still print the same. */
+let test_same_term_as_ltr = (~name, ~acts, ~goal): test_case(_) =>
   test_case(
-    "Baseline: type parens in 1:(Int) have Typ sort",
+    name,
     `Quick,
     () => {
-      let z = mk({|1:(Int¦)|}) |> perform(Zipper.init());
-      let seg = Zipper.zip(z);
-      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
-      switch (paren_tiles) {
-      | [] => Alcotest.fail("No paren tiles found in segment")
-      | _ =>
-        List.iter(
-          (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
-              Alcotest.fail(
-                Printf.sprintf(
-                  "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(Tile.mold(t).out),
-                ),
-              );
-            },
-          paren_tiles,
-        )
-      };
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+      let term = (z: Zipper.t) =>
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let ltr =
+        goal
+        |> Token.to_list
+        |> List.filter(c => c != caret_char)
+        |> Token.of_list
+        |> string_to_ltr_actions
+        |> perform(Zipper.init());
+      check(
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: true,
+              ignore_projectors: true,
+            }).
+              exp
+          ),
+        ),
+        "term of left-to-right typing",
+        term(ltr),
+        term(z),
+      );
     },
+  );
+
+/* A piece typed after a tile still owed shards is that tile's next child,
+   whatever the sort of what came before the tile. */
+let incomplete_child_sort_tests = [
+  test_tile_sorts(
+    ~name="Module body: a binder typed after a type item's let is a pattern",
+    ~acts=string_to_ltr_actions("{ type T = Int let x"),
+    ~label=["x"],
+    ~sorts=[Pat],
+  ),
+  test_tile_sorts(
+    ~name="Expression: a binder typed after an alias's let is a pattern",
+    ~acts=string_to_ltr_actions("type T = Int let x"),
+    ~label=["x"],
+    ~sorts=[Pat],
+  ),
+  test_same_term_as_ltr(
+    ~name="Module: an annotated let typed after a type item, ; added later",
+    ~acts=mk({|{ type T = Int ¦let x : T = 5 }|}) @ [Insert(";")],
+    ~goal={|{ type T = Int ;¦let x : T = 5 }|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Module: a tuple let typed after a type item, ; added later",
+    ~acts=mk({|{ type T = Int ¦let (a, b) = (1, 2) }|}) @ [Insert(";")],
+    ~goal={|{ type T = Int ;¦let (a, b) = (1, 2) }|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Expression: an annotated let typed after an alias, in added later",
+    ~acts=
+      mk({|type T = Int ¦let x : T = 5 in x|})
+      @ string_to_ltr_actions("in "),
+    ~goal={|type T = Int in ¦let x : T = 5 in x|},
+  ),
+  /* Other orders a module program is typed in reach linear typing's term. */
+  test_complete(
+    ~name="Module: items typed into the {} token",
+    ~acts=mk({|{¦}|}) @ string_to_ltr_actions(" let x = 1 "),
+    ~goal={|{ let x = 1 ¦}|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Signature: members typed into the {} token",
+    ~acts=
+      mk({|let m : {¦} = { let x = 1 } in m.x|})
+      @ string_to_ltr_actions(" let x : Int "),
+    ~goal={|let m : { let x : Int ¦} = { let x = 1 } in m.x|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Signature: annotation added to an existing module binding",
+    ~acts=
+      mk({|let m¦ = { let x = 1 } in m.x|})
+      @ string_to_ltr_actions(" : { let x : Int }"),
+    ~goal={|let m : { let x : Int }¦ = { let x = 1 } in m.x|},
   ),
 ];
 
@@ -5960,6 +6041,7 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.IncompleteChildSort", incomplete_child_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
   ("Editing.WrapCalculate", wrap_calculate_test),
   ("Editing.UnwrapQuote", unwrap_quote_tests),
