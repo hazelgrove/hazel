@@ -118,6 +118,28 @@ let tests = (
         check(exp, "x is the member, not 9", expected, result);
       },
     ),
+    /* An evaluated binding is not a binder: the step that made it already
+       substituted its value into the items that follow, so shadowing here
+       would swallow that substitution and leave them stuck. */
+    test_case(
+      "an evaluated binding does not shadow the items that follow",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(9))]);
+        let expr =
+          Exp.module_([
+            Language.Mod.fresh(ModVal("x", Exp.int(9))),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        let expected =
+          Exp.module_([
+            Language.Mod.fresh(ModVal("x", Exp.int(9))),
+            Mod.mod_let(Pat.var("z"), Exp.int(9)),
+          ]);
+        let result = Substitution.in_exp(env, expr);
+        check(exp, "z sees the value x was bound to", expected, result);
+      },
+    ),
     /* A signature's item types are types like any other: an expression a
        member's type mentions is substituted. */
     test_case(
