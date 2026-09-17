@@ -53,7 +53,7 @@ let ^flag = {
   let init : Model = false;
 
   # the GUI acted; give back the next model #
-  let update = fun (m, a) : (Model, Action) -> a;
+  let update = fun (_m, a) : (Model, Action) -> a;
 
   # the GUI itself. Handlers carry Actions, not functions: #
   # on_click(...) says which Action a click emits #

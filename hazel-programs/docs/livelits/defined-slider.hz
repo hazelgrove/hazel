@@ -22,7 +22,7 @@ let ^pct = {
 
   let init : Model = 50;
 
-  let update = fun (m, a) : (Model, Action) -> a;
+  let update = fun (_m, a) : (Model, Action) -> a;
 
   let view = fun m : Model ->
     Html.div(
