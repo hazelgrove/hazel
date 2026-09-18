@@ -112,14 +112,15 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    switch (Form.Molds.try_get(s, t.label)) {
-    | None => None
-    | Some(molds) =>
-      molds
-      |> List.map(mold =>
+    switch (Form.remold_candidates(Tile.label(t), s)) {
+    | [] => None
+    | forms =>
+      forms
+      |> List.map(((form, sort)) =>
            {
              ...t,
-             mold,
+             form,
+             sort,
            }
          )
       |> (
@@ -130,14 +131,16 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
       )
       |> ListUtil.hd_opt
     };
+  let remolded_mold = Tile.mold(remolded);
+  let orig_mold = Tile.mold(t);
   let children =
     List.fold_right(
       ((l, child, r), children) => {
         let child =
           if (l
               + 1 == r
-              && List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)) {
-            remold(child, List.nth(remolded.mold.in_, l));
+              && List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)) {
+            remold(child, List.nth(remolded_mold.in_, l));
           } else {
             child;
           };
@@ -264,7 +267,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None
           when
-            t.label == [";"]
+            Tile.is_semi(t)
             && List.exists(
                  fun
                  | Sort.Mod
@@ -284,8 +287,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            t.label == Form.get(CommaTyp).label
-            || t.label == Form.get(TypPlus).label
+            Tile.has_label_of(t, Comma)
+            || Tile.has_label_of(t, Plus)
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,
@@ -448,9 +451,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
          expression-level sequence inside a module. Future consideration: may want to remove
          Exp-level semicolon entirely or find a more principled disambiguation approach. */
       | Some(t)
-          when
-            t.label == Form.get(CellJoin).label
-            && List.exists((==)(Sort.Mod), parent_sorts) => (
+          when Tile.is_semi(t) && List.exists((==)(Sort.Mod), parent_sorts) => (
           [],
           shape,
           seg,
@@ -1085,7 +1086,7 @@ let first_string =
   | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
   | [Piece.Projector(_), ..._] => "PROJECTOR"
   | [Piece.Grout(_), ..._] => "?"
-  | [Piece.Tile(t), ..._] => t.label |> List.hd;
+  | [Piece.Tile(t), ..._] => Tile.token(t, 0);
 
 let last_string =
   fun
@@ -1095,7 +1096,7 @@ let last_string =
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
     | Piece.Projector(_) => "PROJECTOR"
-    | Piece.Tile(t) => t.label |> ListUtil.last
+    | Piece.Tile(t) => Tile.label(t) |> ListUtil.last
     };
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
@@ -1111,7 +1112,7 @@ let rec deep_tile_complete = (seg: t): bool =>
   );
 
 let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
-  Piece.mk_tile(Form.mk_parens(sort), [seg]);
+  Piece.mk_tile(Form.parens_form(sort), [seg]);
 
 let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   /* If piece is anything other than a Tile, and override sort is not

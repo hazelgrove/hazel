@@ -19,7 +19,7 @@ type piece = {
    and application forms like Ap parens (Concave, Convex). */
 let has_concave_left_nib = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({mold: {nibs: ({shape: Concave(_), _}, _), _}, _}) => true
+  | Tile(t) => Tile.has_concave_left_nib(t)
   | _ => false
   };
 
