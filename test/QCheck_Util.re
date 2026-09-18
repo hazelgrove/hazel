@@ -46,7 +46,7 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
  */
 let show_core_typ = typ =>
   typ
-  |> ExpToSegment.typ_to_segment(
+  |> TypToSegment.typ_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
        _,

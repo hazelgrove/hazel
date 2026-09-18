@@ -107,11 +107,19 @@ let view =
       | _ => Effect.Ignore
       };
     let view_seg =
-        (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+        (
+          ~single_line=?,
+          ~background=?,
+          ~classes=?,
+          ~text_only=?,
+          sort,
+          segment,
+        ) =>
       ProjectorView.flex_code(
         ~font_metrics=globals.font_metrics,
         ~single_line?,
         ~background?,
+        ~classes?,
         ~text_only?,
         sort,
         segment,
