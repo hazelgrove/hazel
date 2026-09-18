@@ -338,7 +338,7 @@ let tests = (
         "Unit type",
         "()",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.prod([]),
           ),
@@ -351,7 +351,7 @@ let tests = (
         "Void type",
         "Void",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.sum([]),
           ),
@@ -492,7 +492,7 @@ let tests = (
         "Singleton unlabeled tuple type",
         "(_=Int)",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.(prod([int()])),
           ),
