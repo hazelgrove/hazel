@@ -150,12 +150,12 @@ let type_annotation_data =
       action_item(
         ~shortcut=Shortcuts.type_annotation(),
         switch (probe_status) {
-        | Statics(_) => "Remove statics"
+        | Statics(_) => "Remove type probe"
         | Manual(_)
-        | Multi => "Switch to statics"
+        | Multi => "Switch to type probe"
         | Ephemeral(_)
         | Suppressed(_)
-        | Non => "Add statics"
+        | Non => "Add type probe"
         },
         Action.Probe(ToggleStatics),
       ),
