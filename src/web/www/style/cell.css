@@ -28,17 +28,20 @@
 
 
 #main.Scratch,
-#main.Documentation {
+#main.Documentation,
+#main.Configuration {
   background-color: var(--ui-bkg);
 }
 
 :is(#main.Scratch,
-#main.Documentation):not(.Derivations) > * > .code-editor {
+#main.Documentation,
+#main.Configuration):not(.Derivations) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
 :is(#main.Scratch,
-#main.Documentation):not(.Derivations) .cell {
+#main.Documentation,
+#main.Configuration):not(.Derivations) .cell {
   flex-grow: 1;
   /* stretch background under probe overlays; --main-scroll-width set by ScrollWidth */
   width: var(--main-scroll-width, max-content);
@@ -52,7 +55,7 @@
   flex-direction: column;
   justify-content: flex-start;
   gap: 1.2em;
-  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
 }
 
 #main.Exercises,
@@ -62,7 +65,7 @@
 }
 
 #main.Tutorial {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
 }
 
 /* Derivation slides inside the unified Scratch/Documentation modes
@@ -116,19 +119,19 @@
 .title-cell .title-text {
   font-size: 1.5rem;
   font-weight: bold;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 .title-cell .title-placeholder {
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
   opacity: 0.5;
 }
 
 .edit-icon {
   margin-left: 0.5em;
   cursor: pointer;
-  fill: #7a6219;
+  fill: var(--text-accent);
 }
 
 .title-cell .title-edit {
@@ -154,7 +157,7 @@
   margin-top: 0.175em;
   margin-left: 1em;
   cursor: pointer;
-  fill: #7a6219;
+  fill: var(--text-accent);
 }
 
 #add-icon {
@@ -184,7 +187,7 @@
 
 .slide h1 {
   margin-top: 0;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 .em {
@@ -235,7 +238,7 @@
 .module-placeholder {
   display: inline;
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
   opacity: 0.5;
 }
 
@@ -268,7 +271,7 @@
 
 .cell-prompt .prompt-placeholder {
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
   opacity: 0.5;
 }
 
@@ -315,7 +318,7 @@
 .task-reference-panel h4,
 .task-reference-panel h5,
 .task-reference-panel h6 {
-  color: var(--BR4);
+  color: var(--text-strong);
   font-family: var(--ui-font);
 }
 
@@ -428,7 +431,7 @@
 .edit-pencil {
   margin-left: 0.5em;
   cursor: pointer;
-  fill: #7a6219;
+  fill: var(--text-accent);
   display: inline;
   vertical-align: top;
 }

@@ -121,9 +121,9 @@
 }
 
 .projector.card.Pat .card-sprite {
-  filter: drop-shadow(-1px 0px 0px var(--PAT))
-    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1px 0px 0px var(--PAT))
-    drop-shadow(0px 1px 0px var(--PAT));
+  filter: drop-shadow(-1px 0px 0px var(--shadow-pat))
+    drop-shadow(0px -1px 0px var(--shadow-pat)) drop-shadow(1px 0px 0px var(--shadow-pat))
+    drop-shadow(0px 1px 0px var(--shadow-pat));
 }
 
 /* HAND */
@@ -159,9 +159,9 @@
     drop-shadow(2px 2px 0px #6666);
 }
 .projector.card.indicated.Pat .hand .card-sprite:hover {
-  filter: drop-shadow(-1px 0px 0px var(--PAT))
-    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1.5px 0px 0px var(--PAT))
-    drop-shadow(0px 1.5px 0px var(--PAT)) drop-shadow(2px 2px 0px #6666);
+  filter: drop-shadow(-1px 0px 0px var(--shadow-pat))
+    drop-shadow(0px -1px 0px var(--shadow-pat)) drop-shadow(1.5px 0px 0px var(--shadow-pat))
+    drop-shadow(0px 1.5px 0px var(--shadow-pat)) drop-shadow(2px 2px 0px #6666);
 }
 
 /* CHOOSER */
@@ -194,7 +194,7 @@
 .card-empty {
   width: var(--card-width, 35px);
   height: var(--card-height, 47px);
-  border: 1.5px dotted var(--BR2, #b09a6a);
+  border: 1.5px dotted var(--border-default, #b09a6a);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -206,11 +206,11 @@
 .card-empty-badge {
   width: 17px;
   height: 17px;
-  border: 1px solid var(--BR2, #b09a6a);
+  border: 1px solid var(--border-default, #b09a6a);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  color: var(--BR3, #8a744a);
+  color: var(--text-accent, #8a744a);
 }

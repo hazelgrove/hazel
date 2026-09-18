@@ -1,7 +1,6 @@
 open BuiltinsUtil;
 
-/* Built-in functions for Hazel.
-   Update src/menhirParser/Lexer.mll when any new builtin is added */
+/* Built-in functions for Hazel. */
 
 let builtins =
   List.map(fn_builtin, BuiltinsBase.misc_fns)
@@ -14,7 +13,8 @@ let builtins =
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
-  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
+  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
+  @ List.map(fn_builtin, BuiltinsColor.builtins);
 
 let builtins =
   List.sort(
