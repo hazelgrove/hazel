@@ -420,6 +420,25 @@ let tests =
           {|type S = { type T } in 1|},
         )
       ),
+      test_case("Module-typed function parameter", `Quick, () =>
+        exp_check(
+          fn(
+            Pat.parens(
+              Pat.asc(
+                Pat.var("m"),
+                Typ.sig_([
+                  Sig.sig_type_abstract(TPat.var("T")),
+                  Sig.sig_let(Pat.asc(Pat.var("x"), Typ.var("T"))),
+                ]),
+              ),
+            ),
+            dot(var("m"), label("x")),
+            None,
+            None,
+          ),
+          {|fun (m : { type T; let x : T }) -> m.x|},
+        )
+      ),
       test_case("Signature with module item", `Quick, () =>
         exp_check(
           let_(
