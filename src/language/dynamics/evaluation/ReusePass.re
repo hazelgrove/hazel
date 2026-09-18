@@ -9,7 +9,9 @@ let reusable_entry =
     )
     : option(IncrEval.entry(EvaluatorState.t)) =>
   IncrEval.reuse_check(
-    ~call_stack=CallStack.empty,
+    /* The pre-pass predicts top-level re-use only: it walks the program
+     * without a callstack, so a2's nested entries are out of its reach. */
+    ~call_stack_ids=Some([]),
     ~prev,
     ~reuse_map,
     ~eval_info,
@@ -25,11 +27,16 @@ module ReusePassEVMode =
 
 module ReusePassTransition = Transition(ReusePassEVMode);
 
+/* `flags_from` is the map a binding's flag is read off, which is normally the
+ * map being extended. They come apart at a2's call boundary: the argument was
+ * evaluated in the caller's environment, so its flag belongs to the caller's
+ * map, while the binding lands in the body's. */
 let update_reuse_map_after_effects =
     (
       ~tuple_flags: bool,
       ~prev: EvaluatorState.incr_eval,
       ~reused: Id.t => bool,
+      ~flags_from: option(IncrEval.reuse_map)=?,
       ~reuse_map: IncrEval.reuse_map,
       effects: list(EvaluatorState.effect),
     )
@@ -41,8 +48,22 @@ let update_reuse_map_after_effects =
         /* rhs is the binding's right-hand side before evaluation, so its flag
          * is read off the re-use map rather than off a value. */
         IncrEval.update_maps_after_binding(
+          /* `prev` is aM's: the tuple shape guard reads the cached
+           * elaboration at the tuple's own id. `flags_from` is a2's: across a
+           * call boundary the parameter's flag comes from the caller's map,
+           * not the callee's. Independent concerns on the same call. */
           ~flag=
-            IncrEval.exp_flag(~tuple_flags, ~prev, ~reused, ~reuse_map, rhs),
+            IncrEval.exp_flag(
+              ~tuple_flags,
+              ~prev,
+              ~reused,
+              ~reuse_map=
+                switch (flags_from) {
+                | Some(flags_from) => flags_from
+                | None => reuse_map
+                },
+              rhs,
+            ),
           ~source_id=DHExp.rep_id(rhs),
           pat,
           ~reuse_map,
@@ -64,7 +85,7 @@ let rec reuse_pass_for =
         : IncrEval.t(EvaluatorState.t) => {
   let id = DHExp.rep_id(d);
   switch (reusable_entry(~prev, ~eval_info, ~reuse_map, d)) {
-  | Some(entry) => {entries: Id.Map.add(id, entry, Id.Map.empty)}
+  | Some(entry) => IncrEval.add_entry(id, entry, IncrEval.empty)
   | None =>
     let (req_stream, rule) =
       ReusePassTransition.transition(

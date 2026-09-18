@@ -1,0 +1,34 @@
+{
+ "name": "capture-shadow",
+ "program": "let helper : Int -> Int =\n  fun m -> m * 2\nin\nlet mk : Int -> (Int -> Int) =\n  fun helper -> fun n -> helper + n\nin\nlet seed = 7 in\nlet g = mk(seed) in\nlet z = 1 in\ng(10) + helper(z)",
+ "steps": [
+  {
+   "label": "cold",
+   "actions": []
+  },
+  {
+   "label": "seed := 8",
+   "actions": [
+    "(Structural (Update Definition seed 8))"
+   ]
+  },
+  {
+   "label": "seed := 9",
+   "actions": [
+    "(Structural (Update Definition seed 9))"
+   ]
+  },
+  {
+   "label": "z := 2",
+   "actions": [
+    "(Structural (Update Definition z 2))"
+   ]
+  },
+  {
+   "label": "seed := 7",
+   "actions": [
+    "(Structural (Update Definition seed 7))"
+   ]
+  }
+ ]
+}
