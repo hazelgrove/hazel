@@ -358,21 +358,21 @@ let with_pat_provenance =
     remove_pat_bindings(pat, reuse_map),
   );
 
-let tuple_shape_unchanged =
-    (~prev: t('state), ~id: Id.t, es: list(Exp.t)): bool =>
+/* The components of the tuple cached at `id`, when the previous run really
+ * did cache a tuple of this arity there. `None` means no position of this
+ * tuple can claim anything: there is nothing cached at this id, or what is
+ * cached is not a tuple, or its arity differs -- and position j only names
+ * the same slot in the two runs when the arities agree. */
+let prev_tuple_components =
+    (~prev: t('state), ~id: Id.t, es: list(Exp.t)): option(list(Exp.t)) =>
   switch (Id.Map.find_opt(id, prev.entries)) {
   | Some(entry) =>
     switch (entry.prev_elab.term) {
-    | Tuple(prev_es) =>
-      List.length(prev_es) == List.length(es)
-      && List.for_all2(
-           (prev_e, e) => Id.equal(Exp.rep_id(prev_e), Exp.rep_id(e)),
-           prev_es,
-           es,
-         )
-    | _ => false
+    | Tuple(prev_es) when List.length(prev_es) == List.length(es) =>
+      Some(prev_es)
+    | _ => None
     }
-  | None => false
+  | None => None
   };
 
 /* Which parts of `e`'s value come from the cache.
@@ -401,17 +401,34 @@ let rec exp_flag =
   } else {
     let recur = exp_flag(~tuple_flags, ~prev, ~reused, ~reuse_map);
     switch (e.term) {
-    /* A tuple flag is anchored at the tuple's OWN id: it claims that each
-     * part of this value matches the corresponding part of the value cached
-     * at uid(e). Componentwise cleanliness only establishes that if the
-     * cached expression at uid(e) really was a tuple holding these same
-     * components in these same positions — otherwise an id-preserving edit
-     * that drops, adds or permutes components reports a value clean against
-     * a cached value of a different shape. Component contents may of course
-     * differ; only the positional id skeleton has to match. */
+    /* A tuple flag is anchored at the tuple's OWN id: each part of it claims
+     * that that part of this value matches the corresponding part of the
+     * value cached at uid(e). Position j of that cached value is the value
+     * the cached component j evaluated to, so a clean component flag —
+     * value_new(e_j) = value_prev(uid(e_j)) — is a statement about it
+     * exactly when this run's component j still carries that same id. Where
+     * the ids differ the position claims nothing, so an id-preserving edit
+     * that drops, adds or permutes components never reports a part clean
+     * against a cached value of a different shape. Deciding this per
+     * component rather than for the tuple as a whole is what keeps the
+     * motivating edit — one component of a tuple changed, minting a fresh id
+     * for just that component — re-usable in the other components. Arity
+     * must still match outright, or "position j" does not name the same slot
+     * in the two runs. Component contents may of course differ. */
     | Tuple(es) =>
-      tuple_shape_unchanged(~prev, ~id=Exp.rep_id(e), es)
-        ? norm(List.map(recur, es)) : Dirty
+      switch (prev_tuple_components(~prev, ~id=Exp.rep_id(e), es)) {
+      | None => Dirty
+      | Some(prev_es) =>
+        norm(
+          List.map2(
+            (prev_e, e) =>
+              Id.equal(Exp.rep_id(prev_e), Exp.rep_id(e))
+                ? recur(e) : Dirty,
+            prev_es,
+            es,
+          ),
+        )
+      }
     | Parens(e) => recur(e)
     | Var(name) =>
       switch (Maps.StringMap.find_opt(name, reuse_map)) {
