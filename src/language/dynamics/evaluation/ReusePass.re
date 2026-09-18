@@ -28,6 +28,7 @@ module ReusePassTransition = Transition(ReusePassEVMode);
 let update_reuse_map_after_effects =
     (
       ~tuple_flags: bool,
+      ~prev: EvaluatorState.incr_eval,
       ~reused: Id.t => bool,
       ~reuse_map: IncrEval.reuse_map,
       effects: list(EvaluatorState.effect),
@@ -40,7 +41,8 @@ let update_reuse_map_after_effects =
         /* rhs is the binding's right-hand side before evaluation, so its flag
          * is read off the re-use map rather than off a value. */
         IncrEval.update_maps_after_binding(
-          ~flag=IncrEval.exp_flag(~tuple_flags, ~reused, ~reuse_map, rhs),
+          ~flag=
+            IncrEval.exp_flag(~tuple_flags, ~prev, ~reused, ~reuse_map, rhs),
           ~source_id=DHExp.rep_id(rhs),
           pat,
           ~reuse_map,
@@ -83,6 +85,7 @@ let rec reuse_pass_for =
       let reuse_map =
         update_reuse_map_after_effects(
           ~tuple_flags,
+          ~prev,
           ~reused=id => Id.Map.mem(id, req_stream.entries),
           ~reuse_map,
           side_effects,
