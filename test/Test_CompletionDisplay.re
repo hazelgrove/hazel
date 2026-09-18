@@ -1342,16 +1342,13 @@ case if | ¦   CHIPS[then+else | =>+end]|},
               |> List.fold_left((+), 0);
             let state =
               Printf.sprintf("%s   OWED[%d]", Test_Editing.printer(z), owed);
-            switch (CompletionQuery.tab_chip(zc, assist)) {
+            /* THE editor dispatch: whole engine delimiters go through
+               ApplyCompletion(Next), which turns the payload's implicit
+               marker into real grout; pasting tab_text would leave the
+               marker as a literal token */
+            switch (CompletionQuery.tab_action(zc, assist)) {
             | None => (state, None)
-            | Some(ins) =>
-              switch (CompletionQuery.tab_text(zc, ins)) {
-              | None => (state, None)
-              | Some(t) => (
-                  state,
-                  Some(Test_Editing.perform(z, [Paste(t)])),
-                )
-              }
+            | Some(a) => (state, Some(Test_Editing.perform(z, [a])))
             };
           };
           let rec run = (z, n, acc) =>
@@ -1401,11 +1398,11 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             };
             states;
           };
-          /* raw-zipper states (no fork): the `?,? )` spacing is the
-             pre-existing Paste/regrout reshuffle when a closer lands
-             left of a hole — same result as typing `)` there by
-             hand; flagged, not display truth (the fork pads
-             ghost-bearing frames only). The property pinned here is
+          /* raw-zipper states (no fork): the `?, ? )` spacing comes
+             from ApplyCompletion(Next), which keeps the hole and the
+             whitespace where the preview showed them (the old
+             Paste/regrout reshuffle collapsed it to `?, ? )`). The
+             property pinned here is
              CONVERGENCE and SITE-correctness: inner closer, then
              each tuple's commas landing in THEIR OWN tuple, then the
              outer closer, then nothing. */
@@ -1417,7 +1414,7 @@ let s = string_replace(string_capitalize(¦? in s   OWED[4]
 let s = string_replace(string_capitalize()¦ in s   OWED[3]
 let s = string_replace(string_capitalize(), ¦? in s   OWED[2]
 let s = string_replace(string_capitalize(), ?, ¦? in s   OWED[1]
-let s = string_replace(string_capitalize(), ?,? )¦ in s   OWED[0]
+let s = string_replace(string_capitalize(), ?, ? )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(st¦ in s")
             |> audit
@@ -1433,10 +1430,10 @@ let s = string_replace(string_replace(string_capitalize(¦? in s   OWED[7]
 let s = string_replace(string_replace(string_capitalize()¦ in s   OWED[6]
 let s = string_replace(string_replace(string_capitalize(), ¦? in s   OWED[5]
 let s = string_replace(string_replace(string_capitalize(), ?, ¦? in s   OWED[4]
-let s = string_replace(string_replace(string_capitalize(), ?,? )¦ in s   OWED[3]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ¦? in s   OWED[2]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ?, ¦? in s   OWED[1]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ?,? )¦ in s   OWED[0]
+let s = string_replace(string_replace(string_capitalize(), ?, ? )¦ in s   OWED[3]
+let s = string_replace(string_replace(string_capitalize(), ?, ? ), ¦? in s   OWED[2]
+let s = string_replace(string_replace(string_capitalize(), ?, ? ), ?, ¦? in s   OWED[1]
+let s = string_replace(string_replace(string_capitalize(), ?, ? ), ?, ? )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(string_replace(st¦ in s")
             |> audit

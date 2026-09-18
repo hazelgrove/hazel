@@ -419,9 +419,27 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
       | Some(n) when n < String.length(d.text) =>
         Some(String.sub(d.text, n, String.length(d.text) - n))
       | Some(_) => go(rest) /* fully-typed witness: next chunk */
-      | None =>
+      /* engine promises take the shared padding (nib- and hole-aware);
+         TyDi-synthesized material has no shard to read nibs from and
+         keeps the F1 spacing rules it lands under */
+      | None when d.of_shard != None =>
         let (before, after) = padding(z, d);
         Some(before ++ d.text ++ after);
+      | None =>
+        let lead =
+          !CanonicalCompletion.f1_hugs_left(d.text) && !left_separated(z);
+        /* no trailing pad when the accepted delimiter ends its line —
+           the next material lives on a later line already */
+        let next_is_break =
+          switch (snd(z.relatives.siblings)) {
+          | [Secondary(w), ..._] => Secondary.is_linebreak(w)
+          | _ => false
+          };
+        let trail =
+          !CanonicalCompletion.f1_closes(d.text)
+          && !CanonicalCompletion.f1_opens(d.text)
+          && !next_is_break;
+        Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
       }
     };
   go(ins.delimiters);
@@ -458,7 +476,10 @@ let tab_action = (z: Zipper.t, assist: list(insertion)): option(Action.t) =>
     /* Whole trailing/middle delimiters go through Next, which parses the
        shared payload at the caret and keeps hole and whitespace positions.
        Atomic empty forms use Paste so their placeholder hole can vanish. */
-    | Some({delimiters: [{text, typed_len: None, _}, ..._], _})
+    | Some({
+        delimiters: [{text, typed_len: None, of_shard: Some(_), _}, ..._],
+        _,
+      })
         when !fuses_empty(fst(z.relatives.siblings), text) =>
       Some(Action.ApplyCompletion(Next))
     | Some(ins) => tab_text(z, ins) |> Option.map(text => Action.Paste(text))
