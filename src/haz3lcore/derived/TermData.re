@@ -90,7 +90,7 @@ let get_term_rows =
     : option((int, list(Segment.t))) => {
   let+ (start, final) = extreme_measures(id, data, measured);
   let term_rows =
-    measured.piece_rows
+    Measured.piece_rows(measured)
     |> List.rev
     |> Util.ListUtil.sublist((start.row, final.row + 1))
     |> List.map(List.rev);

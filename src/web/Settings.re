@@ -14,6 +14,9 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    quiver: bool, /* Show completion visualization (quiver arrows) */
+    /* Auto probe (Off / Caret / All): automatic probe placement mode,
+       threaded through Editor.calculate into ProbePerform */
     autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
@@ -21,7 +24,57 @@ module Model = {
     cap_undo_stack: bool,
     show_row_lines: bool,
     show_incremental_deco: bool,
+    /* Constellation canvas shown in a main-area split beside the editor
+       (frees the sidebar for the agent chat, so the graph can be watched
+       updating live as the agent works) */
+    [@sexp.default false] [@yojson.default false]
+    canvas_split: bool,
+    /* canvas pane width in px within the main-area split, set at
+       divider-drag end (the drag itself updates styles imperatively) */
+    [@sexp.default None] [@yojson.default None]
+    canvas_pane_width: option(int),
+    /* Constellation MAIN mode: the canvas fills the main area, the editor
+       stack is not shown as such — the selected definition (one at a
+       time, picked in the outline or on the canvas) edits in the info
+       panel under the constellation */
+    [@sexp.default false] [@yojson.default false]
+    canvas_main: bool,
+    /* user rearrangements of canvas nodes: ((slide, node key), delta from
+       the auto layout). Deltas rather than absolute positions so a dragged
+       node shifts WITH its neighborhood as the program grows, and layout
+       never rewrites them (no feedback/drift). */
+    [@sexp.default []] [@yojson.default []]
+    canvas_node_offsets: list(((string, string), (float, float))),
+    /* click-placed nodes: absolute positions in the layout's pre-
+       normalization frame (see CanvasLayout.origin) */
+    [@sexp.default []] [@yojson.default []]
+    canvas_node_pins: list(((string, string), (float, float))),
+    /* the frame (origin x/y, x/y scales) the slide's pins/offsets were
+       laid in — persisted so a reload can't re-derive a different frame
+       under them (slide -> (ox, oy, xs, ys)) */
+    [@sexp.default []] [@yojson.default []]
+    canvas_frames: list((string, (float, float, float, float))),
+    /* canvas pinch-zoom factor (ctrl+wheel / trackpad pinch) */
+    [@sexp.default 1.0] [@yojson.default 1.0]
+    canvas_zoom: float,
+    /* pace agent edits on the canvas: bursts of tool calls play as
+       distinct animated beats instead of one jump-cut */
+    [@sexp.default true] [@yojson.default true]
+    canvas_pace: bool,
+    /* camera follow: glide the canvas viewport so the agent avatar stays
+       central-ish as it hops, framing the sites it touches this turn */
+    [@sexp.default true] [@yojson.default true]
+    canvas_follow: bool,
+    /* bumped by the pacing timer purely to trigger a re-render while
+       buffered beats remain (value itself is meaningless) */
+    [@sexp.default 0] [@yojson.default 0]
+    canvas_tick: int,
+    /* defaulted so settings blobs persisted before this field still load
+       (a parse failure makes Store discard ALL settings) */
+    [@sexp.default false] [@yojson.default false]
     simple_indication: bool,
+    /* grey re-evaluation-progress backings after edits */
+    show_pending_eval: bool,
   };
 
   let init = {
@@ -33,8 +86,12 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
+      auto_reindent: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
+      animate_all_edits: false,
+      drag_refactor: false,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -81,7 +138,18 @@ module Model = {
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      canvas_focus: None,
+      canvas_focus_ty: None,
+      canvas_connect: None,
+      canvas_place: None,
+      canvas_expand: None,
+      canvas_probe_models: [],
+      width: None,
+      canvas_tab: "definition",
+      canvas_panel_height: None,
+      canvas_panel_hidden: false,
     },
+    quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -89,7 +157,18 @@ module Model = {
     cap_undo_stack: false,
     show_row_lines: false,
     show_incremental_deco: false,
+    canvas_split: false,
+    canvas_pane_width: None,
+    canvas_main: false,
+    canvas_node_offsets: [],
+    canvas_node_pins: [],
+    canvas_frames: [],
+    canvas_zoom: 1.0,
+    canvas_pace: true,
+    canvas_follow: true,
+    canvas_tick: 0,
     simple_indication: false,
+    show_pending_eval: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -129,7 +208,8 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
+    | AutoReindent
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -140,9 +220,23 @@ module Update = {
     | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
+    | ToggleCanvasSplit
+    | ToggleCanvasMain
+    | SetCanvasPaneWidth(int)
+    | SetCanvasNodeOffset(string, string, float, float)
+    | SetCanvasNodePin(string, string, float, float)
+    | SetCanvasFrame(string, float, float, float, float)
+    | SetCanvasZoom(float)
+    | ToggleCanvasPace
+    | ToggleCanvasFollow
+    | CanvasTick
+    | ClearCanvasNodeOffsets(string)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AnimateAllEdits
+    | DragRefactor
+    | Quiver
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleStickyInPlace
@@ -151,7 +245,27 @@ module Update = {
     | CapUndoStack
     | ShowRowLines
     | ShowIncrementalDeco
-    | SimpleIndication;
+    | SimpleIndication
+    | ShowPendingEval;
+
+  let is_canvas_geometry = (action: t): bool =>
+    switch (action) {
+    | CanvasTick
+    | SetCanvasZoom(_)
+    | SetCanvasNodeOffset(_)
+    | SetCanvasNodePin(_)
+    | SetCanvasFrame(_)
+    | ClearCanvasNodeOffsets(_)
+    | SetCanvasPaneWidth(_)
+    | ToggleCanvasSplit
+    | ToggleCanvasMain
+    | ToggleCanvasPace
+    | ToggleCanvasFollow
+    /* sidebar panel state (which panel, canvas focus, collapsed sections)
+       is UI state too */
+    | Sidebar(_) => true
+    | _ => false
+    };
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -181,7 +295,12 @@ module Update = {
             dynamics: !settings.core.dynamics,
           },
         }
-      | ProbeAll => {
+      | ProbeAll =>
+        /* an explicit request for samples ends the agent-burst mask */
+        if (!settings.core.probe_all) {
+          Util.AgentPulse.release();
+        };
+        {
           ...settings,
           core: {
             ...settings.core,
@@ -190,12 +309,19 @@ module Update = {
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
           },
-        }
-      | DeepReassociate => {
+        };
+      | AutoReindent => {
           ...settings,
           core: {
             ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
+            auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcut(fs) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut: fs,
           },
         }
       | SelectionChunkiness => {
@@ -218,6 +344,20 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | AnimateAllEdits => {
+          ...settings,
+          core: {
+            ...settings.core,
+            animate_all_edits: !settings.core.animate_all_edits,
+          },
+        }
+      | DragRefactor => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_refactor: !settings.core.drag_refactor,
           },
         }
       | DisplayWarnings => {
@@ -311,6 +451,85 @@ module Update = {
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
+          },
+        }
+      | Sidebar(SetCanvasFocus(f)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_focus: f,
+            canvas_focus_ty: None,
+            canvas_expand: None,
+          },
+        }
+      | Sidebar(SetCanvasFocusTy(k)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_focus_ty: k,
+            canvas_focus: None,
+            canvas_expand: None,
+          },
+        }
+      | Sidebar(SetCanvasExpand(x)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_expand: x,
+          },
+        }
+      | Sidebar(SetCanvasTab(t)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_tab: t,
+          },
+        }
+      | Sidebar(SetCanvasPanelHeight(h)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_panel_height: h,
+          },
+        }
+      | Sidebar(SetCanvasPanelHidden(b)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_panel_hidden: b,
+          },
+        }
+      | Sidebar(SetCanvasProbeModel(key, model)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_probe_models: [
+              (key, model),
+              ...List.remove_assoc(key, settings.sidebar.canvas_probe_models),
+            ],
+          },
+        }
+      | Sidebar(SetCanvasConnect(c)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_connect: c,
+            canvas_place: None,
+          },
+        }
+      | Sidebar(SetCanvasPlace(p)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_place: p,
+            canvas_connect: None,
+          },
+        }
+      | Sidebar(SetWidth(w)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            width: Some(w),
           },
         }
       | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
@@ -430,6 +649,97 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
+      | Quiver => {
+          ...settings,
+          quiver: !settings.quiver,
+        }
+      | SetCanvasPaneWidth(w) => {
+          ...settings,
+          canvas_pane_width: Some(w),
+        }
+      | SetCanvasNodeOffset(slide, key, dx, dy) => {
+          ...settings,
+          canvas_node_offsets: [
+            ((slide, key), (dx, dy)),
+            ...List.remove_assoc((slide, key), settings.canvas_node_offsets),
+          ],
+        }
+      | SetCanvasZoom(z) => {
+          ...settings,
+          canvas_zoom: max(0.4, min(2.5, z)),
+        }
+      | ToggleCanvasPace => {
+          ...settings,
+          canvas_pace: !settings.canvas_pace,
+        }
+      | ToggleCanvasFollow => {
+          ...settings,
+          canvas_follow: !settings.canvas_follow,
+        }
+      | CanvasTick => {
+          ...settings,
+          canvas_tick: settings.canvas_tick + 1,
+        }
+      | SetCanvasNodePin(slide, key, x, y) => {
+          ...settings,
+          canvas_node_pins: [
+            ((slide, key), (x, y)),
+            ...List.remove_assoc((slide, key), settings.canvas_node_pins),
+          ],
+        }
+      | SetCanvasFrame(slide, ox, oy, xs, ys) => {
+          ...settings,
+          canvas_frames: [
+            (slide, (ox, oy, xs, ys)),
+            ...List.remove_assoc(slide, settings.canvas_frames),
+          ],
+        }
+      | ClearCanvasNodeOffsets(slide) => {
+          ...settings,
+          canvas_node_offsets:
+            List.filter(
+              (((s, _), _)) => s != slide,
+              settings.canvas_node_offsets,
+            ),
+          canvas_node_pins:
+            List.filter(
+              (((s, _), _)) => s != slide,
+              settings.canvas_node_pins,
+            ),
+          canvas_frames: List.remove_assoc(slide, settings.canvas_frames),
+        }
+      | ToggleCanvasMain =>
+        let enabling = !settings.canvas_main;
+        {
+          ...settings,
+          canvas_main: enabling,
+          /* like the split: the main mode is for watching/steering the
+             agent, so the sidebar shows the chat; leaving it brings the
+             canvas back to the sidebar unless the split is on */
+          sidebar: {
+            ...settings.sidebar,
+            show: true,
+            panel:
+              enabling || settings.canvas_split ? HelpfulAssistant : Canvas,
+            /* entering: the definition tab is the point */
+            canvas_tab: enabling ? "definition" : settings.sidebar.canvas_tab,
+            canvas_panel_hidden:
+              enabling ? false : settings.sidebar.canvas_panel_hidden,
+          },
+        };
+      | ToggleCanvasSplit =>
+        let enabling = !settings.canvas_split;
+        {
+          ...settings,
+          canvas_split: enabling,
+          /* the split exists to watch the agent work: entering it hands
+             the sidebar to the agent chat; leaving brings the canvas back */
+          sidebar: {
+            ...settings.sidebar,
+            show: true,
+            panel: enabling ? HelpfulAssistant : Canvas,
+          },
+        };
       | AutoprobeMode =>
         /* The keyboard toggle deliberately skips Caret, cycling Off<->All
          * only; Caret mode is opted into via the segmented control. */
@@ -472,6 +782,12 @@ module Update = {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled := !settings.show_pending_eval;
+        {
+          ...settings,
+          show_pending_eval: !settings.show_pending_eval,
+        };
       | ShowIncrementalDeco => {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
@@ -484,6 +800,17 @@ module Update = {
     )
     |> Updated.return(
          ~scroll_active=false,
+         /* canvas geometry and its render tick change nothing the program
+            means: no statics/eval recompute for them (each CanvasTick was a
+            full recompute — dozens per agent tool call); pins, offsets,
+            frames and zoom still persist */
+         ~is_edit=!is_canvas_geometry(action),
+         ~save=
+           switch (action) {
+           | CanvasTick => false
+           | _ => true
+           },
+         ~recalculate=!is_canvas_geometry(action),
          ~historic=
            switch (action) {
            | Evaluation(ShowSettings) => false

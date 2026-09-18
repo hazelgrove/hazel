@@ -10,21 +10,16 @@
 # programmer should need to look at. You can see the internal model by toggling #
 # the livelit projector off (bottom right corner of Hazel). #
 
-# Built-in Livelits: #
-# Currently, all livelits are built in: #
+# Livelits are DEFINED IN THE PROGRAM: a module bound to a livelit name #
+# provides init, update, view, and expand members, plus an optional #
+# shape -- Inline(w), Block(w, h), or Tab(w, h) -- for its footprint. #
+# The following slides each define one. #
 
-# 1. ^slider #
-# Elaboration Type: Int                                                     #
-# Elaboration: The current value of the slider, which is between 0 and 100. #
-# Internal Model: Int                                                       #
-let slider_val = ^^livelit(^slider(85)) in
+# One livelit ships built in: #
 
-# 2. ^emotion #
-# Elaboration Type: String                                      #
-# Elaboration: Returns a String representing an emotion,        #
-#              determined as follows based on the slider value: #
-#                if value < 40 then "sad"                       #
-#                if value > 70 then "happy"                     #
-#                otherwise "neutral"                            #
-# Internal Model: Int                                           #
-let current_mood = ^^livelit(^emotion(0)) in¿
+# ^js #
+# Elaboration Type: String                                    #
+# Elaboration: The result of evaluating the code as JavaScript. #
+# Internal Model: (String, String) -- the code and its result.  #
+let greeting = ^^livelit(^js("['hi', 'from js'].join(' ')", "hi from js")) in
+greeting

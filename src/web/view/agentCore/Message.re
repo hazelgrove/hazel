@@ -238,13 +238,17 @@ module Utils = {
     let sanitized_content = String.trim(tool_result.content);
 
     let msg =
-      tool_result.success
-        ? "The "
-          ++ tool_result.tool_call.name
-          ++ " tool call with the following arguments was successful and has been applied to the model. "
-          ++ " Arguments: "
-          ++ Yojson.Safe.to_string(tool_result.tool_call.args)
-        : sanitized_content;
+      switch (tool_result.success, tool_result.content_is_payload) {
+      /* the content IS the result (e.g. a read_docs guide) — deliver it */
+      | (true, true) => sanitized_content
+      | (true, false) =>
+        "The "
+        ++ tool_result.tool_call.name
+        ++ " tool call with the following arguments was successful and has been applied to the model. "
+        ++ " Arguments: "
+        ++ Yojson.Safe.to_string(tool_result.tool_call.args)
+      | (false, _) => sanitized_content
+      };
     {
       // This is a message from our backend.
       // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents
@@ -473,23 +477,11 @@ module Utils = {
               "diff",
               switch (tool_result.diff) {
               | Some(diff) =>
-                switch (diff.new_segment) {
-                | Some(new_segment) =>
+                switch (diff.new_text) {
+                | Some(new_text) =>
                   `Assoc([
-                    (
-                      "old",
-                      `String(
-                        CompositionView.Public.print_segment(
-                          diff.old_segment,
-                        ),
-                      ),
-                    ),
-                    (
-                      "new",
-                      `String(
-                        CompositionView.Public.print_segment(new_segment),
-                      ),
-                    ),
+                    ("old", `String(diff.old_text)),
+                    ("new", `String(new_text)),
                   ])
                 | None => `Null
                 }
@@ -498,17 +490,15 @@ module Utils = {
             ),
             (
               "before",
-              switch (tool_result.before_segment) {
-              | Some(before_segment) =>
-                `String(CompositionView.Public.print_segment(before_segment))
+              switch (tool_result.before_text) {
+              | Some(t) => `String(t)
               | None => `Null
               },
             ),
             (
               "after",
-              switch (tool_result.after_segment) {
-              | Some(after_segment) =>
-                `String(CompositionView.Public.print_segment(after_segment))
+              switch (tool_result.after_text) {
+              | Some(t) => `String(t)
               | None => `Null
               },
             ),

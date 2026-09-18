@@ -8,10 +8,13 @@
 
 open Language;
 
-/* [ids] cut or extended to exactly [n], with fresh ids for any shortfall.
-   The result has no duplicates within itself and none equal to a [forbidden]
-   id, so the pieces it names cannot collide. */
-let pad_ids: (~forbidden: list(Id.t)=?, int, list(Id.t)) => list(Id.t);
+/* [ids] cut or extended to exactly [n], with DERIVED ids for any shortfall
+   (hash of [~base] + a counter; [~base] defaults to the first id, so pass it
+   where [ids] can be empty). Deriving rather than minting keeps printing a
+   pure function of the term. The result has no duplicates within itself and
+   none equal to a [forbidden] id, so the pieces it names cannot collide. */
+let pad_ids:
+  (~forbidden: list(Id.t)=?, ~base: Id.t=?, int, list(Id.t)) => list(Id.t);
 
 /* How many ids printing this type consumes. ExpToSegment.typ_to_pretty pads
    from this rather than from a count of its own, so the printer and anything

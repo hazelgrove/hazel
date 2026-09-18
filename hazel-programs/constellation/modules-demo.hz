@@ -1,0 +1,30 @@
+# Module test bed: two top-level modules, a nested module, internal #
+# types, member constants, and cross-module calls. #
+
+type Point = (Int, Int) in
+
+module Geo = {
+  let origin = (0, 0);
+  let shift : Point -> Point =
+    fun (x, y) -> (x + 1, y + 1);
+  module Dist = {
+    let manhattan : Point -> Int =
+      fun (x, y) -> x + y
+  };
+  let size : Point -> Int =
+    fun p -> Dist.manhattan(shift(p))
+} in
+
+module Score = {
+  type Tally = Int;
+  let base = 10;
+  let bump : Tally -> Tally =
+    fun t -> t + base;
+  let rate : Point -> Tally =
+    fun p -> bump(Geo.size(p))
+} in
+
+let play : Point -> Int = fun p -> Score.rate(p) in
+
+test play((2, 3)) == 17 end;
+play((1, 1))

@@ -75,6 +75,10 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
+  | SetModelQuiet(int, ProjectorCore.Kind.t, string) /* SetModel minus undo entry: for streaming
+   * drag ticks (e.g. HTML projector resize). The first tick of a gesture
+   * should be a normal SetModel so undo restores the pre-gesture state. */
+  | TogglePlacement /* Dock/undock the indicated projector to/from the sidebar */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -135,6 +139,91 @@ type probe =
   | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type destruct =
+  | Local(Direction.t, chunkiness)
+  | Line(Direction.t);
+
+/* Shift+Backspace acts as dedent only at a line's leading-whitespace
+   boundary, falling through to plain backspace elsewhere (a held
+   shift during ordinary corrections must not dedent); Cmd+[/] are
+   position-independent. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type indent_gate =
+  | Always
+  | AtBoundary;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type refactor =
+  | InlineLet
+  | FeedLet
+  | RemoveUnusedLet
+  | InlineAlias
+  | ExtractAlias
+  | AddTypeAnnotation
+  | EtaExpand
+  | EvaluateInPlace
+  | AddCaseArm
+  | ExpandWildcard
+  | AddParameter
+  | RemoveParameter
+  | RenameFree(string, string)
+  | RenameTypFree(string, string)
+  | SwapParams(int)
+  | SwapArms(int)
+  | SwapTuplePat(int)
+  | HoistLet
+  | SinkLet
+  | MergeUp
+  | MergeDown
+  | IfToCase
+  | CaseToIf
+  | ExtractLet
+  | Explode
+  | Implode
+  | EtaReduce
+  | BindArgument
+  | UnfoldCall
+  | HoistCarry
+  | LiftFunction
+  | BetaReduce
+  | SplitLet
+  | ReduceCase
+  | BindArm
+  | ReduceIf
+  | NegateIf;
+
+/* Directional refactor gestures (see Refactor.gesture): the caret's
+ * target zone plus a direction resolves to a refactor, or a dead
+ * press */
+module Gesture = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Up
+    | Down
+    | Left
+    | Right
+    /* the temporal axis: Step advances evaluation one rewrite
+       (beta / take arm / take branch); Bind stages it (introduce
+       the binding without substituting) */
+    | Step
+    | Bind;
+};
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type format =
+  | Indent
+  /* re-indent + canonicalize within-line spacing */
+  | Spacing
+  | Pretty
+  /* the cmd+S binding: resolved by CoreSettings.format_shortcut */
+  | Preferred;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type apply_target =
+  | All
+  | One(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -145,13 +234,19 @@ type t =
   | Move(move)
   | Select(select)
   | Unselect(option(Direction.t))
-  | Destruct(Direction.t)
+  | Destruct(destruct)
   | Insert(string)
   | Put_down
+  /* Materialize canonical-completion insertions into the buffer:
+     one obligation (a tile's missing shards) or all of them */
+  | ApplyCompletion(apply_target)
   | Introduce
+  | Refactor(refactor)
+  | RefactorGesture(Gesture.t)
   | Probe(probe)
-  | PrettyPrint
-  | Dump
+  | Format(format)
+  /* indent/dedent the caret's line (or all selected lines) one level */
+  | AdjustIndent(Direction.t, indent_gate)
   | ToggleLineComment
   | Structural(Structural.t);
 
@@ -167,7 +262,10 @@ module Failure = {
     | CantPaste
     | CantReparse
     | CantAccept
+    | Cant_undo
+    | Cant_redo
     | CantIntroduce
+    | Cant_refactor
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
 
@@ -187,11 +285,14 @@ let is_edit: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
-  | PrettyPrint
+  | Refactor(_)
+  | RefactorGesture(_)
   | Buffer(Accept | Clear | Set(_))
+  | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Copy
   | Move(_)
@@ -199,19 +300,41 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
+    | SetModel(_)
+    | SetModelQuiet(_)
     | SetSyntax(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated => true
-    | SetModel(_)
-    /* SetModel isn't an edit: CachedSyntax detects shape-affecting model
-     * changes via map reference equality, keeping the statics recompute
-     * out of continuous actions like slider drags. */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
     | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
+
+/* How much recomputation an edit action requires. Layout edits change
+ * only serialized projector/refractor model strings, which are opaque to
+ * statics/elaboration/evaluation — projector changes with semantic
+ * import flow through SetSyntax instead (see the per-kind audit in the
+ * projector implementations: models hold display state like fold
+ * expansion, card mode, or HTML-projector dimensions). Layout edits
+ * still rebuild CachedSyntax (a projector's placeholder shape can
+ * depend on its model) but reuse the previous CachedStatics and
+ * trigger no re-evaluation. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type recompute_level =
+  | Full
+  | Layout;
+
+let recompute_level: t => recompute_level =
+  fun
+  /* TogglePlacement only moves a projector's UI between the code site and
+   * the sidebar panel; the underlying syntax is untouched, so semantics
+   * can't change. It does change the projector's placeholder shape (full
+   * projector vs. chip), which is a CachedSyntax concern only. */
+  | Project(SetModel(_) | SetModelQuiet(_) | TogglePlacement) => Layout
+  | _ => Full;
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -227,23 +350,65 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
-  | PrettyPrint
+  | Refactor(_)
+  | RefactorGesture(_)
+  | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated => true
+    | SetModelQuiet(_)
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
     | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
+
+let prevent_in_read_only_editor = (a: t) =>
+  switch (a) {
+  | Copy
+  | Move(_)
+  | Unselect(_)
+  | Select(_) => false
+  | Buffer(Set(_) | Accept | Clear)
+  | Cut
+  | Paste(_)
+  | Reparse
+  | Destruct(_)
+  | Insert(_)
+  | Put_down
+  | ApplyCompletion(_)
+  | Introduce
+  | Refactor(_)
+  | RefactorGesture(_)
+  | Format(_)
+  | AdjustIndent(_, _)
+  | Structural(_)
+  | ToggleLineComment => true
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_) => true
+    | SetModel(_)
+    | SetModelQuiet(_)
+    | SetIndicated(_)
+    | TogglePlacement
+    | RemoveIndicated
+    | Focus(_)
+    | SampleFocus(_)
+    | Escape(_)
+    | EscapeToLineEnd(_) => false
+    }
+  | Probe(_) => false
+  };
 
 let should_animate: t => bool =
   fun
@@ -266,22 +431,27 @@ let should_animate: t => bool =
   | Introduce
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
   | Structural(_)
   | Probe(_)
-  | PrettyPrint
-  | Dump
+  | Refactor(_)
+  | RefactorGesture(_)
+  | Format(_)
+  | AdjustIndent(_, _)
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)
     | Escape(_) => true
+    | SetModelQuiet(_) /* streaming drag ticks; animating would thrash */
     | EscapeToLineEnd(_) => false
     };

@@ -478,14 +478,17 @@ let containing_rule = (z: t): option(t) => {
     | _ => false;
   let grow_right_until_case_or_rule = z =>
     Zipper.do_until_piece(grow_left_by_piece, rule_or_end_of_seg_to_right, z);
-  let secondary_to_left =
-    fun
-    | (Some(Piece.Secondary(_)), _) => true
-    | _ => false;
-  let shrink_past_secondary = z =>
-    !secondary_to_left(Siblings.neighbors(z.relatives.siblings))
-      ? Some(z)
-      : Zipper.do_until_piece(shrink_right_by_piece, secondary_to_left, z);
+  /* shrink while the selection still ENDS in secondaries: the grow
+     pass swept up the trailing linebreak + next line's indentation */
+  let rec shrink_past_secondary = (z: t): option(t) =>
+    switch (ListUtil.last_opt(z.selection.content)) {
+    | Some(Piece.Secondary(_)) =>
+      switch (shrink_right_by_piece(z)) {
+      | Some(z) => shrink_past_secondary(z)
+      | None => Some(z)
+      }
+    | _ => Some(z)
+    };
   let* z = current_tile(z);
   let* z = grow_right_until_case_or_rule(z);
   let* z = shrink_past_secondary(z);
@@ -522,10 +525,63 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
     | (Some(piece), _) => piece_matches_shard(piece, r)
     | _ => false
     };
-  let* z =
+  /* structural: the two extremes are siblings in one segment, so the
+     selection is the sibling run from l's tile through r's tile. The
+     token walk below grew the selection one step at a time (~0.5 s for a
+     15-line definition); it stays as the fallback for a caret the
+     structural placement cannot reach. When l is in place but r is not
+     among its right siblings, no selection can contain both (selections
+     are well-nested) and the walk would only run to the buffer's end:
+     answer None at once. */
+  let positioned =
     pl(Zipper.generalized_neighbors(z))
-      ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
-  Zipper.do_until(local(Right), pr, z);
+      ? Some(z)
+      : Zipper.unzip_to_id(
+          ~side=Left,
+          Piece.id(l),
+          Zipper.unselect_and_zip(z),
+        )
+        |> Option.map(zp =>
+             {
+               ...zp,
+               refractors: z.refractors,
+             }
+           );
+  let structural =
+    switch (positioned) {
+    | None => `Unplaced
+    | Some(zp) =>
+      let (ls, rs) = zp.relatives.siblings;
+      let rec take = (acc, rs) =>
+        switch (rs) {
+        | [] => None
+        | [p, ...rest] =>
+          piece_matches_shard(p, r)
+            ? Some((List.rev([p, ...acc]), rest)) : take([p, ...acc], rest)
+        };
+      switch (rs) {
+      | [p, ..._] when piece_matches_shard(p, l) =>
+        switch (take([], rs)) {
+        | Some((sel, rest)) =>
+          `Selected(
+            zp
+            |> Zipper.update_siblings(_ => (ls, rest))
+            |> Zipper.replace_selection(Right, sel),
+          )
+        | None => `Unreachable
+        }
+      | _ => `Unplaced
+      };
+    };
+  switch (structural) {
+  | `Selected(z) => Some(z)
+  | `Unreachable => None
+  | `Unplaced =>
+    let* z =
+      pl(Zipper.generalized_neighbors(z))
+        ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
+    Zipper.do_until(local(Right), pr, z);
+  };
 };
 
 /* Select the currently indicated term. Optionally, we can consider
@@ -542,6 +598,14 @@ let current_term =
   switch (p) {
   | Tile({label: ["let" | "type" | "module", "=", "in"], _})
       when defs_exclude_bodies =>
+    current_tile(z)
+  /* Mod-sort analog (plans/mod-root.md): the `;` separator's enclosing
+     term is the WHOLE module body — selecting that walked shard_range
+     across the entire program (~2.7s at 1k lines). The `in`-less def
+     tiles need no guard: their term is item-local (Cmd+D escalation
+     value → def → module is gated in Test_Editing module_tests). */
+  | Tile({label: [";"], mold, _})
+      when defs_exclude_bodies && mold.out == Sort.Mod =>
     current_tile(z)
   | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
   | _ =>
@@ -581,11 +645,53 @@ let term =
       id: Id.t,
       z: t,
     )
-    : option(t) =>
-  switch (Move.jump_to_id_indicated(z, id)) {
-  | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
-  | None => term_by_extremes(id, term_data, z)
+    : option(t) => {
+  /* a definition tile (let/type/module) selected without its body: the
+     indicated jump does not land on these (their left neighbour is what
+     Indicated reports), so it fell to a whole-buffer token walk — ~0.7 s
+     per selection at 170 lines in the agent's Update diff */
+  let positioned =
+    switch (Zipper.unzip_to_id(~side=Left, id, Zipper.unselect_and_zip(z))) {
+    | Some(zp) =>
+      Some({
+        ...zp,
+        refractors: z.refractors,
+      })
+    | None => None
+    };
+  let def_tile_structural = () =>
+    switch (positioned) {
+    | Some(zp) when defs_exclude_bodies =>
+      switch (Zipper.generalized_neighbors(zp)) {
+      /* the three-shard forms hold pat and def INSIDE the tile, so the
+         tile is the definition without its body; a module member's
+         `let … =` is a prefix whose def follows the tile — it takes the
+         extremes path below (from the positioned caret, so still local) */
+      | (_, Some(Tile({label: ["let" | "type" | "module", "=", "in"], _}))) =>
+        tile(id, zp)
+      | _ => None
+      }
+    | _ => None
+    };
+  switch (def_tile_structural()) {
+  | Some(_) as r => r
+  | None =>
+    switch (Move.jump_to_id_indicated(z, id)) {
+    | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
+    | None =>
+      /* extremes walk from the positioned caret: local to the term, not
+         from wherever the caret happened to be */
+      term_by_extremes(
+        id,
+        term_data,
+        switch (positioned) {
+        | Some(zp) => zp
+        | None => z
+        },
+      )
+    }
   };
+};
 
 /* Select the containing run of secondary if any */
 let containing_secondary_run = (z: t): option(t) => {
@@ -937,7 +1043,20 @@ let to_start: t => t = Zipper.do_to_extreme(local(Left));
 
 let to_end: t => t = Zipper.do_to_extreme(local(Right));
 
-let all = (z: t): t => z |> Move.to_start |> to_end;
+/* P8: structural — the whole buffer IS the selection (the walk
+   grew it token-by-token from the start, twice over the buffer) */
+let all = (z: t): t => {
+  let seg = Zipper.unselect_and_zip(z);
+  {
+    selection: Selection.mk(~focus=Direction.Right, seg),
+    relatives: {
+      siblings: ([], []),
+      ancestors: [],
+    },
+    caret: Outer,
+    refractors: z.refractors,
+  };
+};
 
 let to_linebreak = (d: Direction.t, z: t): option(t) =>
   Zipper.do_until_linebreak(local(d), d, z);

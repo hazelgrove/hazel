@@ -15,14 +15,36 @@ open Language;
 
    To prevent that, pad_ids also ensures the returned list has:
    1. no duplicates within itself;
-   2. no id equal to any id in [~forbidden]. */
+   2. no id equal to any id in [~forbidden].
+
+   Padding and replacement ids are DERIVED (hash of ~base + counter),
+   not minted: printing must be a pure function of the term. Fresh ids
+   here made double-prints of the same term differ. ~base defaults to
+   the first id; pass it explicitly where ids can be empty. */
 let pad_ids =
-    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
-  let len = List.length(ids);
+    (
+      ~forbidden: list(Id.t)=[],
+      ~base: option(Id.t)=?,
+      n: int,
+      ids: list(Id.t),
+    )
+    : list(Id.t) => {
+  let base =
+    switch (base, ids) {
+    | (Some(b), _) => b
+    | (None, [id, ..._]) => id
+    | (None, []) => Id.invalid
+    };
+  let counter = ref(0);
   let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let rec derived = () => {
+    incr(counter);
+    let cand = Id.derive(~salt="pad" ++ string_of_int(counter^), base);
+    Id.Set.mem(cand, forbidden_set^) ? derived() : cand;
+  };
   let replace = id =>
     if (Id.Set.mem(id, forbidden_set^)) {
-      let fresh = Id.mk();
+      let fresh = derived();
       forbidden_set := Id.Set.add(fresh, forbidden_set^);
       fresh;
     } else {
@@ -30,8 +52,8 @@ let pad_ids =
       id;
     };
   let truncated =
-    if (len < n) {
-      ids @ List.init(n - len, _ => Id.mk());
+    if (List.length(ids) < n) {
+      ids @ List.init(n - List.length(ids), _ => derived());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
@@ -70,7 +92,7 @@ let pad_variant_ann =
   | Variant(c, ann, payload) =>
     let needed = necessary_variant_ann_ids(v);
     let current = List.length(ann.ids);
-    let ids = ann.ids @ List.init(max(0, needed - current), _ => Id.mk());
+    let ids = pad_ids(max(needed, current), ann.ids);
     Variant(
       c,
       {
@@ -138,16 +160,16 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
         (cont, ty) => {
           let current_ids = ty.annotation.ids;
           let needed_ids = necessary_ids(ty);
+          /* Derived, never minted: preparing a type for printing must be a
+             pure function of the type (see pad_ids above). Padding only
+             extends -- a node carrying more ids than it prints keeps them. */
           let ids =
-            current_ids
-            @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
-                Id.mk()
-              );
+            pad_ids(max(needed_ids, List.length(current_ids)), current_ids);
           cont({
             ...ty,
             annotation: {
+              ...ty.annotation,
               ids,
-              secondary: ty.annotation.secondary,
             },
           });
         },

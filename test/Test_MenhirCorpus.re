@@ -58,6 +58,13 @@ let rec find_hz = (dir: string): list(string) =>
     |> List.concat_map(entry => {
          let path = Filename.concat(dir, entry);
          switch (Sys.is_directory(path)) {
+         /* hazel-programs/{mega,bench}: thousands-of-lines perf corpora
+            — the menhir differential on them costs minutes-to-hours per
+            file and proves nothing new (they're composed from
+            already-swept sources). The FastParseCorpus ratchet still
+            covers them. */
+         | true when List.mem(Filename.basename(path), ["mega", "bench"]) =>
+           []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []
@@ -93,10 +100,29 @@ let check_file = (path: string): unit => {
      form the editor ever sees, and it lets ParsedCorpus share the parse with
      DocSlides.ReparseBackuptext, which checks the same programs. */
   let txt = read_file(path) |> ParsedCorpus.normalize;
+  /* the editor-side term: the typing parser, except where simulated
+     typing is pathological (CorpusUtil.typing_parse_too_costly: livelit
+     uses re-materialize per keystroke, and the parser is quadratic in
+     size); those take the load path's fast parse, which is also an
+     editor parse of the same text */
   let mk =
-    switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
-    | Some(seg) => Some(MakeTerm.go(seg).term)
-    | None => None
+    if (CorpusUtil.typing_parse_too_costly(txt)) {
+      switch (
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~collect_refractors=true,
+          ~root=Exp,
+          txt,
+        )
+      ) {
+      | Some(seg) => Some(MakeTerm.go(seg).term)
+      | None => None
+      };
+    } else {
+      switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
+      | Some(seg) => Some(MakeTerm.go(seg).term)
+      | None => None
+      };
     };
   let mh =
     switch (MenhirParser.Interface.parse_program(txt)) {
