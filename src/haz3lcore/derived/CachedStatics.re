@@ -14,11 +14,11 @@ type t = {
 let empty: t = {
   term: {
     term: Tuple([]),
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   },
   elaborated: {
     term: Tuple([]),
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   },
   info_map: Id.Map.empty,
   error_ids: [],
@@ -77,13 +77,33 @@ let compute_targets =
   );
 };
 
-/* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
+/* Ids of projectors which opt into dynamic information (Projector.dynamics).
+ * Probing a projector's term id is what populates its `info.dynamics`, so
+ * such a projector can see the live value of the syntax it replaces. */
+let projector_probe_ids =
+    (projectors: Id.Map.t(Base.projector)): Id.Map.t(unit) =>
+  Id.Map.fold(
+    (id, p: Base.projector, acc) => {
+      let (module P) = ProjectorInit.to_module(p.kind);
+      P.dynamics ? Id.Map.add(id, (), acc) : acc;
+    },
+    projectors,
+    Id.Map.empty,
+  );
+
+/* Extract probe IDs directly from zipper's refractors (manuals + ephemerals),
+ * plus the ids of any dynamics-requesting projectors.
  * Map values to unit since we only need the IDs as keys. */
-let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
+let probe_ids_of_zipper =
+    (~projectors=Id.Map.empty, z: Zipper.t): Id.Map.t(unit) =>
   Id.Map.union(
     (_, _, _) => Some(),
-    Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-    Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+    Id.Map.union(
+      (_, _, _) => Some(),
+      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+    ),
+    projector_probe_ids(projectors),
   );
 
 let init_from_term =
@@ -127,8 +147,10 @@ let init_from_term =
  * existing info_map. Cheap: O(|probe_ids|) fold. Used at the end of
  * Editor.Update.calculate to pick up refractor changes made by probe
  * effects (collision cleanup, auto-probe regen), without redoing statics. */
-let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
-  let probe_ids = probe_ids_of_zipper(z);
+let with_targets =
+    (~settings: CoreSettings.t, ~projectors=Id.Map.empty, z: Zipper.t, s: t)
+    : t => {
+  let probe_ids = probe_ids_of_zipper(~projectors, z);
   let targets = compute_targets(~settings, ~info_map=s.info_map, ~probe_ids);
   {
     ...s,
@@ -149,7 +171,8 @@ let init =
     : t => {
   let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
   let term = make_term_result.term |> stitch;
-  let probe_ids = probe_ids_of_zipper(z);
+  let probe_ids =
+    probe_ids_of_zipper(~projectors=make_term_result.projectors, z);
 
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };

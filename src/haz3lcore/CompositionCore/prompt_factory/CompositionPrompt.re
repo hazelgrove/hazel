@@ -200,7 +200,7 @@ let toolkit = [
   "- `place_statics(paths)` — Show the statics (type overlay) refractor on bindings. Auto-expands collapsed definitions when overlays are on.",
   "- `remove_statics(paths)` — Remove statics overlays only (does not remove probes).",
   "- `toggle_statics(paths)` — Toggle statics overlays on/off.",
-  "- `place_syntax_projector(kind, paths)` — Wrap the term at each path in a **syntax projector** (interactive GUI: `slider`, `check`, `fold`, `text`, `card`, `csv`, `sliderf`, `table`, `livelit`). Same idea as the editor projector menu — not probes/statics. **Required** for livelit demos: plain literals do not show widgets until this runs. Auto-expands collapsed definitions when projection succeeds. **csv** needs an empty list `[]`; **card** needs playing-card tuples—see **Projectors and the agent view**.",
+  "- `place_syntax_projector(kind, paths)` — Wrap the term at each path in a **syntax projector** (interactive GUI: `slider`, `check`, `fold`, `text`, `card`, `csv`, `sliderf`, `table`, `livelit`, `html`). Same idea as the editor projector menu — not probes/statics. **Required** for livelit demos: plain literals do not show widgets until this runs. Auto-expands collapsed definitions when projection succeeds. **csv** needs an empty list `[]`; **card** needs playing-card tuples—see **Projectors and the agent view**.",
   "- `remove_syntax_projector(paths)` — Remove a syntax projector at each path (restore bare expression).",
   "- `toggle_syntax_projector(kind, paths)` — Toggle a syntax projector on/off at each path.",
   "",
@@ -236,6 +236,7 @@ let toolkit = [
   "- **Text box:** `^^text(\"hello\")`",
   "- **CSV editor:** `^^csv([])` — empty list only; use the UI to import a `.csv` file (non-empty lists like `[1, 2, 3]` do not accept this projector).",
   "- **Card (playing cards):** `^^card((Hearts, Ace))` or `^^card([(Spades, King), (Clubs, Two)])` — suit/rank constructors, not records or `{ let …; … }` blocks.",
+  "- **Live HTML / app:** `^^html(expr)` — renders an HTML-valued expression live; wrapping an `(init, update, view, subs)` tuple runs it as an interactive app. Make the app tuple the program's **final expression** so the running app sits at the bottom of the program. Call `read_docs(\"mvu\")` before building an app.",
   "",
   "Use this inside `update_definition` (or any `insert_*`) when you want the editor to **persist the widget** together with the new value, instead of reverting to a bare literal and needing a separate `place_syntax_projector` afterward.",
   "",
@@ -381,6 +382,18 @@ let session_modes = [
   "",
 ];
 
+/* Pointers only — the guides themselves are served by the read_docs tool
+   (DocPacks), so they cost context when pulled, not on every turn */
+let on_demand_docs = [
+  "## On-demand guides",
+  "",
+  "Detailed how-to guides are available through the `read_docs` tool:",
+  "",
+  DocPacks.topic_lines,
+  "",
+  "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
+];
+
 let self =
   identity
   @ guidelines
@@ -390,6 +403,7 @@ let self =
   @ hazel_language_guide
   @ program_model
   @ ProjectorCatalog.blurb_for_composition_prompt
+  @ on_demand_docs
   @ toolkit
   @ task_planning
   @ formatting_rules
