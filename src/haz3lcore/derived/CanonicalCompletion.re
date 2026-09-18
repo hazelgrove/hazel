@@ -134,12 +134,13 @@ let masks_of_records =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type delimiter_info = {
   text: string, /* The delimiter token (e.g., "in", "->", ")") */
-  needs_hole: bool, /* Whether a hole follows this delimiter */
+  trailing_hole: option(Grout.shape), /* A synthesized hole after this delimiter */
+  leading_hole: bool, /* A synthesized hole before the first delimiter in a run */
   /* When completing a prefix-token witness: how many chars of the
      delimiter the user already typed (viz bolds the typed prefix and
      fades the completed remainder) */
   typed_len: option(int),
-  /* (tile id, shard index) — lets the driver verify needs_hole
+  /* (tile id, shard index) — lets the driver verify trailing_hole
      against the MATERIALIZED completion instead of trusting the
      nib-shape prediction */
   of_shard: option((Id.t, int)),
@@ -1287,11 +1288,11 @@ let insert_openers =
  * later ones can't fill earlier holes — closers are all concave-LEFT,
  * so `let f = fun x` completes to `-> ? in ?` (the `in` can't serve
  * as the `->` body). */
-let shard_needs_hole = (t: Tile.t, shard_idx: int): bool => {
+let shard_trailing_hole = (t: Tile.t, shard_idx: int): option(Grout.shape) => {
   let (_, right_nib) = Mold.nibs(~index=shard_idx, t.mold);
   switch (right_nib.shape) {
-  | Concave(_) => true
-  | Convex => false
+  | Concave(_) => Some(Grout.Convex)
+  | Convex => None
   };
 };
 
@@ -1322,7 +1323,8 @@ let leading_insertions =
                      let i = List.hd(sh.shards);
                      {
                        text: List.nth(t.label, i),
-                       needs_hole: false,
+                       leading_hole: false,
+                       trailing_hole: None,
                        typed_len:
                          switch (act) {
                          | ReplaceWitness(sp) when sp.shard == i =>
@@ -1377,7 +1379,8 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                      delimiters: [
                        {
                          text: List.nth(t.label, m),
-                         needs_hole: false,
+                         leading_hole: false,
+                         trailing_hole: None,
                          typed_len:
                            Option.map(
                              (sp: Language.IdTagged.IdTag.shard_prefix) =>
@@ -1402,7 +1405,8 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                        delimiters: [
                          {
                            text: List.nth(t.label, m),
-                           needs_hole: shard_needs_hole(t, m),
+                           leading_hole: false,
+                           trailing_hole: shard_trailing_hole(t, m),
                            typed_len: None,
                            of_shard: Some((t.id, m)),
                          },
@@ -1927,7 +1931,8 @@ let place_trailing_shards =
             ((i, _)) =>
               {
                 text: List.nth(t.label, i),
-                needs_hole: shard_needs_hole(t, i),
+                leading_hole: false,
+                trailing_hole: shard_trailing_hole(t, i),
                 typed_len: None,
                 of_shard: Some((t.id, i)),
               },
@@ -1988,7 +1993,8 @@ let place_trailing_shards =
                       delimiters: [
                         {
                           text: List.nth(t.label, i),
-                          needs_hole: false,
+                          leading_hole: false,
+                          trailing_hole: None,
                           typed_len:
                             Option.map(
                               (sp: Language.IdTagged.IdTag.shard_prefix) =>
@@ -2020,7 +2026,8 @@ let place_trailing_shards =
                         delimiters: [
                           {
                             text: List.nth(t.label, i),
-                            needs_hole: false,
+                            leading_hole: false,
+                            trailing_hole: None,
                             typed_len: None,
                             of_shard: Some((t.id, i)),
                           },
@@ -2127,7 +2134,8 @@ let place_trailing_shards =
                           delimiters: [
                             {
                               text: List.nth(t.label, i),
-                              needs_hole: false,
+                              leading_hole: false,
+                              trailing_hole: None,
                               typed_len: None,
                               of_shard: Some((t.id, i)),
                             },
@@ -2145,7 +2153,8 @@ let place_trailing_shards =
                     @ [
                       {
                         text: List.nth(t.label, i),
-                        needs_hole: shard_needs_hole(t, i),
+                        leading_hole: false,
+                        trailing_hole: shard_trailing_hole(t, i),
                         typed_len: None,
                         of_shard: Some((t.id, i)),
                       },
@@ -2202,17 +2211,17 @@ let verify_holes =
   let first_content = (ps: list(Piece.t)) =>
     Segment.next_content(~skip=Segment.skip_secondary, ps, 0)
     |> Option.map(snd);
-  let hole_after = (tid: Id.t, k: int): bool =>
+  let hole_after = (tid: Id.t, k: int): option(Grout.shape) =>
     switch (find(completed, tid)) {
-    | None => false
+    | None => None
     | Some((sg, i, t)) =>
       let probe =
         k >= List.length(t.label) - 1
           ? first_content(ListUtil.split_n(i + 1, sg) |> snd)
           : Option.bind(List.nth_opt(t.children, k), ch => first_content(ch));
       switch (probe) {
-      | Some(Piece.Grout({shape: Convex, id, _})) => fresh(id)
-      | _ => false
+      | Some(Piece.Grout({shape, id, _})) when fresh(id) => Some(shape)
+      | _ => None
       };
     };
   ins
@@ -2222,10 +2231,10 @@ let verify_holes =
          delimiters:
            i.delimiters
            |> List.map((d: delimiter_info) =>
-                switch (d.needs_hole, d.of_shard) {
-                | (true, Some((tid, k))) => {
+                switch (d.trailing_hole, d.of_shard) {
+                | (Some(_), Some((tid, k))) => {
                     ...d,
-                    needs_hole: hole_after(tid, k),
+                    trailing_hole: hole_after(tid, k),
                   }
                 | _ => d
                 }
@@ -2414,7 +2423,8 @@ let rec complete_segment =
                         delimiters: [
                           {
                             text: "case",
-                            needs_hole: false,
+                            leading_hole: false,
+                            trailing_hole: None,
                             typed_len: None,
                             of_shard: Some((wrap_id, 0)),
                           },
@@ -2427,7 +2437,8 @@ let rec complete_segment =
                         delimiters: [
                           {
                             text: "end",
-                            needs_hole: false,
+                            leading_hole: false,
+                            trailing_hole: None,
                             typed_len: None,
                             of_shard: Some((wrap_id, 1)),
                           },
@@ -2952,18 +2963,26 @@ let derive_insertions' =
          |> List.filter_map(j =>
               switch (fst(arr[j])) {
               | LShard(t, i) =>
-                let needs_hole =
-                  j
-                  + 1 < b
-                  && (
-                    switch (fst(arr[j + 1])) {
-                    | LPiece(Grout(_)) => true
-                    | _ => false
-                    }
-                  );
+                let trailing_hole =
+                  j + 1 < b
+                    ? switch (fst(arr[j + 1])) {
+                      | LPiece(Grout({shape, _})) => Some(shape)
+                      | _ => None
+                      }
+                    : None;
                 Some({
                   text: List.nth(t.label, i),
-                  needs_hole,
+                  trailing_hole,
+                  leading_hole:
+                    j > a
+                    && List.for_all(
+                         k =>
+                           switch (fst(arr[k])) {
+                           | LPiece(Grout(_)) => true
+                           | _ => false
+                           },
+                         List.init(j - a, k => a + k),
+                       ),
                   typed_len:
                     prefix_of(t, i)
                     |> Option.map((sp: Language.IdTagged.IdTag.shard_prefix) =>

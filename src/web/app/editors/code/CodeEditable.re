@@ -160,6 +160,13 @@ module Selection = {
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
+      implied_hole:
+        Lazy.from_fun(() =>
+          ImpliedHole.at_caret(
+            ~statics=model.statics,
+            model.editor.state.zipper,
+          )
+        ),
     }
     |> Cursor.with_actions([
          /* Navigation */

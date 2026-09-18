@@ -103,7 +103,7 @@ let delimiter_nodes =
          | _ => [Node.text(d.text)]
          };
        let suffix =
-         d.needs_hole
+         Option.is_some(d.trailing_hole)
            ? [
              Node.text(" "),
              EmptyHoleDec.view(

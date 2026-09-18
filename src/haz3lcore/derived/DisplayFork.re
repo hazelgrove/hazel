@@ -289,7 +289,7 @@ let extend_t2 =
               },
             ]
             : tail;
-        /* tail hole-BEFORE flags become hole-AFTER (needs_hole) on
+        /* tail hole-BEFORE flags become hole-AFTER (trailing_hole) on
            the preceding delimiter — ghost_pieces' convention */
         let hole_after = (i: int) =>
           switch (List.nth_opt(tail, i + 1)) {
@@ -305,7 +305,8 @@ let extend_t2 =
             delimiters: [
               {
                 text: head,
-                needs_hole: hole_after(-1),
+                leading_hole: false,
+                trailing_hole: hole_after(-1) ? Some(Grout.Convex) : None,
                 typed_len: Some(typed_len),
                 of_shard: None,
               },
@@ -313,7 +314,9 @@ let extend_t2 =
                    (i, d: TyDiSuggestion.tail_delim) =>
                      CanonicalCompletion.{
                        text: d.text,
-                       needs_hole: hole_after(i),
+                       leading_hole: false,
+                       trailing_hole:
+                         hole_after(i) ? Some(Grout.Convex) : None,
                        typed_len: None,
                        of_shard: None,
                      },

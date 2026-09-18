@@ -169,7 +169,7 @@ let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
   delimiters
   |> List.map((d: CanonicalCompletion.delimiter_info) =>
-       String.length(d.text) + (d.needs_hole ? 2 : 0)
+       String.length(d.text) + (Option.is_some(d.trailing_hole) ? 2 : 0)
      )
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));

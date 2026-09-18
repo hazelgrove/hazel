@@ -196,11 +196,14 @@ test ^^probe(new_frunk(4)) == 314 end;
 test ^^probe(new_frunk(6)) == 330 end;
 
 # STATICS PROBES: These show inferred type information. #
-# Double clicking toggles from analytic to synthetic type. #
+# Double clicking toggles between analytic type, synthetic type, #
+# and dynamic type. For dynamic type the dynamic component is shown in green. #
 
 let a: Bool = ^^statics(1) in
 let b: Bool = ^^statics(true) in 
 let c: (String, ?) = ^^statics((?, 1)) in
+let d = ^^statics(from_lvs([(label="a", value=a),
+                (label="b", value=b)])) in
 b;
 
 

@@ -355,7 +355,8 @@ let comma_delims = (n: int): list(CanonicalCompletion.delimiter_info) =>
   List.init(n, _ =>
     CanonicalCompletion.{
       text: ",",
-      needs_hole: true,
+      leading_hole: false,
+      trailing_hole: Some(Grout.Convex),
       typed_len: None,
       of_shard: None,
     }
@@ -548,7 +549,8 @@ let as_insertions =
            delimiters: [
              CanonicalCompletion.{
                text: ",",
-               needs_hole: false,
+               leading_hole: false,
+               trailing_hole: None,
                typed_len: None,
                of_shard: None,
              },
@@ -1009,7 +1011,8 @@ let ghost_pieces =
       /* engine witness shards keep their legacy no-hole render;
          hole-less material stays hole-less */
       let hole_after =
-        d.needs_hole && !(d.typed_len != None && d.of_shard != None);
+        Option.is_some(d.trailing_hole)
+        && !(d.typed_len != None && d.of_shard != None);
       switch (own, build(rest)) {
       | (Some(own), Some(tail)) =>
         Some(own @ (hole_after ? [hole()] : []) @ tail)

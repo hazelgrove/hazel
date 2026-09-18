@@ -1900,20 +1900,42 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
+/* Retain the exact completion that supplied semantic hole IDs. A separate
+   completion run may mint different grout IDs, even for the same source. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type completion_snapshot = {
+  source: Segment.t,
+  completed: Segment.t,
+};
+
+/* q-a retired the selection-buffer mechanism, so ~erase_buffer already
+   covers what clear_unparsed_buffer did upstream. */
+let semantic_source = (z: Zipper.t): Segment.t =>
+  z |> Zipper.unselect_and_zip(~erase_buffer=true);
+
+let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
    * segment (caret-independent, provenance-recorded), replacing the
    * old caret-sensitive missing-shard dump. The ~root parameter matches the
    * dev signature; completion is invoked at Exp. */
   let _ = root;
-  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg = semantic_source(z);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
-  go_impl(~masks, result.completed_seg);
+  (
+    go_impl(~masks, result.completed_seg),
+    {
+      source: seg,
+      completed: result.completed_seg,
+    },
+  );
 };
 
-let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+let from_zip_for_sem_with_completion =
+  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem_with_completion);
+
+let from_zip_for_sem = (z, ~root) =>
+  fst(from_zip_for_sem_with_completion(z, ~root));
 
 /* As from_zip_for_sem, but with a caller-supplied splice applied to
  * the completed segment before term formation — the hook for
@@ -1922,7 +1944,7 @@ let from_zip_for_sem =
 let from_zip_for_sem_spliced =
     (z: Zipper.t, ~root: Sort.t, ~splice: Segment.t => Segment.t) => {
   let _ = root;
-  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg = semantic_source(z);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   go_impl(~masks, splice(result.completed_seg));

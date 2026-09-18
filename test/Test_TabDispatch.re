@@ -118,6 +118,11 @@ let tab_head = (z: Zipper.t): option(string) =>
   switch (tab_action(z)) {
   | Some(Paste(t)) => Some(t)
   | Some(ApplyCompletion(One(_))) => Some("<materialize>")
+  /* Next parses the same payload tab_text describes */
+  | Some(ApplyCompletion(Next)) =>
+    CompletionQuery.chip_among(z, display_of(z).assist)
+    |> Option.map(ins => CompletionQuery.tab_text(z, ins))
+    |> Option.join
   | _ => None
   };
 
@@ -125,6 +130,7 @@ let show_action = (a: Action.t) =>
   switch (a) {
   | Paste(text) => Printf.sprintf("Paste %S", text)
   | ApplyCompletion(One(_)) => "ApplyCompletion(One)"
+  | ApplyCompletion(Next) => "ApplyCompletion(Next)"
   | _ => "?"
   };
 
@@ -175,7 +181,8 @@ let unfaithful = (~strict=false, z: Zipper.t): option(string) => {
       let discharged =
         switch (a) {
         | _ when !engine => true /* TyDi material: applying is enough */
-        | Paste(_) => m' == m - 1
+        | Paste(_)
+        | ApplyCompletion(Next) => m' == m - 1
         | _ => m' < m
         };
       let (before, after) = (completed_text(z), completed_text(z'));
@@ -441,7 +448,160 @@ let fuzz_tab =
     },
   );
 
+/* Concrete text, chip payload, and result. Point placement avoids counting
+   parser-created grout as a character when locating a multiline caret. */
+let padding_zipper = input => {
+  switch (Util.StringUtil.plain_split(input, "¦")) {
+  | [before, after] =>
+    let lines = String.split_on_char('\n', before);
+    let point =
+      Util.Point.{
+        row: List.length(lines) - 1,
+        col: List.length(Token.to_list(Util.ListUtil.last(lines))),
+      };
+    switch (MarkerParse.of_text(~root=Exp, before ++ after)) {
+    | None => fail("Cannot parse " ++ input)
+    | Some(z) => Test_Editing.perform(z, [Move(Point(point, None))])
+    };
+  | _ => fail("Expected a caret in " ++ input)
+  };
+};
+
+let padding_case = (input, preview, expected) =>
+  test_case(
+    String.escaped(input),
+    `Quick,
+    () => {
+      let z = padding_zipper(input);
+      let assist =
+        CanonicalCompletion.for_editor(
+          Zipper.unselect_and_zip(~erase_buffer=true, z),
+        ).
+          insertions;
+      let chip =
+        switch (CompletionQuery.chip_among(z, assist)) {
+        | Some(i) => i
+        | None => fail("No completion at " ++ input)
+        };
+      let d = List.hd(chip.delimiters);
+      let (before, after) = CompletionQuery.padding(z, d);
+      let text =
+        before
+        ++ d.text
+        ++ after
+        ++ (
+          switch (d.trailing_hole) {
+          | Some(Convex) => "?"
+          | Some(Concave) => "~"
+          | None => ""
+          }
+        );
+      let text =
+        Token.to_list(text)
+        |> List.map(c => c == Token.implicit_hole_marker ? "?" : c)
+        |> String.concat("");
+      check(string, "preview (including spaces and holes)", preview, text);
+      let action =
+        switch (CompletionQuery.tab_action(z, assist)) {
+        | Some(a) => a
+        | None => fail("No Tab action")
+        };
+      let result = Test_Editing.perform(~settings, z, [action]);
+      check(string, "Tab result", expected, Test_Editing.printer(result));
+      /* Converting the marker must leave actual implicit grout: filling the
+         hole later is an ordinary edit, never a literal ¿ token. */
+      check(
+        bool,
+        "no marker tile",
+        false,
+        List.mem(
+          Token.implicit_hole_marker,
+          Token.to_list(Printer.of_zipper(~holes="", result)),
+        ),
+      );
+    },
+  );
+
+let padding_tests =
+  [
+    /* End's convex right edge needs concave grout before the next
+       expression; the missing scrutinee remains a convex hole. */
+    padding_case(
+      "case¦\nlet y = 2 in 2",
+      " ? end~",
+      "case ? end¦~\nlet y = 2 in 2",
+    ),
+    /* With a scrutinee, concave grout already separates the expressions.
+       Tab retains it, so it must not be repeated in the preview. */
+    padding_case(
+      "case 0¦\nlet y = 2 in 2",
+      " end",
+      "case 0 end¦~\nlet y = 2 in 2",
+    ),
+    padding_case("case¦", " ? end", "case ? end¦"),
+    padding_case("if true then¦", " ? else ", "if true then ? else ¦?"),
+    padding_case("if true then  ¦", "? else ", "if true then  ? else ¦?"),
+    padding_case("let x = 1¦", " in ?", "let x = 1 in ¦?"),
+    padding_case("let x = 1  ¦", "in ?", "let x = 1  in ¦?"),
+    padding_case("let x = 1¦  ", " in ?", "let x = 1 in ¦?  "),
+    padding_case("(¦", ")", "()¦"),
+    padding_case("[¦", "]", "[]¦"),
+    padding_case("if true then 1¦", " else ?", "if true then 1 else ¦?"),
+    padding_case("fun x¦", " -> ?", "fun x -> ¦?"),
+    padding_case("if true then ? ¦", "else ?", "if true then ? else ¦?"),
+    padding_case(
+      "let x = 1¦\nlet y = 2 in y",
+      " in",
+      "let x = 1 in¦\nlet y = 2 in y",
+    ),
+    padding_case("let x =  ¦  ", "? in", "let x =  ? in¦  ?"),
+    /* ¿ is an existing implicit hole; ? is an explicit hole. Both sides
+       must agree even when the right hole is on the next line. */
+    padding_case("if true then¦\n", " ? else", "if true then ? else¦\n?"),
+    padding_case(
+      "if true then ¿ ¦\n¿",
+      "else",
+      "if true then ? else¦\n?",
+    ),
+    padding_case(
+      "if true then ¿¦\n",
+      " else ?",
+      "if true then ? else ¦?\n",
+    ),
+    padding_case("let x = 1¦\n¿", " in", "let x = 1 in¦\n?"),
+    padding_case("let x = 1¦\n?", " in", "let x = 1 in¦\n?"),
+    padding_case("let x = 1¦ ?", " in", "let x = 1 in¦ ?"),
+    padding_case("if true then ¦\n?", "? else", "if true then ? else¦\n?"),
+    padding_case(
+      "let x = ¿ ¦\nlet y = 2 in y",
+      "in",
+      "let x = ? in¦\nlet y = 2 in y",
+    ),
+  ]
+  @ List.concat_map(
+      n => {
+        let spaces = String.make(n, ' ');
+        let pad = n == 0 ? " " : "";
+        [
+          padding_case(
+            "let x =" ++ spaces ++ "¦\nlet y = 2 in y",
+            pad ++ "? in",
+            "let x =" ++ (n == 0 ? " " : spaces) ++ "? in¦\nlet y = 2 in y",
+          ),
+          padding_case(
+            "if true then" ++ spaces ++ "¦\nlet y = 2 in y",
+            pad ++ "? else",
+            "if true then"
+            ++ (n == 0 ? " " : spaces)
+            ++ "? else¦\nlet y = 2 in y",
+          ),
+        ];
+      },
+      [0, 1, 2, 4],
+    );
+
 let tests = [
+  ("TabDispatch: padding", padding_tests),
   ("TabDispatch: curated", curated),
   (
     "TabDispatch: fuzz",

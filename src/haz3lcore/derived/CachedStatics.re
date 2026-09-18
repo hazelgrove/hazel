@@ -8,6 +8,7 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
+  completion: option(MakeTerm.completion_snapshot),
   targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
   /* Type-shape obligations derived from the PRE-reification pass:
      the view must show what is owed even though (with reification
@@ -31,6 +32,7 @@ let empty: t = {
   info_map: Id.Map.empty,
   error_ids: [],
   warning_ids: [],
+  completion: None,
   targets: Sample.no_targets,
   obligations: [],
 };
@@ -128,6 +130,7 @@ let init_from_term =
     info_map,
     error_ids,
     warning_ids,
+    completion: None,
     targets,
     obligations: [],
   };
@@ -157,7 +160,8 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
+  let (make_term_result, completion) =
+    MakeTerm.from_zip_for_sem_with_completion(z, ~root);
   let term = make_term_result.term |> stitch;
   let probe_ids = probe_ids_of_zipper(z);
 
@@ -177,6 +181,7 @@ let init =
      fixpoint: the spliced tuples are complete. */
   let with_obligations = (statics: t, obs: list(TypeObligations.t)): t => {
     ...statics,
+    completion: Some(completion),
     obligations: obs,
   };
   /* satisfied records (deficit 0, no junctions) are TYPE FACTS for

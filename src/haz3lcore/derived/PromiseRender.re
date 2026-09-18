@@ -165,7 +165,8 @@ let project_pieces =
                following hole for it (its sibling grout is the real
                junction to the next statement, not a promised hole) */
             let hole =
-              d.needs_hole && !CanonicalCompletion.f1_closes(d.text)
+              Option.is_some(d.trailing_hole)
+              && !CanonicalCompletion.f1_closes(d.text)
                 ? Option.to_list(art_hole_after(art, tid, i)) : [];
             Some([shard, ...hole]);
           | None => None
@@ -206,7 +207,7 @@ let witness_shard =
         (Id.t, Segment.t, ((Id.t, int), int), (Id.t, (Id.t, int, int))),
       ) =>
   switch (ins.delimiters) {
-  | [{of_shard: Some((tid, i)), typed_len: Some(n), needs_hole, _}] =>
+  | [{of_shard: Some((tid, i)), typed_len: Some(n), trailing_hole, _}] =>
     switch (
       PromiseArtifact.find_reified(art, tid),
       PromiseArtifact.prefix_of(art, tid, i),
@@ -216,7 +217,7 @@ let witness_shard =
          tile's OWN interior holes (the reified body hole) come with
          the reassembled structure — attaching one here would double
          it against the raw trailing hole */
-      ignore(needs_hole);
+      ignore(trailing_hole);
       let shard = Piece.Tile(Tile.shard_of(t, i));
       Some((
         sp.token_id,
