@@ -119,6 +119,15 @@ let is_comma = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* The `;` between module or signature items. Like a comma it ends one
+   sibling and starts the next, so the next item returns to the body's own
+   level instead of inheriting the previous item's continuation indent. */
+let is_item_sep = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({mold, label: [";"], _}) => Sort.is_mod_or_sig(mold.out)
+  | _ => false
+  };
+
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
   //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
@@ -157,6 +166,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             switch (prev_next) {
             | (_, Some(next)) when is_comma(next) => base + 2
             | (Some(prev), _) when is_comma(prev) => base + 2
+            | (Some(prev), _) when is_item_sep(prev) => base + 2
             | (Some(prev), _) when is_incrementor(prev) => level + 2
             | (None, _) when not_top => level + 2
             | (_, Some(next)) when is_case_rule(next) => base

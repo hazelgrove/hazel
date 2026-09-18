@@ -1217,7 +1217,52 @@ else 3|},
   ),
 ];
 
+/* A module body is a list of items, not a nest: each item starts at the
+   body's own level, and one that breaks does not carry the next along. */
+let module_tests = [
+  test_format(
+    ~name="Module items each start at the body level",
+    ~input="{ let a = 1; let b = a * 2; let c = b + 1 }",
+    ~expected={|{
+    let a = 1;
+    let b = a * 2;
+    let c = b + 1
+}|},
+    (),
+  ),
+  test_format(
+    ~name="A broken item does not indent the next",
+    ~width=40,
+    ~input=
+      "{ let a = 1; let wide = [100000, 200000, 300000, 400000]; let b = 2 }",
+    ~expected=
+      {|{
+    let a = 1;
+    let wide =
+        [100000, 200000, 300000, 400000];
+    let b = 2
+}|},
+    (),
+  ),
+  test_format(
+    ~name="Nested module body",
+    ~input="{ let a = 1; let inner = { let x = 1; let y = 2 }; let b = 2 }",
+    ~expected=
+      {|{
+    let a = 1;
+    let inner =
+        {
+            let x = 1;
+            let y = 2
+        };
+    let b = 2
+}|},
+    (),
+  ),
+];
+
 let tests = [
+  ("PrettyPrint.Modules", module_tests),
   ("PrettyPrint.TrailingHoles", trailing_hole_tests),
   ("PrettyPrint.BlockFormBody", block_form_body_tests),
   ("PrettyPrint.Flat", flat_tests),
