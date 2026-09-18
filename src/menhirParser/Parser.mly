@@ -4,6 +4,7 @@ open AST
 
 
 
+%token CONCAVE_HOLE
 %token T_TYP
 %token P_PAT
 %token TP_TPAT
@@ -125,8 +126,8 @@ open AST
 
 /* Structural mixfix forms - loosest binding (bodies include flat sequences) */
 %nonassoc LET_EXP
+%nonassoc BINDER_BODY
 %right SUM_TYP
-%right DASH_ARROW
 %nonassoc IF_EXP
 
 /* Flat sequences - tighter than structural forms */
@@ -136,6 +137,21 @@ open AST
    module bodies, the parser reduces exp to modItemExp rather than shifting
    ';' for Seq. This only affects the modItemExp production. */
 %nonassoc MOD_ITEM_EXP
+
+/* Concave grout (the `⧖` operator-hole marker): the editor molds it at
+   Precedence.concave_grout in every sort — looser than every binary
+   operator, tighter than `;` and the structural forms (let/fun/if/case
+   bodies absorb it). One token, one precedence: the sorts where the
+   editor's structural forms are TIGHTER than the hole (type arrows,
+   sums, binders) cannot be expressed here — pinned as known gaps in
+   Test_Menhir.
+   BINDER_BODY: the arrow-bodied binders (fun/fix/typfun, poly/rec)
+   absorb a following hole into the body, like let/if; they carry this
+   level instead of DASH_ARROW's, which frees the arrow token to sit
+   TIGHTER than the hole so a type arrow reduces first
+   (`(Int -> Bool) ⧖ String`, Precedence.type_arrow < concave_grout). */
+%left CONCAVE_HOLE
+%right DASH_ARROW
 
 %right L_OR
 %right L_AND
@@ -220,6 +236,7 @@ program:
 
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
+    | e1 = exp; CONCAVE_HOLE; e2 = exp { BinHole (e1, e2) }
 
 label:
     | l = IDENT { l }
@@ -263,10 +280,11 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) }
+    | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) } %prec BINDER_BODY
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
+    | t1 = typ; CONCAVE_HOLE; t2 = typ { BinHoleTyp(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
     (* Sums WITHOUT the leading plus: `Nil + Cons(Int, T)`. The bare-
        constructor head is spelled out so LR can distinguish it from
@@ -275,7 +293,7 @@ typ:
     (* General no-lead head (covers Ctor(args) + … ; the bare-ctor head
        above stays explicit so LR distinguishes it from TypVar). *)
     | s1 = sumTerm; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp([s1] @ rest) }
-    | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
+    | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) } %prec BINDER_BODY
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(LabelType(l), t)])) }
@@ -304,6 +322,15 @@ nonAscriptingPat:
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
+    (* Base-type keywords are ordinary constructors in pat position too
+       (`let x : Int ⧖ Bool` is a pattern-level hole beside a constructor
+       pattern) — MakeTerm parity, as in exp. *)
+    | INT_TYPE { ConstructorPat("Int", None) }
+    | SINT_TYPE { ConstructorPat("SInt", None) }
+    | NAT_TYPE { ConstructorPat("Nat", None) }
+    | FLOAT_TYPE { ConstructorPat("Float", None) }
+    | BOOL_TYPE { ConstructorPat("Bool", None) }
+    | STRING_TYPE { ConstructorPat("String", None) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
@@ -320,28 +347,40 @@ nonAscriptingPat:
    ELEMENT (MakeTerm parity: fun a, b : T -> e ascribes only b). Bare
    cons chains are legal params in Hazel (fun x :: y -> ...). *)
 funAscElem:
-    | p = funConsPat; { p }
-    | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+    | p = funHoleChain; { p }
     (* Labeled parameter: fun label=l, value=v -> ... *)
     | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
+(* Concave grout between parameters (`fun x ⧖ y -> e`): looser than
+   cons and the ascription, as in `pat`, and left-nested like the other
+   sorts' chains. *)
+funHoleChain:
+    | p = funAscAtom; { p }
+    | p = funHoleChain; CONCAVE_HOLE; q = funAscAtom; { BinHolePat(p, q) }
+
+funAscAtom:
+    | p = funConsPat; { p }
+    | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+
 (* KNOWN CONFLICT FAMILIES (menhir default resolutions, all pinned by
    the MenhirParser/MenhirFuzz/MenhirCorpus differential suites):
-   1. fun-parameter CONS/COLON (below) — shift keeps them parameter-level.
-   2. ~53 s/r states after `<form> ... exp` with COMMA/UNIT lookahead,
+   1. fun-parameter CONS/COLON/CONCAVE_HOLE (below) — shift keeps them
+      parameter-level.
+   2. ~55 s/r states after `<form> ... exp` with COMMA/UNIT lookahead,
       introduced by the bare-tuple-at-let and nullary-ap productions —
-      shift continues the inner exp, which is MakeTerm parity.
+      shift continues the inner exp, which is MakeTerm parity (the
+      `exp ⧖ exp` and `pat ⧖ pat` productions each add one).
    3. One r/r between the two no-leading-plus sum productions (bare-ctor
       head vs general head) — identical semantic actions, either wins.
-   4. Two r/r states from funConsPat/funConsTail sharing nonAscriptingPat
-      and UNIT completions across head/tail contexts — identical
-      semantic actions, either wins.
+   4. Two r/r states from funConsPat/funConsTail/funAscAtom sharing
+      nonAscriptingPat and UNIT completions across head/tail contexts —
+      identical semantic actions, either wins.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
 (* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
-   `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
-   level (funConsPat/funAscElem) or inside a generic `pat`. The default
-   shift keeps them at the parameter level, which is MakeTerm parity —
-   pinned by the MenhirParser equivalence tests. *)
+   `FUN nonAscriptingPat`, CONS/COLON/CONCAVE_HOLE could continue at the
+   parameter level (funConsPat/funAscElem) or inside a generic `pat`.
+   The default shift keeps them at the parameter level, which is
+   MakeTerm parity — pinned by the MenhirParser equivalence tests. *)
 funConsPat:
     | p = nonAscriptingPat; { p }
     | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
@@ -357,6 +396,7 @@ pat:
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
+    | p1 = pat; CONCAVE_HOLE; p2 = pat { BinHolePat(p1, p2) }
     | p = nonAscriptingPat; { p }
 
 
@@ -379,8 +419,8 @@ ascTyp:
     | PROJECTOR_INVOKE; OPEN_PAREN; t = ascTyp; CLOSE_PAREN; { t }
     (* Binder types in ascription position: fun f : poly c -> (c -> c) -> …
        — the poly body is an ascTyp so the NEXT arrow stays the fun's. *)
-    | POLY; a = tpat; DASH_ARROW; t = ascTyp { PolyType(a, t) }
-    | REC; c = tpat; DASH_ARROW; t = ascTyp { RecType(c, t) }
+    | POLY; a = tpat; DASH_ARROW; t = ascTyp { PolyType(a, t) } %prec BINDER_BODY
+    | REC; c = tpat; DASH_ARROW; t = ascTyp { RecType(c, t) } %prec BINDER_BODY
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | INT_TYPE { IntType }
@@ -394,14 +434,15 @@ ascTyp:
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
+    | t1 = ascTyp; CONCAVE_HOLE; t2 = ascTyp { BinHoleTyp(t1, t2) }
 
 (* NB fun bodies DO swallow `;` (Hazel: fun x -> 1; 2 is
    Fun(x, Seq(1, 2))). Module member boundaries are safe regardless:
    the lexer emits MOD_SEMI for member separators, which no exp
    production consumes. *)
 funExp: 
-    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) } %prec BINDER_BODY
+    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) } %prec BINDER_BODY
 
 
 %inline ifExp:
@@ -419,6 +460,7 @@ tpat:
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
+    | t1 = tpat; CONCAVE_HOLE; t2 = tpat {BinHoleTPat(t1, t2)}
 
 unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
@@ -477,8 +519,8 @@ exp:
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
     | FALSE { Atom (Bool false) }
-    | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
-    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) } %prec BINDER_BODY
+    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)} %prec BINDER_BODY
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
