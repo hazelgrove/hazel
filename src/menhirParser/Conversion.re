@@ -314,6 +314,16 @@ module rec Exp: {
       match(d_scrut, d_rules);
     | Asc(e, t) => asc(of_menhir_ast(e), Typ.of_menhir_ast(t))
     | EmptyHole => empty_hole()
+    | BinHole(_) as e =>
+      /* concave grout (the `⧖` operator-hole marker): left-nested
+         parse chains flatten to ONE MultiHole (MakeTerm parity —
+         `1 ⧖ 2 ⧖ 3` zips to a single flat hole) */
+      let rec collect = (e: AST.exp, acc) =>
+        switch (e) {
+        | BinHole(l, r) => collect(l, [of_menhir_ast(r), ...acc])
+        | e => [of_menhir_ast(e), ...acc]
+        };
+      multi_hole(List.map(e => Language.Grammar.Exp(e), collect(e, [])));
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
     | HintedTest(e, hint) =>
@@ -409,7 +419,25 @@ module rec Exp: {
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
     | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
-    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    | MultiHole(es) =>
+      /* all-exp multiholes print as `⧖`-separated chains; mixed-sort
+         ones have no textual spelling and stay unsupported */
+      let exps =
+        List.filter_map(
+          fun
+          | Language.Grammar.Exp(e) => Some(e)
+          | _ => None,
+          es,
+        );
+      switch (List.length(exps) == List.length(es), exps) {
+      | (true, [e1, e2, ...rest]) =>
+        List.fold_left(
+          (acc, e) => AST.BinHole(acc, of_core(e)),
+          BinHole(of_core(e1), of_core(e2)),
+          rest,
+        )
+      | _ => raise(Failure("MultiHole not supported"))
+      };
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => ParenExp(of_core(e))
     | Constructor(s, typ) =>

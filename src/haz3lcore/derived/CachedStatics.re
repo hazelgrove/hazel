@@ -8,7 +8,12 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
-  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
+  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
+  /* the probe ids the info_map was ANALYZED with (per-node probe_targets
+     witnesses depend on them). with_targets deliberately does NOT update
+     this: it refreshes only `targets`, so a mismatch against the zipper's
+     current probes means the map itself is stale for probing. */
+  probe_ids: Id.Map.t(unit),
 };
 
 let empty: t = {
@@ -24,6 +29,7 @@ let empty: t = {
   error_ids: [],
   warning_ids: [],
   targets: Sample.no_targets,
+  probe_ids: Id.Map.empty,
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -120,6 +126,7 @@ let init_from_term =
     error_ids,
     warning_ids,
     targets,
+    probe_ids,
   };
 };
 
@@ -167,3 +174,162 @@ let init =
   settings.statics
     ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
     : empty;
+
+/* Typ-rooted cells (type-alias bodies in the editor stack): wrap the
+   type in a TyAlias under the frozen ctx so the info map carries real
+   InfoTyp entries — cursor inspector, sort refinement, type errors.
+   Wrapper node ids are fresh and never rendered in the cell, so their
+   marks stay invisible there (and the Problems panel filters to ids
+   present in each editor's own term). */
+let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else {
+    let ctx =
+      Option.value(
+        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
+        ctx,
+      );
+    let ty = MakeTerm.from_zip_for_typ(z);
+    let term: Exp.t =
+      Exp.fresh(TyAlias(TPat.fresh(EmptyHole), ty, Exp.fresh(Tuple([]))));
+    let (info_map, _) = Statics.mk(settings, ctx, term);
+    {
+      term,
+      elaborated: dh_err("Type cell: no dynamics"),
+      info_map,
+      error_ids: Statics.Map.error_ids(info_map),
+      warning_ids: [],
+      targets: Sample.no_targets,
+      probe_ids: Id.Map.empty,
+    };
+  };
+
+/* Pat-rooted cells (`name : T` header editors): wrap the pattern as a
+   function parameter so it types under the frozen ctx — InfoPat
+   entries for the inspector + sort styling. The hole body keeps the
+   binders from reading as unused. */
+let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else {
+    let ctx =
+      Option.value(
+        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
+        ctx,
+      );
+    let p = MakeTerm.from_zip_for_pat(z);
+    let term: Exp.t = Exp.fresh(Fun(p, Exp.fresh(EmptyHole), None, None));
+    let (info_map, _) = Statics.mk(settings, ctx, term);
+    {
+      term,
+      elaborated: dh_err("Header cell: no dynamics"),
+      info_map,
+      error_ids: Statics.Map.error_ids(info_map),
+      warning_ids: [],
+      targets: Sample.no_targets,
+      probe_ids: Id.Map.empty,
+    };
+  };
+
+/* TPat-rooted cells (type-alias header editors): wrap as the alias
+   binder of an unknown type. */
+let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else {
+    let ctx =
+      Option.value(
+        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
+        ctx,
+      );
+    let tp = MakeTerm.from_zip_for_tpat(z);
+    let term: Exp.t =
+      Exp.fresh(
+        TyAlias(
+          tp,
+          Typ.fresh(Unknown(Hole(EmptyHole))),
+          Exp.fresh(Tuple([])),
+        ),
+      );
+    let (info_map, _) = Statics.mk(settings, ctx, term);
+    {
+      term,
+      elaborated: dh_err("Header cell: no dynamics"),
+      info_map,
+      error_ids: Statics.Map.error_ids(info_map),
+      warning_ids: [],
+      targets: Sample.no_targets,
+      probe_ids: Id.Map.empty,
+    };
+  };
+
+/* COMPOSITIONAL init for whole-program (Exp-rooted, top-level) editors:
+   statics via DefStatics — per top-level item with chained ctxs — so
+   an edit re-analyzes only the dirty set, and no monolithic
+   whole-program statics/elaboration recursion runs (which STACK
+   OVERFLOWS in the browser on some large programs, e.g. mega-2k).
+   The whole-program elaboration is grafted from the per-item elabs;
+   if a graft boundary has an unexpected shape we degrade to a
+   no-eval error term instead of crashing. Falls back to the
+   monolithic path for non-Exp roots or custom ctx/ana. */
+/* compositional statics from an already-made TERM: callers that hold
+   a plain segment (restructure ops) skip the zipper round-trip —
+   from_zip_for_sem's Dump.to_segment walk alone was ~300ms on mega-2k */
+let init_compositional_term =
+    (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
+  let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+  let info_map = ds.merged;
+  let elaborated =
+    switch () {
+    | _ when !settings.dynamics && !settings.elaborate =>
+      dh_err("Dynamics & Elaboration disabled")
+    | _ =>
+      switch (DefStatics.whole_elab(ds)) {
+      | Some(elab) => elab
+      | None => dh_err("Compositional elaboration gap")
+      }
+    };
+  {
+    term,
+    elaborated,
+    info_map,
+    error_ids: DefStatics.all_error_ids(ds),
+    warning_ids: DefStatics.all_warning_ids(ds),
+    targets: compute_targets(~settings, ~info_map, ~probe_ids),
+    probe_ids,
+  };
+};
+
+let init_compositional =
+    (~settings: CoreSettings.t, ~stitch, ~root, ~probe_ids=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else if (root != Sort.Exp && root != Sort.Mod) {
+    init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
+  } else {
+    /* from_zip_for_sem exists to EMPTY THE BACKPACK for semantics —
+       with an empty backpack its Dump.to_segment walk is pure
+       overhead (~660ms at 4k lines), and the per-item incremental
+       parse replaces the monolithic one. Mod roots would be MISPARSED
+       by the Exp-rooted [go], so their backpack fallback goes through
+       go_mod_root on the emptied segment instead. */
+    let term =
+      Zipper.local_backpack(z) == []
+        ? MakeTerm.Incr.term_of_root(~root, Zipper.unselect_and_zip(z))
+          |> stitch
+        : (
+            root == Sort.Mod
+              ? MakeTerm.go_mod_root(Dump.to_segment(z, ~root)).term
+              : MakeTerm.from_zip_for_sem(z, ~root).term
+          )
+          |> stitch;
+    /* callers with probes living in OTHER zippers (stacked cells)
+       pass the union; default = this zipper's own */
+    let probe_ids =
+      switch (probe_ids) {
+      | Some(p) => p
+      | None => probe_ids_of_zipper(z)
+      };
+    init_compositional_term(~settings, ~probe_ids, term);
+  };

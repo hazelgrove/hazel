@@ -299,6 +299,7 @@ let is_hole_label = (t: string) =>
   t == " "
   || Token.is_explicit_hole(t)
   || Token.is_implicit_hole_marker(t)
+  || Token.is_concave_hole_marker(t)
   || Token.is_llm_hole(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
@@ -1546,8 +1547,13 @@ let consolidate_adopted = (): unit => {
 };
 
 let go =
+  /* SMALL bound: each key pins a whole SEGMENT plus its full term/
+     term_data output. On mega-scale programs a deep cache retained
+     hundreds of superseded generations (every splice/edit mints a new
+     segment) — the browser heap died within a few edits. The working
+     set per frame is a handful of segments. */
   Core.Memo.general(
-    ~cache_size_bound=1000,
+    ~cache_size_bound=8,
     seg => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
@@ -1567,6 +1573,45 @@ let go =
     },
   );
 
+/* stable synthetic id for a Mod-rooted editor's Module wrapper node:
+   statics/elab reuse keys on term identity, so it must not churn per
+   rebuild. (One id module-wide is fine: only the master editor of a
+   slide is Mod-rooted, and info maps are per-editor.) */
+let mod_wrap_id: Id.t = Id.mk();
+let wrap_module = (items: list(Mod.t)): Exp.t =>
+  IdTagged.fast_copy(mod_wrap_id, Exp.fresh(Module(items)));
+
+/* monolithic parse for a MOD-rooted editor: the whole-segment
+   reference for parity tests and the go_incr fallback — [go] would
+   misparse such a segment at Exp sort (every token sort-flagged).
+   Term = the stable-id Module wrapper over the flattened items. */
+let go_mod_root =
+  Core.Memo.general(
+    ~cache_size_bound=8,
+    seg => {
+      map := TermMap.empty;
+      term_data := Id.Map.empty;
+      projectors := Id.Map.empty;
+      projector_list := [];
+      adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
+      let items =
+        switch (go_s(Sort.Mod, Segment.skel(seg), seg)) {
+        | Mod(m) => flatten_mod(m)
+        | _ => []
+        };
+      consolidate_adopted();
+      let term = wrap_module(items);
+      {
+        term,
+        term_data: term_data^,
+        terms: TermMap.add_all(term.annotation.ids, Exp(term), map^),
+        projectors: projectors^,
+        projector_list: projector_list^,
+      };
+    },
+  );
+
 let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
    * This means that the term is complete, modulo non-empty holes and sort errors.
@@ -1574,7 +1619,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=8, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
@@ -1630,8 +1675,709 @@ let for_projection =
     }
   );
 
+/* ===== Incremental whole-program TERM (plans/modular-editors.md §9d)
+   =====
+   The stacked-editing Force frame and outline restructure ops re-ran
+   [go] over the whole spliced program (~165ms at 2k lines) even
+   though DefStatics then re-analyzes only the changed item. Their
+   only consumer is the TERM (statics/outline/elab) — display maps
+   (terms/term_data) are per-cell — so this parses each TOP-LEVEL
+   ITEM's piece span separately (memoized on piece identity: splices
+   rebuild the top-level list but reuse item pieces) and grafts the
+   chain, mirroring DefStatics' hollow-item composition. An item
+   sliced away from its continuation is nonconvex; a synthetic convex
+   grout stands in for the body and the graft replaces it. */
+module Incr = {
+  let is_semi = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) => t.label == [";"]
+    | _ => false
+    };
+  let is_in_tile = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) =>
+      switch (List.rev(t.label)) {
+      | ["in", ..._] => true
+      | _ => false
+      }
+    | _ => false
+    };
+
+  /* top-level item slices, in order (boundaries: `…in`-tiles and
+     top-level `;`s; the remainder is the tail) */
+  let slices = (seg: Segment.t): list(Segment.t) => {
+    let arr = Array.of_list(seg);
+    let len = Array.length(arr);
+    let slice = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
+    let rec walk = (i, start, acc) =>
+      if (i >= len) {
+        start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
+      } else if (is_in_tile(arr[i]) || is_semi(arr[i])) {
+        walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
+      } else {
+        walk(i + 1, start, acc);
+      };
+    walk(0, 0, []);
+  };
+
+  let seg_eq = Segment.ptr_eq;
+
+  type entry = {
+    e_pieces: Segment.t,
+    e_term: Exp.t,
+    e_hole: option(Id.t) /* the synthetic body hole to graft into */
+  };
+
+  /* keyed by the item's FIRST piece id (stable across splices for
+     unchanged items; an edited item re-mints its changed pieces).
+     Module-level single slot: only the one whole-program master
+     editor takes this path (view builds use the per-editor cache) */
+  let memo: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
+  let last: ref(option((Segment.t, Exp.t))) = ref(None);
+  let analyzed: ref(int) = ref(0); /* observability for tests */
+
+  let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
+    let attempt = (ps: Segment.t) =>
+      switch (Segment.skel(ps)) {
+      | skel =>
+        map := TermMap.empty;
+        term_data := Id.Map.empty;
+        projectors := Id.Map.empty;
+        projector_list := [];
+        adopted_ids := [];
+        /* per-slice collection is EXACT despite the cut: ownership in
+           collect_from_skel gives a Pre node only its before-run, so
+           with cuts right after `in`-tiles no secondary run crosses a
+           slice boundary (the boundary trivia is the next item's
+           before-run, inside the next slice). Parity with go's
+           whole-segment collection is test-gated. Note the collection
+           runs on the HOLED attempt for nonconvex slices, whose skel
+           matches the whole-segment structure restricted to the item. */
+        secondary_map := Segment.SecondaryCollection.collect(ps);
+        Some(exp(unsorted(Exp, skel, ps)));
+      | exception _ => None
+      };
+    switch (attempt(pieces)) {
+    | Some(term) => (term, None)
+    | None =>
+      /* nonconvex: the item's body operand was the next item — stand
+         in a convex grout and let the graft replace it */
+      let hole_id = Id.mk();
+      let ps =
+        pieces
+        @ [
+          Piece.Grout({
+            id: hole_id,
+            shape: Convex,
+          }),
+        ];
+      switch (attempt(ps)) {
+      | Some(term) => (term, Some(hole_id))
+      | None => (Exp.fresh(EmptyHole), None) /* degenerate input */
+      };
+    };
+  };
+
+  /* ---- Mod-root slice parse (plans/mod-root.md phase 1) ----
+     A slice ending in its `;` is nonconvex on the right (the
+     separator's right operand is the next item): the appended convex
+     grout parses to a trailing EmptyHole mod item, which is dropped
+     here (its id is scrubbed from the captured maps by the caller).
+     Composition is a plain list concat — mod items have no body
+     continuation, so there is no graft. */
+  let parse_item_mod = (pieces: Segment.t): (list(Mod.t), option(Id.t)) => {
+    let attempt = (ps: Segment.t): option(list(Mod.t)) =>
+      switch (Segment.skel(ps)) {
+      | skel =>
+        map := TermMap.empty;
+        term_data := Id.Map.empty;
+        projectors := Id.Map.empty;
+        projector_list := [];
+        adopted_ids := [];
+        secondary_map := Segment.SecondaryCollection.collect(ps);
+        switch (go_s(Sort.Mod, skel, ps)) {
+        | Mod(m) => Some(flatten_mod(m))
+        | _ => None
+        };
+      | exception _ => None
+      };
+    switch (attempt(pieces)) {
+    | Some(items) => (items, None)
+    | None =>
+      let hole_id = Id.mk();
+      let ps =
+        pieces
+        @ [
+          Piece.Grout({
+            id: hole_id,
+            shape: Convex,
+          }),
+        ];
+      switch (attempt(ps)) {
+      | Some(items) =>
+        let items =
+          List.filter(
+            (m: Mod.t) => !List.mem(hole_id, m.annotation.ids),
+            items,
+          );
+        (items, Some(hole_id));
+      | None => ([], None)
+      };
+    };
+  };
+
+  let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
+    if (List.mem(hole_id, e.annotation.ids)) {
+      Some(acc);
+    } else {
+      let re = (term: Exp.term) => {
+        ...e,
+        term,
+      };
+      switch (e.term) {
+      | Let(p, d, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Let(p, d, b)))
+      | Seq(a, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Seq(a, b)))
+      | TyAlias(tp, ty, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+      | ModuleExp(mp, d, b) =>
+        graft_at(hole_id, acc, b)
+        |> Option.map(b => re(ModuleExp(mp, d, b)))
+      | Filter(f, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Filter(f, b)))
+      | Parens(b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Parens(b)))
+      | _ => None
+      };
+    };
+
+  let term_of = (seg: Segment.t): Exp.t => {
+    analyzed := 0;
+    switch (last^) {
+    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
+    | _ =>
+      let items = slices(seg);
+      let keyed =
+        List.filter_map(
+          ps =>
+            switch (ps) {
+            | [] => None
+            | [p, ..._] => Some((Piece.id(p), ps))
+            },
+          items,
+        );
+      let entries =
+        List.map(
+          ((key, ps)) =>
+            switch (Id.Map.find_opt(key, memo^)) {
+            | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
+            | _ =>
+              incr(analyzed);
+              let (term, hole) = parse_item(ps);
+              let e = {
+                e_pieces: ps,
+                e_term: term,
+                e_hole: hole,
+              };
+              (key, e);
+            },
+          keyed,
+        );
+      memo :=
+        List.fold_left(
+          (m, (key, e)) => Id.Map.add(key, e, m),
+          Id.Map.empty,
+          entries,
+        );
+      let rec graft = (es: list((Id.t, entry))): Exp.t =>
+        switch (es) {
+        | [] => Exp.fresh(EmptyHole)
+        | [(_, e)] => e.e_term
+        | [(_, e), ...rest] =>
+          let below = graft(rest);
+          switch (e.e_hole) {
+          | Some(h) =>
+            switch (graft_at(h, below, e.e_term)) {
+            | Some(t) => t
+            | None => e.e_term /* shape gap: keep the hollow item */
+            }
+          | None => e.e_term /* unreachable: non-last items parse holed */
+          };
+        };
+      let term = graft(entries);
+      last := Some((seg, term));
+      term;
+    };
+  };
+
+  /* Mod-root twin of [term_of]: per-slice mod-item parse, memoized on
+     piece identity; term = the stable-id Module wrapper over the
+     concatenated items. Shares [last] with the Exp path and go_incr. */
+  type mod_entry = {
+    me_pieces: Segment.t,
+    me_items: list(Mod.t),
+  };
+  let mod_memo: ref(Id.Map.t(mod_entry)) = ref(Id.Map.empty);
+
+  let term_of_mod = (seg: Segment.t): Exp.t => {
+    analyzed := 0;
+    switch (last^) {
+    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
+    | _ =>
+      let keyed =
+        List.filter_map(
+          ps =>
+            switch (ps) {
+            | [] => None
+            | [p, ..._] => Some((Piece.id(p), ps))
+            },
+          slices(seg),
+        );
+      let entries =
+        List.map(
+          ((key, ps)) =>
+            switch (Id.Map.find_opt(key, mod_memo^)) {
+            | Some(e) when seg_eq(e.me_pieces, ps) => (key, e)
+            | _ =>
+              incr(analyzed);
+              let (items, _) = parse_item_mod(ps);
+              (
+                key,
+                {
+                  me_pieces: ps,
+                  me_items: items,
+                },
+              );
+            },
+          keyed,
+        );
+      mod_memo :=
+        List.fold_left(
+          (m, (key, e)) => Id.Map.add(key, e, m),
+          Id.Map.empty,
+          entries,
+        );
+      let term =
+        wrap_module(List.concat_map(((_, e)) => e.me_items, entries));
+      last := Some((seg, term));
+      term;
+    };
+  };
+
+  let term_of_root = (~root: Sort.t, seg: Segment.t): Exp.t =>
+    root == Sort.Mod ? term_of_mod(seg) : term_of(seg);
+
+  /* ===== go_incr: the full go() record, composed per item =====
+     Per-item parses capture the side maps go accumulates globally;
+     three exact fixups then reconcile the one frame that differs
+     from go's single whole-segment walk (the TOP-LEVEL frame):
+       1. term map: re-add every graft-spine node under its ids
+          (per-item values hold the pre-graft holed bodies);
+       2. term_data: re-record every top-level skel node with
+          base_seg = the whole segment (per-item frames recorded
+          their slice), mirroring unsorted's sort propagation;
+       3. adopted ids: re-consolidate against the fixed maps (go
+          consolidates once at the end, when rep entries are final).
+     Exact parity with go is test-gated (Test_MakeTermIncr). */
+
+  type entry_full = {
+    f_pieces: Segment.t,
+    f_term: Exp.t, /* Exp mode; EmptyHole placeholder in Mod mode */
+    f_hole: option(Id.t),
+    f_mods: list(Mod.t), /* Mod mode; [] in Exp mode */
+    f_map: TermMap.t,
+    f_td: TermData.t,
+    f_proj: Id.Map.t(Base.projector),
+    f_plist: list(Id.t),
+    f_adopted: list(Id.t),
+  };
+
+  /* one per editor (rides in CachedSyntax): last build's entries and
+     the PRE-FIXUP unions, so the next build diffs instead of
+     re-merging. Entries for vanished/changed keys are dropped every
+     build. */
+  type cache = {
+    mutable c_prev:
+      option(
+        (
+          list((Id.t, entry_full)),
+          TermMap.t,
+          TermData.t,
+          Id.Map.t(Base.projector),
+        ),
+      ),
+  };
+  let mk_cache = (): cache => {c_prev: None};
+
+  let full_analyzed = ref(0); /* observability for tests */
+  let incr_calls = ref(0);
+  let incr_hits = ref(0);
+  let incr_misses = ref(0);
+  let incr_miss_neq = ref(0);
+  let incr_miss_nokey = ref(0);
+
+  /* strip the synthetic body hole from captured maps: go never sees
+     that grout, so nothing keyed by it may survive into the union */
+  let scrub_hole = (hole: option(Id.t), (m, td)) =>
+    switch (hole) {
+    | None => (m, td)
+    | Some(h) => (Id.Map.remove(h, m), Id.Map.remove(h, td))
+    };
+
+  let parse_item_full = (~root: Sort.t, ps: Segment.t): entry_full => {
+    incr(full_analyzed);
+    if (root == Sort.Mod) {
+      let (items, hole) = parse_item_mod(ps);
+      consolidate_adopted();
+      let (f_map, f_td) = scrub_hole(hole, (map^, term_data^));
+      {
+        f_pieces: ps,
+        f_term: Exp.fresh(EmptyHole),
+        f_hole: None,
+        f_mods: items,
+        f_map,
+        f_td,
+        f_proj: projectors^,
+        f_plist: projector_list^,
+        f_adopted: adopted_ids^,
+      };
+    } else {
+      let (term, hole) = parse_item(ps);
+      consolidate_adopted();
+      let (f_map, f_td) = scrub_hole(hole, (map^, term_data^));
+      {
+        f_pieces: ps,
+        f_term: term,
+        f_hole: hole,
+        f_mods: [],
+        f_map,
+        f_td,
+        f_proj: projectors^,
+        f_plist: projector_list^,
+        f_adopted: adopted_ids^,
+      };
+    };
+  };
+
+  /* mirror of the sort propagation in [unsorted]/[go_s], recording
+     TermData for every node of the top-level skel with the WHOLE
+     segment as base_seg (children of tiles are separate frames both
+     here and in go, so only this frame needs replaying) */
+  let record_top_frame =
+      (~root: Sort.t=Exp, td0: TermData.t, seg: Segment.t): TermData.t => {
+    let td = ref(td0);
+    let resolve = (s: Sort.t, skel: Skel.t): Sort.t =>
+      switch (s) {
+      | Any =>
+        let so = Segment.sort_of(skel, seg);
+        so == Any ? root : so;
+      | Drv(Jdmt | Ctx | Prop | Exp) => Drv(Exp)
+      | s => s
+      };
+    let rec sim = (s: Sort.t, skel: Skel.t): unit => {
+      let s = resolve(s, skel);
+      let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
+      Aba.get_as(root)
+      |> List.iter(p =>
+           td := Id.Map.add(Piece.id(p), TermData.mk(p, s, skel, seg), td^)
+         );
+      Aba.aba_triples(root)
+      |> List.iter(((p_l, kid, p_r)) => {
+           let (_, s_l) = Piece.nib_sorts(p_l);
+           let (s_r, _) = Piece.nib_sorts(p_r);
+           sim(s_l == s_r ? s_l : Sort.Any, kid);
+         });
+      let (l_sort, r_sort) = {
+        let p_l = Aba.first_a(root);
+        let p_r = Aba.last_a(root);
+        let (l, _) = Option.get(Piece.nibs(p_l));
+        let (_, r) = Option.get(Piece.nibs(p_r));
+        (l.sort, r.sort);
+      };
+      switch (skel) {
+      | Op(_) => ()
+      | Pre(_, r) => sim(r_sort, r)
+      | Post(l, _) => sim(l_sort, l)
+      | Bin(l, _, r) =>
+        sim(l_sort, l);
+        sim(r_sort, r);
+      };
+    };
+    sim(root, Segment.skel(seg));
+    td^;
+  };
+
+  /* the graft replaced holed bodies along each item's spine; re-add
+     those nodes so the term map shows the grafted terms (mirrors
+     [graft_at]'s descend set) */
+  let rec fix_spine = (m: TermMap.t, e: Exp.t): TermMap.t => {
+    let m = TermMap.add_all(e.annotation.ids, Exp(e), m);
+    switch (e.term) {
+    | Let(_, _, b)
+    | Seq(_, b)
+    | TyAlias(_, _, b)
+    | ModuleExp(_, _, b)
+    | Filter(_, b)
+    | Parens(b) => fix_spine(m, b)
+    | _ => m
+    };
+  };
+
+  /* consolidate_adopted against explicit maps (go runs it once at the
+     end; per-item runs used pre-fixup rep data, so replay here) */
+  let reconsolidate =
+      (adopted: list(Id.t), m: TermMap.t, td0: TermData.t): TermData.t =>
+    List.fold_left(
+      (td, id) =>
+        switch (Id.Map.find_opt(id, m)) {
+        | None => td
+        | Some(term) =>
+          let rep = Language.Any.rep_id(term);
+          switch (Id.Map.find_opt(rep, td), Id.Map.find_opt(id, td)) {
+          | (Some(rep_data), Some(old_data)) =>
+            Id.Map.add(
+              id,
+              TermData.{
+                ...rep_data,
+                root_piece: old_data.root_piece,
+                sort: old_data.sort,
+              },
+              td,
+            )
+          | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
+          | (None, _) => td
+          };
+        },
+      td0,
+      adopted,
+    );
+
+  let go_incr' = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t => {
+    incr(incr_calls);
+    let keyed =
+      List.filter_map(
+        ps =>
+          switch (ps) {
+          | [] => None
+          | [p, ..._] => Some((Piece.id(p), ps))
+          },
+        slices(seg),
+      );
+    let (prev_assoc, m_map0, m_td0, m_proj0) =
+      switch (cache.c_prev) {
+      | Some(p) => p
+      | None => ([], Id.Map.empty, Id.Map.empty, Id.Map.empty)
+      };
+    let prev_tbl = Hashtbl.create(List.length(prev_assoc) + 1);
+    List.iter(((k, e)) => Hashtbl.replace(prev_tbl, k, e), prev_assoc);
+    let entries =
+      List.map(
+        ((key, ps)) =>
+          switch (Hashtbl.find_opt(prev_tbl, key)) {
+          | Some(e) when seg_eq(e.f_pieces, ps) =>
+            incr(incr_hits);
+            (key, e);
+          | Some(_) =>
+            incr(incr_miss_neq);
+            incr(incr_misses);
+            (key, parse_item_full(~root, ps));
+          | None =>
+            incr(incr_miss_nokey);
+            incr(incr_misses);
+            (key, parse_item_full(~root, ps));
+          },
+        keyed,
+      );
+    let cur_tbl = Hashtbl.create(List.length(entries) + 1);
+    List.iter(((k, e)) => Hashtbl.replace(cur_tbl, k, e), entries);
+    /* diff the pre-fixup unions: drop bindings of vanished/rebuilt
+       entries, add bindings of rebuilt entries */
+    let m_map = ref(m_map0);
+    let m_td = ref(m_td0);
+    let m_proj = ref(m_proj0);
+    List.iter(
+      ((key, old_e)) => {
+        let keep =
+          switch (Hashtbl.find_opt(cur_tbl, key)) {
+          | Some(e) => e === old_e
+          | None => false
+          };
+        if (!keep) {
+          Id.Map.iter(
+            (id, _) => m_map := Id.Map.remove(id, m_map^),
+            old_e.f_map,
+          );
+          Id.Map.iter(
+            (id, _) => m_td := Id.Map.remove(id, m_td^),
+            old_e.f_td,
+          );
+          Id.Map.iter(
+            (id, _) => m_proj := Id.Map.remove(id, m_proj^),
+            old_e.f_proj,
+          );
+        };
+      },
+      prev_assoc,
+    );
+    List.iter(
+      ((key, e)) => {
+        let carried =
+          switch (Hashtbl.find_opt(prev_tbl, key)) {
+          | Some(old_e) => old_e === e
+          | None => false
+          };
+        if (!carried) {
+          Id.Map.iter(
+            (id, v) => m_map := Id.Map.add(id, v, m_map^),
+            e.f_map,
+          );
+          Id.Map.iter((id, v) => m_td := Id.Map.add(id, v, m_td^), e.f_td);
+          Id.Map.iter(
+            (id, v) => m_proj := Id.Map.add(id, v, m_proj^),
+            e.f_proj,
+          );
+        };
+      },
+      entries,
+    );
+    cache.c_prev = Some((entries, m_map^, m_td^, m_proj^));
+    /* compose, then the exact fixups on top of the pure union */
+    let term =
+      if (root == Sort.Mod) {
+        wrap_module(List.concat_map(((_, e)) => e.f_mods, entries));
+      } else {
+        /* graft the Exp continuation chain */
+        let rec graft = (es: list((Id.t, entry_full))): Exp.t =>
+          switch (es) {
+          | [] => Exp.fresh(EmptyHole)
+          | [(_, e)] => e.f_term
+          | [(_, e), ...rest] =>
+            let below = graft(rest);
+            switch (e.f_hole) {
+            | Some(h) =>
+              switch (graft_at(h, below, e.f_term)) {
+              | Some(t) => t
+              | None => e.f_term
+              }
+            | None => e.f_term
+            };
+          };
+        graft(entries);
+      };
+    last := Some((seg, term)); /* share with term_of (statics path) */
+    let terms =
+      root == Sort.Mod
+        ? TermMap.add_all(term.annotation.ids, Exp(term), m_map^)
+        : fix_spine(m_map^, term);
+    let term_data = record_top_frame(~root, m_td^, seg);
+    let adopted = List.concat_map(((_, e)) => e.f_adopted, entries);
+    let term_data = reconsolidate(adopted, terms, term_data);
+    /* go conses projector ids during a single left-to-right walk, so
+       its list has later items first: concat per-item lists (each
+       already in go's within-item order) over reversed item order */
+    let projector_list =
+      List.concat_map(((_, e)) => e.f_plist, List.rev(entries));
+    {
+      term,
+      terms,
+      term_data,
+      projectors: m_proj^,
+      projector_list,
+    };
+  };
+
+  /* any structural surprise (e.g. Segment.skel on a malformed whole
+     segment) falls back to the monolithic parse */
+  let fell_back = ref(0); /* observability: parity tests assert 0 */
+  let go_incr = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t =>
+    switch (go_incr'(~root, ~cache, seg)) {
+    | r => r
+    | exception _ =>
+      incr(fell_back);
+      root == Sort.Mod ? go_mod_root(seg) : go(seg);
+    };
+};
+
 let from_zip_for_sem = (z: Zipper.t, ~root) =>
   go(Dump.to_segment(z, ~root));
 
+/* Semantic PAT for a Pat-rooted editor (modular-editors header cells):
+   the pat-sorted sibling of from_zip_for_sem. Feedback for such cells
+   comes from the stitched master program (exercises precedent), so no
+   standalone pat statics entry is needed — just the term. */
+let from_zip_for_pat = (z: Zipper.t): Pat.t => {
+  let seg = Dump.to_segment(z, ~root=Sort.Pat);
+  /* the recorders are global refs: without this, term annotations
+     pick up whichever segment's secondaries were collected last */
+  secondary_map := Segment.SecondaryCollection.collect(seg);
+  switch (Segment.skel(seg)) {
+  | exception _ => Pat.fresh(EmptyHole)
+  | skel => pat(unsorted(Sort.Pat, skel, seg))
+  };
+};
+
+/* Semantic TYP for a Typ-rooted editor (modular-editors type-alias
+   body cells): statics for such cells wrap this in a TyAlias so the
+   cursor inspector has real type info. */
+let from_zip_for_typ = (z: Zipper.t): Typ.t => {
+  let seg = Dump.to_segment(z, ~root=Sort.Typ);
+  /* the recorders are global refs: without this, term annotations
+     pick up whichever segment's secondaries were collected last */
+  secondary_map := Segment.SecondaryCollection.collect(seg);
+  switch (Segment.skel(seg)) {
+  | exception _ => Typ.fresh(Unknown(Hole(EmptyHole)))
+  | skel => typ(unsorted(Sort.Typ, skel, seg))
+  };
+};
+
+/* Semantic TPAT for a TPat-rooted editor (type-alias header cells). */
+let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
+  let seg = Dump.to_segment(z, ~root=Sort.TPat);
+  /* the recorders are global refs: without this, term annotations
+     pick up whichever segment's secondaries were collected last */
+  secondary_map := Segment.SecondaryCollection.collect(seg);
+  switch (Segment.skel(seg)) {
+  | exception _ => TPat.fresh(EmptyHole)
+  | skel => tpat(unsorted(Sort.TPat, skel, seg))
+  };
+};
+
+/* terms + term_data + projectors for a NON-Exp-rooted editor: the
+   sorted parse populates the same recorders the Exp path uses, so
+   sort-consistency highlighting and term selection (triple-click)
+   work in Pat/TPat/Typ (and Drv/Mod/Sig/MPat) cells. (The Exp-rooted
+   [go] misparses those segments — its term sorts flagged every token
+   as sort-inconsistent.) Mirrors [go]'s full prologue/epilogue: the
+   recorders are GLOBAL refs, so a partial reset (or skipping
+   consolidate_adopted / the secondary collection) leaks another
+   segment's data into this cell's annotations. go_s dispatches every
+   sort, so the top-level term's own ids always land in [map] —
+   the earlier Pat/Typ/TPat-only dispatch left them out for other
+   roots, crashing unguarded consumers (Arms) in derivation cells. */
+let sorted_syntax_data_memo =
+  Core.Memo.general(
+    ~cache_size_bound=8,
+    ((root: Sort.t, seg: Segment.t)) => {
+      map := TermMap.empty;
+      term_data := Id.Map.empty;
+      projectors := Id.Map.empty;
+      projector_list := [];
+      adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
+      switch (Segment.skel(seg)) {
+      | exception _ => (TermMap.empty, Id.Map.empty, Id.Map.empty, [])
+      | skel =>
+        ignore(go_s(root, skel, seg));
+        consolidate_adopted();
+        (map^, term_data^, projectors^, projector_list^);
+      };
+    },
+  );
+
+let sorted_syntax_data = (~root: Sort.t, seg: Segment.t) =>
+  sorted_syntax_data_memo((root, seg));
+
 let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+  /* small for the same reason as [go]: keys pin zippers */
+  Core.Memo.general(~cache_size_bound=8, from_zip_for_sem);

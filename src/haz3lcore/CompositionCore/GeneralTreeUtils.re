@@ -204,8 +204,8 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
       };
     // Find variables that appear in body_coctx but not in entire_coctx
     // Effectively takes the set difference of body_coctx and entire_coctx
-    VarMap.filter(
-      ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+    CoCtx.filter_names(
+      var_name => !CoCtx.contains(entire_coctx, var_name),
       body_coctx,
     );
   | _ =>
@@ -302,15 +302,15 @@ let get_refs_to_after_pattern_edit =
       let def_refs =
         switch (exp_to_info(def)) {
         | InfoExp({co_ctx, _}) =>
-          VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
-        | _ => []
+          CoCtx.filter_names(n => List.mem(n, old_names), co_ctx)
+        | _ => CoCtx.empty
         };
       let body_refs =
-        VarMap.filter(((n, _)) => String.equal(n, head_name), body_coctx);
-      def_refs @ body_refs;
+        CoCtx.filter_names(n => String.equal(n, head_name), body_coctx);
+      CoCtx.union([def_refs, body_refs]);
     | _ =>
-      VarMap.filter(
-        ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+      CoCtx.filter_names(
+        var_name => !CoCtx.contains(entire_coctx, var_name),
         body_coctx,
       )
     };
@@ -389,7 +389,7 @@ let update_use_sites_of_var =
         acc_z;
       },
     z,
-    co_ctx,
+    CoCtx.to_list(co_ctx),
   );
 };
 

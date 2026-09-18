@@ -20,7 +20,8 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
-    show_incremental_deco: bool,
+    /* grey re-evaluation-progress backings after edits */
+    show_pending_eval: bool,
     simple_indication: bool,
   };
 
@@ -88,7 +89,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
-    show_incremental_deco: false,
+    show_pending_eval: false,
     simple_indication: false,
   };
 
@@ -150,7 +151,7 @@ module Update = {
     | ToggleRelativeLineNumbers
     | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco
+    | ShowPendingEval
     | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
@@ -472,10 +473,12 @@ module Update = {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
-      | ShowIncrementalDeco => {
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled := !settings.show_pending_eval;
+        {
           ...settings,
-          show_incremental_deco: !settings.show_incremental_deco,
-        }
+          show_pending_eval: !settings.show_pending_eval,
+        };
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
