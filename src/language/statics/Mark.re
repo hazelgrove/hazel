@@ -103,6 +103,11 @@ type t =
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   | DuplicateVar(string, Typ.t);
 
+let is_expectation_mismatch: t => bool =
+  fun
+  | ExpectationMismatch(_) => true
+  | _ => false;
+
 /* Declaration-order tag index, derived by ppx_variants_conv. */
 let compare = (a: t, b: t): int =>
   Int.compare(Variants.to_rank(a), Variants.to_rank(b));

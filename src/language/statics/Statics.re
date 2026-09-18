@@ -1024,7 +1024,14 @@ and uexp_to_info_map =
                   ~lab_name,
                   ~label_invalid,
                   ~duplicate_labels,
-                  ~value_ty=value_info.elab_syn_ty,
+                  /* As for the tuple: a value that already reported takes
+                     its expected type here. */
+                  ~value_ty=
+                    List.exists(
+                      Mark.is_expectation_mismatch,
+                      value_info.marks,
+                    )
+                      ? val_mode : value_info.elab_syn_ty,
                   ~label_is_empty_hole=label.term == EmptyHole,
                   ~malformed_source=Exp(label),
                 );
@@ -1070,7 +1077,19 @@ and uexp_to_info_map =
           List.combine(inferred, es),
         );
 
-      let ty_list = List.map((e: Info.exp) => e.elab_syn_ty, es');
+      /* A component that already reported a mismatch against its expected
+         type contributes that type here, so the same mismatch is not
+         reported again on the whole tuple (and on the parentheses around
+         it). The tuple still reports shape mismatches of its own: a
+         different arity or different labels. */
+      let ty_list =
+        List.map2(
+          (e: Info.exp, ana_ty) =>
+            List.exists(Mark.is_expectation_mismatch, e.marks)
+              ? ana_ty : e.elab_syn_ty,
+          es',
+          ana_tys,
+        );
 
       let malformed_labels =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
@@ -1147,7 +1166,13 @@ and uexp_to_info_map =
       add(
         ~elab_term=TupLabel(elab_label, elab_inner) |> rewrap,
         ~elab_syn_ty=
-          TupLabel(ExplicitNonlabel |> Typ.temp, e.elab_syn_ty) |> Typ.temp,
+          TupLabel(
+            ExplicitNonlabel |> Typ.temp,
+            /* A value that already reported takes its expected type here. */
+            List.exists(Mark.is_expectation_mismatch, e.marks)
+              ? ana_skip_explicit_nonlabel(ana) : e.elab_syn_ty,
+          )
+          |> Typ.temp,
         ~marks=[],
         ~co_ctx=e.co_ctx,
         ~probe_targets=e.probe_targets,
@@ -1209,7 +1234,12 @@ and uexp_to_info_map =
       let (syn_tl, cms_tl) =
         LabeledTupleStaticsHelpers.standalone_tup_label_self_type(
           ~lab_name,
-          ~value_ty=e.elab_syn_ty,
+          /* A value that already reported takes its expected type here, so the
+
+             labeled element does not repeat the mismatch. */
+          ~value_ty=
+            List.exists(Mark.is_expectation_mismatch, e.marks)
+              ? val_mode : e.elab_syn_ty,
           ~label_is_empty_hole=label.term == EmptyHole,
           ~malformed_source=Exp(label),
         );
@@ -1877,7 +1907,13 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      /* As for a tuple component: a body that already reports its mismatch
+         with the expected return type takes that type here, so the function
+         is not reported a second time. */
+      let body_ty =
+        List.exists(Mark.is_expectation_mismatch, e.marks)
+          ? mode_body : e.elab_syn_ty;
+      let syn_ty_fun = Arrow(p.ty, body_ty) |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
