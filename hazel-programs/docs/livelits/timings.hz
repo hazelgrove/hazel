@@ -1,0 +1,181 @@
+# Timing Hazel From Inside #
+
+# Every other livelit in this deck reacts to events. This one MEASURES #
+# them, and what it measures is the editor it is living in. #
+
+# A mouse event carries two clocks: #
+
+#   occurred   when the browser stamped the event                 #
+#   handled    when Hazel got round to dispatching it             #
+
+# The obvious number is handled - occurred: how long the event waited #
+# to be served. Measure it and you find it is always about zero, even #
+# when the editor is crawling. That is not good news, it is a fact #
+# about browsers: mousemove events are COALESCED. While the main #
+# thread is busy the browser throws the intermediate moves away and #
+# stamps a fresh one at delivery, so the event you receive has never #
+# waited for anything. #
+
+# What slowness does instead is make events ARRIVE FURTHER APART, #
+# because you only get one per frame the editor manages to finish. So #
+# the honest measure is the GAP between consecutive events. #
+
+# Drag steadily across the strip. Then press a LOAD button: the widget #
+# starts rendering that many extra boxes every frame, making itself #
+# slow, and the gap you are watching is the cost of that decision. #
+# On the laptop this was written on: about 80 ms between events when #
+# idle, about 800 ms at load 3000. Ten times slower, and the widget  #
+# reports it itself.                                                 #
+
+# This is the honest version of the question the Tree Care slide #
+# raises. That livelit is slow; this one says by how much, and in the #
+# units that matter -- how long until the widget answers you. #
+
+type Reading = (gap=Float, worst=Float, n=Int) in
+
+let ^latency = {
+  # load is part of the MODEL, so the weight you chose is written into #
+  # the program text and survives a reload, like any other model. #
+  # prev is the previous event's occurred. The first sample has no   #
+  # predecessor -- n == 0 says so -- and reports a gap of zero rather #
+  # than the whole time since the page loaded.                        #
+  type Model =
+    (gap=Float, worst=Float, queue=Float, n=Int, prev=Float, load=Int);
+
+  type Action = + Sample(Float, Float) + Load(Int) + Clear;
+
+  type Expansion = Reading;
+
+  let init : Model =
+    (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0);
+
+  let update = fun (m, a) : (Model, Action) ->
+    case a
+    | Sample(t, q) =>
+      let g = if m.n == 0 then 0.0 else t -. m.prev in
+      # A gap over two seconds is you letting go of the mouse, not the #
+      # editor stalling. Left in, one pause would own `worst` forever, #
+      # so the worst-case ignores anything that long.                  #
+      (gap=g,
+       worst=
+         if g >. 2000.0 then m.worst
+         else if m.worst <. g then g
+         else m.worst,
+       queue=q,
+       n=m.n + 1,
+       prev=t,
+       load=m.load)
+    | Load(k) =>
+      (gap=m.gap, worst=m.worst, queue=m.queue, n=m.n, prev=m.prev, load=k)
+    | Clear =>
+      (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=m.load)
+    end;
+
+  let px = fun f : Float -> to_fixed((f, 0)) ++ "px";
+
+  let ms = fun f : Float -> to_fixed((f, 1)) ++ " ms";
+
+  # A quarter pixel per millisecond: an idle gap is a stub, a stalled #
+  # one runs the width of the widget. Capped so it stays on screen. #
+  let bar = fun (v, color) : (Float, String) ->
+    let w = v /. 4.0 in
+    Html.div(
+      [Attr.style([("height", "6px"),
+                   ("width", px(if w >. 240.0 then 240.0 else w)),
+                   ("background", color)])],
+      []);
+
+  # The measuring surface. Every move dispatches one Sample carrying #
+  # the delay that event itself suffered. #
+  let strip = fun m : Model ->
+    Html.div(
+      [Attr.on_mouse_move(fun e -> Sample(e.occurred, e.handled -. e.occurred)),
+       Attr.style([("height", "34px"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px"),
+                   ("background",
+                    "repeating-linear-gradient(90deg, #f3efe6 0 8px, #e8e0cf 8px 16px)"),
+                   ("cursor", "crosshair")])],
+      [Html.div(
+         [Attr.style([("font-size", "0.7em"), ("padding", "2px 4px"),
+                      ("color", "#5d4037")])],
+         [Html.text(if m.n == 0 then "drag here" else "")])]);
+
+  let button = fun (k, current) : (Int, Int) ->
+    let here = k == current in
+    Html.button(
+      [Attr.on_click(Load(k)),
+       Attr.style([("font-size", "0.7em"),
+                   ("background", if here then "#3e2723" else "#f3efe6"),
+                   ("color", if here then "#fdfcf7" else "#3e2723"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px")])],
+      [Html.text(string_of_int(k))]);
+
+  # Deliberate ballast: `load` boxes rebuilt on every render. This is #
+  # the only part of the widget that exists to waste time. #
+  let ballast = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-wrap", "wrap"),
+                   ("gap", "1px"), ("max-height", "10px"),
+                   ("overflow", "hidden")])],
+      map((range((0, m.load)),
+           fun _i -> Html.div(
+             [Attr.style([("width", "2px"), ("height", "2px"),
+                          ("background", "#cfd8dc")])],
+             []))));
+
+  let view = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-direction", "column"),
+                   ("gap", "0.2em"), ("font-family", "var(--code-font)")])],
+      [strip(m),
+       bar((m.gap, "#2e7d32")),
+       bar((m.worst, "#c62828")),
+       Html.div(
+         [Attr.style([("font-size", "0.7em"), ("color", "#3e2723")])],
+         [Html.text("gap " ++ ms(m.gap) ++ "   worst " ++ ms(m.worst)
+                    ++ "   n=" ++ string_of_int(m.n))]),
+       # The coalescing story, kept on screen rather than only in the #
+       # prose: this is the number that refuses to move. #
+       Html.div(
+         [Attr.style([("font-size", "0.65em"), ("color", "#8d6e63")])],
+         [Html.text("queue " ++ ms(m.queue) ++ " (coalesced, stays ~0)")]),
+       Html.div(
+         [Attr.style([("display", "flex"), ("gap", "0.2em"),
+                      ("align-items", "center")])],
+         [Html.div([Attr.style([("font-size", "0.7em")])],
+                   [Html.text("load")]),
+          button((0, m.load)),
+          button((200, m.load)),
+          button((800, m.load)),
+          button((3000, m.load)),
+          Html.button([Attr.on_click(Clear),
+                       Attr.style([("font-size", "0.7em")])],
+                      [Html.text("clear")])]),
+       ballast(m)]);
+
+  # The expansion drops `load` -- that is a knob for the person doing #
+  # the measuring, not part of the measurement. What a client gets is #
+  # the reading, as numbers it can compare and threshold. #
+  let expand = fun m : Model -> (gap=m.gap, worst=m.worst, n=m.n);
+
+  let shape = Block(26, 7)
+} in
+
+# The use below carries its own readings in its argument, so a slow #
+# frame you provoked is still in the program when you come back to it. #
+
+# The expansion is data, not a picture: this program asks whether the #
+# worst frame crossed a frame budget, and a client could just as well #
+# sort, plot or test against it. #
+
+let reading = ^^livelit(^latency((gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0))) in
+
+# One frame at 60Hz. A gap above it means a drag the eye can see #
+# stuttering. #
+let budget = 16.0 in
+
+(reading.n,
+ to_fixed((reading.worst, 1)),
+ if reading.worst >. budget then "over budget" else "within budget")

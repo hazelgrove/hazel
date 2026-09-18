@@ -185,8 +185,17 @@ module Event = {
       field("meta", bool()),
     ]);
 
-  // MouseEvent: (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+  // MouseEvent: (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool,
+  //              occurred=Float, handled=Float)
   // button: 0=left, 1=middle, 2=right
+  //
+  // occurred: the browser's own stamp for when the event happened.
+  // handled:  when Hazel got round to dispatching it.
+  // Both are performance.now()-relative milliseconds, so their
+  // DIFFERENCE is how long the event waited on a busy editor -- the one
+  // number a program can use to measure Hazel's responsiveness from the
+  // inside. Appended last so anything reading the older fields by
+  // position is undisturbed.
   let mouse: Typ.t =
     prod([
       field("x", float()),
@@ -196,6 +205,8 @@ module Event = {
       field("shift", bool()),
       field("alt", bool()),
       field("meta", bool()),
+      field("occurred", float()),
+      field("handled", float()),
     ]);
 };
 

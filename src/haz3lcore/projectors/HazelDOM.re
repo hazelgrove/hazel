@@ -101,6 +101,14 @@ let on_mouse = (mvu: t, ~gesture=Commit, handler, evt) => {
       field("shift", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.shiftKey))),
       field("alt", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey))),
       field("meta", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey))),
+      /* Not in js_of_ocaml's event class type, so read unsafely -- the
+         same way JsUtil reaches performance.now(). Both clocks share
+         that origin, so handled - occurred is the queue delay. */
+      field(
+        "occurred",
+        Exp.float(Js_of_ocaml.Js.Unsafe.coerce(evt)##.timeStamp),
+      ),
+      field("handled", Exp.float(JsUtil.precise_timestamp())),
     ]);
   on_payload(mvu, ~gesture, "mouse", handler, mouse_event);
 };
