@@ -248,6 +248,11 @@ let core_mark_err_view =
         | _ => expectation_view(~ana, ~syn)
         }
       };
+    | BadStringEscape(s) => [
+        text("String "),
+        code(s),
+        text(" has invalid escape sequence"),
+      ]
     | ExplicitNonlabel => [text("Type error")]
     | Free(_)
     | InexhaustiveMatch(_)
@@ -734,6 +739,12 @@ let exp_mark_err_view =
     div_err([
       text("Theorem pattern is not of the form p : t, got "),
       view_type(typ),
+    ])
+  | BadStringEscape(s) =>
+    div_err([
+      text("String "),
+      text(s),
+      text(" has invalid escape sequence"),
     ])
   | TypFreeTypeVariable(_)
   | TypDuplicateConstructor(_)
