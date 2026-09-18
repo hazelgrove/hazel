@@ -1,11 +1,9 @@
 /** System prompt for the **compaction** (conversation summarization) LLM call.
     Kept alongside [[CompositionPrompt]] so all agent-facing prompts live in
-    [prompt_factory/]. The live agent system prompt excerpt is appended at
-    runtime so the summarizer shares the same language guide, few-shot
-    examples, and tool documentation as Filbert — up to a character budget. */
-open Util;
-
-let compaction_system_prompt_max_chars = 12000;
+    [prompt_factory/]. The summarizer shares Filbert's domain vocabulary by
+    embedding chosen composition-prompt sections WHOLE — a previous
+    character-budget prefix truncation cut mid-section at ~27% of the full
+    prompt and silently dropped everything after the language guide. */
 
 let preamble_sections =
   [
@@ -282,20 +280,22 @@ let output_contract_sections = [
 let preamble =
   String.concat("\n", preamble_sections @ [""] @ output_contract_sections);
 
-let mk_system_prompt =
-    (~agent_system_prompt: string, ~dev_notes: string): string => {
-  let excerpt =
-    StringUtil.abbreviate(
-      compaction_system_prompt_max_chars,
-      agent_system_prompt,
-    );
-  let truncated =
-    String.length(agent_system_prompt) > compaction_system_prompt_max_chars
-      ? "\n\n[Agent system prompt truncated for length.]\n" : "";
+/* Sections that define the domain terms a summary will use; deliberately
+   omits the toolkit, task-planning, and few-shot sections (the summarizer
+   does not call tools or emit agent-formatted turns) */
+let agent_prompt_excerpt = () =>
+  String.concat(
+    "\n",
+    CompositionPrompt.identity
+    @ CompositionPrompt.session_modes
+    @ CompositionPrompt.hazel_language_guide
+    @ CompositionPrompt.program_model
+    @ ProjectorCatalog.blurb_for_composition_prompt,
+  );
+
+let mk_system_prompt = (~dev_notes: string): string =>
   preamble
-  ++ "\n\n## Agent system prompt (excerpt; may be truncated)\n"
-  ++ excerpt
-  ++ truncated
+  ++ "\n\n## Agent system prompt (key sections)\n"
+  ++ agent_prompt_excerpt()
   ++ "\n\n## Developer notes\n"
   ++ dev_notes;
-};

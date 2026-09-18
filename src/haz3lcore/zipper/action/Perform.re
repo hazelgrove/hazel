@@ -234,6 +234,16 @@ let go =
   | ToggleLineComment =>
     Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
     |> return(Cant_destruct)
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
+  | Structural(a) =>
+    /* the editor's statics stand in for the tool's initial pass when they
+       describe this very program (CachedStatics.for_zipper); the new
+       program's statics are computed once and offered to the editor */
+    let run =
+      switch (CachedStatics.for_zipper(z, statics)) {
+      | Some(initial) when initial.info_map != Language.Id.Map.empty =>
+        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
+      | _ => CompositionGo.Public.go
+      };
+    run(~syntax, ~z, ~a);
   };
 };
