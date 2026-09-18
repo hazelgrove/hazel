@@ -28,12 +28,17 @@
 
 /* Leave the handles a gutter of their own, so a hit zone never sits over
  * app content (or over the wrapper's scrollbar). */
+/* Matching margins on the non-handle sides keep the content visually
+ * centered — a handle gutter only on right/bottom reads as lopsided
+ * padding. */
 .html-proj-frame.resizable-x > .html-proj-wrapper {
   margin-right: var(--html-proj-handle);
+  margin-left: var(--html-proj-handle);
 }
 
 .html-proj-frame.resizable-y > .html-proj-wrapper {
   margin-bottom: var(--html-proj-handle);
+  margin-top: var(--html-proj-handle);
 }
 
 .html-proj-resize {

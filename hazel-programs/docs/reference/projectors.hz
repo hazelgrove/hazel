@@ -55,6 +55,32 @@ let ______ = ^^text("a\n shift\n   malicious")in
 
 let box: Int = ^^text("\nmalicious") in
 
+# C. Bigger GUIs, each with its own slide:           #
+
+#    A list of same-labeled tuples as a spreadsheet  #
+#    (see `Tables`):                                 #
+
+let table = ^^table([(x=1, y=2), (x=3, y=4)]) in
+
+#    An empty list as a CSV import target (use the   #
+#    GUI to load a .csv file):                       #
+
+let data = ^^csv([]) in
+
+#    An HTML-valued expression, rendered live        #
+#    (see the `MVU` slides; livelits have their own  #
+#    slides too):                                    #
+
+let hi = ^^html(Div(
+  [Style([("background",
+           "linear-gradient(135deg, #7c5cff, #29c6a7)"),
+          ("color", "#fff"), ("height", "100%"),
+          ("display", "flex"), ("align-items", "center"),
+          ("justify-content", "center"),
+          ("border-radius", "4px"),
+          ("font-weight", "bold")])],
+  [Text("live HTML")])) in
+
 # The bottom toggle or backspace removes projectors. #
 # Projectors are preserved on in-editor copy/paste   #
 # and are persisted as ^^projector_name(data) when   #

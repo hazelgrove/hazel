@@ -470,6 +470,19 @@ module JSON = {
     );
 };
 
+// Text footprint of a livelit's GUI: the livelit `shape` member.
+// Inline(w) is one line wide w columns; Block(w, h) and Tab(w, h) are
+// h lines tall — code flows below a Block but continues on the TOP
+// line beside a Tab.
+module LivelitShape = {
+  let t: Typ.t =
+    sum_type([
+      ("Inline", Some(int())),
+      ("Block", Some(prod([int(), int()]))),
+      ("Tab", Some(prod([int(), int()]))),
+    ]);
+};
+
 // List of type aliases to add to the context
 // Some are sum types (with constructors), others are product types (no constructors)
 let type_aliases: list((string, Typ.t)) = [
@@ -485,6 +498,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("App", App.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),
+  ("LivelitShape", LivelitShape.t),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
