@@ -68,6 +68,7 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_TypToSegment.tests
     @ Test_ItemPersist.tests
     @ Test_OutlinePaths.tests
     @ Test_RunPin.tests
@@ -83,6 +84,7 @@ let (suite, exit_with_test_status) =
     @ [("Canvas score", Test_CanvasScore.tests)]
     @ [("Sample focus liveness", Test_SampleFocusLiveness.tests)]
     @ Test_Indentation.tests
+    @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
