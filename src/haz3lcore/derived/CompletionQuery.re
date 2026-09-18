@@ -13,6 +13,26 @@ open Util;
 
 type insertion = CanonicalCompletion.insertion;
 
+/* These gapless pairs are single atomic tokens, with no child hole. */
+let fuses_empty = (left: Segment.t, text: string): bool =>
+  switch (List.rev(left)) {
+  | [p, ..._] =>
+    switch (SpaceNormalize.last_token(p)) {
+    | Some(token) =>
+      List.mem(
+        token ++ text,
+        [
+          Token.empty_tuple,
+          Token.empty_list,
+          Token.empty_module,
+          Token.empty_string,
+        ],
+      )
+    | None => false
+    }
+  | [] => false
+  };
+
 /* the atom (piece, or tile shard) immediately left of the caret —
    the boundary for the no-changes-before-the-cursor policy */
 let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
@@ -206,6 +226,101 @@ let zone_matches =
   );
 };
 
+/* The holes at the OWNED run's two boundaries are decided against the
+   buffer, not by the engine alone: the head delimiter grows a leading
+   hole where its shard's left nib meets a concave neighbor (unless the
+   pair fuses into an atomic token), and the last delimiter drops its
+   trailing hole when a hole already sits to the right. Holes BETWEEN
+   delimiters belong to the completion and are left alone. */
+let with_boundary_holes =
+    (z: Zipper.t, owned: list(insertion)): list(insertion) => {
+  let (l, r) = {
+    let z = Zipper.unselect(z);
+    z.relatives.siblings;
+  };
+  let completed =
+    lazy(
+      CanonicalCompletion.for_editor(
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+      ).
+        completed_seg
+    );
+  owned
+  |> List.mapi((k, ins: insertion) =>
+       k != 0
+         ? ins
+         : (
+           switch (ins.delimiters) {
+           | [] => ins
+           | [d, ...rest] =>
+             let left =
+               l |> List.rev |> List.find_opt(p => !Piece.is_secondary(p));
+             let leading_hole =
+               switch (left, d.of_shard, d.typed_len) {
+               | (Some(p), Some((id, shard)), None) =>
+                 switch (
+                   Piece.nibs(p),
+                   Segment.find_ctx(Lazy.force(completed), id),
+                 ) {
+                 | (Some((_, rn)), Some((_, _, Piece.Tile(t)))) =>
+                   let (ln, _) = Mold.nibs(~index=shard, t.mold);
+                   switch (rn.shape, ln.shape) {
+                   | (Concave(_), Concave(_)) => !fuses_empty(l, d.text)
+                   | _ => false
+                   };
+                 | _ => d.leading_hole
+                 }
+               | _ => d.leading_hole
+               };
+             {
+               ...ins,
+               delimiters: [
+                 {
+                   ...d,
+                   leading_hole,
+                 },
+                 ...rest,
+               ],
+             };
+           }
+         )
+     )
+  |> (
+    owned => {
+      /* The rightmost preview boundary meets the existing buffer even
+         across spaces/newlines. A hole already there is not an insertion. */
+      let right_hole =
+        switch (List.find_opt(p => !Piece.is_secondary(p), r)) {
+        | Some(Grout({shape, _})) => Some(shape)
+        | Some(Tile({label: ["?"], _})) => Some(Grout.Convex)
+        | _ => None
+        };
+      List.mapi(
+        (i, ins: insertion) =>
+          Option.is_none(right_hole) || i != List.length(owned) - 1
+            ? ins
+            : {
+              ...ins,
+              delimiters:
+                List.mapi(
+                  (j, d: CanonicalCompletion.delimiter_info) =>
+                    j == List.length(ins.delimiters)
+                    - 1
+                    && d.trailing_hole == right_hole
+                      ? {
+                        ...d,
+                        trailing_hole: None,
+                      }
+                      : d,
+                  ins.delimiters,
+                ),
+            },
+        owned,
+      );
+    }
+  );
+};
+
 let chips_among =
     (z: Zipper.t, insertions: list(insertion)): list(insertion) =>
   zone_matches(z, insertions) |> List.map(snd);
@@ -223,7 +338,7 @@ let chips_owned =
     zone_matches(z, insertions)
     |> List.partition(((_, ins)) => is_partial_witness(ins));
   let by_idx = List.sort(((i, _), (j, _)) => Int.compare(i, j));
-  List.map(snd, by_idx(witnesses) @ by_idx(rest));
+  List.map(snd, by_idx(witnesses) @ by_idx(rest)) |> with_boundary_holes(z);
 };
 
 /* The record Tab dispatches: the first the caret owns */
@@ -388,6 +503,41 @@ let tab_slice =
   };
 };
 
+/* Padding is shared by Tab and the caret's preview. Existing whitespace
+   belongs to the buffer; only missing padding belongs to the chip. The
+   implicit-hole marker is converted to Grout by ApplyCompletion(Next). */
+let padding =
+    (z: Zipper.t, d: CanonicalCompletion.delimiter_info): (string, string) => {
+  let (l, r) = z.relatives.siblings;
+  let word = SpaceNormalize.spaced(d.text) || List.mem(d.text, ["=", "->"]);
+  let hole = d.leading_hole ? Token.implicit_hole_marker ++ " " : "";
+  let before =
+    switch (List.rev(l)) {
+    | [Piece.Secondary(_), ..._]
+    | [] => ""
+    | [p, ..._] =>
+      switch (SpaceNormalize.last_token(p)) {
+      | Some(t) =>
+        !List.mem(t, SpaceNormalize.tight_after)
+        && (word || SpaceNormalize.needs_space(t, d.text))
+          ? " " : ""
+      | None => word ? " " : ""
+      }
+    };
+  let after =
+    switch (r) {
+    | [Piece.Secondary(_), ..._] =>
+      Option.is_some(d.trailing_hole) && word ? " " : ""
+    | [p, ..._] =>
+      switch (SpaceNormalize.first_token(p)) {
+      | Some(t) => SpaceNormalize.needs_space(d.text, t) || word ? " " : ""
+      | None => word ? " " : ""
+      }
+    | [] => word ? " " : ""
+    };
+  (before ++ hole, after);
+};
+
 /* Tab = "type it for me": the paste text for the chip's next chunk.
    A witness chip pastes the token REMAINDER (no spaces — it merges
    into the typed prefix exactly as typing would); a plain delimiter
@@ -475,10 +625,38 @@ let tab_action =
 
 /* Engine-only conveniences (tests, tooling): ownership over the bare
    completion of the caret's program */
-let chip_at_caret = (z: Zipper.t): option(insertion) => {
-  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+let chip_at_caret =
+    (~seg: option(Segment.t)=?, z: Zipper.t): option(insertion) => {
+  /* ~seg: the caller's already-zipped engine segment (the view zips
+     once per frame); the memoized completion is shared */
+  let seg =
+    switch (seg) {
+    | Some(seg) => seg
+    | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+    };
   chip_among(z, CanonicalCompletion.for_editor(seg).insertions);
 };
+
+/* Whether an existing operand hole can remain after this delimiter.
+   Closers with convex right nibs consume trailing grout instead. */
+let accepts_right_hole = (z: Zipper.t): bool =>
+  switch (chip_at_caret(z)) {
+  | Some({delimiters: [{of_shard: Some((id, shard)), _}, ..._], _}) =>
+    let result =
+      CanonicalCompletion.for_editor(
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+      );
+    switch (Segment.find_ctx(result.completed_seg, id)) {
+    | Some((_, _, Tile(t))) =>
+      let (_, rn) = Mold.nibs(~index=shard, t.mold);
+      switch (rn.shape) {
+      | Concave(_) => true
+      | Convex => false
+      };
+    | _ => false
+    };
+  | _ => false
+  };
 
 let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
   chip_at_caret(z)

@@ -149,7 +149,8 @@ type format =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type apply_target =
   | All
-  | One(Id.t);
+  | One(Id.t)
+  | Next;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

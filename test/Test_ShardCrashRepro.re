@@ -14,7 +14,7 @@
  * an editor from it; Segment.reassemble groups the duplicated tiles by id
  * into one Aba match and dies.
  *
- * ExpToSegment.pad_ids already dedups ids WITHIN one term's id list
+ * PadIds.pad_ids already dedups ids WITHIN one term's id list
  * (HACK[Matt] comment), but duplicates ACROSS SIBLING subterms of the
  * printed value are not prevented, which is what these tests exercise.
  *

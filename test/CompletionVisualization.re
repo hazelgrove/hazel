@@ -40,8 +40,13 @@ let format_delimiters =
     (delimiters: list(CanonicalCompletion.delimiter_info)): string =>
   delimiters
   |> List.map((d: CanonicalCompletion.delimiter_info) => {
-       let suffix = d.needs_hole ? " ?" : "";
-       d.text ++ suffix;
+       let suffix =
+         switch (d.trailing_hole) {
+         | Some(Convex) => " ?"
+         | Some(Concave) => " ~"
+         | None => ""
+         };
+       (d.leading_hole ? "? " : "") ++ d.text ++ suffix;
      })
   |> String.concat(" ");
 

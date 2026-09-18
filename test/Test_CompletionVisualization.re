@@ -248,7 +248,7 @@ let indent_tests = [
     y|},
     /* the = hole is real (no definition); the in meets y, no hole */
     ~expected={|fun x ->
-    let·    // = ? in
+    let·    // ? = ? in
     y|},
   ),
   /* Inside complete fun body.

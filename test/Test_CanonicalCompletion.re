@@ -1629,6 +1629,9 @@ let tab_dispatch_tests = [
     (),
   ),
   tab_case(
+    /* artifact-grout keeps the F1 trailing pad here: Tab Pastes the
+       synthesized payload (upstream's ApplyCompletion(Next), which drops
+       it, is not this branch's dispatch) */
     ~name="coalesced end+paren: innermost only, symbolic spacing",
     ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
     ~expected="(case x | 1 => 2 end ¦",
