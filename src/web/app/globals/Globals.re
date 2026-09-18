@@ -82,6 +82,11 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    /* The documentation slide showing, when one is: what a copied link names,
+       and the only deck `?slide=` can address. Assembled per frame in
+       `Page.main_view`, which is the first place that knows both the mode and
+       the slide -- an editor does not know it is on a slide at all. */
+    slide_name: option(string),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -107,6 +112,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    slide_name: None,
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
@@ -129,7 +135,10 @@ module Model = {
   };
 
   let load = () => {
-    let settings = Settings.Store.load();
+    /* A link's `?panel=` and the rest sit over the stored settings: the
+       reader arriving is shown what the link is about, and everything they
+       have not been sent to stays as they left it. */
+    let settings = Settings.Store.load() |> DeepLink.settings;
     init(~settings, ());
   };
 
