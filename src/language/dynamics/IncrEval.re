@@ -81,8 +81,28 @@ type entry('state) = {
   state: 'state,
 };
 
+/* a2: the cache is keyed by a callstack and an id, kappa(c, uid(e)), rather
+ * than by the id alone.
+ *
+ * It is a trie on the callstack, which is what section 6 suggests: the root
+ * holds everything evaluated at the empty callstack, and each edge is the
+ * application id of a call entered from the node above it. Two properties
+ * follow from that shape, and both matter:
+ *
+ *  - `entries` still means exactly what it meant before a2 — the top-level
+ *    cache — so the streaming collector, the UI's frozen tint and the
+ *    benchmark's entry count all read the same thing they used to;
+ *  - copying the region under a re-used call is one splice of a child node
+ *    rather than a scan, which is the cost section 6 warns about.
+ *
+ * Callstacks are projected to frame ids, innermost first (which is what
+ * CallStack.equal compares), so the path into the trie is the reverse of a
+ * callstack: outermost call first. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('state) = {entries: Id.Map.t(entry('state))};
+type t('state) = {
+  entries: Id.Map.t(entry('state)),
+  children: Id.Map.t(t('state)),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current('state) = {
@@ -96,7 +116,10 @@ type outbox('state) = {
   current: option(current('state)),
 };
 
-let empty: t('state) = {entries: Id.Map.empty};
+let empty: t('state) = {
+  entries: Id.Map.empty,
+  children: Id.Map.empty,
+};
 
 let empty_outbox: outbox('state) = {
   completed: empty,
@@ -108,15 +131,80 @@ let outbox_of_completed = (completed: t('state)): outbox('state) => {
   current: None,
 };
 
-let is_empty = (incr: t('state)): bool => Id.Map.is_empty(incr.entries);
+let is_empty = (incr: t('state)): bool =>
+  Id.Map.is_empty(incr.entries) && Id.Map.is_empty(incr.children);
 
 let outbox_is_empty = (outbox: outbox('state)): bool =>
   is_empty(outbox.completed) && Option.is_none(outbox.current);
 
 let add_entry =
     (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
+  ...incr,
   entries: Id.Map.add(id, entry, incr.entries),
 };
+
+/* The trie path for a callstack: outermost call first, so that a callstack's
+ * prefixes are its enclosing calls. */
+let path_of_call_stack_ids = (call_stack_ids: list(Id.t)): list(Id.t) =>
+  List.rev(call_stack_ids);
+
+let child = (frame: Id.t, incr: t('state)): t('state) =>
+  switch (Id.Map.find_opt(frame, incr.children)) {
+  | Some(child) => child
+  | None => empty
+  };
+
+/* Rebuild the trie with `f` applied to the node at `path`. */
+let rec update_node =
+        (~path: list(Id.t), f: t('state) => t('state), incr: t('state))
+        : t('state) =>
+  switch (path) {
+  | [] => f(incr)
+  | [frame, ...rest] => {
+      ...incr,
+      children:
+        Id.Map.add(
+          frame,
+          update_node(~path=rest, f, child(frame, incr)),
+          incr.children,
+        ),
+    }
+  };
+
+let rec find_node =
+        (~path: list(Id.t), incr: t('state)): option(t('state)) =>
+  switch (path) {
+  | [] => Some(incr)
+  | [frame, ...rest] =>
+    switch (Id.Map.find_opt(frame, incr.children)) {
+    | Some(child) => find_node(~path=rest, child)
+    | None => None
+    }
+  };
+
+/* Record under the full key. The empty callstack lands at the root, so the
+ * top-level cache is what it was before a2. */
+let add_entry_at =
+    (
+      ~call_stack_ids: list(Id.t),
+      ~id: Id.t,
+      entry: entry('state),
+      incr: t('state),
+    )
+    : t('state) =>
+  update_node(
+    ~path=path_of_call_stack_ids(call_stack_ids),
+    add_entry(id, entry),
+    incr,
+  );
+
+let find_at =
+    (~call_stack_ids: list(Id.t), ~id: Id.t, incr: t('state))
+    : option(entry('state)) =>
+  switch (find_node(~path=path_of_call_stack_ids(call_stack_ids), incr)) {
+  | Some(node) => Id.Map.find_opt(id, node.entries)
+  | None => None
+  };
 
 let add_outbox_entry =
     (id: Id.t, entry: entry('state), outbox: outbox('state))
@@ -135,12 +223,18 @@ let set_outbox_current =
     }),
 };
 
-let add_stream = (stream: t('state), incr: t('state)): t('state) => {
+let rec add_stream = (stream: t('state), incr: t('state)): t('state) => {
   entries:
     Id.Map.union(
       (_, _old, new_) => Some(new_),
       incr.entries,
       stream.entries,
+    ),
+  children:
+    Id.Map.union(
+      (_, old, new_) => Some(add_stream(new_, old)),
+      incr.children,
+      stream.children,
     ),
 };
 
@@ -157,22 +251,86 @@ let merge_outbox =
     },
 };
 
+/* On a re-use hit, carry the entries that belong to the skipped subtree into
+ * the cache this run is building — they describe evaluations that did not
+ * happen this time round but are still faithful.
+ *
+ * Getting this region wrong is a soundness bug rather than a slowdown: an
+ * entry kept alive under a call that does not happen this run would be
+ * re-used next run. Two parts belong to the subtree, and nothing else does:
+ *
+ *  - at the re-used expression's own callstack, the entries for ids inside
+ *    the subtree;
+ *  - under a child edge whose application id is inside the subtree, the whole
+ *    child node — every one of those entries came from a call the subtree
+ *    itself made, so it is spliced across in one operation.
+ *
+ * A child edge whose application id sits outside the subtree is a sibling
+ * call, and is deliberately dropped. */
 let copy_descendant_entries =
-    (~root_id: Id.t, ~root: Exp.t, ~prev: t('state), incr: t('state))
+    (
+      ~call_stack_ids: list(Id.t),
+      ~root_id: Id.t,
+      ~root: Exp.t,
+      ~prev: t('state),
+      incr: t('state),
+    )
     : t('state) => {
-  let acc = ref(incr);
-  let f_exp = (continue, e: Exp.t): Exp.t => {
-    let sub_id = Exp.rep_id(e);
-    if (!Id.equal(sub_id, root_id)) {
-      switch (Id.Map.find_opt(sub_id, prev.entries)) {
-      | Some(sub_entry) => acc := add_entry(sub_id, sub_entry, acc^)
-      | None => ()
+  let path = path_of_call_stack_ids(call_stack_ids);
+  switch (find_node(~path, prev)) {
+  | None => incr
+  | Some(prev_node) =>
+    /* The root's own id counts as part of the subtree: if the re-used
+     * expression is itself an application, the calls it makes are recorded
+     * under a child edge carrying the root's id. */
+    let sub_ids = ref(Id.Map.empty);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      sub_ids := Id.Map.add(Exp.rep_id(e), (), sub_ids^);
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, root);
+    let sub_ids = sub_ids^;
+
+    let copy_into = (node: t('state)): t('state) => {
+      let entries =
+        Id.Map.fold(
+          (sub_id, (), entries) =>
+            if (Id.equal(sub_id, root_id)) {
+              entries;
+            } else {
+              switch (Id.Map.find_opt(sub_id, prev_node.entries)) {
+              | Some(sub_entry) => Id.Map.add(sub_id, sub_entry, entries)
+              | None => entries
+              };
+            },
+          sub_ids,
+          node.entries,
+        );
+      let children =
+        Id.Map.fold(
+          (frame, prev_child, children) =>
+            if (Id.Map.mem(frame, sub_ids)) {
+              Id.Map.add(
+                frame,
+                switch (Id.Map.find_opt(frame, children)) {
+                | Some(existing) => add_stream(existing, prev_child)
+                | None => prev_child
+                },
+                children,
+              );
+            } else {
+              children;
+            },
+          prev_node.children,
+          node.children,
+        );
+      {
+        entries,
+        children,
       };
     };
-    continue(e);
+    update_node(~path, copy_into, incr);
   };
-  let _ = TermBase.Exp.map_term(~f_exp, root);
-  acc^;
 };
 
 /* Surface ids covered by cache entries: each entry short-circuits a subtree,
@@ -399,9 +557,57 @@ let update_maps_after_binding =
     : reuse_map =>
   with_pat_provenance(~source_id, ~flag, pat, reuse_map);
 
+/* a2's guard G(e, c): which expressions count as "top-level", and so are
+ * worth a cache entry. Section 6 leaves G open, and this reading of it —
+ * callstack depth alone, ignoring the expression — has no proof attached, so
+ * it is one constant (Calculus.callstack_depth_limit) threaded in as a plain
+ * int rather than a decision spread over the evaluator. A limit of 0 admits
+ * only the empty callstack, which is section 6's theorem that an
+ * empty-callstack guard recovers id-reuse; max_int is no guard at all. */
+let cacheable = (~depth_limit: int, call_stack: CallStack.t): bool =>
+  CallStack.depth_within(~limit=depth_limit, call_stack);
+
+/* Crossing into a function body swaps the environment for the closure's, so
+ * the caller's re-use map stops describing what the names in scope are bound
+ * to. a2's App rule takes the body's rho from the closure (lambda is
+ * rho-annotated in figure eval2); Hazel's closures carry no re-use map, so we
+ * keep the part of the caller's that is still justified: a binding survives
+ * the crossing when the body's environment binds that name to the same value
+ * the caller's map was describing, which is what makes the caller's
+ * provenance a true statement about the body's environment too.
+ *
+ * Sameness is physical equality first and Exp.fast_equal second — the same
+ * value often is the same object (the closure's environment shares cells with
+ * the caller's), but not when one side came out of the cache and the other
+ * was rebuilt. fast_equal compares closures by environment id, so this stays
+ * off the deep-closure-traversal path that clean/dirty flags exist to avoid.
+ *
+ * Dropping is the conservative side: a dropped binding is simply absent from
+ * the map, and reuse_map_for_co_ctx then refuses re-use for any expression
+ * that mentions it. */
+let transport_across_env =
+    (
+      ~from_env: Environment.t(Exp.t),
+      ~to_env: Environment.t(Exp.t),
+      reuse_map: reuse_map,
+    )
+    : reuse_map =>
+  Maps.StringMap.filter(
+    (name, _) =>
+      switch (
+        Environment.lookup(from_env, name),
+        Environment.lookup(to_env, name),
+      ) {
+      | (Some(before), Some(after)) =>
+        before === after || Exp.fast_equal(before, after)
+      | (Some(_) | None, _) => false
+      },
+    reuse_map,
+  );
+
 let reuse_check =
     (
-      ~call_stack: CallStack.t,
+      ~call_stack_ids: option(list(Id.t)),
       ~prev: t('state),
       ~reuse_map: reuse_map,
       ~eval_info: EvalInfo.t,
@@ -410,8 +616,9 @@ let reuse_check =
     : option(entry('state)) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack == [] && !is_empty(prev), ());
-  let* entry = Id.Map.find_opt(id, prev.entries);
+  let* call_stack_ids = call_stack_ids;
+  let* () = OptUtil.some_if(!is_empty(prev), ());
+  let* entry = find_at(~call_stack_ids, ~id, prev);
   let* info = EvalInfo.find_opt(id, eval_info);
 
   let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);

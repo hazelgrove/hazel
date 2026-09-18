@@ -24,6 +24,16 @@ type t = list(frame);
 
 let equal = (a: t, b: t): bool => List.equal(equal_frame, a, b);
 
+/* Is the stack at most `limit` frames deep? Answered without measuring a
+ * deeper stack: a2's guard asks this at every expression, and an O(depth)
+ * measurement per step is what made an earlier stack projection quadratic
+ * inside deep recursion (#2524). */
+let rec depth_within = (~limit: int, cs: t): bool =>
+  switch (cs) {
+  | [] => limit >= 0
+  | [_, ...rest] => limit > 0 && depth_within(~limit=limit - 1, rest)
+  };
+
 /* Project a call stack to ids. Prefer `equal` for equality checks; this is
  * for suffix/prefix comparisons that need a bare id list. */
 let ids_of_stack = (cs: t): list(Id.t) => List.map((f: frame) => f.id, cs);

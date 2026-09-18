@@ -95,6 +95,10 @@ let rec evaluate =
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
           ~track_reuse: bool,
           ~tuple_flags: bool,
+          /* a2's guard: the deepest callstack an entry may be keyed at. 0 is
+           * aPL — only the empty callstack — and is what every mode without
+           * the callstack_keys capability passes. */
+          ~depth_limit: int,
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
           // Call Stack
@@ -120,11 +124,19 @@ let rec evaluate =
       ~prev,
       ~track_reuse,
       ~tuple_flags,
+      ~depth_limit,
       ~reused_ids,
       ~eval_info,
       ~outbox,
     );
   let expr_id = DHExp.rep_id(exp);
+  /* Does the guard admit entries at this callstack? With depth_limit = 0
+   * this is exactly `call_stack == []`, the condition it replaces. */
+  let cacheable = (call_stack: CallStack.t): bool =>
+    IncrEval.cacheable(~depth_limit, call_stack);
+  /* The cache key for this evaluation, or None when the guard refuses it. */
+  let cache_key = (call_stack: CallStack.t): option(list(Id.t)) =>
+    cacheable(call_stack) ? Some(CallStack.ids_of_stack(call_stack)) : None;
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).
    * Administrative/stepped intermediates never publish: doing so either
@@ -138,6 +150,13 @@ let rec evaluate =
     if (call_stack == [] && EvalInfo.is_program_node(expr_id, eval_info)) {
       Some(expr_id);
     } else if (call_stack == []) {
+      None;
+    } else if
+      /* a2 collects a separate state slice for each cacheable expression
+       * inside a call (eval_5), so publishing from inside one would put a
+       * fragment of an enclosing top-level node's state under its id. The
+       * last top-level publish stands instead. */
+      (depth_limit > 0) {
       None;
     } else {
       current_top_id;
@@ -216,17 +235,52 @@ let rec evaluate =
     state := new_state;
     update_outbox_current(state^);
 
-    /* Function bodies are not incremental-cache boundaries: we do not record
-     * entries while inside a call stack, and reuse_check also refuses reuse
-     * there. Skip entirely when nothing downstream can consume the map. */
+    /* Maintain the re-use map wherever the guard admits entries: under a2
+     * that includes function bodies, which is what lets the re-use check
+     * fire inside a call. Skip entirely when nothing downstream can consume
+     * the map — beyond the guard's depth nothing is recorded or re-used, and
+     * depth only grows from here. */
     let body_reuse_map =
-      if (!track_reuse || call_stack != []) {
+      if (!track_reuse || !cacheable(call_stack)) {
         reuse_map;
       } else {
+        /* A call replaces the environment with the closure's rather than
+         * extending it, so the map has to be transported across the switch
+         * before the parameter binding is added on top of it — a2's App rule
+         * evaluates the body under rho'[x |-> <uid(e2), f>]. */
+        let entered_call =
+          List.exists(
+            fun
+            | EvaluatorState.RecordStackFrame(_) => true
+            | _ => false,
+            effects,
+          );
+        let body_env =
+          entered_call
+            ? switch (next.term) {
+              | Closure(body_env, _) => Some(body_env)
+              /* A builtin application pushes a frame without changing the
+               * environment, so the caller's map still describes it. */
+              | _ => None
+              }
+            : None;
+        let base =
+          switch (body_env) {
+          | Some(body_env) =>
+            IncrEval.transport_across_env(
+              ~from_env=env,
+              ~to_env=body_env,
+              reuse_map,
+            )
+          | None => reuse_map
+          };
         ReusePass.update_reuse_map_after_effects(
           ~tuple_flags,
           ~reused=id => Id.Map.mem(id, reused_ids),
-          ~reuse_map,
+          /* The argument was evaluated out here, so its flag is the caller's
+           * to report even when the binding lands in the body's map. */
+          ~flags_from=reuse_map,
+          ~reuse_map=base,
           effects,
         );
       };
@@ -385,27 +439,45 @@ let rec evaluate =
         exp: DHExp.t,
       )
       : Trampoline.t(DHExp.t) => {
+    let key = cache_key(call_stack);
+    /* Record under the full (callstack, id) key. */
+    let record = (state: EvaluatorState.t, entry) =>
+      switch (key) {
+      | None => state
+      | Some(call_stack_ids) => {
+          ...state,
+          incr_eval:
+            IncrEval.add_entry_at(
+              ~call_stack_ids,
+              ~id=expr_id,
+              entry,
+              state.incr_eval,
+            ),
+        }
+      };
     switch (
+      key,
       IncrEval.reuse_check(
-        ~call_stack,
+        ~call_stack_ids=key,
         ~prev,
         ~reuse_map,
         ~eval_info,
         ~id=expr_id,
-      )
+      ),
     ) {
-    | Some(entry) =>
+    | (Some(call_stack_ids), Some(entry)) =>
       // Evaluation cache hit: reuse previous result
       state := EvaluatorState.append(state^, entry.state);
       update_outbox_current(state^);
       // Add the entry to the next incremental evaluation cache
-      state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
-      // Copy cache entries for every sub-id of the reused subtree from prev
+      state := record(state^, entry);
+      // Copy cache entries for the reused subtree from prev
       state :=
         {
           ...state^,
           incr_eval:
             IncrEval.copy_descendant_entries(
+              ~call_stack_ids,
               ~root_id=expr_id,
               ~root=entry.prev_elab,
               ~prev,
@@ -413,7 +485,8 @@ let rec evaluate =
             ),
         };
       Trampoline.return(entry.value);
-    | None =>
+    | (None, _)
+    | (_, None) =>
       // Evaluation cache miss: evaluate the expression from scratch
       let.trampoline final_value =
         eval_3_record_probe_sample(
@@ -427,7 +500,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack != [] || !track_reuse) {
+        if (key == None || !track_reuse) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);
@@ -451,21 +524,29 @@ let rec evaluate =
           state: replay_state(state^),
         };
 
+        /* The outbox is keyed by id alone — it is what the streaming
+         * collector replays a top-level node from — so only top-level
+         * entries are published. A nested entry reaches the next run
+         * through the evaluation state instead. */
         switch (outbox) {
-        | Some(outbox) =>
+        | Some(outbox) when call_stack == [] =>
           outbox := IncrEval.add_outbox_entry(expr_id, entry, outbox^)
+        | Some(_)
         | None => ()
         };
-        state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
+        state := record(state^, entry);
         Trampoline.return(final_value);
       };
     };
   };
 
-  // [PERF] We collect separate states for top-level expressions so we can replay those states.
+  /* [PERF] We collect separate states for cacheable expressions so we can
+   * replay those states. Under a2 that includes expressions inside a call:
+   * an entry's state slice has to be the slice that expression produced,
+   * not the enclosing call's. */
   let eval_5_state_merge =
       (~call_stack: CallStack.t, ~delegations, ~state, ~expr_id, env, exp) =>
-    if (call_stack == []) {
+    if (cacheable(call_stack)) {
       let inner_state =
         ref(EvaluatorState.empty_at(parent_state^.step_count));
       let.trampoline final_value =
@@ -529,6 +610,9 @@ let prepare_evaluation =
   let caps = Calculus.capabilities(calculus);
   let reuse = caps.reuse;
   let tuple_flags = caps.tuple_flags;
+  /* The guard is one constant, read once here: 0 keys entries by id alone
+   * (aPL), and anything larger is a2 keying them by callstack and id. */
+  let depth_limit = caps.callstack_keys ? Calculus.callstack_depth_limit : 0;
   let prev = reuse ? prev : IncrEval.empty;
   /* The reuse map is only ever consumed by reuse_check or by incr-entry
    * snapshots, both of which need statics in eval_info (reuse_check also
@@ -570,6 +654,7 @@ let prepare_evaluation =
       ~prev,
       ~track_reuse,
       ~tuple_flags,
+      ~depth_limit,
       ~eval_info,
       ~call_stack=CallStack.empty,
       ~delegations=[],

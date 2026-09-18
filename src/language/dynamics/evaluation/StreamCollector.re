@@ -59,13 +59,7 @@ let collect_stream_state =
   let state = collect_stream_state_for(stream, d);
   {
     ...state,
-    incr_eval: {
-      entries:
-        Id.Map.union(
-          (_, existing, _streamed) => Some(existing),
-          state.incr_eval.entries,
-          stream.completed.entries,
-        ),
-    },
+    /* What the walk collected wins over what the stream published. */
+    incr_eval: IncrEval.add_stream(state.incr_eval, stream.completed),
   };
 };
