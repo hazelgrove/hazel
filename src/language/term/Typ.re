@@ -1496,8 +1496,23 @@ let all_ids = (ty: t): list(Id.t) => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_)
-    | Sig(_) => ()
+    | ProofOf(_) => ()
+    /* A signature's item types, a sum among which has variant ids of its own
+       -- the generic traversal reaches the items but not those. Syntactic,
+       not `Sig.members`: an item whose name is a hole still prints. */
+    | Sig(items) =>
+      List.iter(
+        item =>
+          Sig.map_typ(
+            ty => {
+              collect_ann_ids(ty);
+              ty;
+            },
+            item,
+          )
+          |> ignore,
+        items,
+      )
     };
   };
   collect_ann_ids(ty);
