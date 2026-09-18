@@ -554,31 +554,50 @@ module View = {
     ]
     @ (
       globals.settings.quiver
-        ? [
-          QuiverDec.view(
-            ~measured=syntax.measured,
-            ~font_metrics=globals.font_metrics,
-            ~assist=obligations,
-            ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
-            ~caret_pos={
-              let p = Zipper.Caret.point(syntax.measured, z);
-              Some((p.row, p.col));
-            },
-            ~caret_form=
-              Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
-            ~on_apply,
-            ~droppable=
-              z.caret == Outer
-                ? Zipper.missing_shards_hd(z)
-                  |> Option.map((t: Haz3lcore.Tile.t) =>
-                       (t.id, Haz3lcore.Tile.l_shard(t))
-                     )
-                : None,
-            /* the caret's chips — the same query Tab dispatches */
-            ~owned=CompletionQuery.chips_owned(z, obligations),
-            syntax.segment,
-          ),
-        ]
+        /* the caret's chips — the same query Tab dispatches */
+        ? {
+          let owned = CompletionQuery.chips_owned(z, obligations);
+          /* the caret chip previews the spacing and implicit hole Tab
+             will type (CompletionQuery.padding) — engine records only:
+             TyDi material has no shard to read nibs from and keeps its
+             F1 spacing, as tab_text does */
+          let head_padding =
+            switch (owned) {
+            | [ins, ..._] =>
+              switch (ins.delimiters) {
+              | [d, ..._] when d.typed_len == None && d.of_shard != None =>
+                Some(CompletionQuery.padding(z, d))
+              | _ => None
+              }
+            | [] => None
+            };
+          [
+            QuiverDec.view(
+              ~flagpole=globals.settings.quiver_flagpole,
+              ~head_padding,
+              ~measured=syntax.measured,
+              ~font_metrics=globals.font_metrics,
+              ~assist=obligations,
+              ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
+              ~caret_pos={
+                let p = Zipper.Caret.point(syntax.measured, z);
+                Some((p.row, p.col));
+              },
+              ~caret_form=
+                Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
+              ~on_apply,
+              ~droppable=
+                z.caret == Outer
+                  ? Zipper.missing_shards_hd(z)
+                    |> Option.map((t: Haz3lcore.Tile.t) =>
+                         (t.id, Haz3lcore.Tile.l_shard(t))
+                       )
+                  : None,
+              ~owned,
+              syntax.segment,
+            ),
+          ];
+        }
         /* quiver off: clear stale claims so probes don't stack
            against phantom boxes (QuiverDec.view resets on entry) */
         : {
