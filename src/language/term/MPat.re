@@ -39,3 +39,66 @@ let temp: term => t =
     term,
     annotation: IdTagged.IdTag.temp(),
   };
+
+/* The variable an MPat binds, with its annotation if it has one. */
+let rec binder = (mp: t): option((Var.t, option(TermBase.Typ.t))) =>
+  switch (IdTagged.term_of(mp)) {
+  | Var(x) => Some((x, None))
+  | Asc(inner, ty) =>
+    binder(inner) |> Option.map(((x, _)) => (x, Some(ty)))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+let name = (mp: t): option(Var.t) => Option.map(fst, binder(mp));
+
+/* The id of the name inside an MPat (the binding site). */
+let rec var_id = (mp: t): option(Id.t) =>
+  switch (IdTagged.term_of(mp)) {
+  | Var(_) => Some(rep_id(mp))
+  | Asc(inner, _) => var_id(inner)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+let rec map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, mp: t): t =>
+  switch (IdTagged.term_of(mp)) {
+  | Asc(inner, ty) => {
+      ...mp,
+      term: Asc(map_typ(f, inner), f(ty)),
+    }
+  | Var(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => mp
+  };
+
+/* Replace, or add, the annotation of an MPat. */
+let with_typ = (mp: t, ty: TermBase.Typ.t): t =>
+  switch (IdTagged.term_of(mp)) {
+  | Asc(inner, _) => {
+      ...mp,
+      term: Asc(inner, ty),
+    }
+  | Var(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => Asc(mp, ty) |> temp
+  };
+
+let rec rename = (mp: t, x: Var.t): t =>
+  switch (IdTagged.term_of(mp)) {
+  | Var(_) => {
+      ...mp,
+      term: Var(x),
+    }
+  | Asc(inner, ty) => {
+      ...mp,
+      term: Asc(rename(inner, x), ty),
+    }
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => mp
+  };
