@@ -2689,7 +2689,7 @@ let print_match = (m: match_result): string => {
     switch (m.focused) {
     | FocusExp(e) => ExpToSegment.exp_to_segment(~settings, e)
     | FocusPat(p) => ExpToSegment.pat_to_segment(~settings, p)
-    | FocusTyp(t) => ExpToSegment.typ_to_segment(~settings, t)
+    | FocusTyp(t) => TypToSegment.typ_to_segment(~settings, t)
     | FocusMod(item) => ExpToSegment.mod_to_segment(~settings, item)
     };
   Printer.of_segment(~holes="?", segment);
