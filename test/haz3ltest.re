@@ -54,15 +54,18 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_TypToSegment.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
+    @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
+    @ Test_ImpliedHole.tests
     @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests

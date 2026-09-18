@@ -1240,65 +1240,6 @@ let mk_form =
   });
 };
 
-/* HACK[Matt]: Sometimes terms that should have multiple ids won't because
-   evaluation only ever gives them one.
-
-   Some upstream producers (e.g., evaluator collapse, certain absorption
-   paths) can emit ids lists with duplicates — e.g., [case_id, case_id, ...]
-   for a Match where the adoption machinery did not preserve distinct rule
-   ids. If we pass duplicates through unchanged, the pretty-printer will
-   emit multiple Tile pieces sharing the same id (e.g., the case `[case;end]`
-   form and all `[|;=>]` rules all tagged with case_id), and
-   Segment.reassemble will group them into a single Aba match and fail
-   with an out-of-order combined_shards assertion.
-
-   To prevent that, pad_ids now also ensures the returned list has:
-   1. no duplicates within itself;
-   2. no id equal to any id in [~forbidden].
-
-   Padding and replacement ids are DERIVED (hash of ~base + counter),
-   not minted: printing must be a pure function of the term. Fresh ids
-   here would make double-prints of the same term differ. ~base defaults to
-   the first id; pass it explicitly where ids can be empty. */
-let pad_ids =
-    (
-      ~forbidden: list(Id.t)=[],
-      ~base: option(Id.t)=?,
-      n: int,
-      ids: list(Id.t),
-    )
-    : list(Id.t) => {
-  let base =
-    switch (base, ids) {
-    | (Some(b), _) => b
-    | (None, [id, ..._]) => id
-    | (None, []) => Id.invalid
-    };
-  let counter = ref(0);
-  let forbidden_set = ref(Id.Set.of_list(forbidden));
-  let rec derived = () => {
-    incr(counter);
-    let cand = Id.derive(~salt="pad" ++ string_of_int(counter^), base);
-    Id.Set.mem(cand, forbidden_set^) ? derived() : cand;
-  };
-  let replace = id =>
-    if (Id.Set.mem(id, forbidden_set^)) {
-      let fresh = derived();
-      forbidden_set := Id.Set.add(fresh, forbidden_set^);
-      fresh;
-    } else {
-      forbidden_set := Id.Set.add(id, forbidden_set^);
-      id;
-    };
-  let truncated =
-    if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => derived());
-    } else {
-      ListUtil.split_n(n, ids) |> fst;
-    };
-  List.map(replace, truncated);
-};
-
 /* Save standard list concatenation before we shadow @ */
 let list_append = (@);
 
@@ -1448,7 +1389,7 @@ let rec drv_exp_to_pretty =
         syntax
         |> IdTagged.ids
         |> List.tl
-        |> pad_ids(~base=id, List.length(xs));
+        |> PadIds.pad_ids(~base=id, List.length(xs));
       let map2_safe = (f, l1, l2) =>
         List.length(l1) == List.length(l2)
           ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
@@ -1597,7 +1538,7 @@ let rec drv_exp_to_pretty =
       and+ e2 = go(e2, ~sort=Exp);
       let all_ids = IdTagged.ids(syntax);
       let rule_ids =
-        pad_ids(
+        PadIds.pad_ids(
           ~forbidden=[id],
           ~base=id,
           2,
@@ -1994,7 +1935,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.hd,
       IdTagged.ids(exp)
       |> List.tl
-      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(xs)),
+      |> PadIds.pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(xs)),
     );
     let form = (x, xs) =>
       mk_form(
@@ -2073,7 +2014,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.
        For N elements, we need N-1 grout pieces (one between each pair). */
     let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(exp) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(exp) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (es) {
       | [] => []
@@ -2192,7 +2133,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // TODO: Add optional newlines
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
-    let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
+    let ids = IdTagged.ids(exp) |> PadIds.pad_ids(List.length(xs));
     wrap(
       exp,
       x
@@ -2375,7 +2316,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.hd,
       IdTagged.ids(exp)
       |> List.tl
-      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(es) - 1),
+      |> PadIds.pad_ids(
+           ~base=IdTagged.ids(exp) |> List.hd,
+           List.length(es) - 1,
+         ),
     );
     wrap(
       exp,
@@ -2494,7 +2438,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       case_id,
       all_exp_ids
       |> List.tl
-      |> pad_ids(~forbidden=[case_id], ~base=case_id, List.length(rs)),
+      |> PadIds.pad_ids(
+           ~forbidden=[case_id],
+           ~base=case_id,
+           List.length(rs),
+         ),
     );
     wrap(
       exp,
@@ -2588,7 +2536,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let ids =
       IdTagged.ids(exp)
       |> List.tl
-      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(items) - 1);
+      |> PadIds.pad_ids(
+           ~base=IdTagged.ids(exp) |> List.hd,
+           List.length(items) - 1,
+         );
     let body =
       switch (items_pretty) {
       | [] => []
@@ -2697,7 +2648,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       IdTagged.ids(pat) |> List.hd,
       IdTagged.ids(pat)
       |> List.tl
-      |> pad_ids(~base=IdTagged.ids(pat) |> List.hd, List.length(xs)),
+      |> PadIds.pad_ids(~base=IdTagged.ids(pat) |> List.hd, List.length(xs)),
     );
     wrap(
       pat,
@@ -2727,7 +2678,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
-    let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
+    let ids = IdTagged.ids(pat) |> PadIds.pad_ids(List.length(xs));
     wrap(
       pat,
       x
@@ -2817,7 +2768,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
     let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(pat) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(pat) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (es) {
       | [] => []
@@ -2945,8 +2896,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(MultiHole(es))) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
+    let ids =
+      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
     let seg =
       switch (es) {
       | [] => []
@@ -3000,7 +2951,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       @ List.flatten(
           List.map2(
             (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-            IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+            IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ)),
             ts,
           ),
         ),
@@ -3125,12 +3076,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
        the leading + tile, yielding n ids for n variants; a bare binary
        sum (A + B) carries only the n-1 separators. Evaluator-built sums
        (single id, n >= 2) print bare, which reparses to the same Sum. */
-    let n = List.length(ts) + 1;
+    let n = PadIds.necessary_ids(typ);
     let has_leading = List.length(IdTagged.ids(typ)) >= n;
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
     if (has_leading) {
-      let ids = IdTagged.ids(typ) |> pad_ids(n);
+      let ids = IdTagged.ids(typ) |> PadIds.pad_ids(n);
       let id = List.hd(ids);
       let ids = List.tl(ids);
       wrap(
@@ -3142,7 +3093,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ),
       );
     } else {
-      let ids = IdTagged.ids(typ) |> pad_ids(n - 1);
+      let ids = IdTagged.ids(typ) |> PadIds.pad_ids(n - 1);
       wrap(
         typ,
         t
@@ -3156,7 +3107,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
   | Sig(items) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
-    let id = typ |> Typ.rep_id;
+    let ids =
+      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
+    let id = List.hd(ids);
+    let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
@@ -3199,10 +3153,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
          )
       |> all;
     /* Join items with semicolons and wrap in braces */
-    let ids =
-      IdTagged.ids(typ)
-      |> List.tl
-      |> pad_ids(~base=IdTagged.ids(typ) |> List.hd, List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -3244,7 +3194,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.
        For N elements, we need N-1 grout pieces (one between each pair). */
     let num_grouts = max(0, List.length(xs) - 1);
-    let ids = IdTagged.ids(tpat) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(tpat) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (xs) {
       | [] => []
@@ -3382,7 +3332,7 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(rul) |> pad_ids(num_grouts);
+    let ids = IdTagged.ids(rul) |> PadIds.pad_ids(num_grouts);
     let seg =
       switch (es) {
       | [] => []
@@ -3414,7 +3364,7 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
            (pat_to_pretty(~settings, p), exp_to_pretty(~settings, e))
          )
       |> all;
-    let ids = IdTagged.ids(rul) |> pad_ids(List.length(rs));
+    let ids = IdTagged.ids(rul) |> PadIds.pad_ids(List.length(rs));
     wrap(
       rul,
       scrut
@@ -3619,6 +3569,31 @@ let strip_if_incomplete = (any: Any.t, seg: Segment.t): Segment.t => {
   Id.Map.is_empty(masks) ? seg : seg |> strip_synthesized_shards(masks);
 };
 
+/* Types built from source repeat ids -- statics puts one alias body in every position that mentions the
+   alias, and Typ.replace_temp only rewrites the Id.invalid sentinel -- and a
+   repeat prints as two tiles that uniquify_repeated_tiles below then tells apart
+   by minting an id no type holds, leaving that tile unnameable. */
+let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
+  let seen = ref(Id.Set.empty);
+  let distinct = id => {
+    let id = Id.Set.mem(id, seen^) ? Id.mk() : id;
+    seen := Id.Set.add(id, seen^);
+    id;
+  };
+  Typ.map_term(
+    ~f_typ=
+      (cont, ty) =>
+        cont({
+          ...ty,
+          annotation: {
+            ...ty.annotation,
+            ids: List.map(distinct, ty.annotation.ids),
+          },
+        }),
+    ty,
+  );
+};
+
 /* Display segments must never contain two tile pieces claiming the same
    (id, shard): Segment.reassemble (run by PrettySegment.format during
    drawer layout, and by editor init on result views) groups tile pieces
@@ -3683,24 +3658,6 @@ let exp_to_segment =
 
 let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t =>
   pat_to_pretty(~settings, pat) |> PrettySegment.select;
-
-let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
-  /* Desugar Sig types to labeled tuples so they display as (x=Int, y=Bool)
-     instead of {sig}. Uses empty ctx since we're just displaying. */
-  let typ = Typ.desugar_sig(Ctx.empty, typ);
-  let typ =
-    typ
-    |> parenthesize_typ(
-         ~parenthesization=settings.parenthesization,
-         ~show_filters=settings.show_filters,
-         ~show_ascriptions=settings.show_ascriptions,
-       );
-  let p = typ_to_pretty(~settings, typ);
-  p
-  |> PrettySegment.select
-  |> strip_if_incomplete(Typ(typ))
-  |> uniquify_repeated_tiles;
-};
 
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {

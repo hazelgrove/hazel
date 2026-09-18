@@ -601,6 +601,80 @@ let rec go =
       |> return(Cant_refactor);
     | None => Error(Cant_refactor)
     }
+  | ApplyCompletion(Next) =>
+    switch (
+      CompletionQuery.chip_at_caret(z)
+      |> Option.bind(_, CompletionQuery.tab_text(z))
+    ) {
+    | None => Error(Cant_put_down)
+    | Some(text) =>
+      /* Parse the short completion with its leading hole as a marker TILE:
+         ordinary regrouting would move an implicit hole ahead of the user's
+         spaces. Restore protected holes and the new marker after all shards
+         have landed, leaving any pre-existing literal marker tiles alone. */
+      let old_markers = ref([]);
+      let _ =
+        ZipperBase.MapPiece.go(
+          p => {
+            switch (p) {
+            | Tile({id, label: [marker], _})
+                when marker == Token.implicit_hole_marker =>
+              old_markers := [id, ...old_markers^]
+            | _ => ()
+            };
+            [p];
+          },
+          z,
+        );
+      /* Preserve the positions of existing operand holes and their spaces
+         on both sides of the caret while the parser reassembles the tile. */
+      let protect_right = CompletionQuery.accepts_right_hole(z);
+      let protect =
+        List.map(
+          fun
+          | Piece.Grout({id, shape: Convex}) =>
+            Piece.Tile({
+              id,
+              label: [Token.implicit_hole_marker],
+              mold: Mold.mk_op(Exp, []),
+              shards: [0],
+              children: [],
+            })
+          | p => p,
+        );
+      LocalReformat.around(
+        ~enabled=settings.auto_reindent,
+        z,
+        z => {
+          let (l, r) = z.relatives.siblings;
+          let z = {
+            ...z,
+            relatives: {
+              ...z.relatives,
+              siblings: (protect(l), protect_right ? protect(r) : r),
+            },
+          };
+          Parser.to_zipper(~root, ~zipper_init=z, text)
+          |> Option.map(
+               ZipperBase.MapPiece.go(p =>
+                 switch (p) {
+                 | Tile({id, label: [marker], _})
+                     when
+                       marker == Token.implicit_hole_marker
+                       && !List.mem(id, old_markers^) => [
+                     Piece.Grout({
+                       id,
+                       shape: Convex,
+                     }),
+                   ]
+                 | p => [p]
+                 }
+               ),
+             );
+        },
+      )
+      |> return(Cant_put_down);
+    }
   | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
   | ApplyCompletion(One(id)) =>
     Materialize.one(z, ~root, id)

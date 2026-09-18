@@ -58,6 +58,7 @@ module Model = {
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
       |> Option.map(({piece, _}: Indicated.piece) => piece),
@@ -174,7 +175,17 @@ module Update = {
       || probes_differ(editor.state.zipper, statics)
       || is_edited
       && statics_mode != StaticsMode.Defer;
-    let statics = needs_refresh ? do_init(editor) : statics;
+    /* A deferred edit can change external typing context even when this
+       editor's source is unchanged. Implied-hole info must wait for refresh. */
+    let statics =
+      needs_refresh
+        ? do_init(editor)
+        : is_edited
+            ? {
+              ...statics,
+              completion: None,
+            }
+            : statics;
     PerfMetrics.record_statics_counts(
       ~recompute=needs_refresh,
       ~mode=statics_mode,

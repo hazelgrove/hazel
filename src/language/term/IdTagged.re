@@ -121,6 +121,8 @@ module IdTag = {
     incomplete,
     lexeme,
   };
+
+  let rep_id = ({ids, _}: t) => List.hd(ids);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

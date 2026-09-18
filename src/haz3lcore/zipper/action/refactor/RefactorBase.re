@@ -499,7 +499,7 @@ let drop_secondary_typ = (ids: list(Id.t), t: Typ.t): Typ.t =>
   );
 
 let strip_typ_boundaries = (t: Typ.t): Typ.t => {
-  let seg = ExpToSegment.typ_to_segment(~settings=roundtrip_settings, t);
+  let seg = TypToSegment.typ_to_segment(~settings=roundtrip_settings, t);
   let ids = ws => ws |> List.map((w: Secondary.t) => w.id);
   let lead = secondary_run_pieces(seg) |> ids;
   let trail = secondary_run_pieces(List.rev(seg)) |> ids;
@@ -556,7 +556,7 @@ let pat_slot_lead = (p: Pat.t): Slot.t => {
 };
 
 let typ_slot = (t: Typ.t): Slot.t => {
-  let seg = ExpToSegment.typ_to_segment(~settings=roundtrip_settings, t);
+  let seg = TypToSegment.typ_to_segment(~settings=roundtrip_settings, t);
   {
     lead: secondary_run_pieces(seg),
     trail: List.rev(secondary_run_pieces(List.rev(seg))),
