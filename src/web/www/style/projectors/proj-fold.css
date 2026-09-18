@@ -1,14 +1,5 @@
 /* PROJECTOR: FOLD */
 
-:root {
-  --fold-accent: var(--text-success);
-  --fold-bkg: #293445;
-}
-
-.projector.fold:hover,
-.projector.indicated.fold {
-  color: --var(BLACK);
-}
 .projector.fold {
   cursor: pointer;
   font-family: var(--code-font);

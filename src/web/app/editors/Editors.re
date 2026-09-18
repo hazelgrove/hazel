@@ -155,6 +155,10 @@ module Store = {
     );
   };
 
+  let load_config = (~settings) =>
+    ConfigurationMode.StoreConfig.load()
+    |> ConfigurationMode.Model.unpersist(~settings);
+
   let load = (~settings, ~instructor_mode) => {
     let has_share_params =
       JsUtil.QueryParams.get_param("name") != None
@@ -177,11 +181,7 @@ module Store = {
           ExercisesMode.Store.load(~settings, ~instructor_mode)
           |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
         )
-      | Config =>
-        Model.Config(
-          ConfigurationMode.StoreConfig.load()
-          |> ConfigurationMode.Model.unpersist(~settings),
-        )
+      | Config => Model.Config(load_config(~settings))
       };
     };
   };
@@ -221,6 +221,8 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SwitchMode(Model.mode)
+    /* Switch to Config mode showing a particular config slide. */
+    | ShowConfig(ConfigurationMode.Model.config_type)
     // Scratch & Documentation
     | Scratch(ScratchMode.Update.t)
     | Configuration(ConfigurationMode.Update.t)
@@ -310,11 +312,18 @@ module Update = {
       )
       |> return
     | (SwitchMode(Config), _) =>
-      Model.Config(
-        ConfigurationMode.StoreConfig.load()
-        |> ConfigurationMode.Model.unpersist(~settings=globals.settings.core),
-      )
+      Model.Config(Store.load_config(~settings=globals.settings.core))
       |> return
+    | (ShowConfig(config_type), _) =>
+      let config =
+        switch (model) {
+        | Config(m) => m
+        | _ => Store.load_config(~settings=globals.settings.core)
+        };
+      Model.Config(
+        ConfigurationMode.Model.switch_config(config_type, config),
+      )
+      |> return;
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
@@ -619,6 +628,26 @@ module View = {
         m,
       )
     };
+
+  /* Links into Config mode's slides, offered from every mode. */
+  let config_links = (~inject: Update.t => 'a) =>
+    NutMenu.item_group(
+      "Configuration",
+      List.map(
+        config_type =>
+          Widgets.button_named(
+            Icons.gear,
+            evt => {
+              NutMenu.dismiss(evt);
+              inject(Update.ShowConfig(config_type));
+            },
+            ~tooltip=
+              "Edit "
+              ++ ConfigurationMode.Model.config_name_of_type(config_type),
+          ),
+        ConfigurationMode.Model.all_of_config_type,
+      ),
+    );
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {

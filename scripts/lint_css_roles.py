@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
-"""Lint the CSS colour layering.
+"""Lint the CSS color layering.
 
-Three layers, and the direction of reference between them is the invariant:
+Two layers now, and the direction of reference between them is the invariant:
 
-    variables.css   palette (theme-settable input; user themes write these) --+
-                                                                             |
-    roles.css       semantic roles, each a BARE alias for one palette var  <--+
-                                                                             |
-    *.css           component stylesheets consume ROLES, never the palette  <-+
+    the Colors slide   decides every color and, through the fan-out table in
+                       ColorConfiguration.re, writes it onto `:root` at startup
 
-The bare-alias rule is what makes the migration checkable: role -> palette is
-a total function, so substituting every var(--role) in a component stylesheet
-back to its palette name must reproduce the pre-migration file byte for byte.
-Anything richer (oklch(), color-mix(), a literal) would break that, so it is
-rejected here rather than in review.
+    theme-generated.css  the same names again as DEFAULTS, wholly generated,
+                         for the frame before the theme lands
+
+    variables.css        the things the theme does not own: type, timing and
+                         the z-index ladder
+
+    *.css              component stylesheets consume the slide's ROLE names,
+                       never the palette -- which is now structural: a palette
+                       color is published only under the semantic names the
+                       fan-out gives it, so there is no --ink to consume
+
+There used to be a third layer, roles.css, a hand-written alias from role to
+palette. It is gone: the theme writes those names itself, so the alias was a
+second definition of a color the slide had already decided, and it capped
+what a themer could reach -- its 77 roles resolved to only 31 palette colors.
+
+The rules below are what is left to enforce mechanically. Component CSS reads
+role names, because a role names a PURPOSE and so is the unit a themer can
+move on its own; a palette entry is a bundle, fanned out to several properties
+that often share nothing but their color. And no component stylesheet
+declares a color the theme owns, because two `:root` blocks setting the same
+name is a race decided by @import order -- which is exactly how 23 defaults
+drifted into the projector stylesheets.
 
 Run via `make lint-css`. Exits non-zero on a violation.
 """
-import os, re, sys, collections
+import io, os, re, sys, collections
 
 ROOT = 'src/web/www'
 STYLE = os.path.join(ROOT, 'style')
 VARIABLES = os.path.join(STYLE, 'variables.css')
-ROLES = os.path.join(STYLE, 'roles.css')
-INPUT_LAYER = {VARIABLES, ROLES}
-
-PALETTE = set("""NONE SAND STONE BLACK BR1 BR2 BR3 BR4 T1 T2 T3 T4 Y0 Y1 Y2 Y3
-                 R0 R1 R2 TYP PAT TPAT LABEL highlight-a highlight-b highlight-c
-                 G0 G1 G2 GB0 GB1""".split())
+GENERATED = os.path.join(STYLE, 'theme-generated.css')
+CONFIG = 'src/language/builtins/BuiltinsColorScheme.re'
 
 # Pre-existing dangling references, inherited not introduced. Fixing one is a
 # VISUAL change (an invalid var() makes the whole declaration drop), so it
@@ -41,6 +52,34 @@ KNOWN_DANGLING = {
 
 strip = lambda s: re.sub(r'/\*.*?\*/', '', s, flags=re.S)
 
+
+def palette():
+    """The palette layer, read from the projection rather than restated. The
+    names used to be spelled twice here, and a rename would have passed the
+    lint while every reference pointed at a variable nothing defined.
+
+    It is `seeds @ derived` on the OCaml side -- what a scheme states, plus
+    what the slide derives from that -- so both lists are read and unioned."""
+    src = io.open(CONFIG, encoding='utf-8').read()
+    names = set()
+    for which in ('seeds', 'derived'):
+        m = re.search(r'let %s: list\(string\) = \[(.*?)\];' % which, src, re.S)
+        if not m:
+            sys.exit(f'lint_css_roles: cannot find the {which} list in {CONFIG}')
+        names |= set(re.findall(r'"([^"]+)"', m.group(1)))
+    return names
+
+
+def theme_owned():
+    """Every name the theme writes, read from the generated stylesheet. A test
+    keeps that file equal to the projection, so this cannot drift."""
+    if not os.path.exists(GENERATED):
+        sys.exit(f'lint_css_roles: {GENERATED} is missing; '
+                 'run `make update-css-defaults`')
+    src = io.open(GENERATED, encoding='utf-8').read()
+    return set(re.findall(r'--([\w-]+)\s*:', src))
+
+
 def css_files():
     out = []
     for dp, _, ns in os.walk(STYLE):
@@ -48,63 +87,74 @@ def css_files():
     out.append(os.path.join(ROOT, 'style.css'))
     return sorted(set(out))
 
+
+def root_declarations(src):
+    """Names declared directly on `:root`. A scoped override is a deliberate
+    local decision and none of this lint's business; a `:root` one competes
+    with the defaults file."""
+    names, depth, sel = [], 0, ''
+    for line in src.split('\n'):
+        if depth == 0:
+            m = re.match(r'\s*([^{]*)\{\s*$', line)
+            if m:
+                sel = m.group(1).strip()
+        depth += line.count('{') - line.count('}')
+        d = re.match(r'\s*--([\w-]+)\s*:', line)
+        if d and sel == ':root':
+            names.append(d.group(1))
+    return names
+
+
 def main():
     files = css_files()
+    PALETTE, OWNED = palette(), theme_owned()
     problems = []
 
-    # 1. roles.css must contain nothing but bare aliases.
-    roles_src = strip(open(ROLES).read())
-    roles = {}
-    for m in re.finditer(r'--([\w-]+)\s*:\s*([^;]+);', roles_src):
-        name, value = m.group(1), m.group(2).strip()
-        bare = re.fullmatch(r'var\(--([\w-]+)\)', value)
-        if not bare:
-            problems.append(f"roles.css: --{name} is not a bare alias: {value}")
-        else:
-            roles[name] = bare.group(1)
-            if bare.group(1) not in PALETTE:
-                problems.append(
-                    f"roles.css: --{name} aliases --{bare.group(1)}, "
-                    "which is not a palette name")
-
-    # 2. Component stylesheets must not consume palette names directly.
     defined, used = set(), collections.defaultdict(set)
     for f in files:
-        src = strip(open(f).read())
+        raw = io.open(f, encoding='utf-8').read()
+        src = strip(raw)
         for m in re.finditer(r'(--[\w-]+)\s*:', src):
             defined.add(m.group(1)[2:])
+
+        # 1. Component stylesheets consume roles, not the palette.
         for m in re.finditer(r'var\(\s*--([\w-]+)', src):
             used[m.group(1)].add(f)
-            if m.group(1) in PALETTE and f not in INPUT_LAYER:
+            if m.group(1) in PALETTE and f not in (VARIABLES, GENERATED):
                 problems.append(
-                    f"{os.path.relpath(f, ROOT)}: consumes palette --{m.group(1)} "
-                    "directly; use a role from roles.css")
+                    f'{os.path.relpath(f, ROOT)}: consumes palette '
+                    f'--{m.group(1)} directly; use a role the slide writes')
+
+        # 2. Only variables.css declares a theme-owned color on :root.
+        if f != GENERATED:
+            for n in root_declarations(strip(raw)):
+                if n in OWNED:
+                    problems.append(
+                        f'{os.path.relpath(f, ROOT)}: declares theme-owned '
+                        f'--{n} on :root; that default is generated, so it '
+                        'belongs in theme-generated.css')
 
     # 3. No NEW dangling references.
     dangling = {n for n in used if n not in defined}
     for n in sorted(dangling - KNOWN_DANGLING):
         where = sorted(os.path.basename(x) for x in used[n])
-        problems.append(f"dangling var(--{n}) in {where}: defined nowhere")
+        problems.append(f'dangling var(--{n}) in {where}: defined nowhere')
     stale = KNOWN_DANGLING - dangling
     if stale:
         problems.append(
-            f"KNOWN_DANGLING is stale, these now resolve: {sorted(stale)} "
-            "-- remove them from the list in scripts/lint_css_roles.py")
-
-    # 4. No role refers to another role (the alias layer must be one hop).
-    for name, target in roles.items():
-        if target in roles:
-            problems.append(f"roles.css: --{name} -> --{target} is a role, not a palette var")
+            f'KNOWN_DANGLING is stale, these now resolve: {sorted(stale)} '
+            '-- remove them from the list in scripts/lint_css_roles.py')
 
     if problems:
-        print(f"CSS role lint: {len(problems)} problem(s)\n")
+        print(f'CSS role lint: {len(problems)} problem(s)\n')
         for p in problems:
-            print("  " + p)
+            print('  ' + p)
         return 1
-    print(f"CSS role lint: OK "
-          f"({len(roles)} roles, {len(files)} files, "
-          f"{len(dangling)} known-dangling)")
+    print(f'CSS role lint: OK ({len(OWNED)} theme-owned names, '
+          f'{len(PALETTE)} palette, {len(files)} files, '
+          f'{len(dangling)} known-dangling)')
     return 0
+
 
 if __name__ == '__main__':
     sys.exit(main())

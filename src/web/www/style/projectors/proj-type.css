@@ -1,14 +1,5 @@
 /* PROJECTOR: INFO */
 
-:root {
-  --code-text: var(--token-exp);
-  --main-base: hsl(281, 80%, 95%);
-  --main-shadow: hsl(281, 40%, 25%);
-  --main-indicated: var(--text-typ);
-  /* The green probe samples are drawn in (proj-probe.css --exp-indicated). */
-  --dynamic-token: var(--text-success);
-}
-
 /* BACKING */
 
 .projector.statics > svg {
