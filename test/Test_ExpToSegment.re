@@ -338,7 +338,7 @@ let tests = (
         "Unit type",
         "()",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.prod([]),
           ),
@@ -351,7 +351,7 @@ let tests = (
         "Void type",
         "Void",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.sum([]),
           ),
@@ -534,7 +534,7 @@ let tests = (
         "Singleton unlabeled tuple type",
         "(_=Int)",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.(prod([int()])),
           ),
@@ -1691,8 +1691,7 @@ let pad_ids_tests = (
         Alcotest.(check(bool))(
           "two pads agree",
           true,
-          ExpToSegment.pad_ids(3, [base])
-          == ExpToSegment.pad_ids(3, [base]),
+          PadIds.pad_ids(3, [base]) == PadIds.pad_ids(3, [base]),
         );
       },
     ),
@@ -1701,8 +1700,8 @@ let pad_ids_tests = (
       `Quick,
       () => {
         let base = Id.mk();
-        let a = ExpToSegment.pad_ids(2, [base, base]);
-        let b = ExpToSegment.pad_ids(2, [base, base]);
+        let a = PadIds.pad_ids(2, [base, base]);
+        let b = PadIds.pad_ids(2, [base, base]);
         Alcotest.(check(bool))("stable", true, a == b);
         Alcotest.(check(bool))(
           "no dups",
@@ -1716,7 +1715,7 @@ let pad_ids_tests = (
       `Quick,
       () => {
         let base = Id.mk();
-        let padded = ExpToSegment.pad_ids(4, [base]) |> List.tl;
+        let padded = PadIds.pad_ids(4, [base]) |> List.tl;
         let nexts = [
           Id.next(base),
           Id.next(Id.next(base)),

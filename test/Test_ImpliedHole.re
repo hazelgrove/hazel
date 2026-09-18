@@ -22,7 +22,7 @@ let expected_type = info =>
   | Some(Language.Info.InfoPat({ana, _})) =>
     Printer.of_segment(
       ~holes="?",
-      ExpToSegment.typ_to_segment(
+      TypToSegment.typ_to_segment(
         ~settings=ExpToSegment.Settings.of_core(~inline=true, settings),
         ana,
       ),
