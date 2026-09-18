@@ -246,7 +246,7 @@ let prettyprint_settings: ExpToSegment.Settings.t = {
   secondary: AutoFormat,
   parenthesization: Defensive,
   label_format: QuoteWhenNecessary,
-  inline: false,
+  inline: Block,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,

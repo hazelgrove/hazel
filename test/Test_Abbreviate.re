@@ -9,7 +9,7 @@ let ellipsis = "…";
    auto-table-projection is a downstream display concern and would wrap output
    in `^^table(...)`, defeating Abbreviate's budget bound. */
 let abbrev_settings: ExpToSegment.Settings.t = {
-  ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+  ...ExpToSegment.Settings.of_core(~inline=Inline, CoreSettings.off),
   show_unknown_as_hole: false,
   hole_tiles: false,
   project_tables: false,

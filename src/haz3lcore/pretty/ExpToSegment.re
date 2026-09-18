@@ -33,7 +33,7 @@ module Settings = {
     secondary: secondary_handling,
     parenthesization,
     label_format,
-    inline: bool, /* Only applies when secondary = AutoFormat */
+    inline: Inline.t, /* Controls automatic newline insertion. Only applies when secondary = AutoFormat */
     fold_case_clauses: bool,
     fold_fn_bodies: [
       | `Fold
@@ -1193,7 +1193,7 @@ let rec drv_exp_to_pretty =
       ~sort,
     );
   let try_newline = () =>
-    settings.inline ? [] : [Secondary(mk_newline(Id.mk()))];
+    settings.inline == Inline ? [] : [Secondary(mk_newline(Id.mk()))];
   let id = syntax |> Drv.Exp.rep_id;
   switch (syntax |> Drv.Exp.term_of) {
   | Hole(h) => drv_type_hole_to_pretty(~settings, h)
@@ -1773,7 +1773,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           x
           @ List.flatten(
               List.map2(
-                (id, x) => [mk_form(CommaExp, id, [])] @ x,
+                (id, x) =>
+                  [mk_form(CommaExp, id, [])]
+                  @ (
+                    settings.inline == ExpandElements
+                      ? [Secondary(mk_newline(Id.mk()))] : []
+                  )
+                  @ x,
                 ids,
                 xs,
               ),
@@ -1947,7 +1953,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       exp,
       x
       @ List.flatten(
-          List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+          List.map2(
+            (id, x) =>
+              [mk_form(CommaExp, id, [])]
+              @ (
+                settings.inline == ExpandElements
+                  ? [Secondary(mk_newline(Id.mk()))] : []
+              )
+              @ x,
+            ids,
+            xs,
+          ),
         ),
     );
   | Label(l) =>
@@ -2031,7 +2047,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+    let e2 =
+      settings.inline == Inline
+        ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
   | Theorem(p, thm, e) =>
     // TODO: Add optional newlines
@@ -2039,7 +2057,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ thm = go(thm)
     and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    let e =
+      settings.inline == Inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
   | ProofObject(t) =>
     let id = exp |> Exp.rep_id;
@@ -2064,13 +2083,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    let e =
+      settings.inline == Inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(TypeAlias, id, [tp, t])] @ e);
   | Use(t, e) =>
     let id = exp |> Exp.rep_id;
     let+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    let e =
+      settings.inline == Inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Use, id, [t])] @ e);
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
@@ -2085,7 +2106,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(
       exp,
       e2
-      @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+      @ (settings.inline == Inline ? [] : [Secondary(mk_newline(Id.mk()))])
       @ [
         Tile({
           id,
@@ -2137,19 +2158,23 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2)
     and+ e3 = go(e3);
     let e2 =
-      settings.inline
+      settings.inline == Inline
         ? e2
         : [Secondary(mk_newline(Id.mk()))]
           @ e2
           @ [Secondary(mk_newline(Id.mk()))];
-    let e3 = settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
+    let e3 =
+      settings.inline == Inline
+        ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
     wrap(exp, [mk_form(If, id, [e1, e2])] @ e3);
   | Seq(e1, e2) =>
     // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+    let e2 =
+      settings.inline == Inline
+        ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     wrap(exp, e1 @ [mk_form(CellJoin, id, [])] @ e2);
   | Test(e) =>
     let id = exp |> Exp.rep_id;
@@ -2241,7 +2266,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             @ (
               List.map2(
                 (id, (p, e)) =>
-                  (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                  (
+                    settings.inline == Inline
+                      ? [] : [Secondary(mk_newline(Id.mk()))]
+                  )
                   @ [mk_form(Rule, id, [p])]
                   @ (e |> fold_if(settings.fold_case_clauses)),
                 ids,
@@ -2249,7 +2277,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
               )
               |> List.flatten
             )
-            @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
+            @ (
+              settings.inline == Inline
+                ? [] : [Secondary(mk_newline(Id.mk()))]
+            ),
           ],
         ),
       ],
@@ -2338,7 +2369,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ def = go(def)
     and+ body = go(body);
     let body =
-      settings.inline ? body : [Secondary(mk_newline(Id.mk()))] @ body;
+      settings.inline == Inline
+        ? body : [Secondary(mk_newline(Id.mk()))] @ body;
     wrap(exp, [mk_form(ModuleExp, id, [mp_seg, def])] @ body);
   };
 }
