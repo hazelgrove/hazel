@@ -389,9 +389,16 @@ module Local = {
       let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
       switch (Parser.to_segment(code, ~root=Exp)) {
       | Some(segment) =>
+        /* The parse above minted a fresh id for every piece, so on its own
+           this edit makes everything it touches uncacheable. Diff the
+           replacement against the syntax it is replacing (the selection,
+           which insert_segment is about to drop) and carry the ids of the
+           parts that did not change across. Performance only: a bad match
+           costs re-evaluation, never a wrong answer. */
+        let segment = IdMatch.for_selection(z, segment);
         Ok(
           Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root=Exp),
-        )
+        );
       | None =>
         Error(
           Action.Failure.Composition_action_failure(

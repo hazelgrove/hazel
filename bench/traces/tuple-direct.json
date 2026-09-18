@@ -1,0 +1,11 @@
+{
+  "name": "tuple-direct",
+  "program": "let fib : Int -> Int =\n  fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2)\nin\nlet z = (21, 22) in\nlet (p, q) = z in\nfib(p) + fib(q)",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    { "label": "z := (20, 22)", "actions": ["(Structural (Update Definition z \"(20, 22)\"))"] },
+    { "label": "z := (19, 22)", "actions": ["(Structural (Update Definition z \"(19, 22)\"))"] },
+    { "label": "z := (19, 21)", "actions": ["(Structural (Update Definition z \"(19, 21)\"))"] },
+    { "label": "z := (18, 21)", "actions": ["(Structural (Update Definition z \"(18, 21)\"))"] }
+  ]
+}
