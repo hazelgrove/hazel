@@ -1,3 +1,5 @@
+open Grammar;
+
 /* Function-definition syntactic sugar for `let`-bindings.
 
    Hazel supports a user-facing shorthand for defining functions:
@@ -34,35 +36,37 @@
    that statics on the desugared form populates the info map under the
    user's original ids. */
 
-/* Match `Ap(Var(f), args)`, the inner head of the sugar.
+/* Match an `Ap` spine headed by `Var(f)`.
 
    For the nullary form `f()`, the parser tags the empty tuple with
    `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
    literal. We replace that placeholder with a real deterministic id
-   so the args pattern is well-formed once it becomes a `Fun`
+   so each argument pattern is well-formed once it becomes a `Fun`
    parameter. */
-let match_inner_binder = (pat: Pat.t): option((Pat.t, Pat.t)) =>
-  switch (IdTagged.term_of(pat)) {
-  | Ap(fn, args) =>
-    switch (IdTagged.term_of(fn)) {
+let match_inner_binder = (pat: Pat.t): option((Pat.t, list(Pat.t))) => {
+  let rec go = (pat, args) =>
+    switch (IdTagged.term_of(pat)) {
+    | Ap(fn, arg) =>
+      let arg =
+        Id.is_nullary_ap_flag(IdTagged.ids(arg))
+          ? (Tuple([]): Pat.term)
+            |> IdTagged.fresh_deterministic(Pat.rep_id(fn))
+          : arg;
+      go(fn, [arg, ...args]);
     | Var(_) =>
-      let args =
-        if (Id.is_nullary_ap_flag(IdTagged.ids(args))) {
-          (Tuple([]): Pat.term)
-          |> IdTagged.fresh_deterministic(Pat.rep_id(fn));
-        } else {
-          args;
-        };
-      Some((fn, args));
+      switch (args) {
+      | [] => None
+      | _ => Some((pat, args))
+      }
     | _ => None
-    }
-  | _ => None
-  };
+    };
+  go(pat, []);
+};
 
-/* Detect whether a let-binder has the form `f(args)` or
+/* Detect whether a let-binder has the form `f(args)…` or
    `f(args): Ret`, returning the function name pattern, argument
    pattern, and optional return-type annotation. */
-let detect = (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
+let detect = (pat: Pat.t): option((Pat.t, list(Pat.t), option(Typ.t))) => {
   let (inner_pat, ret_ty) =
     switch (IdTagged.term_of(pat)) {
     | Asc(inner, ret_ty) => (inner, Some(ret_ty))
@@ -86,7 +90,7 @@ let rewrite =
     (
       ~orig_let: Exp.t,
       ~f_name: Pat.t,
-      ~args: Pat.t,
+      ~args: list(Pat.t),
       ~ret_ty: option(Typ.t),
       ~def: Exp.t,
       ~body: Exp.t,
@@ -99,9 +103,14 @@ let rewrite =
       |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
     | None => def
     };
-  let fun_exp: Exp.t =
-    (Fun(args, def_in_fun, None, None): Exp.term)
-    |> IdTagged.fresh_deterministic(Pat.rep_id(args));
+  let fun_exp =
+    List.fold_right(
+      (args, body) =>
+        (Fun(args, body, None, None): Exp.term)
+        |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+      args,
+      def_in_fun,
+    );
   let (_, rewrap) = Exp.unwrap(orig_let);
   rewrap(Let(f_name, fun_exp, body));
 };
