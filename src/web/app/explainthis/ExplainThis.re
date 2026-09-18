@@ -110,9 +110,28 @@ let highlight =
   (Node.span(~attrs, msg), mapping);
 };
 
+/* Fenced hazel code is dedented line-by-line before parsing: the editor
+ * derives indentation itself on load, so any authored indentation in the
+ * fence would stack on top of the automatic indentation. */
+let strip_leading_ws = (line: string): string => {
+  let n = String.length(line);
+  let rec first = i =>
+    i < n && (line.[i] == ' ' || line.[i] == '\t') ? first(i + 1) : i;
+  let i = first(0);
+  String.sub(line, i, n - i);
+};
+
 let memo_parse =
-  Core.Memo.general(~cache_size_bound=1000, code =>
-    Parser.to_zipper(~root=Exp, String.trim(code))
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    code => {
+      let code =
+        String.trim(code)
+        |> String.split_on_char('\n')
+        |> List.map(strip_leading_ws)
+        |> String.concat("\n");
+      Parser.to_zipper(~root=Exp, code);
+    },
   );
 
 /*
@@ -296,6 +315,20 @@ let mk_translation_doc =
 let mk_translation =
     (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) =>
   mk_translation_doc(~globals, ~inject, Omd.of_string(text));
+
+let rec inline_to_string = (inline: Omd.inline(_)): string =>
+  switch (inline) {
+  | Omd.Concat(_, items) =>
+    String.concat("", List.map(inline_to_string, items))
+  | Omd.Text(_, s) => s
+  | Omd.Code(_, s) => s
+  | Omd.Emph(_, d)
+  | Omd.Strong(_, d) => inline_to_string(d)
+  | Omd.Link(_, {label, _}) => inline_to_string(label)
+  | Omd.Soft_break(_)
+  | Omd.Hard_break(_) => " "
+  | _ => ""
+  };
 
 let mk_explanation =
     (

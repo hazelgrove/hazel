@@ -347,6 +347,20 @@ module Update = {
           action,
           model.editors,
         );
+      /* Apply the incoming tutorial slide's initial probe settings
+         (auto-probe mode / samples / colors), once per slide entry. The
+         per-slide logic lives in TutorialSlideInit; here we just supply the
+         current slide's module_name and the settings-dispatch channel. */
+      let current_slide =
+        switch (editors) {
+        | Tutorial(t) =>
+          Some(TutorialsMode.Model.get_current(t).editors.module_name)
+        | _ => None
+        };
+      TutorialSlideInit.maybe_apply_on_change(
+        ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+        current_slide,
+      );
       /* A different editor (mode/slide/exercise switch) invalidates the
        * culling range: stale bounds would hide its projectors until the next
        * scroll. Main.seed_visible_rows re-seeds where culling applies. */
@@ -833,7 +847,24 @@ module View = {
     let task_reference: option(string) =
       switch (editors) {
       | Tutorial(t) =>
-        TutorialsMode.Model.get_current(t).editors.task_reference
+        let cur = TutorialsMode.Model.get_current(t).editors;
+        /* Show the Task Reference panel for a tutorial slide whenever it has
+           reference text OR a probe strip (Quick Reference + toggles). A
+           probes slide whose @reference is empty still needs the panel, since
+           the strip lives inside it; gating only on the markdown made it (and
+           the strip) vanish, falling back to the ExplainThis sidebar. */
+        let has_strip =
+          TutorialProbeStrip.flags_of_slide(cur.module_name) != [];
+        switch (cur.task_reference) {
+        | Some(_) as reference => reference
+        | None => has_strip ? Some("") : None
+        };
+      | _ => None
+      };
+    let tutorial_module: option(string) =
+      switch (editors) {
+      | Tutorial(t) =>
+        Some(TutorialsMode.Model.get_current(t).editors.module_name)
       | _ => None
       };
     let sidebar =
@@ -854,6 +885,7 @@ module View = {
         ~log_count,
         ~cursor,
         ~task_reference,
+        ~tutorial_module,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */

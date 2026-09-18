@@ -15,9 +15,6 @@
 
 # ocamlbuild working directory
 _build/
-# local dev-server staging dir (built bundle + copied statics).
-# Never commit: a broad `git add` swept 84MB bundles into history
-# twice (probes-study 2026-06-10, quiver-assist 2026-07-11).
 _serve/
 _opam/
 
