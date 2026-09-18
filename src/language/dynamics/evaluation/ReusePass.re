@@ -33,19 +33,20 @@ let update_reuse_map_after_effects =
     )
     : IncrEval.reuse_map =>
   List.fold_left(
-    (reuse_map, effect) =>
-      switch (effect) {
-      | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
-        let source_id = DHExp.rep_id(rhs);
-        IncrEval.update_maps_after_binding(
-          ~rhs_reused=rhs_reused(source_id),
-          ~source_id,
-          pat,
-          ~reuse_map,
-        );
-      | _ => reuse_map
-      },
-    reuse_map,
+    ~f=
+      (reuse_map, effect) =>
+        switch (effect) {
+        | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
+          let source_id = DHExp.rep_id(rhs);
+          IncrEval.update_maps_after_binding(
+            ~rhs_reused=rhs_reused(source_id),
+            ~source_id,
+            pat,
+            ~reuse_map,
+          );
+        | _ => reuse_map
+        },
+    ~init=reuse_map,
     effects,
   );
 
