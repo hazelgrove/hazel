@@ -271,7 +271,7 @@ let verify_rule =
   RuleVerify.verify(spec, (concl, prems));
 };
 
-let is_correct = (res: RuleVerify.res) => List.length(res) == 0;
+let is_correct = (res: RuleVerify.res) => List.is_empty(res);
 
 let check_correct = (~msg, rule, concl, prems) =>
   check(bool, msg, true, is_correct(verify_rule(rule, concl, prems)));
