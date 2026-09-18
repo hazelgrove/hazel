@@ -361,12 +361,19 @@ let start = default_model => {
       );
     CanvasTrajectory.dispatch_new_slide :=
       (
-        () =>
+        () => {
+          /* Scratch actions also operate on documentation slides. Replay
+             must select Scratch first, rather than invoking AddSlide in
+             the current mode (which prompts for a documentation name). */
+          schedule_action(
+            Page.Update.Editors(Editors.Update.SwitchMode(Scratch)),
+          );
           schedule_action(
             Page.Update.Editors(
               Editors.Update.Scratch(ScratchMode.Update.AddSlide),
             ),
-          )
+          );
+        }
       );
     CanvasTrajectory.dispatch_paste :=
       (

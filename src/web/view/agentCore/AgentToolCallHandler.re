@@ -243,6 +243,7 @@ let update =
       } else {
         let final_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
+            ~before=z,
             CompositionGo.Local.mentions_trigger(code)
               ? Materialize.all(new_z, ~root=Exp) : new_z,
           )

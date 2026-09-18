@@ -359,14 +359,13 @@
   cursor: pointer;
 }
 
-/* ONE selection color for the canvas (types and functions alike), chosen
-   free of the semantic colors: purple = types, slate = implementations,
-   green = passing tests, red = errors, yellow = the agent. The selected
-   type's own outline takes the color (a single ring, no halo). */
+/* Selection owns the whole object: green frame, glyph and caption. */
 :root {
-  --canvas-select: #2f6fbf;
+  --canvas-select: #317749;
+  --canvas-select-bg: #dfeddb;
 }
 .canvas-node.node-focused {
+  --token-typ: var(--canvas-select);
   border-color: var(--canvas-select);
   border-width: 2.5px;
 }
@@ -467,8 +466,9 @@
   opacity: 0.55;
 }
 
-.canvas-node.clickable:hover {
-  box-shadow: 0 0 0 3px rgba(120, 160, 90, 0.35);
+/* hover = a tint, never a second ring (one border per thing) */
+.canvas-node.clickable:not(.node-card):hover {
+  background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
 .canvas-node-label {
@@ -622,11 +622,16 @@
   opacity: 0.4;
 }
 
+/* "made of" through a constructor (Cell = Mark(Player)): the same dotted
+   vocabulary as the product/list formation lines, not a faint solid
+   line of its own that reads as an unlabeled edge */
 .canvas-dep {
-  stroke: #4a7a4a;
-  stroke-width: 1;
+  stroke: var(--BLACK, #333);
+  stroke-width: 1.2;
+  stroke-dasharray: 0.1 4;
+  stroke-linecap: round;
   fill: none;
-  opacity: 0.18;
+  opacity: 0.45;
 }
 
 .canvas-node.node-err {
@@ -655,7 +660,7 @@
 }
 
 .canvas-edge-label:hover {
-  box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+  background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
 /* a label on its wire: centered on the curve; its background masks the
@@ -767,12 +772,15 @@
   pointer-events: none;
 }
 
+/* the fan is PART of the selection: it wears the selection color, dotted
+   (it appears because you indicated the function) */
 .canvas-depfan path {
   fill: none;
-  stroke: var(--BR3, #8a744a);
-  stroke-width: 1px;
+  stroke: var(--canvas-select, #2f6fbf);
+  stroke-width: 1.4px;
+  stroke-dasharray: 0.1 4;
   stroke-linecap: round;
-  opacity: 0.5;
+  opacity: 0.75;
 }
 
 /* sample chips in the canvas panels carry the probe pill's OWN DOM
@@ -787,7 +795,7 @@
 }
 
 .canvas-focus .agg-value:hover .value {
-  outline: 1.5px solid var(--G0, #4a9a4a);
+  filter: brightness(0.95);
 }
 
 /* ---- orbiting constants ---- */
@@ -918,45 +926,60 @@
   margin: 2px 0 4px;
 }
 
-/* Real probe wells need row width: the flow stacks vertically — input
-   slots, the fn marker, then the output slot — each slot a full-width
-   [chip | probe] row. */
+/* The flow reads as one line when it fits — in₁ in₂ ⟶ f ⟶ out, each a
+   probe well captioned by its type (as a card on the canvas is) and
+   centred on the row — and wraps when the wells are big (a drawer of
+   samples, a tall view): a wide well takes its own line, the rest
+   follow. */
 .focus-flow {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 7px;
-  margin-top: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 8px;
   min-width: 0;
 }
 
 .focus-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-width: 0;
+  /* the inputs are items of the same wrapping row as the marker */
+  display: contents;
 }
 
 .focus-fn {
-  align-self: flex-start;
-  padding-left: 1.5em;
+  align-self: center;
 }
 
 .focus-output {
   min-width: 0;
+  max-width: 100%;
 }
 
 .focus-slot {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   min-width: 0;
-  width: 100%;
+  max-width: 100%;
 }
 
+/* caption UNDER the well */
 .focus-slot .focus-chip {
   flex: none;
-  margin-top: 2px;
+  order: 2;
+}
+
+.focus-slot .canvas-probe {
+  max-width: 100%;
+}
+
+/* a plain sample's text wraps inside the row instead of running off
+   the panel (code otherwise never wraps) */
+.canvas-focus .focus-slot .sample .value .code,
+.canvas-focus .focus-slot .sample .value .code-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 360px;
 }
 
 .focus-chip {
@@ -1080,7 +1103,6 @@
 .canvas-probe .live-offside:focus .sample:has(.value.focus) .value {
   outline: 2px solid var(--R1);
   outline-offset: -2px;
-  box-shadow: 0 0 0 3px oklch(from var(--R1) l c h / 0.18);
 }
 
 /* rich content participates in the well's flow: the editor's projector
@@ -1089,10 +1111,6 @@
 .canvas-probe .value-rich .projector {
   position: static;
   display: inline-block;
-}
-
-.focus-slot {
-  width: 100%;
 }
 
 /* ---- type focus: observed inhabitant values ---- */
@@ -1171,7 +1189,7 @@
 }
 
 .focus-fnbox:hover {
-  box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+  background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
 .focus-arrow {
@@ -1314,6 +1332,8 @@
 .canvas-avatar-bubble.mode-thought {
   opacity: 1;
 }
+.canvas-avatar-bubble.mode-hidden > .bubble-tails,
+.canvas-avatar-bubble.mode-speech > .bubble-tails,
 .canvas-avatar-bubble.mode-thought .say-shape,
 .canvas-avatar-bubble.mode-thought .say-text,
 .canvas-avatar-bubble.mode-hidden .say-shape,
@@ -1394,7 +1414,7 @@
   }
 }
 /* the tails layer: the speech tail and the cloud's puffs, body-local */
-.canvas-avatar .avatar-body > .bubble-tails {
+.canvas-avatar-bubble > .bubble-tails {
   position: absolute;
   left: -300px;
   top: -300px;
@@ -2052,3 +2072,367 @@
 .canvas-info-close:hover {
   opacity: 1;
 }
+
+/* --- type node shown as a value card (canvas_value_nodes) --- */
+/* ---- type cards: a type node expanded into its value's view ----
+   The card IS the node element (same key), centered on the node's
+   position: width/height/border-radius transition, so the circle
+   morphs into the rounded rectangle and back; FLIP moves it. Only the
+   view and the type caption — no chrome. */
+/* the morph runs on the relayout beat's timing (CanvasBuffer.relayout_ms,
+   easeOutExpo), so the edges — morphed by Animation.re on that timing —
+   stay attached to the growing or shrinking card */
+.canvas-node {
+  transition:
+    width 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.canvas-node.node-card {
+  border-radius: 14px;
+  background: var(--canvas-card-surface, var(--df-bg, #fdfdf4));
+  display: block;
+  overflow: visible;
+  z-index: 5;
+}
+/* Direct manipulation has one size: the frame and content follow the
+   same pointer update. The morph transition remains for open/close. */
+.canvas-node.node-card[data-card-resizing] {
+  transition: none;
+}
+.canvas-node.node-card .card-body {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  border-radius: 12px;
+  cursor: default;
+}
+.canvas-card-probe.canvas-probe {
+  overflow: visible;
+}
+/* the caption sits UNDER the card whatever kind of node it was: a
+   module's ({} disc, white label inside, dotted rim) card is a card */
+.canvas-node.node-card .canvas-node-label.card-caption {
+  position: absolute;
+  inset: auto;
+  top: 100%;
+  left: 50%;
+  translate: -50% 0;
+  margin-top: 3px;
+  display: block;
+  color: var(--token-typ, #9457c9);
+  font-size: 11px;
+  font-weight: bold;
+  line-height: normal;
+  padding: 0;
+  cursor: default;
+  user-select: none;
+}
+.canvas-node.node-card.kind-product,
+.canvas-node.node-card.node-module {
+  border: 1.5px solid var(--token-typ, #9457c9);
+  border-style: solid;
+  background: var(--canvas-card-surface, var(--df-bg, #fdfdf4));
+  opacity: 1;
+}
+/* NODE mode: the view is inert (the card drags anywhere, dbl-click
+   collapses); LIVE mode: the view takes the pointer */
+.canvas-node.node-card.card-node .card-body {
+  cursor: grab;
+}
+.canvas-node.node-card.card-node .card-body .canvas-app,
+.canvas-node.node-card.card-node .card-body .probe-card-rich,
+.canvas-node.node-card.card-node .card-body .probe-card-plain {
+  pointer-events: none;
+}
+.canvas-node.node-card.card-live {
+  border-style: dashed;
+}
+/* the live / node toggle: a small corner button, shown on hover and
+   while live */
+.canvas-node.node-card .card-live-toggle {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--token-typ, #9457c9);
+  background: var(--df-bg, #fdfdf4);
+  color: var(--token-typ, #9457c9);
+  font-size: 9px;
+  line-height: 15px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 41;
+  user-select: none;
+}
+.canvas-node.node-card:hover .card-live-toggle,
+.canvas-node.node-card.card-live .card-live-toggle {
+  opacity: 1;
+}
+.canvas-node.node-card.card-live .card-live-toggle {
+  background: var(--token-typ, #9457c9);
+  color: var(--df-bg, #fdfdf4);
+}
+.canvas-node.node-card .card-resize {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  border-right: 2.5px solid var(--token-typ, #9457c9);
+  border-bottom: 2.5px solid var(--token-typ, #9457c9);
+  border-radius: 0 0 13px 0;
+  opacity: 0.35;
+  /* above the probe's own stacking (live-offside z-indexes) */
+  z-index: 40;
+}
+.canvas-node.node-card .card-resize:hover {
+  opacity: 1;
+}
+/* Canvas selection stays green when arrow keys enter the sample stream. */
+.canvas-node.node-card:has(.probe-card.card-selected) {
+  border-color: var(--canvas-select);
+  border-width: 2.5px;
+}
+/* the info panel's value chip that IS the dynamic focus */
+.agg-value.agg-anchored .value,
+.agg-value.agg-anchored .pill {
+  outline: 2px solid var(--R1);
+  outline-offset: -2px;
+}
+.canvas-card-probe.canvas-probe {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  display: block;
+}
+.canvas-card-probe .live-offside.probe-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: visible;
+  outline: none;
+  cursor: pointer;
+}
+.canvas-card-probe .probe-card-rich,
+.canvas-card-probe .probe-card-plain {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+/* RESPONSIVE: a rich view is drawn at its natural size and zoomed to
+   fit the card (proportions kept; --card-zoom from the card's size
+   over the content's measured natural size). Lists and plain values
+   keep zoom 1 and reflow instead. */
+.canvas-card-probe .probe-card-rich > *,
+.canvas-node.node-card .canvas-app .user-livelit > * {
+  zoom: var(--card-zoom, 1);
+  flex-shrink: 0;
+}
+/* Scaled content already fits its measured box. A second max-height or
+   scroll viewport can crop it while the enclosing card changes size. */
+.canvas-card-probe .probe-card-rich > .rich-html-view {
+  max-height: none;
+  overflow: clip;
+}
+/* a list wraps at a natural width (360px) into rows, and that block
+   zooms to fit the card like any other view */
+.canvas-card-probe .probe-card-rich > .rich-livelit-list {
+  width: max-content;
+  max-width: 360px;
+  padding: 4px;
+  box-sizing: border-box;
+  align-content: flex-start;
+  justify-content: flex-start;
+}
+.canvas-card-probe .probe-card-plain {
+  scrollbar-width: none;
+}
+.canvas-card-probe .probe-card-plain::-webkit-scrollbar {
+  display: none;
+}
+/* a plain value: the sample chip's look over the whole surface, the
+   value centered, wrapping to the card's width */
+.canvas-card-probe .probe-card-plain {
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  overflow: auto;
+  background: #d6eed6;
+  box-sizing: border-box;
+}
+.canvas-card-probe .probe-card-plain .sample,
+.canvas-card-probe .probe-card-plain .value,
+.canvas-card-probe .probe-card-plain .value .code {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  margin: auto;
+}
+/* the value's text wraps to the card's width (the chip prints one
+   line per pretty-printer row; long rows fold at spaces) */
+.canvas-card-probe .probe-card-plain .value .code,
+.canvas-card-probe .probe-card-plain .value .code-text,
+.canvas-card-probe .probe-card-plain .value .token {
+  white-space: pre-wrap !important;
+  overflow-wrap: normal;
+  display: inline;
+}
+.canvas-card-probe .probe-card-plain .value .code {
+  display: block;
+}
+.canvas-node.node-card:has(.probe-card-plain) {
+  --canvas-card-surface: #d6eed6;
+}
+/* a list of a type with a view: the elements' views in a row */
+.rich-livelit-view.rich-livelit-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-end;
+  justify-content: center;
+}
+.canvas-card-probe .probe-card-rich .projector,
+.canvas-card-probe .probe-card-rich .rich-html-view {
+  position: static;
+}
+/* Selected cards expose a quiet occurrence counter; no drawer control. */
+.canvas-card-probe .probe-card-nav {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: max-content;
+  color: var(--canvas-select);
+  background: var(--df-bg, #fdfdf4);
+  border-radius: 3px;
+  padding: 0 3px;
+  font: 11px var(--code-font, monospace);
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.canvas-card-probe .probe-card-nav button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 20px/20px sans-serif;
+  padding: 0 3px;
+  cursor: pointer;
+}
+.canvas-card-probe .probe-card-nav button[aria-disabled="true"] {
+  opacity: .3;
+  cursor: default;
+}
+.canvas-card-probe .probe-card-position {
+  min-width: 4.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* an empty card SAYS so (a bare box read as a glitch) */
+.canvas-card-probe .probe-card-empty,
+.canvas-node.node-card .card-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--code-font, monospace);
+  font-size: 11px;
+  color: var(--BR3, #8a744a);
+  opacity: 0.7;
+}
+/* an app instance: the real (interactive) livelit projector. In the
+   editor a projector is an absolutely positioned box sized by the font
+   grid; in a card it just fills the box. */
+.canvas-node.node-card .canvas-app,
+.canvas-node.node-card .canvas-app .user-livelit {
+  position: static;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.canvas-node.node-card .canvas-app {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+
+/* The paced code is a read-only view of the same step as the canvas. */
+.presentation-code { padding: 16px 16px 24px; }
+.presentation-note { margin-bottom: 14px; color: #817c69; font: 11px/1.45 system-ui, sans-serif; }
+
+/* A selected type changes its complete type-colored surface. Rich value
+   cards retain their app surface and use the green frame/caption. */
+.canvas-node.node-focused:not(.node-card),
+.canvas-node.node-focused:not(.node-card):hover {
+  background: var(--canvas-select-bg);
+  opacity: 1;
+  color: var(--canvas-select);
+}
+.canvas-node.node-focused .canvas-node-glyph,
+.canvas-node.node-focused .canvas-node-label {
+  color: var(--canvas-select);
+}
+.canvas-edge-label.edge-focused {
+  background: var(--canvas-select-bg);
+  font-weight: 600;
+}
+.canvas-node:focus, .canvas-edge-label:focus, .canvas-scroll:focus { outline: none; }
+.canvas-node:focus-visible:not(.node-focused),
+.canvas-edge-label:focus-visible:not(.edge-focused) {
+  outline: 2px solid var(--canvas-select);
+  outline-offset: 3px;
+}
+.canvas-context-menu .cmenu-delete {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  color: #926354;
+  font: 24px/1 system-ui, sans-serif;
+  padding: 2px 7px;
+  min-width: 30px;
+  cursor: pointer;
+}
+.canvas-context-menu .cmenu-delete:hover,
+.canvas-context-menu .cmenu-delete:focus-visible { color: #ac352b; background: #f2e3db; }
+.canvas-context-menu .cmenu-delete:disabled { opacity: .35; cursor: default; }
+.canvas-context-menu.canvas-function-menu { min-width: 0; width: auto; }
+
+/* Opt-in layout comparisons: one disclosure, rather than more toolbar buttons. */
+.canvas-layout-lab { position: relative; font: inherit; }
+.canvas-layout-lab > summary { cursor: pointer; list-style: none; padding: 2px 6px; }
+.canvas-layout-lab > summary::-webkit-details-marker { display: none; }
+.canvas-layout-lab[open] > summary { background: var(--T2, #e3eee8); border-radius: 3px; }
+.canvas-layout-options { position: absolute; z-index: 100; right: 0; top: calc(100% + 6px); width: 275px; padding: 14px; background: var(--BG, #faf8f0); color: var(--STONE, #34494c); border: 1px solid #aeb9af; border-radius: 5px; box-shadow: 0 4px 12px #293f4220; display: flex; flex-direction: column; gap: 12px; font: 12px/1.4 system-ui, sans-serif; }
+.canvas-layout-options label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.canvas-layout-options select { width: 153px; font: inherit; padding: 3px; }
+.canvas-layout-options button { font: inherit; padding: 5px; cursor: pointer; }
+.canvas-layout-options p { margin: 0; color: #64736b; }
+.layout-lab-heading { font-weight: 600; }

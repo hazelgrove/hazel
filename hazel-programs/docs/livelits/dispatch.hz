@@ -1,0 +1,224 @@
+# Merit Order: a fleet of generators stacked cheapest-first.           #
+# Each bar is one unit: width = capacity (MW), height = cost (£/MWh).  #
+# Drag a bar's top up or down to change its cost; click a bar to take  #
+# it offline (grey, moved to the end) or bring it back. A use expands  #
+# to Fleet(units); `dispatch` meets a demand (the slider) with the     #
+# cheapest units and `chart` shows which run and which sets the price. #
+
+# a unit is (name, MW, £/MWh, available) #
+type Gen = (String, Int, Int, Bool) in
+type Fleet = + Fleet([Gen]) in
+# a dispatched unit is (name, MW, £/MWh, MW running) #
+type Row = (String, Int, Int, Int) in
+# the rows, the demand, and the price the last running unit sets #
+type Dispatch = + Dispatch([Row], Int, Int) in
+
+let ^fleet = {
+  # (units, unit being dragged or -1, moved since press) #
+  type Model = ([Gen], Int, Bool);
+  type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up;
+
+  let init : Model =
+    ([("Solar", 12, 2, true), ("Wind", 14, 4, true), ("Nuclear", 26, 12, true),
+      ("Hydro", 12, 20, true), ("Gas", 24, 48, true), ("Peaker", 12, 95, true)],
+     -1, false);
+
+  let s : Int -> String = string_of_int;
+
+  # 1 MW = 2.4 px across, 1 £ = 1 px up from the baseline at y = 125 #
+  let px(mw: Int): Int = 4 + 24 * mw / 10;
+
+  # display order: available units cheapest-first, then the offline ones #
+  let before(u: (Int, Gen), v: (Int, Gen)): Bool =
+    let (_, (_, _, c1, a1)) = u in
+    let (_, (_, _, c2, a2)) = v in
+    if a1 != a2 then a1 else c1 <= c2;
+
+  let insert(u: (Int, Gen), us: [(Int, Gen)]): [(Int, Gen)] =
+    case us
+    | [] => [u]
+    | v :: tl => if before(u, v) then u :: us else v :: insert(u, tl)
+    end;
+
+  let order(units: [Gen]): [(Int, Gen)] =
+    fold_left(enumerate(units),
+              fun (acc: [(Int, Gen)], u: (Int, Gen)) -> insert(u, acc),
+              []);
+
+  # the unit under x, walking the stack left to right #
+  let hit(placed: [(Int, Gen)], mw: Int, x0: Int): Int =
+    case placed
+    | [] => -1
+    | (i, (_, w, _, _)) :: tl =>
+      if mw >= x0 && mw < x0 + w then i else hit(tl, mw, x0 + w)
+    end;
+
+  let update((units, drag, moved): Model, a: Action): Model =
+    case a
+    | Down(x, _) => (units, hit(order(units), (x - 4) * 10 / 24, 0), false)
+    | MoveTo(_, y) =>
+      if drag == -1 then (units, drag, moved)
+      else
+        let cost = if y < 5 then 120 else if y > 125 then 0 else 125 - y in
+        let (_, _, old, _) = nth(units, drag) in
+        if !moved && abs(cost - old) < 3 then (units, drag, moved)
+        else
+          (mapi(units, fun (i: Int, u: Gen) ->
+                         let (n, w, _, av) = u in
+                         if i == drag then (n, w, cost, av) else u),
+           drag, true)
+    | Up =>
+      if drag == -1 || moved then (units, -1, false)
+      else
+        (mapi(units, fun (i: Int, u: Gen) ->
+                       let (n, w, c, av) = u in
+                       if i == drag then (n, w, c, !av) else u),
+         -1, false)
+    end;
+
+  # one bar, x0 MW in from the left: the rect, its cost above, its name below #
+  let bar(x0: Int, name: String, w: Int, c: Int, color: String): HTML =
+    Node("g", [], [
+      Node("rect",
+        [Create("x", s(px(x0))), Create("y", s(125 - c)),
+         Create("width", s(24 * w / 10 - 1)), Create("height", s(c)),
+         Create("fill", color)],
+        []),
+      Node("text",
+        [Create("x", s(px(x0) + 12 * w / 10)), Create("y", s(120 - c)),
+         Create("font-size", "8"), Create("text-anchor", "middle"),
+         Create("pointer-events", "none")],
+        [Text("£" ++ s(c))]),
+      Node("text",
+        [Create("x", s(px(x0) + 12 * w / 10)), Create("y", "134"),
+         Create("font-size", "8"), Create("text-anchor", "middle"),
+         Create("pointer-events", "none")],
+        [Text(name)])]);
+
+  # bars for (name, MW, £/MWh, colour) rows laid left to right, as one group #
+  let bars(rows: [(String, Int, Int, String)], x0: Int): HTML =
+    case rows
+    | [] => Node("g", [], [])
+    | (name, w, c, color) :: tl =>
+      Node("g", [], [bar(x0, name, w, c, color), bars(tl, x0 + w)])
+    end;
+
+  # the chart frame: a baseline, then the given drawing #
+  let canvas(extra: [Attr], drawing: HTML): HTML =
+    Node("svg",
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 140"), Width("260"), Height("140")]
+      @ extra,
+      [Node("line",
+         [Create("x1", "4"), Create("y1", "125"),
+          Create("x2", "256"), Create("y2", "125"), Create("stroke", "#b4c4d0")],
+         []),
+       drawing]);
+
+  let view((units, drag, _): Model): HTML =
+    Div(
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ns-resize")]), Create("data-hint", "drag a bar top: cost; click: on/off")],
+      [canvas(
+         [OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
+          OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
+          OnMouseUpAt(fun _ -> Up)],
+         bars(map(order(units), fun (i: Int, (n, w, c, av): Gen) ->
+                    (n, w, c,
+                     if i == drag then "#e9c182" else if av then "#a6d3ee" else "#7c8fa0")),
+              0))]);
+
+  let expand((units, _, _): Model): Fleet = Fleet(units);
+
+  let wrap(v: Fleet): Model =
+    case v
+    | Fleet(units) => (units, -1, false)
+    end;
+
+  let shape : LivelitShape = Block(26, 6)
+} in
+
+let show(v: Fleet): HTML = ^fleet.view(^fleet.wrap(v)) in
+
+# Run the cheapest available units until demand is met; the last one running #
+# sets the price                                                             #
+let dispatch(f: Fleet, demand: Int): Dispatch =
+  case f
+  | Fleet(units) =>
+    let avail = filter(units, fun (_, _, _, av: Bool) -> av) in
+    let merit =
+      sort(fun ((_, _, c1, _): Gen, (_, _, c2, _): Gen) -> int_compare(c1, c2), avail)
+    in
+    let (rows, _) =
+      fold_left(merit,
+                (fun ((acc, left): ([Row], Int), (n, w, c, _): Gen) ->
+                   let run = if left < w then left else w in
+                   (acc @ [(n, w, c, run)], left - run)),
+                ([], demand))
+    in
+    let price =
+      fold_left(rows, fun (p: Int, (_, _, c, run): Row) -> if run > 0 then c else p, 0)
+    in
+    Dispatch(rows, demand, price)
+  end
+in
+
+let marginal_price(d: Dispatch): Int =
+  case d
+  | Dispatch(_, _, p) => p
+  end
+in
+
+let served(d: Dispatch): Int =
+  case d
+  | Dispatch(rows, _, _) =>
+    fold_left(rows, fun (t: Int, (_, _, _, run): Row) -> t + run, 0)
+  end
+in
+
+# Running units green, the price-setting unit orange, idle ones grey, demand #
+# as a red line                                                              #
+let chart(d: Dispatch): HTML =
+  case d
+  | Dispatch(rows, demand, price) =>
+    let s : Int -> String = string_of_int in
+    let marginal =
+      fold_left(rows,
+                fun (m: String, (n, _, _, run): Row) -> if run > 0 then n else m,
+                "")
+    in
+    ^fleet.canvas([], Node("g", [], [
+      ^fleet.bars(map(rows, fun (n: String, w: Int, c: Int, run: Int) ->
+                         (n, w, c,
+                          if n == marginal then "#e9c182"
+                          else if run > 0 then "#b3d3b4"
+                          else "#7c8fa0")),
+                  0),
+      Node("line",
+        [Create("x1", s(^fleet.px(demand))), Create("y1", "4"),
+         Create("x2", s(^fleet.px(demand))), Create("y2", "125"),
+         Create("stroke", "#f2ab98"), Create("stroke-dasharray", "4 2")],
+        []),
+      Node("text",
+        [Create("x", "254"), Create("y", "14"), Create("font-size", "10"),
+         Create("text-anchor", "end")],
+        [Text("price £" ++ s(price) ++ "/MWh")])]))
+  end
+in
+
+let input : Fleet =
+  ^^livelit(^fleet(([("Solar", 12, 2, true), ("Wind", 14, 4, true),
+                     ("Nuclear", 26, 12, true), ("Hydro", 12, 20, true),
+                     ("Gas", 24, 48, true), ("Peaker", 12, 95, true)],
+                    -1, false)))
+in
+let demand : Int = ^^slider(58) in
+let result : Dispatch = dispatch(input, demand) in
+let picture : HTML = chart(result) in
+
+test dispatch(Fleet([("A", 10, 5, true), ("B", 10, 50, true)]), 15)
+     == Dispatch([("A", 10, 5, 10), ("B", 10, 50, 5)], 15, 50) end;
+test marginal_price(dispatch(Fleet([("A", 10, 5, true), ("B", 10, 50, false)]), 5))
+     == 5 end;
+test served(dispatch(Fleet([("A", 10, 5, true)]), 30)) == 10 end;
+
+(price=marginal_price(result), served=served(result), picture=picture)

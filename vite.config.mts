@@ -82,6 +82,8 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         { src: "../../../_build/default/src/web/www/worker.js", dest: "" },
+        { src: "../../../_build/default/src/web/www/canvas-layout-worker.js", dest: "" },
+        { src: "../../../_build/default/src/web/www/elk-worker.js", dest: "" },
         {
           src: "../../../_build/default/src/web/www/bundled.js",
           dest: "",

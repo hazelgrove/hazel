@@ -1,3 +1,4 @@
+import './canvas-layout-bridge.js';
 
 // This file is bundled into bundle.js as part of the build process.
 import {NinjaKeys} from 'ninja-keys';

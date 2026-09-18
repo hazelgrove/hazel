@@ -56,9 +56,141 @@ let text_of = (model: History.Model.t): string =>
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
+let canvas_fixture = (): History.Model.t => {
+  let m = mk_model();
+  let seg =
+    Test_StackFocus.parse(
+      "type A = Int in type B = Int in let f : A -> B = fun a -> a in f(3)",
+    );
+  let ed = ScratchMode.Focus.cell_of_seg(seg);
+  let statics =
+    Haz3lcore.CachedStatics.init_compositional_term(
+      ~settings=m.current.globals.settings.core,
+      ~probe_ids=Haz3lcore.Id.Map.empty,
+      Haz3lcore.MakeTerm.go(seg).term,
+    );
+  let ed: CellEditor.Model.t = {
+    ...ed,
+    editor: {
+      ...ed.editor,
+      statics,
+    },
+  };
+  let scratch =
+    switch (m.current.editors) {
+    | Scratch(sm) => sm
+    | _ => failwith("expected scratch")
+    };
+  let sp = List.nth(scratch.scratchpads, scratch.current);
+  let sp =
+    switch (sp.kind) {
+    | Code({agent, _}) => {
+        ...sp,
+        kind:
+          Code({
+            editor: ed,
+            agent,
+          }),
+      }
+    | _ => failwith("expected code")
+    };
+  {
+    ...m,
+    current: {
+      ...m.current,
+      editors:
+        Scratch({
+          ...scratch,
+          focus: None,
+          scratchpads:
+            Util.ListUtil.put_nth(scratch.current, sp, scratch.scratchpads),
+        }),
+    },
+  };
+};
+
 let tests = (
   "Undo",
   [
+    test_case(
+      "Canvas deletion undo survives selection and render ticks",
+      `Quick,
+      () => {
+        let m0 = canvas_fixture();
+        let fid =
+          Test_StackFocus.outline_id(
+            Page.Update.get_editor(m0.current).statics.term,
+            "f",
+          );
+        let m1 = apply(m0, Editors(Scratch(FocusDef(fid))));
+        let m2 =
+          apply(
+            m1,
+            Editors(Scratch(OutlineDefOp(OutlineSidebar.Delete, fid))),
+          );
+        let actions: list(Page.Update.t) = [
+          Globals(Set(Sidebar(SetCanvasFocusTy(None)))),
+          Globals(Set(Sidebar(SetCanvasFocus(None)))),
+          Globals(Set(Sidebar(SetCanvasPanelHidden(false)))),
+          Globals(Set(CanvasTick)),
+        ];
+        let m3 = List.fold_left(apply, m2, actions);
+        check(
+          int,
+          "display updates do not push history",
+          undo_len(m2),
+          undo_len(m3),
+        );
+        let restored = apply(m3, undo);
+        let restored =
+          History.Update.calculate(
+            ~schedule_action=_ => (),
+            ~is_edited=true,
+            ~dynamics=false,
+            restored,
+          );
+        let term = Page.Update.get_editor(restored.current).statics.term;
+        check(
+          bool,
+          "restored outline has the deleted definition",
+          true,
+          Test_StackFocus.outline_id(term, "f") == fid,
+        );
+        let m4 = List.fold_left(apply, restored, actions);
+        check(int, "display updates preserve redo", 1, redo_len(m4));
+        let m5 = apply(m4, redo);
+        check(
+          bool,
+          "redo removes the definition",
+          false,
+          switch (
+            Str.search_forward(Str.regexp_string("let f"), text_of(m5), 0)
+          ) {
+          | _ => true
+          | exception Not_found => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "undo and redo recalculate compacted view-only snapshots",
+      `Quick,
+      () => {
+        let m = apply(canvas_fixture(), Globals(Set(SetCanvasZoom(1.2))));
+        let restore = (action, m) =>
+          History.Update.update(
+            ~import_log=_ => (),
+            ~get_log_and=_ => (),
+            ~schedule_action=_ => (),
+            action,
+            m,
+          );
+        let u = restore(undo, m);
+        check(bool, "undo recalculates", true, u.recalculate && u.is_edit);
+        let r = restore(redo, u.model);
+        check(bool, "redo recalculates", true, r.recalculate && r.is_edit);
+      },
+    ),
     test_case(
       "edit then undo restores the original state",
       `Quick,

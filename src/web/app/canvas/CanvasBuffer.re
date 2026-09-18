@@ -6,11 +6,10 @@
    released at a maximum rate, so the FLIP animation plays each hop and
    the agent's sequence of actions is telegraphed beat by beat.
 
-   Purely display-side: the real editor state is never delayed — only
-   what the canvas panel renders from. Human editing passes through
-   live (pacing engages only within a burst window after agent tool
-   activity). Snapshot identity is physical equality on the editor
-   model record, which is rebuilt on every state change. */
+   The accepted editor state is never delayed. Page advances this once
+   before rendering code, outline and canvas from the same snapshot.
+   Historical code is read-only until Catch up returns to the live editor.
+   Pacing engages only within a burst window after agent tool activity. */
 
 open Js_of_ocaml;
 
@@ -48,7 +47,6 @@ let relayout_ms = 550;
    that state to attach */
 let pending_hold_ms = 4000.;
 let burst_window_ms = Util.AgentPulse.burst_window_ms;
-let queue_cap = 8; /* max pending beats; middles coalesce away */
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
@@ -62,7 +60,8 @@ let avatar_site: ref(option((float, float))) = ref(None);
 /* while a score plays, nothing else is released and the avatar's generic
    hop is not restaged: the score owns the stage until this time */
 let hold_until: ref(float) = ref(0.);
-let score_playing = (): bool => now() < hold_until^;
+let held = ref(false);
+let score_playing = (): bool => held^ || now() < hold_until^;
 /* a paused score (a held node, a picked-up actor) resumes later: a hold
    that was live when the pause began moves with it */
 let shift_hold = (~since: float, dt: float): unit =>
@@ -91,7 +90,7 @@ let note_agent_action = (): unit =>
 /* a pending beat: the snapshot plus the tool that produced it (None
    for trailing live-state enqueues) */
 type beat = {
-  b_model: CodeWithStatics.Model.t,
+  b_model: Lazy.t(CodeWithStatics.Model.t),
   b_label: option(string),
   /* where the producing tool acted (site id + edit/err state), captured
      at exec time so the avatar hops WITH its beat instead of reading
@@ -342,69 +341,73 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
   };
 };
 
-/* Drop middle beats when over cap: keep the oldest pending (continuity
-   from what is shown) and the newest (never fall behind the truth by
-   more than the cap). */
-let coalesce = (q: list(beat)) =>
-  switch (q) {
-  | [_, ..._] when List.length(q) > queue_cap =>
-    switch (q, List.rev(q)) {
-    | ([first, ...mid], [last, ..._]) =>
-      let keep_mid =
-        mid
-        |> List.filteri((i, _) => i >= List.length(mid) - (queue_cap - 2));
-      [first, ...keep_mid]
-      @ (
-        switch (keep_mid) {
-        | [] => [last]
-        | _ => []
-        }
-      );
-    | _ => q
-    }
-  | q => q
+/* Definition operations are lossless. Catch up is the explicit way to skip. */
+
+let same_program = (a: CodeWithStatics.Model.t, b: CodeWithStatics.Model.t) =>
+  a.editor.state.zipper === b.editor.state.zipper
+  || Haz3lcore.Segment.equiv_mod_grout(
+       Haz3lcore.Zipper.unselect_and_zip(a.editor.state.zipper),
+       Haz3lcore.Zipper.unselect_and_zip(b.editor.state.zipper),
+     );
+let presenting = ref(false);
+let selected: ref(option(Haz3lcore.Id.t)) = ref(None);
+let seed = m =>
+  if (shown^ == None) {
+    shown := Some(m);
+    last_beat := now();
   };
 
 /* Execution-time capture: a multi-tool reply runs all its calls inside
    ONE app action, so only the final state ever renders — the canvas
    would collapse N definitions into one beat. Each applied tool call
    pushes its intermediate editor model here. */
-let push_snapshot =
+let push_lazy =
     (
       ~label: string="",
       ~avatar: option((Haz3lcore.Id.t, string))=None,
-      m: CodeWithStatics.Model.t,
+      ~pending=false,
+      m: Lazy.t(CodeWithStatics.Model.t),
     )
     : unit => {
   note_agent_action();
-  note_tool();
-  let before = List.length(queue^) + 1;
   queue :=
-    coalesce(
-      queue^
-      @ [
-        {
-          b_model: m,
-          b_label: label == "" ? None : Some(label),
-          b_avatar: avatar,
-          b_pending: Haz3lcore.Id.Map.is_empty(m.statics.info_map),
-          b_queued: now(),
-        },
-      ],
-    );
+    queue^
+    @ [
+      {
+        b_model: m,
+        b_label: label == "" ? None : Some(label),
+        b_avatar: avatar,
+        b_pending: pending,
+        b_queued: now(),
+      },
+    ];
   let after = List.length(queue^);
   CanvasLog.log(
     Printf.sprintf(
-      "tool %s -> beat queued (pending %d%s)",
+      "tool %s -> beat queued (pending %d)",
       label == "" ? "?" : label,
       after,
-      before > after
-        ? Printf.sprintf(", coalesced away %d", before - after) : "",
     ),
   );
 };
 
+let push_snapshot = (~label="", ~avatar=None, m: CodeWithStatics.Model.t) => {
+  note_tool();
+  push_lazy(
+    ~label,
+    ~avatar,
+    ~pending=Haz3lcore.Id.Map.is_empty(m.statics.info_map),
+    lazy(m),
+  );
+};
+
 let reset = (): unit => {
+  presenting := false;
+  selected := None;
+  held := false;
+  hold_until := 0.;
+  last_toast := None;
+  beat_avatar := None;
   queue := [];
   shown := None;
   last_seen := None;
@@ -418,9 +421,7 @@ let was_in_burst: ref(bool) = ref(false);
 let observe =
     (
       ~enabled: bool,
-      /* beats failing this test (e.g. a snapshot whose graph extraction
-         comes up empty mid-burst) are dropped instead of rendered */
-      ~viable: CodeWithStatics.Model.t => bool=_ => true,
+      ~stage: unit => unit=() => stage_beat(~lead=true, ()),
       /* size of the change between two states (graph elements that
          differ), weighting the dwell of the beat that introduces it */
       ~weight: (CodeWithStatics.Model.t, CodeWithStatics.Model.t) => int=(
@@ -452,15 +453,21 @@ let observe =
     };
     was_in_burst := burst;
     let fresh =
-      switch (last_seen^) {
-      | Some(s) => !(s === live)
-      | None => true
-      };
+      /* A calculate-pending editor is not a new presentation state.
+         In particular, do not refresh a prepared beat with empty statics
+         just because its syntax already matches the accepted program. */
+      !Haz3lcore.Id.Map.is_empty(live.statics.info_map)
+      && (
+        switch (last_seen^) {
+        | Some(s) => !(s === live)
+        | None => true
+        }
+      );
     if (fresh) {
       last_seen := Some(live);
       switch (shown^) {
       | Some(sh) when burst || queue^ != [] =>
-        /* paced: only distinct-STATICS states become beats. The live
+        /* Only distinct programs become beats. The live
            model record is rebuilt on every app tick (streaming text,
            etc.), so physical freshness floods the queue with no-op
            states; statics identity is the content signal (the same one
@@ -471,7 +478,7 @@ let observe =
         let rev_q = List.rev(queue^);
         let tail_model =
           switch (rev_q) {
-          | [last, ..._] => last.b_model
+          | [last, ..._] => Lazy.force(last.b_model)
           | [] => sh
           };
         /* refresh the freshest holder in place (keeps dynamics current,
@@ -483,13 +490,13 @@ let observe =
               List.rev([
                 {
                   ...last,
-                  b_model: live,
+                  b_model: lazy(live),
                 },
                 ...rev_rest,
               ])
           | [] => shown := Some(live)
           };
-        if (tail_model.statics === live.statics) {
+        if (same_program(tail_model, live)) {
           refresh_tail();
         } else {
           switch (rev_q) {
@@ -499,7 +506,7 @@ let observe =
               List.rev([
                 {
                   ...last,
-                  b_model: live,
+                  b_model: lazy(live),
                   b_pending: false,
                 },
                 ...rev_rest,
@@ -510,24 +517,18 @@ let observe =
                 Option.value(~default="?", last.b_label),
               ),
             );
-          | _ when weight(tail_model, live) == 0 =>
-            /* statics identity churns on eval ticks; nothing the canvas
-               would draw differently, so don't spend a beat on it */
-            refresh_tail()
           | _ =>
             queue :=
-              coalesce(
-                queue^
-                @ [
-                  {
-                    b_model: live,
-                    b_label: None,
-                    b_avatar: None,
-                    b_pending: false,
-                    b_queued: t,
-                  },
-                ],
-              );
+              queue^
+              @ [
+                {
+                  b_model: lazy(live),
+                  b_label: None,
+                  b_avatar: None,
+                  b_pending: false,
+                  b_queued: t,
+                },
+              ];
             CanvasLog.log(
               Printf.sprintf(
                 "state change queued (pending %d)",
@@ -550,74 +551,73 @@ let observe =
         when
           t
           -. last_beat^ >= due
+          && ! held^
           && t >= hold_until^
           && !(next.b_pending && t -. next.b_queued < pending_hold_ms) =>
-      let shown_viable =
+      let (next_model, rest) =
+        try((Lazy.force(next.b_model), rest)) {
+        | exn =>
+          CanvasLog.log(
+            "presentation: snapshot failed; caught up to accepted program: "
+            ++ Printexc.to_string(exn),
+          );
+          (live, []);
+        };
+      stage();
+      let w =
         switch (shown^) {
-        | Some(sh) => viable(sh)
-        | None => false
+        | Some(sh) => weight(sh, next_model)
+        | None => 0
         };
-      if (!viable(next.b_model) && shown_viable) {
-        /* blank interstitial (the graph would vanish for a beat) */
-        CanvasLog.log(
-          Printf.sprintf(
-            "skipped blank interstitial beat (%d still pending)",
-            List.length(rest),
-          ),
-        );
-        queue := rest;
-      } else {
-        stage_beat(~lead=true, ());
-        let w =
-          switch (shown^) {
-          | Some(sh) => weight(sh, next.b_model)
-          | None => 0
-          };
-        cur_dwell := dwell_of(w);
-        CanvasLog.log(
-          Printf.sprintf(
-            "beat shown%s (%.1fs since last, weight %d -> dwell %.0fms, %d still pending)",
-            switch (next.b_label) {
-            | Some(l) => " [" ++ l ++ "]"
-            | None => ""
-            },
-            (t -. last_beat^) /. 1000.,
-            w,
-            cur_dwell^,
-            List.length(rest),
-          ),
-        );
-        shown_label := next.b_label;
-        if (w > 0) {
-          note_change(~dwell=cur_dwell^, ~lag=t -. next.b_queued);
-        };
-        switch (next.b_label) {
-        | Some(l) =>
-          last_toast := Some((l, t));
-          /* repaint when the toast is due to appear */
-          schedule_tick(toast_delay_ms +. 20.);
-        | None => ()
-        };
-        /* only a beat with canvas content moves the avatar; a bare tool
-           beat (mark_subtask, place_probe) is not a place to go */
-        switch (next.b_avatar) {
-        | Some(_) as a when w > 0 => beat_avatar := a
-        | _ => ()
-        };
-        shown := Some(next.b_model);
-        last_beat := t;
-        queue := rest;
+      cur_dwell := dwell_of(w);
+      CanvasLog.log(
+        Printf.sprintf(
+          "beat shown%s (%.1fs since last, weight %d -> dwell %.0fms, %d still pending)",
+          switch (next.b_label) {
+          | Some(l) => " [" ++ l ++ "]"
+          | None => ""
+          },
+          (t -. last_beat^) /. 1000.,
+          w,
+          cur_dwell^,
+          List.length(rest),
+        ),
+      );
+      shown_label := next.b_label;
+      if (w > 0) {
+        note_change(~dwell=cur_dwell^, ~lag=t -. next.b_queued);
       };
+      switch (next.b_label) {
+      | Some(l) =>
+        last_toast := Some((l, t));
+        /* repaint when the toast is due to appear */
+        schedule_tick(toast_delay_ms +. 20.);
+      | None => ()
+      };
+      /* only a beat with canvas content moves the avatar; a bare tool
+         beat (mark_subtask, place_probe) is not a place to go */
+      switch (next.b_avatar) {
+      | Some(_) as a when w > 0 => beat_avatar := a
+      | _ => ()
+      };
+      shown := Some(next_model);
+      last_beat := t;
+      queue := rest;
     | _ => ()
     };
-    if (queue^ != [] && ! tick_pending^) {
+    if (queue^ != [] && ! held^ && ! tick_pending^) {
       tick_pending := true;
       let due = elastic(cur_dwell^, List.length(queue^));
       schedule_tick(
         max(60., max(due -. (t -. last_beat^), hold_until^ -. t) +. 20.),
       );
     };
-    Option.value(~default=live, shown^);
+    let result = Option.value(~default=live, shown^);
+    presenting := !same_program(result, live);
+    if (! presenting^) {
+      selected := None;
+    };
+    result;
   };
 
 let tick_fired = (): unit => tick_pending := false;

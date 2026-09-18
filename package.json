@@ -11,8 +11,10 @@
   "homepage": "https://hazel.org",
   "dependencies": {
     "algebrite": "^1.4.0",
+    "elkjs": "0.11.0",
     "hotkeys-js": "^3.8.7",
-    "ninja-keys": "^1.2.2"
+    "ninja-keys": "^1.2.2",
+    "webcola": "3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

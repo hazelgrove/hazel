@@ -41,9 +41,16 @@ let (suite, exit_with_test_status) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_PatRootEditor.tests,
+      Test_ProjectorEdits.tests,
       Test_StackFocus.tests,
+      Test_CanvasTrajectory.tests,
+      Test_CanvasMotion.tests,
+      Test_DefinitionSteps.tests,
+      Test_EditIdentity.tests,
+      Test_CanvasPresentation.tests,
       Test_Restructure.tests,
       Test_MeasuredChunks.tests,
+      Test_DrawerMeasurement.tests,
       Test_MakeTermIncr.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
@@ -76,7 +83,9 @@ let (suite, exit_with_test_status) =
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
+    @ [Test_CanvasManual.tests, Test_CanvasLayoutExperiments.tests]
     @ [("Canvas values", Test_CanvasValue.tests)]
+    @ [("Canvas card focus", Test_CanvasCardFocus.tests)]
     @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
     @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]
     @ [("Node map (dungeon program)", Test_MergeProbe.tests)]
