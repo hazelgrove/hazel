@@ -103,6 +103,12 @@ let next: t => t = x => Uuidm.v5(namespace_uuid, Uuidm.to_string(x));
 
 let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 
+/* Deterministic derivation from a base id. Distinct salts give
+   independent streams that can't collide with each other or with
+   `next` chains (different hash preimages). */
+let derive = (~salt: string, x: t): t =>
+  Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
+
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;

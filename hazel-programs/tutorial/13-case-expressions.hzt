@@ -18,14 +18,14 @@ end
 
 Example:
 ```hazel
-let describe_pair = fun pair : (Int, Int) -> 
-case pair
-| (0, 0) => "Both zero"
-| (0, y) => "First zero, second " ++ string_of_int(y)
-| (x, 0) => "Second zero, first " ++ string_of_int(x)
-| (1, 2) => "One and two"
-| _ => "Default"
-end
+let describe_pair = fun pair : (Int, Int) ->
+  case pair
+  | (0, 0) => "Both zero"
+  | (0, y) => "First zero, second " ++ string_of_int(y)
+  | (x, 0) => "Second zero, first " ++ string_of_int(x)
+  | (1, 2) => "One and two"
+  | _ => "Default"
+  end
 in
 map([(0,0), (0, 1), (1, 0), (1, 2), (3, 4)], describe_pair)
 ```
@@ -72,10 +72,10 @@ Use the string_sub(str, start, len) function to get a substring
    case (1, "hello")
    | (0, _) => "zero and something"
    | (n, s) =>
-  "number "
-  ++ string_of_int(n)
-  ++ " and string "
-  ++ s
+     "number "
+     ++ string_of_int(n)
+     ++ " and string "
+     ++ s
    end
    ```
    
@@ -104,8 +104,8 @@ process_string_pair("other", "hazel") should be "hazel"
 
 @code
 let process_string_pair : (String, String) -> String = fun p ->
-case p
-end
+  case p
+  end
 in
 process_string_pair("pre", "hazel")
 
