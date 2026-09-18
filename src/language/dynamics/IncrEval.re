@@ -533,6 +533,54 @@ let prev_tuple_components =
   | None => None
   };
 
+/* The parenthesized sub-expression cached at `id`, when the previous run
+ * really did cache a `Parens` there. `None` means this node can claim
+ * nothing: nothing is cached at this id, or what is cached is some other
+ * expression. */
+let prev_parens_child = (~prev: t('state), ~id: Id.t): option(Exp.t) =>
+  switch (Id.Map.find_opt(id, prev.entries)) {
+  | Some(entry) =>
+    switch (entry.prev_elab.term) {
+    | Parens(prev_e) => Some(prev_e)
+    | _ => None
+    }
+  | None => None
+  };
+
+/* The cache entry at `id`, when the previous run really did cache the SAME
+ * variable there. `None` means this occurrence can claim nothing about the
+ * value cached at its id: nothing is cached there, or what is cached is some
+ * other expression -- in particular a DIFFERENT NAME, which is what retyping
+ * one character of an occurrence produces while the token, and so the id,
+ * survives. */
+let prev_var_entry =
+    (~prev: t('state), ~id: Id.t, name: string): option(entry('state)) =>
+  switch (Id.Map.find_opt(id, prev.entries)) {
+  | Some(entry) =>
+    switch (entry.prev_elab.term) {
+    | Var(prev_name) when prev_name == name => Some(entry)
+    | _ => None
+    }
+  | None => None
+  };
+
+/* CleanAgree {name}: the map this run is evaluating under and the map the
+ * cache entry was recorded under name the SAME BINDING for `name` -- same
+ * binding site, same path into its value. Flags are deliberately not compared
+ * (an entry's stored map is all-clean, see `make_clean`): the question is
+ * "was this entry recorded for the binding the name denotes now?", not "has
+ * nothing changed since?". */
+let clean_agree_on = (name: string, a: reuse_map, b: reuse_map): bool =>
+  switch (
+    Maps.StringMap.find_opt(name, a),
+    Maps.StringMap.find_opt(name, b),
+  ) {
+  | (Some(a), Some(b)) => Id.equal(a.source, b.source) && a.path == b.path
+  | (None, None) => true
+  | (Some(_), None)
+  | (None, Some(_)) => false
+  };
+
 /* Which parts of `e`'s value come from the cache.
  *
  * Without tuple flags this is the clean/dirty bit Hazel already used: the
@@ -542,7 +590,9 @@ let prev_tuple_components =
  *
  * A variable reports the flag of its binding, which is how partial
  * cleanliness reaches a `let (p, q) = z`: the flag was computed when `z` was
- * bound and is read back here rather than re-derived from the occurrence. */
+ * bound and is read back here rather than re-derived from the occurrence --
+ * but only once the occurrence's own cache entry says the flag is about the
+ * same occurrence of the same binding (see the `Var` case). */
 let rec exp_flag =
         (
           ~tuple_flags: bool,
@@ -587,11 +637,51 @@ let rec exp_flag =
           ),
         )
       }
-    | Parens(e) => recur(e)
-    | Var(name) =>
-      switch (Maps.StringMap.find_opt(name, reuse_map)) {
-      | Some(prov) => prov.flag
+    /* `Parens` is `Tuple` with one component: the inner flag is a claim about
+     * uid(e_inner), and passing it up unchanged restates it about uid(e).
+     * That transports only while the cache's node at uid(e) is a `Parens`
+     * over THAT SAME child -- its recorded value is then the recorded value
+     * of the child. An id-preserving edit that swaps the child (deleting the
+     * `-` of `(-k)` leaves the parens' id, and k's, in place while the node
+     * between them goes away) otherwise reports the old child's value clean
+     * against the new one. */
+    | Parens(inner) =>
+      switch (prev_parens_child(~prev, ~id=Exp.rep_id(e))) {
+      | Some(prev_inner)
+          when Id.equal(Exp.rep_id(prev_inner), Exp.rep_id(inner)) =>
+        recur(inner)
+      | Some(_)
       | None => Dirty
+      }
+    /* A variable's flag is its BINDING's flag, but that is a claim about the
+     * binding's node; reporting it here turns it into a claim about this
+     * OCCURRENCE's node. Section 5's varFlag rule therefore asks for two
+     * further things before the flag may be carried, and both are load
+     * bearing:
+     *
+     *  - kappa(uid(e)) = <var uid(e) x, rho0, w>: the cache holds an entry at
+     *    THIS occurrence's id, and the expression recorded there was the same
+     *    variable. This is the `Tuple` guard again. Retyping one character of
+     *    a name repoints the occurrence at a different binding while the
+     *    token, and so the id, survives; without this the newly denoted
+     *    binding's (clean) flag licenses serving the OLD variable's cached
+     *    value.
+     *  - CleanAgree [x] rho rho0: the entry was recorded for the same
+     *    binding. The name and the id together still do not pin one down --
+     *    inserting a `let x = ...` between binder and occurrence reshadows
+     *    the name without touching either.
+     *
+     * With neither premise available the plain `var` rule applies and the
+     * occurrence is dirty. */
+    | Var(name) =>
+      switch (
+        Maps.StringMap.find_opt(name, reuse_map),
+        prev_var_entry(~prev, ~id=Exp.rep_id(e), name),
+      ) {
+      | (Some(prov), Some(entry))
+          when clean_agree_on(name, reuse_map, entry.prev_reuse_map) =>
+        prov.flag
+      | (Some(_) | None, Some(_) | None) => Dirty
       }
     | _ => Dirty
     };
