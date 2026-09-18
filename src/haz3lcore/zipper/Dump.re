@@ -1,3 +1,4 @@
+open Poly;
 /* Try to complete the syntax to give better semantic feeback.
  * This is a best-effort approach focussed on adding new definitions
  * as opposed to restructuring; it does not complete the syntax in

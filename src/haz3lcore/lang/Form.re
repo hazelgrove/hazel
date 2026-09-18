@@ -1,5 +1,6 @@
 open Util;
 open Sort;
+open Poly;
 module P = Precedence;
 
 /* This module determines the syntactic extent of the language; the
@@ -539,17 +540,19 @@ let get: compound_form => t =
   | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
 
 let forms: list((compound_form, t)) =
-  List.map(f => (f, get(f)), all_of_compound_form);
+  List.map(~f=f => (f, get(f)), all_of_compound_form);
 
 let delims: list(Token.t) =
-  forms |> List.concat_map(((_, t)) => t.label) |> List.sort_uniq(compare);
+  forms
+  |> List.concat_map(~f=((_, t)) => t.label)
+  |> List.dedup_and_sort(~compare=Poly.compare);
 
 /* These are tokens that have proven annoying as TyDi suggestions.
  * This category is doubly nominative in that it has proven hard
  * to derive automatically; typically these are annoying bacause
  * they have a prefix that occurs more commonly */
 let annoying_delims = ["|>", "||", "::", "!=", "!=.", "**."];
-let is_annoying_delim = List.mem(_, annoying_delims);
+let is_annoying_delim = List.mem(annoying_delims, _, ~equal=Poly.equal);
 
 /* Returns a list of all strings which are proper prefixes of
  * a non-leading alphanumeric concave delimiter of a compount form.
@@ -559,7 +562,7 @@ let is_annoying_delim = List.mem(_, annoying_delims);
  * delimiter */
 let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.filter_map(((form: compound_form, _)) => {
+  |> List.filter_map(~f=((form: compound_form, _)) => {
        let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
        /* Could be pickier here, e.g. just trailing delimiters */
@@ -568,9 +571,9 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
        };
      })
   |> List.concat
-  |> List.filter(Token.is_potential_operand)
-  |> List.sort_uniq(compare)
-  |> List.map(Token.prefixes)
+  |> List.filter(~f=Token.is_potential_operand)
+  |> List.dedup_and_sort(~compare=Poly.compare)
+  |> List.map(~f=Token.prefixes)
   |> List.concat;
 
 /* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
@@ -582,25 +585,33 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
  * have real molds that must govern. */
 let symbolic_delim_prefixes: list(Token.t) =
   forms
-  |> List.filter_map(((_, {label, _}: t)) =>
-       List.length(label) >= 2 ? Some(List.tl(label)) : None
+  |> List.filter_map(~f=((_, {label, _}: t)) =>
+       List.length(label) >= 2 ? List.tl(label) : None
      )
   |> List.concat
-  |> List.filter(Token.is_potential_operator)
-  |> List.sort_uniq(compare)
-  |> List.concat_map(t => List.filter((!=)(t), Token.prefixes(t)));
+  |> List.filter(~f=Token.is_potential_operator)
+  |> Token.sort_uniq
+  |> List.concat_map(~f=t =>
+       List.filter(Token.prefixes(t), ~f=p => !Token.equal(p, t))
+     );
 
 /* Hot predicate: runs per atomic-form candidate on every molding query
    (so, superlinearly during text parsing), so membership is a hash set
    rather than a List.mem scan with polymorphic compare. The table is
    closure-private, built once at module init — NOT inlined into a
-   Hashtbl.mem(..., _) partial application, whose desugaring would
+   Stdlib.Hashtbl.mem(..., _) partial application, whose desugaring would
    rebuild it on every call. */
 let is_infix_delimiter_op_prefix: Token.t => bool = {
-  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
-  List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
-  List.iter(t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
-  t => Hashtbl.mem(tbl, t);
+  let tbl: Stdlib.Hashtbl.t(Token.t, unit) = Stdlib.Hashtbl.create(64);
+  List.iter(
+    ~f=t => Stdlib.Hashtbl.replace(tbl, t, ()),
+    infix_delimiter_ops_prefixes,
+  );
+  List.iter(
+    ~f=t => Stdlib.Hashtbl.replace(tbl, t, ()),
+    symbolic_delim_prefixes,
+  );
+  t => Stdlib.Hashtbl.mem(tbl, t);
 };
 
 /* Backup molds handed to delimiter prefixes in operator position. Mold
@@ -613,7 +624,7 @@ let infix_delimiter_prefix_molds: list(Mold.t) = [
   Mold.mk_bin(Precedence.concave_grout, TPat, []),
 ];
 let is_infix_delimiter_prefix_mold = (m: Mold.t): bool =>
-  List.mem(m, infix_delimiter_prefix_molds);
+  List.mem(infix_delimiter_prefix_molds, m, ~equal=Mold.equal);
 
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
@@ -621,7 +632,7 @@ let is_infix_delimiter_prefix_mold = (m: Mold.t): bool =>
 let amiguous_polymorphs: list(Token.t) = {
   let single_token_labels =
     forms
-    |> List.filter_map(((_, {label, _})) =>
+    |> List.filter_map(~f=((_, {label, _})) =>
          switch (label) {
          | [token] => Some(token)
          | _ => None
@@ -630,20 +641,20 @@ let amiguous_polymorphs: list(Token.t) = {
     |> Token.sort_uniq;
   let appears_in_other_forms = (target_token: Token.t): bool => {
     forms
-    |> List.exists(((_, {label, _})) =>
+    |> List.exists(~f=((_, {label, _})) =>
          switch (label) {
-         | [token] when token == target_token => false
-         | label => List.mem(target_token, label)
+         | [token] when String.equal(token, target_token) => false
+         | label => List.mem(label, target_token, ~equal=Poly.equal)
          }
        );
   };
-  single_token_labels |> List.filter(appears_in_other_forms);
+  single_token_labels |> List.filter(~f=appears_in_other_forms);
 };
 
 let is_ambiguous_polymorph: Token.t => bool = {
-  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(16);
-  List.iter(t => Hashtbl.replace(tbl, t, ()), amiguous_polymorphs);
-  t => Hashtbl.mem(tbl, t);
+  let tbl: Stdlib.Hashtbl.t(Token.t, unit) = Stdlib.Hashtbl.create(16);
+  List.iter(~f=t => Stdlib.Hashtbl.replace(tbl, t, ()), amiguous_polymorphs);
+  t => Stdlib.Hashtbl.mem(tbl, t);
 };
 
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
@@ -697,28 +708,32 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
 
 module Molds = {
   let atomics: list((Token.t => bool, list(Mold.t))) =
-    List.map(get_atomic_form, all_of_atomic_form);
+    List.map(~f=get_atomic_form, all_of_atomic_form);
 
   let compounds: list((Label.t, list(Mold.t))) =
     forms
     |> List.fold_left(
-         (acc, (_, {label, mold, _}: t)) => {
-           let molds =
-             switch (List.assoc_opt(label, acc)) {
-             | Some(old_molds) => old_molds @ [mold]
-             | None => [mold]
-             };
-           List.cons((label, molds), List.remove_assoc(label, acc));
-         },
-         [],
+         ~f=
+           (acc, (_, {label, mold, _}: t)) => {
+             let molds =
+               switch (List.Assoc.find(acc, label, ~equal=Poly.equal)) {
+               | Some(old_molds) => old_molds @ [mold]
+               | None => [mold]
+               };
+             List.cons(
+               (label, molds),
+               List.Assoc.remove(acc, label, ~equal=Poly.equal),
+             );
+           },
+         ~init=[],
        );
 
   let atomic: Token.t => list(Mold.t) =
     (t: Token.t) =>
-      List.concat_map(((p, molds)) => p(t) ? molds : [], atomics);
+      List.concat_map(~f=((p, molds)) => p(t) ? molds : [], atomics);
 
   let compound = (label: Label.t): option(list(Mold.t)) =>
-    List.assoc_opt(label, compounds);
+    List.Assoc.find(compounds, label, ~equal=Poly.equal);
 
   /* Base: get molds from form definitions without sort filtering.
      Form-defined molds precede atomic backups: mold order breaks ties
@@ -737,7 +752,7 @@ module Molds = {
      Used by remolding where we need accurate sort filtering. */
   let try_get = (sort: Sort.t, label: Label.t): option(list(Mold.t)) => {
     let molds = get_base(label);
-    let filtered = molds |> List.filter((m: Mold.t) => m.out == sort);
+    let filtered = molds |> List.filter(~f=(m: Mold.t) => m.out == sort);
     filtered == [] ? None : Some(filtered);
   };
 
@@ -747,7 +762,7 @@ module Molds = {
     switch (try_get(sort, label)) {
     | Some(molds) =>
       assert(molds != []);
-      List.hd(molds);
+      List.hd_exn(molds);
     | None =>
       /* Fallback: create Any-sorted default mold. This handles tokens
          not assigned molds by the language definition. */
@@ -799,21 +814,21 @@ module Expansion = {
 
   /* Sort-agnostic expansions (kept for is_leading) */
   let expansions: expansions =
-    List.filter_map(((_, form: t)) => expanding_of(form), forms)
-    |> List.flatten
-    |> List.sort_uniq(compare);
+    List.filter_map(~f=((_, form: t)) => expanding_of(form), forms)
+    |> List.concat
+    |> List.dedup_and_sort(~compare=Poly.compare);
 
   /* Sort-aware expansions */
   let sorted_expansions: sorted_expansions =
-    List.filter_map(((_, form: t)) => sorted_expanding_of(form), forms)
-    |> List.flatten;
+    List.filter_map(~f=((_, form: t)) => sorted_expanding_of(form), forms)
+    |> List.concat;
 
   /* Try to get expansion for a token in a specific sort context.
      Returns None if no expansion exists for this sort. */
   let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
     let matching =
       sorted_expansions
-      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+      |> List.find(~f=((tok, s, _, _)) => String.equal(tok, t) && s == sort);
     switch (matching) {
     | Some((_, _, lbl, dir)) => Some((lbl, dir))
     | None => None
@@ -828,7 +843,7 @@ module Expansion = {
   let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
     let matching =
       sorted_expansions
-      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+      |> List.find(~f=((tok, s, _, _)) => String.equal(tok, t) && s == sort);
     switch (matching) {
     | Some((_, _, lbl, dir)) => (lbl, dir)
     | None =>
@@ -837,7 +852,8 @@ module Expansion = {
         /* Rul context: fall back to any expansion since rules contain
            Exp/Pat operands but have no direct operand forms. */
         let any_match =
-          sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
+          sorted_expansions
+          |> List.find(~f=((tok, _, _, _)) => String.equal(tok, t));
         switch (any_match) {
         | Some((_, _, lbl, dir)) => (lbl, dir)
         | None => ([t], Right)
@@ -849,7 +865,7 @@ module Expansion = {
 
   /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
   let is_leading = (t: Token.t): bool =>
-    switch (List.assoc_opt(t, expansions)) {
+    switch (List.Assoc.find(expansions, t, ~equal=Poly.equal)) {
     | Some((_, Left)) => true
     | _ => false
     };

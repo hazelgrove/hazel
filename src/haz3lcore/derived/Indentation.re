@@ -1,10 +1,12 @@
+open Poly;
 /* Remove non-contentful items (whitespace and concave grout) */
 let trim_non_content: Segment.t => Segment.t =
   List.filter_map(
-    fun
-    | Piece.Grout({shape: Concave, _}) => None
-    | Secondary(s) when Secondary.is_space(s) => None
-    | p => Some(p),
+    ~f=
+      fun
+      | Piece.Grout({shape: Concave, _}) => None
+      | Secondary(s) when Secondary.is_space(s) => None
+      | p => Some(p),
   );
 
 let prev_pieces = (seg: Segment.t): list(option(Piece.t)) => {
@@ -30,8 +32,8 @@ let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
 
 let union_all =
   List.fold_left(
-    (map, new_map) => Id.Map.union((_, a, _) => Some(a), new_map, map),
-    Id.Map.empty,
+    ~f=(map, new_map) => Id.Map.union((_, a, _) => Some(a), new_map, map),
+    ~init=Id.Map.empty,
   );
 
 /* This does not strictly 'complete' a segment but rather does a
@@ -46,7 +48,7 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
       List.rev([
         Piece.Tile({
           ...t,
-          shards: List.init(List.length(t.label), i => i),
+          shards: List.init(List.length(t.label), ~f=i => i),
           children: t.children @ [shallow_complete_segment(rest)],
           /* Note: Potentially wrong number of children */
         }),
@@ -149,44 +151,45 @@ let is_incrementor = (p: Piece.t): bool =>
 let rec go' = ((not_top, base: int, seg: Segment.t)) => {
   let complete_trimmed_seg = complete_segment(trim_non_content(seg));
   let (_, map) =
-    List.fold_left2(
-      ((level: int, map: Id.Map.t(int)), p: Piece.t, prev_next) => {
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          let level =
-            switch (prev_next) {
-            | (_, Some(next)) when is_comma(next) => base + 2
-            | (Some(prev), _) when is_comma(prev) => base + 2
-            | (Some(prev), _) when is_incrementor(prev) => level + 2
-            | (None, _) when not_top => level + 2
-            | (_, Some(next)) when is_case_rule(next) => base
-            | (_, None) => base
-            | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
-              /* Special case fof kw prefixes */
-              base
-            | (_, Some(_)) => level
-            };
-          (level, Id.Map.add(w.id, level, map));
-        | Secondary(_)
-        | Grout(_)
-        | Projector(_) => (level, map)
-        | Tile(t) =>
-          let map =
-            union_all([
-              map,
-              ...List.map(go(~not_top=true, level), t.children),
-            ]);
-          (level, map);
-        }
-      },
-      (base, Id.Map.empty),
-      complete_trimmed_seg,
-      /* stack-safe zip (List.combine is not tail-recursive) */
+    List.fold2_exn(
+      ~f=
+        ((level: int, map: Id.Map.t(int)), p: Piece.t, prev_next) => {
+          switch (p) {
+          | Secondary(w) when Secondary.is_linebreak(w) =>
+            let level =
+              switch (prev_next) {
+              | (_, Some(next)) when is_comma(next) => base + 2
+              | (Some(prev), _) when is_comma(prev) => base + 2
+              | (Some(prev), _) when is_incrementor(prev) => level + 2
+              | (None, _) when not_top => level + 2
+              | (_, Some(next)) when is_case_rule(next) => base
+              | (_, None) => base
+              | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
+                /* Special case fof kw prefixes */
+                base
+              | (_, Some(_)) => level
+              };
+            (level, Id.Map.add(w.id, level, map));
+          | Secondary(_)
+          | Grout(_)
+          | Projector(_) => (level, map)
+          | Tile(t) =>
+            let map =
+              union_all([
+                map,
+                ...List.map(~f=go(~not_top=true, level), t.children),
+              ]);
+            (level, map);
+          }
+        },
+      ~init=(base, Id.Map.empty),
+      complete_trimmed_seg, /* stack-safe zip (List.zip_exn is not tail-recursive) */
       List.rev(
-        List.rev_map2(
-          (prev, next) => (prev, next),
+        List.rev_map2_exn(
           prev_pieces(complete_trimmed_seg),
           next_pieces(complete_trimmed_seg),
+          ~f=(prev, next) =>
+          (prev, next)
         ),
       ),
     );
