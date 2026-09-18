@@ -116,7 +116,14 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       let rect = anchor##getBoundingClientRect;
       let local_top = get_data_float(el, "local-top");
       let local_left = get_data_float(el, "local-left");
-      let viewport_top = rect##.top +. local_top;
+      /* `anchor-edge: bottom`: open below a variable-height anchor (e.g. a
+       * multi-line drawer sample) without knowing its height at build time. */
+      let base_top =
+        switch (get_data_string(el, "anchor-edge")) {
+        | Some("bottom") => rect##.bottom
+        | _ => rect##.top
+        };
+      let viewport_top = base_top +. local_top;
       let viewport_left = rect##.left +. local_left;
       el##.style##.top := Js.string(Float.to_string(viewport_top) ++ "px");
       el##.style##.left := Js.string(Float.to_string(viewport_left) ++ "px");

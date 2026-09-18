@@ -17,8 +17,6 @@ module type STEP = {
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
-  let can_undo: action => bool;
-
   let calculate:
     (
       ~settings: Calc.t(CoreSettings.t),
@@ -87,8 +85,6 @@ module type STEPPER = {
   let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
-
-  let can_undo: action => bool;
 
   let calculate:
     (

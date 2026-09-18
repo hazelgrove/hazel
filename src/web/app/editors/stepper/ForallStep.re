@@ -84,11 +84,6 @@ module F =
     );
   };
 
-  let can_undo = (a: action) =>
-    switch (a) {
-    | InnerExp(step) => Stepper.can_undo(step)
-    };
-
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),

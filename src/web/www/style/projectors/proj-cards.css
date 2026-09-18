@@ -1,25 +1,45 @@
 /* CARD SPRITES */
 
 :root {
+  /* Sprite-atlas locked: background-position offsets are computed in
+     these px (CardProj.card_to_offset), so the cells cannot scale with
+     the text grid without also scaling the atlas (transform-based;
+     future work). ~2 rows tall at default zoom. */
   --card-width: 35px;
   --card-height: 47px;
 }
 
-/* Turn off caret when a block projector is focused */
-.code-deco:has(~ .projectors .projector.card.indicated) #caret .caret-path {
-  fill: #0000;
+/* Modal context: the .projector base style is position:absolute, so the modal
+   doesn't size to the card. Pin it to relative so the modal sizes to content
+   and the close button at right:-18px sits cleanly outside the cards. */
+.modal-backdrop.live-offside .modal:has(> .projector.card) {
+  background-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
 }
+.modal-backdrop.live-offside .modal > .projector.card {
+  position: relative;
+  padding: 0 24px 0 0;
+}
+.modal-backdrop.live-offside .modal > .projector.card .card-wrapper.show,
+.modal-backdrop.live-offside .modal > .projector.card .card-wrapper.flipped {
+  width: var(--card-width);
+  height: var(--card-height);
+}
+
 .code-deco:has(~ .projectors .projector.card.indicated) .indication {
   display: none;
 }
 
 .projector.card {
   perspective: 300px;
+  /* top-anchor the card so it dips below its line rather than centering
+     on it (branches with the tab-extent wrapper pin it via explicit
+     insets, so this only bites where the card-wrapper is a direct
+     flex child) */
+  align-items: flex-start;
 }
 
-.projector.card:not(.selected) > svg {
-  display: none;
-}
 .projector.card.selected > svg {
   stroke-width: 0.5px;
 }
@@ -31,8 +51,19 @@
   z-index: var(--projector-z); /* hack? to get above selection shard */
 }
 
+/* The tab-extent layer spans the full two-row footprint (inline
+   height); center the card composition inside it, clear of the
+   chevron end-caps. */
+.projector.card > .tab-extent {
+  position: absolute;
+  inset: 1px 0.4ch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Singleton */
-.projector.card > .card-wrapper {
+.projector.card > .tab-extent > .card-wrapper {
   width: 100%;
   height: 100%;
   display: flex;
@@ -95,54 +126,13 @@
     drop-shadow(0px 1px 0px var(--PAT));
 }
 
-@keyframes blink-shadow {
-  0%,
-  50% {
-    filter: drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(-2px 0px 0px red);
-  }
-  51%,
-  100% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
-  }
-}
-
-@keyframes blink-shadow-right {
-  0%,
-  50% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(2px 0px 0px red);
-  }
-  51%,
-  100% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
-  }
-}
-
-.projector.card.indicated.Left > .card-wrapper .card-sprite.front,
-.projector.card.indicated.Left > .card-wrapper.flipped .card-sprite.back,
-.projector.card.indicated.Left .hand > *:first-child .card-sprite.front {
-  animation: blink-shadow 1s infinite !important;
-}
-
-.projector.card.indicated.Right > .card-wrapper .card-sprite.front,
-.projector.card.indicated.Right > .card-wrapper.flipped .card-sprite.back,
-.projector.card.indicated.Right .hand > *:last-child .card-sprite.front {
-  animation: blink-shadow-right 1s infinite !important;
-}
-
 /* HAND */
 
 .card .hand {
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-  width: 100%;
-  height: 100%;
-  left: 3px;
+  /* width set inline by CardProj (fan pitch x cards); centered by the
+     tab-extent flex parent */
   position: relative;
+  height: var(--card-height);
 }
 
 @keyframes rock-back-and-forth {
@@ -198,4 +188,29 @@
 .projector.card .chooser .card-wrapper:hover {
   filter: invert(1);
   translate: 0px -5px;
+}
+
+/* ---- the empty hand: a card-footprint silhouette ---- */
+.card-empty {
+  width: var(--card-width, 35px);
+  height: var(--card-height, 47px);
+  border: 1.5px dotted var(--BR2, #b09a6a);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  opacity: 0.75;
+}
+
+.card-empty-badge {
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--BR2, #b09a6a);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--BR3, #8a744a);
 }

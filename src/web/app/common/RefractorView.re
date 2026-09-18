@@ -28,9 +28,24 @@ let measurement_of_term =
  * refractors, with one twist for terms inside splices: the owning
  * splice's sub-editor draws the term-anchored layers (only its local
  * measured map knows the term's position), while the offside sample
- * view never goes into a splice — the root editor draws it beside the
+ * view never goes into a splice -- the root editor draws it beside the
  * host projector, on the document row the splice's contents are laid
  * out on (CachedSyntax.doc_row_of_splice). */
+
+/* visible rows of a refractor: anchor rows extended down by drawer height
+ * (Tab(n) in refractor_rows), so a partially-visible drawer isn't culled early */
+let row_range =
+    (
+      ~refractor_rows: Id.Map.t(int),
+      id: Id.t,
+      measurement: Measured.measurement,
+    )
+    : (int, int) => {
+  let drawer_rows =
+    Id.Map.find_opt(id, refractor_rows) |> Option.value(~default=0);
+  (measurement.origin.row, measurement.last.row + drawer_rows);
+};
+
 let mk_data =
     (
       ~refractors: Zipper.Refractor.Map.t,
@@ -43,6 +58,9 @@ let mk_data =
       /* The frame being rendered: None for the root editor, Some(sid)
        * for splice sid's sub-editor. */
       ~frame: option(Id.t),
+      ~visible: option(Globals.VisibleRows.t)=?,
+      ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
+      (),
     )
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
@@ -95,59 +113,67 @@ let mk_data =
         ProjectorView.Model.OffsideOnly,
       );
     };
-  List.filter_map(
-    ((id, entry)) => {
-      /* Construct full Base.projector on demand for rendering,
-       * passing the actual syntax so projectors can access the
-       * underlying term for syntax rewriting. */
-      let syntax_piece =
-        Option.value(
-          TermData.segment(id, term_data)
-          |> Option.map(Segment.unparenthesize)
-          |> Option.map(Segment.trim_secondary(Left))
-          |> Option.map(Segment.trim_secondary(Right))
-          |> Option.map(Segment.parenthesize),
-          ~default=
-            Base.Secondary({
-              id: Id.invalid,
-              content: Whitespace(""),
-            }),
-        );
-      let p = Refractors.to_projector(syntax_piece, id, entry);
-      let+ (measurement, offside, layers) = placement(id);
-      let info =
-        ProjectorInfo.mk_info(
-          p,
-          ~sample_focus,
-          ~statics,
-          ~dynamics,
-          ~elaborated=None,
-        );
-      ProjectorView.Model.{
-        p,
-        info,
-        measurement,
-        offside_base: offside,
-        render_layers: layers,
-        status:
-          ProjectorView.Model.mk_status(
-            p,
-            ~sort=TermData.sort(id, term_data),
-            ~editor_active,
-            ~indicated,
-            ~selection_ids,
-            ~info,
-            ~statics,
-            ~id,
-          ),
-        statics_map: statics,
-        dynamics_map: dynamics,
-        sample_focus,
-        elaborated: None,
-      };
-    },
-    Id.Map.bindings(refractors),
-  );
+  /* Place + cull BEFORE building per-refractor data: in All mode there are
+   * hundreds of refractors but few on screen, so building all then
+   * discarding dominated cost. Placement is what yields the measurement
+   * to cull on, so it runs first — and it is also what drops refractors
+   * belonging to another frame. */
+  Id.Map.bindings(refractors)
+  |> List.filter_map(((id, entry)) =>
+       placement(id) |> Option.map(pl => (id, entry, pl))
+     )
+  |> ProjectorView.filter_by_visibility(visible, _, ((id, _, (m, _, _))) =>
+       row_range(~refractor_rows, id, m)
+     )
+  |> List.map(((id, entry, (measurement, offside, layers))) => {
+       /* Construct full Base.projector on demand for rendering,
+        * passing the actual syntax so projectors can access the
+        * underlying term for syntax rewriting. */
+       let syntax_piece =
+         Option.value(
+           TermData.segment(id, term_data)
+           |> Option.map(Segment.unparenthesize)
+           |> Option.map(Segment.trim_secondary(Left))
+           |> Option.map(Segment.trim_secondary(Right))
+           |> Option.map(Segment.parenthesize),
+           ~default=
+             Base.Secondary({
+               id: Id.invalid,
+               content: Whitespace(""),
+             }),
+         );
+       let p = Refractors.to_projector(syntax_piece, id, entry);
+       let info =
+         ProjectorInfo.mk_info(
+           p,
+           ~sample_focus,
+           ~statics,
+           ~dynamics,
+           ~elaborated=None,
+         );
+       ProjectorView.Model.{
+         p,
+         info,
+         measurement,
+         offside_base: offside,
+         render_layers: layers,
+         status:
+           ProjectorView.Model.mk_status(
+             p,
+             ~sort=TermData.sort(id, term_data),
+             ~editor_active,
+             ~indicated,
+             ~selection_ids,
+             ~info,
+             ~statics,
+             ~id,
+           ),
+         statics_map: statics,
+         dynamics_map: dynamics,
+         sample_focus,
+         elaborated: None,
+       };
+     });
 };
 
 /* Render all refractors. Refractors skip the inline view (skip_inline=true)
@@ -160,13 +186,13 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
+      ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
-  let get_row_range = (d: ProjectorView.Model.projector_data) => (
-    d.measurement.origin.row,
-    d.measurement.last.row,
-  );
+  /* usually a no-op (mk_data already culls); kept for callers without visibility info */
+  let get_row_range = (d: ProjectorView.Model.projector_data) =>
+    row_range(~refractor_rows, d.p.id, d.measurement);
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)

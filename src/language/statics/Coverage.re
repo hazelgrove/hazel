@@ -25,6 +25,14 @@ module Constraint = {
 
   let true_ = Ap("true", None);
   let false_ = Ap("false", None);
+
+  /* A constraint that matches any value of its type: coverage checking
+     (and the type normalization it requires) is skippable. */
+  let rec is_irrefutable =
+    fun
+    | Truth => true
+    | Tuple(cs) => List.for_all(is_irrefutable, cs)
+    | _ => false;
 };
 
 module Ctr = {
@@ -195,14 +203,6 @@ module Matrix = {
 
   let contains_row = (idx: int, m: t): bool =>
     List.exists((row: row) => row.idx == idx, m);
-
-  let has_multiple_columns = (m: t): bool =>
-    switch (m) {
-    | [] => false
-    | [{idx: _, cols: []}, ..._] => false
-    | [{idx: _, cols: [_]}, ..._] => false
-    | [{idx: _, cols: _}, ..._] => true
-    };
 
   let rev = (m: t): t => List.rev(m);
 };

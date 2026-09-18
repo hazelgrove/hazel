@@ -56,7 +56,7 @@ let update_once =
     );
   Editor.Update.calculate(
     ~settings,
-    ~autoprobe_mode=false,
+    ~autoprobe_mode=AutoProbe.Off,
     ~is_edited=true,
     new_statics,
     Language.Dynamics.Map.empty,
@@ -253,6 +253,7 @@ let prettyprint_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 

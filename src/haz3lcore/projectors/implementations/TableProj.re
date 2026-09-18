@@ -133,7 +133,6 @@ module M: Projector = {
       pointer: None,
       keyboard: None,
     };
-  let dynamics = false;
   let elaborate_syntax = true;
   /* Intrinsic size of one cell, in character-grid units: splice cells
    * size around their sub-editor content, other cells around their
@@ -180,17 +179,13 @@ module M: Projector = {
       let s = info.utility.seg_to_string(info.syntax);
       let lines = String.split_on_char('\n', s);
       let n_lines = List.length(lines);
-      let max_width =
-        List.fold_left(
-          (acc, line) => max(acc, String.length(line)),
-          0,
-          lines,
-        );
+      let max_width = Unicode.Width.max_columns(lines);
       /* +1 vertical line reserved for the inline error banner
        * rendered above the raw syntax in the error view. */
       ProjectorCore.Shape.{
         vertical: Block(n_lines),
-        horizontal: max(max_width, String.length(error_message)),
+        horizontal:
+          max(max_width, Unicode.Width.columns_of_string(error_message)),
       };
     | Some((header, rows)) =>
       /* Outer space reserved for the table frame itself (border + the
@@ -202,7 +197,9 @@ module M: Projector = {
       let sizes = List.map(List.map(cell_size(splices, splice_size)), rows);
 
       let header_row_chars =
-        header |> List.map(String.length) |> List.fold_left((+), 0);
+        header
+        |> List.map(Unicode.Width.columns_of_string)
+        |> List.fold_left((+), 0);
       let widest_row_chars =
         sizes
         |> List.map(row =>

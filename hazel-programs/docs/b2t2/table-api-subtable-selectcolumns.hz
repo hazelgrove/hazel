@@ -1,0 +1,111 @@
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+) in
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+) in
+
+# (benchmark) selectColumns (by bools) #
+let requires = [
+  (enforced=("no"), "length(bs) is equal to ncols(t1)")
+] in
+let ensures = [
+  (enforced=("live"), "header(t2) is a subsequence of header(t1)"),
+  (enforced=("live"), "for all i in range(ncols(t1)), header(t1)[i] is in header(t2) if and only if bs[i] is equal to true"),
+  (enforced=("live"), "schema(t2) is a subsequence of schema(t1)"),
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
+] in
+let select_cols1 =
+  fun (t1 : [?], bs : [Bool]) ->
+    map(
+      t1,
+      fun r ->
+        to_lvs(r)
+        |> zip(_, bs)
+        |> filter_map(_, fun (e, b) -> if b then Some(e) else None)
+        |> from_lvs
+    ) in
+test
+  select_cols1(students, [true, true, false])
+  == [
+    (name="Bob", age=12),
+    (name="Alice", age=17),
+    (name= "Eve", age= 13)
+  ] end;
+
+# (benchmark) selectColumns (by indices) #
+let requires = [
+  (enforced=("no"), "ns has no duplicates"),
+  (enforced=("no"), "for all n in ns, n is in range(ncols(t1))")
+] in
+let ensures = [
+  (enforced=("no"), "ncols(t2) is equal to length(ns)"),
+  (enforced=("live"), "for all i in range(length(ns)), header(t2)[i] is equal to header(t1)[ns[i]]"),
+  (enforced=("live"), "for all c in header(t2), schema(t2)[c] is equal to schema(t1)[c]"),
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
+] in
+let select_cols2 =
+  fun (t1 : [?], ns : [Int]) ->
+    map(
+      t1,
+      fun r ->
+        to_lvs(r)
+        |> (fun entries -> map(ns, nth_opt(entries, _)))
+        |> filter_map(_, fun (e) -> e)
+        |> from_lvs
+    ) in
+test
+  select_cols2(students, [2, 1])
+  == [
+    (favorite_color="blue", age=12),
+    (favorite_color="green", age=17),
+    (favorite_color= "red", age= 13)
+  ] end;
+
+# (benchmark) selectColumns (by names) #
+let requires = [
+  (enforced=("no"), "cs has no duplicates"),
+  (enforced=("no"), "for all c in cs, c is in header(t1)")
+] in
+let ensures = [
+  (enforced=("live"), "header(t2) is equal to cs"),
+  (enforced=("live"), "for all c in header(t2), schema(t2)[c] is equal to schema(t1)[c]"),
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
+] in
+let select_cols3 =
+  fun (t1 : [?], cs : [String]) ->
+    map(
+      t1,
+      fun r ->
+        to_lvs(r)
+        |> (
+          fun entries ->
+            filter_map(
+              cs,
+              fun c -> find_opt(entries, fun e -> e.label == c)
+            )
+        )
+        |> from_lvs
+    ) in
+test
+  select_cols3(students, ["favorite_color", "age"])
+  == [
+    (favorite_color="blue", age=12),
+    (favorite_color="green", age=17),
+    (favorite_color= "red", age= 13)
+  ] end;
+
+# (idiomatic) We have label filtering on tuples as a primitive operation but without row types there's no way to give it a first-class type. This is the idiomatic way to do the operation #
+test
+  map(students, select_labels(_, `favorite_color`, `age`))
+  == [
+    (favorite_color="blue", age=12),
+    (favorite_color="green", age=17),
+    (favorite_color= "red", age= 13)
+  ] end

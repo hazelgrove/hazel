@@ -23,25 +23,3 @@ let class_of =
 
 let all =
   (DrvSort.all |> List.map(s => Drv(s))) @ [Any, Pat, Typ, Rul, Exp, TPat];
-
-let consistent = (s, s') =>
-  switch (s, s') {
-  | (Any, _)
-  | (_, Any) => true
-  | (Drv(s), Drv(s')) => DrvSort.consistent(s, s')
-  | (Drv(_), _) => false
-  | _ => s == s'
-  };
-
-let to_string_verbose =
-  fun
-  | Drv(s) => DrvSort.to_string_verbose(s)
-  | Any => "any"
-  | Pat => "pattern"
-  | TPat => "type pattern"
-  | Typ => "type"
-  | Rul => "rule"
-  | Exp => "expression"
-  | Mod => "module"
-  | Sig => "signature"
-  | MPat => "module pattern";

@@ -103,9 +103,6 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
-  let incr_eval = (model: t): EvaluatorState.incr_eval =>
-    model.incr_eval |> Calc.get_saved(IncrEval.empty);
-
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
 
@@ -135,18 +132,6 @@ module Update = {
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | TheoremsAction(Theorems.Update.t);
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | ToggleStepper => true
-    | StepperAction(action) => StepperView.Update.can_undo(action)
-    | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
-    | UpdateResult(_) => false
-    | UpdateStreamingEval(_)
-    | MergeStreamingEval(_) => false
-    | TheoremsAction(action) => Theorems.Update.can_undo(action)
-    };
-  };
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
@@ -376,7 +361,7 @@ module Update = {
     // Turn state into dynamics map
     let dynamics_of_state = (state: EvaluatorState.t) =>
       Dynamics.{
-        probe_map: state |> EvaluatorState.get_probes,
+        probe_map: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,
@@ -839,5 +824,3 @@ module View = {
       );
     };
 };
-
-let view = View.view;

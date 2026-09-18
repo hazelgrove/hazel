@@ -99,9 +99,6 @@ let nib_sorts =
     _ => (Sort.Any, Sort.Any),
   );
 
-let sorted_children =
-  get(_ => [], _ => [], Tile.sorted_children, _ => [], _ => []);
-
 let pop_l = (p: t): (t, segment) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
@@ -251,7 +248,8 @@ let is_term = (p: t) =>
 let is_infix_delimiter_op_prefix = (p: t) =>
   switch (p) {
   | Tile({label: [t], mold, _}) =>
-    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+    Form.is_infix_delimiter_op_prefix(t)
+    && Form.is_infix_delimiter_prefix_mold(mold)
   | _ => false
   };
 

@@ -94,7 +94,7 @@ You can use either a global opam switch or a switch local to the Hazel source di
   ```
 
 - Install OCaml 5.2.0 (see the
-  ["Current version" section of `Updating.md`](docs/Updating-OCaml-Version.md) for
+  ["Current version" section of `Updating-OCaml-Version.md`](docs/Updating-OCaml-Version.md) for
   why we may not use the newest version of OCaml).
 
   ```sh

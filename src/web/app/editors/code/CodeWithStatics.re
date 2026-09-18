@@ -56,8 +56,6 @@ module Model = {
 
   let get_statics = (model: t) => model.statics;
 
-  let get_dynamics = (model: t) => model.dynamics;
-
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     indicated_piece:
@@ -89,13 +87,7 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
-  let sort = (model: t): Sort.t => model.editor.root;
 };
-
-type statics_mode =
-  | StaticsNormal
-  | StaticsDefer
-  | StaticsForce;
 
 /* Debounce statics computation during rapid typing. Only one mode is
    active at a time, so a single timer/flag is shared across all modes. */
@@ -106,7 +98,7 @@ module StaticsDebounce = {
 
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
     let force_now = force_on_next^;
     force_on_next := false;
     if (is_edited && debounce_ms > 0.0) {
@@ -124,11 +116,11 @@ module StaticsDebounce = {
             debounce_ms,
           ),
         );
-      StaticsDefer;
+      Defer;
     } else if (force_now) {
-      StaticsForce;
+      Force;
     } else {
-      StaticsNormal;
+      Normal;
     };
   };
 };
@@ -141,9 +133,9 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
-        ~statics_mode=StaticsNormal,
+        ~statics_mode: StaticsMode.t=Normal,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -152,35 +144,64 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
-    let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
-        : statics;
+    /* Throttle gate for full statics recompute. Bypass the debounce when probe
+     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
+     * reuse old probes and a new probe shows ∅ until the next refresh. */
+    let probes_differ = (z, statics: CachedStatics.t) =>
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
+        );
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one */
+    let do_init = (editor: Editor.t) =>
+      PerfMetrics.time_statics(() =>
+        CachedStatics.init(
+          ~settings,
+          ~stitch,
+          ~ctx?,
+          ~ana?,
+          ~is_dynamic_term,
+          ~root=editor.root,
+          editor.state.zipper,
+        )
+      );
+    let needs_refresh =
+      statics_mode == StaticsMode.Force
+      || probes_differ(editor.state.zipper, statics)
+      || is_edited
+      && statics_mode != StaticsMode.Defer;
+    let statics = needs_refresh ? do_init(editor) : statics;
+    PerfMetrics.record_statics_counts(
+      ~recompute=needs_refresh,
+      ~mode=statics_mode,
+      statics,
+    );
 
     let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
+      PerfMetrics.time_syntax(() =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          statics,
+          dynamics,
+          editor,
+        )
       );
+    PerfMetrics.record_syntax_counts(editor.syntax);
 
-    /* Refresh `statics.targets` against the post-probe-effects refractors.
-     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
-     * the rest of statics stays valid. */
+    /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
+     * probe_targets match. Compared against the statics computed above, so
+     * this fires only when calculate itself changed the probe set. */
+    let statics =
+      probes_differ(editor.state.zipper, statics)
+        ? do_init(editor) : statics;
+
+    /* refresh only statics.targets against the new refractors (cheap; rest of
+     * statics stays valid) */
     let statics =
       CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
@@ -200,6 +221,7 @@ module View = {
       (
         ~globals,
         ~overlays: list(Node.t)=[],
+        ~cull=false,
         /* The frame being rendered (None = root editor, Some(sid) =
          * splice sid's sub-editor): error/warning arms are drawn only
          * in the frame that owns their anchor's coordinates. */
@@ -209,7 +231,10 @@ module View = {
     let {
       editor:
         {
-          syntax: {selection_ids, shape_map, term_data, _} as syntax,
+          /* measured and segment are re-bound below via the accessors:
+           * they now live in main_splice, which a sub-editor swaps. */
+          syntax:
+            {selection_ids, shape_map, refractor_rows, term_data, _} as syntax,
           state: {zipper: z, _},
           _,
         },
@@ -227,7 +252,7 @@ module View = {
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_rows,
         ~refine_sort,
         segment,
       );
@@ -236,6 +261,7 @@ module View = {
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         List.filter(in_frame, model.statics.error_ids),
@@ -246,6 +272,7 @@ module View = {
       Arms.Errors.of_ids(
         ~refine_sort,
         ~is_warning=true,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         List.filter(in_frame, warning_ids),
@@ -253,9 +280,16 @@ module View = {
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
+      /* the cell the viewport-culling range is measured on
+         (JsUtil.code_viewport_geometry) */
+      @ (cull ? ["cull-scope"] : []);
     Node.div(
-      ~attrs=[Attr.classes(container_classes)],
+      ~attrs=[
+        Attr.classes(container_classes),
+        /* this editor's line ends, for the per-container offside stagger */
+        ProbeStagger.row_ends_attr(measured),
+      ],
       // errors after warnings to prioritize errors over warnings
       [code_text_view, warning_decos, error_decos] @ overlays,
     );

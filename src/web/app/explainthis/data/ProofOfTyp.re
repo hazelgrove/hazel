@@ -6,18 +6,18 @@ let e = exp("e");
 let proof_of_typ_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(e), body_id),
 ];
-let proof_of_typ: form = {
-  let explanation = "This type asserts that the [*enclosed boolean*](%s) is in fact true.";
-  {
-    id: ProofOfTyp,
-    syntactic_form: [mk_proof_of([[space(), e, space()]])],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+let proof_of_typ_form = [mk_proof_of([[space(), e, space()]])];
+let proof_of_typ = (~body_id: Id.t): form => {
+  id: ProofOfTyp,
+  syntactic_form: proof_of_typ_form,
+  colorings: proof_of_typ_coloring_ids(~body_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "This type asserts that the [*enclosed boolean*](%s) is in fact true.",
+      Id.to_string(body_id),
+    ),
+  examples: [],
 };
 
-let proof_of: group = {
-  id: ProofOfTyp,
-  forms: [proof_of_typ],
-};
+let proof_of = (~body_id: Id.t): group => singleton(proof_of_typ(~body_id));

@@ -220,11 +220,14 @@ let go =
       ~root,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
-  let projector_idx_to_id = (idx: int): Id.t =>
-    List.nth(projector_list, idx);
-  let refractor_idx_to_id = (idx: int): Id.t =>
-    List.nth(refractor_list, idx);
-  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): Id.t =>
+  /* Indices are baked into view closures at render time and can be stale
+   * by the time the action runs, so resolve via nth_opt: an out-of-range
+   * index drops the action (Cant_project) rather than raising mid-update. */
+  let projector_idx_to_id = (idx: int): option(Id.t) =>
+    List.nth_opt(projector_list, idx);
+  let refractor_idx_to_id = (idx: int): option(Id.t) =>
+    List.nth_opt(refractor_list, idx);
+  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): option(Id.t) =>
     ProjectorCore.Kind.is_refractor(kind)
       ? refractor_idx_to_id(idx) : projector_idx_to_id(idx);
 
@@ -343,158 +346,178 @@ let go =
       }
     };
   | SetSyntax(idx, kind, seg) =>
-    let id = idx_to_id(kind, idx);
-    /* Strip trailing whitespace/newlines before parenthesizing,
-     * as lift_syntax(~inline=false) may append trailing newlines */
-    let trimmed_seg =
-      seg
-      |> Segment.unparenthesize
-      |> Segment.trim_secondary(Right)
-      |> Segment.trim_secondary(Left);
-    /* A single convex piece needs no parenthesization; wrapping it
-     * anyway would leave a visible paren layer behind on unprojection. */
-    let parenthesized_piece =
-      switch (trimmed_seg) {
-      | [piece] when Piece.is_convex(piece) => piece
-      | _ => Segment.parenthesize(trimmed_seg)
-      };
-    if (ProjectorCore.Kind.is_refractor(kind)) {
-      let parenthesized_seg = [parenthesized_piece];
-      let manual_model =
-        List.assoc_opt(id, z.refractors.manuals)
-        |> Option.map((pr: Refractors.entry) => pr.model);
-      let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
-      let do_replace = () => {
-        let* (l, r) = TermData.extremes_shards(id, term_data);
-        let+ z = Select.shard_range(l, r, z);
-        Zipper.replace_selection(Right, parenthesized_seg, z);
-      };
-      if (is_ephemeral && Option.is_none(manual_model)) {
-        switch (do_replace()) {
-        | Some(z) => Ok(z)
-        | None => Error(Cant_project)
+    switch (idx_to_id(kind, idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      /* Strip trailing whitespace/newlines before parenthesizing,
+       * as lift_syntax(~inline=false) may append trailing newlines */
+      let trimmed_seg =
+        seg
+        |> Segment.unparenthesize
+        |> Segment.trim_secondary(Right)
+        |> Segment.trim_secondary(Left);
+      /* A single convex piece needs no parenthesization; wrapping it
+       * anyway would leave a visible paren layer behind on unprojection. */
+      let parenthesized_piece =
+        switch (trimmed_seg) {
+        | [piece] when Piece.is_convex(piece) => piece
+        | _ => Segment.parenthesize(trimmed_seg)
+        };
+      if (ProjectorCore.Kind.is_refractor(kind)) {
+        let parenthesized_seg = [parenthesized_piece];
+        let manual_model =
+          List.assoc_opt(id, z.refractors.manuals)
+          |> Option.map((pr: Refractors.entry) => pr.model);
+        let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
+        let do_replace = () => {
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          Zipper.replace_selection(Right, parenthesized_seg, z);
+        };
+        if (is_ephemeral && Option.is_none(manual_model)) {
+          switch (do_replace()) {
+          | Some(z) => Ok(z)
+          | None => Error(Cant_project)
+          };
+        } else {
+          let new_id =
+            MakeTerm.from_zip_for_sem(
+              Zipper.unzip(~direction=Right, parenthesized_seg),
+              ~root,
+            ).
+              term
+            |> Language.Exp.rep_id;
+          switch (do_replace()) {
+          | Some(z) =>
+            let z =
+              Zipper.update_manuals(
+                List.filter(((mid, _)) => mid != id),
+                z,
+              );
+            Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z));
+          | None => Error(Cant_project)
+          };
         };
       } else {
-        let new_id =
-          MakeTerm.from_zip_for_sem(
-            Zipper.unzip(~direction=Right, parenthesized_seg),
-            ~root,
-          ).
-            term
-          |> Language.Exp.rep_id;
-        switch (do_replace()) {
-        | Some(z) =>
-          let z =
-            Zipper.update_manuals(List.filter(((mid, _)) => mid != id), z);
-          Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z));
-        | None => Error(Cant_project)
+        let f = (p: Base.projector) => {
+          ...p,
+          syntax: [parenthesized_piece],
+        };
+        if (inside_projector(id, z)) {
+          /* The caret is inside the projector (e.g. in one of its
+           * splices — SetSyntax may be dispatched from a context-menu
+           * action contributed there). The new syntax may not contain
+           * the caret's splice, so rebuild from the root (which resets
+           * the caret) and park the caret at the projector's edge. */
+          let z = update_from_root(f, id, z);
+          Ok(
+            Option.value(~default=z, Move.jump_to_side_of_id(Right, z, id)),
+          );
+        } else {
+          Ok(update(f, id, z));
         };
       };
-    } else {
+    }
+  | SetTerm(idx, term, preserve_splices) =>
+    switch (projector_idx_to_id(idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
       let f = (p: Base.projector) => {
         ...p,
-        syntax: [parenthesized_piece],
+        syntax:
+          term_to_segment(~original_syntax=p.syntax, ~preserve_splices, term),
       };
-      if (inside_projector(id, z)) {
-        /* The caret is inside the projector (e.g. in one of its
-         * splices — SetSyntax may be dispatched from a context-menu
-         * action contributed there). The new syntax may not contain
-         * the caret's splice, so rebuild from the root (which resets
-         * the caret) and park the caret at the projector's edge. */
-        let z = update_from_root(f, id, z);
-        Ok(Option.value(~default=z, Move.jump_to_side_of_id(Right, z, id)));
-      } else {
-        Ok(update(f, id, z));
-      };
-    };
-  | SetTerm(idx, term, preserve_splices) =>
-    let id = projector_idx_to_id(idx);
-    let f = (p: Base.projector) => {
-      ...p,
-      syntax:
-        term_to_segment(~original_syntax=p.syntax, ~preserve_splices, term),
-    };
-    Ok(
-      inside_projector(id, z)
-        ? update_from_root(f, id, z) : update(f, id, z),
-    );
+      Ok(
+        inside_projector(id, z)
+          ? update_from_root(f, id, z) : update(f, id, z),
+      );
+    }
   | SetModel(idx, kind, new_model) =>
-    let id = idx_to_id(kind, idx);
-    Ok(
-      if (ProjectorCore.Kind.is_refractor(kind)) {
-        Zipper.update_refractor(
-          id,
-          fun
-          | Some(entry: Refractors.entry) =>
-            Some(
-              Refractors.{
-                kind: entry.kind,
+    switch (idx_to_id(kind, idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      Ok(
+        if (ProjectorCore.Kind.is_refractor(kind)) {
+          /* Refractor model lives in either `manuals` (user-placed) or
+           * `multis.ephemerals` (auto-rebuilt from `multis.ids`).
+           * Zipper.update_refractor handles both stores. */
+          Zipper.update_refractor(
+            id,
+            fun
+            | Some(entry: Refractors.entry) =>
+              Some({
+                ...entry,
+                model: new_model,
+              })
+            | None => None,
+            z,
+          );
+        } else {
+          update(
+            pr =>
+              {
+                ...pr,
                 model: new_model,
               },
-            )
-          | None => None,
-          z,
-        );
-      } else {
-        update(
-          pr =>
-            {
-              ...pr,
-              model: new_model,
-            },
-          id,
-          z,
-        );
-      },
-    );
+            id,
+            z,
+          );
+        },
+      )
+    }
   | Focus(idx, kind, d) =>
-    let id = idx_to_id(kind, idx);
-    switch (d) {
-    | None =>
-      /* Focus by pointer click or probe-to-probe navigation */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.pointer) {
-      | Some(focus) => focus(id)
-      | None => ()
-      };
-      let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
-      /* Set pending_probe_cursor so the sample focus adapts to the
-         newly focused probe. For pointer clicks on a specific sample,
-         the subsequent Capture action will override with more specific
-         data; for probe-to-probe navigation, most_aligned_sample picks
-         the best match. */
-      let z =
-        Zipper.update_refractors(z, r =>
-          {
-            ...r,
-            pending_probe_cursor: Some([id]),
-          }
-        );
-      Ok(z);
-    | Some(Right) =>
-      /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.keyboard) {
-      | Some(focus) => focus(id, Right)
-      | None => ()
-      };
-      Ok(z);
-    | Some(Left) =>
-      /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.keyboard) {
-      | Some(focus) => focus(id, Left)
-      | None => ()
-      };
-      Ok(z);
-    };
+    switch (idx_to_id(kind, idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      switch (d) {
+      | None =>
+        let (module P) = ProjectorInit.to_module(kind);
+        switch (P.focusable.pointer) {
+        | Some(focus) => focus(id)
+        | None => ()
+        };
+        let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
+        /* pending_probe_cursor so sample focus follows the newly focused probe
+           (a click's later Capture overrides with the specific sample) */
+        let z =
+          Zipper.update_refractors(z, r =>
+            {
+              ...r,
+              pending_probe_cursor: Some([id]),
+            }
+          );
+        Ok(z);
+      | Some(Right) =>
+        let (module P) = ProjectorInit.to_module(kind);
+        switch (P.focusable.keyboard) {
+        | Some(focus) => focus(id, Right)
+        | None => ()
+        };
+        Ok(z);
+      | Some(Left) =>
+        let (module P) = ProjectorInit.to_module(kind);
+        switch (P.focusable.keyboard) {
+        | Some(focus) => focus(id, Left)
+        | None => ()
+        };
+        Ok(z);
+      }
+    }
   | Escape(idx, d) =>
-    switch (Move.jump_to_side_of_id(d, z, projector_idx_to_id(idx))) {
+    switch (
+      Option.bind(projector_idx_to_id(idx), id =>
+        Move.jump_to_side_of_id(d, z, id)
+      )
+    ) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
   | EscapeToLineEnd(idx, kind) =>
-    switch (Move.jump_to_side_of_id(Right, z, idx_to_id(kind, idx))) {
+    switch (
+      Option.bind(idx_to_id(kind, idx), id =>
+        Move.jump_to_side_of_id(Right, z, id)
+      )
+    ) {
     | Some(z) => Ok(Option.value(~default=z, Move.to_linebreak(Right, z)))
     | None => Error(Cant_project)
     }

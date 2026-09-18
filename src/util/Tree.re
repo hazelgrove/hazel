@@ -11,14 +11,6 @@ type pos =
   | Children(int, pos);
 
 // Example:
-// Input: Children(1, Value), Children(2, Value)
-// Output: Children(2, Children(1, Value))
-let rec pos_concat = p =>
-  fun
-  | Value => p
-  | Children(i, p') => Children(i, pos_concat(p, p'));
-
-// Example:
 // Input: Children(2, Children(1, Value))
 // Output: 1, Children(2, Value)
 let rec pos_split_last =
@@ -28,34 +20,6 @@ let rec pos_split_last =
   | Children(i, p) => {
       let (i', p) = pos_split_last(p);
       (i', Children(i, p));
-    };
-
-// @return true if p1 is p2 or a child position of p2
-// Example:
-// Input: Children(2, Children(1, Value)), Children(2, Value)
-// Output: true
-let rec is_children = p =>
-  fun
-  | Value => true
-  | Children(i', p') =>
-    switch (p) {
-    | Value => false
-    | Children(i, p) => i == i' && is_children(p, p')
-    };
-
-// @return the farthest position of the given position to explore in the
-// tree, if the position exists, the return is itself, otherwise it is
-// shorter than the given one.
-// Example:
-// Input: Node("", [Node("", [])]), Children(0, Children(1, Value))
-// Output: Children(0, Value)
-let rec farthest = (Node(_, c)) =>
-  fun
-  | _ when c == [] => Value
-  | Value => Value
-  | Children(i, pos) => {
-      let i = min(i, List.length(c) - 1);
-      Children(i, pos |> farthest(List.nth(c, i)));
     };
 
 let rec farthest_cond = (f, Node(_, c)) =>
@@ -70,43 +34,14 @@ let rec farthest_cond = (f, Node(_, c)) =>
 
 let value = (Node(v, _)) => v;
 
-let children = (Node(_, c)) => c;
-
-// @raise `Failure` if children is empty
-let hd_children = t => t |> children |> List.hd;
-
-let hd_children_opt = t => t |> children |> ListUtil.hd_opt;
-
-// @raise `Failure` if children is empty
-let tl_children = t => t |> children |> List.tl;
-
-let tl_children_opt = t =>
-  t
-  |> children
-  |> (
-    fun
-    | [] => None
-    | [_, ...tl] => Some(tl)
-  );
-
 // @raise `Failure` if pos not exists in the tree
 let rec nth_node = (Node(v, c)) =>
   fun
   | Value => Node(v, c)
   | Children(i, pos) => pos |> nth_node(List.nth(c, i));
 
-let nth_node_opt = (t, pos) =>
-  try(Some(nth_node(t, pos))) {
-  | Failure(_) => None
-  };
-
 // @raise `Failure` if pos not exists in the tree
 let nth = (t, pos) => nth_node(t, pos) |> value;
-
-let nth_opt = (t, pos) =>
-  try(Some(nth(t, pos))) {
-  | Failure(_) => None
-  };
 
 let empty = v => Node(v, []);
 
@@ -129,8 +64,6 @@ let rec combine = (Node(v1, c1), Node(v2, c2)) =>
 
 let rec map = (f, Node(v, c)) => Node(f(v), c |> List.map(map(f)));
 
-let map2 = (f, n1, n2) => map(((v1, v2)) => f(v1, v2), combine(n1, n2));
-
 let mapi = f => {
   let rec aux = (f, acc_pos, Node(v, c)) =>
     Node(
@@ -142,32 +75,7 @@ let mapi = f => {
 
 let rec fold_deep = (f, Node(v, c)) => f(v, c |> List.map(fold_deep(f)));
 
-let rec fold_left_map = (f, init, Node(v, c)) => {
-  let (init, v) = f(init, v);
-  let (final, c) = c |> List.fold_left_map(fold_left_map(f), init);
-  (final, Node(v, c));
-};
-
-let fold_right = (f, n) => n |> flatten |> List.fold_right(f);
-
-let fold_left = (f, init, n) => n |> flatten |> List.fold_left(f, init);
-
-/* Scanning */
-
-let rec exists = (f, Node(v, c)) =>
-  f(v) || c |> List.exists(node => exists(f, node));
-
-let rec for_all = (f, Node(v, c)) =>
-  f(v) && c |> List.for_all(node => for_all(f, node));
-
 /* Position */
-
-let flatten_pos = t => t |> mapi((pos, _) => pos) |> flatten;
-
-let exists_pos = (t, pos) =>
-  try(nth_node(t, pos) |> Fun.const(true)) {
-  | Failure(_) => false
-  };
 
 // For all functions below:
 // @failwith("out of bounds") if pos not exists in the tree 😱
@@ -191,19 +99,6 @@ let rec split_n = (f, Node(v, c)) =>
       let (v', t) = pos |> split_n(f, List.nth(c, i));
       (v', Node(v, c |> ListUtil.put_nth(i, t)));
     };
-
-// Add a new child to the node at the given position
-let add = v' => map_nth_node((Node(v, c)) => Node(v, [empty(v'), ...c]));
-
-// Remove a child from the node at the given position
-// @raise `Failure` if children is empty
-let del = pos =>
-  pos |> split_n((Node(v, c)) => (List.hd(c), Node(v, List.tl(c))));
-
-let del_opt = (t, pos) =>
-  try(Some(del(t, pos))) {
-  | Failure(_) => None
-  };
 
 // Insert a new child at the given position
 let insert = (v', i) =>

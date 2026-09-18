@@ -23,5 +23,3 @@ let rep_id = (~any_ids, tm) =>
   | [] => raise(Invalid_argument("Exp.rep_id"))
   | [id, ..._] => id
   };
-
-let unwrap: t => (term, term => t) = IdTagged.unwrap;

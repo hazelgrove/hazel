@@ -7,20 +7,6 @@ module Sexp = Sexplib.Sexp;
 [@deriving (sexp, yojson)]
 type binding('v) = (int, 'v);
 
-let singleton = (k, v) => Ptmap.add(k, v, Ptmap.empty);
-
-let disj_union = (m: t('a), m': t('a)): t('a) =>
-  union(
-    (_, _, _) =>
-      raise(
-        Invalid_argument(
-          "IntMap.disj_union expects input maps to have disjoint key sets",
-        ),
-      ),
-    m,
-    m',
-  );
-
 let pp = (pp_v, f, map) =>
   iter((k, v) => Format.fprintf(f, "%d -> %a@\n", k, pp_v, v), map);
 

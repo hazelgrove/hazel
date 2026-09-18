@@ -21,6 +21,7 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -39,30 +40,32 @@ let code_settings_ml: Haz3lcore.ExpToSegment.Settings.t = {
 let typ_to_text = (~settings, typ: Typ.t): string =>
   Haz3lcore.Printer.of_segment(
     ~holes="?",
-    Haz3lcore.ExpToSegment.typ_to_segment(~settings, typ),
+    Haz3lcore.TypToSegment.typ_to_segment(~settings, typ),
   );
 
 /* Copy a rendered term/type the way the editor does: the printed text shows
    empty holes explicitly as `?`, and the source segment is cached against that
    text so pasting back into Hazel restores the real (implicit) holes, while
    pasting into a plain text editor yields the `?` text. */
-let copy_segment = (segment: Haz3lcore.Segment.t): unit => {
+let copy_segment = (segment: Haz3lcore.Segment.t): Effect.t(unit) => {
   let str = Haz3lcore.Printer.of_segment(~holes="?", segment);
-  Haz3lcore.Parser.set_segment_cache(Some(segment), str);
-  Util.JsUtil.write_clipboard(str);
+  Effect.Many([
+    Effect.of_sync_fun(
+      () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
+      (),
+    ),
+    Util.JsUtil.write_clipboard(str),
+  ]);
 };
 
 /* Copy button; `on_copy` runs only on click (not when the field is built) and
    is revealed on field hover via CSS so it doesn't clutter the list. */
-let copy_button = (on_copy: unit => unit): Node.t =>
+let copy_button = (on_copy: unit => Effect.t(unit)): Node.t =>
   span(
     ~attrs=[
       clss(["debug-copy-button"]),
       Attr.title("Copy to clipboard"),
-      Attr.on_click(_ => {
-        on_copy();
-        Virtual_dom.Vdom.Effect.Ignore;
-      }),
+      Attr.on_click(_ => on_copy()),
     ],
     [text({|⧉|})],
   );
@@ -72,7 +75,7 @@ let copy_button = (on_copy: unit => unit): Node.t =>
 let label_row =
     (
       ~chevron: list(Node.t)=[],
-      ~copy: option(unit => unit)=None,
+      ~copy: option(unit => Effect.t(unit))=None,
       label: string,
     )
     : Node.t =>
@@ -96,13 +99,13 @@ let section =
     (~globals: Globals.t, title: string, fields: unit => list(Node.t))
     : list(Node.t) => {
   let collapsed =
-    SidebarModel.Settings.is_debug_collapsed(title, globals.settings.sidebar);
+    !SidebarModel.Settings.is_debug_expanded(title, globals.settings.sidebar);
   let title_node =
     div(
       ~attrs=[
         clss(["debug-section-title"]),
         Attr.on_click(_ =>
-          globals.inject_global(Set(Sidebar(ToggleDebugCollapsed(title))))
+          globals.inject_global(Set(Sidebar(ToggleDebugExpanded(title))))
         ),
       ],
       [
@@ -117,7 +120,12 @@ let section =
 };
 
 let field_node =
-    (~copy: option(unit => unit)=None, label: string, body: Node.t): Node.t =>
+    (
+      ~copy: option(unit => Effect.t(unit))=None,
+      label: string,
+      body: Node.t,
+    )
+    : Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
@@ -142,19 +150,19 @@ let field_str = (label: string, body: string): Node.t =>
 let field_collapsible =
     (
       ~globals: Globals.t,
-      ~copy: unit => unit,
+      ~copy: unit => Effect.t(unit),
       ~body: unit => Node.t,
       label: string,
     )
     : Node.t => {
   let collapsed =
-    SidebarModel.Settings.is_debug_collapsed(label, globals.settings.sidebar);
+    !SidebarModel.Settings.is_debug_expanded(label, globals.settings.sidebar);
   let chevron =
     span(
       ~attrs=[
         clss(["debug-field-chevron"]),
         Attr.on_click(_ =>
-          globals.inject_global(Set(Sidebar(ToggleDebugCollapsed(label))))
+          globals.inject_global(Set(Sidebar(ToggleDebugExpanded(label))))
         ),
       ],
       [text(collapsed ? {|▸|} : {|▾|})],
@@ -171,7 +179,7 @@ let field_typ = (~globals, ~raw, label: string, typ: Typ.t): Node.t =>
     field_str(label, Typ.show(typ));
   } else {
     let seg =
-      Haz3lcore.ExpToSegment.typ_to_segment(~settings=code_settings_ml, typ);
+      Haz3lcore.TypToSegment.typ_to_segment(~settings=code_settings_ml, typ);
     field_node(
       ~copy=Some(() => copy_segment(seg)),
       label,
@@ -762,7 +770,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             };
           /* Metrics render regardless of cursor state. */
           cursor_sections
-          @ render_section((module WorkerMessagingSection), ~globals);
+          @ render_section((module WorkerMessagingSection), ~globals)
+          @ render_section((module EvaluationSection), ~globals)
+          @ render_section((module StaticsSection), ~globals)
+          @ render_section((module EditorSection), ~globals)
+          @ render_section((module FrameSection), ~globals);
         },
       ),
     ],

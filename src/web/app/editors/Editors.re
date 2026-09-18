@@ -22,6 +22,37 @@ module Model = {
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
+  /* Viewport culling measures ONE code container (the first cell not opted
+     out via CellEditor ~cull=false) and keeps one row range, so it is only
+     supported when the mode renders a single probe-bearing editor: Code
+     scratchpads and Tutorial (whose instructor-only hidden-tests cell opts
+     out). Drv scratchpads and Exercises render several cells and stay
+     unculled. */
+  let supports_viewport_culling: t => bool =
+    fun
+    | Scratch(m)
+    | Documentation(m) =>
+      switch (List.nth_opt(m.scratchpads, m.current)) {
+      | Some(sp) =>
+        switch (sp.kind) {
+        | Code(_) => true
+        | Drv(_) => false
+        }
+      | None => false
+      }
+    | Tutorial(_) => true
+    | Exercises(_) => false;
+
+  /* Identity of the editor Page.Update.get_editor returns: stable across
+     frames of the same editor, distinct across slides/exercises/modes. For
+     after-display caches (RefractorShift) and culling-range resets. */
+  let editor_key: t => string =
+    fun
+    | Scratch(m) => "scratch:" ++ string_of_int(m.current)
+    | Documentation(m) => "documentation:" ++ string_of_int(m.current)
+    | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
+    | Exercises(m) => "exercises:" ++ string_of_int(m.current);
+
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
   let extra_main_classes = (model: t): list(string) => {
@@ -39,15 +70,6 @@ module Model = {
     | Exercises(_) => []
     };
   };
-
-  let get_derivation_info = (model: t) => {
-    switch (model) {
-    | Exercises(eds) => ExercisesMode.Model.get_derivation_info(eds)
-    | Scratch(m)
-    | Documentation(m) => ScratchMode.Model.get_derivation_info(m)
-    | Tutorial(_) => None
-    };
-  };
 };
 
 /* Legacy-friendly wrapper for the Store.Mode key. Old persisted values
@@ -56,9 +78,8 @@ module Model = {
 module StoreMode = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Model.mode;
-  let key = Store.Mode;
   let key_string = Store.key_to_string(Store.Mode);
-  let default = (): Model.mode => Scratch;
+  let default = (): Model.mode => Tutorial;
 
   let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
 
@@ -97,12 +118,12 @@ module StoreMode = {
 
 module Store = {
   let scratch_defaults = () => {
-    let (current, slides) = Init.startup.scratch;
+    let (current, slides) = Lazy.force(Init.startup).scratch;
     (current, List.map(fst, slides));
   };
 
   let doc_defaults = () => {
-    let (current, slides) = Init.startup.documentation;
+    let (current, slides) = Lazy.force(Init.startup).documentation;
     (current, List.map(fst, slides) @ Init.documentation_drv_slide_names());
   };
 
@@ -191,15 +212,6 @@ module Update = {
     // Exercises
     | Exercises(ExercisesMode.Update.t);
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchMode(_) => true
-    | Scratch(action) => ScratchMode.Update.can_undo(action)
-    | Tutorial(action) => TutorialsMode.Update.can_undo(action)
-    | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    };
-  };
-
   let update =
       (
         ~globals: Globals.t,
@@ -258,15 +270,13 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
-      ScratchMode.reset_persist_state();
       Model.Scratch(Store.load_scratch(~settings=globals.settings.core))
-      |> return;
+      |> return
     | (SwitchMode(Documentation), _) =>
-      ScratchMode.reset_persist_state();
       Model.Documentation(
         Store.load_documentation(~settings=globals.settings.core),
       )
-      |> return;
+      |> return
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
@@ -323,6 +333,7 @@ module Update = {
         TutorialsMode.Update.calculate(
           ~schedule_action=a => schedule_action(Tutorial(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -332,6 +343,7 @@ module Update = {
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -563,7 +575,15 @@ module View = {
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
-                | "Tutorial" => inject(Update.SwitchMode(Tutorial))
+                | "Tutorial" =>
+                  // Default the sidebar to the task reference panel so
+                  // tutorial users see the reference material on entry.
+                  Ui_effect.Many([
+                    inject(Update.SwitchMode(Tutorial)),
+                    globals.inject_global(
+                      Set(Sidebar(SwitchPanel(TaskReference))),
+                    ),
+                  ])
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
                 | _ => failwith("Invalid mode")
               ),

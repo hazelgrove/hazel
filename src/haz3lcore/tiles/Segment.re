@@ -16,8 +16,6 @@ let fold_right = (f, xs, acc) =>
   List.fold_left((acc, x) => f(x, acc), acc, List.rev(xs));
 let rev = List.rev;
 
-let of_tile = t => [Tile.to_piece(t)];
-
 let incomplete_tiles =
   List.filter_map(
     fun
@@ -66,20 +64,6 @@ let convex_grout =
     fun
     | Piece.Grout(g) when g.shape == Convex => Some(g)
     | _ => None,
-  );
-
-let contains_matching = (t: Tile.t) =>
-  List.exists(
-    fun
-    | Piece.Tile(t') => t'.id == t.id
-    | _ => false,
-  );
-
-let remove_matching = (t: Tile.t) =>
-  List.filter_map(
-    fun
-    | Piece.Tile(t') when t'.id == t.id => None
-    | p => Some(p),
   );
 
 let snoc = (tiles, tile) => tiles @ [tile];
@@ -907,9 +891,6 @@ let skel = (~sort=Sort.Exp, seg) => {
   |> Skel.mk(~sort);
 };
 
-let sorted_children = List.concat_map(Piece.sorted_children);
-let children = seg => List.map(snd, sorted_children(seg));
-
 module Trim = {
   type seg = t;
   type t = Aba.t(list(Secondary.t), Grout.t);
@@ -933,6 +914,16 @@ module Trim = {
       | None => []
       };
     List.(map(Piece.secondary, concat(wss) @ extra));
+  };
+
+  /* Like ws, but keeps the result a trim (for re-adding grout). */
+  let strip_grout = ((wss, gs): t): t => {
+    let extra =
+      switch (Grout.redeem_space_from(gs)) {
+      | Some(w) => [w]
+      | None => []
+      };
+    Aba.mk([List.concat(wss) @ extra], []);
   };
 
   // postcond: result is either <ws> or <ws,g,ws'>
@@ -1206,8 +1197,6 @@ let rescan = (seg: t): t => {
   };
 };
 
-let rescan_and_reassemble = (seg: t): t => seg |> rescan |> reassemble;
-
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
     switch (d) {
@@ -1228,21 +1217,6 @@ let trim_secondary: (Direction.t, t) => t =
     trim_f(trim_l, d, ps);
   };
 
-let trim_grout_around_secondary: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing grout, skipping over secondary,
-       but not skipping over other pieces. */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Secondary(w), ...xs] => [Secondary(w), ...trim_l(xs)]
-        | [Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
-    trim_f(trim_l, d, ps);
-  };
-
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
   let trimmed = trim_secondary(d, ps);
   switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
@@ -1254,13 +1228,6 @@ let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
 
 let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
   Option.map(Nib.Shape.absolute(d), edge_shape_of(d, ps));
-
-let sameline_secondary =
-  List.for_all(
-    fun
-    | Piece.Secondary(w) => !Secondary.is_linebreak(w)
-    | _ => false,
-  );
 
 /* Split a segment at top-level comma tiles: the groups between commas
  * alternating with the comma pieces themselves (a segment with no

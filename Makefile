@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check ci-extended dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -28,9 +28,11 @@ change-deps:
 
 setup-instructor:
 	cp src/web/exercises/settings/ExerciseSettings_instructor.re src/web/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/TutorialSettings_instructor.re src/web/exercises/settings/TutorialSettings.re
 
-setup-student: 
+setup-student:
 	cp src/web/exercises/settings/ExerciseSettings_student.re src/web/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/TutorialSettings_student.re src/web/exercises/settings/TutorialSettings.re
 
 dev-helper: setup-zarith
 	dune fmt --auto-promote || true
@@ -85,10 +87,56 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
+# Report definitions that nothing references, using the .ocaml-index files dune
+# already builds. See scripts/find_dead_code.py for the predicate and its limits.
+# Analyses whichever ExerciseSettings/TutorialSettings variant is currently in
+# place; deliberately does not run setup-instructor, which would flip a student
+# checkout. Do not point this at a bisect_ppx-instrumented build.
+dead-code:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build
+
+dead-code-json:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build --format=json
+
+dead-code-summary:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build --format=markdown
+
+# The CI entry points. Unlike `test` / `test-quick`, none of these
+# --auto-promote: a violation in CI should be reported, not rewritten into a
+# checkout that is thrown away.
+
+# No `dune build --profile dev` first: dev is the lax profile (`-warn-error -A`,
+# see the (env) stanzas in src/*/dune), so it caught nothing the release build
+# misses, and runtest builds its own dependencies.
 ci: setup-zarith
-	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
-	
+
+# alcotest's -q filter, which skips the Slow-tagged QCheck tests that dominate
+# the suite's runtime.
+ci-quick: setup-zarith
+	dune build @test-quick --profile dev
+
+# The strict-warning gate (issue #2456): release promotes warnings to errors,
+# and @check reaches test/ -- which no release build covers -- by type-checking
+# without linking, so it costs no second js_of_ocaml build of the test bundle.
+ci-check:
+	dune build @check --profile release
+
+# The weekly extended run (.github/workflows/extended-tests.yml). QCHECK_LONG
+# puts qcheck-core in long mode, where it multiplies every ~count, max_gen and
+# max_fail by QCHECK_LONG_FACTOR -- which the caller sets, so with it unset this
+# is just `ci` without the instrumentation. No bisect_ppx: coverage is the
+# per-push `ci` run's job, and instrumenting only makes a multi-hour run slower.
+#
+# --force because the runtest alias is otherwise cached, and dune does not track
+# QCHECK_* as a dependency of the rule (there is no (env_var) in test/dune), so
+# an env-only change would be a no-op against a cached result.
+ci-extended: setup-zarith
+	QCHECK_LONG=1 dune runtest --force
+
 generate-coverage-html:
 	bisect-ppx-report html
 

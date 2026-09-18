@@ -87,7 +87,7 @@ let print =
     let env_init = Language.Builtins.env_init;
     let (_, state) =
       Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
-    let probe_map = state.probes;
+    let probe_map = state.probes |> Language.Sample.Map.finalize;
     let text =
       ProbeText.of_zipper(
         ~window=ProbeProj.Settings.s^.window,

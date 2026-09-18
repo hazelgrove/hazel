@@ -694,18 +694,22 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+/* ~expand restricts which alias names get expanded (default: all). Used
+   by module lowering to expand only module-LOCAL aliases when a member
+   type escapes its scope, keeping global/builtin aliases compact. */
+let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("normalize exceeded 1000 recursive calls");
   };
-  let normalize = normalize(~rec_counter=rec_counter + 1);
+  let normalize = normalize(~rec_counter=rec_counter + 1, ~expand);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
-  | Var(x) =>
+  | Var(x) when expand(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
     | None => ty
     }
+  | Var(_) => ty
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -827,6 +831,118 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
 /* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
    but we're now calling it 'meet' to clarify that Unknown represents the top
    (least precise) element in the precision ordering: specific types dominate Unknown. */
+
+/* [has_fun] with lazy alias resolution: resolves Var heads on demand
+   instead of pre-normalizing the whole type. Rec binders shadow their
+   name, so bound occurrences don't re-expand through the outer context. */
+let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
+  let rec go = (~depth, ctx: Ctx.t, ty: t): bool =>
+    depth > 256
+      ? false
+      : (
+        switch (term_of(ty)) {
+        | Parens(t)
+        | Projector(_, t)
+        | Splice(t)
+        | TupLabel(_, t)
+        | ProdProjection(t, _) => go(~depth=depth + 1, ctx, t)
+        | Arrow(_)
+        | Poly(_)
+        | ProofOf(_) => true
+        | Var(x) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | Some(t) => go(~depth=depth + 1, ctx, t)
+          | None => false
+          }
+        | Unknown(_)
+        | Atom(_)
+        | DrvQuoteTy(_)
+        | Label(_)
+        | Sig(_)
+        | ExplicitNonlabel => false
+        | List(t) => go(~depth=depth + 1, ctx, t)
+        | Rec(tp, t) =>
+          go(~depth=depth + 1, Ctx.extend_dummy_tvar(ctx, tp), t)
+        | Sum(sm) =>
+          List.exists(
+            fun
+            | ConstructorMap.Variant(_, _, Some(t)) =>
+              go(~depth=depth + 1, ctx, t)
+            | _ => false,
+            sm,
+          )
+        | Prod(tys) => List.exists(go(~depth=depth + 1, ctx), tys)
+        | ProdExtension(t1, t2) =>
+          go(~depth=depth + 1, ctx, t1) || go(~depth=depth + 1, ctx, t2)
+        }
+      );
+  go(~depth=0, ctx, ty);
+};
+
+/* Equality up to alias expansion, WITHOUT deep normalization: the decision
+   procedure for `fast_equal(normalize(ctx, a), normalize(ctx, b))` that
+   expands alias heads lazily, only where the comparison actually reaches
+   them (the OCaml/GHC discipline: peel one layer on demand; a compact
+   alias meeting itself or its own expansion never unrolls the body).
+   Heads are resolved with weak_head_normalize; Rec/Poly binders shadow
+   their name via a dummy tvar exactly as normalize does.
+   Two conservative divergences from the normalize-then-compare original,
+   both returning false where it might have said true (callers use the
+   result to decide ascription-wrapping/marks, where a false negative is
+   safe): alpha-differing binders are not renamed, and comparisons deeper
+   than the recursion cap report unequal rather than failing. */
+let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
+  let rec go = (~depth, ctx: Ctx.t, a: t, b: t): bool =>
+    if (depth > 256) {
+      false;
+    } else if (a === b || fast_equal(a, b)) {
+      true;
+    } else {
+      let go = go(~depth=depth + 1);
+      let head = ty => {
+        let ty = weak_head_normalize(ctx, ty);
+        switch (term_of(ty)) {
+        | Sig(_) => desugar_sig(ctx, ty)
+        | _ => ty
+        };
+      };
+      let a = head(a);
+      let b = head(b);
+      switch (term_of(a), term_of(b)) {
+      | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
+      | (List(x), List(y)) => go(ctx, x, y)
+      | (Arrow(x1, y1), Arrow(x2, y2)) =>
+        go(ctx, x1, x2) && go(ctx, y1, y2)
+      | (Prod(xs), Prod(ys)) =>
+        List.length(xs) == List.length(ys)
+        && List.for_all2(go(ctx), xs, ys)
+      | (TupLabel(l1, x), TupLabel(l2, y)) =>
+        fast_equal(l1, l2) && go(ctx, x, y)
+      | (Sum(xs), Sum(ys)) => ConstructorMap.equal(go(ctx), xs, ys)
+      | (Rec(tp1, x), Rec(tp2, y))
+      | (Poly(tp1, x), Poly(tp2, y)) =>
+        switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
+        | (Some(n1), Some(n2)) when n1 == n2 =>
+          go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
+        | _ => fast_equal(a, b)
+        }
+      /* Atoms, Unknowns, Labels, and anything alias-free: fast_equal
+         already said false above, and heads are now alias-resolved, so
+         differing constructors are genuinely unequal. */
+      | _ => false
+      };
+    };
+  go(~depth=0, ctx, a, b);
+};
+
+/* Structural canonicalization WITHOUT alias expansion: desugars Sig,
+   computes tuple projections/extensions, dedups labels, strips wrapper
+   noise — but leaves every alias compact. This is the right form for
+   types EMBEDDED into elaborations (ascriptions, recorded elab_syn_ty):
+   they only need to be resolvable in ctx, and expanding them is what
+   made large-sum programs quadratically slow downstream. */
+let canonicalize = (ctx: Ctx.t, ty: t): t =>
+  normalize(~expand=_ => false, ctx, ty);
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
@@ -1021,15 +1137,6 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   switch (met) {
   | None => false
   | Some(met) => Equality.semantic.typ(met, ty1)
-  };
-};
-
-let rec get_labels = (ctx, ty): list(option(string)) => {
-  let ty = weak_head_normalize(ctx, ty);
-  switch (term_of(ty)) {
-  | Parens(ty) => get_labels(ctx, ty)
-  | Prod(tys) => List.map(x => Option.map(fst, match_tup_label(x)), tys)
-  | _ => []
   };
 };
 
@@ -1280,3 +1387,207 @@ and paren_pretty_print = typ =>
  * @return A product type representing the combination of the input types
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
+
+/* Every id in a type, including the variant_ann ids on Sum constructors. */
+let all_ids = (ty: t): list(Id.t) => {
+  let ids = ref([]);
+  let _ =
+    Grammar.map_typ_annotation(
+      (t: IdTagged.IdTag.t) => {
+        ids := t.ids @ ids^;
+        t;
+      },
+      ty: t,
+    );
+  let rec collect_ann_ids = (ty: t) => {
+    switch (term_of(ty)) {
+    | Sum(variants) =>
+      List.iter(
+        fun
+        | ConstructorMap.Variant(_, ann, opt) => {
+            ids := ann.ids @ ids^;
+            Option.iter(collect_ann_ids, opt);
+          }
+        | BadEntry(t) => collect_ann_ids(t),
+        variants,
+      )
+    | Arrow(t1, t2)
+    | TupLabel(t1, t2)
+    | ProdExtension(t1, t2)
+    | ProdProjection(t1, t2) =>
+      collect_ann_ids(t1);
+      collect_ann_ids(t2);
+    | List(t)
+    | Parens(t)
+    | Projector(_, t)
+    | Splice(t)
+    | Rec(_, t)
+    | Poly(_, t) => collect_ann_ids(t)
+    | Prod(ts) => List.iter(collect_ann_ids, ts)
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Sig(_) => ()
+    };
+  };
+  collect_ann_ids(ty);
+  ids^;
+};
+
+/* Every id in one constructor variant. */
+let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
+  switch (v) {
+  | Variant(_, ann, Some(t)) => ann.ids @ all_ids(t)
+  | Variant(_, ann, None) => ann.ids
+  | BadEntry(t) => all_ids(t)
+  };
+
+/* The ids of the nodes of [ty'] that [ty] does not account for -- what has
+   to be marked to show how [ty'] differs. Ids in either type must be
+   distinct, or the result names the wrong nodes.
+
+   [expanded_aliases] names the aliases already expanded on the way here, so
+   a cycle through the context (`type A = (B) in type B = (A)`) stops rather
+   than expanding forever. Only the arms that see the same position again --
+   alias expansion and the nodes that carry no meaning of their own -- thread
+   it; descending into a component starts over. */
+let rec diff =
+        (
+          ~ctx: option(Ctx.t)=?,
+          ~expanded_aliases: list(string)=[],
+          ty: t,
+          ty': t,
+        )
+        : list(Id.t) => {
+  let get_ids = () => all_ids(ty');
+  let expand = name =>
+    if (List.exists(String.equal(name), expanded_aliases)) {
+      None;
+    } else {
+      ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
+    };
+  switch (term_of(ty), term_of(ty')) {
+  | (Parens(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  | (_, Projector(_, t2)) => diff(~ctx?, ~expanded_aliases, ty, t2)
+  | (Projector(_, t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  | (_, Splice(t2)) => diff(~ctx?, ~expanded_aliases, ty, t2)
+  | (Splice(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  /* Parens carry no meaning of their own, so they take the verdict of the
+     node they wrap: marked when that node is itself replaced, unmarked when
+     it merely contains something that changed. `(Int, ?)` vs `(Int, String)`
+     leaves the parens alone -- still the same tuple, one component differs --
+     while `?` vs `(a=Int)` marks them, the tuple being wholly new. */
+  | (_, Parens(t2)) =>
+    let inner = diff(~ctx?, ~expanded_aliases, ty, t2);
+    let wrapped_replaced =
+      IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
+    wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
+  /* Runtime knowing less than statics is not something runtime supplied:
+     `?` on the right is unmarked whatever stands on the left. */
+  | (_, Unknown(_)) => []
+  | (Unknown(_), _) => get_ids()
+  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(_), _) => get_ids()
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => []
+  | (DrvQuoteTy(_), _) => get_ids()
+  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
+  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(name), _) =>
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        expanded,
+        ty',
+      )
+    | None => get_ids()
+    }
+  /* An alias prints as one token carrying the Var node's own ids, so the
+     expansion decides only WHETHER it differs; the ids returned are the
+     Var's, and the verdict is all-or-nothing. */
+  | (_, Var(name)) =>
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        ty,
+        expanded,
+      )
+      == []
+        ? [] : get_ids()
+    | None => get_ids()
+    }
+  | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (Rec(_), _) => get_ids()
+  | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (Poly(_), _) => get_ids()
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.syntactic.exp(e1, e2) ? [] : get_ids()
+  | (ProofOf(_), _) => get_ids()
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) =>
+    diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
+  | (Arrow(_), _) => get_ids()
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
+  | (Prod(_), _) => get_ids()
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
+    diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
+  | (TupLabel(_, _), _) => get_ids()
+  | (List(t1), List(t2)) => diff(~ctx?, t1, t2)
+  | (List(_), _) => get_ids()
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | (Sum(sm1), Sum(sm2)) =>
+    let (inter, left, right) =
+      ConstructorMap.venn_regions(
+        ConstructorMap.same_constructor(fast_equal),
+        sm1,
+        sm2,
+      );
+    if (left != []) {
+      /* A constructor missing on the right makes the whole Sum different. */
+      get_ids();
+    } else {
+      let matched_ids =
+        List.concat_map(
+          ((v1, v2)) =>
+            switch (v1, v2) {
+            | (
+                ConstructorMap.Variant(_, _, Some(t1)),
+                ConstructorMap.Variant(_, _, Some(t2)),
+              ) =>
+              diff(~ctx?, t1, t2)
+            | (
+                ConstructorMap.Variant(_, _, None),
+                ConstructorMap.Variant(_, _, None),
+              ) =>
+              []
+            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+              diff(~ctx?, t1, t2)
+            | (_, v2) => variant_all_ids(v2)
+            },
+          inter,
+        );
+      let right_ids = List.concat_map(variant_all_ids, right);
+      matched_ids @ right_ids;
+    };
+  | (Sum(_), _) => get_ids()
+  | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
+  | (Sig(_), _) => get_ids()
+  };
+};

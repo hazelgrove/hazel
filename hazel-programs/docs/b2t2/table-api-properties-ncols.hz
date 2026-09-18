@@ -1,0 +1,17 @@
+# (benchmark) ncols #
+let requires = [] in
+let ensures = [
+  (enforced=("no"), "n is equal to ncols(t)")
+] in
+# Only works for non-empty tables since we don't keep a schema #
+let ncols =
+  fun (t : [?]) ->
+    case t
+    | (x::xs) => to_lvs(x) |> length
+    | _ => 0
+    end in
+# Examples #
+test
+  ncols([()]) == 0 end;
+test
+  ncols([(a= 1, b= 2)]) == 2 end

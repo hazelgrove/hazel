@@ -58,17 +58,23 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
+    let clipboard = Unicode.nfc_outside_strings(clipboard);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
-      (
-        Parser.can_fast_paste(clipboard, z, ~root)
-          ? Parser.fast_paste(clipboard, z, ~root)
-          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
-      )
-      |> Option.map(maybe_reassoc_thorough)
-      |> return(CantPaste)
-    }
+      /* console-visible paste telemetry (dev): which parser ran and why */
+      let n = string_of_int(String.length(clipboard)) ++ " chars";
+      switch (Parser.fast_paste(clipboard, z, ~root)) {
+      | Ok(z) =>
+        print_endline("FastParse paste (" ++ n ++ "): linear path");
+        Ok(maybe_reassoc_thorough(z));
+      | Error(why) =>
+        print_endline("FastParse paste fallback (" ++ n ++ "): " ++ why);
+        Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        |> Option.map(maybe_reassoc_thorough)
+        |> return(CantPaste);
+      };
+    };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z, ~root) |> return(Cant_destruct)
@@ -151,7 +157,17 @@ let go =
       | Down => cur.row >= Measured.last_row(measured)
       };
     if (!leaving) {
-      Move.vertical(~measured, ~col_target=col, d, z) |> return(Cant_move);
+      /* Empty map: refractor_rows is keyed by main-frame ids, and the
+         drawer rows it reserves are laid out in the main frame, so
+         nothing it names is in this splice-local measured map. */
+      Move.vertical(
+        ~measured,
+        ~refractor_rows=Id.Map.empty,
+        ~col_target=col,
+        d,
+        z,
+      )
+      |> return(Cant_move);
     } else {
       let exit_d: Util.Direction.t = d == Up ? Left : Right;
       switch (Move.exit_current_splice(exit_d, z)) {
@@ -183,6 +199,7 @@ let go =
           Ok(
             Move.vertical(
               ~measured=CachedSyntax.measured(syntax_main),
+              ~refractor_rows=syntax_main.refractor_rows,
               ~col_target=col,
               d,
               z,
@@ -219,6 +236,7 @@ let go =
         ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=CachedSyntax.measured(syntax),
+      ~refractor_rows=syntax.refractor_rows,
       d,
       z,
     )
@@ -235,6 +253,7 @@ let go =
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=CachedSyntax.measured(syntax),
+      ~refractor_rows=syntax.refractor_rows,
       ~chunkiness,
       d,
       z,

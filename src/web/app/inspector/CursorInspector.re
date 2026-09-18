@@ -35,7 +35,7 @@ let cls_view = (ci: Info.t): Node.t => {
       | Typ(EmptyHole)
       | Exp(EmptyHole)
       | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-      | cls => cls |> Cls.show
+      | _ => Info.cls_label(ci)
       }
     };
 
@@ -110,6 +110,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -1040,8 +1041,6 @@ let tpat_view =
     }
   };
 };
-
-let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];

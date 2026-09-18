@@ -32,7 +32,17 @@ let update_manuals = (f, z: t): t => {
 };
 
 let add_manual = (~model=?, id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
-  update_manuals(x => [(id, Refractors.mk_entry(~model?, kind)), ...x], z);
+  /* Drop any existing entry for this id first: `manuals` is consumed both
+   * as an assoc list (first match wins) and via Id.Map.of_list (last
+   * wins), so a duplicate makes logic and rendering disagree. */
+  update_manuals(
+    x =>
+      [
+        (id, Refractors.mk_entry(~model?, kind)),
+        ...List.filter(((id', _)) => id' != id, x),
+      ],
+    z,
+  );
 
 let update_ephemerals = (f, z: t): t => {
   ...z,
@@ -82,14 +92,6 @@ let update_siblings: (Siblings.t => Siblings.t, t) => t =
     );
 
 let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
-
-let put_selection_content = (content: Segment.t, z): t => {
-  ...z,
-  selection: {
-    ...z.selection,
-    content,
-  },
-};
 
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
@@ -232,7 +234,4 @@ module MapPiece = {
     } else {
       go(f, z);
     };
-
-  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
-    fast_local_seg(p => [f(p)], id, z);
 };

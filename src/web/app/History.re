@@ -94,12 +94,7 @@ module Update = {
           action,
           model.current,
         );
-      /* Push an undo point only when the action kind is undoable AND
-       * this particular update reported itself historic — updates that
-       * come back via `Updated.return_quiet` (e.g. a sub-editor action
-       * rejected by `PerformConfined` confinement) are no-ops and would
-       * otherwise bury real undo points under identical snapshots. */
-      if (Page.Update.can_undo(action) && current.historic) {
+      if (current.historic) {
         let new_stack = [
           {
             ...current,
@@ -141,11 +136,20 @@ module Update = {
         model: Model.t,
       )
       : Model.t => {
-    current:
+    let current =
       model.current
-      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
-    undo_stack: model.undo_stack,
-    redo_stack: model.redo_stack,
+      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics);
+    /* Undo/redo depth for the Editor & Memory panel. Ordered after the calculate
+       above, which syncs PerfMetrics' gating for this frame. */
+    PerfMetrics.record_history(
+      ~undo=model.undo_stack,
+      ~redo=model.redo_stack,
+    );
+    {
+      current,
+      undo_stack: model.undo_stack,
+      redo_stack: model.redo_stack,
+    };
   };
 };
 

@@ -311,9 +311,9 @@ let projector_clss =
     }
   );
 
-/* Wraps the view function for a projector, absolutely positioning
- * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate*/
+/* Keyed by projector id: under culling a scroll step adds/removes probes at
+ * the edges; unkeyed, the vdom differ matches positionally and repatches onto
+ * a different probe, jumping keyboard focus off the user's probe. */
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -324,9 +324,11 @@ let view_wrapper =
       ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
+      ~id: Id.t,
       views: list(Node.t),
     ) =>
   div(
+    ~key="proj-" ++ Id.to_string(id),
     ~attrs=[
       Attr.classes(projector_clss(~view_error, status)),
       /* Stopping propagation here stops the base editor's
@@ -364,9 +366,21 @@ let handle = (idx, kind, action: external_action): Action.t =>
   };
 
 let offside_wrapper =
-    (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
+    (
+      font_metrics: FontMetrics.t,
+      offside_base: int,
+      ~row: int,
+      ~origin_col: int,
+      v: Node.t,
+    ) =>
   div(
     ~attrs=[
+      /* class + row/col identity for the after-display stagger pass
+         (ProbeStagger): displays spanning several rows get pushed past
+         longer lines below and past displays from rows above */
+      Attr.classes(["offside-wrapper"]),
+      Attr.create("data-row", string_of_int(row)),
+      Attr.create("data-ocol", string_of_int(origin_col)),
       Attr.create(
         "style",
         Printf.sprintf(
@@ -378,19 +392,49 @@ let offside_wrapper =
     [v],
   );
 
+/* below view at pane col 0: shift back by origin.col (wrapper sits at the projector's col) */
+let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["below-wrapper"]),
+      /* Gates the scroll-affordance fade (proj-probe.css .at-bottom). */
+      Attr.on_scroll(evt => {
+        JsUtil.sync_at_bottom_class(evt);
+        Effect.Ignore;
+      }),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; top: %fpx; left: %fpx;",
+          font_metrics.row_height,
+          -. (font_metrics.col_width *. float_of_int(origin_col)),
+        ),
+      ),
+    ],
+    [v],
+  );
+
 let simple_code =
-    (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
+    (
+      ~background=false,
+      ~classes=?,
+      ~is_single_line=false,
+      font_metrics,
+      _sort,
+      segment,
+    )
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let refractor_shape_map = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
+  let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
   let measured =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
+      ~classes?,
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
-      ~refractor_shape_map,
+      ~refractor_rows,
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
@@ -451,18 +495,21 @@ let flex_code =
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
+      ~classes=?,
       sort,
       segment,
-    ) =>
+    ) => {
   text_only
     ? text_code(segment)
     : simple_code(
         ~background?,
+        ~classes?,
         ~is_single_line=single_line,
         font_metrics,
         sort,
         segment,
       );
+};
 
 /* Default fallback splice renderer: non-interactive simple_code. Used
  * when a ProjectorView caller does not provide a richer ~render_splice
@@ -587,11 +634,19 @@ let mk_view =
           | a => inject(handle(idx, p.kind, a))
           },
         view_seg:
-          (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+          (
+            ~single_line=?,
+            ~background=?,
+            ~classes=?,
+            ~text_only=?,
+            sort,
+            segment,
+          ) =>
           flex_code(
             ~font_metrics,
             ~single_line?,
             ~background?,
+            ~classes?,
             ~text_only?,
             sort,
             segment,
@@ -654,20 +709,30 @@ let split_views =
       ~view_error=views.error,
       ~idx,
       ~kind=p.kind,
+      ~id=p.id,
     );
   let line_view = {
     let offside_view =
-      render_layers == Model.NoOffside
-        ? []
-        : views.offside
-          |> Option.map(offside_wrapper(font_metrics, offside_base))
-          |> Option.to_list;
-    let term_views =
-      render_layers == Model.OffsideOnly
-        ? []
-        : (skip_inline ? [] : [views.inline])
-          @ [backing_deco(~font_metrics, ~measurement, p)];
-    wrapper(term_views @ offside_view);
+      views.offside
+      |> Option.map(
+           offside_wrapper(
+             font_metrics,
+             offside_base,
+             ~row=measurement.origin.row,
+             ~origin_col=measurement.origin.col,
+           ),
+         )
+      |> Option.to_list;
+    let below_view =
+      views.below
+      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+      |> Option.to_list;
+    wrapper(
+      (skip_inline ? [] : [views.inline])
+      @ [backing_deco(~font_metrics, ~measurement, p)]
+      @ offside_view
+      @ below_view,
+    );
   };
   let overlay_view =
     Option.map(

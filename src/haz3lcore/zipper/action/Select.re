@@ -25,14 +25,6 @@ let piece_max_idx = (p: Piece.t): option(int) => {
 let focus_boundary_piece = (z: Zipper.t): option(Piece.t) =>
   Selection.focus_piece(z.selection);
 
-/* Get the anchor-side boundary piece from selection content */
-let anchor_boundary_piece = (z: Zipper.t): option(Piece.t) =>
-  Selection.anchor_piece(z.selection);
-
-/* Get the next piece in siblings in the focus direction */
-let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
-  Siblings.neighbor(z.selection.focus, z.relatives.siblings);
-
 /* Max inner index of the focus-side boundary piece in the selection */
 let focus_max_idx = (z: Zipper.t): int =>
   switch (focus_boundary_piece(z)) {
@@ -894,14 +886,23 @@ let vertical =
       d: Action.vertical,
       ~col_target: int,
       ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
       ~chunkiness: Action.chunkiness=ByChar,
       z: t,
     )
     : option(t) => {
+  let dir = d == Down ? 1 : (-1);
+  let from_row = Zipper.Caret.point(measured, z).row;
   let goal =
     Point.{
       col: col_target,
-      row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
+      row:
+        Move.skip_refractor_dead_rows(
+          ~refractor_rows,
+          ~measured,
+          ~dir,
+          from_row + dir,
+        ),
     };
   let step =
     switch (chunkiness) {

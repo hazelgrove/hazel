@@ -30,8 +30,6 @@ let tokens =
 type tile = (Id.t, Aba.t(Token.t, Any.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, Any.t);
-let single = (id, subst) => ([(id, subst)], []);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
@@ -107,9 +105,6 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   | EmptyHole
   | Invalid(_) => [s]
   };
-
-let is_grout = tiles =>
-  Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
 let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   open OptUtil.Syntax;
@@ -300,17 +295,6 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       Some(u),
     )
   | t => BadEntry(t);
-
-let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
-    term: Var(ctr),
-  };
-  switch (value) {
-  | None => t
-  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
-  };
-};
 
 let is_hole_label = (t: string) =>
   t == " "
@@ -1104,6 +1088,27 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
+  | Pre(tiles, Pat(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["-"], []))], []) =>
+      /* Negative literal patterns: the pattern grammar has no unary ops,
+         and a matched value is a plain negative atom, so fold the minus
+         into the literal. The float fold is exact: IEEE negation only
+         flips the sign bit and correctly-rounded decimal conversion
+         commutes with sign, so -. parse(s) == parse("-" ++ s). The
+         literal's ids are adopted, as in ListLit absorption. Non-literal
+         operands (`-x`) stay holes. */
+      switch (r) {
+      | {term: Atom(Int(n)), annotation: {ids, _}} =>
+        adopted_ids := ids @ adopted_ids^;
+        (Atom(Int(Bigint.neg(n))), ids);
+      | {term: Atom(Float(f)), annotation: {ids, _}} =>
+        adopted_ids := ids @ adopted_ids^;
+        (Atom(Float(-. f)), ids);
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
   | tm => ret(hole(tm));
 }
 and typ = unsorted => {
@@ -1157,7 +1162,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
           | ([t], []) when Token.is_typ_var(t) => Var(t)
           | ([t], []) when Token.is_quoted_label(t) =>
-            Label(Token.sub(t, 1, Token.length(t) - 2))
+            Label(Token.strip_quotes(~quote=Token.label_delim, t))
           | (["(", ")"], [Typ(body)]) => Parens(body)
           | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
           | (["[", "]"], [Typ(body)]) => List(body)

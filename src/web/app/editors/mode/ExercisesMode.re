@@ -57,22 +57,6 @@ module Model = {
     | Theorem(s) => s.id
     };
 
-  let persist = (~instructor_mode, model): persistent => {
-    {
-      cur_exercise:
-        List.nth(model.exercises, model.current) |> get_exercise_id,
-      exercise_data:
-        List.map(
-          (exercise: exercise) =>
-            (
-              get_exercise_id(exercise),
-              persist_exercise(~instructor_mode, exercise),
-            ),
-          model.exercises,
-        ),
-    };
-  };
-
   let unpersist_exercise =
       (
         ~settings,
@@ -138,13 +122,6 @@ module Model = {
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
 
-  let get_exercise_name = (e: exercise): string =>
-    switch (e) {
-    | Code(e) => e.editors.title
-    | Derivation(e) => e.spec.title
-    | Theorem(e) => e.title
-    };
-
   let get_exercise_module_name = (e: exercise): string =>
     switch (e) {
     | Code(e) => e.editors.module_name
@@ -174,21 +151,6 @@ module Model = {
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
-  let export_grading_module = (e: exercise): string =>
-    switch (e) {
-    | Code(e) =>
-      CodeExercise.export_grading_module(
-        e.editors.module_name,
-        {eds: e.editors},
-      )
-    | Derivation(e) =>
-      DerivationExercise.export_grading_module(
-        e.spec.module_name,
-        {eds: e.editors},
-      )
-    | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
-    };
-
   // Used for the assistant or something
   let get_editor = (model: t): CodeEditable.Model.t => {
     let current = List.nth(model.exercises, model.current);
@@ -201,16 +163,6 @@ module Model = {
        since this cell's measured only covers setup content. */
     | Derivation(e) => e.cells.setup.editor
     | Theorem(e) => e.cells.theorem.editor
-    };
-  };
-
-  /* Only used within ExercisesMode.re; exposed via the Model module signature
-     for the derivation-specific UI bindings below. */
-  let get_derivation_info = (eds: t) => {
-    let model = get_current(eds);
-    switch (model) {
-    | Derivation(e) => DerivationExerciseMode.Model.get_derivation_info(e)
-    | _ => None
     };
   };
 
@@ -241,10 +193,6 @@ module StoreExerciseKey =
   });
 
 module Store = {
-  let keystring_of_key = key => {
-    key |> Haz3lcore.Id.to_string;
-  };
-
   let save_exercise = (exercise: Model.exercise, ~instructor_mode) => {
     let key = Model.get_exercise_id(exercise);
     let value = Model.persist_exercise(exercise, ~instructor_mode);
@@ -369,18 +317,6 @@ module Update = {
     | ExportModule
     | ExportSubmission
     | ExportTransitionary;
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchExercise(_) => false
-    | Exercise(action) => CodeExerciseMode.Update.can_undo(action)
-    | Derivation(action) => DerivationExerciseMode.Update.can_undo(action)
-    | TheoremExercise(action) => TheoremExerciseMode.Update.can_undo(action)
-    | ExportModule => false
-    | ExportSubmission => false
-    | ExportTransitionary => false
-    };
-  };
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name =
@@ -484,7 +420,7 @@ module Update = {
         current: n,
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
     | (_, ExportModule) =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
@@ -501,7 +437,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let current_exercise = Model.get_current(model);
     let current_exercise =
       switch (current_exercise) {
@@ -509,6 +452,7 @@ module Update = {
         Model.Code(
           CodeExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
             ex,
@@ -518,6 +462,7 @@ module Update = {
         Model.Derivation(
           DerivationExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Derivation(a)),
             ex,
@@ -527,6 +472,7 @@ module Update = {
         Model.Theorem(
           TheoremExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(TheoremExercise(a)),
             ex,

@@ -74,8 +74,6 @@ module Update = {
       root,
     };
   };
-
-  let can_undo = StepperBase.Stepper.can_undo;
 };
 
 module Focus = {

@@ -19,8 +19,6 @@ let to_list: t => list(list_item) =
   | None => []
   | WarningPat(p) => [Pat(p)];
 
-let empty: t = None;
-
 let var_is_unused = (co_ctx, name): t =>
   if (String.starts_with(~prefix="_", name) || CoCtx.contains_hole(co_ctx)) {
     None;

@@ -44,12 +44,6 @@ module JsonADT = {
     | `Variant(_) => Error("Variant not supported in JsonADT")
     };
 
-  let yojson_to_any = (json: Yojson.Safe.t): result(Language.Any.t, string) =>
-    switch (yojson_to_exp(json)) {
-    | Ok(exp) => Ok(Exp(exp))
-    | Error(msg) => Error(msg)
-    };
-
   /* Convert a Hazel expression of the JSON ADT type back to Yojson */
   /* Recursively strip evaluation wrappers (Parens, Closure, etc.)
      to get to the underlying value term. */
@@ -156,10 +150,4 @@ module JsonADT = {
     | _ => Error("JsonADT: Assoc expects (String, JSON) pairs")
     };
   };
-
-  let any_to_yojson = (any: Language.Any.t): result(Yojson.Safe.t, string) =>
-    switch (any) {
-    | Exp(exp) => exp_to_yojson(exp)
-    | _ => Error("JsonADT: only Exp terms are supported")
-    };
 };

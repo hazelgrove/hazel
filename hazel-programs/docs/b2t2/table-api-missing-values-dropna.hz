@@ -1,0 +1,40 @@
+type OptInt = + None + Some(Int) in
+type OptString = + None + Some(String) in
+
+# This only works if every column in the dataset was optional otherwise it will get stuck in indet #
+# (benchmark) dropna #
+let requires = [] in
+let ensures = [
+  (enforced=("static"), "schema(t2) is equal to schema(t1)")
+] in
+let dropna =
+  typfun R ->
+    fun (t1 : [R]) ->
+      filter(
+        t1,
+        fun row ->
+          ! any(to_lvs(row), fun e -> e.value == (None : Option))
+      )
+      : [R] in
+type StudentFullyOptional = (
+  name= OptString,
+  age= OptInt,
+  favorite_color= OptString
+) in
+let students_fully_optional : [StudentFullyOptional] = (
+  [
+    (Some("Bob"), None, Some("blue")),
+    (Some("Alice"), Some(17), Some("green")),
+    (Some("Eve"), Some(13), None)
+  ]
+) in
+test
+  dropna@<(
+    name= OptString,
+    age= OptInt,
+    favorite_color= OptString
+  )>(students_fully_optional)
+  == [(Some("Alice"), Some(17), Some("green"))]
+  : [
+    (name= OptString, age= OptInt, favorite_color= OptString)
+  ] end

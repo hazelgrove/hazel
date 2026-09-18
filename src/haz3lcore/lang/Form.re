@@ -364,6 +364,7 @@ type compound_form =
   | Not
   | TypSumSingle
   | UnaryMinus
+  | UnaryMinusPat
   // N-ARY OPS (on the semantics level)
   | CommaExp
   | CommaPat
@@ -473,6 +474,7 @@ let get: compound_form => t =
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
   | UnaryMinus => mk_prefix("-", Exp, P.neg)
+  | UnaryMinusPat => mk_prefix("-", Pat, P.neg)
   // N-ARY OPS (on the semantics level)
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
@@ -571,7 +573,47 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.map(Token.prefixes)
   |> List.concat;
 
-let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
+/* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
+ * of compound forms (`-` en route to `->`, `=` en route to `=>`), so
+ * that e.g. the `-` of a nascent `fun x ->` holds an infix mold rather
+ * than molding as unary minus and drawing junction grout. Stricter than
+ * the alphanumeric set above: leading delimiters and the complete
+ * tokens themselves are excluded, since complete symbolic operators
+ * have real molds that must govern. */
+let symbolic_delim_prefixes: list(Token.t) =
+  forms
+  |> List.filter_map(((_, {label, _}: t)) =>
+       List.length(label) >= 2 ? Some(List.tl(label)) : None
+     )
+  |> List.concat
+  |> List.filter(Token.is_potential_operator)
+  |> List.sort_uniq(compare)
+  |> List.concat_map(t => List.filter((!=)(t), Token.prefixes(t)));
+
+/* Hot predicate: runs per atomic-form candidate on every molding query
+   (so, superlinearly during text parsing), so membership is a hash set
+   rather than a List.mem scan with polymorphic compare. The table is
+   closure-private, built once at module init — NOT inlined into a
+   Hashtbl.mem(..., _) partial application, whose desugaring would
+   rebuild it on every call. */
+let is_infix_delimiter_op_prefix: Token.t => bool = {
+  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
+  t => Hashtbl.mem(tbl, t);
+};
+
+/* Backup molds handed to delimiter prefixes in operator position. Mold
+   identity, not token, is what tells a backup-molded `-` (pending `->`)
+   from real infix minus or a labeled-tuple `=`. */
+let infix_delimiter_prefix_molds: list(Mold.t) = [
+  Mold.mk_bin(Precedence.concave_grout, Exp, []),
+  Mold.mk_bin(Precedence.concave_grout, Pat, []),
+  Mold.mk_bin(Precedence.concave_grout, Typ, []),
+  Mold.mk_bin(Precedence.concave_grout, TPat, []),
+];
+let is_infix_delimiter_prefix_mold = (m: Mold.t): bool =>
+  List.mem(m, infix_delimiter_prefix_molds);
 
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
@@ -598,19 +640,18 @@ let amiguous_polymorphs: list(Token.t) = {
   single_token_labels |> List.filter(appears_in_other_forms);
 };
 
-let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
+let is_ambiguous_polymorph: Token.t => bool = {
+  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(16);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), amiguous_polymorphs);
+  t => Hashtbl.mem(tbl, t);
+};
 
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
-      [
-        Mold.mk_bin(Precedence.concave_grout, Exp, []),
-        Mold.mk_bin(Precedence.concave_grout, Pat, []),
-        Mold.mk_bin(Precedence.concave_grout, Typ, []),
-        Mold.mk_bin(Precedence.concave_grout, TPat, []),
-      ],
+      infix_delimiter_prefix_molds,
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
@@ -679,10 +720,14 @@ module Molds = {
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
-  /* Base: get molds from form definitions without sort filtering */
+  /* Base: get molds from form definitions without sort filtering.
+     Form-defined molds precede atomic backups: mold order breaks ties
+     among junction-fitting candidates during remolding, and a token
+     like `-` carries both real operator molds and a delimiter-prefix
+     backup that must not shadow them. */
   let get_base = (label: Label.t): list(Mold.t) =>
     switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
+    | ([t], Some(molds)) when atomic(t) != [] => molds @ atomic(t)
     | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
     | _ => []
@@ -801,10 +846,6 @@ module Expansion = {
       }
     };
   };
-
-  /* Check if token would expand in ANY sort (sort-agnostic) */
-  let will = (t: Token.t): bool =>
-    List.exists(((tok, _, _, _)) => tok == t, sorted_expansions);
 
   /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
   let is_leading = (t: Token.t): bool =>

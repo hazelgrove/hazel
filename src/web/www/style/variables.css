@@ -100,6 +100,7 @@
   --main-scroll-thumb: var(--BR1);
   --main-scroll-track: var(--NONE);
   --cell-selected-accent: var(--R1);
+  --cell-idle-accent: var(--BR1); /* unfocused cell accent line (pale brown) */
 
   /* CODE DECO */
 
@@ -165,6 +166,10 @@
   /* ERROR HOLE DECO */
 
   --error-hole-fill: var(--ERRHOLE);
+
+  /* Simplified-mode error/warning term backings (fill-only) */
+  --simple-error-backing: oklch(100% 0.2 25);
+  --simple-warning-backing: oklch(100% 0.2 80);
 
   /* WARNING HOLE DECO */
   --warning-hole-stroke: var(--O1);

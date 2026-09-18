@@ -15,6 +15,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -334,7 +335,7 @@ let tests = (
         "Unit type",
         "()",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.prod([]),
           ),
@@ -347,7 +348,7 @@ let tests = (
         "Void type",
         "Void",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.sum([]),
           ),
@@ -438,6 +439,21 @@ let tests = (
     test_case("ProdProjection - empty label", `Quick, () => {
       type_equivalent_to_make_term("(``=Int).``")
     }),
+    test_case("ProdProjection - non-ASCII quoted label", `Quick, () => {
+      /* The Typ-sort decoder used to slice quoted labels with a byte offset
+       * and a grapheme length, truncating any label with a non-ASCII
+       * character into invalid UTF-8. Spaces keep this one quoted; a bare
+       * `café` is a name now, so it prints unquoted (next case). */
+      type_equivalent_to_make_term(
+        "(`café au lait`=Int).`café au lait`",
+      )
+    }),
+    test_case("ProdProjection - Unicode name as label", `Quick, () => {
+      /* Names take Unicode, so this label needs no quoting. */
+      type_equivalent_to_make_term(
+        "(café=Int).café",
+      )
+    }),
     test_case("ProdProjection - label with spaces", `Quick, () => {
       type_equivalent_to_make_term(
         "(`label with spaces`=Int).`label with spaces`",
@@ -473,7 +489,7 @@ let tests = (
         "Singleton unlabeled tuple type",
         "(_=Int)",
         print_seg(
-          ExpToSegment.typ_to_segment(
+          TypToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.(prod([int()])),
           ),
@@ -509,6 +525,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -739,6 +756,21 @@ in f(42)|},
       {|(`hello world`=42)|},
     ),
     roundtrip_test({|QuotedLabel: empty works|}, {|(``=1)|}),
+    /* Keywords pass Token.is_var but can't lex as identifiers in label
+       position, so they must keep their backticks (#2512). */
+    roundtrip_test({|QuotedLabel: keyword label in exp|}, {|(`type`=3)|}),
+    roundtrip_test(
+      {|QuotedLabel: keyword label in projection|},
+      {|let t = (`fun`=3) in t.`fun`|},
+    ),
+    roundtrip_test(
+      {|QuotedLabel: keyword label in pattern|},
+      {|fun `let`=n -> n|},
+    ),
+    roundtrip_test(
+      {|QuotedLabel: keyword label in type|},
+      {|let t : (`if`=Int) = (`if`=1) in t|},
+    ),
     /* Float power operator (**.) - using normalized float format */
     roundtrip_test({|FPower: standard|}, {|2.000000 **. 3.000000|}),
     roundtrip_test({|FPower: compact|}, {|2.000000**.3.000000|}),
@@ -1114,21 +1146,6 @@ in process([1, -2, 3, -4, 5])|},
    3. Consecutive concave grouts combine into a single MultiHole (chainable)
    4. Secondary (whitespace) is preserved around grout pieces
    ============================================================================ */
-
-/* Settings for structural grout tests */
-let grout_structural_settings: ExpToSegment.Settings.t = {
-  secondary: PreserveExact,
-  parenthesization: Structural,
-  label_format: QuoteWhenNecessary,
-  inline: true,
-  fold_case_clauses: false,
-  fold_fn_bodies: `NoFold,
-  hide_fixpoints: false,
-  show_ascriptions: true,
-  show_filters: true,
-  show_unknown_as_hole: true,
-  project_tables: false,
-};
 
 /* String-to-string grout tests: parse strings, verify round-trip preserves text.
 

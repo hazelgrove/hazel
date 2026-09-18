@@ -389,63 +389,36 @@ let tests = (
         {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1])|},
       )
     ),
-    // These fail due to an eval bug
-    // Should work after https://github.com/hazelgrove/hazel/pull/1729
-    test_case(
-      "sort sorted list of 2 numbers",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 2]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 2])|},
-        );
-      },
-    ),
-    test_case(
-      "sort unsorted list of 2 numbers",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 2]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [2, 1])|},
-        );
-      },
-    ),
-    test_case(
-      "sort unsorted list of 3 numbers",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 2, 3]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 3, 2])|},
-        );
-      },
-    ),
-    test_case(
-      "sort ascending",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 1, 3, 4, 5]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [3, 1, 4, 1, 5])|},
-        );
-      },
-    ),
-    test_case(
-      "sort descending",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[5, 4, 3, 1, 1]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
-        );
-      },
-    ),
+    test_case("sort sorted list of 2 numbers", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 2]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 2])|},
+      )
+    }),
+    test_case("sort unsorted list of 2 numbers", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 2]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [2, 1])|},
+      )
+    }),
+    test_case("sort unsorted list of 3 numbers", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 2, 3]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 3, 2])|},
+      )
+    }),
+    test_case("sort ascending", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 1, 3, 4, 5]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [3, 1, 4, 1, 5])|},
+      )
+    }),
+    test_case("sort descending", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[5, 4, 3, 1, 1]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
+      )
+    }),
     test_case("unique", `Quick, () =>
       parse_and_evaluate_test({|[1, 2, 3]|}, {|unique([1, 2, 2, 3, 1, 3])|})
     ),

@@ -91,12 +91,6 @@ module F = (Stepper: STEPPER) => {
     );
   };
 
-  let can_undo = a =>
-    switch (a) {
-    | PatternUpdate(action) => CodeEditable.Update.can_undo(action)
-    | StepUpdate(action) => Stepper.can_undo(action)
-    };
-
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),

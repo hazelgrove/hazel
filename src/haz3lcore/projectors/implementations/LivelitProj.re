@@ -78,7 +78,6 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
   let context_actions = (_, _, ~splice as _) => [];

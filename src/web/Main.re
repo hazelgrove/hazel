@@ -5,6 +5,19 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
+/* Per-slide scroll memory for tutorial mode. Each slide remembers where the
+   user last left it; revisiting a slide restores that scroll position, while
+   a slide that's never been scrolled opens at the top. */
+let slide_scrolls: ref(list((int, float))) = ref([]);
+let pending_scroll_restore: ref(option(float)) = ref(None);
+
+/* The current tutorial slide index, if the app is in tutorial mode. */
+let tutorial_slide = (m: CrashHandling.Model.t): option(int) =>
+  switch (m.model.current.current.editors) {
+  | Editors.Model.Tutorial(tm) => Some(tm.current)
+  | _ => None
+  };
+
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
@@ -16,6 +29,36 @@ let restart_caret_animation = () =>
   }) {
   | _ => ()
   };
+
+/* Seed the culling range on the first frame it's needed, so culling activates
+   on load rather than only after the first scroll. Reads the DOM only while
+   visible_rows is None, so it adds no per-frame layout. */
+let seed_visible_rows =
+    (model: CrashHandling.Model.t, ~dispatch: Page.Update.t => unit): unit => {
+  let page = model.model.current.current;
+  let needed =
+    Editors.Model.supports_viewport_culling(page.editors)
+    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Option.is_none(page.globals.visible_rows);
+  if (needed) {
+    switch (JsUtil.code_viewport_geometry()) {
+    | None => ()
+    | Some((scroll_top, client_height)) =>
+      dispatch(
+        Page.Update.Globals(
+          UpdateVisibleRows(
+            Globals.VisibleRows.compute(
+              ~scroll_top,
+              ~client_height,
+              ~row_height=page.globals.font_metrics.row_height,
+              (),
+            ),
+          ),
+        ),
+      )
+    };
+  };
+};
 
 let apply =
     (
@@ -64,6 +107,24 @@ let apply =
   };
   if (updated.scroll_active) {
     scroll_to_caret := true;
+  };
+  /* When the tutorial slide changes, stash the outgoing slide's scroll
+     position and queue a restore of the incoming slide's saved position
+     (the top, for slides that have never been scrolled). The restore takes
+     precedence over scroll-to-caret so a fresh slide opens at its prompt. */
+  switch (tutorial_slide(model), tutorial_slide(updated.model)) {
+  | (Some(prev), Some(next)) when prev != next =>
+    slide_scrolls :=
+      [
+        (prev, JsUtil.main_scroll_top()),
+        ...List.remove_assoc(prev, slide_scrolls^),
+      ];
+    pending_scroll_restore :=
+      Some(
+        List.assoc_opt(next, slide_scrolls^) |> Option.value(~default=0.),
+      );
+    scroll_to_caret := false;
+  | _ => ()
   };
   model';
 };
@@ -190,7 +251,8 @@ let start = default_model => {
 
   // Triggers after every update
   let after_display = {
-    let%map model = app_model;
+    let%map model = app_model
+    and app_inject = app_inject;
     Bonsai.Effect.of_sync_fun(
       () => {
         if (scroll_to_caret.contents) {
@@ -199,12 +261,48 @@ let start = default_model => {
         } else {
           ();
         };
-        /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
-        let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* restore the incoming tutorial slide's remembered scroll position */
+        switch (pending_scroll_restore^) {
+        | Some(target) =>
+          pending_scroll_restore := None;
+          JsUtil.set_main_scroll_top(target);
+        | None => ()
+        };
+        /* Handle scheduled probe focus from step-into (see FocusEffect) */
+        let _ = Haz3lcore.FocusEffect.execute();
+        /* restore probe focus dropped by vdom reorder moves */
+        Haz3lcore.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
+        let editor =
+          Page.Update.get_editor(model.model.current.current).editor;
+        let zipper = editor.state.zipper;
+        let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
+        let font_metrics = model.model.current.current.globals.font_metrics;
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_rows=editor.syntax.refractor_rows,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
+        );
+        RefractorShift.update(
+          ~editor_key=
+            Editors.Model.editor_key(model.model.current.current.editors),
+          ~font_metrics,
+          ~refractor_rows=editor.syntax.refractor_rows,
+          ~measured,
+          zipper,
+        );
+        /* stagger multi-row offside displays clear of code and of each
+           other (top-down priority, first-fit), per code container */
+        ProbeStagger.update(~font_metrics);
+        SampleAnchor.consume();
+        seed_visible_rows(model, ~dispatch=a =>
+          app_inject(a) |> Bonsai.Effect.Expert.handle
+        );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },

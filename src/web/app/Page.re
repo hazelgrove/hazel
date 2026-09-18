@@ -201,7 +201,7 @@ module Update = {
            focus (which stays on the clicked sidebar row). Schedule a focus
            of the now-active cell after render so the editor receives
            keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -248,23 +248,24 @@ module Update = {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
-          let filename =
-            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-          let contents =
+          let (ext, contents) =
             switch (current.kind) {
             | Code({editor, _}) =>
-              let serialized =
-                Haz3lcore.(
-                  [%derive.show: (string, PersistentSegment.t)]((
-                    current.name,
-                    editor.editor.editor.state.zipper
-                    |> PersistentSegment.persist,
-                  ))
-                );
-              "let out : string * Haz3lcore.PersistentSegment.t = "
-              ++ serialized;
-            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+              /* Slides are text-backed: export the committed-.hz form
+                 (marker-printed content + one final newline). */
+              (
+                ".hz",
+                Haz3lcore.PersistentZipper.persist(
+                  editor.editor.editor.state.zipper,
+                ).
+                  backup_text,
+              )
+            | Drv(m) => (
+                ".ml",
+                DerivationExercise.export_doc_slide_module(m.editors),
+              )
             };
+          let filename = (current.name |> StringUtil.sanitize_filename) ++ ext;
           (filename, contents);
         | Tutorial(model) =>
           let current = TutorialsMode.Model.get_current(model);
@@ -346,16 +347,17 @@ module Update = {
           action,
           model.editors,
         );
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
+      /* A different editor (mode/slide/exercise switch) invalidates the
+       * culling range: stale bounds would hide its projectors until the next
+       * scroll. Main.seed_visible_rows re-seeds where culling applies. */
       let globals =
-        switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
+        Editors.Model.editor_key(editors)
+        != Editors.Model.editor_key(model.editors)
+          ? {
             ...model.globals,
             visible_rows: None,
           }
-        | _ => model.globals
-        };
+          : model.globals;
       {
         ...model,
         editors,
@@ -373,7 +375,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false)
+      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -383,7 +385,7 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -391,92 +393,95 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Globals(action) => Globals.Update.can_undo(action)
-    | Editors(action) => Editors.Update.can_undo(action)
-    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | MakeActive(_)
-    | Benchmark(_) => false
-    | Refresh => false
-    | Start => false
-    | Save => false
-    };
-  };
-
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    /* Sync worker-messaging benchmark gating here (settings aren't reachable at
-       the WorkerClient.request call sites); only run when the panel is open. */
+    /* Sync debug-panel gating here (settings aren't reachable at the
+       WorkerClient.request call sites nor the per-frame instrumentation sites);
+       each collector only runs while its panel is open. */
+    let sidebar = model.globals.settings.sidebar;
+    let debug_panel_open = title =>
+      model.globals.settings.show_debug_panel
+      && SidebarModel.Settings.is_debug_expanded(title, sidebar);
     WorkerMetrics.sync(
-      ~enabled=
-        model.globals.settings.show_debug_panel
-        && !
-             SidebarModel.Settings.is_debug_collapsed(
-               WorkerMessagingSection.title,
-               model.globals.settings.sidebar,
-             ),
-      ~encodings=model.globals.settings.sidebar.worker_encodings,
+      ~enabled=debug_panel_open(WorkerMessagingSection.title),
     );
-    let editors =
-      Editors.Update.calculate(
-        ~settings=
-          dynamics
-            ? model.globals.settings.core
-            : {
-              ...model.globals.settings.core,
-              dynamics: false,
-            },
-        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-        ~schedule_action=a => schedule_action(Editors(a)),
-        ~is_edited,
-        model.editors,
-      );
-    /* Compute cursor info against the POST-calculate editors: some modes
-       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
-       stitched `cells` during calculate, not during update. Reading cursor
-       info from `model.editors` (pre-calculate) would see stale cell state
-       and yield the wrong ExplainThis highlights for a click/move-only
-       action, which doesn't trigger a full statics rebuild. */
-    let cursor_info =
-      Editors.Selection.get_cursor_info(
-        ~inject=_ => Ui_effect.Ignore,
-        ~selection=model.selection,
+    WorkerMetrics.set_encodings(sidebar.worker_encodings);
+    EvalMetrics.sync(~enabled=debug_panel_open(EvaluationSection.title));
+    PerfMetrics.sync(
+      ~enabled=
+        debug_panel_open(StaticsSection.title)
+        || debug_panel_open(EditorSection.title)
+        || debug_panel_open(FrameSection.title),
+    );
+    /* Everything below is one frame for the telemetry panels. */
+    PerfMetrics.time_frame(() => {
+      let editors =
+        Editors.Update.calculate(
+          ~settings=
+            dynamics
+              ? model.globals.settings.core
+              : {
+                ...model.globals.settings.core,
+                dynamics: false,
+              },
+          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~schedule_action=a => schedule_action(Editors(a)),
+          ~is_edited,
+          model.editors,
+        );
+      /* Compute cursor info against the POST-calculate editors: some modes
+         (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+         stitched `cells` during calculate, not during update. Reading cursor
+         info from `model.editors` (pre-calculate) would see stale cell state
+         and yield the wrong ExplainThis highlights for a click/move-only
+         action, which doesn't trigger a full statics rebuild. */
+      let cursor_info =
+        PerfMetrics.time_cursor(() =>
+          Editors.Selection.get_cursor_info(
+            ~inject=_ => Ui_effect.Ignore,
+            ~selection=model.selection,
+            editors,
+          )
+        );
+      /* When the user's cursor is inside a derivation tree cell, the
+         deduction-specific highlight map takes precedence over the generic
+         ExplainThis one. We consult the live selection here (rather than
+         Editors.Model.get_derivation_info, which reads the stale `model.pos`
+         inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+         get misclassified as focus on the derivation.
+
+         Only the winning map is computed. Each of these runs the whole of
+         ExplainThis.decide, so computing the generic one unconditionally and then
+         discarding it cost a full pass on every frame with a derivation focused. */
+      let derivation_info =
+        Editors.Selection.get_derivation_info(
+          ~selection=model.selection,
+          editors,
+        );
+      let color_highlights =
+        PerfMetrics.time_colors(() =>
+          switch (derivation_info) {
+          | Some(_) =>
+            ExplainThis.get_color_map_deduction(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              derivation_info,
+            )
+          | None =>
+            ExplainThis.get_color_map(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              cursor_info.info,
+            )
+          }
+        );
+      let globals = Globals.Update.calculate(color_highlights, model.globals);
+      {
+        ...model,
+        globals,
         editors,
-      );
-    let color_highlights =
-      ExplainThis.get_color_map(
-        ~globals=model.globals,
-        ~explainThisModel=model.explain_this,
-        cursor_info.info,
-      );
-    /* When the user's cursor is inside a derivation tree cell, the
-       deduction-specific highlight map takes precedence over the generic
-       ExplainThis one. We consult the live selection here (rather than
-       Editors.Model.get_derivation_info, which reads the stale `model.pos`
-       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation. */
-    let derivation_info =
-      Editors.Selection.get_derivation_info(
-        ~selection=model.selection,
-        editors,
-      );
-    let color_highlights =
-      switch (derivation_info) {
-      | Some(_) =>
-        ExplainThis.get_color_map_deduction(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          derivation_info,
-        )
-      | None => color_highlights
       };
-    let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {
-      ...model,
-      globals,
-      editors,
-    };
+    });
   };
 };
 
@@ -781,16 +786,6 @@ module View = {
     );
   };
 
-  let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
-    Widgets.toggle(
-      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
-      "🔬",
-      globals.settings.autoprobe_mode,
-      _ =>
-      inject(Update.Globals(Set(AutoprobeMode)))
-    ),
-  ];
-
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -835,6 +830,12 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
+    let task_reference: option(string) =
+      switch (editors) {
+      | Tutorial(t) =>
+        TutorialsMode.Model.get_current(t).editors.task_reference
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -852,10 +853,20 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
+        ~task_reference,
       );
+    /* culling bounds apply only where the mode supports them (one
+       cull-scope cell); elsewhere every cell renders unculled */
+    let editors_globals =
+      Editors.Model.supports_viewport_culling(model.editors)
+        ? globals
+        : {
+          ...globals,
+          visible_rows: None,
+        };
     let editors_view =
       Editors.View.view(
-        ~globals,
+        ~globals=editors_globals,
         ~signal=
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
@@ -877,30 +888,23 @@ module View = {
         ~indicated_id,
       );
 
-    /* Scroll handler for viewport culling. Only enabled for Scratch and
-     * Documentation modes where there's a single editor filling the
-     * scrollable area. Tutorial and Exercises have multiple editors. */
-    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+     * single-code-editor modes. Measured against the editor's own container so
+     * it's correct whether the editor fills #main or sits below prompt cells. */
+    let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
-        switch (editors) {
-        | Scratch(_)
-        | Documentation(_)
-        | Tutorial(_)
-        | Exercises(_) => false
-        };
+        Editors.Model.supports_viewport_culling(editors)
+        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
-        let container =
-          Js.Opt.to_option(evt##.currentTarget)
-          |> Option.map(Js.Unsafe.coerce);
-        switch (container) {
+        switch (JsUtil.code_viewport_geometry()) {
         | None => Effect.Ignore
-        | Some(c) =>
+        | Some((scroll_top, client_height)) =>
           let new_visible =
             Globals.VisibleRows.compute(
-              ~scroll_top=float_of_int(c##.scrollTop),
-              ~client_height=float_of_int(c##.clientHeight),
+              ~scroll_top,
+              ~client_height,
               ~row_height=globals.font_metrics.row_height,
               (),
             );
@@ -939,6 +943,10 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
+    /* projector views can only dispatch external_actions, so toggles that
+     * update global Settings call out through these refs */
+    Haz3lcore.ProbeProj.Settings.on_sticky_toggle :=
+      (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);

@@ -37,6 +37,13 @@ type utility = {
   seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
   term_to_seg: (~inline: bool, Any.t) => Base.segment,
+  /* Convert a type to a segment, reporting the ids of the tokens that
+   * [against] does not account for -- for a projector that colours the parts
+   * of a type some other type did not supply. The two come together because
+   * the ids name nodes preparing adds, and describe that one segment. */
+  typ_to_seg_with_diff_ids:
+    (~inline: bool, ~ctx: Ctx.t, ~against: Typ.t, Typ.t) =>
+    (Base.segment, Id.Set.t),
   seg_to_string: Base.segment => string,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
@@ -133,13 +140,17 @@ module View = {
   /* A projector has an inline view, which replaces the underlying
    * syntax. Optionally, it may have an overlay view, which is shown
    * in the same place, but above most base editor decorations
-   * including the inline views of all other projectors, and/or
-   * an offside view, which is rendered at the end of the base
-   * editor line containing the projector */
+   * including the inline views of all other projectors; an offside
+   * view, which is rendered at the end of the base editor line
+   * containing the projector; and/or a below view, which is rendered
+   * starting on the line *after* the projector's line at the left
+   * edge of the editor pane. Use below in combination with a
+   * Tab(n) placeholder so the framework reserves the rows. */
   type t = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    below: option(Node.t),
     /* If true, the projector div gets the "error" class,
      * triggering the dashed red SVG border from proj-base.css */
     error: bool,
@@ -160,6 +171,7 @@ module View = {
     (
       ~single_line: bool=?,
       ~background: bool=?,
+      ~classes: Id.t => list(string)=?,
       ~text_only: bool=?,
       Sort.t,
       Base.segment
@@ -201,10 +213,11 @@ module View = {
     core_settings: Language.CoreSettings.t,
   };
 
-  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
+  let mk = (~overlay=None, ~offside=None, ~below=None, ~error=false, inline) => {
     inline,
     overlay,
     offside,
+    below,
     error,
   };
 };
@@ -251,10 +264,6 @@ module type Projector = {
    * caret & keyboard handlers? If so, provide handlers
    * here (see Focusable for more information) */
   let focusable: Focusable.t;
-  /* If dynamics is true, this projector will be
-   * instrumented with a probe to collect dynamic
-   * information during evaluation */
-  let dynamics: bool;
   /* Whether this projector needs type-elaborated syntax.
    *
    * Some projectors (e.g. TableProj) require syntactic features
@@ -332,7 +341,6 @@ module Cook = (C: Projector) : Cooked => {
   let init = (any, seg) =>
     C.init(any, seg) |> Option.map(((m, seg)) => (serialize_m(m), seg));
   let focusable = C.focusable;
-  let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
   let view = (args: View.args(model, action)) =>
     C.view({
@@ -347,14 +355,24 @@ module Cook = (C: Projector) : Cooked => {
       status: args.status,
       core_settings: args.core_settings,
     });
+  /* Memoize the per-refractor sexp parse by exact model string (called on
+   * every shape refresh, mostly with unchanged strings). Bounded cache. */
+  let placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
+  let parse_model_memo = (s: string): C.model =>
+    switch (Hashtbl.find_opt(placeholder_models, s)) {
+    | Some(m) => m
+    | None =>
+      if (Hashtbl.length(placeholder_models) > 512) {
+        Hashtbl.clear(placeholder_models);
+      };
+      let m = deserialize_m(s);
+      Hashtbl.add(placeholder_models, s, m);
+      m;
+    };
   let placeholder = (m, info, splice_size) =>
-    C.placeholder(
-      m |> Sexplib.Sexp.of_string |> C.model_of_sexp,
-      info,
-      splice_size,
-    );
+    C.placeholder(parse_model_memo(m), info, splice_size);
   let splice_rows = (m, info, splice_size) =>
-    C.splice_rows(m |> deserialize_m, info, splice_size);
+    C.splice_rows(parse_model_memo(m), info, splice_size);
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);

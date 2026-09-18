@@ -10,4 +10,5 @@ include MenuListener.Make({
   let menu_class = "context-menu";
   let supports_keys = true;
   let scroll_into_view = true;
+  let close_on_scroll = false;
 });

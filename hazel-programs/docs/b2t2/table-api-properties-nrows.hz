@@ -1,0 +1,9 @@
+# (benchmark) nrows #
+let requires = [] in
+let ensures = [
+  (enforced=("no"), "n is equal to nrows(t)")
+] in
+# Tables are just lists so nrows is just list length #
+let nrows = length in
+test
+  nrows([]) == 0 end

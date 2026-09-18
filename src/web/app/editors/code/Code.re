@@ -49,11 +49,11 @@ let of_delim' =
             @ keyword_class,
           ),
         ],
-        /* Currently only supporting emojis in strings; this is a
-           conservative choice to guard against perf regressions;
-           it can likely be relaxed. See also Token.bounding_box */
-        base_cls == "string-lit"
-          ? GraphemeView.render(~font_metrics, token) : [text(token)],
+        /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
+           occupies the two columns Measured gave it. Pure ASCII -- nearly
+           every token -- skips straight to a text node. */
+        Unicode.is_simple_ascii(token)
+          ? [text(token)] : GraphemeView.render(~font_metrics, token),
       );
     },
   );
@@ -63,17 +63,28 @@ let secondary_text =
     span_c(cls, [text(str)])
   );
 
+/* Comments are measured in columns like any other text, so a comment with a
+   wide cluster needs the same explicit cells as a token. */
+let comment_text = (~font_metrics: FontMetrics.t, cls, str) =>
+  Unicode.is_simple_ascii(str)
+    ? secondary_text(cls, str)
+    : span_c(cls, GraphemeView.render(~font_metrics, str));
+
 let whitespace_token =
   Core.Memo.general(~cache_size_bound=10000, (row, col) =>
     String.make(row, '\n') ++ String.make(col, ' ')
   );
 
+/* The extra classes a tile carries, by id. */
+let no_classes = (_: Id.t) => [];
+
 let view =
     (
+      ~classes=no_classes,
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~refractor_shape_map: Id.Map.t(_),
+      ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
@@ -129,8 +140,7 @@ let view =
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
-      Mold.is_infix_op(t.mold)
-      && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,
     );
   };
@@ -146,8 +156,8 @@ let view =
     | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     | Comment(str) when List.mem(secondary.id, buffer_ids) =>
-      secondary_text("in-unparsed-buffer", str)
-    | Comment(str) => secondary_text("comment", str)
+      comment_text(~font_metrics, "in-unparsed-buffer", str)
+    | Comment(str) => comment_text(~font_metrics, "comment", str)
     };
 
   let of_projector = (pr: Base.projector) => {
@@ -172,16 +182,25 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
+          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+           * side effects fire in document order, matching Measured.of_segment */
+          let nodes =
+            Aba.fold_left(
+              i => [of_delim(t, i)],
+              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+              Aba.mk(t.shards, t.children),
+            );
           let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
+            switch (Id.Map.find_opt(t.id, refractor_rows)) {
+            | Some(n) =>
+              DeferredLinebreaks.update(n) |> ignore;
               ();
             | None => ()
             };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
+          switch (classes(t.id)) {
+          | [] => nodes
+          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
+          };
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]

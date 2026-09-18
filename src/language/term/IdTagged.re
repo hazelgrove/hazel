@@ -44,6 +44,8 @@ module IdTag = {
     ids,
     secondary,
   };
+
+  let rep_id = ({ids, _}: t) => List.hd(ids);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -103,15 +105,6 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
   annotation: {
     ids: [id],
     secondary: IdTag.empty_secondary,
-  },
-};
-
-/* Generate new ids for term, preserving secondary */
-let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
-  term,
-  annotation: {
-    ids: [Id.mk()],
-    secondary,
   },
 };
 

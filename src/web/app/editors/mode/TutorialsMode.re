@@ -13,20 +13,6 @@ module Model = {
     cur_exercise: Haz3lcore.Id.t,
     exercise_data: list((Haz3lcore.Id.t, TutorialMode.Model.persistent)),
   };
-  let persist = (~instructor_mode, model): persistent => {
-    {
-      cur_exercise: List.nth(model.exercises, model.current).editors.id,
-      exercise_data:
-        List.map(
-          (exercise: TutorialMode.Model.t) =>
-            (
-              exercise.editors.id,
-              TutorialMode.Model.persist(~instructor_mode, exercise),
-            ),
-          model.exercises,
-        ),
-    };
-  };
   let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
@@ -47,19 +33,23 @@ module Model = {
     };
   };
   let get_current = (m: t) => List.nth(m.exercises, m.current);
+  /* The raw title, never return_title -- that one appends " ✔". */
+  let paths = (m: t): list(SlidePath.t) =>
+    List.map(
+      (e: TutorialMode.Model.t) => Tutorial.path_of(e.editors),
+      m.exercises,
+    );
 };
 module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
+    /* Lesson 0, so keep "Basics / Holes" first in Slides.re. */
     let default = () =>
       List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {
-  let keystring_of_key = key => {
-    key |> Haz3lcore.Id.to_string;
-  };
   let save_exercise = (exercise: TutorialMode.Model.t, ~instructor_mode) => {
     let key = Tutorial.id_of(exercise.editors);
     let value = TutorialMode.Model.persist(exercise, ~instructor_mode);
@@ -183,16 +173,6 @@ module Update = {
     | ExportSubmission
     | ExportTransitionary;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchExercise(_) => false
-    | Tutorial(action) => TutorialMode.Update.can_undo(action)
-    | ExportModule => false
-    | ExportSubmission => false
-    | ExportTransitionary => false
-    };
-  };
-
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name = exercise.editors.module_name;
@@ -233,20 +213,26 @@ module Update = {
       WorkerClient.cancel();
       Model.{
         current:
-          (model.current + 1 + List.length(model.exercises))
-          mod List.length(model.exercises),
+          SlidePath.step_in_folder(
+            ~current=model.current,
+            ~by=1,
+            Model.paths(model),
+          ),
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
       WorkerClient.cancel();
       Model.{
         current:
-          (model.current - 1 + List.length(model.exercises))
-          mod List.length(model.exercises),
+          SlidePath.step_in_folder(
+            ~current=model.current,
+            ~by=-1,
+            Model.paths(model),
+          ),
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
 
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
@@ -269,7 +255,7 @@ module Update = {
         current: n,
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
@@ -285,10 +271,18 @@ module Update = {
     };
   };
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let exercise =
       TutorialMode.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
         ~schedule_action=a => schedule_action(Tutorial(a)),
         List.nth(model.exercises, model.current),
@@ -330,9 +324,16 @@ module View = {
 
   let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
     let current = List.nth(model.exercises, model.current);
+    /* First/last within the current lesson's folder, not the whole list: the
+       arrows walk one folder and the last lesson of a folder shows the
+       completion message instead of a next arrow. */
+    let {index_in_folder, folder_size}: SlidePath.folder_position =
+      SlidePath.folder_position(~current=model.current, Model.paths(model));
     TutorialMode.View.view(
       ~globals,
       ~inject=a => inject(Update.Tutorial(a)),
+      ~is_first=index_in_folder == 0,
+      ~is_last=index_in_folder == folder_size - 1,
       current,
     );
   };
@@ -461,15 +462,21 @@ module View = {
           | Previous =>
             inject(
               Update.SwitchExercise(
-                (model.current - 1 + List.length(model.exercises))
-                mod List.length(model.exercises),
+                SlidePath.step_in_folder(
+                  ~current=model.current,
+                  ~by=-1,
+                  Model.paths(model),
+                ),
               ),
             )
           | Next =>
             inject(
               Update.SwitchExercise(
-                (model.current + 1 + List.length(model.exercises))
-                mod List.length(model.exercises),
+                SlidePath.step_in_folder(
+                  ~current=model.current,
+                  ~by=1,
+                  Model.paths(model),
+                ),
               ),
             )
           | Add
@@ -479,7 +486,7 @@ module View = {
           EditorModeView.indicator_select(
             ~signal=i => inject(SwitchExercise(i)),
             model.current,
-            titles,
+            List.map(SlidePath.of_string, titles),
           ),
         (),
       );

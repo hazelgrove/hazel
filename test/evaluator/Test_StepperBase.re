@@ -57,10 +57,6 @@ module StepKindHelpers = {
   let mk_induction_step =
       (~exp: option(Exp.t)=?, ()): StepperBase.step_kind_model =>
     StepperBase.InductionStep(Web.InductionStep.init(~exp?, ()));
-
-  // Create a ForallStep
-  let mk_forall_step = (): StepperBase.step_kind_model =>
-    StepperBase.ForallStep(Web.ForallStep.init(StepperBase.Stepper.init));
 };
 
 // Helper to create a minimal step model for testing
@@ -119,29 +115,6 @@ module InductionCaseHelpers = {
       hypotheses: Calc.Pending,
       constraint_: Calc.Pending,
     };
-  };
-
-  // Create an axiom step for reflexivity
-  let mk_reflexivity_step = (goal_exp: Exp.t): StepperBase.step_model => {
-    let axiom_kind =
-      StepKindHelpers.mk_axiom_step(
-        ~name="Reflexive(==)",
-        ~equality="Reflexive(==)",
-        goal_exp,
-      );
-    mk_test_step(~step_kind=axiom_kind, ());
-  };
-
-  // Create an axiom step that rewrites using a hypothesis
-  let mk_rewrite_step =
-      (~hypothesis_name: string, goal_exp: Exp.t): StepperBase.step_model => {
-    let axiom_kind =
-      StepKindHelpers.mk_axiom_step(
-        ~name=hypothesis_name,
-        ~equality=hypothesis_name,
-        goal_exp,
-      );
-    mk_test_step(~step_kind=axiom_kind, ());
   };
 
   // Build a step chain by linking step_kinds into next_step fields
@@ -224,16 +197,6 @@ let test_calculate =
     ~ana=ana_calc,
     step,
   );
-};
-
-// Extract the final expression from a calculated step
-let get_final_exp = ((_, last_exp, _validity)) => {
-  Calc.get_value(last_exp);
-};
-
-// Extract validity from a calculated step
-let get_validity = ((_, _, validity)) => {
-  Calc.get_value(validity);
 };
 
 // Run a single step and return the result expression

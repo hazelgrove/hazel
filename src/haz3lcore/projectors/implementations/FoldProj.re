@@ -34,12 +34,12 @@ module M: Projector = {
     Some((default, None: option(ProjectorBase.init_override)));
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
 
-  let placeholder = (m, _, _) =>
-    ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let splice_rows = (_, _, _) => Id.Map.empty;
+
+  let placeholder = (m, _, _) =>
+    ProjectorCore.Shape.inline(Unicode.Width.columns_of_string(m.text));
   let update = (m, _, _) => {
     ...m,
     expanded: !m.expanded,

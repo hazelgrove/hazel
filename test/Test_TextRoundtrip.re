@@ -1,4 +1,4 @@
-/* Tests for Haz3lcore.TextRoundtrip.
+/* Tests for Haz3lcore.MarkerParse's text round-trip.
  *
  * Property under test: any *parser-originated* program survives the
  * text round-trip — `to_text(p) == to_text(of_text(to_text(p)) |> persist)`.
@@ -6,6 +6,9 @@
  * so all the grout placement decisions have already been settled by the
  * parser before to_text sees them.
  *
+ *   - TutorialLessons (`Slow`): the same check over every shipped .hzt
+ *     lesson's impl and hidden tests. These are authored as text by hand,
+ *     so they are the ones that can spell a hole the round-trip drops.
  *   - DocSlides (`Slow`): per-slide text fixed-point check. The shipped
  *     slides were created via the editor, which routes every keystroke
  *     through the parser, so they qualify. Complemented by
@@ -32,43 +35,54 @@ open Alcotest;
 open Haz3lcore;
 
 let parse_or_fail = text =>
-  switch (TextRoundtrip.of_text(~root=Exp, text)) {
+  switch (MarkerParse.of_text(~root=Exp, text)) {
   | Some(z) => z
   | None => Alcotest.fail("of_text returned None on: " ++ text)
   };
 
-let roundtripped_text = (persisted: PersistentSegment.t): string =>
-  TextRoundtrip.to_text(persisted)
-  |> parse_or_fail
-  |> PersistentSegment.persist
-  |> TextRoundtrip.to_text;
+let roundtripped_text = (z: Zipper.t): string =>
+  MarkerParse.to_text(z) |> parse_or_fail |> MarkerParse.to_text;
 
-let slide_roundtrip_case =
-    ((name, persisted): (string, PersistentSegment.t)) =>
+let slide_roundtrip_case = ((name, z): (string, Zipper.t)) =>
   test_case(
     name,
     `Slow,
     () => {
-      let before = TextRoundtrip.to_text(persisted);
-      let after = roundtripped_text(persisted);
+      let before = MarkerParse.to_text(z);
+      let after = roundtripped_text(z);
       check(
         string,
-        "TextRoundtrip text is fixed-point for " ++ name,
+        "marker text round-trip is fixed-point for " ++ name,
         before,
         after,
       );
     },
   );
 
-/* B2T2 slides are excluded: each one takes ~2s to parse, blowing the CI
- * test step past its 20-minute budget. The non-B2T2 slides give enough
- * coverage of the round-trip on real-world programs. */
-let is_b2t2 = ((name, _)) =>
-  String.length(name) >= 4 && String.sub(name, 0, 4) == "B2T2";
-
+/* Slides are text-backed (committed .hz): materialize each via the load
+   path so the usual fixed-point check applies. (Includes the B2T2
+   slides: they were excluded when each cost ~2s via the typing parser,
+   but the fast path loads them in milliseconds.) */
 let doc_slide_cases =
   Web.Init.documentation_slides
-  |> List.filter(s => !is_b2t2(s))
+  |> List.map(((name, p: PersistentZipper.t)) =>
+       (name, PersistentZipper.unpersist(p, ~root=Exp))
+     )
+  |> List.map(slide_roundtrip_case);
+
+/* The .hzt lessons are authored as text too, so both halves of each one
+   must be a fixed point: what TutorialText parsed and the editor reprints
+   has to be the text in the file, or `tutorial-decode` would not reproduce
+   its own source. A hole regrout does not re-insert fails here.
+   `hazel tutorial-verify --verbose` prints the diff. */
+let tutorial_lesson_cases =
+  Web.TutorialText.all
+  |> List.concat_map((spec: Web.Tutorial.spec) =>
+       [
+         (spec.title ++ " (impl)", spec.your_impl),
+         (spec.title ++ " (tests)", spec.hidden_tests.tests),
+       ]
+     )
   |> List.map(slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>
@@ -76,9 +90,9 @@ let text_fixed_point_case = (~name, text) =>
     name,
     `Quick,
     () => {
-      let persisted = text |> parse_or_fail |> PersistentSegment.persist;
-      let before = TextRoundtrip.to_text(persisted);
-      let after = roundtripped_text(persisted);
+      let z = text |> parse_or_fail;
+      let before = MarkerParse.to_text(z);
+      let after = roundtripped_text(z);
       check(
         string,
         "text round-trip is fixed-point starting from: " ++ text,
@@ -135,6 +149,40 @@ let text_reproducer_cases = [
   ),
 ];
 
+/* A marker whose removal leaves a complete term used to be lost (#2518):
+   `[¿]` reloaded as `[]`, because of_text destructed the marker and relied
+   on regrout to put Grout back. Markers are now swapped for Grout in
+   place; check the reload prints the same text AND that the hole survives
+   the load-time regrout (PersistentZipper's fast path runs one). */
+let sole_hole_case = (~name, text) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = parse_or_fail(text);
+      check(
+        string,
+        "marker preserved by of_text",
+        text,
+        MarkerParse.to_text(z),
+      );
+      let z = Zipper.remold_regrout(Left, ~root=Exp, z);
+      check(string, "hole survives regrout", text, MarkerParse.to_text(z));
+    },
+  );
+
+let sole_hole_cases = [
+  sole_hole_case(~name="sole list element", "[¿]"),
+  sole_hole_case(
+    ~name="sole list element, typed let",
+    "let xs : [Int] = [¿] in xs",
+  ),
+  sole_hole_case(~name="nested sole list element", "[[¿]]"),
+  sole_hole_case(~name="sole parenthesized", "(¿)"),
+  sole_hole_case(~name="sole argument", "f(¿)"),
+  sole_hole_case(~name="list with hole and element", "[¿, 1]"),
+];
+
 /* Render an arbitrary `Exp.t` to source text (same path
  * `QCheck_Util.arb_exp` uses for `show`), then parse it. Going through
  * the parser canonicalizes the segment so the fixed-point check is
@@ -154,18 +202,18 @@ let arb_exp_roundtrip =
     QCheck_Util.arb_exp(~minimal_idents=true, 5),
     exp => {
       let text = render_exp_as_text(exp);
-      switch (TextRoundtrip.of_text(~root=Exp, text)) {
+      switch (MarkerParse.of_text(~root=Exp, text)) {
       | None => false
-      | Some(z) =>
-        let persisted = PersistentSegment.persist(z);
-        TextRoundtrip.to_text(persisted) == roundtripped_text(persisted);
+      | Some(z) => MarkerParse.to_text(z) == roundtripped_text(z)
       };
     },
   );
 
 let tests = [
   ("TextRoundtrip.TextReproducers", text_reproducer_cases),
+  ("TextRoundtrip.SoleHoles", sole_hole_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
+  ("TextRoundtrip.TutorialLessons", tutorial_lesson_cases),
   (
     "TextRoundtrip.Property",
     [QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_exp_roundtrip)],

@@ -189,13 +189,6 @@ let term_is_list_literal = (term: Language.Any.t): bool =>
   | _ => false
   };
 
-let term_is_variable = (term: Language.Any.t): bool =>
-  switch (term) {
-  | Exp({term: Var(_), _})
-  | Pat({term: Var(_), _}) => true
-  | _ => false
-  };
-
 let term_is_if = (term: Language.Any.t): bool =>
   switch (term) {
   | Exp({term: If(_, _, _), _}) => true
@@ -409,9 +402,8 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
  * of typing and should never be probed or count as alternatives. */
 let is_delimiter_prefix = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
-  | Some({label: [t], mold, _}) =>
-    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
-  | _ => false
+  | Some(t) => Piece.is_infix_delimiter_op_prefix(Tile(t))
+  | None => false
   };
 
 /* Check if an id represents a "meaningful" alternative (not a hole,
@@ -508,35 +500,6 @@ let candidate_allowed_by_let_hole =
   switch (get_term(candidate_id, env.terms)) {
   | Some(term) when term_is_let(term) && let_body_is_hole(term) =>
     !row_has_non_hole_alternative(candidate_id, row.ids, env.terms, env.data)
-  | _ => true
-  };
-
-let is_redundant_variable_reference =
-    (
-      candidate_id: Id.t,
-      info_map: Language.Statics.Map.t,
-      seen_patterns: list(Id.t),
-    )
-    : bool =>
-  switch (Language.Statics.Map.lookup(candidate_id, info_map)) {
-  | Some(info) =>
-    switch (Language.Info.get_binding_site(info)) {
-    | Some(binding_id) => List.mem(binding_id, seen_patterns)
-    | None => false
-    }
-  | None => false
-  };
-
-let candidate_allowed_by_variables =
-    (candidate_id: Id.t, env: selection_env, state: selection_state): bool =>
-  switch (get_term(candidate_id, env.terms)) {
-  | Some(term) when term_is_variable(term) =>
-    !
-      is_redundant_variable_reference(
-        candidate_id,
-        env.info_map,
-        state.seen_patterns,
-      )
   | _ => true
   };
 

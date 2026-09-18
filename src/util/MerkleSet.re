@@ -57,9 +57,6 @@ let union = (a: t('a), b: t('a)): t('a) =>
     }
   };
 
-let union_all = (xs: list(t('a))): t('a) =>
-  List.fold_left(union, empty, xs);
-
 let rec equal = (a: t('a), b: t('a)): bool =>
   a === b
   || a.hash == b.hash
@@ -71,13 +68,3 @@ let rec equal = (a: t('a), b: t('a)): bool =>
     | (Empty | Leaf(_) | Branch(_), _) => false
     }
   );
-
-let rec fold = (f: ('a, 'b) => 'b, t: t('a), acc: 'b): 'b =>
-  switch (t.node) {
-  | Empty => acc
-  | Leaf(x) => f(x, acc)
-  | Branch(l, r) => fold(f, r, fold(f, l, acc))
-  };
-
-let to_list = (t: t('a)): list('a) =>
-  fold((x, acc) => [x, ...acc], t, []);

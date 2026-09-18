@@ -61,7 +61,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
-  | TogglePin(Language.CallStack.t)
+  | TogglePin(Language.CallStack.t, option(Language.Sample.Capture.t))
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 
@@ -137,7 +137,7 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.CallStack.t, Id.t)
+  | StepInto(Language.CallStack.t, Language.CallStack.frame)
   | Pin(Language.CallStack.t, Id.t)
   | RemoveAll;
 
@@ -174,8 +174,6 @@ module Failure = {
     | CantPaste
     | CantReparse
     | CantAccept
-    | Cant_undo
-    | Cant_redo
     | CantIntroduce
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
@@ -208,11 +206,14 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
     | SetSyntax(_)
     | SetTerm(_)
     | SetIndicated(_)
     | RemoveIndicated => true
+    | SetModel(_)
+    /* SetModel isn't an edit: CachedSyntax detects shape-affecting model
+     * changes via map reference equality, keeping the statics recompute
+     * out of continuous actions like slider drags. */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
@@ -252,39 +253,6 @@ let is_historic: t => bool =
     | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
-
-let prevent_in_read_only_editor = (a: t) =>
-  switch (a) {
-  | Copy
-  | Move(_)
-  | Unselect(_)
-  | Select(_) => false
-  | Buffer(Set(_) | Accept | Clear)
-  | Cut
-  | Paste(_)
-  | Reparse
-  | Destruct(_)
-  | Insert(_)
-  | Put_down
-  | Introduce
-  | PrettyPrint
-  | Structural(_)
-  | Dump
-  | ToggleLineComment => true
-  | Project(p) =>
-    switch (p) {
-    | SetSyntax(_)
-    | SetTerm(_) => true
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated
-    | Focus(_)
-    | SampleFocus(_)
-    | Escape(_)
-    | EscapeToLineEnd(_) => false
-    }
-  | Probe(_) => false
-  };
 
 let should_animate: t => bool =
   fun

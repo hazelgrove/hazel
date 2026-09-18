@@ -46,7 +46,6 @@ module M: Projector = {
     };
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
   let placeholder = (_, _, _) => ProjectorCore.Shape.inline(2);
   let splice_rows = (_, _, _) => Id.Map.empty;

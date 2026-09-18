@@ -77,7 +77,7 @@ The `make dev` and `make release` commands do three things:
 2. Generate some internal parsers using `menhir`.
 3. Compile the Reason code + parsers to OCaml bytecode using the OCaml compiler.
 4. Compile the OCaml bytecode to JavaScript
-   (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+   (`_build/default/src/web/www/hazel.js`) using `js_of_ocaml`.
 
 ## Live Building 
 For a smoother dev experience, use `make watch` rather than `make dev` to automatically watch 
@@ -141,14 +141,45 @@ Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx)
 
 ## Continuous Integration
 
-When you push your branch to the main `hazelgrove/hazel` repository, we 
-have a GitHub Action setup (see `.github/workflows/deploy_branches.yml`) 
-that will build that branch (in `release` mode) and deploy it to the URL 
-`https://hazel.org/build/<branch name>`, assuming the build succeeds.
-
-It usually takes about 2 minutes if the build environment cache hits, or 
-20+ minutes if not. You can view the status of the build in the [Actions 
+Four workflows run against `hazelgrove/hazel`. You can view them in the [Actions
 tab on Github](https://github.com/hazelgrove/hazel/actions).
+
+`.github/workflows/ci.yml` runs on **every branch push** and in the merge queue.
+It does no work itself; it calls `.github/workflows/checks.yml`, which is where
+the two checks live:
+
+- **Fast checks** — formatting, the strict-warning gate (`make ci-check`), and
+  the suite under alcotest's `-q` filter, which skips the `Slow`-tagged cases.
+- **Full tests** — the full suite including the `Slow` QCheck property tests,
+  plus the Codecov upload. This is the authoritative check.
+
+`Full tests` takes an order of magnitude longer than `Fast checks`, because the
+`Slow`-tagged cases are the large majority of the suite's runtime. If you want
+that signal before opening a PR, run `make test` locally.
+
+Both jobs render a table of results into their own job summary, reachable from
+the run page. They deliberately create no `Test Report` check of their own: a
+check run belongs to a commit rather than to a workflow, and GitHub picks which
+of the commit's check suites it joins, which used to file the test results under
+`Deploy branch preview`.
+
+`.github/workflows/fork-ci.yml` runs the same two checks for **pull requests
+from forks**, which push no branch here and so never reach `ci.yml`. It skips
+only the Codecov upload, since a fork gets no secrets.
+
+`.github/workflows/deploy.yml` runs on **every branch push** and builds in
+`release` mode, deploying to `https://hazel.org/build/<branch name>`.
+Deliberately not gated on the checks: a red suite should not stop you looking at
+your branch.
+
+`.github/workflows/extended-tests.yml` runs **weekly against `dev`**, replaying
+the whole suite with QCheck's counts multiplied (see the [test
+README](test/README.md)) to shake out properties that fail only on rare seeds.
+It gates nothing, and a failure there reproduces from the seed printed in its
+job summary.
+
+All of them share `.github/actions/setup-hazel-toolchain`, which is where the
+OCaml version and the opam switch cache live.
 
 Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
 
