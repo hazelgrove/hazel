@@ -687,6 +687,50 @@ in build(3)|},
       ),
     ],
   ),
+  /* An ascription rebuilds its redex under its own id, and the evaluator's
+   * delegation law is what stops that re-evaluation from opening a second
+   * observation span. These pin both directions of it under recursion: one
+   * sample per call and no more, and calls told apart by their call stack
+   * rather than merged. #2524's fix changes when a delegation is recorded,
+   * so a regression there surfaces as duplicated or missing samples. */
+  probe_line_test(
+    "Probed ascription in a recursive body samples once per call",
+    {|let f : Int -> Int = fun n ->
+  if n == 0 then 0 else n + ^^probe(f(n - 1) : ?)
+in f(10)|},
+    [(1, ["0", "1", "3", "6", "10", "15", "21", "28", "36", "45"])],
+  ),
+  probe_line_test(
+    "Two probed ascriptions in one recursive body keep separate samples",
+    {|let f : Int -> Int = fun n ->
+  if n == 0 then 0
+  else
+    ^^probe(n : ?)
+    + ^^probe(f(n - 1) : ?)
+in f(5)|},
+    [(3, ["5", "4", "3", "2", "1"]), (4, ["0", "1", "3", "6", "10"])],
+  ),
+  /* Same syntax id, different call stacks: the samples must stay distinct
+   * rather than collapsing into one. */
+  probe_line_test(
+    "Probed ascription in a helper called from two recursions",
+    {|let h : Int -> Int = fun x -> ^^probe(x : ?) in
+let a : Int -> Int = fun n -> if n == 0 then 0 else h(n) + a(n - 1) in
+let b : Int -> Int = fun n -> if n == 0 then 0 else h(n) + b(n - 1) in
+a(3) + b(2)|},
+    [(0, ["3", "2", "1", "2", "1"])],
+  ),
+  /* Mutual recursion through a tuple binding: the two probes interleave on
+   * one call stack, so a delegation keyed too coarsely merges them. */
+  probe_line_test(
+    "Probed ascriptions in mutually recursive functions",
+    {|let (f, g) : (Int -> Int, Int -> Int) = (
+  fun n -> if n == 0 then 0 else n + ^^probe(g(n - 1) : ?),
+  fun n -> if n == 0 then 0 else n * 2 + ^^probe(f(n - 1) : ?)
+) in
+f(5)|},
+    [(1, ["0", "5", "16"]), (2, ["1", "8"])],
+  ),
 ];
 
 let ascription_tests = [
@@ -838,6 +882,38 @@ in f(0)|},
     {|let f: [Int] -> [Int] = fun xs -> ^^probe(xs @ [0])
 in f([1, 2])|},
     [(0, ["[1, 2, 0]"])],
+  ),
+  /* A chain of ascriptions collapses pairwise, by meet, before its operand
+   * evaluates, and each collapsed node keeps the inner ascription's ID so that
+   * every level still has a span opened for it. Every level ascribes the same
+   * value, so every probe reads it, however deep the chain. The probes share
+   * the innermost term's extremes, hence one line and one value per level. */
+  probe_line_test(
+    "Probes on every level of a deep unknown ascription chain",
+    {|^^probe(^^probe(^^probe(^^probe(^^probe((3 * 7) : ?) : ?) : ?) : ?) : ?)|},
+    [(0, ["21", "21", "21", "21", "21"])],
+  ),
+  probe_line_test(
+    "Probes on every level of a known ascription chain",
+    {|^^probe(^^probe(^^probe((3 * 7) : Int) : Int) : Int)|},
+    [(0, ["21", "21", "21"])],
+  ),
+  probe_line_test(
+    "Probes on an ascription chain mixing known and unknown",
+    {|^^probe(^^probe(^^probe((3 * 7) : Int) : ?) : Int)|},
+    [(0, ["21", "21", "21"])],
+  ),
+  probe_line_test(
+    "Probes on an ascription chain refining a tuple type",
+    {|^^probe(^^probe(^^probe(((1 > 2), 3 * 7) : (?, ?)) : (Bool, ?)) : (?, Int))|},
+    [(0, ["(false, 21)", "(false, 21)", "(false, 21)"])],
+  ),
+  /* Inconsistent types refuse to meet, so this chain never collapses and the
+   * outer ascription stays stuck. Both levels still sample the value. */
+  probe_line_test(
+    "Probes on an ascription chain whose types do not meet",
+    {|^^probe(^^probe(((1 > 2), 3 * 7) : (Bool, ?)) : (String, ?))|},
+    [(0, ["(false, 21)", "(false, 21)"])],
   ),
 ];
 
