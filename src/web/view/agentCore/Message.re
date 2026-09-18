@@ -99,7 +99,7 @@ module Utils = {
   };
 
   let mk_prompt_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -115,7 +115,7 @@ module Utils = {
   };
   /** Shown when the user stops the agent or compaction and the HTTP reply arrives later. */
   let mk_response_cancelled_message = (~content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -134,7 +134,7 @@ module Utils = {
       reads the typed payload off the role. Never sent to the API. */
   let mk_slash_command_output_message =
       (~payload: Model.slash_command_payload, ~content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -151,7 +151,7 @@ module Utils = {
   let mk_retry_note_message =
       (~content: string, ~sent_to_api: bool, ~deliver_as_user_on_api: bool)
       : Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let api_message =
       switch (sent_to_api, deliver_as_user_on_api) {
       | (false, _) => None
@@ -179,7 +179,7 @@ module Utils = {
   };
 
   let mk_developer_notes_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -208,10 +208,11 @@ module Utils = {
         usage: option(OpenRouter.Reply.Model.usage),
       )
       : Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let reasoning =
       switch (reasoning) {
-      | Some(s) when String.trim(s) != "" => Some(String.trim(s))
+      | Some(s) when !String.equal(String.strip(s), "") =>
+        Some(String.strip(s))
       | _ => None
       };
     {
@@ -235,7 +236,7 @@ module Utils = {
 
   let mk_tool_result_message =
       (tool_result: AgentToolResult.tool_result): Model.t => {
-    let sanitized_content = String.trim(tool_result.content);
+    let sanitized_content = String.strip(tool_result.content);
 
     let msg =
       tool_result.success
@@ -265,7 +266,7 @@ module Utils = {
   };
 
   let mk_user_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -290,10 +291,10 @@ module Utils = {
         workbench_content: string,
       )
       : string => {
-    let sanitized_agent_editor_content = String.trim(agent_editor_content);
-    let sanitized_static_errors_content = String.trim(static_errors_content);
-    let sanitized_test_results_content = String.trim(test_results_content);
-    let sanitized_workbench_content = String.trim(workbench_content);
+    let sanitized_agent_editor_content = String.strip(agent_editor_content);
+    let sanitized_static_errors_content = String.strip(static_errors_content);
+    let sanitized_test_results_content = String.strip(test_results_content);
+    let sanitized_workbench_content = String.strip(workbench_content);
 
     let session_mode_label = AgentGlobals.session_mode_label(session_mode);
     let session_mode_block =
@@ -378,7 +379,7 @@ module Utils = {
   };
 
   let mk_api_failure_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -394,7 +395,7 @@ module Utils = {
 
   /** Summary of prior turns for the API; [method] is shown in the chat UI. */
   let mk_compaction_summary = (~method: string, content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let api_text =
       "[Prior conversation summary — "
       ++ method

@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Poly;
 // open ExplainThisUpdate;
 // open Util;
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
@@ -40,10 +41,10 @@ module Model = {
 
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Tutorial.positioned_editors(exercise.editors)
-    |> List.filter(((pos, _)) =>
+    |> List.filter(~f=((pos, _)) =>
          Tutorial.is_editable(pos, ~instructor_mode)
        )
-    |> List.map(((pos, editor: Editor.t)) =>
+    |> List.map(~f=((pos, editor: Editor.t)) =>
          (pos, editor.state.zipper |> PersistentZipper.persist)
        );
   };
@@ -354,11 +355,11 @@ module Selection = {
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_piece(tile, e.syntax.term_data) != None
+    |> List.find(~f=((p, e: Editor.t)) =>
+         Option.is_some(TermData.root_piece(tile, e.syntax.term_data))
          && Tutorial.is_editable(p, ~instructor_mode=settings.instructor_mode)
        )
-    |> Option.map(((pos, _)) =>
+    |> Option.map(~f=((pos, _)) =>
          (
            Update.Editor(
              pos,
@@ -379,11 +380,12 @@ module View = {
     | Always('a);
   let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
     List.filter_map(
-      vis =>
-        switch (vis) {
-        | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
-        | Always(node) => Some(node)
-        },
+      ~f=
+        vis =>
+          switch (vis) {
+          | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
+          | Always(node) => Some(node)
+          },
       v,
     );
   };
@@ -402,7 +404,7 @@ module View = {
     };
 
   let remove_all = (s: string, marker: string): string =>
-    Util.StringUtil.plain_split(s, marker) |> String.concat("");
+    Util.StringUtil.plain_split(s, marker) |> String.concat(~sep="");
 
   type prompt_seg =
     | Text(string)
@@ -415,15 +417,16 @@ module View = {
     | [before, ...opened] => [
         Text(before),
         ...List.concat_map(
-             chunk =>
-               switch (Util.StringUtil.plain_split(chunk, video_close)) {
-               | [unclosed] => [Text(video_open ++ unclosed)]
-               | [file, ...after] => [
-                   Video(String.trim(file)),
-                   Text(String.concat(video_close, after)),
-                 ]
-               | [] => []
-               },
+             ~f=
+               chunk =>
+                 switch (Util.StringUtil.plain_split(chunk, video_close)) {
+                 | [unclosed] => [Text(video_open ++ unclosed)]
+                 | [file, ...after] => [
+                     Video(String.strip(file)),
+                     Text(String.concat(~sep=video_close, after)),
+                   ]
+                 | [] => []
+                 },
              opened,
            ),
       ]
@@ -446,15 +449,16 @@ module View = {
      level, case-insensitive). Used to split the prompt into preamble +
      tasks. */
   let is_tasks_header = (line: string): bool => {
-    let t = String.trim(line);
+    let t = String.strip(line);
     let rec count_hashes = i =>
-      i < String.length(t) && t.[i] == '#' ? count_hashes(i + 1) : i;
+      i < String.length(t) && Char.equal(t.[i], '#')
+        ? count_hashes(i + 1) : i;
     let h = count_hashes(0);
     let rest =
-      String.lowercase_ascii(
-        String.trim(String.sub(t, h, String.length(t) - h)),
+      String.lowercase(
+        String.strip(String.sub(t, ~pos=h, ~len=String.length(t) - h)),
       );
-    h > 0 && (rest == "task" || rest == "tasks");
+    h > 0 && (String.equal(rest, "task") || String.equal(rest, "tasks"));
   };
 
   /* Split a prompt into (preamble, optional tasks body) at the first
@@ -462,16 +466,16 @@ module View = {
      inline; the tasks body (everything after the header line, the header
      itself dropped) is shown in a collapsible. No header => no tasks. */
   let split_tasks = (prompt: string) => {
-    let rec go = (pre, rest) =>
+    let rec go = (pre, rest): (string, option(string)) =>
       switch (rest) {
-      | [] => (prompt, Option.None)
+      | [] => (prompt, None)
       | [line, ...more] when is_tasks_header(line) => (
-          String.trim(String.concat("\n", List.rev(pre))),
-          Option.Some(String.concat("\n", more)),
+          String.strip(String.concat(~sep="\n", List.rev(pre))),
+          Some(String.concat(~sep="\n", more)),
         )
       | [line, ...more] => go([line, ...pre], more)
       };
-    go([], String.split_on_char('\n', prompt));
+    go([], String.split(prompt, ~on='\n'));
   };
 
   let view =
@@ -530,7 +534,10 @@ module View = {
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
         ~caption=?
-          Option.map(c => CellCommon.caption(c, ~rest=?subcaption), caption),
+          Option.map(
+            ~f=c => CellCommon.caption(c, ~rest=?subcaption),
+            caption,
+          ),
         ~lines=true,
         /* the culling range is measured on the user cell; the instructor
            hidden-tests cell must not be culled with it */
@@ -560,9 +567,10 @@ module View = {
             msg;
           }
         | Video(file) => [video_node(file)];
-      List.concat_map(render_seg, split_video(s));
+      List.concat_map(~f=render_seg, split_video(s));
     };
-    let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+    let prompt_placeholder =
+      String.equal(eds.prompt, "") ? "Empty Prompt" : eds.prompt;
     let prompt_clean = remove_all(prompt_placeholder, no_editor_marker);
     let (prompt_preamble, prompt_tasks) = split_tasks(prompt_clean);
     let prompt_view =
@@ -619,7 +627,8 @@ module View = {
       );
     let hint_view = {
       let hint_placeholder =
-        eds.display_hint == "" ? "No hints available." : eds.display_hint;
+        String.equal(eds.display_hint, "")
+          ? "No hints available." : eds.display_hint;
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
@@ -732,7 +741,7 @@ module View = {
       | None => []
       }
     )
-    @ (eds.display_hint == "" ? [] : [hint_view])
+    @ (String.equal(eds.display_hint, "") ? [] : [hint_view])
     @ render_cells(
         globals.settings,
         (text_only ? [] : [your_impl_view])

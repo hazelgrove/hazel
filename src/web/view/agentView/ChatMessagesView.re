@@ -125,7 +125,7 @@ module ViewComponents = {
             ~attrs=[clss(["agent-context-section-title"])],
             [text("Static diagnostics")],
           ),
-          if (static_error_lines == []) {
+          if (List.is_empty(static_error_lines)) {
             div(
               ~attrs=[clss(["agent-context-static-ok"])],
               [text("No static errors.")],
@@ -134,11 +134,12 @@ module ViewComponents = {
             div(
               ~attrs=[clss(["agent-context-static-list"])],
               List.map(
-                (line: string) =>
-                  div(
-                    ~attrs=[clss(["agent-context-static-line"])],
-                    [text(line)],
-                  ),
+                ~f=
+                  (line: string) =>
+                    div(
+                      ~attrs=[clss(["agent-context-static-line"])],
+                      [text(line)],
+                    ),
                 static_error_lines,
               ),
             );
@@ -171,43 +172,44 @@ module ViewComponents = {
             )
           | Some(results) =>
             let summary =
-              Language.TestResults.test_summary_str(results) |> String.trim;
+              Language.TestResults.test_summary_str(results) |> String.strip;
             let rows =
               List.mapi(
-                (i, status: Language.TestStatus.t) => {
-                  let status_cls =
-                    switch (status) {
-                    | Pass => "agent-context-test-pass"
-                    | Fail => "agent-context-test-fail"
-                    | Indet => "agent-context-test-indet"
-                    };
-                  let icon =
-                    switch (status) {
-                    | Pass => Icons.confirm
-                    | Fail => Icons.cancel
-                    | Indet => Icons.circle_with_no_check
-                    };
-                  div(
-                    ~attrs=[clss(["agent-context-test-row", status_cls])],
-                    [
-                      div(
-                        ~attrs=[clss(["agent-context-test-icon"])],
-                        [icon],
-                      ),
-                      div(
-                        ~attrs=[clss(["agent-context-test-label"])],
-                        [
-                          text(
-                            "Test "
-                            ++ string_of_int(i + 1)
-                            ++ ": "
-                            ++ Language.TestStatus.to_string(status),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+                ~f=
+                  (i, status: Language.TestStatus.t) => {
+                    let status_cls =
+                      switch (status) {
+                      | Pass => "agent-context-test-pass"
+                      | Fail => "agent-context-test-fail"
+                      | Indet => "agent-context-test-indet"
+                      };
+                    let icon =
+                      switch (status) {
+                      | Pass => Icons.confirm
+                      | Fail => Icons.cancel
+                      | Indet => Icons.circle_with_no_check
+                      };
+                    div(
+                      ~attrs=[clss(["agent-context-test-row", status_cls])],
+                      [
+                        div(
+                          ~attrs=[clss(["agent-context-test-icon"])],
+                          [icon],
+                        ),
+                        div(
+                          ~attrs=[clss(["agent-context-test-label"])],
+                          [
+                            text(
+                              "Test "
+                              ++ string_of_int(i + 1)
+                              ++ ": "
+                              ++ Language.TestStatus.to_string(status),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 results.statuses,
               );
             div(
@@ -225,7 +227,7 @@ module ViewComponents = {
       );
     };
     let program_section =
-      if (segment == []) {
+      if (List.is_empty(segment)) {
         div(
           ~attrs=[clss(["agent-context-code-scroll"])],
           [
@@ -347,15 +349,15 @@ module ViewComponents = {
 
     let tool_items =
       tools
-      |> List.filter_map((tool: API.Json.t) => {
+      |> List.filter_map(~f=(tool: API.Json.t) => {
            switch (Agent.ToolUtils.get_name(tool)) {
            | Some(name) =>
              let category = Agent.ToolUtils.category_of_tool(name);
              let description =
                Agent.ToolUtils.get_description(tool)
                |> Option.value(~default="No description.");
-             let is_enabled = !List.mem(name, disabled);
-             let is_expanded = List.mem(name, expanded);
+             let is_enabled = !List.mem(disabled, name, ~equal=String.equal);
+             let is_expanded = List.mem(expanded, name, ~equal=String.equal);
              Some((name, category, description, is_enabled, is_expanded));
            | None => None
            }
@@ -363,24 +365,25 @@ module ViewComponents = {
 
     let grouped =
       tool_items
-      |> List.sort((a, b) => {
+      |> List.sort(~compare=(a, b) => {
            let (_, cat_a, _, _, _) = a;
            let (_, cat_b, _, _, _) = b;
            String.compare(cat_a, cat_b);
          })
       |> List.fold_left(
-           (acc, (name, cat, desc, enabled, exp)) => {
-             switch (List.assoc_opt(cat, acc)) {
-             | Some(items) =>
-               List.remove_assoc(cat, acc)
-               @ [(cat, [(name, desc, enabled, exp), ...items])]
-             | None => [(cat, [(name, desc, enabled, exp)])] @ acc
-             }
-           },
-           [],
+           ~f=
+             (acc, (name, cat, desc, enabled, exp)) => {
+               switch (List.Assoc.find(acc, cat, ~equal=String.equal)) {
+               | Some(items) =>
+                 List.Assoc.remove(acc, cat, ~equal=String.equal)
+                 @ [(cat, [(name, desc, enabled, exp), ...items])]
+               | None => [(cat, [(name, desc, enabled, exp)])] @ acc
+               }
+             },
+           ~init=[],
          )
       |> List.rev
-      |> List.map(((cat, items)) => (cat, List.rev(items)));
+      |> List.map(~f=((cat, items)) => (cat, List.rev(items)));
 
     let render_tool =
         (name: string, desc: string, is_enabled: bool, is_expanded: bool) => {
@@ -449,7 +452,7 @@ module ViewComponents = {
 
     let render_category =
         (category: string, items: list((string, string, bool, bool))) => {
-      let all_enabled = List.for_all(((_, _, en, _)) => en, items);
+      let all_enabled = List.for_all(~f=((_, _, en, _)) => en, items);
       let toggle_category = _ =>
         Effect.Many([
           agent_inject(
@@ -496,8 +499,9 @@ module ViewComponents = {
           div(
             ~attrs=[clss(["tools-view-category-items"])],
             List.map(
-              ((name, desc, enabled, exp)) =>
-                render_tool(name, desc, enabled, exp),
+              ~f=
+                ((name, desc, enabled, exp)) =>
+                  render_tool(name, desc, enabled, exp),
               List.rev(items),
             ),
           ),
@@ -535,7 +539,10 @@ module ViewComponents = {
         ),
         div(
           ~attrs=[clss(["view-content", "tools-view-content"])],
-          List.map(((cat, items)) => render_category(cat, items), grouped),
+          List.map(
+            ~f=((cat, items)) => render_category(cat, items),
+            grouped,
+          ),
         ),
       ],
     );
@@ -601,82 +608,85 @@ let chat_messages_scroll_stamp =
     )
     : int => {
   let acc = ref(0);
-  let mix = (n: int) => acc := Hashtbl.hash((acc^, n));
+  let mix = (n: int) => acc := Stdlib.Hashtbl.hash((acc^, n));
   List.iter(
-    (chunk: ChunkedUIChat.Model.chunk) =>
-      switch (chunk) {
-      | UserMessage({content, origin_id}) =>
-        mix(1);
-        mix(String.length(content));
-        mix(Hashtbl.hash(origin_id));
-      | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
-        mix(2);
-        List.iter(
-          (m: Message.Model.t) => {
-            mix(String.length(m.content));
-            mix(Hashtbl.hash(m.id));
-            switch (m.reasoning) {
-            | Some(r) => mix(String.length(r))
-            | None => mix(0)
-            };
-            switch (m.role) {
-            | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
-            | Agent(_) => mix(3)
-            | User => mix(4)
-            | System(_) => mix(5)
-            };
-          },
-          content,
-        );
-        List.iter(s => mix(String.length(s)), agent_reasoning);
-        List.iter(
-          (tr: AgentToolResult.tool_result) => {
-            mix(String.length(tr.content));
-            mix(tr.expanded ? 1 : 0);
-            mix(tr.success ? 1 : 0);
-            mix(Hashtbl.hash(tr.tool_call.id));
-          },
-          tool_results,
-        );
-      | CompactionNotice({method, content}) =>
-        mix(6);
-        mix(String.length(method));
-        mix(String.length(content));
-      | ErrorMessage(s) =>
-        mix(7);
-        mix(String.length(s));
-      | ResponseCancelledMessage(s) =>
-        mix(8);
-        mix(String.length(s));
-      | SlashCommandOutputMessage(payload) =>
-        mix(9);
-        switch (payload) {
-        | CostOutput(p) =>
-          mix(91);
-          mix(p.cost_input_tokens);
-          mix(p.cost_output_tokens);
-          mix(String.length(p.cost_model));
-        | CreditsOutput(p) =>
-          mix(92);
-          mix(int_of_float(p.credits_used *. 1000.));
-          mix(int_of_float(p.credits_total *. 1000.));
-        | UsageOutput(p) =>
-          mix(93);
-          mix(int_of_float(p.usage_total *. 1000.));
-        | KeyOutput(k) =>
-          mix(96);
-          mix(String.length(k));
-        | HelpOutput(p) =>
-          mix(94);
-          mix(List.length(p.help_entries));
-        | Notice(s) =>
-          mix(97);
+    ~f=
+      (chunk: ChunkedUIChat.Model.chunk) =>
+        switch (chunk) {
+        | UserMessage({content, origin_id}) =>
+          mix(1);
+          mix(String.length(content));
+          mix(Stdlib.Hashtbl.hash(origin_id));
+        | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
+          mix(2);
+          List.iter(
+            ~f=
+              (m: Message.Model.t) => {
+                mix(String.length(m.content));
+                mix(Stdlib.Hashtbl.hash(m.id));
+                switch (m.reasoning) {
+                | Some(r) => mix(String.length(r))
+                | None => mix(0)
+                };
+                switch (m.role) {
+                | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
+                | Agent(_) => mix(3)
+                | User => mix(4)
+                | System(_) => mix(5)
+                };
+              },
+            content,
+          );
+          List.iter(~f=s => mix(String.length(s)), agent_reasoning);
+          List.iter(
+            ~f=
+              (tr: AgentToolResult.tool_result) => {
+                mix(String.length(tr.content));
+                mix(tr.expanded ? 1 : 0);
+                mix(tr.success ? 1 : 0);
+                mix(Stdlib.Hashtbl.hash(tr.tool_call.id));
+              },
+            tool_results,
+          );
+        | CompactionNotice({method, content}) =>
+          mix(6);
+          mix(String.length(method));
+          mix(String.length(content));
+        | ErrorMessage(s) =>
+          mix(7);
           mix(String.length(s));
-        | SlashError(s) =>
-          mix(95);
+        | ResponseCancelledMessage(s) =>
+          mix(8);
           mix(String.length(s));
-        };
-      },
+        | SlashCommandOutputMessage(payload) =>
+          mix(9);
+          switch (payload) {
+          | CostOutput(p) =>
+            mix(91);
+            mix(p.cost_input_tokens);
+            mix(p.cost_output_tokens);
+            mix(String.length(p.cost_model));
+          | CreditsOutput(p) =>
+            mix(92);
+            mix(int_of_float(p.credits_used *. 1000.));
+            mix(int_of_float(p.credits_total *. 1000.));
+          | UsageOutput(p) =>
+            mix(93);
+            mix(int_of_float(p.usage_total *. 1000.));
+          | KeyOutput(k) =>
+            mix(96);
+            mix(String.length(k));
+          | HelpOutput(p) =>
+            mix(94);
+            mix(List.length(p.help_entries));
+          | Notice(s) =>
+            mix(97);
+            mix(String.length(s));
+          | SlashError(s) =>
+            mix(95);
+            mix(String.length(s));
+          };
+        },
     chunked_chat.log,
   );
   mix(awaiting_dots ? 11 : 0);
@@ -712,7 +722,7 @@ module ChatMessagesScrollHook = {
     let st = float_of_int(h##.scrollTop);
     let ch = float_of_int(h##.clientHeight);
     let sh = float_of_int(h##.scrollHeight);
-    sh -. st -. ch <= bottom_slack_px;
+    Float.(sh -. st -. ch <= bottom_slack_px);
   };
 
   let scroll_to_bottom = (el: Js.t(Dom_html.element)): unit => {
@@ -815,7 +825,7 @@ let view =
         let scroll_height = textarea##.scrollHeight;
         // Use max-height from CSS (400px for user messages, 200px for chat input)
         let max_height =
-          if (String.starts_with(~prefix="user-message-input-", id)) {
+          if (String.is_prefix(id, ~prefix="user-message-input-")) {
             400;
           } else {
             200;
@@ -839,7 +849,7 @@ let view =
           Js.to_string(textarea##.value);
         },
       );
-    let trimmed_content = String.trim(updated_content);
+    let trimmed_content = String.strip(updated_content);
     if (String.length(trimmed_content) > 0) {
       // Create a new user message with updated content
       let updated_message = Message.Utils.mk_user_message(trimmed_content);
@@ -884,7 +894,7 @@ let view =
             let rec find_index = (idx: int, children: list(Id.t)): int =>
               switch (children) {
               | [] => 0
-              | [id, ..._] when id == current_child_id => idx
+              | [id, ..._] when Id.equal(id, current_child_id) => idx
               | [_, ...rest] => find_index(idx + 1, rest)
               };
             find_index(0, parent_msg.children);
@@ -895,7 +905,7 @@ let view =
         let switch_to_prev = _ =>
           if (can_go_left) {
             let prev_child_id =
-              List.nth(parent_msg.children, current_index - 1);
+              List.nth_exn(parent_msg.children, current_index - 1);
             Effect.Many([
               agent_inject(
                 Agent.Update.Action.ChatSystemAction(
@@ -916,7 +926,7 @@ let view =
         let switch_to_next = _ =>
           if (can_go_right) {
             let next_child_id =
-              List.nth(parent_msg.children, current_index + 1);
+              List.nth_exn(parent_msg.children, current_index + 1);
             Effect.Many([
               agent_inject(
                 Agent.Update.Action.ChatSystemAction(
@@ -1142,7 +1152,7 @@ let view =
         };
       let humanize_tokens = (n: int): string =>
         if (n >= 1000) {
-          Printf.sprintf("%.1fk", float_of_int(n) /. 1000.0);
+          Stdlib.Printf.sprintf("%.1fk", float_of_int(n) /. 1000.0);
         } else {
           string_of_int(n);
         };
@@ -1163,10 +1173,11 @@ let view =
            reflects what we are actually charged (see [[OpenRouter.Reply.Model.usage]]
            on why prompt_tokens is not a billing figure). */
         let fmt_credits = (c: float): string =>
-          Printf.sprintf("%.6f", c) ++ " cr";
+          Stdlib.Printf.sprintf("%.6f", c) ++ " cr";
         let new_this_turn =
           switch (prev_usage) {
-          | Some(p) when p.model_id == usage.model_id =>
+          | Some(p)
+              when Option.equal(String.equal, p.model_id, usage.model_id) =>
             max(
               0,
               usage.prompt_tokens - p.prompt_tokens - p.completion_tokens,
@@ -1237,7 +1248,7 @@ let view =
           [
             div(
               ~attrs=[clss(["agent-token-chip-summary"])],
-              [text(String.concat(" \xc2\xb7 ", summary_parts))],
+              [text(String.concat(~sep=" \xc2\xb7 ", summary_parts))],
             ),
             div(
               ~attrs=[clss(["agent-token-chip-body"])],
@@ -1285,108 +1296,111 @@ let view =
         ref(None: option(OpenRouter.Reply.Model.usage));
       let (linear_display_rev, pending_batch) =
         List.fold_left(
-          ((acc, batch), msg: Message.Model.t) => {
-            let flush = (acc, batch) =>
-              switch (List.rev(batch)) {
-              | [] => acc
-              | xs => [wrap_batch(xs), ...acc]
-              };
-            switch (msg.role) {
-            | ToolResult(tool_result) => (
-                acc,
-                [render_tool_node(msg, tool_result), ...batch],
-              )
-            | Agent(usage_opt) =>
-              let acc = flush(acc, batch);
-              let metadata_node: option(Node.t) =
-                switch (usage_opt) {
-                | Some(usage) =>
-                  Some(
-                    render_token_chip(
-                      ~msg_id=msg.id,
-                      ~usage,
-                      ~prev_usage=prev_agent_usage_ref^,
-                    ),
-                  )
-                | None => None
+          ~f=
+            ((acc, batch), msg: Message.Model.t) => {
+              let flush = (acc, batch) =>
+                switch (List.rev(batch)) {
+                | [] => acc
+                | xs => [wrap_batch(xs), ...acc]
                 };
-              prev_agent_usage_ref := usage_opt;
-              let show_thinking = globals.settings.agent_globals.show_thinking;
-              let format_thinking_duration = (ms: int): string => {
-                let secs = max(0, ms / 1000);
-                if (secs < 60) {
-                  "Thought for " ++ string_of_int(secs) ++ "s";
-                } else {
-                  let m = secs / 60;
-                  let s = secs mod 60;
-                  "Thought for "
-                  ++ string_of_int(m)
-                  ++ "m "
-                  ++ string_of_int(s)
-                  ++ "s";
+              switch (msg.role) {
+              | ToolResult(tool_result) => (
+                  acc,
+                  [render_tool_node(msg, tool_result), ...batch],
+                )
+              | Agent(usage_opt) =>
+                let acc = flush(acc, batch);
+                let metadata_node: option(Node.t) =
+                  switch (usage_opt) {
+                  | Some(usage) =>
+                    Some(
+                      render_token_chip(
+                        ~msg_id=msg.id,
+                        ~usage,
+                        ~prev_usage=prev_agent_usage_ref^,
+                      ),
+                    )
+                  | None => None
+                  };
+                prev_agent_usage_ref := usage_opt;
+                let show_thinking =
+                  globals.settings.agent_globals.show_thinking;
+                let format_thinking_duration = (ms: int): string => {
+                  let secs = max(0, ms / 1000);
+                  if (secs < 60) {
+                    "Thought for " ++ string_of_int(secs) ++ "s";
+                  } else {
+                    let m = secs / 60;
+                    let s = secs mod 60;
+                    "Thought for "
+                    ++ string_of_int(m)
+                    ++ "m "
+                    ++ string_of_int(s)
+                    ++ "s";
+                  };
                 };
-              };
-              let reasoning_node: option(Node.t) =
-                switch (show_thinking, msg.reasoning) {
-                | (true, Some(text_content))
-                    when String.trim(text_content) != "" =>
-                  let header_text =
-                    switch (msg.reasoning_duration_ms) {
-                    | Some(ms) => format_thinking_duration(ms)
-                    | None => "Thinking"
-                    };
-                  Some(
-                    div(
-                      ~attrs=[clss(["agent-thinking-block"])],
-                      [
-                        div(
-                          ~attrs=[clss(["agent-thinking-header"])],
-                          [text(header_text)],
-                        ),
-                        div(
-                          ~attrs=[clss(["agent-thinking-text"])],
-                          [AgentMessageMarkdown.view(text_content)],
-                        ),
-                      ],
-                    ),
+                let reasoning_node: option(Node.t) =
+                  switch (show_thinking, msg.reasoning) {
+                  | (true, Some(text_content))
+                      when !String.equal(String.strip(text_content), "") =>
+                    let header_text =
+                      switch (msg.reasoning_duration_ms) {
+                      | Some(ms) => format_thinking_duration(ms)
+                      | None => "Thinking"
+                      };
+                    Some(
+                      div(
+                        ~attrs=[clss(["agent-thinking-block"])],
+                        [
+                          div(
+                            ~attrs=[clss(["agent-thinking-header"])],
+                            [text(header_text)],
+                          ),
+                          div(
+                            ~attrs=[clss(["agent-thinking-text"])],
+                            [AgentMessageMarkdown.view(text_content)],
+                          ),
+                        ],
+                      ),
+                    );
+                  | _ => None
+                  };
+                let content_node: option(Node.t) =
+                  if (!String.equal(msg.content, "")
+                      && !String.equal(String.strip(msg.content), "")) {
+                    Some(
+                      div(
+                        ~attrs=[clss(["agent-message"])],
+                        [AgentMessageMarkdown.view(msg.content)],
+                      ),
+                    );
+                  } else {
+                    None;
+                  };
+                let nodes =
+                  List.filter_map(
+                    ~f=x => x,
+                    [reasoning_node, content_node, metadata_node],
                   );
-                | _ => None
+                switch (nodes) {
+                | [] => (acc, [])
+                | xs => (List.rev_append(xs, acc), [])
                 };
-              let content_node: option(Node.t) =
-                if (msg.content != "" && String.trim(msg.content) != "") {
-                  Some(
-                    div(
-                      ~attrs=[clss(["agent-message"])],
-                      [AgentMessageMarkdown.view(msg.content)],
-                    ),
+              | System(RetryNote) =>
+                let acc = flush(acc, batch);
+                let node =
+                  div(
+                    ~attrs=[
+                      clss(["agent-system-message", "agent-retry-note"]),
+                    ],
+                    [text(msg.content)],
                   );
-                } else {
-                  None;
-                };
-              let nodes =
-                List.filter_map(
-                  x => x,
-                  [reasoning_node, content_node, metadata_node],
-                );
-              switch (nodes) {
-              | [] => (acc, [])
-              | xs => (List.rev_append(xs, acc), [])
+                ([node, ...acc], []);
+              | System(ResponseCancelled)
+              | _ => (acc, batch)
               };
-            | System(RetryNote) =>
-              let acc = flush(acc, batch);
-              let node =
-                div(
-                  ~attrs=[
-                    clss(["agent-system-message", "agent-retry-note"]),
-                  ],
-                  [text(msg.content)],
-                );
-              ([node, ...acc], []);
-            | System(ResponseCancelled)
-            | _ => (acc, batch)
-            };
-          },
-          ([], []),
+            },
+          ~init=([], []),
           agent_chunk.content,
         );
       let linear_display =
@@ -1412,12 +1426,12 @@ let view =
       };
 
       let edit_tool_results =
-        agent_chunk.tool_results |> List.filter(is_edit_tool_call);
+        agent_chunk.tool_results |> List.filter(~f=is_edit_tool_call);
 
       // Extract message IDs and tool results from content for toggle wiring
       let tool_result_messages =
         agent_chunk.content
-        |> List.filter_map((msg: Message.Model.t) =>
+        |> List.filter_map(~f=(msg: Message.Model.t) =>
              switch (msg.role) {
              | ToolResult(tool_result) => Some((msg.id, tool_result))
              | _ => None
@@ -1547,9 +1561,13 @@ let view =
                 "tool-call-failure";
               };
             let msg_id_opt =
-              List.find_opt(
-                ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
-                  msg_tr.tool_call.id == tool_result.tool_call.id,
+              List.find(
+                ~f=
+                  ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
+                    String.equal(
+                      msg_tr.tool_call.id,
+                      tool_result.tool_call.id,
+                    ),
                 tool_result_messages,
               );
             let on_click = _ =>
@@ -1614,21 +1632,22 @@ let view =
             let initial = [render_node(initial_node)];
             let (elements, _) =
               List.fold_left(
-                ((acc, node_idx), tool_result: AgentToolResult.tool_result) => {
-                  let tool_link = render_summary_tool_link(tool_result);
-                  if (tool_result.success) {
-                    let next_node: timeline_node = {
-                      segment: tool_result.after_segment,
-                      label: "After Edit " ++ string_of_int(node_idx),
-                      index: node_idx,
+                ~f=
+                  ((acc, node_idx), tool_result: AgentToolResult.tool_result) => {
+                    let tool_link = render_summary_tool_link(tool_result);
+                    if (tool_result.success) {
+                      let next_node: timeline_node = {
+                        segment: tool_result.after_segment,
+                        label: "After Edit " ++ string_of_int(node_idx),
+                        index: node_idx,
+                      };
+                      let node_view = render_node(next_node);
+                      (acc @ [tool_link, node_view], node_idx + 1);
+                    } else {
+                      (acc @ [tool_link], node_idx);
                     };
-                    let node_view = render_node(next_node);
-                    (acc @ [tool_link, node_view], node_idx + 1);
-                  } else {
-                    (acc @ [tool_link], node_idx);
-                  };
-                },
-                ([], 1),
+                  },
+                ~init=([], 1),
                 all_edits,
               );
             initial @ elements;
@@ -1765,12 +1784,12 @@ let view =
     // Normal messages view (content only, bottom bar handled in ChatView)
     let awaiting_dots =
       switch (agent_model.awaiting_response) {
-      | Some(id) when id == current_chat_id => true
+      | Some(id) when Id.equal(id, current_chat_id) => true
       | _ => false
       };
     let compaction_banner =
       switch (agent_model.compaction_in_progress) {
-      | Some(id) when id == current_chat_id => true
+      | Some(id) when Id.equal(id, current_chat_id) => true
       | _ => false
       };
     let scroll_sync_stamp =
@@ -1798,16 +1817,18 @@ let view =
               ChatMessagesScrollHook.create(scroll_sync_stamp),
             ),
           ],
-          List.mapi(render_chunk, chunked_chat.log)
+          List.mapi(~f=render_chunk, chunked_chat.log)
           @ (
             switch (agent_model.awaiting_response) {
-            | Some(awaiting_id) when awaiting_id == current_chat_id =>
+            | Some(awaiting_id) when Id.equal(awaiting_id, current_chat_id) =>
               let show_thinking = globals.settings.agent_globals.show_thinking;
               let pending_content = agent_model.pending_assistant_content;
               let pending_reasoning = agent_model.pending_assistant_reasoning;
               let has_reasoning =
-                show_thinking && String.trim(pending_reasoning) != "";
-              let has_content = String.trim(pending_content) != "";
+                show_thinking
+                && !String.equal(String.strip(pending_reasoning), "");
+              let has_content =
+                !String.equal(String.strip(pending_content), "");
               let reasoning_node: option(Node.t) =
                 if (has_reasoning) {
                   Some(
@@ -1849,7 +1870,7 @@ let view =
                 };
               let body_nodes: list(Node.t) =
                 if (has_reasoning || has_content) {
-                  List.filter_map(x => x, [reasoning_node, content_node]);
+                  List.filter_map(~f=x => x, [reasoning_node, content_node]);
                 } else {
                   [
                     div(
@@ -1883,7 +1904,7 @@ let view =
           )
           @ (
             switch (agent_model.compaction_in_progress) {
-            | Some(id) when id == current_chat_id => [
+            | Some(id) when Id.equal(id, current_chat_id) => [
                 div(
                   ~attrs=[clss(["compaction-in-progress-banner"])],
                   [text("Compacting conversation…")],

@@ -16,7 +16,7 @@ let conapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
   colorings: conapp_pat_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that match the [*constructor*](%s) with an *argument* matching the [*argument pattern*](%s) match this *constructor application pattern*.",
       Id.to_string(x_id),
       Id.to_string(arg_id),
@@ -38,7 +38,7 @@ let funapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
   colorings: funapp_pat_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Defines a function [*function*](%s) with [*arguments*](%s).",
       Id.to_string(x_id),
       Id.to_string(arg_id),

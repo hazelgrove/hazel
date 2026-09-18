@@ -33,7 +33,7 @@ let tuple_exp_id: form_id = TupleExp;
 let tuple_exp_comma = comma_exp();
 let tuple_exp_form = [exp("e1"), tuple_exp_comma, space(), exp("...")];
 let tuple_exp_explanation = (~n: int): string =>
-  Printf.sprintf("The tuple has %d elements.", n);
+  Stdlib.Printf.sprintf("The tuple has %d elements.", n);
 let tuple_exp = (~n: int): form => {
   id: tuple_exp_id,
   syntactic_form: tuple_exp_form,
@@ -70,7 +70,7 @@ let tuple_exp_size2 = (~exp1_id: Id.t, ~exp2_id: Id.t): form => {
       [exp("e1"), comma_exp(), exp("e2")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The 2-tuple has a [first](%s) and [second](%s) element.",
       Id.to_string(exp1_id),
       Id.to_string(exp2_id),
@@ -109,7 +109,7 @@ let tuple_exp_size3 = (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): form => 
       [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The 3-tuple has a [first](%s), [second](%s), and [third](%s) element.",
       Id.to_string(exp1_id),
       Id.to_string(exp2_id),
@@ -138,7 +138,7 @@ let tuple_extension_exp = (~x_id: Id.t, ~y_id: Id.t): form => {
   colorings: tuple_extension_exp_coloring_ids(~x_id, ~y_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Creates a tuple by combining the [*first operand*](%s) and the [*second operand*](%s), updating elements with the same labels.",
       Id.to_string(x_id),
       Id.to_string(y_id),
