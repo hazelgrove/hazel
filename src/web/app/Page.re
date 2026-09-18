@@ -891,6 +891,12 @@ module View = {
       get_log_count: _ =>
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
+      slide_name:
+        switch (editors) {
+        | Documentation(m) =>
+          List.nth_opt(ScratchMode.Model.scratchpad_names(m), m.current)
+        | _ => None
+        },
     };
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
