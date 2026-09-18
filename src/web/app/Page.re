@@ -410,6 +410,7 @@ module Update = {
     PerfMetrics.sync(
       ~enabled=
         debug_panel_open(StaticsSection.title)
+        || debug_panel_open(LiveTypingSection.title)
         || debug_panel_open(EditorSection.title)
         || debug_panel_open(FrameSection.title),
     );
@@ -555,6 +556,12 @@ module Selection = {
            ~mdIcon="tune",
            ~action=inject(Globals(Set(Dynamics))),
            "Toggle Dynamics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(LiveTyping))),
+           "Toggle Live Typing",
          ),
          mk(
            ~section="Settings",

@@ -808,7 +808,7 @@ and Stepper: {
         ~settings=Calc.get_value(settings),
         ~is_edited=true,
         ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
-        ~dynamics=Dynamics.Map.empty,
+        ~dynamics=NewValue(Dynamics.empty),
         ~ana=Calc.get_value(ana),
         ~stitch=_ => Calc.get_value(expr),
         Calc.get_value(editor),

@@ -2,7 +2,8 @@
    from the values the probe sampled.
 
    Samples are already-elaborated values, so a type is read off each one by
-   running statics over it and the results are met. The result is only ever
+   running statics over it and the results are met. A closure is typed under
+   the environment it captured, not the probe site's. The result is only ever
    as precise as the values that happened to flow through: it describes what
    was seen, not what the expression can produce. */
 

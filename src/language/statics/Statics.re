@@ -190,6 +190,7 @@ and drv_to_info_map =
 }
 and uexp_to_info_map =
     (
+      ~dynamics: LiveTyping.Map.t=LiveTyping.Map.empty,
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
@@ -199,8 +200,20 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Exp.t, Map.t) => {
+  let calculate_dynamic_type = (uexp: Exp.t) => {
+    let (ie, _, _) =
+      uexp_to_info_map(
+        ~dynamics=LiveTyping.Map.empty,
+        ~ctx,
+        ~ancestors,
+        uexp,
+        StaticsBase.Map.empty,
+      );
+    Some(ie.ty);
+  };
   let ids = IdTagged.ids(uexp);
   let (term, rewrap) = Exp.unwrap(uexp);
+  let _ = ids;
   let add =
       (
         ~user_term=uexp,
@@ -221,6 +234,14 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    let elab_syn_ty =
+      LiveTyping.refine_typ_with_dynamics(
+        ~dynamics,
+        ~calculate_dynamic_type,
+        ~ctx,
+        ~term_id=Exp.rep_id(user_term),
+        elab_syn_ty,
+      );
     let marks =
       switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
       | None => marks
@@ -280,6 +301,7 @@ and uexp_to_info_map =
       )
       : (Info.exp, Exp.t, Map.t) => {
     uexp_to_info_map(
+      ~dynamics,
       ~ctx,
       ~ana,
       ~is_in_filter,
@@ -301,7 +323,12 @@ and uexp_to_info_map =
     (List.split(pairs), m);
   };
   let go_pat =
-    upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
+    upat_to_info_map(
+      ~dynamics,
+      ~ctx,
+      ~ancestors=ancestors_inclusive,
+      ~probe_ids,
+    );
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
   /* Analyze an expression in label position. Adds info for the label
      directly (like TupLabel does for its children) and returns
@@ -375,8 +402,20 @@ and uexp_to_info_map =
   let default_case = () => {
     switch (term) {
     | Closure(env, e) =>
-      // TODO: implement closure type checking properly - see how dynamic type assignment does it
-      let (e, e_elab, m) = go(~ana, e, m);
+      /* A closure's body is scoped by `env`, not by whatever is in scope
+         where this value is being typed, so shadow the ambient bindings
+         `env` also binds (see Ctx.of_closure_env). Callers that want the
+         body typed precisely must close the value first, as live typing and
+         the dynamic type projector now do (Dynamics.to_live_typing_map,
+         DynamicTypInfer.type_of_sample); this only keeps a term that still
+         carries closures — an evaluation result rendered in the result
+         editor, say — from binding its variables to the wrong binder. */
+      let ctx_closure =
+        Ctx.of_closure_env(
+          ctx,
+          Environment.fold(((name, _), acc) => [name, ...acc], [], env),
+        );
+      let (e, e_elab, m) = go(~ctx=ctx_closure, ~ana, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -1690,9 +1729,19 @@ and uexp_to_info_map =
             (module
              {
                let uexp_to_info_map =
-                   (~ctx, ~ana=?, ~is_in_filter=?, ~ancestors=?, exp, m) =>
+                   (
+                     ~dynamics as _=LiveTyping.Map.empty,
+                     ~ctx,
+                     ~ana=?,
+                     ~is_in_filter=?,
+                     ~ancestors=?,
+                     exp,
+                     m,
+                   ) =>
                  go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m);
                let add = add;
+               let dynamics = dynamics;
+               let calculate_dynamic_type = calculate_dynamic_type;
              }),
             m,
             arg,
@@ -1792,9 +1841,19 @@ and uexp_to_info_map =
           (module
            {
              let uexp_to_info_map =
-                 (~ctx, ~ana=?, ~is_in_filter=?, ~ancestors=?, exp, m) =>
+                 (
+                   ~dynamics as _=LiveTyping.Map.empty,
+                   ~ctx,
+                   ~ana=?,
+                   ~is_in_filter=?,
+                   ~ancestors=?,
+                   exp,
+                   m,
+                 ) =>
                go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m);
              let add = add;
+             let dynamics = dynamics;
+             let calculate_dynamic_type = calculate_dynamic_type;
            }),
           m,
           args,
@@ -1921,7 +1980,7 @@ and uexp_to_info_map =
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
+      let (mode_body, ctx_body, live_insts) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
           let mode_body = {
@@ -1931,26 +1990,49 @@ and uexp_to_info_map =
             | _ => item
             };
           };
-          let ctx_body =
-            Ctx.extend_tvar(
-              ctx,
-              {
+          let tpat_id = TPat.rep_id(utpat);
+          switch (LiveTyping.Map.lookup_type_inst(tpat_id, dynamics)) {
+          | Some([_, ..._] as insts) => (
+              mode_body,
+              LiveTyping.extend_ctx_with_instantiations(
+                ctx,
                 name,
-                id: TPat.rep_id(utpat),
-                kind: Abstract,
-              },
-            );
-          (mode_body, ctx_body);
+                tpat_id,
+                insts,
+              ),
+              true,
+            )
+          | _ => (
+              mode_body,
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: tpat_id,
+                  kind: Abstract,
+                },
+              ),
+              false,
+            )
+          };
         | Some(_)
-        | None => (item, ctx)
+        | None => (item, ctx, false)
         };
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
+      /* Under live instantiations the body's synthesized type contains the
+         binder's runtime concretization; re-generalize it against the
+         annotation slice so the Poly we synthesize doesn't quantify a
+         variable its own body has already concretized. */
+      let body_syn_ty =
+        live_insts
+          ? LiveTyping.reabstract(ctx_body, mode_body, body.elab_syn_ty)
+          : body.elab_syn_ty;
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
-        ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
+        ~elab_syn_ty=Poly(utpat, body_syn_ty) |> Typ.temp,
         ~marks=[],
         ~co_ctx=body.co_ctx,
         ~probe_targets=body.probe_targets,
@@ -2755,6 +2837,7 @@ and uexp_to_info_map =
 }
 and upat_to_info_map =
     (
+      ~dynamics: LiveTyping.Map.t=LiveTyping.Map.empty,
       ~is_synswitch,
       ~ctx,
       // the co-ctx of the pattern's scope
@@ -2768,6 +2851,17 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Pat.t, Map.t) => {
+  let calculate_dynamic_type = (uexp: Exp.t) => {
+    let (ie, _, _) =
+      uexp_to_info_map(
+        ~dynamics=LiveTyping.Map.empty,
+        ~ctx,
+        ~ancestors,
+        uexp,
+        StaticsBase.Map.empty,
+      );
+    Some(ie.ty);
+  };
   let ids = IdTagged.ids(upat);
   let (term, rewrap) = Pat.unwrap(upat);
   let ancestors_inclusive = [Pat.rep_id(upat)] @ ancestors;
@@ -2790,6 +2884,14 @@ and upat_to_info_map =
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    let elab_syn_ty =
+      LiveTyping.refine_typ_with_dynamics(
+        ~dynamics,
+        ~calculate_dynamic_type,
+        ~ctx,
+        ~term_id=Pat.rep_id(user_term),
+        elab_syn_ty,
+      );
     let marks =
       if (marks != []) {
         marks;
@@ -2866,6 +2968,7 @@ and upat_to_info_map =
         m: Map.t,
       ) => {
     upat_to_info_map(
+      ~dynamics,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -2885,6 +2988,7 @@ and upat_to_info_map =
       ~analyze_original=
         (~ana, pat, m) =>
           upat_to_info_map(
+            ~dynamics,
             ~ctx,
             ~co_ctx,
             ~is_synswitch,
@@ -2897,6 +3001,7 @@ and upat_to_info_map =
       ~analyze_elaborated=
         (~ana, pat, m) =>
           upat_to_info_map(
+            ~dynamics,
             ~ctx,
             ~co_ctx,
             ~is_synswitch,
@@ -3128,7 +3233,18 @@ and upat_to_info_map =
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
          Unknown(Internal) is used in this case */
-      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal) |> Typ.temp);
+      let ctx_typ =
+        fixed_typ(
+          ctx,
+          ana,
+          LiveTyping.refine_typ_with_dynamics(
+            ~dynamics,
+            ~calculate_dynamic_type,
+            ~ctx,
+            ~term_id=Pat.rep_id(upat),
+            Unknown(Internal) |> Typ.temp,
+          ),
+        );
       let entry =
         Ctx.VarEntry({
           name,
@@ -4313,9 +4429,10 @@ and mpat_to_info_map =
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
+    ((dynamics, ana, ctx, e, probe_ids)) => {
       let (_, elab, m) =
         uexp_to_info_map(
+          ~dynamics,
           ~ana,
           ~ctx,
           ~ancestors=[],
@@ -4345,6 +4462,7 @@ let mk =
 
 let mk =
     (
+      ~dynamics=LiveTyping.Map.empty,
       ~ana=Typ.temp(Unknown(SynSwitch)),
       ~probe_ids=Id.Map.empty,
       core: CoreSettings.t,
@@ -4352,4 +4470,5 @@ let mk =
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((dynamics, ana, ctx, exp, probe_ids))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));

@@ -20,6 +20,13 @@ module Model = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
+    /* The program-derived sampling targets -- probe_all's and live typing's
+       unknown-typed ids, i.e. targets minus the probes actually placed in the
+       zipper. IncrEval.reuse_check only sees per-node probe_targets, which
+       cover placed probes, so it will happily reuse a slice evaluated before
+       one of these ids became a target and hand back no samples for it.
+       Tracked separately so that case can drop the incremental map. */
+    cached_derived_targets: Calc.saved(Id.Map.t(unit)),
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
@@ -43,6 +50,7 @@ module Model = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
+    cached_derived_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
@@ -70,6 +78,7 @@ module Model = {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
+        cached_derived_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
@@ -87,21 +96,43 @@ module Model = {
     };
   };
 
-  let probe_results = (model: t): option(Sample.Map.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+  /* Dynamics as of the last calculate: final on ResultOk, partial (built by
+   * StreamCollector from the streaming outbox) while the worker is still
+   * evaluating. Provenance note: the saved field can't carry freshness across
+   * actions, so these accessors are tagged OldValue; CellEditor.Update
+   * .calculate supplies freshness by physically comparing probe maps across
+   * its EvalResult.Update.calculate call (see dynamics_changed there). */
+  let dynamics = (model: t): Calc.t(option(Dynamics.t)) =>
+    Calc.OldValue(model.dynamics |> Calc.get_saved(None));
 
-  let test_results = (model: t): option(TestResults.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.test_results);
+  let probe_results = (model: t): Calc.t(option(Dynamics.Map.t)) =>
+    model
+    |> dynamics
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.probe_map));
 
-  let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
-    };
+  let test_results = (model: t): Calc.t(option(TestResults.t)) =>
+    model
+    |> dynamics
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+  let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
+    model
+    |> dynamics
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(d) => d.type_inst_map
+         | None => Dynamics.TypeInstMap.empty
+         }
+       );
+
+  let dynamics_full = (model: t): Calc.t(Dynamics.t) =>
+    model
+    |> dynamics
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(m) => m
+         | None => Dynamics.empty
+         }
+       );
 
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
@@ -223,6 +254,7 @@ module Update = {
           cached_settings,
           elab,
           cached_targets,
+          cached_derived_targets,
           result,
           dynamics,
           incr_eval,
@@ -245,11 +277,28 @@ module Update = {
         statics.targets,
         cached_targets,
       );
+    let derived_targets =
+      Calc.set(
+        ~eq=Id.Map.equal((_, _) => true),
+        Id.Map.filter(
+          (id, _) => !Id.Map.mem(id, statics.probe_ids),
+          statics.targets,
+        )
+        |> Id.Map.map(_ => ()),
+        cached_derived_targets,
+      );
 
     /* Previous incremental map, if the last evaluation produced one. Pull
      * from the saved field so it survives intermediate pending states
      * (during which `result` itself is ResultPending). */
-    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
+    let prev_incr =
+      /* If a derived target appeared or vanished while the elaboration stayed
+         put -- toggling live typing is the clear case -- then reuse_check has
+         no way to tell that a slice now needs sampling, so start clean rather
+         than reuse a sample-less one. When the elaboration also changed, the
+         normal incremental path already re-evaluates what moved. */
+      Calc.is_new(derived_targets) && !Calc.is_new(elab)
+        ? IncrEval.empty : incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
@@ -259,7 +308,8 @@ module Update = {
         ~targets=Calc.get_value(targets),
         statics.info_map,
       );
-    let result =
+    // Calculate the result
+    let result: Calc.t(ProgramResult.t(ProgramResult.inner)) =
       result
       |> {
         let.calc_t elab = elab
@@ -364,6 +414,7 @@ module Update = {
         probe_map: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
+        type_inst_map: state |> EvaluatorState.get_type_insts,
         theorems: state |> EvaluatorState.get_theorems,
       };
     let dynamics =
@@ -431,7 +482,7 @@ module Update = {
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
-                   ~dynamics=Dynamics.Map.empty,
+                   ~dynamics=Calc.OldValue(Dynamics.empty),
                    ~is_edited=is_edited || result_changed,
                    editor,
                  ),
@@ -459,15 +510,14 @@ module Update = {
 
     // HACK[Matt]: say that statics is updated iff dynamics is updated
     let statics: Calc.t('a) =
-      switch (dynamics) {
+      switch (result) {
       | NewValue(_) => NewValue(statics)
       | OldValue(_) => OldValue(statics)
       };
 
     let theorems =
       Calc.get_value(settings).dynamics
-        ? theorems
-          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+        ? theorems |> Theorems.Update.calculate(~settings, ~statics, ~result)
         : theorems;
 
     (
@@ -475,6 +525,7 @@ module Update = {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
         cached_targets: targets |> Calc.save,
+        cached_derived_targets: derived_targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
@@ -583,7 +634,7 @@ module View = {
                 focus: selected ? Some() : None,
               }),
             ~globals,
-            ~dynamics=editor.dynamics,
+            ~dynamics=editor.dynamics.probe_map,
             editor,
           ),
         editor,
@@ -724,7 +775,7 @@ module View = {
         result_kind == `JustTheorems
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
@@ -784,7 +835,7 @@ module View = {
         [node],
         (
           (editor: Haz3lcore.Editor.t) =>
-            switch (Model.test_results(model)) {
+            switch (Model.test_results(model) |> Calc.get_value) {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
@@ -799,9 +850,9 @@ module View = {
 
     // Just showing test results (school mode)
     | `TestResults =>
-      let test_results = Model.test_results(model);
+      let test_results = Model.test_results(model) |> Calc.get_value;
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,

@@ -31,9 +31,9 @@ let tests = (
       () => {
         let env =
           Environment.of_list([("x", Exp.var("x")), ("y", Exp.var("x"))]);
-        let expr = Exp.fn(Pat.var("x"), Exp.var("y"), None, None);
+        let expr = Exp.fn(Pat.var("x"), Exp.var("y"));
         let result = Substitution.in_exp(env, expr);
-        let expected = Exp.fn(Pat.var("x'"), Exp.var("x"), None, None);
+        let expected = Exp.fn(Pat.var("x'"), Exp.var("x"));
         check(exp, "x -> x in fn x. x", expected, result);
       },
     ),

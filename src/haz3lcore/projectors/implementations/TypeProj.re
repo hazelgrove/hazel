@@ -81,10 +81,17 @@ module M: Projector = {
     content,
   };
 
-  let samples_of = (info: info): list(Sample.t) =>
+  /* Only the samples the probe focus selects, so pinning a call narrows the
+     type to that call. */
+  let samples_of = (info: info, statics: Info.t): list(Sample.t) =>
     switch (info.dynamics) {
     | None => []
-    | Some(dynamics: Dynamics.Info.t) => dynamics.samples
+    | Some(dynamics: Dynamics.Info.t) =>
+      Sample.Selection.filter_by_pin(
+        ~ap_id=Sample.Focus.cur_var_ap(statics),
+        ~pinned=dynamics.sample_focus.pinned_stack,
+        dynamics.samples,
+      )
     };
 
   let reading =
@@ -205,7 +212,7 @@ module M: Projector = {
             | None => [unavailable_view()]
             | Some(statics) =>
               let {glyph, description, content} =
-                reading(~samples=samples_of(info), model, statics);
+                reading(~samples=samples_of(info, statics), model, statics);
               [
                 mode_view(glyph, description),
                 typ_view(
