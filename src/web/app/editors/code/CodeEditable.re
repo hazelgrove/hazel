@@ -249,6 +249,13 @@ module Selection = {
            "Statics",
          ),
          mk(
+           ~hotkey="alt+p",
+           ~mdIcon="play_circle",
+           ~section="Projection",
+           ~action=action(Probe(TogglePlayer)),
+           "Player",
+         ),
+         mk(
            ~hotkey="alt+l",
            ~mdIcon="camera",
            ~section="Projection",

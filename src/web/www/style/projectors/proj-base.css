@@ -12,6 +12,13 @@
 @import "proj-table.css";
 @import "proj-table-probe.css";
 @import "proj-csv.css";
+@import "proj-notes.css";
+@import "proj-rhythm.css";
+@import "proj-knob.css";
+@import "proj-xypad.css";
+@import "proj-player.css";
+@import "proj-samplepicker.css";
+@import "proj-scalepicker.css";
 
 /* Default projector styles */
 
@@ -22,6 +29,10 @@
   align-items: center;
   color: var(--BR2);
   z-index: var(--projector-z);
+}
+
+.projector.Tab {
+  align-items: flex-start;
 }
 
 .refractors .projector.probe.indicated {

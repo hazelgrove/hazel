@@ -137,6 +137,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     /* † is what holding option turns t into on Mac */
     Some(Probe(ToggleStatics))
+  | {key: D("p"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
+    Some(Probe(TogglePlayer))
+  | {key: D("π"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
+    /* π is what holding option turns p into on Mac */
+    Some(Probe(TogglePlayer))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
