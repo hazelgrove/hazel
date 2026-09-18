@@ -680,6 +680,9 @@ and ModItem: {
     | ModExp(e) => ModItemExp(Exp.of_core(e))
     | ModuleMod(mp, e) =>
       ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
+    | ModVal(x, e) =>
+      /* Evaluated binding (dynamics only): print as `let x = e`. */
+      ModItemLet(Pat.of_core(IndicatedG.Pat.var(x)), Exp.of_core(e))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) => ModItemExp(EmptyHole)
@@ -696,6 +699,7 @@ and SigItem: {
     | SigItemLet(p) => sig_let(Pat.of_menhir_ast(p))
     | SigItemType(tp, t) =>
       sig_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    | SigItemModule(p) => sig_module(mpat_of_pat(Pat.of_menhir_ast(p)))
     };
   };
 
@@ -703,6 +707,7 @@ and SigItem: {
     switch (sig_.term) {
     | SigLet(p) => SigItemLet(Pat.of_core(p))
     | SigType(tp, t) => SigItemType(TPat.of_core(tp), Typ.of_core(t))
+    | SigModule(mp) => SigItemModule(Exp.pat_of_mpat(mp))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) => SigItemLet(EmptyHolePat)

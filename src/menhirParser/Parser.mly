@@ -516,4 +516,8 @@ modItem:
 sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
+    | MODULE; i = IDENT { SigItemModule(VarPat(i)) }
+    | MODULE; c = CONSTRUCTOR_IDENT { SigItemModule(VarPat(c)) }
+    | MODULE; i = IDENT; COLON; t = typ { SigItemModule(AscPat(VarPat(i), t)) }
+    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ { SigItemModule(AscPat(VarPat(c), t)) }
 

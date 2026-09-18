@@ -27,6 +27,12 @@ type ok_common =
 type exp =
   | Default
   | AnaDeferralConsistent(Typ.t)
+  /* `M.y` where the module has no member y: the dot's payload; the error is
+     on the label. */
+  | ModuleMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+    })
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -38,6 +44,7 @@ type pat =
 type underdetermined_typ =
   | ProdExtensionUnderdetermined(list(Typ.t))
   | ProdProjectionMissingLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | ModuleTypeMemberMissing(Var.t, list(Var.t))
   | ProdProjectionBadArgs({
       product: option(Typ.t),
       label: option(Typ.t),

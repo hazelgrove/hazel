@@ -911,10 +911,10 @@ and Stepper: {
             |> List.map(step => step |> EvaluatorStep.get_step_id)
           | _ => []
           };
-        let selected_exp =
+        let selected_id =
           switch (model.step_kind) {
           | MissingStep(m) =>
-            m.selected_exp |> Calc.get_saved_opt |> Option.join
+            m.selected_id |> Calc.get_saved_opt |> Option.join
           | _ => None
           };
         let refls =
@@ -959,7 +959,7 @@ and Stepper: {
               | Some(Here(_)) => true
               | _ => false
               },
-            ~selected_id=selected_exp |> Option.map(Exp.rep_id),
+            ~selected_id,
             ~overlays=
               switch (model.step_kind) {
               | MissingStep(m)
