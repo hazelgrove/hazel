@@ -358,6 +358,23 @@ let with_pat_provenance =
     remove_pat_bindings(pat, reuse_map),
   );
 
+let tuple_shape_unchanged =
+    (~prev: t('state), ~id: Id.t, es: list(Exp.t)): bool =>
+  switch (Id.Map.find_opt(id, prev.entries)) {
+  | Some(entry) =>
+    switch (entry.prev_elab.term) {
+    | Tuple(prev_es) =>
+      List.length(prev_es) == List.length(es)
+      && List.for_all2(
+           (prev_e, e) => Id.equal(Exp.rep_id(prev_e), Exp.rep_id(e)),
+           prev_es,
+           es,
+         )
+    | _ => false
+    }
+  | None => false
+  };
+
 /* Which parts of `e`'s value come from the cache.
  *
  * Without tuple flags this is the clean/dirty bit Hazel already used: the
@@ -371,6 +388,7 @@ let with_pat_provenance =
 let rec exp_flag =
         (
           ~tuple_flags: bool,
+          ~prev: t('state),
           ~reused: Id.t => bool,
           ~reuse_map: reuse_map,
           e: Exp.t,
@@ -381,9 +399,19 @@ let rec exp_flag =
   } else if (!tuple_flags) {
     Dirty;
   } else {
-    let recur = exp_flag(~tuple_flags, ~reused, ~reuse_map);
+    let recur = exp_flag(~tuple_flags, ~prev, ~reused, ~reuse_map);
     switch (e.term) {
-    | Tuple(es) => norm(List.map(recur, es))
+    /* A tuple flag is anchored at the tuple's OWN id: it claims that each
+     * part of this value matches the corresponding part of the value cached
+     * at uid(e). Componentwise cleanliness only establishes that if the
+     * cached expression at uid(e) really was a tuple holding these same
+     * components in these same positions — otherwise an id-preserving edit
+     * that drops, adds or permutes components reports a value clean against
+     * a cached value of a different shape. Component contents may of course
+     * differ; only the positional id skeleton has to match. */
+    | Tuple(es) =>
+      tuple_shape_unchanged(~prev, ~id=Exp.rep_id(e), es)
+        ? norm(List.map(recur, es)) : Dirty
     | Parens(e) => recur(e)
     | Var(name) =>
       switch (Maps.StringMap.find_opt(name, reuse_map)) {

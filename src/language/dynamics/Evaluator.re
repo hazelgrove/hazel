@@ -225,6 +225,7 @@ let rec evaluate =
       } else {
         ReusePass.update_reuse_map_after_effects(
           ~tuple_flags,
+          ~prev,
           ~reused=id => Id.Map.mem(id, reused_ids),
           ~reuse_map,
           effects,
