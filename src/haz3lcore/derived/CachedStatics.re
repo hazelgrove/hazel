@@ -276,16 +276,46 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
 /* compositional statics from an already-made TERM: callers that hold
    a plain segment (restructure ops) skip the zipper round-trip —
    from_zip_for_sem's Dump.to_segment walk alone was ~300ms on mega-2k */
+/* TEMP instrumentation (strip after the statics-tick decomposition):
+   window.__staticsProf(true) prints per-phase ms for each tick */
+let prof: ref(bool) = ref(false);
+let ptick: ref(int) = ref(0);
+let ptime = (label: string, f: unit => 'a): 'a =>
+  if (prof^) {
+    let t0 = Sys.time();
+    let x = f();
+    Printf.printf(
+      "[staticsProf %d] %-24s %6.1fms\n",
+      ptick^,
+      label,
+      (Sys.time() -. t0) *. 1000.,
+    );
+    x;
+  } else {
+    f();
+  };
+
 let init_compositional_term =
     (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
-  let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+  incr(ptick);
+  let clamped = DefStatics.clamp^;
+  let ds =
+    ptime("calc_auto", () =>
+      DefStatics.calc_auto(~settings, ~propagate=!clamped, ~probe_ids, term)
+    );
   let info_map = ds.merged;
   let elaborated =
     switch () {
+    | _ when clamped =>
+      /* W2b: dynamics run worker-side from the resident program; this
+         SENTINEL is never evaluated — it exists so eval-request
+         triggering (keyed on elaborated changing) fires exactly when
+         the statics semantically changed */
+      dh_err("w2-resident:" ++ string_of_int(DefStatics.semantic_gen^))
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
     | _ =>
-      switch (DefStatics.whole_elab(ds)) {
+      switch (ptime("whole_elab", () => DefStatics.whole_elab(ds))) {
       | Some(elab) => elab
       | None => dh_err("Compositional elaboration gap")
       }
@@ -294,9 +324,13 @@ let init_compositional_term =
     term,
     elaborated,
     info_map,
-    error_ids: DefStatics.all_error_ids(ds),
-    warning_ids: DefStatics.all_warning_ids(ds),
-    targets: compute_targets(~settings, ~info_map, ~probe_ids),
+    error_ids: ptime("all_error_ids", () => DefStatics.all_error_ids(ds)),
+    warning_ids:
+      ptime("all_warning_ids", () => DefStatics.all_warning_ids(ds)),
+    targets:
+      ptime("compute_targets", () =>
+        compute_targets(~settings, ~info_map, ~probe_ids)
+      ),
     probe_ids,
   };
 };
@@ -315,21 +349,23 @@ let init_compositional =
        by the Exp-rooted [go], so their backpack fallback goes through
        go_mod_root on the emptied segment instead. */
     let term =
-      Zipper.local_backpack(z) == []
-        ? MakeTerm.Incr.term_of_root(~root, Zipper.unselect_and_zip(z))
-          |> stitch
-        : (
-            root == Sort.Mod
-              ? MakeTerm.go_mod_root(Dump.to_segment(z, ~root)).term
-              : MakeTerm.from_zip_for_sem(z, ~root).term
-          )
-          |> stitch;
+      ptime("term_of+stitch", () =>
+        Zipper.local_backpack(z) == []
+          ? MakeTerm.Incr.term_of_root(~root, Zipper.unselect_and_zip(z))
+            |> stitch
+          : (
+              root == Sort.Mod
+                ? MakeTerm.go_mod_root(Dump.to_segment(z, ~root)).term
+                : MakeTerm.from_zip_for_sem(z, ~root).term
+            )
+            |> stitch
+      );
     /* callers with probes living in OTHER zippers (stacked cells)
        pass the union; default = this zipper's own */
     let probe_ids =
       switch (probe_ids) {
       | Some(p) => p
-      | None => probe_ids_of_zipper(z)
+      | None => ptime("probe_ids_of_zipper", () => probe_ids_of_zipper(z))
       };
     init_compositional_term(~settings, ~probe_ids, term);
   };
