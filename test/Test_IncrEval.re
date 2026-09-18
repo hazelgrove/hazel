@@ -1243,6 +1243,1163 @@ let test_sweep = () =>
     sweep_corpus,
   );
 
+/* ==================================================================
+ * Audit 2: the INTEGRATED tree (aPL + aM + a2 + aL), differential harness.
+ *
+ * `hazel bench-incr` compares only the PRINTED final value, and
+ * `Printer.of_segment(~holes="?")` renders every hole as `?`, so two
+ * different indeterminate results compare equal to it. It also compares
+ * nothing that a cache entry splices in from its stored state. The harness
+ * below closes both gaps: it compares the value STRUCTURALLY (ids stripped,
+ * so a hole is distinguished by what it contains and where it sits), every
+ * probe and print sample, every test result, and the step timeline that
+ * EvaluatorState.append goes to real trouble to reproduce.
+ * ================================================================== */
+
+/* Normalize every id in a term to Id.invalid. Evaluator.finish already runs
+ * Exp.replace_all_ids, which MINTS FRESH ids, so an un-normalized sexp
+ * differs between any two runs. */
+let strip_ids = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) =>
+      continue({
+        ...x,
+        annotation: IdTagged.IdTag.temp(),
+      });
+  TermBase.Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+};
+
+let show_deep = (e: Exp.t): string =>
+  Sexplib.Sexp.to_string(Exp.sexp_of_t(strip_ids(e)));
+
+/* A richer sample rendering than `show_sample`: also the step window the
+ * sample covers. EvaluatorState.append deliberately shifts a replayed
+ * slice's step bounds onto the current timeline (`shift_sample`, and
+ * step_count += ext.step_count - ext.initial_step_count), so a replayed
+ * sample is supposed to land on exactly the steps a cacheless run would
+ * have put it on. Nothing else compares that. */
+let show_sample_timed = (s: Sample.t): string =>
+  Printf.sprintf("%s steps=%d-%d", show_sample(s), s.step_start, s.step_end);
+
+let timed_samples_report = (state: EvaluatorState.t) =>
+  Sample.Map.fold(
+    (id, samples, acc) =>
+      [(Id.to_string(id), List.map(show_sample_timed, samples)), ...acc],
+    EvaluatorState.get_probes(state),
+    [],
+  )
+  |> List.sort(compare);
+
+/* Compare the step timeline too? Turning it off lets a sweep separate "the
+ * replayed samples are the wrong SAMPLES" from "the replayed samples are
+ * right but land on the wrong STEPS". */
+let compare_steps = ref(true);
+
+let full_report = ((v: Exp.t, st: EvaluatorState.t)) => (
+  show_deep(v),
+  compare_steps^
+    ? show_report(timed_samples_report(st))
+      ++ " #steps="
+      ++ string_of_int(EvaluatorState.get_step_count(st))
+    : show_report(all_samples_report(st)),
+  show_report(tests_report(st)),
+);
+
+/* Root entries / total entries / depth of the cache trie. Without this a
+ * sweep that finds nothing is indistinguishable from a sweep in which no
+ * re-use ever fired. */
+let rec trie_stats = (t: IncrEval.t(EvaluatorState.t)): (int, int, int) => {
+  let root = Id.Map.cardinal(t.entries);
+  let (sub_total, sub_depth) =
+    Id.Map.fold(
+      (_, c, (tot, d)) => {
+        let (_, ct, cd) = trie_stats(c);
+        (tot + ct, max(d, cd + 1));
+      },
+      t.children,
+      (0, 0),
+    );
+  (root, root + sub_total, sub_depth);
+};
+
+let programs_of = (term: Exp.t, edits: list(Exp.t => Exp.t)): list(Exp.t) =>
+  List.rev(
+    List.fold_left(
+      (acc, edit) =>
+        switch (acc) {
+        | [] => [edit(term)]
+        | [prev, ..._] => [edit(prev), ...acc]
+        },
+      [term],
+      edits,
+    ),
+  );
+
+/* Replay an edit SEQUENCE under one calculus, threading the cache, and
+ * collect every place it disagrees with a cacheless run of that step's own
+ * program. Probe targets come from the original zipper (every edit here
+ * preserves ids), which is how `with_probes` does it. */
+let diffs_for =
+    (
+      ~name: string,
+      ~calculus: Calculus.t,
+      ~src: string,
+      ~edits: list(Exp.t => Exp.t),
+      ~trace: bool,
+    )
+    : list(string) =>
+  switch (Parser.to_zipper(~root=Exp, src)) {
+  | None => ["could not parse: " ++ src]
+  | Some(z) =>
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let programs = programs_of(term, edits);
+    let targets_for = (p: Exp.t) => {
+      let (info_map, _) = statics_and_elab(p);
+      targets_of_zipper(z, info_map);
+    };
+    let want =
+      List.map(
+        p =>
+          full_report(
+            eval_under(~calculus=Calculus.A0, ~targets=targets_for(p), p),
+          ),
+        programs,
+      );
+    let out = ref([]);
+    let prev = ref(IncrEval.empty);
+    List.iteri(
+      (i, p) => {
+        let targets = targets_for(p);
+        let cutoff = Sample.seq_counter^;
+        let (v, st) = eval_under(~calculus, ~prev=prev^, ~targets, p);
+        prev := st.incr_eval;
+        if (trace) {
+          let (root, total, depth) = trie_stats(st.incr_eval);
+          let replayed =
+            Sample.Map.fold(
+              (_, samples, n) =>
+                n
+                + List.length(
+                    List.filter((sm: Sample.t) => sm.seq <= cutoff, samples),
+                  ),
+              EvaluatorState.get_probes(st),
+              0,
+            );
+          Printf.printf(
+            "STAT %-52s step %d %-6s root=%-4d total=%-4d depth=%d replayed=%d\n",
+            name,
+            i,
+            Calculus.name(calculus),
+            root,
+            total,
+            depth,
+            replayed,
+          );
+        };
+        let (wv, ws, wt) = List.nth(want, i);
+        let (gv, gs, gt) = full_report((v, st));
+        let tag =
+          Printf.sprintf(
+            "%s | step %d | %s",
+            name,
+            i,
+            Calculus.name(calculus),
+          );
+        if (wv != gv) {
+          out :=
+            [tag ++ " VALUE\n    want " ++ wv ++ "\n    got  " ++ gv, ...out^];
+        };
+        if (ws != gs) {
+          out :=
+            [
+              tag ++ " SAMPLES\n    want " ++ ws ++ "\n    got  " ++ gs,
+              ...out^,
+            ];
+        };
+        if (wt != gt) {
+          out :=
+            [tag ++ " TESTS\n    want " ++ wt ++ "\n    got  " ++ gt, ...out^];
+        };
+      },
+      programs,
+    );
+    List.rev(out^);
+  };
+
+let diffs_of_sequence =
+    (~name: string, ~src: string, ~edits: list(Exp.t => Exp.t))
+    : list(string) =>
+  List.concat_map(
+    (calculus: Calculus.t) =>
+      diffs_for(~name, ~calculus, ~src, ~edits, ~trace=false),
+    Calculus.available,
+  );
+
+/* Assert that every available calculus agrees with a0 on value, samples,
+ * test results and step timeline, at every step of the edit chain. */
+let check_full_sequence =
+    (~name: string, ~src: string, ~edits: list(Exp.t => Exp.t)) =>
+  switch (diffs_of_sequence(~name, ~src, ~edits)) {
+  | [] => ()
+  | ds => Alcotest.fail(String.concat("\n", ds))
+  };
+
+let check_corpus = (corpus: list((string, string, list(Exp.t => Exp.t)))) => {
+  let all =
+    List.concat_map(
+      ((name, src, edits)) => diffs_of_sequence(~name, ~src, ~edits),
+      corpus,
+    );
+  switch (all) {
+  | [] => ()
+  | ds => Alcotest.fail(String.concat("\n", ds))
+  };
+};
+
+/* --- more id-preserving edits -------------------------------------- */
+
+/* Replace an integer literal with an EMPTY HOLE, keeping the leaf's
+ * annotation: what deleting the only digit of a number does in the editor.
+ * The result goes indeterminate, which is exactly the regime `hazel
+ * bench-incr` cannot see -- Print.print renders every hole as `?`. */
+let blank_int_lit = (~from: int, exp: Exp.t): Exp.t => {
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Atom(Int(n)) when Bigint.to_string(n) == string_of_int(from) => {
+        annotation: e.annotation,
+        term: EmptyHole,
+      }
+    | _ => continue(e)
+    };
+  TermBase.Exp.map_term(~f_exp, exp);
+};
+
+/* Repoint every OCCURRENCE of a variable at a different binding, keeping the
+ * occurrence's id. This is what retyping ONE CHARACTER of a variable name
+ * does: the token survives the edit, so its id survives with it. Cross-
+ * checked end to end against real editor actions -- see the trace in the
+ * audit report, which `hazel bench-incr` reports UNSOUND. */
+let rename_var_occurrences =
+    (~from: string, ~to_: string, exp: Exp.t): Exp.t => {
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Var(x) when x == from => {
+        annotation: e.annotation,
+        term: Var(to_),
+      }
+    | _ => continue(e)
+    };
+  TermBase.Exp.map_term(~f_exp, exp);
+};
+
+/* Swap the two binders of every 2-ary tuple PATTERN, keeping every id. */
+let swap_pat_components = (exp: Exp.t): Exp.t => {
+  let f_pat = (continue, p: Pat.t): Pat.t =>
+    switch (p.term) {
+    | Tuple([a, b]) => {
+        annotation: p.annotation,
+        term: Tuple([continue(b), continue(a)]),
+      }
+    | _ => continue(p)
+    };
+  TermBase.Exp.map_term(~f_pat, exp);
+};
+
+/* Drop the last binder of every tuple pattern with >2 components. */
+let drop_last_pat_component = (exp: Exp.t): Exp.t => {
+  let f_pat = (continue, p: Pat.t): Pat.t =>
+    switch (p.term) {
+    | Tuple(ps) when List.length(ps) > 2 =>
+      let keep = List.filteri((i, _) => i < List.length(ps) - 1, ps);
+      {
+        annotation: p.annotation,
+        term: Tuple(keep),
+      };
+    | _ => continue(p)
+    };
+  TermBase.Exp.map_term(~f_pat, exp);
+};
+
+let id_edit = (e: Exp.t) => e;
+
+/* ==================================================================
+ * FINDING 1 (soundness, aM and aStar).
+ *
+ * IncrEval.exp_flag's `Var(name)` case reports the flag of the binding that
+ * `name` denotes NOW. But a flag's contract, as the Tuple case's own comment
+ * states it, is a claim about THIS EXPRESSION AT THIS ID: "value_new(e) =
+ * value_prev(uid(e))". Reporting the binding's flag is only a claim about
+ * this id if the expression at this id was the SAME VARIABLE in the previous
+ * run, and nothing checks that.
+ *
+ * Retyping one character of a variable name repoints an occurrence at a
+ * different binding while the token -- and so the id -- survives. The
+ * binding it now denotes is itself unedited, so exp_flag reports Clean;
+ * pat_provenance then anchors the provenance at the occurrence's id, which
+ * the edit preserved, so the recorded provenance is identical to the
+ * previous run's and reuse_check's equal_reuse_map passes. The cached value
+ * of the OLD variable is served.
+ *
+ * Every other case of exp_flag is guarded: `reused` comes from a
+ * reuse_check that compares elaborations, and `Tuple` consults `prev` for
+ * the cached arity and component ids. `Var` is the one that claims Clean
+ * without ever looking at what used to be at this id.
+ * ================================================================== */
+
+let repoint = rename_var_occurrences(~from="x", ~to_="y");
+
+/* The whole bug in four lines. a0 says 2; aM and aStar say 1. */
+let pin_repoint_src = "let x = 1 in
+let y = 2 in
+let a = x in
+a";
+
+let test_pin_repoint_value = () =>
+  check_full_sequence(
+    ~name="FINDING 1: variable occurrence repointed by a one-char retype",
+    ~src=pin_repoint_src,
+    ~edits=[repoint],
+  );
+
+/* The same stale flag reached through a tuple: the tuple's own id and its
+ * component ids are all preserved, so prev_tuple_components admits the
+ * cached shape, and the repointed component reports Clean off its (unedited)
+ * new binding. */
+let test_pin_repoint_through_tuple = () =>
+  check_full_sequence(
+    ~name="FINDING 1: repointed occurrence inside a tuple, then destructured",
+    ~src="let x = 1 in
+let y = 2 in
+let z = (9, x) in
+let (p, q) = z in
+q",
+    ~edits=[repoint],
+  );
+
+/* aStar specifically: the stale flag crosses a2's call boundary. The
+ * argument's flag is read off the caller's map (`flags_from`) and the
+ * parameter binding lands in the body's, where a2 -- unlike aM -- does
+ * maintain a map and does consult the cache. aM alone gets this one right
+ * only because it caches nothing inside a call. */
+let test_pin_repoint_call_argument = () =>
+  check_full_sequence(
+    ~name="FINDING 1: repointed occurrence as a call argument (aStar)",
+    ~src="let x = 1 in
+let y = 2 in
+let f : Int -> Int = fun n -> n + 100 in
+let a = f(x) in
+a",
+    ~edits=[repoint],
+  );
+
+/* The aL-visible face of the same defect, and the one `hazel bench-incr`
+ * cannot see: the final value is a hole under both runs, so the printed
+ * comparison agrees, while the probe sample spliced in from the cache is the
+ * one the PREVIOUS program produced. */
+let test_pin_repoint_probe_sample = () =>
+  check_full_sequence(
+    ~name="FINDING 1: stale probe sample behind an unchanged printed value",
+    ~src="let k1 = 6001 in
+let f1 : (Int, Int) -> Int = fun (p, q) -> q - k1 in
+let v = ^^probe(f1((22, k0))) in
+?",
+    ~edits=[rename_var_occurrences(~from="k0", ~to_="k1")],
+  );
+
+/* ==================================================================
+ * FINDING 3 (soundness, EVERY incremental calculus including aPL).
+ *
+ * A cache entry's `value` is a DHExp, and for an INDETERMINATE result that
+ * DHExp is only meaningful relative to the environment in force where it was
+ * recorded. eval_4_reuse hands it straight back. When re-use is blocked at
+ * the enclosing ids but fires at an inner one, the spliced residual is an
+ * open term: the result mentions `f0`, which is not bound anywhere in it,
+ * where a cacheless run reports the substituted lambda.
+ *
+ * No edit is needed -- evaluating the same program twice with the cache
+ * threaded is enough. The free variable matters: it puts a name in the
+ * co_ctx that reuse_map_for_co_ctx cannot resolve, which is what blocks
+ * re-use at the outer ids and pushes the hit inwards. A bare hole in the
+ * same position (`let w = ? in`) does not reproduce it.
+ *
+ * This one is NOT specific to the integration: aPL reproduces it
+ * identically, and the path it needs does not touch aM's flags, a2's trie or
+ * the re-use pre-pass. I did not verify it against an earlier revision.
+ * ================================================================== */
+
+let test_pin_indeterminate_residual = () =>
+  check_full_sequence(
+    ~name="FINDING 3: cached indeterminate residual loses its environment",
+    ~src="let f0 : Int -> Int = fun n -> 3 in
+let w = k1 in
+let (v2, v3) = () in
+f0(f0(f0(23)))",
+    ~edits=[id_edit],
+  );
+
+/* Control for FINDING 3: a hole rather than a free variable in the same
+ * position leaves every calculus agreeing with a0, which is what pins the
+ * co_ctx as the ingredient rather than indeterminacy as such. */
+let test_indeterminate_residual_control = () =>
+  check_full_sequence(
+    ~name="control: hole instead of free variable",
+    ~src="let f0 : Int -> Int = fun n -> 3 in
+let w = ? in
+let (v2, v3) = () in
+f0(f0(f0(23)))",
+    ~edits=[id_edit],
+  );
+
+/* ==================================================================
+ * SUSPECT 2, tested head on: can the aM tuple guard find a tuple's entry
+ * under a DIFFERENT callstack than the one that recorded it?
+ *
+ * prev_tuple_components reads `prev.entries`, which after a2 is the ROOT
+ * node only, and it compares ids, not callstacks. The one way a root entry
+ * can describe a tuple that is now evaluated inside a call is for an
+ * id-preserving edit to MOVE the tuple into a function body -- which the
+ * editor can do, since typing `fun u -> ` in front of an expression leaves
+ * the expression's tokens, and so its ids, alone.
+ *
+ * `hoist_tail_into_fun` performs exactly that move on the AST: the whole
+ * `let z = ... in ...` tail, tuple and destructuring and all, is relocated
+ * into the body of the already-present function, and the function is then
+ * called. Every id in the moved region survives; only the `f(0)` call node
+ * is new. Run 3 repeats run 2's program, so the in-call entries recorded by
+ * run 2 are live when run 3 consults them.
+ * ================================================================== */
+let hoist_tail_into_fun = (exp: Exp.t): Exp.t =>
+  switch (exp.term) {
+  | Let(fpat, fdef, rest) =>
+    switch (fdef.term) {
+    | Fun(upat, _old_body, ctx, name) =>
+      let fname =
+        switch (fpat.term) {
+        | Var(v) => v
+        | _ => "f"
+        };
+      {
+        annotation: exp.annotation,
+        term:
+          Let(
+            fpat,
+            {
+              annotation: fdef.annotation,
+              term: Fun(upat, rest, ctx, name),
+            },
+            Exp.fresh(
+              Ap(
+                Forward,
+                Exp.fresh(Var(fname)),
+                Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+              ),
+            ),
+          ),
+      };
+    | _ => exp
+    }
+  | _ => exp
+  };
+
+let hoist_src = "let f : Int -> Int = fun u -> 0 in
+let k = 4 in
+let z = (1, k) in
+let (a, b) = z in
+a * 10 + b";
+
+let test_audit2_hoist_sanity = () => {
+  let before = parse_exp(hoist_src);
+  let after = hoist_tail_into_fun(before);
+  Printf.printf("HOIST before: %s\n", show(before));
+  Printf.printf("HOIST after:  %s\n", show(after));
+  Printf.printf(
+    "HOIST probe after: %s\n",
+    show(
+      hoist_tail_into_fun(
+        parse_exp(
+          "let f : Int -> Int = fun u -> 0 in let g : Int -> Int = fun n -> n * 2 in let k = 4 in let z = (1, k) in let (a, b) = z in let p = g(a) in let q = g(b) in p * 100 + q",
+        ),
+      ),
+    ),
+  );
+  check(
+    bool,
+    "the hoist really moved the tuple into the function body",
+    true,
+    show(after) != show(before),
+  );
+};
+
+let test_audit2_tuple_moves_into_a_call = () => {
+  check_full_sequence(
+    ~name="tuple id moves from the root callstack into a call",
+    ~src=hoist_src,
+    ~edits=[hoist_tail_into_fun, id_edit, lit(4, 9), id_edit, lit(1, 6)],
+  );
+  /* Same move, with probes inside the relocated region, so the replayed
+   * state slices are compared too and not just the value. */
+  check_full_sequence(
+    ~name="tuple id moves into a call, with probes",
+    ~src="let f : Int -> Int = fun u -> 0 in
+let g : Int -> Int = fun n -> n * 2 in
+let k = 4 in
+let z = (1, k) in
+let (a, b) = z in
+let p = ^^probe(g(a)) in
+let q = ^^probe(g(b)) in
+p * 100 + q",
+    ~edits=[hoist_tail_into_fun, id_edit, lit(4, 9), id_edit, lit(1, 6)],
+  );
+};
+
+/* --- corpus A: calls, callstack depth, probes inside calls ---------- */
+
+let audit2_corpus_calls = [
+  (
+    "tuple built inside a call",
+    "let f : Int -> Int = fun n -> let z = (n, 2) in let (a, b) = z in a * 10 + b in
+let w = (3, 4) in
+let (c, d) = w in
+f(c) * 1000 + f(d)",
+    [lit(4, 9), lit(3, 5), lit(2, 6)],
+  ),
+  (
+    "probe inside a call, a2 depth",
+    "let f : Int -> Int = fun n -> ^^probe(n * 2) in
+let g : Int -> Int = fun n -> f(n) + f(n + 1) in
+let z = (1, 2) in
+let (a, b) = z in
+g(a) * 100 + g(b)",
+    [lit(2, 7), lit(1, 9), lit(7, 2)],
+  ),
+  (
+    "print inside nested calls",
+    "let f : Int -> Int = fun n -> let _ = print(n) in n * 2 in
+let g : Int -> Int = fun n -> f(n) + f(n + 1) in
+let z = (1, 2) in
+let (a, b) = z in
+g(a) * 100 + g(b)",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "recursion deeper than the callstack guard",
+    "let r : Int -> Int = fun n -> if n < 1 then 0 else n + r(n - 1) in
+let z = (6, 7) in
+let (a, b) = z in
+r(a) * 1000 + r(b)",
+    [lit(7, 8), lit(6, 3), lit(8, 7)],
+  ),
+  (
+    "probe inside deep recursion",
+    "let r : Int -> Int = fun n -> if n < 1 then 0 else ^^probe(n) + r(n - 1) in
+let z = (6, 7) in
+let (a, b) = z in
+r(a) * 1000 + r(b)",
+    [lit(7, 8), lit(6, 3)],
+  ),
+  (
+    "test statements inside a call",
+    "let f : Int -> Int = fun n -> let _ = 0 in test n < 100 end; n * 2 in
+let z = (1, 2) in
+let (a, b) = z in
+f(a) * 100 + f(b)",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "tuple returned from a call then destructured",
+    "let mk : Int -> (Int, Int) = fun n -> (n, n + 1) in
+let z = mk(3) in
+let (a, b) = z in
+a * 100 + b",
+    [lit(3, 8), lit(1, 4)],
+  ),
+  (
+    "higher order: tuple through a passed function",
+    "let ap : (Int -> Int, Int) -> Int = fun (h, x) -> h(x) in
+let f : Int -> Int = fun n -> n * 3 in
+let z = (1, 2) in
+let (a, b) = z in
+ap((f, a)) * 100 + ap((f, b))",
+    [lit(2, 7), lit(1, 9), lit(3, 5)],
+  ),
+  (
+    "same function called at two depths",
+    "let f : Int -> Int = fun n -> n + 1 in
+let g : Int -> Int = fun n -> f(n) in
+let z = (1, 2) in
+let (a, b) = z in
+f(a) * 1000 + g(b)",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "body sub-expression independent of the parameter (a2's own win)",
+    "let k = 5 in
+let f : Int -> Int = fun n -> let big = k * k * k in big + n in
+let z = (1, 2) in
+let (a, b) = z in
+f(a) * 1000 + f(b)",
+    [lit(1, 9), lit(2, 7), lit(5, 6)],
+  ),
+];
+
+/* --- corpus B: the pre-pass walking past an indeterminate let ------- */
+
+let audit2_corpus_prepass = [
+  (
+    "name rebound after the destructuring",
+    "let z = (1, 2) in
+let (a, b) = z in
+let a = 100 in
+a + b",
+    [lit(2, 7), lit(1, 9), lit(100, 200)],
+  ),
+  (
+    "name bound BEFORE and rebound by the destructuring",
+    "let a = 50 in
+let c = a in
+let z = (1, 2) in
+let (a, b) = z in
+let d = a in
+c * 1000 + d * 10 + b",
+    [lit(2, 7), lit(50, 60), lit(1, 9)],
+  ),
+  (
+    "pattern binds a name the body shadows again",
+    "let z = (1, 2) in
+let (a, b) = z in
+let f : Int -> Int = fun a -> a * 3 in
+let a = b in
+f(a) * 100 + a",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "nested destructuring after an indeterminate let",
+    "let z = ((1, 2), (3, 4)) in
+let ((a, b), w) = z in
+let (c, d) = w in
+a * 1000 + b * 100 + c * 10 + d",
+    [lit(4, 9), lit(1, 6), lit(3, 8)],
+  ),
+  (
+    "definition after the destructuring reached by the pre-pass",
+    "let z = (1, 2) in
+let (a, b) = z in
+let k = 5 in
+let f : Int -> Int = fun n -> n * k in
+f(a) * 100 + f(b)",
+    [lit(2, 7), lit(5, 6), lit(1, 9)],
+  ),
+  (
+    "two destructurings in a row",
+    "let z = (1, 2) in
+let (a, b) = z in
+let w = (b, a) in
+let (c, d) = w in
+c * 100 + d",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "destructure a hole",
+    "let z = (1, 2) in
+let (a, b) = ? in
+let c = 7 in
+c * 100",
+    [lit(7, 8), lit(1, 4)],
+  ),
+  (
+    "shadow the tuple itself after destructuring",
+    "let z = (1, 2) in
+let (a, b) = z in
+let z = (b, a) in
+let (c, d) = z in
+c * 100 + d",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "wild and label-only patterns after destructuring",
+    "let z = (1, 2, 3) in
+let (_, b, _) = z in
+let k = 4 in
+b * 100 + k",
+    [lit(3, 8), lit(2, 7), lit(4, 6)],
+  ),
+  (
+    "destructuring inside a function body",
+    "let f : (Int, Int) -> Int = fun w -> let (a, b) = w in let k = 5 in a * k + b in
+let z = (1, 2) in
+f(z) * 10 + 1",
+    [lit(2, 7), lit(5, 6), lit(1, 9)],
+  ),
+];
+
+/* --- corpus C: tuple shapes under aStar ----------------------------- */
+
+let audit2_corpus_shapes = [
+  (
+    "empty tuple bound and used",
+    "let u = () in let z = (u, 1) in let (a, b) = z in b",
+    [lit(1, 5), lit(5, 2)],
+  ),
+  (
+    "singleton via parens",
+    "let z = (1) in let w = (z, 2) in let (a, b) = w in a * 10 + b",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "labeled tuple through a call",
+    "let f : (a = Int, b = Int) -> Int = fun (a = p, b = q) -> p * 10 + q in
+let z : (a = Int, b = Int) = (a = 1, b = 2) in
+f(z)",
+    [lit(2, 7), lit(1, 9)],
+  ),
+  (
+    "tuple of tuples through a call",
+    "let f : ((Int, Int), (Int, Int)) -> Int =
+  fun ((a, b), (c, d)) -> a * 1000 + b * 100 + c * 10 + d in
+let z = ((1, 2), (3, 4)) in
+f(z)",
+    [lit(4, 9), lit(1, 6)],
+  ),
+  (
+    "three-tuple partially edited through a call",
+    "let f : (Int, Int, Int) -> Int = fun (a, b, c) -> a * 10000 + b * 100 + c in
+let z = (1, 2, 3) in
+f(z)",
+    [lit(2, 7), lit(3, 8), lit(1, 9)],
+  ),
+  (
+    "tuple inside a tuple inside a call",
+    "let f : Int -> (Int, (Int, Int)) = fun n -> (n, (n + 1, n + 2)) in
+let z = f(3) in
+let (a, (b, c)) = z in
+a * 10000 + b * 100 + c",
+    [lit(3, 8), lit(1, 4)],
+  ),
+];
+
+let test_audit2_sweep_calls = () => check_corpus(audit2_corpus_calls);
+let test_audit2_sweep_prepass = () => check_corpus(audit2_corpus_prepass);
+let test_audit2_sweep_shapes = () => check_corpus(audit2_corpus_shapes);
+
+/* --- a randomized corpus -------------------------------------------
+ *
+ * The hand-written corpora only cover shapes somebody thought of. This
+ * generates well-typed Int programs over the constructs the calculi actually
+ * branch on -- tuple literals, tuple destructuring (including the
+ * `let (a, b) = z` shape that makes the pre-pass's match indeterminate),
+ * calls at several depths, `let`s inside function bodies, shadowing, probes,
+ * prints and tests -- then edits them. Deterministic PRNG, so any failure is
+ * reproducible from its seed. */
+module Fuzz = {
+  /* xorshift over 30-bit ints: exact under js_of_ocaml, unlike an LCG whose
+   * multiply overflows the int and loses the low bits a seed needs in order
+   * to actually diverge. */
+  let state = ref(1);
+  let step = (): int => {
+    let x = state^;
+    let x = (x lxor x lsl 13) land 0x3FFFFFFF;
+    let x = x lxor x lsr 17;
+    let x = (x lxor x lsl 5) land 0x3FFFFFFF;
+    state := x == 0 ? 1 : x;
+    state^;
+  };
+  let reset = (s: int) => {
+    state := s == 0 ? 1 : s land 0x3FFFFFFF;
+    for (_ in 1 to 8) {
+      ignore(step());
+    };
+  };
+  let next_int = (n: int): int => step() mod n;
+  let pick = (xs: list('a)): 'a => List.nth(xs, next_int(List.length(xs)));
+
+  /* Every integer literal in a generated program is distinct, so
+   * replace_int_lit targets exactly one leaf. Only + and - are generated:
+   * composing multiplications across bindings builds a power tower that
+   * exhausts the heap long before it finds a bug. */
+  let lit_pool = ref(0);
+  let lits = ref([]);
+  let fresh_lit = (): string => {
+    lit_pool := lit_pool^ + 1;
+    let v = lit_pool^;
+    lits := [v, ...lits^];
+    string_of_int(v);
+  };
+  let names = ref(0);
+  let fresh_name = (): string => {
+    names := names^ + 1;
+    "v" ++ string_of_int(names^);
+  };
+
+  /* `funs` is which of f0/f1/f2 may be called here. A function body is
+   * generated with only the STRICTLY EARLIER functions in scope, because
+   * `let f : Int -> Int = ...` elaborates to a FixF and calling f inside its
+   * own body would not terminate. */
+  let rec gen_int =
+          (
+            ~depth: int,
+            ~vars: list(string),
+            ~tvars: list(string),
+            ~funs: list(string),
+          )
+          : string => {
+    let sub = () => gen_int(~depth=depth - 1, ~vars, ~tvars, ~funs);
+    let leaf = () =>
+      switch (vars) {
+      | [] => fresh_lit()
+      | _ => next_int(2) == 0 ? fresh_lit() : pick(vars)
+      };
+    if (depth <= 0) {
+      leaf();
+    } else {
+      let choices =
+        ["lit", "var", "op", "if"]
+        @ (List.mem("f0", funs) ? ["f0", "f0f0"] : [])
+        @ (List.mem("f1", funs) ? ["f1"] : [])
+        @ (List.mem("f1", funs) && tvars != [] ? ["f1v"] : []);
+      switch (pick(choices)) {
+      | "lit" => fresh_lit()
+      | "var" => leaf()
+      | "op" => "(" ++ sub() ++ " " ++ pick(["+", "-"]) ++ " " ++ sub() ++ ")"
+      | "f0" => "f0(" ++ sub() ++ ")"
+      | "f0f0" => "f0(f0(" ++ sub() ++ "))"
+      | "f1" => "f1((" ++ sub() ++ ", " ++ sub() ++ "))"
+      | "f1v" => "f1(" ++ pick(tvars) ++ ")"
+      | _ =>
+        "(if "
+        ++ sub()
+        ++ " < "
+        ++ sub()
+        ++ " then "
+        ++ sub()
+        ++ " else "
+        ++ sub()
+        ++ ")"
+      };
+    };
+  };
+
+  let gen_tup =
+      (
+        ~depth: int,
+        ~vars: list(string),
+        ~tvars: list(string),
+        ~funs: list(string),
+      )
+      : string =>
+    switch (next_int(4), tvars, List.mem("f2", funs)) {
+    | (0, [_, ..._], _) => pick(tvars)
+    | (1, _, true) => "f2(" ++ gen_int(~depth, ~vars, ~tvars, ~funs) ++ ")"
+    | _ =>
+      "("
+      ++ gen_int(~depth, ~vars, ~tvars, ~funs)
+      ++ ", "
+      ++ gen_int(~depth, ~vars, ~tvars, ~funs)
+      ++ ")"
+    };
+
+  /* A function BODY: a few inner bindings (including tuple destructuring,
+   * which is what puts aM's flags and a2's in-call re-use map in the same
+   * place) and then an int expression. */
+  let gen_body =
+      (~vars: list(string), ~tvars: list(string), ~funs: list(string))
+      : string => {
+    let vars = ref(vars);
+    let tvars = ref(tvars);
+    let pre = ref("");
+    for (_ in 1 to next_int(3)) {
+      let chunk =
+        switch (next_int(4)) {
+        | 0 =>
+          let x = fresh_name();
+          let e = gen_int(~depth=2, ~vars=vars^, ~tvars=tvars^, ~funs);
+          vars := [x, ...vars^];
+          "let " ++ x ++ " = " ++ e ++ " in ";
+        | 1 =>
+          let z = fresh_name();
+          let e = gen_tup(~depth=2, ~vars=vars^, ~tvars=tvars^, ~funs);
+          tvars := [z, ...tvars^];
+          "let " ++ z ++ " = " ++ e ++ " in ";
+        | 2 =>
+          let a = fresh_name();
+          let b = fresh_name();
+          let e =
+            switch (tvars^) {
+            | [_, ..._] when next_int(2) == 0 => pick(tvars^)
+            | _ => gen_tup(~depth=2, ~vars=vars^, ~tvars=tvars^, ~funs)
+            };
+          vars := [a, b, ...vars^];
+          "let (" ++ a ++ ", " ++ b ++ ") = " ++ e ++ " in ";
+        | _ =>
+          let e = gen_int(~depth=2, ~vars=vars^, ~tvars=tvars^, ~funs);
+          "let _ = print(" ++ e ++ ") in ";
+        };
+      pre := pre^ ++ chunk;
+    };
+    pre^ ++ gen_int(~depth=2, ~vars=vars^, ~tvars=tvars^, ~funs);
+  };
+
+  /* One program: two top-level constants (so a function body can hold a
+   * sub-expression that does NOT depend on the parameter, which is the only
+   * thing a2 can re-use inside a call), three functions, then a chain of
+   * bindings. */
+  let gen_program = (~binds: int): string => {
+    lits := [];
+    let k0 = "let k0 = " ++ fresh_lit() ++ " in\n";
+    let k1 = "let k1 = " ++ fresh_lit() ++ " in\n";
+    let ks = ["k0", "k1"];
+    let f0 =
+      "let f0 : Int -> Int = fun n -> "
+      ++ gen_body(~vars=["n", ...ks], ~tvars=[], ~funs=[])
+      ++ " in\n";
+    let f1 =
+      "let f1 : (Int, Int) -> Int = fun (p, q) -> "
+      ++ gen_body(~vars=["p", "q", ...ks], ~tvars=[], ~funs=["f0"])
+      ++ " in\n";
+    let f2 =
+      "let f2 : Int -> (Int, Int) = fun m -> ("
+      ++ gen_int(~depth=2, ~vars=["m", ...ks], ~tvars=[], ~funs=["f0", "f1"])
+      ++ ", "
+      ++ gen_int(~depth=2, ~vars=["m", ...ks], ~tvars=[], ~funs=["f0", "f1"])
+      ++ ") in\n";
+    let funs = ["f0", "f1", "f2"];
+    let vars = ref(["k0", "k1"]);
+    let tvars = ref([]);
+    let body = ref("");
+    for (_ in 1 to binds) {
+      let d = 2;
+      let chunk =
+        switch (next_int(8)) {
+        | 0 =>
+          let x = fresh_name();
+          let e = gen_int(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+          vars := [x, ...vars^];
+          "let " ++ x ++ " = " ++ e ++ " in\n";
+        | 1 =>
+          let z = fresh_name();
+          let e = gen_tup(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+          tvars := [z, ...tvars^];
+          "let " ++ z ++ " = " ++ e ++ " in\n";
+        | 2 =>
+          let a = fresh_name();
+          let b = fresh_name();
+          let e = gen_tup(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+          vars := [a, b, ...vars^];
+          "let (" ++ a ++ ", " ++ b ++ ") = " ++ e ++ " in\n";
+        | 3 =>
+          /* rebind an existing name: shadowing */
+          switch (vars^) {
+          | [] =>
+            let x = fresh_name();
+            let e = gen_int(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+            vars := [x, ...vars^];
+            "let " ++ x ++ " = " ++ e ++ " in\n";
+          | _ =>
+            let x = pick(vars^);
+            let e = gen_int(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+            "let " ++ x ++ " = " ++ e ++ " in\n";
+          }
+        | 4 =>
+          let x = fresh_name();
+          let e = gen_int(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+          vars := [x, ...vars^];
+          "let " ++ x ++ " = ^^probe(" ++ e ++ ") in\n";
+        | 5 =>
+          let e = gen_int(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+          "let _ = print(" ++ e ++ ") in\n";
+        | 6 =>
+          let e = gen_int(~depth=1, ~vars=vars^, ~tvars=tvars^, ~funs);
+          let e2 = gen_int(~depth=1, ~vars=vars^, ~tvars=tvars^, ~funs);
+          "test " ++ e ++ " < " ++ e2 ++ " end;\n";
+        | _ =>
+          /* the pre-pass's indeterminate shape: a tuple pattern against a
+           * bare variable */
+          switch (tvars^) {
+          | [] =>
+            let a = fresh_name();
+            let b = fresh_name();
+            let e = gen_tup(~depth=d, ~vars=vars^, ~tvars=tvars^, ~funs);
+            vars := [a, b, ...vars^];
+            "let (" ++ a ++ ", " ++ b ++ ") = " ++ e ++ " in\n";
+          | _ =>
+            let a = fresh_name();
+            let b = fresh_name();
+            let z = pick(tvars^);
+            vars := [a, b, ...vars^];
+            "let (" ++ a ++ ", " ++ b ++ ") = " ++ z ++ " in\n";
+          }
+        };
+      body := body^ ++ chunk;
+    };
+    k0 ++ k1 ++ f0 ++ f1 ++ f2 ++ body^ ++ gen_int(~depth=2, ~vars=vars^, ~tvars=tvars^, ~funs);
+  };
+};
+
+let rec take = (k, xs) =>
+  switch (k, xs) {
+  | (0, _)
+  | (_, []) => []
+  | (k, [x, ...rest]) => [x, ...take(k - 1, rest)]
+  };
+
+/* Edit a handful of the program's (all-distinct) literals, one at a time, to
+ * values that appear nowhere else. */
+let fuzz_edits = (~n: int, present: list(int)): list(Exp.t => Exp.t) =>
+  List.mapi(
+    (i, v) => replace_int_lit(~from=v, ~to_=5000 + i),
+    take(n, present),
+  );
+
+/* The same, with SHAPE-CHANGING edits mixed in: the arity and order of a
+ * tuple (and of a tuple pattern) change under an id-preserving edit, a
+ * literal collapses to a hole, and a variable occurrence is repointed at a
+ * different binding. */
+let include_var_repoint = ref(true);
+
+let fuzz_structural_edits =
+    (~n: int, present: list(int)): list(Exp.t => Exp.t) => {
+  let lit_edits =
+    List.mapi(
+      (i, v) => replace_int_lit(~from=v, ~to_=6000 + i),
+      take(n, present),
+    );
+  let structural =
+    [
+      swap_tuple_components,
+      swap_pat_components,
+      drop_last_tuple_component,
+      empty_the_tuple,
+      drop_last_pat_component,
+    ]
+    @ (
+      include_var_repoint^
+        ? [rename_var_occurrences(~from="k0", ~to_="k1")]
+        : [swap_tuple_components]
+    );
+  let rec weave = (a, b) =>
+    switch (a, b) {
+    | ([], b) => b
+    | (a, []) => a
+    | ([x, ...a], [y, ...b]) => [x, y, ...weave(a, b)]
+    };
+  weave(lit_edits, [Fuzz.pick(structural), Fuzz.pick(structural)])
+  @ [
+    blank_int_lit(
+      ~from=
+        switch (present) {
+        | [] => 1
+        | [v, ..._] => v
+        },
+    ),
+  ];
+};
+
+let fuzz_sweep =
+    (
+      ~seeds: list(int),
+      ~binds: int,
+      ~edits: int,
+      ~mk: (~n: int, list(int)) => list(Exp.t => Exp.t),
+      ~tag: string,
+    ) => {
+  let all = ref([]);
+  List.iter(
+    seed => {
+      Fuzz.reset(seed);
+      Fuzz.lit_pool := 0;
+      Fuzz.names := 0;
+      let src = Fuzz.gen_program(~binds);
+      let present = List.rev(Fuzz.lits^);
+      let name = Printf.sprintf("%s-seed-%d", tag, seed);
+      let ds =
+        try(diffs_of_sequence(~name, ~src, ~edits=mk(~n=edits, present))) {
+        | e => [name ++ " RAISED " ++ Printexc.to_string(e)]
+        };
+      if (ds != []) {
+        Printf.printf("FUZZSRC %s\n%s\n", name, src);
+      };
+      all := all^ @ ds;
+    },
+    seeds,
+  );
+  switch (all^) {
+  | [] => ()
+  | ds => Alcotest.fail(String.concat("\n", ds))
+  };
+};
+
+let rec range = (a, b) => a > b ? [] : [a, ...range(a + 1, b)];
+
+/* Literal retypes only: this one PASSES, and is the regression net. */
+let test_audit2_fuzz = () =>
+  fuzz_sweep(
+    ~seeds=range(1, 60),
+    ~binds=7,
+    ~edits=4,
+    ~mk=fuzz_edits,
+    ~tag="fuzz",
+  );
+
+/* With shape-changing edits, including the variable repoint of FINDING 1.
+ * Seeds 22 and 33 in this range fail; both are FINDING 1 (removing the
+ * repoint edit from the pool makes every aStar-specific failure in seeds
+ * 1..200 disappear). */
+let test_audit2_fuzz_structural = () =>
+  fuzz_sweep(
+    ~seeds=range(1, 40),
+    ~binds=7,
+    ~edits=2,
+    ~mk=fuzz_structural_edits,
+    ~tag="fuzzS",
+  );
+
+/* The same sweep with the repoint edit removed from the pool. This PASSES
+ * over seeds 1..40, which is the evidence that FINDING 1 accounts for every
+ * aM/aStar-specific divergence the structural sweep found. */
+let test_audit2_fuzz_structural_no_repoint = () => {
+  include_var_repoint := false;
+  let finally = () => include_var_repoint := true;
+  switch (
+    fuzz_sweep(
+      ~seeds=range(1, 40),
+      ~binds=7,
+      ~edits=2,
+      ~mk=fuzz_structural_edits,
+      ~tag="fuzzS-norepoint",
+    )
+  ) {
+  | () => finally()
+  | exception e =>
+    finally();
+    raise(e);
+  };
+};
+
+/* A visible witness that the sweeps are not vacuous: re-use really fires,
+ * a2's trie really goes deeper than the root, and probe slices really get
+ * replayed. Prints rather than asserts. */
+let test_audit2_reuse_witness = () =>
+  List.iter(
+    (calculus: Calculus.t) =>
+      ignore(
+        diffs_for(
+          ~name="witness",
+          ~calculus,
+          ~src=
+            "let k = 5 in
+let f : Int -> Int = fun n -> let big = k + k + k in ^^probe(big + n) in
+let z = (1, 2) in
+let (a, b) = z in
+f(a) * 1000 + f(b)",
+          ~edits=[lit(1, 9), lit(2, 7)],
+          ~trace=true,
+        ),
+      ),
+    Calculus.available,
+  );
+
 let tests = (
   "IncrEval",
   [
@@ -1316,5 +2473,58 @@ let tests = (
       test_print_in_fn_under_am,
     ),
     test_case("aM+aL: test results", `Quick, test_tests_under_am),
+    /* ---- audit 2 ---- */
+    test_case("audit2: reuse witness", `Quick, test_audit2_reuse_witness),
+    test_case("audit2: hoist sanity", `Quick, test_audit2_hoist_sanity),
+    test_case(
+      "audit2: tuple id moves into a call",
+      `Quick,
+      test_audit2_tuple_moves_into_a_call,
+    ),
+    test_case("audit2: sweep calls", `Quick, test_audit2_sweep_calls),
+    test_case("audit2: sweep prepass", `Quick, test_audit2_sweep_prepass),
+    test_case("audit2: sweep shapes", `Quick, test_audit2_sweep_shapes),
+    test_case("audit2: fuzz (literal edits)", `Quick, test_audit2_fuzz),
+    test_case(
+      "audit2: fuzz (structural edits, no repoint)",
+      `Quick,
+      test_audit2_fuzz_structural_no_repoint,
+    ),
+    test_case(
+      "audit2: control, hole not free variable",
+      `Quick,
+      test_indeterminate_residual_control,
+    ),
+    /* ---- intentional failing pins ---- */
+    test_case(
+      "PIN finding 1: repointed variable occurrence",
+      `Quick,
+      test_pin_repoint_value,
+    ),
+    test_case(
+      "PIN finding 1: repointed occurrence through a tuple",
+      `Quick,
+      test_pin_repoint_through_tuple,
+    ),
+    test_case(
+      "PIN finding 1: repointed occurrence as a call argument",
+      `Quick,
+      test_pin_repoint_call_argument,
+    ),
+    test_case(
+      "PIN finding 1: stale probe sample, value unchanged",
+      `Quick,
+      test_pin_repoint_probe_sample,
+    ),
+    test_case(
+      "PIN finding 2: fuzz (structural edits, with repoint)",
+      `Quick,
+      test_audit2_fuzz_structural,
+    ),
+    test_case(
+      "PIN finding 3: cached indeterminate residual",
+      `Quick,
+      test_pin_indeterminate_residual,
+    ),
   ],
 );
