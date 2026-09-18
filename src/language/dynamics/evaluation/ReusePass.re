@@ -28,6 +28,7 @@ module ReusePassTransition = Transition(ReusePassEVMode);
 let update_reuse_map_after_effects =
     (
       ~tuple_flags: bool,
+      ~prev: EvaluatorState.incr_eval,
       ~reused: Id.t => bool,
       ~reuse_map: IncrEval.reuse_map,
       effects: list(EvaluatorState.effect),
@@ -40,7 +41,8 @@ let update_reuse_map_after_effects =
         /* rhs is the binding's right-hand side before evaluation, so its flag
          * is read off the re-use map rather than off a value. */
         IncrEval.update_maps_after_binding(
-          ~flag=IncrEval.exp_flag(~tuple_flags, ~reused, ~reuse_map, rhs),
+          ~flag=
+            IncrEval.exp_flag(~tuple_flags, ~prev, ~reused, ~reuse_map, rhs),
           ~source_id=DHExp.rep_id(rhs),
           pat,
           ~reuse_map,
@@ -83,6 +85,7 @@ let rec reuse_pass_for =
       let reuse_map =
         update_reuse_map_after_effects(
           ~tuple_flags,
+          ~prev,
           ~reused=id => Id.Map.mem(id, req_stream.entries),
           ~reuse_map,
           side_effects,
@@ -94,7 +97,41 @@ let rec reuse_pass_for =
     | Step({is_value: true, _})
     | Constructor
     | Value
-    | Indet => req_stream
+    | Indet =>
+      /* An indeterminate `let` otherwise stops the symbolic walk dead. This
+       * pass does not evaluate -- req_final hands back the UNevaluated
+       * sub-expression -- so a tuple pattern against a bare `Var`
+       * (`let (a, b) = z`, section 8's own program shape) gives IndetMatch
+       * even though the real evaluator matches it fine. Everything written
+       * after such a binder would then be missing from `reused_ids` and be
+       * reported Dirty, blocking downstream re-use.
+       *
+       * So walk the body anyway, with the pattern's names DROPPED rather than
+       * guessed: reuse_map_for_co_ctx fails for any body expression that
+       * depends on them, leaving those conservatively un-re-used, while the
+       * ones that do not depend on them -- the helper definitions this is here
+       * for -- become visible again. Dropping rather than inventing provenance
+       * is what keeps `reused_ids` an under-approximation of what the
+       * evaluator will actually re-use, which is what exp_flag relies on.
+       *
+       * A `Let` reaches here only when its match was indeterminate: a match
+       * that succeeds yields Step(is_value: false) above. (It arrives as a
+       * WrapClosure step rather than Indet because wrap_closure_when_done
+       * rewrites a non-stepping rule in `Environment` mode.) */
+      switch (DHExp.term_of(d)) {
+      | Let(dp, _, body) =>
+        IncrEval.add_stream(
+          req_stream,
+          reuse_pass_for(
+            ~tuple_flags,
+            ~prev,
+            ~eval_info,
+            ~reuse_map=IncrEval.remove_pat_bindings(dp, reuse_map),
+            body,
+          ),
+        )
+      | _ => req_stream
+      }
     };
   };
 };
