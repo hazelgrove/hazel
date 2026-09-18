@@ -110,6 +110,63 @@ let llm_context_snapshot_text =
   );
 };
 
+/* Type/scope summary at the caret for the context snapshot. */
+let format_cursor_context =
+    (z: Zipper.t, info_map: Language.StaticsBase.Map.t): string => {
+  switch (Indicated.ci_of(z, info_map)) {
+  | Some(InfoExp({ana, ctx, ty, _})) =>
+    let expected = ErrorPrint.Print.typ(ana);
+    let synthesized = ErrorPrint.Print.typ(ty);
+    let ctx_entries =
+      Language.Ctx.filter_shadowed(ctx).entries
+      |> List.filter_map((entry: Language.Ctx.entry) =>
+           switch (entry) {
+           | VarEntry({name, typ, _}) =>
+             Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
+           | _ => None
+           }
+         );
+    let vars_str =
+      switch (ctx_entries) {
+      | [] => "none"
+      | entries =>
+        let shown = Util.ListUtil.take(10, entries);
+        let suffix =
+          List.length(entries) > 10
+            ? " (+" ++ string_of_int(List.length(entries) - 10) ++ " more)"
+            : "";
+        String.concat(", ", shown) ++ suffix;
+      };
+    "Expected type: "
+    ++ expected
+    ++ "\nSynthesized type: "
+    ++ synthesized
+    ++ "\nVariables in scope: "
+    ++ vars_str;
+  | Some(InfoPat({ana, ctx, _})) =>
+    let expected = ErrorPrint.Print.typ(ana);
+    let ctx_entries =
+      Language.Ctx.filter_shadowed(ctx).entries
+      |> List.filter_map((entry: Language.Ctx.entry) =>
+           switch (entry) {
+           | ConstructorEntry({name, typ, _}) =>
+             Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
+           | _ => None
+           }
+         );
+    let ctors_str =
+      switch (ctx_entries) {
+      | [] => "none"
+      | entries => String.concat(", ", Util.ListUtil.take(10, entries))
+      };
+    "Pattern expected type: "
+    ++ expected
+    ++ "\nConstructors in scope: "
+    ++ ctors_str;
+  | _ => ""
+  };
+};
+
 let update_context =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
@@ -126,20 +183,23 @@ let update_context =
       editor.editor,
       curr_chat.agent_view,
     );
+  let info_map = CompositionGo.Public.mk_statics(editor.editor.state.zipper);
   let static_errors_info_string =
-    ErrorPrint.all(
-      CompositionGo.Public.mk_statics(editor.editor.state.zipper),
-    )
-    |> String.concat("\n");
+    ErrorPrint.all(info_map) |> String.concat("\n");
   let test_results_info_string = test_results_for_context(test_results);
+  let cursor_context_string =
+    format_cursor_context(editor.editor.state.zipper, info_map);
   let chat_system =
     ChatSystem.Update.update(
       ChatSystem.Update.Action.ChatAction(
         Chat.Update.Action.UpdateContext(
           session_mode,
-          agent_editor_view_string,
-          static_errors_info_string,
-          test_results_info_string,
+          {
+            agent_editor_view: agent_editor_view_string,
+            static_errors: static_errors_info_string,
+            test_results: test_results_info_string,
+            cursor_context: cursor_context_string,
+          },
         ),
         chat_id,
       ),
