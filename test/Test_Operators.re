@@ -12,29 +12,37 @@ let tests = (
           bool,
           "Int(Plus)",
           true,
-          Operators.numeric_bin_op(Atom.Int, Plus)
-          == Some(Operators.Int(Plus)),
+          Poly.equal(
+            Operators.numeric_bin_op(Atom.Int, Plus),
+            Some(Operators.Int(Plus)),
+          ),
         );
         check(
           bool,
           "SInt(Times)",
           true,
-          Operators.numeric_bin_op(Atom.SInt, Times)
-          == Some(Operators.SInt(Times)),
+          Poly.equal(
+            Operators.numeric_bin_op(Atom.SInt, Times),
+            Some(Operators.SInt(Times)),
+          ),
         );
         check(
           bool,
           "Nat(Minus)",
           true,
-          Operators.numeric_bin_op(Atom.Nat, Minus)
-          == Some(Operators.Nat(Minus)),
+          Poly.equal(
+            Operators.numeric_bin_op(Atom.Nat, Minus),
+            Some(Operators.Nat(Minus)),
+          ),
         );
         check(
           bool,
           "Float(Plus) wraps via op_bin_float_of_num",
           true,
-          Operators.numeric_bin_op(Atom.Float, Plus)
-          == Some(Operators.Float(Plus)),
+          Poly.equal(
+            Operators.numeric_bin_op(Atom.Float, Plus),
+            Some(Operators.Float(Plus)),
+          ),
         );
       },
     ),

@@ -28,7 +28,7 @@ let title_of_tests =
     /* An empty segment must not become an empty folder. */
     ("a doubled separator", "basics//01-holes.hzt", "Basics / 01 - Holes"),
   ]
-  |> List.map(((name, rel, expected)) =>
+  |> List.map(~f=((name, rel, expected)) =>
        test_case(name, `Quick, () =>
          check(string, rel, expected, TutorialText.title_of(rel))
        )

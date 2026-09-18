@@ -14,7 +14,7 @@ let tests = (
         let x2 = Exp.let_(Pat.var("x'"), Exp.int(1), Exp.var("x'"));
         check(
           bool,
-          "let x = 1 in x === let x' = 1 in x'",
+          "let x = 1 in phys_equal(x, let) x' = 1 in x'",
           true,
           Equality.semantic.exp(x1, x2),
         );
@@ -44,7 +44,7 @@ let tests = (
           );
         check(
           bool,
-          "forall x : String -> x == x !== forall x : Int -> x == x",
+          "forall x : String -> x == !phys_equal(x, forall) x : Int -> x == x",
           false,
           Equality.semantic.exp(forall_string, forall_int),
         );
@@ -105,10 +105,10 @@ let tests = (
             Exp.dot(Exp.var("N"), Exp.label("x")),
           );
         /* MPat supports alpha-equivalence: M and N are just binders,
-           so module M = ... in M.x === module N = ... in N.x */
+           so module M = ... in phys_equal(M.x, module) N = ... in N.x */
         check(
           bool,
-          "module M = {let x=1} in M.x === module N = {let x=1} in N.x",
+          "module M = {let x=1} in phys_equal(M.x, module) N = {let x=1} in N.x",
           true,
           Equality.semantic.exp(e1, e2),
         );
@@ -132,7 +132,7 @@ let tests = (
           );
         check(
           bool,
-          "module M = {let x=1} in M.x === module M = {let x=1} in M.x",
+          "module M = {let x=1} in phys_equal(M.x, module) M = {let x=1} in M.x",
           true,
           Equality.semantic.exp(e1, e2),
         );

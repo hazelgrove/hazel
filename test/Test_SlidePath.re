@@ -13,7 +13,8 @@ let folder_position =
       ({index_in_folder, folder_size}: SlidePath.folder_position) =>
       Printf.sprintf("%d of %d", index_in_folder, folder_size)
     ),
-    (==),
+    (a: SlidePath.folder_position, b: SlidePath.folder_position) =>
+    a.index_in_folder == b.index_in_folder && a.folder_size == b.folder_size
   );
 let at = (index_in_folder, folder_size): SlidePath.folder_position => {
   index_in_folder,
@@ -31,7 +32,7 @@ let of_string_tests =
     ("extra spaces", "Basics  /  Holes", ["Basics"], "Holes"),
     ("a trailing separator", "Basics /", ["Basics"], ""),
   ]
-  |> List.map(((name, input, folders, leaf)) =>
+  |> List.map(~f=((name, input, folders, leaf)) =>
        test_case(name, `Quick, () =>
          check(
            path,
@@ -151,7 +152,7 @@ let nav_space = [
 ];
 
 let paths_of = (space: list(string)) =>
-  List.map(SlidePath.of_string, space);
+  List.map(~f=SlidePath.of_string, space);
 
 let index_of = (space: list(string), name: string): int =>
   switch (Util.ListUtil.findi_opt(String.equal(name), space)) {
@@ -173,13 +174,19 @@ let step_from = (~space=nav_space, ~by: int, name: string): string =>
     ~by,
     paths_of(space),
   )
-  |> List.nth(space);
+  |> List.nth_exn(space);
 
 /* The slides sharing `name`'s folder, in space order. */
 let folder_of_slide = (space: list(string), name: string): list(string) => {
   let folder = SlidePath.folder(SlidePath.of_string(name));
   space
-  |> List.filter(n => SlidePath.folder(SlidePath.of_string(n)) == folder);
+  |> List.filter(~f=n =>
+       Option.equal(
+         String.equal,
+         SlidePath.folder(SlidePath.of_string(n)),
+         folder,
+       )
+     );
 };
 
 /* Step repeatedly from `name` until movement clamps, collecting where it
@@ -201,27 +208,33 @@ let walk = (~space=nav_space, ~by: int, name: string): list(string) => {
 /* Each crumb as (selected segment, the segments it offers). */
 let crumbs_of = (~space=nav_space, name: string) =>
   SlidePath.breadcrumb(~current=index_of(space, name), paths_of(space))
-  |> List.map((c: SlidePath.crumb) =>
-       (c.selected, List.map(snd, c.options))
+  |> List.map(~f=(c: SlidePath.crumb) =>
+       (c.selected, List.map(~f=snd, c.options))
      );
 
 /* Each crumb as (selected segment, the slides its options jump to). */
 let jumps_of = (~space=nav_space, name: string) =>
   SlidePath.breadcrumb(~current=index_of(space, name), paths_of(space))
-  |> List.map((c: SlidePath.crumb) =>
-       (c.selected, List.map(((i, _)) => List.nth(space, i), c.options))
+  |> List.map(~f=(c: SlidePath.crumb) =>
+       (
+         c.selected,
+         List.map(~f=((i, _)) => List.nth_exn(space, i), c.options),
+       )
      );
 
 let crumbs =
   testable(
     Fmt.of_to_string(cs =>
       cs
-      |> List.map(((sel, opts)) =>
-           sel ++ ":[" ++ String.concat(", ", opts) ++ "]"
+      |> List.map(~f=((sel, opts)) =>
+           sel ++ ":[" ++ String.concat(~sep=", ", opts) ++ "]"
          )
-      |> String.concat("  /  ")
+      |> String.concat(~sep="  /  ")
     ),
-    (==),
+    List.equal((a, b) =>
+      String.equal(fst(a), fst(b))
+      && List.equal(String.equal, snd(a), snd(b))
+    ),
   );
 
 let scattered = ["A / x", "B / y", "A / z"];
@@ -340,31 +353,33 @@ let step_in_folder_tests = [
 let traversal_tests = [
   test_case("stepping a folder to its end visits it in order", `Quick, () =>
     List.iter(
-      space =>
-        List.iter(
-          name => {
-            let folder = folder_of_slide(space, name);
-            check(
-              strings,
-              "forward from the start of " ++ name ++ "'s folder",
-              folder,
-              walk(~space, ~by=1, List.hd(folder)),
-            );
-            /* walk reports visit order, so going backward from the last
-               slide sees the folder in reverse. */
-            check(
-              strings,
-              "backward from the end of " ++ name ++ "'s folder",
-              List.rev(folder),
-              walk(
-                ~space,
-                ~by=-1,
-                List.nth(folder, List.length(folder) - 1),
-              ),
-            );
-          },
-          space,
-        ),
+      ~f=
+        space =>
+          List.iter(
+            ~f=
+              name => {
+                let folder = folder_of_slide(space, name);
+                check(
+                  strings,
+                  "forward from the start of " ++ name ++ "'s folder",
+                  folder,
+                  walk(~space, ~by=1, List.hd_exn(folder)),
+                );
+                /* walk reports visit order, so going backward from the last
+                   slide sees the folder in reverse. */
+                check(
+                  strings,
+                  "backward from the end of " ++ name ++ "'s folder",
+                  List.rev(folder),
+                  walk(
+                    ~space,
+                    ~by=-1,
+                    List.nth_exn(folder, List.length(folder) - 1),
+                  ),
+                );
+              },
+            space,
+          ),
       [nav_space, scattered],
     )
   ),
@@ -373,26 +388,32 @@ let traversal_tests = [
        arrows, which use step_in_folder, to agree. */
     =>
       List.iter(
-        space =>
-          List.iter(
-            name => {
-              let {index_in_folder, folder_size}: SlidePath.folder_position =
-                position_of(~space, name);
-              check(
-                bool,
-                "prev clamps at " ++ name ++ " iff it is first in its folder",
-                index_in_folder == 0,
-                String.equal(step_from(~space, ~by=-1, name), name),
-              );
-              check(
-                bool,
-                "next clamps at " ++ name ++ " iff it is last in its folder",
-                index_in_folder == folder_size - 1,
-                String.equal(step_from(~space, ~by=1, name), name),
-              );
-            },
-            space,
-          ),
+        ~f=
+          space =>
+            List.iter(
+              ~f=
+                name => {
+                  let {index_in_folder, folder_size}: SlidePath.folder_position =
+                    position_of(~space, name);
+                  check(
+                    bool,
+                    "prev clamps at "
+                    ++ name
+                    ++ " iff it is first in its folder",
+                    index_in_folder == 0,
+                    String.equal(step_from(~space, ~by=-1, name), name),
+                  );
+                  check(
+                    bool,
+                    "next clamps at "
+                    ++ name
+                    ++ " iff it is last in its folder",
+                    index_in_folder == folder_size - 1,
+                    String.equal(step_from(~space, ~by=1, name), name),
+                  );
+                },
+              space,
+            ),
         [nav_space, scattered],
       )
     ),
@@ -442,7 +463,7 @@ let breadcrumb_tests = [
           ["Basics / Holes", "Tables / Filtering", "Rich Probes / Sampling"],
         ),
       ],
-      jumps_of("Basics / Holes") |> List.filteri((i, _) => i == 0),
+      jumps_of("Basics / Holes") |> List.filteri(~f=(i, _) => i == 0),
     )
   ),
   test_case("a name that is a prefix of another is skipped", `Quick, ()
@@ -462,8 +483,8 @@ let breadcrumb_tests = [
       "no crumbs",
       [],
       SlidePath.breadcrumb(~current=99, paths_of(nav_space))
-      |> List.map((c: SlidePath.crumb) =>
-           (c.selected, List.map(snd, c.options))
+      |> List.map(~f=(c: SlidePath.crumb) =>
+           (c.selected, List.map(~f=snd, c.options))
          ),
     )
   ),
