@@ -133,6 +133,54 @@ let write_file = (path: string, s: string): unit => {
   close_out(oc);
 };
 
+/* Evaluate the current program and describe the outcome for the agent.
+ *
+ * This is what turns a one-shot "apply these edits" run into an iterate-until-
+ * it-works loop: without it the agent only ever sees TYPE errors (which the
+ * agent context already carries, via ErrorPrint over mk_statics in
+ * AgentUtils.re:129-133) and never finds out that a type-correct program
+ * computes the wrong answer.
+ *
+ * Caveat worth knowing: Hazel's evaluator has no fuel bound here, so a
+ * non-terminating program the agent wrote will hang this process rather than
+ * report an error. There is no timeout because js_of_ocaml evaluation cannot
+ * be interrupted from the same thread. */
+let describe_evaluation = (z: Zipper.t): (option(string), string) => {
+  let errors =
+    ErrorPrint.all(CompositionGo.Public.mk_statics(z)) |> String.concat("\n");
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let value =
+    try(Some(Print.print(Run.evaluate(term)))) {
+    | exn => Some("<evaluation raised: " ++ Printexc.to_string(exn) ++ ">")
+    };
+  (value, errors);
+};
+
+/* The follow-up message sent back into the same chat after a round of edits,
+   so the next turn is informed by what the program actually did. */
+let feedback_message =
+    (~goal: option(string), ~value: option(string), ~errors: string): string => {
+  let v =
+    switch (value) {
+    | Some(v) => "The program currently evaluates to:\n" ++ v
+    | None => "The program could not be evaluated."
+    };
+  let e =
+    errors == ""
+      ? "There are no static errors."
+      : "Static errors remain:\n" ++ errors;
+  let g =
+    switch (goal) {
+    | None => "If this is correct and complete, say DONE and stop."
+    | Some(g) =>
+      "The expected answer is: "
+      ++ g
+      ++ "\nIf the program already produces that, say DONE and stop. "
+      ++ "Otherwise find the bug and fix it with edit tools."
+    };
+  String.concat("\n\n", [v, e, g]);
+};
+
 let run =
     (
       model_id: string,
@@ -142,6 +190,8 @@ let run =
       stub: bool,
       stub_path: string,
       stub_code: string,
+      feedback_rounds: int,
+      goal: option(string),
       program_path: string,
       prompt: string,
     )
@@ -188,6 +238,7 @@ let run =
   let draining = ref(false);
   let turns = ref(0);
   let finished = ref(false);
+  let rounds_used = ref(0);
 
   let report_and_exit = () =>
     if (! finished^) {
@@ -196,8 +247,18 @@ let run =
       let final_program = print_zipper(final_z);
       let chat = ChatSystem.Utils.find_chat(chat_id, agent^.chat_system);
       let steps = actions_of_chat(chat);
+      let (final_value, final_errors) = describe_evaluation(final_z);
       print_endline("--- final program ---");
       print_endline(final_program);
+      print_endline("--- final value ---");
+      print_endline(Option.value(~default="<none>", final_value));
+      if (final_errors != "") {
+        print_endline("--- static errors remain ---");
+        print_endline(final_errors);
+      };
+      print_endline(
+        "--- feedback rounds used: " ++ string_of_int(rounds_used^) ++ " ---",
+      );
       print_endline(
         "--- editor actions ("
         ++ string_of_int(List.length(steps))
@@ -233,10 +294,43 @@ let run =
       pump();
       draining := false;
       if (!busy(agent^) && queue^ == []) {
-        report_and_exit();
+        settle();
       };
     };
   }
+  /* The agent has gone idle. Either hand it the result of actually running
+     what it wrote and let it iterate, or stop and emit the trace. */
+  and settle = () =>
+    if (rounds_used^ >= feedback_rounds) {
+      report_and_exit();
+    } else {
+      incr(rounds_used);
+      let z = editor^.editor.editor.state.zipper;
+      let (value, errors) = describe_evaluation(z);
+      let satisfied =
+        switch (goal, value) {
+        | (Some(g), Some(v)) => String.trim(g) == String.trim(v) && errors == ""
+        | _ => false
+        };
+      if (satisfied) {
+        report_and_exit();
+      } else {
+        prerr_endline(
+          "[feedback round "
+          ++ string_of_int(rounds_used^)
+          ++ "] value="
+          ++ Option.value(~default="<none>", value),
+        );
+        schedule_action(
+          SendMessage(
+            Message.Utils.mk_user_message(
+              feedback_message(~goal, ~value, ~errors),
+            ),
+            chat_id,
+          ),
+        );
+      };
+    }
   and pump = () =>
     switch (queue^) {
     | [] => ()

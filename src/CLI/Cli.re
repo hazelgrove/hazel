@@ -656,10 +656,52 @@ let bench_incr_cmd = {
     let doc = "Editing trace JSON files to replay.";
     Arg.(non_empty & pos_all(string, []) & info([], ~docv="TRACES", ~doc));
   };
+  let reps_arg = {
+    let doc =
+      "Timed repetitions of the whole trace per calculus; the table reports "
+      ++ "the median with its spread.";
+    Arg.(
+      value
+      & opt(int, BenchIncr.default_reps)
+      & info(["reps"], ~docv="N", ~doc)
+    );
+  };
+  let warmup_arg = {
+    let doc =
+      "Untimed passes over every calculus before timing starts, so the first "
+      ++ "measured pass does not absorb JIT warmup.";
+    Arg.(
+      value
+      & opt(int, BenchIncr.default_warmup)
+      & info(["warmup"], ~docv="N", ~doc)
+    );
+  };
+  let id_policy_arg = {
+    let doc =
+      "Structural id-matching policy: "
+      ++ String.concat(" | ", BenchIncr.id_policies)
+      ++ ". Repeatable: passing several sweeps them INTERLEAVED within one "
+      ++ "process, so the comparison is not confounded by machine drift "
+      ++ "between separate runs. `none` is the un-diffed baseline; comparing "
+      ++ "it against `default` measures what id preservation is worth.";
+    Arg.(
+      value
+      & opt_all(string, [])
+      & info(["id-policy"], ~docv="POLICY", ~doc)
+    );
+  };
   let info = Cmd.info("bench-incr", ~doc);
   Cmd.v(
     info,
-    Term.(const(BenchIncr.bench_incr) $ modes_arg $ json_arg $ files_arg),
+    Term.(
+      const(BenchIncr.bench_incr)
+      $ modes_arg
+      $ reps_arg
+      $ warmup_arg
+      $ id_policy_arg
+      $ json_arg
+      $ files_arg
+    ),
   );
 };
 
@@ -739,6 +781,20 @@ let agent_cmd = {
     let doc = "Instruction for the agent.";
     Arg.(value & pos(1, string, "") & info([], ~docv="PROMPT", ~doc));
   };
+  let feedback_arg = {
+    let doc =
+      "Rounds of evaluate-and-report-back after the agent goes idle, so it "
+      ++ "can see what its program actually computes and iterate. 0 disables.";
+    Arg.(value & opt(int, 0) & info(["feedback"], ~docv="N", ~doc));
+  };
+  let goal_arg = {
+    let doc =
+      "Expected final value. When the program evaluates to this with no "
+      ++ "static errors, the run stops early.";
+    Arg.(
+      value & opt(some(string), None) & info(["goal"], ~docv="VALUE", ~doc)
+    );
+  };
   let info = Cmd.info("agent", ~doc);
   Cmd.v(
     info,
@@ -751,6 +807,8 @@ let agent_cmd = {
       $ stub_arg
       $ stub_path_arg
       $ stub_code_arg
+      $ feedback_arg
+      $ goal_arg
       $ program_arg
       $ prompt_arg
     ),

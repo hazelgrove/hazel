@@ -1,0 +1,36 @@
+{
+ "name": "whole-rewrite",
+ "_comment": "Whole-definition rewrite where two of three summands are structurally unchanged. Under IdMatch Policy.none the replacement mints fresh ids for ALL THREE fib calls, so nothing is re-usable; under Policy.default the unchanged fib(21)/fib(22) keep their ids. Isolates what structural id-matching (CompositionGo.re:398) is worth on agent-shaped edits.",
+ "program": "let fib : Int -> Int =\n  fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2)\nin\nlet total : Int =\n  fib(21) + fib(22) + fib(20)\nin\ntotal",
+ "steps": [
+  {
+   "label": "cold",
+   "actions": []
+  },
+  {
+   "label": "rewrite total (c=19)",
+   "actions": [
+    "(Structural (Update Definition total \"fib(21) + fib(22) + fib(19)\"))"
+   ]
+  },
+  {
+   "label": "rewrite total (c=18)",
+   "actions": [
+    "(Structural (Update Definition total \"fib(21) + fib(22) + fib(18)\"))"
+   ]
+  },
+  {
+   "label": "rewrite total (c=19)",
+   "actions": [
+    "(Structural (Update Definition total \"fib(21) + fib(22) + fib(19)\"))"
+   ]
+  },
+  {
+   "label": "rewrite total (c=18)",
+   "actions": [
+    "(Structural (Update Definition total \"fib(21) + fib(22) + fib(18)\"))"
+   ]
+  }
+ ],
+ "_generated": "Hand-written controlled microbenchmark (NOT agent-generated). Replay under a0 for any generation; measure under all five."
+}
