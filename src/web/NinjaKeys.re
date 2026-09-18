@@ -49,3 +49,8 @@ let initialize = (actions: list(ContextualAction.t)) => {
   let opts = Array.of_list(List.map(of_contextual_action, actions));
   Js.Unsafe.set(elem(), "data", Js.array(opts));
 };
+
+let open_with = (actions: list(ContextualAction.t)) => {
+  initialize(actions);
+  open_command_palette();
+};
