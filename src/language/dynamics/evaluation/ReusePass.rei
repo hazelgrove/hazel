@@ -3,6 +3,7 @@ let update_reuse_map_after_effects:
     ~tuple_flags: bool,
     ~prev: EvaluatorState.incr_eval,
     ~reused: Id.t => bool,
+    ~flags_from: IncrEval.reuse_map=?,
     ~reuse_map: IncrEval.reuse_map,
     list(EvaluatorState.effect)
   ) =>

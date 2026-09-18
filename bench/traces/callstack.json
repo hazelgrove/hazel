@@ -1,0 +1,12 @@
+{
+  "name": "callstack",
+  "program": "let slow : Int -> Int =\n  fun n -> if n < 2 then n else slow(n - 1) + slow(n - 2)\nin\nlet k = 1 in\nlet arg = 21 in\nlet boost : Int -> Int =\n  fun x -> slow(x) + k\nin\nboost(arg)",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    { "label": "k := 2", "actions": ["(Structural (Update Definition k 2))"] },
+    { "label": "arg := 20", "actions": ["(Structural (Update Definition arg 20))"] },
+    { "label": "k := 3", "actions": ["(Structural (Update Definition k 3))"] },
+    { "label": "arg := 21", "actions": ["(Structural (Update Definition arg 21))"] },
+    { "label": "k := 4", "actions": ["(Structural (Update Definition k 4))"] }
+  ]
+}
