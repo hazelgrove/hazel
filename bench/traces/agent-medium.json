@@ -1,0 +1,25 @@
+{
+  "name": "agent-medium",
+  "program": "let rate = 3 in\nlet base : Int -> Int =\n  fun n -> n * rate\nin\nlet shift = 10 in\nlet adjust : Int -> Int =\n  fun n -> base(n) + shift\nin\nlet total : Int -> Int =\n  fun n -> adjust(n) + adjust(n + 1)\nin\ntotal(4)",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    {
+      "label": "update_pattern",
+      "actions": [ "(Structural(Update Pattern shift offset))" ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [ "(Structural(Update Definition rate 5))" ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [ "(Structural(Update Definition offset 20))" ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition total\"fun n -> adjust(n) + adjust(n + 2)\"))"
+      ]
+    }
+  ]
+}
