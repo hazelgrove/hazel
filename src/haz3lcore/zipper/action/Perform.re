@@ -355,12 +355,6 @@ let rec go =
        safe to run on them. */
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
-  | Buffer(a) =>
-    /* accepting a TyDi suggestion inserts delimiter text like typing
-       it, but via a separate path from the Insert arm */
-    LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
-    )
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)

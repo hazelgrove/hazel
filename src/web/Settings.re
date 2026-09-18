@@ -42,6 +42,7 @@ module Model = {
       statics: true,
       elaborate: false,
       assist: true,
+      reify_obligations: true,
       dynamics: true,
       probe_all: false,
       auto_reindent: true,

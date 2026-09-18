@@ -388,7 +388,6 @@ let simple_code =
       ~refractor_rows,
       ~font_metrics,
       ~term_data=Id.Map.empty,
-      ~buffer_ids=[],
       segment,
     );
   let backing =
