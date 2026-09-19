@@ -656,10 +656,52 @@ let bench_incr_cmd = {
     let doc = "Editing trace JSON files to replay.";
     Arg.(non_empty & pos_all(string, []) & info([], ~docv="TRACES", ~doc));
   };
+  let reps_arg = {
+    let doc =
+      "Timed repetitions of the whole trace per calculus; the table reports "
+      ++ "the median with its spread.";
+    Arg.(
+      value
+      & opt(int, BenchIncr.default_reps)
+      & info(["reps"], ~docv="N", ~doc)
+    );
+  };
+  let warmup_arg = {
+    let doc =
+      "Untimed passes over every calculus before timing starts, so the first "
+      ++ "measured pass does not absorb JIT warmup.";
+    Arg.(
+      value
+      & opt(int, BenchIncr.default_warmup)
+      & info(["warmup"], ~docv="N", ~doc)
+    );
+  };
+  let id_policy_arg = {
+    let doc =
+      "Structural id-matching policy: "
+      ++ String.concat(" | ", BenchIncr.id_policies)
+      ++ ". Repeatable: passing several sweeps them INTERLEAVED within one "
+      ++ "process, so the comparison is not confounded by machine drift "
+      ++ "between separate runs. `none` is the un-diffed baseline; comparing "
+      ++ "it against `default` measures what id preservation is worth.";
+    Arg.(
+      value
+      & opt_all(string, [])
+      & info(["id-policy"], ~docv="POLICY", ~doc)
+    );
+  };
   let info = Cmd.info("bench-incr", ~doc);
   Cmd.v(
     info,
-    Term.(const(BenchIncr.bench_incr) $ modes_arg $ json_arg $ files_arg),
+    Term.(
+      const(BenchIncr.bench_incr)
+      $ modes_arg
+      $ reps_arg
+      $ warmup_arg
+      $ id_policy_arg
+      $ json_arg
+      $ files_arg
+    ),
   );
 };
 
@@ -675,6 +717,102 @@ let bench_eval_cmd = {
   };
   let info = Cmd.info("bench-eval", ~doc);
   Cmd.v(info, Term.(const(bench_eval) $ iterations_arg $ files_arg));
+};
+
+let agent_cmd = {
+  let doc =
+    "Run Hazel's built-in AI agent headlessly against a program, and "
+    ++ "optionally emit the resulting edits as a bench-incr trace.";
+  let model_arg = {
+    let doc = "OpenRouter model id.";
+    Arg.(
+      value
+      & opt(string, AgentRun.default_model_id)
+      & info(["m", "model"], ~docv="MODEL", ~doc)
+    );
+  };
+  let max_turns_arg = {
+    let doc = "Maximum LLM replies before giving up (spend rail).";
+    Arg.(
+      value
+      & opt(int, AgentRun.default_max_tool_turns)
+      & info(["max-turns"], ~docv="N", ~doc)
+    );
+  };
+  let trace_arg = {
+    let doc = "Write a bench-incr editing trace to this JSON file.";
+    Arg.(
+      value & opt(some(string), None) & info(["trace"], ~docv="FILE", ~doc)
+    );
+  };
+  let trace_name_arg = {
+    let doc = "Name field for the emitted trace (defaults to the filename).";
+    Arg.(
+      value
+      & opt(some(string), None)
+      & info(["trace-name"], ~docv="NAME", ~doc)
+    );
+  };
+  let stub_arg = {
+    let doc = "Do not call OpenRouter; feed the agent one canned tool call instead.";
+    Arg.(value & flag & info(["stub"], ~doc));
+  };
+  let stub_path_arg =
+    Arg.(
+      value
+      & opt(string, "x")
+      & info(["stub-path"], ~docv="PATH", ~doc="Binding for --stub to edit.")
+    );
+  let stub_code_arg =
+    Arg.(
+      value
+      & opt(string, "42")
+      & info(["stub-code"], ~docv="CODE", ~doc="Code for --stub to write.")
+    );
+  let program_arg = {
+    let doc = "Hazel source file the agent starts from.";
+    Arg.(
+      required
+      & pos(0, some(string), None)
+      & info([], ~docv="PROGRAM", ~doc)
+    );
+  };
+  let prompt_arg = {
+    let doc = "Instruction for the agent.";
+    Arg.(value & pos(1, string, "") & info([], ~docv="PROMPT", ~doc));
+  };
+  let feedback_arg = {
+    let doc =
+      "Rounds of evaluate-and-report-back after the agent goes idle, so it "
+      ++ "can see what its program actually computes and iterate. 0 disables.";
+    Arg.(value & opt(int, 0) & info(["feedback"], ~docv="N", ~doc));
+  };
+  let goal_arg = {
+    let doc =
+      "Expected final value. When the program evaluates to this with no "
+      ++ "static errors, the run stops early.";
+    Arg.(
+      value & opt(some(string), None) & info(["goal"], ~docv="VALUE", ~doc)
+    );
+  };
+  let info = Cmd.info("agent", ~doc);
+  Cmd.v(
+    info,
+    Term.(
+      const(AgentRun.run)
+      $ model_arg
+      $ max_turns_arg
+      $ trace_arg
+      $ trace_name_arg
+      $ stub_arg
+      $ stub_path_arg
+      $ stub_code_arg
+      $ feedback_arg
+      $ goal_arg
+      $ program_arg
+      $ prompt_arg
+    ),
+  );
 };
 
 /* Default to help if no subcommand is given */
@@ -695,8 +833,16 @@ let default_cmd = {
       grade_report_cmd,
       bench_eval_cmd,
       bench_incr_cmd,
+      agent_cmd,
     ],
   );
 };
 
-let () = exit(Cmd.eval(default_cmd));
+let () = {
+  let code = Cmd.eval(default_cmd);
+  /* `hazel agent` finishes on the node event loop (an in-flight HTTP request
+     to OpenRouter), so exiting here would kill it; AgentRun exits itself. */
+  if (! AgentRun.deferred^) {
+    exit(code);
+  };
+};

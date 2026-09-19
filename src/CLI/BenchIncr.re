@@ -80,6 +80,10 @@ module Trace = {
 
 /* One timed step of one calculus run. */
 type measurement = {
+  /* Which IdMatch policy produced the edits this measurement timed. Carried
+   * per-measurement rather than per-run because a sweep interleaves policies
+   * within one process (see [sample]). */
+  policy: string,
   calculus: Calculus.t,
   step_index: int,
   label: string,
@@ -141,7 +145,9 @@ let perform_action =
  * each step into the next. The zipper is rebuilt from the trace's starting
  * program for every calculus so that each run sees an identical edit
  * sequence. */
-let run_trace = (~calculus: Calculus.t, trace: Trace.t): list(measurement) => {
+let run_trace =
+    (~policy: string="default", ~calculus: Calculus.t, trace: Trace.t)
+    : list(measurement) => {
   let zipper = ref(zipper_of_program(trace.program));
   let prev = ref(IncrEval.empty);
   let measurements = ref([]);
@@ -169,6 +175,7 @@ let run_trace = (~calculus: Calculus.t, trace: Trace.t): list(measurement) => {
       measurements :=
         [
           {
+            policy,
             calculus,
             step_index,
             label: step.label,
@@ -183,6 +190,415 @@ let run_trace = (~calculus: Calculus.t, trace: Trace.t): list(measurement) => {
     trace.steps,
   );
   List.rev(measurements^);
+};
+
+/* Structural id-matching policy (IdMatch.re:74-99), selectable so a run can
+ * measure what id preservation is worth rather than assume it.
+ *
+ * Every agent-supplied code string is re-parsed, which mints fresh ids for
+ * everything it touches; IdMatch diffs the replacement against the syntax it
+ * replaces and carries unchanged parts' ids across (CompositionGo.re:392-398).
+ * Without that, an edit that rewrites a whole binding would make the entire
+ * binding uncacheable, and every calculus would collapse toward a0.
+ *
+ * `none` is the un-diffed baseline, `isomorphic` is the top-down pass alone
+ * (no descent into containers), `default` is what the editor actually runs.
+ * IdMatch.Policy.current is a ref exposed for exactly this (IdMatch.re:100-105).
+ *
+ * The policy is global and set once per process, so the a0 reference run and
+ * every timed calculus see the SAME programs -- otherwise the soundness check
+ * would be comparing different edits against each other. */
+let id_policies = ["none", "isomorphic", "default"];
+
+let validate_id_policy = (name: string): Haz3lcore.IdMatch.Policy.t =>
+  Haz3lcore.IdMatch.Policy.(
+    {
+        switch (name) {
+        | "none" => none
+        | "isomorphic" => isomorphic_only
+        | "default" => default
+        | other =>
+          Printf.eprintf(
+            "Unknown --id-policy %s. Available: %s\n",
+            other,
+            String.concat(", ", id_policies),
+          );
+          exit(2);
+        }
+    }
+  );
+
+let set_id_policy = (name: string): unit =>
+  Haz3lcore.IdMatch.Policy.current := validate_id_policy(name);
+
+let default_id_policy = "default";
+
+/* ---------------------------------------------------------------------------
+ * Repetitions.
+ *
+ * A single timed pass per (calculus, step) is not reportable: on this machine
+ * two runs of one unchanged trace gave aPL step 3 as 1.37ms and then 4.15ms,
+ * and a0's cold statics read high purely because a0 happened to run first and
+ * absorbed the JIT warmup. So we take N samples per step and report the
+ * median with its spread, after warming the JIT and rotating which calculus
+ * goes first.
+ *
+ * The unit of repetition is a whole replay of the trace, not a single step:
+ * each calculus threads its cache from one step into the next, so a step's
+ * time is only meaningful as part of a full pass from a cold cache.
+ * ------------------------------------------------------------------------- */
+
+/* Summary of one step's repeated samples. [p25]/[p75] give the IQR; [min]/
+ * [max] show how bad the tails are, which is what actually tells you whether
+ * a difference between two calculi survives the noise. */
+type stat = {
+  median: float,
+  min: float,
+  max: float,
+  p25: float,
+  p75: float,
+};
+
+/* Nearest-rank on the sorted samples, except the median, which interpolates
+ * for even counts so an even --reps is not silently biased low. */
+let stat_of_samples = (xs: list(float)): stat => {
+  let sorted = List.sort(compare, xs) |> Array.of_list;
+  let n = Array.length(sorted);
+  if (n == 0) {
+    {
+      median: 0.,
+      min: 0.,
+      max: 0.,
+      p25: 0.,
+      p75: 0.,
+    };
+  } else {
+    let quantile = q => {
+      let i = int_of_float(Float.of_int(n) *. q);
+      sorted[min(max(i, 0), n - 1)];
+    };
+    let median =
+      n mod 2 == 1
+        ? sorted[n / 2] : (sorted[n / 2 - 1] +. sorted[n / 2]) /. 2.;
+    {
+      median,
+      min: sorted[0],
+      max: sorted[n - 1],
+      p25: quantile(0.25),
+      p75: quantile(0.75),
+    };
+  };
+};
+
+/* One step of one calculus, aggregated over reps. [entries] and [result] are
+ * deterministic across reps, so they are carried through unaggregated. */
+type aggregate = {
+  policy: string,
+  calculus: Calculus.t,
+  step_index: int,
+  label: string,
+  statics: stat,
+  eval: stat,
+  entries: int,
+  result: string,
+  reps: int,
+};
+
+let aggregate_step = (ms: list(measurement)): aggregate =>
+  switch (ms) {
+  | [] => failwith("aggregate_step: no samples")
+  | [first, ..._] => {
+      policy: first.policy,
+      calculus: first.calculus,
+      step_index: first.step_index,
+      label: first.label,
+      statics: stat_of_samples(List.map((m: measurement) => m.statics_ms, ms)),
+      eval: stat_of_samples(List.map((m: measurement) => m.eval_ms, ms)),
+      entries: first.entries,
+      result: first.result,
+      reps: List.length(ms),
+    }
+  };
+
+/* Group every rep's measurements by (calculus, step) and aggregate. Ordering
+ * follows [selected] then step index, so the table reads the same as before. */
+let aggregate_all =
+    (
+      ~policies: list(string),
+      ~selected: list(Calculus.t),
+      ~n_steps: int,
+      reps: list(list(measurement)),
+    )
+    : list(aggregate) => {
+  let flat = List.concat(reps);
+  List.concat_map(
+    policy =>
+      List.concat_map(
+        calculus =>
+          List.filter_map(
+            step_index => {
+              let ms =
+                List.filter(
+                  (m: measurement) =>
+                    m.policy == policy
+                    && m.calculus == calculus
+                    && m.step_index == step_index,
+                  flat,
+                );
+              switch (ms) {
+              | [] => None
+              | _ => Some(aggregate_step(ms))
+              };
+            },
+            List.init(n_steps, i => i),
+          ),
+        selected,
+      ),
+    policies,
+  );
+};
+
+/* Rotate so that rep [i] starts with a different calculus. Whichever runs
+ * first in a pass pays for any residual warmup, and without rotation that
+ * cost lands on the same calculus in every rep and turns into a systematic
+ * bias rather than noise. */
+let rotate = (xs: list('a), i: int): list('a) => {
+  let n = List.length(xs);
+  if (n <= 1) {
+    xs;
+  } else {
+    let k = i mod n;
+    let rec split = (k, acc, rest) =>
+      switch (k, rest) {
+      | (0, _) => (List.rev(acc), rest)
+      | (_, []) => (List.rev(acc), [])
+      | (_, [x, ...tl]) => split(k - 1, [x, ...acc], tl)
+      };
+    let (head, tail) = split(k, [], xs);
+    tail @ head;
+  };
+};
+
+/* Timed sampling.
+ *
+ * [warmup] full passes over every (policy, calculus) run first and are
+ * discarded, so the first MEASURED pass is not the one that JIT-compiles
+ * MakeTerm, statics and the evaluator.
+ *
+ * Policies are swept INSIDE one process and interleaved with the reps, not by
+ * running the binary once per policy. That matters: a0 has no cache and cannot
+ * be causally affected by the id-matching policy, yet across separate
+ * invocations its total drifted 8163 -> 6927 -> 10299 ms purely from machine
+ * load. Any policy effect smaller than that drift is unreadable when policies
+ * live in different processes. Interleaving puts every policy under the same
+ * conditions within a rep, so the comparison survives a loaded machine.
+ *
+ * Both lists are rotated by the rep index so neither a policy nor a calculus
+ * is systematically the one that runs first. */
+let sample =
+    (
+      ~policies: list(string),
+      ~selected: list(Calculus.t),
+      ~reps: int,
+      ~warmup: int,
+      trace: Trace.t,
+    )
+    : list(list(measurement)) => {
+  let pass = (policy, calculus) => {
+    set_id_policy(policy);
+    run_trace(~policy, ~calculus, trace);
+  };
+  for (_ in 1 to warmup) {
+    List.iter(
+      policy => List.iter(calculus => ignore(pass(policy, calculus)), selected),
+      policies,
+    );
+  };
+  List.init(reps, rep =>
+    List.concat_map(
+      policy =>
+        List.concat_map(
+          calculus => pass(policy, calculus),
+          rotate(selected, rep),
+        ),
+      rotate(policies, rep),
+    )
+  );
+};
+
+let json_of_measurement = (~rep: int, m: measurement): Yojson.Safe.t =>
+  `Assoc([
+    ("policy", `String(m.policy)),
+    ("calculus", `String(Calculus.name(m.calculus))),
+    ("rep", `Int(rep)),
+    ("step", `Int(m.step_index)),
+    ("label", `String(m.label)),
+    ("statics_ms", `Float(m.statics_ms)),
+    ("eval_ms", `Float(m.eval_ms)),
+    ("entries", `Int(m.entries)),
+    ("result", `String(m.result)),
+  ]);
+
+let json_of_stat = (s: stat): Yojson.Safe.t =>
+  `Assoc([
+    ("median", `Float(s.median)),
+    ("min", `Float(s.min)),
+    ("max", `Float(s.max)),
+    ("p25", `Float(s.p25)),
+    ("p75", `Float(s.p75)),
+  ]);
+
+let json_of_aggregate = (a: aggregate): Yojson.Safe.t =>
+  `Assoc([
+    ("policy", `String(a.policy)),
+    ("calculus", `String(Calculus.name(a.calculus))),
+    ("step", `Int(a.step_index)),
+    ("label", `String(a.label)),
+    ("reps", `Int(a.reps)),
+    ("statics_ms", json_of_stat(a.statics)),
+    ("eval_ms", json_of_stat(a.eval)),
+    ("entries", `Int(a.entries)),
+    ("result", `String(a.result)),
+  ]);
+
+/* Sum of eval time over every step but the first, for one rep. The summary
+ * takes the median of these per-rep totals rather than summing the per-step
+ * medians: the latter is not a quantity any single run ever exhibited. */
+let incr_total_of_rep =
+    (~policy: string, ~calculus: Calculus.t, ms: list(measurement))
+    : option((float, float)) => {
+  let mine =
+    List.filter(
+      (m: measurement) => m.policy == policy && m.calculus == calculus,
+      ms,
+    )
+    |> List.sort((a: measurement, b: measurement) =>
+         compare(a.step_index, b.step_index)
+       );
+  switch (mine) {
+  | [] => None
+  | [cold, ...rest] =>
+    Some((
+      cold.eval_ms,
+      List.fold_left((acc, m: measurement) => acc +. m.eval_ms, 0., rest),
+    ))
+  };
+};
+
+let print_table =
+    (
+      ~reps: int,
+      ~warmup: int,
+      ~policies: list(string),
+      trace: Trace.t,
+      aggs: list(aggregate),
+      per_rep: list(list(measurement)),
+      selected: list(Calculus.t),
+    )
+    : unit => {
+  Printf.printf(
+    "\ntrace: %s (%d steps, %d reps, %d warmup pass(es))\n",
+    trace.name,
+    List.length(trace.steps),
+    reps,
+    warmup,
+  );
+  List.iter(
+    policy => {
+      Printf.printf("\n[id-policy: %s]\n", policy);
+      Printf.printf(
+        "%-8s %5s  %-22s %9s %9s %9s %9s %7s\n",
+        "calculus",
+        "step",
+        "label",
+        "stat~med",
+        "eval~med",
+        "eval~IQR",
+        "eval~rng",
+        "entries",
+      );
+      Printf.printf("%s\n", String.make(88, '-'));
+      List.iter(
+        (a: aggregate) =>
+          if (a.policy == policy) {
+            Printf.printf(
+              "%-8s %5d  %-22s %9.2f %9.2f %9s %9s %7d\n",
+              Calculus.name(a.calculus),
+              a.step_index,
+              a.label,
+              a.statics.median,
+              a.eval.median,
+              Printf.sprintf("%.2f-%.2f", a.eval.p25, a.eval.p75),
+              Printf.sprintf("%.2f-%.2f", a.eval.min, a.eval.max),
+              a.entries,
+            );
+          },
+        aggs,
+      );
+    },
+    policies,
+  );
+
+  /* Totals across the trace, excluding step 0: the first evaluation is a cold
+   * run with an empty cache under every calculus, so including it flatters
+   * whichever scheme is slowest to warm up.
+   *
+   * The vs-a0 column is the number to read. Absolute times drift with machine
+   * load between runs, but a0 is the control -- it holds no cache, so nothing
+   * a calculus or an id-policy does can causally change it. Dividing by the a0
+   * measured in the SAME reps under the SAME policy cancels that drift, so a
+   * ratio is comparable across runs in a way a raw millisecond figure is not.
+   * A ratio at or above 1.00 means the scheme lost to doing no caching at
+   * all. */
+  Printf.printf(
+    "\n%-8s %-11s %12s %12s %16s %8s\n",
+    "calculus",
+    "id-policy",
+    "cold~med",
+    "incr~med",
+    "incr~IQR",
+    "vs-a0",
+  );
+  Printf.printf("%s\n", String.make(74, '-'));
+  List.iter(
+    policy => {
+      let totals_for = mode =>
+        List.filter_map(
+          ms => incr_total_of_rep(~policy, ~calculus=mode, ms),
+          per_rep,
+        );
+      let baseline =
+        switch (totals_for(Calculus.A0)) {
+        | [] => None
+        | ts => Some(stat_of_samples(List.map(snd, ts)).median)
+        };
+      List.iter(
+        (mode: Calculus.t) =>
+          switch (totals_for(mode)) {
+          | [] => ()
+          | totals =>
+            let cold = stat_of_samples(List.map(fst, totals));
+            let incr = stat_of_samples(List.map(snd, totals));
+            Printf.printf(
+              "%-8s %-11s %12.2f %12.2f %16s %8s\n",
+              Calculus.name(mode),
+              policy,
+              cold.median,
+              incr.median,
+              Printf.sprintf("%.2f-%.2f", incr.p25, incr.p75),
+              switch (baseline) {
+              | Some(b) when b > 0. =>
+                Printf.sprintf("%.3f", incr.median /. b)
+              | _ => "-"
+              },
+            );
+          },
+        selected,
+      );
+    },
+    policies,
+  );
+  print_newline();
 };
 
 /* Every calculus is sound with respect to plain evaluation, so each step must
@@ -226,83 +642,6 @@ let disagreements = (results: list(measurement)): option(list(string)) => {
   };
 };
 
-let json_of_measurement = (m: measurement): Yojson.Safe.t =>
-  `Assoc([
-    ("calculus", `String(Calculus.name(m.calculus))),
-    ("step", `Int(m.step_index)),
-    ("label", `String(m.label)),
-    ("statics_ms", `Float(m.statics_ms)),
-    ("eval_ms", `Float(m.eval_ms)),
-    ("entries", `Int(m.entries)),
-    ("result", `String(m.result)),
-  ]);
-
-let print_table = (trace: Trace.t, results: list(measurement)): unit => {
-  Printf.printf(
-    "\ntrace: %s (%d steps)\n",
-    trace.name,
-    List.length(trace.steps),
-  );
-  Printf.printf(
-    "%-8s %6s  %-28s %12s %12s %9s\n",
-    "calculus",
-    "step",
-    "label",
-    "statics(ms)",
-    "eval(ms)",
-    "entries",
-  );
-  Printf.printf("%s\n", String.make(82, '-'));
-  List.iter(
-    (m: measurement) =>
-      Printf.printf(
-        "%-8s %6d  %-28s %12.2f %12.2f %9d\n",
-        Calculus.name(m.calculus),
-        m.step_index,
-        m.label,
-        m.statics_ms,
-        m.eval_ms,
-        m.entries,
-      ),
-    results,
-  );
-
-  /* Totals across the trace, excluding step 0: the first evaluation is a cold
-   * run with an empty cache under every calculus, so including it flatters
-   * whichever scheme is slowest to warm up. */
-  Printf.printf(
-    "\n%-8s %14s %14s\n",
-    "calculus",
-    "cold(ms)",
-    "incr-total(ms)",
-  );
-  Printf.printf("%s\n", String.make(38, '-'));
-  List.iter(
-    (mode: Calculus.t) => {
-      let mine =
-        List.filter((m: measurement) => m.calculus == mode, results);
-      switch (mine) {
-      | [] => ()
-      | [cold, ...rest] =>
-        let total =
-          List.fold_left(
-            (acc, m: measurement) => acc +. m.eval_ms,
-            0.,
-            rest,
-          );
-        Printf.printf(
-          "%-8s %14.2f %14.2f\n",
-          Calculus.name(mode),
-          cold.eval_ms,
-          total,
-        );
-      };
-    },
-    Calculus.available,
-  );
-  print_newline();
-};
-
 /* Report soundness failures loudly and make them the process's exit status:
  * a benchmark run that quietly produced wrong answers is worse than one that
  * did not run at all. */
@@ -337,9 +676,35 @@ let report_disagreements = (trace: Trace.t, results: list(measurement)): bool =>
     false;
   };
 
+
+let default_reps = 5;
+let default_warmup = 1;
+
 let bench_incr =
-    (modes: list(string), json_out: option(string), paths: list(string))
+    (
+      modes: list(string),
+      reps: int,
+      warmup: int,
+      id_policies_sel: list(string),
+      json_out: option(string),
+      paths: list(string),
+    )
     : unit => {
+  let policies =
+    switch (id_policies_sel) {
+    | [] => [default_id_policy]
+    | ps =>
+      List.iter(p => ignore(validate_id_policy(p)), ps);
+      ps;
+    };
+  if (reps < 1) {
+    prerr_endline("--reps must be at least 1.");
+    exit(2);
+  };
+  if (warmup < 0) {
+    prerr_endline("--warmup cannot be negative.");
+    exit(2);
+  };
   let selected =
     switch (modes) {
     | [] => Calculus.available
@@ -366,42 +731,90 @@ let bench_incr =
     };
 
   let sound = ref(true);
-  let all =
-    List.concat_map(
-      path => {
-        let trace = Trace.load(path);
-        let results =
-          List.concat_map(calculus => run_trace(~calculus, trace), selected);
-        /* Timing one scheme in isolation is the normal way to use this, and it
-         * must not cost the soundness check, so run the control regardless and
-         * keep it out of the table when it was not asked for. */
-        let reference =
-          List.mem(Calculus.A0, selected)
-            ? [] : run_trace(~calculus=Calculus.A0, trace);
-        print_table(trace, results);
-        if (!report_disagreements(trace, reference @ results)) {
-          sound := false;
-        };
-        List.map(m => (path, m), results);
-      },
-      paths,
-    );
+  let all = ref([]);
+  List.iter(
+    path => {
+      let trace = Trace.load(path);
+      let per_rep = sample(~policies, ~selected, ~reps, ~warmup, trace);
+      let aggs =
+        aggregate_all(
+          ~policies,
+          ~selected,
+          ~n_steps=List.length(trace.steps),
+          per_rep,
+        );
+      /* Timing one scheme in isolation is the normal way to use this, and it
+       * must not cost the soundness check, so run the control regardless and
+       * keep it out of the table when it was not asked for. This reference
+       * pass runs EXACTLY ONCE no matter how large --reps is: it is a
+       * correctness oracle, not a sample, and repeating it would add
+       * evaluation work without adding information.
+       *
+       * The check itself is pure post-processing over result strings that the
+       * reps already produced, so it costs nothing inside the timed region.
+       * Feeding it every rep rather than just the first is therefore free,
+       * and strictly stronger: it would also catch a calculus that answered
+       * nondeterministically across passes. */
+      let reference =
+        List.mem(Calculus.A0, selected)
+          ? []
+          : {
+            /* Under the first swept policy, once. a0's VALUE must not depend
+             * on id-policy -- if it did that would itself be a soundness bug,
+             * and comparing every policy's measurements against this single
+             * reference is what would catch it. */
+            set_id_policy(List.hd(policies));
+            run_trace(~policy=List.hd(policies), ~calculus=Calculus.A0, trace);
+          };
+      print_table(~reps, ~warmup, ~policies, trace, aggs, per_rep, selected);
+      if (!report_disagreements(trace, reference @ List.concat(per_rep))) {
+        sound := false;
+      };
+      all := all^ @ [(path, aggs, per_rep)];
+    },
+    paths,
+  );
 
   switch (json_out) {
   | None => ()
   | Some(out) =>
-    let json =
-      `List(
-        List.map(
-          ((path, m)) =>
-            switch (json_of_measurement(m)) {
-            | `Assoc(fields) =>
-              `Assoc([("trace", `String(path)), ...fields])
-            | other => other
-            },
-          all,
-        ),
+    /* Both views: the aggregates that the table shows, and every raw sample
+     * behind them, so a reader can recompute the statistics or check the
+     * spread themselves rather than taking the median on trust. */
+    let with_trace = (path, fields) =>
+      switch (fields) {
+      | `Assoc(fs) => `Assoc([("trace", `String(path)), ...fs])
+      | other => other
+      };
+    let aggregates =
+      List.concat_map(
+        ((path, aggs, _)) =>
+          List.map(a => with_trace(path, json_of_aggregate(a)), aggs),
+        all^,
       );
+    let samples =
+      List.concat_map(
+        ((path, _, per_rep)) =>
+          List.concat(
+            List.mapi(
+              (rep, ms) =>
+                List.map(
+                  m => with_trace(path, json_of_measurement(~rep, m)),
+                  ms,
+                ),
+              per_rep,
+            ),
+          ),
+        all^,
+      );
+    let json =
+      `Assoc([
+        ("reps", `Int(reps)),
+        ("warmup", `Int(warmup)),
+        ("id_policies", `List(List.map(p => `String(p), policies))),
+        ("aggregates", `List(aggregates)),
+        ("samples", `List(samples)),
+      ]);
     Yojson.Safe.to_file(out, json);
     Printf.printf("wrote %s\n", out);
   };
