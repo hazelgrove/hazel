@@ -43,6 +43,7 @@ let (suite, exit_with_test_status) =
       Test_Substitution.tests,
       Test_IncrEval.tests,
       Test_IncrEvalProbes.tests,
+      Test_IncrEvalResidual.tests,
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
