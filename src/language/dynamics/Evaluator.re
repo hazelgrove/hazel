@@ -130,6 +130,41 @@ let rec evaluate =
       ~outbox,
     );
   let expr_id = DHExp.rep_id(exp);
+  /* A node evaluated as the DIRECT CHILD of a Closure reports back, through
+   * `in_closure`, that its result still depends on that closure's
+   * environment: Transition.wrap_closure_when_done takes the
+   * `(Some(f), Constructor | Indet | Value)` branch, calls `f()`, and hands
+   * the value back BARE, leaving the enclosing Closure to supply the
+   * environment. With `in_closure = None` the same rule instead wraps the
+   * value itself. So one program node has two possible final values, and
+   * which one it has is decided by a signal that travels OUT OF BAND --
+   * beside the value, not in it.
+   *
+   * That is what a cache entry cannot carry. A hit returns `entry.value`
+   * without running the transition, so `f()` is never called; the enclosing
+   * Closure sees `needs_closure` unset, takes its CompleteClosure step and
+   * strips the environment the bare value needs. The residual then mentions
+   * variables with no binder in it.
+   *
+   * Observe the signal here so that `record_value` below can store a value
+   * that means the same thing in any context. */
+  let (needed_closure, in_closure) =
+    switch (in_closure) {
+    /* `evaluate` runs once per node, so the common case -- not the direct
+     * child of a Closure -- must not allocate. */
+    | None => (None, None)
+    | Some(f) =>
+      let raised = ref(false);
+      (
+        Some(raised),
+        Some(
+          () => {
+            raised := true;
+            f();
+          },
+        ),
+      );
+    };
   /* Does the guard admit entries at this callstack? With depth_limit = 0
    * this is exactly `call_stack == []`, the condition it replaces. */
   let cacheable = (call_stack: CallStack.t): bool =>
@@ -441,6 +476,34 @@ let rec evaluate =
       )
       : Trampoline.t(DHExp.t) => {
     let key = cache_key(call_stack);
+    /* The value as a LATER run has to read it. That run will not re-run this
+     * node's transition, so it cannot re-raise `in_closure` (see
+     * `needed_closure` above); if this evaluation leaned on the enclosing
+     * closure for its environment, the entry has to carry that environment
+     * itself or the replayed value is an open term.
+     *
+     * Only the ENTRY is rewritten -- this run still returns `final_value`
+     * unchanged, so the closure the caller already holds is not duplicated.
+     * A value that is already a Closure carries its environment and is left
+     * alone. The recorded environment is the right one to carry: reuse_check
+     * only grants a hit when every name in this expression's co-context is
+     * bound as it was when the entry was recorded, which is the same premise
+     * that makes `entry.value` applicable at all. */
+    let record_value = (v: DHExp.t): DHExp.t =>
+      switch (needed_closure) {
+      | Some(raised) when raised^ =>
+        switch (v.term) {
+        | Grammar.Closure(_, _) => v
+        /* Mirror Transition's `generated`: a minted node gets a real id only
+         * when something (probe targets) can address it. */
+        | _ =>
+          let term: Exp.term = Grammar.Closure(env, v);
+          Id.Map.is_empty(eval_info.targets)
+            ? Exp.temp(term) : Exp.fresh(term);
+        }
+      | Some(_)
+      | None => v
+      };
     /* Record under the full (callstack, id) key. */
     let record = (state: EvaluatorState.t, entry) =>
       switch (key) {
@@ -521,7 +584,7 @@ let rec evaluate =
               IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
             ),
           prev_probe_targets,
-          value: final_value,
+          value: record_value(final_value),
           state: replay_state(state^),
         };
 
