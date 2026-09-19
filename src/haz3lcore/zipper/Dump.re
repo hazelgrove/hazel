@@ -60,8 +60,16 @@ let to_zipper = (z: Zipper.t, ~root) =>
     go(z);
   };
 
+/* `to_zipper` walks the caret across the whole program looking for somewhere
+ * to put the backpack down, and each single step costs O(program length)
+ * (Zipper.move -> Relatives.reassemble -> Segment.incomplete_tiles, and
+ * can_put_down -> local_missing_shards), so the walk is quadratic. With an
+ * empty backpack it has nothing to put down and only moves the caret, which
+ * unselect_and_zip discards -- so skip it. On a 2000-element list literal
+ * that is ~80% of MakeTerm.from_zip_for_sem; the remainder is a separate
+ * quadratic inside `go` itself. */
 let to_segment = (z: Zipper.t, ~root): Segment.t =>
   z
   |> Zipper.clear_unparsed_buffer
-  |> to_zipper(~root)
+  |> (z => Zipper.local_backpack(z) == [] ? z : to_zipper(z, ~root))
   |> Zipper.unselect_and_zip(~erase_buffer=true);
