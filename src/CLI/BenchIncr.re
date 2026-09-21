@@ -192,6 +192,82 @@ let run_trace =
   List.rev(measurements^);
 };
 
+/* ---------------------------------------------------------------------------
+ * Trace audit.
+ *
+ * A recorded agent trace is not automatically a fair benchmark. The failure
+ * mode that matters is the NO-OP step: an edit that leaves the program text
+ * exactly as it was. Agents produce these when they re-apply a change they
+ * have already made, and they are poison for a caching benchmark, because
+ * every calculus can serve an unchanged program entirely from cache. A trace
+ * padded with them shows a large speedup while measuring no real work.
+ *
+ * They are not silently dropped. A no-op is a real thing the agent did, and
+ * which steps were free is part of reading the result -- so the audit reports
+ * them and lets the caller decide, rather than quietly editing the evidence.
+ * ------------------------------------------------------------------------- */
+
+let text_of_zipper = (z: Haz3lcore.Zipper.t): string =>
+  Haz3lcore.Printer.of_zipper(z);
+
+type step_audit = {
+  index: int,
+  label: string,
+  /* The step's actions ran but left the program text unchanged. */
+  noop: bool,
+};
+
+/* Replay the trace once, untimed, recording which steps changed the program.
+ * Untimed and outside [sample] because this is about what the trace IS, not
+ * about how fast any calculus runs it. */
+let audit_trace = (trace: Trace.t): list(step_audit) => {
+  let zipper = ref(zipper_of_program(trace.program));
+  let text = ref(text_of_zipper(zipper^));
+  List.mapi(
+    (index, step: Trace.step) => {
+      zipper := List.fold_left(perform_action, zipper^, step.actions);
+      let after = text_of_zipper(zipper^);
+      let noop = after == text^ && step.actions != [];
+      text := after;
+      {
+        index,
+        label: step.label,
+        noop,
+      };
+    },
+    trace.steps,
+  );
+};
+
+let report_audit = (trace: Trace.t, audits: list(step_audit)): unit => {
+  let noops = List.filter(a => a.noop, audits);
+  /* Step 0 conventionally has no actions (it is the cold evaluation of the
+     starting program), so it is not counted as an edit either way. */
+  let edits =
+    List.length(
+      List.filter((s: Trace.step) => s.actions != [], trace.steps),
+    );
+  switch (noops) {
+  | [] => ()
+  | _ =>
+    Printf.eprintf(
+      "NOTE: %d of %s's %d edit step(s) left the program unchanged:\n",
+      List.length(noops),
+      trace.name,
+      edits,
+    );
+    List.iter(
+      a => Printf.eprintf("  step %d (%s)\n", a.index, a.label),
+      noops,
+    );
+    Printf.eprintf(
+      "  These are free under every caching scheme and cost a0 a full re-evaluation,\n\
+      \  so they flatter the incremental calculi. Read the per-step rows, not just the\n\
+      \  total, or re-record the trace.\n%!",
+    );
+  };
+};
+
 /* Structural id-matching policy (IdMatch.re:74-99), selectable so a run can
  * measure what id preservation is worth rather than assume it.
  *
@@ -212,19 +288,17 @@ let id_policies = ["none", "isomorphic", "default"];
 
 let validate_id_policy = (name: string): Haz3lcore.IdMatch.Policy.t =>
   Haz3lcore.IdMatch.Policy.(
-    {
-        switch (name) {
-        | "none" => none
-        | "isomorphic" => isomorphic_only
-        | "default" => default
-        | other =>
-          Printf.eprintf(
-            "Unknown --id-policy %s. Available: %s\n",
-            other,
-            String.concat(", ", id_policies),
-          );
-          exit(2);
-        }
+    switch (name) {
+    | "none" => none
+    | "isomorphic" => isomorphic_only
+    | "default" => default
+    | other =>
+      Printf.eprintf(
+        "Unknown --id-policy %s. Available: %s\n",
+        other,
+        String.concat(", ", id_policies),
+      );
+      exit(2);
     }
   );
 
@@ -312,7 +386,8 @@ let aggregate_step = (ms: list(measurement)): aggregate =>
       calculus: first.calculus,
       step_index: first.step_index,
       label: first.label,
-      statics: stat_of_samples(List.map((m: measurement) => m.statics_ms, ms)),
+      statics:
+        stat_of_samples(List.map((m: measurement) => m.statics_ms, ms)),
       eval: stat_of_samples(List.map((m: measurement) => m.eval_ms, ms)),
       entries: first.entries,
       result: first.result,
@@ -379,6 +454,85 @@ let rotate = (xs: list('a), i: int): list('a) => {
   };
 };
 
+/* Sum of eval time over every step but the first, for one rep. The summary
+ * takes the median of these per-rep totals rather than summing the per-step
+ * medians: the latter is not a quantity any single run ever exhibited. */
+let incr_total_of_rep =
+    (~policy: string, ~calculus: Calculus.t, ms: list(measurement))
+    : option((float, float)) => {
+  let mine =
+    List.filter(
+      (m: measurement) => m.policy == policy && m.calculus == calculus,
+      ms,
+    )
+    |> List.sort((a: measurement, b: measurement) =>
+         compare(a.step_index, b.step_index)
+       );
+  switch (mine) {
+  | [] => None
+  | [cold, ...rest] =>
+    Some((
+      cold.eval_ms,
+      List.fold_left((acc, m: measurement) => acc +. m.eval_ms, 0., rest),
+    ))
+  };
+};
+
+/* ---------------------------------------------------------------------------
+ * Progress.
+ *
+ * A full sweep is reps x policies x calculi replays of a trace, and on a trace
+ * whose program takes a few hundred ms to evaluate that is minutes of silence
+ * before the table appears. Report each completed pass on STDERR -- stdout
+ * carries the table, which a caller may be piping -- so a long run can be
+ * watched, and so a run that is going to take an hour says so in the first
+ * few seconds rather than at the end.
+ * ------------------------------------------------------------------------- */
+
+let fmt_duration = (ms: float): string =>
+  if (ms < 1000.) {
+    Printf.sprintf("%.0fms", ms);
+  } else if (ms < 60_000.) {
+    Printf.sprintf("%.1fs", ms /. 1000.);
+  } else {
+    Printf.sprintf(
+      "%dm%02ds",
+      int_of_float(ms) / 60_000,
+      int_of_float(ms) mod 60_000 / 1000,
+    );
+  };
+
+/* [done_] counts passes finished, [total] passes planned. The ETA is a flat
+ * extrapolation from the mean pass so far; passes are the same amount of work
+ * as each other, so that is honest enough to steer by, and it is labelled as
+ * an estimate rather than a promise. */
+let report_progress =
+    (
+      ~t_start: float,
+      ~done_: int,
+      ~total: int,
+      ~phase: string,
+      ~detail: string,
+    )
+    : unit => {
+  let elapsed = now() -. t_start;
+  let eta =
+    done_ == 0
+      ? "?"
+      : fmt_duration(
+          elapsed /. float_of_int(done_) *. float_of_int(total - done_),
+        );
+  Printf.eprintf(
+    "[%3d/%3d] %-7s %-28s elapsed %8s  eta %8s\n%!",
+    done_,
+    total,
+    phase,
+    detail,
+    fmt_duration(elapsed),
+    eta,
+  );
+};
+
 /* Timed sampling.
  *
  * [warmup] full passes over every (policy, calculus) run first and are
@@ -404,13 +558,54 @@ let sample =
       trace: Trace.t,
     )
     : list(list(measurement)) => {
-  let pass = (policy, calculus) => {
+  let n_combos = List.length(policies) * List.length(selected);
+  let total = (warmup + reps) * n_combos;
+  let t_start = now();
+  let done_ = ref(0);
+  Printf.eprintf(
+    "%s: %d step(s) x %d calculi x %d polic(ies) x (%d warmup + %d reps) = %d passes\n%!",
+    trace.name,
+    List.length(trace.steps),
+    List.length(selected),
+    List.length(policies),
+    warmup,
+    reps,
+    total,
+  );
+  let pass = (~phase: string, policy, calculus) => {
     set_id_policy(policy);
-    run_trace(~policy, ~calculus, trace);
+    let ms = run_trace(~policy, ~calculus, trace);
+    incr(done_);
+    report_progress(
+      ~t_start,
+      ~done_=done_^,
+      ~total,
+      ~phase,
+      ~detail=
+        Printf.sprintf(
+          "%s/%s %s",
+          Calculus.name(calculus),
+          policy,
+          /* Eval time for this pass excluding the cold step, which is the
+           * quantity the summary table ends up reporting. Showing it live
+           * means a sweep that is going wrong is visible immediately rather
+           * than after every rep has been paid for. */
+          switch (incr_total_of_rep(~policy, ~calculus, ms)) {
+          | Some((_, incr_ms)) =>
+            Printf.sprintf("incr %s", fmt_duration(incr_ms))
+          | None => ""
+          },
+        ),
+    );
+    ms;
   };
   for (_ in 1 to warmup) {
     List.iter(
-      policy => List.iter(calculus => ignore(pass(policy, calculus)), selected),
+      policy =>
+        List.iter(
+          calculus => ignore(pass(~phase="warmup", policy, calculus)),
+          selected,
+        ),
       policies,
     );
   };
@@ -418,7 +613,8 @@ let sample =
     List.concat_map(
       policy =>
         List.concat_map(
-          calculus => pass(policy, calculus),
+          calculus =>
+            pass(~phase=Printf.sprintf("rep %d", rep + 1), policy, calculus),
           rotate(selected, rep),
         ),
       rotate(policies, rep),
@@ -460,30 +656,6 @@ let json_of_aggregate = (a: aggregate): Yojson.Safe.t =>
     ("entries", `Int(a.entries)),
     ("result", `String(a.result)),
   ]);
-
-/* Sum of eval time over every step but the first, for one rep. The summary
- * takes the median of these per-rep totals rather than summing the per-step
- * medians: the latter is not a quantity any single run ever exhibited. */
-let incr_total_of_rep =
-    (~policy: string, ~calculus: Calculus.t, ms: list(measurement))
-    : option((float, float)) => {
-  let mine =
-    List.filter(
-      (m: measurement) => m.policy == policy && m.calculus == calculus,
-      ms,
-    )
-    |> List.sort((a: measurement, b: measurement) =>
-         compare(a.step_index, b.step_index)
-       );
-  switch (mine) {
-  | [] => None
-  | [cold, ...rest] =>
-    Some((
-      cold.eval_ms,
-      List.fold_left((acc, m: measurement) => acc +. m.eval_ms, 0., rest),
-    ))
-  };
-};
 
 let print_table =
     (
@@ -676,7 +848,6 @@ let report_disagreements = (trace: Trace.t, results: list(measurement)): bool =>
     false;
   };
 
-
 let default_reps = 5;
 let default_warmup = 1;
 
@@ -735,6 +906,11 @@ let bench_incr =
   List.iter(
     path => {
       let trace = Trace.load(path);
+      /* Before any timing: say what this trace actually contains, so a
+         suspicious result can be read against the trace's shape rather than
+         taken at face value. */
+      let audits = audit_trace(trace);
+      report_audit(trace, audits);
       let per_rep = sample(~policies, ~selected, ~reps, ~warmup, trace);
       let aggs =
         aggregate_all(
@@ -758,13 +934,17 @@ let bench_incr =
       let reference =
         List.mem(Calculus.A0, selected)
           ? []
+          /* Under the first swept policy, once. a0's VALUE must not depend
+           * on id-policy -- if it did that would itself be a soundness bug,
+           * and comparing every policy's measurements against this single
+           * reference is what would catch it. */
           : {
-            /* Under the first swept policy, once. a0's VALUE must not depend
-             * on id-policy -- if it did that would itself be a soundness bug,
-             * and comparing every policy's measurements against this single
-             * reference is what would catch it. */
             set_id_policy(List.hd(policies));
-            run_trace(~policy=List.hd(policies), ~calculus=Calculus.A0, trace);
+            run_trace(
+              ~policy=List.hd(policies),
+              ~calculus=Calculus.A0,
+              trace,
+            );
           };
       print_table(~reps, ~warmup, ~policies, trace, aggs, per_rep, selected);
       if (!report_disagreements(trace, reference @ List.concat(per_rep))) {
