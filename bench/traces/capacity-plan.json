@@ -1,0 +1,43 @@
+{
+  "name": "capacity-plan",
+  "program": "# Depot capacity model.                                                    #\n# Routes are simulated rather than listed, so the only way to learn        #\n# anything about the distribution is to compute it.                        #\n\nlet noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet fleet_size = 400 in\n\n# A route is (id, region, distance_km, load_units). #\nlet routes : [(Int, Int, Int, Int)] =\n  init(fleet_size, fun i ->\n    (i,\n     int_mod(noise(i), 5),\n     int_mod(noise(i + 1), 120) + 10,\n     int_mod(noise(i + 2), 40) + 1))\nin\n\nlet route_id : (Int, Int, Int, Int) -> Int =\n  fun (r, _, _, _) -> r\nin\nlet region : (Int, Int, Int, Int) -> Int =\n  fun (_, g, _, _) -> g\nin\nlet distance : (Int, Int, Int, Int) -> Int =\n  fun (_, _, d, _) -> d\nin\nlet load : (Int, Int, Int, Int) -> Int =\n  fun (_, _, _, l) -> l\nin\n\nlet km_rate = 3 in\nlet handling_rate = 7 in\n\n# Handling is charged once per route here. #\nlet cost_of : (Int, Int, Int, Int) -> Int =\n  fun r -> distance(r) * km_rate + handling_rate\nin\n\nlet sum : [Int] -> Int =\n  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)\nin\nlet count : [(Int, Int, Int, Int)] -> Int =\n  fun rs -> length(rs)\nin\n\nlet in_region : Int -> [(Int, Int, Int, Int)] =\n  fun g -> filter(routes, fun r -> region(r) == g)\nin\nlet costs_of : [(Int, Int, Int, Int)] -> [Int] =\n  fun rs -> map(rs, cost_of)\nin\n\nlet total_cost = sum(costs_of(routes)) in\n\ntotal_cost",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition cost_of\"fun r -> distance(r) * km_rate + load(r) * handling_rate\"))"
+      ]
+    },
+    {
+      "label": "insert_after",
+      "actions": [
+        "(Structural(Insert After total_cost\"let heavy_cutoff : Int = 20 in\\nlet heavy : [(Int, Int, Int, Int)] =\\n  let filter_heavy(rs) =\\n    case rs\\n    | [] => []\\n    | hd :: tl =>\\n        if load(hd) > heavy_cutoff\\n          then hd :: filter_heavy(tl)\\n          else filter_heavy(tl)\\n    end\\n  in\\n  filter_heavy(routes)\\nin\\nlet heavy_count = count(heavy) in\"))"
+      ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition heavy_cutoff\"^^slider(30)\"))"
+      ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition heavy_cutoff\"^^slider(31)\"))"
+      ]
+    },
+    {
+      "label": "insert_after",
+      "actions": [
+        "(Structural(Insert After heavy_count\"let region_cost(r_id) = sum(costs_of(in_region(r_id))) in\\nlet costs = (region_cost(0), region_cost(1), region_cost(2), region_cost(3), region_cost(4)) in\\nlet cheapest_region =\\n  let (c0, c1, c2, c3, c4) = costs in\\n  if c0 <= c1 && c0 <= c2 && c0 <= c3 && c0 <= c4 then 0\\n  else if c1 <= c2 && c1 <= c3 && c1 <= c4 then 1\\n  else if c2 <= c3 && c2 <= c4 then 2\\n  else if c3 <= c4 then 3\\n  else 4\\nin\"))"
+      ]
+    },
+    {
+      "label": "update_body",
+      "actions": [
+        "(Structural(Update Body cheapest_region\"(total_cost, heavy_count, cheapest_region)\"))"
+      ]
+    }
+  ]
+}

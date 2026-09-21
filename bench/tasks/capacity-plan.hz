@@ -1,0 +1,56 @@
+# Depot capacity model.                                                    #
+# Routes are simulated rather than listed, so the only way to learn        #
+# anything about the distribution is to compute it.                        #
+
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+let fleet_size = 400 in
+
+# A route is (id, region, distance_km, load_units). #
+let routes : [(Int, Int, Int, Int)] =
+  init(fleet_size, fun i ->
+    (i,
+     int_mod(noise(i), 5),
+     int_mod(noise(i + 1), 120) + 10,
+     int_mod(noise(i + 2), 40) + 1))
+in
+
+let route_id : (Int, Int, Int, Int) -> Int =
+  fun (r, _, _, _) -> r
+in
+let region : (Int, Int, Int, Int) -> Int =
+  fun (_, g, _, _) -> g
+in
+let distance : (Int, Int, Int, Int) -> Int =
+  fun (_, _, d, _) -> d
+in
+let load : (Int, Int, Int, Int) -> Int =
+  fun (_, _, _, l) -> l
+in
+
+let km_rate = 3 in
+let handling_rate = 7 in
+
+# Handling is charged once per route here. #
+let cost_of : (Int, Int, Int, Int) -> Int =
+  fun r -> distance(r) * km_rate + handling_rate
+in
+
+let sum : [Int] -> Int =
+  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+in
+let count : [(Int, Int, Int, Int)] -> Int =
+  fun rs -> length(rs)
+in
+
+let in_region : Int -> [(Int, Int, Int, Int)] =
+  fun g -> filter(routes, fun r -> region(r) == g)
+in
+let costs_of : [(Int, Int, Int, Int)] -> [Int] =
+  fun rs -> map(rs, cost_of)
+in
+
+let total_cost = sum(costs_of(routes)) in
+
+total_cost

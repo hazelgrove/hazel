@@ -1,0 +1,79 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+
+trace: capacity-plan (7 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       21.94    312.21 239.48-693.85 200.13-852.53       0
+a0           1  update_definition          13.81    260.41 251.34-304.37 183.15-331.04       0
+a0           2  insert_after               15.42    380.55 358.19-393.07 303.02-731.20       0
+a0           3  update_definition          16.18    296.01 283.48-350.18 255.13-362.83       0
+a0           4  update_definition          20.82    273.46 261.60-318.07 225.28-379.96       0
+a0           5  insert_after               38.50    656.48 607.37-734.39 577.18-743.68       0
+a0           6  update_body                18.12    624.22 601.12-627.15 600.60-754.34       0
+aPL          0  cold                       16.62    210.43 200.64-219.57 195.77-234.15      39
+aPL          1  update_definition          10.73    127.43 123.28-192.90 114.70-196.54      39
+aPL          2  insert_after               18.11     62.17 59.56-63.66 45.82-115.53      51
+aPL          3  update_definition          19.56     51.82 47.34-72.26 37.51-119.07      52
+aPL          4  update_definition          14.25     50.03 46.92-50.43 39.58-79.62      52
+aPL          5  insert_after               18.01    493.40 328.37-500.54 294.10-766.81     102
+aPL          6  update_body                23.67     13.73 9.35-15.55 9.13-41.15     106
+aM           0  cold                       16.67    248.19 246.69-260.24 232.10-297.59      39
+aM           1  update_definition          11.16    122.18 101.62-140.67 99.58-1083.14      39
+aM           2  insert_after               14.62     53.28 52.19-54.33 47.66-77.85      51
+aM           3  update_definition          12.72     54.33 45.04-58.61 44.29-59.81      52
+aM           4  update_definition          13.75     54.77 50.16-55.77 38.90-70.21      52
+aM           5  insert_after               20.77    434.89 352.36-437.96 292.40-522.40     102
+aM           6  update_body                18.21     14.04 12.76-21.49 9.68-24.33     106
+a2           0  cold                       22.52    314.07 235.07-471.60 216.22-857.00      39
+a2           1  update_definition          14.44    143.07 118.47-193.80 113.52-338.54      39
+a2           2  insert_after               16.76     66.73 65.77-78.61 59.45-80.95      51
+a2           3  update_definition          14.91     57.58 56.46-68.23 52.94-85.46      52
+a2           4  update_definition          13.49     50.54 49.60-70.89 48.15-124.90      52
+a2           5  insert_after               17.96    419.29 361.02-429.74 305.41-562.62     102
+a2           6  update_body                24.07     12.93 10.84-27.51 8.92-51.40     106
+aStar        0  cold                       16.29    229.75 209.28-247.12 149.89-247.68      39
+aStar        1  update_definition          10.57    123.19 122.58-129.37 121.48-142.17      39
+aStar        2  insert_after               14.05     60.20 53.97-65.03 50.72-85.01      51
+aStar        3  update_definition          14.23     54.08 51.22-56.29 44.94-92.79      52
+aStar        4  update_definition          15.51     59.56 48.98-66.63 46.89-79.79      52
+aStar        5  insert_after               35.29    474.08 470.09-494.57 421.44-521.58     102
+aStar        6  update_body                22.15     15.84 15.28-16.05 13.42-16.41     106
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           312.21      2650.48  2471.06-2724.30    1.000
+aPL      default           210.43       820.40    777.17-888.73    0.310
+aM       default           248.19       795.06    639.38-808.75    0.300
+a2       default           314.07       756.48    690.22-894.91    0.285
+aStar    default           229.75       812.98    751.63-821.45    0.307
+
+wrote /Users/matt/git/hazel/incr-eval-controller/bench/results/capacity-plan.bench.json
+
+expected of this task:
+  The combined task, and the largest program in the set (~55 lines, ~278ms 
+  per evaluation). It is deliberately a mixture rather than a clean case, so 
+  it should land BETWEEN add-metrics and fix-middle rather than beating 
+  either.
+  
+  It exercises all three edit locations in one trace: a middle-of-pipeline 
+  fix to `cost_of` (step 1) which invalidates every cost downstream but 
+  leaves the expensive `routes` binding cached; an empirical search over 
+  `heavy_cutoff` (step 2) which is pure iterate-and-retry with everything 
+  above it stable; and additive bindings for the per-region analysis (step 3) 
+  which is the best case. It also requires planning -- the sub-goals are 
+  ordered by dependency, and the prompt says so without giving the order away 
+  for free.
+  
+  NOTE: `goal` is an oracle the agent never sees. Expected answer is (140046, 
+  98, 4): total cost 140046 once handling scales with load, 98 heavy routes 
+  at cutoff 30 (the smallest cutoff giving fewer than 100), and region 4 
+  cheapest at 27324. There is no cutoff giving exactly 100 heavy routes, 
+  which is why the target is phrased as a threshold rather than a percentage.
+  
+  This is the task most likely to produce a messy trace, because it is the 
+  one the agent is most likely to get partly wrong. A partial or failed 
+  attempt is still a usable measurement so long as the no-op audit stays 
+  clean -- but read the audit and the goal verdict before quoting a number 
+  from it.
