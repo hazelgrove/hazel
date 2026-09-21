@@ -1,0 +1,46 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+
+trace: reshape-source (4 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                        9.79    133.04 112.81-291.18 98.54-321.95       0
+a0           1  update_definition          10.34    157.24 144.17-181.59 117.82-197.71       0
+a0           2  update_definition          10.34    158.90 136.21-160.27 119.51-169.14       0
+a0           3  update_definition           8.14    161.18 155.78-172.76 154.95-199.79       0
+aPL          0  cold                       12.90    133.57 131.23-145.95 123.85-224.55      31
+aPL          1  update_definition           8.53    153.79 130.64-166.41 125.16-172.54      31
+aPL          2  update_definition           7.09    121.95 119.50-138.03 114.59-152.55      31
+aPL          3  update_definition           9.83    178.49 174.74-184.81 125.66-275.58      31
+aM           0  cold                       11.62    130.43 117.13-154.54 111.62-157.76      31
+aM           1  update_definition           9.32    170.44 137.85-172.06 104.80-277.31      31
+aM           2  update_definition           9.35    137.16 129.65-151.89 107.92-204.13      31
+aM           3  update_definition           8.06    185.01 175.15-234.75 142.73-290.01      31
+a2           0  cold                       14.85    151.14 148.50-167.98 120.18-219.63      31
+a2           1  update_definition           9.76    166.83 162.81-170.82 157.25-182.79      31
+a2           2  update_definition           8.78    184.01 169.48-189.61 134.57-204.84      31
+a2           3  update_definition           9.46    206.95 171.51-222.28 153.58-313.10      31
+aStar        0  cold                       14.99    169.21 143.76-241.53 125.53-303.50      31
+aStar        1  update_definition          10.18    197.87 185.84-302.85 119.51-342.09      31
+aStar        2  update_definition           7.33    162.71 156.81-162.85 118.13-200.47      31
+aStar        3  update_definition           7.26    145.60 142.02-280.97 134.10-404.18      31
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           133.04       501.66    448.41-513.11    1.000
+aPL      default           133.57       431.92    424.87-503.58    0.861
+aM       default           130.43       558.70    419.46-589.63    1.114
+a2       default           151.14       539.24    527.95-577.11    1.075
+aStar    default           169.21       611.30    502.60-746.83    1.219
+
+wrote /Users/matt/git/hazel/incr-eval-controller/bench/results/reshape-source.bench.json
+
+expected of this task:
+  NEGATIVE CONTROL. Every edit changes the data source at the very TOP of the 
+  program, so every cached result downstream is invalidated and there is 
+  nothing legitimate to re-use. Incremental evaluation should show no gain 
+  here, and may lose slightly to the cost of maintaining a cache it never 
+  gets to read. A calculus that looks fast on this trace is reusing something 
+  it should not be, which the harness's a0 soundness check should catch. 
+  Reporting this alongside the wins is what keeps the other numbers credible.

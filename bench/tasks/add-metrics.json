@@ -1,0 +1,8 @@
+{
+  "name": "add-metrics",
+  "program": "bench/tasks/add-metrics.hz",
+  "feedback": 4,
+  "goal": "(30466, 1081, 40, 14)",
+  "prompt": "The program summarises station 2's readings with a single total. Add three more summary bindings, each defined just before `total`, and then change the final expression to return all four numbers as a tuple in this order: (total, peak, busy, mean_cost).\n\n  - `peak`: the largest single billed amount among station 2's readings.\n  - `busy`: how many of station 2's readings have volume greater than 25.\n  - `mean_cost`: the integer mean cost across station 2's readings (sum of cost divided by the number of readings).\n\nReuse the existing `target`, `billed`, `volume` and `cost` bindings rather than recomputing the filter. Add the bindings one at a time and check the value after each. When all four numbers are in place and the program evaluates cleanly, say DONE and stop.",
+  "expectation": "Best case for incremental evaluation. Every edit is additive and lands BELOW the expensive part of the program: `readings` (300 generated rows) and `target` (the filter over them) are never touched, so a calculus that caches them should skip almost all of the work on every step after the first. If incremental evaluation does not win here, it will not win anywhere."
+}

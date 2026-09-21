@@ -1,0 +1,39 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+
+trace: fix-middle (3 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       13.79    161.33 140.75-164.00 129.38-181.18       0
+a0           1  update_definition           8.95    152.94 140.07-162.51 117.74-168.41       0
+a0           2  update_definition           9.80    142.43 141.67-154.55 109.64-155.82       0
+aPL          0  cold                       12.77    152.06 132.96-168.22 104.29-224.91      35
+aPL          1  update_definition           7.45     22.32 22.29-35.65 20.88-44.66      35
+aPL          2  update_definition           8.56     16.08 14.29-16.74 13.52-79.10      35
+aM           0  cold                       12.66    136.28 123.80-136.86 116.77-143.98      35
+aM           1  update_definition           6.50     19.01 18.53-21.54 18.24-69.80      35
+aM           2  update_definition           7.39     13.34 13.07-14.90 11.09-20.93      35
+a2           0  cold                       10.93    149.15 136.58-180.09 125.95-241.27      35
+a2           1  update_definition           8.86     35.24 25.58-41.84 24.27-46.52      35
+a2           2  update_definition           7.76     21.20 16.78-24.43 15.07-33.65      35
+aStar        0  cold                       13.24    167.60 160.28-173.55 112.49-365.32      35
+aStar        1  update_definition           9.23     35.29 33.39-43.25 22.45-70.29      35
+aStar        2  update_definition           8.83     20.66 19.39-27.63 14.75-40.17      35
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           161.33       294.60    282.50-317.06    1.000
+aPL      default           152.06        52.38      36.61-60.74    0.178
+aM       default           136.28        32.35      31.60-36.44    0.110
+a2       default           149.15        56.43      42.36-66.27    0.192
+aStar    default           167.60        63.92      52.79-75.46    0.217
+
+wrote /Users/matt/git/hazel/incr-eval-controller/bench/results/fix-middle.bench.json
+
+expected of this task:
+  The typical case, and the honest middle of the range. The edits land in the 
+  MIDDLE of the pipeline: everything above `billed` (`readings`, 
+  `from_station`, `target`) is unchanged and cacheable, but everything below 
+  it has to be recomputed. Expect a real but smaller win than `add-metrics` 
+  -- this is what most debugging actually looks like.

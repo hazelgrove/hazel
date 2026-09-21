@@ -1,0 +1,50 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+
+trace: add-metrics (5 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       15.86    184.20 163.33-203.52 131.59-224.46       0
+a0           1  insert_before               9.30    141.97 137.87-168.26 137.48-232.40       0
+a0           2  insert_before              11.42    179.65 151.57-188.27 146.03-237.67       0
+a0           3  insert_before              12.50    247.29 199.01-249.99 181.29-286.82       0
+a0           4  update_body                12.35    188.03 172.96-284.20 171.24-408.00       0
+aPL          0  cold                       12.46    141.63 127.03-151.57 124.08-209.13      31
+aPL          1  insert_before              12.06     19.31 18.39-23.22 16.46-26.87      40
+aPL          2  insert_before               9.76     12.84 12.13-13.41 11.30-16.37      48
+aPL          3  insert_before              14.75     23.56 20.53-30.96 20.41-34.61      65
+aPL          4  update_body                12.77      4.48 3.91-5.41 3.73-7.00      70
+aM           0  cold                       19.25    182.16 141.48-200.58 127.77-367.85      31
+aM           1  insert_before              11.25     26.59 20.77-30.49 20.04-50.29      40
+aM           2  insert_before              11.31     15.97 14.93-16.65 11.94-18.84      48
+aM           3  insert_before              13.92     20.87 18.30-26.05 18.03-35.73      65
+aM           4  update_body                13.73      4.55 4.41-4.58 2.93-9.73      70
+a2           0  cold                       13.55    190.48 170.43-231.67 148.73-231.83      31
+a2           1  insert_before               9.29     27.89 24.47-35.56 22.53-41.57      40
+a2           2  insert_before              11.84     18.79 15.67-26.81 14.73-43.66      48
+a2           3  insert_before              13.20     25.95 21.49-29.65 20.83-46.17      65
+a2           4  update_body                14.02      3.60 3.07-3.96 2.80-8.18      70
+aStar        0  cold                       14.59    154.43 150.95-203.66 107.40-258.08      31
+aStar        1  insert_before              10.43     31.85 24.91-36.60 17.60-90.12      40
+aStar        2  insert_before              11.88     29.45 25.96-42.28 20.55-153.83      48
+aStar        3  insert_before              14.00     32.83 32.65-41.62 25.35-42.51      65
+aStar        4  update_body                13.87      7.09 4.24-7.41 4.21-8.20      70
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           184.20       839.39    704.74-849.01    1.000
+aPL      default           141.63        65.71      60.19-67.56    0.078
+aM       default           182.16        70.85      58.14-77.76    0.084
+a2       default           190.48        84.60      63.77-87.60    0.101
+aStar    default           154.43       111.89     83.62-123.74    0.133
+
+wrote /Users/matt/git/hazel/incr-eval-controller/bench/results/add-metrics.bench.json
+
+expected of this task:
+  Best case for incremental evaluation. Every edit is additive and lands 
+  BELOW the expensive part of the program: `readings` (300 generated rows) 
+  and `target` (the filter over them) are never touched, so a calculus that 
+  caches them should skip almost all of the work on every step after the 
+  first. If incremental evaluation does not win here, it will not win 
+  anywhere.

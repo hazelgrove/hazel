@@ -1,0 +1,8 @@
+{
+  "name": "fix-middle",
+  "program": "bench/tasks/fix-middle.hz",
+  "feedback": 6,
+  "goal": "30700",
+  "prompt": "This billing report is wrong in two places.\n\n  1. A reading's billed amount is meant to be its volume multiplied by its unit cost, not added to it.\n  2. `with_surcharge` is supposed to add a 3 unit surcharge to every amount, but it currently leaves the amounts alone.\n\nFix both, checking the value after each fix so you can see the effect of the change you just made. When both are fixed, say DONE and stop.",
+  "expectation": "The typical case, and the honest middle of the range. The edits land in the MIDDLE of the pipeline: everything above `billed` (`readings`, `from_station`, `target`) is unchanged and cacheable, but everything below it has to be recomputed. Expect a real but smaller win than `add-metrics` -- this is what most debugging actually looks like."
+}

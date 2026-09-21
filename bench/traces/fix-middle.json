@@ -1,0 +1,19 @@
+{
+  "name": "fix-middle",
+  "program": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) + cost(r))\nin\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n)\nin\nlet target = from_station(2) in\nlet total = subtotal(with_surcharge(billed(target))) in\ntotal",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition billed\"fun rows -> map(rows, fun r -> volume(r) * cost(r))\"))"
+      ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition with_surcharge\"fun amounts -> map(amounts, fun n -> n + 3)\"))"
+      ]
+    }
+  ]
+}

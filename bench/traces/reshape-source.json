@@ -1,0 +1,25 @@
+{
+  "name": "reshape-source",
+  "program": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\nlet target = from_station(2) in\nlet total = subtotal(billed(target)) in\ntotal",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition noise\"fun i -> int_mod(i * 6271 + 104729, 10007)\"))"
+      ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition noise\"fun i -> int_mod(i * 6271 + 99991, 10007)\"))"
+      ]
+    },
+    {
+      "label": "update_definition",
+      "actions": [
+        "(Structural(Update Definition readings\"init(360, fun i ->\\n    (int_mod(noise(i), 4),\\n     int_mod(noise(i + 1), 50) + 1,\\n     int_mod(noise(i + 2), 20) + 5))\"))"
+      ]
+    }
+  ]
+}

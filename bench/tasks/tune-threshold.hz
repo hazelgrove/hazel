@@ -1,0 +1,29 @@
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+let readings : [(Int, Int, Int)] =
+  init(300, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+let station : (Int, Int, Int) -> Int =
+  fun (s, _, _) -> s
+in
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+let cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+let billed : [(Int, Int, Int)] -> [Int] =
+  fun rows -> map(rows, fun r -> volume(r) * cost(r))
+in
+let subtotal : [Int] -> Int =
+  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)
+in
+let all_amounts = billed(readings) in
+let threshold = 100 in
+let qualifying = filter(all_amounts, fun n -> n > threshold) in
+let qualifying_total = subtotal(qualifying) in
+qualifying_total
