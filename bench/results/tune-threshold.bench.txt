@@ -1,0 +1,79 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+
+trace: tune-threshold (10 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       11.55    189.96 180.67-209.82 154.20-211.57       0
+a0           1  update_definition           7.90    160.16 152.61-201.26 122.33-257.40       0
+a0           2  update_binding_clause       8.51    240.83 201.31-333.04 181.51-470.63       0
+a0           3  update_binding_clause       9.03    184.91 163.75-267.84 160.96-303.69       0
+a0           4  update_binding_clause       9.82    167.65 164.39-217.50 157.55-305.22       0
+a0           5  update_binding_clause       9.91    192.61 179.31-196.09 129.02-215.95       0
+a0           6  update_binding_clause       9.33    205.26 136.57-216.22 114.73-238.32       0
+a0           7  update_binding_clause       8.76    164.44 150.56-177.55 122.64-200.83       0
+a0           8  update_binding_clause      10.14    184.45 160.69-192.98 132.06-204.89       0
+a0           9  update_binding_clause       6.66    158.29 137.20-159.35 125.29-185.40       0
+aPL          0  cold                       12.32    308.00 156.70-766.39 143.59-1405.01      35
+aPL          1  update_definition           7.73     35.15 34.27-42.34 28.86-119.47      35
+aPL          2  update_binding_clause       8.82     46.58 44.45-51.59 39.57-55.19      35
+aPL          3  update_binding_clause       9.26     37.54 33.48-38.36 28.62-42.71      35
+aPL          4  update_binding_clause       8.16     37.32 33.97-38.80 28.41-48.34      35
+aPL          5  update_binding_clause       7.93     38.75 33.78-43.13 26.85-45.77      35
+aPL          6  update_binding_clause       6.63     42.83 34.09-44.69 31.21-45.52      35
+aPL          7  update_binding_clause       8.53     39.50 35.23-41.15 28.00-61.28      35
+aPL          8  update_binding_clause      10.03     41.89 36.14-44.48 27.83-45.39      35
+aPL          9  update_binding_clause       7.43     39.99 35.35-41.72 33.25-42.68      35
+aM           0  cold                        9.20    176.03 173.24-179.89 136.23-308.38      35
+aM           1  update_definition           6.56     33.90 33.26-53.20 24.34-75.55      35
+aM           2  update_binding_clause       7.29     41.93 35.79-43.11 31.28-48.99      35
+aM           3  update_binding_clause       6.21     38.89 37.54-39.66 30.88-44.76      35
+aM           4  update_binding_clause       8.77     35.05 32.90-36.61 28.80-36.62      35
+aM           5  update_binding_clause       7.92     40.17 35.13-42.14 34.82-47.42      35
+aM           6  update_binding_clause       6.69     34.41 29.06-40.96 28.07-57.05      35
+aM           7  update_binding_clause       7.27     34.88 34.35-37.06 27.63-40.34      35
+aM           8  update_binding_clause       9.95     40.88 37.42-42.53 30.56-46.35      35
+aM           9  update_binding_clause       7.24     36.82 32.68-44.92 27.71-56.57      35
+a2           0  cold                       12.38    192.11 182.38-210.94 180.13-240.24      35
+a2           1  update_definition           6.57     36.06 35.11-42.77 34.59-43.19      35
+a2           2  update_binding_clause       8.04     55.78 43.15-71.06 40.70-81.40      35
+a2           3  update_binding_clause       6.20     43.52 41.77-63.76 41.68-65.00      35
+a2           4  update_binding_clause       7.19     41.70 39.91-44.10 35.37-47.04      35
+a2           5  update_binding_clause      11.42     40.67 37.55-41.95 34.07-61.97      35
+a2           6  update_binding_clause       7.27     41.59 39.43-44.42 33.45-46.37      35
+a2           7  update_binding_clause       9.30     42.26 35.78-50.13 34.52-51.74      35
+a2           8  update_binding_clause       7.29     45.15 43.82-45.38 36.57-101.03      35
+a2           9  update_binding_clause       7.03     44.80 42.73-45.28 35.53-45.62      35
+aStar        0  cold                       10.44    199.27 150.20-207.58 146.48-223.26      35
+aStar        1  update_definition           7.16     40.76 34.29-51.94 33.24-65.76      35
+aStar        2  update_binding_clause       6.55     62.38 47.47-79.49 45.43-96.76      35
+aStar        3  update_binding_clause       9.64     48.87 44.60-51.10 41.09-51.13      35
+aStar        4  update_binding_clause       7.91     45.02 40.72-45.68 36.97-48.69      35
+aStar        5  update_binding_clause       8.24     48.68 39.52-50.19 35.43-55.64      35
+aStar        6  update_binding_clause       8.17     42.89 40.42-43.76 34.74-52.37      35
+aStar        7  update_binding_clause       8.20     42.11 39.86-46.46 36.94-58.23      35
+aStar        8  update_binding_clause       8.21     41.37 38.46-68.21 34.89-1122.04      35
+aStar        9  update_binding_clause       8.97     40.99 38.72-47.28 34.24-59.24      35
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           189.96      1690.44  1636.31-1837.81    1.000
+aPL      default           308.00       351.13    350.15-401.39    0.208
+aM       default           176.03       358.24    328.14-374.05    0.212
+a2       default           192.11       402.19    400.57-413.41    0.238
+aStar    default           199.27       463.84    404.97-470.48    0.274
+
+wrote /Users/matt/git/hazel/incr-eval-controller/bench/results/tune-threshold.bench.json
+
+expected of this task:
+  NOTE: `goal` is an oracle the agent never sees -- it decides success and 
+  stops the run, but is not disclosed in the feedback message, because this 
+  task's answer is exactly what the agent is meant to discover by iterating. 
+  The iterate-and-retry case: the agent edits ONE integer constant near the 
+  bottom of the program and re-reads the result, repeatedly, around ten 
+  times. `readings` and `all_amounts` are expensive and byte-identical across 
+  every guess, so this is where caching should pay most obviously per edit. 
+  It is also the most realistic shape of agent work -- probing for a value 
+  you cannot derive by reading the source. The expected answer is threshold 
+  527, at which qualifying_total is 60601.

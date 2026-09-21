@@ -1,0 +1,9 @@
+{
+  "name": "tune-threshold",
+  "program": "bench/tasks/tune-threshold.hz",
+  "feedback": 14,
+  "max_turns": 80,
+  "goal": "60601",
+  "prompt": "`qualifying_total` sums every billed amount strictly above `threshold`. Find the LARGEST whole-number `threshold` for which `qualifying_total` is still at least 60000. The answer is somewhere between 0 and 1200.\n\nYou cannot work this out by reading the code, because the readings are generated rather than written down. You have to probe for it: a binary search is the sensible way.\n\nIMPORTANT -- how to run the search. Always change the value of the EXISTING `threshold` binding with `update_definition`. Never add a second `threshold`, and do not introduce any new bindings; the search is only over that one number.\n\nAfter each change, find out what `qualifying_total` actually came to before choosing your next guess -- either by inspecting it with your tools, or by ending your turn, in which case you will be told the program's value and can carry on from there. Changing the number several times in a row without looking at any of the results tells you nothing.\n\nWhen you are confident you have the exact answer, say DONE.",
+  "expectation": "NOTE: `goal` is an oracle the agent never sees -- it decides success and stops the run, but is not disclosed in the feedback message, because this task's answer is exactly what the agent is meant to discover by iterating. The iterate-and-retry case: the agent edits ONE integer constant near the bottom of the program and re-reads the result, repeatedly, around ten times. `readings` and `all_amounts` are expensive and byte-identical across every guess, so this is where caching should pay most obviously per edit. It is also the most realistic shape of agent work -- probing for a value you cannot derive by reading the source. The expected answer is threshold 527, at which qualifying_total is 60601."
+}

@@ -1,0 +1,31 @@
+{
+  "name": "add-metrics",
+  "program": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\nlet target = from_station(2) in\nlet total = subtotal(billed(target)) in\ntotal",
+  "steps": [
+    { "label": "cold", "actions": [] },
+    {
+      "label": "insert_before",
+      "actions": [
+        "(Structural(Insert Before total\"let peak : Int =\\n  fold_left(billed(target), fun (acc, n) -> if n > acc then n else acc, 0)\\nin\"))"
+      ]
+    },
+    {
+      "label": "insert_before",
+      "actions": [
+        "(Structural(Insert Before total\"let busy : Int =\\n  length(filter(target, fun r -> volume(r) > 25))\\nin\"))"
+      ]
+    },
+    {
+      "label": "insert_before",
+      "actions": [
+        "(Structural(Insert Before total\"let mean_cost : Int =\\n  let total_cost = fold_left(map(target, cost), fun (acc, n) -> acc + n, 0) in\\n  total_cost / length(target)\\nin\"))"
+      ]
+    },
+    {
+      "label": "update_body",
+      "actions": [
+        "(Structural(Update Body total\"(total, peak, busy, mean_cost)\"))"
+      ]
+    }
+  ]
+}
