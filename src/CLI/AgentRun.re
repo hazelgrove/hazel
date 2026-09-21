@@ -96,6 +96,61 @@ let actions_of_chat = (chat: Chat.Model.t): list((string, Action.t)) =>
 let sexp_of_action = (a: Action.t): string =>
   Sexplib.Sexp.to_string(Action.sexp_of_t(a));
 
+/* Has the agent declared itself finished?
+ *
+ * Without this the feedback loop keeps prompting until [--feedback] rounds are
+ * exhausted, even after the agent has nothing left to do. A nagged agent does
+ * not sit still: it re-applies an edit it has already made. Those repeats are
+ * the worst possible thing to leave in a benchmark trace, because a step that
+ * does not change the program is one every calculus can serve entirely from
+ * cache -- so they inflate the apparent value of caching while measuring no
+ * real work. Stopping when the agent says DONE is what keeps the recorded
+ * trace a record of the agent's actual decisions.
+ *
+ * Matched on the last Agent message only, and as a whole word, so that an
+ * agent narrating "I am not done yet" does not end the run. */
+let said_done = (chat: Chat.Model.t): bool => {
+  let is_word_char = c =>
+    c >= 'a'
+    && c <= 'z'
+    || c >= 'A'
+    && c <= 'Z'
+    || c >= '0'
+    && c <= '9'
+    || c == '_';
+  let is_done_token = (s: string) => {
+    let n = String.length(s);
+    let rec scan = i =>
+      if (i + 4 > n) {
+        false;
+      } else if (String.sub(s, i, 4) == "DONE"
+                 && (i == 0 || !is_word_char(s.[i - 1]))
+                 && (i + 4 == n || !is_word_char(s.[i + 4]))) {
+        true;
+      } else {
+        scan(i + 1);
+      };
+    scan(0);
+  };
+  let rec last_agent = (msgs: list(Message.Model.t)) =>
+    switch (msgs) {
+    | [] => None
+    | [m, ...rest] =>
+      switch (last_agent(rest)) {
+      | Some(_) as found => found
+      | None =>
+        switch (m.role) {
+        | Agent(_) => Some(m.content)
+        | _ => None
+        }
+      }
+    };
+  switch (last_agent(Chat.Utils.linearize(chat))) {
+  | Some(content) => is_done_token(content)
+  | None => false
+  };
+};
+
 /* One step per editor action, so bench-incr times each edit separately. */
 let trace_json =
     (~name: string, ~program: string, steps: list((string, Action.t)))
@@ -147,7 +202,8 @@ let write_file = (path: string, s: string): unit => {
  * be interrupted from the same thread. */
 let describe_evaluation = (z: Zipper.t): (option(string), string) => {
   let errors =
-    ErrorPrint.all(CompositionGo.Public.mk_statics(z)) |> String.concat("\n");
+    ErrorPrint.all(CompositionGo.Public.mk_statics(z))
+    |> String.concat("\n");
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let value =
     try(Some(Print.print(Run.evaluate(term)))) {
@@ -157,9 +213,15 @@ let describe_evaluation = (z: Zipper.t): (option(string), string) => {
 };
 
 /* The follow-up message sent back into the same chat after a round of edits,
-   so the next turn is informed by what the program actually did. */
-let feedback_message =
-    (~goal: option(string), ~value: option(string), ~errors: string): string => {
+   so the next turn is informed by what the program actually did.
+
+   Deliberately says nothing about [goal]. The goal is an ORACLE, not a hint:
+   it decides when the run has succeeded and whether to stop, but telling the
+   agent the expected value would hand it the answer to tasks whose whole
+   point is that the answer has to be discovered by running the program. A
+   trace recorded against a leaked answer measures an agent typing in a
+   number, not an agent iterating. */
+let feedback_message = (~value: option(string), ~errors: string): string => {
   let v =
     switch (value) {
     | Some(v) => "The program currently evaluates to:\n" ++ v
@@ -167,18 +229,11 @@ let feedback_message =
     };
   let e =
     errors == ""
-      ? "There are no static errors."
-      : "Static errors remain:\n" ++ errors;
-  let g =
-    switch (goal) {
-    | None => "If this is correct and complete, say DONE and stop."
-    | Some(g) =>
-      "The expected answer is: "
-      ++ g
-      ++ "\nIf the program already produces that, say DONE and stop. "
-      ++ "Otherwise find the bug and fix it with edit tools."
-    };
-  String.concat("\n\n", [v, e, g]);
+      ? "There are no static errors." : "Static errors remain:\n" ++ errors;
+  String.concat(
+    "\n\n",
+    [v, e, "If this is correct and complete, say DONE and stop."],
+  );
 };
 
 let run =
@@ -252,6 +307,27 @@ let run =
       print_endline(final_program);
       print_endline("--- final value ---");
       print_endline(Option.value(~default="<none>", final_value));
+      /* The oracle's verdict, reported only now that the run is over. Whether
+         the agent got the right answer is not needed to time a trace, but it
+         is needed to describe one honestly: "the agent iterated six times and
+         converged on the wrong number" is a different trace from "the agent
+         solved it in two edits", and both are worth having. */
+      switch (goal) {
+      | None => ()
+      | Some(g) =>
+        let ok =
+          switch (final_value) {
+          | Some(v) => String.trim(v) == String.trim(g) && final_errors == ""
+          | None => false
+          };
+        print_endline(
+          "--- goal: "
+          ++ (ok ? "MET" : "NOT met")
+          ++ " (expected "
+          ++ String.trim(g)
+          ++ ") ---",
+        );
+      };
       if (final_errors != "") {
         print_endline("--- static errors remain ---");
         print_endline(final_errors);
@@ -309,10 +385,16 @@ let run =
       let (value, errors) = describe_evaluation(z);
       let satisfied =
         switch (goal, value) {
-        | (Some(g), Some(v)) => String.trim(g) == String.trim(v) && errors == ""
+        | (Some(g), Some(v)) =>
+          String.trim(g) == String.trim(v) && errors == ""
         | _ => false
         };
-      if (satisfied) {
+      let done_ =
+        said_done(ChatSystem.Utils.find_chat(chat_id, agent^.chat_system));
+      if (satisfied || done_) {
+        if (done_ && !satisfied) {
+          prerr_endline("[agent said DONE; stopping]");
+        };
         report_and_exit();
       } else {
         prerr_endline(
@@ -323,9 +405,7 @@ let run =
         );
         schedule_action(
           SendMessage(
-            Message.Utils.mk_user_message(
-              feedback_message(~goal, ~value, ~errors),
-            ),
+            Message.Utils.mk_user_message(feedback_message(~value, ~errors)),
             chat_id,
           ),
         );
