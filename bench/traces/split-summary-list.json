@@ -1,0 +1,34 @@
+{
+ "name": "split-summary-list",
+ "program": "# Station report.                                                          #\n# LIST variant: same program, statistics in a LIST instead of a tuple.    #\n# and each downstream grade depends on exactly one component of it.        #\n\nlet noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet readings : [(Int, Int, Int)] =\n  init(400, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\nlet unit_cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\nlet sum : [Int] -> Int =\n  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)\nin\n\n# The summary. Each component is an aggregate over all 400 readings. #\nlet summary : [Int] =\n  [sum(map(readings, volume)),\n   sum(map(readings, unit_cost)),\n   length(readings)]\nin\nlet [heavy_volume, peak_cost, heavy_count] = summary in\n\n# Each grade is an expensive scan over every reading, seeded by one #\n# component of the summary and nothing else.                        #\nlet grade : (Int, Int) -> Int =\n  fun (seed, k) ->\n    sum(map(readings, fun r ->\n      int_mod(volume(r) * seed + unit_cost(r) * k, 9973)))\nin\n\nlet volume_grade = grade(heavy_volume, 3) in\nlet cost_grade = grade(peak_cost, 5) in\nlet count_grade = grade(heavy_count, 7) in\n\n(volume_grade, cost_grade, count_grade)\n",
+ "steps": [
+  {
+   "label": "cold",
+   "actions": []
+  },
+  {
+   "label": "fix component 0 (heavy volume)",
+   "actions": [
+    "(Structural(Update Definition summary\"[sum(map(filter(readings, fun r -> volume(r) > 30), volume)),\\n sum(map(readings, unit_cost)),\\n length(readings)]\"))"
+   ]
+  },
+  {
+   "label": "fix component 1 (peak cost)",
+   "actions": [
+    "(Structural(Update Definition summary\"[sum(map(filter(readings, fun r -> volume(r) > 30), volume)),\\n fold_left(map(readings, unit_cost), fun (acc, c) -> if acc > c then acc else c, 0),\\n length(readings)]\"))"
+   ]
+  },
+  {
+   "label": "fix component 2 (heavy count)",
+   "actions": [
+    "(Structural(Update Definition summary\"[sum(map(filter(readings, fun r -> volume(r) > 30), volume)),\\n fold_left(map(readings, unit_cost), fun (acc, c) -> if acc > c then acc else c, 0),\\n length(filter(readings, fun r -> volume(r) > 30))]\"))"
+   ]
+  },
+  {
+   "label": "retune component 1 (seed 5)",
+   "actions": [
+    "(Structural(Update Definition summary\"[sum(map(filter(readings, fun r -> volume(r) > 30), volume)),\\n fold_left(map(readings, unit_cost), fun (acc, c) -> if acc > c then acc else c, 5),\\n length(filter(readings, fun r -> volume(r) > 30))]\"))"
+   ]
+  }
+ ]
+}

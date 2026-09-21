@@ -1,0 +1,145 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+split-summary: 5 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 5 reps) = 30 passes
+[  1/ 30] warmup  a0/default incr 1.5s         elapsed     2.4s  eta    1m09s
+[  2/ 30] warmup  aPL/default incr 920ms       elapsed     4.0s  eta    55.8s
+[  3/ 30] warmup  aM/default incr 466ms        elapsed     5.2s  eta    47.1s
+[  4/ 30] warmup  a2/default incr 1.3s         elapsed     7.4s  eta    48.2s
+[  5/ 30] warmup  aStar/default incr 484ms     elapsed     8.7s  eta    43.7s
+[  6/ 30] rep 1   a0/default incr 1.8s         elapsed    11.5s  eta    45.9s
+[  7/ 30] rep 1   aPL/default incr 1.0s        elapsed    13.3s  eta    43.7s
+[  8/ 30] rep 1   aM/default incr 471ms        elapsed    14.5s  eta    39.9s
+[  9/ 30] rep 1   a2/default incr 1.0s         elapsed    16.3s  eta    37.9s
+[ 10/ 30] rep 1   aStar/default incr 470ms     elapsed    17.4s  eta    34.8s
+[ 11/ 30] rep 2   aPL/default incr 908ms       elapsed    19.0s  eta    32.8s
+[ 12/ 30] rep 2   aM/default incr 524ms        elapsed    20.3s  eta    30.5s
+[ 13/ 30] rep 2   a2/default incr 2.4s         elapsed    23.9s  eta    31.2s
+[ 14/ 30] rep 2   aStar/default incr 766ms     elapsed    25.6s  eta    29.3s
+[ 15/ 30] rep 2   a0/default incr 2.1s         elapsed    28.6s  eta    28.6s
+[ 16/ 30] rep 3   aM/default incr 555ms        elapsed    30.2s  eta    26.4s
+[ 17/ 30] rep 3   a2/default incr 1.3s         elapsed    32.6s  eta    24.9s
+[ 18/ 30] rep 3   aStar/default incr 575ms     elapsed    33.9s  eta    22.6s
+[ 19/ 30] rep 3   a0/default incr 1.6s         elapsed    36.2s  eta    21.0s
+[ 20/ 30] rep 3   aPL/default incr 1.3s        elapsed    38.3s  eta    19.1s
+[ 21/ 30] rep 4   a2/default incr 1.2s         elapsed    40.3s  eta    17.3s
+[ 22/ 30] rep 4   aStar/default incr 501ms     elapsed    41.7s  eta    15.2s
+[ 23/ 30] rep 4   a0/default incr 2.0s         elapsed    44.4s  eta    13.5s
+[ 24/ 30] rep 4   aPL/default incr 1.0s        elapsed    46.2s  eta    11.6s
+[ 25/ 30] rep 4   aM/default incr 401ms        elapsed    47.3s  eta     9.5s
+[ 26/ 30] rep 5   aStar/default incr 396ms     elapsed    48.4s  eta     7.5s
+[ 27/ 30] rep 5   a0/default incr 1.6s         elapsed    50.7s  eta     5.6s
+[ 28/ 30] rep 5   aPL/default incr 1.3s        elapsed    52.8s  eta     3.8s
+[ 29/ 30] rep 5   aM/default incr 465ms        elapsed    54.1s  eta     1.9s
+[ 30/ 30] rep 5   a2/default incr 1.1s         elapsed    56.0s  eta      0ms
+
+trace: split-summary (5 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                        9.51    421.12 376.81-480.42 372.98-525.88       0
+a0           1  fix component 0 (heavy volume)      5.66    454.59 390.08-488.28 380.19-547.06       0
+a0           2  fix component 1 (peak cost)      6.86    466.13 400.64-478.38 392.93-492.19       0
+a0           3  fix component 2 (heavy count)      7.29    446.60 417.55-474.50 412.02-623.93       0
+a0           4  retune component 1 (seed 5)      6.98    447.75 414.42-476.34 399.26-479.62       0
+aPL          0  cold                        9.70    420.99 406.46-443.75 371.58-475.99      60
+aPL          1  fix component 0 (heavy volume)      6.02    275.04 273.22-279.42 239.95-287.98      64
+aPL          2  fix component 1 (peak cost)      7.05    252.90 247.31-258.11 219.38-283.88      67
+aPL          3  fix component 2 (heavy count)      6.89    255.43 243.37-258.05 234.95-412.47      71
+aPL          4  retune component 1 (seed 5)      7.66    238.51 223.57-297.38 213.26-468.90      71
+aM           0  cold                        9.06    398.44 375.34-450.11 373.24-563.07      60
+aM           1  fix component 0 (heavy volume)      6.83    135.52 122.50-150.66 120.09-170.53      64
+aM           2  fix component 1 (peak cost)      7.68    106.00 98.92-124.25 89.45-125.89      67
+aM           3  fix component 2 (heavy count)      8.04    124.11 118.54-131.65 100.13-147.07      71
+aM           4  retune component 1 (seed 5)      8.07    105.32 104.46-105.33 88.57-146.90      71
+a2           0  cold                       11.10    491.49 471.64-496.16 396.26-569.28      60
+a2           1  fix component 0 (heavy volume)      6.59    335.41 314.10-348.26 301.91-378.59      64
+a2           2  fix component 1 (peak cost)      8.36    284.53 260.22-321.22 257.35-1041.76      67
+a2           3  fix component 2 (heavy count)      8.91    295.67 269.60-334.88 223.07-730.09      71
+a2           4  retune component 1 (seed 5)      8.74    268.31 259.85-313.25 191.30-335.69      71
+aStar        0  cold                        9.69    462.80 456.78-469.45 363.93-539.89      60
+aStar        1  fix component 0 (heavy volume)      6.12    141.81 118.48-163.40 116.57-360.54      64
+aStar        2  fix component 1 (peak cost)      6.29    100.53 98.04-118.67 90.57-123.41      67
+aStar        3  fix component 2 (heavy count)      7.07    128.25 108.37-149.13 98.35-257.43      71
+aStar        4  retune component 1 (seed 5)      6.64    102.92 97.50-112.52 88.60-132.74      71
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           421.12      1827.32  1617.16-1964.03    1.000
+aPL      default           420.99      1005.13  1004.23-1273.03    0.550
+aM       default           398.44       470.54    465.40-524.21    0.258
+a2       default           491.49      1183.92  1091.58-1347.94    0.648
+aStar    default           462.80       501.25    469.80-574.95    0.274
+
+split-summary-list: 5 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 5 reps) = 30 passes
+[  1/ 30] warmup  a0/default incr 2.0s         elapsed     2.8s  eta    1m20s
+[  2/ 30] warmup  aPL/default incr 1.0s        elapsed     4.6s  eta    1m04s
+[  3/ 30] warmup  aM/default incr 797ms        elapsed     6.1s  eta    54.6s
+[  4/ 30] warmup  a2/default incr 1.2s         elapsed     7.9s  eta    51.6s
+[  5/ 30] warmup  aStar/default incr 1.2s      elapsed     9.9s  eta    49.6s
+[  6/ 30] rep 1   a0/default incr 1.9s         elapsed    12.6s  eta    50.4s
+[  7/ 30] rep 1   aPL/default incr 1.2s        elapsed    14.7s  eta    48.4s
+[  8/ 30] rep 1   aM/default incr 1.1s         elapsed    16.7s  eta    45.9s
+[  9/ 30] rep 1   a2/default incr 1.1s         elapsed    18.5s  eta    43.2s
+[ 10/ 30] rep 1   aStar/default incr 1.2s      elapsed    20.5s  eta    41.0s
+[ 11/ 30] rep 2   aPL/default incr 1.0s        elapsed    22.2s  eta    38.3s
+[ 12/ 30] rep 2   aM/default incr 1.1s         elapsed    24.0s  eta    36.0s
+[ 13/ 30] rep 2   a2/default incr 1.2s         elapsed    26.0s  eta    34.0s
+[ 14/ 30] rep 2   aStar/default incr 1.2s      elapsed    28.4s  eta    32.4s
+[ 15/ 30] rep 2   a0/default incr 1.8s         elapsed    31.0s  eta    31.0s
+[ 16/ 30] rep 3   aM/default incr 1.1s         elapsed    32.9s  eta    28.8s
+[ 17/ 30] rep 3   a2/default incr 1.2s         elapsed    34.9s  eta    26.7s
+[ 18/ 30] rep 3   aStar/default incr 1.0s      elapsed    36.6s  eta    24.4s
+[ 19/ 30] rep 3   a0/default incr 2.3s         elapsed    39.8s  eta    23.0s
+[ 20/ 30] rep 3   aPL/default incr 1.2s        elapsed    41.9s  eta    20.9s
+[ 21/ 30] rep 4   a2/default incr 1.2s         elapsed    44.5s  eta    19.1s
+[ 22/ 30] rep 4   aStar/default incr 1.6s      elapsed    47.3s  eta    17.2s
+[ 23/ 30] rep 4   a0/default incr 1.7s         elapsed    49.9s  eta    15.2s
+[ 24/ 30] rep 4   aPL/default incr 1.4s        elapsed    52.0s  eta    13.0s
+[ 25/ 30] rep 4   aM/default incr 1.0s         elapsed    53.8s  eta    10.8s
+[ 26/ 30] rep 5   aStar/default incr 1.2s      elapsed    55.9s  eta     8.6s
+[ 27/ 30] rep 5   a0/default incr 2.3s         elapsed    59.0s  eta     6.6s
+[ 28/ 30] rep 5   aPL/default incr 1.3s        elapsed    1m01s  eta     4.4s
+[ 29/ 30] rep 5   aM/default incr 1.2s         elapsed    1m03s  eta     2.2s
+[ 30/ 30] rep 5   a2/default incr 1.0s         elapsed    1m05s  eta      0ms
+
+trace: split-summary-list (5 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       10.61    460.66 434.59-474.49 433.75-532.91       0
+a0           1  fix component 0 (heavy volume)      6.65    452.14 451.82-516.75 449.32-705.28       0
+a0           2  fix component 1 (peak cost)      7.60    449.62 436.42-533.53 434.14-850.21       0
+a0           3  fix component 2 (heavy count)      7.80    489.60 479.67-509.58 404.65-535.95       0
+a0           4  retune component 1 (seed 5)      6.81    480.37 461.31-508.28 373.72-511.04       0
+aPL          0  cold                       10.31    429.23 373.59-500.46 361.14-503.89      60
+aPL          1  fix component 0 (heavy volume)      7.23    299.83 269.44-313.11 237.46-320.06      64
+aPL          2  fix component 1 (peak cost)      7.09    275.80 235.49-281.87 218.92-342.17      67
+aPL          3  fix component 2 (heavy count)      7.74    294.99 282.69-328.76 250.75-664.90      71
+aPL          4  retune component 1 (seed 5)      8.37    270.69 270.08-282.98 245.00-384.29      71
+aM           0  cold                       10.52    456.45 416.05-458.28 413.92-491.97      60
+aM           1  fix component 0 (heavy volume)      6.20    293.21 276.70-299.16 253.12-309.58      64
+aM           2  fix component 1 (peak cost)      6.64    263.74 250.77-272.52 239.56-280.39      67
+aM           3  fix component 2 (heavy count)      6.66    264.40 263.88-275.33 263.26-303.96      71
+aM           4  retune component 1 (seed 5)      7.70    265.14 254.45-273.73 241.54-280.56      71
+a2           0  cold                        9.25    486.29 449.40-518.78 445.05-994.12      60
+a2           1  fix component 0 (heavy volume)      6.27    314.22 296.19-334.27 288.42-474.60      64
+a2           2  fix component 1 (peak cost)      6.64    272.43 263.41-285.55 217.70-287.05      67
+a2           3  fix component 2 (heavy count)      7.25    271.23 257.10-284.76 247.35-308.23      71
+a2           4  retune component 1 (seed 5)      7.30    249.35 235.85-273.11 221.09-284.25      71
+aStar        0  cold                        9.23    497.67 427.78-748.25 391.20-787.62      60
+aStar        1  fix component 0 (heavy volume)      6.76    323.86 285.50-328.02 252.65-444.15      64
+aStar        2  fix component 1 (peak cost)      7.75    288.62 279.77-396.41 236.53-443.42      67
+aStar        3  fix component 2 (heavy count)      7.36    296.63 274.90-316.92 274.11-422.14      71
+aStar        4  retune component 1 (seed 5)      6.79    287.21 253.58-287.81 227.35-338.17      71
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           460.66      1861.49  1836.65-2259.43    1.000
+aPL      default           429.23      1240.84  1155.32-1268.20    0.667
+aM       default           456.45      1079.55  1067.94-1080.61    0.580
+a2       default           486.29      1179.19  1066.05-1192.26    0.633
+aStar    default           497.67      1220.78  1188.07-1231.17    0.656
+
+wrote bench/results/split-summary.bench.json
+EXIT=0

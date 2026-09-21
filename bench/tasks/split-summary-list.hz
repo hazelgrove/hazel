@@ -1,0 +1,45 @@
+# Station report.                                                          #
+# LIST variant: same program, statistics in a LIST instead of a tuple.    #
+# and each downstream grade depends on exactly one component of it.        #
+
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+let readings : [(Int, Int, Int)] =
+  init(400, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+let unit_cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+let sum : [Int] -> Int =
+  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+in
+
+# The summary. Each component is an aggregate over all 400 readings. #
+let summary : [Int] =
+  [sum(map(readings, volume)),
+   sum(map(readings, unit_cost)),
+   length(readings)]
+in
+let [heavy_volume, peak_cost, heavy_count] = summary in
+
+# Each grade is an expensive scan over every reading, seeded by one #
+# component of the summary and nothing else.                        #
+let grade : (Int, Int) -> Int =
+  fun (seed, k) ->
+    sum(map(readings, fun r ->
+      int_mod(volume(r) * seed + unit_cost(r) * k, 9973)))
+in
+
+let volume_grade = grade(heavy_volume, 3) in
+let cost_grade = grade(peak_cost, 5) in
+let count_grade = grade(heavy_count, 7) in
+
+(volume_grade, cost_grade, count_grade)

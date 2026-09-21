@@ -1,0 +1,46 @@
+{
+ "name": "tariff-tune",
+ "program": "# Billing model.                                                           #\n# The expensive per-station aggregation lives INSIDE `billed_amounts`,     #\n# reached through a call, rather than in a top-level binding.              #\n\nlet noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\nlet unit_cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\nlet sum : [Int] -> Int =\n  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\n# Called, not bound: this is the expensive step, and it is the same for #\n# every value of `cutoff`.                                              #\nlet billed_amounts : Int -> [Int] =\n  fun s -> map(from_station(s), fun r -> volume(r) * unit_cost(r))\nin\n\nlet cutoff = 0 in\n\nlet large_total : Int -> Int =\n  fun s -> sum(filter(billed_amounts(s), fun n -> n > cutoff))\nin\n\nlarge_total(2)\n",
+ "steps": [
+  {
+   "label": "cold",
+   "actions": []
+  },
+  {
+   "label": "cutoff := 600",
+   "actions": [
+    "(Structural(Update Definition cutoff\"600\"))"
+   ]
+  },
+  {
+   "label": "cutoff := 300",
+   "actions": [
+    "(Structural(Update Definition cutoff\"300\"))"
+   ]
+  },
+  {
+   "label": "cutoff := 450",
+   "actions": [
+    "(Structural(Update Definition cutoff\"450\"))"
+   ]
+  },
+  {
+   "label": "cutoff := 375",
+   "actions": [
+    "(Structural(Update Definition cutoff\"375\"))"
+   ]
+  },
+  {
+   "label": "cutoff := 412",
+   "actions": [
+    "(Structural(Update Definition cutoff\"412\"))"
+   ]
+  },
+  {
+   "label": "cutoff := 434",
+   "actions": [
+    "(Structural(Update Definition cutoff\"434\"))"
+   ]
+  }
+ ]
+}
