@@ -7,5 +7,5 @@
   outline: none;
 }
 .projector.check:not(.indicated):not(:hover) > svg {
-  fill: var(--NONE);
+  fill: var(--text-none);
 }

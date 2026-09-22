@@ -40,6 +40,14 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     Some(
       "- **html** — Renders an HTML-valued expression live. An `(init, update, view, subs)` tuple runs as an interactive **app** the user can operate in place; make the app tuple the program's final expression, written as `^^html((init, update, view, subs))`. Call `read_docs(\"mvu\")` before building one.",
     )
+  | Keybinding =>
+    Some(
+      "- **keybinding** — Key-capture editor for a string literal holding a keyboard shortcut; records the next chord pressed and commits it as the literal.",
+    )
+  | Color =>
+    Some(
+      "- **color** — Colour picker for an `Oklch(l, c, h)` literal: a swatch plus lightness, chroma and hue sliders. Attaches only to that constructor applied to three float literals.",
+    )
   | Fold
   | Probe
   | Statics => None

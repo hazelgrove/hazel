@@ -1,0 +1,128 @@
+/* PROJECTOR: COLOR (OKLCH PICKER) */
+
+/* Closed: a swatch the size of a character, so a column of seeds reads as a
+   palette rather than as widgets. */
+.projector.color .cp-closed {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  cursor: pointer;
+}
+
+.projector.color .cp-swatch {
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 0.2em;
+  border: 1px solid var(--border-default);
+  /* the colour itself is set inline by the projector */
+}
+
+.projector.color .cp-swatch-lg {
+  width: 1.5em;
+  height: 1.5em;
+}
+
+/* Open: the editor panel. */
+.projector.color .cp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  width: 100%;
+  height: 100%;
+  padding: 0.25em;
+  box-sizing: border-box;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: 0.3em;
+  cursor: default;
+}
+
+/* Lightness (vertical) x chroma (horizontal). Each strip is one lightness
+   with a horizontal oklch() gradient, so the browser does the interpolation
+   and the plane is exact rather than an sRGB approximation. */
+.projector.color .cp-plane {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 4em;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.2em;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.projector.color .cp-strip {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.projector.color .cp-hue {
+  position: relative;
+  flex: 0 0 auto;
+  height: 0.9em;
+  border-radius: 0.2em;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* Reads on any background: a white ring with a dark outline. */
+.projector.color .cp-dot {
+  position: absolute;
+  width: 0.7em;
+  height: 0.7em;
+  margin: -0.35em 0 0 -0.35em;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
+  pointer-events: none;
+}
+
+.projector.color .cp-dot-hue {
+  top: 50%;
+}
+
+.projector.color .cp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  flex: 0 0 auto;
+}
+
+.projector.color .cp-close {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.projector.color .cp-tab {
+  padding: 0 0.35em;
+  border-radius: 0.2em;
+  cursor: pointer;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+}
+
+.projector.color .cp-tab.on {
+  color: var(--text-default);
+  border-color: var(--border-default);
+  background: var(--surface-code);
+}
+
+.projector.color .cp-text {
+  flex: 1 1 0;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0 0.25em;
+  color: var(--text-default);
+  background: var(--surface-code);
+  border: 1px solid var(--border-default);
+  border-radius: 0.2em;
+  outline: none;
+}
+
+.projector.color:not(.indicated):not(:hover) > svg {
+  fill: var(--text-none);
+}

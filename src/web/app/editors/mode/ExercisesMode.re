@@ -533,27 +533,21 @@ module Selection = {
     cursor
     |> Cursor.with_actions(
          [
-           ContextualAction.mk(
-             ~mdIcon="download",
-             ~section="Export",
+           ContextualAction.of_shortcut(
              ~action=inject(ExportSubmission),
-             "Export Submission",
+             ExportSubmission,
            ),
          ]
          @ (
            if (ExerciseSettings.show_instructor) {
              [
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportModule),
-                 "Export Exercise Module",
+                 ExportExerciseModule,
                ),
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportTransitionary),
-                 "Export Transitionary Exercise Module",
+                 ExportTransitionaryExerciseModule,
                ),
              ];
            } else {
@@ -742,21 +736,15 @@ module View = {
 
     let file_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "File",
         [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     let dev_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "Developer Export",
         [instructor_export, instructor_transitionary_export],
       );

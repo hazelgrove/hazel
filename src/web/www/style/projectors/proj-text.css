@@ -12,7 +12,7 @@
 
 .projector.text > svg {
   stroke-width: 0.5px;
-  stroke: var(--BR2);
+  stroke: var(--border-default);
 }
 
 .projector.text .wrapper {
@@ -23,7 +23,7 @@
 
 .projector.text.indicated .cols,
 .projector.text:has(textarea:focus) .cols {
-  color: var(--R1);
+  color: var(--text-error);
 }
 
 .projector.text.indicated > svg {
@@ -36,10 +36,10 @@
   margin-right: 2px;
   display: flex;
   border-radius: 0 0.1em 0.1em 0.1em;
-  color: var(--SAND);
+  color: var(--text-inverse);
   background: repeating-linear-gradient(
-    var(--NONE),
-    var(--NONE) calc((var(--line-height) - 0.06) * 1em),
+    var(--surface-none),
+    var(--surface-none) calc((var(--line-height) - 0.06) * 1em),
     var(--textarea-h-stripe) calc((var(--line-height) - 0.06) * 1em),
     var(--textarea-h-stripe) calc(var(--line-height) * 1em) /* line-height */
   );
@@ -47,14 +47,14 @@
 
 .projector.text.selected .cols {
   background: repeating-linear-gradient(
-    var(--NONE),
-    var(--NONE) calc((var(--line-height) - 0.06) * 1em),
+    var(--surface-none),
+    var(--surface-none) calc((var(--line-height) - 0.06) * 1em),
     var(--textarea-h-strip-selected) calc((var(--line-height) - 0.06) * 1em),
     var(--textarea-h-strip-selected) calc(var(--line-height) * 1em) /* line-height */
   );
 }
 .projector.text.selected > svg {
-  filter: drop-shadow(1px 1px 0 var(--R0));
+  filter: drop-shadow(1px 1px 0 var(--shadow-error-soft));
 }
 
 .projector.text textarea {
@@ -76,6 +76,6 @@
 }
 
 .projector.text textarea::selection {
-  color: var(--BLACK);
+  color: var(--text-black);
   background-color: var(--shard-selected);
 }

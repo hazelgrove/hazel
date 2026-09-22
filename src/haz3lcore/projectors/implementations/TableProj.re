@@ -103,7 +103,21 @@ let table =
     List.mem(h, renameable)
       ? Node.th([header_input(info, ~parent, h)]) : Node.th([Node.text(h)]);
   table_view(
-    ~header_cells=List.map(header_cell, headers),
+    /* Same shape as TableRenderer's headers, `.column-label` included: the
+       stylesheet hangs header typography off that class, so a bare <th> gets
+       whatever color it happens to inherit -- which in dark was the muted
+       code color, 22 points of lightness off the header's own fill. */
+    ~header_cells=
+      List.map(
+        h =>
+          Node.th([
+            Node.span(
+              ~attrs=[Attr.classes(["column-label"])],
+              [Node.text(h)],
+            ),
+          ]),
+        headers,
+      ),
     ~rows=List.map(row_cells(info.utility, view_seg, ~splice_cell), rows),
   );
 };
