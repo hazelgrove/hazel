@@ -136,6 +136,9 @@ and mod_term('a) =
   | ModType(tpat_t('a), typ_t('a))
   | ModExp(exp_t('a))
   | ModuleMod(mpat_t('a), exp_t('a))
+  /* Dynamics only: a binding whose definition has been evaluated. A module
+     whose items are all ModVal is a module value. */
+  | ModVal(Var.t, exp_t('a))
 and mod_t('a) = Annotated.t(mod_term('a), 'a)
 and sig_term('a) =
   | Invalid(string)
@@ -143,6 +146,9 @@ and sig_term('a) =
   | MultiHole(list(any_t('a)))
   | SigLet(pat_t('a))
   | SigType(tpat_t('a), typ_t('a))
+  /* `module M : S` declares a sub-module member (the MPat carries the
+     optional signature). */
+  | SigModule(mpat_t('a))
 and sig_t('a) = Annotated.t(sig_term('a), 'a)
 and mpat_term('a) =
   | Invalid(string)
@@ -452,6 +458,7 @@ and map_mod_annotation: 'a 'b. ('a => 'b, mod_t('a)) => mod_t('b) =
         | ModExp(e) => ModExp(map_exp_annotation(f, e))
         | ModuleMod(mp, e) =>
           ModuleMod(map_mpat_annotation(f, mp), map_exp_annotation(f, e))
+        | ModVal(x, e) => ModVal(x, map_exp_annotation(f, e))
         },
       annotation: new_annotation,
     };
@@ -470,6 +477,7 @@ and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
         | SigLet(p) => SigLet(map_pat_annotation(f, p))
         | SigType(tp, t) =>
           SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | SigModule(mp) => SigModule(map_mpat_annotation(f, mp))
         },
       annotation: new_annotation,
     };
@@ -924,6 +932,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Prod(l),
       annotation: default_annotation(ann),
     };
+    let sig_ = (~ann=?, items): typ_t(DefaultAnnotation.t) => {
+      term: Sig(items),
+      annotation: default_annotation(ann),
+    };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
       term: ProdProjection(t1, t2),
       annotation: default_annotation(ann),
@@ -1054,6 +1066,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let sig_type = (~ann=?, tp, t): sig_t(DefaultAnnotation.t) => {
       term: SigType(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let sig_module = (~ann=?, mp): sig_t(DefaultAnnotation.t) => {
+      term: SigModule(mp),
       annotation: default_annotation(ann),
     };
   };

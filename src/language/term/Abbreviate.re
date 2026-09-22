@@ -1243,6 +1243,13 @@ and abbreviate_mod_item = (item: Mod.t): Mod.t => {
         available := available^ - 10; // "module " " = "
         ModuleMod(abbreviate_mpat(mp), abbreviate_exp(e));
       }
+    | ModVal(x, e) =>
+      if (available^ <= 5) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 6; // "let " " = "
+        ModVal(x, abbreviate_exp(e));
+      }
     };
   rewrap(term);
 }
@@ -1271,6 +1278,13 @@ and abbreviate_sig_item = (item: Sig.t): Sig.t => {
         let tp' = abbreviate_tpat(tp);
         let t' = abbreviate_typ(t);
         SigType(tp', t');
+      }
+    | SigModule(mp) =>
+      if (available^ <= 6) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 7; /* "module " */
+        SigModule(abbreviate_mpat(mp));
       }
     };
   rewrap(term);

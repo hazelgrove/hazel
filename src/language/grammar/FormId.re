@@ -140,7 +140,8 @@ type family =
   | ModType
   | ModuleExp
   | ModuleMod
-  | SigLet;
+  | SigLet
+  | SigModule;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -257,7 +258,8 @@ let label_of_family: family => Label.t =
   | ModType => ["type", "="]
   | ModuleExp => ["module", "=", "in"]
   | ModuleMod => ["module", "="]
-  | SigLet => ["let"];
+  | SigLet => ["let"]
+  | SigModule => ["module"];
 
 let label_of: t => Label.t =
   fun

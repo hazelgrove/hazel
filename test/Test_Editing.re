@@ -2782,6 +2782,14 @@ x + y¦|},
    NOTE: These test basic module syntax editing behavior.
    `{` is an instant-expanding delimiter that creates `{¦}`.
    Inside braces is Mod sort, where `let` creates ModLet forms. */
+/* The delimiters each incomplete tile still owes, in document order: one
+   list per run of missing shards. */
+let owed_delimiters = (z: Zipper.t): list(list(string)) =>
+  Zipper.unselect_and_zip(~erase_buffer=true, z)
+  |> Segment.incomplete_tiles_deep
+  |> List.concat_map(Tile.missing_shards)
+  |> List.map(Tile.effective_label);
+
 let module_tests = [
   /* { is an instant expander: typing { puts } in the backpack.
      The printer shows backpack contents as missing, so } doesn't
@@ -2862,6 +2870,51 @@ let module_tests = [
         Select(Term(Current)),
       ],
     ~goal={|let m = §{ let a = 1; let b = 2; let c = 3 }¦ in m|},
+  ),
+  /* A second item typed before its predecessor's `;` is an expression
+     `let` owed an `in`; adding the `;` puts it in the module body, where
+     its shards spell the item form, so no `in` stays in the backpack. */
+  test_complete(
+    ~name="Module: a let typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{¦}|})
+      @ string_to_ltr_actions("let x = 1 let y = 2")
+      @ mv_l(10)
+      @ [Insert(";")],
+    ~goal={|{let x = 1 ;¦let y = 2}|},
+  ),
+  test_complete(
+    ~name="Module: a type typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{¦}|})
+      @ string_to_ltr_actions("let x = 1 type T = Int")
+      @ mv_l(13)
+      @ [Insert(";")],
+    ~goal={|{let x = 1 ;¦type T = Int}|},
+  ),
+  test_complete(
+    ~name="Module: a module item typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{ module Inner = { let y = 1 } ¦let x = Inner.y }|})
+      @ [Insert(";")],
+    ~goal={|{ module Inner = { let y = 1 } ;¦let x = Inner.y }|},
+  ),
+  test_complete(
+    ~name=
+      "Module: a tuple-pattern let typed before the missing ; becomes an item",
+    ~acts=mk({|{ let x = 1 ¦let (a, b) = (2, 3) }|}) @ [Insert(";")],
+    ~goal={|{ let x = 1 ;¦let (a, b) = (2, 3) }|},
+  ),
+  test_complete(
+    ~name=
+      "Signature: a type member typed before the missing ; becomes an item",
+    ~acts=
+      mk(
+        {|let m : { let x : Int ¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+      )
+      @ [Insert(";")],
+    ~goal=
+      {|let m : { let x : Int ;¦type T = Int } = { let x = 1; type T = Int } in m.x|},
   ),
 ];
 
@@ -3167,61 +3220,261 @@ let rec find_tiles_by_label =
     seg,
   );
 
+/* The tiles with this label, in document order, have their molds in these
+   sorts. */
+let test_tile_sorts =
+    (~name, ~acts, ~label, ~sorts: list(Sort.t)): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      switch (find_tiles_by_label(label, Zipper.zip(z))) {
+      | [] => Alcotest.fail("No tile labeled " ++ String.concat(" ", label))
+      | tiles =>
+        check(
+          testable(Fmt.(list(string)), List.equal(String.equal)),
+          "mold sorts",
+          List.map(Sort.show, sorts),
+          List.map((t: Tile.t) => Sort.show(Tile.mold(t).out), tiles),
+        )
+      };
+    },
+  );
+
 let remold_sort_tests = [
   /* BUG: Type `1:(Int)`, place caret inside parens at `1:(Int|)`,
    * press space. The parentheses should remain molded as Typ (they
    * are in the type position of an ascription), but they get
    * incorrectly remolded as Exp. */
-  test_case(
-    "Remold: space inside type parens preserves Typ sort",
-    `Quick,
-    () => {
-      let z = mk({|1:(Int¦)|}) @ [Insert(" ")] |> perform(Zipper.init());
-      let seg = Zipper.zip(z);
-      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
-      switch (paren_tiles) {
-      | [] => Alcotest.fail("No paren tiles found in segment")
-      | _ =>
-        List.iter(
-          (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
-              Alcotest.fail(
-                Printf.sprintf(
-                  "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(Tile.mold(t).out),
-                ),
-              );
-            },
-          paren_tiles,
-        )
-      };
-    },
+  test_tile_sorts(
+    ~name="Remold: space inside type parens preserves Typ sort",
+    ~acts=mk({|1:(Int¦)|}) @ [Insert(" ")],
+    ~label=["(", ")"],
+    ~sorts=[Typ],
   ),
   /* Baseline: the same program without the space edit should have Typ parens. */
+  test_tile_sorts(
+    ~name="Baseline: type parens in 1:(Int) have Typ sort",
+    ~acts=mk({|1:(Int¦)|}),
+    ~label=["(", ")"],
+    ~sorts=[Typ],
+  ),
+];
+
+/* The printed state, and the delimiters owed across the program. Compared
+   as a set: which delimiters are owed is the property, not their order. */
+let test_owed =
+    (~name, ~acts, ~goal, ~owed: list(list(string))): test_case(_) =>
   test_case(
-    "Baseline: type parens in 1:(Int) have Typ sort",
+    name,
     `Quick,
     () => {
-      let z = mk({|1:(Int¦)|}) |> perform(Zipper.init());
-      let seg = Zipper.zip(z);
-      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
-      switch (paren_tiles) {
-      | [] => Alcotest.fail("No paren tiles found in segment")
-      | _ =>
-        List.iter(
-          (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
-              Alcotest.fail(
-                Printf.sprintf(
-                  "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(Tile.mold(t).out),
-                ),
-              );
-            },
-          paren_tiles,
-        )
-      };
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+      let sorted = List.sort(List.compare(String.compare));
+      check(
+        testable(
+          Fmt.(list(list(string))),
+          List.equal(List.equal(String.equal)),
+        ),
+        "owed delimiters",
+        sorted(owed),
+        sorted(owed_delimiters(z)),
+      );
     },
+  );
+
+let backspace = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Destruct(Local(Left, ByChar)));
+
+/* Module and signature bodies mold their keywords in their own sorts, so
+   a `let` there owes only what its item form owes. */
+let module_obligation_tests = [
+  test_owed(
+    ~name="Module body: let owes only its =",
+    ~acts=string_to_ltr_actions("{ let"),
+    ~goal={|{ let¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_owed(
+    ~name="Module body: type after an item owes only its =",
+    ~acts=string_to_ltr_actions("{ let x = 1; type"),
+    ~goal={|{ let x = 1; type¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_owed(
+    ~name="Module body: module owes only its =",
+    ~acts=string_to_ltr_actions("{ module"),
+    ~goal={|{ module¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_tile_sorts(
+    ~name="Signature: { after : is a signature body",
+    ~acts=string_to_ltr_actions("let m : {"),
+    ~label=["{", "}"],
+    ~sorts=[Typ],
+  ),
+  test_owed(
+    ~name="Signature: let is complete alone",
+    ~acts=string_to_ltr_actions("let m : { let"),
+    ~goal={|let m : { let¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_owed(
+    ~name="Signature: type owes its =",
+    ~acts=string_to_ltr_actions("let m : { type"),
+    ~goal={|let m : { type¦?|},
+    ~owed=[["="], ["}"], ["="], ["in"]],
+  ),
+  test_owed(
+    ~name="Signature: module is complete alone",
+    ~acts=string_to_ltr_actions("let m : { module"),
+    ~goal={|let m : { module¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_owed(
+    ~name="Module body after a signature: { owes } inside the let",
+    ~acts=string_to_ltr_actions("let m : { let x : Int } = {"),
+    ~goal={|let m : { let x : Int } = {¦?|},
+    ~owed=[["}"], ["in"]],
+  ),
+  test_tile_sorts(
+    ~name="Module body after a signature: signature then module body",
+    ~acts=string_to_ltr_actions("let m : { let x : Int } = {"),
+    ~label=["{", "}"],
+    ~sorts=[Typ, Exp],
+  ),
+  /* Deleting an item's keyword leaves its `=` owing the keyword: the lone
+     `=` spells the labeled-tuple form, which a tile missing its first shard
+     must not take up. */
+  test_owed(
+    ~name="Module: deleting an item's let leaves the = owing let",
+    ~acts=mk({|{ let¦ x = 1 }|}) @ backspace(3),
+    ~goal={|{ ¦ x = 1 }|},
+    ~owed=[["let"]],
+  ),
+  test_owed(
+    ~name="Module: deleting an item's type leaves the = owing type",
+    ~acts=mk({|{ type¦ T = Int }|}) @ backspace(4),
+    ~goal={|{ ¦ T = Int }|},
+    ~owed=[["type"]],
+  ),
+  test_owed(
+    ~name="Module: deleting an item's module leaves the = owing module",
+    ~acts=mk({|{ module¦ M = { let y = 1 } }|}) @ backspace(6),
+    ~goal={|{ ¦ M = { let y = 1 } }|},
+    ~owed=[["module"]],
+  ),
+  /* The same rule outside modules: the `->` left when `poly` is deleted
+     spells the arrow type and must keep owing its `poly`. */
+  test_owed(
+    ~name="Type: deleting poly leaves the -> owing poly",
+    ~acts=mk({|let f : poly¦ X -> Int = 1 in f|}) @ backspace(4),
+    ~goal={|let f : ¦ X -> Int = 1 in f|},
+    ~owed=[["poly"]],
+  ),
+];
+
+/* Typing in this order reaches the term that typing `goal` left to right
+   reaches, not only its text: a piece molded before its tile was complete
+   can keep the wrong sort and still print the same. */
+let test_same_term_as_ltr = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+      let term = (z: Zipper.t) =>
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let ltr =
+        goal
+        |> Token.to_list
+        |> List.filter(c => c != caret_char)
+        |> Token.of_list
+        |> string_to_ltr_actions
+        |> perform(Zipper.init());
+      check(
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: true,
+              ignore_projectors: true,
+            }).
+              exp
+          ),
+        ),
+        "term of left-to-right typing",
+        term(ltr),
+        term(z),
+      );
+    },
+  );
+
+/* A piece typed after a tile still owed shards is that tile's next child,
+   whatever the sort of what came before the tile. */
+let incomplete_child_sort_tests = [
+  test_tile_sorts(
+    ~name="Module body: a binder typed after a type item's let is a pattern",
+    ~acts=string_to_ltr_actions("{ type T = Int let x"),
+    ~label=["x"],
+    ~sorts=[Pat],
+  ),
+  test_tile_sorts(
+    ~name="Expression: a binder typed after an alias's let is a pattern",
+    ~acts=string_to_ltr_actions("type T = Int let x"),
+    ~label=["x"],
+    ~sorts=[Pat],
+  ),
+  test_same_term_as_ltr(
+    ~name="Module: an annotated let typed after a type item, ; added later",
+    ~acts=mk({|{ type T = Int ¦let x : T = 5 }|}) @ [Insert(";")],
+    ~goal={|{ type T = Int ;¦let x : T = 5 }|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Module: a tuple let typed after a type item, ; added later",
+    ~acts=mk({|{ type T = Int ¦let (a, b) = (1, 2) }|}) @ [Insert(";")],
+    ~goal={|{ type T = Int ;¦let (a, b) = (1, 2) }|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Expression: an annotated let typed after an alias, in added later",
+    ~acts=
+      mk({|type T = Int ¦let x : T = 5 in x|})
+      @ string_to_ltr_actions("in "),
+    ~goal={|type T = Int in ¦let x : T = 5 in x|},
+  ),
+  /* Other orders a module program is typed in reach linear typing's term. */
+  test_complete(
+    ~name="Module: items typed into the {} token",
+    ~acts=mk({|{¦}|}) @ string_to_ltr_actions(" let x = 1 "),
+    ~goal={|{ let x = 1 ¦}|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Signature: members typed into the {} token",
+    ~acts=
+      mk({|let m : {¦} = { let x = 1 } in m.x|})
+      @ string_to_ltr_actions(" let x : Int "),
+    ~goal={|let m : { let x : Int ¦} = { let x = 1 } in m.x|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Signature: annotation added to an existing module binding",
+    ~acts=
+      mk({|let m¦ = { let x = 1 } in m.x|})
+      @ string_to_ltr_actions(" : { let x : Int }"),
+    ~goal={|let m : { let x : Int }¦ = { let x = 1 } in m.x|},
   ),
 ];
 
@@ -5879,6 +6132,8 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.ModuleObligation", module_obligation_tests),
+  ("Editing.IncompleteChildSort", incomplete_child_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
   ("Editing.WrapCalculate", wrap_calculate_test),
   ("Editing.UnwrapQuote", unwrap_quote_tests),

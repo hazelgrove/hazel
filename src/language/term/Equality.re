@@ -496,6 +496,13 @@ let equality =
        so compare literally, not with alpha-equiv. */
     | (ModLet(p1, e1), ModLet(p2, e2)) =>
       pat_names_equal(alphas_exp, alphas_typ, p1, p2) && exp'(e1, e2)
+    /* An evaluated binding equals the literal binding `let x = e`. */
+    | (ModVal(x1, e1), ModLet(p2, e2))
+    | (ModLet(p2, e2), ModVal(x1, e1)) =>
+      switch (Annotated.term_of(p2)) {
+      | Var(x2) => x1 == x2 && exp'(e1, e2)
+      | _ => false
+      }
     | (ModLet(_, _), _) => false
     | (ModType(tp1, t1), ModType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
@@ -505,6 +512,8 @@ let equality =
     | (ModuleMod(mp1, e1), ModuleMod(mp2, e2)) =>
       mpat'(mp1, mp2) && exp'(e1, e2)
     | (ModuleMod(_, _), _) => false
+    | (ModVal(x1, e1), ModVal(x2, e2)) => x1 == x2 && exp'(e1, e2)
+    | (ModVal(_, _), _) => false
     };
   }
   and pat =
@@ -744,6 +753,21 @@ let equality =
     | (SigType(tp1, t1), SigType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (SigType(_, _), _) => false
+    /* Sub-module member names are labels too: compare literally. */
+    | (SigModule(mp1), SigModule(mp2)) =>
+      let rec literal = (mp1: TermBase.MPat.t, mp2: TermBase.MPat.t) =>
+        switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
+        | (Var(x1), Var(x2)) => x1 == x2
+        | (Asc(m1, t1), Asc(m2, t2)) => literal(m1, m2) && typ'(t1, t2)
+        | (EmptyHole, EmptyHole) => true
+        | (Invalid(s1), Invalid(s2)) => s1 == s2
+        | (MultiHole(xs1), MultiHole(xs2)) =>
+          List.length(xs1) == List.length(xs2)
+          && List.for_all2(any', xs1, xs2)
+        | _ => false
+        };
+      literal(mp1, mp2);
+    | (SigModule(_), _) => false
     };
   }
   and mpat =

@@ -268,7 +268,7 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Prod([]))),
+  ("{}", Typ.temp(Sig([]))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */
@@ -477,6 +477,11 @@ let type_tests = (
       ~expect=None,
     ),
     tydi_test(
+      ~name="Qualified type: value members are not type members",
+      ~code="module M = { type T = Int; let xylo = 1 } in let y : M.xy¦",
+      ~expect=None,
+    ),
+    tydi_test(
       ~name="Qualified type: dot label no match",
       ~code="module Mod = { type MyType = Int } in let x : Mod.Z¦",
       ~expect=None,
@@ -554,6 +559,11 @@ let qualified_tests = (
       ~name="Qualified: no match when field types don't match",
       ~code="let mm : (name=String) = (name=\"a\") in let x : Int = mm¦",
       ~expect=None,
+    ),
+    tydi_test(
+      ~name="Qualified: value member of a module with a type member",
+      ~code="let m = { type T = Int; let value = 1 } in m.va¦",
+      ~expect=Some("lue"),
     ),
     /* Module keyword syntax */
     tydi_test(

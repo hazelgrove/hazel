@@ -8,13 +8,15 @@ module EvalObj = {
     d_loc: DHExp.t,
     ctx: EvalCtx.t,
     knd: step_kind,
+    at: option(Id.t),
   };
 
-  let mk = (ctx, env, d_loc, knd) => {
+  let mk = (ctx, env, d_loc, knd, at) => {
     ctx,
     env,
     d_loc,
     knd,
+    at,
   };
 
   let wrap = (f: EvalCtx.t => EvalCtx.t, obj: t) => {
@@ -98,6 +100,12 @@ let rec matches =
       | Theorem(dp, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Theorem(dp, d1, ctx) |> rewrap;
+      | ModuleItem(prefix, item, ctx, suffix) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ModuleItem(prefix, item, ctx, suffix) |> rewrap;
+      | ModuleVal(items, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ModuleVal(items, ctx, ds) |> rewrap;
       | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -315,7 +323,10 @@ module Decompose = {
         | Step(s) when s.kind == CompleteFilter && !List.is_empty(rq_steps) =>
           Result.Step(rq_steps)
         | Step(s) =>
-          Result.Step([EvalObj.mk(Mark, env, undo, s.kind), ...rq_steps])
+          Result.Step([
+            EvalObj.mk(Mark, env, undo, s.kind, s.at),
+            ...rq_steps,
+          ])
         // TODO: Actually show these exceptions to the user!
         | exception (EvaluatorError.Exception(_)) => Result.Indet
         };
@@ -418,7 +429,11 @@ let get_status = (~settings: CoreSettings.t, exp, env) => {
   };
 };
 
-let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
+let get_step_id = (step: step): Id.t =>
+  switch (step.at) {
+  | Some(id) => id
+  | None => step.d_loc |> DHExp.rep_id
+  };
 
 let get_step_kind = (step: step): step_kind => step.knd;
 
