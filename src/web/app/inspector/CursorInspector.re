@@ -110,6 +110,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -1107,6 +1108,15 @@ let projector_error_inspector =
     ],
   );
 
+let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
+  switch (
+    quiver && !cursor.editor_read_only
+      ? Lazy.force(cursor.implied_hole) : None
+  ) {
+  | Some(_) as info => info
+  | None => cursor.info
+  };
+
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
@@ -1126,7 +1136,7 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       }
     | _ => None
     };
-  switch (cursor.info) {
+  switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
