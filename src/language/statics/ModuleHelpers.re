@@ -234,6 +234,7 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
     | TupLabel(l, p) => rewrap(TupLabel(l, go(p)))
     | Parens(p) => rewrap(Parens(go(p)))
     | Projector(d, p) => rewrap(Projector(d, go(p)))
+    | Splice(p) => rewrap(Splice(go(p)))
     | Ap(ctr, p) => rewrap(Ap(ctr, go(p)))
     | Asc(_)
     | Invalid(_)

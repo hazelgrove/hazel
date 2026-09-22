@@ -143,8 +143,15 @@ let equality =
         exp'(e1, x)
       | (Parens(x), _) when ignore_parens => exp'(x, e2)
       | (_, Parens(x)) when ignore_parens => exp'(e1, x)
+      /* A Splice is projector syntax -- the editable hole inside a
+         projector -- so it is transparent exactly when projectors are.
+         It is not a paren: menhir parses source text and can never
+         produce one, so gating this on ignore_parens left the corpus
+         differential comparing 15 Splice nodes against nothing. */
       | (Projector(_, x), _) when ignore_projectors => exp'(x, e2)
       | (_, Projector(_, x)) when ignore_projectors => exp'(e1, x)
+      | (Splice(x), _) when ignore_projectors => exp'(x, e2)
+      | (_, Splice(x)) when ignore_projectors => exp'(e1, x)
       | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
       | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
       | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -238,6 +245,8 @@ let equality =
       | (Parens(_), _) => false
       | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && exp'(x, y)
       | (Projector(_), _) => false
+      | (Splice(x), Splice(y)) => exp'(x, y)
+      | (Splice(_), _) => false
       | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
       | (Asc(_), _) => false
       | (Filter(f1, x), Filter(f2, y)) => filter'(f1, f2) && exp'(x, y)
@@ -544,6 +553,8 @@ let equality =
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
     | (Projector(_, x), _) when ignore_projectors => pat'(x, p2)
     | (_, Projector(_, x)) when ignore_projectors => pat'(p1, x)
+    | (Splice(x), _) when ignore_projectors => pat'(x, p2)
+    | (_, Splice(x)) when ignore_projectors => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
@@ -552,6 +563,8 @@ let equality =
     | (Parens(_), _) => None
     | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pat'(x, y)
     | (Projector(_), _) => None
+    | (Splice(x), Splice(y)) => pat'(x, y)
+    | (Splice(_), _) => None
     | (Asc(x, t1), Asc(y, t2)) =>
       if (typ'(t1, t2)) {
         pat'(x, y);
@@ -656,6 +669,8 @@ let equality =
       | (_, Parens(x)) when ignore_parens => typ'(t1, x)
       | (Projector(_, x), _) when ignore_projectors => typ'(x, t2)
       | (_, Projector(_, x)) when ignore_projectors => typ'(t1, x)
+      | (Splice(x), _) when ignore_projectors => typ'(x, t2)
+      | (_, Splice(x)) when ignore_projectors => typ'(t1, x)
       | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
           when ignore_explicit_unlabelling =>
         typ'(t1, t2)
@@ -668,6 +683,8 @@ let equality =
       | (Parens(_), _) => false
       | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && typ'(x, y)
       | (Projector(_), _) => false
+      | (Splice(x), Splice(y)) => typ'(x, y)
+      | (Splice(_), _) => false
 
       // Forms with type binders
       | (Rec(tp1, t1), Rec(tp2, t2)) =>

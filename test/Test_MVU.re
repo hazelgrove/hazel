@@ -1367,14 +1367,16 @@ let projector_dynamics_flag_selects_probe_ids =
     "Only projectors asking for dynamics become probe targets",
     `Quick,
     () => {
-      let piece: Haz3lcore.Base.piece =
+      /* Projector syntax is a segment now, not a single piece. */
+      let syntax: Haz3lcore.Base.segment = [
         Grout({
           id: Id.mk(),
           shape: Convex,
-        });
+        }),
+      ];
       let mk = kind => {
         let id = Id.mk();
-        (id, Haz3lcore.ProjectorCore.mk(~id, kind, piece, ""));
+        (id, Haz3lcore.ProjectorCore.mk(~id, kind, syntax, ""));
       };
       let (html_id, html) = mk(ProjectorKind.HTML);
       let (fold_id, fold) = mk(ProjectorKind.Fold);

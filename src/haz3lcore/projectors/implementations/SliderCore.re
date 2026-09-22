@@ -30,9 +30,9 @@ module Make = (P: PARAMS) : Projector => {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
+  let init = (any: Language.Any.t, _) =>
     switch (value_of(any)) {
-    | Some(_) => Some()
+    | Some(_) => Some(((), None))
     | None => None
     };
 
@@ -65,7 +65,9 @@ module Make = (P: PARAMS) : Projector => {
   let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
-  let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
+  let placeholder = (_, _, _) => ProjectorCore.Shape.inline(10);
+  let splice_rows = (_, _, _) => Id.Map.empty;
+  let context_actions = (_, _, ~splice as _) => [];
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
 

@@ -30,19 +30,23 @@ module M: Projector = {
   type action =
     | Toggle;
 
-  let init = _ => Some(default);
+  let init = (_, _) =>
+    Some((default, None: option(ProjectorBase.init_override)));
 
   let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
 
-  let placeholder = (m, _) =>
+  let splice_rows = (_, _, _) => Id.Map.empty;
+
+  let placeholder = (m, _, _) =>
     ProjectorCore.Shape.inline(Unicode.Width.columns_of_string(m.text));
   let update = (m, _, _) => {
     ...m,
     expanded: !m.expanded,
   };
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let hover_view = (view_seg: View.seg, m, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);

@@ -94,7 +94,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Label(_) => Label
   | ExplicitNonlabel => ExplicitNonlabel
   | Parens(_) => Parens
-  | Projector(_) => Projector
+  | Projector(_)
+  | Splice(_) => Projector
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
@@ -134,6 +135,7 @@ let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
   | Projector(_, typ)
+  | Splice(typ)
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
@@ -154,10 +156,35 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
+let is_atom = (ty: t): bool =>
+  switch (ty.term) {
+  | Atom(_) => true
+  | DrvQuoteTy(_)
+  | ProofOf(_)
+  | Parens(_)
+  | Projector(_)
+  | Splice(_)
+  | TupLabel(_)
+  | Arrow(_)
+  | Unknown(_)
+  | List(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Prod(_)
+  | Var(_)
+  | Sum(_)
+  | Poly(_)
+  | Rec(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => false
+  };
+
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
   | Parens(typ)
   | Projector(_, typ)
+  | Splice(typ)
   | TupLabel(_, typ)
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
@@ -191,6 +218,31 @@ let rec has_fun = (typ: t) =>
       Sig.members(items),
     )
   };
+
+let rec is_poly = (typ: t) => {
+  switch (typ.term) {
+  | Parens(typ)
+  | Projector(_, typ)
+  | Splice(typ)
+  | TupLabel(_, typ) => is_poly(typ)
+  | Poly(_) => true
+  | ProofOf(_)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Arrow(_)
+  | List(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Prod(_)
+  | Var(_)
+  | Sum(_)
+  | Rec(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => false
+  };
+};
 
 let is_void = (typ: t) =>
   switch (typ.term) {
@@ -260,7 +312,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty)
-  | Projector(_, ty) => free_vars(~bound, ty)
+  | Projector(_, ty)
+  | Splice(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
@@ -291,11 +344,102 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
     |> snd
   };
 
+let rec vars = (ty: t): list(Var.t) =>
+  switch (ty.term) {
+  | Atom(_)
+  | DrvQuoteTy(_) => []
+  | Unknown(_) => []
+  | Var(x) => [x]
+  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Prod(tys) => List.concat_map(vars, tys)
+  | Sum(sm) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.BadEntry(_) => []
+      | Variant(_, _, None) => []
+      | Variant(_, _, Some(typ)) => vars(typ),
+      sm,
+    )
+  | Rec({term: Var(x), _}, ty) =>
+    /* Remove recursive type references */
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Rec(_, ty) => vars(ty)
+  | List(ty) => vars(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | Splice(ty) => vars(ty)
+  | Poly({term: Var(x), _}, ty) =>
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Poly(_, ty) => vars(ty)
+  | ProofOf(_) => []
+  | ExplicitNonlabel
+  | Label(_) => []
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => vars(ty)
+  | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Sig(_) => []
+  };
+
+let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
+  let defs =
+    List.concat_map(
+      var =>
+        switch (Ctx.lookup_alias(ctx, var)) {
+        | Some(ty) => [(var, ty)]
+        | None => [(var, fresh(Unknown(Internal)))]
+        },
+      vars(ty),
+    )
+    |> List.sort_uniq(((x, _), (y, _)) => compare(x, y));
+  let rec_calls =
+    List.concat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
+  rec_calls @ defs;
+};
+
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
   let x = var_count^;
   var_count := x + 1;
   var_name ++ "_α" ++ string_of_int(x);
+};
+
+/* Calculates the total number of nodes (compound
+   and leaf) in the type AST. */
+let rec num_nodes = (ty: t): int => {
+  switch (ty.term) {
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Unknown(_) => 1
+  | Var(_) => 1
+  | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
+  | Prod(tys) =>
+    1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
+  | Sum(sm) =>
+    1
+    + List.fold_left(
+        (acc, variant) =>
+          switch (variant) {
+          | ConstructorMap.BadEntry(_) => acc
+          | Variant(_, _, ty) =>
+            acc + Util.OptUtil.get(() => 0, Option.map(num_nodes, ty))
+          },
+        0,
+        sm,
+      )
+  | Rec(_, ty) => 1 + num_nodes(ty)
+  | List(ty) => 1 + num_nodes(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | Splice(ty) => 1 + num_nodes(ty)
+  | Poly(_, ty) => 1 + num_nodes(ty)
+  | ExplicitNonlabel
+  | Label(_) => 1
+  | TupLabel(_, ty) => 1 + num_nodes(ty)
+  | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
+  | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | Sig(_) => 1
+  };
 };
 
 /* Number of Unknown constructors in type AST */
@@ -322,7 +466,8 @@ let rec count_unknowns = (ty: t): int =>
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)
   | Parens(ty)
-  | Projector(_, ty) => count_unknowns(ty)
+  | Projector(_, ty)
+  | Splice(ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
   | ExplicitNonlabel
@@ -344,6 +489,31 @@ let rec count_unknowns = (ty: t): int =>
   };
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
+
+let rec contains_sum_or_var = (ty: t): bool =>
+  switch (ty.term) {
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Unknown(_) => false
+  | Var(_)
+  | Sum(_) => true
+  | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
+  | Prod(tys) => List.exists(contains_sum_or_var, tys)
+  | Rec(_, ty) => contains_sum_or_var(ty)
+  | List(ty) => contains_sum_or_var(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | Splice(ty) => contains_sum_or_var(ty)
+  | Poly(_, ty) => contains_sum_or_var(ty)
+  | ProofOf(_) => false
+  | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
+  | ProdExtension(ty1, ty2) =>
+    contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
+  | ExplicitNonlabel
+  | Label(_) => false
+  | TupLabel(_, ty) => contains_sum_or_var(ty)
+  | Sig(_) => false
+  };
 
 /* Capture-avoiding substitution of `s` for `x` in `ty`.
 
@@ -441,6 +611,13 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
         ty;
       } else {
         Projector(data, t') |> rewrap;
+      };
+    | Splice(t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Splice(t') |> rewrap;
       };
     | ProdProjection(t1, t2) =>
       let t1' = subst(s, x, t1);
@@ -938,7 +1115,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | ExplicitNonlabel
   | Label(_) => ty
   | Parens(t)
-  | Projector(_, t) => normalize(ctx, t)
+  | Projector(_, t)
+  | Splice(t) => normalize(ctx, t)
   | List(t) =>
     let t' = normalize(ctx, t);
     t === t' ? ty : List(t') |> rewrap;
@@ -1019,6 +1197,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
         switch (term_of(ty)) {
         | Parens(t)
         | Projector(_, t)
+        | Splice(t)
         | TupLabel(_, t)
         | ProdProjection(t, _) => go(~depth=depth + 1, ctx, t)
         | Arrow(_)
@@ -1173,9 +1352,11 @@ and meet_body = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
-  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (_, Projector(_, ty2))
+  | (_, Splice(ty2)) => meet'(ty1, ty2)
   | (Parens(ty1), _)
-  | (Projector(_, ty1), _) => meet'(ty1, ty2)
+  | (Projector(_, ty1), _)
+  | (Splice(ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
@@ -1494,6 +1675,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
   | (Projector(data, t1), _) =>
     Projector(data, match_synswitch(t1, t2)) |> rewrap1
+  | (Splice(t1), _) => Splice(match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
@@ -1592,7 +1774,8 @@ let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x)
-  | Projector(_, x) => is_syn(x)
+  | Projector(_, x)
+  | Splice(x) => is_syn(x)
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
@@ -1616,7 +1799,8 @@ let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x)
-  | Projector(_, x) => is_ana_atom(x)
+  | Projector(_, x)
+  | Splice(x) => is_ana_atom(x)
   | Atom(a) => Some(a)
   | DrvQuoteTy(_)
   | Unknown(_)
@@ -1639,7 +1823,8 @@ let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x)
-  | Projector(_, x) => is_syn_plus(x)
+  | Projector(_, x)
+  | Splice(x) => is_syn_plus(x)
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
@@ -1673,7 +1858,8 @@ let rec is_arrow_like = (ty: t): bool =>
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
   | Parens(ty)
-  | Projector(_, ty) => needs_parens(ty)
+  | Projector(_, ty)
+  | Splice(ty) => needs_parens(ty)
   | Unknown(_)
   | Atom(_)
   | ExplicitNonlabel
@@ -1705,7 +1891,8 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
   | Parens(ty)
-  | Projector(_, ty) => pretty_print(ty)
+  | Projector(_, ty)
+  | Splice(ty) => pretty_print(ty)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
@@ -1824,3 +2011,207 @@ let abstract_rec_types =
  * @return A product type representing the combination of the input types
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
+
+/* Every id in a type, including the variant_ann ids on Sum constructors. */
+let all_ids = (ty: t): list(Id.t) => {
+  let ids = ref([]);
+  let _ =
+    Grammar.map_typ_annotation(
+      (t: IdTagged.IdTag.t) => {
+        ids := t.ids @ ids^;
+        t;
+      },
+      ty: t,
+    );
+  let rec collect_ann_ids = (ty: t) => {
+    switch (term_of(ty)) {
+    | Sum(variants) =>
+      List.iter(
+        fun
+        | ConstructorMap.Variant(_, ann, opt) => {
+            ids := ann.ids @ ids^;
+            Option.iter(collect_ann_ids, opt);
+          }
+        | BadEntry(t) => collect_ann_ids(t),
+        variants,
+      )
+    | Arrow(t1, t2)
+    | TupLabel(t1, t2)
+    | ProdExtension(t1, t2)
+    | ProdProjection(t1, t2) =>
+      collect_ann_ids(t1);
+      collect_ann_ids(t2);
+    | List(t)
+    | Parens(t)
+    | Projector(_, t)
+    | Splice(t)
+    | Rec(_, t)
+    | Poly(_, t) => collect_ann_ids(t)
+    | Prod(ts) => List.iter(collect_ann_ids, ts)
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Sig(_) => ()
+    };
+  };
+  collect_ann_ids(ty);
+  ids^;
+};
+
+/* Every id in one constructor variant. */
+let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
+  switch (v) {
+  | Variant(_, ann, Some(t)) => ann.ids @ all_ids(t)
+  | Variant(_, ann, None) => ann.ids
+  | BadEntry(t) => all_ids(t)
+  };
+
+/* The ids of the nodes of [ty'] that [ty] does not account for -- what has
+   to be marked to show how [ty'] differs. Ids in either type must be
+   distinct, or the result names the wrong nodes.
+
+   [expanded_aliases] names the aliases already expanded on the way here, so
+   a cycle through the context (`type A = (B) in type B = (A)`) stops rather
+   than expanding forever. Only the arms that see the same position again --
+   alias expansion and the nodes that carry no meaning of their own -- thread
+   it; descending into a component starts over. */
+let rec diff =
+        (
+          ~ctx: option(Ctx.t)=?,
+          ~expanded_aliases: list(string)=[],
+          ty: t,
+          ty': t,
+        )
+        : list(Id.t) => {
+  let get_ids = () => all_ids(ty');
+  let expand = name =>
+    if (List.exists(String.equal(name), expanded_aliases)) {
+      None;
+    } else {
+      ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
+    };
+  switch (term_of(ty), term_of(ty')) {
+  | (Parens(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  | (_, Projector(_, t2)) => diff(~ctx?, ~expanded_aliases, ty, t2)
+  | (Projector(_, t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  | (_, Splice(t2)) => diff(~ctx?, ~expanded_aliases, ty, t2)
+  | (Splice(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
+  /* Parens carry no meaning of their own, so they take the verdict of the
+     node they wrap: marked when that node is itself replaced, unmarked when
+     it merely contains something that changed. `(Int, ?)` vs `(Int, String)`
+     leaves the parens alone -- still the same tuple, one component differs --
+     while `?` vs `(a=Int)` marks them, the tuple being wholly new. */
+  | (_, Parens(t2)) =>
+    let inner = diff(~ctx?, ~expanded_aliases, ty, t2);
+    let wrapped_replaced =
+      IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
+    wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
+  /* Runtime knowing less than statics is not something runtime supplied:
+     `?` on the right is unmarked whatever stands on the left. */
+  | (_, Unknown(_)) => []
+  | (Unknown(_), _) => get_ids()
+  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(_), _) => get_ids()
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => []
+  | (DrvQuoteTy(_), _) => get_ids()
+  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
+  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(name), _) =>
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        expanded,
+        ty',
+      )
+    | None => get_ids()
+    }
+  /* An alias prints as one token carrying the Var node's own ids, so the
+     expansion decides only WHETHER it differs; the ids returned are the
+     Var's, and the verdict is all-or-nothing. */
+  | (_, Var(name)) =>
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        ty,
+        expanded,
+      )
+      == []
+        ? [] : get_ids()
+    | None => get_ids()
+    }
+  | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (Rec(_), _) => get_ids()
+  | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (Poly(_), _) => get_ids()
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.syntactic.exp(e1, e2) ? [] : get_ids()
+  | (ProofOf(_), _) => get_ids()
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) =>
+    diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
+  | (Arrow(_), _) => get_ids()
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
+  | (Prod(_), _) => get_ids()
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
+    diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
+  | (TupLabel(_, _), _) => get_ids()
+  | (List(t1), List(t2)) => diff(~ctx?, t1, t2)
+  | (List(_), _) => get_ids()
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(~ctx?, t1, t1') @ diff(~ctx?, t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | (Sum(sm1), Sum(sm2)) =>
+    let (inter, left, right) =
+      ConstructorMap.venn_regions(
+        ConstructorMap.same_constructor(fast_equal),
+        sm1,
+        sm2,
+      );
+    if (left != []) {
+      /* A constructor missing on the right makes the whole Sum different. */
+      get_ids();
+    } else {
+      let matched_ids =
+        List.concat_map(
+          ((v1, v2)) =>
+            switch (v1, v2) {
+            | (
+                ConstructorMap.Variant(_, _, Some(t1)),
+                ConstructorMap.Variant(_, _, Some(t2)),
+              ) =>
+              diff(~ctx?, t1, t2)
+            | (
+                ConstructorMap.Variant(_, _, None),
+                ConstructorMap.Variant(_, _, None),
+              ) =>
+              []
+            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+              diff(~ctx?, t1, t2)
+            | (_, v2) => variant_all_ids(v2)
+            },
+          inter,
+        );
+      let right_ids = List.concat_map(variant_all_ids, right);
+      matched_ids @ right_ids;
+    };
+  | (Sum(_), _) => get_ids()
+  | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
+  | (Sig(_), _) => get_ids()
+  };
+};

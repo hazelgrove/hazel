@@ -40,7 +40,7 @@ let code_settings_ml: Haz3lcore.ExpToSegment.Settings.t = {
 let typ_to_text = (~settings, typ: Typ.t): string =>
   Haz3lcore.Printer.of_segment(
     ~holes="?",
-    Haz3lcore.ExpToSegment.typ_to_segment(~settings, typ),
+    Haz3lcore.TypToSegment.typ_to_segment(~settings, typ),
   );
 
 /* Copy a rendered term/type the way the editor does: the printed text shows
@@ -179,7 +179,7 @@ let field_typ = (~globals, ~raw, label: string, typ: Typ.t): Node.t =>
     field_str(label, Typ.show(typ));
   } else {
     let seg =
-      Haz3lcore.ExpToSegment.typ_to_segment(~settings=code_settings_ml, typ);
+      Haz3lcore.TypToSegment.typ_to_segment(~settings=code_settings_ml, typ);
     field_node(
       ~copy=Some(() => copy_segment(seg)),
       label,
@@ -616,6 +616,14 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
         ];
       },
       _ => [field_str("kind", "Projector")],
+      (s: Haz3lcore.Base.splice) =>
+        [
+          field_str("kind", "Splice"),
+          field_str(
+            "content.pieces",
+            string_of_int(List.length(s.content)),
+          ),
+        ],
       p,
     );
 
@@ -661,7 +669,10 @@ let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
   [
     field_str("root sort", sort_str(editor.root)),
     field_str("syntax stale", string_of_bool(syntax.old)),
-    field_str("segment pieces", string_of_int(List.length(syntax.segment))),
+    field_str(
+      "segment pieces",
+      string_of_int(List.length(Haz3lcore.CachedSyntax.segment(syntax))),
+    ),
     field_str(
       "projectors",
       string_of_int(List.length(syntax.projector_list)),
@@ -693,7 +704,10 @@ let syntax_view = (~globals, ~cursor: Cursor.cursor(_)): list(Node.t) => {
         | None => []
         | Some(p) =>
           section(~globals, "Measured", () =>
-            measured_fields(p, editor.syntax.measured)
+            measured_fields(
+              p,
+              Haz3lcore.CachedSyntax.measured(editor.syntax),
+            )
           )
         };
       let editor_sec =

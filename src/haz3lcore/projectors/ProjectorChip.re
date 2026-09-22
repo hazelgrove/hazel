@@ -19,7 +19,9 @@ let inline_settings =
 
 /* Abbreviated syntax for the sidebar card header */
 let segment = (p: Base.projector): Base.segment => {
-  let seg = Piece.unparenthesize(p.syntax);
+  /* Projector syntax is a segment now, so unparenthesize comes from
+     Segment rather than Piece. */
+  let seg = Segment.unparenthesize(p.syntax);
   switch (MakeTerm.for_projection(seg)) {
   | Some(Exp(e)) =>
     Abbreviate.abbreviate_exp(~available=card_available, e)

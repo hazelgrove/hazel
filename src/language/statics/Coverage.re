@@ -153,6 +153,7 @@ module Ctr = {
     | Var(_) => Infinite
     | Parens(_)
     | Projector(_)
+    | Splice(_)
     | ExplicitNonlabel
     | Label(_) =>
       failwith(
@@ -431,6 +432,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Var(_) => unseen_pattern
     | Parens(_)
     | Projector(_)
+    | Splice(_)
     | ProdExtension(_)
     | ExplicitNonlabel
     | Label(_) =>
@@ -570,6 +572,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
+    | Splice(_)
     | ProdExtension(_)
     | ExplicitNonlabel
     | Label(_) =>
@@ -635,6 +638,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
+    | Splice(_)
     | ProdExtension(_)
     | ExplicitNonlabel
     | Label(_) =>

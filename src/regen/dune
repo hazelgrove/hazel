@@ -1,0 +1,3 @@
+(executable
+ (name regen_docs)
+ (libraries sexplib str))

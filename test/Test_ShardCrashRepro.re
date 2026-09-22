@@ -58,7 +58,8 @@ let rec id_shard_pairs = (seg: Segment.t): list((Id.t, int)) =>
        | Tile(t) =>
          List.map(i => (t.id, i), t.shards)
          @ List.concat_map(id_shard_pairs, t.children)
-       | Projector(pr) => id_shard_pairs([pr.syntax])
+       | Projector(pr) => id_shard_pairs(pr.syntax)
+       | Splice(sp) => id_shard_pairs(sp.content)
        | Grout(_)
        | Secondary(_) => []
        }
@@ -415,12 +416,18 @@ let tests = {
 let pairs_of_siblings = ((l, r): Siblings.t) =>
   id_shard_pairs(l) @ id_shard_pairs(r);
 
-let pairs_of_ancestor = (a: Ancestor.t) => {
-  let own = List.map(i => (a.id, i), fst(a.shards) @ snd(a.shards));
-  let kids =
-    List.concat_map(id_shard_pairs, fst(a.children) @ snd(a.children));
-  own @ kids;
-};
+/* An ancestor is now one of three shapes. Only a tile ancestor owns
+   shards; a projector ancestor contributes the syntax flanking the
+   zipped splice, and a splice ancestor carries no segments of its own
+   (its projector context is the next generation up). */
+let pairs_of_ancestor = (a: Ancestor.t) =>
+  switch (a) {
+  | Tile(a) =>
+    List.map(i => (a.id, i), fst(a.shards) @ snd(a.shards))
+    @ List.concat_map(id_shard_pairs, fst(a.children) @ snd(a.children))
+  | Projector(a) => id_shard_pairs(a.before) @ id_shard_pairs(a.after)
+  | Splice(_) => []
+  };
 
 let zipper_pairs = (z: Zipper.t): list((Id.t, int)) =>
   id_shard_pairs(z.selection.content)

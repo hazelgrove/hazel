@@ -370,7 +370,11 @@ let weave =
             })
           : Piece.Tile(t),
       ];
-    | Projector(_) => raise(Mismatch)
+    /* A splice's content is edited by its own sub-editor and does not
+       appear in the printed source this path is matching against, so
+       the fast path cannot apply -- fall back to the full parse. */
+    | Projector(_)
+    | Splice(_) => raise(Mismatch)
     | Tile(t) =>
       if (List.length(t.shards) != List.length(t.label)) {
         raise(Mismatch);

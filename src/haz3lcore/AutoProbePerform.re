@@ -165,7 +165,7 @@ let current_toplevel_def =
   let from_ancestor = () =>
     switch (z.relatives.ancestors) {
     | [] => None
-    | [(ancestor, _), ..._] => try_id(ancestor.id)
+    | [(ancestor, _), ..._] => try_id(Ancestor.id(ancestor))
     };
 
   [from_indicated, from_right, from_left, from_ancestor]
@@ -173,7 +173,7 @@ let current_toplevel_def =
 };
 
 /* Program root id: the single `All`-mode anchor (expands to one probe per row).
- * Memoized on physical identity of `syntax.segment`, since Segment.skel parses
+ * Memoized on physical identity of `CachedSyntax.segment(syntax)`, since Segment.skel parses
  * the whole program and update_autoprobe calls this every All-mode frame. */
 let root_id_segment: ref(option(Segment.t)) = ref(None);
 let root_id_result: ref(option(Id.t)) = ref(None);
@@ -181,14 +181,14 @@ let root_id_result: ref(option(Id.t)) = ref(None);
 let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let stable =
     switch (root_id_segment^) {
-    | Some(seg) => seg === syntax.segment
+    | Some(seg) => seg === CachedSyntax.segment(syntax)
     | None => false
     };
   if (stable) {
     root_id_result^;
   } else {
     let result =
-      switch (syntax.segment) {
+      switch (CachedSyntax.segment(syntax)) {
       | [] => None
       | seg =>
         switch (Segment.root_id(Segment.skel(seg), seg)) {
@@ -196,7 +196,7 @@ let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
         | exception _ => None
         }
       };
-    root_id_segment := Some(syntax.segment);
+    root_id_segment := Some(CachedSyntax.segment(syntax));
     root_id_result := result;
     result;
   };

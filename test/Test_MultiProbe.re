@@ -123,7 +123,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
                 target_id,
                 syntax.term_data,
                 syntax.terms,
-                syntax.measured,
+                Haz3lcore.CachedSyntax.measured(syntax),
                 info_map,
               )
             ) {
@@ -149,8 +149,16 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
         List.stable_sort(
           (a, b) =>
             switch (
-              TermData.extreme_measures(a, syntax.term_data, syntax.measured),
-              TermData.extreme_measures(b, syntax.term_data, syntax.measured),
+              TermData.extreme_measures(
+                a,
+                syntax.term_data,
+                Haz3lcore.CachedSyntax.measured(syntax),
+              ),
+              TermData.extreme_measures(
+                b,
+                syntax.term_data,
+                Haz3lcore.CachedSyntax.measured(syntax),
+              ),
             ) {
             | (Some((_, ea)), Some((_, eb))) =>
               switch (Int.compare(ea.row, eb.row)) {

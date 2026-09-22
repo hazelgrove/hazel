@@ -27,6 +27,13 @@ let cons = (a: 'a, b: 'b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   [a, ...as_],
   [b, ...bs],
 );
+let singleton = (a: 'a): t('a, _) => ([a], []);
+
+let map_hd = (f_a: 'a => 'a, (as_, bs): t('a, 'b)): t('a, 'b) => (
+  [as_ |> List.hd |> f_a, ...as_ |> List.tl],
+  bs,
+);
+
 let get_as: t('a, _) => list('a) = fst;
 let get_bs: t(_, 'b) => list('b) = snd;
 

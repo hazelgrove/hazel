@@ -3,6 +3,250 @@ open OptUtil.Syntax;
 open Language;
 open ProbeTargets;
 
+module FocusEffect = {
+  /* Scheduled focus for probe or editor elements after step-into.
+   * This ref is set when step-into resolves and cleared when focus is executed.
+   * We use a ref (not model state) because DOM focus must happen AFTER render,
+   * and we can't dispatch actions from after_display without causing loops. */
+  type target =
+    | Editor
+    | Cell
+    | Probe(Id.t);
+
+  let scheduled: ref(option(target)) = ref(None);
+
+  /* Schedule DOM focus on a probe element (called from resolve_pending_focus) */
+  let schedule = (probe_id: Id.t): unit => {
+    scheduled := Some(Probe(probe_id));
+  };
+
+  /* Schedule DOM focus on the main editor (called from step_into_sample) */
+  let schedule_editor = (): unit => {
+    scheduled := Some(Editor);
+  };
+
+  /* Schedule DOM focus on the active code-editor cell (called after a
+     sidebar jump, which moves the model selection to a different cell
+     without moving DOM focus). */
+  let schedule_cell = (): unit => {
+    scheduled := Some(Cell);
+  };
+
+  /* Execute any scheduled focus (called from Main.re after_display).
+   * Returns whether focus was executed. */
+  let execute = (): bool =>
+    switch (scheduled^) {
+    | Some(Editor) =>
+      scheduled := None;
+      JsUtil.focus_clipboard_shim();
+      true;
+    | Some(Cell) =>
+      scheduled := None;
+      JsUtil.focus_active_cell();
+    | Some(Probe(probe_id)) =>
+      scheduled := None;
+      let elem_id = Id.cls(probe_id);
+      switch (JsUtil.get_elem_by_id_opt(elem_id)) {
+      | Some(elem) =>
+        elem##focus;
+        true;
+      | None => false
+      };
+    | None => false
+    };
+};
+
+let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
+  switch (Statics.Map.lookup(id, info_map)) {
+  /* If we're trying to probe a function literal,
+     put probes on parameters and body instead */
+  | Some(InfoExp({user_term: {term: Fun(pat, body, _, _), _}, _})) => [
+      IdTagged.rep_id(body),
+      IdTagged.rep_id(pat),
+    ]
+  | Some(InfoExp({user_term: {term: Let(_pat, def, _), _} as let_term, _})) =>
+    /* If trying to probe a let, probe the definition instead.
+       Exception: if the let is the body of a test, probe the let itself
+       (so we see the test result, not just the definition value).
+       Recurse so that if def is a fun literal, the above case will get it */
+    let is_test_body =
+      switch (
+        Statics.Map.parent_term_of(info_map, IdTagged.rep_id(let_term))
+      ) {
+      | Some(Exp({term: Test(_) | HintedTest(_, _), _})) => true
+      | _ => false
+      };
+    is_test_body
+      ? [IdTagged.rep_id(let_term)]
+      : target_subterm_ids(IdTagged.rep_id(def), info_map);
+  | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
+    /* If trying to probe a module expression, probe the definition.
+       Recurse so fun literals get drilled into. */
+    target_subterm_ids(IdTagged.rep_id(def), info_map)
+
+  | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
+    /* If we're trying to probe variable in function position for an
+       application, probe the whole application instead */
+    switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
+    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
+        IdTagged.rep_id(ap),
+      ]
+    | Some(Exp({term: DeferredAp(f_expr, _), _} as dap)) when f_expr == v =>
+      /* If we're trying to probe a variable in function position in a partially
+         applied function, itself in function position of an application,
+         in particular but not limited to a reverse application chain,
+         probe the whole application instead */
+      switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(dap))) {
+      | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == dap => [
+          IdTagged.rep_id(ap),
+        ]
+      | _ => [id]
+      }
+    | _ => [id]
+    }
+  | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
+    /* If we're trying to probe a partially applied function in function
+       position of an application, in particular but not limited to a reverse
+       application chain, probe the whole application instead */
+    switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
+    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
+        IdTagged.rep_id(ap),
+      ]
+    | _ => [id]
+    }
+  /* Filter out terms that can't meaningfully be probed */
+  | info when !Info.is_typable_term(info) => []
+  /* Default: use rep_id for expressions and patterns to handle multi-tile forms
+     (tuples, list literals, case expressions) where non-representative tile IDs
+     would otherwise cause probe_map/evaluator ID mismatch */
+  | Some(InfoExp({user_term, _})) => [IdTagged.rep_id(user_term)]
+  | Some(InfoPat({user_term, _})) => [Pat.rep_id(user_term)]
+  | _ => [id]
+  };
+
+type probe_status =
+  | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
+  | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
+  | Multi
+  | Ephemeral(list(Id.t)) /* target IDs present in ephemerals map */
+  | Suppressed(list(Id.t)) /* target IDs present in suppressed map */
+  | Non;
+
+let probe_status =
+    (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
+    : probe_status => {
+  let target_ids = target_subterm_ids(id, info_map);
+  /* For manual/statics: check if ALL target IDs have manual entries */
+  if (List.for_all(
+        id => List.assoc_opt(id, refractors.manuals) != None,
+        target_ids,
+      )
+      && target_ids != []) {
+    /* Distinguish between probe and statics by checking kind */
+    let all_statics =
+      List.for_all(
+        id =>
+          switch (List.assoc_opt(id, refractors.manuals)) {
+          | Some(entry: Refractors.entry) => entry.kind == Statics
+          | None => false
+          },
+        target_ids,
+      );
+    all_statics ? Statics(target_ids) : Manual(target_ids);
+  } else if
+    /* For Multi: check if ANY target ID is a multi probe anchor */
+    (List.exists(id => Id.Map.mem(id, refractors.multis.ids), target_ids)) {
+    Multi;
+  } else {
+    let ephemeral_ids =
+      List.filter(
+        id => Id.Map.mem(id, refractors.multis.ephemerals),
+        target_ids,
+      );
+    if (ephemeral_ids != []) {
+      Ephemeral(ephemeral_ids);
+    } else {
+      let suppressed_ids =
+        List.filter(
+          id => Id.Map.mem(id, refractors.multis.suppressed),
+          target_ids,
+        );
+      if (suppressed_ids != []) {
+        Suppressed(suppressed_ids);
+      } else {
+        Non;
+      };
+    };
+  };
+};
+
+let ids_from_term =
+    (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) =>
+  MultiProbe.ids_to_multiprobe(
+    id,
+    syntax.term_data,
+    syntax.terms,
+    CachedSyntax.measured(syntax),
+    info_map,
+  )
+  |> Option.to_list
+  |> List.flatten
+  |> List.filter_map(Fun.id);
+
+/* Sort IDs by lexical position (earliest first).
+ * Uses the start position of each term to determine order. */
+let sort_ids_lexically =
+    (~syntax: CachedSyntax.t, ids: list(Id.t)): list(Id.t) => {
+  let with_positions =
+    List.filter_map(
+      id =>
+        switch (
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
+        ) {
+        | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
+        | None => None
+        },
+      ids,
+    );
+  let sorted =
+    List.sort(
+      ((_, r1, c1), (_, r2, c2)) =>
+        switch (Int.compare(r1, r2)) {
+        | 0 => Int.compare(c1, c2)
+        | n => n
+        },
+      with_positions,
+    );
+  List.map(((id, _, _)) => id, sorted);
+};
+
+/* The document row a manual probe's offside sample view renders on:
+ * the end row of its term, remapped through the owning splice's
+ * document row for in-splice terms — splice interiors are measured in
+ * splice-local coordinates, so their raw rows are meaningless in (and
+ * collide spuriously with) the outer frame. Mirrors RefractorView's
+ * chip placement; the one-probe-per-line policy below is about chips
+ * sharing a line, so rows must be compared in document coordinates. */
+let chip_row = (~syntax: CachedSyntax.t, id: Id.t): option(int) => {
+  let* (_, end_pt) =
+    TermData.extreme_measures(
+      id,
+      syntax.term_data,
+      CachedSyntax.measured(syntax),
+    );
+  switch (CachedSyntax.splice_containing_id(id, syntax)) {
+  | None => Some(end_pt.row)
+  | Some((sid, _)) =>
+    let+ base = CachedSyntax.doc_row_of_splice(sid, syntax);
+    base + end_pt.row;
+  };
+};
+
+/* Set pending_probe_cursor so sample focus aligns when dynamics arrive. */
 let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
   Zipper.update_refractors(z, r =>
     {
@@ -105,21 +349,18 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
     List.fold_right(
       ((probe_id, _), acc) =>
         switch (
+          chip_row(~syntax, probe_id),
           TermData.extreme_measures(
             probe_id,
             syntax.term_data,
-            syntax.measured,
-          )
+            CachedSyntax.measured(syntax),
+          ),
         ) {
-        | Some((_, end_pt)) =>
+        | (Some(row), Some((_, end_pt))) =>
           let existing =
-            IntMap.find_opt(end_pt.row, acc) |> Option.value(~default=[]);
-          IntMap.add(
-            end_pt.row,
-            [(probe_id, end_pt.col), ...existing],
-            acc,
-          );
-        | None => acc
+            IntMap.find_opt(row, acc) |> Option.value(~default=[]);
+          IntMap.add(row, [(probe_id, end_pt.col), ...existing], acc);
+        | _ => acc
         },
       z.refractors.manuals,
       IntMap.empty,
@@ -149,26 +390,13 @@ let add_manual_targets =
     (~syntax: CachedSyntax.t, target_ids: list(Id.t), z: Zipper.t): Zipper.t => {
   /* Get ending rows for all new probe targets */
   let target_end_rows =
-    target_ids
-    |> List.filter_map(id =>
-         TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-         |> Option.map(((_, end_pt: Point.t)) => end_pt.row)
-       );
+    target_ids |> List.filter_map(id => chip_row(~syntax, id));
 
   let conflicting_ids =
     List.fold_right(
       ((probe_id, _), acc) =>
-        switch (
-          TermData.extreme_measures(
-            probe_id,
-            syntax.term_data,
-            syntax.measured,
-          )
-        ) {
-        | Some((_, end_pt)) when List.mem(end_pt.row, target_end_rows) => [
-            probe_id,
-            ...acc,
-          ]
+        switch (chip_row(~syntax, probe_id)) {
+        | Some(row) when List.mem(row, target_end_rows) => [probe_id, ...acc]
         | _ => acc
         },
       z.refractors.manuals,
@@ -245,7 +473,11 @@ let add_ids_from_multi_term =
     List.filter_map(
       ((id, _)) =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((_, end_loc)) => Some(end_loc.row)
         | None => None
@@ -256,7 +488,11 @@ let add_ids_from_multi_term =
     List.filter(
       id =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((_, end_loc)) => !List.mem(end_loc.row, manual_end_rows)
         | None => true
@@ -621,7 +857,7 @@ let go =
         TermData.get_root_id_using_ranges(
           z.selection.content,
           syntax.term_data,
-          syntax.measured,
+          CachedSyntax.measured(syntax),
         )
       ) {
       | Some(id) =>

@@ -1163,6 +1163,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         available := available^ - ellipsis_cost;
         Invalid(flat_ellipses);
       | Projector(data, e) => Projector(data, abbreviate_exp(e))
+      | Splice(e) => Splice(abbreviate_exp(e))
       | Module(items) =>
         /* Modules should typically be expanded to labeled tuples before
            abbreviation runs (in probe values). Handle gracefully anyway. */
@@ -1503,6 +1504,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           Parens(abbreviate_pat(p));
         }
       | Projector(data, p) => Projector(data, abbreviate_pat(p))
+      | Splice(p) => Splice(abbreviate_pat(p))
       };
     let result = rewrap(term);
     if (available^ < 0) {
@@ -1746,6 +1748,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           e,
         )
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
+      | Splice(t) => Splice(abbreviate_typ(t))
       | Sig(items) =>
         if (available^ <= 2) {
           Sig([]);

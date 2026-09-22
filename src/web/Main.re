@@ -290,7 +290,7 @@ let start = default_model => {
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;
         let zipper = editor.state.zipper;
-        let measured = editor.syntax.measured;
+        let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
         let font_metrics = model.model.current.current.globals.font_metrics;
         ScrollWidth.update(
           ~measured,

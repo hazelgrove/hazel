@@ -256,7 +256,7 @@ let flatten_generation =
     : (Siblings.t, Id.Map.t((Id.t, list(int)))) => {
   let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
   let (right_dis, fresh_map) =
-    freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
+    freshen_ancestor_shards(Ancestor.id(ancestor), fresh_map, right_dis);
   (
     Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]),
     fresh_map,
@@ -612,9 +612,9 @@ let flatten_and_repair = (z: t): t => {
   ascend(1);
 };
 
-/* Entry point. Run the cheap request-driven path first; only if it makes no
-   change consider the spine-flattening fallback, and only when something
-   actually warrants repair.
+/* Run the cheap request-driven path first; only if it makes no change consider
+   the spine-flattening fallback, and only when something actually warrants
+   repair.
 
    The guard keeps the hot per-keystroke path O(local): for a single-character
    Insert/Destruct we flatten only when the caret's immediate siblings hold an
@@ -639,8 +639,50 @@ let go_with = (~thorough: bool, z: t): t => {
   };
 };
 
-let go = (z: t): t => go_with(~thorough=false, z);
+/* Splice and projector ancestor frames are hard reassociation
+ * boundaries: their disassembly is lossy (Ancestor.disassemble yields
+ * empty segments for them), so flattening through one destroys the
+ * projector. Reassociation therefore acts within the innermost splice
+ * only — an edit inside a splice reassociates exactly as it would in a
+ * standalone editor holding the splice's content. */
+let split_at_boundary = (ancs: Ancestors.t): (Ancestors.t, Ancestors.t) => {
+  let rec split = (acc, ancs: Ancestors.t) =>
+    switch (ancs) {
+    | [] => (List.rev(acc), [])
+    | [(Ancestor.Projector(_) | Ancestor.Splice(_), _), ..._] => (
+        List.rev(acc),
+        ancs,
+      )
+    | [frame, ...rest] => split([frame, ...acc], rest)
+    };
+  split([], ancs);
+};
+
+let within_boundary = (f: t => t, z: t): t => {
+  let (inner_ancs, boundary_ancs) = split_at_boundary(z.relatives.ancestors);
+  if (boundary_ancs == []) {
+    f(z);
+  } else {
+    let z_inner = {
+      ...z,
+      relatives: {
+        Relatives.siblings: z.relatives.siblings,
+        ancestors: inner_ancs,
+      },
+    };
+    let z_inner = f(z_inner);
+    {
+      ...z_inner,
+      relatives: {
+        Relatives.siblings: z_inner.relatives.siblings,
+        ancestors: z_inner.relatives.ancestors @ boundary_ancs,
+      },
+    };
+  };
+};
+
+let go = (z: t): t => within_boundary(go_with(~thorough=false), z);
 
 /* Thorough variant for Paste (a rare bulk edit): admits a full-relatives scan
    for incomplete forms left anywhere in the pasted region. */
-let go_thorough = (z: t): t => go_with(~thorough=true, z);
+let go_thorough = (z: t): t => within_boundary(go_with(~thorough=true), z);

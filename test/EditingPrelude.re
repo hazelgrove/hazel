@@ -20,7 +20,8 @@ and equal_piece = (a: piece, b: piece) => {
   | (Projector(p1), Projector(p2)) =>
     p1.kind == p2.kind
     && p1.model == p2.model
-    && equal_piece(p1.syntax, p2.syntax)
+    && equal_segment(p1.syntax, p2.syntax)
+  | (Splice(s1), Splice(s2)) => equal_segment(s1.content, s2.content)
   | _ => false
   };
 };

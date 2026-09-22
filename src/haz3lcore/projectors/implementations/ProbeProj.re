@@ -2255,11 +2255,14 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Any.t) => {
+  let init = (any: Any.t, _) => {
+    /* Annotated: a bare None here unifies with a shadowing type in
+       scope, not with option(init_override). */
+    let no_override: option(ProjectorBase.init_override) = None;
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some(init_model)
-    | Any(_) => Some(init_model) /* Grout don't have sorts */
+    | Pat(_) => Some((init_model, no_override))
+    | Any(_) => Some((init_model, no_override)) /* Grout don't have sorts */
     | _ => None
     };
   };
@@ -2282,7 +2285,9 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (model: model, info) =>
+  let splice_rows = (_, _, _) => Id.Map.empty;
+
+  let placeholder = (model: model, info, _) =>
     if (model.drawer_mode) {
       let rows =
         switch (rich_drawer_rows(model, info)) {
@@ -2435,7 +2440,7 @@ module M: Projector = {
   };
 
   let error = (_, _): option(ProjectorBase.error) => None;
-
+  let context_actions = (_, _, ~splice as _) => [];
   let view =
       (
         {info, local, parent, view_seg, model, status, _}:

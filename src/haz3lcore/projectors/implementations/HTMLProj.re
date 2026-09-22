@@ -212,12 +212,16 @@ module M: Projector = {
 
   /* Permissive and syntactic: accept bare HTML, plus anything that could
      evaluate to an app. `view` has the live value and makes the call. */
-  let init = (any: Any.t) => {
+  let init = (any: Any.t, _) => {
+    /* No init_override: this projector keeps the syntax it was given. */
     let accept =
-      Some({
-        ui: default_ui,
-        checkpoint: None,
-      });
+      Some((
+        {
+          ui: default_ui,
+          checkpoint: None,
+        },
+        None,
+      ));
     switch (any) {
     // HTML constructor applied to arguments: Div(...), Button(...), etc.
     | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _})
@@ -240,11 +244,16 @@ module M: Projector = {
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
 
-  let placeholder = (m: model, _) =>
+  let placeholder = (m: model, _, _) =>
     ProjectorCore.Shape.{
       horizontal: m.ui.cols,
       vertical: Block(m.ui.rows - 1),
     };
+
+  /* This projector's syntax is an Html term, not an editable region, so
+     it has no splices to lay out and no splice-local menu actions. */
+  let splice_rows = (_, _, _) => Id.Map.empty;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let update = (m: model, _, action: action) => {
     switch (action) {

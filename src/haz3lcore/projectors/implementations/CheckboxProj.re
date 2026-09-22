@@ -14,9 +14,9 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
+  let init = (any: Language.Any.t, _) =>
     switch (bool_of(any)) {
-    | Some(_) => Some()
+    | Some(_) => Some(((), None))
     | None => None
     };
 
@@ -28,10 +28,9 @@ module M: Projector = {
     | None => failwith("Checkbox: Get: not boolean literal")
     };
 
-  let toggle = (info): Base.segment =>
+  let toggle = (info): Language.Any.t =>
     switch (
-      info.utility.lift_syntax(
-        ~inline=true,
+      info.utility.lift_term(
         fun
         | Exp({term: Atom(Bool(b)), _} as t) =>
           Exp({
@@ -49,9 +48,11 @@ module M: Projector = {
   let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
-  let placeholder = (_, _) => ProjectorCore.Shape.inline(2);
+  let placeholder = (_, _, _) => ProjectorCore.Shape.inline(2);
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(
@@ -59,7 +60,7 @@ module M: Projector = {
         ~attrs=
           [
             Attr.create("type", "checkbox"),
-            Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
+            Attr.on_input((_, _) => parent(SetTerm(toggle(info), false))),
           ]
           @ (info |> get ? [Attr.checked] : []),
         (),

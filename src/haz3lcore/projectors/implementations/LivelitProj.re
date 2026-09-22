@@ -50,14 +50,14 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
+  let init = (any: Language.Any.t, _) =>
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({
         term: Parens({term: Ap(_dir, {term: LivelitName(_), _}, _), _}),
         _,
       }) =>
-      Some()
+      Some(((), None))
     | _ => None
     };
 
@@ -68,7 +68,7 @@ module M: Projector = {
   let last_good_shape: Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
     Hashtbl.create(16);
 
-  let placeholder = (_model, info) => {
+  let placeholder = (_model, info, _splice_size) => {
     let looked_up =
       switch (get_model(info), info.statics) {
       | (Some((llname, _)), Some(InfoExp(exp))) =>
@@ -114,6 +114,7 @@ module M: Projector = {
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
       start_term;
     };
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _info, action) =>
     switch (action) {
     | _ => print_endline("Warning - LivelitProj.update: No action")
@@ -159,6 +160,7 @@ module M: Projector = {
   let dynamics = true;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   /* The projector's sample stream carries both the view's HTML and the
      use's own value; the live view is the latest HTML-shaped sample.
@@ -634,6 +636,13 @@ module M: Projector = {
       | Some((ll_name, model)) =>
         let ll = Ctx.lookup_livelit(ctx, ll_name);
 
+        /* TODO(splicerefs): this commits through SetSyntax, which
+           replaces the projector's whole segment. Once a user-defined
+           livelit's syntax can contain splices, that will discard them
+           on every model write, and this wants SetTerm(_, ~preserve_
+           splices=true) instead -- the same call CardProj makes. Left
+           as-is here so the merge stays a merge; nothing on this branch
+           puts splices inside a livelit yet. */
         /* Write an updated model back into the Ap's argument position */
         let commit_model = (new_model: TermBase.Exp.t) => {
           let updated_segment =

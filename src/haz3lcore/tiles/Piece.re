@@ -5,22 +5,34 @@ type t = piece;
 
 let secondary = w => Secondary(w);
 let grout = g => Grout(g);
-let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
+let tile = t => Tile(t);
+let splice = s => Splice(s);
+
+let get =
+    (f_w, f_g, f_t: tile => _, f_p: projector => _, f_s: splice => _, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
   | Grout(g) => f_g(g)
   | Tile(t) => f_t(t)
   | Projector(p) => f_p(p)
+  | Splice(s) => f_s(s)
   };
 
 let id =
-  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id);
+  get(
+    Secondary.id,
+    Grout.id,
+    tile => tile.id,
+    projector => projector.id,
+    splice => splice.id,
+  );
 
 let sort =
   get(
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
     t => (t.mold.out, t.mold.in_),
+    _ => (Sort.Any, []),
     _ => (Sort.Any, []),
   );
 
@@ -58,6 +70,21 @@ let nibs =
         ),
       );
     },
+    _ =>
+      /* Splices are convex/convex like projectors; they are atomic
+       * from the caret's perspective when scanning the parent segment. */
+      Some(
+        Nib.(
+          {
+            shape: Convex,
+            sort: Any,
+          },
+          {
+            shape: Convex,
+            sort: Any,
+          },
+        ),
+      ),
   );
 
 let nib_sorts =
@@ -69,6 +96,7 @@ let nib_sorts =
       (l.sort, r.sort);
     },
     _ => (Sort.Any, Sort.Any),
+    _ => (Sort.Any, Sort.Any),
   );
 
 let pop_l = (p: t): (t, segment) =>
@@ -76,21 +104,24 @@ let pop_l = (p: t): (t, segment) =>
   | Tile(t) => Tile.pop_l(t)
   | Grout(_)
   | Secondary(_)
-  | Projector(_) => (p, [])
+  | Projector(_)
+  | Splice(_) => (p, [])
   };
 let pop_r = (p: t): (segment, t) =>
   switch (p) {
   | Tile(t) => Tile.pop_r(t)
   | Grout(_)
   | Secondary(_)
-  | Projector(_) => ([], p)
+  | Projector(_)
+  | Splice(_) => ([], p)
   };
 
 let disassemble = (p: t): segment =>
   switch (p) {
   | Grout(_)
   | Secondary(_)
-  | Projector(_) => [p]
+  | Projector(_)
+  | Splice(_) => [p]
   | Tile(t) => Tile.disassemble(t)
   };
 
@@ -100,6 +131,7 @@ let shapes =
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
     p => Some(ProjectorCore.shapes(p)),
+    _ => Some(Nib.Shape.(Convex, Convex)),
   );
 
 let is_convex = (p: t): bool =>
@@ -123,10 +155,54 @@ let is_tile: t => option(Tile.t) =
   | Tile(t) => Some(t)
   | _ => None;
 
+let is_projector: t => option(projector) =
+  fun
+  | Projector(p) => Some(p)
+  | _ => None;
+
+let is_splice: t => option(splice) =
+  fun
+  | Splice(s) => Some(s)
+  | _ => None;
+
+let label: t => option(Label.t) =
+  fun
+  | Tile({label, _}) => Some(label)
+  | _ => None;
+
 let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
+
+let replace_id = (id: Id.t, p: t): t =>
+  switch (p) {
+  | Tile(t) =>
+    Tile({
+      ...t,
+      id,
+    })
+  | Grout(g) =>
+    Grout({
+      ...g,
+      id,
+    })
+  | Secondary(w) =>
+    Secondary({
+      ...w,
+      id,
+    })
+  | Projector(p) =>
+    Projector({
+      ...p,
+      id,
+    })
+  | Splice(s) =>
+    Splice({
+      ...s,
+      id,
+    })
+  };
 
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 
@@ -135,6 +211,14 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     id,
     shape,
   });
+
+let mk_splice = (~id=Id.mk(), content: segment): t => {
+  let content = content == [] ? [mk_grout(Convex)] : content;
+  splice({
+    id,
+    content,
+  });
+};
 
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
@@ -150,6 +234,7 @@ let is_term = (p: t) =>
   switch (p) {
   | Grout(_)
   | Projector(_)
+  | Splice(_)
   | Tile({
       label: [_],
       mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
@@ -178,6 +263,7 @@ let token_of = (p: t): option(Token.t) =>
   | Secondary(w) => Some(Secondary.get_string(w.content))
   | Grout(_) => None
   | Projector(_) => None
+  | Splice(_) => None
   };
 
 let l_shard_of = (p: t): t =>

@@ -286,7 +286,8 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
         ),
       ]
     | Parens(p)
-    | Projector(_, p) => go(path, p)
+    | Projector(_, p)
+    | Splice(p) => go(path, p)
     | Asc(p, ty) => go([Ascribed(ty), ...path], p)
     | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
     | Ap(ctr, p) =>

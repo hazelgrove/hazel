@@ -233,9 +233,15 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
     current :=
       {
         ...current^,
-        segment_tokens: List.length(syntax.segment),
-        tiles: Haz3lcore.Id.Map.cardinal(syntax.measured.tiles),
-        rows: Haz3lcore.Measured.Rows.cardinal(syntax.measured.rows),
+        segment_tokens: List.length(Haz3lcore.CachedSyntax.segment(syntax)),
+        tiles:
+          Haz3lcore.Id.Map.cardinal(
+            Haz3lcore.CachedSyntax.measured(syntax).tiles,
+          ),
+        rows:
+          Haz3lcore.Measured.Rows.cardinal(
+            Haz3lcore.CachedSyntax.measured(syntax).rows,
+          ),
         projectors: List.length(syntax.projector_list),
       };
     live :=

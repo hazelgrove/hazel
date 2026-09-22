@@ -192,18 +192,23 @@ let shard_index = (z: ZipperBase.t): option(int) =>
     | Parent =>
       switch (Ancestors.parent(z.relatives.ancestors)) {
       | None => failwith("indicated_shard_index impossible")
-      | Some({children: (before, _), _}) =>
+      | Some(Tile({children: (before, _), _})) =>
         let before = List.length(before);
         switch (Siblings.neighbors(z.relatives.siblings)) {
         | (_, None) => Some(before + 1)
         | _ => Some(before)
         };
+      | Some(Projector(_) | Splice(_)) =>
+        /* Splice / Projector parents have no shard-index notion; treat
+         * them as a single boundary. */
+        Some(0)
       }
     | Sibling =>
       switch (p) {
       | Secondary(_)
       | Grout(_)
-      | Projector(_) => Some(0)
+      | Projector(_)
+      | Splice(_) => Some(0)
       | Tile(t) =>
         switch (side) {
         | Left => Some(List.length(t.children))

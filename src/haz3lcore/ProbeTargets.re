@@ -132,13 +132,18 @@ let ids_from_term =
     | Some((term_data, terms, measured, prev_info_map)) =>
       term_data === syntax.term_data
       && terms === syntax.terms
-      && measured === syntax.measured
+      && measured === CachedSyntax.measured(syntax)
       && prev_info_map === info_map
     | None => false
     };
   if (!inputs_stable) {
     expansion_inputs :=
-      Some((syntax.term_data, syntax.terms, syntax.measured, info_map));
+      Some((
+        syntax.term_data,
+        syntax.terms,
+        CachedSyntax.measured(syntax),
+        info_map,
+      ));
     expansion_results := [];
   };
   switch (List.assoc_opt(id, expansion_results^)) {
@@ -149,7 +154,7 @@ let ids_from_term =
         id,
         syntax.term_data,
         syntax.terms,
-        syntax.measured,
+        CachedSyntax.measured(syntax),
         info_map,
       )
       |> Option.to_list
@@ -166,7 +171,11 @@ let sort_ids_lexically =
     List.filter_map(
       id =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
         | None => None

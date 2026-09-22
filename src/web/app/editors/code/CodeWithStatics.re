@@ -223,25 +223,30 @@ module View = {
   type event;
 
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
+      (
+        ~globals,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        /* The frame being rendered (None = root editor, Some(sid) =
+         * splice sid's sub-editor): error/warning arms are drawn only
+         * in the frame that owns their anchor's coordinates. */
+        ~frame: option(Id.t)=None,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
+          /* measured and segment are re-bound below via the accessors:
+           * they now live in main_splice, which a sub-editor swaps. */
           syntax:
-            {
-              measured,
-              selection_ids,
-              segment,
-              shape_map,
-              refractor_rows,
-              term_data,
-              _,
-            },
+            {selection_ids, shape_map, refractor_rows, term_data, _} as syntax,
           state: {zipper: z, _},
           _,
         },
       _,
     }: Model.t = model;
+    let measured = CachedSyntax.measured(syntax);
+    let segment = CachedSyntax.segment(syntax);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
@@ -256,13 +261,15 @@ module View = {
         ~refine_sort,
         segment,
       );
+    let in_frame = id =>
+      CachedSyntax.frame_owns_id(frame, id, model.editor.syntax);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
         ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.error_ids,
+        List.filter(in_frame, model.statics.error_ids),
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
@@ -273,7 +280,7 @@ module View = {
         ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        warning_ids,
+        List.filter(in_frame, warning_ids),
       );
     let container_classes =
       ["code-container"]

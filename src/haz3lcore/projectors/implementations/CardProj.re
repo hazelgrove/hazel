@@ -42,9 +42,11 @@ let update = ((sort, collection): state, update: update): state =>
   };
 
 module SyntaxTerm = {
-  let put = (info, syntax): option(Base.segment) =>
-    info.utility.lift_syntax(
-      ~inline=true,
+  /* Lift to a TERM, not a segment: on_pick sends SetTerm, whose
+     preserve_splices flag is what keeps a card's existing splices
+     alive across a re-set. Going out as a segment would discard them. */
+  let put = (info, syntax): option(Any.t) =>
+    info.utility.lift_term(
       _ => CardSyntax.state_to_any(syntax),
       info.syntax,
     );
@@ -92,7 +94,7 @@ module Chooser = {
       };
     switch (act |> update(SyntaxTerm.get(info)) |> SyntaxTerm.put(info)) {
     | None => Effect.Ignore
-    | Some(seg) => parent(SetSyntax(seg))
+    | Some(term) => parent(SetTerm(term, false))
     };
   };
 
@@ -279,20 +281,22 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
 
-  let init = (info: TermBase.Any.t): option(model) =>
-    SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
+  let init = (info: TermBase.Any.t, _) =>
+    SyntaxTerm.get_opt(info) != None ? Some(({mode: Show}, None)) : None;
 
-  let placeholder = (_, info): ProjectorCore.Shape.t => {
+  let placeholder = (_, info, _splice_size): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
     vertical: Tab(1),
   };
 
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}
     };
 
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view =
       ({model, info, local, parent, _}: View.args(model, action)): View.t => {

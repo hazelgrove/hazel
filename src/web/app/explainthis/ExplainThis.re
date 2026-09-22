@@ -336,7 +336,7 @@ let expander_deco =
         TermData.extreme_measures(
           id,
           editor.syntax.term_data,
-          editor.syntax.measured,
+          Haz3lcore.CachedSyntax.measured(editor.syntax),
         )
       ) {
       | Some((origin, _)) => origin
@@ -492,6 +492,7 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
+  | Splice(p)
   | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -499,8 +500,17 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p) => bypass_parens_pat(p)
+  | Parens(p)
+  | Splice(p) => bypass_parens_pat(p)
   | _ => pat
+  };
+};
+
+let rec bypass_parens_exp = (exp: Exp.t) => {
+  switch (exp.term) {
+  | Parens(e)
+  | Splice(e) => bypass_parens_exp(e)
+  | _ => exp
   };
 };
 
@@ -509,7 +519,8 @@ let nth_rep_id = (elements, n) => IdTagged.rep_id(List.nth(elements, n));
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
-  | Parens(t) => bypass_parens_typ(t)
+  | Parens(t)
+  | Splice(t) => bypass_parens_typ(t)
   | _ => typ
   };
 };
@@ -1023,6 +1034,7 @@ let decide =
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
+        | Splice(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Label(name) => get_message(LabelTerm.labels(name))
@@ -1202,6 +1214,7 @@ let decide =
         | Invalid(_) => NoDoc // Shouldn't get hit
         | Parens(_)
         | Projector(_)
+        | Splice(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
@@ -1409,6 +1422,7 @@ let decide =
       | Module(_) => message_single(ModuleExp.single)
       | ModuleExp(_) => message_single(ModuleKeywordExp.single)
       | Projector(_, e) => get_message_exp(e.term)
+      | Splice(e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
   | Some(InfoPat({user_term: term, _})) =>
@@ -1490,7 +1504,8 @@ let decide =
       get_message(TypAnnPat.typann(~pat_id, ~typ_id));
     | Invalid(_) => Prose("Not a valid pattern")
     | Parens(_)
-    | Projector(_) =>
+    | Projector(_)
+    | Splice(_) =>
       // Shouldn't be hit?
       NoDoc
     }
@@ -1586,7 +1601,8 @@ let decide =
     | ProdExtension(_)
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)
-    | Projector(_) => NoDoc
+    | Projector(_)
+    | Splice(_) => NoDoc
     | DrvQuoteTy(Jdmt) =>
       Prose(
         "`DrvJdmt` is the type of derivation-mode judgements. Quote a judgement with `of_jdmt` to embed it as an expression.",

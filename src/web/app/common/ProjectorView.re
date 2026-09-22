@@ -137,11 +137,24 @@ let filter_by_visibility =
 module Model = {
   type status = ProjectorBase.View.status;
 
+  /* Which layers of a view to render in the current frame. Projectors
+   * render all layers in their own frame. Probes on terms inside a
+   * splice render in two frames: the owning splice's sub-editor draws
+   * the term-anchored layers (highlight, indicator) but never the
+   * offside sample view — chips don't go into splices — while the root
+   * editor draws only the offside view, repositioned beside the host
+   * projector (see RefractorView.mk_data). */
+  type layers =
+    | All
+    | OffsideOnly
+    | NoOffside;
+
   type projector_data = {
     p: Piece.projector,
     info: ProjectorBase.info,
     measurement: Measured.measurement,
     offside_base: int,
+    render_layers: layers,
     status,
     /* Map refs for view cache identity comparison. `elaborated` is the whole-
      * editor elaborated Exp.t that P.view() may consume via info.elaborated;
@@ -171,6 +184,38 @@ module Model = {
     + offset
     - measurement.origin.col;
 
+  /* Whether a statics error is anchored in the projector's own hidden
+   * syntax — pieces between its splices, like a table row's comma —
+   * which is rendered as projector chrome rather than laid-out text.
+   * Such errors get no arms anywhere (see Arms.tiles_data), so the
+   * projector chrome reports them. Splice contents report errors in
+   * their own sub-editors, and nested projectors on their own chrome. */
+  let has_hidden_error =
+      (p: Base.projector, statics: Language.Statics.Map.t): bool => {
+    let rec hidden_tile_ids = (seg: Base.segment): list(Id.t) =>
+      List.concat_map(
+        (piece: Base.piece) =>
+          switch (piece) {
+          | Tile(t) => [
+              t.id,
+              ...List.concat_map(hidden_tile_ids, t.children),
+            ]
+          | Splice(_)
+          | Projector(_)
+          | Grout(_)
+          | Secondary(_) => []
+          },
+        seg,
+      );
+    hidden_tile_ids(p.syntax)
+    |> List.exists(id =>
+         switch (Language.Statics.Map.lookup(id, statics)) {
+         | Some(info) => Language.Info.is_error(info)
+         | None => false
+         }
+       );
+  };
+
   let mk_status =
       (
         p: Base.projector,
@@ -178,6 +223,7 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
+        ~statics: Language.Statics.Map.t,
         ~id: Id.t,
         ~sort: Sort.t,
       )
@@ -185,7 +231,8 @@ module Model = {
     sort,
     error:
       Option.map(Language.Info.is_error, info.statics)
-      |> Option.value(~default=false),
+      |> Option.value(~default=false)
+      || has_hidden_error(p, statics),
     warning:
       Option.map(Language.Info.is_warning, info.statics)
       |> Option.value(~default=false),
@@ -198,6 +245,11 @@ module Model = {
   let mk =
       (
         ~syntax: CachedSyntax.t,
+        /* The projectors to render in this frame: top-level projectors
+         * for the main editor, a splice's own projectors for a
+         * sub-editor. Nested projectors are rendered by the sub-editor
+         * of the splice that hosts them, not by the outer frame. */
+        ~projector_list: list(Id.t),
         ~indicated: option(Indicated.piece),
         ~statics: Language.Statics.Map.t,
         ~dynamics: Language.Dynamics.Map.t,
@@ -205,9 +257,10 @@ module Model = {
         ~editor_active: bool,
         ~elaborated: option(Language.Exp.t),
       ) => {
-    let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+    let {projectors, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+    let measured = CachedSyntax.measured(syntax);
     List.filter_map(
-      ((id, _)) => {
+      id => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
@@ -224,6 +277,7 @@ module Model = {
           measurement,
           offside_base:
             offside_base(~offset=offside_offset, measurement, measured),
+          render_layers: All,
           status:
             mk_status(
               p,
@@ -232,6 +286,7 @@ module Model = {
               ~indicated,
               ~selection_ids,
               ~info,
+              ~statics,
               ~id,
             ),
           statics_map: statics,
@@ -240,7 +295,7 @@ module Model = {
           elaborated,
         };
       },
-      Id.Map.bindings(projectors),
+      projector_list,
     );
   };
 };
@@ -270,9 +325,15 @@ let backing_deco =
    mirrors ShapeMapSemantics placement switch. */
 let shape_of = (p: Base.projector, info: ProjectorBase.info) => {
   let (module P) = ProjectorInit.to_module(p.kind);
+  /* Splice sizes are intrinsic to the projector's own syntax -- they do
+     not depend on where the parent lays it out -- so this measures them
+     here rather than threading the view's map down. */
+  let splice_size_map = Measured.splice_sizes(p.syntax);
+  let splice_size = (id: Id.t): Util.Point.t =>
+    Measured.splice_size_of(splice_size_map, id);
   switch (p.placement) {
   | Sidebar => ProjectorChip.shape(p)
-  | Inline => P.placeholder(p.model, info)
+  | Inline => P.placeholder(p.model, info, splice_size)
   };
 };
 
@@ -347,6 +408,8 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
+  | SetTerm(term, preserve_splices) =>
+    Project(SetTerm(idx, term, preserve_splices))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
@@ -401,7 +464,14 @@ let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
   );
 
 let simple_code =
-    (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
+    (
+      ~background=false,
+      ~classes=?,
+      ~is_single_line=false,
+      font_metrics,
+      _sort,
+      segment,
+    )
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
@@ -409,6 +479,7 @@ let simple_code =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
+      ~classes?,
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
@@ -473,18 +544,40 @@ let flex_code =
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
+      ~classes=?,
       sort,
       segment,
-    ) =>
+    ) => {
   text_only
     ? text_code(segment)
     : simple_code(
         ~background?,
+        ~classes?,
         ~is_single_line=single_line,
         font_metrics,
         sort,
         segment,
       );
+};
+
+/* Default fallback splice renderer: non-interactive simple_code. Used
+ * when a ProjectorView caller does not provide a richer ~render_splice
+ * callback (e.g. read-only code viewers). */
+let default_render_splice =
+    (
+      font_metrics: FontMetrics.t,
+      ~projector_idx: int,
+      ~splice_idx: int,
+      splice: Base.splice,
+    )
+    : Node.t => {
+  ignore(projector_idx);
+  ignore(splice_idx);
+  div(
+    ~attrs=[Attr.classes(["splice", "inner-editor"])],
+    [simple_code(~background=true, font_metrics, Sort.Any, splice.content)],
+  );
+};
 
 /* Abbreviated read-only rendering of a projector's underlying syntax,
  * shown in the sidebar card header. */
@@ -516,6 +609,8 @@ let mk_view =
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
+      ~render_splice:
+         (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
       {
         p,
         info,
@@ -538,19 +633,37 @@ let mk_view =
     | ProjectorCore.Kind.Livelit => LivelitProj.optimistic_version^
     | _ => 0
     };
+  /* Splice-bearing projectors render live sub-editors whose caret and
+   * selection decorations depend on the zipper — which is not part of
+   * the cache key — so their views must be rebuilt every frame. */
+  let rec has_splices = (seg: Base.segment): bool =>
+    List.exists(
+      (piece: Base.piece) =>
+        switch (piece) {
+        | Splice(_) => true
+        | Tile(t) => List.exists(has_splices, t.children)
+        | Projector(_)
+        | Grout(_)
+        | Secondary(_) => false
+        },
+      seg,
+    );
+  let cacheable = !has_splices(p.syntax);
   switch (
-    ViewCache.lookup(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-      ~app_version,
-      ~font_metrics,
-    )
+    cacheable
+      ? ViewCache.lookup(
+          p.id,
+          ~statics_map,
+          ~dynamics_map,
+          ~sample_focus,
+          ~elaborated,
+          ~core_settings,
+          ~status,
+          ~model=p.model,
+          ~app_version,
+          ~font_metrics,
+        )
+      : None
   ) {
   | Some(view) =>
     ViewCache.hits := ViewCache.hits^ + 1;
@@ -559,6 +672,32 @@ let mk_view =
     ViewCache.misses := ViewCache.misses^ + 1;
     let (module P) = ProjectorInit.to_module(p.kind);
     let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+    /* Walk the projector's syntax (including tile children) collecting every
+     * splice regardless of nesting. Splices inside nested projectors are not
+     * collected — those belong to the inner projector. */
+    let rec collect_splices = (seg: Base.segment): list(Base.splice) =>
+      List.concat_map(
+        (p: Base.piece) =>
+          switch (p) {
+          | Splice(s) => [s, ...collect_splices(s.content)]
+          | Tile(t) => List.concat_map(collect_splices, t.children)
+          | Projector(_)
+          | Grout(_)
+          | Secondary(_) => []
+          },
+        seg,
+      );
+    let splices = collect_splices(p.syntax);
+    let splice_view = (id: Id.t) =>
+      switch (List.find_index((s: Base.splice) => s.id == id, splices)) {
+      | None => span_c("splice-missing", [Node.text("?")])
+      | Some(splice_idx) =>
+        let splice = List.nth(splices, splice_idx);
+        render_splice(~projector_idx=idx, ~splice_idx, splice);
+      };
+    let splice_size_map = Measured.splice_sizes(p.syntax);
+    let splice_size = (id: Id.t): Util.Point.t =>
+      Measured.splice_size_of(splice_size_map, id);
     let view =
       P.view({
         model: p.model,
@@ -583,33 +722,46 @@ let mk_view =
           | a => inject(handle(idx, p.kind, a))
           },
         view_seg:
-          (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+          (
+            ~single_line=?,
+            ~background=?,
+            ~classes=?,
+            ~text_only=?,
+            sort,
+            segment,
+          ) =>
           flex_code(
             ~font_metrics,
             ~single_line?,
             ~background?,
+            ~classes?,
             ~text_only?,
             sort,
             segment,
           ),
+        splice_view,
+        splice_size,
+        splices,
         status,
         core_settings,
         col_width: font_metrics.col_width,
         row_height: font_metrics.row_height,
       });
-    ViewCache.store(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-      ~app_version,
-      ~font_metrics,
-      ~view,
-    );
+    if (cacheable) {
+      ViewCache.store(
+        p.id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model=p.model,
+        ~app_version,
+        ~font_metrics,
+        ~view,
+      );
+    };
     view;
   };
 };
@@ -626,7 +778,9 @@ let split_views =
       /* What clicking a chip does; supplied by the code editor, which is
        * the only caller that can render one */
       ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
-      {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
+      ~render_splice:
+         (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
+      {p, offside_base, measurement, status, render_layers, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
@@ -638,6 +792,7 @@ let split_views =
       inject,
       font_metrics,
       ~core_settings,
+      ~render_splice,
       projector_data,
       projector_list,
     );
@@ -705,7 +860,11 @@ let split_views =
       @ below_view,
     );
   };
-  let overlay_view = Option.map(v => wrapper([v]), views.overlay);
+  let overlay_view =
+    Option.map(
+      v => wrapper([v]),
+      render_layers == Model.OffsideOnly ? Option.none : views.overlay,
+    );
   (line_view, overlay_view);
 };
 
@@ -723,9 +882,18 @@ let all =
       ~visible: option(visible_rows)=?,
       /* Reveals the Projectors panel; what a chip click does */
       ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
+      ~render_splice:
+         option(
+           (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
+         )=?,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
+  let render_splice =
+    Option.value(
+      render_splice,
+      ~default=default_render_splice(font_metrics),
+    );
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
    * further down count as a higher. On its own this could
@@ -745,6 +913,7 @@ let all =
            ~skip_inline=false,
            ~core_settings,
            ~open_panel,
+           ~render_splice,
            inject,
            make_active,
            font_metrics,
@@ -800,8 +969,11 @@ let sidebar_views =
     | HTML => ""
     | _ =>
       let (module P) = ProjectorInit.to_module(d.p.kind);
+      let splice_size_map = Measured.splice_sizes(d.p.syntax);
+      let splice_size = (id: Id.t): Util.Point.t =>
+        Measured.splice_size_of(splice_size_map, id);
       let rows =
-        switch (P.placeholder(d.p.model, d.info)) {
+        switch (P.placeholder(d.p.model, d.info, splice_size)) {
         | {vertical: Inline, _} => 1
         | {vertical: Tab(n) | Block(n), _} => n + 1
         };
@@ -816,8 +988,17 @@ let sidebar_views =
      )
   |> List.sort((d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
   |> List.map((d: Model.projector_data) => {
+       /* The sidebar card is a preview, not an editing surface, so its
+          splices render read-only rather than as live sub-editors. */
        let views =
-         mk_view(inject, font_metrics, ~core_settings, d, projector_list);
+         mk_view(
+           inject,
+           font_metrics,
+           ~core_settings,
+           ~render_splice=default_render_splice(font_metrics),
+           d,
+           projector_list,
+         );
        /* Same class list the code-site wrapper applies, so per-kind CSS
         * still matches; the panel overrides the absolute positioning. */
        (

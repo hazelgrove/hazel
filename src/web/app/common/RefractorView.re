@@ -24,8 +24,14 @@ let measurement_of_term =
   };
 
 /* Build refractor data from editor state.
- * This is analogous to ProjectorView.Model.mk but specialized for refractors.
- */
+ * This is analogous to ProjectorView.Model.mk but specialized for
+ * refractors, with one twist for terms inside splices: the owning
+ * splice's sub-editor draws the term-anchored layers (only its local
+ * measured map knows the term's position), while the offside sample
+ * view never goes into a splice -- the root editor draws it beside the
+ * host projector, on the document row the splice's contents are laid
+ * out on (CachedSyntax.doc_row_of_splice). */
+
 /* visible rows of a refractor: anchor rows extended down by drawer height
  * (Tab(n) in refractor_rows), so a partially-visible drawer isn't culled early */
 let row_range =
@@ -49,23 +55,80 @@ let mk_data =
       ~dynamics: Language.Dynamics.Map.t,
       ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
+      /* The frame being rendered: None for the root editor, Some(sid)
+       * for splice sid's sub-editor. */
+      ~frame: option(Id.t),
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       (),
     )
     : list(ProjectorView.Model.projector_data) => {
-  let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
-  /* measure + cull BEFORE building per-refractor data: in All mode there are
-   * hundreds of refractors but few on screen, so building all then discarding dominated cost */
+  open Util.OptUtil.Syntax;
+  let {term_data, selection_ids, _}: CachedSyntax.t = syntax;
+  let measured = CachedSyntax.measured(syntax);
+  let placement = (id: Id.t) =>
+    switch (frame, CachedSyntax.splice_containing_id(id, syntax)) {
+    | (Some(frame_sid), Some((sid, _))) when Id.equal(sid, frame_sid) =>
+      /* This frame's own probe: term-anchored layers at local coords. */
+      let+ measurement = measurement_of_term(id, term_data, measured);
+      (measurement, 0, ProjectorView.Model.NoOffside);
+    | (Some(_), _) =>
+      /* Another frame's probe (the root's, another splice's, or a
+       * nested splice's — interiors are measured recursively, so the
+       * local lookup would "succeed" for nested ids too). */
+      None
+    | (None, None) =>
+      let+ measurement = measurement_of_term(id, term_data, measured);
+      (
+        measurement,
+        ProjectorView.Model.offside_base(
+          ~offset=ProjectorView.offside_offset,
+          measurement,
+          measured,
+        ),
+        ProjectorView.Model.All,
+      );
+    | (None, Some((sid, s))) =>
+      /* Offside view only, beside the host projector on the splice
+       * contents' document row. */
+      let* local = measurement_of_term(id, term_data, s.measured);
+      let+ splice_row = CachedSyntax.doc_row_of_splice(sid, syntax);
+      let point =
+        Util.Point.{
+          row: splice_row + local.origin.row,
+          col: 0,
+        };
+      let measurement =
+        Measured.{
+          origin: point,
+          last: point,
+        };
+      (
+        measurement,
+        ProjectorView.Model.offside_base(
+          ~offset=ProjectorView.offside_offset,
+          measurement,
+          measured,
+        ),
+        ProjectorView.Model.OffsideOnly,
+      );
+    };
+  /* Place + cull BEFORE building per-refractor data: in All mode there are
+   * hundreds of refractors but few on screen, so building all then
+   * discarding dominated cost. Placement is what yields the measurement
+   * to cull on, so it runs first — and it is also what drops refractors
+   * belonging to another frame. */
   Id.Map.bindings(refractors)
   |> List.filter_map(((id, entry)) =>
-       measurement_of_term(id, term_data, measured)
-       |> Option.map(measurement => (id, entry, measurement))
+       placement(id) |> Option.map(pl => (id, entry, pl))
      )
-  |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>
-       row_range(~refractor_rows, id, measurement)
+  |> ProjectorView.filter_by_visibility(visible, _, ((id, _, (m, _, _))) =>
+       row_range(~refractor_rows, id, m)
      )
-  |> List.map(((id, entry, measurement)) => {
+  |> List.map(((id, entry, (measurement, offside, layers))) => {
+       /* Construct full Base.projector on demand for rendering,
+        * passing the actual syntax so projectors can access the
+        * underlying term for syntax rewriting. */
        let syntax_piece =
          Option.value(
            TermData.segment(id, term_data)
@@ -92,12 +155,8 @@ let mk_data =
          p,
          info,
          measurement,
-         offside_base:
-           ProjectorView.Model.offside_base(
-             ~offset=ProjectorView.offside_offset,
-             measurement,
-             measured,
-           ),
+         offside_base: offside,
+         render_layers: layers,
          status:
            ProjectorView.Model.mk_status(
              p,
@@ -106,6 +165,7 @@ let mk_data =
              ~indicated,
              ~selection_ids,
              ~info,
+             ~statics,
              ~id,
            ),
          statics_map: statics,
@@ -144,6 +204,7 @@ let all =
            font_metrics,
            ~core_settings,
            ~skip_inline=true,
+           ~render_splice=ProjectorView.default_render_splice(font_metrics),
            data,
            refractor_list,
          )

@@ -242,6 +242,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Closure(_) |
         Parens(_) |
         Projector(_) |
+        Splice(_) |
         ListConcat(_) |
         TupleExtension(_) |
         Dot(_) |

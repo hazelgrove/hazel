@@ -772,7 +772,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]
@@ -832,7 +832,7 @@ module View = {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
-                  ~measured=editor.syntax.measured,
+                  ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
                   result,
                 ),
               ]
@@ -849,7 +849,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]

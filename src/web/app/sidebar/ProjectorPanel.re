@@ -68,6 +68,9 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
   let projector_data =
     ProjectorView.Model.mk(
       ~syntax=editor.editor.syntax,
+      /* The global list, not the main frame's: a docked projector can sit
+         anywhere in the document, including inside a splice. */
+      ~projector_list=editor.editor.syntax.projector_list,
       ~indicated=Indicated.for_decoration(zipper),
       ~statics=editor.statics.info_map,
       ~dynamics=editor.dynamics,

@@ -77,11 +77,15 @@ let caret_nearest_ephemeral =
   | Some(piece_id) when Id.Map.mem(piece_id, z.refractors.multis.ephemerals) =>
     Some(piece_id)
   | _ =>
-    let caret_pt = Zipper.Caret.point(syntax.measured, z);
+    let caret_pt = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
     Id.Map.bindings(z.refractors.multis.ephemerals)
     |> List.find_map(((id, _)) =>
          switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+           TermData.extreme_measures(
+             id,
+             syntax.term_data,
+             CachedSyntax.measured(syntax),
+           )
          ) {
          | Some((start_pt, end_pt))
              when

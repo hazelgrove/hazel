@@ -88,6 +88,7 @@ let rec piece_width = (p: Piece.t): int =>
   | Grout(_) => 1
   | Secondary(s) => Secondary.length(s)
   | Projector(_) => 10
+  | Splice(s) => segment_flat_width(s.content)
   }
 and segment_flat_width = (seg: Segment.t): int =>
   List.fold_left((acc, p) => acc + piece_width(p), 0, seg);

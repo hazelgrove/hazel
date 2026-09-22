@@ -211,8 +211,12 @@ module Make =
 
   let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
-    let parent = Ancestors.parent(z.relatives.ancestors);
-    Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
+    let parent_label =
+      switch (Ancestors.parent(z.relatives.ancestors)) {
+      | Some(Ancestor.Tile(a)) => Some(a.label)
+      | _ => None
+      };
+    parent_label == Some(["(", ")"])
     && sibs
     |> (((l, r)) => l @ r)
     |> List.length(_) == 1;

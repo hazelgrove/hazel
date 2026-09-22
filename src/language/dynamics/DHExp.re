@@ -124,6 +124,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Parens(_)
           | UnOp(_)
           | Projector(_)
+          | Splice(_)
           | Module(_)
           | ModuleExp(_) => continue(exp)
           },
@@ -171,6 +172,8 @@ let rec ty_comparable = (d1, d2) => {
   | (_, Parens(d2)) => ty_comparable(d1, d2)
   | (Projector(_, d1), _) => ty_comparable(d1, d2)
   | (_, Projector(_, d2)) => ty_comparable(d1, d2)
+  | (Splice(d1), _) => ty_comparable(d1, d2)
+  | (_, Splice(d2)) => ty_comparable(d1, d2)
   | (Asc(d1, _), _) => ty_comparable(d1, d2)
   | (_, Asc(d2, _)) => ty_comparable(d1, d2)
   | (Atom(t1), Atom(t2)) =>
@@ -278,6 +281,8 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (_, Parens(d2)) => poly_equal(d1, d2)
   | (Projector(_, d1), _) => poly_equal(d1, d2)
   | (_, Projector(_, d2)) => poly_equal(d1, d2)
+  | (Splice(d1), _) => poly_equal(d1, d2)
+  | (_, Splice(d2)) => poly_equal(d1, d2)
   | (Asc(d1, _), _) => poly_equal(d1, d2)
   | (_, Asc(d2, _)) => poly_equal(d1, d2)
 

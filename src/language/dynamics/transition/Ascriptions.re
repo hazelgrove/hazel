@@ -74,11 +74,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
     let t_resolved = resolve(ctx, t);
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
-    | (Asc(e, t'), _)
+    | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(ctx, Typ.unroll(t), Typ.unroll(t')) =>
       switch (Typ.meet(ctx, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
+      | Some(t) =>
+        Some(
+          recur(
+            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+          ),
+        )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
     | (e, Parens(t)) =>
@@ -350,6 +355,13 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Projector(data, Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    | (Splice(pe), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Splice(Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
         ),
       )
     // We _could_ do this, but it would be a bit weird

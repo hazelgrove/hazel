@@ -7,6 +7,7 @@ and piece =
   | Grout(Grout.t)
   | Secondary(Secondary.t)
   | Projector(projector)
+  | Splice(splice)
 and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
@@ -20,7 +21,12 @@ and tile = {
   shards: list(int),
   children: list(segment),
 }
-and projector = ProjectorCore.t(piece);
+and projector = ProjectorCore.t(segment)
+and splice = {
+  [@equal (_, _) => true]
+  id: Id.t,
+  content: segment,
+};
 
 let rec map_piece = (~f_piece, x: piece) => {
   let rec_call = (piece: piece) => {
@@ -33,12 +39,19 @@ let rec map_piece = (~f_piece, x: piece) => {
     | Grout(_)
     | Secondary(_)
     | Projector(_) => piece
+    | Splice(s) =>
+      Splice({
+        ...s,
+        content: s.content |> List.map(map_piece(~f_piece)),
+      })
     };
   };
   x |> f_piece(rec_call);
 };
 /* If the piece is parentheses, return the child. Otherwise,
- * return a singleton segment consisting of the piece */
+ * return a singleton segment consisting of the piece.
+ * Note: projector syntax is now a segment directly; this helper
+ * remains for the parenthesized-tile case. */
 let unparenthesize = (piece: piece): segment =>
   switch (piece) {
   | Tile({
@@ -105,6 +118,15 @@ and piece_to_string =
       ~refractor_seg_to_seg,
       ~projector_to_segment,
       projector_to_segment(p),
+    )
+  | Splice(s) =>
+    segment_to_string(
+      ~holes,
+      ~concave_holes,
+      ~refractors,
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      s.content,
     )
   }
 and tile_to_string =

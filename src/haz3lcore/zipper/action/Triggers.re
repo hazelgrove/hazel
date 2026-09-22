@@ -189,12 +189,13 @@ let refractor_to_invoke_text =
   | _ => refractor_to_invoke(kind, seg)
   };
 
+/* No unparenthesize here. Projecting no longer wraps the content in
+   parens -- a single convex piece is taken as-is (ProjectorPerform
+   SetSyntax) -- so stripping a paren layer on the way back out would
+   eat the author's own parens instead of one we added. `^^fold((Int,
+   String))` came back as `^^fold(Int, String)`. */
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(
-    ~placement=pr.placement,
-    pr.kind,
-    Piece.unparenthesize(pr.syntax),
-  );
+  refractor_to_invoke(~placement=pr.placement, pr.kind, pr.syntax);
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -245,8 +246,11 @@ let destruct = (z: t): option(t) =>
     let (l, _) = ListUtil.split_last(fst(z.relatives.siblings));
     let last =
       switch (kind, syntax) {
-      | (Livelit, Tile({children: [[name, ..._]], _})) => [name]
-      | _ => Piece.unparenthesize(syntax)
+      | (Livelit, [Tile({children: [[name, ..._]], _}), ..._]) => [name]
+      /* Dissolve splices back into their contents (as the right-click
+       * remove path does): bare Splice pieces must not leak into the
+       * main editor, where they render zero-width. */
+      | _ => ProjectorPerform.unsplice_segment(syntax)
       };
     Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
   | _ => None
