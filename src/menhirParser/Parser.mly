@@ -41,6 +41,7 @@ open AST
 %token LET
 %token USE
 %token MODULE
+%token IMPLICIT
 %token FUN
 %token CASE
 %token OPEN_SQUARE_BRACKET
@@ -122,6 +123,11 @@ open AST
 (* Precedences *)
 
 
+
+/* `implicit S : typ` in type position is greedy: every type infix below
+   shifts, so `implicit S : SHOW -> T` annotates S with `SHOW -> T` (the
+   structure editor reads it the same way); write `(implicit S : SHOW) -> T`. */
+%nonassoc IMPLICIT_TYP
 
 /* Structural mixfix forms - loosest binding (bodies include flat sequences) */
 %nonassoc LET_EXP
@@ -283,6 +289,11 @@ typ:
     | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
     | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
     | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
+    (* Implicit module binder as an arrow-domain component. *)
+    | IMPLICIT; i = IDENT; COLON; t = typ { ImplicitType(i, t) } %prec IMPLICIT_TYP
+    | IMPLICIT; c = CONSTRUCTOR_IDENT; COLON; t = typ { ImplicitType(c, t) } %prec IMPLICIT_TYP
+    | IMPLICIT; i = IDENT { ImplicitType(i, UnknownType(EmptyHole)) } %prec IMPLICIT_TYP
+    | IMPLICIT; c = CONSTRUCTOR_IDENT { ImplicitType(c, UnknownType(EmptyHole)) } %prec IMPLICIT_TYP
 
 tupPatEntry:
     | p = pat {p}
@@ -305,6 +316,10 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
+    (* Implicit module binder; its annotation arrives through the ordinary
+       pat/funAscElem COLON productions and is folded into the MPat. *)
+    | IMPLICIT; p = IDENT { ImplicitPat(VarPat(p)) }
+    | IMPLICIT; c = CONSTRUCTOR_IDENT { ImplicitPat(VarPat(c)) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}

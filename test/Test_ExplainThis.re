@@ -247,6 +247,9 @@ let corpus = [
      wrong piece in either would go unnoticed. */
   ("cons-exp", "1::[]"),
   ("concat-exp", "[1] @ [2]"),
+  /* Implicit module binders — reaches ImplicitPat and ImplicitTyp. */
+  ("implicit-fun", "fun (implicit S : SHOW, x : S.T) -> x"),
+  ("implicit-typ", "let f : (implicit S : SHOW) -> Int = f in 1"),
 ];
 
 /* Captured from the current implementation. A refactor of the coloring or
@@ -578,6 +581,40 @@ Int => IntTyp colorings=[]
 T => VarTPat colorings=[]
 type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
   ),
+  (
+    "implicit-fun",
+    {|(implicit S:(SHOW), x:(S.T)) => Tuple2Pat colorings=[implicit S:(SHOW),x:(S.T)]
+(implicit S:(SHOW), x:(S.T)) => TuplePat colorings=[]
+S => VarPat colorings=[]
+S => VarTyp colorings=[]
+S.T => DotTyp colorings=[]
+S:(SHOW) => TypAnnPat colorings=[S,SHOW]
+SHOW => VarTyp colorings=[]
+`T` => Label colorings=[]
+fun (implicit S:(SHOW), x:(S.T)) -> x => (FunctionExp Base) colorings=[(implicit S:(SHOW), x:(S.T)),x]
+fun (implicit S:(SHOW), x:(S.T)) -> x => (FunctionExp Tuple) colorings=[(implicit S:(SHOW), x:(S.T)),x]
+fun (implicit S:(SHOW), x:(S.T)) -> x => (FunctionExp Tuple2) colorings=[implicit S:(SHOW),x,x:(S.T)]
+implicit S:(SHOW) => ImplicitPat colorings=[]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x:(S.T) => TypAnnPat colorings=[S.T,x]|},
+  ),
+  (
+    "implicit-typ",
+    {|(implicit S:(SHOW)) -> Int => ArrowTyp colorings=[(implicit S:(SHOW)),Int]
+(implicit S:(SHOW)) => ImplicitTyp colorings=[]
+1 => IntExp colorings=[]
+Int => IntTyp colorings=[]
+S => (no group doc)
+S:SHOW => (no group doc)
+SHOW => VarTyp colorings=[]
+f => VarExp colorings=[]
+f => VarPat colorings=[]
+f:((implicit S:(SHOW)) -> Int) => TypAnnPat colorings=[(implicit S:(SHOW)) -> Int,f]
+implicit S:(SHOW) => ImplicitTyp colorings=[]
+let f:((implicit S:(SHOW)) -> Int) = f in 1 => (LetExp Base) colorings=[f,f]
+let f:((implicit S:(SHOW)) -> Int) = f in 1 => (LetExp Var) colorings=[1,f,f]|},
+  ),
 ];
 
 /* Which doc groups the corpus actually reaches. A golden fingerprint only
@@ -641,8 +678,11 @@ let expected_groups = [
   "DeferralExp",
   "DeferredApExp",
   "DotExp",
+  "DotTyp",
   "FunApExp",
   "IfExp",
+  "ImplicitPat",
+  "ImplicitTyp",
   "IntExp",
   "IntPat",
   "IntTyp",
