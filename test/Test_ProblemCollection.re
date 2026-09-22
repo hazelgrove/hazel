@@ -479,6 +479,77 @@ let projector_error_collection = () => {
   );
 };
 
+/* ---------- One error, one row ----------
+
+   A transparent wrapper restates the marks of the term it wraps, so
+   without collapsing those chains the sidebar reports the same error
+   once per nesting level. */
+
+let static_ids = (problems: list(ProblemCollection.problem)) =>
+  List.filter_map(
+    (p: ProblemCollection.problem) =>
+      p.category == Static ? Some(p.id) : None,
+    problems,
+  );
+
+let count_static = s => {
+  let (_, problems) = from_string_exn(s);
+  count_by_category(Static, problems);
+};
+
+let parens_report_one_error = () => {
+  check(int, "bare free variable", 1, count_static("y"));
+  check(int, "free variable in parens", 1, count_static("(y)"));
+  check(int, "free variable in nested parens", 1, count_static("((y))"));
+  check(int, "one more layer of parens", 1, count_static("(((y)))"));
+};
+
+let parens_report_the_marked_term = () => {
+  /* The variable owns the mark and is visible, so it stays the row's id
+     -- the parens around it are what drop out. */
+  let (ctx, problems) = from_string_exn("(y)");
+  switch (static_ids(problems)) {
+  | [id] =>
+    check(
+      bool,
+      "reported id is in measured",
+      true,
+      Haz3lcore.Measured.find_by_id(id, ctx.measured) != None,
+    )
+  | ids =>
+    fail(
+      "expected one static error, got " ++ string_of_int(List.length(ids)),
+    )
+  };
+};
+
+let projector_reports_one_error = () => {
+  /* A projector forwards its child's marks the same way Parens does. */
+  check(
+    int,
+    "free variable under a fold",
+    1,
+    count_static("^^fold(y)"),
+  );
+};
+
+let hidden_term_reports_at_its_projector = () => {
+  /* A folded term has no measurement of its own, so the row must land on
+     the projector, which the user can see and click. */
+  let (ctx, problems) = from_string_exn("^^fold(y)");
+  let ids = static_ids(problems);
+  check(bool, "the error is reported at all", true, ids != []);
+  check(
+    bool,
+    "every reported id is in measured",
+    true,
+    List.for_all(
+      id => Haz3lcore.Measured.find_by_id(id, ctx.measured) != None,
+      ids,
+    ),
+  );
+};
+
 let collect_cases = [
   test_case("Clean program has no errors", `Quick, clean_program),
   test_case("Juxtaposed literals", `Quick, juxtaposed_literals),
@@ -490,6 +561,26 @@ let collect_cases = [
     "Projector errors surface as problems",
     `Quick,
     projector_error_collection,
+  ),
+  test_case(
+    "Parens do not multiply an error",
+    `Quick,
+    parens_report_one_error,
+  ),
+  test_case(
+    "A collapsed chain reports the marked term",
+    `Quick,
+    parens_report_the_marked_term,
+  ),
+  test_case(
+    "A projector does not multiply an error",
+    `Quick,
+    projector_reports_one_error,
+  ),
+  test_case(
+    "A hidden marked term reports at its projector",
+    `Quick,
+    hidden_term_reports_at_its_projector,
   ),
 ];
 
