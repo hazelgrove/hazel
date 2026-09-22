@@ -189,10 +189,10 @@ let tests = (
           if_(
             constructor("B", Some(Some(Typ.bool()))),
             asc(bool(false), Typ.unknown(SynSwitch)),
-            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch)),
+            asc(constructor("Qux", Some(None)), Typ.unknown(SynSwitch)),
           ),
           elaborate(
-            parse_exp("type y = + B(Float) in if B then false else A"),
+            parse_exp("type y = + B(Float) in if B then false else Qux"),
           ),
         );
         evaluation_test(
@@ -265,5 +265,9 @@ let tests = (
         );
       },
     ),
+    /* The former "builtin constructor annotation stays Var("HTML")" tests
+       are gone: HTML, Attr, Cmd and Sub are no longer global aliases but
+       members of the builtin modules Html, Attr, Cmd and Sub, so the
+       compact_builtin_recs fast path no longer applies to them. */
   ],
 );

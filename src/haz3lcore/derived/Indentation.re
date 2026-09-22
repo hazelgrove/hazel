@@ -126,6 +126,17 @@ let is_case_rule = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Module members: `;`-separated ModLets have no `in` to exempt them from
+   the incrementor rule, so without a reset each member's body indent
+   compounds diagonally. A linebreak after a module semicolon returns to
+   member level (one step inside the braces). The Exp `;` (Seq) shares the
+   label but not the sort, and keeps its level as before. */
+let is_module_semi = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: [";"], mold, _}) => mold.out == Sort.Mod
+  | _ => false
+  };
+
 let ends_with_in = (t: Tile.t): bool =>
   switch (t.label |> List.rev) {
   | ["in", ..._] => true
@@ -157,6 +168,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             switch (prev_next) {
             | (_, Some(next)) when is_comma(next) => base + 2
             | (Some(prev), _) when is_comma(prev) => base + 2
+            | (Some(prev), _) when is_module_semi(prev) => base + 2
             | (Some(prev), _) when is_incrementor(prev) => level + 2
             | (None, _) when not_top => level + 2
             | (_, Some(next)) when is_case_rule(next) => base

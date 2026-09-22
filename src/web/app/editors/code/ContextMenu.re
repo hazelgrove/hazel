@@ -68,6 +68,7 @@ module Shortcuts = {
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
+  let placement = () => Os.is_mac^ ? "⌥S" : "Alt+S";
   let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
   let cut = () => Os.is_mac^ ? "⌘X" : "Ctrl+X";
@@ -81,7 +82,12 @@ module Shortcuts = {
  * the view layer supplies the text (see CodeEditable.perform_from_menu). */
 type command =
   | Perform(Action.t)
-  | PasteFromClipboard;
+  | PasteFromClipboard
+  /* A link to what is under the cursor. Like Paste, not an editor action:
+     the URL is assembled from things the editor does not know -- which slide
+     this is and what the sidebar is showing -- and written to the system
+     clipboard (see CodeEditable.perform_from_menu). */
+  | CopyDeepLink;
 
 let action_item = (~shortcut=?, ~tooltip=?, ~enabled=true, label, action) =>
   Menu.action_item(
@@ -230,7 +236,8 @@ let introduce_data =
  * would prompt on every right-click. Rich web editors (Google Docs, VS
  * Code for the Web) leave Paste enabled for the same reason and only
  * find out at click time. */
-let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
+let clipboard_data =
+    (~linkable: bool, z: Zipper.t): list(Menu.item(command)) => {
   let has_selection = !Selection.is_empty(z.selection);
   [
     action_item(
@@ -246,7 +253,22 @@ let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
       Action.Copy,
     ),
     command_item(~shortcut=Shortcuts.paste(), "Paste", PasteFromClipboard),
-  ];
+  ]
+  /* Only where a link can name where it lands: the documentation deck
+     addresses its slides by name, and nothing else does yet, so elsewhere
+     the row would copy a link back to whatever the follower had open. */
+  @ (
+    linkable
+      ? [
+        command_item(
+          ~tooltip=
+            "Copy a link to this term, on this slide, with the sidebar as it is",
+          "Copy URL",
+          CopyDeepLink,
+        ),
+      ]
+      : []
+  );
 };
 
 let select_current_term_data = (): list(Menu.item(command)) => [
@@ -312,6 +334,30 @@ module Projectors = {
     };
   };
 
+  let indicated_placement = (z: Zipper.t): option(ProjectorCore.Placement.t) => {
+    let* {piece, _} = Indicated.for_index(z);
+    switch (piece) {
+    | Projector({placement, _}) => Some(placement)
+    | _ => None
+    };
+  };
+
+  /* Dock/undock the indicated projector's primary UI to the sidebar */
+  let placement_data = (z: Zipper.t): list(Menu.item(command)) =>
+    switch (indicated_placement(z)) {
+    | None => []
+    | Some(placement) => [
+        action_item(
+          ~shortcut=Shortcuts.placement(),
+          switch (placement) {
+          | Inline => "Move to sidebar"
+          | Sidebar => "Move inline"
+          },
+          Action.Project(TogglePlacement),
+        ),
+      ]
+    };
+
   let shortcut_of =
       (
         ~chosen_livelit: option(ProjectorCore.Kind.t),
@@ -337,6 +383,7 @@ module Projectors = {
     | Csv => "CSV"
     | Table => "Table"
     | Livelit => "Livelit"
+    | HTML => "HTML"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 
@@ -393,7 +440,7 @@ module Projectors = {
       );
     };
 
-    List.map(make_item, kinds);
+    List.map(make_item, kinds) @ placement_data(z);
   };
 };
 
@@ -423,6 +470,7 @@ let refractor_actions_data =
 
 let get_sections =
     (
+      ~linkable: bool,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
@@ -433,7 +481,7 @@ let get_sections =
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
     /* Section 2: Clipboard */
-    clipboard_data(z),
+    clipboard_data(~linkable, z),
     /* Section 3: Refactoring */
     introduce_data(ci),
     /* Section 4: Probes/Statics (refractors) */
@@ -460,12 +508,13 @@ let flatten_sections =
 
 let get_all_items =
     (
+      ~linkable: bool,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
     : list(Menu.item(command)) =>
-  flatten_sections(get_sections(~info_map, ~elaborated, z));
+  flatten_sections(get_sections(~linkable, ~info_map, ~elaborated, z));
 
 /* ============================================================
  * Update + keyboard
@@ -489,6 +538,7 @@ module WithContext = {
    * `Some(effect)` for handled keys, `None` to let the editor see them. */
   let handle_listener_key =
       (
+        ~linkable: bool,
         ~info_map: Language.Statics.Map.t,
         ~elaborated: Language.Exp.t,
         ~zipper: Zipper.t,
@@ -498,7 +548,7 @@ module WithContext = {
         key_str: string,
       )
       : option(Ui_effect.t(unit)) => {
-    let items = get_all_items(~info_map, ~elaborated, zipper);
+    let items = get_all_items(~linkable, ~info_map, ~elaborated, zipper);
     Menu.key_dispatcher(
       ~items,
       ~dispatch_menu,
@@ -550,6 +600,7 @@ let get_direction =
 
 let view =
     (
+      ~linkable: bool,
       ~inject: command => Ui_effect.t(unit),
       ~inject_menu: Menu.action => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
@@ -561,7 +612,7 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let items = get_all_items(~info_map, ~elaborated, z);
+  let items = get_all_items(~linkable, ~info_map, ~elaborated, z);
   let menu_items =
     Menu.render(
       ~inject_action=inject,

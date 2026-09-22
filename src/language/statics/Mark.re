@@ -29,6 +29,22 @@ type error_builtin =
   | Exactly2Arguments;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type livelit_def_error =
+  | DefNotModule
+  | DefMissingMembers(list(string))
+  | DefMissingTypes(list(string))
+  /* A member whose type disagrees with what the builtin `Livelit`
+     signature requires of it, once that signature's abstract Model,
+     Action and Expansion are realized by this definition's own types.
+     `expand` failing this is the definition-site half of the expansion
+     obligation the paper checks only per use. */
+  | DefMemberMismatch({
+      name: string,
+      expected: Typ.t,
+      actual: Typ.t,
+    });
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
   | BaseTyp
   | TyAlias
@@ -60,8 +76,24 @@ type t =
   | DotOperatorRequiresTuple
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | ModuleMissingMembers(list(Var.t))
+  /* `M.y` where the module has no value member y: on the label, while the
+     dot carries a message. [type_member]: y is one of its type members. */
+  | ModuleMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+      type_member: bool,
+    })
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
+  /* The livelit's expansion does not have the type the definition
+     declares for it (`type Expansion`). The declared type is what
+     clients type against, so the fault is the livelit's, not the use's. */
+  | BadLivelitExpansion({
+      declared: Typ.t,
+      actual: Typ.t,
+    })
+  | InvalidLivelitDef(livelit_def_error)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,
@@ -70,6 +102,11 @@ type t =
   | ExpectationMismatch({
       ana: Typ.t,
       syn: Typ.t,
+    })
+  | ModuleTypeMemberMismatch({
+      name: Var.t,
+      expected: Typ.t,
+      actual: Typ.t,
     })
   | BadToken(string)
   | BadLabel(Any.t)
@@ -84,6 +121,21 @@ type t =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(Typ.t)
+  /* `M.T` where the module has no type member T, or ([submodule]) `M.P.T`
+     where it has no sub-module P: on the label. */
+  | ModuleTypeMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+      submodule: bool,
+    })
+  /* `m.T` where m is a value that is not a module. */
+  | TypWantModule({
+      name: Var.t,
+      typ: Typ.t,
+    })
+  /* `S.T` where S is a signature alias and T is abstract in it: no module is
+     named, so there is no T to name. */
+  | TypAbstractMemberOfSignature(Var.t)
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure

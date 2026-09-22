@@ -281,6 +281,48 @@ let sync_at_bottom_class = (evt: Js.t(Dom_html.event)): unit =>
       el##.classList##remove(Js.string("at-bottom"));
     };
   };
+/* Play a short tone via Web Audio: one oscillator through a gain envelope
+   (short attack/release so start/stop don't click). One AudioContext is
+   created lazily and shared; resume() every call since browsers keep the
+   context suspended until the first user gesture — tones fired before any
+   gesture (e.g. from a timer) are silently dropped by the browser. */
+let play_tone = (~freq: float, ~ms: float): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      "(function(freq, ms){
+         var w = window;
+         var C = w.AudioContext || w.webkitAudioContext;
+         if (!C) return;
+         var ctx = w.__hazelAudioCtx || (w.__hazelAudioCtx = new C());
+         if (ctx.state === 'suspended') ctx.resume();
+         var t = ctx.currentTime;
+         var dur = Math.max(ms, 1) / 1000;
+         var osc = ctx.createOscillator();
+         var gain = ctx.createGain();
+         osc.frequency.value = freq;
+         gain.gain.setValueAtTime(0, t);
+         gain.gain.linearRampToValueAtTime(0.2, t + 0.01);
+         gain.gain.setValueAtTime(0.2, t + Math.max(dur - 0.03, 0.01));
+         gain.gain.linearRampToValueAtTime(0, t + dur);
+         osc.connect(gain);
+         gain.connect(ctx.destination);
+         osc.start(t);
+         osc.stop(t + dur + 0.01);
+       })",
+    ),
+    [|Js.Unsafe.inject(freq), Js.Unsafe.inject(ms)|],
+  );
+
+let say = (text: string): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      "(function(s){
+         if (typeof speechSynthesis === 'undefined') return;
+         speechSynthesis.speak(new SpeechSynthesisUtterance(s));
+       })",
+    ),
+    [|Js.Unsafe.inject(Js.string(text))|],
+  );
 
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
@@ -652,6 +694,37 @@ module QueryParams = {
     | _ => None
     };
   };
+
+  /* Drop the fragment, which is a mode of its own (`#debug`) and never part
+     of a link to a place in the document. */
+  let clear_fragment = (url: Url.url): Url.url =>
+    switch (url) {
+    | Http(u) =>
+      Http({
+        ...u,
+        hu_fragment: "",
+      })
+    | Https(u) =>
+      Https({
+        ...u,
+        hu_fragment: "",
+      })
+    | File(u) =>
+      File({
+        ...u,
+        fu_fragment: "",
+      })
+    };
+
+  /* This page with exactly these parameters: the link to hand someone else,
+     rather than the one in the address bar, which still carries whatever
+     parameters brought this reader here. */
+  let url_with = (args: list((string, string))): string =>
+    switch (Url.Current.get()) {
+    | None => ""
+    | Some(url) =>
+      url |> clear_fragment |> set_arguments(_, args) |> Url.string_of_url
+    };
 
   let set_param = (name: string, value: string) => {
     Url.Current.get()

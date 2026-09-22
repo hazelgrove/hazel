@@ -83,6 +83,47 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
+/* Bind the member declared by a signature item, if any. Signature items
+   scope sequentially: later items may mention earlier type members (`T`)
+   and, through paths, earlier value and module members (`Inner.T`). */
+let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
+  switch (item.term) {
+  | SigType({term: Var(name), _} as tp, ty) =>
+    extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
+  | SigTypeAbstract({term: Var(name), _} as tp) =>
+    extend_tvar(
+      ctx,
+      {
+        name,
+        id: IdTagged.rep_id(tp),
+        kind: Abstract,
+      },
+    )
+  | SigLet(_)
+  | SigModule(_) =>
+    switch (Sig.member_of_item(item)) {
+    | Some(Val(name, typ)) =>
+      extend(
+        ctx,
+        VarEntry({
+          name,
+          id: IdTagged.rep_id(item),
+          typ,
+          custom_statics: None,
+        }),
+      )
+    | _ => ctx
+    }
+  | SigType(_, _)
+  | SigTypeAbstract(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => ctx
+  };
+
+let extend_sig_items = (ctx: t, items: list(TermBase.Sig.t)): t =>
+  List.fold_left(extend_sig_item, ctx, items);
+
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun

@@ -8,7 +8,11 @@ type t = {
 let prepare = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
   typ:
     typ
-    |> Typ.desugar_sig(Ctx.empty)
+    /* No desugar_sig step. On dev a Sig annotation was rewritten into a
+       labeled tuple before printing; Modules II part 1 makes signature
+       types first class, so `Typ.desugar_sig` is gone and a Sig prints
+       as the Sig it is. Re-introducing the desugaring here would undo
+       that and print module types as tuples. */
     |> ExpToSegment.parenthesize_typ(
          ~parenthesization=settings.parenthesization,
          ~show_filters=settings.show_filters,

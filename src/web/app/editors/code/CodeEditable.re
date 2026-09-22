@@ -20,7 +20,20 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action: Action.t, model: Model.t) =>
+    let perform = (action: Action.t, model: Model.t) => {
+      let is_edit =
+        Action.is_edit(action)
+        /* When probe_all is on, Refractor actions don't require
+         * re-evaluation since all probes are already computed */
+        && !(
+             settings.core.probe_all
+             && (
+               switch (action) {
+               | Probe(_) => true
+               | _ => false
+               }
+             )
+           );
       PerfMetrics.time_perform(~action, () =>
         Editor.Update.update(
           ~settings=settings.core,
@@ -43,19 +56,19 @@ module Update = {
       )
       |> Updated.return(
            ~historic=Action.is_historic(action),
+           /* Layout-level edits (projector SetModel) don't change program
+            * semantics: skip statics/elaboration/re-evaluation downstream
+            * by reporting is_edit=false, but still autosave — the model
+            * string lives in the zipper and must persist. */
            ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+             is_edit
+             && (
+               switch (Action.recompute_level(action)) {
+               | Full => true
+               | Layout => false
+               }
+             ),
+           ~save=is_edit,
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
@@ -84,6 +97,7 @@ module Update = {
              };
            },
          );
+    };
     switch (action) {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
@@ -588,6 +602,49 @@ module View = {
           : Effect.Ignore;
       Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
     };
+    /* The span a copied link should carry: the selection if there is one, and
+       otherwise the term the cursor is in -- the same unit "Select term"
+       selects, computed the same way, so the link selects what the reader
+       would have got by asking for it. Somewhere with no term (whitespace
+       between two of them) falls back to the caret. */
+    let deep_link_span = (): option((Point.t, Point.t)) => {
+      let z = model.editor.state.zipper;
+      let syntax = model.editor.syntax;
+      let selected =
+        Haz3lcore.Selection.is_empty(z.selection)
+          ? Select.select_enclosing_term(
+              syntax.term_data,
+              syntax.measured,
+              model.statics.info_map,
+              z,
+            )
+          : Some(z);
+      let caret = () => {
+        let p = Zipper.Caret.point(syntax.measured, z);
+        Some((p, p));
+      };
+      switch (selected) {
+      | None => caret()
+      | Some(z') =>
+        switch (z'.selection.content) {
+        | [] => caret()
+        | [first, ..._] as content =>
+          switch (
+            try(
+              Some((
+                Measured.find_p(first, syntax.measured),
+                Measured.find_p(ListUtil.last(content), syntax.measured),
+              ))
+            ) {
+            | _ => None
+            }
+          ) {
+          | None => caret()
+          | Some((head, tail)) => Some((head.origin, tail.last))
+          }
+        }
+      };
+    };
     let paste_from_clipboard = () =>
       Effect.bind(JsUtil.read_clipboard(), ~f=text =>
         inject(
@@ -613,6 +670,17 @@ module View = {
           paste_from_clipboard(),
           inject(ContextMenu(ContextMenu.Model.Close)),
         ])
+      | CopyDeepLink =>
+        Effect.Many([
+          JsUtil.write_clipboard(
+            DeepLink.url(
+              ~slide=globals.slide_name,
+              ~sidebar=globals.settings.sidebar,
+              ~span=deep_link_span(),
+            ),
+          ),
+          inject(ContextMenu(ContextMenu.Model.Close)),
+        ])
       | Perform(a) => inject(Perform(a))
       };
     /* Sync document-level listeners (click-outside + keyboard) for the
@@ -624,6 +692,7 @@ module View = {
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
+            ~linkable=globals.slide_name != None,
             ~info_map=model.statics.info_map,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
@@ -665,6 +734,7 @@ module View = {
                   [],
                 ),
                 ContextMenu.view(
+                  ~linkable=globals.slide_name != None,
                   ~inject=perform_from_menu,
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
@@ -716,6 +786,15 @@ module View = {
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
+    // let t2 = JsUtil.precise_timestamp();
+    /* Clicking a docked projector's chip reveals its card. SwitchPanel
+     * expands a collapsed sidebar, but toggles the panel shut if it's
+     * already the one showing, so skip it in that case. */
+    let open_panel =
+      globals.settings.sidebar.show
+      && globals.settings.sidebar.panel == SidebarModel.Settings.Projectors
+        ? Effect.Ignore
+        : globals.inject_global(Set(Sidebar(SwitchPanel(Projectors))));
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -723,6 +802,7 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~open_panel,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.for_decoration(zipper),
@@ -735,14 +815,12 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
-     * evaluation highlights are transient progress feedback, so keep them on
-     * while the worker is running. */
+    /* Both the ReusePass predictions (frozen tint) and the pending-eval
+     * progress sweep are gated on the nut-menu setting: with fast statics
+     * the sweep reads as flicker on every short evaluation rather than
+     * as progress feedback. */
     let incr_eval_overlay =
-      switch (
-        predicted_reuse,
-        globals.settings.show_incremental_deco || pending_eval_ids != [],
-      ) {
+      switch (predicted_reuse, globals.settings.show_incremental_deco) {
       | (Some(predicted_reuse), true) => [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],

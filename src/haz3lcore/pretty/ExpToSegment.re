@@ -727,11 +727,11 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    /* No defensive parens on the content: the wrapper we are emitting is
+       already the protection, and adding another made printing
+       non-idempotent for every type whose precedence IS min -- a Sig, a bare
+       sum, a multihole -- which gained a paren layer on every trip. */
+    Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
@@ -993,8 +993,12 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=":") => false
   | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
+    /* `:` is an operator character, so anything glued to it that also starts
+       with one lexes as a single operator token -- `let _ :+ T` in a sig came
+       back as `:+`, which is no form at all. `$` is a name character but still
+       needs the gap. */
     String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
+    || Token.begins_with_potential_operator(s2)
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
@@ -1149,7 +1153,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
       FoldProj.sexp_of_t({
         text: f_name,
         expanded: false,
-        always_render: true,
+        always_render: false //TODO(andrew): re-enable maybe (causes massive slowdown for progs with big types)
       })
       |> Sexplib.Sexp.to_string;
     [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
@@ -2309,6 +2313,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                item,
                [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
              );
+           | ModVal(x, e) =>
+             /* An evaluated binding (dynamics only) displays as `let x = e`. */
+             let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e,
+             );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
@@ -2827,6 +2839,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                item,
                [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t,
              );
+           | SigModule(mp) =>
+             p_just(
+               wrap_item(
+                 item,
+                 [mk_form(SigModule, item |> Sig.rep_id, [])]
+                 @ mpat_to_seg(~settings, mp),
+               ),
+             )
+           | SigTypeAbstract(tp) =>
+             let+ tp = tpat_to_pretty(~settings, tp);
+             wrap_item(
+               item,
+               [mk_form(SigTypeAbstract, item |> Sig.rep_id, [])] @ tp,
+             );
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
              p_just(
@@ -2939,6 +2965,11 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
+  | ModVal(x, e) =>
+    /* An evaluated binding (dynamics only) displays as `let x = e`. */
+    let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
   | EmptyHole =>
     p_just(
       wrap_item(
@@ -2970,6 +3001,20 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     let+ tp = tpat_to_pretty(~settings, tp)
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t);
+  | SigModule(mp) =>
+    p_just(
+      wrap_item(
+        item,
+        [mk_form(SigModule, item |> Sig.rep_id, [])]
+        @ mpat_to_seg(~settings, mp),
+      ),
+    )
+  | SigTypeAbstract(tp) =>
+    let+ tp = tpat_to_pretty(~settings, tp);
+    wrap_item(
+      item,
+      [mk_form(SigTypeAbstract, item |> Sig.rep_id, [])] @ tp,
+    );
   | EmptyHole =>
     p_just(
       wrap_item(
