@@ -263,7 +263,7 @@ module Local = {
           let* shard =
             d == Left
               ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
-          List.nth_opt(t.label, shard);
+          List.nth_opt(Tile.label(t), shard);
         };
       let outer_token = (d: Direction.t): option(Token.t) => {
         let (l_sibs, r_sibs) = z.relatives.siblings;
@@ -277,7 +277,7 @@ module Local = {
             d == Left
               ? ListUtil.last_opt(fst(a.shards))
               : ListUtil.hd_opt(snd(a.shards));
-          List.nth_opt(a.label, shard);
+          List.nth_opt(Ancestor.label(a), shard);
         };
       };
       let fuses = (l: option(Token.t), r: option(Token.t)): bool =>
@@ -324,7 +324,7 @@ module Local = {
       };
     let is_binding_tile = (p: Piece.t): bool =>
       switch (p) {
-      | Tile(t) => ListUtil.last_opt(t.label) == Some("in")
+      | Tile(t) => Tile.ends_with_in(t)
       | _ => false
       };
     let linebreak = () =>
@@ -689,6 +689,36 @@ module Local = {
         };
       (lead, t, trail);
     };
+    /* Backup molds keep the parser total, so a reserved binder no
+       longer guarantees parse failure; the rejection can't key on
+       to_segment returning None. Two-part gate: the text scan names
+       the misuse (reserved word in binder position) AND the segment
+       shows the word molded as a form-opener tile, not a variable.
+       Completeness is no signal: the stray form can steal delimiters
+       from the enclosing form. A reserved word inside a string
+       literal never produces a tile. */
+    let reserved_binder_garbage = (code: string, segment): option(string) =>
+      switch (find_reserved_binder(code)) {
+      | None => None
+      | Some(w) =>
+        let rec has_opener = (sg: Segment.t): bool =>
+          sg
+          |> List.exists((p: Piece.t) =>
+               switch (p) {
+               | Tile(t) =>
+                 (
+                   switch (Tile.label(t), t.shards) {
+                   | ([tok, ..._], [0, ..._]) => tok == w
+                   | _ => false
+                   }
+                 )
+                 || List.exists(has_opener, t.children)
+               | _ => false
+               }
+             );
+        has_opener(segment) ? Some(w) : None;
+      };
+
     let rec introduce =
             (
               ~root=Sort.Exp,
@@ -700,18 +730,6 @@ module Local = {
             )
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
-      /* A binder named after a keyword (`let eval = ...`) is refused up
-         front with the note: left to the parsers, the keyword form swallows
-         what follows and the result is a broken buffer that may or may not
-         be refused depending on incidental typing rules. */
-      switch (find_reserved_binder(code)) {
-      | Some(_) =>
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Inserted code failed to parse." ++ reserved_word_note(code),
-          ),
-        )
-      | None =>
         /* module-member chunks carry their `;` separator (insert_member:
            `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
            separator, so it is split off here and spliced back as a tile
@@ -731,14 +749,21 @@ module Local = {
               )
             : None
         ) {
+        | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Inserted code does not parse as intended."
+              ++ reserved_word_note(code),
+            ),
+          )
         | Some(segment) =>
           /* Source tokens + formatting verbatim, molds from ExpToSegment +
              splice-time remold. No size cap needed on this path. */
           let sep_tile = (): Piece.t =>
             Tile({
               id: Id.mk(),
-              label: [";"],
-              mold: Form.Molds.get(Sort.Mod, [";"]),
+              form: Form.Compound(CellJoin),
+              sort: Sort.Mod,
               shards: [0],
               children: [],
             });
@@ -781,7 +806,6 @@ module Local = {
           };
           introduce_slow(~root, ~splice_root, z, code);
         };
-      };
     }
     and introduce_slow =
         (~root, ~splice_root=Sort.Exp, z: Zipper.t, code: string)
@@ -802,6 +826,13 @@ module Local = {
         switch (
           PerfTimer.time("typing-parse", () => Parser.to_segment(code, ~root))
         ) {
+        | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Inserted code does not parse as intended."
+              ++ reserved_word_note(code),
+            ),
+          )
         | Some(segment) =>
           Ok(
             PerfTimer.time("splice", () =>
@@ -840,7 +871,7 @@ module Local = {
         )
       ) {
       | Some(z') =>
-        switch (Destruct.go(Left, z', ~root=Exp)) {
+        switch (Destruct.go(Local(Left, ByChar), z', ~root=Exp)) {
         | None => Error(Action.Failure.Cant_destruct)
         | Some(z'') => Ok(z'')
         }
@@ -1477,7 +1508,7 @@ module Local = {
           Ok(
             PerfTimer.time("normalize", () =>
               PerformUtils.normalize_top_level(
-                Dump.to_zipper(new_z, ~root=Exp),
+                Materialize.all(new_z, ~root=Exp),
               )
             ),
           )
