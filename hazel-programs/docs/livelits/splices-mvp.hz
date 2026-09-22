@@ -1,0 +1,191 @@
+# The Smallest Livelit That Needs Splices #
+
+# Every livelit in this deck so far holds DATA. Tree Care's model is a #
+# tree; the color picker's is three numbers. A model is written into #
+# the program text, so it has to be plain serializable data -- and #
+# that is the whole constraint this slide is about. #
+
+# Here is a slider that reports a number between two bounds. It #
+# works, today, with no splices at all. Drag it. #
+
+let ^between = {
+  # pct is where the handle sits, 0 to 100. lo and hi are the ends of #
+  # the range. All three are numbers, because a model can only hold   #
+  # numbers -- and that is exactly the problem.                       #
+  type Model = (pct=Int, lo=Int, hi=Int);
+
+  type Action = + Slide(Int) + SetLo(Int) + SetHi(Int);
+
+  type Expansion = Int;
+
+  let init : Model = (pct=50, lo=0, hi=100);
+
+  let update = fun (m, a) : (Model, Action) ->
+    case a
+    | Slide(p) => (pct=p, lo=m.lo, hi=m.hi)
+    | SetLo(v) => (pct=m.pct, lo=v, hi=m.hi)
+    | SetHi(v) => (pct=m.pct, lo=m.lo, hi=v)
+    end;
+
+  # Where the handle actually lands, in the client's units. #
+  let at = fun m : Model -> m.lo + (m.hi - m.lo) * m.pct / 100;
+
+  # The spinner arrows a number input draws sit INSIDE its width, so #
+  # at 3.5em they clipped a three-digit bound to two. appearance      #
+  # textfield drops them, and box-sizing keeps the border out of the  #
+  # same budget.                                                      #
+  let num = fun (v, mk) : (Int, Int -> Action) ->
+    Html.input(
+      [Attr.type_("number"), Attr.value(string_of_int(v)),
+       Attr.style([("width", "3.2em"), ("font-size", "0.75em"),
+                   ("box-sizing", "border-box"),
+                   ("appearance", "textfield"),
+                   ("-moz-appearance", "textfield"),
+                   ("text-align", "right"), ("padding", "0 0.2em")]),
+       Attr.on_input(fun s -> mk(int_of_string(s)))]);
+
+  let view = fun m : Model ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [num((m.lo, fun v -> SetLo(v))),
+       Html.input(
+         [Attr.type_("range"), Attr.min("0"), Attr.max("100"),
+          Attr.value(string_of_int(m.pct)),
+          Attr.on_input(fun s -> Slide(int_of_string(s)))]),
+       num((m.hi, fun v -> SetHi(v))),
+       Html.text(" = " ++ string_of_int(at(m)))]);
+
+  let expand = fun m : Model -> at(m);
+
+  let shape = Inline(30)
+} in
+
+# WHAT IT CANNOT DO #
+
+# The bounds are NUMBERS. Type one in and it stays that number. #
+
+# You cannot write a bound that DEPENDS on something: #
+
+#   let baseline = 10 in                        #
+#   ^between with lo = baseline, hi = baseline * 2   #
+
+# There is nowhere to put `baseline * 2`. It is an expression, not #
+# data, and a model holds data. Widening Model to hold a String and #
+# parsing it later does not help either: `baseline` is a variable in #
+# the CLIENT's scope, which the livelit has never heard of and cannot #
+# resolve. #
+
+# That is the gap. Everything below is what closes it. #
+
+# ================= DESIGN SKETCH FROM HERE ================= #
+
+# None of the following runs. SpliceRef does not exist in this repo #
+# yet. It is written out so the target is legible, and taken from #
+# the livelits paper's Figure 3 (Omar et al., PLDI 2021). #
+
+# A SPLICE is a hole in the widget holding the CLIENT's code -- an #
+# expression the client wrote, edited in place inside the GUI, and #
+# typed in the client's scope. A SpliceRef is a HANDLE to one. #
+
+# THE MODEL STOPS HOLDING THE BOUNDS #
+
+#   type Model = (pct=Int, lo=SpliceRef, hi=SpliceRef)   #
+
+# pct is still data -- where the handle sits is the widget's own #
+# business. lo and hi become references: the bounds now live in the #
+# program as text, and the model only says WHERE. #
+
+# Compare Tree Care, whose model IS the tree. This model is half #
+# data and half pointers, and the split is the lesson. #
+
+# INIT BECOMES A COMMAND #
+
+#   new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef)   #
+
+# Making a splice edits the program, so it is an effect, so init #
+# stops being a value: #
+
+#   let init = {                                  #
+#     let* lo = new_splice(Int, Some(`0`));       #
+#     let* hi = new_splice(Int, Some(`100`));     #
+#     return((pct=50, lo=lo, hi=hi))              #
+#   }                                             #
+
+# Two splices, fixed. The paper's own $color has four, one per #
+# channel; this is the same shape with two. #
+
+# THE VIEW HAS TO RUN THE CLIENT'S CODE #
+
+#   eval_splice : SpliceRef -> ViewCmd(Maybe(Result))   #
+#   type Result = Val(Exp) | Indet(Exp)                 #
+
+# This is the part a list of holes would never need, and the reason #
+# this example was chosen. To draw the track, the widget must know #
+# where the track STARTS -- and that is an expression the client #
+# wrote. It cannot render itself without evaluating someone else's #
+# code: #
+
+#   let view = fun m -> {                                  #
+#     let* lo = eval_splice(m.lo);                         #
+#     let* hi = eval_splice(m.hi);                         #
+#     case (lo, hi)                                        #
+#     | (Some(Val(l)), Some(Val(h))) => slider(l, h, m.pct) #
+#     | _ => Html.text("bounds unknown")                   #
+#     end                                                  #
+#   }                                                      #
+
+# Indet is the honest case. Blank a bound, or write one that will #
+# not reduce, and there is no track to draw -- so the widget says #
+# so rather than guessing. Figure 3 disables the color preview for #
+# exactly this reason. #
+
+# EXPAND RETURNS SYNTAX, AND THE SPLICES BESIDE IT #
+
+#   expand : Model -> (Exp, List(SpliceRef))   #
+
+#   let expand = fun m ->                                         #
+#     (`fun lo hi -> lo + (hi - lo) * pct / 100`, [m.lo, m.hi])   #
+
+# Two things changed. The expansion is QUOTED CODE, not a value -- #
+# expand writes a program rather than computing an answer. And the #
+# splices come back as a list, with the quoted expression a #
+# FUNCTION of them. #
+
+# That shape is not decoration. It is how the paper gets CAPTURE #
+# AVOIDANCE: a splice passed as an argument is evaluated OUTSIDE the #
+# expansion, so it cannot be caught by a binding inside it. Write #
+# `lo` into a splice of a livelit whose expansion happens to bind #
+# `lo`, and nothing goes wrong. #
+
+# WHAT THE USE WOULD LOOK LIKE #
+
+#   let baseline = 10 in                                #
+#   ^^livelit(^between([baseline], [baseline * 2]))     #
+
+# Both bounds mention the client's variable. The widget renders a #
+# track from 10 to 20 -- having run code it did not write, in a #
+# scope it cannot see -- and the use still has type Int. #
+
+# WHY THIS ONE FIRST #
+
+# Figure 3 adds four things, and this example needs all four: #
+
+#   SpliceRef in the model    the bounds are not data         #
+#   new_splice               two splices made at init         #
+#   eval_splice              cannot draw the track without it #
+#   (Exp, List(SpliceRef))   bounds passed as arguments       #
+
+# An editable list of splices is the natural next one, and it earns #
+# its keep by needing new_splice at RUNTIME rather than only at #
+# init. But it never has to RUN its elements to render them, so it #
+# would leave eval_splice unmotivated -- and a splice's value shown #
+# inside the GUI is the paper's own motivating case. #
+
+# The use below is the working version, with plain numeric bounds. #
+
+let shown = ^^livelit(^between((pct=50, lo=0, hi=100))) in
+
+(shown, shown * 2)
