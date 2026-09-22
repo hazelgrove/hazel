@@ -9,7 +9,7 @@
  * (Failure("Tile.reassemble: out-of-order shards"), or the same
  * corruption caught in Highlight.of_tile).
  *
- * ExpToSegment.pad_ids dedups ids WITHIN one term's id list; duplicates
+ * PadIds.pad_ids dedups ids WITHIN one term's id list; duplicates
  * ACROSS SIBLING subterms are what these tests exercise
  * (ExpToSegment.uniquify_repeated_tiles is the guard).
  *
@@ -35,6 +35,7 @@ let display_settings: ExpToSegment.Settings.t = {
   show_ascriptions: false,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -806,12 +807,12 @@ let fidelity_tests = [
     action_fidelity_case(
       "select+del+retype+del",
       [
-        Action.Destruct(Left),
+        Action.Destruct(Local(Left, ByChar)),
         Action.Insert("c"),
         Action.Insert("o"),
         Action.Insert("l"),
-        Action.Destruct(Left),
-        Action.Destruct(Left),
+        Action.Destruct(Local(Left, ByChar)),
+        Action.Destruct(Local(Left, ByChar)),
       ],
     )
   ),
