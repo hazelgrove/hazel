@@ -1398,10 +1398,10 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             };
             states;
           };
-          /* raw-zipper states (no fork): the `?, ? )` spacing comes
+          /* raw-zipper states (no fork): the `?, ?)` spacing comes
              from ApplyCompletion(Next), which keeps the hole and the
-             whitespace where the preview showed them (the old
-             Paste/regrout reshuffle collapsed it to `?, ? )`). The
+             whitespace where the preview showed them; padding puts no
+             space between the last hole and the closer. The
              property pinned here is
              CONVERGENCE and SITE-correctness: inner closer, then
              each tuple's commas landing in THEIR OWN tuple, then the
@@ -1414,7 +1414,7 @@ let s = string_replace(string_capitalize(¦? in s   OWED[4]
 let s = string_replace(string_capitalize()¦ in s   OWED[3]
 let s = string_replace(string_capitalize(), ¦? in s   OWED[2]
 let s = string_replace(string_capitalize(), ?, ¦? in s   OWED[1]
-let s = string_replace(string_capitalize(), ?, ? )¦ in s   OWED[0]
+let s = string_replace(string_capitalize(), ?, ?)¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(st¦ in s")
             |> audit
@@ -1430,10 +1430,10 @@ let s = string_replace(string_replace(string_capitalize(¦? in s   OWED[7]
 let s = string_replace(string_replace(string_capitalize()¦ in s   OWED[6]
 let s = string_replace(string_replace(string_capitalize(), ¦? in s   OWED[5]
 let s = string_replace(string_replace(string_capitalize(), ?, ¦? in s   OWED[4]
-let s = string_replace(string_replace(string_capitalize(), ?, ? )¦ in s   OWED[3]
-let s = string_replace(string_replace(string_capitalize(), ?, ? ), ¦? in s   OWED[2]
-let s = string_replace(string_replace(string_capitalize(), ?, ? ), ?, ¦? in s   OWED[1]
-let s = string_replace(string_replace(string_capitalize(), ?, ? ), ?, ? )¦ in s   OWED[0]
+let s = string_replace(string_replace(string_capitalize(), ?, ?)¦ in s   OWED[3]
+let s = string_replace(string_replace(string_capitalize(), ?, ?), ¦? in s   OWED[2]
+let s = string_replace(string_replace(string_capitalize(), ?, ?), ?, ¦? in s   OWED[1]
+let s = string_replace(string_replace(string_capitalize(), ?, ?), ?, ?)¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(string_replace(st¦ in s")
             |> audit
