@@ -18,6 +18,17 @@ Slide order is the order of the list in `src/tutorialslides/Slides.re`
 (filename sort by convention). **Adding, removing, or renaming a slide**
 means updating that list too — one `[%blob]` line per file.
 
+Two lesson sets share this directory, told apart by the folder in each
+lesson's `@title` (see below) rather than by where the file sits: the
+numbered `NN-name.hzt` onboarding lessons (`Basics`, `Tuple Structural
+Operations`, `Tables`), and the unnumbered probes tutorial (`Probes`),
+whose filenames carry no order of their own — the `Slides.re` list is it.
+Keep a folder's lessons adjacent in that list; prev/next walks one folder.
+
+Renaming a probes lesson also changes its `module_name`, which keys the
+per-slide config tables (`TutorialSlideInit`, `TutorialProbeStrip`) — update
+those keys in the same pass.
+
 ## File format
 
 The `.hzt` extension marks this format: prose plus marker sections, NOT a

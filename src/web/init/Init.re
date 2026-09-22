@@ -12,6 +12,12 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 let documentation_slides: list((string, PersistentZipper.t)) =
   Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
 
+let persistent_of_zipper =
+    (content: PersistentZipper.t): CellEditor.Model.persistent => {
+  editor: content |> Editor.Model.mk_persistent(~root=Exp),
+  result: EvalResult.Model.init |> EvalResult.Model.persist,
+};
+
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
    store access. */
@@ -24,14 +30,8 @@ let startup: Lazy.t(PersistentData.t) =
     documentation: (
       0,
       documentation_slides
-      |> List.map(((name, content: PersistentZipper.t)) =>
-           (
-             name,
-             {
-               editor: content |> Editor.Model.mk_persistent(~root=Exp),
-               result: EvalResult.Model.init |> EvalResult.Model.persist,
-             }: CellEditor.Model.persistent,
-           )
+      |> List.map(((name, content)) =>
+           (name, persistent_of_zipper(content))
          ),
     ),
   });
