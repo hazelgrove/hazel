@@ -306,7 +306,10 @@ let dark = ^^fold(let p = palette_of(
       `black` = ^^color(Oklch(0., 0., 0.)),
       `frame-1` = ^^color(Oklch(30., 0.04, 250.)),
       `surface-1` = ^^color(Oklch(15., 0.02, 250.)),
-      `attention-1` = ^^color(Oklch(22., 0.06, 95.)),
+      # chroma reads far stronger at 22 lightness than at the 95 the light #
+      # scheme states it on, where 0.05 is barely a tint; half of it here #
+      # is the same warmth without the olive cast. #
+      `attention-1` = ^^color(Oklch(22., 0.03, 95.)),
       `attention-2` = ^^color(Oklch(32., 0.09, 169.5)),
       `attention-3` = ^^color(Oklch(45., 0.15, 95.)),
       `attention-4` = ^^color(Oklch(65., 0.18, 118.38)),
