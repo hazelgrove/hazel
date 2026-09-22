@@ -4,19 +4,20 @@ open Test_Evaluator_Prelude;
 
 let id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
 
+let steps = (exp: Exp.t) =>
+  switch (
+    EvaluatorStep.get_status(
+      ~settings=CoreSettings.on,
+      exp,
+      Environment.empty,
+    )
+  ) {
+  | AutoStep(step) => [step]
+  | AvailableSteps(steps) => steps
+  };
+
 let module_bind_steps = (x: string, exp: Exp.t) =>
-  (
-    switch (
-      EvaluatorStep.get_status(
-        ~settings=CoreSettings.on,
-        exp,
-        Environment.empty,
-      )
-    ) {
-    | AutoStep(step) => [step]
-    | AvailableSteps(steps) => steps
-    }
-  )
+  steps(exp)
   |> List.filter(step =>
        switch (EvaluatorStep.get_step_kind(step)) {
        | ModuleBind(y) => String.equal(x, y)
@@ -163,6 +164,52 @@ let tests = (
             ),
           )
         };
+      },
+    ),
+    /* The stepper takes a step by clicking what it is anchored on, so a step
+       anchored on an id the rendered program lacks can never be taken. The
+       stepper refreshes every id before its first step, which is what parts
+       a bare expression item's id from its expression's. */
+    test_case(
+      "Every module step is anchored on rendered syntax",
+      `Quick,
+      () => {
+        let rec go = (fuel, exp) =>
+          switch (steps(exp)) {
+          | [] => ()
+          | [first, ..._] as steps =>
+            let rendered =
+              exp
+              |> Haz3lcore.ExpToSegment.exp_to_segment(
+                   ~settings=
+                     Haz3lcore.ExpToSegment.Settings.of_core(
+                       ~inline=false,
+                       CoreSettings.on,
+                     ),
+                 )
+              |> Haz3lcore.Segment.ids;
+            List.iter(
+              step =>
+                check(
+                  bool,
+                  Transition.show_step_kind(
+                    EvaluatorStep.get_step_kind(step),
+                  )
+                  ++ " is anchored on rendered syntax",
+                  true,
+                  List.mem(EvaluatorStep.get_step_id(step), rendered),
+                ),
+              steps,
+            );
+            if (fuel > 0) {
+              EvaluatorStep.take_step(first) |> Option.iter(go(fuel - 1));
+            };
+          };
+        go(
+          20,
+          elaborate(parse_exp({|{ (); let x = 1 + 1; let y = x * 2 }|}))
+          |> Exp.replace_all_ids,
+        );
       },
     ),
   ],
