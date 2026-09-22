@@ -21,6 +21,7 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
   project_html: false,
@@ -596,11 +597,16 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
         let (l, r) = Haz3lcore.Tile.shapes(t);
         [
           field_str("kind", "Tile"),
-          field_str("label", String.concat(" ", t.label)),
-          field_str("mold.out", sort_str(t.mold.out)),
+          field_str("label", String.concat(" ", Haz3lcore.Tile.label(t))),
+          field_str("mold.out", sort_str(Haz3lcore.Tile.mold(t).out)),
           field_str(
             "mold.in_",
-            "[" ++ String.concat(", ", List.map(sort_str, t.mold.in_)) ++ "]",
+            "["
+            ++ String.concat(
+                 ", ",
+                 List.map(sort_str, Haz3lcore.Tile.mold(t).in_),
+               )
+            ++ "]",
           ),
           field_str("nibs", shape_str(l) ++ " … " ++ shape_str(r)),
           field_str(
@@ -620,10 +626,10 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
       p,
     );
 
-/* Caret, selection, and backpack from the editor's zipper. */
+/* Caret, selection, and missing shards from the editor's zipper. */
 let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
   let sel = z.selection;
-  let backpack = Haz3lcore.Zipper.local_backpack(z);
+  let missing = Haz3lcore.Zipper.local_missing_shards(z);
   [
     field_str("caret", Haz3lcore.CaretBase.show(z.caret)),
     field_str("selection.focus", Util.Direction.show(sel.focus)),
@@ -633,8 +639,8 @@ let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
       string_of_bool(Haz3lcore.Selection.is_empty(sel)),
     ),
     field_str(
-      "backpack",
-      string_of_int(List.length(backpack)) ++ " tile(s)",
+      "missing shards (local)",
+      string_of_int(List.length(missing)) ++ " tile(s)",
     ),
   ];
 };
@@ -668,8 +674,8 @@ let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
       string_of_int(List.length(syntax.projector_list)),
     ),
     field_str(
-      "backpack (cached)",
-      string_of_int(List.length(syntax.cached_backpack)) ++ " tile(s)",
+      "missing shards (global)",
+      string_of_int(List.length(syntax.missing_shards)) ++ " tile(s)",
     ),
   ];
 };

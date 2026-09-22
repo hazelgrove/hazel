@@ -122,7 +122,7 @@ let shard_mismatches = (seg: Haz3lcore.Base.segment): list(string) => {
        found == expected
          ? None
          : Some(
-             String.concat("", t.label)
+             String.concat("", Haz3lcore.Tile.label(t))
              ++ ": found "
              ++ string_of_int(found)
              ++ ", expected "

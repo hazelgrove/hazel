@@ -33,7 +33,10 @@ let of_delim' =
         | _ when Token.is_llm_hole(token) => "llm-waiting"
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
-        | _ when is_infix_var => "Any" /* Budget error deco */
+        /* operator-in-progress (`=` toward `=>`): an obligation
+           mid-entry, not an inconsistency — same color as other
+           incomplete delimiters (was error-red via "Any") */
+        | _ when is_infix_var => "incomplete"
         | _ => Sort.class_of(sort)
         };
       let plurality = plurality == 1 ? "mono" : "poly";
@@ -110,7 +113,7 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, t.mold.out);
+  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, Tile.mold(t).out);
 
   let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
@@ -134,8 +137,8 @@ let view =
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(
-      List.nth(t.label, i),
-      List.length(t.label),
+      Tile.token(t, i),
+      Tile.arity(t),
       sort,
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
@@ -208,5 +211,10 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  /* Trailing filler: a text layer ending in a linebreak gets no
+     final line box from HTML, so an empty last line left the editor
+     one row short (caret overhanging into the result area). The
+     zero-width space forces the line box and is invisible (and
+     harmless mid-line) otherwise. */
+  of_segment(segment) @ [Node.text("\xe2\x80\x8b")];
 };

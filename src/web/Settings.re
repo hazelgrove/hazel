@@ -1,5 +1,13 @@
 open Util;
 
+module CompletionDisplay = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Quiver
+    | Flag
+    | Hidden;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -14,6 +22,9 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    [@sexp.default false]
+    quiver_flagpole: bool,
+    quiver: bool, /* Show completion visualization (quiver arrows) */
     autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
@@ -33,7 +44,9 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
+      auto_reindent: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -83,6 +96,8 @@ module Model = {
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
     },
+    quiver_flagpole: false,
+    quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -92,6 +107,11 @@ module Model = {
     show_incremental_deco: false,
     simple_indication: false,
   };
+
+  /* Keep the persisted fields compatible with existing preferences, while
+     presenting one mutually exclusive display choice to the user. */
+  let completion_display = (settings: t): CompletionDisplay.t =>
+    !settings.quiver ? Hidden : settings.quiver_flagpole ? Flag : Quiver;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
@@ -131,7 +151,8 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
+    | AutoReindent
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -145,6 +166,7 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleStickyInPlace
@@ -193,11 +215,18 @@ module Update = {
             probe_all: !settings.core.probe_all,
           },
         }
-      | DeepReassociate => {
+      | AutoReindent => {
           ...settings,
           core: {
             ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
+            auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcut(fs) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut: fs,
           },
         }
       | SelectionChunkiness => {
@@ -435,6 +464,11 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+      | CompletionDisplay(mode) => {
+          ...settings,
+          quiver: mode != CompletionDisplay.Hidden,
+          quiver_flagpole: mode == CompletionDisplay.Flag,
         }
       | AutoprobeMode =>
         /* The keyboard toggle deliberately skips Caret, cycling Off<->All
