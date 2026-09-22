@@ -8,6 +8,7 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
+  completion: option(MakeTerm.completion_snapshot),
   targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
 
@@ -23,6 +24,7 @@ let empty: t = {
   info_map: Id.Map.empty,
   error_ids: [],
   warning_ids: [],
+  completion: None,
   targets: Sample.no_targets,
 };
 
@@ -139,6 +141,7 @@ let init_from_term =
     info_map,
     error_ids,
     warning_ids,
+    completion: None,
     targets,
   };
 };
@@ -169,12 +172,24 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
+  let (make_term_result, completion) =
+    MakeTerm.from_zip_for_sem_with_completion(z, ~root);
   let term = make_term_result.term |> stitch;
   let probe_ids =
     probe_ids_of_zipper(~projectors=make_term_result.projectors, z);
 
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
+  {
+    ...
+      init_from_term(
+        ~settings,
+        ~ctx?,
+        ~is_dynamic_term,
+        ~ana?,
+        ~probe_ids,
+        term,
+      ),
+    completion: Some(completion),
+  };
 };
 
 let init =

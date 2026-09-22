@@ -11,6 +11,7 @@ let ellipsis = "…";
 let abbrev_settings: ExpToSegment.Settings.t = {
   ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
   show_unknown_as_hole: false,
+  use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
 };

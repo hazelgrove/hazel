@@ -322,6 +322,10 @@ nonAscriptingPat:
 funAscElem:
     | p = funConsPat; { p }
     | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+    (* Ascribed unit parameter: fun () : T -> e. UNIT lives at the funPat
+       level (not nonAscriptingPat), so without this the ascribed form is
+       a parse error the editor parser accepts. *)
+    | UNIT; COLON; t = ascTyp; { AscPat(TuplePat([]), t) }
     (* Labeled parameter: fun label=l, value=v -> ... *)
     | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
