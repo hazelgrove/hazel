@@ -4,7 +4,7 @@ open ExplainThisForm;
 
 let tuple_pat_id: form_id = TuplePat;
 let tuple_pat_comma = comma_pat();
-let tuple_pat_form = [pat("p1"), tuple_pat_comma, space(), pat("...")];
+let tuple_pat_form = [pat("p1"), tuple_pat_comma, space(), pat("…")];
 let tuple_pat_explanation = (~n: int): string =>
   Printf.sprintf(
     "Only expressions that are %d-tuples with elements matching the corresponding element patterns match this tuple pattern.",
@@ -17,7 +17,7 @@ let tuple_pat = (~n: int): form => {
   expandable_id:
     Some((
       Piece.id(tuple_pat_comma),
-      [pat("p1"), comma_pat(), pat("...")],
+      [pat("p1"), comma_pat(), pat("…")],
     )),
   explanation: tuple_pat_explanation(~n),
   examples: [],
