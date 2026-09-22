@@ -10,7 +10,7 @@ let single: Simple.t = {
       space(),
       exp("M"),
       space(),
-      exp("="),
+      operator(Exp, "="),
       space(),
       exp("e"),
       space(),
