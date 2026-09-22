@@ -273,6 +273,10 @@ module HTML = {
         // === Utility elements ===
         ("Br", None),
         ("Hr", Some(attrs_only())),
+        /* Splice(n): place the host livelit's nth splice here -- a hole
+           holding the client's own code, edited in place inside the
+           widget and typed in the client's scope. */
+        ("Splice", Some(int())),
         // === Generic element (escape hatch) ===
         // Node(tagName, attrs, children)
         ("Node", Some(prod([string(), attrs_only(), list(var("HTML"))]))),

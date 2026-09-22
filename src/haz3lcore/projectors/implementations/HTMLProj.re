@@ -341,6 +341,8 @@ module M: Projector = {
       /* HTML-commit rewrites are cheap; treat every event alike. */
       inject: (_gesture, msg) => inject_msg(msg),
       view_term,
+      /* No splices: an HTML projector's syntax holds no client code. */
+      splice_view: _ => None,
       commit: HazelDOM.Syntax,
     };
 
@@ -369,6 +371,7 @@ module M: Projector = {
             AppBridge.dispatch^(info.id, msg);
           },
           view_term,
+          splice_view: _ => None,
           commit: HazelDOM.State,
         };
         HazelDOM.go(seed, html);

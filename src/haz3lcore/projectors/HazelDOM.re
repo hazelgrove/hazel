@@ -29,6 +29,12 @@ type gesture =
 type t = {
   inject: (gesture, DHExp.t) => Ui_effect.t(unit),
   view_term: DHExp.t => Node.t,
+  /* The nth splice of the host projector, rendered as a live sub-editor.
+     Indexed rather than by id so the Hazel-side view can name a splice
+     positionally (`Html.splice(0)`) without handling ids. None when the
+     host has no splice at that index, or has no splices at all -- every
+     projector but a livelit, today. */
+  splice_view: int => option(Node.t),
   commit,
 };
 
@@ -524,6 +530,24 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
     | ("Hr", body) =>
       let (attrs, _) = attrs_only(mvu, body);
       Node.hr(~attrs, ());
+
+    // === Splice: a hole in the widget holding the CLIENT's code ===
+    /* `Html.splice(n)` places the host projector's nth splice here, as a
+       live sub-editor. The content is the client's own expression, typed
+       in the client's scope (splices are transparent to statics), and is
+       edited in place inside the widget rather than in the surrounding
+       program text. Out-of-range renders as an error rather than nothing,
+       so a miscounted index is visible instead of silently blank. */
+    | ("Splice", {term: Atom(Int(n)), _}) =>
+      switch (Bigint.to_int(n)) {
+      | Some(i) =>
+        switch (mvu.splice_view(i)) {
+        | Some(node) =>
+          Node.div(~attrs=[Attr.classes(["livelit-splice"])], [node])
+        | None => of_error(elide_errors, mvu, d)
+        }
+      | None => of_error(elide_errors, mvu, d)
+      }
 
     // === Input element ===
     | ("Input", body) =>

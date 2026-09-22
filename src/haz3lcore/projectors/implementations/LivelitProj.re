@@ -516,6 +516,7 @@ module M: Projector = {
         ~commit_model: TermBase.Exp.t => Ui_effect.t(unit),
         ~repaint: unit => Ui_effect.t(unit),
         ~view_term: TermBase.Exp.t => Node.t,
+        ~splice_view_at: int => option(Node.t),
         ~live: option(TermBase.Exp.t),
       )
       : Node.t => {
@@ -546,6 +547,7 @@ module M: Projector = {
           ~repaint,
         ),
       view_term,
+      splice_view: splice_view_at,
       commit: HazelDOM.State,
     };
     /* Optimistic entry: render it (interactive, full brightness) until
@@ -624,7 +626,10 @@ module M: Projector = {
   };
 
   let view =
-      ({info, parent, local_quiet, view_seg, _}: View.args(model, action)) => {
+      (
+        {info, parent, local_quiet, view_seg, splices, splice_view, _}:
+          View.args(model, action),
+      ) => {
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
@@ -694,6 +699,12 @@ module M: Projector = {
                    transient (drag) update becomes visible without an edit. */
                 ~repaint=() => local_quiet(),
                 ~view_term,
+                /* Positional access to this livelit's own splices, in
+                   document order, for `Html.splice(n)` in the user's view. */
+                ~splice_view_at=
+                  i =>
+                    List.nth_opt(splices, i)
+                    |> Option.map((s: Base.splice) => splice_view(s.id)),
                 ~live=live_html(info),
               ),
             ],
