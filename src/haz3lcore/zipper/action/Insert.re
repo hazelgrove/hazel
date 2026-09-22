@@ -121,6 +121,52 @@ let insert_shard_core =
   };
 };
 
+/* `type T¦` in a signature followed by `=`: the bare abstract-member tile
+   (SigTypeAbstract, body TPat) becomes shard 0 of `type _ = _`. Its missing
+   `=` is then the nearest missing shard, so the ordinary put-down and
+   reassembly yield `type T = ¦` with T as the child. Only the left siblings
+   are touched. */
+let upgrade_bare_sig_type = (z: t): option(t) => {
+  let (l, r) = z.relatives.siblings;
+  let is_bare_operand = (t: Tile.t) =>
+    switch (Tile.label(t), t.shards) {
+    | ([_], [0]) =>
+      let out = Tile.mold(t).out;
+      out == Sort.TPat || out == Any;
+    | _ => false
+    };
+  let rec find = (~seen_operand, acc, rev) =>
+    switch (rev) {
+    | [(Piece.Secondary(_) | Grout(_)) as p, ...rest] =>
+      find(~seen_operand, [p, ...acc], rest)
+    | [Tile(t) as p, ...rest] when !seen_operand && is_bare_operand(t) =>
+      find(~seen_operand=true, [p, ...acc], rest)
+    | [Tile({form: Compound(SigTypeAbstract), _} as t), ...rest]
+        when Tile.mold(t).out == Sig =>
+      Some((List.rev(rest), t, acc))
+    | _ => None
+    };
+  switch (find(~seen_operand=false, [], List.rev(l))) {
+  | None => None
+  | Some((prefix, t, operand)) =>
+    let t' =
+      Tile.{
+        ...t,
+        form: Compound(ModType),
+        sort: Sig,
+        shards: [0],
+        children: [],
+      };
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (prefix @ [Piece.Tile(t'), ...operand], r),
+      },
+    });
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard =
     (
@@ -131,7 +177,8 @@ let insert_shard =
       z: t,
       ~root,
     )
-    : t =>
+    : t => {
+  let z = t == "=" ? Option.value(upgrade_bare_sig_type(z), ~default=z) : z;
   if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.get;
@@ -146,6 +193,7 @@ let insert_shard =
       ~root,
     );
   };
+};
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard =
