@@ -54,7 +54,7 @@ and tile_fragments =
   let clss = classes(t.id);
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       shard => [(List.nth(t.label, shard), clss)],
+       shard => [(Tile.token(t, shard), clss)],
        segment_fragments(classes),
      )
   |> List.concat;

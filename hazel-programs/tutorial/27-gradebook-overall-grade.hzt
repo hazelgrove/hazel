@@ -12,12 +12,12 @@ a new table with two changes:
 **Part 1: Convert columns to proper types**
 ```hazelnostatics
 ^^table([
-(column=student_id, `type`=Int),
-(column=term, `type`=String),
-(column=quiz1, `type`=Float),
-(column=quiz2, `type`=Float),
-(column=midterm, `type`=Float),
-(column=final, `type`=Float)
+  (column=student_id, `type`=Int),
+  (column=term, `type`=String),
+  (column=quiz1, `type`=Float),
+  (column=quiz2, `type`=Float),
+  (column=midterm, `type`=Float),
+  (column=final, `type`=Float)
 ])
 ```
 The `term` column should be left unaltered as a String. Preserve the original column order.
@@ -54,8 +54,8 @@ divided by 40 times 100
 Access a column from a table (list of labeled tuples):
 ```hazel
 let t = [
-(name="A", score=90),
-(name="B", score=80)
+  (name="A", score=90),
+  (name="B", score=80)
 ] in
 t.score
 ```
@@ -96,7 +96,7 @@ Float literals need a decimal point: `0.`, `1.0`, `3.14`
 Use `_` to defer arguments:
 ```hazel
 let double =
-map(_, fun x -> x * 2)
+  map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```
@@ -114,15 +114,15 @@ column names
 type GradebookEntry = (student_id=String, term=String, quiz1=String, quiz2=String, midterm=String, final=String) in
 
 let gradebook : [GradebookEntry]  =
-^^table([(student_id="1", term="2025SP", quiz1="7", quiz2="5", midterm="85", final="88"),
-(student_id="2", term="2025FA", quiz1="5", quiz2="8", midterm="90", final="82"),
-(student_id="3", term="2024FA", quiz1="8", quiz2="7", midterm="78", final="80"),
-(student_id="4", term="2025SP", quiz1="9", quiz2="10", midterm="95", final="98"),
-(student_id="5", term="2024FA", quiz1="4", quiz2="3", midterm="60", final="65")])
+  ^^table([(student_id="1", term="2025SP", quiz1="7", quiz2="5", midterm="85", final="88"),
+    (student_id="2", term="2025FA", quiz1="5", quiz2="8", midterm="90", final="82"),
+    (student_id="3", term="2024FA", quiz1="8", quiz2="7", midterm="78", final="80"),
+    (student_id="4", term="2025SP", quiz1="9", quiz2="10", midterm="95", final="98"),
+    (student_id="5", term="2024FA", quiz1="4", quiz2="3", midterm="60", final="65")])
 in
 
 let clean_and_add_overall_grade = fun (gradebook: [GradebookEntry]) ->
-gradebook
+  gradebook
 in
 
 clean_and_add_overall_grade(gradebook)
@@ -130,13 +130,13 @@ clean_and_add_overall_grade(gradebook)
 @test
 let cleaned = clean_and_add_overall_grade(gradebook) in
 let our_cleaned =
-gradebook
-|> map(_, fun (r) -> r ... (student_id=int_of_string(r.student_id),
-quiz1=float_of_string(r.quiz1),
-quiz2=float_of_string(r.quiz2),
-midterm=float_of_string(r.midterm),
-final=float_of_string(r.final)))
-|> map(_, fun r -> r... (overall_grade=(r.midterm +. r.final +. (r.quiz1 +. r.quiz2) *. 5) /. 3))
+  gradebook
+  |> map(_, fun (r) -> r ... (student_id=int_of_string(r.student_id),
+    quiz1=float_of_string(r.quiz1),
+    quiz2=float_of_string(r.quiz2),
+    midterm=float_of_string(r.midterm),
+    final=float_of_string(r.final)))
+  |> map(_, fun r -> r... (overall_grade=(r.midterm +. r.final +. (r.quiz1 +. r.quiz2) *. 5) /. 3))
 in
 test cleaned.student_id == our_cleaned.student_id end;
 test cleaned.quiz1 == our_cleaned.quiz1 end;

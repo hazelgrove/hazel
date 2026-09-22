@@ -20,7 +20,10 @@ let sort =
   get(
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
-    t => (t.mold.out, t.mold.in_),
+    t => {
+      let mold = Tile.mold(t);
+      (mold.out, mold.in_);
+    },
     _ => (Sort.Any, []),
   );
 
@@ -108,6 +111,18 @@ let is_convex = (p: t): bool =>
   | _ => false
   };
 
+let is_space: t => bool =
+  fun
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false;
+
+let is_linebreak: t => bool =
+  fun
+  | Secondary(s) => Secondary.is_linebreak(s)
+  | _ => false;
+
+let is_whitespace = (p: t): bool => is_space(p) || is_linebreak(p);
+
 let is_grout: t => bool =
   fun
   | Grout(_) => true
@@ -128,6 +143,26 @@ let is_complete: t => bool =
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
 
+let is_comma: t => bool =
+  fun
+  | Tile(t) => Tile.is_comma(t)
+  | _ => false;
+
+let is_semi: t => bool =
+  fun
+  | Tile(t) => Tile.is_semi(t)
+  | _ => false;
+
+let is_dot: t => bool =
+  fun
+  | Tile(t) => Tile.is_dot(t)
+  | _ => false;
+
+let is_case_rule: t => bool =
+  fun
+  | Tile(t) => Tile.is_case_rule(t)
+  | _ => false;
+
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 
 let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
@@ -136,25 +171,29 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     shape,
   });
 
-let mk_tile: (Form.t, list(list(t))) => t =
-  (form, children) =>
+let mk_tile: ((Form.t, Sort.t), list(list(t))) => t =
+  ((form, sort), children) =>
     Tile({
       id: Id.mk(),
-      label: form.label,
-      mold: form.mold,
-      shards: List.mapi((i, _) => i, form.label),
+      form,
+      sort,
+      shards: List.mapi((i, _) => i, Form.label_of(form)),
       children,
     });
 
 let is_term = (p: t) =>
   switch (p) {
   | Grout(_)
-  | Projector(_)
-  | Tile({
-      label: [_],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      _,
-    }) =>
+  | Projector(_) => true
+  | Tile(t)
+      when
+        Tile.arity(t) == 1
+        && (
+          switch (Tile.mold(t).nibs) {
+          | ({shape: Convex, _}, {shape: Convex, _}) => true
+          | _ => false
+          }
+        ) =>
     true
   | Secondary(_) => false // debatable
   | _ => false
@@ -162,9 +201,9 @@ let is_term = (p: t) =>
 
 let is_infix_delimiter_op_prefix = (p: t) =>
   switch (p) {
-  | Tile({label: [t], mold, _}) =>
-    Form.is_infix_delimiter_op_prefix(t)
-    && Form.is_infix_delimiter_prefix_mold(mold)
+  | Tile(t) when Tile.arity(t) == 1 =>
+    Form.is_infix_delimiter_op_prefix(Tile.token(t, 0))
+    && Form.is_infix_delimiter_prefix_mold(Tile.mold(t))
   | _ => false
   };
 
