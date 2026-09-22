@@ -567,6 +567,11 @@ module M: Projector = {
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
+        /* Spliced field labels of the model in the SYNTAX. Passed
+           separately because [model] here is whatever the view rendered
+           from -- on the optimistic path that is the evaluated value,
+           which holds no splices and would answer this wrongly. */
+        ~spliced: list(string),
         ~commit_model: TermBase.Exp.t => Ui_effect.t(unit),
         ~repaint: unit => Ui_effect.t(unit),
         gesture: HazelDOM.gesture,
@@ -600,7 +605,7 @@ module M: Projector = {
              nodes, so committing it would drop the client's code. Such a
              model commits the merged term instead (see commit_model). */
           when
-            spliced_field_labels(model) == []
+            spliced == []
             && MvuShape.is_checkpointable(mv)
             && MvuShape.is_checkpointable(action) =>
         Some(
@@ -793,6 +798,9 @@ module M: Projector = {
       Hashtbl.replace(last_good_view, id, node);
       node;
     };
+    /* From the model in the SYNTAX -- `seed` shadows `model` below, and
+       the optimistic path deliberately passes the evaluated value. */
+    let syntax_spliced = spliced_field_labels(model);
     let seed = (~model, ~model_value): HazelDOM.t => {
       inject:
         event_inject(
@@ -802,6 +810,7 @@ module M: Projector = {
           ~def_elab,
           ~model,
           ~model_value,
+          ~spliced=syntax_spliced,
           ~commit_model,
           ~repaint,
         ),
@@ -911,6 +920,17 @@ module M: Projector = {
            The caret is not preserved on either path -- SetTerm rebuilds
            the zipper from the root -- so a widget action still evicts the
            caret from a splice being edited. */
+        /* Write an updated model back into the Ap's argument position.
+           A model with no splices keeps the original SetSyntax path.
+           A model WITH splices cannot use it: SetSyntax reprints the
+           projector's whole segment, and a splice prints as nothing but
+           its content, so the client's code would be flattened into the
+           model on the first interaction. SetTerm regenerates the segment
+           from the term and re-attaches splices by id -- which works only
+           because `preserve_spliced_fields` kept those nodes in what we
+           commit. The caret is not preserved on either path (SetTerm
+           rebuilds the zipper from the root), so a widget action still
+           evicts the caret from a splice being edited. */
         let commit_model = (new_model: TermBase.Exp.t) =>
           switch (spliced_field_labels(model)) {
           | [] =>
@@ -928,12 +948,28 @@ module M: Projector = {
             };
           | [_, ..._] =>
             let merged = preserve_spliced_fields(~from=model, new_model);
-            switch (info.utility.seg_to_term(info.syntax)) {
-            | Some(t) =>
-              parent(SetTerm(replace_model_term(merged, t), true))
-            | None =>
-              print_endline("Warning - LivelitProj.view: seg_to_term failed");
+            /* Refuse rather than destroy. If what we are about to commit
+               does not carry the splices -- an update redex, say, which is
+               an Ap with no fields to merge into -- writing it would erase
+               the client's code. Losing the interaction is the right
+               failure; losing what they typed is not. */
+            if (spliced_field_labels(merged) == []) {
+              print_endline(
+                "Warning - LivelitProj: refusing a commit that would drop "
+                ++ string_of_int(List.length(spliced_field_labels(model)))
+                ++ " splice(s)",
+              );
               Ui_effect.Ignore;
+            } else {
+              switch (info.utility.seg_to_term(info.syntax)) {
+              | Some(t) =>
+                parent(SetTerm(replace_model_term(merged, t), true))
+              | None =>
+                print_endline(
+                  "Warning - LivelitProj.view: seg_to_term failed",
+                );
+                Ui_effect.Ignore;
+              };
             };
           };
 
