@@ -262,18 +262,17 @@ let chained_dot_edge_case = (char: string, z: t): bool =>
     | Some(Tile(t))
         when
           Tile.is_complete(t)
-          && List.length(t.label) == 1
           && (
-            switch (t.label) {
-            | [tok] => Token.is_int(tok)
-            | _ => false
+            switch (Tile.single_token(t)) {
+            | Some(tok) => Token.is_int(tok)
+            | None => false
             }
           ) =>
       let (left_sibs, _) = z.relatives.siblings;
       let without_int = List.rev(List.tl(List.rev(left_sibs)));
       let trimmed = Segment.trim_secondary(Right, without_int);
       switch (ListUtil.last_opt(trimmed)) {
-      | Some(Tile(t2)) when t2.label == ["."] => true
+      | Some(Tile(t2)) when Tile.is_dot(t2) => true
       | _ => false
       };
     | _ => false
