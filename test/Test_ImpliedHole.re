@@ -72,10 +72,10 @@ let tests = [
           let changed =
             ZipperBase.MapPiece.go(
               fun
-              | Tile({label: ["Int"], _} as t) => [
+              | Tile({form: Tok("Int"), _} as t) => [
                   Tile({
                     ...t,
-                    label: ["Bool"],
+                    form: Tok("Bool"),
                   }),
                 ]
               | p => [p],

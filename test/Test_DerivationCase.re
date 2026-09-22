@@ -336,8 +336,7 @@ let test_drv_case_insert_bar_after_complete_case = () => {
   let find_end_id = (seg: Segment.t): option(Id.t) =>
     List.find_map(
       fun
-      | Piece.Tile({label: ["case", "end"], id, _} as _t: Tile.t) =>
-        Some(id)
+      | Piece.Tile({id, _} as t: Tile.t) when Tile.is_case(t) => Some(id)
       | _ => None,
       seg,
     );

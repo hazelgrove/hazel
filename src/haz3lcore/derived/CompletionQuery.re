@@ -155,7 +155,7 @@ let chips_at_caret =
                      Segment.find_ctx(result.completed_seg, id),
                    ) {
                    | (Some((_, rn)), Some((_, _, Piece.Tile(t)))) =>
-                     let (ln, _) = Mold.nibs(~index=shard, t.mold);
+                     let (ln, _) = Mold.nibs(~index=shard, Tile.mold(t));
                      switch (rn.shape, ln.shape) {
                      | (Concave(_), Concave(_)) => !fuses_empty(l, d.text)
                      | _ => false
@@ -185,7 +185,8 @@ let chips_at_caret =
         let right_hole =
           switch (List.find_opt(p => !Piece.is_secondary(p), r)) {
           | Some(Grout({shape, _})) => Some(shape)
-          | Some(Tile({label: ["?"], _})) => Some(Grout.Convex)
+          | Some(Tile(t)) when Tile.is_explicit_hole(t) =>
+            Some(Grout.Convex)
           | _ => None
           };
         List.mapi(
@@ -234,7 +235,7 @@ let accepts_right_hole = (z: Zipper.t): bool =>
       );
     switch (Segment.find_ctx(result.completed_seg, id)) {
     | Some((_, _, Tile(t))) =>
-      let (_, rn) = Mold.nibs(~index=shard, t.mold);
+      let (_, rn) = Mold.nibs(~index=shard, Tile.mold(t));
       switch (rn.shape) {
       | Concave(_) => true
       | Convex => false

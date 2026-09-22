@@ -1242,12 +1242,12 @@ let sync =
         |> List.concat_map((piece: Piece.t) =>
              switch (piece) {
              | Tile(t) =>
-               let plurality = List.length(t.label) == 1 ? "mono" : "poly";
-               let sort_cls = Sort.class_of(t.mold.out);
+               let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
+               let sort_cls = Sort.class_of(Tile.mold(t).out);
                (
                  t.shards
                  |> List.filter_map(i =>
-                      switch (List.nth_opt(t.label, i)) {
+                      switch (List.nth_opt(Tile.label(t), i)) {
                       | Some(txt) =>
                         let cls =
                           ["token", sort_cls, plurality]
