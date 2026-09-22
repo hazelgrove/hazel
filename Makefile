@@ -95,9 +95,9 @@ coverage:
 lint-css:
 	python3 scripts/lint_css_roles.py
 
-# Rewrites the generated block of variables.css from the Colors slide's light
-# scheme, so a default is byte-identical to the value the theme will set. Read
-# the diff: an unexplained line in it is the bug.
+# Rewrites style/theme-generated.css from the Colors slide's light scheme, so a
+# default is byte-identical to the value the theme will set. Read the diff: an
+# unexplained line in it is the bug.
 update-css-defaults:
 	UPDATE_CSS_DEFAULTS=1 ./run_tests test 'ColorConfiguration' -q
 
