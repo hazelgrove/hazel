@@ -476,6 +476,8 @@ module rec Exp: {
           {
             ids: [id],
             secondary: IdTagged.IdTag.empty_secondary,
+            incomplete: [],
+            lexeme: None,
           };
         },
         indicated_exp,

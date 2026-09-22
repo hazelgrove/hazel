@@ -114,9 +114,9 @@ string_mean(["0", "0", "6"]) should be 2.
 
 @code
 let string_mean : [String] -> Float = fun strings ->
-let floats : [Float] = ¿ in
-let sum : Float = ¿ in
-¿
+  let floats : [Float] = ¿ in
+  let sum : Float = ¿ in
+  ¿
 in
 string_mean(["1", "2", "3"])
 

@@ -361,6 +361,10 @@ funHoleChain:
 funAscAtom:
     | p = funConsPat; { p }
     | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+    (* Ascribed unit parameter: fun () : T -> e. UNIT lives at the funPat
+       level (not nonAscriptingPat), so without this the ascribed form is
+       a parse error the editor parser accepts. *)
+    | UNIT; COLON; t = ascTyp; { AscPat(TuplePat([]), t) }
 
 (* KNOWN CONFLICT FAMILIES (menhir default resolutions, all pinned by
    the MenhirParser/MenhirFuzz/MenhirCorpus differential suites):
