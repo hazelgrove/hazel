@@ -1432,7 +1432,10 @@ module Transition = (EV: EV_MODE) => {
             side_effects: [],
             kind: ModuleDiscardExp,
             is_value: false,
-            at: Some(Mod.rep_id(item)),
+            /* A bare expression item prints as its expression alone, so the
+               item has no syntax to point at, and the expression's is taken
+               by the expression's own steps. */
+            at: None,
           });
         | ModLet(_, _)
         | ModuleMod(_, _) =>
