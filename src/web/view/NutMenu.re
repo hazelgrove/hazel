@@ -31,7 +31,7 @@ let submenu = (~tooltip, ~icon, menu) =>
 
 // SETTINGS MENU
 
-let settings_group = (~globals: Globals.t, name: string, ts) => {
+let settings_group = (~globals: Globals.t, ~extra=[], name: string, ts) => {
   let toggle = ({name, active, setting, tooltip, warning}) =>
     toggle_named("", ~name, ~tooltip?, ~warning?, active, _ =>
       globals.inject_global(Set(setting))
@@ -40,7 +40,7 @@ let settings_group = (~globals: Globals.t, name: string, ts) => {
     "group",
     [
       div_c("name", [text(name)]),
-      div_c("contents", List.map(toggle, ts)),
+      div_c("contents", extra @ List.map(toggle, ts)),
     ],
   );
 };
@@ -70,13 +70,6 @@ let semantics_group = (~globals) => {
         active: globals.settings.core.dynamics,
         setting: Dynamics,
         tooltip: Some("Evaluate expressions and show results"),
-        warning: None,
-      },
-      {
-        name: "Docs",
-        active: globals.settings.sidebar.show,
-        setting: Sidebar(ToggleShow),
-        tooltip: Some("Show documentation sidebar"),
         warning: None,
       },
       {
@@ -187,6 +180,126 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
+/* Shared treatment for the menu's mutually exclusive choices. Native
+   buttons provide keyboard activation and expose the selected state. */
+let segmented_setting = (~name, ~tooltip, ~current, ~options, ~set) =>
+  div(
+    ~attrs=[clss(["segmented-setting"])],
+    [
+      div(
+        ~attrs=[clss(["segmented-name"]), Attr.title(tooltip)],
+        [text(name)],
+      ),
+      div(
+        ~attrs=[
+          clss(["segmented-control"]),
+          Attr.create("role", "group"),
+          Attr.create("aria-label", name),
+        ],
+        List.map(
+          ((label, tooltip, mode)) =>
+            Node.button(
+              ~attrs=[
+                Attr.create("type", "button"),
+                clss(["segment"] @ (current == mode ? ["active"] : [])),
+                Attr.create("aria-pressed", string_of_bool(current == mode)),
+                Attr.title(tooltip),
+                Attr.on_click(_ => set(mode)),
+              ],
+              [text(label)],
+            ),
+          options,
+        ),
+      ),
+    ],
+  );
+
+let format_shortcut_control = (~globals: Globals.t) => {
+  module FS = Language.CoreSettings.FormatShortcut;
+  segmented_setting(
+    ~name="Format",
+    ~tooltip=
+      "What the format shortcut ("
+      ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+      ++ "+S) does. "
+      ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+      ++ "+Shift+S always pretty-prints.",
+    ~current=globals.settings.core.format_shortcut,
+    ~set=
+      mode =>
+        globals.inject_global(Set(Settings.Update.FormatShortcut(mode))),
+    ~options=[
+      ("None", "Do not format", FS.Nothing),
+      ("Indent", "Re-indent only", FS.Indent),
+      (
+        "Spaces",
+        "Re-indent and normalize within-line spacing (linebreaks and comments untouched)",
+        FS.Spaces,
+      ),
+      ("Breaks", "Full pretty print (may change linebreaks)", FS.Breaks),
+    ],
+  );
+};
+
+let completion_display_control = (~globals: Globals.t) => {
+  module CD = Settings.CompletionDisplay;
+  segmented_setting(
+    ~name="Completion",
+    ~tooltip="How completion previews are displayed",
+    ~current=Settings.Model.completion_display(globals.settings),
+    ~set=
+      mode =>
+        globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
+    ~options=[
+      (
+        "Quiver",
+        "Show completion previews beside their insertion points",
+        CD.Quiver,
+      ),
+      (
+        "Flag",
+        "Raise the caret's completion preview on a flagpole; keep other previews beside their insertion points",
+        CD.Flag,
+      ),
+      (
+        "None",
+        "Hide all completion previews, at the caret and elsewhere",
+        CD.Hidden,
+      ),
+    ],
+  );
+};
+
+let editing_group = (~globals: Globals.t) => {
+  settings_group(
+    ~globals,
+    ~extra=[format_shortcut_control(~globals)],
+    "Editing",
+    [
+      {
+        name: "Auto Re-indent",
+        active: globals.settings.core.auto_reindent,
+        setting: AutoReindent,
+        tooltip:
+          Some(
+            "Re-indent a form's contents when its delimiters complete (experimental)",
+          ),
+        warning: None,
+      },
+      {
+        name: "Character-level mouse",
+        active: globals.settings.core.selection_chunkiness,
+        setting: SelectionChunkiness,
+        tooltip:
+          Some(
+            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
+          ),
+        warning: None,
+      },
+    ],
+  );
+};
+
 let dev_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
@@ -211,23 +324,6 @@ let dev_group = (~globals: Globals.t) => {
         active: globals.settings.core.probe_all,
         setting: ProbeAll,
         tooltip: Some("Enable probes on all top-level definitions"),
-        warning: None,
-      },
-      {
-        name: "Deep Reassociate",
-        active: globals.settings.core.deep_reassociate,
-        setting: DeepReassociate,
-        tooltip: Some("Enable deep reassociation of syntax"),
-        warning: None,
-      },
-      {
-        name: "Character-level mouse",
-        active: globals.settings.core.selection_chunkiness,
-        setting: SelectionChunkiness,
-        tooltip:
-          Some(
-            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
-          ),
         warning: None,
       },
       {
@@ -278,6 +374,7 @@ let dev_group = (~globals: Globals.t) => {
 let code_display_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
+    ~extra=[completion_display_control(~globals)],
     "Code Display",
     [
       {
@@ -335,6 +432,7 @@ let settings_menu = (~globals) => {
     values_group(~globals),
     stepper_group(~globals),
     code_display_group(~globals),
+    editing_group(~globals),
     dev_group(~globals),
   ];
 };

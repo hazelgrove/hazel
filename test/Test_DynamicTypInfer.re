@@ -202,7 +202,7 @@ let scoping_tests = [
 in let f = fun () -> h
 in let g = fun (h : () -> Int) -> ^^probe(h)
 in g(f)|},
-    Some("(()) -> Int"),
+    Some("() -> Int"),
   ),
 ];
 

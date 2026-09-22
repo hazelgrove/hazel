@@ -469,9 +469,9 @@ let builtins =
             fix_f(
               Pat.var("range"),
               fn(
-                Pat.tuple([Pat.var("start"), Pat.var("end")]),
+                Pat.tuple([Pat.var("start"), Pat.var("stop")]),
                 if_(
-                  bin_op(Int(GreaterThan), var("start"), var("end")),
+                  bin_op(Int(GreaterThan), var("start"), var("stop")),
                   list_lit([]),
                   cons(
                     var("start"),
@@ -480,7 +480,7 @@ let builtins =
                       var("range"),
                       tuple([
                         bin_op(Int(Plus), var("start"), int(1)),
-                        var("end"),
+                        var("stop"),
                       ]),
                     ),
                   ),
@@ -2616,7 +2616,7 @@ let go: ([?], [?], [?]) -> [?] =
               fn(
                 Pat.tuple([
                   Pat.var("start"),
-                  Pat.var("end"),
+                  Pat.var("stop"),
                   Pat.var("xs"),
                 ]),
                 ap(
@@ -2628,7 +2628,7 @@ let go: ([?], [?], [?]) -> [?] =
                       var("drop"),
                       tuple([var("xs"), var("start")]),
                     ),
-                    bin_op(Int(Minus), var("end"), var("start")),
+                    bin_op(Int(Minus), var("stop"), var("start")),
                   ]),
                 ),
                 ~name="slice+",
