@@ -342,7 +342,7 @@ module Local = {
          top-level pass: single-line modules are never exploded. */
     let is_semi = (p: Piece.t): bool =>
       switch (p) {
-      | Tile(t) => t.label == [";"]
+      | Tile(t) => Tile.is_semi(t)
       | _ => false
       };
     let is_space = (p: Piece.t): bool =>
@@ -351,7 +351,7 @@ module Local = {
       | _ => false
       };
     let is_mod_body = (t: Tile.t): bool =>
-      t.label == ["{", "}"] && t.mold.in_ == [Sort.Mod];
+      Tile.has_label_of(t, ModBody) && Tile.mold(t).in_ == [Sort.Mod];
     let clean_member_separators = (seg: Segment.t): Segment.t => {
       let rec next_tok = ps =>
         switch (ps) {
@@ -718,7 +718,9 @@ module Local = {
               ),
             )
           | None =>
-            Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
+            Ok(
+              Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root),
+            )
           }
         | None =>
           Error(
