@@ -81,8 +81,7 @@ let flagpole_edges =
                         switch (CaretDec.caret_base_path(side, shape)) {
                         | [Util.SvgUtil.Path.M({x, y}), H_({dx}), ..._] =>
                           let origin_x =
-                            float_of_int(col)
-                            *. font_metrics.Util.col_width;
+                            float_of_int(col) *. font_metrics.Util.col_width;
                           let origin_y =
                             float_of_int(row) *. font_metrics.row_height;
                           check(
