@@ -64,7 +64,7 @@ let refractor_of_invoke_token =
 let exp_to_seg =
   ExpToSegment.exp_to_segment(
     ~settings=
-      ExpToSegment.Settings.of_core(~inline=true, Language.CoreSettings.on),
+      ExpToSegment.Settings.of_core(~inline=Inline, Language.CoreSettings.on),
   );
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {

@@ -9,6 +9,7 @@
 @import "proj-checkbox.css";
 @import "proj-slider.css";
 @import "proj-livelit.css";
+@import "proj-graph.css";
 @import "proj-table.css";
 @import "proj-table-probe.css";
 @import "proj-csv.css";
@@ -22,6 +23,15 @@
   align-items: center;
   color: var(--BR2);
   z-index: var(--projector-z);
+}
+
+.projector.Tab {
+  align-items: flex-start;
+}
+
+.refractors .projector {
+  /* TODO(andrew) */
+  /* z-index: 1; */
 }
 
 .refractors .projector.probe.indicated {

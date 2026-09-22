@@ -9,6 +9,8 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
+/* BRANCH (exolivelits): Docslides ships the exolivelit demo slides in
+   place of the standard reference set — see src/docslides/Slides.re. */
 let documentation_slides: list((string, PersistentZipper.t)) =
   Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
 
