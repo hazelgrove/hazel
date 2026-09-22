@@ -50,14 +50,234 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Any.t, _) =>
+  /* --- Splices in a livelit's model ---------------------------------
+   *
+   * A splice is a region of the CLIENT's program held inside the widget:
+   * edited in place, and typed in the surrounding scope, since splices
+   * are transparent to statics. An author opts a model field in by
+   * PARENTHESIZING its value:
+   *
+   *     let init : Model = (pct=50, lo=(0), hi=(100));
+   *
+   * The parens are the durable marker, and they have to be, because a
+   * splice piece prints as nothing but its content and the deck loads
+   * from text -- so a splice cannot round-trip and `init` rebuilds it
+   * from the parens on every load. The client's code stays INSIDE the
+   * parens, which is what makes the rewrap idempotent.
+   *
+   * Only labeled fields whose value is exactly a parenthesized
+   * expression are eligible. No invocation in the shipped deck matches,
+   * so this is inert for every livelit that has not asked for it. */
+
+  /* Split a segment into (leading secondary, core, trailing secondary). */
+  let split_outer_secondary =
+      (seg: Base.segment): (Base.segment, Base.segment, Base.segment) => {
+    let (lead, rest) = Segment.take_while_secondary(seg);
+    let (rev_trail, rev_core) =
+      Segment.take_while_secondary(List.rev(rest));
+    (lead, List.rev(rev_core), List.rev(rev_trail));
+  };
+
+  /* Split a field at its tuple-label separator, returning the prefix
+   * through the "=" tile and the value pieces after it. */
+  let split_at_label_sep =
+      (field: Base.segment): option((Base.segment, Base.segment)) => {
+    let rec go = (prefix, ps: Base.segment) =>
+      switch (ps) {
+      | [] => None
+      | [Base.Tile({label: ["="], _}) as eq, ...rest] =>
+        Some((List.rev([eq, ...prefix]), rest))
+      | [p, ...rest] => go([p, ...prefix], rest)
+      };
+    go([], field);
+  };
+
+  let map_comma_groups =
+      (f: Base.segment => Base.segment, seg: Base.segment): Base.segment =>
+    Segment.split_at_commas(seg)
+    |> Aba.map_a(f)
+    |> Aba.join(Fun.id, p => [p])
+    |> List.concat;
+
+  /* A parenthesized expression: Convex on both sides. The application's
+   * own argument tile carries the same ["(", ")"] label but a postfix
+   * mold, so the nibs are what tell them apart. */
+  let as_parens = (p: Base.piece): option((Base.tile, Base.segment)) =>
+    switch (p) {
+    | Tile(
+        {
+          label: ["(", ")"],
+          mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+          children: [inner],
+          _,
+        } as t,
+      ) =>
+      Some((t, inner))
+    | _ => None
+    };
+
+  /* `lo=(0)` -> `lo=(<splice 0>)`. Returns None when the field is not
+   * marked, or is already spliced. */
+  let wrap_marked_field = (field: Base.segment): option(Base.segment) => {
+    open OptUtil.Syntax;
+    let* (label_prefix, value) = split_at_label_sep(field);
+    let (lead, core, trail) = split_outer_secondary(value);
+    let* (t, inner) =
+      switch (core) {
+      | [p] => as_parens(p)
+      | _ => None
+      };
+    let (ilead, icore, itrail) = split_outer_secondary(inner);
+    switch (icore) {
+    | [Base.Splice(_)] => None /* idempotent: already spliced */
+    | _ =>
+      let inner' = ilead @ [Piece.mk_splice(icore)] @ itrail;
+      Some(
+        label_prefix
+        @ lead
+        @ [
+          Base.Tile({
+            ...t,
+            children: [inner'],
+          }),
+        ]
+        @ trail,
+      );
+    };
+  };
+
+  /* Rewrite the model tuple's marked fields. [seg] is the whole
+   * invocation: the `^name` tile followed by the application's
+   * argument tile. Returns None when nothing was marked, so an
+   * unmarked livelit installs no syntax override at all. */
+  let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
+    let wrapped = ref(0);
+    let wrap = (field: Base.segment) =>
+      switch (wrap_marked_field(field)) {
+      | Some(field') =>
+        incr(wrapped);
+        field';
+      | None => field
+      };
+    /* `^name((a=1, b=(2)))` puts the tuple's own parens inside the
+     * application's, so descend one layer when there is one. */
+    let rewrite_arg = (arg: Base.segment): Base.segment =>
+      switch (arg) {
+      | [p] =>
+        switch (as_parens(p)) {
+        | Some((t, inner)) => [
+            Base.Tile({
+              ...t,
+              children: [map_comma_groups(wrap, inner)],
+            }),
+          ]
+        | None => map_comma_groups(wrap, arg)
+        }
+      | _ => map_comma_groups(wrap, arg)
+      };
+    let seg' =
+      List.map(
+        (p: Base.piece) =>
+          switch (p) {
+          | Tile({label: ["(", ")"], children: [arg], _} as t)
+              when Option.is_none(as_parens(p)) =>
+            Base.Tile({
+              ...t,
+              children: [rewrite_arg(arg)],
+            })
+          | _ => p
+          },
+        seg,
+      );
+    wrapped^ > 0 ? Some(seg') : None;
+  };
+
+  /* Does this field value hold a splice, possibly under parens? */
+  let rec holds_splice = (e: TermBase.Exp.t): bool =>
+    switch (e.term) {
+    | Splice(_) => true
+    | Parens(e') => holds_splice(e')
+    | _ => false
+    };
+
+  let rec tuple_fields = (e: TermBase.Exp.t): list(TermBase.Exp.t) =>
+    switch (e.term) {
+    | Parens(inner) => tuple_fields(inner)
+    | Tuple(xs) => xs
+    | _ => []
+    };
+
+  /* The labels of the model's spliced fields. Empty for every livelit
+     that did not mark a field, which is how the splice-aware paths below
+     stay inert for the rest of the deck. */
+  let spliced_field_labels = (model: TermBase.Exp.t): list(string) =>
+    List.filter_map(
+      x =>
+        switch (Exp.match_tup_label(x)) {
+        | Some((name, v)) when holds_splice(v) => Some(name)
+        | _ => None
+        },
+      tuple_fields(model),
+    );
+
+  /* A spliced field is the CLIENT's code, so the livelit's own update may
+     not overwrite it: on commit a spliced field keeps the term that is in
+     the syntax, and only unspliced fields take the new value. That is what
+     lets splices survive an interaction at all -- SetTerm re-attaches them
+     by id (ExpToSegment.reuse_splices), which can only match ids the
+     committed term still carries. */
+  let preserve_spliced_fields =
+      (~from as old_model: TermBase.Exp.t, new_model: TermBase.Exp.t)
+      : TermBase.Exp.t => {
+    let labels = spliced_field_labels(old_model);
+    if (labels == []) {
+      new_model;
+    } else {
+      let olds = tuple_fields(old_model);
+      let old_named = name =>
+        List.find_opt(
+          x =>
+            switch (Exp.match_tup_label(x)) {
+            | Some((n, _)) => n == name
+            | None => false
+            },
+          olds,
+        );
+      let keep = (x: TermBase.Exp.t) =>
+        switch (Exp.match_tup_label(x)) {
+        | Some((name, _)) when List.mem(name, labels) =>
+          switch (old_named(name)) {
+          | Some(o) => o
+          | None => x
+          }
+        | _ => x
+        };
+      /* Rebuild through any parens layer, so the argument keeps the shape
+         the application expects. */
+      let rec go = (e: TermBase.Exp.t): TermBase.Exp.t =>
+        switch (e.term) {
+        | Parens(inner) => {
+            ...e,
+            term: Parens(go(inner)),
+          }
+        | Tuple(xs) => {
+            ...e,
+            term: Tuple(List.map(keep, xs)),
+          }
+        | _ => e
+        };
+      go(new_model);
+    };
+  };
+
+  let init = (any: Language.Any.t, seg: Base.segment) =>
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({
         term: Parens({term: Ap(_dir, {term: LivelitName(_), _}, _), _}),
         _,
       }) =>
-      Some(((), None))
+      Some(((), splice_marked_fields(seg) |> Option.map(s => Syntax(s))))
     | _ => None
     };
 
@@ -68,7 +288,39 @@ module M: Projector = {
   let last_good_shape: Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
     Hashtbl.create(16);
 
-  let placeholder = (_model, info, _splice_size) => {
+  /* Widen the author's declared shape by what its splices actually hold.
+     The author sizes the widget for its controls; the client decides how
+     long the code in a splice is, and only the editor knows that. Getting
+     this wrong is not cosmetic: `.livelit > *:not(svg)` sets overflow
+     hidden, so an undersized box does not overlap, it CLIPS -- the splice
+     becomes invisible and unclickable while keyboard navigation still
+     enters it, leaving an invisible caret. Over-reserving only wastes
+     space, so err that way.
+
+     Known gap: a splice whose content wraps to several rows still reports
+     one row here, because the declared shape's vertical is the author's
+     and promoting Inline to Block would move the text around them. A
+     multi-line splice is clipped vertically. */
+  let widen_for_splices =
+      (info, splice_size: View.splice_size, shape: ProjectorCore.Shape.t) => {
+    let extra =
+      List.fold_left(
+        (acc, s: Base.splice) => {
+          let size: Util.Point.t = splice_size(s.id);
+          acc + size.col;
+        },
+        0,
+        Segment.direct_splices(info.syntax),
+      );
+    extra == 0
+      ? shape
+      : {
+        ...shape,
+        horizontal: shape.horizontal + extra,
+      };
+  };
+
+  let placeholder = (_model, info, splice_size) => {
     let looked_up =
       switch (get_model(info), info.statics) {
       | (Some((llname, _)), Some(InfoExp(exp))) =>
@@ -78,16 +330,18 @@ module M: Projector = {
         }
       | _ => None
       };
-    switch (looked_up) {
-    | Some(shape) =>
-      Hashtbl.replace(last_good_shape, info.id, shape);
-      shape;
-    | None =>
-      switch (Hashtbl.find_opt(last_good_shape, info.id)) {
-      | Some(shape) => shape
-      | None => ProjectorCore.Shape.inline(32)
-      }
-    };
+    let shape =
+      switch (looked_up) {
+      | Some(shape) =>
+        Hashtbl.replace(last_good_shape, info.id, shape);
+        shape;
+      | None =>
+        switch (Hashtbl.find_opt(last_good_shape, info.id)) {
+        | Some(shape) => shape
+        | None => ProjectorCore.Shape.inline(32)
+        }
+      };
+    widen_for_splices(info, splice_size, shape);
   };
 
   let replace_model_term =
@@ -341,8 +595,13 @@ module M: Projector = {
     let redex =
       switch (base_value) {
       | Some(mv)
+          /* A spliced model cannot go through the redex: the redex is a
+             fresh `^name.update((value, action))` term carrying no Splice
+             nodes, so committing it would drop the client's code. Such a
+             model commits the merged term instead (see commit_model). */
           when
-            MvuShape.is_checkpointable(mv)
+            spliced_field_labels(model) == []
+            && MvuShape.is_checkpointable(mv)
             && MvuShape.is_checkpointable(action) =>
         Some(
           UserLivelit.mk_update_redex(
@@ -641,28 +900,42 @@ module M: Projector = {
       | Some((ll_name, model)) =>
         let ll = Ctx.lookup_livelit(ctx, ll_name);
 
-        /* TODO(splicerefs): this commits through SetSyntax, which
-           replaces the projector's whole segment. Once a user-defined
-           livelit's syntax can contain splices, that will discard them
-           on every model write, and this wants SetTerm(_, ~preserve_
-           splices=true) instead -- the same call CardProj makes. Left
-           as-is here so the merge stays a merge; nothing on this branch
-           puts splices inside a livelit yet. */
-        /* Write an updated model back into the Ap's argument position */
-        let commit_model = (new_model: TermBase.Exp.t) => {
-          let updated_segment =
-            info.utility.lift_syntax(
-              ~inline=true,
-              replace_model_term(new_model),
-              info.syntax,
-            );
-          switch (updated_segment) {
-          | Some(s) => parent(SetSyntax(s))
-          | None =>
-            print_endline("Warning - LivelitProj.view: lift_syntax failed");
-            Ui_effect.Ignore;
+        /* Write an updated model back into the Ap's argument position.
+           A model with no splices keeps the original SetSyntax path.
+           A model WITH splices cannot: SetSyntax reprints the projector's
+           whole segment, and a splice prints as nothing but its content,
+           so the client's code would be flattened into the model on the
+           first interaction. SetTerm regenerates the segment from the
+           term and re-attaches splices by id, which works only because
+           `preserve_spliced_fields` kept those nodes in what we commit.
+           The caret is not preserved on either path -- SetTerm rebuilds
+           the zipper from the root -- so a widget action still evicts the
+           caret from a splice being edited. */
+        let commit_model = (new_model: TermBase.Exp.t) =>
+          switch (spliced_field_labels(model)) {
+          | [] =>
+            let updated_segment =
+              info.utility.lift_syntax(
+                ~inline=true,
+                replace_model_term(new_model),
+                info.syntax,
+              );
+            switch (updated_segment) {
+            | Some(s) => parent(SetSyntax(s))
+            | None =>
+              print_endline("Warning - LivelitProj.view: lift_syntax failed");
+              Ui_effect.Ignore;
+            };
+          | [_, ..._] =>
+            let merged = preserve_spliced_fields(~from=model, new_model);
+            switch (info.utility.seg_to_term(info.syntax)) {
+            | Some(t) =>
+              parent(SetTerm(replace_model_term(merged, t), true))
+            | None =>
+              print_endline("Warning - LivelitProj.view: seg_to_term failed");
+              Ui_effect.Ignore;
+            };
           };
-        };
 
         switch (ll) {
         | Some({user_def: Some(def_elab), _}) =>

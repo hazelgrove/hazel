@@ -49,6 +49,14 @@ let rec is_valid_html = (exp: Exp.t): bool => {
     | Atom(Bool(_)) => true
     | _ => false
     }
+  // Splice(n): the host projector's nth splice, named positionally.
+  // Its body is an Int, not the (attrs, children) shape every container
+  // constructor has, so it needs its own case.
+  | Some(("Splice", body)) =>
+    switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
+    | Atom(Int(_)) => true
+    | _ => false
+    }
   | Some(("Br" | "Hr", _)) => true
   | Some(("Input" | "TextArea" | "Img" | "A", _)) => true
   // Remaining HTML constructors (per MvuShape's derived name set) are
