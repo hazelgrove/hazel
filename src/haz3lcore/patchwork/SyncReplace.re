@@ -58,14 +58,15 @@ let should_send_state = (a: Action.t): bool =>
   | Destruct(_)
   | Insert(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
   | Paste(_)
   | Buffer(Set(_))
   | Cut
   | Structural(_)
   | ToggleLineComment
-  | PrettyPrint
-  | Dump => true
+  | Format(_)
+  | AdjustIndent(_, _) => true
   };
 
 /* Core state-sending logic without action check.

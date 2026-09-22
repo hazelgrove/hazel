@@ -42,9 +42,25 @@ let validate_tile =
   };
 };
 
+/* Since #2389 a tile's identity is (form, sort); the flat wire format
+   still carries (label, mold), so recover the form by exact mold match
+   among the label's base candidates — the same information the old
+   record held. Fallback molds (pending-remold tiles stored at Any)
+   match no candidate and get re-classified. */
+let form_of_label_mold = (label: Label.t, mold: Mold.t): (Form.t, Sort.t) =>
+  switch (
+    List.find_opt(
+      ((_, m): (Form.t, Mold.t)) => m == mold,
+      Form.base_candidates(label),
+    )
+  ) {
+  | Some((f, _)) => (f, mold.out)
+  | None => Form.classify_label(mold.out, label)
+  };
+
 let seg_to_doc = (seg: Segment.t): Doc.t => {
   let piece_count = ref(0);
-  let root_form = Form.get(ParensExp);
+  let root_form = Form.Compound(Parens);
   let rec go_seg = (seg: Segment.t): Doc.t => {
     seg |> List.map(go_piece) |> Doc.union_all;
   }
@@ -67,7 +83,8 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
     | Secondary(secondary) =>
       Doc.singleton(secondary.id, Flat.Secondary(secondary))
     | Grout(grout) => Doc.singleton(grout.id, Flat.Grout(grout))
-    | Tile({id, label, mold, shards, children}) =>
+    | Tile({id, shards, children, _} as t) =>
+      let label = Tile.label(t);
       validate_tile(~context="seg_to_doc", ~id, ~label, ~shards, ~children);
       children
       |> List.map(go_seg)
@@ -77,7 +94,7 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
            Flat.Tile({
              id,
              label,
-             mold,
+             mold: Tile.mold(t),
              shards,
              children: children |> List.map(List.map(Piece.id)),
            }),
@@ -89,8 +106,8 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
       Id.invalid,
       Flat.Tile({
         id: Id.invalid,
-        label: root_form.label,
-        mold: root_form.mold,
+        label: Form.label_of(root_form),
+        mold: Form.mold_of(root_form, Exp),
         shards: [0, 1],
         children: [List.map(Piece.id, seg)],
       }),
@@ -118,10 +135,11 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
     switch (Doc.find_opt(piece_id, doc)) {
     | Some(Tile({id, label, mold, shards, children})) =>
       validate_tile(~context="doc_to_seg", ~id, ~label, ~shards, ~children);
+      let (form, sort) = form_of_label_mold(label, mold);
       Tile({
         id,
-        label,
-        mold,
+        form,
+        sort,
         shards,
         children: List.map(go_seg, children),
       });
