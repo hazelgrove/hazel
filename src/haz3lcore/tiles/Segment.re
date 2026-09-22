@@ -1007,23 +1007,25 @@ let presplit_orphans = (seg: t): t =>
  * (label ["|"]) in Rul sort becomes ["|","=>"][0] (incomplete Rule). */
 let try_sort_expand = (sort: Sort.t, t: Tile.t): option(Tile.t) =>
   if (sort == Any
-      || List.length(t.label) > 1
+      || Tile.arity(t) > 1
       || !Tile.is_complete(t)
       || List.length(t.shards) != 1) {
     None;
   } else {
-    let tok = List.hd(t.label);
+    let tok = Tile.token(t, 0);
     let (label, _) = Form.Expansion.get(sort, tok);
     if (List.length(label) <= 1) {
       None;
     } else {
-      switch (Form.Molds.try_get(sort, label)) {
-      | None => None
-      | Some(molds) =>
+      /* first base candidate of the expanded label at this sort;
+       * equivalent to the old Molds.try_get + List.hd */
+      switch (Form.remold_candidates(label, sort)) {
+      | [] => None
+      | [(form, form_sort), ..._] =>
         Some({
           ...t,
-          label,
-          mold: List.hd(molds),
+          form,
+          sort: form_sort,
           shards: [0],
           children: [],
         })
@@ -1158,7 +1160,7 @@ let rec reassemble_reforge = (sort: Sort.t, seg: t): t =>
                 reassemble_reforge(sort, child);
               },
             t.children,
-            t.mold.in_,
+            Tile.mold(t).in_,
           );
         } else {
           List.map(reassemble_reforge(sort), t.children);

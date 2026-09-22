@@ -2516,7 +2516,7 @@ let rec seg_has_tile = (label: Label.t, seg: Segment.t): bool =>
   List.exists(
     fun
     | Piece.Tile(t) =>
-      t.label == label
+      Tile.has_label(t, label)
       && Tile.is_complete(t)
       || List.exists(seg_has_tile(label), t.children)
     | _ => false,
@@ -2686,7 +2686,7 @@ let rescan_tests = [
       let _ = Alcotest.skip();
       let z =
         mk({|¦case x | a => 0 end|})
-        @ [Destruct(Right)]
+        @ [Destruct(Local(Right, ByChar))]
         |> perform(Zipper.init());
       if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
         Alcotest.fail(
@@ -2711,7 +2711,7 @@ let rescan_tests = [
         Alcotest.fail("Rule tile [|, =>] should exist in initial state");
       };
       /* Backspace: delete space, merges case+x, breaks tile */
-      let z = [Destruct(Left)] |> perform(z);
+      let z = [Destruct(Local(Left, ByChar))] |> perform(z);
       if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
         Alcotest.fail(
           "Rule tile [|, =>] should be demoted after breaking case",
