@@ -48,6 +48,8 @@ module Model = {
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       indentation_ux: true,
       flip_animations: true,
+      animate_all_edits: false,
+      drag_refactor: false,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -164,6 +166,8 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AnimateAllEdits
+    | DragRefactor
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
@@ -247,6 +251,20 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | AnimateAllEdits => {
+          ...settings,
+          core: {
+            ...settings.core,
+            animate_all_edits: !settings.core.animate_all_edits,
+          },
+        }
+      | DragRefactor => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_refactor: !settings.core.drag_refactor,
           },
         }
       | DisplayWarnings => {

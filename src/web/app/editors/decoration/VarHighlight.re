@@ -45,6 +45,9 @@ let highlight_of_id =
     [
       Node.div(
         ~attrs=[
+          /* anchor id: rides its token in drag scrubs and commit
+             flights (CodeFlip.anchored_decos) */
+          Attr.id("varhl-" ++ Id.to_string(id)),
           Attr.classes(["var-highlight", sort_cls]),
           DecUtil.abs_style(~font_metrics, measurement),
         ],
