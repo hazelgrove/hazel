@@ -180,7 +180,7 @@ module Local = {
          1. Unmatched delimiters (orphaned shards in the backpack)
          2. Invalid nodes in the term tree
          3. MultiHole nodes in the term tree */
-      let backpack = Zipper.local_backpack(z);
+      let backpack = Zipper.local_missing_shards(z);
       switch (backpack) {
       | [_, ..._] as tiles =>
         let labels =
@@ -871,7 +871,7 @@ module Local = {
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
-        if (Zipper.local_backpack(new_z) != []) {
+        if (Zipper.local_missing_shards(new_z) != []) {
           /* Incomplete binding (e.g. `let b = 2` without `in`): the pasted
              form parks its closer in the backpack and Dump can misplace it.
              Prefer the term-level insert, which completes the form; keep

@@ -388,7 +388,7 @@ let atom_matches_str = (atom: Atom.t, expected: string): bool =>
    operator or a Cons with "::". Returns None otherwise. */
 let match_binop = (op: string, e: Exp.t): option((Exp.t, Exp.t)) =>
   switch (Exp.term_of(e)) {
-  | BinOp(bin_op, e1, e2) when Operators.bin_op_to_string(bin_op) == op =>
+  | BinOp(bin_op, e1, e2) when Form.bin_op_to_string(bin_op) == op =>
     Some((e1, e2))
   | Cons(e1, e2) when op == "::" => Some((e1, e2))
   | _ => None
@@ -3149,7 +3149,7 @@ let rec named_in_exp =
        Only uses operator syntax for immediate operands; deeper targets
        fall back to numeric ChildIndex. */
     | BinOp(op, e1, e2) =>
-      let op_str = Operators.bin_op_to_string(op);
+      let op_str = Form.bin_op_to_string(op);
       if (is_binop_token(op_str)) {
         if (Exp.rep_id(e1) == target) {
           Some([MatchFocus, MatchDelimiter(op_str), MatchSlot]);

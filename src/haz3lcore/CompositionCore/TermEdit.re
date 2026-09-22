@@ -35,6 +35,8 @@ let roundtrip_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   project_tables: false,
+  /* a round trip must reprint the source's own literal spellings */
+  use_literal_lexemes: true,
   hole_tiles: false,
 };
 
@@ -514,7 +516,7 @@ let parse_exp = (code: string): option(Exp.t) =>
   switch (Parser.to_zipper(~root=Exp, code)) {
   | Some(z) =>
     /* Check for unmatched delimiters in backpack */
-    let backpack = Zipper.local_backpack(z);
+    let backpack = Zipper.local_missing_shards(z);
     switch (backpack) {
     | [_, ..._] => None
     | [] =>
