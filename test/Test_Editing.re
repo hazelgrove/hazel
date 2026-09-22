@@ -2836,17 +2836,18 @@ let module_tests = [
       mk({|let M = { type T = ¦Int } in 1|}) @ string_to_ltr_actions("+A("),
     ~goal={|let M = { type T = +A(¦Int } in 1|},
   ),
-  /* Multi-line: the body line carries an implicit indent in Measured
-     space, so the caret has to be printed with indentation. */
+  /* Multi-line: mk's auto-indent puts real spaces in the segment, so the
+     plain printer already shows the layout (printer_indented would add
+     Measured's indent columns on top of them and shift the caret). */
   test_case("Module: #2575 multi-line layout", `Quick, () =>
     check(
       testable(Fmt.string, String.equal),
       "multi-line",
-      "module M = {\n  type T = +A(¦Int\n  } in 1",
+      "module M = {\n  type T = +A(¦Int\n} in 1",
       mk("module M = {\ntype T = ¦Int\n} in 1")
       @ string_to_ltr_actions("+A(")
       |> perform(Zipper.init())
-      |> printer_indented,
+      |> printer,
     )
   ),
   /* --- Module Cmd+D selection tests --- */
