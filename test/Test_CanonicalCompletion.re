@@ -1606,13 +1606,15 @@ let tab_dispatch_tests = [
     ~expected="let _: (Int, Bool) = ¦",
     (),
   ),
-  /* the `=?` jam (tab 1 left `= ?`) is molding-on-`in` reflow —
-     typing the same by hand does it too; upstream wart, not Tab's */
+  /* the second chunk carries its leading hole's cell: `= ` + `  in` —
+     placement paints the hole one space after `=`, so this displays
+     `= ? in` (upstream's `= ? in`), not the `=?in` pinch a bare `in`
+     produced */
   tab_case(
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) = in ¦",
+    ~expected="let _: (Int, Bool) =   in ¦",
     (),
   ),
   tab_case(
@@ -1629,12 +1631,46 @@ let tab_dispatch_tests = [
     (),
   ),
   tab_case(
-    /* artifact-grout keeps the F1 trailing pad here: Tab Pastes the
-       synthesized payload (upstream's ApplyCompletion(Next), which drops
-       it, is not this branch's dispatch) */
+    /* padding puts no space between `end` and the `)` that follows it
+       (same text upstream's ApplyCompletion(Next) produces) */
     ~name="coalesced end+paren: innermost only, symbolic spacing",
     ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
-    ~expected="(case x | 1 => 2 end ¦",
+    ~expected="(case x | 1 => 2 end¦",
+    (),
+  ),
+  /* padding (2026-09-22): the chunk supplies the pads the buffer lacks
+     plus one cell for its leading hole, so the re-derived hole displays
+     one space after its anchor with a space before the delimiter —
+     `= ? in` — whatever the user had typed after `=` */
+  tab_case(
+    ~name="padding: no space after = -> pad, cell, pad",
+    ~acts=Test_Editing.mk("let x =¦"),
+    ~expected="let x =   in ¦",
+    (),
+  ),
+  tab_case(
+    ~name="padding: one space after = is kept, cell and pad added",
+    ~acts=Test_Editing.mk("let x = ¦"),
+    ~expected="let x =   in ¦",
+    (),
+  ),
+  tab_case(
+    ~name="padding: extra user spaces survive",
+    ~acts=Test_Editing.mk("let x =  ¦"),
+    ~expected="let x =    in ¦",
+    (),
+  ),
+  tab_case(
+    /* a closer hugs its hole's cell: `(1,  )` displays `(1, ?)` */
+    ~name="padding: closer after a spaced comma",
+    ~acts=Test_Editing.mk("(1, ¦"),
+    ~expected="(1,  )¦",
+    (),
+  ),
+  tab_case(
+    ~name="padding: closer directly after a comma",
+    ~acts=Test_Editing.mk("(1,¦"),
+    ~expected="(1, )¦",
     (),
   ),
 ];

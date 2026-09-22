@@ -665,18 +665,16 @@ let acceptance_equation_tests = [
           };
         };
       let (zf, log) = steps(z0, 4, []);
-      /* JUDGED (andrew digest 2026-07-28): the mid-span accept is
-         byte-constant; the SPAN-ENDING accept relaxes hole rendering
-         from span form to resting form (backed cell -> borrowed cell /
-         pinch) — the zone doctrine, not a spacing bug. The pasted
+      /* Both accepts are byte-constant: each chunk pastes the cell its
+         hole paints into (`foo( ,  )` in the buffer), so the span-ending
+         accept no longer collapses `foo(?, ?)` to `foo(?,?)`. The pasted
          formatting spaces persist in the buffer (flagged choice). */
       check(
         string_testable,
         "per-step display constancy + final buffer",
-        "paste , : constant\n"
-        ++ "paste ): let foo = fun(x, y) -> x + y in foo(?, ?)"
-        ++ " -> let foo = fun(x, y) -> x + y in foo(?,?)\n"
-        ++ "||| buffer: let foo = fun(x, y) -> x + y in foo(, )",
+        "paste  , : constant\n"
+        ++ "paste  ): constant\n"
+        ++ "||| buffer: let foo = fun(x, y) -> x + y in foo( ,  )",
         String.concat("\n", log)
         ++ "\n||| buffer: "
         ++ Printer.of_zipper(~holes="?", ~concave_holes="~", zf),
@@ -1614,11 +1612,9 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             };
             states;
           };
-          /* raw-zipper states (no fork): the `?, ? )` spacing comes
-             from ApplyCompletion(Next), which keeps the hole and the
-             whitespace where the preview showed them (the old
-             Paste/regrout reshuffle collapsed it to `?, ? )`). The
-             property pinned here is
+          /* raw-zipper states (no fork): the closer's chunk carries its
+             hole's cell (`,  )` displays `, ?)`), so the last hole is
+             not pinched against `)`. The property pinned here is
              CONVERGENCE and SITE-correctness: inner closer, then
              each tuple's commas landing in THEIR OWN tuple, then the
              outer closer, then nothing. */
@@ -1630,7 +1626,7 @@ let s = string_replace(string_capitalize(¦ in s   OWED[4]
 let s = string_replace(string_capitalize()¦ in s   OWED[3]
 let s = string_replace(string_capitalize(), ¦ in s   OWED[2]
 let s = string_replace(string_capitalize(), , ¦ in s   OWED[1]
-let s = string_replace(string_capitalize(), , )¦ in s   OWED[0]
+let s = string_replace(string_capitalize(), ,  )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(st¦ in s")
             |> audit
@@ -1646,10 +1642,10 @@ let s = string_replace(string_replace(string_capitalize(¦ in s   OWED[7]
 let s = string_replace(string_replace(string_capitalize()¦ in s   OWED[6]
 let s = string_replace(string_replace(string_capitalize(), ¦ in s   OWED[5]
 let s = string_replace(string_replace(string_capitalize(), , ¦ in s   OWED[4]
-let s = string_replace(string_replace(string_capitalize(), , )¦ in s   OWED[3]
-let s = string_replace(string_replace(string_capitalize(), , ), ¦ in s   OWED[2]
-let s = string_replace(string_replace(string_capitalize(), , ), , ¦ in s   OWED[1]
-let s = string_replace(string_replace(string_capitalize(), , ), , )¦ in s   OWED[0]
+let s = string_replace(string_replace(string_capitalize(), ,  )¦ in s   OWED[3]
+let s = string_replace(string_replace(string_capitalize(), ,  ), ¦ in s   OWED[2]
+let s = string_replace(string_replace(string_capitalize(), ,  ), , ¦ in s   OWED[1]
+let s = string_replace(string_replace(string_capitalize(), ,  ), ,  )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(string_replace(st¦ in s")
             |> audit

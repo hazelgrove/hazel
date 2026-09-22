@@ -476,7 +476,12 @@ let tab_slice =
       | None => None
       | Some((sid, _, `Sp)) =>
         collect(i + 1, visible_sp(sid) ? acc ++ " " : acc)
-      | Some((_, _, `Hole)) => collect(i + 1, acc)
+      /* a hole inside the chunk contributes one space: after acceptance
+         placement paints the re-derived hole into a space cell (one
+         space before it, the rest after), so the display's own-cell
+         ghost hole needs a cell of text to land in — without it `= ? in`
+         accepted as `=  in` renders `= ?in` */
+      | Some((_, _, `Hole)) => collect(i + 1, acc ++ " ")
       | Some((_, _, `Tok(tok, true))) when tok == d.text =>
         Some(trail(i + 1, acc ++ tok))
       | Some(_) => None
@@ -563,7 +568,33 @@ let tab_text =
       | None => synth(d)
       }
     }
-  and synth = (d: CanonicalCompletion.delimiter_info) => {
+  and synth = (d: CanonicalCompletion.delimiter_info) =>
+    switch (d.of_shard) {
+    | Some(_) =>
+      /* engine records: completion-provenance's padding — existing
+         whitespace belongs to the buffer, the chunk supplies only the
+         missing pads and the leading hole. This branch never types a
+         hole: the implicit-hole marker becomes the space cell the
+         re-derived hole paints into (HolePlacement puts it one space
+         after the anchor), so `let x = ¦` accepts as `let x =   in` and
+         displays `let x = ? in`, as upstream's `let x = ? in` does. */
+      let (before, after) = padding(z, d);
+      let cell = c => c == Token.implicit_hole_marker ? " " : c;
+      let before =
+        Token.to_list(before) |> List.map(cell) |> String.concat("");
+      /* F1: a closer hugs the hole's cell (`?)`), so the space padding
+         puts between marker and text goes; the display slice agrees */
+      let before =
+        CanonicalCompletion.f1_hugs_left(d.text)
+        && String.length(before) >= 2
+        && String.ends_with(~suffix="  ", before)
+          ? String.sub(before, 0, String.length(before) - 1) : before;
+      Some(before ++ d.text ++ after);
+    | None => synth_f1(d)
+    }
+  /* TyDi-synthesized material has no shard to read nibs from and keeps
+     the F1 spacing rules */
+  and synth_f1 = (d: CanonicalCompletion.delimiter_info) => {
     let lead =
       !CanonicalCompletion.f1_hugs_left(d.text) && !left_separated(z);
     /* no trailing pad when the accepted delimiter ends its line —

@@ -611,16 +611,16 @@ let padding_tests =
       [0, 1, 2, 4],
     );
 
-/* TODO: NOT REGISTERED on artifact-grout — see the 2026-09-17 merge report.
-   padding_tests came in from completion-provenance (2026-09-17) and pins
-   upstream's Tab design: CompletionQuery.padding synthesizes the spacing and
-   an implicit hole marker, and ApplyCompletion(Next) turns that marker into
-   grout. artifact-grout's Tab slices the payload off the DISPLAYED completion
-   (tab_slice) and GroutPlace derives holes instead of storing them, so 27 of
-   the 31 cases pin text this branch deliberately does not produce (holes never
-   appear in the zipper here, and the spacing comes from the display). The
-   group is kept verbatim so it can be re-enabled if artifact-grout adopts the
-   upstream design; andrew's call. */
+/* NOT REGISTERED on artifact-grout. padding_tests came in from
+   completion-provenance (2026-09-17) and pins upstream's Tab design, in which
+   the typed marker becomes grout. Since 2026-09-22 this branch's Tab uses the
+   same CompletionQuery.padding for its spacing (the marker becomes the space
+   cell the re-derived hole paints into — see tab_text), so the DISPLAY after
+   Tab matches upstream's; but these pins compare zipper text (`?`/`~` holes,
+   which this zipper never holds) and previews built from grout-bearing
+   records, so 26 of 31 still differ in spelling. The native pins for the
+   spacing are the `padding` cases in Test_CanonicalCompletion's tab-dispatch
+   group. Kept verbatim for reference. */
 let tests = [
   ("TabDispatch: curated", curated),
   (
