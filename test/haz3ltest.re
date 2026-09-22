@@ -31,6 +31,7 @@ let (suite, exit_with_test_status) =
       Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
@@ -60,6 +61,13 @@ let (suite, exit_with_test_status) =
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
     @ Test_DynamicTypInfer.tests
+    @ Test_CanonicalCompletion.tests
+    @ Test_CompletionScoreboard.tests
+    @ Test_CompletionVisualization.tests
+    @ Test_QuiverDisplay.tests
+    @ Test_TabDispatch.tests
+    @ Test_ImpliedHole.tests
+    @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
@@ -67,6 +75,8 @@ let (suite, exit_with_test_status) =
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
+    @ Test_RoundtripFuzz.tests
+    @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [

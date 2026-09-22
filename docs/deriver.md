@@ -130,7 +130,7 @@ Key types:
 
 ### Form layer
 
-Derivation concrete-syntax forms live inside `Form.drv_compound_form` (in `src/haz3lcore/lang/Form.re`). They fall into three groups:
+Derivation concrete-syntax forms are families in `Language.FormId` (`src/language/grammar/FormId.re`, which owns the family constructors and their labels), with their mold/expansion rows in `Form.defs_of` (`src/haz3lcore/lang/Form.re`). Most Drv forms share a family with their surface-language twin (e.g. `Plus`, `Cons`, `Let`); the Drv-only ones are flat family constructors. They fall into three groups:
 
 1. **Quotation interface forms** (`OfJdmt`, `OfCtx`, `OfProp`, `OfAlfaExp`, `OfAlfaTyp`, `OfAlfaPat`, `OfAlfaTPat`). Each produces out-sort `Exp` with a single body child at the appropriate `Drv(_)` sort. These are what bridge between regular Hazel and the deriver.
 
@@ -142,7 +142,7 @@ TyDi autocompletion supports `Drv(_)` sorts natively (see `TyDiForms.Delims.lead
 
 ### MakeTerm (concrete → abstract)
 
-`src/haz3lcore/lang/MakeTerm.re` handles the parse-ish step that turns a zipper segment into a `Drv.*.t`. The main entry points are `drv_exp`, `drv_pat`, `drv_typ`, and the shared `any` dispatcher. Each case matches on label/mold/children and constructs the corresponding constructor (e.g. `(["consistent", "~"], [l, r])` → `Consistent(l, r)`).
+`src/haz3lcore/lang/MakeTerm.re` handles the parse-ish step that turns a zipper segment into a `Drv.*.t`. The main entry points are `drv_exp`, `drv_pat`, `drv_typ`, and the shared `any` dispatcher. Each case matches on the tile's form family and children and constructs the corresponding constructor (e.g. `Compound(Consistent)` with `[l, r]` → `Consistent(l, r)`).
 
 `IdTagged` ids are preserved across MakeTerm so that cursor inspector / statics / verifier all see the same ids as the editor UI.
 
@@ -330,7 +330,7 @@ Use this when the new language has new surface syntax — a new term constructor
 3. **Statics** (`drv_to_info_map` in `Statics.re`) — add a branch for the new constructor that recurses on its subterms and calls `add`. Also update `DrvInfo.sorts_of_exp` (or the appropriate `sorts_of_*`) so cursor-inspector sort reporting knows in which sorts the new form is admissible.
 4. **Dynamics** (`drv_transition` in `Transition.re`) — add a reduction case if the form has any meta-level behavior (most ALFA forms don't; they're data for the verifier). For pure-data forms just propagate the recursion. The rule-level semantics (how the form interacts with the `E_*`/`T_*` rules) lives in the specs, not here.
 5. **Pretty-printing** (`ExpToSegment.re`, in `drv_exp_to_pretty` / `drv_typ_to_pretty`) — emit the surface syntax so the form round-trips.
-6. **Concrete syntax / forms** (`Form.re`) — add constructors to `drv_compound_form` and corresponding cases to `drv_get` with labels, precedences, and child sorts. Choose tokens carefully — they go straight into TyDi's completion database (`TyDiForms.Delims.leading_drv_exp` etc. regenerate automatically from `Form.delims` on build).
+6. **Concrete syntax / forms** — add a family constructor and its label to `Language.FormId` (or reuse an existing family if the form is a Drv twin of a surface form), and a mold/expansion row to `Form.defs_of` with precedence and child sorts. Choose tokens carefully — they go straight into TyDi's completion database (`TyDiForms.Delims.leading_drv_exp` etc. regenerate automatically from `Form.delims` on build).
 7. **Parsing** (`MakeTerm.re`, in `drv_exp` / `drv_typ` / `drv_pat`) — add label-driven match arms that turn `([token_label...], [kid_terms...])` into the new constructors. IDs propagate automatically via `IdTagged`.
 8. **Rules and specs** (`Rule.re` + `RuleImage.re` + `RuleSpec.re`) — introduce the rules that govern the new form (as in Case 1). If the rule needs a new side-condition primitive (e.g. `FreshLoc(store, l)`), extend the `RuleFormula.M` GADT and its verifier in `go_test` (`RuleVerify.re`).
 9. **Examples** — add a `.ml` derivation example to `src/web/derivation/examples/` demonstrating the new syntax; register it in `src/web/init/Init.re` so it appears in documentation mode.
@@ -384,7 +384,8 @@ Regardless of which case you're in:
 
 | File                                         | Purpose                                                                   |
 | -------------------------------------------- | ------------------------------------------------------------------------- |
-| `src/haz3lcore/lang/Form.re`                 | `drv_compound_form` + `drv_get` (forms and molds)                         |
+| `src/language/grammar/FormId.re`             | form families + labels (incl. all Drv forms)                              |
+| `src/haz3lcore/lang/Form.re`                 | per-family mold/expansion rows (`defs_of`)                                 |
 | `src/haz3lcore/lang/MakeTerm.re`             | `drv_exp`/`drv_pat`/`drv_typ` tiles → `Drv.*.t`; quotation wrapping       |
 | `src/language/term/TermBase.re`              | `DrvQuote(drv, sort)` / `DrvQuoteTy(sort)` constructors in Exp/Typ        |
 | `src/language/statics/Statics.re`            | `drv_to_info_map` — statics for every `Drv.Any.t` node                    |
