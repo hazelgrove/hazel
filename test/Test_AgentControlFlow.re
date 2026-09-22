@@ -20,6 +20,11 @@ let cell_editor = () =>
 /* Run the phase-2 send deferral synchronously so [drain_scheduled] sees
    DispatchSend; in the browser it is a 0ms timeout (paint gap). */
 let () = Agent.Update.defer_dispatch_send := (thunk => thunk());
+/* Run the eval-wait re-defer synchronously too, and disable the wait by
+   default: these tests use init editors whose evaluation never settles.
+   The eval-gate tests below re-enable it locally. */
+let () = Agent.Update.defer_eval_wait := ((_, thunk) => thunk());
+let () = Agent.Update.max_eval_wait_attempts := 0;
 
 let with_busy_main = (~seq: int, agent: Agent.Model.t): Agent.Model.t => {
   let chat_id = agent.chat_system.current;
@@ -63,6 +68,22 @@ let run_update =
     : Agent.Model.t => {
   let settings = Settings.Model.init;
   let editor = cell_editor();
+  let (agent', _) =
+    Agent.Update.update(action, agent, editor, settings, x =>
+      scheduled := scheduled^ @ [x]
+    );
+  agent';
+};
+
+let run_update_with_editor =
+    (
+      action: Agent.Update.Action.t,
+      agent: Agent.Model.t,
+      editor: CellEditor.Model.t,
+      scheduled: ref(list(Agent.Update.Action.t)),
+    )
+    : Agent.Model.t => {
+  let settings = Settings.Model.init;
   let (agent', _) =
     Agent.Update.update(action, agent, editor, settings, x =>
       scheduled := scheduled^ @ [x]
@@ -681,6 +702,96 @@ let test_stream_delta_accumulates_on_seq_mismatch = () => {
   );
 };
 
+/* --- Eval-settled dispatch gate ---------------------------------------- */
+
+let with_pending_dispatch = (agent: Agent.Model.t): Agent.Model.t => {
+  ...agent,
+  pending_dispatch_send: Some(agent.chat_system.current),
+};
+
+/* A dispatch arriving while evaluation is pending re-defers and keeps the
+   pending flag, so probe values/test results are present at send time. */
+let test_eval_gate_waits_while_pending = () => {
+  Agent.Update.max_eval_wait_attempts := 3;
+  let agent = with_pending_dispatch(Agent.Utils.init());
+  let chat_id = agent.chat_system.current;
+  let scheduled = ref([]);
+  /* init editor's result is ResultPending(AwaitingWorkerAck) */
+  let agent' =
+    run_update(Agent.Update.Action.DispatchSend(chat_id), agent, scheduled);
+  Agent.Update.max_eval_wait_attempts := 0;
+  check(
+    bool,
+    "pending flag survives the wait",
+    true,
+    agent'.pending_dispatch_send == Some(chat_id),
+  );
+  check(
+    bool,
+    "a retry DispatchSend was scheduled",
+    true,
+    List.exists(
+      fun
+      | Agent.Update.Action.DispatchSend(id) => id == chat_id
+      | _ => false,
+      scheduled^,
+    ),
+  );
+};
+
+/* Attempt budget exhausted: dispatch proceeds anyway (timeout escape). */
+let test_eval_gate_gives_up_after_budget = () => {
+  /* budget 0 = give up immediately even though eval is pending */
+  let agent = with_pending_dispatch(Agent.Utils.init());
+  let chat_id = agent.chat_system.current;
+  let scheduled = ref([]);
+  let agent' =
+    run_update(Agent.Update.Action.DispatchSend(chat_id), agent, scheduled);
+  check(
+    bool,
+    "pending flag consumed",
+    true,
+    agent'.pending_dispatch_send == None,
+  );
+};
+
+/* Settled evaluation: no wait, flag consumed on the first dispatch. */
+let test_eval_gate_settled_dispatches = () => {
+  Agent.Update.max_eval_wait_attempts := 3;
+  let agent = with_pending_dispatch(Agent.Utils.init());
+  let chat_id = agent.chat_system.current;
+  let ce = cell_editor();
+  let ce = {
+    ...ce,
+    result: {
+      ...ce.result,
+      result: Calc.NewValue(Language.ProgramResult.ResultFail(Timeout)),
+    },
+  };
+  let scheduled = ref([]);
+  let agent' =
+    run_update_with_editor(
+      Agent.Update.Action.DispatchSend(chat_id),
+      agent,
+      ce,
+      scheduled,
+    );
+  Agent.Update.max_eval_wait_attempts := 0;
+  check(
+    bool,
+    "pending flag consumed without retry",
+    true,
+    agent'.pending_dispatch_send == None
+    && !
+         List.exists(
+           fun
+           | Agent.Update.Action.DispatchSend(_) => true
+           | _ => false,
+           scheduled^,
+         ),
+  );
+};
+
 let tests = [
   (
     "AgentControlFlow",
@@ -764,6 +875,21 @@ let tests = [
         "HandleCompactionLLMReply: ignored after compaction Stop",
         `Quick,
         test_handle_compaction_reply_ignored_after_stop,
+      ),
+      test_case(
+        "eval gate: pending evaluation defers the dispatch",
+        `Quick,
+        test_eval_gate_waits_while_pending,
+      ),
+      test_case(
+        "eval gate: exhausted budget dispatches anyway",
+        `Quick,
+        test_eval_gate_gives_up_after_budget,
+      ),
+      test_case(
+        "eval gate: settled evaluation dispatches immediately",
+        `Quick,
+        test_eval_gate_settled_dispatches,
       ),
     ],
   ),
