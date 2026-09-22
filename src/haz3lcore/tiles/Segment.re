@@ -5,6 +5,72 @@ exception Empty_segment;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = Base.segment;
 
+/* Structural equivalence for roundtrip properties: the canonical
+   quotient. Tiles (ids, labels, molds, shards, children), secondary
+   (ids + content), and projectors compare strictly; grout is dropped
+   entirely — it is ephemeral by design (regrout re-derives placement
+   and mints fresh ids), and nothing durable anchors to it. */
+/* ~mold_sorts=false is the canonical quotient (see the sort-quotient
+   decision in plans/completion-provenance.md): form identity is
+   derived, spelling is retained. */
+/* TEST-ONLY quotient (no src consumers): equivalence modulo grout,
+ * used by the roundtrip fuzzer and print tests to compare parses.
+ * Lives here because it is Segment structure through and through. */
+let rec equiv_mod_grout = (~mold_sorts=true, a: t, b: t): bool => {
+  let strip =
+    List.filter((p: Piece.t) =>
+      switch (p) {
+      | Grout(_) => false
+      | _ => true
+      }
+    );
+  let (a, b) = (strip(a), strip(b));
+  List.length(a) == List.length(b)
+  && List.for_all2(piece_equiv_mod_grout(~mold_sorts), a, b);
+}
+and piece_equiv_mod_grout = (~mold_sorts, a: Piece.t, b: Piece.t): bool =>
+  switch (a, b) {
+  | (Tile(ta), Tile(tb)) =>
+    let mold_eq = (ma: Mold.t, mb: Mold.t) =>
+      if (mold_sorts) {
+        ma == mb;
+      } else if (!Tile.is_complete(ta)) {
+        true;
+            /* incomplete-tile molds are edit-transient */
+      } else {
+        /* Shared-label forms swap under completion + reparse (orphan-)
+           Parens vs the Ap args tile; prefix vs binary -), so any two
+           DEFINED molds of the label are equivalent. Undefined tokens
+           compare by nib shape — the Any fallback is not a defined
+           mold, so a stranded : rebuilt with it still fails. */
+        let base = Form.base_molds(Tile.label(ta));
+        let shape_eq = () => {
+          let (la, ra) = ma.nibs;
+          let (lb, rb) = mb.nibs;
+          la.shape == lb.shape && ra.shape == rb.shape;
+        };
+        switch (base) {
+        | [] => shape_eq()
+        | _ => List.mem(ma, base) && List.mem(mb, base) || shape_eq()
+        };
+      };
+    ta.id == tb.id
+    && Tile.label(ta) == Tile.label(tb)
+    && mold_eq(Tile.mold(ta), Tile.mold(tb))
+    && ta.shards == tb.shards
+    && List.length(ta.children) == List.length(tb.children)
+    && List.for_all2(equiv_mod_grout(~mold_sorts), ta.children, tb.children);
+  | (Secondary(wa), Secondary(wb)) =>
+    wa.id == wb.id && wa.content == wb.content
+  | (Projector(pa), Projector(pb)) =>
+    /* projector-internal syntax is regenerated from the term on print
+       and is a declared exclusion of the roundtrip property domain —
+       compare identity only until projector internals are
+       fidelity-tracked */
+    pa.id == pb.id && pa.kind == pb.kind
+  | _ => false
+  };
+
 let empty = [];
 let cons = List.cons;
 let concat = List.concat;
@@ -112,14 +178,15 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    switch (Form.Molds.try_get(s, t.label)) {
-    | None => None
-    | Some(molds) =>
-      molds
-      |> List.map(mold =>
+    switch (Form.remold_candidates(Tile.label(t), s)) {
+    | [] => None
+    | forms =>
+      forms
+      |> List.map(((form, sort)) =>
            {
              ...t,
-             mold,
+             form,
+             sort,
            }
          )
       |> (
@@ -130,14 +197,16 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
       )
       |> ListUtil.hd_opt
     };
+  let remolded_mold = Tile.mold(remolded);
+  let orig_mold = Tile.mold(t);
   let children =
     List.fold_right(
       ((l, child, r), children) => {
         let child =
           if (l
               + 1 == r
-              && List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)) {
-            remold(child, List.nth(remolded.mold.in_, l));
+              && List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)) {
+            remold(child, List.nth(remolded_mold.in_, l));
           } else {
             child;
           };
@@ -264,7 +333,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None
           when
-            t.label == [";"]
+            Tile.is_semi(t)
             && List.exists(
                  fun
                  | Sort.Mod
@@ -284,8 +353,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            t.label == Form.get(CommaTyp).label
-            || t.label == Form.get(TypPlus).label
+            Tile.has_label_of(t, Comma)
+            || Tile.has_label_of(t, Plus)
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,
@@ -448,9 +517,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
          expression-level sequence inside a module. Future consideration: may want to remove
          Exp-level semicolon entirely or find a more principled disambiguation approach. */
       | Some(t)
-          when
-            t.label == Form.get(CellJoin).label
-            && List.exists((==)(Sort.Mod), parent_sorts) => (
+          when Tile.is_semi(t) && List.exists((==)(Sort.Mod), parent_sorts) => (
           [],
           shape,
           seg,
@@ -979,7 +1046,7 @@ let rescan = (~sort: Sort.t=Any, seg: t): t => {
   if (sort == Any && !has_incomplete) {
     seg;
   } else {
-    /* Walk left-to-right with a STACK of backpack frames.
+    /* Walk left-to-right with a STACK of expectation frames.
      * Each incomplete tile pushes a new frame with its missing shards.
      * Only the TOP frame is checked for matching.
      * When a match exhausts the top frame, pop to the previous one.
@@ -1172,7 +1239,7 @@ let first_string =
   | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
   | [Piece.Projector(_), ..._] => "PROJECTOR"
   | [Piece.Grout(_), ..._] => "?"
-  | [Piece.Tile(t), ..._] => t.label |> List.hd;
+  | [Piece.Tile(t), ..._] => Tile.token(t, 0);
 
 let last_string =
   fun
@@ -1182,7 +1249,7 @@ let last_string =
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
     | Piece.Projector(_) => "PROJECTOR"
-    | Piece.Tile(t) => t.label |> ListUtil.last
+    | Piece.Tile(t) => Tile.label(t) |> ListUtil.last
     };
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
@@ -1198,7 +1265,7 @@ let rec deep_tile_complete = (seg: t): bool =>
   );
 
 let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
-  Piece.mk_tile(Form.mk_parens(sort), [seg]);
+  Piece.mk_tile(Form.parens_form(sort), [seg]);
 
 let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   /* If piece is anything other than a Tile, and override sort is not
@@ -1212,6 +1279,101 @@ let unparenthesize = (seg: t): t =>
   | [piece] => Piece.unparenthesize(piece)
   | _ => seg
   };
+
+/* Split the leading run of space secondaries (not linebreaks) */
+let split_space_run = (seg: t): (list(Piece.t), t) => {
+  let rec go = (acc, seg: t) =>
+    switch (seg) {
+    | [p, ...rest] when Piece.is_space(p) => go([p, ...acc], rest)
+    | _ => (List.rev(acc), seg)
+    };
+  go([], seg);
+};
+
+/* Deep search for the piece with the given id: its containing segment,
+   its index within that segment, and the piece itself */
+let rec find_ctx = (seg: t, id: Id.t): option((t, int, Piece.t)) => {
+  let rec go = (i, ps: t): option((t, int, Piece.t)) =>
+    switch (ps) {
+    | [] => None
+    | [p, ...rest] =>
+      if (Id.equal(Piece.id(p), id)) {
+        Some((seg, i, p));
+      } else {
+        let deeper =
+          switch ((p: Piece.t)) {
+          | Tile(t) =>
+            List.fold_left(
+              (acc, ch) =>
+                switch (acc) {
+                | Some(_) => acc
+                | None => find_ctx(ch, id)
+                },
+              None,
+              t.children,
+            )
+          | _ => None
+          };
+        switch (deeper) {
+        | Some(r) => Some(r)
+        | None => go(i + 1, rest)
+        };
+      }
+    };
+  go(0, seg);
+};
+
+/* Apply a segment-level transform top-down, recursing into the tile
+   children of the transformed result */
+let rec map_deep = (f: t => t, seg: t): t =>
+  f(seg)
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Piece.Tile({
+           ...t,
+           children: List.map(map_deep(f), t.children),
+         })
+       | p => p
+       }
+     );
+
+/* what a positional scan may step over — the choice is load-bearing */
+let skip_space = (p: Piece.t): bool => Piece.is_space(p);
+let skip_secondary = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(_) => true
+  | _ => false
+  };
+let skip_secondary_and_grout = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(_)
+  | Grout(_) => true
+  | _ => false
+  };
+
+/* First non-skipped piece at index >= i */
+let next_content =
+    (~skip: Piece.t => bool, seg: t, i: int): option((int, Piece.t)) => {
+  let rec go = (j, ps: t) =>
+    switch (ps) {
+    | [] => None
+    | [p, ...rest] => j < i || skip(p) ? go(j + 1, rest) : Some((j, p))
+    };
+  go(0, seg);
+};
+
+/* Last non-skipped piece at index < i */
+let prev_content =
+    (~skip: Piece.t => bool, seg: t, i: int): option((int, Piece.t)) => {
+  let rec go = (j, best, ps: t) =>
+    switch (ps) {
+    | [] => best
+    | [p, ...rest] =>
+      j >= i ? best : go(j + 1, skip(p) ? best : Some((j, p)), rest)
+    };
+  go(0, None, seg);
+};
 
 let rec take_while_secondary = (seg: t): (t, t) =>
   switch (seg) {

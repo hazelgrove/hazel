@@ -22,6 +22,7 @@ let prepare = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
 let to_segment = ({typ, settings}) =>
   ExpToSegment.typ_to_pretty(~settings, typ)
   |> PrettySegment.select
+  |> ExpToSegment.strip_if_incomplete(Typ(typ))
   |> ExpToSegment.uniquify_repeated_tiles;
 
 let diff_ids = (~ctx=?, ~against: t, t: t) =>
