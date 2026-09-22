@@ -26,12 +26,16 @@ type piece =
 
 type tile = {
   id: Id.t,
-  label: Label.t,        /* e.g., ["let", "=", "in"] */
-  mold: Mold.t,          /* shape and sort information */
+  form: Form.t,          /* which syntactic form: Compound(Let), Tok("x"), ... */
+  sort: Sort.t,          /* the editor's local sort guess for this tile */
   shards: list(int),     /* which delimiters are present */
   children: list(segment), /* bi-delimited content between shards */
 }
 ```
+
+A tile stores its form and a sort; its label (the delimiter tokens) and
+mold (shape and sort information) are *derived* from those two fields
+(`Tile.label`, `Tile.mold`) rather than stored.
 
 ### Pieces
 
@@ -48,11 +52,31 @@ A segment is a flat list of **pieces**:
 
 A **tile** represents a syntactic form. The key fields are:
 
-- **`label`**: The list of delimiter tokens. Defined in `src/haz3lcore/tiles/Label.re` as `list(Token.t)`.
-  - Single-token: `["+"]`, `["x"]`, `["123"]`
-  - Multi-token: `["let", "=", "in"]`, `["(", ")"]`, `["if", "then", "else"]`
+- **`form`**: Which form the tile is, from `src/language/grammar/FormId.re`:
+  ```reason
+  type t =
+    | Compound(family)   /* a registered compound form: Let, Parens, Plus, ... */
+    | Tok(Token.t)       /* a single free-text token: a variable, literal, hole, ... */
+    | TokInfix(Token.t); /* a keyword prefix (`i` of `in`) in operator position */
+  ```
+  A `family` is one constructor per compound form up to sort (`Let`,
+  `If`, `Parens`, `Comma`, `Cons`, ...); `Cons` at Exp and at Pat are
+  the same family. Two families may share a spelling when they differ
+  in shape: `["(", ")"]` is `Parens` (an operand) or `Ap` (a postfix
+  application), `["-"]` is `Minus` or `UnaryMinus`.
 
-- **`shards`**: Indices into `label` indicating which delimiters are actually present.
+- **`sort`**: The sort the editor guessed for the tile when it was
+  classified or last remolded (`Exp`, `Pat`, `Typ`, ...). It is a
+  local guess, not the parse's global answer; see
+  [Why mold sorts are quotiented](#why-mold-sorts-are-quotiented).
+
+- **`label`** (derived, `Tile.label`): The list of delimiter tokens, `Form.label_of(form)`.
+  `Label.t` is `list(Token.t)`, defined in `src/language/grammar/Label.re`.
+  - Single-token: `["+"]`, `["x"]`, `["123"]` (a `Tok` or a one-delimiter `Compound`)
+  - Multi-token: `["let", "=", "in"]`, `["(", ")"]`, `["if", "then", "else"]`
+  - `Tile.arity` is the label's length; `Tile.token(t, i)` is its `i`th delimiter.
+
+- **`shards`**: Indices into the label indicating which delimiters are actually present.
   - Complete tile: `shards = [0, 1, 2]` for `["let", "=", "in"]`
   - Incomplete tile: `shards = [0, 1]` means only `let` and `=` are present (missing `in`)
 
@@ -60,7 +84,8 @@ A **tile** represents a syntactic form. The key fields are:
   - For `["let", "=", "in"]` with all shards: 2 children (pattern and definition)
   - Invariant: `length(children) == length(shards) - 1`
 
-- **`mold`**: Shape information from `src/haz3lcore/tiles/Mold.re`:
+- **`mold`** (derived, `Tile.mold`): Shape information, `Form.mold_of(form, sort)`,
+  from `src/haz3lcore/tiles/Mold.re`:
   ```reason
   type t = {
     out: Sort.t,           /* output sort (Exp, Pat, Typ, etc.) */
@@ -68,6 +93,11 @@ A **tile** represents a syntactic form. The key fields are:
     nibs: (Nib.t, Nib.t),  /* left and right edge shapes */
   }
   ```
+  Each family has one definition row per sort it inhabits
+  (`Form.rows_of`), so `(form, sort)` picks a row. A tile is
+  *well-sorted* when `mold.out == sort`; a family with no row at the
+  stored sort (or a token no atomic class recognizes) gets a
+  sort-`Any` fallback mold with no children.
 
 ### Nib Shapes
 
@@ -121,6 +151,9 @@ This represents alternating sequences like:
 [ Tile("1"), Tile("+"), Tile("2"), Tile("*"), Tile("3") ]
 ```
 
+(`Tile("1")` abbreviates a tile with `form: Tok("1")`; `Tile("+")` one
+with `form: Compound(Plus)`.)
+
 The segment is **flat** - there is no tree structure yet. The `+` and `*` tiles are siblings at the same level, not nested.
 
 **ASCII diagram**:
@@ -141,7 +174,8 @@ Precedence parsing happens later in `MakeTerm.re`, which uses the **skeleton** (
 ```
 [
   Tile({
-    label: ["(", ")"],
+    form: Compound(Parens),   /* label ["(", ")"] */
+    sort: Exp,
     shards: [0, 1],
     children: [
       [ Tile("1"), Tile("+"), Tile("2") ]  /* child segment */
@@ -170,7 +204,8 @@ The parentheses tile has **one child** containing the inner segment `1 + 2`. Thi
 ```
 [
   Tile({
-    label: ["let", "=", "in"],
+    form: Compound(Let),    /* label ["let", "=", "in"] */
+    sort: Exp,
     shards: [0, 1, 2],      /* all three delimiters present */
     children: [
       [ Tile("x") ],                        /* pattern: between "let" and "=" */
@@ -207,7 +242,8 @@ Key observations:
 ```
 [
   Tile({
-    label: ["let", "=", "in"],
+    form: Compound(Let),    /* label ["let", "=", "in"] */
+    sort: Exp,
     shards: [0, 1],         /* only "let" and "=" present, missing "in" */
     children: [
       [ Tile("x") ]         /* only one child: the pattern */
@@ -293,8 +329,10 @@ Text -> Segment -> Skeleton -> Term
 | `src/haz3lcore/tiles/Skel.re` | Skeleton construction (precedence parsing) |
 | `src/haz3lcore/tiles/Grout.re` | Grout types and operations |
 | `src/haz3lcore/tiles/Mold.re` | Mold types (shapes, sorts) |
-| `src/haz3lcore/tiles/Label.re` | Label type (`list(Token.t)`) |
-| `src/haz3lcore/lang/Form.re` | Language form definitions |
+| `src/language/grammar/FormId.re` | Form identities: `family` constructors and their labels |
+| `src/language/grammar/Label.re` | Label type (`list(Token.t)`) |
+| `src/language/grammar/Token.re` | Token classes (variables, literals, operators, holes) |
+| `src/haz3lcore/lang/Form.re` | Per-family mold rows, classification (`classify_label`, `mold_of`) |
 | `src/haz3lcore/lang/MakeTerm.re` | Segment-to-Term conversion |
 | `src/util/Aba.re` | Alternating list utilities |
 
@@ -304,27 +342,30 @@ From the tile definition in `Base.re`:
 
 ```reason
 type tile = {
-  // invariants:
-  // - length(mold.in_) + 1 == length(label)
-  // - length(shards) <= length(label)
+  // invariants (arity = length(Form.label_of(form))):
+  // - length(shards) <= arity
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
   ...
 }
 ```
 
-1. A label with N delimiters has N-1 bi-delimited regions (and thus N-1 child sorts)
-2. Shards are a subset of label indices (incomplete tiles have fewer shards)
-3. Children fill the gaps between shards (always one fewer than shards)
-4. Shards are sorted (ordered left-to-right)
+1. Shards are a subset of label indices (incomplete tiles have fewer shards)
+2. Children fill the gaps between shards (always one fewer than shards)
+3. Shards are sorted (ordered left-to-right)
+
+A label with N delimiters has N-1 bi-delimited regions, so a
+registered mold has N-1 child sorts; this holds by construction
+(`Form.defs_of_rows` fails fast on a row whose `in_` disagrees with
+its family's label) rather than per tile.
 
 ## Complete vs Incomplete Tiles
 
-A tile is **complete** when `length(shards) == length(label)`:
+A tile is **complete** when every label index has a shard:
 
 ```reason
 /* From Tile.re */
-let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
+let is_complete = (t: t) => arity(t) == List.length(t.shards);
 ```
 
 Incomplete tiles arise during editing when:
@@ -381,8 +422,8 @@ retires this quotient by construction rather than by tolerance.
 
 ### Why mold sorts are quotiented
 
-A stored mold sort is the editor's *local* guess at typing time; a
-parse derives sort *globally*. For incomplete tiles orphaned across a
+A tile's stored `sort` — and so the mold derived from it — is the
+editor's *local* guess at typing time; a parse derives sort *globally*. For incomplete tiles orphaned across a
 sort boundary the two can legitimately disagree with no observable
 difference. Minimal case (two keystrokes): type `:` then `]`. The
 editor molds the orphan `]` at Typ — the caret sits on the typ side
