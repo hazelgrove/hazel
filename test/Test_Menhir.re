@@ -220,6 +220,7 @@ let qcheck_menhir_serialized_equivalent_test =
             use_literal_lexemes: true,
             hole_tiles: false,
             project_tables: false,
+            project_html: false,
           },
           core_exp,
         );

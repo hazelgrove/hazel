@@ -41,6 +41,7 @@ module Settings = {
       | `NoFold
     ],
     project_tables: bool,
+    project_html: bool,
     hide_fixpoints: bool,
     show_filters: bool,
     show_ascriptions: bool,
@@ -68,6 +69,7 @@ module Settings = {
     show_ascriptions: settings.evaluation.show_ascriptions,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     project_tables: settings.evaluation.project_tables,
+    project_html: settings.evaluation.project_html,
     fold_fn_bodies:
       fold_fn_bodies
       |> Option.value(
@@ -88,6 +90,7 @@ module Settings = {
       inline,
       fold_case_clauses: false,
       project_tables: false,
+      project_html: false,
       fold_fn_bodies: `NoFold,
       show_ascriptions: true,
       hide_fixpoints: false,
@@ -1363,6 +1366,51 @@ let project_table_if = (should_project, pieces) =>
     [pieces];
   };
 
+/* Wrap an already-printed HTML value in an HTML projector, so an evaluated
+ * result renders as the DOM it describes.
+ *
+ * A constructor application prints as several pieces, so it is wrapped in
+ * parens (as fold_if does) to give the projector a single piece to replace;
+ * a nullary constructor like `Br` is already one piece and is projected as
+ * it stands. If projection fails the original pieces are returned, so a
+ * failed attempt never leaves stray parens behind. */
+let project_html_if =
+    (should_project, id, ~parenthesize: bool, pieces: Segment.t): Segment.t =>
+  if (should_project) {
+    let syntax =
+      parenthesize
+        ? mk_form(
+            ~secondary=AutoFormat,
+            ~sort=Sort.Exp,
+            Parens,
+            id,
+            [pieces],
+          )
+        : (
+          switch (pieces) {
+          | [piece] => piece
+          | _ =>
+            mk_form(
+              ~secondary=AutoFormat,
+              ~sort=Sort.Exp,
+              Parens,
+              id,
+              [pieces],
+            )
+          }
+        );
+    switch (MakeTerm.for_projection([syntax])) {
+    | None => pieces
+    | Some(any) =>
+      switch (ProjectorInit.init(HTML, syntax, any)) {
+      | Some(projected) => [projected]
+      | None => pieces
+      }
+    };
+  } else {
+    pieces;
+  };
+
 let rec drv_exp_to_pretty =
         (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
   let mk_form = (~sort=Sort.Drv(Exp), fam, id, children) =>
@@ -1838,11 +1886,12 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
       that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
-  let go = (~inline=settings.inline) =>
+  let go = (~inline=settings.inline, ~project_html=settings.project_html) =>
     exp_to_pretty(
       ~settings={
         ...settings,
         inline,
+        project_html,
       },
     );
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
@@ -1925,7 +1974,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // let id = Id.mk();
     let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c);
     // and+ t = typ_to_pretty(~settings: Settings.t, t);
-    wrap(exp, e);
+    /* A nullary HTML element (Br) is a whole value on its own. */
+    wrap(
+      exp,
+      project_html_if(
+        settings.project_html && MvuShape.is_html_typed(exp),
+        Id.mk(),
+        ~parenthesize=false,
+        e,
+      ),
+    );
   // @ [mk_form("typeasc", id, [])]
   // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) =>
@@ -2284,9 +2342,21 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, e1 @ [mk_form(ApEmpty, id, [])]);
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2);
-    wrap(exp, e1 @ [mk_form(Ap, id, [e2])]);
+    /* Only the outermost node projects: every child of an HTML element is
+       itself an HTML constructor application, so recursing with the setting
+       still on would wrap a projector around every element in the tree. */
+    let project = settings.project_html && MvuShape.is_html_typed(exp);
+    let+ e1 = go(~project_html=!project && settings.project_html, e1)
+    and+ e2 = go(~project_html=!project && settings.project_html, e2);
+    wrap(
+      exp,
+      project_html_if(
+        project,
+        Id.mk(),
+        ~parenthesize=true,
+        e1 @ [mk_form(Ap, id, [e2])],
+      ),
+    );
   | Ap(Reverse, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

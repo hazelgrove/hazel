@@ -182,6 +182,18 @@ let fast_copy = (id, {term, annotation}: t('a)): t('a) => {
   },
 };
 
+/* Generate new ids for term, preserving secondary and lexeme. Like
+   fast_copy, discards shard provenance: the new ids no longer reference the
+   original tiles. */
+let new_ids = ({term, annotation}: t('a)): t('a) => {
+  term,
+  annotation: {
+    ...annotation,
+    ids: [Id.mk()],
+    incomplete: [],
+  },
+};
+
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
 /* Replace invalid temp ids with fresh ids, preserving secondary */

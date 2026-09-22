@@ -12,6 +12,7 @@ let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
   hole_tiles: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
+  project_html: false,
 };
 
 /* Gather utility functions/values to be passed to the projector.

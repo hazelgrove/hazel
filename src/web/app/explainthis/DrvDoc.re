@@ -30,6 +30,7 @@ let settings =
     use_literal_lexemes: false,
     hole_tiles: false,
     project_tables: false,
+    project_html: false,
   };
 
 let f_jdmt: exp_t => Segment.t =
