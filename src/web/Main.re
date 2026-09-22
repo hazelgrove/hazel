@@ -228,8 +228,6 @@ let start = default_model => {
         ),
       );
     });
-    /* Setup scroll listener for floating elements (backpack) */
-    FloatingElement.setup_scroll_listener();
     /* A deep link's slide and panel are settled before Bonsai starts, but its
        caret is an action, and there is no editor to act on until the model is
        up. `scroll_to_caret` because a Point move does not ask for a scroll --
@@ -285,7 +283,8 @@ let start = default_model => {
         Haz3lcore.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
-        /* Update floating elements (backpack) to viewport coordinates */
+        /* Update floating elements (probe menus) to viewport coordinates */
+        FloatingElement.setup_scroll_listener();
         FloatingElement.update_all();
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;
