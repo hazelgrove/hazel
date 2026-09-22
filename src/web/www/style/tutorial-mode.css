@@ -63,16 +63,15 @@
 }
 
 #main.Tutorial .cell:has(.test-panel) {
-  border-left: 1px solid #ffc107;
+  border-left: 1px solid var(--border-highlight-strong);
 }
 
 #main.Tutorial .hint-cell {
   background-color: var(--surface-highlight-soft);
-  border-left: 1px solid #ffc107;
+  border-left: 1px solid var(--border-highlight-strong);
   padding: 13px;
   border-radius: 8px;
   font-size: 16px;
-  color: #454545;
   gap: 2em;
 }
 
@@ -116,14 +115,14 @@
 }
 
 /* Tasks collapsible: like the hint, but no fill — just the backdrop with a
-   thin --BR1 outline (so it reads as part of the prompt, not a callout). */
+   thin --border-soft outline (so it reads as part of the prompt, not a
+   callout). */
 #main.Tutorial .tasks-cell {
   background-color: transparent;
   border: 1px solid var(--border-soft);
   padding: 13px;
   border-radius: 8px;
   font-size: 16px;
-  color: #454545;
   gap: 2em;
 }
 
@@ -158,7 +157,7 @@
 
 #main.Tutorial .tasks-content {
   font-size: 15px;
-  color: #555;
+  color: var(--text-default);
 }
 
 /* breathing room between title and content once expanded */
@@ -363,8 +362,8 @@
   max-width: 720px;
   margin: 0.75em auto;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  background: #000;
+  box-shadow: 0 2px 8px var(--menu-shadow);
+  background: var(--surface-black);
 }
 
 /* Inline code in a lesson's prose -- the `+` in "the operators: `+`" -- is
@@ -393,9 +392,9 @@
    `#main.Tutorial .cell` in cell.css -- one source for it.
 
    The Task Reference panel is deliberately NOT included: `.task-reference-
-   section` already is a card with this same --T1 fill and --BR1 border, and
-   its `-body` clips at exactly the cell's width, so a ring drawn outside the
-   cell box survives only along the top edge. */
+   section` already is a card with this same --surface-default fill and
+   --border-soft border, and its `-body` clips at exactly the cell's width, so
+   a ring drawn outside the cell box survives only along the top edge. */
 .prompt-content .cell.locked {
   background: var(--surface-default);
   box-shadow: 0 0 0 1px var(--shadow-soft);

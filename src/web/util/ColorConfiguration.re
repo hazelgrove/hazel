@@ -214,7 +214,12 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "none"), ["main-scroll-track", "surface-none", "text-none"]),
   (
     ("palette", "black"),
-    ["token-explicit-hole-shadow", "border-black", "text-black"],
+    [
+      "token-explicit-hole-shadow",
+      "border-black",
+      "text-black",
+      "surface-black",
+    ],
   ),
   (
     ("palette", "attention-3"),
