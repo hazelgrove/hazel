@@ -4,7 +4,7 @@ open ExplainThisForm;
 
 let tuple_typ_id: form_id = TupleTyp;
 let tuple_typ_comma = comma_typ();
-let tuple_typ_form = [typ("ty1"), tuple_typ_comma, space(), typ("...")];
+let tuple_typ_form = [typ("ty1"), tuple_typ_comma, space(), typ("…")];
 let tuple_typ_explanation = (~n: int): string =>
   Printf.sprintf(
     "This tuple type classifies %d-tuples with corresponding element types.",
@@ -17,7 +17,7 @@ let tuple_typ = (~n: int): form => {
   expandable_id:
     Some((
       Piece.id(tuple_typ_comma),
-      [typ("ty1"), comma_typ(), typ("...")],
+      [typ("ty1"), comma_typ(), typ("…")],
     )),
   explanation: tuple_typ_explanation(~n),
   examples: [],

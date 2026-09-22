@@ -241,7 +241,7 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
     live :=
       {
         ...live^,
-        backpack: List.length(syntax.cached_backpack),
+        backpack: List.length(syntax.missing_shards),
       };
   });
 
