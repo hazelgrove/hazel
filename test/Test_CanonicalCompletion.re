@@ -1412,8 +1412,8 @@ let ordering_tests = [
 ];
 /* TyDi delimiter-suffix gates (the e/el/els matrix): ci is None on
    these states (completion consumed the prefix token) — suggestions
-   must survive via the ci-free witness route. Probes replicate
-   Editor.calculate's exact call. */
+   must survive via the ci-free witness route. Probes replicate the
+   display fork's T2 suggestion call. */
 let probe_tydi = (acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -1434,16 +1434,15 @@ let probe_tydi = (acts: list(Action.t)): string => {
     | None => "ci:NONE"
     | Some(i) => "ci:" ++ (Language.Info.cls_of(i) |> Language.Cls.show)
     };
-  let buf =
-    switch (TyDi.set_buffer(~ci, z)) {
-    | None => "buf:NONE"
-    | Some(z') =>
-      switch (TyDi.get_unparsed_buffer(z')) {
-      | None => "buf:???"
-      | Some(t) => "buf:" ++ t
-      }
+  let sug =
+    switch (TyDi.suggestion(~ci, z)) {
+    | None => "sug:NONE"
+    | Some((head, n, tail)) =>
+      "sug:"
+      ++ String.sub(head, n, String.length(head) - n)
+      ++ TyDiSuggestion.flat_of_tail(tail)
     };
-  String.concat(" | ", [tok, ci_s, buf]);
+  String.concat(" | ", [tok, ci_s, sug]);
 };
 let tydi_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
@@ -1453,25 +1452,25 @@ let tydi_probe_tests = [
   tydi_case(
     ~name="els suggests remainder e",
     ~acts=Test_Editing.mk("if 1 < 2 then 3 else¦ 4") @ [destruct_l],
-    ~expected="tok:els | ci:NONE | buf:e",
+    ~expected="tok:els | ci:NONE | sug:e",
   ),
   tydi_case(
     ~name="el suggests remainder se",
     ~acts=
       Test_Editing.mk("if 1 < 2 then 3 else¦ 4") @ [destruct_l, destruct_l],
-    ~expected="tok:el | ci:NONE | buf:se",
+    ~expected="tok:el | ci:NONE | sug:se",
   ),
   tydi_case(
     ~name="e suggests remainder lse (expectation bypasses length gate)",
     ~acts=
       Test_Editing.mk("if 1 < 2 then 3 else¦ 4")
       @ [destruct_l, destruct_l, destruct_l],
-    ~expected="tok:e | ci:NONE | buf:lse",
+    ~expected="tok:e | ci:NONE | sug:lse",
   ),
   tydi_case(
     ~name="dash suggests arrow remainder",
     ~acts=Test_Editing.mk("fun x ->¦ x * 2") @ [destruct_l],
-    ~expected="tok:- | ci:NONE | buf:>",
+    ~expected="tok:- | ci:NONE | sug:>",
   ),
   tydi_case(
     ~name="non-head obligation suggests (en inside open paren)",
@@ -1479,19 +1478,19 @@ let tydi_probe_tests = [
        is the nearest obligation, the case's end is deeper — the
        witness route matches by anchor, not stack position */
     ~acts=Test_Editing.mk("(case x | 1 => 2 en¦"),
-    ~expected="tok:en | ci:NONE | buf:d",
+    ~expected="tok:en | ci:NONE | sug:d",
   ),
   tydi_case(
     ~name="1-char ctx prefix stays gated (noise guard)",
     /* no expectation in play: the length gate still blocks 1-char
        context-variable suggestions */
     ~acts=Test_Editing.mk("let ee = 7 in e¦"),
-    ~expected="tok:e | ci:Variable reference | buf:NONE",
+    ~expected="tok:e | ci:Variable reference | sug:NONE",
   ),
   tydi_case(
     ~name="equals suggests rule-arrow remainder",
     ~acts=Test_Editing.mk("case x | 1 =>¦ 2 end") @ [destruct_l],
-    ~expected="tok:= | ci:NONE | buf:>",
+    ~expected="tok:= | ci:NONE | sug:>",
   ),
 ];
 /* Mid-entry case rules: the end sits AFTER the growing rule from
@@ -1533,9 +1532,12 @@ let move_r = Action.Move(Local(Right, ByChar));
 /* mirrors the editor's TAB policy exactly: paste the chip's next
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
-let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  CompletionQuery.tab_action(z)
+let tab_once = (z: Zipper.t): option(Zipper.t) => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let assist = CanonicalCompletion.for_editor(seg).insertions;
+  CompletionQuery.tab_action(z, assist)
   |> Option.map(a => Test_Editing.perform(z, [a]));
+};
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
@@ -1560,6 +1562,7 @@ let tab_case = (~name, ~acts, ~tabs=1, ~expected, ()) =>
   );
 
 let tab_dispatch_tests = [
+  /* andrew's regression report: spacing + caret past the delimiter */
   tab_case(
     /* the left neighbor is a case TILE whose effective last token is
        `end`: the junction predicate must see it (tab pasted "in " and
@@ -1581,12 +1584,16 @@ let tab_dispatch_tests = [
     ~expected="let a = 4 in ¦?",
     (),
   ),
+  /* F1 acceptance spacing: `=` carries its trailing space, `in`
+     leads after a hole — Tab types what the ghost promised */
   tab_case(
     ~name="multi-delimiter chip: one delimiter per tab",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~expected="let _: (Int, Bool) = ¦?",
     (),
   ),
+  /* the `=?` jam (tab 1 left `= ?`) is molding-on-`in` reflow —
+     typing the same by hand does it too; upstream wart, not Tab's */
   tab_case(
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),

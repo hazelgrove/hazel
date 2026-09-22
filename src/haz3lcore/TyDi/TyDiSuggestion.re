@@ -62,11 +62,36 @@ type strategy =
   | Pat(strategy_pat)
   | Typ(strategy_typ);
 
+/* A delimiter promised AFTER a lookahead suggestion's head token,
+   e.g. the ")" and "::" of "foo( )::". hole_before: a hole sits
+   between this delimiter and the previous one (or the head). */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tail_delim = {
+  text: string,
+  hole_before: bool,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  content: string,
+  content: string, /* full flat text: head ++ flat_of_tail(tail) */
   strategy,
+  /* structured decomposition for lookahead suggestions; [] otherwise */
+  tail: list(tail_delim),
 };
+
+/* the tail as it appears in the flat content (holes as spaces) */
+let flat_of_tail = (tail: list(tail_delim)): string =>
+  tail
+  |> List.map(d => (d.hole_before ? " " : "") ++ d.text)
+  |> String.concat("");
+
+/* the head token: content minus the tail's flat rendering */
+let head_of = ({content, tail, _}: t): string =>
+  String.sub(
+    content,
+    0,
+    String.length(content) - String.length(flat_of_tail(tail)),
+  );
 
 let compare = (s1: t, s2: t): int => {
   String.compare(s1.content, s2.content);

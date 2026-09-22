@@ -12,7 +12,7 @@ let exercise : Exercise.t =
          prelude =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
                 fd102aa6-29ed-43b8-8908-a26aad4352ac)(form(Compound \
                 Let))(shards(0 1 2))(children(((Secondary((id \
@@ -188,7 +188,7 @@ let exercise : Exercise.t =
          lemmas =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded \
                 false)))(relatives((siblings(()((Grout((id \
                 d99aef7b-4e33-4302-8845-ad23ac1f0225)(shape \
@@ -201,7 +201,7 @@ let exercise : Exercise.t =
          theorem =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
                 2ce68936-a94d-4932-8767-c57ade46325d)(form(Compound \
                 Theorem))(shards(0 1 2))(children(((Secondary((id \

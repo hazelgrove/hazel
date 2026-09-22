@@ -14,7 +14,7 @@ let exercise : Exercise.t =
          prelude =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
                 4e71a6c3-906f-462a-9d76-e442603007da)(form(Compound \
                 Let))(shards(0 1 2))(children(((Secondary((id \
@@ -79,7 +79,7 @@ let exercise : Exercise.t =
          correct_impl =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
                 a86e7e73-e4ab-4f7d-a946-9c149470f017)(form(Compound \
                 Let))(shards(0 1 2))(children(((Secondary((id \
@@ -191,8 +191,8 @@ let exercise : Exercise.t =
              tests =
                {
                  zipper =
-                   "((selection((focus Left)(content())(mode \
-                    Normal)(anchor_caret Outer)(smart_rounded \
+                   "((selection((focus Left)(content())(anchor_caret \
+                    Outer)(smart_rounded \
                     false)))(relatives((siblings(((Tile((id \
                     4142c3d1-f629-4d74-908e-fd8402732989)(form(Compound \
                     Test))(shards(0 1))(children(((Secondary((id \
@@ -244,7 +244,7 @@ let exercise : Exercise.t =
          your_impl =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
                 f692a50f-d402-4550-9477-430fddd42972)(form(Compound \
                 Let))(shards(0 1 2))(children(((Secondary((id \
@@ -294,8 +294,8 @@ let exercise : Exercise.t =
                impl =
                  {
                    zipper =
-                     "((selection((focus Left)(content())(mode \
-                      Normal)(anchor_caret Outer)(smart_rounded \
+                     "((selection((focus Left)(content())(anchor_caret \
+                      Outer)(smart_rounded \
                       false)))(relatives((siblings(((Tile((id \
                       aca07a51-c336-4e13-bb78-99164fdfa893)(form(Compound \
                       Let))(shards(0 1 2))(children(((Secondary((id \
@@ -350,8 +350,8 @@ let exercise : Exercise.t =
                impl =
                  {
                    zipper =
-                     "((selection((focus Left)(content())(mode \
-                      Normal)(anchor_caret Outer)(smart_rounded \
+                     "((selection((focus Left)(content())(anchor_caret \
+                      Outer)(smart_rounded \
                       false)))(relatives((siblings(((Tile((id \
                       ebf66f23-ef74-49cd-ba8e-aab36c43b1e5)(form(Compound \
                       Let))(shards(0 1 2))(children(((Secondary((id \
@@ -406,8 +406,8 @@ let exercise : Exercise.t =
                impl =
                  {
                    zipper =
-                     "((selection((focus Left)(content())(mode \
-                      Normal)(anchor_caret Outer)(smart_rounded \
+                     "((selection((focus Left)(content())(anchor_caret \
+                      Outer)(smart_rounded \
                       false)))(relatives((siblings(((Tile((id \
                       7fda51b1-700f-464c-a38b-8042b96efcdd)(form(Compound \
                       Let))(shards(0 1 2))(children(((Secondary((id \
@@ -560,8 +560,8 @@ let exercise : Exercise.t =
              tests =
                {
                  zipper =
-                   "((selection((focus Left)(content())(mode \
-                    Normal)(anchor_caret Outer)(smart_rounded \
+                   "((selection((focus Left)(content())(anchor_caret \
+                    Outer)(smart_rounded \
                     false)))(relatives((siblings(((Tile((id \
                     a3ced276-6158-458b-b685-15f6411e18ec)(form(Compound \
                     Test))(shards(0 1))(children(((Secondary((id \
