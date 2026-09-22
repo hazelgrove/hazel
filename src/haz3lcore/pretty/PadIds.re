@@ -15,14 +15,36 @@ open Language;
 
    To prevent that, pad_ids also ensures the returned list has:
    1. no duplicates within itself;
-   2. no id equal to any id in [~forbidden]. */
+   2. no id equal to any id in [~forbidden].
+
+   Padding and replacement ids are DERIVED (hash of ~base + counter),
+   not minted: printing must be a pure function of the term. Fresh ids
+   here would make double-prints of the same term differ. ~base defaults to
+   the first id; pass it explicitly where ids can be empty. */
 let pad_ids =
-    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
-  let len = List.length(ids);
+    (
+      ~forbidden: list(Id.t)=[],
+      ~base: option(Id.t)=?,
+      n: int,
+      ids: list(Id.t),
+    )
+    : list(Id.t) => {
+  let base =
+    switch (base, ids) {
+    | (Some(b), _) => b
+    | (None, [id, ..._]) => id
+    | (None, []) => Id.invalid
+    };
+  let counter = ref(0);
   let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let rec derived = () => {
+    incr(counter);
+    let cand = Id.derive(~salt="pad" ++ string_of_int(counter^), base);
+    Id.Set.mem(cand, forbidden_set^) ? derived() : cand;
+  };
   let replace = id =>
     if (Id.Set.mem(id, forbidden_set^)) {
-      let fresh = Id.mk();
+      let fresh = derived();
       forbidden_set := Id.Set.add(fresh, forbidden_set^);
       fresh;
     } else {
@@ -30,8 +52,8 @@ let pad_ids =
       id;
     };
   let truncated =
-    if (len < n) {
-      ids @ List.init(n - len, _ => Id.mk());
+    if (List.length(ids) < n) {
+      ids @ List.init(n - List.length(ids), _ => derived());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
@@ -146,8 +168,8 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
           cont({
             ...ty,
             annotation: {
+              ...ty.annotation,
               ids,
-              secondary: ty.annotation.secondary,
             },
           });
         },
