@@ -48,7 +48,7 @@ fold_left(
 Use `_` to defer arguments:
 ```hazel
 let double =
-map(_, fun x -> x * 2)
+  map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```

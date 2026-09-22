@@ -14,7 +14,7 @@
  * an editor from it; Segment.reassemble groups the duplicated tiles by id
  * into one Aba match and dies.
  *
- * ExpToSegment.pad_ids already dedups ids WITHIN one term's id list
+ * PadIds.pad_ids already dedups ids WITHIN one term's id list
  * (HACK[Matt] comment), but duplicates ACROSS SIBLING subterms of the
  * printed value are not prevented, which is what these tests exercise.
  *
@@ -40,6 +40,7 @@ let display_settings: ExpToSegment.Settings.t = {
   show_ascriptions: false,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -811,12 +812,12 @@ let fidelity_tests = [
     action_fidelity_case(
       "select+del+retype+del",
       [
-        Action.Destruct(Left),
+        Action.Destruct(Local(Left, ByChar)),
         Action.Insert("c"),
         Action.Insert("o"),
         Action.Insert("l"),
-        Action.Destruct(Left),
-        Action.Destruct(Left),
+        Action.Destruct(Local(Left, ByChar)),
+        Action.Destruct(Local(Left, ByChar)),
       ],
     )
   ),

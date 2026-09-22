@@ -146,13 +146,21 @@ module Model = {
     | _ => None
     };
 
-  /* Find the end of row offset position in grid units */
+  /* Find the end of row offset position in grid units. Starts after
+     any quiver offside boxes on the row (RowOffsets registry; quiver
+     renders first) — the extra gap leaves room for probe controls
+     drawn left of the sample chips. */
+  let stack_gap = 2;
   let offside_base =
       (~offset: int, measurement: Measured.measurement, measured: Measured.t)
-      : int =>
-    Measured.start_row_width(measurement, measured)
-    + offset
-    - measurement.origin.col;
+      : int => {
+    let standard = Measured.start_row_width(measurement, measured) + offset;
+    let after_quiver = {
+      let c = RowOffsets.claimed(~row=measurement.origin.row);
+      c == 0 ? 0 : c + stack_gap;
+    };
+    max(standard, after_quiver) - measurement.origin.col;
+  };
 
   let mk_status =
       (

@@ -270,67 +270,7 @@ let show_binop: op_bin => string =
   | String(op) => show_op_bin_string(op)
   | Poly(op) => show_op_bin_poly(op);
 
-let bool_op_to_string = (op: op_bin_bool): string => {
-  switch (op) {
-  | And => "&&"
-  | Or => "||"
-  };
-};
-
-let int_op_to_string = (op: op_bin_num): string => {
-  switch (op) {
-  | Plus => "+"
-  | Minus => "-"
-  | Times => "*"
-  | Power => "**"
-  | Divide => "/"
-  | LessThan => "<"
-  | LessThanOrEqual => "<="
-  | GreaterThan => ">"
-  | GreaterThanOrEqual => ">="
-  };
-};
-
-let float_op_to_string = (op: op_bin_float): string => {
-  switch (op) {
-  | Plus => "+."
-  | Minus => "-."
-  | Times => "*."
-  | Power => "**."
-  | Divide => "/."
-  | LessThan => "<."
-  | LessThanOrEqual => "<=."
-  | GreaterThan => ">."
-  | GreaterThanOrEqual => ">=."
-  | Equals => "==."
-  | NotEquals => "!=."
-  };
-};
-
-let string_op_to_string = (op: op_bin_string): string => {
-  switch (op) {
-  | Concat => "++"
-  };
-};
-
-let poly_op_to_string = (op: op_bin_poly): string => {
-  switch (op) {
-  | Equals => "=="
-  | NotEquals => "!="
-  };
-};
-
-let bin_op_to_string = (op: op_bin): string => {
-  switch (op) {
-  | SInt(op)
-  | Int(op)
-  | Nat(op) => int_op_to_string(op)
-  | Float(op) => float_op_to_string(op)
-  | Bool(op) => bool_op_to_string(op)
-  | String(op) => string_op_to_string(op)
-  | Poly(op) => poly_op_to_string(op)
-  };
-};
+/* Surface token spellings: see FormId.bin_op_to_string. */
 
 /* ========== SEMANTICS ========== */
 
