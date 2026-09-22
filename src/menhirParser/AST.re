@@ -227,18 +227,8 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let ident = String.make(1, leading) ++ tail ++ suffix;
         /* every capitalized token Lexer.mll reserves; a collision lexes
            as a type keyword and fails the parse (seed-dependent flake) */
-        let reserved = [
-          "String",
-          "Int",
-          "Float",
-          "Bool",
-          "Nat",
-          "SInt",
-          "Void",
-          "Unknown",
-          "Internal",
-        ];
-        if (List.exists(a => a == ident, reserved)) {
+        let reserved = Language.Token.base_typs @ ["Unknown", "Internal"];
+        if (List.mem(ident, reserved)) {
           "Keyword";
         } else {
           ident;

@@ -24,9 +24,9 @@ Pick any x and y as long as they're the same
 Access a field of a labeled tuple with `.`:
 ```hazel
 let pet =
-(name="Fido", 
-age=4, 
-species="dog") in
+  (name="Fido",
+    age=4,
+    species="dog") in
 pet.name
 ```
 
