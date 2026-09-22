@@ -1365,7 +1365,7 @@ let result_display_test =
           PrettySegment.prettify(
             ExpToSegment.exp_to_segment(
               ~settings=
-                ExpToSegment.Settings.of_core(~inline=false, CoreSettings.on),
+                ExpToSegment.Settings.of_core(~inline=Block, CoreSettings.on),
               e,
             ),
           ),
@@ -1589,7 +1589,7 @@ let arb_segment_fixpoint =
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
-             ~settings=ExpToSegment.Settings.editable(~inline=true),
+             ~settings=ExpToSegment.Settings.editable(~inline=Inline),
              _,
            )
         |> Printer.of_segment(~holes="?", ~refractors=[], _);
@@ -1654,7 +1654,7 @@ let arb_perturbed_fixpoint =
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
-             ~settings=ExpToSegment.Settings.editable(~inline=true),
+             ~settings=ExpToSegment.Settings.editable(~inline=Inline),
              _,
            )
         |> Printer.of_segment(~holes="?", ~refractors=[], _);
