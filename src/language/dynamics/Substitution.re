@@ -290,6 +290,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdProjection(_, _)
         | ProdExtension(_, _)
         | ProofOf(_)
+        | Escaped(_)
         | DrvQuoteTy(_) => cont(t)
         // The item types only: the generic traversal would also visit the
         // item patterns

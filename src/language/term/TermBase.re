@@ -678,6 +678,7 @@ and Typ: {
         | DrvQuoteTy(_)
         | Label(_)
         | ExplicitNonlabel
+        | Escaped(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>

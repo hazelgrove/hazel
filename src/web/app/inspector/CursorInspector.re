@@ -273,6 +273,7 @@ let core_mark_err_view =
     | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
     | TypeMemberCapture(_)
+    | EscapedType(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -851,6 +852,29 @@ let exp_mark_err_view =
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
   | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
+  | EscapedType({path, side}) =>
+    div_err(
+      switch (side) {
+      | Required => [
+          code(path),
+          text(
+            " escaped the scope of its module, so nothing here can have that type. Mark the parameter implicit, or annotate it with a manifest signature, to keep the caller's type.",
+          ),
+        ]
+      | Supplied => [
+          text("This has the abstract type "),
+          code(path),
+          text(
+            ", which escaped the scope of its module, so it cannot be used where a concrete type is required.",
+          ),
+        ]
+      | TwoDifferent => [
+          text("These are two different abstract types, each "),
+          code(path),
+          text(" escaping the scope of its module at a different call."),
+        ]
+      },
+    )
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([
