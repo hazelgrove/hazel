@@ -325,7 +325,12 @@ let reuse_check =
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 
-  let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
+  let elab_same =
+    Exp.fast_equal(entry.prev_elab, info.elab_term)
+    /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
+       operator @@ -> @@@) change display and stuck-application semantics,
+       so they must invalidate reuse too */
+    && Exp.lexeme_trace(entry.prev_elab) == Exp.lexeme_trace(info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);

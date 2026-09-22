@@ -588,6 +588,18 @@ module Selection = {
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
            ToggleShowDocsFeedback,
          ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Quiver)))),
+           CompletionDisplayQuiver,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Flag)))),
+           CompletionDisplayFlag,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Hidden)))),
+           CompletionDisplayNone,
+         ),
          /* Export / Diagnostics */
          of_shortcut(~action=inject(Globals(ExportForInit)), ExportForInit),
          of_shortcut(~action=inject(Benchmark(Start)), RunBenchmark),

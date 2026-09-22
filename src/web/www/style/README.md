@@ -30,8 +30,8 @@ src/web/view/ConfigurationMode.re          applies them with
   │                                        JsUtil.set_css_variable, and caches
   │                                        the result in localStorage.
   ▼
-:root { --editor-cell: oklch(…); … }       236 custom properties, inline on
-                                           the document element.
+:root { --editor-cell: oklch(…); … }       custom properties, inline on the
+                                           document element.
 ```
 
 Two things run before that pipeline can:
@@ -57,19 +57,16 @@ Two things run before that pipeline can:
 The slide's value has two sections, and the difference between them is
 **reuse, not how the color was arrived at**.
 
-- a **palette** of 48 colors — the colors the theme is built *out of*. Named
+- a **palette** — the colors the theme is built *out of*. Named
   for what they are (`frame-1`, `attention-3`, `error-2`), reused widely, and
   each one fanned out to several CSS properties at once. `palette.ink` alone
   drives `--text-default`, `--border-inverse`, `--code-text`, `--token-exp` and
-  five more.
-- **roles** in ten groups — `menu`, `chrome`, `editor`, `cursor`, `hole`,
-  `problems`, `results`, `inspector`, `probe`, `projector`. One field per
-  decision, named for what the color is *for* (`cursor.pattern`,
+  more.
+- **roles** in groups — `menu`, `chrome`, `editor`, `cursor`, `hole`,
+  `problems`, `results`, `inspector`, `probe`, `completion`, `projector`. One
+  field per decision, named for what the color is *for* (`cursor.pattern`,
   `hole.warning-edge`, `chrome.table-row-hover`), and usually carrying a single
   property.
-
-Between them they write 236 properties: 163 off the palette, 71 off the roles,
-plus two flags.
 
 **What the split is not:** stated versus computed. Every role in the committed
 slide happens to be derived — `wash(p.pattern, 0.11, 0.2)` and friends — but
@@ -81,35 +78,34 @@ exist and what type each holds.
 **What the split does mean, practically:** the roles are the layer you can move
 independently. A user editing the slide can set any single role and affect
 exactly the properties that role carries. A palette entry is a bundle — set
-`palette.ink` and all nine of its properties move together, and there is no way
+`palette.ink` and all of its properties move together, and there is no way
 from the slide to make `--code-text` differ from `--text-default`. Splitting one
 out is a two-file change (a new field in `BuiltinsColorScheme`, a row in
 `ColorConfiguration.aliases`) and a recompile, not a slide edit.
 
 That bundling is a deliberate readability compromise, and it is the least
-principled part of the design: `palette.ink`'s nine properties are body text,
+principled part of the design: `palette.ink`'s properties are body text,
 an inverted border, code text, three token colors, an inverted surface and a
 menu item — several purposes that happen to share a color today, which is
 exactly the accidental grouping the role layer exists to avoid. One field per
-property would be ~240 fields; the ~100 we have was judged easier for a themer
-to read. The constraint has not bitten yet, and the fix when it does is to
+property would be several times as many fields as we have, which was judged
+harder for a themer to read. The constraint has not bitten yet, and the fix when it does is to
 promote the property you need into a role field of its own rather than to
 split every bundle pre-emptively.
 
 **There is no `--ink`.** A palette color reaches CSS only under the semantic
-names the fan-out gives it. The 34 bare palette names used to be published too
+names the fan-out gives it. The bare palette names used to be published too
 and were read by nothing — no stylesheet, no OCaml, no script, and the only
-references left in the tree were commented out. Dropping them took the output
-from 270 properties to 236 and means component stylesheets *cannot* consume a
-palette name rather than merely being told not to. The palette is still a
+references left in the tree were commented out. Dropping them means
+component stylesheets *cannot* consume a palette name rather than merely being
+told not to. The palette is still a
 first-class layer in the slide and a type in `BuiltinsColorScheme`; it is just
 not a CSS namespace.
 
 Two smaller notes on what lives where. `ColorOverrides` — declared in the
 slide, not the builtins — is the record a scheme uses to point a role somewhere
-itself, and it is deliberately small: 18 fields,
-of which two are the flags and two are the numbers the cursor plate is pinned
-with. Most of what is left is genuinely per-polarity (`menu.nut` is
+itself, and it is deliberately small: two of its fields are the flags and two
+are the numbers the cursor plate is pinned with. Most of what is left is genuinely per-polarity (`menu.nut` is
 `info-strong` in light and `success-muted` in dark, and no axis expression
 reproduces both), so shrinking it further means moving a color rather than
 rewriting one; three of its fields (`frame-mark`, `frame-seam`, `frame-border`)
@@ -162,7 +158,7 @@ type, and a misspelled palette name is not a static error at all — it silently
 yields a slide that evaluates to no theme, which looks exactly like the
 stylesheet defaults. It is nearly free, because `palette_of` declares the same
 type on the way out, so the check at each call site compares two identical
-names rather than two 48-field records.
+names rather than two whole records.
 
 The slide also leans on tuple extension (`...`) to avoid restating records:
 `palette_of` is `seed ... (the derivations)` rather than 35 lines of
