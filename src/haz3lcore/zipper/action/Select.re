@@ -583,7 +583,10 @@ let term_by_extremes = (id: Id.t, term_data: TermData.t, z: t): option(t) =>
 
 /* Select a term by id. Navigates to the term and uses current_term
  * (which applies special cases for defs, case rules, comma→parens).
- * Falls back to term_by_extremes for virtual term ids. */
+ * Falls back to term_by_extremes for virtual term ids. A derived
+ * hole names nothing material; since the caret is an empty selection,
+ * selecting a hole means placing the caret at its display slot
+ * (jump_to_side_of_id retargets via GroutPlace). */
 let term =
     (
       ~defs_exclude_bodies: bool,
@@ -593,9 +596,13 @@ let term =
       z: t,
     )
     : option(t) =>
-  switch (Move.jump_to_id_indicated(z, id)) {
-  | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
-  | None => term_by_extremes(id, term_data, z)
+  switch (TermData.root_piece(id, term_data)) {
+  | Some(Grout(_)) => Move.jump_to_side_of_id(Left, z, id)
+  | _ =>
+    switch (Move.jump_to_id_indicated(z, id)) {
+    | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
+    | None => term_by_extremes(id, term_data, z)
+    }
   };
 
 /* Select the containing run of secondary if any */

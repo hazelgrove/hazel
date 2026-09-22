@@ -219,10 +219,40 @@ module Make =
     )
     && sibs
     |> (((l, r)) => l @ r)
-    |> List.length(_) == 1;
+    /* 1 = a material (user-typed ?) hole piece; 0 = a derived hole's
+       empty slot — both are "the parens hold only the hole" */
+    |> List.length(_) <= 1;
   };
 
+  /* introduced material enters the EDIT STATE, which is grout-free:
+     any convex grout the serializer emitted for an EmptyHole becomes
+     the explicit `?` hole tile the user could have typed (the edit
+     paths strip grout, and a stripped `(, )` skeleton is nonconvex) */
+  let rec materialize_holes = (seg: Segment.t): Segment.t =>
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout({id, shape: Convex}) =>
+          Piece.Tile({
+            id,
+            form: Tok(Token.explicit_hole),
+            sort: Sort.Any,
+            shards: [0],
+            children: [],
+          })
+        | Tile(t) =>
+          Tile({
+            ...t,
+            children: List.map(materialize_holes, t.children),
+          })
+        | p => p
+        },
+      seg,
+    );
+
   let add_segment_to_zipper = (move_left, id, seg, z) => {
+    let seg = materialize_holes(seg);
+
     z
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
@@ -233,10 +263,17 @@ module Make =
   let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
     open Util.OptUtil.Syntax;
     let selection = z.selection.content;
-    let selected_term = I.parse(selection);
+    /* an EMPTY selection at a displayed hole IS the hole gesture —
+       there is no material hole piece to select (holes are derived);
+       Segment.skel would reject the empty segment as nonconvex */
+    let is_hole_selection =
+      switch (List.filter(p => !Piece.(is_secondary(p)), selection)) {
+      | [] => true
+      | _ => I.is_hole(I.parse(selection))
+      };
 
-    // This is to prevent replacing an pattern that is not an empty hole
-    let* _ = I.is_hole(selected_term) ? Some() : None;
+    // This is to prevent replacing a pattern that is not an empty hole
+    let* _ = is_hole_selection ? Some() : None;
 
     let+ (term, id, move_left) =
       I.introduce(Typ.weak_head_normalize(ctx, ty));

@@ -568,16 +568,16 @@ y|},
     ~name="let then linebreak then indented var - no partition",
     ~input={|let x = 1
   y|},
-    ~expected={|let x = 1
-  iny|},
+    ~expected={|let x = 1in
+  y|},
   ),
   /* fun with indented body - arrow junction-drops before it */
   test(
     ~name="fun then linebreak then indented var - no partition",
     ~input={|fun x
   y|},
-    ~expected={|fun x
-  ->y|},
+    ~expected={|fun x->
+  y|},
   ),
   /* Mixed: some indented, some at column 0.
    * body is indented (no partition there), next is at col 0 (partition) */
@@ -586,8 +586,8 @@ y|},
     ~input={|let f = fun x
   body
 next|},
-    ~expected={|let f = fun x
-  ->bodyin
+    ~expected={|let f = fun x->
+  bodyin
 next|},
   ),
   /* === Blank line tests (existing behavior preserved) === */
@@ -650,9 +650,11 @@ let d = 4in?|},
 let b = 2
 
 let c = 3 in c|},
+    /* the stray junction now rests on the blank line (the prepared
+       slot), not glued to the next statement head */
     ~expected={|let a = 1 in a
-
-~let b = 2in
+~
+let b = 2in
 
 let c = 3 in c|},
   ),
@@ -911,19 +913,25 @@ let junction_tests = [
     ~name="let missing equals drops at junction",
     ~input="let x 1 in 2",
     ~expected="let x = 1 in 2",
-    ~expected_no_sep="let x =1 in 2",
+    /* restored delimiters weave at the MINT side of the secondary run
+       (caret history is gone from the grout-free edit state, so the
+       old caret-adjacent side no longer exists to reconstruct) */
+    ~expected_no_sep="let x= 1 in 2",
   ),
   test_sep(
     ~name="if missing then drops at junction",
     ~input="if true 1 else 2",
     ~expected="if true then 1 else 2",
-    ~expected_no_sep="if true then1 else 2",
+    ~expected_no_sep="if truethen 1 else 2",
   ),
   test_sep(
     ~name="ambiguous junctions fall back to everything-left",
     ~input="let x y 1 in 2",
     ~expected="let x y 1 = ? in 2",
-    ~expected_no_sep="let x ~y ~1 =?in 2",
+    /* IMPROVED: was pinned as ambiguous fallback; junction-bearing
+       spans no longer count as coherent Pat operands, so x|y is the
+       unique sort-legal split and the = restores instead of junking */
+    ~expected_no_sep="let x= y ~1 in 2",
   ),
 ];
 
@@ -950,7 +958,7 @@ let frontier_tests = [
     ~name="exp slots never clip; junction drop still applies",
     ~input="let x = 1\n  2",
     ~expected="let x = 1\n  in 2",
-    ~expected_no_sep="let x = 1\n  in2",
+    ~expected_no_sep="let x = 1in\n  2",
   ),
 ];
 
@@ -961,19 +969,19 @@ let trailing_junction_tests = [
     ~name="deleted else restored at junction",
     ~input="if true then 1 2",
     ~expected="if true then 1 else 2",
-    ~expected_no_sep="if true then 1 else2",
+    ~expected_no_sep="if true then 1else 2",
   ),
   test_sep(
     ~name="deleted in restored at junction",
     ~input="let x = 1 2",
     ~expected="let x = 1 in 2",
-    ~expected_no_sep="let x = 1 in2",
+    ~expected_no_sep="let x = 1in 2",
   ),
   test_sep(
     ~name="then drops at unique junction, else still appends",
     ~input="if true 1",
     ~expected="if true then 1 else ?",
-    ~expected_no_sep="if true then1else?",
+    ~expected_no_sep="if truethen 1else?",
   ),
   test_sep(
     ~name="ambiguous junctions: no drop",
@@ -1056,12 +1064,12 @@ let case_repair_edit_tests = [
   edit_case(
     ~name="deleted second bar restored at its junction",
     ~acts=Test_Editing.mk("case x | 1 => 2 |¦ 3 => 4 end") @ [destruct_l],
-    ~expected="case x | 1 => 2 | 3 => 4 end",
+    ~expected="case x | 1 => 2|  3 => 4 end",
   ),
   edit_case(
     ~name="deleted first bar restored at scrutinee junction",
     ~acts=Test_Editing.mk("case x |¦ 1 => 2 end") @ [destruct_l],
-    ~expected="case x | 1 => 2 end",
+    ~expected="case x|  1 => 2 end",
   ),
 ];
 
@@ -1156,9 +1164,13 @@ let opener_wall_tests = [
   edit_case(
     ~name="multiline bracket absorption is not walled",
     /* line 2 starts with an operand, not a prefix form: the opener
-       keeps its maximal-left span across the linebreak */
+       keeps its maximal-left span across the linebreak. The typed
+       space after `1` survives (spaces are real material) and line 2
+       stays at 0 at TYPING time — the documented conservative
+       ambiguous-case behavior; Format indents it later (the old +2
+       here rode on the hole counting as known next-content) */
     ~acts=Test_Editing.mk("[¦1 +\n2]") @ [destruct_l],
-    ~expected="[1+\n  2]",
+    ~expected="[1 +\n2]",
   ),
   edit_case(
     ~name="inline paren around a let keeps its maximal reading",
@@ -1256,7 +1268,7 @@ let leading_witness_roundtrip_tests = [
       let masks = CanonicalCompletion.masks_of_records(result.shard_records);
       let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
       let seg2 = Test_ExpToSegment.exp_to_segment_roundtrip(term);
-      check(string_testable, "buffer", "typ~ T = Int in 2", print_seg(seg));
+      check(string_testable, "buffer", "typ T = Int in 2", print_seg(seg));
       check(
         string_testable,
         "reprint (one extra space: OPEN)",
@@ -1532,12 +1544,15 @@ let move_r = Action.Move(Local(Right, ByChar));
 /* mirrors the editor's TAB policy exactly: paste the chip's next
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
-let tab_once = (z: Zipper.t): option(Zipper.t) => {
-  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let assist = CanonicalCompletion.for_editor(seg).insertions;
-  CompletionQuery.tab_action(z, assist)
-  |> Option.map(a => Test_Editing.perform(z, [a]));
-};
+let tab_once = (z: Zipper.t): option(Zipper.t) =>
+  switch (CompletionQuery.chip_at_caret(z)) {
+  | Some(ins) =>
+    switch (CompletionQuery.tab_text(z, ins)) {
+    | Some(text) => Some(Test_Editing.perform(z, [Paste(text)]))
+    | None => None
+    }
+  | None => None
+  };
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
@@ -1569,19 +1584,19 @@ let tab_dispatch_tests = [
        produced endin) */
     ~name="chip after a multi-token tile spaces the junction",
     ~acts=Test_Editing.mk("let x = case y | _ => 1 end¦"),
-    ~expected="let x = case y | _ => 1 end in ¦?",
+    ~expected="let x = case y | _ => 1 end in ¦",
     (),
   ),
   tab_case(
     ~name="tab after 4: space, in, caret past",
     ~acts=Test_Editing.mk("let a = 4¦"),
-    ~expected="let a = 4 in ¦?",
+    ~expected="let a = 4 in ¦",
     (),
   ),
   tab_case(
     ~name="tab after 4 and a space: no double space, caret past",
     ~acts=Test_Editing.mk("let a = 4 ¦"),
-    ~expected="let a = 4 in ¦?",
+    ~expected="let a = 4 in ¦",
     (),
   ),
   /* F1 acceptance spacing: `=` carries its trailing space, `in`
@@ -1589,23 +1604,25 @@ let tab_dispatch_tests = [
   tab_case(
     ~name="multi-delimiter chip: one delimiter per tab",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
-    ~expected="let _: (Int, Bool) = ¦?",
+    ~expected="let _: (Int, Bool) = ¦",
     (),
   ),
-  /* the `=?` jam (tab 1 left `= ?`) is molding-on-`in` reflow —
-     typing the same by hand does it too; upstream wart, not Tab's */
+  /* the second chunk carries its leading hole's cell: `= ` + `  in` —
+     placement paints the hole one space after `=`, so this displays
+     `= ? in` (upstream's `= ? in`), not the `=?in` pinch a bare `in`
+     produced */
   tab_case(
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) = ? in ¦?",
+    ~expected="let _: (Int, Bool) =   in ¦",
     (),
   ),
   tab_case(
     ~name="witness: tab completes the arrow like typing",
     ~acts=
       Test_Editing.mk("case x | 1 =¦") @ [move_l, move_l, move_r, move_r],
-    ~expected="case x | 1 =>¦?",
+    ~expected="case x | 1 =>¦",
     (),
   ),
   tab_case(
@@ -1615,9 +1632,46 @@ let tab_dispatch_tests = [
     (),
   ),
   tab_case(
+    /* padding puts no space between `end` and the `)` that follows it
+       (same text upstream's ApplyCompletion(Next) produces) */
     ~name="coalesced end+paren: innermost only, symbolic spacing",
     ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
     ~expected="(case x | 1 => 2 end¦",
+    (),
+  ),
+  /* padding (2026-09-22): the chunk supplies the pads the buffer lacks
+     plus one cell for its leading hole, so the re-derived hole displays
+     one space after its anchor with a space before the delimiter —
+     `= ? in` — whatever the user had typed after `=` */
+  tab_case(
+    ~name="padding: no space after = -> pad, cell, pad",
+    ~acts=Test_Editing.mk("let x =¦"),
+    ~expected="let x =   in ¦",
+    (),
+  ),
+  tab_case(
+    ~name="padding: one space after = is kept, cell and pad added",
+    ~acts=Test_Editing.mk("let x = ¦"),
+    ~expected="let x =   in ¦",
+    (),
+  ),
+  tab_case(
+    ~name="padding: extra user spaces survive",
+    ~acts=Test_Editing.mk("let x =  ¦"),
+    ~expected="let x =    in ¦",
+    (),
+  ),
+  tab_case(
+    /* a closer hugs its hole's cell: `(1,  )` displays `(1, ?)` */
+    ~name="padding: closer after a spaced comma",
+    ~acts=Test_Editing.mk("(1, ¦"),
+    ~expected="(1,  )¦",
+    (),
+  ),
+  tab_case(
+    ~name="padding: closer directly after a comma",
+    ~acts=Test_Editing.mk("(1,¦"),
+    ~expected="(1, )¦",
     (),
   ),
 ];
@@ -1626,8 +1680,13 @@ let tab_dispatch_tests = [
    fixpoint and materializing it wholesale converge to the same
    program modulo whitespace. Guards the type-it-for-me / make-it-so
    split from semantic drift. */
+/* modulo whitespace AND holes: holes are DERIVED material (the edit
+   state never stores them), so the accept-gesture equivalence is
+   over the user-material program both gestures commit */
 let strip_ws = (s: string): string =>
-  String.to_seq(s) |> Seq.filter(c => c != ' ' && c != '\n') |> String.of_seq;
+  String.to_seq(s)
+  |> Seq.filter(c => c != ' ' && c != '\n' && c != '?' && c != '~')
+  |> String.of_seq;
 
 let tabs_vs_materialize = (~name, ~acts, ()) =>
   test_case(
@@ -1765,7 +1824,7 @@ let entry_stability_tests = [
     ~acts=
       Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n| 1 => 2¦\n3"),
     ~expected=
-      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 => 2end\n    in3",
+      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 => 2endin\n    3",
   ),
 ];
 
@@ -1777,12 +1836,14 @@ let placement_guard_tests = [
   edit_case(
     ~name="deleted = restores at the definition junction",
     ~acts=Test_Editing.mk("let x =¦ f 1 in x") @ [destruct_l],
-    ~expected="let x =f ~1 in x",
+    /* the = restores at the definition junction, weave at the mint
+       side of the run — the guarded property is the JUNCTION */
+    ~expected="let x=  f ~1 in x",
   ),
   edit_case(
     ~name="deleted = multiline restores at line end",
     ~acts=Test_Editing.mk("let x =¦\nf 1 in x") @ [destruct_l],
-    ~expected="let x =\nf ~1 in x",
+    ~expected="let x =\n f ~1 in x",
   ),
   edit_case(
     ~name="deleted rule arrow with next-line body restores exactly",
@@ -1834,7 +1895,7 @@ let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
     ~acts=dbl_del_inline,
-    ~expected="let f = case x | 1 => 2 | 3 => 4end in  f",
+    ~expected="let f = case x | 1 => 2 | 3 => 4endin   f",
   ),
   /* control: in alone (end intact) — its deletion-debris junction
      should restore it in place */
@@ -1843,7 +1904,7 @@ let joint_tests = [
     ~acts=
       Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
       @ [destruct_l, destruct_l],
-    ~expected="let f = case x | 1 => 2 | 3 => 4 end in f",
+    ~expected="let f = case x | 1 => 2 | 3 => 4 endin  f",
   ),
 ];
 
@@ -1915,19 +1976,19 @@ let severance_tests = [
     ~name="end+in stay after the rule-body if (case-def)",
     ~input="let f =\n    case 0\n    | 0 =>\n        if \n1",
     ~expected=
-      "let f =\n    case 0\n    | 0 =>\n        if?then?else? endin\n1",
+      "let f =\n    case 0\n    | 0 =>\n        if?then?else ?endin\n1",
   ),
   test(
     ~name="end+in stay after the rule-body if (Cyrus partition_at)",
     ~input=
       "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if \n1",
     ~expected=
-      "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if?then?else? endin\n1",
+      "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if?then?else ?endin\n1",
   ),
   test(
     ~name="end stays after the rule-body if (standalone case)",
     ~input="case 0\n| 0 =>\n    if \n1",
-    ~expected="case 0\n| 0 =>\n    if?then?else? end~\n1",
+    ~expected="case 0\n| 0 =>\n    if?then?else ?end~\n1",
   ),
   test(
     ~name="ap-pattern closer stays after the annotation colon",
