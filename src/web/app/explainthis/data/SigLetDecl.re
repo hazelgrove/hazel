@@ -10,7 +10,7 @@ let single: Simple.t = {
       space(),
       pat("p"),
       space(),
-      typ(":"),
+      operator(Typ, ":"),
       space(),
       typ("ty"),
     ],

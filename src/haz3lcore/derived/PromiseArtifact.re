@@ -150,7 +150,7 @@ let site_owed_pieces = (art: t, site: Id.t): list(Piece.t) =>
       |> List.filter((p: Piece.t) => !piece_is_user(art, p))
       |> List.filter((p: Piece.t) =>
            switch (p) {
-           | Tile({label: [","], _}) => true
+           | Tile(t) when Tile.is_comma(t) => true
            | Grout({shape: Convex, _}) => true
            | _ => false
            }

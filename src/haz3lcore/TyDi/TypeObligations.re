@@ -504,7 +504,7 @@ let present_now = (completed: Segment.t, site: Id.t): option(int) =>
         child
         |> List.filter((p: Piece.t) =>
              switch (p) {
-             | Tile({label: [","], _}) => true
+             | Tile(t) when Tile.is_comma(t) => true
              | Grout({shape: Concave, _}) => true
              | _ => false
              }
@@ -649,7 +649,7 @@ let synthesize_new_sites =
     | _ => None
     };
   let fn_tys = (fn: Tile.t): option(list(Typ.t)) =>
-    switch (fn.label) {
+    switch (Tile.label(fn)) {
     | [name] =>
       switch (Id.Map.find_opt(fn.id, info_map)) {
       | Some(Info.InfoExp({elab_syn_ty, ctx, _})) =>
@@ -688,7 +688,7 @@ let synthesize_new_sites =
         switch (p, rest) {
         | (Piece.Tile(fn), [Piece.Tile(ap), ..._])
             when
-              ap.label == ["(", ")"]
+              Tile.is_paren_shaped(ap)
               && !List.exists(Id.equal(ap.id), known)
               && Id.Map.find_opt(ap.id, info_map) == None =>
           switch (fn_tys(fn)) {
@@ -784,8 +784,8 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
           [
             Piece.Tile({
               id: comma_id,
-              label: Form.get(CommaExp).label,
-              mold: Form.get(CommaExp).mold,
+              form: Form.Compound(Comma),
+              sort: Sort.Exp,
               shards: [0],
               children: [],
             }),
@@ -801,8 +801,8 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
   let comma_for = (gid: Id.t): Piece.t =>
     Piece.Tile({
       id: Id.next(gid),
-      label: Form.get(CommaExp).label,
-      mold: Form.get(CommaExp).mold,
+      form: Form.Compound(Comma),
+      sort: Sort.Exp,
       shards: [0],
       children: [],
     });
@@ -967,8 +967,8 @@ let ghost_pieces =
       Some(
         Piece.Tile({
           id: Id.mk(),
-          label: Form.get(CommaExp).label,
-          mold: Form.get(CommaExp).mold,
+          form: Form.Compound(Comma),
+          sort: Sort.Exp,
           shards: [0],
           children: [],
         }),

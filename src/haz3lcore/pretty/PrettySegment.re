@@ -309,35 +309,19 @@ let absorb_comments =
   go([], pieces);
 };
 
-let is_semi = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: [";"], _}) => true
-  | _ => false
-  };
-
-let is_comma = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: [","], _}) => true
-  | _ => false
-  };
-
 let is_infix = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({mold, label: [_], _}) =>
-    Mold.is_infix_op(mold) && !is_comma(p) && !is_semi(p)
-  | _ => false
-  };
-
-let is_dot = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: ["."], _}) => true
+  | Tile(t) when Tile.arity(t) == 1 =>
+    Mold.is_infix_op(Tile.mold(t))
+    && !Piece.is_comma(p)
+    && !Piece.is_semi(p)
   | _ => false
   };
 
 /* Label binding = in records/labeled tuples (not ==) */
 let is_label_eq = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["="], _}) => true
+  | Tile(t) => Tile.is_tuple_label_eq(t)
   | _ => false
   };
 
@@ -357,7 +341,7 @@ let infix_precedence = (p: Piece.t): option(int) =>
 let piece_precedence = (p: Piece.t): option(int) =>
   if (is_infix(p)) {
     infix_precedence(p);
-  } else if (is_comma(p)) {
+  } else if (Piece.is_comma(p)) {
     Some(Precedence.comma);
   } else {
     None;
@@ -405,14 +389,14 @@ let split_infix_chain =
 /* Single-token prefix operator (e.g., leading + in sum types) */
 let is_single_prefix = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => List.length(t.label) == 1 && Mold.is_prefix_op(t.mold)
+  | Tile(t) => Tile.arity(t) == 1 && Mold.is_prefix_op(Tile.mold(t))
   | _ => false
   };
 
 let is_compound_prefix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    List.length(t.label) >= 2
+    Tile.arity(t) >= 2
     && Tile.is_complete(t)
     && (
       switch (Tile.shapes(t)) {
@@ -423,12 +407,6 @@ let is_compound_prefix = (p: Piece.t): bool =>
   | _ => false
   };
 
-let is_case_rule_tile = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-
 /* A "trailing hole" is either an implicit empty hole (Convex Grout) or
    an explicit hole (Tile with label `?`). When one of these appears as
    the sole body of a block-like form (e.g., `let x = 1 in ?`), we emit
@@ -436,7 +414,7 @@ let is_case_rule_tile = (p: Piece.t): bool =>
 let is_trailing_hole = (p: Piece.t): bool =>
   switch (p) {
   | Grout({shape: Convex, _}) => true
-  | Tile({label: ["?"], _}) => true
+  | Tile(t) when Tile.is_explicit_hole(t) => true
   | _ => false
   };
 
@@ -449,14 +427,10 @@ let is_block_form = (p: Piece.t): bool =>
   is_compound_prefix(p)
   || (
     switch (p) {
-    | Tile(t) when Tile.is_complete(t) =>
-      switch (t.label) {
-      | ["case", "end"]
-      | ["test", "end"]
-      | ["hint", "test", "end"] => true
-      | [_, "end"] => true
-      | _ => false
-      }
+    | Tile(t) =>
+      Tile.is_complete(t)
+      && Tile.is_multidelimiter(t)
+      && Tile.ends_with_end(t)
     | _ => false
     }
   );
@@ -474,20 +448,23 @@ let segment_starts_with_block = (seg: Segment.t): bool =>
    we only want to tighten f (x) → f(x), not remove breaks before ")". */
 let is_paren_or_bracket = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["(", ")"], shards, children, _})
-  | Tile({label: ["[", "]"], shards, children, _})
-  | Tile({label: ["@<", ">"], shards, children, _}) =>
+  | Tile({
+      form: Form.Compound(Parens | Ap | ListLit | ApExpTyp),
+      shards,
+      children,
+      _,
+    }) =>
     /* Complete tile (has children) or opening shard (index 0) */
     List.length(children) > 0 || shards == [0]
   /* nullary application: f() */
-  | Tile({label: ["()"], _}) => true
+  | Tile(t) when Tile.is_empty_tuple_shaped(t) => true
   | _ => false
   };
 
 /* Does the segment start with a prefix-arrow form (fun/typfun/...)? */
 let starts_with_arrow_prefix = (seg: list(Piece.t)): bool =>
   switch (seg) {
-  | [Tile({label: [_, "->"], _}), ..._] => true
+  | [Tile(t), ..._] => Tile.is_prefix_arrow_form(t)
   | _ => false
   };
 
@@ -509,7 +486,7 @@ let split_at_next_rule =
   let rec go = (body_rev, pieces) =>
     switch (pieces) {
     | [] => (List.rev(body_rev), [])
-    | [p, ..._] when is_case_rule_tile(p) => (List.rev(body_rev), pieces)
+    | [p, ..._] when Piece.is_case_rule(p) => (List.rev(body_rev), pieces)
     | [p, ...rest] => go([p, ...body_rev], rest)
     };
   go([], pieces);
@@ -525,7 +502,7 @@ let split_at_comma =
   let rec go = (before_rev, pieces) =>
     switch (pieces) {
     | [] => None
-    | [p, ...rest] when is_comma(p) =>
+    | [p, ...rest] when Piece.is_comma(p) =>
       Some((List.rev(before_rev), p, rest))
     | [p, ...rest] => go([p, ...before_rev], rest)
     };
@@ -562,7 +539,7 @@ let rec child_doc = (s: settings, child: Segment.t): doc => {
    the single-shard pieces in the output segment. */
 and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   let triples = Tile.contained_children(t);
-  let last_shard_idx = List.length(t.label) - 1;
+  let last_shard_idx = Tile.arity(t) - 1;
   /* Shard doc: extract a single shard from this tile as a doc node */
   let shard = i => piece_doc(Tile.to_piece(Tile.shard_of(t, i)));
   /* Fallback for unexpected tile structure: emit whole tile + rest.
@@ -621,18 +598,14 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   let try_hanging_delim =
       (content: list(Piece.t), ~suffix: doc=Empty, ()): option(doc) =>
     switch (content) {
-    | [Tile(dt)]
-        when
-          s.hanging_delimiters
-          && (
-            dt.label == ["(", ")"]
-            || dt.label == ["[", "]"]
-            || dt.label == ["{", "}"]
-          )
-          && List.length(dt.children) > 0 =>
+    | [
+        Tile(
+          {form: Form.Compound(Parens | Ap | ListLit | ModBody), _} as dt,
+        ),
+      ]
+        when s.hanging_delimiters && List.length(dt.children) > 0 =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
-      let close_s =
-        Tile.to_piece(Tile.shard_of(dt, List.length(dt.label) - 1));
+      let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
       | [(_, inner_child, _)] =>
         /* soft_semis so short brace bodies can inline; Group so the
@@ -665,7 +638,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
      hint/test/end, and other operand forms ending in "end". */
   let tile_with_rest = (tile_doc: doc): doc =>
     switch (rest) {
-    | [semi, ...rest2] when is_semi(semi) =>
+    | [semi, ...rest2] when Piece.is_semi(semi) =>
       cats([
         tile_doc,
         piece_doc(semi),
@@ -679,9 +652,9 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => cats([tile_doc, Break, Group(segment_to_doc(s, rest))])
     };
 
-  switch (t.label) {
-  /* Binding forms: let/=/in, type/=/in, theorem/=/in */
-  | [_, "=", "in"] =>
+  switch (t.form) {
+  /* Definition forms: let/=/in, type/=/in, theorem/=/in, module/=/in */
+  | _ when Tile.is_definition_form(t) =>
     switch (triples) {
     | [(_, pat_child, _), (_, binding_child, _)] =>
       let prefix =
@@ -704,16 +677,17 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
          enclosing group. */
       let hang_header =
         switch (binding_content) {
-        | [Tile({label: [_, "->"], _} as ft), ...fun_body]
+        | [Tile(ft), ...fun_body]
             when
-              List.length(ft.children) == 1
+              Tile.is_prefix_arrow_form(ft)
+              && List.length(ft.children) == 1
               && !s.break_fun_params
               && Tile.is_complete(ft) =>
           let prefix_w =
             2
-            + Token.length(List.nth(t.label, 0))
+            + Token.length(Tile.token(t, 0))
             + segment_flat_width(pat_child)
-            + Token.length(List.nth(t.label, 1))
+            + Token.length(Tile.token(t, 1))
             + 2;
           let header_w = piece_width(Tile.to_piece(ft));
           prefix_w + header_w <= s.width - 12 ? Some((ft, fun_body)) : None;
@@ -732,9 +706,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
                 Group(child_doc(s, List.hd(ft.children))),
                 Space,
                 piece_doc(
-                  Tile.to_piece(
-                    Tile.shard_of(ft, List.length(ft.label) - 1),
-                  ),
+                  Tile.to_piece(Tile.shard_of(ft, Tile.arity(ft) - 1)),
                 ),
               ]);
             cats([
@@ -765,7 +737,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* if/then/else */
-  | ["if", "then", "else"] =>
+  | Form.Compound(If) =>
     switch (triples) {
     | [(_, cond_child, _), (_, conseq_child, _)] =>
       /* If conseq is a block-like expression (let/case/fun/if/...), force
@@ -808,7 +780,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->, rec/-> */
-  | [_, "->"] =>
+  | _ when Tile.is_prefix_arrow_form(t) =>
     switch (triples) {
     | [(_, param_child, _)] =>
       let param_doc = child_doc(s, param_child);
@@ -848,9 +820,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Delimiter pairs: (...), [...], {...} */
-  | ["(", ")"]
-  | ["[", "]"]
-  | ["{", "}"] =>
+  | Form.Compound(Parens | Ap | ListLit | ModBody) =>
     switch (triples) {
     | [(_, content_child, _)] =>
       let inner =
@@ -885,7 +855,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Type application: @<...> — tight delimiters, no internal spacing */
-  | ["@<", ">"] =>
+  | Form.Compound(ApExpTyp) =>
     switch (triples) {
     | [(_, content_child, _)] =>
       let inner = child_doc(s, content_child);
@@ -901,7 +871,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* case/end */
-  | ["case", "end"] =>
+  | Form.Compound(Case) =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
@@ -915,7 +885,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* test/end: flat when it fits; otherwise break after "test" with
      "end" trailing the last body line */
-  | ["test", "end"] =>
+  | Form.Compound(Test) =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
@@ -937,7 +907,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* hint/test/end: hint message on first line, test on own line, end trails body */
-  | ["hint", "test", "end"] =>
+  | Form.Compound(HintedTest) =>
     switch (triples) {
     | [(_, msg_child, _), (_, body_child, _)] =>
       let msg = child_doc(s, msg_child);
@@ -963,7 +933,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* Other operand forms ending in "end": proof_of/end, proof_object/end.
      Same treatment as case/end (Space after keyword, Break before end). */
-  | [_, "end"] =>
+  | _ when Tile.ends_with_end(t) =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
@@ -976,7 +946,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Rule |/=> (case rule tiles with children) */
-  | ["|", "=>"] =>
+  | Form.Compound(Rule) =>
     switch (triples) {
     | [(_, pat_child, _)] =>
       cats([
@@ -991,7 +961,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* Filter/use forms: hide/eval/pause/debug/use expr in body.
      Simple binding-like prefix: chains with HardBreak like let-chains. */
-  | [_, "in"] =>
+  | _ when Tile.ends_with_in(t) =>
     switch (triples) {
     | [(_, expr_child, _)] =>
       let tile_doc =
@@ -1010,7 +980,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* Prefix binding forms with no trailing delimiter (module items
      let/= and type/=): header stays together, body nests after = */
-  | [_, "="] =>
+  | Form.Compound(ModLet | ModType | ModuleMod) =>
     switch (triples) {
     | [(_, pat_child, _)] =>
       let prefix =
@@ -1070,7 +1040,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
    broken mode), but grouping a tail that still contains semis would
    let multiple items re-pack onto one line mid-block */
 and semi_tail_doc = (s: settings, after: list(Piece.t)): doc => {
-  let has_semi = List.exists(is_semi, after);
+  let has_semi = List.exists(Piece.is_semi, after);
   has_semi ? segment_to_doc(s, after) : Group(segment_to_doc(s, after));
 }
 
@@ -1082,7 +1052,7 @@ and split_at_semi_multi =
   let rec go = (acc, ps: list(Piece.t)) =>
     switch (ps) {
     | [] => None
-    | [p, ...rest] when is_semi(p) =>
+    | [p, ...rest] when Piece.is_semi(p) =>
       List.length(acc) >= 2 ? Some((List.rev(acc), p, rest)) : None
     | [p, ...rest] => go([p, ...acc], rest)
     };
@@ -1123,7 +1093,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      build_tile_doc handlers (test/end, case/end, etc.) handle the semi
      in rest, so the tile gets proper Group wrapping for layout. */
   | [Tile(t), semi, ...rest]
-      when List.length(t.children) > 0 && is_semi(semi) =>
+      when List.length(t.children) > 0 && Piece.is_semi(semi) =>
     seg_finish(acc_rev, build_tile_doc(s, t, [semi, ...rest]))
 
   /* Semicolon sequence with a multi-piece item: the item is an
@@ -1149,12 +1119,12 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      soft inside braces (soft_semis), hard at top level. A final semi-less
      tail gets its own Group (semi_tail_doc, inlined to keep the semi
      chain tail-recursive). */
-  | [p, semi, ...rest] when is_semi(semi) =>
+  | [p, semi, ...rest] when Piece.is_semi(semi) =>
     let left = cats([piece_doc(p), piece_doc(semi)]);
     let brk = s.soft_semis ? Break : HardBreak;
     switch (rest) {
     | [] => seg_finish(acc_rev, left)
-    | _ when List.exists(is_semi, rest) =>
+    | _ when List.exists(Piece.is_semi, rest) =>
       seg_loop(s, [Cat(left, brk), ...acc_rev], rest)
     | _ =>
       seg_finish(
@@ -1164,7 +1134,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     };
 
   /* Semicolon at start: hard break after */
-  | [p, ...rest] when is_semi(p) =>
+  | [p, ...rest] when Piece.is_semi(p) =>
     seg_finish(
       acc_rev,
       cats([piece_doc(p), HardBreak, Group(segment_to_doc(s, rest))]),
@@ -1175,7 +1145,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      All-or-nothing: no Group wrapper on rest.
      First piece via segment_to_doc(s, [p]) (not piece_doc) so a
      tile-with-children decomposes into a Group, like rest_after below. */
-  | [p, comma, ...rest] when is_comma(comma) =>
+  | [p, comma, ...rest] when Piece.is_comma(comma) =>
     let (comments, rest_after) = absorb_comments(rest);
     let left =
       List.fold_left(
@@ -1190,7 +1160,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
 
   /* Case rule (|...=>): group rule with its body, HardBreak between rules
      so case rules always appear on separate lines */
-  | [p, ...rest] when is_case_rule_tile(p) =>
+  | [p, ...rest] when Piece.is_case_rule(p) =>
     let (body, remaining) = split_at_next_rule(rest);
     let body_doc =
       switch (body) {
@@ -1205,7 +1175,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     };
 
   /* Dot accessor: keep tight, no space or break */
-  | [p, op, ...rest] when is_infix(op) && is_dot(op) =>
+  | [p, op, ...rest] when is_infix(op) && Piece.is_dot(op) =>
     seg_loop(s, [Cat(piece_doc(p), piece_doc(op)), ...acc_rev], rest)
 
   /* Infix operator: precedence-aware chain splitting.
@@ -1271,7 +1241,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
         acc_rev,
         cats([p_doc, HardBreak, Group(segment_to_doc(s, rest_after))]),
       )
-    | [next, ..._] when is_case_rule_tile(next) =>
+    | [next, ..._] when Piece.is_case_rule(next) =>
       seg_loop(s, [Cat(p_doc, HardBreak), ...acc_rev], rest_after)
     | [next, ..._] when is_right_convex(p) && is_paren_or_bracket(next) =>
       seg_loop(s, [p_doc, ...acc_rev], rest_after)
@@ -1303,12 +1273,11 @@ and build_infix_chain_doc =
        (sums, arithmetic, arrows); never split label = value, x : T,
        or comma sequences */
     let no_fill = (op: Piece.t) =>
-      is_comma(op)
+      Piece.is_comma(op)
       || is_label_eq(op)
       || (
         switch (op) {
-        | Tile({label: ["="], _})
-        | Tile({label: [":"], _}) => true
+        | Tile(t) => Tile.has_label(t, ["="]) || Tile.has_label(t, [":"])
         | _ => false
         }
       );
@@ -1368,13 +1337,13 @@ and build_infix_chain_doc =
              `... == {` ... `} end`) */
           let hangable =
             switch (actual_operand) {
-            | [Tile({label: ["{", "}"], children, _})]
+            | [Tile({form: Form.Compound(ModBody), children, _})]
                 when List.length(children) > 0 =>
               true
             | _ => false
             };
           let next =
-            if (is_comma(op)) {
+            if (Piece.is_comma(op)) {
               cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
             } else if (is_label_eq(op)) {
               cats([
@@ -1427,10 +1396,10 @@ let tighten_applications = (outputs: list(output)): list(output) => {
         when is_right_convex(prev) && is_paren_or_bracket(next) =>
       go([OPiece(prev), ...acc], [OPiece(next), ...rest])
     /* Remove space before dot */
-    | [OPiece(prev), OSpace, OPiece(dot), ...rest] when is_dot(dot) =>
+    | [OPiece(prev), OSpace, OPiece(dot), ...rest] when Piece.is_dot(dot) =>
       go([OPiece(prev), ...acc], [OPiece(dot), ...rest])
     /* Remove space after dot */
-    | [OPiece(dot), OSpace, OPiece(next), ...rest] when is_dot(dot) =>
+    | [OPiece(dot), OSpace, OPiece(next), ...rest] when Piece.is_dot(dot) =>
       go([OPiece(dot), ...acc], [OPiece(next), ...rest])
     | [out, ...rest] => go([out, ...acc], rest)
     | [] => List.rev(acc)

@@ -425,7 +425,7 @@ let rec tiles_well_formed = (sg: Segment.t): bool =>
       | Tile(t) =>
         List.length(t.children) == List.length(t.shards)
         - 1
-        && List.for_all(i => i >= 0 && i < List.length(t.label), t.shards)
+        && List.for_all(i => i >= 0 && i < Tile.arity(t), t.shards)
         && List.for_all(tiles_well_formed, t.children)
       | _ => true
       },

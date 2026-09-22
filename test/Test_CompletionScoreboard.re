@@ -79,12 +79,12 @@ let targets = (z: Zipper.t): list((Token.t, Point.t)) => {
         switch (p) {
         | Tile(t) =>
           List.iter(walk, t.children);
-          if (List.length(t.label) > 1) {
+          if (Tile.arity(t) > 1) {
             switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
             | shards =>
               List.iter(
                 ((i, m: Measured.measurement)) =>
-                  acc := [(List.nth(t.label, i), m.last), ...acc^],
+                  acc := [(Tile.token(t, i), m.last), ...acc^],
                 shards,
               )
             | exception _ => ()
@@ -260,14 +260,14 @@ let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
         switch (p) {
         | Tile(t) =>
           List.iter(walk, t.children);
-          let n = List.length(t.label);
+          let n = Tile.arity(t);
           if (n > 1) {
             switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
             | shards =>
               List.iter(
                 ((i, m: Measured.measurement)) =>
                   if (i == n - 1) {
-                    acc := [(List.nth(t.label, i), m.last), ...acc^];
+                    acc := [(Tile.token(t, i), m.last), ...acc^];
                   },
                 shards,
               )

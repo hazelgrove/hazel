@@ -135,7 +135,7 @@ let project_pieces =
     let rec go = (ps: list(Piece.t)) =>
       switch (ps) {
       | [] => ([], [])
-      | [Piece.Tile({label: [","], _}) as c, ...tl] =>
+      | [Piece.Tile(t) as c, ...tl] when Tile.is_comma(t) =>
         switch (tl) {
         | [Grout(_) as g, ...rest] => ([c, g], rest)
         | _ => ([c], tl)
