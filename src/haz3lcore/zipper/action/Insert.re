@@ -58,11 +58,15 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
      which is what remold will pick anyway. Taking the parent sort instead
      gave interim Any molds inside module bodies, and a `(` split into
      a token against such a neighbor looked up its expansion in Mod,
-     i.e. never expanded (#2575). */
+     i.e. never expanded (#2575).
+   - Exception: outside Mod/Sig, where the local sort has no operand forms
+     by design, a token with no mold at the local sort takes the parent's
+     rather than classifying as Any (`*` typed at a Typ local sort). */
 let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let local_sort = Relatives.sort(~root, z.relatives);
   let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
   let expands_in = (s: Sort.t) => Form.Expansion.try_get(s, t) != None;
+  let molds_in = (s: Sort.t) => Form.remold_candidates([t], s) != [];
   if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
   } else if (expands_in(local_sort)) {
@@ -73,8 +77,12 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
     Exp;
   } else if (local_sort == Any) {
     parent_sort;
-  } else {
+  } else if (local_sort == Mod || local_sort == Sig) {
     local_sort;
+  } else if (molds_in(local_sort) || !molds_in(parent_sort)) {
+    local_sort;
+  } else {
+    parent_sort;
   };
 };
 
