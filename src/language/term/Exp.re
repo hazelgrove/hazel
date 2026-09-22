@@ -460,26 +460,40 @@ let rec get_num_of_functions = (e: t) =>
   };
 
 let (replace_all_ids, replace_all_ids_typ) = {
+  let fresh: 'a. IdTagged.t('a) => IdTagged.t('a) =
+    x => {
+      ...x,
+      annotation: {
+        /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+           so re-idded results still display faithfully. Secondary and
+           shard provenance stay dropped: display of results is
+           AutoFormat and the tile-id references are invalidated. */
+        ...IdTagged.IdTag.mk_internal([Id.mk()]),
+        lexeme: x.annotation.lexeme,
+      },
+    };
   let f:
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) =>
-      {
-        ...exp,
-        annotation: {
-          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
-             so re-idded results still display faithfully. Secondary and
-             shard provenance stay dropped: display of results is
-             AutoFormat and the tile-id references are invalidated. */
-          ...IdTagged.IdTag.mk_internal([Id.mk()]),
-          lexeme: exp.annotation.lexeme,
+    (continue, x) => x |> fresh |> continue;
+  /* map_term has no hook for a module item, so its id is replaced with the
+     module's. */
+  let f_exp = (continue, exp: t) =>
+    switch (exp.term) {
+    | Module(items) =>
+      f(
+        continue,
+        {
+          ...exp,
+          term: (Module(List.map(fresh, items)): term),
         },
-      }
-      |> continue;
+      )
+    | _ => f(continue, exp)
+    };
   (
-    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    Typ.map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
   );
 };
 

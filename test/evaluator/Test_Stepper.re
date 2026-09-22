@@ -4,25 +4,25 @@ open Test_Evaluator_Prelude;
 
 let id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
 
-let module_bind_step = (exp: Exp.t) =>
-  switch (
-    EvaluatorStep.get_status(
-      ~settings=CoreSettings.on,
-      exp,
-      Environment.empty,
-    )
-  ) {
-  | AutoStep(step) => Some(step)
-  | AvailableSteps(steps) =>
-    List.find_opt(
-      step =>
-        switch (EvaluatorStep.get_step_kind(step)) {
-        | ModuleBind(_) => true
-        | _ => false
-        },
-      steps,
-    )
-  };
+let module_bind_steps = (x: string, exp: Exp.t) =>
+  (
+    switch (
+      EvaluatorStep.get_status(
+        ~settings=CoreSettings.on,
+        exp,
+        Environment.empty,
+      )
+    ) {
+    | AutoStep(step) => [step]
+    | AvailableSteps(steps) => steps
+    }
+  )
+  |> List.filter(step =>
+       switch (EvaluatorStep.get_step_kind(step)) {
+       | ModuleBind(y) => String.equal(x, y)
+       | _ => false
+       }
+     );
 
 let tests = (
   "Evaluator.Stepper",
@@ -112,15 +112,56 @@ let tests = (
           | Module([item, ..._]) => Mod.rep_id(item)
           | _ => fail("expected a module with items")
           };
-        switch (module_bind_step(exp)) {
-        | Some(step) =>
+        switch (module_bind_steps("a", exp)) {
+        | [step, ..._] =>
           check(
             id,
             "the item, not the module",
             item_id,
             EvaluatorStep.get_step_id(step),
           )
-        | None => fail("expected a module binding step")
+        | [] => fail("expected a module binding step")
+        };
+      },
+    ),
+    /* Binding `N` and then `z` before `N`'s body is evaluated substitutes
+       the body into `z`, so the same pending item appears twice. The stepper
+       selects a step by id, so each copy's step needs its own. */
+    test_case(
+      "Each copy of a substituted module item has its own step",
+      `Quick,
+      () => {
+        let bind = (x, exp) =>
+          switch (module_bind_steps(x, exp)) {
+          | [step, ..._] =>
+            EvaluatorStep.take_step(step)
+            |> Util.OptUtil.get_or_fail("expected the binding to step")
+          | [] => fail("expected a binding step for " ++ x)
+          };
+        let exp =
+          elaborate(
+            parse_exp({|{ module N = { let x = 1 + 1 }; let z = N.x }|}),
+          )
+          |> bind("N")
+          |> bind("z");
+        switch (module_bind_steps("x", exp)) {
+        | [s1, s2] =>
+          check(
+            bool,
+            "distinct step ids",
+            false,
+            Id.equal(
+              EvaluatorStep.get_step_id(s1),
+              EvaluatorStep.get_step_id(s2),
+            ),
+          )
+        | steps =>
+          fail(
+            Printf.sprintf(
+              "expected two binding steps for x, got %d",
+              List.length(steps),
+            ),
+          )
         };
       },
     ),
