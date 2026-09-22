@@ -12,7 +12,8 @@ let min_prefix_len = 2;
    source. Syntax-derived; needs no statics. */
 let suggest_witnesses = (z: Zipper.t): list(t) =>
   switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
-  | (Outer, [Tile({label: [tok], id, _}), ..._]) =>
+  | (Outer, [Tile({id, _} as t), ..._]) when Tile.arity(t) == 1 =>
+    let tok = Tile.token(t, 0);
     let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     let result = CanonicalCompletion.for_editor(seg);
     result.insertions
@@ -113,8 +114,8 @@ let token_to_left = (z: Zipper.t): option(string) =>
     z.relatives.siblings |> fst |> List.rev,
     z.relatives.siblings |> snd,
   ) {
-  | (Outer, [Tile({label: [tok_to_left], _}), ..._], _) =>
-    Some(tok_to_left)
+  | (Outer, [Tile(t), ..._], _) when Tile.arity(t) == 1 =>
+    Some(Tile.token(t, 0))
   | _ => None
   };
 

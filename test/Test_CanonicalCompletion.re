@@ -89,7 +89,7 @@ let reassemble_tests = [
           ++ String.concat(",", List.map(string_of_int, let_tile.shards)),
         );
         print_endline(
-          "Let tile label: " ++ String.concat(",", let_tile.label),
+          "Let tile label: " ++ String.concat(",", Tile.label(let_tile)),
         );
 
         /* Create the missing shard (index 2 = "in") */
@@ -158,7 +158,8 @@ let regrout_debug_tests = [
         (i, p) => {
           let desc =
             switch (p) {
-            | Piece.Tile(t) => "Tile(" ++ String.concat(",", t.label) ++ ")"
+            | Piece.Tile(t) =>
+              "Tile(" ++ String.concat(",", Tile.label(t)) ++ ")"
             | Piece.Grout(g) =>
               "Grout(" ++ (g.shape == Convex ? "Convex" : "Concave") ++ ")"
             | Piece.Secondary(s) =>
@@ -201,7 +202,7 @@ let regrout_debug_tests = [
               "  ["
               ++ string_of_int(i)
               ++ "]: Tile("
-              ++ String.concat(",", t.label)
+              ++ String.concat(",", Tile.label(t))
               ++ ") shards=["
               ++ String.concat(",", List.map(string_of_int, t.shards))
               ++ "] children="
@@ -252,7 +253,7 @@ let regrout_debug_tests = [
             (t: Tile.t) => {
               print_endline(
                 "      - "
-                ++ String.concat(",", t.label)
+                ++ String.concat(",", Tile.label(t))
                 ++ " shards=["
                 ++ String.concat(",", List.map(string_of_int, t.shards))
                 ++ "]",
@@ -849,7 +850,7 @@ let orphan_rules_seg = (src: string): Segment.t => {
     seg
     |> List.find_opt((p: Piece.t) =>
          switch (p) {
-         | Tile(t) => t.label == ["case", "end"]
+         | Tile(t) => Tile.is_case(t)
          | _ => false
          }
        )
@@ -1708,7 +1709,7 @@ let materialize_tests = [
       let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
       let case_id =
         Segment.incomplete_tiles_deep(seg)
-        |> List.find((t: Tile.t) => List.mem("case", t.label))
+        |> List.find((t: Tile.t) => List.mem("case", Tile.label(t)))
         |> ((t: Tile.t) => t.id);
       let z = Test_Editing.perform(z, [ApplyCompletion(One(case_id))]);
       check(
@@ -1849,13 +1850,13 @@ let joint_tests = [
 let clippable_guard_tests = {
   let labels =
     Form.forms
-    |> List.map(((_, f: Form.t)) => f.label)
+    |> List.map(((_, d: Form.def)) => d.label)
     |> List.sort_uniq(compare);
   let n = List.length(labels);
   let covered = (s: Sort.t): int =>
     labels
     |> List.filter(l =>
-         Form.Molds.get_base(l)
+         Form.base_molds(l)
          |> List.exists((m: Mold.t) => m.out == s || m.out == Sort.Any)
        )
     |> List.length;

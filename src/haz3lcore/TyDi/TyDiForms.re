@@ -5,73 +5,189 @@ open Language;
 
 let leading_expander = " ";
 
-/* Specifies type information for syntactic forms. Could in principle be
- * derived by generating segments from Forms, parsing them to terms, and
- * running Statics, but for now, new forms e.g. operators must be added
- * below manually.  */
+/* Automatically collates most delimiters from Forms, notably all
+ * mono delimiters, all infix operators, and all leading delimiters */
+module Delims = {
+  let leading = (sort: Sort.t): list(Token.t) =>
+    Form.delims
+    |> List.filter_map(token => {
+         let (lbl, _) = Form.Expansion.get(sort, token);
+         Form.remold_candidates(lbl, sort) != []
+         && List.length(lbl) > 1
+         && token == List.hd(lbl)
+           ? Some(token ++ leading_expander) : None;
+       })
+    |> List.sort_uniq(compare);
+
+  let leading_exp = leading(Exp);
+  let leading_pat = leading(Pat);
+  let leading_typ = leading(Typ);
+  /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all collapse
+     to Drv(Exp) (see DrvSort.re on the "remolding issue"), so we reuse the
+     Drv(Exp) delim list for all of them. */
+  let leading_drv_exp = leading(Drv(Exp));
+  let leading_drv_typ = leading(Drv(Typ));
+  let leading_drv_pat = leading(Drv(Pat));
+  let leading_drv_tpat = leading(Drv(TPat));
+
+  let leading = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => leading_exp
+    | Pat => leading_pat
+    | Typ => leading_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => leading_drv_exp
+    | Drv(Typ) => leading_drv_typ
+    | Drv(Pat) => leading_drv_pat
+    | Drv(TPat) => leading_drv_tpat
+    | _ => []
+    };
+
+  /* compound forms only: single tokens registered merely as atoms
+   * (e.g. infix-delimiter prefixes) are not infix suggestions */
+  let infix = (sort: Sort.t): list(Token.t) =>
+    Form.delims
+    |> List.filter(token =>
+         Form.compound_defs([token])
+         |> List.exists(((_, m): (Form.family, Mold.t)) =>
+              m.out == sort && Mold.is_infix_op(m)
+            )
+       )
+    |> List.sort_uniq(compare);
+  let infix_exp = infix(Exp);
+  let infix_pat = infix(Pat);
+  let infix_typ = infix(Typ);
+  let infix_drv_exp = infix(Drv(Exp));
+  let infix_drv_typ = infix(Drv(Typ));
+  let infix_drv_pat = infix(Drv(Pat));
+  let infix_drv_tpat = infix(Drv(TPat));
+  let infix = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => infix_exp
+    | Pat => infix_pat
+    | Typ => infix_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => infix_drv_exp
+    | Drv(Typ) => infix_drv_typ
+    | Drv(Pat) => infix_drv_pat
+    | Drv(TPat) => infix_drv_tpat
+    | _ => []
+    };
+
+  let const_mono = (sort: Sort.t): list(Token.t) =>
+    Token.const_mono_delims
+    |> List.filter(token => Form.remold_candidates([token], sort) != [])
+    |> List.sort_uniq(compare);
+
+  /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
+   * molds (as constructors) but derive Unknown self types (free
+   * constructors), which would match any expected type. Exclude them
+   * from Exp and Pat suggestions; constructor suggestions come from
+   * TyDiCtx.bound_constructors instead. They remain in Typ sort for
+   * type-position completion. */
+  let const_mono_exp =
+    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
+  let const_mono_pat =
+    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
+  let const_mono_typ = const_mono(Typ);
+  let const_mono_drv_exp = const_mono(Drv(Exp));
+  let const_mono_drv_typ = const_mono(Drv(Typ));
+  let const_mono_drv_pat = const_mono(Drv(Pat));
+  let const_mono_drv_tpat = const_mono(Drv(TPat));
+
+  let const_mono = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => const_mono_exp
+    | Pat => const_mono_pat
+    | Typ => const_mono_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => const_mono_drv_exp
+    | Drv(Typ) => const_mono_drv_typ
+    | Drv(Pat) => const_mono_drv_pat
+    | Drv(TPat) => const_mono_drv_tpat
+    | _ => []
+    };
+};
+
+/* Specifies type information for syntactic forms. All tables are
+ * derived from the grammar at startup: each suggestible token is
+ * parsed to a minimal term (infix operators pick up convex holes as
+ * operands via regrout; leading delimiters expand to their completed
+ * forms) and run through Statics in an empty context; the resulting
+ * term's type is the entry. */
 module Typ = {
   let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
 
-  let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Atom(Bool) |> Typ.fresh),
-    ("false", Atom(Bool) |> Typ.fresh),
-    //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
-    //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
-    ("_", unk),
+  /* Consumers ignore Unknown provenance (is_consistent); normalize
+   * for stable, deterministic table entries */
+  let normalize_unknowns: Typ.t => Typ.t =
+    Typ.map_term(~f_typ=(continue, ty) =>
+      switch (Typ.term_of(ty)) {
+      | Unknown(_) => Typ.temp(Unknown(Internal))
+      | _ => continue(ty)
+      }
+    );
+
+  let derive_self_ty = (token: Token.t): option(Typ.t) =>
+    try(
+      switch (Parser.to_term(token, ~root=Exp)) {
+      | None => None
+      | Some(term) =>
+        let (info_map, _) = Statics.mk(CoreSettings.on, Ctx.empty, term);
+        switch (Id.Map.find_opt(Exp.rep_id(term), info_map)) {
+        | Some(InfoExp({ty, _})) => Some(normalize_unknowns(ty))
+        | _ => None
+        };
+      }
+    ) {
+    | _ => None
+    };
+
+  /* Deliberately untyped: forms whose minimal-form self type is
+   * inconsistent with the instances they are used to build, so a
+   * typed entry would suppress the suggestion exactly where it is
+   * wanted. "=" (labeled-tuple element) and "{" (module literal)
+   * derive singleton/empty products, inconsistent with the n-ary
+   * products in use; "proof_object" derives ProofOf(<hole>), and
+   * ProofOf consistency requires semantic exp equality. */
+  let deliberately_untyped: list(Token.t) = [
+    "=",
+    "{" ++ leading_expander,
+    "proof_object" ++ leading_expander,
   ];
 
-  /* Only need to add forms here if they have a non-trivial type */
-  let of_leading_delim: list((Token.t, Typ.t)) = [
-    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
-    (
-      "typfun" ++ leading_expander,
-      Poly(Var("") |> TPat.fresh, unk) |> Typ.fresh,
-    ),
-    ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
-    ("of_jdmt" ++ leading_expander, unk),
-    ("of_ctx" ++ leading_expander, unk),
-    ("of_prop" ++ leading_expander, unk),
-    ("of_alfa_exp" ++ leading_expander, unk),
-    ("of_alfa_typ" ++ leading_expander, unk),
-    ("of_alfa_pat" ++ leading_expander, unk),
-    ("of_alfa_tpat" ++ leading_expander, unk),
-  ];
+  let derive_table = (tokens: list(Token.t)): list((Token.t, Typ.t)) =>
+    tokens
+    |> List.filter(t => !List.mem(t, deliberately_untyped))
+    |> List.filter_map(t => derive_self_ty(t) |> Option.map(ty => (t, ty)));
 
-  let of_infix_delim: list((Token.t, Typ.term)) = [
-    ("|>", Unknown(Internal)),
-    (",", Prod([unk, unk])),
-    ("::", List(unk)),
-    ("@", List(unk)),
-    (";", Unknown(Internal)),
-    ("&&", Atom(Bool)),
-    ("\\/", Atom(Bool)),
-    ("||", Atom(Bool)),
-    ("==.", Atom(Bool)),
-    ("==", Atom(Bool)),
-    ("!", Atom(Bool)),
-    ("!=", Atom(Bool)),
-    ("!=.", Atom(Bool)),
-    ("<", Atom(Bool)),
-    (">", Atom(Bool)),
-    ("<=", Atom(Bool)),
-    (">=", Atom(Bool)),
-    ("<.", Atom(Bool)),
-    (">.", Atom(Bool)),
-    ("<=.", Atom(Bool)),
-    (">=.", Atom(Bool)),
-    ("+", Atom(Int)),
-    ("-", Atom(Int)),
-    ("*", Atom(Int)),
-    ("/", Atom(Int)),
-    ("**", Atom(Int)),
-    ("+.", Atom(Float)),
-    ("-.", Atom(Float)),
-    ("*.", Atom(Float)),
-    ("/.", Atom(Float)),
-    ("**.", Atom(Float)),
-    ("++", Atom(String)),
-  ];
+  /* Lazy: each entry runs Parser + Statics per token, which is pure
+   * startup cost for the worker/CLI; forced at the suggestion call
+   * sites (suggest_form). */
+  let of_const_mono_delim: Lazy.t(list((Token.t, Typ.t))) =
+    lazy(
+      derive_table(
+        List.sort_uniq(
+          compare,
+          Delims.const_mono(Exp) @ Delims.const_mono(Pat),
+        ),
+      )
+    );
+
+  let of_infix_delim: Lazy.t(list((Token.t, Typ.t))) =
+    lazy(
+      derive_table(
+        List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
+      )
+    );
+
+  /* Leading delimiters (with expander) parse to their completed forms,
+   * so e.g. "fun " derives Arrow(?, ?) and "[ " derives [?]. Only the
+   * Exp/Pat domains matter: suggest_form consults the table only for
+   * those sorts. */
+  let of_leading_delim: Lazy.t(list((Token.t, Typ.t))) =
+    lazy(
+      derive_table(
+        List.sort_uniq(compare, Delims.leading(Exp) @ Delims.leading(Pat)),
+      )
+    );
 
   let expected: Info.t => Typ.t =
     fun
@@ -100,132 +216,17 @@ module Typ = {
     );
 };
 
-/* Automatically collates most delimiters from Forms, notably all
- * mono delimiters, all infix operators, and all leading delimiters */
-module Delims = {
-  let leading = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         let (lbl, _) = Form.Expansion.get(sort, token);
-         switch (Form.Molds.try_get(sort, lbl)) {
-         | None => []
-         | Some(molds) =>
-           molds
-           |> List.filter_map((_: Mold.t) =>
-                List.length(lbl) > 1 && token == List.hd(lbl)
-                  ? Some(token ++ leading_expander) : None
-              )
-         };
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-
-  let leading_exp = leading(Exp);
-  let leading_pat = leading(Pat);
-  let leading_typ = leading(Typ);
-  /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all collapse
-     to Drv(Exp) (see DrvSort.re on the "remolding issue"), so we reuse the
-     Drv(Exp) delim list for all of them. */
-  let leading_drv_exp = leading(Drv(Exp));
-  let leading_drv_typ = leading(Drv(Typ));
-  let leading_drv_pat = leading(Drv(Pat));
-  let leading_drv_tpat = leading(Drv(TPat));
-
-  let leading = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => leading_exp
-    | Pat => leading_pat
-    | Typ => leading_typ
-    | Drv(Jdmt | Ctx | Prop | Exp) => leading_drv_exp
-    | Drv(Typ) => leading_drv_typ
-    | Drv(Pat) => leading_drv_pat
-    | Drv(TPat) => leading_drv_tpat
-    | _ => []
-    };
-
-  let infix = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           switch (Form.Molds.compound([token])) {
-           | Some(molds) => molds
-           | None => []
-           },
-         )
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-  let infix_exp = infix(Exp);
-  let infix_pat = infix(Pat);
-  let infix_typ = infix(Typ);
-  let infix_drv_exp = infix(Drv(Exp));
-  let infix_drv_typ = infix(Drv(Typ));
-  let infix_drv_pat = infix(Drv(Pat));
-  let infix_drv_tpat = infix(Drv(TPat));
-  let infix = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => infix_exp
-    | Pat => infix_pat
-    | Typ => infix_typ
-    | Drv(Jdmt | Ctx | Prop | Exp) => infix_drv_exp
-    | Drv(Typ) => infix_drv_typ
-    | Drv(Pat) => infix_drv_pat
-    | Drv(TPat) => infix_drv_tpat
-    | _ => []
-    };
-
-  let const_mono = (sort: Sort.t): list(Token.t) =>
-    Token.const_mono_delims
-    |> List.map(token => {
-         switch (Form.Molds.try_get(sort, [token])) {
-         | None => []
-         | Some(molds) =>
-           molds
-           |> List.filter_map((_: Mold.t) =>
-                List.mem(token, Token.const_mono_delims) ? Some(token) : None
-              )
-         }
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-
-  /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
-   * molds (as constructors) but no type entry in Typ.of_const_mono_delim.
-   * Without an entry, filter_by assigns Unknown type, making them match
-   * any expected type. Exclude them from Exp and Pat suggestions;
-   * constructor suggestions come from TyDiCtx.bound_constructors instead.
-   * They remain in Typ sort for type-position completion. */
-  let const_mono_exp =
-    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
-  let const_mono_pat =
-    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
-  let const_mono_typ = const_mono(Typ);
-  let const_mono_drv_exp = const_mono(Drv(Exp));
-  let const_mono_drv_typ = const_mono(Drv(Typ));
-  let const_mono_drv_pat = const_mono(Drv(Pat));
-  let const_mono_drv_tpat = const_mono(Drv(TPat));
-
-  let const_mono = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => const_mono_exp
-    | Pat => const_mono_pat
-    | Typ => const_mono_typ
-    | Drv(Jdmt | Ctx | Prop | Exp) => const_mono_drv_exp
-    | Drv(Typ) => const_mono_drv_typ
-    | Drv(Pat) => const_mono_drv_pat
-    | Drv(TPat) => const_mono_drv_tpat
-    | _ => []
-    };
-};
-
 let suggest_form =
     (ty_map, delims_of_sort, ci: Info.t): list(TyDiSuggestion.t) => {
   let sort = Info.sort_of(ci);
   let delims = delims_of_sort(sort);
   let filtered =
-    Typ.filter_by(Info.ctx_of(ci), Typ.expected(ci), ty_map, delims);
+    Typ.filter_by(
+      Info.ctx_of(ci),
+      Typ.expected(ci),
+      Lazy.force(ty_map),
+      delims,
+    );
   switch (sort) {
   | Exp =>
     List.map(
@@ -257,10 +258,7 @@ let suggest_form =
 };
 
 let suggest_operator: Info.t => list(TyDiSuggestion.t) =
-  suggest_form(
-    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
-    Delims.infix,
-  );
+  suggest_form(Typ.of_infix_delim, Delims.infix);
 
 let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);

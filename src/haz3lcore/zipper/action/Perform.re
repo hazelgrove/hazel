@@ -583,7 +583,7 @@ let rec go =
         ZipperBase.MapPiece.go(
           p => {
             switch (p) {
-            | Tile({id, label: [marker], _})
+            | Tile({id, form: Tok(marker), _})
                 when marker == Token.implicit_hole_marker =>
               old_markers := [id, ...old_markers^]
             | _ => ()
@@ -601,8 +601,8 @@ let rec go =
           | Piece.Grout({id, shape: Convex}) =>
             Piece.Tile({
               id,
-              label: [Token.implicit_hole_marker],
-              mold: Mold.mk_op(Exp, []),
+              form: Tok(Token.implicit_hole_marker),
+              sort: Exp,
               shards: [0],
               children: [],
             })
@@ -624,7 +624,7 @@ let rec go =
           |> Option.map(
                ZipperBase.MapPiece.go(p =>
                  switch (p) {
-                 | Tile({id, label: [marker], _})
+                 | Tile({id, form: Tok(marker), _})
                      when
                        marker == Token.implicit_hole_marker
                        && !List.mem(id, old_markers^) => [

@@ -235,7 +235,7 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
       | Grout(_)
       | Projector(_) => go(j + 1, sorts, rest)
       | Tile(t) =>
-        switch (Form.Molds.get_base(t.label)) {
+        switch (Form.base_molds(Tile.label(t))) {
         | [] => go(j + 1, sorts, rest) /* no evidence: don't clip */
         | molds =>
           let fitting =
@@ -287,7 +287,7 @@ let rec operand_to_left = (seg: Segment.t, j: int): bool =>
       | Grout(_) => operand_to_left(seg, j - 1)
       | Projector(_) => true
       | Tile(t) =>
-        switch (snd(Mold.nibs(~index=Tile.r_shard(t), t.mold)).shape) {
+        switch (snd(Mold.nibs(~index=Tile.r_shard(t), Tile.mold(t))).shape) {
         | Convex => true
         | Concave(_) => false
         }
@@ -312,36 +312,40 @@ let is_prefix_witness =
     (~slot: Sort.t, ~operand_left: bool, p: Piece.t, shard_text: Token.t)
     : bool =>
   switch (p) {
-  | Tile({label: [tok], mold, _}) =>
-    Token.length(tok) < Token.length(shard_text)
-    && String.sub(shard_text, 0, Token.length(tok)) == tok
-    && (
-      Mold.is_infix_op(mold)
-      && Form.is_infix_delimiter_op_prefix(tok)
-      || Token.is_symbolic(tok)
-      && !
-           List.exists(
-             (m: Mold.t) =>
-               sort_fits(m.out, slot)
-               && (
-                 switch (fst(m.nibs).shape) {
-                 | Concave(prec) => prec != Precedence.lab
-                 | Convex => !operand_left
-                 }
-               ),
-             Form.Molds.get_base([tok]),
-           )
-    )
+  | Tile(t) =>
+    switch (Tile.single_token(t)) {
+    | Some(tok) =>
+      Token.length(tok) < Token.length(shard_text)
+      && String.sub(shard_text, 0, Token.length(tok)) == tok
+      && (
+        Mold.is_infix_op(Tile.mold(t))
+        && Form.is_infix_delimiter_op_prefix(tok)
+        || Token.is_symbolic(tok)
+        && !
+             List.exists(
+               (m: Mold.t) =>
+                 sort_fits(m.out, slot)
+                 && (
+                   switch (fst(m.nibs).shape) {
+                   | Concave(prec) => prec != Precedence.lab
+                   | Convex => !operand_left
+                   }
+                 ),
+               Form.base_molds([tok]),
+             )
+      )
+    | None => false
+    }
   | _ => false
   };
 
 let prefix_of_witness =
     (p: Piece.t, shard: int): option(Language.IdTagged.IdTag.shard_prefix) =>
   switch (p) {
-  | Tile({label: [tok], id, _}) =>
+  | Tile({id, _} as t) when Tile.arity(t) == 1 =>
     Some({
       shard,
-      len: Token.length(tok),
+      len: Token.length(Tile.token(t, 0)),
       token_id: id,
       debris: None,
     })
@@ -391,7 +395,7 @@ let middle_split_plan =
     switch (List.nth_opt(t.children, k)) {
     | None => None
     | Some(child) =>
-      let (l_nib, r_nib) = Mold.nibs(~index=m, t.mold);
+      let (l_nib, r_nib) = Mold.nibs(~index=m, Tile.mold(t));
       let has_content =
         List.exists(
           fun
@@ -415,7 +419,7 @@ let middle_split_plan =
                ~slot=l_nib.sort,
                ~operand_left=operand_to_left(child, j),
                pc,
-               List.nth(t.label, m),
+               Tile.token(t, m),
              )
                ? legal(j) |> Option.map(lr => (pc, lr)) : None
            );
@@ -618,13 +622,12 @@ let opener_schedule =
       |> List.mapi((i, p: Piece.t) => (i, p))
       |> List.filter_map(((i, p)) =>
            switch (p) {
-           | Piece.Tile(t) when t.mold.out == Sort.Rul => Some(i)
+           | Piece.Tile(t) when Tile.mold(t).out == Sort.Rul => Some(i)
            | _ => None
            }
          );
-    let case_label = Form.get(Case).label;
     let clamp_walls = (t: Tile.t, at, idx) =>
-      t.label == case_label
+      Tile.is_case(t)
         ? at
         : rule_walls
           |> List.filter(w => w >= at && w < idx)
@@ -646,7 +649,7 @@ let opener_schedule =
           | Tile(t) =>
             let wall =
               after_lb
-              && List.length(t.label) > 1
+              && Tile.arity(t) > 1
               && Tile.is_complete(t)
               && (
                 switch (Tile.nibs(t)) {
@@ -697,8 +700,8 @@ let opener_schedule =
        maximal Exp wrap. Same table as clip_position. */
     let clamp_sort = (t: Tile.t, at, idx) => {
       let last = Tile.l_shard(t) - 1;
-      let (head_l, _) = Mold.nibs(~index=0, t.mold);
-      let (_, slot_r) = Mold.nibs(~index=last, t.mold);
+      let (head_l, _) = Mold.nibs(~index=0, Tile.mold(t));
+      let (_, slot_r) = Mold.nibs(~index=last, Tile.mold(t));
       let slice = (a, b) =>
         ListUtil.split_n(b, subseg) |> fst |> ListUtil.split_n(a) |> snd;
       switch (head_l.shape) {
@@ -732,7 +735,7 @@ let opener_schedule =
       if (Tile.l_shard(t) != 1) {
         None; /* exactly one missing leading shard */
       } else {
-        let (l_nib, r_nib) = Mold.nibs(~index=0, t.mold);
+        let (l_nib, r_nib) = Mold.nibs(~index=0, Tile.mold(t));
         switch (l_nib.shape) {
         | Convex => None
         | Concave(_) =>
@@ -781,7 +784,7 @@ let opener_schedule =
       if (Tile.l_shard(t) != 1) {
         None;
       } else {
-        let opener_text = List.nth(t.label, 0);
+        let opener_text = Tile.token(t, 0);
         /* search the whole span, not just its first piece: the span
            is maximal-left, so with definitions above the broken form
            it starts far away from the witness (deleting the t of a
@@ -791,7 +794,8 @@ let opener_schedule =
           List.init(max(idx - at, 0), k => at + k)
           |> List.filter_map(j =>
                switch (List.nth(subseg, j)) {
-               | Piece.Tile({label: [_], children: [], _}) as pc =>
+               | Piece.Tile({children: [], _} as t) as pc
+                   when Tile.arity(t) == 1 =>
                  Some((j, pc))
                | _ => None
                }
@@ -817,12 +821,12 @@ let opener_schedule =
           candidates
           |> List.filter_map(((j, pc)) =>
                switch (pc) {
-               | Piece.Tile({label: [tok], id, children: [], _})
-                   when
-                     (Token.length(tok) >= 2 || corroborated(j))
-                     && Token.length(tok) < Token.length(opener_text)
-                     && String.sub(opener_text, 0, Token.length(tok)) == tok =>
-                 Some((j, tok, id))
+               | Piece.Tile({id, _} as t) =>
+                 let tok = Tile.token(t, 0);
+                 (Token.length(tok) >= 2 || corroborated(j))
+                 && Token.length(tok) < Token.length(opener_text)
+                 && String.sub(opener_text, 0, Token.length(tok)) == tok
+                   ? Some((j, tok, id)) : None;
                | _ => None
                }
              );
@@ -928,7 +932,7 @@ let insert_openers =
  * so `let f = fun x` completes to `-> ? in ?` (the `in` can't serve
  * as the `->` body). */
 let shard_trailing_hole = (t: Tile.t, shard_idx: int): option(Grout.shape) => {
-  let (_, right_nib) = Mold.nibs(~index=shard_idx, t.mold);
+  let (_, right_nib) = Mold.nibs(~index=shard_idx, Tile.mold(t));
   switch (right_nib.shape) {
   | Concave(_) => Some(Grout.Convex)
   | Convex => None
@@ -960,7 +964,7 @@ let leading_insertions =
                 |> List.map((sh: Tile.t) => {
                      let i = List.hd(sh.shards);
                      {
-                       text: List.nth(t.label, i),
+                       text: Tile.token(t, i),
                        leading_hole: false,
                        trailing_hole: None,
                        typed_len:
@@ -1015,7 +1019,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                      side: aside,
                      delimiters: [
                        {
-                         text: List.nth(t.label, m),
+                         text: Tile.token(t, m),
                          leading_hole: false,
                          trailing_hole: None,
                          typed_len:
@@ -1040,7 +1044,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                        side: Direction.Right,
                        delimiters: [
                          {
-                           text: List.nth(t.label, m),
+                           text: Tile.token(t, m),
                            leading_hole: false,
                            trailing_hole: shard_trailing_hole(t, m),
                            typed_len: None,
@@ -1078,7 +1082,7 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
   let first_content = (sg: Segment.t) =>
     Segment.next_content(~skip=Segment.skip_space, sg, 0) |> Option.map(snd);
   switch (first_content(rest)) {
-  | Some(Tile(t)) when t.mold.out == Sort.Rul => true
+  | Some(Tile(t)) when Tile.mold(t).out == Sort.Rul => true
   /* (c) a line opening with a concave-LEFT piece — an infix or
      postfix operator, a comma, a stranded closer shard — requires a
      left operand from the previous line, so it cannot start anything
@@ -1091,17 +1095,18 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
         | _ => false
         } =>
     true
-  | Some(Tile({label: [tok], children: [], _})) =>
+  | Some(Tile({children: [], _} as t)) when Tile.arity(t) == 1 =>
+    let tok = Tile.token(t, 0);
     incomplete_acc
     |> List.exists((it: Tile.t) => {
          let missing =
-           Tile.missing_shard_indices(it) |> List.map(List.nth(it.label));
+           Tile.missing_shard_indices(it) |> List.map(Tile.token(it));
          missing
          |> List.exists(dt =>
               Token.length(tok) < Token.length(dt)
               && String.sub(dt, 0, Token.length(tok)) == tok
             );
-       })
+       });
   | _ => false
   };
 };
@@ -1273,7 +1278,7 @@ let rule_chain_spans =
         ps
         |> List.for_all((p: Piece.t) =>
              switch (p) {
-             | Tile(t) => t.label == Skel.rule_label && Tile.is_complete(t)
+             | Tile(t) => Tile.is_case_rule(t) && Tile.is_complete(t)
              | _ => false
              }
            );
@@ -1321,8 +1326,7 @@ let splice_at_indices =
 };
 
 let case_wrap_shards = (id: Id.t): (Piece.t, Piece.t) => {
-  let form: Form.t = Form.get(Case);
-  switch (Tile.split_shards(id, form.label, form.mold, [0, 1])) {
+  switch (Tile.split_shards(id, Form.Compound(Case), Sort.Exp, [0, 1])) {
   | [l, r] => (Piece.Tile(l), Piece.Tile(r))
   | _ => failwith("CanonicalCompletion.case_wrap_shards")
   };
@@ -1372,7 +1376,7 @@ type trailing_site =
 
 let find_trailing_site =
     (seg: Segment.t, ~cursor: int, t: Tile.t, i: int): option(trailing_site) => {
-  let (l_nib, r_nib) = Mold.nibs(~index=i, t.mold);
+  let (l_nib, r_nib) = Mold.nibs(~index=i, Tile.mold(t));
   let n = List.length(seg);
   let strong_end =
     if (clippable_sort(l_nib.sort) && cursor < n) {
@@ -1392,7 +1396,7 @@ let find_trailing_site =
       | Piece.Tile(_) => true
       | _ => false,
     );
-  let shard_text = List.nth(t.label, i);
+  let shard_text = Tile.token(t, i);
   /* region includes the frontier piece: an eligible symbolic token
      fires the frontier at its own position */
   let witness_end = min(strong_end + 1, n);
@@ -1489,7 +1493,7 @@ let place_trailing_shards =
      own `end` (Rul slot) absorbs rules as its content. */
   let is_rule_piece = (p: Piece.t): bool =>
     switch (p) {
-    | Tile(t) => t.mold.out == Sort.Rul
+    | Tile(t) => Tile.mold(t).out == Sort.Rul
     | _ => false
     };
   let wall_position = (seg: Segment.t, ~from: int): option(int) => {
@@ -1541,7 +1545,7 @@ let place_trailing_shards =
         @ List.map(
             ((i, _)) =>
               {
-                text: List.nth(t.label, i),
+                text: Tile.token(t, i),
                 leading_hole: false,
                 trailing_hole: shard_trailing_hole(t, i),
                 typed_len: None,
@@ -1555,7 +1559,7 @@ let place_trailing_shards =
       let (seg, ins, agg, abs, _) =
         List.fold_left(
           ((seg, ins, agg, abs, cursor), (i, piece)) => {
-            let (l_nib, r_nib) = Mold.nibs(~index=i, t.mold);
+            let (l_nib, r_nib) = Mold.nibs(~index=i, Tile.mold(t));
             let clip = {
               let sort_clip =
                 clippable_sort(l_nib.sort)
@@ -1602,7 +1606,7 @@ let place_trailing_shards =
                       side: anchor_side,
                       delimiters: [
                         {
-                          text: List.nth(t.label, i),
+                          text: Tile.token(t, i),
                           leading_hole: false,
                           trailing_hole: None,
                           typed_len:
@@ -1634,7 +1638,7 @@ let place_trailing_shards =
                         side: Direction.Right,
                         delimiters: [
                           {
-                            text: List.nth(t.label, i),
+                            text: Tile.token(t, i),
                             leading_hole: false,
                             trailing_hole: None,
                             typed_len: None,
@@ -1681,11 +1685,11 @@ let place_trailing_shards =
                          partition boundary; expression operators and
                          whole forms (a completed if) do not — backing
                          over them severs material for no hole gain */
-                      && tt.label == [";"]
+                      && Tile.is_semi(tt)
                       /* rules are case-content, never severable:
                          mid-entry `case foo |` keeps its end after
                          the growing rule */
-                      && tt.mold.out != Sort.Rul
+                      && Tile.mold(tt).out != Sort.Rul
                       && (
                         switch (snd(Tile.nibs(tt)).shape) {
                         | Concave(_) => true
@@ -1741,7 +1745,7 @@ let place_trailing_shards =
                           side: Direction.Right,
                           delimiters: [
                             {
-                              text: List.nth(t.label, i),
+                              text: Tile.token(t, i),
                               leading_hole: false,
                               trailing_hole: None,
                               typed_len: None,
@@ -1760,7 +1764,7 @@ let place_trailing_shards =
                     agg
                     @ [
                       {
-                        text: List.nth(t.label, i),
+                        text: Tile.token(t, i),
                         leading_hole: false,
                         trailing_hole: shard_trailing_hole(t, i),
                         typed_len: None,
@@ -1823,7 +1827,7 @@ let verify_holes =
     | None => None
     | Some((sg, i, t)) =>
       let probe =
-        k >= List.length(t.label) - 1
+        k >= Tile.arity(t) - 1
           ? first_content(ListUtil.split_n(i + 1, sg) |> snd)
           : Option.bind(List.nth_opt(t.children, k), ch => first_content(ch));
       switch (probe) {
@@ -1894,9 +1898,7 @@ let rec complete_segment =
             same rules would double-complete (two cases + stray
             end). The wrap machinery is for TRULY orphaned rules
             (case AND end both gone). */
-         let case_label = Form.get(Case).label;
-         let has_incomplete_case =
-           List.exists((t: Tile.t) => t.label == case_label, incomplete);
+         let has_incomplete_case = List.exists(Tile.is_case, incomplete);
          (
            subseg,
            incomplete,
@@ -2202,7 +2204,7 @@ let rec complete_segment =
           | None => true
           | Some(t) =>
             right
-              ? List.mem(List.length(t.label) - 1, t.shards)
+              ? List.mem(Tile.arity(t) - 1, t.shards)
               : List.mem(0, t.shards)
           };
         let measurable = (~right: bool, id: Id.t) =>
@@ -2558,7 +2560,7 @@ let derive_insertions =
                       }
                     : None;
                 Some({
-                  text: List.nth(t.label, i),
+                  text: Tile.token(t, i),
                   trailing_hole,
                   leading_hole:
                     j > a
