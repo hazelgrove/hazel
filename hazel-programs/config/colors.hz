@@ -24,6 +24,7 @@ type ColorOverrides = ^^fold((
   `menu-hover` = ColorValue,
   `chrome-background` = ColorValue,
   `chrome-heading` = ColorValue,
+  `chrome-muted-text` = ColorValue,
   `editor-cell` = ColorValue,
   # the sort plate's chroma factor, and the lightness it is pinned to #
   `cursor-tint` = Float, `cursor-level` = Float,
@@ -91,6 +92,7 @@ let sort_plate(c) =
     chrome = (
       `background` = role.`chrome-background`,
       `heading` = role.`chrome-heading`,
+      `muted-text` = role.`chrome-muted-text`,
       `meter` = wash(p.`pattern`, 0.87, 1.),
       # the zebra stripe deliberately stays on `surface-2`: a fraction #
       # of a longer axis is a bigger step, right for a hover and wrong #
@@ -202,6 +204,7 @@ let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `menu-hover` = p.`code-background`,
   `chrome-background` = p.`surface-1`,
   `chrome-heading` = p.`frame-3`,
+  `chrome-muted-text` = p.`frame-2`,
   `editor-cell` = p.`code-background`,
   `cursor-tint` = 0.25,
   `cursor-level` = 95.,
@@ -276,6 +279,9 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `menu-hover` = color_with_lightness(p.`code-background`, 95.),
   `chrome-background` = p.`surface-2`,
   `chrome-heading` = p.`frame-4`,
+  # frame-2 and frame-3 sit at 40 and 55 here, both too close to the #
+  # surface to read as text; muted is the ramp lifted, not stepped. #
+  `chrome-muted-text` = color_with_lightness(p.`frame-3`, 66.),
   `editor-cell` =
   color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
   `cursor-tint` = 0.3333,
@@ -442,6 +448,7 @@ let contrast_dark = ^^fold(let p = palette_of(
     `contrast` = true,
     `menu-hover` = color_with_lightness(p.`code-background`, 22.),
     `editor-cell` = color_with_lightness(p.`code-background`, 14.),
+    `chrome-muted-text` = p.`frame-2`,
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
     `step-next-level` = 27.,

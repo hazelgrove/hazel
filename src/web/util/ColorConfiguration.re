@@ -135,7 +135,6 @@ let aliases: list(((string, string), list(string))) = [
       "test-indet",
       "border-default",
       "surface-shard-strong",
-      "text-muted",
     ],
   ),
   (
@@ -250,6 +249,7 @@ let aliases: list(((string, string), list(string))) = [
   (("menu", "hover"), ["menu-item-hover-bkg", "light-page-color"]),
   (("chrome", "background"), ["ui-bkg"]),
   (("chrome", "heading"), ["ui-header-text"]),
+  (("chrome", "muted-text"), ["text-muted"]),
   (("chrome", "meter"), ["context-meter-fill"]),
   (("chrome", "table-row-hover"), ["df-hover-bg"]),
   (("editor", "cell"), ["cell-active"]),

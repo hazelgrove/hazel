@@ -128,7 +128,10 @@ let palette: list(string) = seeds @ derived;
    instead. */
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
-  ("chrome", ["background", "heading", "meter", "table-row-hover"]),
+  (
+    "chrome",
+    ["background", "heading", "muted-text", "meter", "table-row-hover"],
+  ),
   (
     "editor",
     [
