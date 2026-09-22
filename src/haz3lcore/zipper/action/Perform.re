@@ -26,6 +26,9 @@ let go =
   let maybe_reassoc_thorough =
     settings.deep_reassociate ? Reassociate.go_thorough : Fun.id;
   switch (a) {
+  | RenameVariable(binding_id, new_name) =>
+    Rename.go(binding_id, new_name, statics.info_map, z)
+    |> return(CantRename)
   | Introduce =>
     Select.current_term(
       syntax.term_data,

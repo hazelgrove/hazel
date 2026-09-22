@@ -12,6 +12,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Perform(Action.t)
+    | PromptRename
     | TAB
     | ContextMenu(ContextMenu.Model.action)
     | DebugConsole(string);
@@ -76,6 +77,7 @@ module Update = {
              | PrettyPrint
              | Probe(StepInto(_))
              | Dump
+             | RenameVariable(_, _)
              | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
@@ -85,6 +87,36 @@ module Update = {
            },
          );
     switch (action) {
+    | PromptRename =>
+      let z = model.editor.state.zipper;
+      let info_map = model.statics.info_map;
+
+      switch (Rename.target(z, info_map)) {
+      | None => model |> Updated.return_quiet
+      | Some((binding_id, old_name)) =>
+        let rec ask = message =>
+          switch (JsUtil.prompt(message, old_name)) {
+          | None => model |> Updated.return_quiet
+          | Some(new_name) =>
+            if (String.equal(new_name, old_name)) {
+              model |> Updated.return_quiet;
+            } else if (!Rename.valid_name(new_name)) {
+              ask("Invalid variable name. Enter a different name:");
+            } else {
+              switch (Rename.name_conflicts(binding_id, new_name, info_map)) {
+              | Some(false) =>
+                perform(RenameVariable(binding_id, new_name), model)
+              | Some(true) =>
+                ask(
+                  "That name already occurs in this binding's scope. Enter a different name:",
+                )
+              | None => model |> Updated.return_quiet
+              };
+            }
+          };
+
+        ask("Enter new variable name:");
+      };
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
@@ -330,6 +362,8 @@ module Selection = {
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
+    | {key: D("F2"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
+      Some(Update.PromptRename) /* F2 opens the variable rename prompt. */
     | {
         key: D("Enter"),
         sys: Mac,

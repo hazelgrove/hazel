@@ -137,6 +137,7 @@ type probe =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
+  | RenameVariable(Id.t, string)
   | Buffer(buffer)
   | Paste(paste)
   | Copy
@@ -168,6 +169,7 @@ module Failure = {
     | CantReparse
     | CantAccept
     | CantIntroduce
+    | CantRename
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
 
@@ -181,6 +183,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | RenameVariable(_, _)
   | Paste(_)
   | Cut
   | Reparse
@@ -220,6 +223,7 @@ let is_historic: t => bool =
   | Move(_)
   | Select(_)
   | Unselect(_) => false
+  | RenameVariable(_, _)
   | Cut
   | Buffer(Accept | Clear | Set(_))
   | Paste(_)
@@ -258,6 +262,7 @@ let should_animate: t => bool =
     | ToggleFocus
     | SetFocus(_) => true
     }
+  | RenameVariable(_, _)
   | Unselect(_)
   | Paste(_)
   | Cut

@@ -28,6 +28,7 @@ module Update = {
 
   let convert_action: CodeEditable.Update.t => option(t) =
     fun
+    | Perform(RenameVariable(_, _)) => None
     // These actions are allowed in a CodeSelectable
     | Perform(Move(move)) => Some(Move(move))
     | Perform(Select(select)) => Some(Select(select))
@@ -48,6 +49,7 @@ module Update = {
       )
     | DebugConsole(_)
     | ContextMenu(_)
+    | PromptRename
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;
