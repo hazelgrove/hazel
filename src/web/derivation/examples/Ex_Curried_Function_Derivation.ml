@@ -17,7 +17,7 @@ let exercise : DerivationExercise.spec =
              42b8e844-b468-4b26-b6e0-dae13ea4cfdd)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = "";
         };
@@ -94,7 +94,7 @@ let exercise : DerivationExercise.spec =
              4b9328bc-5f8b-4a5b-ad6e-24e77283fe10)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
             "let $ctx_a = of_ctx (a : Num)::[] end in\n\
@@ -131,7 +131,7 @@ let exercise : DerivationExercise.spec =
                          f7982761-dd07-4f7c-9645-5765ea94f8bc)(form(Tok \
                          Num))(sort(Drv Typ)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "$ctx_ab |- a : Num";
                     };
@@ -166,7 +166,7 @@ let exercise : DerivationExercise.spec =
                          d6466a4b-8bf5-4f12-9f59-5d7bd6ee1e63)(form(Tok \
                          Num))(sort(Drv Typ)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "$ctx_ab |- b : Num";
                     };
@@ -279,7 +279,7 @@ let exercise : DerivationExercise.spec =
                          70eaae77-3061-4950-9b99-e176db51b5b3)(form(Tok \
                          Num))(sort(Drv Typ)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "|- (fun a : Num -> fun b : Num -> if a < b then a \
@@ -372,7 +372,7 @@ let exercise : DerivationExercise.spec =
                                Num))(sort(Drv \
                                Typ)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text =
                               "$ctx_a |- (fun b : Num -> if a < b then a else \
@@ -438,7 +438,7 @@ let exercise : DerivationExercise.spec =
                                      Num))(sort(Drv \
                                      Typ)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text =
                                     "$ctx_ab |- (if a < b then a else b) : Num";
@@ -492,7 +492,7 @@ let exercise : DerivationExercise.spec =
                                            Bool))(sort(Drv \
                                            Typ)))))()))(ancestors())))(caret \
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                           -1)(pinned_stack())(indicated_call())(time())(seq \
+                                           -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
                                           "$ctx_ab |- (a < b) : Bool";
