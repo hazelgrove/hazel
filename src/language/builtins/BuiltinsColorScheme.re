@@ -130,7 +130,14 @@ let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   (
     "chrome",
-    ["background", "heading", "muted-text", "meter", "table-row-hover"],
+    [
+      "background",
+      "heading",
+      "muted-text",
+      "toggle-track",
+      "meter",
+      "table-row-hover",
+    ],
   ),
   (
     "editor",

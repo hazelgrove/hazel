@@ -236,6 +236,7 @@
   --textarea-text: oklch(60% 0.07 90);
   --textarea-v-stripe: color-mix(in oklch, oklch(78% 0.14 6) 55%, transparent);
   --toggle-knob: oklch(99% 0.012 90);
+  --toggle-track: oklch(60% 0.07 90);
   --token-any: oklch(40% 0.3 30);
   --token-buffer: oklch(85% 0.07 90);
   --token-comment: oklch(80% 0.05 150);

@@ -250,6 +250,7 @@ let aliases: list(((string, string), list(string))) = [
   (("chrome", "background"), ["ui-bkg"]),
   (("chrome", "heading"), ["ui-header-text"]),
   (("chrome", "muted-text"), ["text-muted"]),
+  (("chrome", "toggle-track"), ["toggle-track"]),
   (("chrome", "meter"), ["context-meter-fill"]),
   (("chrome", "table-row-hover"), ["df-hover-bg"]),
   (("editor", "cell"), ["cell-active"]),
