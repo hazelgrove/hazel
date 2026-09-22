@@ -99,25 +99,23 @@ let table =
          )
        );
   let renameable = renameable_labels(info.syntax);
+  /* Renameable columns get an input; the rest get a span. Both carry
+     `.column-label`, the class the stylesheet hangs header typography
+     off -- a bare <th> inherits whatever colour is going, which in dark
+     was the muted code colour, 22 points of lightness off the header's
+     own fill. header_input applies the class itself (plus
+     `.column-label-input`), so only the static side adds it here. */
   let header_cell = (h: string): Node.t =>
     List.mem(h, renameable)
-      ? Node.th([header_input(info, ~parent, h)]) : Node.th([Node.text(h)]);
+      ? Node.th([header_input(info, ~parent, h)])
+      : Node.th([
+          Node.span(
+            ~attrs=[Attr.classes(["column-label"])],
+            [Node.text(h)],
+          ),
+        ]);
   table_view(
-    /* Same shape as TableRenderer's headers, `.column-label` included: the
-       stylesheet hangs header typography off that class, so a bare <th> gets
-       whatever color it happens to inherit -- which in dark was the muted
-       code color, 22 points of lightness off the header's own fill. */
-    ~header_cells=
-      List.map(
-        h =>
-          Node.th([
-            Node.span(
-              ~attrs=[Attr.classes(["column-label"])],
-              [Node.text(h)],
-            ),
-          ]),
-        headers,
-      ),
+    ~header_cells=List.map(header_cell, headers),
     ~rows=List.map(row_cells(info.utility, view_seg, ~splice_cell), rows),
   );
 };

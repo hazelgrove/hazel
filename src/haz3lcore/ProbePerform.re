@@ -1,7 +1,13 @@
 open Util;
 open OptUtil.Syntax;
 open Language;
-open ProbeTargets;
+/* No `open ProbeTargets`: the split that created that module left this
+   one holding its own copies of target_subterm_ids, probe_status,
+   ids_from_term and sort_ids_lexically, which shadow it entirely. The
+   two sets have already drifted apart -- ProbeTargets.target_subterm_ids
+   takes ~drill_let and this file's does not -- so they are not
+   interchangeable, and the open was dead weight that release builds
+   reject. */
 
 module FocusEffect = {
   /* Scheduled focus for probe or editor elements after step-into.
