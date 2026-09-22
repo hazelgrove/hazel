@@ -39,6 +39,7 @@ STYLE = os.path.join(ROOT, 'style')
 VARIABLES = os.path.join(STYLE, 'variables.css')
 GENERATED = os.path.join(STYLE, 'theme-generated.css')
 CONFIG = 'src/language/builtins/BuiltinsColorScheme.re'
+SRC = 'src'
 
 # Pre-existing dangling references, inherited not introduced. Fixing one is a
 # VISUAL change (an invalid var() makes the whole declaration drop), so it
@@ -47,7 +48,7 @@ CONFIG = 'src/language/builtins/BuiltinsColorScheme.re'
 KNOWN_DANGLING = {
     'BLUE', 'G5', 'GREEN', 'R4', 'RED', 'TXT2', 'UI-Background', 'YELLOW',
     'font-mono', 'light-text-color', 'main-text-color', 'mono-font',
-    'row-height-px', 'shard-label', 'text-disabled', 'text-primary', 'ui-text',
+    'shard-label', 'text-disabled', 'text-primary', 'ui-text',
 }
 
 strip = lambda s: re.sub(r'/\*.*?\*/', '', s, flags=re.S)
@@ -78,6 +79,23 @@ def theme_owned():
                  'run `make update-css-defaults`')
     src = io.open(GENERATED, encoding='utf-8').read()
     return set(re.findall(r'--([\w-]+)\s*:', src))
+
+
+def runtime_declared():
+    """Names set on an element from OCaml rather than written in a stylesheet.
+    They are declared, just not where rule 3 can see it, so reading the call
+    sites is what keeps a measured value like --main-scroll-width from looking
+    dangling. Only literal names count: the theme's own are passed as `"--" ++
+    var` and reach this lint through theme-generated.css instead."""
+    names = set()
+    for dp, _, ns in os.walk(SRC):
+        for n in ns:
+            if not n.endswith(('.re', '.rei')):
+                continue
+            src = strip(io.open(os.path.join(dp, n), encoding='utf-8').read())
+            names |= set(re.findall(
+                r'set_css_(?:custom_property|variable)\(\s*"--([\w-]+)"', src))
+    return names
 
 
 def css_files():
@@ -135,7 +153,7 @@ def main():
                         'belongs in theme-generated.css')
 
     # 3. No NEW dangling references.
-    dangling = {n for n in used if n not in defined}
+    dangling = {n for n in used if n not in defined | runtime_declared()}
     for n in sorted(dangling - KNOWN_DANGLING):
         where = sorted(os.path.basename(x) for x in used[n])
         problems.append(f'dangling var(--{n}) in {where}: defined nowhere')
