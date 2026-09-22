@@ -8,6 +8,7 @@ open Language;
 let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
   ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
   show_unknown_as_hole: false,
+  use_literal_lexemes: false,
   hole_tiles: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
