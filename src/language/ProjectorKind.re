@@ -28,6 +28,7 @@ type t =
   | Csv
   | Graph
   | ObservablePlot
+  | Patchwork
   | Exo(exo);
 
 let livelit_projectors: list(t) =
@@ -45,7 +46,8 @@ let livelit_projectors: list(t) =
   @ List.map(x => Exo(x), all_of_exo);
 
 /* Note: Probe intentionally excluded - probes use separate action path */
-let projectors: list(t) = livelit_projectors @ [Fold, Graph, ObservablePlot];
+let projectors: list(t) =
+  livelit_projectors @ [Fold, Graph, ObservablePlot, Patchwork];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
@@ -69,6 +71,7 @@ let name = (p: t): string =>
   | Csv => "csv"
   | Graph => "graph"
   | ObservablePlot => "ObservablePlot"
+  | Patchwork => "Patchwork"
   | Exo(exo_kind) => show_exo(exo_kind)
   };
 

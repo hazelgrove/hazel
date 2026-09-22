@@ -267,7 +267,9 @@ let listener = (event: _) => {
     | Some(entry) => dispatch(msg, entry)
     | None => prerr_endline("listener: projector not found")
     }
-  | None => prerr_endline("listener: invalid message format")
+  | None =>
+    //prerr_endline("listener: invalid message format")
+    ()
   };
   Js._true;
 };
