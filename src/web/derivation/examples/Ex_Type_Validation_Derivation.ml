@@ -100,8 +100,8 @@ let exercise : DerivationExercise.spec =
                   jdmt =
                     {
                       zipper =
-                        "((selection((focus Left)(content())(mode \
-                         Normal)(anchor_caret Outer)(smart_rounded \
+                        "((selection((focus Left)(content())(anchor_caret \
+                         Outer)(smart_rounded \
                          false)))(relatives((siblings(((Tile((id \
                          4ef3992d-3603-49ed-a720-7cda9d1eeb25)(form(Tok \
                          $delta))(sort(Drv Exp))))(Secondary((id \
@@ -165,8 +165,9 @@ let exercise : DerivationExercise.spec =
                         jdmt =
                           {
                             zipper =
-                              "((selection((focus Left)(content())(mode \
-                               Normal)(anchor_caret Outer)(smart_rounded \
+                              "((selection((focus \
+                               Left)(content())(anchor_caret \
+                               Outer)(smart_rounded \
                                false)))(relatives((siblings(((Tile((id \
                                c22ea463-7fbc-48b5-94c1-356af6bdf567)(form(Tok \
                                $delta))(sort(Drv Exp))))(Secondary((id \
@@ -199,8 +200,9 @@ let exercise : DerivationExercise.spec =
                         jdmt =
                           {
                             zipper =
-                              "((selection((focus Left)(content())(mode \
-                               Normal)(anchor_caret Outer)(smart_rounded \
+                              "((selection((focus \
+                               Left)(content())(anchor_caret \
+                               Outer)(smart_rounded \
                                false)))(relatives((siblings(((Tile((id \
                                f4ed0ea8-9dde-4c62-8e35-8b131f4fe3bd)(form(Tok \
                                $delta'))(sort(Drv Exp))))(Secondary((id \
