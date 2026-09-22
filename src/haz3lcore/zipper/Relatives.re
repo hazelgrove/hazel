@@ -114,25 +114,27 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
         r.sort;
       };
     };
-    switch (Form.Molds.try_get(sort, a.label)) {
-    | None
-    | Some([_]) => [(a, sibs), ...rest]
-    | Some(molds) =>
+    switch (Form.remold_candidates(Ancestor.label(a), sort)) {
+    | []
+    | [_] => [(a, sibs), ...rest]
+    | forms =>
       let (pre, _) = sibs;
       let (_, left_shape, _) =
         Segment.shape_affix(Left, pre, Nib.Shape.concave());
       let l_idx = Ancestor.l_shard(a);
       let a =
         switch (
-          molds
-          |> List.filter(mold => {
-               let (l_nib, _) = Mold.nibs(~index=l_idx, mold);
+          forms
+          |> List.filter(((form, sort)) => {
+               let (l_nib, _) =
+                 Mold.nibs(~index=l_idx, Form.mold_of(form, sort));
                Nib.Shape.fits(left_shape, Nib.shape(l_nib));
              })
         ) {
-        | [mold, ..._] => {
+        | [(form, sort), ..._] => {
             ...a,
-            mold,
+            form,
+            sort,
           }
         | [] => a
         };

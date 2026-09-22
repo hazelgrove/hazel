@@ -813,8 +813,8 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
            "S:" ++ Language.Secondary.show_secondary_content(w.content)
          | Tile(t) =>
            "T:"
-           ++ String.concat("`", t.label)
-           ++ Mold.show(t.mold)
+           ++ String.concat("`", Tile.label(t))
+           ++ Mold.show(Tile.mold(t))
            ++ String.concat(",", List.map(string_of_int, t.shards))
            ++ "["
            ++ String.concat(";", List.map(skeleton, t.children))

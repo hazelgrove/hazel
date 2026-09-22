@@ -92,7 +92,7 @@ let render =
          | Secondary(w) => Secondary.get_string(w.content)
          | Tile(t) =>
            Aba.mk(t.shards, t.children)
-           |> Aba.join(i => List.nth(t.label, i), go)
+           |> Aba.join(i => Tile.token(t, i), go)
            |> String.concat("")
          | Projector(pr) => go(projector_to_segment(pr))
          }

@@ -66,14 +66,14 @@ let ancestor_bounds =
     let l =
       switch (ListUtil.last_opt(pre)) {
       | Some(i) =>
-        let (_, r) = Mold.nibs(~index=i, a.mold);
+        let (_, r) = Mold.nibs(~index=i, Ancestor.mold(a));
         Some(r.shape);
       | None => None
       };
     let r =
       switch (ListUtil.hd_opt(suf)) {
       | Some(i) =>
-        let (l, _) = Mold.nibs(~index=i, a.mold);
+        let (l, _) = Mold.nibs(~index=i, Ancestor.mold(a));
         Some(l.shape);
       | None => None
       };

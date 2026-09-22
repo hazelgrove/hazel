@@ -704,7 +704,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         )
       // Binary operations
       | BinOp(op, e1, e2) =>
-        let op_str = Operators.bin_op_to_string(op);
+        let op_str = FormId.bin_op_to_string(op);
         /* Display cost: " op " = op_len + 2 spaces */
         let op_cost = String.length(op_str) + 2;
 

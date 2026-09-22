@@ -95,14 +95,14 @@ let rec atoms = (seg: segment): list(atom) =>
       | Secondary(w) when Secondary.is_linebreak(w) => [Break]
       | Secondary(w) => [content(Secondary.get_string(w.content))]
       | Tile(t) =>
-        let prefix_op = Mold.is_prefix_op(t.mold);
+        let prefix_op = Mold.is_prefix_op(Tile.mold(t));
         Aba.mk(t.shards, t.children)
         |> Aba.join(
              i =>
                [
                  content(
                    ~prefix_op,
-                   switch (List.nth_opt(t.label, i)) {
+                   switch (List.nth_opt(Tile.label(t), i)) {
                    | Some(tok) => tok
                    | None => ""
                    },

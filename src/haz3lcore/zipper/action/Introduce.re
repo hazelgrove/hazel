@@ -212,7 +212,11 @@ module Make =
   let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
     let parent = Ancestors.parent(z.relatives.ancestors);
-    Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
+    Option.fold(
+      ~none=false,
+      ~some=(a: Ancestor.t) => Form.has_label_of(a.form, Parens),
+      parent,
+    )
     && sibs
     |> (((l, r)) => l @ r)
     /* 1 = a material (user-typed ?) hole piece; 0 = a derived hole's
@@ -231,8 +235,8 @@ module Make =
         | Grout({id, shape: Convex}) =>
           Piece.Tile({
             id,
-            label: [Token.explicit_hole],
-            mold: Mold.mk_op(Sort.Any, []),
+            form: Tok(Token.explicit_hole),
+            sort: Sort.Any,
             shards: [0],
             children: [],
           })

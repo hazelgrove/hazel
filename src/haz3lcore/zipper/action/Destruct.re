@@ -8,7 +8,7 @@ open OptUtil.Syntax;
 let capture = (z): t => {
   let junk_id =
     switch (z.selection.content) {
-    | [Tile(t)] when List.length(t.label) == 1 => Some(t.id)
+    | [Tile(t)] when Tile.arity(t) == 1 => Some(t.id)
     | [Tile(t)]
         when
           List.length(Tile.effective_label(t)) == 1

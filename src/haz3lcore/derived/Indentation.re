@@ -64,9 +64,6 @@ let compute_context =
   go([], seg, None);
 };
 
-/* Check if a tile is a case rule (label is ["|", "=>"]) */
-let is_case_rule_tile = (t: Tile.t): bool => t.label == ["|", "=>"];
-
 /* This does not strictly 'complete' a segment but rather does a
  * rough version of it that suffices for indentation calculation.
  * Tail-recursive in segment length (recursion depth is bounded by
@@ -81,11 +78,11 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
   let rec go = (acc, seg: Segment.t): Segment.t =>
     switch (seg) {
     | [] => List.rev(acc)
-    | [Tile(t), ...rest] when !Tile.is_complete(t) && !is_case_rule_tile(t) =>
+    | [Tile(t), ...rest] when !Tile.is_complete(t) && !Tile.is_case_rule(t) =>
       List.rev([
         Piece.Tile({
           ...t,
-          shards: List.init(List.length(t.label), i => i),
+          shards: List.init(Tile.arity(t), i => i),
           children: t.children @ [shallow_complete_segment(rest)],
           /* Note: Potentially wrong number of children */
         }),
@@ -152,23 +149,11 @@ let complete_segment = (seg: Segment.t): Segment.t => {
   };
 };
 
-let is_comma = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => t.label == [","]
-  | _ => false
-  };
-
-let is_case_rule = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-
 /* An incomplete case rule is just the `|` without the `=>`.
  * This has shards [0] instead of [0, 1]. */
 let is_incomplete_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|", "=>"], shards, _}) => shards == [0]
+  | Tile(t) when Tile.is_case_rule(t) => t.shards == [0]
   | _ => false
   };
 
@@ -187,7 +172,7 @@ let has_content = (seg: Segment.t): bool =>
  * we expect the next rule at the same level, not more body content. */
 let is_complete_case_rule_with_body = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|", "=>"], shards, children, _}) =>
+  | Tile({shards, children, _} as t) when Tile.is_case_rule(t) =>
     /* Complete = has both shards [0, 1] */
     shards == [0, 1]
     /* Body is children[1], check if it has content */
@@ -203,12 +188,6 @@ let is_convex_grout = (p: Piece.t): bool =>
   | _ => false
   };
 
-let ends_with_in = (t: Tile.t): bool =>
-  switch (t.label |> List.rev) {
-  | ["in", ..._] => true
-  | _ => false
-  };
-
 /* Linebreaks following these tiles should increment the indent. Basically
  * any non-infix-operator tiles which are concave on the right, except
  * for definition forms */
@@ -216,8 +195,8 @@ let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
     switch (Tile.shapes(t)) {
-    | _ when ends_with_in(t) => false
-    | (_, Concave(_)) when List.length(t.label) >= 2 => true
+    | _ when Tile.ends_with_in(t) => false
+    | (_, Concave(_)) when Tile.is_multidelimiter(t) => true
     | _ => false
     }
   | _ => false
@@ -260,8 +239,8 @@ let rec go =
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let indent =
             switch (prev, next) {
-            | (_, Some(next)) when is_comma(next) => base + 2
-            | (Some(prev), _) when is_comma(prev) => base + 2
+            | (_, Some(next)) when Piece.is_comma(next) => base + 2
+            | (Some(prev), _) when Piece.is_comma(prev) => base + 2
             /* Incomplete case rules (just `|`) shouldn't increment.
              * An incomplete `|` is Concave on right, so would match
              * is_incrementor without this check. */
@@ -283,8 +262,11 @@ let rec go =
               prev_is_lb ? level : level + 2
             | (None, _) when not_top => base + 2
             /* Check effective_next (skipping linebreaks) for case rule */
-            | _ when Option.map(is_case_rule, effective_next) == Some(true) => base
-            | (_, Some(next)) when is_case_rule(next) => base
+            | _
+                when
+                  Option.map(Piece.is_case_rule, effective_next)
+                  == Some(true) => base
+            | (_, Some(next)) when Piece.is_case_rule(next) => base
             | (_, None) => base
             /* If next is linebreak but eff_next is None, effectively at end */
             | _ when effective_next == None => base

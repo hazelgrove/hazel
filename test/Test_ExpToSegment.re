@@ -76,8 +76,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["1"],
-              mold: Mold.mk_op(Exp, []),
+              // Tok("1") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["1"])),
+              sort: snd(Form.classify_label(Exp, ["1"])),
               shards: [0],
               children: [],
             }),
@@ -90,8 +91,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["\"hello\""],
-              mold: Mold.mk_op(Exp, []),
+              // Tok(string) at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["\"hello\""])),
+              sort: snd(Form.classify_label(Exp, ["\"hello\""])),
               shards: [0],
               children: [],
             }),
@@ -152,8 +154,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["()"],
-              mold: Mold.mk_op(Exp, []),
+              // Tok("()") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["()"])),
+              sort: snd(Form.classify_label(Exp, ["()"])),
               shards: [0],
               children: [],
             }),
@@ -629,7 +632,7 @@ let rec tile_ids = (seg: Segment.t): list(string) =>
   |> List.concat_map((p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
-         [List.nth(t.label, 0) ++ ":" ++ Id.to_string(t.id)]
+         [Tile.token(t, 0) ++ ":" ++ Id.to_string(t.id)]
          @ List.concat_map(tile_ids, t.children)
        | Secondary(_)
        | Grout(_) => []

@@ -62,7 +62,7 @@ let visible_atoms =
         | Tile(t) =>
           let shards =
             Measured.find_shards(t, m)
-            |> List.map(((i, meas)) => (meas, List.nth(t.label, i)));
+            |> List.map(((i, meas)) => (meas, Tile.token(t, i)));
           shards @ List.concat_map(go, t.children);
         | Projector(_) => []
         },
