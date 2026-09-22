@@ -84,10 +84,11 @@ let utf8_2 = ['\195'-'\223'] cont | '\194' (cont # ['\191'])
 let utf8_4 = ['\240'-'\244'] cont cont cont
 let utf8_3 =
     (['\224'-'\239'] # ['\226']) cont cont
-  | '\226' (cont # ['\136' '\137' '\138']) cont
+  | '\226' (cont # ['\136' '\137' '\138' '\167']) cont
   | '\226' '\136' (cont # ['\136'])
   | '\226' '\137' (cont # ['\160' '\174' '\175'])
   | '\226' '\138' (cont # ['\134'])
+  | '\226' '\167' (cont # ['\150'])
 let nonascii = utf8_2 | utf8_3 | utf8_4
 let name_start = ['a'-'z' '_'] | nonascii
 let name_rest = ['a'-'z' 'A'-'Z' '0'-'9' '_'] | nonascii
@@ -200,6 +201,7 @@ rule token =
     | "@" {AT_SYMBOL}
     | "?" {QUESTION}
     | "\xc2\xbf" {QUESTION} (* ¿ implicit-hole marker (TextRoundtrip) *)
+    | "\xe2\xa7\x96" {CONCAVE_HOLE} (* ⧖ concave-grout marker: an OPERATOR hole *)
     | "_" {WILD}
     | "use" {USE}
     | "fix" {FIX}

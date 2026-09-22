@@ -1,31 +1,36 @@
-/* BOTH halves of the `¿` convention: Grout (the editor's implicit
+/* BOTH halves of the marker convention: Grout (the editor's implicit
    holes) has no textual form, so [to_text] renders it with a marker
    token, and [of_text] turns marked text back into real Grout.
 
-   The default marker is `¿` (U+00BF): a single non-identifier,
-   non-operator character wired as an `ImplicitHoleMarker` atomic form
-   (see `Form.re` / `Token.re`) so it tokenises in isolation — it
-   doesn't glue with adjacent keywords (`in¿` reads as `in`, `¿`) or
-   operators (`¿,` reads as `¿`, `,`) — and stays distinct from the
-   parser's `?` empty-hole token, so explicit user-typed `?` tiles
-   round-trip distinct from implicit Grout.
+   The default marker for convex grout is `¿` (U+00BF): a single
+   non-identifier, non-operator character wired as an
+   `ImplicitHoleMarker` atomic form (see `Form.re` / `Token.re`) so it
+   tokenises in isolation — it doesn't glue with adjacent keywords
+   (`in¿` reads as `in`, `¿`) or operators (`¿,` reads as `¿`, `,`) —
+   and stays distinct from the parser's `?` empty-hole token, so
+   explicit user-typed `?` tiles round-trip distinct from implicit
+   Grout. Concave grout is an OPERATOR hole and gets its own marker,
+   `Token.concave_hole_marker` (`⧖`), so printed text is unambiguous
+   and fast-parseable (`1 ¿ 2` lexes as three operands and rejects;
+   `1 ⧖ 2` parses).
 
-   Reparsing marked text yields literal `¿` TILES, which the original
-   program never had. [of_text] parses, then swaps each marker tile for
-   a Grout piece in place. (It used to Destruct the tile and let the
-   edit-time regrout put Grout back, but that only recovers a hole
-   where regrout independently wants one: `[¿]` came back as `[]`,
-   #2518.) This is the RECOVERING-PARSER half: the fast path reads the
-   same markers structurally during its weave (see FastParse), but the
-   recovering parser has no notion of `¿`, and incomplete programs —
-   the grout-heavy ones — are exactly what falls back to it. Sits
-   below PersistentZipper so persistence loading can fall back to it. */
+   Reparsing marked text yields literal marker TILES, which the
+   original program never had. [of_text] parses, then swaps each marker
+   tile for a Grout piece in place: `¿` for convex, `⧖` for concave.
+   (It used to Destruct the tiles and let the edit-time regrout put
+   Grout back, but that only recovers a hole where regrout
+   independently wants one: `[¿]` came back as `[]`, #2518.) This is
+   the RECOVERING-PARSER half: the fast path reads the same markers
+   structurally during its weave (see FastParse), but the recovering
+   parser has no notion of the markers, and incomplete programs — the
+   grout-heavy ones — are exactly what falls back to it. Sits below
+   PersistentZipper so persistence loading can fall back to it. */
 open Base;
 
 let default_implicit_hole = Token.implicit_hole_marker;
 
 /* The PRINT half: parseable Hazel source with Grout rendered as the
-   marker. Projectors are unfolded to trigger syntax (`^^fold(body)`)
+   markers. Projectors are unfolded to trigger syntax (`^^fold(body)`)
    by `Triggers.projector_to_invoke`, which `Printer.of_segment` uses
    by default; the parsers reconstruct the wrapper from that syntax.
    `~indent=""` keeps the output minimal: Printer would otherwise
@@ -35,7 +40,7 @@ let seg_to_text =
     (~implicit_hole=default_implicit_hole, ~refractors=[], segment): string =>
   Printer.of_segment(
     ~holes=implicit_hole,
-    ~concave_holes=implicit_hole,
+    ~concave_holes=Token.concave_hole_marker,
     ~indent="",
     ~refractors,
     segment,
@@ -48,14 +53,16 @@ let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
     Zipper.unselect_and_zip(~erase_buffer=true, z),
   );
 
-/* Swap every marker tile for a convex Grout with the same id. A label
-   check, not a form match: the marker is caller-configurable (CLI
-   --implicit-hole), and a non-default marker classifies as whatever
-   form its token spells. Projector contents are not entered: markers
-   inside projector syntax (`^^fold(¿)`) are a KNOWN GAP (#2455) — the
-   fast path handles those (its weave maps ¿ to Grout before
-   materializing the projector), so only a slow-path load of a
-   projector-wrapped hole leaves a literal ¿ tile inside. */
+/* Swap every marker tile for a Grout with the same id: the convex
+   marker for a convex hole, the concave marker for an operator hole.
+   A label check, not a form match: the convex marker is
+   caller-configurable (CLI --implicit-hole), and a non-default marker
+   classifies as whatever form its token spells. Projector contents are
+   not entered: markers inside projector syntax (`^^fold(¿)`) are a
+   KNOWN GAP (#2455) — the fast path handles those (its weave maps
+   markers to Grout before materializing the projector), so only a
+   slow-path load of a projector-wrapped hole leaves a literal marker
+   tile inside. */
 let replace_markers = (~implicit_hole: string, seg: Segment.t): Segment.t =>
   List.map(
     Base.map_piece(~f_piece=(rec_call, p: piece) =>
@@ -64,6 +71,11 @@ let replace_markers = (~implicit_hole: string, seg: Segment.t): Segment.t =>
         Grout({
           id: t.id,
           shape: Convex,
+        })
+      | Tile(t) when Tile.has_label(t, [Token.concave_hole_marker]) =>
+        Grout({
+          id: t.id,
+          shape: Concave,
         })
       | _ => rec_call(p)
       }
