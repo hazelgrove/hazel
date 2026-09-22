@@ -378,7 +378,14 @@ let padding =
     (z: Zipper.t, d: CanonicalCompletion.delimiter_info): (string, string) => {
   let (l, r) = z.relatives.siblings;
   let word = SpaceNormalize.spaced(d.text) || List.mem(d.text, ["=", "->"]);
-  let hole = d.leading_hole ? Token.implicit_hole_marker ++ " " : "";
+  /* no space between the hole and a closer or separator: `(1, ?)`, not
+     `(1, ? )` (the marker is not a token SpaceNormalize.needs_space can
+     judge, so the tight-before list is consulted directly) */
+  let hole =
+    d.leading_hole
+      ? Token.implicit_hole_marker
+        ++ (List.mem(d.text, SpaceNormalize.tight_before) ? "" : " ")
+      : "";
   let before =
     switch (List.rev(l)) {
     | [Piece.Secondary(_), ..._]
