@@ -10,29 +10,41 @@ type t =
   | Fold
   | Probe
   | Statics
+  | Player
   | Checkbox
   | Slider
   | SliderF
+  | Knob
   | Card
   | Livelit
   | TextArea
   | Table
-  | Csv;
+  | Csv
+  | NotePicker
+  | RhythmGrid
+  | XYPad
+  | SamplePicker
+  | ScalePicker;
 
 let livelit_projectors: list(t) = [
-  Csv, /* Competes with Card for empty list */
-  Card, /* Competes with Csv for empty list */
   Checkbox,
   Slider,
   SliderF,
+  Knob,
   TextArea,
   Table,
-  Card,
+  Csv, /* Competes with Card for empty list */
+  Card, /* Competes with Csv for empty list */
   Livelit,
+  NotePicker,
+  RhythmGrid,
+  XYPad,
+  SamplePicker,
+  ScalePicker,
 ];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
-let refractors: list(t) = [Probe, Statics];
+let refractors: list(t) = [Probe, Statics, Player];
 let is_refractor = (kind: t) => List.mem(kind, refractors);
 
 /* A friendly name for each projector. This is used
@@ -43,14 +55,21 @@ let name = (p: t): string =>
   | Fold => "fold"
   | Probe => "probe"
   | Statics => "statics"
+  | Player => "player"
   | Checkbox => "check"
   | Slider => "slider"
   | SliderF => "sliderf"
+  | Knob => "knob"
   | Card => "card"
   | Livelit => "livelit"
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | NotePicker => "notes"
+  | RhythmGrid => "rhythm"
+  | XYPad => "xypad"
+  | SamplePicker => "samplepicker"
+  | ScalePicker => "scalepicker"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

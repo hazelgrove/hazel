@@ -1,0 +1,61 @@
+/* Scale Picker Projector Styles */
+
+.scale-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.4em;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
+  transition: border-color 0.15s;
+  min-width: 12em;
+}
+
+.scale-picker:hover {
+  border-color: var(--BR3);
+}
+
+.scale-picker .current-pattern {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  color: var(--STONE);
+  padding: 0.3em 0.5em;
+  background: var(--T1);
+  border-radius: 0.2em;
+  border: 1px solid var(--BR2);
+  text-align: center;
+  min-height: 1.3em;
+  word-break: break-word;
+}
+
+.scale-picker .scale-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  justify-content: center;
+}
+
+.scale-picker .scale-option {
+  font-family: var(--ui-font);
+  font-size: 0.7em;
+  padding: 0.25em 0.5em;
+  background: var(--T1);
+  border: 1px solid var(--BR2);
+  border-radius: 0.2em;
+  color: var(--STONE);
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.scale-picker .scale-option:hover {
+  background: var(--T3);
+  border-color: var(--BR3);
+}
+
+.scale-picker .scale-option.selected {
+  background: var(--B1);
+  border-color: var(--B0);
+  color: white;
+}
