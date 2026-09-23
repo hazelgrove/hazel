@@ -95,4 +95,33 @@ let of_atom_compare_tests = {
   ];
 };
 
-let tests = ("BuiltinsADT", invert_ord_tests @ of_atom_compare_tests);
+let shortcut_rejection_tests = {
+  module S = BuiltinsADT.Shortcut;
+  let rejection =
+    testable(Fmt.of_to_string(S.show_rejection), S.equal_rejection);
+  let case = (name, b, expected) =>
+    test_case("Shortcut.rejection_of: " ++ name, `Quick, () =>
+      check(option(rejection), name, expected, S.rejection_of(b))
+    );
+  [
+    case("bare letter types", Bound([], "a"), Some(TypesCharacter)),
+    case("Shift+letter types", Bound([Shift], "a"), Some(TypesCharacter)),
+    case("bare space types", Bound([], "space"), Some(TypesCharacter)),
+    case(
+      "bare Enter is an editor key",
+      Bound([], "enter"),
+      Some(EditorKey),
+    ),
+    case("Meta+letter is kept", Bound([Meta], "a"), None),
+    case("Ctrl+letter is kept", Bound([Ctrl], "a"), None),
+    case("Alt+letter is kept", Bound([Alt], "f"), None),
+    case("Shift+Tab is kept", Bound([Shift], "tab"), None),
+    case("bare F-key is kept", Bound([], "F12"), None),
+    case("Unbound is kept", Unbound, None),
+  ];
+};
+
+let tests = (
+  "BuiltinsADT",
+  invert_ord_tests @ of_atom_compare_tests @ shortcut_rejection_tests,
+);

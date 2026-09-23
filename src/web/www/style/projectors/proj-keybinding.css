@@ -60,17 +60,38 @@
 }
 
 /* Capturing. The widget holds focus here, so it has to look different from
-   idle or "press a key now" is invisible. */
+   idle or "press a key now" is invisible. Accent, not error: red is kept for
+   a chord that cannot be a shortcut. */
 .projector.keybinding .kbd-rec {
-  border-color: var(--border-error);
+  border-color: var(--text-accent);
   background: transparent;
-  color: var(--text-error);
+  color: var(--text-accent);
   animation: keybinding-pulse 1.1s ease-in-out infinite;
 }
 .projector.keybinding .kb-widget.keybinding-recording {
-  outline: 1px dashed var(--border-error);
+  outline: 1px dashed var(--text-accent);
   outline-offset: 1px;
   border-radius: 3px;
+}
+
+/* The captured chord can be kept: Esc commits it. */
+.projector.keybinding .kbd-ok {
+  border-color: var(--border-success);
+  background: transparent;
+  color: var(--text-success);
+}
+
+/* A chord that cannot be a shortcut, whether just pressed or typed into the
+   syntax by hand. The reason is spelled out beside it while recording and in
+   the tooltip otherwise. */
+.projector.keybinding .kb-widget.keybinding-rejected .kbd {
+  border-color: var(--border-error);
+  background: var(--surface-error-soft);
+  color: var(--text-error-strong);
+}
+.projector.keybinding .kbd-rejected {
+  border-style: dashed;
+  white-space: nowrap;
 }
 
 @keyframes keybinding-pulse {

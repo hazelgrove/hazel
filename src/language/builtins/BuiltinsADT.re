@@ -338,6 +338,58 @@ module Shortcut = {
     | Unbound => None
     | Bound(mods, key) => Some(string_of_chord(mods, key))
     };
+
+  /* ---- Which chords can be shortcuts ----
+
+     Shortcuts are matched before the editor sees a key, so a chord the
+     editor needs for typing cannot be one. A key that types (a letter,
+     digit, symbol or space) needs Meta, Ctrl or Alt; Shift does not count,
+     since Shift+a is just typing "A". Any other key (Enter, Tab, an arrow)
+     needs at least one modifier, except the F-keys, which need none. */
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type rejection =
+    | TypesCharacter
+    | EditorKey;
+
+  let holds_command_mod = (mods: list(key_mod)): bool =>
+    List.exists(
+      fun
+      | Meta
+      | Ctrl
+      | Alt => true
+      | Shift => false,
+      mods,
+    );
+
+  let is_f_key = (key: string): bool =>
+    String.length(key) >= 2
+    && Char.lowercase_ascii(key.[0]) == 'f'
+    && String.for_all(
+         c => '0' <= c && c <= '9',
+         String.sub(key, 1, String.length(key) - 1),
+       );
+
+  let types_character = (key: string): bool =>
+    key == "space" || Util.Unicode.length(key) == 1;
+
+  let rejection_of = (b: binding): option(rejection) =>
+    switch (b) {
+    | Unbound => None
+    | Bound(mods, key) when types_character(key) =>
+      holds_command_mod(mods) ? None : Some(TypesCharacter)
+    | Bound([], key) when !is_f_key(key) => Some(EditorKey)
+    | Bound(_, _) => None
+    };
+
+  let string_of_rejection = (r: rejection): string =>
+    switch (r) {
+    | TypesCharacter =>
+      "Add "
+      ++ (Util.Os.is_mac^ ? "Cmd, Ctrl or Option" : "Ctrl or Alt")
+      ++ ": without one, this key types a character."
+    | EditorKey => "Add a modifier: without one, the editor uses this key."
+    };
 };
 
 /* Colours, used as the analyzed type of the Colors config slide.

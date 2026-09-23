@@ -161,11 +161,31 @@ module M: Projector = {
   let caps_of_binding = (b: S.binding): list(Node.t) =>
     List.map(cap, cap_specs(b));
 
-  /* Width is in editor columns. A cap costs its own text plus padding; the
-     modifier symbols are single glyphs whose byte length would over-count,
-     so anything non-ASCII counts as one column. */
-  let display_len = (s: string): int =>
-    String.for_all(c => Char.code(c) < 128, s) ? String.length(s) : 1;
+  let short_rejection = (r: S.rejection): string =>
+    switch (r, is_mac()) {
+    | (TypesCharacter, true) => {js|add ⌘ ⌃ or ⌥|js}
+    | (TypesCharacter, false) => "add Ctrl or Alt"
+    | (EditorKey, _) => "add a modifier"
+    };
+
+  /* Trails the chord while recording, saying whether Esc will keep it. */
+  let verdict_spec = (b: S.binding): (string, string, string) =>
+    switch (S.rejection_of(b)) {
+    | None => ({js|↩|js}, "kbd-ok", "Esc to keep this shortcut")
+    | Some(r) => (
+        short_rejection(r),
+        "kbd-rejected",
+        S.string_of_rejection(r),
+      )
+    };
+
+  /* Width is in editor columns: a cap costs its own glyphs plus padding. */
+  let cols_of_specs = (~extra: int, specs) =>
+    List.fold_left(
+      (acc, (text, _, _)) => acc + Unicode.length(text) + 1,
+      extra,
+      specs,
+    );
 
   let placeholder = (model, info) => {
     let cols =
@@ -173,17 +193,11 @@ module M: Projector = {
         ? switch (model.pending) {
           | None => 9
           | Some(b) =>
-            List.fold_left(
-              (acc, (text, _, _)) => acc + display_len(text) + 1,
-              /* the trailing "finish" hint cap */
-              3,
-              cap_specs(b),
-            )
+            cols_of_specs(~extra=1, cap_specs(b) @ [verdict_spec(b)])
           }
-        : List.fold_left(
-            (acc, (text, _, _)) => acc + display_len(text) + 1,
+        : cols_of_specs(
             /* the clear button, always present on a bound shortcut */
-            get(info) == S.Unbound ? 1 : 3,
+            ~extra=get(info) == S.Unbound ? 1 : 3,
             cap_specs(get(info)),
           );
     ProjectorCore.Shape.inline(cols);
@@ -208,7 +222,12 @@ module M: Projector = {
 
   /* Projects the raw Shortcut syntax; no elaboration needed. */
   let elaborate_syntax = false;
-  let error = (_, _): option(ProjectorBase.error) => None;
+
+  /* A chord typed into the syntax by hand is never vetted by the recorder;
+     this is where it gets marked. */
+  let error = (_, info): option(ProjectorBase.error) =>
+    S.rejection_of(get(info))
+    |> Option.map(r => ProjectorBase.{message: S.string_of_rejection(r)});
 
   /* ---- Interaction ---- */
 
@@ -281,16 +300,20 @@ module M: Projector = {
     };
 
   /* Write the captured binding to syntax and leave capture. The ONLY place
-     syntax is written, which is what keeps focus alive across keystrokes. */
-  let finish = (model, info, ~local, ~parent) =>
-    Effect.Many([
-      set_binding(info, ~parent, shown_binding(model, info)),
-      local(Finish),
-    ]);
+     syntax is written, which is what keeps focus alive across keystrokes.
+     A capture S.rejection_of refuses is dropped, keeping what was there. */
+  let finish = (model, info, ~local, ~parent) => {
+    let kept =
+      switch (model.pending) {
+      | Some(b) when Option.is_none(S.rejection_of(b)) => b
+      | _ => get(info)
+      };
+    Effect.Many([set_binding(info, ~parent, kept), local(Finish)]);
+  };
 
-  /* Modal capture: once recording, EVERY key is a candidate binding —
-     Enter, Tab and Backspace included, since all of them are bindable.
-     Escape is the single exception and the way you finish. */
+  /* Modal capture: once recording, EVERY key is a candidate binding, and
+     the widget shows whether S.rejection_of would let it be kept. Escape is
+     the single exception and the way you finish. */
   let key_handler = (model, info, ~local, ~parent, evt) => {
     open Effect;
     let key = Key.mk(KeyDown, evt);
@@ -348,11 +371,10 @@ module M: Projector = {
     let caps =
       switch (recording, model.pending) {
       | (true, None) => [cap(({js|press…|js}, "kbd-rec", ""))]
-      | (true, Some(b)) =>
-        caps_of_binding(b)
-        @ [cap(({js|↩|js}, "kbd-rec", "Esc to finish"))]
+      | (true, Some(b)) => caps_of_binding(b) @ [cap(verdict_spec(b))]
       | (false, _) => caps_of_binding(binding)
       };
+    let rejection = S.rejection_of(binding);
     /* Always rendered for a bound shortcut rather than revealed on hover, so
        the widget does not change width under the cursor. */
     let clear =
@@ -422,14 +444,18 @@ module M: Projector = {
     ProjectorBase.View.mk(
       Node.div(
         ~attrs=[
-          Attr.classes([
-            "kb-widget",
-            ...recording ? ["keybinding-recording"] : [],
-          ]),
+          Attr.classes(
+            ["kb-widget"]
+            @ (recording ? ["keybinding-recording"] : [])
+            @ (Option.is_some(rejection) ? ["keybinding-rejected"] : []),
+          ),
           Attr.title(
-            recording
-              ? "Press a shortcut. Esc or click away to finish."
-              : "Click to set a shortcut",
+            switch (recording, rejection) {
+            | (true, _) => "Press a shortcut. Esc or click away to finish."
+            | (false, Some(r)) =>
+              S.string_of_rejection(r) ++ " Click to set another."
+            | (false, None) => "Click to set a shortcut"
+            },
           ),
         ],
         /* The capture input goes FIRST and stays first. If it moves among

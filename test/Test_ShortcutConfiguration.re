@@ -35,6 +35,28 @@ let analysis_is_engaged = () =>
     > 0,
   );
 
+/* A chord typed into the slide by hand never passes through the recorder,
+   so the read-back is what keeps it out of the palette. */
+let rejected_binding_is_not_an_override = () => {
+  let value =
+    IdTagged.FreshGrammar.Exp.(
+      let entry = (action, b) =>
+        tup_label(label(action), BuiltinsADT.Shortcut.exp_of_binding(b));
+      tuple([
+        tup_label(
+          label("General"),
+          tuple([entry("Undo", Bound([], "a")), entry("Redo", Unbound)]),
+        ),
+      ])
+    );
+  check(
+    list(pair(string, option(string))),
+    "only the accepted entry is an override",
+    [("Redo", None)],
+    Web.ShortcutConfiguration.overrides_of_value(value),
+  );
+};
+
 let tests = [
   (
     "ShortcutConfiguration.expected_type",
@@ -45,6 +67,16 @@ let tests = [
         builtin_source_satisfies_expected_type,
       ),
       test_case("analysis is engaged", `Quick, analysis_is_engaged),
+    ],
+  ),
+  (
+    "ShortcutConfiguration.overrides_of_value",
+    [
+      test_case(
+        "a rejected binding is not an override",
+        `Quick,
+        rejected_binding_is_not_an_override,
+      ),
     ],
   ),
 ];
