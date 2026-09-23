@@ -361,7 +361,7 @@
   gap: 2px;
   padding: 2px;
   border-radius: 4px;
-  background-color: var(--segment-track);
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
 }
 #top-bar .submenu .segmented-setting .segment {
   appearance: none;
@@ -385,7 +385,7 @@
   color: var(--cell-active);
 }
 #top-bar .submenu .segmented-setting .segment:hover:not(.active) {
-  background-color: var(--segment-hover);
+  background-color: color-mix(in srgb, var(--menu-item-hover-bkg) 65%, transparent);
 }
 #top-bar .submenu .segmented-setting .segment:focus-visible {
   outline: 2px solid var(--nut-menu);

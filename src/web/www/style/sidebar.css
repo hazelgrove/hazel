@@ -210,8 +210,8 @@
   padding-left: 0.75em;
   margin-bottom: 3px;
   border-bottom: 1px solid var(--border-default);
-  border-left: 3px solid var(--problem-error-row-edge);
-  background-color: var(--problem-error-row);
+  border-left: 3px solid color-mix(in srgb, var(--border-error) 40%, transparent);
+  background-color: color-mix(in srgb, var(--surface-error-soft) 50%, transparent);
   cursor: pointer;
   transition: background-color 0.15s ease;
   color: var(--text-default);
@@ -274,8 +274,8 @@
 }
 
 .problem-row.syntax {
-  border-left: 3px solid var(--problem-syntax-row-edge);
-  background-color: var(--problem-syntax-row);
+  border-left: 3px solid color-mix(in srgb, var(--border-highlight) 60%, transparent);
+  background-color: color-mix(in srgb, var(--surface-highlight-soft) 50%, transparent);
 }
 
 .problem-row.syntax:hover {
@@ -284,13 +284,13 @@
 
 .problem-row.syntax.active {
   border-left: 5px solid var(--border-highlight-strong);
-  background-color: var(--problem-syntax-row-active);
+  background-color: color-mix(in srgb, var(--surface-highlight-soft) 80%, transparent);
   box-shadow: inset 0 0 0 1px var(--shadow-highlight);
 }
 
 .problem-row.hole {
-  border-left: 3px solid var(--problem-hole-row-edge);
-  background-color: var(--problem-hole-row);
+  border-left: 3px solid color-mix(in srgb, var(--hole-stroke) 60%, transparent);
+  background-color: color-mix(in srgb, var(--hole-fill) 50%, transparent);
 }
 
 .problem-row.hole:hover {
@@ -299,13 +299,18 @@
 
 .problem-row.hole.active {
   border-left: 5px solid var(--hole-active);
-  background-color: var(--problem-hole-row-active);
+  background-color: color-mix(in srgb, var(--hole-fill) 80%, transparent);
   box-shadow: inset 0 0 0 1px var(--hole-stroke);
 }
 
 .problem-row.warning {
-  border-left: 3px solid var(--problem-warning-row-edge);
-  background-color: var(--problem-warning-row);
+  border-left: 3px solid
+    color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--warning-hole-fill) 50%,
+    transparent
+  );
 }
 
 .problem-row.warning:hover {
@@ -314,7 +319,11 @@
 
 .problem-row.warning.active {
   border-left: 5px solid var(--warning-hole-stroke);
-  background-color: var(--problem-warning-row-active);
+  background-color: color-mix(
+    in srgb,
+    var(--warning-hole-fill) 80%,
+    transparent
+  );
   box-shadow: inset 0 0 0 1px var(--warning-hole-stroke);
 }
 
@@ -384,7 +393,7 @@
 }
 
 .problem-nav-btn:hover {
-  background: var(--problem-nav-hover);
+  background: color-mix(in oklch, var(--text-default) 12%, transparent);
   color: var(--main-text-color);
 }
 
@@ -471,7 +480,7 @@
   gap: 0.6em;
   padding: 0.35em 0.8em;
   border-bottom: 1px solid var(--border-soft);
-  background-color: var(--debug-bar-bkg);
+  background-color: color-mix(in srgb, var(--surface-default) 70%, transparent);
 }
 
 #debug-sidebar .debug-toggle-label {
@@ -549,7 +558,7 @@
   margin: 0.35em 0;
   padding: 0.25em 0.4em;
   border-left: 2px solid var(--border-default);
-  background-color: var(--debug-field-bkg);
+  background-color: color-mix(in srgb, var(--surface-default) 60%, transparent);
   border-radius: 2px;
 }
 

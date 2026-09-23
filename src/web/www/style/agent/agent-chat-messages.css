@@ -775,16 +775,16 @@
   gap: 0.4em;
   padding: 0.2em 0.6em;
   border-radius: 12px;
-  background-color: var(--agent-active-task);
-  border: 0.6px solid var(--agent-active-task-edge);
+  background-color: oklch(from var(--exp-ap) l c h / 0.08);
+  border: 0.6px solid oklch(from var(--exp-ap) l c h / 0.2);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
   max-width: 70%;
 }
 
 .wb-active-task-pill:hover {
-  background-color: var(--agent-active-task-hover);
-  border-color: var(--agent-active-task-edge-hover);
+  background-color: oklch(from var(--exp-ap) l c h / 0.14);
+  border-color: oklch(from var(--exp-ap) l c h / 0.3);
 }
 
 .wb-active-task-pill span {
@@ -967,11 +967,11 @@
 }
 
 .wb-subtask.is-active {
-  background-color: var(--agent-active-subtask);
+  background-color: oklch(from var(--exp-ap) l c h / 0.04);
 }
 
 .wb-subtask.is-active:hover {
-  background-color: var(--agent-active-subtask-hover);
+  background-color: oklch(from var(--exp-ap) l c h / 0.07);
 }
 
 /* Subtask status icon */
@@ -1902,7 +1902,7 @@
   font-weight: 600;
   color: var(--text-default);
   border-bottom: 1px solid var(--border-default);
-  background-color: var(--surface-raised);
+  background-color: oklch(from var(--surface-raised) l c h / 0.6);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   display: flex;
@@ -2161,7 +2161,7 @@
 
 .timeline-node.timeline-step.active {
   border-color: transparent;
-  background-color: var(--agent-active-step);
+  background-color: oklch(from var(--pat-cell) l c h / 0.08);
 }
 
 .timeline-node.disabled::before {

@@ -30,7 +30,9 @@ declares a color the theme owns, because two `:root` blocks setting the same
 name is a race decided by @import order -- which is exactly how 23 defaults
 drifted into the projector stylesheets. Nor does one state a color outright:
 a literal is a color no scheme can move, so it is right in the scheme it was
-picked for and wrong in the other three.
+picked for and wrong in the other three. Fading a theme color is allowed;
+changing its lightness, chroma or hue is a derivation, and belongs in the
+slide.
 
 Run via `make lint-css`. Exits non-zero on a violation.
 """
@@ -84,6 +86,13 @@ wheat white whitesmoke yellow yellowgreen
 COLOR_FUNCTION = re.compile(
     r'\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(', re.I)
 HEX = re.compile(r'#[0-9a-f]{3,8}\b', re.I)
+# A theme color made partly transparent is still the theme's color: the
+# slide decides it, CSS only chooses how much of it shows.
+THEME_ALPHA = re.compile(
+    r'color-mix\(\s*in\s+[\w-]+\s*,\s*var\(--[\w-]+\)\s*[\d.]+%\s*,'
+    r'\s*transparent\s*\)'
+    r'|oklch\(\s*from\s+var\(--[\w-]+\)\s+l\s+c\s+h\s*/\s*[\d.]+%?\s*\)',
+    re.I)
 DECLARATION = re.compile(r'([\w-]+)\s*:\s*([^;{}]+)')
 
 
@@ -97,6 +106,7 @@ def color_literals(src):
     for d in DECLARATION.finditer(src):
         value = re.sub(r'url\([^)]*\)|"[^"]*"|\'[^\']*\'',
                        lambda m: ' ' * len(m.group(0)), d.group(2))
+        value = THEME_ALPHA.sub(lambda m: ' ' * len(m.group(0)), value)
         base = d.start(2)
         hits = [(m.start(), m.group(0)) for m in HEX.finditer(value)]
         hits += [(m.start(), m.group(0))
