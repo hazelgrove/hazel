@@ -380,7 +380,7 @@
   max-width: 18em;
   padding-left: 0.3em;
   padding-right: 0.9em;
-  border-bottom: 0.5px solid #0002;
+  border-bottom: 0.5px solid var(--border-soft);
 }
 
 .context-inspector .context-entry:hover {

@@ -106,7 +106,7 @@
 .modal-backdrop.live-offside .modal {
   background-color: var(--df-bg);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px var(--SHADOW);
   padding: 0;
   overflow: visible;
   pointer-events: auto;

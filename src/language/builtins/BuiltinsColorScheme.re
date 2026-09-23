@@ -127,7 +127,18 @@ let palette: list(string) = seeds @ derived;
    stated color was doing no work -- eleven of those are palette entries
    instead. */
 let role_groups: list((string, list(string))) = [
-  ("menu", ["nut", "background", "hover", "divider", "shadow"]),
+  (
+    "menu",
+    [
+      "nut",
+      "background",
+      "hover",
+      "divider",
+      "shadow",
+      "segment-track",
+      "segment-hover",
+    ],
+  ),
   (
     "chrome",
     [
@@ -137,6 +148,8 @@ let role_groups: list((string, list(string))) = [
       "toggle-track",
       "meter",
       "table-row-hover",
+      "debug-bar",
+      "debug-field",
     ],
   ),
   (
@@ -150,6 +163,16 @@ let role_groups: list((string, list(string))) = [
       "string",
       "comment",
       "selection",
+      "var-highlight-exp",
+      "var-highlight-pat",
+      "var-highlight-typ",
+      "var-highlight-tpat",
+      "waiting-1",
+      "waiting-2",
+      "waiting-3",
+      "waiting-4",
+      "waiting-5",
+      "waiting-6",
     ],
   ),
   (
@@ -177,7 +200,26 @@ let role_groups: list((string, list(string))) = [
       "warning-backing",
     ],
   ),
-  ("problems", ["row", "row-edge", "row-active"]),
+  (
+    "problems",
+    [
+      "row",
+      "row-edge",
+      "row-active",
+      "error-row",
+      "error-row-edge",
+      "syntax-row",
+      "syntax-row-active",
+      "syntax-row-edge",
+      "hole-row",
+      "hole-row-active",
+      "hole-row-edge",
+      "warning-row",
+      "warning-row-active",
+      "warning-row-edge",
+      "nav-hover",
+    ],
+  ),
   (
     "results",
     [
@@ -188,6 +230,7 @@ let role_groups: list((string, list(string))) = [
       "pending",
       "pending-edge",
       "step-next",
+      "reused-glow",
     ],
   ),
   ("inspector", ["badge", "text", "separator"]),
@@ -216,6 +259,20 @@ let role_groups: list((string, list(string))) = [
   ),
   ("completion", ["chip-text", "later-text", "later-text-at-caret"]),
   ("projector", ["textarea-text", "fold-background", "statics-arm"]),
+  (
+    "agent",
+    [
+      "active-task",
+      "active-task-hover",
+      "active-task-edge",
+      "active-task-edge-hover",
+      "active-subtask",
+      "active-subtask-hover",
+      "active-step",
+      "banner",
+      "banner-edge",
+    ],
+  ),
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity

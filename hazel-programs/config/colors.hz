@@ -82,6 +82,10 @@ let on_code(c, t, sat) =
 # the scheme's own amount #
 let probe_text(c, t, sat) =
   wash(c, t +. (1. -. t) *. role.`probe-text-toward-ink`, sat) in
+let warning_fill = wash(p.`attention-3`, 0., 0.2) in
+let warning_edge = wash(p.`attention-3`, 0.82, 1.5) in
+let problem_row = wash(p.`pattern`, 0.11, 0.2) in
+let problem_row_edge = wash(p.`pattern`, 0.82, 0.75) in
 let sort_plate(c) =
   color_with_lightness(
     color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
@@ -93,7 +97,10 @@ let sort_plate(c) =
       `background` = role.`menu-background`,
       `hover` = role.`menu-hover`,
       `divider` = p.`divider`,
-      `shadow` = p.`overlay-shadow`
+      `shadow` = p.`overlay-shadow`,
+      # the segmented settings control, and a segment under the pointer #
+      `segment-track` = Fade(p.`frame-1`, 27.),
+      `segment-hover` = Fade(role.`menu-hover`, 65.)
     ),
     # the frame round the editor: toolbars, sidebars, status #
     chrome = (
@@ -105,7 +112,10 @@ let sort_plate(c) =
       # the zebra stripe deliberately stays on `surface-2`: a fraction #
       # of a longer axis is a bigger step, right for a hover and wrong #
       # for a stripe. #
-      `table-row-hover` = on_code(p.`success`, 0.19, 0.35)
+      `table-row-hover` = on_code(p.`success`, 0.19, 0.35),
+      # the debug sidebar's toggle bar and fields, over the page #
+      `debug-bar` = Fade(p.`surface-1`, 70.),
+      `debug-field` = Fade(p.`surface-1`, 60.)
     ),
     editor = (
       `cell` = role.`editor-cell`,
@@ -116,7 +126,20 @@ let sort_plate(c) =
       # findable aliases; each defaults to its place in the ramp #
       `string` = p.`attention-4`,
       `comment` = p.`success-muted`,
-      `selection` = p.`attention-2`
+      `selection` = p.`attention-2`,
+      # every use of the variable under the cursor, one per sort #
+      `var-highlight-exp` = Fade(p.`ink`, 10.),
+      `var-highlight-pat` = Fade(p.`pattern`, 10.),
+      `var-highlight-typ` = Fade(p.`type`, 10.),
+      `var-highlight-tpat` = Fade(p.`type-pattern`, 10.),
+      # the hues a token cycles through while an LLM is filling it, at #
+      # the body text's lightness #
+      `waiting-1` = Oklch(text_l, 0.2, 265.),
+      `waiting-2` = Oklch(text_l, 0.2, 300.),
+      `waiting-3` = Oklch(text_l, 0.2, 355.),
+      `waiting-4` = Oklch(text_l, 0.2, 45.),
+      `waiting-5` = Oklch(text_l, 0.2, 120.),
+      `waiting-6` = Oklch(text_l, 0.2, 240.)
     ),
     # the plate behind whatever the cursor is on, one per sort #
     cursor = (
@@ -133,8 +156,8 @@ let sort_plate(c) =
       `empty` = role.`hole-empty`,
       `empty-edge` = role.`frame-mark`,
       `error` = p.`error-hole`,
-      `warning` = wash(p.`attention-3`, 0., 0.2),
-      `warning-edge` = wash(p.`attention-3`, 0.82, 1.5),
+      `warning` = warning_fill,
+      `warning-edge` = warning_edge,
       # backings behind the simplified error/warning arms, drawn at 0.4 #
       # opacity, so they sit a step OUTSIDE the page background (t < 0) #
       `error-backing` = wash(color_rotate(p.`error-2`, -5.), -0.0667, 0.6667),
@@ -143,9 +166,23 @@ let sort_plate(c) =
     ),
     # rows in the problems sidebar #
     problems = (
-      `row` = wash(p.`pattern`, 0.11, 0.2),
-      `row-edge` = wash(p.`pattern`, 0.82, 0.75),
-      `row-active` = wash(p.`pattern`, 1.04, 1.)
+      `row` = problem_row,
+      `row-edge` = problem_row_edge,
+      `row-active` = wash(p.`pattern`, 1.04, 1.),
+      # the sidebar's rows, one tint per kind of problem: a fill, the #
+      # fill of the active row, and the rule down its left side #
+      `error-row` = Fade(p.`error-1`, 50.),
+      `error-row-edge` = Fade(p.`error-2`, 40.),
+      `syntax-row` = Fade(p.`attention-1`, 50.),
+      `syntax-row-active` = Fade(p.`attention-1`, 80.),
+      `syntax-row-edge` = Fade(p.`attention-2`, 60.),
+      `hole-row` = Fade(problem_row, 50.),
+      `hole-row-active` = Fade(problem_row, 80.),
+      `hole-row-edge` = Fade(problem_row_edge, 60.),
+      `warning-row` = Fade(warning_fill, 50.),
+      `warning-row-active` = Fade(warning_fill, 80.),
+      `warning-row-edge` = Fade(warning_edge, 60.),
+      `nav-hover` = Fade(p.`ink`, 12.)
     ),
     # results, and the incremental evaluator's tints #
     results = (
@@ -160,7 +197,8 @@ let sort_plate(c) =
       # a fraction of the axis: in high contrast the ink is at an #
       # extreme, and a fraction of that axis lands on top of the text. #
       `step-next` =
-        color_with_lightness(p.`success`, role.`step-next-level`)
+        color_with_lightness(p.`success`, role.`step-next-level`),
+      `reused-glow` = Fade(wash(p.`pattern`, 0.2784, 0.41), 75.)
     ),
     inspector = (
       `badge` = role.`inspector-badge`,
@@ -210,6 +248,19 @@ let sort_plate(c) =
       `fold-background` = wash(p.`pattern`, 1.44, 0.17),
       # the arm from an indicated term to its statics card #
       `statics-arm` = wash(p.`statics-background`, 0.5533, 3.177)
+    ),
+    # the agent workbench: its active task and subtask, the active #
+    # timeline step, and the banner shown while history is compacted #
+    agent = (
+      `active-task` = Fade(p.`probe-application`, 8.),
+      `active-task-hover` = Fade(p.`probe-application`, 14.),
+      `active-task-edge` = Fade(p.`probe-application`, 20.),
+      `active-task-edge-hover` = Fade(p.`probe-application`, 30.),
+      `active-subtask` = Fade(p.`probe-application`, 4.),
+      `active-subtask-hover` = Fade(p.`probe-application`, 7.),
+      `active-step` = Fade(p.`probe-timeline`, 8.),
+      `banner` = Fade(wash(p.`pattern`, 0.9333, 0.4), 12.),
+      `banner-edge` = Fade(wash(p.`pattern`, 0.9333, 0.4), 35.)
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #

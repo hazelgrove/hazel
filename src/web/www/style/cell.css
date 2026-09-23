@@ -391,7 +391,7 @@
 .cell-report {
   padding: 1.2em;
   background-color: var(--test-panel-bkg);
-  border-left: 1px solid #0000;
+  border-left: 1px solid transparent;
 }
 
 .cell .cell-item:first-child {

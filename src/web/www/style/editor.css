@@ -197,25 +197,25 @@
 
 @keyframes rainbow {
   0% {
-    color: oklch(from var(--text-default) l 0.2 265);
+    color: var(--llm-waiting-1);
   } /* Start with muted blue */
   17% {
-    color: oklch(from var(--text-default) l 0.2 300);
+    color: var(--llm-waiting-2);
   } /* Muted purple */
   33% {
-    color: oklch(from var(--text-default) l 0.2 355);
+    color: var(--llm-waiting-3);
   } /* Muted pink */
   50% {
-    color: oklch(from var(--text-default) l 0.2 45);
+    color: var(--llm-waiting-4);
   } /* Muted orange */
   67% {
-    color: oklch(from var(--text-default) l 0.2 120);
+    color: var(--llm-waiting-5);
   } /* Muted green */
   83% {
-    color: oklch(from var(--text-default) l 0.2 240);
+    color: var(--llm-waiting-6);
   } /* Muted cyan */
   100% {
-    color: oklch(from var(--text-default) l 0.2 265);
+    color: var(--llm-waiting-1);
   } /* Back to muted blue */
 }
 
@@ -426,7 +426,7 @@ svg.shard.selected.buffer-unparsed {
   filter: none;
 }
 svg.shard.selected.buffer-unparsed > path {
-  fill: #0000;
+  fill: transparent;
   stroke-width: 0;
 }
 svg.shard.selected.buffer-parsed {
@@ -461,19 +461,19 @@ svg.shard.selected.buffer-parsed > path {
 
 .var-highlight.Exp {
   border-bottom-color: var(--token-exp);
-  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+  background-color: var(--var-highlight-exp);
 }
 .var-highlight.Pat {
   border-bottom-color: var(--token-pat);
-  background-color: color-mix(in srgb, var(--token-pat) 10%, transparent);
+  background-color: var(--var-highlight-pat);
 }
 .var-highlight.Typ {
   border-bottom-color: var(--token-typ);
-  background-color: color-mix(in srgb, var(--token-typ) 10%, transparent);
+  background-color: var(--var-highlight-typ);
 }
 .var-highlight.TPat {
   border-bottom-color: var(--token-tpat);
-  background-color: color-mix(in srgb, var(--token-tpat) 10%, transparent);
+  background-color: var(--var-highlight-tpat);
 }
 
 /* EMPTY HOLE DECO */
