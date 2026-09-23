@@ -340,20 +340,20 @@ module Shortcut = {
     };
 };
 
-/* Colours, used as the analyzed type of the Colors config slide.
+/* Colors, used as the analyzed type of the Colors config slide.
 
    * Only DATA constructors live here — the arithmetic (lighten, mix, …) is a
    * set of ordinary builtin functions in BuiltinsColor.re. That split is
    * deliberate: because the maths is functions, every role in the config
    * EVALUATES down to a canonical `Oklch(l, c, h)`, which is the form both the
-   * CSS applier and a future colour-picker projector want to read and write. If
+   * CSS applier and a future color-picker projector want to read and write. If
    * mixing were a constructor instead, a role's value would be an unevaluated
    * tree and neither could do anything useful with it.
    *
    * `Transparent` and `Rgb` occupy fairly common constructor names. A user
    * program that declares its own shadows these lexically, as usual. */
 module Color = {
-  /* Self-reference: Fade wraps another colour. */
+  /* Self-reference: Fade wraps another color. */
   let self: Typ.t = var("ColorValue");
 
   /* type ColorValue =
@@ -499,12 +499,12 @@ module Color = {
       n > 0 && s.[n - 1] == '.' ? String.sub(s, 0, n - 1) : s;
     };
 
-  /* Alpha goes through color-mix so it composes with any inner colour rather
+  /* Alpha goes through color-mix so it composes with any inner color rather
      than only with the oklch() slash form. */
   let rec to_css: t => string =
     fun
     /* Not the `transparent` keyword: a keyword behaves differently as the
-       origin of a relative colour, and variables.css uses `oklch(from …)`
+       origin of a relative color, and variables.css uses `oklch(from …)`
        against palette entries. */
     | Transparent => "oklch(0 0 0 / 0)"
     /* The author's own numbers, kept as written. Arithmetic resolves Rgb into
@@ -531,7 +531,7 @@ module Color = {
   let linear_of_srgb = (c: float): float =>
     c <= 0.04045 ? c /. 12.92 : ((c +. 0.055) /. 1.055) ** 2.4;
 
-  /* Clamped to the sRGB cube: OKLCH describes colours no display can show,
+  /* Clamped to the sRGB cube: OKLCH describes colors no display can show,
      and every consumer here wants a drawable byte. */
   let rgb_of_oklch = ((l, c, h): (float, float, float)): (int, int, int) => {
     let hr = h *. Float.pi /. 180.;
@@ -576,7 +576,7 @@ module Color = {
 
      Not a space the language knows about; it exists because a saturation x
      value square under a hue strip is how people expect to pick an sRGB
-     colour, and neither stored representation lays out that way. Here rather
+     color, and neither stored representation lays out that way. Here rather
      than in the picker so it is tested beside the conversions it resembles.
 
      h 0..360 wrapping, s and v 0..1. Every triple is inside the sRGB cube --

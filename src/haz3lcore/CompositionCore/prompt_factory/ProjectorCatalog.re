@@ -42,7 +42,7 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     )
   | Color =>
     Some(
-      "- **color** — Colour picker for an `Oklch(l, c, h)` literal: a swatch plus lightness, chroma and hue sliders. Attaches only to that constructor applied to three float literals.",
+      "- **color** — Color picker for an `Oklch(l, c, h)` literal: a swatch plus lightness, chroma and hue sliders. Attaches only to that constructor applied to three float literals.",
     )
   | Fold
   | Probe

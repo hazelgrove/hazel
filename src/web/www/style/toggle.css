@@ -32,7 +32,7 @@
   background-color: var(--toggle-knob);
   color: var(--text-muted);
   /* the same ramp step the track is cut from, so the knob keeps an edge on
-     the active track too, whatever colour that context gives it */
+     the active track too, whatever color that context gives it */
   border: solid 1px var(--border-strong);
   box-shadow: 0 1px 3px var(--menu-shadow);
   border-radius: 1.5em;

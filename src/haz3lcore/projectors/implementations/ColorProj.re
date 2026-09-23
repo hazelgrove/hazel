@@ -5,10 +5,10 @@ open Js_of_ocaml;
 
 module C = Language.BuiltinsADT.Color;
 
-/* A picker over the two colour literals, `Oklch(l, c, h)` and `Rgb(r, g, b)`.
+/* A picker over the two color literals, `Oklch(l, c, h)` and `Rgb(r, g, b)`.
    Closed it is a one-character swatch; open, its surface follows the literal,
    because the two are not the same kind of thing. Oklch has unbounded chroma
-   and describes colours sRGB cannot show, so its plane is lightness x chroma
+   and describes colors sRGB cannot show, so its plane is lightness x chroma
    and runs past the gamut on purpose, rendering the excess clamped. Rgb is
    three bytes, all of them displayable, so its plane is the saturation x value
    square people expect and there is no clamped region to draw.
@@ -82,7 +82,7 @@ module M: Projector = {
 
   /* Which surface the press in progress began on. Outside the model because
      the model is a render behind; one slot suffices, the browser having one
-     primary pointer. Without it the opening click sets a colour: its
+     primary pointer. Without it the opening click sets a color: its
      pointerdown lands on the closed swatch and its pointerup on the plane
      that just appeared under the pointer. */
   let gesture: ref(option(target)) = ref(None);
@@ -175,7 +175,7 @@ module M: Projector = {
 
   /* --- moving between the two representations --- */
 
-  /* Nothing to preserve for a colour read fresh off the term, so the
+  /* Nothing to preserve for a color read fresh off the term, so the
      degenerate hue is arbitrary; mid-drag the preview carries the real one. */
   let components_of_literal =
     fun
@@ -294,7 +294,7 @@ module M: Projector = {
       C.to_css(C.Oklch(l, c, hh));
     };
 
-  /* Either format in either tab -- a pasted hex means the colour, not a
+  /* Either format in either tab -- a pasted hex means the color, not a
      syntax error -- landing in the form the literal already has, so only the
      tabs change representation. Hex parses to bytes, so pasting one into an
      `Rgb` literal is exact. */

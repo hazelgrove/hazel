@@ -567,7 +567,7 @@ let setup_focus_bar_scroll_compensation = () =>
     };
   };
 
-/* localStorage rather than the IndexedDB store: the colour theme has to be
+/* localStorage rather than the IndexedDB store: the color theme has to be
    readable synchronously from an inline <head> script, before the first
    paint, and IndexedDB only opens asynchronously. */
 let set_local_storage = (key: string, value: string): unit =>

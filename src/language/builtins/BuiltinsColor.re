@@ -6,7 +6,7 @@ open Fresh.Typ;
 
    These are FUNCTIONS rather than constructors on purpose: it means a config
    program evaluates every role down to a canonical `Oklch(l, c, h)`, which is
-   the form the CSS applier and a colour-picker projector both want. Were
+   the form the CSS applier and a color-picker projector both want. Were
    mixing a constructor, a role would hold an unevaluated tree instead.
 
    All of them work in OKLCH, which is perceptually uniform — lightening by
@@ -14,8 +14,8 @@ open Fresh.Typ;
    derived dark scheme viable at all.
 
    `Transparent` passes through unchanged rather than erroring: it has nothing
-   to adjust. `Fade` is transformed through to its inner colour, so a faded
-   colour still responds to lightening. Every other form -- `Oklch` and `Rgb`
+   to adjust. `Fade` is transformed through to its inner color, so a faded
+   color still responds to lightening. Every other form -- `Oklch` and `Rgb`
    -- has components, so every other form responds. */
 module C = BuiltinsADT.Color;
 
@@ -29,7 +29,7 @@ let wrap_hue = h => {
   r < 0. ? r +. 360. : r;
 };
 
-/* The OKLCH components of a colour, where they can be known -- THE one place
+/* The OKLCH components of a color, where they can be known -- THE one place
    `Rgb` is resolved. Every operation below goes through this, so a palette
    written in sRGB bytes ramps, mixes and reports its lightness exactly as an
    OKLCH one does; miss a site and that operation quietly degrades instead of
@@ -123,7 +123,7 @@ let builtins: list(BuiltinsUtil.fn) = [
   color_unary("color_rotate", (c, by) =>
     map_oklch(((l, ch, h)) => (l, ch, h +. by), c)
   ),
-  /* Sets the lightness outright, for pinning a colour to a known step. */
+  /* Sets the lightness outright, for pinning a color to a known step. */
   color_unary("color_with_lightness", (c, l') =>
     map_oklch(((_, ch, h)) => (l', ch, h), c)
   ),
@@ -143,7 +143,7 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     /* The only component a derivation actually needs to read: it is what lets a
-       program place a colour RELATIVE to a scheme's own background and text,
+       program place a color RELATIVE to a scheme's own background and text,
        instead of against hardcoded lightnesses that only suit one polarity. */
 
     name: "color_lightness",
