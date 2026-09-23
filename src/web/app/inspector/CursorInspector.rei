@@ -43,3 +43,9 @@ let tpat_view:
 let view:
   (~globals: Globals.t, Cursor.cursor(Editors.Update.t)) =>
   Virtual_dom.Vdom.Node.t;
+
+/* The info the bar describes: the implied hole's when quiver is on, else the
+   cursor's. Exported only because Test_ImpliedHole checks it; no other
+   caller. */
+let info_for_view:
+  (~quiver: bool, Cursor.cursor('action)) => option(Language.Info.t);
