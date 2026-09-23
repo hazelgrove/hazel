@@ -150,6 +150,27 @@ def reset_slide(d):
     time.sleep(2)
 
 
+def shown_value(st):
+    """The `= N` the widget computes, or None.
+
+    Asserting only that splices SURVIVE is not enough: a build that
+    refused every commit would keep them perfectly and pass. The
+    interaction has to actually do something, so cases check this too.
+    Learned from a negative control that passed when it should not have.
+    """
+    w = st.get("widget") or ""
+    if "=" not in w:
+        return None
+    tail = w.rsplit("=", 1)[1].strip()
+    num = ""
+    for ch in tail:
+        if ch.isdigit() or (ch == "-" and not num):
+            num += ch
+        else:
+            break
+    return int(num) if num else None
+
+
 def load_slide(d, settle=11):
     reset_slide(d)
     d.goto(SLIDE_URL)
@@ -255,6 +276,8 @@ def c_click(d, log):
     # Regression: the update redex was committed instead of the merged
     # model, flattening both splices to literals on the first click.
     load_slide(d)
+    before = shown_value(d.js(PROBE))
+    seen = {before}
     for frac in (0.33, 0.8, 0.25):
         click_slider(d, frac)
         time.sleep(6)
@@ -263,6 +286,9 @@ def c_click(d, log):
         bad = invariants(st)
         assert not bad, f"after click {frac}: {bad}"
         assert st["spliceText"] == ["baseline", "baseline * 2"], st["spliceText"]
+        seen.add(shown_value(st))
+    # The commit has to land, not merely be survivable.
+    assert len(seen) > 1, f"slider never changed the value: {seen}"
     return st
 
 
@@ -272,6 +298,7 @@ def c_drag(d, log):
     # real drag populates the optimistic entry, and the optimistic entry
     # is what made the redex gate read the wrong model.
     load_slide(d)
+    before = shown_value(d.js(PROBE))
     drag_slider(d, [0.7, 0.6, 0.5, 0.35, 0.25])
     time.sleep(8)
     st = d.js(PROBE)
@@ -279,6 +306,9 @@ def c_drag(d, log):
     bad = invariants(st)
     assert not bad, bad
     assert st["spliceText"] == ["baseline", "baseline * 2"], st["spliceText"]
+    after = shown_value(st)
+    assert after is not None and after != before, \
+        f"drag did not commit: {before} -> {after}"
     return st
 
 
