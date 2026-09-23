@@ -55,9 +55,12 @@ let ^between = {
                    ("align-items", "center"),
                    ("font-family", "var(--code-font)"),
                    ("font-size", "0.8em")])],
-      # splice 0 and splice 1 are lo and hi, in document order. They #
-      # are real editors: click in and type. What you type is code in #
-      # YOUR scope, not in the livelit's. #
+      # Each splice is named by the ref its own field carries, not by #
+      # a position: Html.splice(m.lo.ref), never Html.splice(0). The #
+      # view says WHICH splice it means, so it no longer has to agree #
+      # with the model about counting order. #
+      # They are real editors: click in and type. What you type is code #
+      # in YOUR scope, not in the livelit's. #
       [Html.splice(m.lo.ref),
        Html.input(
          [Attr.type_("range"), Attr.min("0"), Attr.max("100"),
@@ -114,10 +117,12 @@ let ^between = {
 
 # READING AND SHOWING AT THE SAME TIME #
 
-# Note what `at` does. It uses m.lo and m.hi as numbers -- so the #
-# widget RENDERS the client's code as an editor and USES its value in #
-# the same view. That falls out of splices being transparent to #
-# statics: the model argument still evaluates normally. #
+# Note what `at` does. It reaches for m.lo.value and m.hi.value while #
+# the view reaches for m.lo.ref -- the same field, read as a number in #
+# one place and as a handle in the other. So the widget RENDERS the #
+# client's code as an editor and USES its value in the same view. #
+# That falls out of splices being transparent to statics: the model #
+# argument still evaluates normally. #
 
 # The paper needs a separate eval_splice for this. Here it is free, #
 # because the splice never stopped being part of the expression. #
@@ -168,15 +173,26 @@ let computed =
 # This is NOT the paper's SpliceRef, and the difference is worth being #
 # precise about (Omar et al., PLDI 2021, Figure 3). #
 
-# THE MODEL STILL DECLARES Int, NOT SpliceRef #
+# THE MODEL DOES HOLD REFS -- AND ALSO THE VALUES #
 
 # Figure 3 has: #
 #   type Model = (pct=Int, lo=SpliceRef, hi=SpliceRef) #
 
-# Here the model still says lo=Int. The splice is a syntactic wrapper #
-# around the Int, not a reference to one. So the slide's old lesson -- #
-# "half data and half pointers, and the split is the lesson" -- does #
-# not hold yet. There are no pointers. #
+# Here it is a pair of both: #
+#   lo=(ref=SpliceRef, value=Int) #
+
+# The ref is real, and it is what `view` names. The VALUE riding #
+# alongside is the shortcut. The paper cannot do that -- an expansion #
+# has no way to see inside a hole, which is why reading one is a #
+# command, eval_splice. Splices here are transparent to statics, so #
+# the content is already typed in your scope and already evaluates in #
+# place, and the value comes along for free. #
+
+# The cost of the shortcut is that there is no way to say a bound has #
+# NO value. eval_splice answers Maybe(Result), with Indet for an #
+# expression that will not reduce, and the widget decides what to #
+# show. Delete a bound here and the widget cannot decide anything -- #
+# the result simply renders as a hole, because nothing asked it. #
 
 # THERE IS NO new_splice #
 
@@ -189,10 +205,15 @@ let computed =
 # that happens to give the right answer, Int, but that is luck of #
 # position, not a mechanism. #
 
-# The consequence: the number of splices is fixed by the text. A #
-# livelit cannot make a splice at runtime, so an editable LIST of #
-# splices -- the obvious next example -- is not expressible. That is #
-# what new_splice is for. #
+# You can see the gap in `init` above: it has no `: Model` annotation, #
+# because init supplies VALUES and only the use site supplies REFS. #
+# Nothing has made a splice when init is written. Making one is an #
+# effect -- which is exactly what new_splice is, and why the paper #
+# makes init a command rather than a value. #
+
+# The other consequence: the number of splices is fixed by the text. A #
+# livelit cannot make one at runtime, so an editable LIST of splices -- #
+# the obvious next example -- is not expressible. #
 
 # EXPANSION DOES NOT RETURN SPLICES #
 
@@ -221,9 +242,12 @@ let computed =
 #   which is why they are the marker and why init rebuilds the splices #
 #   on every load. #
 
-#   A widget action evicts the caret from a splice you are editing, #
-#   because committing the model rebuilds the zipper from the root. #
-#   Drag the slider while typing in a bound and you will see it. #
+#   Committing a model rebuilds the zipper from the ROOT, so a widget #
+#   action destroys the editor the caret was sitting in. Nothing about #
+#   a splice survives that on its own; focus is put back afterwards, #
+#   explicitly, by matching the splice id (FocusEffect.keep_splice_focus). #
+#   That restoration is not complete -- it is a patch over a rebuild, #
+#   not a caret the rebuild preserves. #
 
 # Both are honest consequences of building splices out of the editor's #
 # existing machinery instead of the paper's. Closing them is what #

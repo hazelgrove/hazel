@@ -19,7 +19,7 @@
 # Livelits are DEFINED IN THE PROGRAM: a module bound to a livelit name #
 # provides init, update, view and expand_fun members, plus an #
 # shape -- Inline(w), Block(w, h), or Tab(w, h) -- for its footprint. #
-# The following slides each define one. #
+# The other slides in this deck each define one. #
 
 # One livelit ships built in: #
 

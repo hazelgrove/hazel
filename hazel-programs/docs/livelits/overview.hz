@@ -33,9 +33,13 @@
 
 #   let expand_mac : Model -> (Exp, List(SpliceRef))   #
 
-# Nothing can answer to LivelitMac yet -- Exp and SpliceRef are #
-# named but uninhabited, because Hazel has no quoted-code type and #
-# no quotation syntax. See the Splices MVP slide. #
+# Nothing can answer to LivelitMac yet, but the two halves are not #
+# missing for the same reason. Exp is named and uninhabited: Hazel #
+# has no quoted-code type and no quotation syntax, so there is no #
+# program value to hand back. SpliceRef IS inhabited -- the slide #
+# SpliceRef, MVP has a model holding two -- but a macro still #
+# cannot MAKE one, because making a splice is an effect and there #
+# is no new_splice. #
 
 # Two signatures rather than one with an optional member, because a #
 # signature can only say a member is REQUIRED: optional members are #

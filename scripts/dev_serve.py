@@ -151,20 +151,41 @@ def build_info(root):
         info["bundle"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mt))
         # walk up to the repo root from _build/default/src/web/www
         repo = os.path.abspath(os.path.join(root, *([os.pardir] * 5)))
-        src = os.path.join(repo, "src")
-        if os.path.isdir(src):
-            newer = []
-            for dirpath, _, files in os.walk(src):
+        # Both trees, not just src/. The deck slides live in hazel-programs/
+        # and are compiled INTO the bundle, so a slide edited after the last
+        # build is served stale -- and watching only src/ reported "stale: 0"
+        # while doing it, which is worse than not checking at all.
+        # Stylesheets are deliberately absent: translate_path serves them
+        # from the source tree, so they cannot go stale.
+        # Compare against the last dune RUN, not the bundle's own mtime.
+        # dune is content-based: `touch`ing a file, or editing it and
+        # undoing the edit, leaves the bundle untouched because nothing
+        # actually changed -- and an mtime-only check then reports stale
+        # forever. `_build/.filesystem-clock` is rewritten on every dune
+        # run, so "you have built since you edited" is what gets asked.
+        ref = mt
+        clock = os.path.join(repo, "_build", ".filesystem-clock")
+        try:
+            ref = max(ref, os.path.getmtime(clock))
+        except OSError:
+            pass
+
+        newer = []
+        for sub in ("src", "hazel-programs"):
+            d = os.path.join(repo, sub)
+            if not os.path.isdir(d):
+                continue
+            for dirpath, _, files in os.walk(d):
                 for f in files:
                     if not f.endswith((".re", ".rei", ".ml", ".hz")):
                         continue
                     fp = os.path.join(dirpath, f)
                     try:
-                        if os.path.getmtime(fp) > mt:
+                        if os.path.getmtime(fp) > ref:
                             newer.append(os.path.relpath(fp, repo))
                     except OSError:
                         pass
-            info["stale_sources"] = sorted(newer)[:20]
+        info["stale_sources"] = sorted(newer)[:20]
         info["worktree"] = os.path.basename(repo)
         for key, args in (("head", ["log", "--oneline", "-1"]),
                           ("branch", ["rev-parse", "--abbrev-ref", "HEAD"])):
@@ -178,6 +199,35 @@ def build_info(root):
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    # Absolute path to the repo's src/web/www, set in main(). None disables
+    # source-serving and everything comes from the build.
+    source_www = None
+
+    def translate_path(self, path):
+        """Serve style/ from the SOURCE tree, everything else from the build.
+
+        `dune build` materialises the copies of style/ under _build once and
+        then never refreshes them, so a stylesheet edit is invisible to the
+        served page no matter how many times you rebuild. That is not a
+        theoretical hazard: I have twice verified a CSS rule that was never
+        being served, once while claiming a reported bug was fixed.
+
+        The path comes from the base class, which has already sanitised it
+        against traversal; this only swaps one prefix for another, and only
+        when the file actually exists in the source tree.
+        """
+        local = super().translate_path(path)
+        if not self.source_www:
+            return local
+        built_style = os.path.join(os.path.abspath(self.directory), "style")
+        local_abs = os.path.abspath(local)
+        if local_abs.startswith(built_style + os.sep):
+            rel = os.path.relpath(local_abs, built_style)
+            cand = os.path.join(self.source_www, "style", rel)
+            if os.path.isfile(cand):
+                return cand
+        return local
+
     def _send(self, body, ctype="text/html; charset=utf-8", code=200):
         raw = body.encode()
         self.send_response(code)
@@ -255,8 +305,18 @@ def main():
         repo = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                               capture_output=True, text=True).stdout.strip()
         root = os.path.join(repo, "_build/default/src/web/www")
+    # Absolute before the chdir below: translate_path resolves the served
+    # directory at request time, and a relative one would then point at
+    # itself-relative-to-itself.
+    root = os.path.abspath(root)
     if not os.path.isfile(os.path.join(root, "index.html")):
         raise SystemExit(f"no index.html under {root} -- build first")
+
+    # ../../../../.. from _build/default/src/web/www is the repo root.
+    src_www = os.path.abspath(
+        os.path.join(root, *([os.pardir] * 5), "src", "web", "www"))
+    Handler.source_www = src_www if os.path.isdir(src_www) else None
+
     os.chdir(root)
 
     info = build_info(root)
@@ -268,7 +328,11 @@ def main():
               "than the bundle; rebuild before trusting this")
     print(f"\n  http://localhost:{args.port}/fresh    <- always-current deck")
     print(f"  http://localhost:{args.port}/ports    <- every dev port, by branch")
-    print(f"  http://localhost:{args.port}/status   <- what is being served\n")
+    print(f"  http://localhost:{args.port}/status   <- what is being served")
+    if Handler.source_www:
+        print("  style/ is served from the source tree: a CSS edit needs no "
+              "rebuild, just a reload")
+    print()
 
     http.server.ThreadingHTTPServer(
         ("127.0.0.1", args.port),

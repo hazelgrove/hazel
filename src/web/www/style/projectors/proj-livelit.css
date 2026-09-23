@@ -78,13 +78,26 @@
   padding-bottom: 0;
 }
 
-/* A splice's error and caret decorations draw at the BOTTOM edge of its
-   box. The content cell is inset 1px top and bottom (see .livelit > *
-   above) and clips, so those 2px are exactly where an error underline
-   lands -- it renders, then gets cut off, which reads as a rendering bug
-   rather than as an error. Give the cell those 2px back, but only for a
-   livelit that actually hosts a splice: everything else keeps the inset,
-   which is what stops oversized GUI content from touching the code. */
+/* A splice's error arm draws BELOW the row its term sits on -- see
+   Arms.simple_arm, which flips the path under the term and adds a hook
+   past that. In the main editor it draws into the gap under the line; in
+   a livelit there is no gap, because the cell is exactly one row tall and
+   clips. The arm rendered and was then cut off, which reads as a broken
+   underline rather than as an error.
+
+   Giving the cell back its 1px inset was not enough (measured: still ~1px
+   short), and the room the arm wants is not a fixed number of pixels --
+   it scales with the font. So stop clipping on that axis instead. The
+   horizontal clip is the one that matters, since it is what keeps a wide
+   GUI off the code beside it; vertically, overflowing into the line gap
+   is exactly what every other decoration in the editor does.
+
+   `overflow-x: clip` with `overflow-y: visible` is the one combination
+   that gets this: `visible` degrades to `auto` (and would scroll) beside
+   `hidden`, but not beside `clip`. Scoped to livelits that actually host
+   a splice, so every other widget keeps the plain clip. */
 .livelit:has(.livelit-splice) > *:not(svg) {
   inset-block: 0;
+  overflow-x: clip;
+  overflow-y: visible;
 }
