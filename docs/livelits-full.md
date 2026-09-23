@@ -43,10 +43,16 @@ three operations below genuinely new work rather than renaming.
 
 ## 1. `init` uses `splice_new`
 
-Today `init` is a **value**, and it cannot mention splices at all: nothing has
-made one when `init` runs, and making one is an effect. That is why the slide's
-`init` has no `: Model` annotation — `init` supplies values, the use site
-supplies refs, and the two types are not the same.
+Today `init` cannot mention splices at all: nothing has made one when `init` is
+used, and making one is an effect. That is why the slide's `init` has no
+`: Model` annotation — `init` supplies values, the use site supplies refs, and
+the two types are not the same.
+
+It is weaker than "init is a value", which is what this section first said.
+`init` is **syntax**: its source text is pasted into your program when you type
+the livelit's name, before statics exist. See "Where this lands in the code"
+below — that is what makes `init : UpdateCmd(Model)` a real project rather than
+a type change.
 
 `splice_new` closes that gap, and in doing so changes `init`'s type from a value
 to a command. This is the structural change on which the other two depend:
@@ -116,3 +122,53 @@ subsume that, or may not; that is a question to answer rather than assume.
 | 8011 | `integration/livelits-splices` | splices, no refs (#2595) |
 | 8111 | `integration/livelits-splicerefs` | increment 1: refs in the model (#2596) |
 | 8311 | `integration/livelits-splicerefs-full` | this branch |
+
+## Where this lands in the code
+
+Read before writing any of it, so the plan above is grounded rather than
+aspirational. Facts first, with references; the reading follows and is marked
+as a reading.
+
+**`init` is not a value. It is syntax, consumed before statics exist.**
+
+- `UserLivelit.re:85` — `required_members = ["init", "update", "view", "expand_fun"]`
+- `UserLivelit.re:481` — init's declared member type is `model_t`, plainly.
+- `UserLivelit.re:576` — `model_default: Exp.replace_all_ids(List.assoc("init", members))`.
+  The *expression* is taken and stored; nothing evaluates it.
+- `Triggers.re:200-216` — `expand_livelit` turns `ll.model_default` into a
+  **segment** with `exp_to_seg` and splices that program text in at the caret
+  when you type `^between ` (`Tuple` gets unparenthesized on the way). The
+  comment there says it outright: *"No statics available at trigger time."*
+
+So typing a livelit's name pastes init's source into your program. That is a
+much stronger constraint than "init is a value", and it is the real obstacle
+to `init : UpdateCmd(Model)`: there is no evaluator, and no statics, at the
+only moment init is used.
+
+**There is no `UpdateCmd` / `ViewCmd` machinery to build on.** The single
+occurrence of either name in `src/` is a comment at `UserLivelit.re:399`
+describing what the paper has. Both monads would be built from nothing.
+
+**A reading, not a fact.** Two ways out, and they are very different projects:
+
+1. *Run it.* Give the trigger path statics and evaluation so a command can
+   actually execute. This is the faithful reading of Figure 3 and the larger
+   one — it puts an evaluator on the editor's trigger path.
+2. *Interpret `splice_new` syntactically.* Today a splice is recovered from
+   program text by the **parens the author wrote**, on every load. If
+   `splice_new(Int, Some(0))` in init's text elaborates to exactly that
+   marker, then `splice_new` becomes the NAMED form of the marker that already
+   exists, and init stays syntax. This buys the declared type immediately —
+   the `Int` argument is the thing currently missing, since a splice is typed
+   only by its position in the model tuple — while an editable *list* of
+   splices still needs (1), because a list needs runtime creation.
+
+(2) is cheaper and is a real increment; (1) is what "fully reflects the paper"
+eventually means. Worth deciding deliberately rather than drifting into (2)
+because it is nearer.
+
+`splice_eval` and `splice_set` are not blocked by this. `view` already runs in
+the main evaluation and `update` already runs at event time in the builtin
+environment (`UserLivelit.re:500`, `LivelitProj.re:643` for view,
+`LivelitProj.re:710` for update), so both have an evaluator available where
+`init` does not.
