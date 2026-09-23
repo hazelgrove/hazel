@@ -11,10 +11,10 @@ let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
   IdTagged.rep_id(sample.value)
   |> Statics.Map.lookup(_, info_map)
   |> Option.bind(
-       _,
-       fun
-       | Info.InfoExp(e) => Some(e.ty)
-       | _ => None,
+       ~f=
+         fun
+         | Info.InfoExp(e) => Some(e.ty)
+         | _ => None,
      );
 };
 
@@ -26,8 +26,8 @@ let dynamic_typ_of_samples =
   | [] => None
   | _ =>
     Option.bind(
-      List.map(type_of_sample(~ctx), samples) |> Util.OptUtil.sequence,
-      Typ.meet_all(~empty=Typ.fresh(Unknown(Internal)), ctx),
+      List.map(~f=type_of_sample(~ctx), samples) |> Util.OptUtil.sequence,
+      ~f=Typ.meet_all(~empty=Typ.fresh(Unknown(Internal)), ctx),
     )
   };
 
