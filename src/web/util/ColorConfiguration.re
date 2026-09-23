@@ -26,18 +26,13 @@ let source: Haz3lcore.PersistentZipper.t =
 
 /* ── Hazel field -> CSS custom properties ───────────────────────────────
 
-   The slide's field names and the CSS variable names used to be the same
-   thing, which is why a themer met `shard-caret-tpat` and `backback-targets`.
-   They are separated here: a field sets the properties listed against it, and
-   a field with no entry sets the single property of its own name.
+   A field sets the properties listed against it, and a field with no entry
+   sets the single property of its own name, so the slide's names need not be
+   the CSS names.
 
-   A PALETTE field never sets a property of its own name. `--ink` and 33 others
-   were published and read by nothing -- no stylesheet, no OCaml, no script;
-   the only `var(--ink)`-shaped references left in the tree were commented out,
-   and palette.html declares its own `:root` rather than reading the theme's.
-   So the palette reaches CSS only through the semantic names below, which
-   makes "components consume roles, not the palette" true by construction
-   rather than by lint. The palette is still a first-class layer in the slide
+   A PALETTE field never sets a property of its own name: the palette reaches
+   CSS only through the semantic names below, which makes "components consume
+   roles, not the palette" true by construction rather than by lint. The palette is still a first-class layer in the slide
    and in `ColorPalette`; it is just not a CSS namespace.
 
    That indirection is what lets one semantic field stand in for a family of
@@ -99,7 +94,6 @@ let aliases: list(((string, string), list(string))) = [
       "shadow-error",
       "surface-error",
       "text-error",
-      "num-samples-indicated",
     ],
   ),
   (
@@ -195,7 +189,6 @@ let aliases: list(((string, string), list(string))) = [
       "border-typ",
       "shadow-typ",
       "text-typ",
-      "exp-ap-indicated",
       "token-sig",
     ],
   ),
@@ -258,7 +251,7 @@ let aliases: list(((string, string), list(string))) = [
   (("editor", "buffer"), ["token-buffer"]),
   (("editor", "derivation"), ["token-drv"]),
   (("editor", "locked-cell"), ["cell-exercises-border"]),
-  (("cursor", "derivation"), ["shard-caret-drv", "shard-drv"]),
+  (("cursor", "derivation"), ["shard-drv"]),
   (("cursor", "module"), ["shard-caret-mod", "shard-mod"]),
   (("cursor", "signature"), ["shard-caret-sig", "shard-sig"]),
   (("cursor", "module-pattern"), ["shard-caret-mpat", "shard-mpat"]),
@@ -338,12 +331,7 @@ let aliases: list(((string, string), list(string))) = [
   ),
   (
     ("palette", "attention-2"),
-    [
-      "border-highlight",
-      "shadow-highlight",
-      "surface-highlight",
-      "num-samples",
-    ],
+    ["border-highlight", "shadow-highlight", "surface-highlight"],
   ),
   (
     ("palette", "attention-4"),

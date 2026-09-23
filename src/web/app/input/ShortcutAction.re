@@ -475,8 +475,6 @@ let section_string = (a: t): option(string) =>
 
 /* Resolution lives in the shared module (the one place the platform is
    consulted, which is what keeps the config program system-independent). */
-let string_of_key_mod = S.string_of_key_mod;
-let string_of_chord = S.string_of_chord;
 let string_of_binding = S.string_of_binding;
 
 let default_hotkey = (a: t): option(string) =>
