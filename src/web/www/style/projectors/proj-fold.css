@@ -42,7 +42,7 @@
   left: 10px;
   top: 0px;
   filter: drop-shadow(-5px 0px 0px var(--fold-accent))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
   transform-origin: top left;
 }
 
@@ -81,7 +81,7 @@
   left: 10px;
   top: 0px;
   filter: drop-shadow(-5px 0px 0px var(--fold-accent))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
   transform-origin: top left;
   animation: shadowSlideIn 0.15s ease-in;
 }
@@ -91,27 +91,27 @@
 .projector.fold div:hover .hover-view {
   left: 9px;
   filter: drop-shadow(-4px 0px 0px var(--fold-accent))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
 }
 
 @keyframes shadowSlideIn {
   from {
     left: 0;
     filter: drop-shadow(0px 0px 0px var(--fold-accent))
-      drop-shadow(5px 5px 5px #2105);
+      drop-shadow(5px 5px 5px var(--SHADOW));
     transform: scale(0);
   }
   to {
     left: 10px;
     filter: drop-shadow(-5px 0px 0px var(--fold-accent))
-      drop-shadow(5px 5px 5px #2105);
+      drop-shadow(5px 5px 5px var(--SHADOW));
     transform: scale(1);
   }
 }
 
 .projector.fold .hover-view .code .quick-select-deco {
   filter: drop-shadow(8px 0px 0px var(--fold-bkg))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
 }
 
 .projector.fold .hover-view .code-text {

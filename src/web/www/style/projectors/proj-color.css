@@ -73,8 +73,8 @@
   height: 0.7em;
   margin: -0.35em 0 0 -0.35em;
   border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
+  border: 2px solid var(--surface-default);
+  box-shadow: 0 0 0 1px var(--CREASE);
   pointer-events: none;
 }
 

@@ -146,7 +146,7 @@
   margin-bottom: 0.5em;
   padding-left: 0.5em;
   border-left: 2px solid var(--border-inverse);
-  border-left-color: rgba(128, 128, 128, 0.3);
+  border-left-color: var(--border-soft);
 }
 
 .agent-thinking-header {
@@ -222,7 +222,7 @@
 .agent-message-markdown .agent-md-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.88em;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--surface-sunken);
   padding: 0.1em 0.35em;
   border-radius: 3px;
 }
@@ -231,7 +231,7 @@
   margin: 0.5em 0;
   padding: 0.55em 0.65em;
   overflow-x: auto;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--surface-sunken);
   border-radius: 5px;
   border: 0.6px solid var(--border-default);
 }
@@ -285,7 +285,7 @@
 }
 
 .agent-message-markdown .agent-md-th {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--surface-sunken);
   font-weight: 600;
 }
 
@@ -336,7 +336,7 @@
   padding: 0.4em 0.6em;
   margin: 0.25em 0;
   border-left: 3px solid var(--border-inverse);
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--surface-raised);
   border-radius: 0 4px 4px 0;
 }
 
@@ -374,13 +374,13 @@
 }
 
 .slash-card-cost {
-  border-left-color: var(--YELLOW, #c79c2c);
+  border-left-color: var(--border-warning);
 }
 .slash-card-credits {
-  border-left-color: var(--GREEN, #4a8c5e);
+  border-left-color: var(--border-success);
 }
 .slash-card-usage {
-  border-left-color: var(--BLUE, #4a6f8c);
+  border-left-color: var(--border-info);
 }
 .slash-card-help {
   border-left-color: var(--border-default, var(--border-inverse));
@@ -399,7 +399,7 @@
   max-width: 100%;
   font-size: 0.82em;
   padding: 0.25em 0.45em;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--surface-sunken);
   border-radius: 3px;
   overflow-wrap: anywhere;
   word-break: break-all;
@@ -407,8 +407,8 @@
   color: var(--text-default);
 }
 .slash-card-error {
-  border-left-color: var(--RED, #b04848);
-  background: rgba(176, 72, 72, 0.06);
+  border-left-color: var(--border-error);
+  background: var(--surface-error-soft);
 }
 
 .slash-card-header {
@@ -427,22 +427,22 @@
   height: 1.3em;
   border-radius: 50%;
   background: var(--surface-accent, var(--surface-inverse));
-  color: var(--main-bkg, #fff);
+  color: var(--main-bkg);
   font-weight: 700;
   font-size: 0.85em;
   line-height: 1;
 }
 .slash-card-cost .slash-card-icon {
-  background: var(--YELLOW, #c79c2c);
+  background: var(--surface-warning);
 }
 .slash-card-credits .slash-card-icon {
-  background: var(--GREEN, #4a8c5e);
+  background: var(--surface-success);
 }
 .slash-card-usage .slash-card-icon {
-  background: var(--BLUE, #4a6f8c);
+  background: var(--surface-info);
 }
 .slash-card-error .slash-card-icon {
-  background: var(--RED, #b04848);
+  background: var(--surface-error);
 }
 
 .slash-card-title {
@@ -492,7 +492,7 @@
   flex-direction: column;
   gap: 0.15em;
   padding: 0.45em 0.55em;
-  background: rgba(0, 0, 0, 0.035);
+  background: var(--surface-raised);
   border-radius: 4px;
   min-width: 0;
 }
@@ -519,23 +519,23 @@
   color: var(--text-faint);
 }
 .slash-card-cost .slash-stat-accent .slash-stat-value {
-  color: var(--YELLOW, #c79c2c);
+  color: var(--text-warning);
 }
 .slash-card-credits .slash-stat-accent .slash-stat-value {
-  color: var(--GREEN, #4a8c5e);
+  color: var(--text-success);
 }
 
 /* Used/total bar under /credits */
 .slash-progress {
   width: 100%;
   height: 6px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--surface-sunken);
   border-radius: 3px;
   overflow: hidden;
 }
 .slash-progress-fill {
   height: 100%;
-  background: var(--GREEN, #4a8c5e);
+  background: var(--surface-success);
 }
 
 /* Key-value grid used by /usage */
@@ -549,7 +549,7 @@
   justify-content: space-between;
   align-items: baseline;
   padding: 0.3em 0.45em;
-  border-bottom: 0.5px solid var(--border-strong, rgba(0, 0, 0, 0.07));
+  border-bottom: 0.5px solid var(--border-strong);
 }
 .slash-kv:last-child {
   border-bottom: none;
@@ -586,7 +586,7 @@
   font-family: var(--font-mono, monospace);
   font-weight: 600;
   color: var(--text-default);
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--surface-sunken);
   padding: 0.1em 0.45em;
   border-radius: 3px;
   white-space: nowrap;
@@ -775,16 +775,16 @@
   gap: 0.4em;
   padding: 0.2em 0.6em;
   border-radius: 12px;
-  background-color: oklch(from var(--exp-ap) l c h / 0.08);
-  border: 0.6px solid oklch(from var(--exp-ap) l c h / 0.2);
+  background-color: var(--agent-active-task);
+  border: 0.6px solid var(--agent-active-task-edge);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
   max-width: 70%;
 }
 
 .wb-active-task-pill:hover {
-  background-color: oklch(from var(--exp-ap) l c h / 0.14);
-  border-color: oklch(from var(--exp-ap) l c h / 0.3);
+  background-color: var(--agent-active-task-hover);
+  border-color: var(--agent-active-task-edge-hover);
 }
 
 .wb-active-task-pill span {
@@ -967,11 +967,11 @@
 }
 
 .wb-subtask.is-active {
-  background-color: oklch(from var(--exp-ap) l c h / 0.04);
+  background-color: var(--agent-active-subtask);
 }
 
 .wb-subtask.is-active:hover {
-  background-color: oklch(from var(--exp-ap) l c h / 0.07);
+  background-color: var(--agent-active-subtask-hover);
 }
 
 /* Subtask status icon */
@@ -1100,7 +1100,7 @@
 
 .wb-archive-backdrop {
   flex: 1;
-  background-color: oklch(0 0 0 / 0.15);
+  background-color: var(--SHADOW);
 }
 
 .wb-archive-panel {
@@ -1110,7 +1110,7 @@
   border-left: 0.6px solid var(--border-default);
   display: flex;
   flex-direction: column;
-  box-shadow: -4px 0 12px oklch(0 0 0 / 0.06);
+  box-shadow: -4px 0 12px var(--shadow-soft);
 }
 
 .wb-archive-header {
@@ -1370,7 +1370,7 @@
   background: var(--surface-code);
   border: 1px solid var(--border-default);
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px var(--menu-shadow);
   z-index: 100;
   white-space: normal;
   pointer-events: none;
@@ -1429,7 +1429,7 @@
   border-radius: 3px;
   min-width: 80px;
   z-index: 50;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 8px var(--menu-shadow);
 }
 
 /* Click button → dropup gets focus → menu opens.
@@ -1506,7 +1506,7 @@
   border-radius: 8px;
   border: 0.6px solid var(--border-strong);
   background-color: var(--surface-code);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 14px var(--menu-shadow);
   padding: 0.25em 0;
 }
 
@@ -1889,7 +1889,7 @@
   border-radius: 6px;
   background-color: var(--surface-default);
   overflow: hidden;
-  box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+  box-shadow: 0 1px 2px var(--shadow-soft);
 }
 
 .agent-tool-summary.collapsed {
@@ -1902,7 +1902,7 @@
   font-weight: 600;
   color: var(--text-default);
   border-bottom: 1px solid var(--border-default);
-  background-color: oklch(from var(--surface-raised) l c h / 0.6);
+  background-color: var(--surface-raised);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   display: flex;
@@ -1958,7 +1958,7 @@
 }
 
 .summary-tool-link:hover {
-  background-color: oklch(0 0 0 / 0.05);
+  background-color: var(--surface-sunken);
 }
 
 .summary-tool-link .tool-call-status-icon {
@@ -2112,7 +2112,7 @@
 }
 
 .timeline-node.timeline-step:hover:not(.disabled) {
-  background-color: oklch(0 0 0 / 0.04);
+  background-color: var(--surface-sunken);
   border-color: var(--border-strong);
 }
 
@@ -2161,7 +2161,7 @@
 
 .timeline-node.timeline-step.active {
   border-color: transparent;
-  background-color: oklch(from var(--pat-cell) l c h / 0.08);
+  background-color: var(--agent-active-step);
 }
 
 .timeline-node.disabled::before {
@@ -2764,7 +2764,7 @@
 
 .tools-view-item:hover {
   border-color: var(--border-strong);
-  box-shadow: 0 2px 10px oklch(0 0 0 / 0.07);
+  box-shadow: 0 2px 10px var(--shadow-soft);
 }
 
 .tools-view-item-expanded {
@@ -2933,7 +2933,7 @@
   flex-direction: column;
   gap: 0.3em;
   padding: 0.35em 0.5em;
-  background-color: oklch(0 0 0 / 0.02);
+  background-color: var(--surface-raised);
   border-radius: 3px;
   border-left: 2px solid var(--border-default);
 }
@@ -2966,8 +2966,8 @@
 .compaction-in-progress-banner {
   padding: 0.65em 0.85em;
   border-radius: 6px;
-  background: oklch(0.55 0.08 250 / 0.12);
-  border: 1px solid oklch(0.55 0.08 250 / 0.35);
+  background: var(--agent-banner);
+  border: 1px solid var(--agent-banner-edge);
   font-size: 0.9em;
   color: var(--text-default);
 }

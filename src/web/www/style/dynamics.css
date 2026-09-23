@@ -170,14 +170,14 @@
 }
 
 svg.shard.incremental-frozen > path {
-  fill: var(--incremental-frozen, rgba(200, 230, 255, 0.55));
-  stroke: var(--incremental-frozen-edge, rgba(140, 190, 240, 0.55));
+  fill: var(--incremental-frozen);
+  stroke: var(--incremental-frozen-edge);
   stroke-width: 0.5px;
   vector-effect: non-scaling-stroke;
 }
 
 svg.shard.incremental-frozen {
-  filter: drop-shadow(0 0 1px rgba(160, 210, 255, 0.75));
+  filter: drop-shadow(0 0 1px var(--incremental-frozen-glow));
 }
 
 /* Active shards also carry the incremental-pending class (Highlight.re). */
