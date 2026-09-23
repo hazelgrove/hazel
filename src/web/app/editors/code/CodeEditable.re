@@ -906,7 +906,15 @@ module View = {
         )
       | Some(sub) =>
         Node.div(
+          /* The key helps vdom reuse this subtree among its siblings.
+             It is NOT sufficient on its own: typing in a splice edits the
+             program, so the line holding the projector is rebuilt and an
+             ancestor is replaced, which no key can survive. The id is
+             what FocusEffect.keep_splice_focus uses to put focus back
+             afterwards. */
+          ~key="splice-" ++ Id.to_string(splice.id),
           ~attrs=[
+            Attr.id(Id.cls(splice.id)),
             Attr.classes(["splice-editor", "inline-editor-wrapper"]),
             /* Contain pointer interactions: without this, splice clicks
              * bubble to the projector wrapper (stealing focus into the

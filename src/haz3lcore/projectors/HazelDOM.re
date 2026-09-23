@@ -543,7 +543,14 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
       | Some(i) =>
         switch (mvu.splice_view(i)) {
         | Some(node) =>
-          Node.div(~attrs=[Attr.classes(["livelit-splice"])], [node])
+          /* Keyed: see the note in CodeEditable's render_splice. The
+             wrapper has to be stable too, or the diff still recreates
+             the subtree it wraps. */
+          Node.div(
+            ~key="livelit-splice-" ++ string_of_int(i),
+            ~attrs=[Attr.classes(["livelit-splice"])],
+            [node],
+          )
         | None => of_error(elide_errors, mvu, d)
         }
       | None => of_error(elide_errors, mvu, d)

@@ -283,6 +283,8 @@ let start = default_model => {
         let _ = Haz3lcore.FocusEffect.execute();
         /* restore probe focus dropped by vdom reorder moves */
         Haz3lcore.FocusEffect.keep_focus();
+        /* and splice focus dropped when an edit rebuilds the code view */
+        Haz3lcore.FocusEffect.keep_splice_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */

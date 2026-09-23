@@ -107,3 +107,87 @@ let keep_focus = (): unit => {
     }
   };
 };
+
+/* --- Splice focus -----------------------------------------------------
+ *
+ * Same problem as keep_focus above, different trigger. Typing inside a
+ * splice edits the program, so the code view re-renders and the LINE
+ * holding the projector is rebuilt -- which detaches the splice's
+ * sub-editor and drops DOM focus to BODY. Measured: focus survived 1 of
+ * 16 edits, and the one survivor was a keystroke that changed nothing.
+ *
+ * A vdom key on the splice does not help: keys only match siblings under
+ * a surviving parent, and here an ancestor is replaced.
+ *
+ * Restoring focus to the main editor's clipboard shim does NOT work
+ * either -- verified: keystrokes then reach the editor but never the
+ * splice. Focus has to go back to the splice's own sub-editor element,
+ * which is what this does. */
+
+let kept_splice: ref(option(string)) = ref(None);
+
+/* The `.splice-editor` wrapper an element sits in, if any. */
+let enclosing_splice = (el: Js.t(Dom_html.element)): option(string) => {
+  let found =
+    Js.Unsafe.meth_call(
+      el,
+      "closest",
+      [|Js.Unsafe.inject(Js.string(".splice-editor"))|],
+    );
+  switch (Js.Opt.to_option(found)) {
+  | None => None
+  | Some(w) =>
+    let id = Js.to_string(Js.Unsafe.get(w, "id"));
+    id == "" ? None : Some(id);
+  };
+};
+
+/* Focus the sub-editor inside a splice wrapper. The wrapper itself is not
+   the focus target -- the inner `.sub-editor` is, which is what a click
+   lands on. */
+let focus_inside_splice = (wrapper: Js.t(Dom_html.element)): bool => {
+  let inner =
+    Js.Unsafe.meth_call(
+      wrapper,
+      "querySelector",
+      [|Js.Unsafe.inject(Js.string(".sub-editor"))|],
+    );
+  let target =
+    switch (Js.Opt.to_option(inner)) {
+    | Some(el) => el
+    | None => wrapper
+    };
+  focus_no_scroll(target);
+  true;
+};
+
+/* Called from after_display, beside keep_focus. */
+let keep_splice_focus = (): unit => {
+  let active = Js.Opt.to_option(Dom_html.document##.activeElement);
+  switch (active) {
+  | Some(el) when enclosing_splice(el) != None =>
+    /* still in a splice: remember which, in case the next render drops it */
+    kept_splice := enclosing_splice(el)
+  | _ =>
+    switch (kept_splice^) {
+    | None => ()
+    | Some(id) =>
+      let fell_to_nothing =
+        switch (active) {
+        | None => true
+        | Some(el) =>
+          let tag = Js.to_string(el##.tagName);
+          let eid = Js.to_string(el##.id);
+          tag == "BODY" || eid == "page" || eid == "clipboard-shim";
+        };
+      if (fell_to_nothing) {
+        switch (JsUtil.get_elem_by_id_opt(id)) {
+        | Some(w) => ignore(focus_inside_splice(w))
+        | None => kept_splice := None /* splice gone: deleted or culled */
+        };
+      } else {
+        kept_splice := None; /* something else took focus on purpose */
+      };
+    }
+  };
+};

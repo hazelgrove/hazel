@@ -107,37 +107,34 @@ FRESH_PAGE = """<!doctype html>
 <title>refreshing…</title>
 <style>
   body {{ font: 14px/1.5 ui-monospace, monospace; padding: 2rem; color: #333; }}
-  code {{ background: #eee; padding: 0 .3em; }}
+  @media (prefers-color-scheme: dark) {{ body {{ background:#1c1c19; color:#ddd }} }}
 </style>
-<p id="msg">clearing saved slide state…</p>
+<p id="msg">clearing local editor state…</p>
 <script>
+  // Delete the whole database rather than picking keys out of it.
+  //
+  // The surgical version was actively harmful: `indexedDB.open('hazel')`
+  // CREATES the database when it is absent -- an empty v1 with no `kv`
+  // object store -- and the app then hangs on "loading" forever against a
+  // database it cannot use. Deleting cannot wedge anything, because the
+  // app rebuilds the schema on boot. The cost is that other local state
+  // (mode, settings, scratch) goes too, which for a "show me the shipped
+  // source" route is the intent anyway.
   const target = {target};
-  const only   = {only};
   function go() {{ location.replace(target); }}
-  let req;
-  try {{ req = indexedDB.open('hazel'); }} catch (e) {{ go(); }}
-  if (req) {{
-    req.onerror = go;
-    req.onsuccess = e => {{
-      const db = e.target.result;
-      let store;
-      try {{ store = db.transaction('kv', 'readwrite').objectStore('kv'); }}
-      catch (err) {{ return go(); }}
-      const all = store.getAllKeys();
-      all.onerror = go;
-      all.onsuccess = ev => {{
-        const keys = (ev.target.result || []).filter(k =>
-          typeof k === 'string' && k.startsWith('doc:') &&
-          (!only || k === only || k === only + ':agent'));
-        keys.forEach(k => store.delete(k));
-        document.getElementById('msg').textContent =
-          'cleared ' + keys.length + ' saved slide key(s); opening…';
-        setTimeout(go, 250);
-      }};
+  let done = false;
+  const bail = setTimeout(() => {{ if (!done) go(); }}, 3000);
+  try {{
+    const req = indexedDB.deleteDatabase('hazel');
+    req.onsuccess = req.onerror = req.onblocked = () => {{
+      done = true; clearTimeout(bail);
+      document.getElementById('msg').textContent = 'cleared; opening…';
+      setTimeout(go, 150);
     }};
-  }}
+  }} catch (e) {{ done = true; clearTimeout(bail); go(); }}
 </script>
 """
+
 
 
 def build_info(root):
@@ -198,14 +195,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             slide = (q.get("slide") or [None])[0]
             target = "/" + ("?" + urllib.parse.urlencode(
                 {k: v[0] for k, v in q.items()}) if q else "")
-            # A `?slide=` id (livelits-splices-mvp) is not the key the
-            # editor saves under (`doc:Livelits / Splices MVP`), and the
-            # mapping lives in the app, not here. So clear every saved doc
-            # slide: for an iteration loop the shipped source is the truth,
-            # and anything you typed into a slide was scratch.
-            _ = slide
-            self._send(FRESH_PAGE.format(
-                target=json.dumps(target), only=json.dumps(None)))
+            _ = slide   # the redirect carries it; we clear everything
+            self._send(FRESH_PAGE.format(target=json.dumps(target)))
             return
         if parsed.path.rstrip("/") == "/status.json":
             info = build_info(os.getcwd())
