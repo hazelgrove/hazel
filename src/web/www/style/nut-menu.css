@@ -10,13 +10,13 @@
 
 #top-bar .wrap:has(#title) {
   height: 100%;
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 #top-bar .wrap:has(.nut-icon) {
   background-color: var(--primary-accent);
 }
 #top-bar .wrap:has(.nut-icon):hover {
-  outline: 0.6px solid var(--GB1);
+  outline: 0.6px solid var(--border-info);
 }
 #top-bar .wrap:has(#editor-mode) {
   height: 100%;
@@ -51,8 +51,11 @@
   outline: 0.6px solid var(--menu-outline);
   box-shadow: 0px 10px 20px var(--menu-shadow);
 }
-#top-bar .nut-menu .submenu-icon:hover + .submenu,
-#top-bar .nut-menu .submenu-icon + .submenu:hover {
+/* Hovering opens the menu unless it has been dismissed: an item that
+ * navigates away marks the enclosing .top-menu-item (NutMenu.dismiss), and
+ * its mouseleave clears the mark. */
+#top-bar .nut-menu .top-menu-item:not(.dismissed) > .submenu-icon:hover + .submenu,
+#top-bar .nut-menu .top-menu-item:not(.dismissed) > .submenu-icon + .submenu:hover {
   display: flex;
 }
 
@@ -119,7 +122,7 @@
   > .submenu-icon
   > .icon
   > svg {
-  fill: var(--GB1);
+  fill: var(--text-info-strong);
 }
 
 #top-bar .nut-menu:hover,
@@ -201,7 +204,7 @@
 
 #top-bar .icon {
   cursor: pointer;
-  color: var(--BR2);
+  color: var(--text-muted);
   height: 20px;
 }
 #top-bar .icon:hover {
@@ -209,7 +212,7 @@
 }
 
 #top-bar .icon svg {
-  fill: var(--BR2);
+  fill: var(--text-muted);
 }
 
 #top-bar .icon.disabled {
@@ -222,7 +225,7 @@
 }
 
 #top-bar .nut-menu .toggle-switch {
-  border: solid 1px var(--BR1);
+  border: solid 1px var(--border-soft);
 }
 
 #top-bar .nut-menu .toggle-switch.active {
@@ -241,9 +244,9 @@
   gap: 0.5em;
   padding: 0 0.75em;
   border-radius: 0 0 1em 0;
-  background-color: var(--T3);
-  color: var(--BR2);
-  border-right: 0.6px solid var(--BR2);
+  background-color: var(--surface-sunken);
+  color: var(--text-muted);
+  border-right: 0.6px solid var(--border-default);
   position: relative;
 }
 #top-bar #editor-mode #slide-navigation {
@@ -297,7 +300,7 @@
 #top-bar #editor-mode .icon:hover {
   scale: unset;
   border-radius: 1em;
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
 }
 
 #top-bar #editor-mode .icon:hover svg {
@@ -327,7 +330,7 @@
 }
 
 #top-bar #editor-mode select:hover {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
 }
 
 /* Multi-way settings place the label above a full-width row of choices. */
@@ -358,7 +361,7 @@
   gap: 2px;
   padding: 2px;
   border-radius: 4px;
-  background-color: color-mix(in srgb, var(--BR1) 27%, transparent);
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
 }
 #top-bar .submenu .segmented-setting .segment {
   appearance: none;

@@ -1,14 +1,5 @@
 /* PROJECTOR: FOLD */
 
-:root {
-  --fold-accent: var(--G0);
-  --fold-bkg: #293445;
-}
-
-.projector.fold:hover,
-.projector.indicated.fold {
-  color: --var(BLACK);
-}
 .projector.fold {
   cursor: pointer;
   font-family: var(--code-font);
@@ -20,18 +11,18 @@
 }
 
 .projector.fold > svg {
-  --shadow: var(--BR3);
+  --shadow: var(--shadow-strong);
   filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
 }
 
 .projector.fold.Pat {
-  color: var(--PAT);
+  color: var(--text-pat);
 }
 .projector.fold.Typ {
-  color: var(--TYP);
+  color: var(--text-typ);
 }
 .projector.fold.TPat {
-  color: var(--TPAT);
+  color: var(--text-tpat);
 }
 
 .projector.fold.Pat > svg {
@@ -51,7 +42,7 @@
   left: 10px;
   top: 0px;
   filter: drop-shadow(-5px 0px 0px var(--fold-accent))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
   transform-origin: top left;
 }
 
@@ -90,7 +81,7 @@
   left: 10px;
   top: 0px;
   filter: drop-shadow(-5px 0px 0px var(--fold-accent))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
   transform-origin: top left;
   animation: shadowSlideIn 0.15s ease-in;
 }
@@ -100,27 +91,27 @@
 .projector.fold div:hover .hover-view {
   left: 9px;
   filter: drop-shadow(-4px 0px 0px var(--fold-accent))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
 }
 
 @keyframes shadowSlideIn {
   from {
     left: 0;
     filter: drop-shadow(0px 0px 0px var(--fold-accent))
-      drop-shadow(5px 5px 5px #2105);
+      drop-shadow(5px 5px 5px var(--SHADOW));
     transform: scale(0);
   }
   to {
     left: 10px;
     filter: drop-shadow(-5px 0px 0px var(--fold-accent))
-      drop-shadow(5px 5px 5px #2105);
+      drop-shadow(5px 5px 5px var(--SHADOW));
     transform: scale(1);
   }
 }
 
 .projector.fold .hover-view .code .quick-select-deco {
   filter: drop-shadow(8px 0px 0px var(--fold-bkg))
-    drop-shadow(5px 5px 5px #2105);
+    drop-shadow(5px 5px 5px var(--SHADOW));
 }
 
 .projector.fold .hover-view .code-text {
@@ -130,7 +121,7 @@
 
 .projector.fold .hover-view .code-text .token.Exp,
 .projector.fold .hover-view .code-text .token.Rul {
-  color: var(--SAND);
+  color: var(--text-inverse);
 }
 
 .projector.fold .hover-view .code .quick-select-deco + .quick-select-deco {
@@ -168,7 +159,7 @@
 
 .projector.fold div:hover,
 .projector.fold div:has(.hover-view) {
-  color: var(--SAND);
+  color: var(--text-inverse);
 }
 
 .projector.fold.Pat .hover-view svg {

@@ -337,6 +337,8 @@ module Projectors = {
     | Csv => "CSV"
     | Table => "Table"
     | Livelit => "Livelit"
+    | Keybinding => "Keybinding"
+    | Color => "Color"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 

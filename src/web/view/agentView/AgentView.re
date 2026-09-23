@@ -40,7 +40,8 @@ let view =
       | ScratchMode.Scratchpad.Drv(_) => placeholder
       };
     | Tutorial(_)
-    | Exercises(_) => placeholder
+    | Exercises(_)
+    | Config(_) => placeholder
     };
   };
 };
