@@ -71,8 +71,9 @@ let ^between = {
   # Width of the widget's OWN chrome only -- the slider and the " = N". #
   # The splices add their own width on top, because only the editor knows #
   # how long the client's code is. Counting them here too double-reserves #
-  # and the widget sits in a wide empty box. #
-  let shape = Inline(22)
+  # and the widget sits in a wide empty box. 22 was too tight and #
+  # clipped the " = N"; 26 leaves room for a three-digit result. #
+  let shape = Inline(26)
 } in
 
 # THE CORRECTION #
@@ -125,7 +126,38 @@ let baseline = 10 in
 
 let shown = ^^livelit(^between((pct=50, lo=(baseline), hi=(baseline * 2)))) in
 
-(shown, shown * 2)
+# SPLICES COMPOSE #
+
+# A splice holds an EXPRESSION, and a use of a livelit is an expression. #
+# So one of these can be the bound of another. Three ways, and the #
+# difference between them is only where you write it. #
+
+# 1. BY NAME. The inner slider's value is the outer slider's maximum. #
+
+let cap = ^^livelit(^between((pct=50, lo=(0), hi=(200)))) in
+let by_name = ^^livelit(^between((pct=50, lo=(0), hi=(cap)))) in
+
+# 2. NESTED IN PLACE. The same relationship, with the inner slider #
+# living INSIDE the outer one's max splice. Drag the inner handle and #
+# the outer slider's range changes under you. #
+
+let nested =
+  ^^livelit(^between((pct=50, lo=(0),
+    hi=(^^livelit(^between((pct=50, lo=(0), hi=(200)))))))) in
+
+# 3. COMPUTED. A splice is not a slot for a widget, it is a region of #
+# your program -- so the maximum can be arithmetic over one. #
+
+let computed =
+  ^^livelit(^between((pct=50, lo=(0),
+    hi=((^^livelit(^between((pct=50, lo=(0), hi=(200))))) * 2 + 10)))) in
+
+# Watch where the parens close in 3. Written `hi=(slider) * 2 + 10` the #
+# marker takes in only the slider and leaves the arithmetic outside, so #
+# the field has no ref and does not typecheck. The parens say exactly #
+# which text becomes yours to edit. #
+
+(shown, by_name, nested, computed)
 
 # Try: change baseline to 20 and watch both bounds follow. Or type #
 # `baseline * 3` into the right-hand splice. Or empty a bound and see #

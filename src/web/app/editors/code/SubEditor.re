@@ -526,7 +526,31 @@ let confine_pre =
   open OptUtil.Syntax;
   let* sub = mk(editor, ~target);
   let z = editor.state.zipper;
-  if (Action.is_edit(action)) {
+  /* A projector action that NAMES its target does not depend on where
+     the caret is. SetTerm/SetSyntax/SetModel carry the projector's own
+     index, so they address exactly one projector whatever the caret is
+     doing -- unlike SetIndicated/RemoveIndicated/TogglePlacement, which
+     mean "the projector at the caret" and must keep the test below.
+
+     These are edits, and should be: they change the document and belong
+     in the undo history. But the caret-in-splice test exists for
+     KEYSTROKES, which have no target except the caret. Applying it here
+     silently dropped every commit from a projector nested inside a
+     splice: drag a slider that lives in a splice and the widget updates
+     optimistically while nothing outside it ever changes, because
+     confine_pre answered None and PerformConfined discards that without
+     a word. */
+  let names_its_target =
+    switch (action) {
+    | Action.Project(
+        SetSyntax(_) | SetTerm(_) | SetModel(_) | SetModelQuiet(_),
+      ) =>
+      true
+    | _ => false
+    };
+  if (names_its_target) {
+    Some(sub);
+  } else if (Action.is_edit(action)) {
     /* Edits must start from inside the splice (a caret parked outside
      * would invisibly edit some other part of the main buffer), and
      * deletion at the splice's edges must not eat the host syntax. */

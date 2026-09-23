@@ -66,3 +66,25 @@
     pointer-events: none;
     z-index: 10;
 }
+
+/* A splice inside a livelit sits in ONE editor row. The wrapper padding
+   it inherits from .inline-editor-wrapper (0.2em top and bottom, plus a
+   1px border) makes it about 6px taller than the row, and since
+   `.livelit > *` is overflow:hidden that difference clips the widget's
+   own text rather than overflowing it. Trimmed here only -- the
+   stepper's induction and case editors share that class and keep it. */
+.livelit-splice .splice-editor.inline-editor-wrapper {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* A splice's error and caret decorations draw at the BOTTOM edge of its
+   box. The content cell is inset 1px top and bottom (see .livelit > *
+   above) and clips, so those 2px are exactly where an error underline
+   lands -- it renders, then gets cut off, which reads as a rendering bug
+   rather than as an error. Give the cell those 2px back, but only for a
+   livelit that actually hosts a splice: everything else keeps the inset,
+   which is what stops oversized GUI content from touching the code. */
+.livelit:has(.livelit-splice) > *:not(svg) {
+  inset-block: 0;
+}
