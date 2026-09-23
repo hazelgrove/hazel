@@ -290,33 +290,52 @@ module M: Projector = {
 
   /* Widen the author's declared shape by what its splices actually hold.
      The author sizes the widget for its controls; the client decides how
-     long the code in a splice is, and only the editor knows that. Getting
+     much code is in a splice, and only the editor knows that. Getting
      this wrong is not cosmetic: `.livelit > *:not(svg)` sets overflow
-     hidden, so an undersized box does not overlap, it CLIPS -- the splice
+     hidden, so an undersized box does not overlap, it CLIPS -- content
      becomes invisible and unclickable while keyboard navigation still
      enters it, leaving an invisible caret. Over-reserving only wastes
      space, so err that way.
 
-     Known gap: a splice whose content wraps to several rows still reports
-     one row here, because the declared shape's vertical is the author's
-     and promoting Inline to Block would move the text around them. A
-     multi-line splice is clipped vertically. */
+     BOTH axes. Columns for a long expression, and rows for one that
+     spans lines: press Enter inside a splice and its content needs a
+     second row, which an Inline shape does not have. That clipped the
+     whole widget -- slider included -- into a sliver you could no longer
+     edit.
+
+     Promoting Inline to Block does move the surrounding text down, which
+     is why this was left out at first. That was the wrong call: reflowing
+     is a visible, recoverable consequence of what you typed, and clipping
+     the widget out of existence is neither. */
   let widen_for_splices =
       (info, splice_size: View.splice_size, shape: ProjectorCore.Shape.t) => {
-    let extra =
+    let (extra_cols, extra_rows) =
       List.fold_left(
-        (acc, s: Base.splice) => {
+        ((cols, rows), s: Base.splice) => {
           let size: Util.Point.t = splice_size(s.id);
-          acc + size.col;
+          /* segment_bbox reports `row` as the greatest row INDEX, not a
+             count: single-line content is 0, two lines is 1. So the
+             value already IS the number of rows beyond the first. */
+          (cols + size.col, max(rows, size.row));
         },
-        0,
+        (0, 0),
         Segment.direct_splices(info.syntax),
       );
-    extra == 0
+    let vertical: ProjectorCore.Shape.vertical =
+      extra_rows <= 0
+        ? shape.vertical
+        : (
+          switch (shape.vertical) {
+          | Inline => Block(extra_rows)
+          | Block(n) => Block(n + extra_rows)
+          | Tab(n) => Tab(n + extra_rows)
+          }
+        );
+    extra_cols == 0 && extra_rows <= 0
       ? shape
       : {
-        ...shape,
-        horizontal: shape.horizontal + extra,
+        horizontal: shape.horizontal + extra_cols,
+        vertical,
       };
   };
 
