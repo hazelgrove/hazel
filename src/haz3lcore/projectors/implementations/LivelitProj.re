@@ -868,12 +868,13 @@ module M: Projector = {
     | (Some(entry), _) =>
       ok(
         HazelDOM.go(
+          ~elide_errors=true,
           seed(~model=entry.opt_model, ~model_value=Some(entry.opt_model)),
           entry.opt_html,
         ),
       )
     | (None, Some(html)) =>
-      ok(HazelDOM.go(seed(~model, ~model_value), html))
+      ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
     | (None, None) =>
       let ap = IdTagged.FreshGrammar.Exp.ap;
       switch (MvuShape.safe_evaluate(def_elab)) {
@@ -885,7 +886,13 @@ module M: Projector = {
           switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {
           | Error(e) => err("livelit view error: " ++ e)
           | Ok(html) when MvuShape.is_html(html) =>
-            ok(HazelDOM.go(seed(~model, ~model_value), html))
+            ok(
+              HazelDOM.go(
+                ~elide_errors=true,
+                seed(~model, ~model_value),
+                html,
+              ),
+            )
           | Ok(_) => err("livelit view did not produce HTML")
           }
         }

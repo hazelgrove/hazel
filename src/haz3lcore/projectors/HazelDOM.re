@@ -445,10 +445,23 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
   };
 };
 
-let of_error = (elide_errors: bool, mvu: t, d: DHExp.t): Node.t => {
-  let d = !elide_errors ? d : Exp.empty_hole();
-  mvu.view_term(d);
-};
+/* What to draw where an Html node is not well formed -- which, for a
+   livelit whose view computes from a splice, mostly means the splice does
+   not reduce yet: a hole in a bound, a name not in scope, a type error.
+
+   Dumping the term is right when you are debugging a view and wrong when
+   someone is using the widget: `Html.text(" = " ++ string_of_int(at(m)))`
+   renders as its own unreduced source, which swamps the widget and reads
+   as corruption. Eliding shows a hole instead, which is what an
+   expression with no value actually is. The class is there so a host can
+   mark it; the hole itself carries the meaning. */
+let of_error = (elide_errors: bool, mvu: t, d: DHExp.t): Node.t =>
+  elide_errors
+    ? Node.span(
+        ~attrs=[Attr.classes(["mvu-indet"])],
+        [mvu.view_term(Exp.empty_hole())],
+      )
+    : mvu.view_term(d);
 
 /* Tags a generic Node(tag, attrs, children) creates in the SVG namespace.
    createElement on these yields an inert HTMLUnknownElement that renders
@@ -587,7 +600,7 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
 
     // === Node: custom element (tagName, attrs, children) ===
     | ("Node", body) =>
-      switch (node_body(mvu, body)) {
+      switch (node_body(~elide_errors, mvu, body)) {
       | Some((tag, attrs, children)) =>
         is_svg_tag(tag)
           ? Node.create_svg(tag, ~attrs, children)
@@ -598,115 +611,115 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
     // === Standard elements with (attrs, children) ===
     // Structural
     | ("Div", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.div(~attrs, children);
     | ("Span", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.span(~attrs, children);
     | ("P", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.p(~attrs, children);
     | ("Pre", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.pre(~attrs, children);
     | ("Code", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.code(~attrs, children);
     | ("Blockquote", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.blockquote(~attrs, children);
 
     // Headings
     | ("H1", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.h1(~attrs, children);
     | ("H2", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.h2(~attrs, children);
     | ("H3", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.h3(~attrs, children);
     | ("H4", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.h4(~attrs, children);
     | ("H5", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.h5(~attrs, children);
     | ("H6", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.h6(~attrs, children);
 
     // Lists
     | ("Ul", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.ul(~attrs, children);
     | ("Ol", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.ol(~attrs, children);
     | ("Li", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.li(~attrs, children);
 
     // Forms
     | ("Form", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.create("form", ~attrs, children);
     | ("Label", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.label(~attrs, children);
     | ("Button", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.button(~attrs, children);
     | ("Select", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.select(~attrs, children);
 
     // Tables
     | ("Table", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.table(~attrs, children);
     | ("Thead", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.thead(~attrs, children);
     | ("Tbody", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.tbody(~attrs, children);
     | ("Tr", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.tr(~attrs, children);
     | ("Th", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.th(~attrs, children);
     | ("Td", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.td(~attrs, children);
 
     // Semantic (using Node.create since Virtual_dom may not have dedicated functions)
     | ("Header", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.header(~attrs, children);
     | ("Footer", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.footer(~attrs, children);
     | ("Nav", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.create("nav", ~attrs, children);
     | ("Main", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.main(~attrs, children);
     | ("Section", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.section(~attrs, children);
     | ("Article", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.create("article", ~attrs, children);
     | ("Aside", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.create("aside", ~attrs, children);
 
     // Links
     | ("A", body) =>
-      let (attrs, children) = attrs_and_elems(mvu, body);
+      let (attrs, children) = attrs_and_elems(~elide_errors, mvu, body);
       Node.a(~attrs, children);
 
     // Fallback
@@ -716,7 +729,8 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   }
 
 // Extract (attrs, children) from a tuple body
-and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
+and attrs_and_elems =
+    (~elide_errors, mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
   let body = strip_wrappers(body);
   switch (body.term) {
   | Tuple([attrs_exp, elems_exp]) =>
@@ -725,7 +739,7 @@ and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
     switch (attrs_exp.term, elems_exp.term) {
     | (ListLit(attrs), ListLit(elems)) => (
         List.map(render_attr(mvu), attrs),
-        List.map(render_elem(mvu), elems),
+        List.map(render_elem(~elide_errors, mvu), elems),
       )
     | _ => ([], [mvu.view_term(body)])
     };
@@ -761,7 +775,8 @@ and attrs_and_string =
 
 // Extract (tagName, attrs, children) for custom Node element
 and node_body =
-    (mvu: t, body: DHExp.t): option((string, list(Attr.t), list(Node.t))) => {
+    (~elide_errors, mvu: t, body: DHExp.t)
+    : option((string, list(Attr.t), list(Node.t))) => {
   let body = strip_wrappers(body);
   switch (body.term) {
   | Tuple([tag_exp, attrs_exp, elems_exp]) =>
@@ -773,7 +788,7 @@ and node_body =
       Some((
         tag,
         List.map(render_attr(mvu), attrs),
-        List.map(render_elem(mvu), elems),
+        List.map(render_elem(~elide_errors, mvu), elems),
       ))
     | _ => None
     };
@@ -783,7 +798,7 @@ and node_body =
 
 // Render-only: subscriptions are owned and reconciled by the web-side
 // AppStore update path, never at render time.
-let go = (mvu: t, html: DHExp.t): Node.t => {
+let go = (~elide_errors=false, mvu: t, html: DHExp.t): Node.t => {
   let attrs = [Attr.tabindex(2), Attr.classes(["MVU-render"])];
-  Node.div(~attrs, [render_elem(mvu, html)]);
+  Node.div(~attrs, [render_elem(~elide_errors, mvu, html)]);
 };
