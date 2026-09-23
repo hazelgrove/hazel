@@ -1,40 +1,21 @@
-let get = (if_none, o) =>
-  switch (o) {
-  | None => if_none()
-  | Some(a) => a
-  };
+let get = (if_none, o) => Option.value_or_thunk(o, ~default=if_none);
 let get_or_fail = s => get(() => failwith(s));
 let get_or_raise = e => get(() => raise(e));
 
-let map2 = (f, o1, o2) =>
-  switch (o1, o2) {
-  | (None, _)
-  | (_, None) => None
-  | (Some(v1), Some(v2)) => Some(f(v1, v2))
-  };
+let map2 = (f, o1, o2) => Option.map2(o1, o2, ~f);
 
-let some_if = (cond, a) => cond ? Some(a) : None;
+let some_if = (cond, a) => Option.some_if(cond, a);
 
-let zip = (o1, o2) =>
-  switch (o1, o2) {
-  | (None, _)
-  | (_, None) => None
-  | (Some(a), Some(b)) => Some((a, b))
-  };
+let zip = (o1, o2) => Option.both(o1, o2);
 let unzip = (o: option(('a, 'b))): (option('a), option('b)) =>
   switch (o) {
   | None => (None, None)
   | Some((a, b)) => (Some(a), Some(b))
   };
-let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
-  List.fold_right(
-    ~f=(x, acc) => map2((y, ys) => [y, ...ys], f(x), acc),
-    ~init=Some([]),
-    l,
-  );
+let sequence = (l: list(option('a))): option(list('a)) => Option.all(l);
 
-let sequence = (l: list(option('a))): option(list('a)) =>
-  traverse(Fun.id, l);
+let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
+  sequence(List.map(l, ~f));
 
 let and_then = (f, o) => Option.bind(o, ~f);
 
@@ -59,10 +40,7 @@ let fold_left_opt:
   };
 
 let filter = (f: 'a => bool, o: option('a)): option('a) =>
-  switch (o) {
-  | None => None
-  | Some(a) => f(a) ? Some(a) : None
-  };
+  Option.filter(o, ~f);
 
 let value_exn = (~none, o) => get(() => raise(none), o);
 
