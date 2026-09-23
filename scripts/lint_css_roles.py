@@ -28,7 +28,9 @@ move on its own; a palette entry is a bundle, fanned out to several properties
 that often share nothing but their color. And no component stylesheet
 declares a color the theme owns, because two `:root` blocks setting the same
 name is a race decided by @import order -- which is exactly how 23 defaults
-drifted into the projector stylesheets.
+drifted into the projector stylesheets. Nor does one state a color outright:
+a literal is a color no scheme can move, so it is right in the scheme it was
+picked for and wrong in the other three.
 
 Run via `make lint-css`. Exits non-zero on a violation.
 """
@@ -52,6 +54,61 @@ KNOWN_DANGLING = {
 }
 
 strip = lambda s: re.sub(r'/\*.*?\*/', '', s, flags=re.S)
+
+# Comments blanked but their newlines kept, so offsets still map to lines.
+blank_comments = lambda s: re.sub(
+    r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group(0)), s, flags=re.S)
+
+NAMED_COLORS = set('''
+aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond
+blue blueviolet brown burlywood cadetblue chartreuse chocolate coral
+cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray
+darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid
+darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey
+darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue
+firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod
+gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki
+lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan
+lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon
+lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue
+lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue
+mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen
+mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin
+navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod
+palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum
+powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon
+sandybrown seagreen seashell sienna silver skyblue slateblue slategray
+slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet
+wheat white whitesmoke yellow yellowgreen
+'''.split())
+
+COLOR_FUNCTION = re.compile(
+    r'\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(', re.I)
+HEX = re.compile(r'#[0-9a-f]{3,8}\b', re.I)
+DECLARATION = re.compile(r'([\w-]+)\s*:\s*([^;{}]+)')
+
+
+def color_literals(src):
+    """(line, declaration) for every color a declaration states outright. Only
+    declaration values are read, so an id selector like `#add` is not a hex
+    color; url()s and strings are skipped, since a file name is not one
+    either."""
+    src = blank_comments(src)
+    out = []
+    for d in DECLARATION.finditer(src):
+        value = re.sub(r'url\([^)]*\)|"[^"]*"|\'[^\']*\'',
+                       lambda m: ' ' * len(m.group(0)), d.group(2))
+        base = d.start(2)
+        hits = [(m.start(), m.group(0)) for m in HEX.finditer(value)]
+        hits += [(m.start(), m.group(0))
+                 for m in COLOR_FUNCTION.finditer(value)]
+        hits += [(m.start(), m.group(0))
+                 for m in re.finditer(r'(?<![\w-])[a-z]+(?![\w-])', value, re.I)
+                 if m.group(0).lower() in NAMED_COLORS]
+        if hits:
+            line = src.count('\n', 0, base + min(at for at, _ in hits)) + 1
+            out.append((line, ' '.join(d.group(0).split())))
+    return out
 
 
 def palette():
@@ -151,6 +208,14 @@ def main():
                         f'{os.path.relpath(f, ROOT)}: declares theme-owned '
                         f'--{n} on :root; that default is generated, so it '
                         'belongs in theme-generated.css')
+
+        # 4. Component stylesheets state no colors: every color is the
+        # slide's, so a themer can reach it in all four schemes.
+        if f not in (VARIABLES, GENERATED):
+            for line, decl in color_literals(raw):
+                problems.append(
+                    f'{os.path.relpath(f, ROOT)}:{line}: states a color '
+                    f'({decl}); give it a role in the Colors slide')
 
     # 3. No NEW dangling references.
     dangling = {n for n in used if n not in defined | runtime_declared()}
