@@ -1,0 +1,64 @@
+let rev_if: (bool, list('a)) => list('a);
+let dedup_f: (('a, 'a) => bool, list('a)) => list('a);
+let dedup: list('a) => list('a);
+let group_by: ('x => 'k, list('x)) => list(('k, list('x)));
+let group_consecutive: (('a, 'a) => bool, list('a)) => list(list('a));
+let range: (~lo: int=?, int) => list(int);
+let split: (list('x), 'x => bool) => (list('x), option('x), list('x));
+let combine_opt: (list('a), list('b)) => option(list(('a, 'b)));
+let join: ('x, list('x)) => list('x);
+let hd_opt: list('a) => option('a);
+let split_n_opt: (int, list('x)) => option((list('x), list('x)));
+let split_n: (int, list('x)) => (list('x), list('x));
+let split_sublist_opt:
+  (int, int, list('x)) => option((list('x), list('x), list('x)));
+let split_sublist: (int, int, list('x)) => (list('x), list('x), list('x));
+let sublist: ((int, int), list('x)) => list('x);
+let split_nth_opt: (int, list('a)) => option((list('a), 'a, list('a)));
+let put_nth: (int, 'x, list('x)) => list('x);
+let map_nth: (int, 'a => 'a, list('a)) => list('a);
+let split_last_opt: list('x) => option((list('x), 'x));
+let split_last: list('x) => (list('x), 'x);
+let last_opt: list('x) => option('x);
+let last: list('x) => 'x;
+let split_first_opt: list('x) => option(('x, list('x)));
+let split_first: list('a) => ('a, list('a));
+let neighbors: list('x) => list(('x, 'x));
+let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c);
+let interleave: (list('a), list('a)) => list('a);
+let count_pred: ('a => bool, list('a)) => int;
+let map2_opt: (('a, 'b) => 'c, list('a), list('b)) => option(list('c));
+let zip_defaults: (list('a), list('b), 'a, 'b) => list(('a, 'b));
+let opt_zip: (list('a), list('b)) => option(list(('a, 'b)));
+let update_nth: (int, list('a), 'a => 'a) => list('a);
+let findi_opt: ('x => bool, list('x)) => option((int, 'x));
+let find_with_rest:
+  ('a => option('b), list('a)) => option(('b, list('a)));
+let assoc_err: ('a, list(('a, 'b)), string) => 'b;
+let split_at_nones: list(option('a)) => list(list('a));
+let first_and_last: list(list('a)) => list(('a, 'a));
+let rev_concat: (list('a), list('a)) => list('a);
+let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c));
+let intersperse: ('a, list('a)) => list('a);
+let flat_intersperse: ('a, list(list('a))) => list('a);
+let is_suffix_of: (~eq: ('a, 'a) => bool=?, list('a), list('a)) => bool;
+let suffix_at_depth:
+  (~eq: ('a, 'a) => bool=?, list('a), list('a)) => option(int);
+let truncate: (int, list('a)) => list('a);
+let remove_first_n: (int, list('a)) => list('a);
+let slice: (int, int, list('x)) => list('x);
+let take: (int, list('a)) => list('a);
+let is_length: (int, list('a)) => bool;
+let insert: ('a, list('a), int) => list('a);
+let remove: (list('a), int) => list('a);
+let remove_nth: (int, list('a)) => option(list('a));
+let fold_left_opt: (('a, 'b) => option('a), 'a, list('b)) => option('a);
+let intersection_f: ('a => 'b, list('a), list('a)) => list('a);
+let map_with_history: ((list('y), 'x) => 'y, list('x)) => list('y);
+let forall2_opt:
+  (('a, 'b) => option(bool), list('a), list('b)) => option(bool);
+let assoc_opt_by: (('a, 'b) => bool, 'a, list(('b, 'c))) => option('c);
+let assoc_update:
+  ('a, option('b) => option('b), list(('a, 'b))) => list(('a, 'b));
+let remove_assoc: ('a, list(('a, 'b))) => list(('a, 'b));
+let max: (('a, 'a) => Direction.t, list('a)) => option('a);
