@@ -10,7 +10,7 @@ open Util;
        let init : Model = ...;          initial model, inserted on ^name<space>
        let update = fun (m, a) -> ...;  (Model, Action) => Model
        let view = fun m -> ...;         Model => HTML, handlers emit Actions
-       let expand = fun m -> ...        Model => Expansion
+       let expand_fun = fun m -> ...    Model => Expansion
      } in ...
 
    The three type members are the livelit's interface, and all three are

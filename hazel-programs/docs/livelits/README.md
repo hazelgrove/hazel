@@ -15,7 +15,7 @@ type Livelit = {
   let init   : Model;
   let update : (Model, Action) -> Model;
   let view   : Model -> Html.T;
-  let expand : Model -> Expansion
+  let expand_fun : Model -> Expansion
 }
 ```
 
@@ -34,7 +34,7 @@ let ^name = {
   let init : Model = ...;
   let update = fun (m, a) : (Model, Action) -> ...;
   let view = fun m : Model -> ...;
-  let expand = fun m : Model -> ...
+  let expand_fun = fun m : Model -> ...
 } in ...
 ```
 

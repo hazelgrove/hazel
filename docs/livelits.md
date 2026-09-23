@@ -125,10 +125,10 @@ The expansion typed is the one built from the *surface* model, since statics
 traverses surface syntax only; the elaborated model, which a user-defined
 livelit's expansion embeds, is what actually evaluates.
 
-Each use elaborates to `^name.expand(model)` through the runtime `^name`
+Each use elaborates to `^name.expand_fun(model)` through the runtime `^name`
 binding, so shadowing and scoping behave like ordinary lets, and each use's
 model lives in its own argument syntax. `^name.member` is also surface
-syntax: it accesses the definition record (e.g. `^pct.expand(25)`).
+syntax: it accesses the definition record (e.g. `^pct.expand_fun(25)`).
 
 A projected use's `view` runs in the main evaluation (sampled at the
 projector, which renders the live Html.T), so probes inside `view` and

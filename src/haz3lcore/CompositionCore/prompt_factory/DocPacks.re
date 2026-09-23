@@ -161,7 +161,7 @@ Attr.value(string_of_int(m)),
 Attr.on_input(fun s -> int_of_string(s))]),
 Html.text(string_of_int(m))
 ]);
-let expand(m: Model) = m
+let expand_fun(m: Model) = m
 } in
 ^^livelit(^pct(25)) + ^^livelit(^pct(75))
 ```
@@ -171,7 +171,7 @@ All three type members are REQUIRED — they are the livelit's interface:
 - `type Model` — the state a use carries, in its own argument
 - `type Action` — what the view's handlers emit
 - `type Expansion` — what a use MEANS to the program. This is the type
-  clients see: `^pct(25)` has type Expansion no matter what `expand`
+  clients see: `^pct(25)` has type Expansion no matter what `expand_fun`
   returns, and statics checks each use's expansion against it (an
   inconsistency is reported on the use, as the livelit's fault).
 
@@ -181,7 +181,7 @@ and the four value members:
 - `update : (Model, Action) -> Model` — no commands, unlike apps
 - `view : Model -> Html.T` — same Html/Attr vocabulary as apps
   (see read_docs("mvu")); handlers emit Actions
-- `expand : Model -> Expansion` — `^pct(25)` evaluates to `expand(25)`
+- `expand_fun : Model -> Expansion` — `^pct(25)` evaluates to `expand_fun(25)`
 
 ## Rules
 
@@ -206,7 +206,7 @@ and the four value members:
   snugly (a line is ~25px); overshoot clips, it never overlaps code.
 - Models and Actions must be first-order data (ints, strings, tuples,
   constructors) — they live in the program text.
-- Member access is ordinary syntax: `^pct.expand(25)` works anywhere.
+- Member access is ordinary syntax: `^pct.expand_fun(25)` works anywhere.
 - `Attr.create("data-hint", "drag me")` on a view element shows an instant
   tooltip on hover — advertise non-obvious gestures this way.
 - When the user operates the widget, the argument is rewritten to the
