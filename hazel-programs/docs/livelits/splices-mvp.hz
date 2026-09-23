@@ -68,7 +68,11 @@ let ^between = {
 
   let expand_fun = fun m : Model -> at(m);
 
-  let shape = Inline(44)
+  # Width of the widget's OWN chrome only -- the slider and the " = N". #
+  # The splices add their own width on top, because only the editor knows #
+  # how long the client's code is. Counting them here too double-reserves #
+  # and the widget sits in a wide empty box. #
+  let shape = Inline(22)
 } in
 
 # THE CORRECTION #

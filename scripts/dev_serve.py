@@ -62,10 +62,13 @@ PORTS_PAGE = """<!doctype html>
 <table><thead><tr>
   <th>port</th><th>branch</th><th>worktree</th><th>built</th><th>state</th><th>open</th>
 </tr></thead><tbody id=rows></tbody></table>
-<p id=note>Scanning localhost 8000-8030. Refreshes every 10s.
+<p id=note>Scanning localhost 8000-8030 and 8100-8130. Refreshes every 10s.
    <b>open</b> clears saved slide state first, so you always get the shipped source.</p>
 <script>
-const LO = 8000, HI = 8030;
+// Two ranges: the 80xx block and an 81xx block. A distinct port is a
+// distinct ORIGIN, and IndexedDB is per-origin -- so serving an
+// experiment on 8111 keeps its saved slides away from 8011's.
+const RANGES = [[8000, 8030], [8100, 8130]];
 async function probe(port) {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), 700);
@@ -80,8 +83,9 @@ async function probe(port) {
   } catch (e) { clearTimeout(t); return null; }
 }
 async function scan() {
-  const found = (await Promise.all(
-    Array.from({length: HI - LO + 1}, (_, i) => probe(LO + i)))).filter(Boolean);
+  const ports = RANGES.flatMap(([lo, hi]) =>
+    Array.from({length: hi - lo + 1}, (_, i) => lo + i));
+  const found = (await Promise.all(ports.map(probe))).filter(Boolean);
   found.sort((a, b) => a.port - b.port);
   document.getElementById('rows').innerHTML = found.length ? found.map(p => `
     <tr>

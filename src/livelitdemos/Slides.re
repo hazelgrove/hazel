@@ -7,7 +7,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Overview", [%blob "overview.hz"]),
     ("Define a Slider", [%blob "defined-slider.hz"]),
     ("The Expansion", [%blob "expansion.hz"]),
-    ("Splices MVP", [%blob "splices-mvp.hz"]),
+    ("SpliceRef, MVP", [%blob "splices-mvp.hz"]),
     ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
     ("Tree Care", [%blob "tree-care.hz"]),
