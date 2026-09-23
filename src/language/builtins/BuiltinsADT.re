@@ -273,10 +273,11 @@ module HTML = {
         // === Utility elements ===
         ("Br", None),
         ("Hr", Some(attrs_only())),
-        /* Splice(n): place the host livelit's nth splice here -- a hole
-           holding the client's own code, edited in place inside the
-           widget and typed in the client's scope. */
-        ("Splice", Some(int())),
+        /* Splice(r): place the splice `r` names here -- a hole holding
+           the client's own code, edited in place inside the widget and
+           typed in the client's scope. The ref comes from the model:
+           a field marked with parens has type (ref=SpliceRef, value=t). */
+        ("Splice", Some(var("SpliceRef"))),
         // === Generic element (escape hatch) ===
         // Node(tagName, attrs, children)
         ("Node", Some(prod([string(), attrs_only(), list(var("HTML"))]))),
@@ -1272,12 +1273,20 @@ let livelit_mac: Typ.t = {
   );
 };
 
-/* Placeholders, uninhabited on purpose: an empty sum has no values, so
-   these name the types Figure 3 needs without pretending to provide
-   them. `Exp` is quoted code; `SpliceRef` is a handle to a hole holding
-   the client's own code. Both become real when quotation does. */
+/* `Exp` is quoted code, and is still a placeholder: an empty sum has no
+   values, so it names what Figure 3 needs without pretending to provide
+   it. It becomes real when quotation does. */
 let exp_typ: Typ.t = sum_type([]);
-let splice_ref_typ: Typ.t = sum_type([]);
+
+/* A SpliceRef is a handle to a hole holding the client's own code. It
+   carries the splice's id, which is what the projector resolves when a
+   view says `Html.splice(r)`.
+
+   The constructor is visible, so a client can in principle forge one.
+   `Html.splice` of a forged or stale ref renders as an error rather than
+   anything dangerous, and making it genuinely abstract wants a module
+   with an abstract type member -- worth doing, not worth blocking on. */
+let splice_ref_typ: Typ.t = sum_type([("SpliceRef", Some(string()))]);
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),

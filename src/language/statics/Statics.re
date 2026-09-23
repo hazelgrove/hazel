@@ -1808,6 +1808,21 @@ and uexp_to_info_map =
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some({expansion_t, model_t, expand, user_def, _}) =>
           let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
+          /* A spliced model field carries its REF as well as its value.
+             The splice is the client's code living inside the widget, and
+             Figure 3 puts a handle to it in the model -- so a field the
+             author marked reads as `(ref=SpliceRef("<id>"), value=<the
+             code>)` rather than just the code.
+
+             Done as a rewrite of the argument before analysis, rather than
+             as a rule about splices, so splice transparency is untouched
+             everywhere else -- tables still see through theirs. The value
+             component keeps the splice, so it is still typed in the
+             client's scope and still evaluates in place; the ref rides
+             alongside. That is what lets a view place the splice
+             (`Html.splice(m.lo.ref)`) AND read it (`m.lo.value`) without
+             the paper's eval_splice, which we do not have. */
+          let arg = UserLivelit.expose_splice_refs(arg);
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
           /* A user-defined livelit's expansion embeds the model, so give it

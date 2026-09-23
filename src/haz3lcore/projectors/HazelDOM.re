@@ -29,12 +29,13 @@ type gesture =
 type t = {
   inject: (gesture, DHExp.t) => Ui_effect.t(unit),
   view_term: DHExp.t => Node.t,
-  /* The nth splice of the host projector, rendered as a live sub-editor.
-     Indexed rather than by id so the Hazel-side view can name a splice
-     positionally (`Html.splice(0)`) without handling ids. None when the
-     host has no splice at that index, or has no splices at all -- every
-     projector but a livelit, today. */
-  splice_view: int => option(Node.t),
+  /* Resolve a splice by the id a SpliceRef carries, rendering it as a
+     live sub-editor. By id rather than by position: the ref now comes
+     from the model, which is where Figure 3 puts it, so a view names the
+     splice it means instead of counting. None when no splice of the host
+     has that id -- a stale or forged ref, or a host with no splices at
+     all, which is every projector but a livelit today. */
+  splice_view: string => option(Node.t),
   commit,
 };
 
@@ -551,22 +552,22 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
        edited in place inside the widget rather than in the surrounding
        program text. Out-of-range renders as an error rather than nothing,
        so a miscounted index is visible instead of silently blank. */
-    | ("Splice", {term: Atom(Int(n)), _}) =>
-      switch (Bigint.to_int(n)) {
-      | Some(i) =>
-        switch (mvu.splice_view(i)) {
+    | ("Splice", body) =>
+      switch (of_constructor(strip_wrappers(body))) {
+      | Some(("SpliceRef", {term: Atom(String(id)), _})) =>
+        switch (mvu.splice_view(id)) {
         | Some(node) =>
           /* Keyed: see the note in CodeEditable's render_splice. The
              wrapper has to be stable too, or the diff still recreates
              the subtree it wraps. */
           Node.div(
-            ~key="livelit-splice-" ++ string_of_int(i),
+            ~key="livelit-splice-" ++ id,
             ~attrs=[Attr.classes(["livelit-splice"])],
             [node],
           )
         | None => of_error(elide_errors, mvu, d)
         }
-      | None => of_error(elide_errors, mvu, d)
+      | _ => of_error(elide_errors, mvu, d)
       }
 
     // === Input element ===

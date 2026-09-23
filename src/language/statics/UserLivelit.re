@@ -121,6 +121,66 @@ let missing = (required: list(string), have: list((string, 'a))) =>
 
    Consistency, not equality: a member may be more precise than declared, and
    a member still containing holes must not be reported as wrong. */
+/* `init` supplies VALUES; the use site supplies REFS.
+
+   A spliced model field has type (ref=SpliceRef, value=t), but `init` is
+   written before any splice exists -- there is nothing for it to name, and
+   making it a command so it could is precisely what Figure 3 does and we
+   have not. So when checking `init` against Model, a spliced field is
+   compared at its value type alone. Every other member (update, view,
+   expand_fun) sees the pair, because by then the use site has made it. */
+let rec strip_splice_refs = (ty: Typ.t): Typ.t => {
+  let is_ref = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Var("SpliceRef") => true
+    | _ => false
+    };
+  /* (ref=SpliceRef, value=t)  ~>  t */
+  let value_of = (t: Typ.t): option(Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Prod(fields) =>
+      let named = n =>
+        List.find_map(
+          (f: Typ.t) =>
+            switch (Typ.term_of(f)) {
+            | TupLabel(l, v) =>
+              switch (Typ.term_of(l)) {
+              | Label(x) when x == n => Some(v)
+              | _ => None
+              }
+            | _ => None
+            },
+          fields,
+        );
+      switch (named("ref"), named("value")) {
+      | (Some(r), Some(v)) when is_ref(r) => Some(v)
+      | _ => None
+      };
+    | _ => None
+    };
+  switch (Typ.term_of(ty)) {
+  | Prod(fields) =>
+    Typ.fresh(
+      Prod(
+        List.map(
+          (f: Typ.t) =>
+            switch (Typ.term_of(f)) {
+            | TupLabel(l, v) =>
+              switch (value_of(v)) {
+              | Some(inner) => Typ.fresh(TupLabel(l, inner))
+              | None => f
+              }
+            | _ => f
+            },
+          fields,
+        ),
+      ),
+    )
+  | Parens(inner) => Typ.fresh(Parens(strip_splice_refs(inner)))
+  | _ => ty
+  };
+};
+
 let check_against_livelit_sig =
     (
       ~ctx: Ctx.t,
@@ -160,7 +220,8 @@ let check_against_livelit_sig =
       switch (acc) {
       | Some(_) => acc
       | None =>
-        let expected = realize(want);
+        let expected =
+          name == "init" ? strip_splice_refs(realize(want)) : realize(want);
         switch (List.assoc_opt(name, vals)) {
         | None => None /* absence is DefMissingMembers' to report */
         | Some(actual) =>
@@ -316,6 +377,79 @@ let default_shape: ProjectorShape.t = {
    form, so typing it consults the definition's ACTUAL expand member rather
    than the interface `member_ty` advertises — which is what makes the
    use-site expansion check below non-vacuous. */
+/* A spliced model field carries its REF as well as its value.
+
+   A field the author marked with parens holds a splice: the client's own
+   code, living inside the widget. Figure 3 puts a HANDLE to that code in
+   the model, so a marked field reads as
+
+     (ref = SpliceRef("<id>"), value = <the code>)
+
+   rather than just the code. A view can then place the splice by naming
+   it -- `Html.splice(m.lo.ref)` -- instead of counting positions, and
+   still read what it evaluates to as `m.lo.value`.
+
+   This is a rewrite of the model ARGUMENT, applied before analysis, not a
+   rule about splices. Splice transparency is load-bearing elsewhere (a
+   table infers its headers through it) and is left alone. The value
+   component keeps the splice, so the client's code is still typed in the
+   client's scope and still evaluates in place.
+
+   What this is NOT: the paper reads a splice with
+   `eval_splice : SpliceRef -> ViewCmd(Maybe(Result))`, which can answer
+   Indet for a bound that does not reduce. Here the value simply rides
+   along, eagerly, and there is no way to say "this one has no value" --
+   which is why an unreducible bound renders as a hole rather than as
+   something the widget chose to show. */
+let expose_splice_refs = (arg: TermBase.Exp.t): TermBase.Exp.t => {
+  open IdTagged.FreshGrammar;
+  let mk_ref = (id: Id.t): TermBase.Exp.t =>
+    Exp.ap(
+      Forward,
+      Exp.constructor("SpliceRef", None),
+      Exp.string(Id.to_string(id)),
+    );
+  /* The splice under any parens the author wrote, with its id. */
+  let rec find_splice = (e: TermBase.Exp.t): option(Id.t) =>
+    switch (e.term) {
+    | Splice(_) => Some(IdTagged.rep_id(e))
+    | Parens(inner) => find_splice(inner)
+    | _ => None
+    };
+  let expose_field = (x: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (x.term) {
+    | TupLabel(l, v) =>
+      switch (find_splice(v)) {
+      | None => x
+      | Some(id) => {
+          ...x,
+          term:
+            TupLabel(
+              l,
+              Exp.tuple([
+                Exp.tup_label(Exp.label("ref"), mk_ref(id)),
+                Exp.tup_label(Exp.label("value"), v),
+              ]),
+            ),
+        }
+      }
+    | _ => x
+    };
+  let rec go = (e: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (e.term) {
+    | Parens(inner) => {
+        ...e,
+        term: Parens(go(inner)),
+      }
+    | Tuple(xs) => {
+        ...e,
+        term: Tuple(List.map(expose_field, xs)),
+      }
+    | _ => e
+    };
+  go(arg);
+};
+
 let mk_expand_dot = (~name: string, model: TermBase.Exp.t) => {
   IdTagged.FreshGrammar.(
     Some(

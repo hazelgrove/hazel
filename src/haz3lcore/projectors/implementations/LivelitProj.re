@@ -799,7 +799,7 @@ module M: Projector = {
         ~commit_model: TermBase.Exp.t => Ui_effect.t(unit),
         ~repaint: unit => Ui_effect.t(unit),
         ~view_term: TermBase.Exp.t => Node.t,
-        ~splice_view_at: int => option(Node.t),
+        ~splice_view_at: string => option(Node.t),
         ~live: option(TermBase.Exp.t),
       )
       : Node.t => {
@@ -1034,11 +1034,16 @@ module M: Projector = {
                    transient (drag) update becomes visible without an edit. */
                 ~repaint=() => local_quiet(),
                 ~view_term,
-                /* Positional access to this livelit's own splices, in
-                   document order, for `Html.splice(n)` in the user's view. */
+                /* Resolve a splice by the id its SpliceRef carries. Only
+                   this livelit's own splices are reachable: a ref naming
+                   someone else's, or a stale one, finds nothing and
+                   renders as an error rather than another widget's hole. */
                 ~splice_view_at=
-                  i =>
-                    List.nth_opt(splices, i)
+                  id =>
+                    List.find_opt(
+                      (s: Base.splice) => Id.to_string(s.id) == id,
+                      splices,
+                    )
                     |> Option.map((s: Base.splice) => splice_view(s.id)),
                 ~live=live_html(info),
               ),

@@ -15,7 +15,15 @@
 let ^between = {
   # pct is where the handle sits, 0 to 100. lo and hi are the ends of #
   # the range. #
-  type Model = (pct=Int, lo=Int, hi=Int);
+  # A spliced field carries a HANDLE to the client's code as well as #
+  # what it evaluates to. Figure 3 puts the handle in the model; the #
+  # value rides along because splices are transparent, which is the one #
+  # thing we have that the paper does not. #
+  type Model = (
+    pct=Int,
+    lo=(ref=SpliceRef, value=Int),
+    hi=(ref=SpliceRef, value=Int)
+  );
 
   # Only the handle moves. There is no SetLo or SetHi, and that is the #
   # point: the bounds belong to whoever is USING this livelit, not to #
@@ -27,7 +35,10 @@ let ^between = {
   # Parenthesizing a field's value marks it as a SPLICE -- a region of #
   # the client's own program, held inside the widget. Everything below #
   # explains what that buys. #
-  let init : Model = (pct=50, lo=(0), hi=(100));
+  # No `: Model` here. init supplies VALUES; the refs do not exist yet -- #
+  # nothing has made a splice at this point, and making one is an effect, #
+  # which is exactly what Figure 3's new_splice is and we do not have. #
+  let init = (pct=50, lo=(0), hi=(100));
 
   let update = fun (m, a) : (Model, Action) ->
     case a
@@ -35,7 +46,8 @@ let ^between = {
     end;
 
   # Where the handle lands, in the client's units. #
-  let at = fun m : Model -> m.lo + (m.hi - m.lo) * m.pct / 100;
+  let at = fun m : Model ->
+    m.lo.value + (m.hi.value - m.lo.value) * m.pct / 100;
 
   let view = fun m : Model ->
     Html.div(
@@ -46,12 +58,12 @@ let ^between = {
       # splice 0 and splice 1 are lo and hi, in document order. They #
       # are real editors: click in and type. What you type is code in #
       # YOUR scope, not in the livelit's. #
-      [Html.splice(0),
+      [Html.splice(m.lo.ref),
        Html.input(
          [Attr.type_("range"), Attr.min("0"), Attr.max("100"),
           Attr.value(string_of_int(m.pct)),
           Attr.on_input(fun s -> Slide(int_of_string(s)))]),
-       Html.splice(1),
+       Html.splice(m.hi.ref),
        Html.text(" = " ++ string_of_int(at(m)))]);
 
   let expand_fun = fun m : Model -> at(m);
