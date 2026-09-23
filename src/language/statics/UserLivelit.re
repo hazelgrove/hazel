@@ -82,7 +82,7 @@ type def = {
   expansion_t: TermBase.Typ.t,
 };
 
-let required_members = ["init", "update", "view", "expand"];
+let required_members = ["init", "update", "view", "expand_fun"];
 let required_types = ["Model", "Action", "Expansion"];
 
 /* Module members, in order; a repeated name keeps the LAST binding, matching
@@ -107,7 +107,8 @@ let missing = (required: list(string), have: list((string, 'a))) =>
   List.filter(r => !List.mem_assoc(r, have), required);
 
 /* Check the definition's members against the builtin `Livelit` signature
-   (BuiltinsADT.livelit_sig, in scope as the type alias `Livelit`), which is
+   (BuiltinsADT.livelit_fun, in scope as the type alias `LivelitFun`; the
+   macro counterpart is `LivelitMac`, not yet inhabitable), which is
    the one place the livelit interface is written down.
 
    The signature declares Model, Action and Expansion abstract; here they are
@@ -139,7 +140,7 @@ let check_against_livelit_sig =
       required_types,
     );
   let declared =
-    switch (Ctx.lookup_alias(ctx, "Livelit")) {
+    switch (Ctx.lookup_alias(ctx, "LivelitFun")) {
     | Some(ty) =>
       switch (Typ.term_of(ty)) {
       | Sig(items) =>
@@ -320,7 +321,7 @@ let mk_expand_dot = (~name: string, model: TermBase.Exp.t) => {
     Some(
       Exp.ap(
         Operators.Forward,
-        Exp.dot(Exp.var("^" ++ name), Exp.label("expand")),
+        Exp.dot(Exp.var("^" ++ name), Exp.label("expand_fun")),
         model,
       ),
     )
@@ -342,7 +343,7 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
     IdTagged.FreshGrammar.(
       switch (member) {
       | "update" => Typ.arrow(Typ.prod([model_t, action_t]), model_t)
-      | "expand" => Typ.arrow(model_t, expansion_t)
+      | "expand_fun" => Typ.arrow(model_t, expansion_t)
       | "init" => model_t
       | _ => unknown()
       }

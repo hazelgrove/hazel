@@ -1197,7 +1197,7 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    Model, Action and Expansion are ABSTRACT: each livelit chooses them, and
    the signature only says that the four members agree about them. The check
    realizes each abstract member by the definition's own manifest type
-   (Typ.sig_sub), so `expand` is checked as `Model -> Expansion` with that
+   (Typ.sig_sub), so `expand_fun` is checked as `Model -> Expansion` with that
    livelit's actual types -- which is the obligation the paper discharges
    per use, moved to the definition.
 
@@ -1206,24 +1206,78 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    clients to reason about. `shape` and helper members are deliberately
    absent -- they are optional, and extra members are allowed by width
    subtyping. */
-let livelit_sig: Typ.t = {
+/* The members every livelit has, whichever kind it is. */
+let livelit_common = (model, action) => [
+  Sig.item_of_member(Sig.TypeAbstract("Model")),
+  Sig.item_of_member(Sig.TypeAbstract("Action")),
+  Sig.item_of_member(Sig.TypeAbstract("Expansion")),
+  Sig.item_of_member(Sig.Val("init", model)),
+  Sig.item_of_member(
+    Sig.Val("update", arrow(prod([model, action]), model)),
+  ),
+  Sig.item_of_member(
+    Sig.Val("view", arrow(model, HtmlModules.path("Html", "T"))),
+  ),
+];
+
+/* A FUNCTIONAL livelit: its use denotes a VALUE, and `expand_fun`
+   computes it. This is every livelit in the deck today. */
+let livelit_fun: Typ.t = {
   let model = var("Model");
   let action = var("Action");
   let expansion = var("Expansion");
-  sig_([
-    Sig.item_of_member(Sig.TypeAbstract("Model")),
-    Sig.item_of_member(Sig.TypeAbstract("Action")),
-    Sig.item_of_member(Sig.TypeAbstract("Expansion")),
-    Sig.item_of_member(Sig.Val("init", model)),
-    Sig.item_of_member(
-      Sig.Val("update", arrow(prod([model, action]), model)),
-    ),
-    Sig.item_of_member(
-      Sig.Val("view", arrow(model, HtmlModules.path("Html", "T"))),
-    ),
-    Sig.item_of_member(Sig.Val("expand", arrow(model, expansion))),
-  ]);
+  sig_(
+    livelit_common(model, action)
+    @ [Sig.item_of_member(Sig.Val("expand_fun", arrow(model, expansion)))],
+  );
 };
+
+/* A MACRO livelit, after Figure 3 of the livelits paper (Omar et al.,
+   PLDI 2021): its use denotes a PROGRAM, and `expand_mac` writes one,
+   handing back the splices it refers to.
+
+   Why two signatures rather than one signature with two optional
+   members: a signature here can only say that a member is REQUIRED --
+   optional members are expressed by leaving them out, since extra
+   members are allowed by width subtyping (see below). So "exactly one
+   of expand_fun / expand_mac" cannot be said inside a single signature.
+   Which signature a definition answers to is the module system's own
+   question, and Modules II is what makes asking it cheap.
+
+   The expansion is a FUNCTION of its splices, and that shape does two
+   jobs at once: a splice passed as an argument is evaluated outside the
+   expansion, so a binder inside cannot capture it, AND the expansion can
+   be checked once against the splices' declared types without knowing
+   their contents. Capture avoidance and compositional typing are the
+   same decision.
+
+   NOT YET USABLE. `Exp` and `SpliceRef` below are uninhabited
+   placeholders, so nothing can currently answer to this signature --
+   which is the honest state of it: there is no quoted-code type, no
+   quotation syntax, and no new_splice. It is written down so the target
+   is legible and so the two kinds have names. */
+let livelit_mac: Typ.t = {
+  let model = var("Model");
+  let action = var("Action");
+  sig_(
+    livelit_common(model, action)
+    @ [
+      Sig.item_of_member(
+        Sig.Val(
+          "expand_mac",
+          arrow(model, prod([var("Exp"), list(var("SpliceRef"))])),
+        ),
+      ),
+    ],
+  );
+};
+
+/* Placeholders, uninhabited on purpose: an empty sum has no values, so
+   these name the types Figure 3 needs without pretending to provide
+   them. `Exp` is quoted code; `SpliceRef` is a handle to a hole holding
+   the client's own code. Both become real when quotation does. */
+let exp_typ: Typ.t = sum_type([]);
+let splice_ref_typ: Typ.t = sum_type([]);
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
@@ -1235,7 +1289,10 @@ let type_aliases: list((string, Typ.t)) = [
   ("ColorValue", Color.typ),
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
-  ("Livelit", livelit_sig),
+  ("Exp", exp_typ),
+  ("SpliceRef", splice_ref_typ),
+  ("LivelitFun", livelit_fun),
+  ("LivelitMac", livelit_mac),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>

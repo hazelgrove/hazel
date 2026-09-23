@@ -59,8 +59,8 @@ Partial, Diverged, Missing.
 are still ahead.**
 
 The two terms are Cyrus's, and `docs/livelits.md` now defines them. A
-**functional livelit** has `expand : Model -> Expansion` and produces a value.
-A **macro livelit** has `expand : Model -> (Exp, List(SpliceRef))` and produces
+**functional livelit** has `expand_fun : Model -> Expansion` and produces a value.
+A **macro livelit** has `expand_mac : Model -> (Exp, List(SpliceRef))` and produces
 a program fragment with holes for the client's own expressions. Macro livelits
 subsume functional ones: empty splice list, closed `Exp`. The paper describes
 macro livelits throughout; what is implemented here is the functional fragment
@@ -157,8 +157,8 @@ expansion that synthesizes `Unknown` stays gradual.
    *compositional* and most of what it calls *live* is downstream of them, as
    are the `UpdateCmd`/`ViewCmd` monads, a reflected `Exp` type, and
    Theorem 4.4's parameterized expansion. `docs/livelits.md` records the
-   intended encoding: `expand : Model -> (Exp, List(SpliceRef))`, with today's
-   `expand : Model -> Expansion` the empty-splice-list case.
+   intended encoding: `expand_mac : Model -> (Exp, List(SpliceRef))`, with
+   `expand_fun : Model -> Expansion` the empty-splice-list case.
 2. **Parameters and abbreviations.** Cheaper than splices and independently
    useful, but they collide with the current use of the application slot for
    the model; the syntax question has to be settled first.

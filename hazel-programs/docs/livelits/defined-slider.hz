@@ -4,7 +4,7 @@
 # with a livelit name (^name) bound to a module: #
 
 # Three types declare the interface. Expansion is the one clients #
-# see: a use of ^pct has type Expansion, whatever expand returns. #
+# see: a use of ^pct has type Expansion, whatever expand_fun gives. #
 
 # Model:     the state a use carries, stored in its argument #
 # Action:    what the GUI emits #
@@ -13,7 +13,7 @@
 # init:   the model a fresh use starts with #
 # update: (Model, Action) -> Model, run when the GUI acts #
 # view:   Model -> Html.T, whose handlers emit Actions #
-# expand: Model -> Expansion, checked against the declaration #
+# expand_fun: Model -> Expansion, checked against the declaration #
 
 let ^pct = {
   type Model = Int;
@@ -40,7 +40,7 @@ let ^pct = {
       ]
     );
 
-  let expand = fun m : Model -> m;
+  let expand_fun = fun m : Model -> m;
 
   let shape = Inline(20)
 } in

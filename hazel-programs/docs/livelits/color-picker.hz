@@ -86,7 +86,7 @@ let ^hwb = {
       ]
     );
 
-  let expand = fun m : Model -> css(m);
+  let expand_fun = fun m : Model -> css(m);
 
   let shape = Tab(16, 5)
 } in

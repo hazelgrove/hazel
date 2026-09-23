@@ -83,7 +83,7 @@ let ^mood = {
       ]
     );
 
-  let expand = fun m : Model -> mood(m);
+  let expand_fun = fun m : Model -> mood(m);
 
   let shape = Tab(10, 4)
 } in

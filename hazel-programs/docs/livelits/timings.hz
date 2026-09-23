@@ -158,7 +158,7 @@ let ^latency = {
   # The expansion drops `load` -- that is a knob for the person doing #
   # the measuring, not part of the measurement. What a client gets is #
   # the reading, as numbers it can compare and threshold. #
-  let expand = fun m : Model -> (gap=m.gap, worst=m.worst, n=m.n);
+  let expand_fun = fun m : Model -> (gap=m.gap, worst=m.worst, n=m.n);
 
   let shape = Block(26, 7)
 } in

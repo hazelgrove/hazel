@@ -12,34 +12,41 @@ Hazel implements a version of the live literals (livelits) mechanism described i
 Two terms for the two points in the design space. Use them; they keep the
 distinction from being re-argued each time.
 
-A **functional livelit** produces a *value*. Its `expand` is an ordinary
-function from the model to the expansion type:
+A **functional livelit** produces a *value*. It answers to the `LivelitFun`
+signature, whose expansion member is an ordinary function from the model to
+the expansion type:
 
 ```
-expand : Model -> Expansion
+expand_fun : Model -> Expansion
 ```
 
 Everything in Hazel today is a functional livelit. The GUI edits the model, the
 model determines a value, and clients type against `Expansion`.
 
-A **macro livelit** produces a *program fragment*. Its `expand` returns an AST
-together with the list of splices that fragment takes as arguments, as in Fig. 3
-of the paper:
+A **macro livelit** produces a *program fragment*. It answers to `LivelitMac`,
+whose expansion member returns an AST together with the list of splices that
+fragment takes as arguments, as in Fig. 3 of the paper:
 
 ```
-expand : Model -> (Exp, List(SpliceRef))
+expand_mac : Model -> (Exp, List(SpliceRef))
 ```
 
 The pair is there because the expansion must treat splices parametrically: the
 first component takes one argument per listed `SpliceRef` and returns the
-expansion type. `expand` itself stays pure — splices bring the monads, but not
-to `expand`.
+expansion type. `expand_mac` itself stays pure — splices bring the monads, but
+not to `expand_mac`.
+
+The two are separate *signatures* rather than two optional members of one,
+because a signature here can only say that a member is REQUIRED: optional
+members are expressed by omission, since a definition may always carry extra
+members (width subtyping). So "exactly one of `expand_fun` / `expand_mac`" has
+to be a question about which signature a definition answers to.
 
 **Macro livelits subsume functional ones, not the other way round.** A macro
 livelit whose splice list is empty and whose `Exp` is a closed encoding of a
 value is exactly a functional livelit; a functional livelit cannot embed a
 client's expression, because it never handles syntax. So today's
-`expand : Model -> Expansion` is an equivalent encoding of the paper's closed
+`expand_fun : Model -> Expansion` is an equivalent encoding of the paper's closed
 expansion rather than a deviation from it, and the macro form is a
 generalization rather than a replacement.
 
@@ -71,7 +78,7 @@ let ^pct = {
   let init : Model = 50;
   let update = fun (m, a) : (Model, Action) -> a;
   let view = fun m : Model -> ...;
-  let expand = fun m : Model -> m
+  let expand_fun = fun m : Model -> m
 } in
 ^pct(25) + ^pct(75)
 ```

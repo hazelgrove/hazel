@@ -13,31 +13,47 @@
 
 # THE LIVELIT TYPE #
 
-# Every definition is checked against one builtin module signature, #
-# named Livelit. It is the whole interface, and nothing else is #
-# required: #
+# Every definition is checked against a builtin module signature. #
+# There are two, and a definition answers to exactly one: #
 
-#   type Livelit = {            #
+#   type LivelitFun = {         #
 #     type Model;               #
 #     type Action;              #
 #     type Expansion;           #
-#     let init   : Model;                      #
-#     let update : (Model, Action) -> Model;   #
-#     let view   : Model -> Html.T;            #
-#     let expand : Model -> Expansion          #
-#   }                                          #
+#     let init     : Model;                      #
+#     let update   : (Model, Action) -> Model;   #
+#     let view     : Model -> Html.T;            #
+#     let expand_fun : Model -> Expansion        #
+#   }                                            #
+
+# A LivelitFun denotes a VALUE: expand_fun computes it. Every #
+# livelit in this deck is one. #
+
+# The other is LivelitMac, which denotes a PROGRAM: #
+
+#   let expand_mac : Model -> (Exp, List(SpliceRef))   #
+
+# Nothing can answer to LivelitMac yet -- Exp and SpliceRef are #
+# named but uninhabited, because Hazel has no quoted-code type and #
+# no quotation syntax. See the Splices MVP slide. #
+
+# Two signatures rather than one with an optional member, because a #
+# signature can only say a member is REQUIRED: optional members are #
+# expressed by leaving them out, since a definition may always have #
+# EXTRA members. So "exactly one of expand_fun / expand_mac" has to #
+# be a question about which signature you answer to. #
 
 # The three types are abstract in that signature, which is what #
 # lets each livelit choose its own. YOUR definition says what they #
-# are, and the four members are then checked at those types. #
+# are, and the members are then checked at those types. #
 
 # Model     the state one use carries, stored in its argument #
 # Action    what the GUI emits when the reader interacts #
 # Expansion what a use MEANS to the program #
 
 # Expansion is the one clients see. A use of ^flag has type #
-# Expansion no matter how expand is written, so a reader can reason #
-# about the use without reading the widget's code. #
+# Expansion no matter how expand_fun is written, so a reader can #
+# reason about the use without reading the widget's code. #
 
 # A LIVELIT IN FULL #
 
@@ -65,7 +81,7 @@ let ^flag = {
       [Html.text(if m then "yes" else "no")]);
 
   # what the use means: here, the model itself #
-  let expand = fun m : Model -> m;
+  let expand_fun = fun m : Model -> m;
 
   # optional: the widget's footprint, in character cells #
   let shape = Inline(5)
@@ -81,7 +97,7 @@ let ^flag = {
 # WHAT IS CHECKED, AND WHERE #
 
 # At the DEFINITION: your module is checked against Livelit above, #
-# so expand really does produce an Expansion, update really does #
+# so expand_fun really does produce an Expansion, update really #
 # take a (Model, Action), and view really does produce Html.T. #
 
 # At each USE: the expansion is checked again, against the declared #

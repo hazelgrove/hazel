@@ -69,7 +69,7 @@ let ^graph = {
       Html.div([], [Html.button([Attr.on_click(Clear)], [Html.text("clear")]), Html.text(string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges")])
     ]);
   let shape = Block(32, 8);
-  let expand = fun m : Model ->
+  let expand_fun = fun m : Model ->
     let (nodes, edges, _, _, _) = m in
     (nodes, edges) : Graph
 } in

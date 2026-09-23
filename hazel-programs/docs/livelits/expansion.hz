@@ -1,12 +1,12 @@
 # The Expansion #
 
-# Every livelit has a member called expand, and a type member called #
+# Every livelit has an expansion member -- expand_fun here -- and a #
 # Expansion. Together they answer one question: what does a use of #
 # this livelit MEAN to the program around it? #
 
-#   let expand : Model -> Expansion #
+#   let expand_fun : Model -> Expansion #
 
-# expand is a boundary. On one side is the MODEL: the widget's state, #
+# It is a boundary. On one side is the MODEL: the widget's state, #
 # written into the program text so it survives. Because it is stored #
 # as syntax, a model must be plain serializable data -- a model can #
 # never hold a function. #
@@ -17,11 +17,11 @@
 
 # THE DULL CASE: EXPANSION = MODEL #
 
-# A slider stores an Int and means that Int. expand is the identity, #
+# A slider stores an Int and means that Int. expand_fun is the #
 # and the livelit is a nicer way to type a number. #
 
 #   type Model = Int;  type Expansion = Int; #
-#   let expand = fun m : Model -> m #
+#   let expand_fun = fun m : Model -> m #
 
 # BETTER: THE EXPANSION IS NOT THE MODEL #
 
@@ -30,10 +30,10 @@
 # never has to know the hwb geometry the widget uses to read a click: #
 
 #   type Model = (Int, Int, Int);  type Expansion = String; #
-#   let expand = fun m : Model -> css(m) #
+#   let expand_fun = fun m : Model -> css(m) #
 
 # The GUI absorbs the domain knowledge. That is already the point of #
-# the Expansion type: a use has that type however expand is written, #
+# the Expansion type: a use has that type however expand_fun is #
 # so a reader reasons about the use without reading the widget. #
 
 # INTERESTING: AN EXPANSION THE MODEL COULD NOT BE #
@@ -43,7 +43,7 @@
 # and it gives back that shade of the color you picked. #
 
 # A model could not hold this function -- it has to be written into #
-# the program text. The expansion has no such limit, so expand is #
+# the program text. The expansion has no such limit, so it is #
 # where a picked color becomes a family of colors. #
 
 # And a Color is not a string. It is the same color in three #
@@ -121,7 +121,7 @@ let ^ramp = {
        swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]);
 
   # not a color, and not text: a function FROM lightness TO structure #
-  let expand = fun m : Model ->
+  let expand_fun = fun m : Model ->
     fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b));
 
   let shape = Inline(14)
@@ -148,7 +148,7 @@ let hwb_string = fun c : Hwb ->
 
 # WHERE A WRONG EXPAND IS CAUGHT #
 
-# expand is checked in TWO places, and both earn their keep. #
+# expand_fun is checked in TWO places, and both earn their keep. #
 
 # At the DEFINITION, the module is checked against the builtin #
 # `Livelit` signature with Model, Action and Expansion realized by #
@@ -156,9 +156,9 @@ let hwb_string = fun c : Hwb ->
 # written, before any use exists: #
 
 #   type Model = Bool;  type Expansion = String;   #
-#   let expand = fun m : Model -> m                #
+#   let expand_fun = fun m : Model -> m                #
 #                                                  #
-#   Member expand is Bool -> Bool                  #
+#   Member expand_fun is Bool -> Bool              #
 #   but its signature declares Bool -> String      #
 
 # Note the member's type is spelled Model -> Model, not Bool -> Bool. #
@@ -184,7 +184,7 @@ let ^good = {
   let update = fun (_m, a) : (Model, Action) -> a;
   let view = fun m : Model ->
     Html.text(string_of_int(m));
-  let expand = fun m : Model -> m;
+  let expand_fun = fun m : Model -> m;
   let shape = Inline(3)
 } in
 
@@ -224,20 +224,20 @@ let mid = shade(25) in
 # the green channel is an expression mentioning something the widget #
 # has never heard of. That is what splices buy. #
 
-# HOW expand CHANGES #
+# THE TWO KINDS OF LIVELIT #
 
-# Today, on the branch without splices: #
+# A definition answers to one of two builtin signatures. #
 
-#   let expand : Model -> Expansion      (a VALUE) #
+#   LivelitFun:  let expand_fun : Model -> Expansion      (a VALUE) #
 
-# The paper's signature (Fig. 3, line 55): #
+# and the paper's (Fig. 3, line 55): #
 
-#   let expand : Model -> (Exp, List(SpliceRef)) #
+#   LivelitMac:  let expand_mac : Model -> (Exp, List(SpliceRef)) #
 
 # Two changes, and the second is the interesting one. #
 
 # FIRST, the expansion becomes SYNTAX. `Exp` is quoted code, not a #
-# value -- so expand writes a program rather than computing an #
+# value -- so expand_mac writes a program rather than computing an #
 # answer. Hazel's own $color expands to a quoted function: #
 
 #   fun model -> (`fun r g b a -> (r, g, b, a)`,          #
@@ -290,6 +290,6 @@ let mid = shade(25) in
 # Splice form in the grammar, sub-editors that share the host's #
 # zipper and statics, and a projector API for rendering them. #
 
-# SpliceRef -- the TYPE above, the thing expand hands back -- exists #
+# SpliceRef -- the TYPE above, what expand_mac hands back -- exists #
 # nowhere in the repo yet. So this branch is a merge plus a build, #
 # and only the merge can be taken from somewhere else. #

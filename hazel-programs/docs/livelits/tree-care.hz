@@ -254,7 +254,7 @@ let ^tree = {
                        Attr.style([("font-size", "0.7em")])],
                       [Html.text("water + feed")])])]);
 
-  let expand = fun m : Model ->
+  let expand_fun = fun m : Model ->
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season);
 
