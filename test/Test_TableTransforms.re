@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let testable_exp =
   testable(
@@ -33,10 +34,13 @@ let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
   IdTagged.FreshGrammar.Exp.(
     list_lit(
       List.map(
-        fields =>
-          parens(
-            tuple(List.map(((l, v)) => tup_label(label(l), v), fields)),
-          ),
+        ~f=
+          fields =>
+            parens(
+              tuple(
+                List.map(~f=((l, v)) => tup_label(label(l), v), fields),
+              ),
+            ),
         rows,
       ),
     )
@@ -65,8 +69,18 @@ let parse_table_tests = {
             headers,
           );
           check(int, "row count", 2, List.length(rows));
-          check(int, "col count row 0", 2, List.length(List.nth(rows, 0)));
-          check(int, "col count row 1", 2, List.length(List.nth(rows, 1)));
+          check(
+            int,
+            "col count row 0",
+            2,
+            List.length(List.nth_exn(rows, 0)),
+          );
+          check(
+            int,
+            "col count row 1",
+            2,
+            List.length(List.nth_exn(rows, 1)),
+          );
         | None => fail("Expected Some table data")
         };
       },
@@ -290,7 +304,7 @@ let sort_tests = [
 
 let mk_list_ty = (cols: list((string, Typ.t))) =>
   IdTagged.FreshGrammar.Typ.(
-    list(prod(List.map(((l, t)) => tup_label(label(l), t), cols)))
+    list(prod(List.map(~f=((l, t)) => tup_label(label(l), t), cols)))
   );
 
 let type_utility_tests = {
