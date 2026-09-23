@@ -1123,7 +1123,10 @@ module Replay = {
       | "selector_update"
       | "selector_delete"
       | "selector_insert_before"
-      | "selector_insert_after" => true
+      | "selector_insert_after"
+      | "add_test"
+      | "update_test"
+      | "delete_test" => true
       | _ => false
       };
     };
@@ -1532,6 +1535,9 @@ module Agent = {
                 "delete_body",
                 "insert_after",
                 "insert_before",
+                "add_test",
+                "update_test",
+                "delete_test",
               ],
             ) => "Edit"
       | n

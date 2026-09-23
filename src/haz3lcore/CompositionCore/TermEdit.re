@@ -1471,3 +1471,259 @@ let insert_binding =
   | None => None
   };
 };
+
+/* --- Test operations (add_test / update_test / delete_test) --- */
+
+/* Parse agent-supplied test code: a bare predicate or a full
+   `test ... end` block (or several separated by `;`). Strict parse:
+   a mangled test would silently never run. */
+let parse_test_code = (code: string): option(Exp.t) => {
+  let trimmed = String.trim(code);
+  let wrapped =
+    String.length(trimmed) >= 4
+    && String.equal(String.sub(trimmed, 0, 4), "test")
+      ? trimmed : "test " ++ trimmed ++ " end";
+  switch (parse_exp(wrapped)) {
+  | Some(test_exp) =>
+    let rec all_tests = (e: Exp.t): bool =>
+      switch (Exp.term_of(e)) {
+      | Test(_) => true
+      | Seq(e1, e2) => all_tests(e1) && all_tests(e2)
+      | _ => false
+      };
+    all_tests(test_exp) ? Some(test_exp) : None;
+  | None => None
+  };
+};
+
+/* Whitespace-collapsed substring search, for matching existing tests
+   by a fragment of their predicate. Spaces adjacent to punctuation are
+   dropped entirely so `== 2` and `==2` compare equal, while spaces
+   between word characters are kept so identifiers cannot glue. */
+let te_word_char = (c: char): bool =>
+  c >= 'a'
+  && c <= 'z'
+  || c >= 'A'
+  && c <= 'Z'
+  || c >= '0'
+  && c <= '9'
+  || c == '_'
+  || Char.code(c) >= 128; /* multi-byte (emoji etc.) counts as word */
+
+let te_norm = (s: string): string => {
+  let acc = ref([]);
+  let last_sp = ref(true);
+  String.iter(
+    c =>
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+        if (! last_sp^) {
+          acc := [" ", ...acc^];
+          last_sp := true;
+        };
+      } else {
+        acc := [String.make(1, c), ...acc^];
+        last_sp := false;
+      },
+    s,
+  );
+  let collapsed = acc^ |> List.rev |> String.concat("") |> String.trim;
+  let n = String.length(collapsed);
+  let out = ref([]);
+  for (i in 0 to n - 1) {
+    let c = collapsed.[i];
+    if (c == ' ') {
+      let prev_word = i > 0 && te_word_char(collapsed.[i - 1]);
+      let next_word = i + 1 < n && te_word_char(collapsed.[i + 1]);
+      if (prev_word && next_word) {
+        out := [c, ...out^];
+      };
+    } else {
+      out := [c, ...out^];
+    };
+  };
+  out^ |> List.rev |> List.map(String.make(1)) |> String.concat("");
+};
+
+let te_contains = (haystack: string, needle: string): bool => {
+  let hl = String.length(haystack);
+  let nl = String.length(needle);
+  let rec go = i =>
+    if (i + nl > hl) {
+      false;
+    } else if (String.equal(String.sub(haystack, i, nl), needle)) {
+      true;
+    } else {
+      go(i + 1);
+    };
+  nl > 0 && go(0);
+};
+
+/* Append a `test ... end` expression at the end of the program as a
+   `;`-sequence item. The code may be a bare predicate or a full
+   `test ... end` block. Uses the strict parser: a test either parses
+   cleanly or is rejected (a mangled test would silently never run). */
+let append_test = (z: Zipper.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (parse_test_code(code)) {
+  | Some(test_exp) =>
+    /* Graft the test into the innermost body — after the final
+       expression but INSIDE every binding's scope. Wrapping the whole
+       program in Seq would place the test outside all `let ... in`
+       scopes at the AST level, leaving its references unbound even
+       though the printed text looks correct. */
+    let rec graft_at_tail = (e: Exp.t): Exp.t =>
+      switch (Exp.term_of(e)) {
+      | Let(p, def, body) => {
+          ...e,
+          term: Let(p, def, graft_at_tail(body)),
+        }
+      | TyAlias(tp, td, body) => {
+          ...e,
+          term: TyAlias(tp, td, graft_at_tail(body)),
+        }
+      | ModuleExp(mp, def, body) => {
+          ...e,
+          term: ModuleExp(mp, def, graft_at_tail(body)),
+        }
+      | Seq(e1, e2) => {
+          ...e,
+          term: Seq(e1, graft_at_tail(e2)),
+        }
+      | _ => Exp.fresh(Seq(e, test_exp))
+      };
+    let new_term = graft_at_tail(term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Print a focused term to inline source text (suitable for re-parsing). */
+let print_exp_inline = (e: Exp.t): string => {
+  let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
+  let segment = ExpToSegment.exp_to_segment(~settings, e);
+  Printer.of_segment(~holes="?", segment);
+};
+
+/* All Test nodes whose printed text contains the normalized match. */
+let find_matching_tests = (term: Exp.t, match_str: string): list(Exp.t) => {
+  let needle = te_norm(match_str);
+  let found = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Test(_) =>
+            if (te_contains(te_norm(print_exp_inline(e)), needle)) {
+              found := [e, ...found^];
+            }
+          | _ => ()
+          };
+          continue(e);
+        },
+      term,
+    );
+  List.rev(found^);
+};
+
+let describe_test_matches = (tests: list(Exp.t)): string =>
+  tests
+  |> List.map(t => "`" ++ te_norm(print_exp_inline(t)) ++ "`")
+  |> ListUtil.take(4)
+  |> String.concat(", ");
+
+/* When substring matching is ambiguous (a short test's text can be a
+   substring of a longer test's), a match string that reproduces one
+   candidate's ENTIRE text — with or without the test/end wrapper —
+   still identifies it uniquely. */
+let exact_test_match =
+    (matches: list(Exp.t), match_str: string): option(Exp.t) => {
+  let wanted = te_norm(match_str);
+  let wanted_wrapped = te_norm("test " ++ match_str ++ " end");
+  switch (
+    List.filter(
+      t => {
+        let printed = te_norm(print_exp_inline(t));
+        String.equal(printed, wanted)
+        || String.equal(printed, wanted_wrapped);
+      },
+      matches,
+    )
+  ) {
+  | [only] => Some(only)
+  | _ => None
+  };
+};
+
+let no_test_match_error = (match_str: string): string =>
+  "No test matches \""
+  ++ match_str
+  ++ "\". The match must be a substring of a test as it CURRENTLY appears in the program (not the new content you intend to write). Copy the fragment from the agent view or get_syntax output.";
+
+let ambiguous_test_match_error =
+    (matches: list(Exp.t), match_str: string): string =>
+  "Ambiguous: "
+  ++ string_of_int(List.length(matches))
+  ++ " tests match \""
+  ++ match_str
+  ++ "\": "
+  ++ describe_test_matches(matches)
+  ++ (List.length(matches) > 4 ? ", ..." : "")
+  ++ ". Pass a fragment unique to the target test — including its expected value (e.g. `== 42`) usually disambiguates; quoting the target test's full text also works.";
+
+/* Replace the unique test matching match_str with newly parsed code. */
+let update_test =
+    (z: Zipper.t, match_str: string, code: string): result(Zipper.t, string) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let apply = (target: Exp.t): result(Zipper.t, string) =>
+    switch (parse_test_code(code)) {
+    | None =>
+      Error(
+        "The replacement must parse cleanly as `test ... end` (or a bare predicate expression).",
+      )
+    | Some(new_test) =>
+      let new_term =
+        replace_exp_by_id(Exp.rep_id(target), _ => new_test, term);
+      Ok(term_to_zipper(new_term));
+    };
+  switch (find_matching_tests(term, match_str)) {
+  | [] => Error(no_test_match_error(match_str))
+  | [target] => apply(target)
+  | matches =>
+    switch (exact_test_match(matches, match_str)) {
+    | Some(target) => apply(target)
+    | None => Error(ambiguous_test_match_error(matches, match_str))
+    }
+  };
+};
+
+/* Remove the unique test matching match_str from its `;` sequence. */
+let delete_test = (z: Zipper.t, match_str: string): result(Zipper.t, string) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let apply = (target: Exp.t): result(Zipper.t, string) => {
+    let target_id = Exp.rep_id(target);
+    let new_term =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (Exp.term_of(e)) {
+            | Seq(e1, e2) when Id.equal(Exp.rep_id(e1), target_id) =>
+              continue(e2)
+            | Seq(e1, e2) when Id.equal(Exp.rep_id(e2), target_id) =>
+              continue(e1)
+            | _ => continue(e)
+            },
+        term,
+      );
+    Ok(term_to_zipper(new_term));
+  };
+  switch (find_matching_tests(term, match_str)) {
+  | [] => Error(no_test_match_error(match_str))
+  | [target] => apply(target)
+  | matches =>
+    switch (exact_test_match(matches, match_str)) {
+    | Some(target) => apply(target)
+    | None => Error(ambiguous_test_match_error(matches, match_str))
+    }
+  };
+};

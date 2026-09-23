@@ -130,8 +130,11 @@ module Local = {
     | SelectorUpdate(_, _)
     | SelectorDelete(_)
     | SelectorInsertBefore(_, _)
-    | SelectorInsertAfter(_, _) =>
-      /* Selector-driven edits: diff the whole program */
+    | SelectorInsertAfter(_, _)
+    | AddTest(_)
+    | UpdateTest(_, _)
+    | DeleteTest(_) =>
+      /* Selector-driven / test edits: diff the whole program */
       let* old_segment = segment_of_term(old_zipper, None, syntax);
       let new_segment = segment_of_term(new_zipper, None, syntax);
       Some((old_segment, new_segment));
@@ -161,6 +164,9 @@ module Local = {
       | SelectorDelete(_) => (true, true, true)
       | SelectorInsertBefore(_, _) => (false, false, false)
       | SelectorInsertAfter(_, _) => (false, false, false)
+      | AddTest(_) => (false, false, true)
+      | UpdateTest(_, _) => (false, false, true)
+      | DeleteTest(_) => (false, false, true)
       };
     };
 
@@ -888,6 +894,60 @@ module Local = {
         ),
       )
 
+    /* --- Test edits --- */
+
+    | AddTest(code) =>
+      switch (TermEdit.append_test(initial_z, code)) {
+      | Some(new_z) =>
+        PerformUtils.validate_edit(
+          ~edit_action=e,
+          ~initial_node=None,
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
+        )
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to add test: the code must parse cleanly as `test ... end` (or a bare predicate expression). Fix the syntax and try again.",
+          ),
+        )
+      }
+    | UpdateTest(match_str, code) =>
+      switch (TermEdit.update_test(initial_z, match_str, code)) {
+      | Ok(new_z) =>
+        PerformUtils.validate_edit(
+          ~edit_action=e,
+          ~initial_node=None,
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
+        )
+      | Error(msg) =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to update test: " ++ msg,
+          ),
+        )
+      }
+    | DeleteTest(match_str) =>
+      switch (TermEdit.delete_test(initial_z, match_str)) {
+      | Ok(new_z) =>
+        PerformUtils.validate_edit(
+          ~edit_action=e,
+          ~initial_node=None,
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
+        )
+      | Error(msg) =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to delete test: " ++ msg,
+          ),
+        )
+      }
+
     /* --- Selector-driven edits --- */
 
     | SelectorUpdate(selector, code) =>
@@ -1502,9 +1562,12 @@ module Local = {
     | SelectorUpdate(_)
     | SelectorDelete(_)
     | SelectorInsertBefore(_)
-    | SelectorInsertAfter(_) =>
+    | SelectorInsertAfter(_)
+    | AddTest(_)
+    | UpdateTest(_, _)
+    | DeleteTest(_) =>
       let initial_info_map = mk_statics(z);
-      /* Pass an empty node map — selector edits don't use it */
+      /* Pass an empty node map — selector/test edits don't use it */
       edit_dispatch(
         ~e=a,
         ~initial_z=z,

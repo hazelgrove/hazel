@@ -968,3 +968,148 @@ let selector_insert_before: API.Json.t =
       ]),
     ),
   ]);
+
+let add_test_description = {|
+Append `test ... end` expression(s) at the end of the program. Pass a full
+`test <predicate> end` block or just the bare predicate. PREFER ADDING ALL
+YOUR TESTS IN ONE CALL, separated by `;`:
+`test f(1) == 2 end; test f(2) == 3 end; test f(0) == 1 end` — each call
+costs a full round-trip. This is the preferred way to add tests — never use
+selectors to insert tests. The code must parse cleanly; predicates are
+usually equality checks like `my_fn(args) == expected`.
+|};
+
+let add_test: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("add_test")),
+        ("description", `String(add_test_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The test: `test <predicate> end` or a bare predicate expression (e.g. \"update(m, A) == expected\").",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let update_test_description = {|
+Replace an existing test. `match` is a distinctive substring of the test as it
+CURRENTLY appears in the program - not the new content (whitespace-insensitive;
+must identify exactly one test; including the expected value, e.g. `== 42`,
+usually makes it unique, and quoting the target test's full text always works).
+`code` is the replacement: `test <predicate> end` or a bare predicate.
+Use this to fix a wrong test instead of selectors.
+|};
+
+let update_test: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_test")),
+        ("description", `String(update_test_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "match",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Distinctive substring of the existing test (e.g. \"update(m, AddSong(4))\"). Must match exactly one test.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The replacement test: `test <predicate> end` or a bare predicate.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("match"), `String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let delete_test_description = {|
+Remove an existing test. `match` is a distinctive substring of the test as it
+CURRENTLY appears in the program (whitespace-insensitive; must identify exactly
+one test - include its expected value or quote its full text to disambiguate).
+|};
+
+let delete_test: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete_test")),
+        ("description", `String(delete_test_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "match",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Distinctive substring of the test to remove. Must match exactly one test.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("match")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);

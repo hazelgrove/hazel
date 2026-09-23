@@ -123,7 +123,14 @@ module Structural = {
     | SelectorUpdate(selector, code)
     | SelectorDelete(selector)
     | SelectorInsertBefore(selector, code)
-    | SelectorInsertAfter(selector, code);
+    | SelectorInsertAfter(selector, code)
+    /* Append a `test ... end` expression at the end of the program
+       (as a `;`-sequence item). code may omit the test/end wrapper. */
+    | AddTest(code)
+    /* Replace / remove an existing test identified by a unique
+       substring of its printed form. */
+    | UpdateTest(string, code)
+    | DeleteTest(string);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

@@ -2424,6 +2424,68 @@ let selector_tests = (
       ~sel="\\... let b = %",
       ~expected="42",
     ),
+    /* add_test appends a test as a sequence item. */
+    edit_test(
+      "add_test appends test",
+      "let a = 1 in a",
+      AddTest("a == 1"),
+      "let a = 1 in a;test a == 1 end",
+    ),
+    /* update_test / delete_test address existing tests by substring. */
+    edit_test(
+      "update_test replaces matching test",
+      "let a = 1 in a;test a == 2 end",
+      UpdateTest("a == 2", "a == 1"),
+      "let a = 1 in a;test a == 1 end",
+    ),
+    edit_test(
+      "delete_test removes matching test",
+      "let a = 1 in a;test a == 1 end;test a == 2 end",
+      DeleteTest("a == 2"),
+      "let a = 1 in a;test a == 1 end",
+    ),
+    test_case("update_test ambiguous match errors", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in a;test a == 1 end;test a == 1 end",
+        UpdateTest("a == 1", "a == 2"),
+        "ambiguous test match",
+      )
+    ),
+    /* Whitespace at operator boundaries must not break test matching:
+       `a ==2` and `a == 2` normalize identically. */
+    edit_test(
+      "update_test match is operator-whitespace-insensitive",
+      "let a = 1 in a;test a == 2 end",
+      UpdateTest("a ==2", "a == 1"),
+      "let a = 1 in a;test a == 1 end",
+    ),
+    /* A short test's text can be a substring of a longer test's; quoting
+       the short test's FULL text still identifies it uniquely. */
+    edit_test(
+      "update_test full-text match disambiguates substring collisions",
+      "let a = 1 in a;test a == 1 end;test a == 1 && a == 1 end",
+      UpdateTest("a == 1", "a == 2"),
+      "let a = 1 in a;test a == 2 end;test a == 1 && a == 1 end",
+    ),
+    edit_test(
+      "delete_test full-text match disambiguates substring collisions",
+      "let a = 1 in a;test a == 1 end;test a == 1 && a == 1 end",
+      DeleteTest("a == 1"),
+      "let a = 1 in a;test a == 1 && a == 1 end",
+    ),
+    /* The grafted test must sit INSIDE the let scopes: referencing a
+       binding from the test must not produce a static-error warning. */
+    test_case("add_test grafts inside binding scope", `Quick, () => {
+      switch (run_agent_action("let a = 1 in a", AddTest("a == 1"))) {
+      | Ok(_) =>
+        switch (CompositionGo.Public.last_warning^) {
+        | None => ()
+        | Some(w) => Alcotest.fail("add_test produced a scope warning: " ++ w)
+        }
+      | Error(e) =>
+        Alcotest.fail("add_test failed: " ++ Action.Failure.show(e))
+      }
+    }),
     test_case(
       "let b = % (NOT found at root)",
       `Quick,

@@ -30,6 +30,9 @@ module Local = {
     EditTools.selector_delete,
     EditTools.selector_insert_after,
     EditTools.selector_insert_before,
+    EditTools.add_test,
+    EditTools.update_test,
+    EditTools.delete_test,
     ReadTools.get_syntax,
     ReadTools.get_statics,
     ReadTools.get_context,
@@ -185,6 +188,16 @@ module Local = {
                   get_string(args, "code"),
                 ),
               )
+            | "add_test" => EditorAction(AddTest(get_string(args, "code")))
+            | "update_test" =>
+              EditorAction(
+                UpdateTest(
+                  get_string(args, "match"),
+                  get_string(args, "code"),
+                ),
+              )
+            | "delete_test" =>
+              EditorAction(DeleteTest(get_string(args, "match")))
             | "get_completeness" => ReadAction(GetCompleteness)
             | "selector_get_statics" =>
               ReadAction(SelectorGetStatics(get_string(args, "selector")))
@@ -316,6 +329,10 @@ module Local = {
       "selector_insert_before(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
     | EditorAction(SelectorInsertAfter(selector, code)) =>
       "selector_insert_after(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(AddTest(code)) => "add_test(\"" ++ code ++ "\")"
+    | EditorAction(UpdateTest(m, code)) =>
+      "update_test(\"" ++ m ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(DeleteTest(m)) => "delete_test(\"" ++ m ++ "\")"
     | WorkbenchAction(CreateNewTask(task)) =>
       "create_new_task( "
       ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)
