@@ -102,7 +102,7 @@ let get_data_string =
     (el: Js.t(Dom_html.element), name: string): option(string) => {
   el##getAttribute(Js.string("data-float-" ++ name))
   |> Js.Opt.to_option
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 };
 
 /* Update position of a single floating element */
@@ -127,28 +127,30 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       /* Raised completion flags stay in the viewport while their pole
          still reaches a visible caret. Other floating elements opt out. */
       let min_top =
-        get_data_string(el, "min-top") |> Option.map(float_of_string);
+        get_data_string(el, "min-top") |> Option.map(~f=float_of_string);
       let viewport_top =
         switch (min_top) {
-        | Some(y) => max(y, raw_top)
+        | Some(y) => Float.max(y, raw_top)
         | None => raw_top
         };
       let shift = viewport_top -. raw_top;
       let _ =
         el##.style##setProperty(
           Js.string("--float-top-shift"),
-          Js.string(Printf.sprintf("%fpx", shift)),
+          Js.string(Stdlib.Printf.sprintf("%fpx", shift)),
           Js.undefined,
         );
       let visible =
         switch (min_top, get_data_string(el, "local-bottom")) {
         | (Some(y), Some(bottom)) =>
-          base_top +. float_of_string(bottom) >= y
+          Float.(base_top + float_of_string(bottom) >= y)
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
-      el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
-      el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
+      el##.style##.top :=
+        Js.string(Stdlib.Printf.sprintf("%fpx", viewport_top));
+      el##.style##.left :=
+        Js.string(Stdlib.Printf.sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");
     }
   };
