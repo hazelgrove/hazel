@@ -34,7 +34,7 @@ let labeled_typ = (~label_id: Id.t, ~typ_id: Id.t): form => {
   colorings: labeled_typs_coloring_ids(~label_id, ~typ_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Assigns a [*label*](%s) to a [*type*](%s) appearing as an element within a Tuple type. Labeled tuple item types cannot exist outside of a Tuple type. Labeled tuple item types that are not contained within a Tuple are automatically converted into a singleton tuple type. Singleton tuples can also be unlabeled by using `_` in the label position.",
       Id.to_string(label_id),
       Id.to_string(typ_id),

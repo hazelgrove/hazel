@@ -39,7 +39,7 @@ let settings_group = (~globals: Globals.t, ~extra=[], name: string, ts) => {
     "group",
     [
       div_c("name", [text(name)]),
-      div_c("contents", extra @ List.map(toggle, ts)),
+      div_c("contents", extra @ List.map(~f=toggle, ts)),
     ],
   );
 };
@@ -175,17 +175,24 @@ let segmented_setting = (~name, ~tooltip, ~current, ~options, ~set) =>
           Attr.create("aria-label", name),
         ],
         List.map(
-          ((label, tooltip, mode)) =>
-            Node.button(
-              ~attrs=[
-                Attr.create("type", "button"),
-                clss(["segment"] @ (current == mode ? ["active"] : [])),
-                Attr.create("aria-pressed", string_of_bool(current == mode)),
-                Attr.title(tooltip),
-                Attr.on_click(_ => set(mode)),
-              ],
-              [text(label)],
-            ),
+          ~f=
+            ((label, tooltip, mode)) =>
+              Node.button(
+                ~attrs=[
+                  Attr.create("type", "button"),
+                  clss(
+                    ["segment"]
+                    @ (Poly.equal(current, mode) ? ["active"] : []),
+                  ),
+                  Attr.create(
+                    "aria-pressed",
+                    string_of_bool(Poly.equal(current, mode)),
+                  ),
+                  Attr.title(tooltip),
+                  Attr.on_click(_ => set(mode)),
+                ],
+                [text(label)],
+              ),
           options,
         ),
       ),

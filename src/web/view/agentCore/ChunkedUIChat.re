@@ -110,7 +110,7 @@ module Utils = {
               content: agent_response_chunk.content @ [message],
             };
             let log =
-              (acc_model.log |> List.rev |> List.tl |> List.rev)
+              (acc_model.log |> List.rev |> List.tl_exn |> List.rev)
               @ [Model.AgentResponseChunk(agent_response_chunk)];
             let acc_model = {
               ...acc_model,
@@ -156,7 +156,7 @@ module Utils = {
             | _ => failwith("Expected AgentResponseChunk before ToolResult")
             };
           let updated_log =
-            (acc_model.log |> List.rev |> List.tl |> List.rev)
+            (acc_model.log |> List.rev |> List.tl_exn |> List.rev)
             @ [Model.AgentResponseChunk(updated_agent_chunk)];
           let updated_model = {
             ...acc_model,
@@ -189,7 +189,7 @@ module Utils = {
               content: agent_response_chunk.content @ [message],
             };
             let log =
-              (acc_model.log |> List.rev |> List.tl |> List.rev)
+              (acc_model.log |> List.rev |> List.tl_exn |> List.rev)
               @ [Model.AgentResponseChunk(agent_response_chunk)];
             let updated_model = {
               ...acc_model,

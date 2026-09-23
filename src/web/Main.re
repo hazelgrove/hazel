@@ -38,7 +38,11 @@ let seed_visible_rows =
   let page = model.model.current.current;
   let needed =
     Editors.Model.supports_viewport_culling(page.editors)
-    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && !
+         Haz3lcore.AutoProbe.equal(
+           page.globals.settings.autoprobe_mode,
+           Haz3lcore.AutoProbe.Off,
+         )
     && Option.is_none(page.globals.visible_rows);
   if (needed) {
     switch (JsUtil.code_viewport_geometry()) {
@@ -117,11 +121,12 @@ let apply =
     slide_scrolls :=
       [
         (prev, JsUtil.main_scroll_top()),
-        ...List.remove_assoc(prev, slide_scrolls^),
+        ...List.Assoc.remove(slide_scrolls^, ~equal=Int.equal, prev),
       ];
     pending_scroll_restore :=
       Some(
-        List.assoc_opt(next, slide_scrolls^) |> Option.value(~default=0.),
+        List.Assoc.find(slide_scrolls^, ~equal=Int.equal, next)
+        |> Option.value(~default=0.),
       );
     scroll_to_caret := false;
   | _ => ()
@@ -192,7 +197,7 @@ let start = default_model => {
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
              JsUtil.set_css_custom_property(
                "--row-height-px",
-               Printf.sprintf("%fpx", rect.height),
+               Stdlib.Printf.sprintf("%fpx", rect.height),
              );
              i(
                Page.Update.Globals(
@@ -321,9 +326,7 @@ let start = default_model => {
     )
   ) {
   | exc =>
-    print_endline(
-      "ERROR: Exception during view: " ++ Printexc.to_string(exc),
-    );
+    print_endline("ERROR: Exception during view: " ++ Exn.to_string(exc));
     WebUtil.Node.div(
       ~attrs=[WebUtil.Attr.id("page")],
       [WebUtil.Node.text("An error occurred.")],
