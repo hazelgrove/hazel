@@ -31,6 +31,9 @@ type ColorOverrides = ^^fold((
   `cursor-tint` = Float, `cursor-level` = Float,
   # the lightness the stepper's next-step plate is pinned to #
   `step-next-level` = Float,
+  # how much of the remaining way to the ink probe sample text is moved: #
+  # 0. keeps the shared placement, 1. is the ink itself #
+  `probe-text-toward-ink` = Float,
   `hole-empty` = ColorValue,
   `projector-textarea-text` = ColorValue,
   `inspector-badge` = ColorValue,
@@ -75,6 +78,10 @@ let on_code(c, t, sat) =
   toward(code_l, color_saturate(c, sat), t) in
 # the plate behind an indicated tile: the sort's own hue, desaturated #
 # and pinned to one lightness. All three sorts share the pair. #
+# sample text: its shared place on the axis, moved on toward the ink by #
+# the scheme's own amount #
+let probe_text(c, t, sat) =
+  wash(c, t +. (1. -. t) *. role.`probe-text-toward-ink`, sat) in
 let sort_plate(c) =
   color_with_lightness(
     color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
@@ -164,19 +171,30 @@ let sort_plate(c) =
     probe = (
       `depth` = wash(p.`ink`, 0.49, 0.),
       `caller` = wash(p.`doc-1`, 0.09, 0.86),
-      `caller-text` = wash(p.`doc-1`, 0.64, 1.71),
+      `caller-text` = probe_text(p.`doc-1`, 0.64, 1.71),
       `caller-edge` = wash(p.`doc-1`, 0.27, 1.14),
+      `caller-related-text` = probe_text(p.`doc-1`, 0.8667, 3.),
       `callee` = wash(p.`label`, 0.09, 0.15),
-      `callee-text` = wash(p.`label`, 0.47, 0.4),
+      `callee-text` = probe_text(p.`label`, 0.47, 0.4),
       `callee-edge` = wash(p.`label`, 0.38, 0.45),
       `other` = wash(p.`success`, 0.06, 0.09),
       `other-text` = wash(p.`success`, 1.01, 0.63),
+      `other-edge` = wash(p.`success`, 0.3156, 0.9),
       `focus-text` = wash(p.`success`, 0.99, 0.87),
+      # the focused sample while the sample strip holds keyboard focus #
+      `focus-keyboard` =
+        color_with_lightness(
+          color_saturate(p.`probe-value`, 1.764),
+          color_lightness(p.`probe-value`) *. 0.96),
       # samples off the cursor's call stack: the same green, stepped down #
       # the axis so text, edge and fill stay apart in every scheme #
       `off` = wash(p.`success`, 0.0444, 0.2),
-      `off-text` = wash(p.`success`, 0.5556, 0.6),
-      `off-edge` = wash(p.`success`, 0.2667, 0.4)
+      `off-text` = probe_text(p.`success`, 0.5556, 0.6),
+      `off-edge` = wash(p.`success`, 0.2667, 0.4),
+      # the expanded drawer: its top rule, and the fade over content #
+      # that runs past its height #
+      `drawer-edge` = wash(p.`frame-1`, 0.2222, 0.5714),
+      `drawer-fade` = Fade(wash(p.`frame-1`, 1., 0.8571), 40.)
     ),
     # completion chips: the page knocked out of the chip, and the #
     # faded segments still to come, off the chip and on the caret's #
@@ -189,7 +207,9 @@ let sort_plate(c) =
     # inline widgets: text areas, folds, the statics card #
     projector = (
       `textarea-text` = role.`projector-textarea-text`,
-      `fold-background` = wash(p.`pattern`, 1.44, 0.17)
+      `fold-background` = wash(p.`pattern`, 1.44, 0.17),
+      # the arm from an indicated term to its statics card #
+      `statics-arm` = wash(p.`statics-background`, 0.5533, 3.177)
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #
@@ -218,6 +238,7 @@ let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `cursor-tint` = 0.25,
   `cursor-level` = 95.,
   `step-next-level` = 85.,
+  `probe-text-toward-ink` = 0.,
   `hole-empty` = p.`attention-1`,
   `projector-textarea-text` = p.`frame-3`,
   `inspector-badge` = p.`frame-3`,
@@ -296,6 +317,7 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `cursor-tint` = 0.3333,
   `cursor-level` = 40.,
   `step-next-level` = 31.,
+  `probe-text-toward-ink` = 0.,
   `hole-empty` = p.`surface-2`,
   `projector-textarea-text` = p.`ink`,
   `inspector-badge` = p.`frame-2`,
@@ -438,10 +460,12 @@ let contrast_dark = ^^fold(let p = palette_of(
       `error-hole` = ^^color(Oklch(28., 0.06, 47.)),
       `divider` = Fade(^^color(Oklch(100., 0., 0.)), 55.),
       `probe-application` = ^^color(Oklch(58., 0.24, 292.96451)),
-      `probe-value` = ^^color(Oklch(58., 0.05, 248.63699)),
-      `probe-pattern` = ^^color(Oklch(55., 0.07, 275.36018)),
-      `probe-value-edge` = ^^color(Oklch(18., 0.12, 230.)),
-      `probe-pattern-edge` = ^^color(Oklch(15., 0.12, 260.)),
+      # sample text sits on these, so they stay near the page and their #
+      # edges go toward the ink, as in the light high-contrast scheme #
+      `probe-value` = ^^color(Oklch(28., 0.07, 248.63699)),
+      `probe-pattern` = ^^color(Oklch(26., 0.08, 275.36018)),
+      `probe-value-edge` = ^^color(Oklch(80., 0.12, 230.)),
+      `probe-pattern-edge` = ^^color(Oklch(78., 0.12, 260.)),
       `probe-timeline` = ^^color(Oklch(57., 0.08, 283.45785)),
       `statics-background` = ^^color(Oklch(32., 0.06, 290.34169)),
       `statics-edge` = ^^color(Oklch(6., 0.02, 292.02116))
@@ -462,7 +486,10 @@ let contrast_dark = ^^fold(let p = palette_of(
     `chrome-muted-text` = p.`frame-2`,
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
-    `step-next-level` = 27.
+    `step-next-level` = 27.,
+    # light text on a dark fill needs more lightness than dark text on a #
+    # light one to read as well, so the shared placement falls short here #
+    `probe-text-toward-ink` = 0.55
   ))) in
 
 case (dark_mode, high_contrast)

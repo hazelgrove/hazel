@@ -2,7 +2,7 @@
 /* Turn off caret when text projector is focused */
 /* TODO: Generalize this logic to other projectors */
 .code-deco:has(~ .refractors *:focus) #caret .caret-path {
-  fill: #0000;
+  fill: transparent;
 }
 
 /* BACKING */
@@ -55,7 +55,7 @@
   stroke: var(--border-success) !important;
 }
 .code-deco .refractors svg path.child-line.statics {
-  stroke: #bd92cf !important;
+  stroke: var(--statics-arm) !important;
 }
 .code-deco .refractors svg path.child-line.repl {
   stroke: var(--border-strong) !important;
@@ -97,7 +97,7 @@
 }
 
 .indication-refractored.statics svg.shard.indicated > path {
-  fill: hsl(281, 80%, 95%);
+  fill: var(--main-base);
 }
 
 /* INLINE VIEW */
@@ -117,7 +117,7 @@
 }
 .projector.probe.indicated:not(.selected):not(.error) .main,
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
-  color: white;
+  color: var(--text-inverse);
 }
 .projector.probe .live-offside:focus {
   outline: none;
@@ -278,7 +278,7 @@
   cursor: pointer;
 }
 .live-offside .ellipsis {
-  color: var(--exp-base);
+  color: var(--sample-off-text);
 }
 
 .projector.probe.indicated .live-offside .ellipsis {
@@ -333,7 +333,6 @@
   position: relative;
   --bottom-border-clr: none;
   --bkg: var(--exp-base);
-  --depth-shadow: oklch(0.75 0 0);
   --num-levels: 7;
   --base: 0;
   transition:
@@ -344,7 +343,7 @@
 }
 
 .live-offside .sample:has(.value.unrelated.depth-same) {
-  --bottom-border-clr: #73e1a3;
+  --bottom-border-clr: var(--sample-neutral-shadow);
 }
 
 /* Color layer: background colors + coordinated depth shadow from scheme */
@@ -502,7 +501,7 @@
 
 /* Fallback style for when above/below are turned off */
 .live-offside.Single .sample .value {
-  background-color: #d6eed6;
+  background-color: var(--sample-neutral-bg);
 }
 
 .projector.probe.indicated
@@ -510,7 +509,7 @@
   .sample:has(.value.focus)
   .value {
   outline: 1.5px solid var(--border-error);
-  background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
+  background-color: var(--sample-focus-keyboard-bg);
 }
 .projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
   outline: 1.5px solid var(--border-success);
@@ -562,7 +561,7 @@
 } */
 
 .live-offside .value .token.explicit-hole {
-  color: white;
+  color: var(--text-inverse);
   text-shadow: none;
 }
 
@@ -571,7 +570,7 @@
   display: none;
 }
 .indicated .live-offside .value.focus .code-text .token {
-  color: #247e3d;
+  color: var(--sample-focus-text);
 }
 
 .live-offside .value.focus .code-text .token {
@@ -591,7 +590,7 @@
   opacity: 0.7;
 }
 .live-offside.Single .value.unrelated .code-text .token {
-  color: #437543;
+  color: var(--sample-neutral-text);
 }
 /* Faded text for tangent (unrelated but directional) samples */
 .live-offside.Single .value.tangent-before .code-text .token {
@@ -610,7 +609,7 @@
 /* Saturated text for related (caller/callee) samples */
 .live-offside.Many .value.related-before .code-text .token,
 .live-offside.Single .value.related-before .code-text .token {
-  color: oklch(0.58 0.21 346.68);
+  color: var(--sample-above-related-text);
 }
 .live-offside.Many .value.related-after .code-text .token,
 .live-offside.Single .value.related-after .code-text .token {
@@ -644,7 +643,7 @@
   width: fit-content;
   padding: 0 0.3em;
   gap: 0.1em;
-  color: black;
+  color: var(--text-strong);
   white-space: nowrap;
 }
 
@@ -677,18 +676,6 @@
   scale: 0.75;
 }
 
-.action-item .step-into-icon {
-  height: 1.3em;
-  width: 1.3em;
-  border-radius: 1em;
-  filter: invert(1) saturate(0) brightness(1.5);
-  background: url(../../img/noun-microscope-7023456.svg) #00ffff;
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
-  scale: 0.75;
-}
-
 .sample-context-menu .action-item.rich-probe-action .table-badge {
   display: inline-flex;
   align-items: center;
@@ -706,7 +693,7 @@
 }
 
 .sample-context-menu .action-item.rich-probe-action .table-badge svg path {
-  fill: white;
+  fill: var(--text-inverse);
 }
 
 .live-offside .live-env {
@@ -724,7 +711,7 @@
   margin-left: -1em;
   padding-left: 1em;
   padding-right: 1em;
-  border: 1px solid oklch(0.87 0.04 89.74);
+  border: 1px solid var(--probe-drawer-edge);
   border-width: 1px 0 0px 0;
   /* cap at 15 lines (matches DrawerHeight.max_rows) */
   max-height: calc(15 * var(--line-height) * 1em);
@@ -767,7 +754,7 @@
   width: 100vw;
   height: 22px;
   margin-top: -22px;
-  background: linear-gradient(transparent, oklch(45% 0.06 89.74 / 0.4));
+  background: linear-gradient(transparent, var(--probe-drawer-fade));
   pointer-events: none;
   z-index: calc(var(--projector-z) + 5);
 }
