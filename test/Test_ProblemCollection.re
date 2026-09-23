@@ -545,7 +545,7 @@ type Expansion = String;
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = fun m : Model -> m
+let expand_fun = fun m : Model -> m
 }|};
 
 let projected_use_reports_one_error = () => {

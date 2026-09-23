@@ -39,7 +39,7 @@ type Expansion = Int;
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = fun m -> m * 2
+let expand_fun = fun m -> m * 2
 }";
 
 /* The standard definition plus one extra member, for tests about members
@@ -52,7 +52,7 @@ type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = fun m -> m * 2"
+let expand_fun = fun m -> m * 2"
   ++ (extra == "" ? "" : ";\n" ++ extra)
   ++ "
 }";
@@ -69,7 +69,7 @@ type Expansion = "
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = "
+let expand_fun = "
   ++ expand
   ++ "
 }";
@@ -105,7 +105,7 @@ let members_out_of_order = () =>
     "members and types are found by name, in any order",
     "42",
     "let ^dbl = {
-let expand = fun m -> m * 2;
+let expand_fun = fun m -> m * 2;
 type Expansion = Int;
 let view = fun m -> Html.text(\"\");
 type Model = Int;
@@ -167,7 +167,7 @@ let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = fun m -> bump(m)
+let expand_fun = fun m -> bump(m)
 } in ^inc(4) + ^inc(9)",
   );
 
@@ -182,7 +182,7 @@ type Expansion = Int;
 let init = 0;
 let update(m, a) = a;
 let view(m) = Html.text(\"\");
-let expand(m) = m * 2
+let expand_fun(m) = m * 2
 } in ^dbl(4)",
   );
 
@@ -192,7 +192,7 @@ let expand(m) = m * 2
    is already wrong. */
 /* REGRESSION. The definition-site check must fire on a member whose type
    is stated through the livelit's OWN type members, not only on one whose
-   wrongness is visible without them. `expand = fun m : Model -> m` under
+   wrongness is visible without them. `expand_fun = fun m : Model -> m` under
    `Expansion = String` types as Model -> Model; left unrealized, those
    names mean nothing outside the module, degrade to ?, and the check
    passes whatever expand returns -- which is exactly what it used to do,
@@ -210,7 +210,7 @@ let module_expand_mismatch_through_aliases = () => {
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand", _})) =>
+      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand_fun", _})) =>
         true
       | _ => false,
       m,
@@ -251,7 +251,7 @@ type Expansion = Int;
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = fun m -> \"not an Int\"
+let expand_fun = fun m -> \"not an Int\"
 } in 1",
     );
   check(
@@ -260,7 +260,7 @@ let expand = fun m -> \"not an Int\"
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand", _})) =>
+      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand_fun", _})) =>
         true
       | _ => false,
       m,
@@ -280,7 +280,7 @@ type Expansion = Int;
 let init : Model = 0;
 let update = fun (m, a) -> \"wrong\";
 let view = fun m -> Html.text(\"\");
-let expand = fun m -> m
+let expand_fun = fun m -> m
 } in 1",
     );
   check(
@@ -323,7 +323,7 @@ let module_missing_members = () => {
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefMissingMembers(["update", "expand"])) =>
+      | Mark.InvalidLivelitDef(DefMissingMembers(["update", "expand_fun"])) =>
         true
       | _ => false,
       m,
@@ -449,7 +449,7 @@ let missing_types_marked = () => {
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand = fun m -> m
+let expand_fun = fun m -> m
 } in 1",
     );
   check(
@@ -510,7 +510,7 @@ type Expansion = Int;
 let init = 50;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"hi\");
-let expand = fun m -> m
+let expand_fun = fun m -> m
 }";
   let def_user = parse_exp(def_text);
   let ctx = Builtins.ctx_init(Some(Int));
@@ -651,7 +651,7 @@ type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(string_of_int(^^probe(m * 3)));
-let expand = fun m -> m * 2
+let expand_fun = fun m -> m * 2
 } in ";
 
 let view_probes_fire = () => {
@@ -719,7 +719,7 @@ let member_access = () =>
   run_test(
     "^name.member accesses the definition record",
     "51",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl.expand(21) + ^dbl.update((3, 9))",
+    "let ^dbl = " ++ dbl_def ++ " in ^dbl.expand_fun(21) + ^dbl.update((3, 9))",
   );
 
 let redex_as_model = () =>
@@ -736,7 +736,7 @@ type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> ^^probe(m + a);
 let view = fun m -> Html.text(string_of_int(m));
-let expand = fun m -> m * 2
+let expand_fun = fun m -> m * 2
 } in ";
 
 let update_probe_fires_once = () => {
@@ -816,7 +816,7 @@ let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []);
-let expand = fun m -> m
+let expand_fun = fun m -> m
 } in ^^livelit(^pk(5))",
     );
   let html =
