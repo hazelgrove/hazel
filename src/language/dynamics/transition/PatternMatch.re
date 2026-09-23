@@ -37,10 +37,11 @@ let match_pattern =
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
-    value == d' ? Matches([]) : DoesNotMatch;
+    Poly.equal(value, d') ? Matches([]) : DoesNotMatch;
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
-    List.map2(recur, xs, s') |> List.fold_left(combine_result, Matches([]));
+    List.map2_exn(xs, s', ~f=recur)
+    |> List.fold_left(~f=combine_result, ~init=Matches([]));
   | Cons(x, xs) =>
     let* (x', xs') = Unboxing.unbox(Cons, d);
     let* m_x = recur(x, x');
@@ -65,7 +66,8 @@ let match_pattern =
     recur(x, x');
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2(recur, ps, ds) |> List.fold_left(combine_result, Matches([]));
+    List.map2_exn(ps, ds, ~f=recur)
+    |> List.fold_left(~f=combine_result, ~init=Matches([]));
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>

@@ -14,7 +14,7 @@ type t = {
 
 let mk_results = (~descriptions=[], test_map: TestMap.t): t => {
   test_map,
-  statuses: test_map |> List.map(r => r |> snd |> TestMap.joint_status),
+  statuses: test_map |> List.map(~f=r => r |> snd |> TestMap.joint_status),
   descriptions,
   hints: TestMap.hints(test_map),
   total: TestMap.count(test_map),
@@ -27,9 +27,9 @@ let result_summary_str =
     (~n, ~p, ~q, ~n_str, ~ns_str, ~p_str, ~q_str, ~r_str): string => {
   let one_p = "one is " ++ p_str ++ " ";
   let one_q = "one is " ++ q_str ++ " ";
-  let mny_p = Printf.sprintf("%d are %s ", p, p_str);
-  let mny_q = Printf.sprintf("%d are %s ", q, q_str);
-  let of_n = Printf.sprintf("Out of %d %s, ", n, ns_str);
+  let mny_p = Stdlib.Printf.sprintf("%d are %s ", p, p_str);
+  let mny_q = Stdlib.Printf.sprintf("%d are %s ", q, q_str);
+  let of_n = Stdlib.Printf.sprintf("Out of %d %s, ", n, ns_str);
   switch (n, p, q) {
   | (0, _, _) => "No " ++ ns_str ++ " available."
   | (_, 0, 0) => "All " ++ ns_str ++ " " ++ r_str ++ "! "
