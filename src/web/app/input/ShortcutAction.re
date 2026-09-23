@@ -150,7 +150,7 @@ let meta = (a: t): action_meta =>
       label: "TyDi Assistant",
       section: General,
       mdIcon: "assistant",
-      default_binding: Bound([Meta], "/"),
+      default_binding: Unbound,
     }
   | GoToDefinition => {
       label: "Go to Definition",
@@ -204,13 +204,13 @@ let meta = (a: t): action_meta =>
       label: "Extend Selection Left by Token",
       section: Selection,
       mdIcon: "chevron_left",
-      default_binding: Bound([Alt, Shift], "left"),
+      default_binding: Unbound,
     }
   | ExtendSelectionRightByToken => {
       label: "Extend Selection Right by Token",
       section: Selection,
       mdIcon: "chevron_right",
-      default_binding: Bound([Alt, Shift], "right"),
+      default_binding: Unbound,
     }
   | Fold => {
       label: "Fold",
@@ -478,6 +478,3 @@ let section_string = (a: t): option(string) =>
 let string_of_key_mod = S.string_of_key_mod;
 let string_of_chord = S.string_of_chord;
 let string_of_binding = S.string_of_binding;
-
-let default_hotkey = (a: t): option(string) =>
-  string_of_binding(default_binding(a));

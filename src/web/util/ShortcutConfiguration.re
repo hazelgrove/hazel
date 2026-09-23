@@ -96,11 +96,11 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
 
 /* Read the evaluated slide back out as an override table, flattening the
    sections away — the palette keys off the action label alone. An action the
-   program leaves `Unbound` maps to None, which CLEARS a default binding
-   rather than falling back to it. A binding S.rejection_of refuses is not
+   program leaves `Unbound` CLEARS its default binding rather than falling
+   back to it. A binding S.rejection_of refuses is not
    an override at all, so the action keeps its default; the keybinding
    projector marks it. */
-let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
+let overrides_of_value = (value: Exp.t): list((string, S.binding)) =>
   List.concat_map(
     (section: Exp.t) =>
       switch (section.term) {
@@ -112,7 +112,7 @@ let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
               switch (l.term, S.binding_of_exp(v)) {
               | (Label(action_name), Some(b))
                   when Option.is_none(S.rejection_of(b)) =>
-                Some((action_name, S.string_of_binding(b)))
+                Some((action_name, b))
               | _ => None
               }
             | _ => None

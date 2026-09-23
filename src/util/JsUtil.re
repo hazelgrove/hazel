@@ -111,6 +111,53 @@ let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
    raises this on pointerdown, before focus moves at all, and lowers it on
    blur. */
 let projector_holds_focus = ref(false);
+
+/* Whether a key event belongs to the element it was pressed in rather than
+   to the page's shortcuts: a field that takes typing, the command palette
+   (which navigates with its own keys), or an interactive projector holding
+   focus. The clipboard shim is a textarea only so copy and paste work; keys
+   pressed there are the editor's. */
+let target_owns_keys = (evt: Js.t(#Dom_html.event)): bool => {
+  let truthy = (v: Js.Unsafe.any): bool =>
+    Js.to_bool(Js.Unsafe.fun_call(Js.Unsafe.js_expr("Boolean"), [|v|]));
+  projector_holds_focus^
+  || (
+    switch (Js.Opt.to_option(evt##.target)) {
+    | None => false
+    | Some(target) =>
+      let el: Js.t(Dom_html.element) = Js.Unsafe.coerce(target);
+      let tag = Js.to_string(el##.tagName);
+      let takes_typing =
+        switch (tag) {
+        | "INPUT" =>
+          !
+            List.mem(
+              Js.to_string(Js.Unsafe.get(el, "type")),
+              [
+                "checkbox",
+                "radio",
+                "range",
+                "button",
+                "file",
+                "reset",
+                "submit",
+                "color",
+              ],
+            )
+        | "TEXTAREA"
+        | "SELECT" => true
+        | _ => false
+        };
+      Js.to_string(el##.id) != clipboard_shim_id
+      && (
+        tag == "NINJA-KEYS"
+        || truthy(Js.Unsafe.get(el, "isContentEditable"))
+        || takes_typing
+        && !truthy(Js.Unsafe.get(el, "readOnly"))
+      );
+    }
+  );
+};
 /* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
    itself must hold DOM focus (not the clipboard shim). preventScroll: don't
    fight an in-progress jump/scroll. */

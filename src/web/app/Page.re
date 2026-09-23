@@ -616,57 +616,10 @@ module View = {
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
-       * (they call Stop_propagation). */
+       * (they call Stop_propagation); shortcuts never get this far
+       * (see shortcut_listener). */
       let page_action =
         switch (key) {
-        | {
-            key: D("F7"),
-            sys: Mac | PC,
-            shift: Down,
-            meta: Up,
-            ctrl: Up,
-            alt: Up,
-            _,
-          } =>
-          Some(Update.Benchmark(Start))
-        | {
-            key: D("Z" | "z"),
-            sys: Mac,
-            shift: Down,
-            meta: Down,
-            ctrl: Up,
-            alt: Up,
-            _,
-          }
-        | {
-            key: D("Z" | "z"),
-            sys: PC,
-            shift: Down,
-            meta: Up,
-            ctrl: Down,
-            alt: Up,
-            _,
-          } =>
-          Some(Update.Globals(Redo))
-        | {
-            key: D("Z" | "z"),
-            sys: Mac,
-            shift: Up,
-            meta: Down,
-            ctrl: Up,
-            alt: Up,
-            _,
-          }
-        | {
-            key: D("Z" | "z"),
-            sys: PC,
-            shift: Up,
-            meta: Up,
-            ctrl: Down,
-            alt: Up,
-            _,
-          } =>
-          Some(Update.Globals(Undo))
         /* Cmd+P (Mac) / Ctrl+P (PC) toggles auto-probe mode.
            Lost in the keyboard-handling refactor; re-added at the page
            level since the toggle dispatches Globals(Set(AutoprobeMode)),
@@ -923,6 +876,21 @@ module View = {
     ];
   };
 
+  /* Shortcuts are matched on window in the capture phase, before any
+     editor's key handler, so an editor cannot swallow a bound chord. */
+  let shortcut_listener = (actions: list(ContextualAction.t)) =>
+    Attr.Global_listeners.keydown(evt =>
+      if (JsUtil.target_owns_keys(evt)) {
+        Effect.Ignore;
+      } else {
+        switch (ContextualAction.of_key(actions, Key.mk(KeyDown, evt))) {
+        | Some(action) =>
+          Effect.(Many([Prevent_default, Stop_propagation, action]))
+        | None => Effect.Ignore
+        };
+      }
+    );
+
   let view =
       (
         ~log_model,
@@ -936,12 +904,20 @@ module View = {
       (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
-    NinjaKeys.initialize(
-      ~overrides=model.globals.settings.shortcut_overrides,
-      cursor.contextual_actions,
-    );
+    let actions =
+      List.map(
+        ContextualAction.with_overrides(
+          ~overrides=model.globals.settings.shortcut_overrides,
+        ),
+        cursor.contextual_actions,
+      );
+    NinjaKeys.initialize(actions);
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      ~attrs=[
+        Attr.id("page"),
+        shortcut_listener(actions),
+        ...handlers(~inject, model),
+      ],
       [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );

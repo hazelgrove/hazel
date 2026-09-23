@@ -31,7 +31,8 @@ let of_contextual_action =
      val id = action.label;
      val title = action.label;
      val mdIcon = Js.Optdef.option(action.mdIcon);
-     val hotkey = Js.Optdef.option(action.hotkey);
+     val hotkey =
+       Js.Optdef.option(ShortcutAction.string_of_binding(action.binding));
      val section = Js.Optdef.option(action.section);
      val handler =
        () => {
@@ -45,36 +46,11 @@ let of_contextual_action =
   ];
 };
 
-/* The Shortcuts config slide wins over the
-   ShortcutAction registry defaults. An action the config leaves Unbound maps to
-   None here, which CLEARS the default rather than falling back to it.
-
-   Overrides are applied on the way in rather than mutated afterwards: this
-   function is called from Page.View.view on every cursor change, so any
-   post-hoc mutation of `data` would be overwritten on the next keystroke. */
-let apply_override =
-    (
-      ~overrides: list((string, option(string))),
-      action: ContextualAction.t,
-    )
-    : ContextualAction.t =>
-  switch (List.assoc_opt(action.label, overrides)) {
-  | Some(hotkey) => {
-      ...action,
-      hotkey,
-    }
-  | None => action
-  };
-
-let initialize =
-    (
-      ~overrides: list((string, option(string)))=[],
-      actions: list(ContextualAction.t),
-    ) => {
-  let opts =
-    actions
-    |> List.map(apply_override(~overrides))
-    |> List.map(of_contextual_action)
-    |> Array.of_list;
+/* Shows the actions and their chords. Dispatching a chord is not the
+   palette's job: Page matches key presses against the same actions (see
+   ContextualAction.of_key), and prebundle.js keeps hotkeys-js from firing
+   them a second time. */
+let initialize = (actions: list(ContextualAction.t)) => {
+  let opts = actions |> List.map(of_contextual_action) |> Array.of_list;
   Js.Unsafe.set(elem(), "data", Js.array(opts));
 };

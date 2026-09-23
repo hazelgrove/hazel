@@ -50,9 +50,17 @@ let rejected_binding_is_not_an_override = () => {
       ])
     );
   check(
-    list(pair(string, option(string))),
+    list(
+      pair(
+        string,
+        testable(
+          Fmt.of_to_string(BuiltinsADT.Shortcut.show_binding),
+          BuiltinsADT.Shortcut.equal_binding,
+        ),
+      ),
+    ),
     "only the accepted entry is an override",
-    [("Redo", None)],
+    [("Redo", Unbound)],
     Web.ShortcutConfiguration.overrides_of_value(value),
   );
 };

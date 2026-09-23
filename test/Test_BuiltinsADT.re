@@ -121,7 +121,81 @@ let shortcut_rejection_tests = {
   ];
 };
 
+let shortcut_key_tests = {
+  module S = BuiltinsADT.Shortcut;
+  let binding = testable(Fmt.of_to_string(S.show_binding), S.equal_binding);
+  let press = (~sys=Util.Key.Mac, ~meta=false, ~alt=false, key, code) =>
+    Util.Key.{
+      key: D(key),
+      code,
+      sys,
+      shift: Up,
+      meta: meta ? Down : Up,
+      ctrl: Up,
+      alt: alt ? Down : Up,
+    };
+  [
+    test_case(
+      "Shortcut.binding_of_key: Option+f on a Mac reads as Alt+f", `Quick, () =>
+      check(
+        option(binding),
+        "",
+        Some(Bound([Alt], "f")),
+        S.binding_of_key(press(~alt=true, {js|ƒ|js}, "KeyF")),
+      )
+    ),
+    test_case("Shortcut.binding_of_key: Ctrl on PC reads as Meta", `Quick, () =>
+      check(
+        option(binding),
+        "",
+        Some(Bound([Meta], "left")),
+        S.binding_of_key(
+          Util.Key.{
+            ...press(~sys=PC, "ArrowLeft", "ArrowLeft"),
+            ctrl: Down,
+          },
+        ),
+      )
+    ),
+    test_case(
+      "Shortcut.binding_of_key: a modifier alone is no chord", `Quick, () =>
+      check(
+        option(binding),
+        "",
+        None,
+        S.binding_of_key(press(~meta=true, "Meta", "MetaLeft")),
+      )
+    ),
+    test_case(
+      "Shortcut.same_chord: modifier order and key case are ignored",
+      `Quick,
+      () =>
+      check(
+        bool,
+        "",
+        true,
+        S.same_chord(
+          Bound([Meta, Shift], "Z"),
+          Bound([Shift, Meta], "z"),
+        ),
+      )
+    ),
+    test_case(
+      "Shortcut.same_chord: an extra modifier is a different chord", `Quick, () =>
+      check(
+        bool,
+        "",
+        false,
+        S.same_chord(Bound([Meta], "z"), Bound([Meta, Shift], "z")),
+      )
+    ),
+  ];
+};
+
 let tests = (
   "BuiltinsADT",
-  invert_ord_tests @ of_atom_compare_tests @ shortcut_rejection_tests,
+  invert_ord_tests
+  @ of_atom_compare_tests
+  @ shortcut_rejection_tests
+  @ shortcut_key_tests,
 );

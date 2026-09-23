@@ -52,8 +52,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Down, "Backspace") => now(AdjustIndent(Left, AtBoundary))
     | (_, "Delete") => now(Destruct(Local(Right, ByChar)))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
-    | (Down, "Tab") => now(Move(Goal(NextProblem(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, def))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, def))))
     | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up, def))))
@@ -85,7 +83,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
-    | "s" => now(Format(Pretty))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
@@ -97,19 +94,14 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
     | "e" => now(Probe(ToggleAuto))
-    | "s" => now(Format(Pretty))
     | "Backspace" => now(Destruct(Line(Left)))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
-    | "d" => now(Select(Term(Current)))
-    | "a" => now(Select(All))
-    | "e" => now(Probe(ToggleManual))
     | "s" => now(Format(Preferred))
     | "[" => now(AdjustIndent(Left, Always))
     | "]" => now(AdjustIndent(Right, Always))
-    | "/" => Some(Buffer(Set(TyDi)))
     | "Backspace" => now(Destruct(Line(Left)))
     | "ArrowLeft" => now(Move(Line(Left)))
     | "ArrowRight" => now(Move(Line(Right)))
@@ -120,13 +112,9 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
 
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
-    | "d" => now(Select(Term(Current)))
-    | "a" => now(Select(All))
-    | "e" => now(Probe(ToggleManual))
     | "s" => now(Format(Preferred))
     | "[" => now(AdjustIndent(Left, Always))
     | "]" => now(AdjustIndent(Right, Always))
-    | "/" => Some(Buffer(Set(TyDi)))
     | "Backspace" => now(Destruct(Local(Left, ByToken)))
     | "Delete" => now(Destruct(Local(Right, ByToken)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
@@ -141,21 +129,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "e" => now(Move(Line(Right)))
     | _ => None
     }
-  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    Some(Project(SetIndicated(Specific(Fold))))
-  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    /* Curly ƒ is what holding option turns f into on Mac */
-    Some(Project(SetIndicated(Specific(Fold))))
-  | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    Some(Probe(ToggleStatics))
-  | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    /* † is what holding option turns t into on Mac */
-    Some(Probe(ToggleStatics))
-  | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    Some(Project(SetIndicated(ChooseLivelit)))
-  | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     Some(ApplyCompletion(All))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>

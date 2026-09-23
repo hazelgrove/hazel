@@ -251,46 +251,6 @@ module M: Projector = {
       ),
     );
 
-  /* The physical key, normalised to what hotkeys-js expects. Modifier-only
-     presses yield None so holding ⌘ alone does not commit a binding. */
-  let key_name_of = (key: Key.t): option(string) => {
-    let raw =
-      switch (key.key) {
-      | D(k) => k
-      | U(k) => k
-      };
-    switch (raw) {
-    | "Control"
-    | "Shift"
-    | "Alt"
-    | "Meta" => None
-    | "ArrowUp" => Some("up")
-    | "ArrowDown" => Some("down")
-    | "ArrowLeft" => Some("left")
-    | "ArrowRight" => Some("right")
-    | " " => Some("space")
-    | k => Some(String.lowercase_ascii(k))
-    };
-  };
-
-  /* The platform modifier records as the abstract `Meta`, never as a literal
-     cmd/ctrl — that is what makes a shortcut recorded here mean the same
-     thing on another machine. On a Mac ctrl stays available as literal
-     `Ctrl`; on PC ctrl IS the platform modifier, so it records as Meta and
-     there is no literal-ctrl to ask for, the two being the same key. */
-  let mods_of = (key: Key.t): list(S.key_mod) => {
-    let platform =
-      switch (key.sys) {
-      | Mac =>
-        (key.meta == Down ? [S.Meta] : [])
-        @ (key.ctrl == Down ? [S.Ctrl] : [])
-      | PC => key.ctrl == Down || key.meta == Down ? [S.Meta] : []
-      };
-    platform
-    @ (key.alt == Down ? [S.Alt] : [])
-    @ (key.shift == Down ? [S.Shift] : []);
-  };
-
   /* What the widget currently shows: a capture in progress wins over what
      the syntax holds, since the syntax is not written until capture ends. */
   let shown_binding = (model, info): S.binding =>
@@ -326,13 +286,9 @@ module M: Projector = {
         Prevent_default,
       ])
     | _ =>
-      switch (key_name_of(key)) {
-      | Some(name) =>
-        Many([
-          local(Captured(S.Bound(mods_of(key), name))),
-          Stop_propagation,
-          Prevent_default,
-        ])
+      switch (S.binding_of_key(key)) {
+      | Some(b) =>
+        Many([local(Captured(b)), Stop_propagation, Prevent_default])
       /* A bare modifier: swallow it so it neither escapes to the editor nor
          clears what is already shown. */
       | None => Many([Stop_propagation, Prevent_default])

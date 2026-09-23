@@ -339,6 +339,67 @@ module Shortcut = {
     | Bound(mods, key) => Some(string_of_chord(mods, key))
     };
 
+  /* ---- Reading a key press as a chord ----
+
+     The keybinding recorder and the shortcut dispatcher both go through
+     binding_of_key, so a recorded chord is exactly what a later press of the
+     same keys produces. */
+
+  /* The platform modifier reads as the abstract `Meta`, never as a literal
+     cmd/ctrl, so a chord recorded on a Mac means the same thing elsewhere. On
+     a Mac ctrl stays available as literal `Ctrl`; on PC ctrl IS the platform
+     modifier, so it reads as Meta. */
+  let mods_of_key = (key: Util.Key.t): list(key_mod) => {
+    let platform =
+      switch (key.sys) {
+      | Mac =>
+        (key.meta == Down ? [Meta] : []) @ (key.ctrl == Down ? [Ctrl] : [])
+      | PC => key.ctrl == Down || key.meta == Down ? [Meta] : []
+      };
+    platform
+    @ (key.alt == Down ? [Alt] : [])
+    @ (key.shift == Down ? [Shift] : []);
+  };
+
+  /* With Option held, a Mac reports the character it would type (ƒ for f),
+     so letters and digits are read from the physical key instead. */
+  let key_name_of = (key: Util.Key.t, name: string): string =>
+    switch (key.alt, name) {
+    | (Down, _) when String.starts_with(~prefix="Key", key.code) =>
+      String.lowercase_ascii(String.sub(key.code, 3, 1))
+    | (Down, _) when String.starts_with(~prefix="Digit", key.code) =>
+      String.sub(key.code, 5, 1)
+    | (_, "ArrowUp") => "up"
+    | (_, "ArrowDown") => "down"
+    | (_, "ArrowLeft") => "left"
+    | (_, "ArrowRight") => "right"
+    | (_, " ") => "space"
+    | (_, k) => String.lowercase_ascii(k)
+    };
+
+  /* A keydown as a chord; None for a key-up or a press of a modifier alone. */
+  let binding_of_key = (key: Util.Key.t): option(binding) =>
+    switch (key.key) {
+    | U(_)
+    | D("Control" | "Shift" | "Alt" | "Meta") => None
+    | D(name) => Some(Bound(mods_of_key(key), key_name_of(key, name)))
+    };
+
+  /* Modifiers compare as a set and keys without case, so a default written
+     `Bound([], "F12")` is the chord a press of F12 produces. */
+  let same_chord = (a: binding, b: binding): bool =>
+    switch (a, b) {
+    | (Bound(ma, ka), Bound(mb, kb)) =>
+      List.for_all(
+        m =>
+          List.exists(equal_key_mod(m), ma)
+          == List.exists(equal_key_mod(m), mb),
+        all_key_mods,
+      )
+      && String.lowercase_ascii(ka) == String.lowercase_ascii(kb)
+    | _ => false
+    };
+
   /* ---- Which chords can be shortcuts ----
 
      Shortcuts are matched before the editor sees a key, so a chord the
