@@ -17,18 +17,12 @@ Two layers now, and the direction of reference between them is the invariant:
                        color is published only under the semantic names the
                        fan-out gives it, so there is no --ink to consume
 
-There used to be a third layer, roles.css, a hand-written alias from role to
-palette. It is gone: the theme writes those names itself, so the alias was a
-second definition of a color the slide had already decided, and it capped
-what a themer could reach -- its 77 roles resolved to only 31 palette colors.
-
 The rules below are what is left to enforce mechanically. Component CSS reads
 role names, because a role names a PURPOSE and so is the unit a themer can
 move on its own; a palette entry is a bundle, fanned out to several properties
 that often share nothing but their color. And no component stylesheet
 declares a color the theme owns, because two `:root` blocks setting the same
-name is a race decided by @import order -- which is exactly how 23 defaults
-drifted into the projector stylesheets. Nor does one state a color outright:
+name is a race decided by @import order. Nor does one state a color outright:
 a literal is a color no scheme can move, so it is right in the scheme it was
 picked for and wrong in the other three. Fading a theme color is allowed;
 changing its lightness, chroma or hue is a derivation, and belongs in the

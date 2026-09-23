@@ -50,7 +50,6 @@ Two things run before that pipeline can:
 | `theme-generated.css` | **Generated.** Every color the theme owns. Do not edit; run `make update-css-defaults`. |
 | `variables.css` | Hand-written, and deliberately color-free: type, timing, the z-index ladder. Plus `color-scheme`, which is a real property and so must be *used* somewhere. |
 | everything else | Component stylesheets. They consume role names and define no colors. |
-| `palette.html` | A standalone swatch page with its own hardcoded `:root`. It does not read the theme, so it drifts; regenerate it by hand if you care. |
 
 ## The two layers
 
@@ -63,7 +62,8 @@ The slide's value has two sections, and the difference between them is
   drives `--text-default`, `--border-inverse`, `--code-text`, `--token-exp` and
   more.
 - **roles** in groups — `menu`, `chrome`, `editor`, `cursor`, `hole`,
-  `problems`, `results`, `inspector`, `probe`, `completion`, `projector`. One
+  `problems`, `results`, `inspector`, `probe`, `completion`, `projector`,
+  `agent`. One
   field per decision, named for what the color is *for* (`cursor.pattern`,
   `hole.warning-edge`, `chrome.table-row-hover`), and usually carrying a single
   property.
@@ -94,27 +94,25 @@ promote the property you need into a role field of its own rather than to
 split every bundle pre-emptively.
 
 **There is no `--ink`.** A palette color reaches CSS only under the semantic
-names the fan-out gives it. The bare palette names used to be published too
-and were read by nothing — no stylesheet, no OCaml, no script, and the only
-references left in the tree were commented out. Dropping them means
-component stylesheets *cannot* consume a palette name rather than merely being
-told not to. The palette is still a
+names the fan-out gives it, so component stylesheets *cannot* consume a
+palette name rather than merely being told not to. The palette is still a
 first-class layer in the slide and a type in `BuiltinsColorScheme`; it is just
 not a CSS namespace.
 
 Two smaller notes on what lives where. `ColorOverrides` — declared in the
 slide, not the builtins — is the record a scheme uses to point a role somewhere
-itself, and it is deliberately small: two of its fields are the flags and two
-are the numbers the cursor plate is pinned with. Most of what is left is genuinely per-polarity (`menu.nut` is
+itself, and it is deliberately small: besides the two flags it holds a few
+numbers (where the cursor and stepper plates are pinned, and how far probe
+text moves toward the ink), and colors that are genuinely per-polarity (`menu.nut` is
 `info-strong` in light and `success-muted` in dark, and no axis expression
 reproduces both), so shrinking it further means moving a color rather than
 rewriting one; three of its fields (`frame-mark`, `frame-seam`, `frame-border`)
 are a single ramp step each, read by every role that wants that line weight.
-And a role that only forwarded a stated color was doing no work: eleven of
-those — the probe fills, the projector island and text-area colors — are
-palette entries instead, named for what they are for (`probe-value`,
-`statics-background`, `textarea-margin`), with the fan-out still writing the
-legacy CSS names they always wrote.
+And a color a scheme only states is a palette entry rather than a role that
+would just forward it — the probe fills, the projector island and text-area
+colors, named for what they are for (`probe-value`, `statics-background`,
+`textarea-margin`), with the fan-out writing the CSS names the stylesheets
+read.
 
 ## The types are named, and the slide annotates with them
 
@@ -143,8 +141,7 @@ slide builds.
 
 That moves the check to where the mistake is. Without them the only analysis is
 the whole-program one, which lands on the final `case` — one inconsistency
-between two hundred-field products, which is how a rename once produced
-thirteen errors that named nothing. Ascribed, a scheme's seed and override
+between two large products that names nothing. Ascribed, a scheme's seed and override
 records are checked at the record, and the theme at the record that builds it.
 
 Every one is load-bearing: point any at the wrong type and the slide reports
@@ -163,9 +160,7 @@ names rather than two whole records.
 The slide also leans on tuple extension (`...`) to avoid restating records:
 `palette_of` is `seed ... (the derivations)` rather than 35 lines of
 `x = seed.x`, and each polarity has one role map that its high-contrast variant
-extends with only what it changes. Together with dropping the nested folds that
-is worth ~630 segment pieces, a ninth of the slide, and about a fifth off the
-time it takes to parse.
+extends with only what it changes.
 
 ## Four schemes from two booleans
 
@@ -205,6 +200,13 @@ To branch on either from CSS, use a style query:
    `ColorConfiguration.aliases` if it should write CSS properties under
    different names.
 3. `make update-css-defaults` to regenerate the stylesheet.
+
+A stylesheet may fade a role without a new field —
+`color-mix(in oklch, var(--role) 40%, transparent)` or
+`oklch(from var(--role) l c h / 0.4)`. Anything that moves lightness, chroma
+or hue is a derivation, and belongs in the slide. Every role costs statics
+time on each load of the slide, so a field that only fades another one is not
+worth adding.
 4. `UPDATE_COLOR_GOLDEN=1 ./run_tests test 'ColorConfiguration'` and read the
    diff — an unexplained line in it is a bug.
 
@@ -219,16 +221,17 @@ To branch on either from CSS, use a style query:
   two `:root` blocks setting one name is a race decided by `@import` order,
   which is how defaults once drifted into projector stylesheets;
 - no new dangling `var()` references (there is a ratchet list of inherited
-  ones, which may shrink and never grow).
+  ones, which may shrink and never grow);
+- no component stylesheet states a color — no hex, color function or named
+  color — beyond fading a theme color as above.
+
+It is not part of CI yet.
 
 `./run_tests test 'ColorConfiguration'` additionally pins that the slide
 type-checks against the contract, that every scheme defines every property and
 renders as valid CSS, that the four schemes are pairwise distinct, that
 `theme-generated.css` is current, and — via `test/goldens/colors.tsv`, every
 property × every scheme — that no color has changed value.
-
-**Not** enforced: nothing stops a new stylesheet rule hardcoding a literal
-color. That is a gap; the lint above catches the `:root` case only.
 
 ## Gotchas
 
