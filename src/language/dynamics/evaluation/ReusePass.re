@@ -68,6 +68,19 @@ let rec reuse_pass_for =
           (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet);
         },
         ~mode=`Environment,
+        /* A prediction about what an evaluation would reuse, walking the
+           same term the evaluation walks. Whatever it performs, the
+           evaluation performs again.
+
+           Which way round does not matter, and it is worth saying because
+           the three callers differ. EvalResult's debug tint predicts after
+           the evaluation, so a performed effect is a second copy appended to
+           a store that already has one. Evaluator.prepare_evaluation and
+           WorkerServer's ReusePlan predict BEFORE it, so a performed effect
+           is a store the real evaluation then reads having already been
+           written to -- the program observing a run of itself. The second is
+           the worse of the two and is the hot path for a Fumola cell. */
+        ~effects=`Withhold,
         ~targets=eval_info.targets,
         Builtins.env_init,
         d,

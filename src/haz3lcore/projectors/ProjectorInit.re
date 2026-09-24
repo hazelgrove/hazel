@@ -20,6 +20,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Color => (module Cook(ColorProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
+  | FumolaPeek => (module Cook(FumolaPeekProj.M))
   };
 
 /* Printer for Term init overrides, injected by ProjectorPerform at

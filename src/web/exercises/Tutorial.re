@@ -225,6 +225,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Parens(_)
   | Projector(_)
   | Splice(_)
+  /* The three Fumola/blackboard forms arrived with
+     experimental-lang-integration. Like the wrappers around them they are
+     leaves for this traversal: appending after one appends after the whole
+     form, not inside it. */
+  | FumolaQuote(_, _, _)
+  | BbQuote(_)
+  | FumolaPeek(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)

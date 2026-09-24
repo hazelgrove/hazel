@@ -541,6 +541,36 @@ let mpat_view = (~globals, ~raw, m: Info.mpat): list(Node.t) =>
 let drv_view = (~globals, _: DrvInfo.t): list(Node.t) =>
   section(~globals, "InfoDrv", () => [field_str("(see DrvInfo)", "—")]);
 
+let bb_view = (~globals, i: BbInfo.t): list(Node.t) =>
+  section(~globals, "InfoBb", () =>
+    [
+      field_str(
+        "modality",
+        switch (BbInfo.modality_of(i)) {
+        | None => "—"
+        | Some(Assume) => "assume"
+        | Some(Construct) => "construct"
+        },
+      ),
+      field_str(
+        "status",
+        switch (BbInfo.error_of(i)) {
+        | None => "ok"
+        | Some(err) => BbInfo.message(err)
+        },
+      ),
+    ]
+  );
+
+let fumola_view = (~globals, f: FumolaInfo.t): list(Node.t) =>
+  section(~globals, "InfoFumola", () =>
+    [
+      field_str("id", id_str(f.id)),
+      field_str("cls", Cls.show(Fumola(f.cls))),
+      field_str("ancestors", ancestors_str(f.ancestors)),
+    ]
+  );
+
 let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   switch (ci) {
   | InfoExp(i) => exp_view(~globals, ~raw, i)
@@ -552,6 +582,8 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoMPat(m) => mpat_view(~globals, ~raw, m)
   | Secondary(s) => secondary_view(~globals, s)
   | InfoDrv(d) => drv_view(~globals, d)
+  | InfoBb(b) => bb_view(~globals, b)
+  | InfoFumola(f) => fumola_view(~globals, f)
   };
 
 /* ---- Syntax sections: the syntactic/zipper layer under the cursor, ----

@@ -614,6 +614,52 @@ module View = {
           : Effect.Ignore;
       Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
     };
+    /* The span a copied link should carry: the selection if there is one, and
+       otherwise the term the cursor is in -- the same unit "Select term"
+       selects, computed the same way, so the link selects what the reader
+       would have got by asking for it. Somewhere with no term (whitespace
+       between two of them) falls back to the caret. */
+    let deep_link_span = (): option((Point.t, Point.t)) => {
+      let z = model.editor.state.zipper;
+      let syntax = model.editor.syntax;
+      let selected =
+        Haz3lcore.Selection.is_empty(z.selection)
+          ? Select.select_enclosing_term(
+              syntax.term_data,
+              CachedSyntax.measured(syntax),
+              model.statics.info_map,
+              z,
+            )
+          : Some(z);
+      let caret = () => {
+        let p = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
+        Some((p, p));
+      };
+      switch (selected) {
+      | None => caret()
+      | Some(z') =>
+        switch (z'.selection.content) {
+        | [] => caret()
+        | [first, ..._] as content =>
+          switch (
+            try(
+              Some((
+                Measured.find_p(first, CachedSyntax.measured(syntax)),
+                Measured.find_p(
+                  ListUtil.last(content),
+                  CachedSyntax.measured(syntax),
+                ),
+              ))
+            ) {
+            | _ => None
+            }
+          ) {
+          | None => caret()
+          | Some((head, tail)) => Some((head.origin, tail.last))
+          }
+        }
+      };
+    };
     let paste_from_clipboard = () =>
       Effect.bind(JsUtil.read_clipboard(), ~f=text =>
         inject(

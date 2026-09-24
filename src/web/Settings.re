@@ -86,6 +86,8 @@ module Model = {
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      fumola_tab: Events,
+      fumola_editor: Dim,
     },
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
@@ -378,6 +380,20 @@ module Update = {
               key,
               settings.sidebar,
             ),
+        }
+      | Sidebar(SwitchFumolaTab(tab)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            fumola_tab: tab,
+          },
+        }
+      | Sidebar(SwitchFumolaEditor(mode)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            fumola_editor: mode,
+          },
         }
       | Sidebar(ToggleWorkerEncoding(e)) => {
           ...settings,

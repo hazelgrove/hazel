@@ -481,9 +481,25 @@ let expose_splice_refs = (arg: TermBase.Exp.t): TermBase.Exp.t => {
    whole elaboration became consistent with EVERY type and the use-site
    BadLivelitExpansion check silently stopped firing. Two tests caught
    that. Ascribing the hole keeps both arms at Expansion, which is what
-   the use site is entitled to assume whichever arm ran. */
+   the use site is entitled to assume whichever arm ran.
+
+   The three trailing arguments are the BUILTIN livelits' expansion context
+   -- the occurrence's id, the expected type, and the type tools for
+   resolving constructors. A user-defined livelit needs none of them: it
+   expands by applying its own `expand` member to the model, and whatever
+   that member needs it takes from the program's own scope. They are
+   accepted and ignored so user-defined and builtin livelits share one
+   `expand` contract, which is what lets a Fumola livelit -- which does use
+   all three -- sit in the same table. */
 let mk_expand_dot =
-    (~name: string, ~expansion_t: TermBase.Typ.t, model: TermBase.Exp.t) => {
+    (
+      ~name: string,
+      ~expansion_t: TermBase.Typ.t,
+      ~id as _: Id.t,
+      ~ana as _: TermBase.Typ.t,
+      ~tools as _: LivelitCtx.type_tools,
+      model: TermBase.Exp.t,
+    ) => {
   IdTagged.FreshGrammar.(
     Some(
       Exp.match(
@@ -622,9 +638,19 @@ let mk =
         model_default: Exp.replace_all_ids(List.assoc("init", members)),
         expansion_t,
         expand: mk_expand_dot(~name, ~expansion_t),
+        /* False: a user-defined livelit's expansion is whatever its own
+           `expand` member returns, so it has something to produce whether or
+           not an expected type is in scope. The flag exists for livelits that
+           cannot know their expansion without one -- the Fumola livelits,
+           which shape a runtime value by the type it is being read at. */
+        requires_annotation: false,
         action_t,
         update: (_action, model) => model,
-        view: (_model, _send) =>
+        /* A placeholder: a user-defined livelit's real view comes from its own
+           `view` member, rendered by LivelitProj rather than from here. `~id`
+           is the occurrence's id, which the Fumola livelits use to tell two
+           live uses apart; this one has no use for it. */
+        view: (~id as _, _model, _send) =>
           Virtual_dom.Vdom.Node.text("user-defined livelit"),
         shape:
           switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {

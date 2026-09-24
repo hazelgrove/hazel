@@ -1,6 +1,28 @@
 open Util;
 
 module Settings = {
+  /* Which of the Fumola panel's three views is showing. They are three
+     indices on one history -- the same fetch answers all three -- so this is
+     a view choice and not three panels. */
+  /* What to do with the editor's own edges and events -- the ones sourced at
+     a node whose space is Here, at whatever time. They are here to be
+     inspected, and they get verbose, so they can be dimmed or dropped
+     without being forgotten.
+
+     "The editor" is meant literally: these are the puts Hazel itself made on
+     the program's behalf, as against what the program computed. */
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+  type fumola_editor =
+    | Show
+    | Dim
+    | Hide;
+
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+  type fumola_tab =
+    | Events
+    | Nodes
+    | Edges;
+
   /* `enumerate` so a link can name a panel without a second list of names to
      keep in step: DeepLink matches `?panel=` against these constructors. */
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
@@ -11,6 +33,7 @@ module Settings = {
     | Projectors
     | LogControl
     | Problems
+    | Fumola
     | TaskReference
     | DebugInfo;
 
@@ -153,12 +176,25 @@ module Settings = {
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
-  /* Extra fields are tolerated so a settings blob written by an older build
-     (which stored the inverse, `debug_collapsed`) still loads instead of
-     failing t_of_sexp and resetting every other setting. Persistence goes
-     through sexp only — see Store.F. */
+  /* A field removed from this record must not cost a reader every other
+     setting they have.
+
+     `Store.deserialize` catches whatever `t_of_sexp` raises, prints a line to
+     the console and hands back the WHOLE default record; there is no
+     versioning and no migration. ppx_sexp_conv raises on a field it does not
+     recognise, so renaming `fumola_prime_mover` to `fumola_editor` meant that
+     every browser which had run an earlier build of this branch -- including
+     the ones the demo runs on -- would silently lose instructor mode, the
+     dynamics toggles, the worker encodings, the line numbers and the rest,
+     on the next load. `debug_collapsed`, which dev replaced with the inverse
+     `debug_expanded`, is the same case. The `[@sexp.default]` attributes below
+     do not help: they cover a field that is MISSING, not one left over.
+
+     So extra fields are ignored here. A stale key is a key nothing reads,
+     which is what it should have been all along. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   [@sexp.allow_extra_fields]
+  [@yojson.allow_extra_fields]
   type t = {
     show: bool,
     panel,
@@ -179,6 +215,17 @@ module Settings = {
                                               [WorkerServer.Marshal]
                                             ]
     worker_encodings: list(WorkerServer.encoding),
+    /* Defaulted on load for the same reason as worker_encodings: settings
+       persisted before this field existed still have to load. A tab is a
+       fixed name, so it is safe to persist -- unlike a node or edge id,
+       which the runtime mints afresh on every page load and which would
+       accumulate here forever. */
+    [@sexp.default Events] [@yojson.default Events]
+    fumola_tab,
+    /* Dim by default: it answers "they get verbose" without anything
+       disappearing before the reader knows it was ever there. */
+    [@sexp.default Dim] [@yojson.default Dim]
+    fumola_editor,
   };
 
   let is_debug_expanded = (key: string, settings: t) =>
@@ -220,5 +267,7 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugExpanded(string)
+    | SwitchFumolaTab(fumola_tab)
+    | SwitchFumolaEditor(fumola_editor)
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

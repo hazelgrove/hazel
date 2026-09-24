@@ -213,3 +213,57 @@
 .highlight-code-f {
   fill: var(--text-doc-6);
 }
+/* The mustard watch. Centred under the explanation it belongs to, and
+   allowed to shrink with the panel rather than clipping. */
+.explain-art {
+  display: flex;
+  justify-content: center;
+  margin: 0.6em 0 0.2em;
+}
+
+.explain-art svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* The way in to the Fumola panel, under the instance-name explanation.
+   Namespaced like the rest of this file so it beats `#side-bar *`'s
+   user-select, and underlined at rest rather than only on hover -- an
+   affordance nobody hovers is not an affordance. */
+#explain-this .fumola-panel-link {
+  align-self: flex-start;
+  cursor: pointer;
+  /* --BR3 came with this rule from experimental-lang-integration, where
+     the palette was hardcoded in variables.css. On this branch the colours
+     config slide generates the palette and --BR3 does not exist, so an
+     unchanged rule would silently inherit. */
+  color: var(--explain-this-expander);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+#explain-this .fumola-panel-link:hover {
+  color: var(--BR4);
+}
+
+/* A fenced block in a doc: the form's concrete syntax, shown above the prose
+   that explains it. It has to be a block rather than an inline span because
+   a Fumola symbol begins with a backtick, which closes an inline code span on
+   its own first character. Preserves its spacing, since the alternatives in
+   a syntax line are separated by runs of spaces, and scrolls rather than
+   wrapping so that a long form stays on one line. */
+#explain-this .section .explanation-contents pre.code-block {
+  font-family: var(--code-font);
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0.25em 0 0.6em;
+  padding: 0.4em 0.5em;
+  border-radius: 0.25em;
+  background: var(--code-bg, rgb(0 0 0 / 4%));
+}
+
+#explain-this .section .explanation-contents pre.code-block code {
+  font-family: inherit;
+}
