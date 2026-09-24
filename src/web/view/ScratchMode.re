@@ -57,6 +57,7 @@ let project_cell_statics =
     error_ids: List.filter(in_cell, item.d_error_ids),
     warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
     targets: Haz3lcore.Id.Map.empty, /* with_targets refreshes */
+    completion: None,
     probe_ids:
       Haz3lcore.CachedStatics.probe_ids_of_zipper(
         cell.editor.editor.state.zipper,
@@ -1608,6 +1609,7 @@ module Update = {
                     ~info_map=ds.merged,
                     ~probe_ids,
                   ),
+                completion: None,
                 probe_ids,
               },
             );

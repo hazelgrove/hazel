@@ -11,13 +11,17 @@ module Profile = {
 
 let caret_width = 0.2; /* Width of editor caret */
 
-let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
-  ShardDec.chonky_path_base(
-    (shape, shape),
-    ShardDec.shape_adjust(side, shape) +. 0.5 *. caret_width,
-    caret_width,
-    float_of_int(0),
-  );
+/* The straight top edge, in character units. Decorations joining the
+   caret must use this edge, including its indication-side offset. */
+let top_edge = (side, shape): (float, float) => (
+  -. (ShardDec.shape_adjust(side, shape) +. 0.5 *. caret_width),
+  caret_width,
+);
+
+let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) => {
+  let (left, width) = top_edge(side, shape);
+  ShardDec.chonky_path_base((shape, shape), -. left, width, 0.);
+};
 
 let main =
     (
@@ -37,15 +41,8 @@ let main =
     caret_base_path(side, shape),
   );
 
-let view =
-    (
-      ~measured: Haz3lcore.Measured.t,
-      ~font_metrics: FontMetrics.t,
-      z: Haz3lcore.Zipper.t,
-    )
-    : Node.t => {
-  open Haz3lcore;
-  let side =
+let side_of = (z: Haz3lcore.Zipper.t): Direction.t => {
+  Haz3lcore.(
     switch (Indicated.for_decoration(z)) {
     | _
         when
@@ -54,7 +51,19 @@ let view =
       z.selection.focus
     | Some({side, _}) => Direction.toggle(side)
     | _ => Right
-    };
+    }
+  );
+};
+
+let view =
+    (
+      ~measured: Haz3lcore.Measured.t,
+      ~font_metrics: FontMetrics.t,
+      z: Haz3lcore.Zipper.t,
+    )
+    : Node.t => {
+  open Haz3lcore;
+  let side = side_of(z);
   let origin = Zipper.Caret.point(measured, z);
   /* the caret's model position doubles as the reveal input: the
      scroll check reads it instead of the caret's DOM rect

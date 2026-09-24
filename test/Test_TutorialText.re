@@ -34,4 +34,63 @@ let title_of_tests =
        )
      );
 
-let tests = [("TutorialText.title_of", title_of_tests)];
+/* Exercise the compiled .hzt -> lesson path: source indentation must survive
+   importing both the student's implementation and its hidden tests. */
+let indentation_tests = [
+  test_case(
+    "implementation keeps nested function-body indentation",
+    `Quick,
+    () => {
+      let lesson =
+        List.find(
+          (spec: Tutorial.spec) =>
+            spec.title == "Basics / Mean of String Integers",
+          TutorialText.all,
+        );
+      check(
+        string,
+        "nested let bindings and the hole stay inside the function",
+        {|let string_mean : [String] -> Float = fun strings ->
+  let floats : [Float] = ¿ in
+  let sum : Float = ¿ in
+  ¿
+in
+string_mean(["1", "2", "3"])|},
+        Haz3lcore.MarkerParse.to_text(lesson.your_impl),
+      );
+    },
+  ),
+  test_case(
+    "hidden tests keep continuation indentation",
+    `Quick,
+    () => {
+      let lesson =
+        List.find(
+          (spec: Tutorial.spec) =>
+            spec.title
+            == "Tuple Structural Operations / Labeled Tuple Extension",
+          TutorialText.all,
+        );
+      let lines =
+        Haz3lcore.MarkerParse.to_text(lesson.hidden_tests.tests)
+        |> String.split_on_char('\n');
+      check(
+        string,
+        "test equality continuation",
+        "  ==",
+        List.nth(lines, 1),
+      );
+      check(
+        string,
+        "expected tuple continuation",
+        "  (first=\"Thor\", age=31, last=\"Odinson\", name=\"Thor Odinson\")",
+        List.nth(lines, 2),
+      );
+    },
+  ),
+];
+
+let tests = [
+  ("TutorialText.title_of", title_of_tests),
+  ("TutorialText.indentation", indentation_tests),
+];

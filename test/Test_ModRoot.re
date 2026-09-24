@@ -36,7 +36,7 @@ let semi_ids = (seg: Segment.t): list(Id.t) =>
   List.filter_map(
     (p: Piece.t) =>
       switch (p) {
-      | Tile(t) when t.label == [";"] => Some(t.id)
+      | Tile(t) when Tile.label(t) == [";"] => Some(t.id)
       | _ => None
       },
     seg,

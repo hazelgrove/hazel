@@ -532,8 +532,8 @@ let format_cmd = {
     structured formatting.
   |};
   let width_arg = {
-    let doc = "Target line width in columns (default: 60).";
-    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+    let doc = "Target line width in columns (default: 80).";
+    Arg.(value & opt(int, 80) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
   Cmd.v(
