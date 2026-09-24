@@ -495,7 +495,7 @@ let rec piece_len = (p: Piece.t): int =>
             0,
             t.shards,
           )
-          + List.fold_left((acc, c) => acc + seg_len(c), 0, t.children)
+          + List.fold_left((acc, c) => acc + seg_len(c), 0, t.children);
         | _ => utf16_length(text_of_seg([p]))
         };
       if (Hashtbl.length(len_cache) > 200_000) {
@@ -601,7 +601,7 @@ let with_caret_at = (offset: int, z: Zipper.t): Zipper.t => {
               ? mk((List.rev(pre_rev), seg), ancs)
               : mk(~caret=Inner(k), (List.rev(pre_rev), seg), ancs);
           | None => mk((List.rev(pre_rev), seg), ancs)
-          };
+          }
         };
       };
     }
@@ -627,13 +627,21 @@ let with_caret_at = (offset: int, z: Zipper.t): Zipper.t => {
         k < 0 ? before_shard(i) : before_shard(~caret=Inner(k), i);
       } else if (i == n - 1) {
         /* at or past the end: after the tile */
-        mk((fst(sibs) @ [Tile(t)], snd(sibs)), ancs);
+        mk(
+          (fst(sibs) @ [Tile(t)], snd(sibs)),
+          ancs,
+        );
       } else {
         let child = List.nth(t.children, i);
         let acc = acc + l;
         let cl = seg_len(child);
         if (target <= acc + cl) {
-          in_seg(target - acc, [], child, [(ancestor(t, i), sibs), ...ancs]);
+          in_seg(
+            target - acc,
+            [],
+            child,
+            [(ancestor(t, i), sibs), ...ancs],
+          );
         } else {
           go(i + 1, acc + cl);
         };
@@ -743,7 +751,7 @@ let leaf_of = (it: item, leaf: leaf): string =>
 
 /* The program [seg] rearranged into [items] (program order, current
    texts), without rebuilding it: an item already in [seg] keeps its
-   region's pieces (identity, inner ids, hence Measured / MakeTerm / 
+   region's pieces (identity, inner ids, hence Measured / MakeTerm /
    DefStatics caches), a new item is built alone, a removed one is
    dropped, and the top level is regrouted once. Leaves whose text
    differs are then set. None if [seg] can't be read as items. */
@@ -751,10 +759,11 @@ let restructure =
     (~tail_id: Id.t, items: list(item), seg: Segment.t): option(Segment.t) => {
   let regions =
     List.map(
-      c => (
-        c.c_kind == Tail ? tail_id : Option.get(c.c_id),
-        (c.c_kind, Focus.slice(c.c_start, c.c_stop, seg)),
-      ),
+      c =>
+        (
+          c.c_kind == Tail ? tail_id : Option.get(c.c_id),
+          (c.c_kind, Focus.slice(c.c_start, c.c_stop, seg)),
+        ),
       cspans(seg),
     );
   let fresh_pieces = (it: item) =>
@@ -919,7 +928,10 @@ let leaf_ranges = (~tail_id: Id.t, seg: Segment.t): list(range) => {
     starts[i + 1] = starts[i] + lens[i];
   };
   /* raw ranges: leaves are lossless */
-  let core_range = (start: int, s: Segment.t) => (start, start + seg_len(s));
+  let core_range = (start: int, s: Segment.t) => (
+    start,
+    start + seg_len(s),
+  );
   List.concat_map(
     c => {
       let (a, b) = content_range(c, arr);
