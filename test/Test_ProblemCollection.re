@@ -542,7 +542,6 @@ let livelit_def = {|{
 type Model = Int;
 type Action = Int;
 type Expansion = String;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");

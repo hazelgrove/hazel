@@ -40,7 +40,6 @@ let ^tree = {
 
   type Expansion = Census;
 
-  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   let init : Model = (
     tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),

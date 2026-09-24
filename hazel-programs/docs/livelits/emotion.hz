@@ -23,7 +23,6 @@ let ^mood = {
 
   type Expansion = Mood;
 
-  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   let init : Model = (50, Idle);
 

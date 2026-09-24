@@ -32,7 +32,6 @@ let ^between = {
 
   type Expansion = Int;
 
-  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   # Parenthesizing a field's value marks it as a SPLICE -- a region of #
   # the client's own program, held inside the widget. Everything below #

@@ -871,16 +871,6 @@ let exp_mark_err_view =
       text(" and members "),
       code("init, update, view, expand"),
     ])
-  | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
-    div_err(
-      member_mismatch_view(
-        ~view_type,
-        ~what="Member ",
-        name,
-        ~expected,
-        ~actual,
-      ),
-    )
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),

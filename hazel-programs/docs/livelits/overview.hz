@@ -83,7 +83,6 @@ let ^flag = {
   type Model = Bool;
   type Action = Bool;
   type Expansion = Bool;
-  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   # what a fresh use starts as: typing ^flag then space inserts it #
   let init : Model = false;

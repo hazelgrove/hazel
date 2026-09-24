@@ -57,7 +57,6 @@ let dbl_def = "{
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
@@ -71,7 +70,6 @@ let def_with = (~extra: string) =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
@@ -89,7 +87,6 @@ type Action = Int;
 type Expansion = "
   ++ expansion
   ++ ";
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
@@ -131,7 +128,6 @@ let members_out_of_order = () =>
     "let ^dbl = {
 let expand = Functional(fun m -> m * 2);
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let view = fun m -> Html.text(\"\");
 type Model = Int;
 let init = 0;
@@ -188,7 +184,6 @@ let module_helpers = () =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
@@ -211,7 +206,6 @@ let module_funlet_members = () =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update(m, a) = a;
 let view(m) = Html.text(\"\");
@@ -275,7 +269,6 @@ let module_expand_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
@@ -299,7 +292,6 @@ let module_update_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> \"wrong\";
 let view = fun m -> Html.text(\"\");
@@ -310,30 +302,21 @@ let expand = Functional(fun m -> m)
     bool,
     "update's result type is checked against Model",
     true,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "update", _})) =>
-        true
-      | _ => false,
-      m,
-    ),
+    def_is_marked(m),
   );
 };
 
-/* A definition that satisfies the signature reports no mismatch at all --
-   the check must not fire on the livelits that already work. */
+/* A definition that satisfies the signature is marked at all -- the second
+   analytic pass must not fire on the livelits that already work. This is
+   the negative control for the whole mechanism: analyzing every definition
+   against a realized signature could easily reject good ones. */
 let module_well_typed_no_mismatch = () => {
   let (m, _) = statics("let ^x = " ++ dbl_def ++ " in ^x(1)");
   check(
     bool,
-    "a well-typed definition raises no member mismatch",
+    "a well-typed definition is not marked",
     false,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch(_)) => true
-      | _ => false,
-      m,
-    ),
+    has_mark(_ => true, m),
   );
 };
 
@@ -541,7 +524,6 @@ let adapter = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 50;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"hi\");
@@ -683,7 +665,6 @@ let view_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(string_of_int(^^probe(m * 3)));
@@ -776,7 +757,6 @@ let update_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update = fun (m, a) -> ^^probe(m + a);
 let view = fun m -> Html.text(string_of_int(m));
@@ -856,7 +836,6 @@ let sampled_handlers_are_closed = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;

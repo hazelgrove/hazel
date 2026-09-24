@@ -2318,8 +2318,37 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
+          let def_syntax = def;
           let (def, def_elab, m) =
             go(~ana=p_syn.ty, ~coercible=true, def, m);
+          /* A livelit definition gets a SECOND pass, analyzed against the
+             `Livelit` signature with its own Model, Action and Expansion
+             made manifest (UserLivelit.livelit_ana_ty).
+
+             The first pass is what tells us those three types, so the
+             realized signature cannot be built before it. The second pass
+             is the authoritative one: analyzing rather than synthesizing
+             puts every member where the ordinary type machinery can check
+             it, which is what makes a mismatched member an ordinary
+             inconsistency at the expression rather than a livelit-specific
+             mark on the whole definition -- and what puts the `expand`
+             sum's constructors in scope, so a definition needs no type
+             member of its own to name them.
+
+             Realized rather than as-written because the signature declares
+             those three ABSTRACT, and analyzing against it directly would
+             seal them: a use of ^name must keep synthesizing Expansion
+             concretely for clients to reason about. */
+          let (def, def_elab, m) =
+            switch (UserLivelit.binder_name(p)) {
+            | None => (def, def_elab, m)
+            | Some(_) =>
+              switch (UserLivelit.livelit_ana_ty(~ctx, ~m, def.user_term)) {
+              | None => (def, def_elab, m)
+              | Some(ana_sig) =>
+                go(~ana=ana_sig, ~coercible=true, def_syntax, m)
+              }
+            };
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(

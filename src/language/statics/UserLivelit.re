@@ -75,7 +75,6 @@ let rec pat_name = (p: TermBase.Pat.t): option(string) =>
    the optional `shape`) and the three declared interface types. */
 [@deriving show({with_path: false})]
 type def = {
-  mismatch: option(Mark.livelit_def_error),
   members: list((string, TermBase.Exp.t)), /* member -> bound syntax */
   model_t: TermBase.Typ.t,
   action_t: TermBase.Typ.t,
@@ -182,70 +181,63 @@ let rec strip_splice_refs = (ty: Typ.t): Typ.t => {
   };
 };
 
-let check_against_livelit_sig =
-    (
-      ~ctx: Ctx.t,
-      ~types: list((string, Typ.t)),
-      ~vals: list((string, Typ.t)),
-    )
-    : option(Mark.livelit_def_error) => {
-  let realize = (ty: Typ.t): Typ.t =>
-    List.fold_left(
-      (ty, name) =>
-        switch (List.assoc_opt(name, types)) {
-        | Some(def) =>
-          Typ.subst(def, IdTagged.FreshGrammar.TPat.var(name), ty)
-        | None => ty
-        },
-      ty,
-      required_types,
-    );
-  let declared =
-    switch (Ctx.lookup_alias(ctx, "Livelit")) {
-    | Some(ty) =>
-      switch (Typ.term_of(ty)) {
-      | Sig(items) =>
+/* The `Livelit` signature with THIS definition's Model, Action and
+   Expansion made MANIFEST rather than abstract.
+
+   Analyzing a livelit definition against the signature as written would
+   SEAL those three, and a use of ^name must keep synthesizing Expansion
+   concretely or clients cannot reason about what a use means. Realizing
+   them first keeps the concrete types visible while still putting every
+   member in ANALYTIC position, which is the whole point: a member is then
+   checked where it is written, by the ordinary type machinery, rather
+   than synthesized and compared afterwards by a hand-rolled check.
+
+   Two things fall out of the analytic position that were awkward without
+   it. Constructors resolve -- `let expand = Functional(f)` needs
+   `Functional` in scope, and analysis against the sum supplies it, so a
+   livelit needs no `type Expand` member of its own. And a mismatched
+   member reports as an ordinary inconsistency at the offending
+   expression rather than as a livelit-specific mark on the whole
+   definition. */
+let realized_livelit_sig =
+    (~ctx: Ctx.t, ~types: list((string, Typ.t))): option(Typ.t) =>
+  switch (Ctx.lookup_alias(ctx, "Livelit")) {
+  | Some(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Sig(items) =>
+      let realize = (t: Typ.t): Typ.t =>
+        List.fold_left(
+          (t, name) =>
+            switch (List.assoc_opt(name, types)) {
+            | Some(d) =>
+              Typ.subst(d, IdTagged.FreshGrammar.TPat.var(name), t)
+            | None => t
+            },
+          t,
+          required_types,
+        );
+      let members =
         Sig.members(items)
-        |> List.filter_map((mem: Sig.member) =>
+        |> List.map((mem: Sig.member) =>
              switch (mem) {
-             | Val(n, ty) => Some((n, ty))
-             | _ => None
+             | TypeAbstract(n) =>
+               switch (List.assoc_opt(n, types)) {
+               | Some(d) => Sig.TypeManifest(n, d)
+               | None => mem
+               }
+             | Val(n, t) => Sig.Val(n, realize(t))
+             | _ => mem
              }
-           )
-      | _ => []
-      }
-    | None => []
-    };
-  List.fold_left(
-    (acc, (name, want)) =>
-      switch (acc) {
-      | Some(_) => acc
-      | None =>
-        let expected =
-          name == "init" ? strip_splice_refs(realize(want)) : realize(want);
-        switch (List.assoc_opt(name, vals)) {
-        | None => None /* absence is DefMissingMembers' to report */
-        | Some(actual) =>
-          /* Realize the member's OWN type too. It is stated in terms of
-             Model, Action and Expansion, which name nothing in the ctx
-             outside the module: left alone they degrade to ? and the
-             comparison passes whatever expand returns. */
-          let actual = realize(actual);
-          Typ.is_consistent(ctx, expected, actual)
-            ? None
-            : Some(
-                Mark.DefMemberMismatch({
-                  name,
-                  expected,
-                  actual,
-                }),
-              );
-        };
-      },
-    None,
-    declared,
-  );
-};
+           );
+      Some(
+        IdTagged.FreshGrammar.Typ.sig_(
+          List.map(Sig.item_of_member, members),
+        ),
+      );
+    | _ => None
+    }
+  | None => None
+  };
 
 /* The definition is the trailing module, looking through helper bindings:
    `let helper = ... in {...}`. A helper type alias is brought into scope on
@@ -283,14 +275,6 @@ let rec detect =
            | _ => None
            }
          );
-    let vals =
-      sig_members
-      |> List.filter_map((mem: Sig.member) =>
-           switch (mem) {
-           | Val(n, ty) => Some((n, ty))
-           | _ => None
-           }
-         );
     switch (
       missing(required_members, members),
       missing(required_types, types),
@@ -309,14 +293,33 @@ let rec detect =
         model_t: List.assoc("Model", types),
         action_t: List.assoc("Action", types),
         expansion_t: List.assoc("Expansion", types),
-        /* A member whose type is wrong is reported, but does NOT stop the
-           livelit being bound: its uses should keep resolving, and keep
-           being checked themselves. Only a definition we cannot read at
-           all -- not a module, missing members or types -- is fatal. */
-        mismatch: check_against_livelit_sig(~ctx, ~types, ~vals),
       })
     };
   | _ => Error(Mark.InvalidLivelitDef(DefNotModule))
+  };
+
+/* The type a livelit definition should be ANALYZED against, if it is
+   well-formed enough to say. Statics uses this for the second pass over a
+   `let ^name = ...` definition: the first pass synthesizes, which is what
+   tells us the definition's own Model, Action and Expansion, and this
+   turns those into the realized signature the second pass analyzes
+   against. Returns None when the definition is too broken to realize --
+   not a module, or missing a type member -- in which case the first
+   pass's own marks are what the author gets. */
+let livelit_ana_ty =
+    (~ctx: Ctx.t, ~m: StaticsBase.Map.t, def: TermBase.Exp.t)
+    : option(TermBase.Typ.t) =>
+  switch (detect(~ctx, ~m, def)) {
+  | Error(_) => None
+  | Ok({model_t, action_t, expansion_t, _}) =>
+    realized_livelit_sig(
+      ~ctx,
+      ~types=[
+        ("Model", model_t),
+        ("Action", action_t),
+        ("Expansion", expansion_t),
+      ],
+    )
   };
 
 let unknown = () => IdTagged.FreshGrammar.Typ.unknown(Internal);
@@ -611,7 +614,7 @@ let mk =
     : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
   switch (detect(~ctx, ~m, def_user)) {
   | Error(mark) => (None, [mark])
-  | Ok({mismatch, members, model_t, action_t, expansion_t}) => (
+  | Ok({members, model_t, action_t, expansion_t}) => (
       Some({
         LivelitCtx.name,
         id,
@@ -630,7 +633,11 @@ let mk =
           },
         user_def: Some(def_elab),
       }),
-      Option.to_list(Option.map(e => Mark.InvalidLivelitDef(e), mismatch)),
+      /* A member whose type is wrong is reported by the second analytic
+         pass, as an ordinary inconsistency where it is written, and does
+         NOT stop the livelit being bound: its uses keep resolving and keep
+         being checked themselves. */
+      [],
     )
   };
 

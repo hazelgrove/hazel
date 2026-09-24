@@ -152,7 +152,6 @@ let ^pct = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 50;
 let update(m: Model, a: Action) = a;
 let view(m: Model) =
