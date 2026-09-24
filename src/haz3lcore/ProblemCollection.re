@@ -14,9 +14,17 @@ type problem_category =
 
 /* ---------- Problem data types ---------- */
 
+/* A live typing error, and the static info at the same term, which the
+   live info refines. */
+type live_typing_error = {
+  live: Info.t,
+  static: Info.t,
+};
+
 type problem_source =
   | Structural(string)
   | FromInfo(Info.t)
+  | FromLiveTyping(live_typing_error)
   | FromProjector(ProjectorKind.t, ProjectorBase.error);
 
 type problem = {
@@ -34,7 +42,7 @@ type problem_context = {
   concave_holes: list(Grout.t),
   static_error_ids: list((Id.t, Info.t)),
   warning_ids: list((Id.t, Info.t)),
-  live_typing_error_ids: list((Id.t, Info.t)),
+  live_typing_error_ids: list((Id.t, live_typing_error)),
   projector_errors: list((Id.t, ProjectorKind.t, ProjectorBase.error)),
   segment: Segment.t,
   measured: Measured.t,
@@ -133,8 +141,18 @@ let make_problem_context =
   let live_typing_error_ids =
     List.filter_map(
       id =>
-        switch (Statics.Map.lookup(id, statics.live_typing_info_map)) {
-        | Some(ci) when Info.is_error(ci) => Some((id, ci))
+        switch (
+          Statics.Map.lookup(id, statics.live_typing_info_map),
+          Statics.Map.lookup(id, info_map),
+        ) {
+        | (Some(live), Some(static)) when Info.is_error(live) =>
+          Some((
+            id,
+            {
+              live,
+              static,
+            },
+          ))
         | _ => None
         },
       statics.live_typing_error_ids,
@@ -247,11 +265,11 @@ let collect_category =
   | LiveTyping =>
     ctx.live_typing_error_ids
     |> List.to_seq
-    |> Seq.map(((id, ci)) =>
+    |> Seq.map(((id, error)) =>
          {
            id,
            category: LiveTyping,
-           source: FromInfo(ci),
+           source: FromLiveTyping(error),
          }
        )
   | Projector =>

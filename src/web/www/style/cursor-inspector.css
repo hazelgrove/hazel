@@ -413,10 +413,12 @@
 }
 
 /* The parts of a live type that came from runtime values, the same green
-   as the type probe's Dynamic mode (proj-type.css). Every token of the
+   as the type probe's Dynamic mode (proj-type.css), in the inspector and in
+   the Problems sidebar rows that reuse its messages. Every token of the
    marked tile, not just the ones classed Typ: holes and labels carry other
    classes. */
-#cursor-inspector .code .dynamic > .token {
+#cursor-inspector .code .dynamic > .token,
+.problems-panel .code .dynamic > .token {
   color: var(--dynamic-token);
 }
 

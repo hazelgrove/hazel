@@ -50,6 +50,7 @@ let has_structural =
       switch (p.source) {
       | Structural(d) => d == desc
       | FromInfo(_)
+      | FromLiveTyping(_)
       | FromProjector(_) => false
       },
     problems,
