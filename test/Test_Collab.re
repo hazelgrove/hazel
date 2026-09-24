@@ -117,6 +117,34 @@ let test_text_roundtrip = () => {
   };
 };
 
+/* a whitespace-only leaf's re-derived hole sits after the whitespace, as
+   editing leaves it (typing Enter after `in` pushes the hole down) */
+let test_hole_after_whitespace = () => {
+  let items: list(C.item) = [
+    {
+      id: Id.mk(),
+      kind: Def,
+      lead: "",
+      header: " x ",
+      body: " 1 ",
+    },
+    {
+      id: tail_id,
+      kind: Tail,
+      lead: "",
+      header: "",
+      body: "\n",
+    },
+  ];
+  let seg = Option.get(C.seg_of_items(items));
+  check(
+    string,
+    "hole after the newline",
+    "let x = 1 in\n?",
+    Printer.of_segment(~holes="?", ~concave_holes="?", ~indent="", seg),
+  );
+};
+
 let test_incomplete_leaves = () => {
   /* leaves that don't parse on their own (holes derived, never stored) */
   let items: list(C.item) = [
@@ -387,6 +415,7 @@ let tests = (
     ),
     test_case("incomplete leaves", `Quick, test_incomplete_leaves),
     test_case("half-typed programs", `Quick, test_total),
+    test_case("hole after whitespace", `Quick, test_hole_after_whitespace),
     test_case("lead splice regrouts", `Quick, test_lead_regrout),
     test_case("set one leaf", `Quick, test_set_leaf),
     test_case("caret <-> offset", `Quick, test_caret_offsets),

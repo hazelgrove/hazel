@@ -104,7 +104,7 @@ let is_multiline = (s: string): bool => String.contains(s, '\n');
    mid-edit) fall back to the typing parser, which grouts. Refractor
    triggers (probes) are collected and dropped: they're per-user, and
    never printed into leaf text. */
-let parse = (~root: Sort.t, text: string): Segment.t => {
+let parse_raw = (~root: Sort.t, text: string): Segment.t => {
   let fast =
     switch (root) {
     | Exp
@@ -130,6 +130,26 @@ let parse = (~root: Sort.t, text: string): Segment.t => {
     }
   };
 };
+
+/* Holes aren't text, so a leaf that's only whitespace re-derives its
+   operand hole on parse — and the typing parser puts it BEFORE the
+   whitespace (`¿\n`), whereas editing leaves it after (typing Enter
+   before an existing hole pushes the hole down). Put it after, so the
+   hole sits where the author sees it. Leaves with real content are left
+   alone. */
+let canonical_hole_placement = (seg: Segment.t): Segment.t => {
+  let is_hole = (p: Piece.t) =>
+    switch (p) {
+    | Grout({shape: Convex, _}) => true
+    | _ => false
+    };
+  List.for_all(p => Piece.is_secondary(p) || is_hole(p), seg)
+  && List.exists(is_hole, seg)
+    ? List.filter(Piece.is_secondary, seg) @ List.filter(is_hole, seg) : seg;
+};
+
+let parse = (~root: Sort.t, text: string): Segment.t =>
+  canonical_hole_placement(parse_raw(~root, text));
 
 /* ---- the program's items ----
 
