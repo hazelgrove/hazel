@@ -208,6 +208,8 @@ module Update = {
     | FinishImportScratchpad(option(string))
     | Export
     | Encode
+    /* a message from the shared document (docs/collab-modular.md) */
+    | CollabApply(ScratchCollab.msg)
     | AddSlide
     | AddDrvSlide
     | RenameSlide
@@ -358,7 +360,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_inner =
       (
         ~schedule_action,
         ~settings: Settings.t,
@@ -367,6 +369,14 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    | CollabApply(Peers(_) as msg) =>
+      /* carets only: re-render, nothing to save or recompute */
+      ScratchCollabMode.apply(model, msg) |> Updated.return_quiet
+    | CollabApply(msg) =>
+      /* stacked statics recompute on the next Force frame */
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      ScratchCollabMode.apply(model, msg)
+      |> Updated.return(~historic=false, ~logged=false, ~scroll_active=false);
     | AgentAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
@@ -1460,6 +1470,66 @@ module Update = {
     ) =
     Hashtbl.create(8);
 
+  /* While collaborating, the current slide IS the shared document:
+     actions that would swap it out are blocked (the local sync would read
+     a different program as deleting everything), and after every other
+     action the program and caret are synced to the document. */
+  let blocked_while_collaborating = (action: t): bool =>
+    switch (action) {
+    | SwitchSlide(_)
+    | ResetCurrent
+    | InitImportScratchpad(_)
+    | FinishImportScratchpad(_)
+    | AddSlide
+    | AddDrvSlide
+    | RenameSlide
+    | DeleteSlide => true
+    | _ => false
+    };
+
+  let update =
+      (
+        ~schedule_action,
+        ~settings: Settings.t,
+        ~is_documentation: bool,
+        action,
+        model: Model.t,
+      ) =>
+    if (ScratchCollab.State.active^ && blocked_while_collaborating(action)) {
+      model |> Updated.return_quiet;
+    } else {
+      let updated =
+        update_inner(
+          ~schedule_action,
+          ~settings,
+          ~is_documentation,
+          action,
+          model,
+        );
+      if (ScratchCollab.State.active^) {
+        let target =
+          switch (action) {
+          | CollabApply(_) => None
+          | StackHeader(i, _) => Some(Some((i, true)))
+          | StackBody(i, _) => Some(Some((i, false)))
+          | _ => Some(None)
+          };
+        switch (target) {
+        | None => ()
+        | Some(target) =>
+          switch (ScratchCollabMode.live_seg(updated.model)) {
+          | Some(seg) => ScratchCollab.sync_local(seg)
+          | None => ()
+          };
+          switch (ScratchCollabMode.local_caret(updated.model, target)) {
+          | Some(c) => ScratchCollab.send_caret(Some(c))
+          | None => ()
+          };
+        };
+      };
+      updated;
+    };
+
   let calculate =
       (
         ~settings,
@@ -2484,6 +2554,13 @@ module View = {
                             ~escape=header_escape,
                             ~escape_vertical=Some(header_escape_vertical),
                             ~cull=false,
+                            ~extra_overlays=
+                              ScratchCollabMode.peer_overlays(
+                                ~font_metrics=globals.font_metrics,
+                                ~item=ScratchCollabMode.entry_item(e),
+                                ~leaf=Header,
+                                e.e_header,
+                              ),
                             e.e_header,
                           ),
                         ],
@@ -2515,6 +2592,13 @@ module View = {
                           ~cull={
                             i == 0;
                           },
+                          ~extra_overlays=
+                            ScratchCollabMode.peer_overlays(
+                              ~font_metrics=globals.font_metrics,
+                              ~item=ScratchCollabMode.entry_item(e),
+                              ~leaf=Body,
+                              e.e_body,
+                            ),
                           e.e_body,
                         ),
                       ],
@@ -2614,6 +2698,11 @@ module View = {
                 },
               ~locked=false,
               ~lines=true,
+              ~extra_overlays=
+                ScratchCollabMode.master_peer_overlays(
+                  ~font_metrics=globals.font_metrics,
+                  editor,
+                ),
               editor,
             ),
           ]

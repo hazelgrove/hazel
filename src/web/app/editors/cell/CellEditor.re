@@ -247,6 +247,8 @@ module View = {
            option((Haz3lcore.Action.vertical, int) => Ui_effect.t(unit))=None,
         /* opt out for cells that are not the viewport-culling scope */
         ~cull=true,
+        /* extra decorations over the code, e.g. collaborators' carets */
+        ~extra_overlays: list(Node.t)=[],
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -301,7 +303,7 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=overlays(model.editor.editor) @ extra_overlays,
           ~lines,
           ~cull,
           /* stack cells: whole-program SAMPLES flow in from the master's

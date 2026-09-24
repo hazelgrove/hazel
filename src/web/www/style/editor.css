@@ -725,3 +725,33 @@ svg:has(.child-line) {
   background: var(--menu-outline);
   margin: 6px 0.5em;
 }
+
+/* Other users' carets (collaborative editing, docs/collab-modular.md) */
+.remote-caret {
+  pointer-events: none;
+  opacity: 0.85;
+  z-index: var(--caret-z);
+}
+
+.remote-caret-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.remote-caret-path {
+  stroke: none;
+}
+
+.remote-caret-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}

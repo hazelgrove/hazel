@@ -1,0 +1,26 @@
+{
+  "name": "@hazelgrove/hazel-collab",
+  "version": "0.1.0",
+  "description": "Automerge-backed collaborative editing for Hazel (see docs/collab-modular.md)",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@automerge/automerge": "^3.2.5",
+    "@automerge/automerge-repo": "2.5.6",
+    "@automerge/automerge-repo-network-messagechannel": "2.5.6",
+    "fractional-indexing": "^3.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.1",
+    "typescript": "~5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
