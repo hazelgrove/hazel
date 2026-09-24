@@ -40,6 +40,8 @@ let ^tree = {
 
   type Expansion = Census;
 
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
+
   let init : Model = (
     tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
     season=Spring
@@ -254,9 +256,9 @@ let ^tree = {
                        Attr.style([("font-size", "0.7em")])],
                       [Html.text("water + feed")])])]);
 
-  let expand_fun = fun m : Model ->
+  let expand = Functional(fun m : Model ->
     let c = count(m.tree) in
-    (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season);
+    (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season));
 
   let shape = Block(20, 7)
 } in

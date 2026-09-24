@@ -19,6 +19,7 @@ let ^pct = {
   type Model = Int;
   type Action = Int;
   type Expansion = Int;
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   let init : Model = 50;
 
@@ -40,7 +41,7 @@ let ^pct = {
       ]
     );
 
-  let expand_fun = fun m : Model -> m;
+  let expand = Functional(fun m : Model -> m);
 
   let shape = Inline(20)
 } in

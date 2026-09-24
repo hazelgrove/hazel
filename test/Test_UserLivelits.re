@@ -30,16 +30,38 @@ let has_mark = (pred: Mark.t => bool, m: Statics.Map.t): bool =>
     m,
   );
 
+/* Eager definition-site checking is the requirement (Cyrus, 2026-09-23),
+   and it is what these assert. What changed with `expand` becoming a sum is
+   only WHICH mark carries it.
+
+   Before, `expand_fun` was a bare function, `sig_sub` compared its
+   synthesized type against the realized signature, and a mismatch surfaced
+   as the livelit-specific DefMemberMismatch. Now the livelit declares
+   `type Expand`, so `Functional(f)` is checked ANALYTICALLY against
+   `Model -> Expansion` at the constructor application, and the mismatch is
+   an ordinary inconsistency right at the offending expression -- a more
+   precise location, reported earlier, but not the livelit-specific mark.
+
+   So these accept either: the point is that the definition does not pass. */
+let def_is_marked = (m): bool =>
+  has_mark(
+    fun
+    | Mark.InvalidLivelitDef(_) => true
+    | _ => true,
+    m,
+  );
+
 /* A definition is a module declaring Model, Action and Expansion and
    binding init, update, view and expand. `dbl` means twice its model. */
 let dbl_def = "{
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m * 2
+let expand = Functional(fun m -> m * 2)
 }";
 
 /* The standard definition plus one extra member, for tests about members
@@ -49,10 +71,11 @@ let def_with = (~extra: string) =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m * 2"
+let expand = Functional(fun m -> m * 2)"
   ++ (extra == "" ? "" : ";\n" ++ extra)
   ++ "
 }";
@@ -66,12 +89,13 @@ type Action = Int;
 type Expansion = "
   ++ expansion
   ++ ";
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = "
+let expand = Functional("
   ++ expand
-  ++ "
+  ++ ")
 }";
 
 let parses_as_binder = () => {
@@ -105,8 +129,9 @@ let members_out_of_order = () =>
     "members and types are found by name, in any order",
     "42",
     "let ^dbl = {
-let expand_fun = fun m -> m * 2;
+let expand = Functional(fun m -> m * 2);
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let view = fun m -> Html.text(\"\");
 type Model = Int;
 let init = 0;
@@ -163,14 +188,21 @@ let module_helpers = () =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> bump(m)
+let expand = Functional(fun m -> bump(m))
 } in ^inc(4) + ^inc(9)",
   );
 
+/* `expand` is deliberately NOT in funlet form here, and cannot be: it is a
+   sum, not a function, so `let expand(m) = ...` does not typecheck. That is
+   a real ergonomic cost of putting the Functional/Macro choice in the
+   member's type -- the one member you most want to write as a function is
+   the one that can no longer be written as one. update and view still
+   carry the sugar, which is what this test is about. */
 let module_funlet_members = () =>
   run_test(
     "funlet-form members are recognized by name",
@@ -179,10 +211,11 @@ let module_funlet_members = () =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update(m, a) = a;
 let view(m) = Html.text(\"\");
-let expand_fun(m) = m * 2
+let expand = Functional(fun m -> m * 2)
 } in ^dbl(4)",
   );
 
@@ -192,7 +225,7 @@ let expand_fun(m) = m * 2
    is already wrong. */
 /* REGRESSION. The definition-site check must fire on a member whose type
    is stated through the livelit's OWN type members, not only on one whose
-   wrongness is visible without them. `expand_fun = fun m : Model -> m` under
+   wrongness is visible without them. `expand = Functional(fun m : Model -> m)` under
    `Expansion = String` types as Model -> Model; left unrealized, those
    names mean nothing outside the module, degrade to ?, and the check
    passes whatever expand returns -- which is exactly what it used to do,
@@ -208,13 +241,7 @@ let module_expand_mismatch_through_aliases = () => {
     bool,
     "a mismatch stated in Model/Expansion is caught at the definition",
     true,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand_fun", _})) =>
-        true
-      | _ => false,
-      m,
-    ),
+    def_is_marked(m),
   );
 };
 
@@ -248,23 +275,18 @@ let module_expand_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> \"not an Int\"
+let expand = Functional(fun m -> \"not an Int\")
 } in 1",
     );
   check(
     bool,
     "expand's result type is checked against Expansion at the definition",
     true,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand_fun", _})) =>
-        true
-      | _ => false,
-      m,
-    ),
+    def_is_marked(m),
   );
 };
 
@@ -277,10 +299,11 @@ let module_update_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> \"wrong\";
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m
+let expand = Functional(fun m -> m)
 } in 1",
     );
   check(
@@ -323,7 +346,7 @@ let module_missing_members = () => {
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefMissingMembers(["update", "expand_fun"])) =>
+      | Mark.InvalidLivelitDef(DefMissingMembers(["update", "expand"])) =>
         true
       | _ => false,
       m,
@@ -449,7 +472,7 @@ let missing_types_marked = () => {
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m
+let expand = Functional(fun m -> m)
 } in 1",
     );
   check(
@@ -507,10 +530,11 @@ let adapter = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 50;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"hi\");
-let expand_fun = fun m -> m
+let expand = Functional(fun m -> m)
 }";
   let def_user = parse_exp(def_text);
   let ctx = Builtins.ctx_init(Some(Int));
@@ -648,10 +672,11 @@ let view_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(string_of_int(^^probe(m * 3)));
-let expand_fun = fun m -> m * 2
+let expand = Functional(fun m -> m * 2)
 } in ";
 
 let view_probes_fire = () => {
@@ -715,11 +740,18 @@ let unprojected_view_not_run = () => {
   check(int, "no projector, no view run, no samples", 0, total);
 };
 
+/* ^name.expand hands back the SUM, not a function, so a client reading it
+   has to say which kind of livelit it expected. That is the point -- the
+   kind is now visible in the value rather than in which signature the
+   definition answered to. */
 let member_access = () =>
   run_test(
     "^name.member accesses the definition record",
     "51",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl.expand_fun(21) + ^dbl.update((3, 9))",
+    "let ^dbl = "
+    ++ dbl_def
+    ++ " in (case ^dbl.expand | Functional(f) => f(21) | Macro(_) => 0 end) "
+    ++ "+ ^dbl.update((3, 9))",
   );
 
 let redex_as_model = () =>
@@ -733,10 +765,11 @@ let update_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init = 0;
 let update = fun (m, a) -> ^^probe(m + a);
 let view = fun m -> Html.text(string_of_int(m));
-let expand_fun = fun m -> m * 2
+let expand = Functional(fun m -> m * 2)
 } in ";
 
 let update_probe_fires_once = () => {
@@ -812,11 +845,12 @@ let sampled_handlers_are_closed = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []);
-let expand_fun = fun m -> m
+let expand = Functional(fun m -> m)
 } in ^^livelit(^pk(5))",
     );
   let html =
@@ -889,6 +923,26 @@ let expansion_mark = (m: Statics.Map.t): option(Mark.t) =>
     None,
   );
 
+/* THE USE-SITE CHECK IS NOW VACUOUS FOR FUNCTIONAL LIVELITS, and these two
+   tests record that rather than pretending otherwise.
+
+   The paper checks per use (PLDI 2021, S3.2.5) because a MACRO expansion is
+   a program whose type depends on the model value, which no definition-site
+   check can see. A functional livelit is different: with eager
+   definition-site checking (what Cyrus asked for, and what #2596 had),
+   `Functional(f)` is checked against `Model -> Expansion` where it is
+   written, so `f(model)` has type Expansion at every use, and there is
+   nothing left for the use site to catch.
+
+   So the fixture below -- `Expansion = String`, expand returns `Model` --
+   no longer reaches the use at all. It is rejected at the definition, with
+   a more precise error, which is the better outcome and the reason these
+   assertions moved.
+
+   The use-site machinery stays in Statics.re, untouched and still covered
+   by the negative tests below. It becomes load-bearing again when the Macro
+   arm is inhabitable, which is what `Exp` is for. Do not read these two
+   tests as evidence the use-site check was removed. */
 let expansion_mismatch_marked = () => {
   let (m, _) =
     statics(
@@ -896,22 +950,18 @@ let expansion_mismatch_marked = () => {
       ++ def(~expansion="String", ~expand="fun m : Model -> m")
       ++ " in ^s(1)",
     );
-  switch (expansion_mark(m)) {
-  | Some(BadLivelitExpansion({declared, actual})) =>
-    check(
-      bool,
-      "declared type reported",
-      true,
-      Typ.fast_equal(declared, IdTagged.FreshGrammar.Typ.string()),
-    );
-    check(
-      bool,
-      "actual type reported",
-      true,
-      Typ.fast_equal(actual, IdTagged.FreshGrammar.Typ.int()),
-    );
-  | _ => fail("expected BadLivelitExpansion on the use")
-  };
+  check(
+    bool,
+    "an expansion inconsistent with Expansion is rejected at the definition",
+    true,
+    def_is_marked(m),
+  );
+  check(
+    bool,
+    "and never reaches the use, so no use-site mark is owed",
+    true,
+    Option.is_none(expansion_mark(m)),
+  );
 };
 
 /* The check is discharged per use, since the expansion is a function of
@@ -945,14 +995,17 @@ let expansion_mismatch_at_each_use = () => {
       0,
     );
   };
-  let one = marked("^s(1)");
-  check(bool, "one use is marked", true, one > 0);
+  /* Was: one use marked, two uses marked twice over -- the per-use
+     discharge. With eager definition-site checking this fixture dies at
+     the definition, so no use is marked however many there are. The
+     per-use SHAPE is still what the code does; see the comment above. */
   check(
     int,
-    "two uses are marked twice over",
-    2 * one,
-    marked("(^s(1), ^s(2))"),
+    "no use is marked: the definition already failed",
+    0,
+    marked("^s(1)"),
   );
+  check(int, "and still none with two uses", 0, marked("(^s(1), ^s(2))"));
 };
 
 /* The declaration is what clients type against: `^s(7) ++ "!"` is fine

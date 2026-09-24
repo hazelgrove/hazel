@@ -10,7 +10,7 @@ open Util;
        let init : Model = ...;          initial model, inserted on ^name<space>
        let update = fun (m, a) -> ...;  (Model, Action) => Model
        let view = fun m -> ...;         Model => HTML, handlers emit Actions
-       let expand_fun = fun m -> ...    Model => Expansion
+       let expand = Functional(fun m -> ...)   or Macro(...)
      } in ...
 
    The three type members are the livelit's interface, and all three are
@@ -82,7 +82,7 @@ type def = {
   expansion_t: TermBase.Typ.t,
 };
 
-let required_members = ["init", "update", "view", "expand_fun"];
+let required_members = ["init", "update", "view", "expand"];
 let required_types = ["Model", "Action", "Expansion"];
 
 /* Module members, in order; a repeated name keeps the LAST binding, matching
@@ -107,9 +107,10 @@ let missing = (required: list(string), have: list((string, 'a))) =>
   List.filter(r => !List.mem_assoc(r, have), required);
 
 /* Check the definition's members against the builtin `Livelit` signature
-   (BuiltinsADT.livelit_fun, in scope as the type alias `LivelitFun`; the
-   macro counterpart is `LivelitMac`, not yet inhabitable), which is
-   the one place the livelit interface is written down.
+   (BuiltinsADT.livelit, in scope as the type alias `Livelit`), which is the
+   one place the livelit interface is written down. There is ONE signature:
+   whether a livelit is functional or macro is carried by which arm of the
+   `expand` sum it inhabits, not by which signature it answers to.
 
    The signature declares Model, Action and Expansion abstract; here they are
    REALIZED by this definition's own manifest types, and each required value
@@ -128,7 +129,7 @@ let missing = (required: list(string), have: list((string, 'a))) =>
    making it a command so it could is precisely what Figure 3 does and we
    have not. So when checking `init` against Model, a spliced field is
    compared at its value type alone. Every other member (update, view,
-   expand_fun) sees the pair, because by then the use site has made it. */
+   expand) sees the pair, because by then the use site has made it. */
 let rec strip_splice_refs = (ty: Typ.t): Typ.t => {
   let is_ref = (t: Typ.t) =>
     switch (Typ.term_of(t)) {
@@ -200,7 +201,7 @@ let check_against_livelit_sig =
       required_types,
     );
   let declared =
-    switch (Ctx.lookup_alias(ctx, "LivelitFun")) {
+    switch (Ctx.lookup_alias(ctx, "Livelit")) {
     | Some(ty) =>
       switch (Typ.term_of(ty)) {
       | Sig(items) =>
@@ -450,13 +451,44 @@ let expose_splice_refs = (arg: TermBase.Exp.t): TermBase.Exp.t => {
   go(arg);
 };
 
-let mk_expand_dot = (~name: string, model: TermBase.Exp.t) => {
+/* The elaboration of a use: discriminate on which arm of `expand` this
+   livelit committed to, then apply it.
+
+   `expand` is a SUM now, not a function, so the use site cannot just
+   apply it -- it has to ask which kind of livelit this is. That question
+   used to be answered by which SIGNATURE the definition satisfied; it is
+   now answered by the value, here.
+
+   This is the elaboration, not program text (Statics.re threads it as
+   ~elab_term), so the `case` is invisible to the author.
+
+   The Macro arm elaborates to a hole ASCRIBED to Expansion. A Macro
+   expansion cannot produce a value while `Exp` is an uninhabited
+   placeholder, and a hole is the honest rendering of "committed to a kind
+   that does not work yet" -- incomplete rather than ill-typed.
+
+   The ascription is load-bearing, not decoration. A bare hole types as ?,
+   the case's type is the join of its arms, and ? joins to ? -- so the
+   whole elaboration became consistent with EVERY type and the use-site
+   BadLivelitExpansion check silently stopped firing. Two tests caught
+   that. Ascribing the hole keeps both arms at Expansion, which is what
+   the use site is entitled to assume whichever arm ran. */
+let mk_expand_dot =
+    (~name: string, ~expansion_t: TermBase.Typ.t, model: TermBase.Exp.t) => {
   IdTagged.FreshGrammar.(
     Some(
-      Exp.ap(
-        Operators.Forward,
-        Exp.dot(Exp.var("^" ++ name), Exp.label("expand_fun")),
-        model,
+      Exp.match(
+        Exp.dot(Exp.var("^" ++ name), Exp.label("expand")),
+        [
+          (
+            Pat.ap(Pat.constructor("Functional", None), Pat.var("f")),
+            Exp.ap(Operators.Forward, Exp.var("f"), model),
+          ),
+          (
+            Pat.ap(Pat.constructor("Macro", None), Pat.var("_g")),
+            Exp.asc(Exp.empty_hole(), expansion_t),
+          ),
+        ],
       ),
     )
   );
@@ -477,7 +509,12 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
     IdTagged.FreshGrammar.(
       switch (member) {
       | "update" => Typ.arrow(Typ.prod([model_t, action_t]), model_t)
-      | "expand_fun" => Typ.arrow(model_t, expansion_t)
+      /* The sum itself, not one arm of it: ^name.expand is the value the
+         definition committed with, and a client reading it sees which
+         kind of livelit this is. Same builder as the signature, with this
+         livelit's concrete types substituted for the abstract ones. */
+      | "expand" =>
+        BuiltinsADT.livelit_expand_typ(~model=model_t, ~expansion=expansion_t)
       | "init" => model_t
       | _ => unknown()
       }
@@ -575,7 +612,7 @@ let mk =
         model_t,
         model_default: Exp.replace_all_ids(List.assoc("init", members)),
         expansion_t,
-        expand: mk_expand_dot(~name),
+        expand: mk_expand_dot(~name, ~expansion_t),
         action_t,
         update: (_action, model) => model,
         view: (_model, _send) =>

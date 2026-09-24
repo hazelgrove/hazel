@@ -32,6 +32,8 @@ let ^between = {
 
   type Expansion = Int;
 
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
+
   # Parenthesizing a field's value marks it as a SPLICE -- a region of #
   # the client's own program, held inside the widget. Everything below #
   # explains what that buys. #
@@ -69,7 +71,7 @@ let ^between = {
        Html.splice(m.hi.ref),
        Html.text(" = " ++ string_of_int(at(m)))]);
 
-  let expand_fun = fun m : Model -> at(m);
+  let expand = Functional(fun m : Model -> at(m));
 
   # Width of the widget's OWN chrome only -- the slider and the " = N". #
   # The splices add their own width on top, because only the editor knows #

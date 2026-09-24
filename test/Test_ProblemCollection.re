@@ -542,10 +542,11 @@ let livelit_def = {|{
 type Model = Int;
 type Action = Int;
 type Expansion = String;
+type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Html.text(\"\");
-let expand_fun = fun m : Model -> m
+let expand = Functional(fun m : Model -> m)
 }|};
 
 let projected_use_reports_one_error = () => {

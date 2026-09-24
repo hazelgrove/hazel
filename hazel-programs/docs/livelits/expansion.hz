@@ -60,6 +60,7 @@ let ^ramp = {
   type Model = Hwb;
   type Action = Hwb;
   type Expansion = Int -> Color;
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
@@ -121,8 +122,8 @@ let ^ramp = {
        swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]);
 
   # not a color, and not text: a function FROM lightness TO structure #
-  let expand_fun = fun m : Model ->
-    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b));
+  let expand = Functional(fun m : Model ->
+    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b)));
 
   let shape = Inline(14)
 } in
@@ -180,11 +181,12 @@ let ^good = {
   type Model = Int;
   type Action = Int;
   type Expansion = Int;
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
   let init : Model = 3;
   let update = fun (_m, a) : (Model, Action) -> a;
   let view = fun m : Model ->
     Html.text(string_of_int(m));
-  let expand_fun = fun m : Model -> m;
+  let expand = Functional(fun m : Model -> m);
   let shape = Inline(3)
 } in
 

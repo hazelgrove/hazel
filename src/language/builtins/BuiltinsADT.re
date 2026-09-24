@@ -1198,7 +1198,7 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    Model, Action and Expansion are ABSTRACT: each livelit chooses them, and
    the signature only says that the four members agree about them. The check
    realizes each abstract member by the definition's own manifest type
-   (Typ.sig_sub), so `expand_fun` is checked as `Model -> Expansion` with that
+   (Typ.sig_sub), so `expand` is checked at that sum with that
    livelit's actual types -- which is the obligation the paper discharges
    per use, moved to the definition.
 
@@ -1207,7 +1207,7 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    clients to reason about. `shape` and helper members are deliberately
    absent -- they are optional, and extra members are allowed by width
    subtyping. */
-/* The members every livelit has, whichever kind it is. */
+/* The members every livelit has. */
 let livelit_common = (model, action) => [
   Sig.item_of_member(Sig.TypeAbstract("Model")),
   Sig.item_of_member(Sig.TypeAbstract("Action")),
@@ -1221,53 +1221,82 @@ let livelit_common = (model, action) => [
   ),
 ];
 
-/* A FUNCTIONAL livelit: its use denotes a VALUE, and `expand_fun`
-   computes it. This is every livelit in the deck today. */
-let livelit_fun: Typ.t = {
+/* ONE signature, and `expand` is a SUM. A livelit's use denotes either a
+   VALUE, which `Functional` computes, or a PROGRAM, which `Macro` writes
+   while handing back the splices it refers to (Figure 3 of the livelits
+   paper, Omar et al., PLDI 2021).
+
+   This replaces an earlier design with two signatures, LivelitFun and
+   LivelitMac, carrying members `expand_fun` and `expand_mac`. The reason
+   given for splitting them was that a signature can only say a member is
+   REQUIRED -- optional members are expressed by leaving them out, since
+   extra members are allowed by width subtyping -- so "exactly one of
+   expand_fun / expand_mac" could not be said inside a single signature.
+
+   A sum says exactly that, and says it in the member's own type rather
+   than in the module system: `expand` is required, and its value commits
+   to one arm. Which kind a livelit is stops being a question about which
+   signature it answers to and becomes a question about how it inhabits
+   one type, which is the question it always was.
+
+   The Macro arm's expansion is a FUNCTION of its splices, and that shape
+   does two jobs at once: a splice passed as an argument is evaluated
+   outside the expansion, so a binder inside cannot capture it, AND the
+   expansion can be checked once against the splices' declared types
+   without knowing their contents. Capture avoidance and compositional
+   typing are the same decision.
+
+   The Macro arm is not yet usable: `Exp` below is an uninhabited
+   placeholder, so a Macro expansion can be written but never returns a
+   value. That is the honest state of it -- there is no quoted-code type,
+   no quotation syntax, and no splice_new. The arm is here so the target
+   is legible and so the two kinds have names.
+
+   Full words until someone picks something shorter. */
+/* Built here rather than inline, because the use site needs the SAME sum
+   with the livelit's concrete Model and Expansion substituted in
+   (UserLivelit.member_ty). Two copies would drift. */
+let livelit_expand_typ = (~model: Typ.t, ~expansion: Typ.t): Typ.t =>
+  sum_type([
+    ("Functional", Some(arrow(model, expansion))),
+    (
+      "Macro",
+      Some(arrow(model, prod([var("Exp"), list(var("SpliceRef"))]))),
+    ),
+  ]);
+
+/* The constructors have to be IN SCOPE at the definition site, or
+   `let expand = Functional(...)` fails with "Constructor is not defined"
+   -- measured, and while it was unresolved it silently disabled BOTH the
+   definition-site and the use-site expansion checks, which is the §3.2.5
+   obligation this whole file exists to discharge.
+
+   A livelit therefore declares the sum itself, as a `type Expand` member.
+   That is one repeated line per definition, and it is the price of
+   keeping the check: a GLOBAL alias would cost the author nothing and
+   put the constructors in scope the way `Ord` puts `Lt` there, but its
+   arms would have to be unknown -- Model and Expansion are per-livelit
+   while the alias is global -- so `Functional(f)` would synthesize at the
+   alias's type, f's real type would be widened away, and sig_sub would
+   have nothing left to compare. Measured: a livelit declaring
+   `Expansion = String` whose Functional returns Int then reports no
+   errors at all.
+
+   The durable fix is probably to make the definition-site member check
+   ANALYTIC -- analyze `expand` against the realized signature type rather
+   than synthesize and compare afterwards, which is what the declared and
+   annotated forms do implicitly and why they still catch the mismatch.
+   Open question for Cyrus, since the sum was his suggestion. */
+
+let livelit: Typ.t = {
   let model = var("Model");
   let action = var("Action");
   let expansion = var("Expansion");
   sig_(
     livelit_common(model, action)
-    @ [Sig.item_of_member(Sig.Val("expand_fun", arrow(model, expansion)))],
-  );
-};
-
-/* A MACRO livelit, after Figure 3 of the livelits paper (Omar et al.,
-   PLDI 2021): its use denotes a PROGRAM, and `expand_mac` writes one,
-   handing back the splices it refers to.
-
-   Why two signatures rather than one signature with two optional
-   members: a signature here can only say that a member is REQUIRED --
-   optional members are expressed by leaving them out, since extra
-   members are allowed by width subtyping (see below). So "exactly one
-   of expand_fun / expand_mac" cannot be said inside a single signature.
-   Which signature a definition answers to is the module system's own
-   question, and Modules II is what makes asking it cheap.
-
-   The expansion is a FUNCTION of its splices, and that shape does two
-   jobs at once: a splice passed as an argument is evaluated outside the
-   expansion, so a binder inside cannot capture it, AND the expansion can
-   be checked once against the splices' declared types without knowing
-   their contents. Capture avoidance and compositional typing are the
-   same decision.
-
-   NOT YET USABLE. `Exp` and `SpliceRef` below are uninhabited
-   placeholders, so nothing can currently answer to this signature --
-   which is the honest state of it: there is no quoted-code type, no
-   quotation syntax, and no new_splice. It is written down so the target
-   is legible and so the two kinds have names. */
-let livelit_mac: Typ.t = {
-  let model = var("Model");
-  let action = var("Action");
-  sig_(
-    livelit_common(model, action)
     @ [
       Sig.item_of_member(
-        Sig.Val(
-          "expand_mac",
-          arrow(model, prod([var("Exp"), list(var("SpliceRef"))])),
-        ),
+        Sig.Val("expand", livelit_expand_typ(~model, ~expansion)),
       ),
     ],
   );
@@ -1300,8 +1329,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("LivelitShape", LivelitShape.t),
   ("Exp", exp_typ),
   ("SpliceRef", splice_ref_typ),
-  ("LivelitFun", livelit_fun),
-  ("LivelitMac", livelit_mac),
+  ("Livelit", livelit),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>

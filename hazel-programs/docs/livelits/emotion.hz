@@ -23,6 +23,8 @@ let ^mood = {
 
   type Expansion = Mood;
 
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
+
   let init : Model = (50, Idle);
 
   let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
@@ -83,7 +85,7 @@ let ^mood = {
       ]
     );
 
-  let expand_fun = fun m : Model -> mood(m);
+  let expand = Functional(fun m : Model -> mood(m));
 
   let shape = Tab(10, 4)
 } in

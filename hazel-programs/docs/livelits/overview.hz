@@ -16,36 +16,51 @@
 # Every definition is checked against a builtin module signature. #
 # There are two, and a definition answers to exactly one: #
 
-#   type LivelitFun = {         #
+#   type Livelit = {            #
 #     type Model;               #
 #     type Action;              #
 #     type Expansion;           #
-#     let init     : Model;                      #
-#     let update   : (Model, Action) -> Model;   #
-#     let view     : Model -> Html.T;            #
-#     let expand_fun : Model -> Expansion        #
-#   }                                            #
+#     let init   : Model;                      #
+#     let update : (Model, Action) -> Model;   #
+#     let view   : Model -> Html.T;            #
+#     let expand :                             #
+#       + Functional( Model -> Expansion )     #
+#       + Macro( Model -> (Exp, List(SpliceRef)) )   #
+#   }                                          #
 
-# A LivelitFun denotes a VALUE: expand_fun computes it. Every #
-# livelit in this deck is one. #
+# ONE signature, and expand is a SUM. A livelit's use denotes #
+# either a VALUE, which Functional computes, or a PROGRAM, which #
+# Macro writes while handing back the splices it refers to. Every #
+# livelit in this deck is Functional. #
 
-# The other is LivelitMac, which denotes a PROGRAM: #
+# The kind is not a question about which signature you answer to. #
+# It is a question about how you inhabit one type, answered by the #
+# value you write: #
 
-#   let expand_mac : Model -> (Exp, List(SpliceRef))   #
+#   let expand = Functional(fun m : Model -> ...)   #
 
-# Nothing can answer to LivelitMac yet, but the two halves are not #
-# missing for the same reason. Exp is named and uninhabited: Hazel #
-# has no quoted-code type and no quotation syntax, so there is no #
-# program value to hand back. SpliceRef IS inhabited -- the slide #
-# SpliceRef, MVP has a model holding two -- but a macro still #
+# This is why a sum and not two signatures. A signature can only #
+# say a member is REQUIRED -- optional members are expressed by #
+# leaving them out, since a definition may always have EXTRA #
+# members -- so "exactly one of these two" cannot be said by a #
+# signature at all. A sum says exactly that, in the member's own #
+# type. #
+
+# One cost, worth knowing: expand cannot be written in funlet form. #
+# `let expand(m) = ...` does not typecheck, because expand is not a #
+# function -- it is a sum with a function inside. update and view #
+# still take the sugar. #
+
+# Nothing can inhabit Macro yet. Exp is named and uninhabited: #
+# Hazel has no quoted-code type and no quotation syntax, so there #
+# is no program value to hand back. SpliceRef IS inhabited -- the #
+# slide SpliceRef, MVP has a model holding two -- but a macro still #
 # cannot MAKE one, because making a splice is an effect and there #
-# is no new_splice. #
+# is no splice_new. #
 
-# Two signatures rather than one with an optional member, because a #
-# signature can only say a member is REQUIRED: optional members are #
-# expressed by leaving them out, since a definition may always have #
-# EXTRA members. So "exactly one of expand_fun / expand_mac" has to #
-# be a question about which signature you answer to. #
+# A SpliceRef is NOT indexed by the type of what it holds. It is #
+# just SpliceRef, never SpliceRef(Int). The hole a splice creates #
+# has a type; the handle to it does not carry one. #
 
 # The three types are abstract in that signature, which is what #
 # lets each livelit choose its own. YOUR definition says what they #
@@ -68,6 +83,7 @@ let ^flag = {
   type Model = Bool;
   type Action = Bool;
   type Expansion = Bool;
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
 
   # what a fresh use starts as: typing ^flag then space inserts it #
   let init : Model = false;
@@ -85,7 +101,7 @@ let ^flag = {
       [Html.text(if m then "yes" else "no")]);
 
   # what the use means: here, the model itself #
-  let expand_fun = fun m : Model -> m;
+  let expand = Functional(fun m : Model -> m);
 
   # optional: the widget's footprint, in character cells #
   let shape = Inline(5)

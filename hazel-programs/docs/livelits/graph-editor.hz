@@ -3,6 +3,7 @@ let ^graph = {
   type Model = ([(Int, Int)], [(Int, Int)], Int, Int, Bool);
   type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up + Clear;
   type Expansion = Graph;
+  type Expand = + Functional(Model -> Expansion) + Macro(Model -> (Exp, [SpliceRef]));
   let init : Model = ([(40, 40), (150, 40), (95, 115)], [(0, 1), (1, 2)], -1, -1, false);
   let len : [(Int, Int)] -> Int = fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
   let near : ([(Int, Int)], Int, Int, Int) -> Int =
@@ -69,9 +70,9 @@ let ^graph = {
       Html.div([], [Html.button([Attr.on_click(Clear)], [Html.text("clear")]), Html.text(string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges")])
     ]);
   let shape = Block(32, 8);
-  let expand_fun = fun m : Model ->
+  let expand = Functional(fun m : Model ->
     let (nodes, edges, _, _, _) = m in
-    (nodes, edges) : Graph
+    (nodes, edges) : Graph)
 } in
 let counts : Graph -> (Int, Int) =
   fun g ->
