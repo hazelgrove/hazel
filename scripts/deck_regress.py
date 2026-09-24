@@ -183,9 +183,12 @@ def reset_slide(d):
       in a comment; the second attempt reintroduced the bug anyway.
 
     /fresh is served from the app's ORIGIN but is not the app, so nothing
-    holds the database open: it can call deleteDatabase, wait for it, and
-    only then navigate. Deleting whole cannot wedge anything, since the
-    app rebuilds the schema on boot.
+    holds the database open: it can clear the store, wait, and only then
+    navigate. It keeps the colour configuration, which is not slide state
+    and so does not make the suite order-dependent -- but it does mean the
+    suite runs under whatever theme is saved, so a geometry assertion that
+    depends on the theme would be measuring the developer's preferences.
+    None currently do.
     """
     d.goto(FRESH_URL)
     time.sleep(3)
