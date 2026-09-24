@@ -167,16 +167,6 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       Print.typ(declared),
     )
   | InvalidLivelitDef(DefNotModule) => "Livelit definition should be a module declaring types Model, Action, Expansion and members init, update, view, expand"
-  | InvalidLivelitDef(DefMissingMembers(missing)) =>
-    prn(
-      "Livelit definition is missing members: %s",
-      String.concat(", ", missing),
-    )
-  | InvalidLivelitDef(DefMissingTypes(missing)) =>
-    prn(
-      "Livelit definition is missing type members: %s",
-      String.concat(", ", missing),
-    )
   | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
     member_mismatch_string(~what="Member ", name, ~expected, ~actual)
   | BadTheorem(typ) =>

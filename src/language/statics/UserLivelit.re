@@ -252,7 +252,7 @@ let check_against_livelit_sig =
    the way down, so a member type may be stated in terms of it. */
 let rec detect =
         (~ctx: Ctx.t, ~m: StaticsBase.Map.t, def: TermBase.Exp.t)
-        : result(def, Mark.livelit_def_error) =>
+        : result(def, Mark.t) =>
   switch (strip_parens(def).term) {
   | Let(_, _, body) => detect(~ctx, ~m, body)
   | TyAlias(tp, ty, body) =>
@@ -295,8 +295,14 @@ let rec detect =
       missing(required_members, members),
       missing(required_types, types),
     ) {
-    | ([_, ..._] as ms, _) => Error(DefMissingMembers(ms))
-    | ([], [_, ..._] as ts) => Error(DefMissingTypes(ts))
+    /* The module system already says this, and says it for value and type
+       members alike -- ModuleHelpers.member_names is value_names @
+       type_names. A livelit that lacks `update` is a module missing a
+       member, and should read like one rather than like a livelit-specific
+       diagnostic. Value members are named first so the message reads in
+       the order an author would fix them. */
+    | ([_, ..._] as ms, ts) => Error(Mark.ModuleMissingMembers(ms @ ts))
+    | ([], [_, ..._] as ts) => Error(Mark.ModuleMissingMembers(ts))
     | ([], []) =>
       Ok({
         members,
@@ -310,7 +316,7 @@ let rec detect =
         mismatch: check_against_livelit_sig(~ctx, ~types, ~vals),
       })
     };
-  | _ => Error(DefNotModule)
+  | _ => Error(Mark.InvalidLivelitDef(DefNotModule))
   };
 
 let unknown = () => IdTagged.FreshGrammar.Typ.unknown(Internal);
@@ -604,7 +610,7 @@ let mk =
     )
     : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
   switch (detect(~ctx, ~m, def_user)) {
-  | Error(e) => (None, [Mark.InvalidLivelitDef(e)])
+  | Error(mark) => (None, [mark])
   | Ok({mismatch, members, model_t, action_t, expansion_t}) => (
       Some({
         LivelitCtx.name,

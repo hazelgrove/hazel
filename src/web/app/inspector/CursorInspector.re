@@ -871,16 +871,6 @@ let exp_mark_err_view =
       text(" and members "),
       code("init, update, view, expand"),
     ])
-  | InvalidLivelitDef(DefMissingMembers(missing)) =>
-    div_err([
-      text("Livelit definition is missing members: "),
-      ...List.map(code, missing),
-    ])
-  | InvalidLivelitDef(DefMissingTypes(missing)) =>
-    div_err([
-      text("Livelit definition is missing type members: "),
-      ...List.map(code, missing),
-    ])
   | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
     div_err(
       member_mismatch_view(

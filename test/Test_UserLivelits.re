@@ -337,20 +337,34 @@ let module_well_typed_no_mismatch = () => {
   );
 };
 
+/* A livelit that lacks members is a MODULE that lacks members, and says so
+   with the module system's own mark. DefMissingMembers and DefMissingTypes
+   were livelit-specific restatements of it; ModuleMissingMembers already
+   carries both kinds, since ModuleHelpers.member_names is
+   value_names @ type_names. This fixture declares no types either, so all
+   five are named. */
 let module_missing_members = () => {
   let (m, _) =
     statics("let ^x = {let init = 0; let view = fun m -> 0} in 1");
-  check(
-    bool,
-    "missing members reported by name",
-    true,
+  let named = (want: list(string)) =>
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefMissingMembers(["update", "expand"])) =>
-        true
+      | Mark.ModuleMissingMembers(names) =>
+        List.for_all(w => List.mem(w, names), want)
       | _ => false,
       m,
-    ),
+    );
+  check(
+    bool,
+    "missing value members reported by name",
+    true,
+    named(["update", "expand"]),
+  );
+  check(
+    bool,
+    "missing type members reported the same way",
+    true,
+    named(["Model", "Action", "Expansion"]),
   );
 };
 
@@ -481,10 +495,7 @@ let expand = Functional(fun m -> m)
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(
-          DefMissingTypes(["Model", "Action", "Expansion"]),
-        ) =>
-        true
+      | Mark.ModuleMissingMembers(["Model", "Action", "Expansion"]) => true
       | _ => false,
       m,
     ),

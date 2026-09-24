@@ -31,8 +31,6 @@ type error_builtin =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type livelit_def_error =
   | DefNotModule
-  | DefMissingMembers(list(string))
-  | DefMissingTypes(list(string))
   /* A member whose type disagrees with what the builtin `Livelit`
      signature requires of it, once that signature's abstract Model,
      Action and Expansion are realized by this definition's own types.
