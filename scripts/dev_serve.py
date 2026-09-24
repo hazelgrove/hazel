@@ -12,10 +12,12 @@ Two routes fix it:
 
   /fresh?slide=<id>   clear saved editor state, then open that slide.
                       Without ?slide, clears every saved doc slide.
-                      KEEPS the colour configuration, so dark mode and high
-                      contrast survive a reset -- they are `^^check` livelits
-                      in the colors config slide, not plain settings, so the
-                      only way to keep them is to keep the saved slide.
+                      KEEPS your preferences: the colour configuration (dark
+                      mode and high contrast, which are `^^check` livelits in
+                      the colors config slide) and SETTINGS (everything the
+                      nut menu toggles, including which telemetry panels are
+                      open -- those gate PerfMetrics, so a reset that closed
+                      them would silently stop measuring).
                       This is the link to keep in a tab while iterating.
 
   /status             what is actually being served: bundle mtime, git
@@ -135,7 +137,17 @@ FRESH_PAGE = """<!doctype html>
   //     upgraded, so we made it. Delete it and let the app rebuild.
   //   - no `kv` store means the same thing by another route.
   // Either way the fallback is the old behaviour, which cannot wedge.
-  const KEEP = ["SAVE_CONFIGURATION"];   // Store.key_to_string(Configuration)
+  // Store.key_to_string: Configuration, Settings.
+  //   SAVE_CONFIGURATION -- the colours config slide, which is where dark
+  //     mode and high contrast live (they are `^^check` livelits in it).
+  //   SETTINGS           -- everything the nut menu toggles, including
+  //     `show_debug_panel` and which telemetry panels are expanded. Those
+  //     panels are what gate PerfMetrics and EvalMetrics: nothing is
+  //     measured while they are collapsed, so a reset that closed them
+  //     silently turned instrumentation off.
+  // Both are PREFERENCES rather than editor state, which is the line this
+  // route is drawing: clear what you are iterating on, keep how you work.
+  const KEEP = ["SAVE_CONFIGURATION", "SETTINGS"];
   const target = {target};
   function go() {{ location.replace(target); }}
   let done = false;

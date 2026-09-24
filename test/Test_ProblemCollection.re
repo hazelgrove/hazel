@@ -534,10 +534,16 @@ let parens_report_the_marked_term = () => {
 /* A livelit use is always inside a projector, so its expansion error hit
    this every time: once on `^s(model)`, once on the projector.
 
-   This definition is wrong in a way BOTH checks see: expand returns the
-   Model where Expansion says String. So two problems are correct here --
-   one at the definition, one at the deduplicated use -- and the dedup
-   this test exists for is the difference between two and three. */
+   This definition is wrong in a way the DEFINITION-SITE check sees: expand
+   returns the Model where Expansion says String, and `Functional(f)` is
+   analyzed against `Model -> Expansion` where it is written. It used to be
+   two problems -- one at the definition, one at the deduplicated use --
+   and it is now one, because eager definition-site checking makes the
+   use-site check vacuous for a functional livelit: f(model) has type
+   Expansion at every use, so there is nothing left for the use to catch.
+
+   The dedup this test exists for is still what it measures: the projector
+   must add none. That is the second assertion, and it is unaffected. */
 let livelit_def = {|{
 type Model = Int;
 type Action = Int;
@@ -553,16 +559,17 @@ let projected_use_reports_one_error = () => {
     let (_, problems) = from_string_exn(s);
     count_by_category(Static, problems);
   };
+  let bare = count("let ^s = " ++ livelit_def ++ " in ^s(1)");
   check(
     int,
-    "bare use of a livelit with a mistyped expansion: definition and use",
-    2,
-    count("let ^s = " ++ livelit_def ++ " in ^s(1)"),
+    "a mistyped expansion is reported once, at the definition",
+    1,
+    bare,
   );
   check(
     int,
     "the same use inside its projector: the projector adds none",
-    2,
+    bare,
     count("let ^s = " ++ livelit_def ++ " in ^^livelit(^s(1))"),
   );
 };
