@@ -40,12 +40,19 @@ let scroll_active_into_view: Attr.t =
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(JumpToTile(id));
 
-let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
+let problem_status_view =
+    (
+      ~globals,
+      ~static_info: option(Language.Info.t)=None,
+      ci: Language.Info.t,
+    )
+    : Node.t =>
   switch (ci) {
   | InfoExp({cls, message, _} as ie) =>
     CursorInspector.exp_view(
       ~globals,
       ~show_type_colon=false,
+      ~static_info,
       cls,
       message,
       ie,
@@ -54,6 +61,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
     CursorInspector.pat_view(
       ~globals,
       ~show_type_colon=false,
+      ~static_info,
       cls,
       message,
       ip,
@@ -222,6 +230,8 @@ let problem_row =
     | Structural(desc) =>
       span(~attrs=[clss(["problem-description"])], [text(desc)])
     | FromInfo(ci) => problem_status_view(~globals, ci)
+    | FromLiveTyping({live, static}) =>
+      problem_status_view(~globals, ~static_info=Some(static), live)
     | FromProjector(_, {message}) =>
       span(~attrs=[clss(["problem-description"])], [text(message)])
     };

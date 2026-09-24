@@ -765,6 +765,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
           @ render_section((module WorkerMessagingSection), ~globals)
           @ render_section((module EvaluationSection), ~globals)
           @ render_section((module StaticsSection), ~globals)
+          @ render_section((module LiveTypingSection), ~globals)
           @ render_section((module EditorSection), ~globals)
           @ render_section((module FrameSection), ~globals);
         },

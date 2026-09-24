@@ -190,6 +190,8 @@ let annotated_exp: testable(Grammar.exp_t(option(issue))) =
     Grammar.equal_exp_t(Option.equal(equal_issue)),
   );
 
+let error_exp: testable(Grammar.exp_t(option(issue))) = annotated_exp;
+
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => IdTagged.IdTag.mk_internal([Id.mk()]),
@@ -213,7 +215,7 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
   let annotated: Grammar.exp_t(option(issue)) =
     annotate_static_errors(term, s);
   let typ = type_of(~static_map=s, term);
-  Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
+  Alcotest.check(error_exp, name, expected_error_tree, annotated);
   Alcotest.check(
     testable_typ,
     "Expected Type",

@@ -43,6 +43,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      live_typing: false,
       probe_all: false,
       auto_reindent: true,
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
@@ -154,6 +155,7 @@ module Update = {
     | SelectionChunkiness
     | Assist
     | Elaborate
+    | LiveTyping
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -247,6 +249,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | LiveTyping => {
+          ...settings,
+          core: {
+            ...settings.core,
+            live_typing: !settings.core.live_typing,
           },
         }
       | DisplayWarnings => {
