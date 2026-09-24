@@ -287,7 +287,7 @@ let collect_category =
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
-  [Syntax, Hole, Static, Warning, LiveTyping, Projector]
+  all_of_problem_category
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
 };
 
@@ -386,7 +386,7 @@ let make =
             |> List.sort((a, b) => compare(a.pos, b.pos));
           (cat, located);
         },
-        [Syntax, Hole, Static, Warning],
+        all_of_problem_category,
       );
     problems_by_category;
   };
@@ -406,7 +406,7 @@ let make =
                   per_source,
                 ),
               ),
-            [Syntax, Hole, Static, Warning],
+            all_of_problem_category,
           );
         let counts =
           List.map(
@@ -428,7 +428,7 @@ let make =
       inputs,
     );
   let counts =
-    [Syntax, Hole, Static, Warning]
+    all_of_problem_category
     |> List.map(cat =>
          (
            cat,
