@@ -229,6 +229,128 @@ let apply_leaf = (model: Model.t, (id: Id.t, leaf: C.leaf, text: string)) => {
   };
 };
 
+/* Convergence: every peer shows a leaf as parsed from its text. Holes
+   aren't text, so a local edit can leave the holes arranged in a way the
+   text doesn't determine (where a hole sits among whitespace), and the
+   other peers would show it differently. So after a local edit that only
+   touched whitespace (the edits that do this), if the leaf parsed from
+   its new text differs from the editor's, holes marked, the editor adopts
+   the parsed form. The text is unchanged, so carets keep their offsets.
+   Leaves are small; the cap skips a pathological one. */
+let strip_ws = (s: string): string =>
+  String.concat(
+    "",
+    String.split_on_char(' ', String.map(c => c == '\n' ? ' ' : c, s)),
+  );
+
+let rec has_grout = (id: Id.t, seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Grout(g) => g.id == id
+      | Tile(t) => List.exists(has_grout(id), t.children)
+      | _ => false
+      },
+    seg,
+  );
+
+/* [seg] parsed from its own text (holes placed by the parser), if that
+   differs from [seg] */
+let reparsed = (~root, seg: Segment.t): option(Segment.t) => {
+  let canon = C.parse(~root, C.text_of_seg(seg));
+  C.marked_text(canon) == C.marked_text(seg) ? None : Some(canon);
+};
+
+let normalize =
+    (model: Model.t, edits: list((Id.t, C.leaf, string, string))): Model.t =>
+  List.fold_left(
+    (model: Model.t, (id, leaf, old_, new_)) => {
+      let kind = kind_of_id(id);
+      let root = C.root_of(kind, leaf);
+      let local = Option.bind(live_seg(model), C.leaf_seg(kind, id, leaf));
+      let owes =
+        switch (Grout.suppressed_space^, local) {
+        | (Some(g), Some(local)) => has_grout(g, local)
+        | _ => false
+        };
+      let open_cell =
+        switch (model.focus, leaf) {
+        | (Some(fo), Header | Body) =>
+          List.find_opt(
+            (e: Model.stack_entry) => entry_item(e) == id && !e.e_run,
+            fo.f_entries,
+          )
+          |> Option.map(e => (fo, e))
+        | _ => None
+        };
+      /* a space Hazel holds back behind an operator hole is in the text
+         (C.with_owed_space); in the canonical form it's a real space
+         before the hole, where filling the hole continues naturally */
+      if (!(owes || strip_ws(old_) == strip_ws(new_))
+          || String.length(new_) > 20000) {
+        model;
+      } else {
+        switch (open_cell) {
+        | Some((fo, e)) =>
+          /* the cell holds the leaf's core plus whatever whitespace the
+             user typed into it: normalize the cell's own text in place */
+          let cell = leaf == Header ? e.e_header : e.e_body;
+          let z = cell_zipper(cell);
+          switch (reparsed(~root, Zipper.unselect_and_zip(z))) {
+          | None => model
+          | Some(canon) =>
+            let off = C.caret_offset(z);
+            if (owes) {
+              Grout.suppressed_space := None;
+            };
+            let cell =
+              set_zipper(
+                cell,
+                C.with_caret_at(off, Zipper.unzip(~direction=Left, canon)),
+              );
+            let e =
+              leaf == Header
+                ? {
+                  ...e,
+                  e_header: cell,
+                }
+                : {
+                  ...e,
+                  e_body: cell,
+                };
+            {
+              ...model,
+              focus:
+                Some({
+                  ...fo,
+                  f_entries:
+                    List.map(
+                      (x: Model.stack_entry) => x.e_id == e.e_id ? e : x,
+                      fo.f_entries,
+                    ),
+                }),
+            };
+          };
+        | None =>
+          switch (local) {
+          | Some(local)
+              when
+                C.marked_text(local) != C.marked_text(C.parse(~root, new_)) =>
+            /* (caret offsets count the owed space until it's real) */
+            let model = apply_leaf(model, (id, leaf, new_));
+            if (owes) {
+              Grout.suppressed_space := None;
+            };
+            model;
+          | _ => model
+          }
+        };
+      };
+    },
+    model,
+    edits,
+  );
+
 /* all items as the doc now has them, in program order */
 let current_items = (upserts: list(C.item), deletes: list(Id.t)) => {
   let base =

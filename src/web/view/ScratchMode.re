@@ -1516,19 +1516,34 @@ module Update = {
           | _ => Some(None)
           };
         switch (target) {
-        | None => ()
+        | None => updated
         | Some(target) =>
-          switch (ScratchCollabMode.live_seg(updated.model)) {
-          | Some(seg) => ScratchCollab.sync_local(seg)
-          | None => ()
+          let edits =
+            switch (ScratchCollabMode.live_seg(updated.model)) {
+            | Some(seg) => ScratchCollab.sync_local(seg)
+            | None => []
+            };
+          /* adopt the parsed form of leaves whose hole arrangement the
+             text doesn't determine, so every peer shows the same thing */
+          let model = ScratchCollabMode.normalize(updated.model, edits);
+          if (model !== updated.model) {
+            switch (ScratchCollabMode.live_seg(model)) {
+            | Some(seg) => ScratchCollab.mark_synced(seg)
+            | None => ()
+            };
           };
-          switch (ScratchCollabMode.local_caret(updated.model, target)) {
+          switch (ScratchCollabMode.local_caret(model, target)) {
           | Some(c) => ScratchCollab.send_caret(Some(c))
           | None => ()
           };
+          {
+            ...updated,
+            model,
+          };
         };
+      } else {
+        updated;
       };
-      updated;
     };
 
   let calculate =

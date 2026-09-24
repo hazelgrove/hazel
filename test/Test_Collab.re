@@ -395,6 +395,43 @@ let test_restructure = () => {
   ();
 };
 
+/* canonical form: holes after the whitespace next to them, at every
+   level; a space held back behind an operator hole is in the text */
+let test_canonical_holes = () => {
+  let marked = src => C.marked_text(parse(src));
+  check(string, "trailing", "let x = 1 in  \001", marked("let x = 1 in  "));
+  check(string, "after op", "1 +\n  \001", marked("1 +\n  "));
+  check(string, "operands", "10 \0021", marked("10 1"));
+  check(string, "nested", "(1 + \001)", marked("(1 + )"));
+  let settings = Language.CoreSettings.on;
+  let go = (z, a) => {
+    let st =
+      CachedStatics.init_compositional(~settings, ~stitch=x => x, ~root=Exp, z);
+    switch (
+      Editor.Update.update(
+        ~settings,
+        a,
+        st,
+        Id.Map.empty,
+        Editor.Model.mk(z, ~root=Exp),
+      )
+    ) {
+    | Ok(m) => m.state.zipper
+    | Error(_) => failwith("action")
+    };
+  };
+  let z =
+    List.fold_left(
+      go,
+      Zipper.unzip(~direction=Left, parse("1")),
+      [Insert("1"), Insert("0"), Insert(" ")],
+    );
+  check(bool, "space held back", true, Grout.suppressed_space^ != None);
+  check(string, "text has it", "10 1", C.text_of_seg(Zipper.unselect_and_zip(z)));
+  check(int, "caret counts it", 3, C.caret_offset(z));
+  Grout.suppressed_space := None;
+};
+
 /* the pre-structural caret offset (a token walk to the start), kept as
    the reference the structural [C.caret_offset] must agree with */
 let walk_offset = (z: Zipper.t): int => {
@@ -580,6 +617,7 @@ let tests = (
     test_case("lead splice regrouts", `Quick, test_lead_regrout),
     test_case("set one leaf", `Quick, test_set_leaf),
     test_case("restructure in place", `Quick, test_restructure),
+    test_case("canonical holes", `Quick, test_canonical_holes),
     test_case("caret <-> offset", `Quick, test_caret_offsets),
     test_case("caret offset = token walk", `Quick, test_caret_stops),
     test_case("caret walk is monotone", `Quick, test_caret_walk),

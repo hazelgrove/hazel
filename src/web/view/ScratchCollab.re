@@ -74,10 +74,47 @@ let kind_of_label = (label: Label.t): option(kind) =>
 
 /* ---- text ---- */
 
+/* A space the user typed that Hazel holds back behind a concave hole
+   (Grout.suppressed_space: typing `l et` puts an operator hole between
+   the operands, and the space comes back when the hole is filled) is
+   part of the text: without it `l et` would print, and sync, as `let`. */
+let rec with_owed_space = (owed: Id.t, seg: Segment.t): Segment.t =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Grout({id, shape: Concave, _}) when id == owed => [
+          Piece.Secondary(Secondary.mk_space(Id.mk())),
+          p,
+        ]
+      | Tile(t) => [
+          Tile({
+            ...t,
+            children: List.map(with_owed_space(owed), t.children),
+          }),
+        ]
+      | _ => [p]
+      },
+    seg,
+  );
+
 let text_of_seg = (seg: Segment.t): string =>
   Printer.of_segment(
     ~holes="",
     ~concave_holes="",
+    ~indent="",
+    ~refractors=[],
+    switch (Grout.suppressed_space^) {
+    | Some(owed) => with_owed_space(owed, seg)
+    | None => seg
+    },
+  );
+
+/* [seg] printed with its holes marked: two leaves print the same iff
+   they have the same text and the same arrangement of holes in it */
+let marked_text = (seg: Segment.t): string =>
+  Printer.of_segment(
+    ~holes="\001",
+    ~concave_holes="\002",
     ~indent="",
     ~refractors=[],
     seg,
@@ -131,21 +168,38 @@ let parse_raw = (~root: Sort.t, text: string): Segment.t => {
   };
 };
 
-/* Holes aren't text, so a leaf that's only whitespace re-derives its
-   operand hole on parse — and the typing parser puts it BEFORE the
-   whitespace (`¿\n`), whereas editing leaves it after (typing Enter
-   before an existing hole pushes the hole down). Put it after, so the
-   hole sits where the author sees it. Leaves with real content are left
-   alone. */
-let canonical_hole_placement = (seg: Segment.t): Segment.t => {
-  let is_hole = (p: Piece.t) =>
-    switch (p) {
-    | Grout({shape: Convex, _}) => true
-    | _ => false
+/* Holes aren't text: parsing re-derives them, and the parser puts a
+   hole BEFORE adjacent whitespace (`¿\n`), whereas editing tends to leave
+   it after (typing Enter before a hole pushes the hole down; a space typed
+   between two operands comes before the operator hole it creates). The
+   canonical form, which every peer shows (see ScratchCollabMode.normalize),
+   puts holes after the whitespace next to them, at every level: in each
+   run of whitespace/comments and holes, the holes go last. Only the order
+   of invisible pieces changes, so the skeleton is the same. */
+let rec canonical_hole_placement = (seg: Segment.t): Segment.t => {
+  /* [ws], [holes] and [acc] are all reversed: holes end up after ws */
+  let flush = (ws, holes, acc) => holes @ ws @ acc;
+  let rec go = (ws, holes, acc, seg: Segment.t) =>
+    switch (seg) {
+    | [] => List.rev(flush(ws, holes, acc))
+    | [Grout(_) as p, ...rest] => go(ws, [p, ...holes], acc, rest)
+    | [Secondary(_) as p, ...rest] => go([p, ...ws], holes, acc, rest)
+    | [Tile(t), ...rest] =>
+      go(
+        [],
+        [],
+        [
+          Piece.Tile({
+            ...t,
+            children: List.map(canonical_hole_placement, t.children),
+          }),
+          ...flush(ws, holes, acc),
+        ],
+        rest,
+      )
+    | [p, ...rest] => go([], [], [p, ...flush(ws, holes, acc)], rest)
     };
-  List.for_all(p => Piece.is_secondary(p) || is_hole(p), seg)
-  && List.exists(is_hole, seg)
-    ? List.filter(Piece.is_secondary, seg) @ List.filter(is_hole, seg) : seg;
+  go([], [], [], seg);
 };
 
 let parse = (~root: Sort.t, text: string): Segment.t =>
@@ -478,8 +532,19 @@ let set_leaf =
    This keeps whole-program caret <-> offset mapping cheap. */
 let len_cache: Hashtbl.t(Id.t, (Piece.t, int)) = Hashtbl.create(4096);
 
+/* an owed space (see [with_owed_space]) prints before its concave hole,
+   so that hole's length is 1; cached lengths of tiles around it go stale
+   when the owed hole changes, which is rare, so the cache resets then */
+let owed_seen: ref(option(Id.t)) = ref(None);
+let check_owed = () =>
+  if (Grout.suppressed_space^ != owed_seen^) {
+    owed_seen := Grout.suppressed_space^;
+    Hashtbl.reset(len_cache);
+  };
+
 let rec piece_len = (p: Piece.t): int =>
   switch (p) {
+  | Grout({id, shape: Concave, _}) when Grout.suppressed_space^ == Some(id) => 1
   | Grout(_) => 0
   | Secondary(w) => utf16_length(Secondary.get_string(w.content))
   | _ =>
@@ -525,6 +590,7 @@ let grapheme_prefix_length = (token: string, n: int): int => {
    children), plus the caret's position inside its right-neighbor token.
    With a selection, this is the focus end. */
 let caret_offset = (z: Zipper.t): int => {
+  check_owed();
   let z =
     Selection.is_empty(z.selection)
       ? z : Zipper.directional_unselect(z.selection.focus, z);
@@ -563,6 +629,7 @@ let caret_offset = (z: Zipper.t): int => {
    inside a token becomes an Inner caret. At an offset shared by several
    caret stops (grout is zero-width), the leftmost one wins. */
 let with_caret_at = (offset: int, z: Zipper.t): Zipper.t => {
+  check_owed();
   let seg = Zipper.unselect_and_zip(z);
   let mk = (~caret=CaretBase.Outer, siblings, ancestors): Zipper.t => {
     selection: Selection.mk([]),
@@ -920,6 +987,7 @@ type range = {
 
 /* Where each item leaf sits in the program's printed text, in one pass. */
 let leaf_ranges = (~tail_id: Id.t, seg: Segment.t): list(range) => {
+  check_owed();
   let arr = Array.of_list(seg);
   let n = Array.length(arr);
   let lens = Array.map(piece_len, arr);
@@ -1437,15 +1505,24 @@ module JsApi = {
 /* Diff the live program against what was last synced and send the
    difference. Cheap per keystroke: unchanged items are reused by piece
    identity. */
-let sync_local = (seg: Segment.t): unit =>
+let sync_local = (seg: Segment.t): list((Id.t, leaf, string, string)) =>
   if (State.active^) {
     switch (
       items_of_seg_cached(~tail_id=State.tail_id^, ~prev=State.synced^, seg)
     ) {
-    | None => () /* not an item chain right now; try again next edit */
+    | None => [] /* not an item chain right now; try again next edit */
     | Some(cur) =>
-      let ops =
-        diff_items(List.map(fst, State.synced^), List.map(fst, cur));
+      let prev = List.map(fst, State.synced^);
+      let ops = diff_items(prev, List.map(fst, cur));
+      let edits =
+        List.filter_map(
+          fun
+          | Edit(id, leaf, text) =>
+            List.find_opt((it: item) => it.id == id, prev)
+            |> Option.map(it => (id, leaf, leaf_of(it, leaf), text))
+          | _ => None,
+          ops,
+        );
       List.iter(
         fun
         | Edit(id, leaf, text) =>
@@ -1465,7 +1542,10 @@ let sync_local = (seg: Segment.t): unit =>
         ops,
       );
       State.synced := cur;
+      edits;
     };
+  } else {
+    [];
   };
 
 /* Record [seg] as in sync with the doc (after applying remote changes). */

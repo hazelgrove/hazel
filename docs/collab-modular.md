@@ -157,6 +157,19 @@ messages, a heartbeat, a TTL and a goodbye. A caret is either
 - Invariant check: after a re-parse, printing must reproduce the text. If it
   doesn't, write the normalized form **once** (print∘parse is idempotent) rather
   than ping-ponging.
+- **Convergence.** Every peer shows a leaf as parsed from its text, in a
+  canonical form: holes go after the whitespace next to them, at every level
+  (`ScratchCollab.canonical_hole_placement`). Holes aren't text, so a local
+  edit can leave holes where the text doesn't put them. After a local edit
+  that only touched whitespace, if the parsed leaf differs from the editor's
+  (compared with holes marked), the editor adopts the parsed form. The text
+  doesn't change, so carets keep their offsets
+  (`ScratchCollabMode.normalize`).
+- **Held-back spaces.** A space typed between two operands becomes an
+  operator hole, and Hazel holds the space back until the hole is filled
+  (`Grout.suppressed_space`). The space is part of the leaf text
+  (`with_owed_space`), and the canonical form makes it a real space before
+  the hole. Filling the hole then continues exactly as in plain Hazel.
 - Projectors print as trigger syntax (`^^fold(…)`); their models aren't synced
   in v1. Probes/refractors are per-user.
 
@@ -191,9 +204,30 @@ Known gaps:
 - module members aren't separate items yet (a module's body is one leaf);
 - remote edits to an open *test-run* cell rebuild the cell (caret resets);
 - undo isn't collaboration-aware yet (snapshot undo can revert remote work);
-- structural remote changes rebuild the program from items, so inner ids of
-  every leaf re-mint (statics recompute from cold);
 - projector models aren't synced (projectors travel as trigger syntax).
+
+## Performance
+
+The bridge keeps to modular-editors' rule: per-keystroke work is
+proportional to the edit, not the program. Timings are on mega-2k.
+
+- **Caret ⇄ offset** is structural. The caret's offset is the length of
+  what's left of it along the zipper path, and a caret is placed by
+  descending through the tree by length. Piece lengths are cached by
+  physical identity. The old token walk took ~150 ms per keystroke; this
+  takes ~1 ms.
+- **Local edits** reuse unchanged items when itemizing: ~1 ms.
+- **A remote leaf edit** splices that leaf into the program.
+  - In the whole-program editor, the new zipper goes into the existing
+    editor, keeping its cached syntax and statics, so recalculation is
+    incremental. Rebuilding the editor used to take ~120 ms plus a cold
+    re-measure.
+  - Edits between definitions (lead, statement, tail) regroup the whole
+    top level: ~10 ms.
+- **A remote insert, move or delete** rearranges the live program's item
+  regions (`restructure`). Untouched items keep their pieces and inner ids.
+  Rebuilding from items took ~780 ms and re-minted every id, so statics
+  went cold; this takes ~15 ms.
 
 ## Phases
 
