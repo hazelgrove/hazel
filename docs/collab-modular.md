@@ -116,8 +116,15 @@ the document can lag. Instead of hand-written OT:
 
 Presence is a small protocol on the handle's ephemeral messages (not
 automerge-repo's `Presence`, whose API differs across versions): state
-messages with the caret as Automerge cursors, a heartbeat, a TTL and a
-goodbye.
+messages, a heartbeat, a TTL and a goodbye. A caret is either
+
+- in a leaf: Automerge cursors into that leaf's text, so it follows
+  concurrent edits; or
+- on one of an item's delimiters (`let`/`=`/`in`, `;`), which are structure,
+  not text: the tile shard index and an offset into that token. That's
+  meaningful on every peer whatever the local whitespace, and is drawn on the
+  token itself in the whole-program editor (or at the matching edge of a
+  definition cell, which doesn't show delimiters).
 
 ## Leaf text semantics
 

@@ -48,8 +48,26 @@ export type RemoteChange =
   | { t: "upsert"; item: ItemSnapshot }
   | { t: "delete"; id: string };
 
-export type Caret = { id: string; leaf: Leaf; anchor: number; head: number };
-export type PeerCaret = Caret & { peer: string; user: string | null; name: string; color: string };
+// A caret is either in a leaf's text, or on one of an item's delimiters
+// (`let`/`=`/`in`, `;`: structure, not text), as the tile shard index and an
+// offset into that token. Delimiter positions are structural, so they mean
+// the same thing on every peer whatever the local whitespace.
+export type LeafCaret = { id: string; leaf: Leaf; anchor: number; head: number };
+export type DelimCaret = { id: string; delim: number; off: number };
+export type Caret = LeafCaret | DelimCaret;
+// As sent to Hazel: every field present, null where it doesn't apply.
+export type PeerCaret = {
+  peer: string;
+  user: string | null;
+  name: string;
+  color: string;
+  id: string;
+  leaf: Leaf | null;
+  anchor: number | null;
+  head: number | null;
+  delim: number | null;
+  off: number | null;
+};
 export type Identity = { user: string | null; name: string; color: string };
 
 // What Hazel implements. Each call is a message Hazel applies in order.
@@ -83,7 +101,9 @@ export function diffText(a: string, b: string): Splice | null {
 // A tiny protocol over the handle's ephemeral messages, independent of
 // automerge-repo's Presence class (whose API differs across versions).
 const MARKER = "__hazelPresence";
-type WireCaret = { id: string; leaf: Leaf; anchor: A.Cursor; head: A.Cursor };
+type WireCaret =
+  | { id: string; leaf: Leaf; anchor: A.Cursor; head: A.Cursor }
+  | { id: string; delim: number; off: number };
 type PresenceMsg =
   | { type: "state"; session: string; user: string | null; name: string; color: string; caret: WireCaret | null }
   | { type: "bye"; session: string };
@@ -194,10 +214,13 @@ export class CollabSession {
     });
   }
 
-  // The local caret, as offsets into a leaf of Hazel's current text.
+  // The local caret: offsets into a leaf of Hazel's current text, or a
+  // position on one of an item's delimiters.
   caret(c: Caret | null) {
     const doc = this.doc;
-    if (c && doc.items[c.id]) {
+    if (c && doc.items[c.id] && "delim" in c) {
+      this.#caret = { id: c.id, delim: c.delim, off: c.off };
+    } else if (c && doc.items[c.id] && "leaf" in c) {
       try {
         const path = leafPath(c.id, c.leaf);
         this.#caret = {
@@ -328,17 +351,20 @@ export class CollabSession {
     for (const [session, { msg }] of this.#peers) {
       const c = msg.caret;
       if (!c || !doc.items[c.id]) continue;
+      const who = { peer: session, user: msg.user, name: msg.name, color: msg.color, id: c.id };
+      if ("delim" in c) {
+        out.push({ ...who, leaf: null, anchor: null, head: null, delim: c.delim, off: c.off });
+        continue;
+      }
       try {
         const path = leafPath(c.id, c.leaf);
         out.push({
-          peer: session,
-          user: msg.user,
-          name: msg.name,
-          color: msg.color,
-          id: c.id,
+          ...who,
           leaf: c.leaf,
           anchor: A.getCursorPosition(doc, path, c.anchor),
           head: A.getCursorPosition(doc, path, c.head),
+          delim: null,
+          off: null,
         });
       } catch {
         // the peer's caret refers to text we haven't received yet

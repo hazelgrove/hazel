@@ -821,6 +821,48 @@ let anchor_of = (~tail_id, z: Zipper.t): option(anchor) => {
   };
 };
 
+/* The item delimiter the caret is on, if any: (item, shard, offset into
+   the token), e.g. just after a definition's `=` is (item, 1, 1). */
+let delim_of =
+    (~is_item: Id.t => bool, z: Zipper.t): option((Id.t, int, int)) => {
+  let z =
+    Selection.is_empty(z.selection)
+      ? z : Zipper.directional_unselect(z.selection.focus, z);
+  let shard = (p: option(Piece.t)) =>
+    switch (p) {
+    | Some(Tile({id, shards: [i], label, _})) when is_item(id) =>
+      Some((id, i, Option.value(List.nth_opt(label, i), ~default="")))
+    | _ => None
+    };
+  switch (shard(Zipper.generalized_neighbor(Right, z)), z.caret) {
+  | (Some((id, i, _)), Outer) => Some((id, i, 0))
+  | (Some((id, i, _)), Inner(n)) => Some((id, i, n + 1))
+  | (None, Outer) =>
+    switch (shard(Zipper.generalized_neighbor(Left, z))) {
+    | Some((id, i, tok)) => Some((id, i, Unicode.length(tok)))
+    | None => None
+    }
+  | (None, Inner(_)) => None
+  };
+};
+
+/* Where a delimiter caret shows in a cell, which holds only one leaf: the
+   leaf and whether at its start or end. */
+let delim_in_leaf =
+    (kind: kind, shard: int, off: int)
+    : (
+        leaf,
+        [
+          | `Start
+          | `End
+        ],
+      ) =>
+  switch (kind, shard) {
+  | (Def | Type | Module, 0) => (Header, `Start)
+  | (Def | Type | Module, 1) => off == 0 ? (Header, `End) : (Body, `Start)
+  | _ => (Body, `End) /* `in`, or a statement's `;` */
+  };
+
 /* The caret's place in its leaf, for presence: clamped into the leaf. */
 let leaf_position = ((id, leaf, rel): anchor, ~len: int): (Id.t, leaf, int) =>
   switch (rel) {
@@ -909,15 +951,18 @@ module Wire = {
     deletes: list(string),
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
+  /* a caret in a leaf (leaf/anchor/head) or on a delimiter (delim/off) */
   type peer = {
     peer: string,
     user: option(string),
     name: string,
     color: string,
     id: string,
-    leaf: string,
-    anchor: int,
-    head: int,
+    leaf: option(string),
+    anchor: option(int),
+    head: option(int),
+    delim: option(int),
+    off: option(int),
   };
 };
 
@@ -970,6 +1015,14 @@ let item_of_wire = (w: Wire.item): item => {
   body: w.body,
 };
 
+/* The local caret as sent to collaborators: in a leaf's text, or on one of
+   an item's delimiters (`let`/`=`/`in`, `;`), which are structure, not
+   text, as the tile shard index and an offset into that token. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type caret =
+  | LeafAt(Id.t, leaf, int, int) /* item, leaf, anchor, head */
+  | DelimAt(Id.t, int, int); /* item, shard, offset into the token */
+
 /* ---- session state ----
    Mirrors the shared document; deliberately outside the (undoable,
    persisted) app model. */
@@ -986,7 +1039,7 @@ module State = {
   /* the items as last synced with the doc, with their top-level pieces */
   let synced: ref(list((item, list(Piece.t)))) = ref([]);
   let peers: ref(list(Wire.peer)) = ref([]);
-  let last_caret: ref(option((Id.t, leaf, int, int))) = ref(None);
+  let last_caret: ref(option(caret)) = ref(None);
 };
 
 let doc_id = (id: Id.t): string =>
@@ -1096,9 +1149,13 @@ module JsApi = {
         [|str(doc_id(id)), opt_str(Option.map(doc_id, after))|],
       ),
     );
-  let caret = (c: option((Id.t, leaf, int, int))) =>
+  let caret = (c: option(caret)) =>
     switch (c) {
-    | Some((id, leaf, anchor, head)) =>
+    | Some(DelimAt(id, shard, off)) =>
+      ignore(
+        call("caretDelim", [|str(doc_id(id)), int(shard), int(off)|]),
+      )
+    | Some(LeafAt(id, leaf, anchor, head)) =>
       ignore(
         call(
           "caret",
@@ -1211,7 +1268,7 @@ let mark_synced = (seg: Segment.t): unit =>
   | None => ()
   };
 
-let send_caret = (c: option((Id.t, leaf, int, int))): unit =>
+let send_caret = (c: option(caret)): unit =>
   if (State.active^ && c != State.last_caret^) {
     State.last_caret := c;
     JsApi.caret(c);

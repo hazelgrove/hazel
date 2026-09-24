@@ -94,6 +94,7 @@ async function boot(port: MessagePort, docUrl: AutomergeUrl, identity: Identity)
     },
     caret: (id: string | null, leaf: "lead" | "header" | "body", anchor: number, head: number) =>
       session.caret(id === null ? null : { id, leaf, anchor, head }),
+    caretDelim: (id: string, delim: number, off: number) => session.caret({ id, delim, off }),
     session,
   };
   window.addEventListener("pagehide", () => session.destroy());

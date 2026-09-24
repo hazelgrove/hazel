@@ -247,6 +247,10 @@ describe("CollabSession", () => {
     b.type("f", "body", (s) => "(" + s);
     await settle();
     expect(b.carets[0].head).toBe(5);
+    // on a delimiter (x's `=`, one character in = just after it)
+    a.session.caret({ id: "x", delim: 1, off: 1 });
+    await settle();
+    expect(b.carets[0]).toMatchObject({ id: "x", leaf: null, anchor: null, delim: 1, off: 1 });
     a.session.caret(null);
     await settle();
     expect(b.carets).toHaveLength(0);

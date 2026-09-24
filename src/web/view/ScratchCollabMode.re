@@ -445,39 +445,48 @@ let apply = (model: Model.t, msg: C.msg): Model.t =>
     };
   };
 
-/* The local caret as (item, leaf, anchor, head), after an action on the
-   master ([None]) or on stack cell [Some((i, is_header))]. */
+/* The local caret, after an action on the master ([None]) or on stack cell
+   [Some((i, is_header))]: in a leaf, else on an item's delimiter, else
+   clamped to the nearest leaf. */
 let local_caret =
-    (model: Model.t, target: option((int, bool)))
-    : option((Id.t, C.leaf, int, int)) =>
+    (model: Model.t, target: option((int, bool))): option(C.caret) =>
   switch (target, model.focus) {
   | (Some((i, is_header)), Some(fo)) =>
     switch (List.nth_opt(fo.f_entries, i)) {
     | Some(e) when !e.e_run =>
       let cell = is_header ? e.e_header : e.e_body;
       let off = C.caret_offset(cell_zipper(cell));
-      Some((entry_item(e), is_header ? Header : Body, off, off));
+      Some(LeafAt(entry_item(e), is_header ? Header : Body, off, off));
     | _ => None
     }
   | (None, None) =>
     let sp = List.nth(model.scratchpads, model.current);
     switch (sp.kind) {
     | Code({editor, _}) =>
-      C.anchor_of(~tail_id=C.State.tail_id^, cell_zipper(editor))
-      |> Option.map(((id, leaf, _) as a) => {
-           let len =
-             switch (
-               List.find_opt(
-                 ((it: C.item, _)) => it.id == id,
-                 C.State.synced^,
-               )
-             ) {
-             | Some((it, _)) => C.utf16_length(C.leaf_of(it, leaf))
-             | None => 0
-             };
-           let (id, leaf, off) = C.leaf_position(a, ~len);
-           (id, leaf, off, off);
-         })
+      let z = cell_zipper(editor);
+      let synced_item = (id: Id.t) =>
+        List.find_opt(((it: C.item, _)) => it.id == id, C.State.synced^);
+      switch (C.anchor_of(~tail_id=C.State.tail_id^, z)) {
+      | Some((id, leaf, In(off))) => Some(LeafAt(id, leaf, off, off))
+      | anchor =>
+        let is_item = id =>
+          switch (synced_item(id)) {
+          | Some((it, _)) => it.kind != Tail
+          | None => false
+          };
+        switch (C.delim_of(~is_item, z), anchor) {
+        | (Some((id, shard, off)), _) => Some(DelimAt(id, shard, off))
+        | (None, Some((id, leaf, _) as a)) =>
+          let len =
+            switch (synced_item(id)) {
+            | Some((it, _)) => C.utf16_length(C.leaf_of(it, leaf))
+            | None => 0
+            };
+          let (id, leaf, off) = C.leaf_position(a, ~len);
+          Some(LeafAt(id, leaf, off, off));
+        | (None, None) => None
+        };
+      };
     | Drv(_) => None
     };
   | _ => None
@@ -507,19 +516,37 @@ let peer_overlays_unguarded =
     )
     : list(Virtual_dom.Vdom.Node.t) => {
   let doc_id = C.doc_id(item);
+  let z = cell_zipper(cell);
+  let len = lazy(C.utf16_length(C.text_of_seg(Zipper.unselect_and_zip(z))));
+  /* each peer's offset in this cell, if their caret shows here */
+  let here = (p: C.Wire.peer): option(int) =>
+    if (p.id != doc_id) {
+      None;
+    } else {
+      switch (p.leaf, p.head, p.delim, p.off) {
+      | (Some(l), Some(head), _, _) when C.leaf_of_string(l) == leaf =>
+        Some(head)
+      | (None, _, Some(shard), Some(off)) =>
+        switch (C.delim_in_leaf(kind_of_id(item), shard, off)) {
+        | (l, `Start) when l == leaf => Some(0)
+        | (l, `End) when l == leaf => Some(Lazy.force(len))
+        | _ => None
+        }
+      | _ => None
+      };
+    };
   let mine =
-    List.filter(
-      (p: C.Wire.peer) => p.id == doc_id && C.leaf_of_string(p.leaf) == leaf,
+    List.filter_map(
+      (p: C.Wire.peer) => Option.map(off => (p, off), here(p)),
       C.State.peers^,
     );
   if (mine == []) {
     [];
   } else {
-    let z = cell_zipper(cell);
     let measured = cell.editor.editor.syntax.measured;
     List.filter_map(
-      (p: C.Wire.peer) =>
-        switch (Zipper.Caret.point(measured, C.with_caret_at(p.head, z))) {
+      ((p: C.Wire.peer, off)) =>
+        switch (Zipper.Caret.point(measured, C.with_caret_at(off, z))) {
         | origin =>
           Some(
             RemoteCaretDec.main(
@@ -566,32 +593,56 @@ let master_peer_overlays_unguarded =
         let ranges = C.leaf_ranges(~tail_id=C.State.tail_id^, seg);
         let base = Zipper.unzip(~direction=Left, seg);
         let measured = cell.editor.editor.syntax.measured;
+        let draw = (p: C.Wire.peer, origin) =>
+          RemoteCaretDec.main(
+            ~user_id=p.peer,
+            ~user_name=Some(p.name),
+            ~font_metrics,
+            ~color=p.color,
+            ~origin,
+          );
         List.filter_map(
           (p: C.Wire.peer) => {
             let id = C.id_of_string(p.id);
-            let leaf = C.leaf_of_string(p.leaf);
-            switch (
-              List.find_opt(
-                (r: C.range) => r.r_id == id && r.r_leaf == leaf,
-                ranges,
-              )
-            ) {
-            | Some(r) =>
-              let g = min(r.r_start + p.head, r.r_stop);
-              switch (Zipper.Caret.point(measured, C.with_caret_at(g, base))) {
-              | origin =>
-                Some(
-                  RemoteCaretDec.main(
-                    ~user_id=p.peer,
-                    ~user_name=Some(p.name),
-                    ~font_metrics,
-                    ~color=p.color,
-                    ~origin,
-                  ),
+            switch (p.leaf, p.head, p.delim, p.off) {
+            | (Some(l), Some(head), _, _) =>
+              let leaf = C.leaf_of_string(l);
+              switch (
+                List.find_opt(
+                  (r: C.range) => r.r_id == id && r.r_leaf == leaf,
+                  ranges,
                 )
-              | exception _ => None
+              ) {
+              | Some(r) =>
+                let g = min(r.r_start + head, r.r_stop);
+                switch (
+                  Zipper.Caret.point(measured, C.with_caret_at(g, base))
+                ) {
+                | origin => Some(draw(p, origin))
+                | exception _ => None
+                };
+              | None => None
               };
-            | None => None
+            | (None, _, Some(shard), Some(off)) =>
+              /* on the delimiter token itself, wherever it's laid out here */
+              switch (Measured.find_shards_by_id(id, measured)) {
+              | Some(shards) =>
+                switch (List.assoc_opt(shard, shards)) {
+                | Some(m) =>
+                  Some(
+                    draw(
+                      p,
+                      {
+                        ...m.origin,
+                        col: m.origin.col + off,
+                      },
+                    ),
+                  )
+                | None => None
+                }
+              | None => None
+              }
+            | _ => None
             };
           },
           peers,
