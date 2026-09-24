@@ -308,6 +308,93 @@ let test_caret_offsets = () => {
 };
 
 
+/* rearranging a program in place = rebuilding it from items, and keeps
+   untouched items' pieces */
+let test_restructure = () => {
+  let seg = parse(src);
+  let items = Option.get(C.items_of_seg(~tail_id, seg));
+  let by_kind = k => List.find((it: C.item) => it.kind == k, items);
+  let x = List.nth(items, 0)
+  and f = List.nth(items, 2);
+  let check_same = (label, items') => {
+    let got = Option.get(C.restructure(~tail_id, items', seg));
+    let want = Option.get(C.seg_of_items(items'));
+    check(string, label ++ ": text", C.text_of_seg(want), C.text_of_seg(got));
+    check(
+      list(string),
+      label ++ ": items",
+      List.map(summary, items'),
+      List.map(summary, Option.get(C.items_of_seg(~tail_id, got))),
+    );
+    got;
+  };
+  let tile_of = (id, seg) =>
+    List.find_opt(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => t.id == id
+        | _ => false
+        },
+      seg,
+    );
+  let same_tile = (label, id, a, b) =>
+    check(
+      bool,
+      label ++ ": identity kept",
+      true,
+      switch (tile_of(id, a), tile_of(id, b)) {
+      | (Some(p), Some(q)) => p === q
+      | _ => false
+      },
+    );
+  /* delete */
+  let got =
+    check_same("delete", List.filter((it: C.item) => it.id != x.id, items));
+  same_tile("delete", f.id, seg, got);
+  /* insert a new definition before f */
+  let n: C.item = {
+    id: Id.mk(),
+    kind: Def,
+    lead: "\n",
+    header: " n ",
+    body: " 5\n",
+  };
+  let got =
+    check_same(
+      "insert",
+      List.concat_map(
+        (it: C.item) => it.id == f.id ? [n, it] : [it],
+        items,
+      ),
+    );
+  same_tile("insert", f.id, seg, got);
+  same_tile("insert", x.id, seg, got);
+  /* move x after f */
+  let _ =
+    check_same(
+      "move",
+      List.concat_map(
+        (it: C.item) =>
+          it.id == x.id ? [] : it.id == f.id ? [it, x] : [it],
+        items,
+      ),
+    );
+  /* delete + a changed leaf elsewhere */
+  let tl = by_kind(Tail);
+  let _ =
+    check_same(
+      "delete + edit",
+      List.filter_map(
+        (it: C.item) =>
+          it.id == x.id
+            ? None
+            : it.id == tl.id ? Some({...it, body: "\nf(2)"}) : Some(it),
+        items,
+      ),
+    );
+  ();
+};
+
 /* the pre-structural caret offset (a token walk to the start), kept as
    the reference the structural [C.caret_offset] must agree with */
 let walk_offset = (z: Zipper.t): int => {
@@ -492,6 +579,7 @@ let tests = (
     test_case("hole after whitespace", `Quick, test_hole_after_whitespace),
     test_case("lead splice regrouts", `Quick, test_lead_regrout),
     test_case("set one leaf", `Quick, test_set_leaf),
+    test_case("restructure in place", `Quick, test_restructure),
     test_case("caret <-> offset", `Quick, test_caret_offsets),
     test_case("caret offset = token walk", `Quick, test_caret_stops),
     test_case("caret walk is monotone", `Quick, test_caret_walk),

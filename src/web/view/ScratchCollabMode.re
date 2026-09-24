@@ -35,6 +35,26 @@ let cell_zipper = (cell: CellEditor.Model.t): Zipper.t =>
 let mk_cell = (~root, z: Zipper.t): CellEditor.Model.t =>
   z |> Editor.Model.mk(~root) |> CellEditor.Model.mk;
 
+/* [cell] with zipper [z], keeping its cached syntax (marked old, so the
+   next recalculate refreshes it incrementally) and statics */
+let set_zipper = (cell: CellEditor.Model.t, z: Zipper.t): CellEditor.Model.t => {
+  let ed = cell.editor.editor;
+  {
+    ...cell,
+    editor: {
+      ...cell.editor,
+      editor: {
+        ...ed,
+        state: {
+          zipper: z,
+          col_target: None,
+        },
+        syntax: CachedSyntax.mark_old(ed.syntax),
+      },
+    },
+  };
+};
+
 /* [cell] with its content replaced by the core of leaf text [raw] (cells
    show a leaf without its edge whitespace), caret carried across */
 let rebuild_cell =
@@ -82,10 +102,13 @@ let with_master =
     let z = cell_zipper(editor);
     let anchor = C.anchor_of(~tail_id, z);
     let seg = f(Zipper.unselect_and_zip(z));
-    /* a fresh result too: the old one's decorations name ids that the
-       re-parse replaced */
+    /* swap the zipper into the existing editor, keeping its caches: the
+       splice preserves untouched pieces' identity and item ids, so the
+       recalculate pass after this action re-measures and re-analyzes only
+       what changed, as for a local edit (rebuilding the editor cost
+       ~120 ms on mega-2k, plus a cold re-measure) */
     let editor =
-      mk_cell(~root=Exp, C.zipper_at(~tail_id, ~remap, anchor, seg));
+      set_zipper(editor, C.zipper_at(~tail_id, ~remap, anchor, seg));
     {
       ...model,
       scratchpads:
@@ -230,8 +253,26 @@ let current_items = (upserts: list(C.item), deletes: list(Id.t)) => {
 };
 
 let apply_structure =
-    (model: Model.t, items: list(C.item), deletes: list(Id.t)): Model.t =>
-  switch (C.seg_of_items(items)) {
+    (model: Model.t, items: list(C.item), deletes: list(Id.t)): Model.t => {
+  /* rearrange the live program rather than rebuilding it from items
+     (which re-parsed everything and re-minted every inner id: ~800 ms and
+     cold statics on mega-2k) */
+  let program =
+    switch (model.focus) {
+    | Some(fo) => Some(fo.f_master_seg)
+    | None => live_seg(model)
+    };
+  let rearranged =
+    switch (program) {
+    | Some(seg) => C.restructure(~tail_id=C.State.tail_id^, items, seg)
+    | None => None
+    };
+  switch (
+    switch (rearranged) {
+    | Some(_) => rearranged
+    | None => C.seg_of_items(items)
+    }
+  ) {
   | None => model
   | Some(seg) =>
     let model = map_program(model, _ => seg);
@@ -261,6 +302,7 @@ let apply_structure =
     | None => model
     };
   };
+};
 
 let load = (model: Model.t, l: C.Wire.load): Model.t => {
   C.State.active := true;

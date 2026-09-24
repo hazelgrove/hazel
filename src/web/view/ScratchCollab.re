@@ -741,6 +741,89 @@ let leaf_of = (it: item, leaf: leaf): string =>
   | Body => it.body
   };
 
+/* The program [seg] rearranged into [items] (program order, current
+   texts), without rebuilding it: an item already in [seg] keeps its
+   region's pieces (identity, inner ids, hence Measured / MakeTerm / 
+   DefStatics caches), a new item is built alone, a removed one is
+   dropped, and the top level is regrouted once. Leaves whose text
+   differs are then set. None if [seg] can't be read as items. */
+let restructure =
+    (~tail_id: Id.t, items: list(item), seg: Segment.t): option(Segment.t) => {
+  let regions =
+    List.map(
+      c => (
+        c.c_kind == Tail ? tail_id : Option.get(c.c_id),
+        (c.c_kind, Focus.slice(c.c_start, c.c_stop, seg)),
+      ),
+      cspans(seg),
+    );
+  let fresh_pieces = (it: item) =>
+    switch (
+      seg_of_items([
+        it,
+        {
+          id: tail_id,
+          kind: Tail,
+          lead: "",
+          header: "",
+          body: "",
+        },
+      ])
+    ) {
+    | Some(one) =>
+      switch (cspans(one)) {
+      | [c, _] => Some(Focus.slice(c.c_start, c.c_stop, one))
+      | _ => None
+      }
+    | None => None
+    };
+  let pieces =
+    List.map(
+      (it: item) =>
+        switch (List.assoc_opt(it.id, regions)) {
+        | Some((kind, ps)) when kind == it.kind => Some((false, ps))
+        | _ => Option.map(ps => (true, ps), fresh_pieces(it))
+        },
+      items,
+    );
+  if (List.mem(None, pieces)) {
+    None;
+  } else {
+    let pieces = List.map(Option.get, pieces);
+    let seg = regrout_top(List.concat_map(snd, pieces));
+    if (List.length(cspans(seg)) != List.length(items)) {
+      None;
+    } else {
+      /* reused items whose texts changed */
+      let now = Hashtbl.create(64);
+      List.iter(
+        (it: item) => Hashtbl.replace(now, it.id, it),
+        Option.value(items_of_seg(~tail_id, seg), ~default=[]),
+      );
+      Some(
+        List.fold_left2(
+          (seg, (is_new, _), it: item) =>
+            switch (is_new, Hashtbl.find_opt(now, it.id)) {
+            | (false, Some(cur)) =>
+              List.fold_left(
+                (seg, leaf) =>
+                  leaf_of(cur, leaf) == leaf_of(it, leaf)
+                    ? seg
+                    : set_leaf(it.kind, it.id, leaf, leaf_of(it, leaf), seg),
+                seg,
+                [Lead, Header, Body],
+              )
+            | _ => seg
+            },
+          seg,
+          pieces,
+          items,
+        ),
+      );
+    };
+  };
+};
+
 /* Longest common subsequence of two id lists (ids unique in each). */
 let lcs = (a: list(Id.t), b: list(Id.t)): list(Id.t) => {
   let a = Array.of_list(a)
