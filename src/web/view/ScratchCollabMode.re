@@ -492,6 +492,13 @@ let local_caret =
   | _ => None
   };
 
+/* Collaborators whose caret is in [e]'s definition (the stack view caches
+   cells on this). */
+let peers_on = (e: Model.stack_entry): list(C.Wire.peer) => {
+  let id = C.doc_id(entry_item(e));
+  List.filter((p: C.Wire.peer) => p.id == id, C.State.peers^);
+};
+
 /* Carets are decoration: a failure to place one must never take down the
    editor's view. */
 let guard = (what: string, f: unit => list(Virtual_dom.Vdom.Node.t)) =>
@@ -555,6 +562,7 @@ let peer_overlays_unguarded =
               ~font_metrics,
               ~color=p.color,
               ~origin,
+              ~label_below=origin.row == 0,
             ),
           )
         | exception _ => None
@@ -600,6 +608,7 @@ let master_peer_overlays_unguarded =
             ~font_metrics,
             ~color=p.color,
             ~origin,
+            ~label_below=false,
           );
         List.filter_map(
           (p: C.Wire.peer) => {

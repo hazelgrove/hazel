@@ -27,6 +27,9 @@ let main =
       ~font_metrics: FontMetrics.t,
       ~color: string,
       ~origin: Point.t,
+      /* put the name under the caret, e.g. on a cell's first row, where a
+         label above would be clipped */
+      ~label_below: bool,
     ) => {
   let scale = 1.0;
   let height_fudge = ShardDec.shadow_dy *. font_metrics.row_height;
@@ -61,7 +64,9 @@ let main =
     | Some(name) => [
         Node.div(
           ~attrs=[
-            Attr.classes(["remote-caret-label"]),
+            Attr.classes(
+              ["remote-caret-label"] @ (label_below ? ["below"] : []),
+            ),
             Attr.create("style", "background-color: " ++ color ++ ";"),
           ],
           [Node.text(truncate_name(name))],

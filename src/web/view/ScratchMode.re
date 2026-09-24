@@ -2227,6 +2227,8 @@ module View = {
     k_body_sel: option(CellEditor.Selection.t),
     k_meta_down: bool,
     k_visible_rows: option(Globals.VisibleRows.t),
+    /* collaborators' carets in this cell's definition (overlays) */
+    k_peers: list(ScratchCollab.Wire.peer),
   };
   type cached_cell = {
     c_key: stack_cache_key,
@@ -2324,6 +2326,7 @@ module View = {
                   k_body_sel: body_sel,
                   k_meta_down: globals.Globals.Model.meta_down,
                   k_visible_rows: globals.Globals.Model.visible_rows,
+                  k_peers: ScratchCollabMode.peers_on(e),
                 };
                 switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
