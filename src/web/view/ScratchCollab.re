@@ -156,7 +156,7 @@ type cspan = {
 let def_tile = (p: Piece.t): option((kind, Base.tile)) =>
   switch (p) {
   | Tile(t) when Focus.ends_with_in(t) && List.length(t.children) == 2 =>
-    Option.map(k => (k, t), kind_of_label(t.label))
+    Option.map(k => (k, t), kind_of_label(Tile.label(t)))
   | _ => None
   };
 
@@ -738,7 +738,7 @@ let leaf_ranges = (~tail_id: Id.t, seg: Segment.t): list(range) => {
         switch (def_tile(arr[c.c_tile])) {
         | Some((kind, t)) =>
           let (kw, eq) =
-            switch (t.label) {
+            switch (Tile.label(t)) {
             | [kw, eq, ..._] => (kw, eq)
             | _ => ("", "")
             };
@@ -830,8 +830,8 @@ let delim_of =
       ? z : Zipper.directional_unselect(z.selection.focus, z);
   let shard = (p: option(Piece.t)) =>
     switch (p) {
-    | Some(Tile({id, shards: [i], label, _})) when is_item(id) =>
-      Some((id, i, Option.value(List.nth_opt(label, i), ~default="")))
+    | Some(Tile({id, shards: [i], _} as t)) when is_item(id) =>
+      Some((id, i, Option.value(List.nth_opt(Tile.label(t), i), ~default="")))
     | _ => None
     };
   switch (shard(Zipper.generalized_neighbor(Right, z)), z.caret) {

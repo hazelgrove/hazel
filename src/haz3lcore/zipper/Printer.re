@@ -46,7 +46,7 @@ let add_caret =
 
 let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
   switch (Measured.row_shape(i, measured)) {
-  | Some(sh) => StringUtil.repeat(sh.indent, indent) ++ r
+  | Some(sh) => StringUtil.repeat(sh.content_start, indent) ++ r
   | None =>
     print_endline("Printer.add_indent: Not_found");
     r;

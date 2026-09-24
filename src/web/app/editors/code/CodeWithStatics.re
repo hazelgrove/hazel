@@ -58,6 +58,7 @@ module Model = {
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
       |> Option.map(({piece, _}: Indicated.piece) => piece),
@@ -214,13 +215,20 @@ module Update = {
       || probes_differ(editor.state.zipper, statics)
       || is_edited
       && statics_mode != StaticsMode.Defer;
+    /* A deferred edit can change external typing context even when this
+       editor's source is unchanged. Implied-hole info must wait for refresh. */
     let statics =
       needs_refresh
         ? switch (projected) {
           | Some(p) => p
           | None => do_init(editor)
           }
-        : statics;
+        : is_edited
+            ? {
+              ...statics,
+              completion: None,
+            }
+            : statics;
     PerfMetrics.record_statics_counts(
       ~recompute=needs_refresh,
       ~mode=statics_mode,
@@ -356,12 +364,16 @@ module View = {
             ~refine_sort,
             ~statics_ident=Obj.repr(info_map),
           );
+        /* shared by the error and warning arms (canonical completion
+           depends on the segment, which the memo key covers) */
+        let completion = Arms.lazy_completion(z);
         let error_decos =
           Arms.Errors.of_ids(
             ~refine_sort,
             ~simple_indication=globals.settings.simple_indication,
             ~font_metrics=globals.font_metrics,
             ~syntax=model.editor.syntax,
+            ~completion,
             model.statics.error_ids,
           );
         let warning_decos =
@@ -371,6 +383,7 @@ module View = {
             ~simple_indication=globals.settings.simple_indication,
             ~font_metrics=globals.font_metrics,
             ~syntax=model.editor.syntax,
+            ~completion,
             warning_ids,
           );
         // errors after warnings to prioritize errors over warnings

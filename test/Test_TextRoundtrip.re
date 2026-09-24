@@ -306,7 +306,7 @@ let debug_pieces = (tag, text) =>
                List.map(
                  (p: Piece.t) =>
                    switch (p) {
-                   | Tile(t) => "T(" ++ String.concat("", t.label) ++ ")"
+                   | Tile(t) => "T(" ++ String.concat("", Tile.label(t)) ++ ")"
                    | Grout({shape: Convex, _}) => "Gcvx"
                    | Grout({shape: Concave, _}) => "Gccv"
                    | Secondary(_) => "_"
@@ -328,7 +328,7 @@ let debug_pieces = (tag, text) =>
                List.map(
                  (p: Piece.t) =>
                    switch (p) {
-                   | Tile(t) => "T(" ++ String.concat("", t.label) ++ ")"
+                   | Tile(t) => "T(" ++ String.concat("", Tile.label(t)) ++ ")"
                    | Grout({shape: Convex, _}) => "Gcvx"
                    | Grout({shape: Concave, _}) => "Gccv"
                    | Secondary(_) => "_"
