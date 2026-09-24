@@ -471,14 +471,42 @@ let set_leaf =
 
 /* ---- caret <-> text offset (within one leaf's editor) ---- */
 
-/* Printed length of a generalized neighbor: a single-shard projection of
-   a tile, a secondary, grout (zero: holes aren't text) or a projector
-   (its trigger syntax). */
-let piece_length = (p: Piece.t): int =>
+/* Printed UTF-16 length of a piece, as [text_of_seg] prints it (a tile
+   is its shard tokens interleaved with its children), cached by piece
+   identity: modular-editors' edits keep untouched pieces physically
+   equal, so after an edit only the path to the change is re-measured.
+   This keeps whole-program caret <-> offset mapping cheap. */
+let len_cache: Hashtbl.t(Id.t, (Piece.t, int)) = Hashtbl.create(4096);
+
+let rec piece_len = (p: Piece.t): int =>
   switch (p) {
   | Grout(_) => 0
-  | _ => utf16_length(text_of_seg([p]))
-  };
+  | Secondary(w) => utf16_length(Secondary.get_string(w.content))
+  | _ =>
+    switch (Hashtbl.find_opt(len_cache, Piece.id(p))) {
+    | Some((q, n)) when q === p => n
+    | _ =>
+      let n =
+        switch (p) {
+        | Tile(t) =>
+          let label = Tile.label(t);
+          List.fold_left(
+            (acc, i) => acc + utf16_length(List.nth(label, i)),
+            0,
+            t.shards,
+          )
+          + List.fold_left((acc, c) => acc + seg_len(c), 0, t.children)
+        | _ => utf16_length(text_of_seg([p]))
+        };
+      if (Hashtbl.length(len_cache) > 200_000) {
+        Hashtbl.reset(len_cache);
+      };
+      Hashtbl.replace(len_cache, Piece.id(p), (p, n));
+      n;
+    }
+  }
+and seg_len = (seg: Segment.t): int =>
+  List.fold_left((acc, p) => acc + piece_len(p), 0, seg);
 
 /* UTF-16 length of the first [n] graphemes of [token] */
 let grapheme_prefix_length = (token: string, n: int): int => {
@@ -491,81 +519,141 @@ let grapheme_prefix_length = (token: string, n: int): int => {
   len^;
 };
 
-/* Offset of the caret in the printed leaf text: walk left to the start,
-   summing the printed length of each token passed, plus the caret's
-   position inside its right-neighbor token. With a selection, this is
-   the focus end. */
+/* Offset of the caret in the printed text of the zipper's segment: the
+   printed length of everything left of the caret along the path to the
+   root (left siblings at each level, and each ancestor's left shards and
+   children), plus the caret's position inside its right-neighbor token.
+   With a selection, this is the focus end. */
 let caret_offset = (z: Zipper.t): int => {
   let z =
     Selection.is_empty(z.selection)
       ? z : Zipper.directional_unselect(z.selection.focus, z);
-  let (inner, z) =
+  let inner =
     switch (z.caret) {
-    | Outer => (0, z)
+    | Outer => 0
     | Inner(n) =>
       switch (Zipper.neighbor_token(Right, z)) {
-      | Some(tok) => (
-          grapheme_prefix_length(tok, n + 1),
-          Zipper.Caret.set(Outer, z),
-        )
+      | Some(tok) => grapheme_prefix_length(tok, n + 1)
       | None =>
         /* end of the leaf: Inner indexes the LEFT token */
         switch (Zipper.neighbor_token(Left, z)) {
-        | Some(tok) => (
-            grapheme_prefix_length(tok, n + 1) - utf16_length(tok),
-            Zipper.Caret.set(Outer, z),
-          )
-        | None => (0, Zipper.Caret.set(Outer, z))
+        | Some(tok) => grapheme_prefix_length(tok, n + 1) - utf16_length(tok)
+        | None => 0
         }
       }
     };
-  let rec walk = (acc, z) =>
-    switch (Zipper.generalized_neighbor(Left, z)) {
-    | None => acc
-    | Some(p) =>
-      switch (Move.local(ByToken, Left, z)) {
-      | Some(z') => walk(acc + piece_length(p), z')
-      | None => acc + piece_length(p)
-      }
-    };
-  walk(inner, z);
+  let left_of_ancestor = (a: Ancestor.t) => {
+    let label = Ancestor.label(a);
+    List.fold_left(
+      (acc, i) => acc + utf16_length(List.nth(label, i)),
+      0,
+      fst(a.shards),
+    )
+    + List.fold_left((acc, c) => acc + seg_len(c), 0, fst(a.children));
+  };
+  List.fold_left(
+    (acc, (a, (pre, _))) => acc + left_of_ancestor(a) + seg_len(pre),
+    inner + seg_len(fst(z.relatives.siblings)),
+    z.relatives.ancestors,
+  );
 };
 
-/* The zipper [z] with its caret at text [offset] (clamped). Walks right
-   from the start; an offset inside a token becomes an Inner caret. At an
-   offset shared by several caret stops (grout is zero-width), the
-   leftmost one wins. */
+/* [z]'s segment unzipped with the caret at text [offset] (clamped): a
+   descent by printed lengths, building the zipper directly. An offset
+   inside a token becomes an Inner caret. At an offset shared by several
+   caret stops (grout is zero-width), the leftmost one wins. */
 let with_caret_at = (offset: int, z: Zipper.t): Zipper.t => {
-  let z = Move.to_start(Zipper.unselect(z));
-  let rec walk = (acc, z) =>
-    if (acc >= offset) {
-      z;
-    } else {
-      switch (Zipper.generalized_neighbor(Right, z)) {
-      | None => z
-      | Some(p) =>
-        let len = piece_length(p);
-        if (acc + len > offset) {
-          /* inside this token: count graphemes up to the offset */
+  let seg = Zipper.unselect_and_zip(z);
+  let mk = (~caret=CaretBase.Outer, siblings, ancestors): Zipper.t => {
+    selection: Selection.mk([]),
+    relatives: {
+      siblings,
+      ancestors,
+    },
+    caret,
+    refractors: z.refractors,
+  };
+  /* Inner caret [k] graphemes into [tok], from [units] into it */
+  let inner = (tok: string, units: int) => {
+    let gs = Unicode.graphemes(tok);
+    let rec count = (i, u) =>
+      i >= Array.length(gs) || u >= units
+        ? i : count(i + 1, u + utf16_length(gs[i]));
+    count(0, 0) - 1;
+  };
+  /* caret in [seg] at [target] (relative to seg's start), under [ancs] */
+  let rec in_seg = (target, pre_rev, seg: Segment.t, ancs) =>
+    switch (seg) {
+    | [] => mk((List.rev(pre_rev), []), ancs)
+    | _ when target <= 0 => mk((List.rev(pre_rev), seg), ancs)
+    | [p, ...suf] =>
+      let len = piece_len(p);
+      if (target >= len) {
+        in_seg(target - len, [p, ...pre_rev], suf, ancs);
+      } else {
+        switch (p) {
+        | Tile(t) => in_tile(target, t, (List.rev(pre_rev), suf), ancs)
+        | _ =>
           switch (Piece.token_of(p)) {
           | Some(tok) =>
-            let gs = Unicode.graphemes(tok);
-            let rec count = (i, units) =>
-              i >= Array.length(gs) || units >= offset - acc
-                ? i : count(i + 1, units + utf16_length(gs[i]));
-            let k = count(0, 0);
-            k <= 0 ? z : Zipper.Caret.set(Inner(k - 1), z);
-          | None => z
-          };
-        } else {
-          switch (Move.local(ByToken, Right, z)) {
-          | Some(z') => walk(acc + len, z')
-          | None => z
+            let k = inner(tok, target);
+            k < 0
+              ? mk((List.rev(pre_rev), seg), ancs)
+              : mk(~caret=Inner(k), (List.rev(pre_rev), seg), ancs);
+          | None => mk((List.rev(pre_rev), seg), ancs)
           };
         };
       };
+    }
+  /* inside tile [t] (0 < target < its length), whose siblings are [sibs] */
+  and in_tile = (target, t: Tile.t, sibs: Siblings.t, ancs) => {
+    let label = Tile.label(t);
+    let n = List.length(t.shards);
+    /* the zipper at the start (i = 0: before the tile) or inside child
+       [i - 1] at its end */
+    let before_shard = (~caret=CaretBase.Outer, i) =>
+      if (i == 0) {
+        mk(~caret, (fst(sibs), [Tile(t), ...snd(sibs)]), ancs);
+      } else {
+        let child = List.nth(t.children, i - 1);
+        mk(~caret, (child, []), [(ancestor(t, i - 1), sibs), ...ancs]);
+      };
+    let rec go = (i, acc) => {
+      let tok = List.nth(label, List.nth(t.shards, i));
+      let l = utf16_length(tok);
+      if (target < acc + l) {
+        /* inside shard i's token */
+        let k = inner(tok, target - acc);
+        k < 0 ? before_shard(i) : before_shard(~caret=Inner(k), i);
+      } else if (i == n - 1) {
+        /* at or past the end: after the tile */
+        mk((fst(sibs) @ [Tile(t)], snd(sibs)), ancs);
+      } else {
+        let child = List.nth(t.children, i);
+        let acc = acc + l;
+        let cl = seg_len(child);
+        if (target <= acc + cl) {
+          in_seg(target - acc, [], child, [(ancestor(t, i), sibs), ...ancs]);
+        } else {
+          go(i + 1, acc + cl);
+        };
+      };
     };
-  walk(0, z);
+    go(0, 0);
+  }
+  /* [t] opened at child [i] */
+  and ancestor = (t: Tile.t, i: int): Ancestor.t => {
+    let (ls, rs) = ListUtil.split_n(i + 1, t.shards);
+    let (lc, rc) = ListUtil.split_n(i, t.children);
+    {
+      id: t.id,
+      form: t.form,
+      sort: t.sort,
+      shards: (ls, rs),
+      children: (lc, List.tl(rc)),
+    };
+  };
+  in_seg(max(0, offset), [], seg, []);
 };
 
 /* ---- local edits -> text splices ---- */
@@ -742,16 +830,13 @@ type range = {
 let leaf_ranges = (~tail_id: Id.t, seg: Segment.t): list(range) => {
   let arr = Array.of_list(seg);
   let n = Array.length(arr);
-  let lens = Array.map(p => utf16_length(text_of_seg([p])), arr);
+  let lens = Array.map(piece_len, arr);
   let starts = Array.make(n + 1, 0);
   for (i in 0 to n - 1) {
     starts[i + 1] = starts[i] + lens[i];
   };
   /* raw ranges: leaves are lossless */
-  let core_range = (start: int, s: Segment.t) => (
-    start,
-    start + utf16_length(text_of_seg(s)),
-  );
+  let core_range = (start: int, s: Segment.t) => (start, start + seg_len(s));
   List.concat_map(
     c => {
       let (a, b) = content_range(c, arr);
@@ -771,7 +856,7 @@ let leaf_ranges = (~tail_id: Id.t, seg: Segment.t): list(range) => {
           and def = List.nth(t.children, 1);
           let h0 = starts[c.c_tile] + utf16_length(kw);
           let (ha, hb) = core_range(h0, pat);
-          let b0 = h0 + utf16_length(text_of_seg(pat)) + utf16_length(eq);
+          let b0 = h0 + seg_len(pat) + utf16_length(eq);
           let (ba, bb) = core_range(b0, def);
           let mk = (r_leaf, r_start, r_stop) => {
             r_id: t.id,

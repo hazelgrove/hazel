@@ -307,6 +307,80 @@ let test_caret_offsets = () => {
   check_offsets(~root=Pat, "(a, b) : (Int, Int)");
 };
 
+
+/* the pre-structural caret offset (a token walk to the start), kept as
+   the reference the structural [C.caret_offset] must agree with */
+let walk_offset = (z: Zipper.t): int => {
+  let len = (p: Piece.t) =>
+    switch (p) {
+    | Grout(_) => 0
+    | _ => C.utf16_length(C.text_of_seg([p]))
+    };
+  let z =
+    Selection.is_empty(z.selection)
+      ? z : Zipper.directional_unselect(z.selection.focus, z);
+  let (inner, z) =
+    switch (z.caret) {
+    | Outer => (0, z)
+    | Inner(n) =>
+      switch (Zipper.neighbor_token(Right, z)) {
+      | Some(tok) => (
+          C.grapheme_prefix_length(tok, n + 1),
+          Zipper.Caret.set(Outer, z),
+        )
+      | None =>
+        switch (Zipper.neighbor_token(Left, z)) {
+        | Some(tok) => (
+            C.grapheme_prefix_length(tok, n + 1) - C.utf16_length(tok),
+            Zipper.Caret.set(Outer, z),
+          )
+        | None => (0, Zipper.Caret.set(Outer, z))
+        }
+      }
+    };
+  let rec walk = (acc, z) =>
+    switch (Zipper.generalized_neighbor(Left, z)) {
+    | None => acc
+    | Some(p) =>
+      switch (Move.local(ByToken, Left, z)) {
+      | Some(z') => walk(acc + len(p), z')
+      | None => acc + len(p)
+      }
+    };
+  walk(inner, z);
+};
+
+/* at every caret stop (ByChar), the structural offset matches the walk,
+   and with_caret_at lands on a stop with the same offset */
+let check_stops = (text: string) => {
+  let seg = parse(text);
+  let z = ref(Zipper.unzip(~direction=Left, seg));
+  let continue = ref(true);
+  while (continue^) {
+    let off = C.caret_offset(z^);
+    check(int, Printf.sprintf("%S: stop", text), walk_offset(z^), off);
+    check(
+      int,
+      Printf.sprintf("%S: back @%d", text, off),
+      off,
+      C.caret_offset(C.with_caret_at(off, z^)),
+    );
+    switch (Move.local(ByChar, Right, z^)) {
+    | Some(z') => z := z'
+    | None => continue := false
+    };
+  };
+  check(int, "len", C.utf16_length(C.text_of_seg(seg)), C.seg_len(seg));
+};
+
+let test_caret_stops = () => {
+  check_stops(src);
+  check_stops("let f = fun x ->\n  if x then \"é\" else case 1 | 0 => 2 end in\nf");
+  check_stops("let x = # note # 1 in\nlet y = \n");
+  check_stops("if 1 then\n  (2, [3, 4])");
+  check_stops("let x = 1 in in 2");
+};
+
 /* walking ByChar right visits offsets monotonically, ending at the end */
 let test_caret_walk = () => {
   let text = "let foo = bar(1, 22) in\nfoo";
@@ -419,6 +493,7 @@ let tests = (
     test_case("lead splice regrouts", `Quick, test_lead_regrout),
     test_case("set one leaf", `Quick, test_set_leaf),
     test_case("caret <-> offset", `Quick, test_caret_offsets),
+    test_case("caret offset = token walk", `Quick, test_caret_stops),
     test_case("caret walk is monotone", `Quick, test_caret_walk),
     test_case("text diff", `Quick, test_diff),
     test_case("corpus round-trip", `Slow, test_corpus_roundtrip),
