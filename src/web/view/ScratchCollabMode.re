@@ -492,6 +492,22 @@ let local_caret =
   | _ => None
   };
 
+/* Focus moved to another cell (or back to the master): send that cell's
+   caret. [sel] is the scratch view's selection; cells are identified by
+   their stack index (the selection type lives in ScratchMode, above us). */
+let focus_changed_to =
+    (model: Model.t, target: option(option((int, bool)))): unit =>
+  if (C.State.active^) {
+    switch (target) {
+    | Some(t) =>
+      switch (local_caret(model, t)) {
+      | Some(c) => C.send_caret(Some(c))
+      | None => ()
+      }
+    | None => ()
+    };
+  };
+
 /* Collaborators whose caret is in [e]'s definition (the stack view caches
    cells on this). */
 let peers_on = (e: Model.stack_entry): list(C.Wire.peer) => {

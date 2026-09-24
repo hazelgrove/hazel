@@ -2871,3 +2871,16 @@ module View = {
     );
   };
 };
+
+/* Collaboration: focusing another cell (or the master) moves where others
+   see our caret, even if nothing inside that cell moved. */
+let collab_focus_changed = (model: Model.t, sel: Selection.t): unit =>
+  ScratchCollabMode.focus_changed_to(
+    model,
+    switch (sel, model.focus) {
+    | (StackH(i, MainEditor), Some(_)) => Some(Some((i, true)))
+    | (StackB(i, MainEditor), Some(_)) => Some(Some((i, false)))
+    | (Cell(MainEditor), None) => Some(None)
+    | _ => None
+    },
+  );
