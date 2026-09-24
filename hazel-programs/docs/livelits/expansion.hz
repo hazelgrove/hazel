@@ -1,10 +1,10 @@
 # The Expansion #
 
-# Every livelit has an expansion member -- expand_fun here -- and a #
+# Every livelit has an expansion member -- expand here -- and a #
 # Expansion. Together they answer one question: what does a use of #
 # this livelit MEAN to the program around it? #
 
-#   let expand_fun : Model -> Expansion #
+#   let expand : + Functional(Model -> Expansion) + Macro(...) #
 
 # It is a boundary. On one side is the MODEL: the widget's state, #
 # written into the program text so it survives. Because it is stored #
@@ -17,11 +17,11 @@
 
 # THE DULL CASE: EXPANSION = MODEL #
 
-# A slider stores an Int and means that Int. expand_fun is the #
+# A slider stores an Int and means that Int. expand is the #
 # and the livelit is a nicer way to type a number. #
 
 #   type Model = Int;  type Expansion = Int; #
-#   let expand_fun = fun m : Model -> m #
+#   let expand = fun m : Model -> m #
 
 # BETTER: THE EXPANSION IS NOT THE MODEL #
 
@@ -30,10 +30,10 @@
 # never has to know the hwb geometry the widget uses to read a click: #
 
 #   type Model = (Int, Int, Int);  type Expansion = String; #
-#   let expand_fun = fun m : Model -> css(m) #
+#   let expand = fun m : Model -> css(m) #
 
 # The GUI absorbs the domain knowledge. That is already the point of #
-# the Expansion type: a use has that type however expand_fun is #
+# the Expansion type: a use has that type however expand is #
 # so a reader reasons about the use without reading the widget. #
 
 # INTERESTING: AN EXPANSION THE MODEL COULD NOT BE #
@@ -149,18 +149,20 @@ let hwb_string = fun c : Hwb ->
 
 # WHERE A WRONG EXPAND IS CAUGHT #
 
-# expand_fun is checked in TWO places, and both earn their keep. #
+# expand is checked in TWO places, though with eager checking at the #
+# definition the second is now vacuous for a Functional livelit -- see #
+# the end of this note. #
 
 # At the DEFINITION, the module is checked against the builtin #
 # `Livelit` signature with Model, Action and Expansion realized by #
 # the definition's own types. So this is an error where it is #
 # written, before any use exists: #
 
-#   type Model = Bool;  type Expansion = String;   #
-#   let expand_fun = fun m : Model -> m                #
-#                                                  #
-#   Member expand_fun is Bool -> Bool              #
-#   but its signature declares Bool -> String      #
+#   type Model = Bool;  type Expansion = String;        #
+#   let expand = Functional(fun m : Model -> m)          #
+#                                                        #
+#   Expecting type Expansion                             #
+#   but got inconsistent type Model                      #
 
 # Note the member's type is spelled Model -> Model, not Bool -> Bool. #
 # The check realizes the type members on both sides before comparing; #
@@ -228,18 +230,19 @@ let mid = shade(25) in
 
 # THE TWO KINDS OF LIVELIT #
 
-# A definition answers to one of two builtin signatures. #
+# There is ONE signature, and `expand` is a sum. A definition picks a #
+# kind by which arm it inhabits. #
 
-#   LivelitFun:  let expand_fun : Model -> Expansion      (a VALUE) #
+#   let expand :                                            #
+#     + Functional( Model -> Expansion )        (a VALUE)   #
+#     + Macro( Model -> (Exp, List(SpliceRef)) )            #
 
-# and the paper's (Fig. 3, line 55): #
+# The Macro arm is the paper's (Fig. 3, line 55). #
 
-#   LivelitMac:  let expand_mac : Model -> (Exp, List(SpliceRef)) #
-
-# Two changes, and the second is the interesting one. #
+# Two changes from Functional, and the second is the interesting one. #
 
 # FIRST, the expansion becomes SYNTAX. `Exp` is quoted code, not a #
-# value -- so expand_mac writes a program rather than computing an #
+# value -- so Macro writes a program rather than computing an #
 # answer. Hazel's own $color expands to a quoted function: #
 
 #   fun model -> (`fun r g b a -> (r, g, b, a)`,          #
@@ -292,6 +295,6 @@ let mid = shade(25) in
 # Splice form in the grammar, sub-editors that share the host's #
 # zipper and statics, and a projector API for rendering them. #
 
-# SpliceRef -- the TYPE above, what expand_mac hands back -- exists #
+# SpliceRef -- the TYPE above, what the Macro arm hands back -- exists #
 # nowhere in the repo yet. So this branch is a merge plus a build, #
 # and only the merge can be taken from somewhere else. #

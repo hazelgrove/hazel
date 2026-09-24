@@ -17,7 +17,7 @@
 # the livelit projector off (bottom right corner of Hazel). #
 
 # Livelits are DEFINED IN THE PROGRAM: a module bound to a livelit name #
-# provides init, update, view and expand_fun members, plus an #
+# provides init, update, view and expand members, plus an #
 # shape -- Inline(w), Block(w, h), or Tab(w, h) -- for its footprint. #
 # The other slides in this deck each define one. #
 

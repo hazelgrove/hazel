@@ -219,10 +219,10 @@ let computed =
 
 # EXPANSION DOES NOT RETURN SPLICES #
 
-#   expand_mac : Model -> (Exp, List(SpliceRef)) #
+#   Macro( Model -> (Exp, List(SpliceRef)) ) #
 
-# The paper's expand_mac writes a PROGRAM, handing back the splices #
-# alongside, with the quoted expression a FUNCTION of them: #
+# The paper's macro expansion writes a PROGRAM, handing back the #
+# splices alongside, with the quoted expression a FUNCTION of them: #
 
 #   (`fun lo hi -> lo + (hi - lo) * pct / 100`, [m.lo, m.hi]) #
 
@@ -230,7 +230,7 @@ let computed =
 # AVOIDANCE: a splice passed as an argument is evaluated OUTSIDE the #
 # expansion, so a binding inside the expansion cannot capture it. #
 
-# Our expand_fun returns a VALUE, from bounds already evaluated #
+# Our Functional arm returns a VALUE, from bounds already evaluated #
 # in the client's scope. Capture cannot arise because nothing is #
 # substituted into a binder -- but equally, nothing here demonstrates #
 # the paper's solution. We avoided the problem rather than solving it. #

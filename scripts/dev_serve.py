@@ -157,18 +157,19 @@ def build_info(root):
         # while doing it, which is worse than not checking at all.
         # Stylesheets are deliberately absent: translate_path serves them
         # from the source tree, so they cannot go stale.
-        # Compare against the last dune RUN, not the bundle's own mtime.
-        # dune is content-based: `touch`ing a file, or editing it and
-        # undoing the edit, leaves the bundle untouched because nothing
-        # actually changed -- and an mtime-only check then reports stale
-        # forever. `_build/.filesystem-clock` is rewritten on every dune
-        # run, so "you have built since you edited" is what gets asked.
+        # Compare against THIS BUNDLE's mtime, and nothing else.
+        #
+        # A previous version compared against `_build/.filesystem-clock`,
+        # which dune rewrites on every run, reasoning that it answers "have
+        # you built since you edited" and so avoids a false positive when a
+        # file is touched but not changed. It answers a different question
+        # than the one that matters: ANY dune run satisfies it. Building the
+        # CLI and the test runner made it report stale: 0 while the page was
+        # serving a bundle from the previous day, and the stale build was
+        # caught by a human instead. A false positive here costs a needless
+        # rebuild; a false negative costs trust in the whole indicator, which
+        # is the only reason it exists.
         ref = mt
-        clock = os.path.join(repo, "_build", ".filesystem-clock")
-        try:
-            ref = max(ref, os.path.getmtime(clock))
-        except OSError:
-            pass
 
         newer = []
         for sub in ("src", "hazel-programs"):

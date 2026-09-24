@@ -71,7 +71,7 @@
 # Expansion what a use MEANS to the program #
 
 # Expansion is the one clients see. A use of ^flag has type #
-# Expansion no matter how expand_fun is written, so a reader can #
+# Expansion no matter how expand is written, so a reader can #
 # reason about the use without reading the widget's code. #
 
 # A LIVELIT IN FULL #
@@ -117,7 +117,7 @@ let ^flag = {
 # WHAT IS CHECKED, AND WHERE #
 
 # At the DEFINITION: your module is checked against Livelit above, #
-# so expand_fun really does produce an Expansion, update really #
+# so expand really does produce an Expansion, update really #
 # take a (Model, Action), and view really does produce Html.T. #
 
 # At each USE: the expansion is checked again, against the declared #
