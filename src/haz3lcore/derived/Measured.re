@@ -302,7 +302,6 @@ let of_segment_inner =
     : flat => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
-
   let shardify = (t: Tile.t, idx: int): Tile.t => {
     {
       ...t,
@@ -696,8 +695,7 @@ let of_segment =
       refractor_rows: Id.Map.t(int),
     )
     : t => {
-  let f =
-    of_segment_inner(~final=true, seg, shape_map, refractor_rows);
+  let f = of_segment_inner(~final=true, seg, shape_map, refractor_rows);
   let anchor =
     switch (seg) {
     | [p, ..._] => Piece.id(p)

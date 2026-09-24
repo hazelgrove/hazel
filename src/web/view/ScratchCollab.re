@@ -140,7 +140,17 @@ let parse = (~root: Sort.t, text: string): Segment.t => {
      boundaries; an incomplete one (a stray `in`, a `let` still being
      typed) is ordinary content;
    - content between items belongs to the next item: a definition's
-     `lead` text, or the start of a statement's / the tail's body. */
+     `lead` text, or the start of a statement's / the tail's body.
+
+   LOSSLESS: every character of the program belongs to exactly one leaf
+   or delimiter. A definition's region ends at its `in` and a
+   statement's at its `;`; whitespace after them (blank lines between
+   definitions) starts the next item. Leaves keep their edge whitespace
+   (the space before `=`, a newline after it, indentation, a newline
+   before `in`), so the program's text is exactly the concatenation of
+   leaves and delimiters and every peer shows the same layout.
+   Indentation is ordinary user-owned whitespace (canonical completion),
+   so nothing about layout is computed. */
 
 let only_secondary = (ps: list(Piece.t)): bool =>
   List.for_all(Piece.is_secondary, ps);
@@ -179,8 +189,10 @@ let cspans = (seg: Segment.t): list(cspan) => {
       | IDef =>
         switch (def_tile(arr[sp.sp_start])) {
         | Some((kind, t)) =>
+          /* the region ends at the tile: whitespace after `in` is the
+             next item's */
           go(
-            sp.sp_stop,
+            sp.sp_start + 1,
             rest,
             [
               {
@@ -188,7 +200,7 @@ let cspans = (seg: Segment.t): list(cspan) => {
                 c_id: Some(t.id),
                 c_start: prev,
                 c_tile: sp.sp_start,
-                c_stop: sp.sp_stop,
+                c_stop: sp.sp_start + 1,
               },
               ...acc,
             ],
@@ -196,8 +208,13 @@ let cspans = (seg: Segment.t): list(cspan) => {
         | None => go(prev, rest, acc) /* not a boundary: content */
         }
       | IStmt =>
+        /* the region ends at the `;`: whitespace after it is the next
+           item's */
+        let rec back = i =>
+          i > sp.sp_start && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+        let stop = back(sp.sp_stop);
         go(
-          sp.sp_stop,
+          stop,
           rest,
           [
             {
@@ -205,24 +222,21 @@ let cspans = (seg: Segment.t): list(cspan) => {
               c_id: sp.sp_id,
               c_start: prev,
               c_tile: prev,
-              c_stop: sp.sp_stop,
+              c_stop: stop,
             },
             ...acc,
           ],
-        )
+        );
       | ITail => go(prev, rest, acc) /* the final tail covers it */
       }
     };
   go(0, Focus.item_spans(seg), []);
 };
 
-/* index of a statement's `;` (its region minus trailing whitespace) */
-let semi_index = (c: cspan, arr: array(Piece.t)): int => {
-  let rec back = i =>
-    i > c.c_start && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-  let stop = back(c.c_stop);
-  stop > c.c_start && Focus.is_semi(arr[stop - 1]) ? stop - 1 : stop;
-};
+/* index of a statement's `;` (the last piece of its region) */
+let semi_index = (c: cspan, arr: array(Piece.t)): int =>
+  c.c_stop > c.c_start && Focus.is_semi(arr[c.c_stop - 1])
+    ? c.c_stop - 1 : c.c_stop;
 
 /* the pieces a leaf's text covers (untrimmed), as [start, stop) indices
    into the top level; header/body are tile children instead */
@@ -237,7 +251,7 @@ let content_range = (c: cspan, arr: array(Piece.t)): (int, int) =>
 
 let item_of_cspan =
     (~tail_id: Id.t, seg: Segment.t, arr: array(Piece.t), c: cspan): item => {
-  let text = s => text_of_seg(Focus.core_ws(s));
+  let text = text_of_seg; /* raw: leaves are lossless */
   let (a, b) = content_range(c, arr);
   let region = Focus.slice(a, b, seg);
   switch (c.c_kind, arr) {
@@ -313,19 +327,17 @@ let regrout_top = (seg: Segment.t): Segment.t =>
   |> Zipper.remold_regrout_global(Left, ~root=Exp)
   |> Zipper.unselect_and_zip;
 
-/* Replace top-level pieces [a, b) with [repl], keeping their edge
-   whitespace (padding round-trips without being stored). */
+/* Replace top-level pieces [a, b) with [repl]. Leaves are lossless: the
+   replacement carries its own edge whitespace. */
 let splice_range =
-    (a: int, b: int, repl: Segment.t, seg: Segment.t): Segment.t => {
-  let (pre, _, suf) = Focus.trim_ws(Focus.slice(a, b, seg));
-  Focus.take(a, seg) @ pre @ repl @ suf @ Focus.drop(b, seg);
-};
+    (a: int, b: int, repl: Segment.t, seg: Segment.t): Segment.t =>
+  Focus.take(a, seg) @ repl @ Focus.drop(b, seg);
 
 let splice_header = (id: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  Focus.splice_pat(id, Focus.rewrap_ws(Focus.find_pat, id, seg, repl), seg);
+  Focus.splice_pat(id, repl, seg);
 
 let splice_body = (id: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  Focus.splice_def(id, Focus.rewrap_ws(Focus.find_def, id, seg, repl), seg);
+  Focus.splice_def(id, repl, seg);
 
 let find_cspan = (kind: kind, id: Id.t, seg: Segment.t): option(cspan) =>
   List.find_opt(
@@ -381,14 +393,8 @@ let seg_of_items = (items: list(item)): option(Segment.t) => {
                    it.id,
                    parse(~root=root_of(it.kind, Header), it.header),
                  );
-            it.lead == ""
-              ? seg
-              : splice_content(
-                  it.kind,
-                  it.id,
-                  parse(~root=Exp, it.lead),
-                  seg,
-                );
+            /* always: the lead region holds the skeleton's separator */
+            splice_content(it.kind, it.id, parse(~root=Exp, it.lead), seg);
           | Stmt
           | Tail =>
             splice_content(it.kind, it.id, parse(~root=Exp, it.body), seg)
@@ -402,20 +408,19 @@ let seg_of_items = (items: list(item)): option(Segment.t) => {
 
 /* ---- single leaves in a program ---- */
 
-/* The segment a leaf's cell edits (edge whitespace trimmed). */
+/* A leaf's segment, raw (edge whitespace included; a definition cell
+   edits its trimmed core). */
 let leaf_seg =
     (kind: kind, id: Id.t, leaf: leaf, seg: Segment.t): option(Segment.t) =>
   switch (kind, leaf) {
-  | (Def | Type | Module, Header) =>
-    Option.map(Focus.core_ws, Focus.find_pat(id, seg))
-  | (Def | Type | Module, Body) =>
-    Option.map(Focus.core_ws, Focus.find_def(id, seg))
+  | (Def | Type | Module, Header) => Focus.find_pat(id, seg)
+  | (Def | Type | Module, Body) => Focus.find_def(id, seg)
   | (Def | Type | Module, Lead)
   | (Stmt | Tail, Body) =>
     Option.map(
       c => {
         let (a, b) = content_range(c, Array.of_list(seg));
-        Focus.core_ws(Focus.slice(a, b, seg));
+        Focus.slice(a, b, seg);
       },
       find_cspan(kind, id, seg),
     )
@@ -722,11 +727,11 @@ let leaf_ranges = (~tail_id: Id.t, seg: Segment.t): list(range) => {
   for (i in 0 to n - 1) {
     starts[i + 1] = starts[i] + lens[i];
   };
-  let core_range = (start: int, s: Segment.t) => {
-    let (pre, core, _) = Focus.trim_ws(s);
-    let a = start + utf16_length(text_of_seg(pre));
-    (a, a + utf16_length(text_of_seg(core)));
-  };
+  /* raw ranges: leaves are lossless */
+  let core_range = (start: int, s: Segment.t) => (
+    start,
+    start + utf16_length(text_of_seg(s)),
+  );
   List.concat_map(
     c => {
       let (a, b) = content_range(c, arr);
@@ -831,7 +836,11 @@ let delim_of =
   let shard = (p: option(Piece.t)) =>
     switch (p) {
     | Some(Tile({id, shards: [i], _} as t)) when is_item(id) =>
-      Some((id, i, Option.value(List.nth_opt(Tile.label(t), i), ~default="")))
+      Some((
+        id,
+        i,
+        Option.value(List.nth_opt(Tile.label(t), i), ~default=""),
+      ))
     | _ => None
     };
   switch (shard(Zipper.generalized_neighbor(Right, z)), z.caret) {
@@ -1273,3 +1282,22 @@ let send_caret = (c: option(caret)): unit =>
     State.last_caret := c;
     JsApi.caret(c);
   };
+
+/* A leaf's text split into (leading whitespace, core, trailing
+   whitespace): a definition cell shows the core (modular-editors' cells
+   trim edge whitespace and re-wrap it on splice). */
+let edge_ws = (s: string): (string, string, string) => {
+  let is_ws = c => c == ' ' || c == '\n' || c == '\t' || c == '\r';
+  let n = String.length(s);
+  let rec fwd = i => i < n && is_ws(s.[i]) ? fwd(i + 1) : i;
+  let a = fwd(0);
+  let rec bwd = j => j > a && is_ws(s.[j - 1]) ? bwd(j - 1) : j;
+  let b = bwd(n);
+  (String.sub(s, 0, a), String.sub(s, a, b - a), String.sub(s, b, n - b));
+};
+
+/* UTF-16 length of a leaf's leading whitespace (cell offset -> leaf offset) */
+let lead_ws_length = (s: string): int => {
+  let (pre, _, _) = edge_ws(s);
+  utf16_length(pre);
+};

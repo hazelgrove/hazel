@@ -89,7 +89,20 @@ half-typed code is the normal state while editing (`ScratchCollab.cspans`):
   text, or the start of a statement's / the tail's body.
 
 So typing a new definition between two others first shows up as the next
-item's `lead`, then, once its `in` is typed, as a new item. When splicing
+item's `lead`, then, once its `in` is typed, as a new item.
+
+**Lossless.** Every character of the program belongs to exactly one leaf or
+delimiter token. A definition's region ends at its `in` and a statement's
+at its `;`; whitespace after them (blank lines between definitions) starts
+the next item's `lead` (or statement/tail body). Leaves keep their edge
+whitespace: the space before `=`, a newline after it, indentation, a newline
+before `in`. So the program's text is exactly the concatenation of leaves
+and delimiters, every whitespace edit syncs, and every peer shows the same
+layout. This relies on dev's canonical completion (#2374): indentation is
+ordinary user-owned whitespace, so no layout is computed. Definition cells
+still show a leaf's trimmed core; caret offsets shift by its leading
+whitespace, and a remote edit updates the frozen program copy's edge
+whitespace too. When splicing
 content back in at the top level (lead / statement / tail), the top level
 is regrouted: unlike tile children it sits next to its neighbours (a lead
 `0` before a `let` needs an operator hole between them).
@@ -129,8 +142,8 @@ messages, a heartbeat, a TTL and a goodbye. A caret is either
 ## Leaf text semantics
 
 - Canonical text = `Printer.of_segment(~holes="", ~concave_holes="",
-  ~refractors=[])` of the leaf's segment: exactly what the user typed, with
-  grout (holes) derived, never stored.
+  ~refractors=[])` of the leaf's segment, whitespace included: exactly what
+  the user typed, with grout (holes) derived, never stored.
 - Local edit: after each action in a cell, print the leaf and diff against the
   previous print (common prefix/suffix) → one `A.splice` per changed leaf.
 - Remote edit to a leaf:

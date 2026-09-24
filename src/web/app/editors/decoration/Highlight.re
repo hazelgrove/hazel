@@ -823,7 +823,9 @@ let bbox_of_range =
            | (_, None) => None
            | (Some(bb), Some(shape: Measured.Rows.shape)) =>
              let left =
-               float_of_int(row == origin.row ? origin.col : shape.content_start);
+               float_of_int(
+                 row == origin.row ? origin.col : shape.content_start,
+               );
              let right =
                float_of_int(row == final.row ? final.col : shape.max_col);
              Some({

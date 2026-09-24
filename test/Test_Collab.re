@@ -40,12 +40,14 @@ let test_items = () => {
   check(
     list(string),
     "items",
+    /* lossless: leaves keep their edge whitespace, and whitespace after an
+       `in`/`;` starts the next item */
     [
-      "Def|# the answer #|x : Int|41",
-      "Type||T|(Int, Bool)",
-      "Def||f|fun y ->\n  y + 1",
-      "Stmt|||test f(x) == 42 end",
-      "Tail|||f(x)",
+      "Def|# the answer #\n| x : Int | 41 ",
+      "Type|\n| T | (Int, Bool) ",
+      "Def|\n| f | fun y ->\n  y + 1\n",
+      "Stmt|||\ntest f(x) == 42 end",
+      "Tail|||\nf(x)",
     ],
     List.map(summary, items),
   );
@@ -72,6 +74,46 @@ let test_roundtrip = () => {
         List.map((it: C.item) => Id.to_string(it.id), items'),
       );
     }
+  };
+};
+
+/* lossless: program text -> items -> program prints back byte for byte,
+   whitespace and all (blank lines, indentation, layout around delimiters) */
+let check_text_roundtrip = (label: string, text: string) => {
+  let items = items_of(text);
+  let seg = Option.get(C.seg_of_items(items));
+  check(string, label, text, C.text_of_seg(seg));
+};
+
+let test_text_roundtrip = () => {
+  check_text_roundtrip("sample", src);
+  check_text_roundtrip(
+    "layout around delimiters",
+    "let  x =\n    41\nin\n\n\nlet y=x in\n  y + 1\n",
+  );
+  check_text_roundtrip(
+    "half-typed",
+    "let a = 1 in\n  let b =\nlet c = 3 in c",
+  );
+  check_text_roundtrip(
+    "statements",
+    "test true end ;\n\ntest false end;  \n1",
+  );
+  switch (CorpusUtil.read_file("hazel-programs/bench/bench-1k.hz")) {
+  | Some(text) =>
+    let parity = Zipper.normalize_parity^;
+    Zipper.normalize_parity := false;
+    /* the rebuilt program prints exactly as the original does */
+    let seg = parse(Util.StringUtil.strip_final_newline(text));
+    let items = Option.get(C.items_of_seg(~tail_id, seg));
+    check(
+      string,
+      "bench-1k",
+      C.text_of_seg(seg),
+      C.text_of_seg(Option.get(C.seg_of_items(items))),
+    );
+    Zipper.normalize_parity := parity;
+  | None => ()
   };
 };
 
@@ -133,12 +175,12 @@ let test_total = () => {
   check_rt(
     "let being typed between defs",
     "let a = 1 in\nlet b = \nlet c = 3 in\nc",
-    ["Def||a|1", "Def|let b =|c|3", "Tail|||c"],
+    ["Def|| a | 1 ", "Def|\nlet b = \n| c | 3 ", "Tail|||\nc"],
   );
   check_rt(
     "partial let before a statement",
     "let a = 1 in\nlet \ntest a == 1 end;\na",
-    ["Def||a|1", "Stmt|||let \ntest a == 1 end", "Tail|||a"],
+    ["Def|| a | 1 ", "Stmt|||\nlet \ntest a == 1 end", "Tail|||\na"],
   );
 };
 
@@ -163,7 +205,7 @@ let test_lead_regrout = () => {
   check(
     list(string),
     "round-trip with a lead",
-    ["Def|0|foo|42", "Tail|||foo + 1"],
+    ["Def|0| foo | 42 ", "Tail||| foo + 1"],
     List.map(summary, Option.get(C.items_of_seg(~tail_id, seg''))),
   );
 };
@@ -194,9 +236,9 @@ let test_set_leaf = () => {
     list(string),
     "only the edited leaves changed",
     [
-      "Def|# the answer #|x : Int|41",
-      "Type||T|(Int, Bool)",
-      "Def||g|fun y -> y * 2",
+      "Def|# the answer #\n| x : Int | 41 ",
+      "Type|\n| T | (Int, Bool) ",
+      "Def|\n|g|fun y -> y * 2",
       "Stmt|||test true end",
       "Tail|||g(1)",
     ],
@@ -338,6 +380,11 @@ let tests = (
   [
     test_case("items of a program", `Quick, test_items),
     test_case("items round-trip", `Quick, test_roundtrip),
+    test_case(
+      "program text round-trips exactly",
+      `Quick,
+      test_text_roundtrip,
+    ),
     test_case("incomplete leaves", `Quick, test_incomplete_leaves),
     test_case("half-typed programs", `Quick, test_total),
     test_case("lead splice regrouts", `Quick, test_lead_regrout),

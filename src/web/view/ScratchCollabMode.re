@@ -35,9 +35,11 @@ let cell_zipper = (cell: CellEditor.Model.t): Zipper.t =>
 let mk_cell = (~root, z: Zipper.t): CellEditor.Model.t =>
   z |> Editor.Model.mk(~root) |> CellEditor.Model.mk;
 
-/* [cell] with its content replaced by [text], caret carried across */
+/* [cell] with its content replaced by the core of leaf text [raw] (cells
+   show a leaf without its edge whitespace), caret carried across */
 let rebuild_cell =
-    (~root, text: string, cell: CellEditor.Model.t): CellEditor.Model.t => {
+    (~root, raw: string, cell: CellEditor.Model.t): CellEditor.Model.t => {
+  let (_, text, _) = C.edge_ws(raw);
   let z = cell_zipper(cell);
   let old_text = C.text_of_seg(Zipper.unselect_and_zip(z));
   if (old_text == text) {
@@ -149,7 +151,9 @@ let apply_leaf = (model: Model.t, (id: Id.t, leaf: C.leaf, text: string)) => {
       ...model,
       focus:
         Some({
-          ...fo,
+          /* the frozen copy carries the leaf's edge whitespace, which the
+             cell's splice re-wraps its core in */
+          f_master_seg: C.set_leaf(kind, id, leaf, text, fo.f_master_seg),
           f_entries:
             List.map(
               (x: Model.stack_entry) => x.e_id == e.e_id ? e' : x,
@@ -455,8 +459,19 @@ let local_caret =
     switch (List.nth_opt(fo.f_entries, i)) {
     | Some(e) when !e.e_run =>
       let cell = is_header ? e.e_header : e.e_body;
-      let off = C.caret_offset(cell_zipper(cell));
-      Some(LeafAt(entry_item(e), is_header ? Header : Body, off, off));
+      let leaf: C.leaf = is_header ? Header : Body;
+      let item = entry_item(e);
+      /* the cell shows the leaf's core: leaf offset = cell offset + the
+         leaf's leading whitespace */
+      let pre =
+        switch (
+          List.find_opt(((it: C.item, _)) => it.id == item, C.State.synced^)
+        ) {
+        | Some((it, _)) => C.lead_ws_length(C.leaf_of(it, leaf))
+        | None => 0
+        };
+      let off = pre + C.caret_offset(cell_zipper(cell));
+      Some(LeafAt(item, leaf, off, off));
     | _ => None
     }
   | (None, None) =>
@@ -541,6 +556,15 @@ let peer_overlays_unguarded =
   let doc_id = C.doc_id(item);
   let z = cell_zipper(cell);
   let len = lazy(C.utf16_length(C.text_of_seg(Zipper.unselect_and_zip(z))));
+  let pre =
+    lazy(
+      switch (
+        List.find_opt(((it: C.item, _)) => it.id == item, C.State.synced^)
+      ) {
+      | Some((it, _)) => C.lead_ws_length(C.leaf_of(it, leaf))
+      | None => 0
+      }
+    );
   /* each peer's offset in this cell, if their caret shows here */
   let here = (p: C.Wire.peer): option(int) =>
     if (p.id != doc_id) {
@@ -548,7 +572,7 @@ let peer_overlays_unguarded =
     } else {
       switch (p.leaf, p.head, p.delim, p.off) {
       | (Some(l), Some(head), _, _) when C.leaf_of_string(l) == leaf =>
-        Some(head)
+        Some(max(0, min(head - Lazy.force(pre), Lazy.force(len))))
       | (None, _, Some(shard), Some(off)) =>
         switch (C.delim_in_leaf(kind_of_id(item), shard, off)) {
         | (l, `Start) when l == leaf => Some(0)
