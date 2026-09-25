@@ -1,9 +1,22 @@
 # A Color Picker Livelit #
 
 # Click the gradient square to pick; the slider sets the hue. The #
-# model is (hue, whiteness, blackness) and the expansion is a CSS #
-# hwb() string. The square IS the hwb space: a white-to-hue wash #
-# under a black veil, so the click math reads the color exactly. #
+# model (Sec. 3.2.1) is (hue, whiteness, blackness), and the #
+# expansion (Sec. 2.2) is a CSS hwb() string. The square IS the hwb #
+# space: a white-to-hue wash under a black veil, so the pixel under #
+# the pointer is the color the click math computes, give or take a #
+# percent: it works in whole pixels and whole percents. Clicking the #
+# dot itself can move the color by a percent. #
+
+# The paper's own color livelit -- rebuilt on the Color (Figure 3) #
+# slide -- keeps each channel as a splice, a region of the client's #
+# code inside the widget (Sec. 2.4.2), and its expand returns quoted #
+# code over them (Sec. 3.2.5). This one keeps three plain numbers and #
+# expands with Functional, straight to the String. It uses no splice #
+# commands, so all of it runs today; view and update answer with Pure. #
+
+# The helpers -- css, pick, dot_x, dot_y -- are ordinary members of #
+# the module; view and expand call them like any other function. #
 
 let ^hwb = {
   type Model = (Int, Int, Int);
@@ -91,6 +104,9 @@ let ^hwb = {
   let shape = Tab(16, 5)
 } in
 
-# Two picks, each with its own color stored in its argument: #
+# Two uses, each keeping its own color in its argument: the model #
+# lives in the program text (Sec. 3.2.1). A pick commits the new #
+# model value there, and so does letting go of the hue slider; while #
+# it moves, the widget only previews. #
 
 (^^livelit(^hwb(160, 25, 10)), ^^livelit(^hwb(280, 5, 40)))

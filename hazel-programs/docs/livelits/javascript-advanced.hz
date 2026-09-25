@@ -1,31 +1,49 @@
 # JavaScript Livelits (advanced) #
 
 # The livelit that ships built in, ^js, evaluates JavaScript. It is #
-# here at the end of the deck because it is the least typical one: #
+# here near the end of the deck because it is the least typical one: #
 # most livelits are defined in the program, as the earlier slides #
 # show, and need no escape hatch. #
 
-# A livelit is a live GUI widget which can be inserted into expressions. #
-# It elaborates to a value of some given type. #
+# A livelit is a live GUI that fills a typed hole (Sec. 1, Sec. 2). #
+# A use has the livelit's declared expansion type (Sec. 3.1) and #
+# means what its model EXPANDS to (Sec. 2.2). In the paper that is #
+# always a program, given as quoted code (Sec. 3.2.5). Here that kind #
+# is a Macro livelit, which cannot return real code yet, since Exp #
+# has no inhabitants (see the Overview, WHAT DOES NOT RUN YET). ^js #
+# instead expands to a value, as a Functional livelit does; that arm #
+# is this implementation's own, not the paper's. #
 
 # Invocation: #
-# To invoke a livelit, insert the name of the livelit (always prefixed with ^) then space. #
-# The context inspector shows which livelits are available and their elaboration type. #
+# To invoke a livelit, type its name (always prefixed with ^), then #
+# space. The context inspector shows which livelits are available #
+# and the expansion type of each. #
 
-# Each livelit maintains an internal model, which is not generally something the #
-# programmer should need to look at. You can see the internal model by toggling #
-# the livelit projector off (bottom right corner of Hazel). #
+# Each use keeps its MODEL in the program text itself (Sec. 3.2.1): #
+# below, it is the two strings inside ^js(...). The widget stands in #
+# for that text; to see the text, right-click the widget and choose #
+# Remove Livelit. #
 
-# Livelits are DEFINED IN THE PROGRAM: a module bound to a livelit name #
-# provides init, update, view and expand members, plus an #
-# shape -- Inline(w), Block(w, h), or Tab(w, h) -- for its footprint. #
-# The other slides in this deck each define one. #
+# Livelits are DEFINED IN THE PROGRAM: a module bound to a caret name #
+# declares types Model, Action and Expansion and provides init, #
+# update, view and expand. update and view return COMMANDS, an #
+# UpdateCmd and a ViewCmd (Sec. 3.2.4, Sec. 3.2.3); a plain answer is #
+# written Pure(...). An optional shape -- Inline(w), Block(w, h), or #
+# Tab(w, h) -- sets its footprint. The other slides each define one. #
 
-# One livelit ships built in: #
+# One livelit ships built in, and it is NOT such a module: ^js is #
+# written in the editor's own implementation language, so it is not #
+# checked against the Livelit signature, and its update and view are #
+# plain functions there, not commands. Its code is a string in the #
+# model, not a splice (Sec. 2.4.2), so unlike a splice, which is #
+# scoped at the use site (Sec. 2.4.3), it cannot see your variables. #
 
 # ^js #
-# Elaboration Type: String                                    #
-# Elaboration: The result of evaluating the code as JavaScript. #
-# Internal Model: (String, String) -- the code and its result.  #
+# Expansion type: String #
+# Expansion: the result string stored by the last Compute click. #
+# Model: (String, String) -- the code and its result. #
+# Compute runs the code in the browser and stores its result in the #
+# model. Running the program does not run JavaScript: expand just #
+# reads that stored string back out of the model. #
 let greeting = ^^livelit(^js("['hi', 'from js'].join(' ')", "hi from js")) in
 greeting

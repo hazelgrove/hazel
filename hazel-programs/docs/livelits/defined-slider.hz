@@ -1,19 +1,43 @@
-# User-Defined Livelits #
+# Define a Slider #
 
-# A livelit is a live GUI for a value in your program. Define one #
-# with a livelit name (^name) bound to a module: #
+# A number you drag, expanding to that number: ^pct, a module #
+# checked against the Livelit signature from the Overview. This #
+# slide goes through it one member at a time, the paper's type for #
+# each beside the type here, and ends by adding two uses as Ints. #
 
 # Three types declare the interface. Expansion is the one clients #
-# see: a use of ^pct has type Expansion, whatever expand gives. #
+# see: a use of ^pct has type Expansion however expand is written, #
+# so a client can reason about it from that type alone #
+# (Sec. 2.2, 2.3). #
 
-# Model:     the state a use carries, stored in its argument #
-# Action:    what the GUI emits #
-# Expansion: what a use MEANS to the program #
+# Model:     the state a use carries, persisted in the program #
+#            (Sec. 3.2.1). Here it is written as the use's argument, #
+#            ^pct(25); in the paper an argument at a use is a #
+#            parameter instead (Sec. 2.4.1) #
+# Action:    what the GUI emits (Sec. 3.2.2) #
+# Expansion: what a use MEANS to the program (Sec. 3.1) #
 
-# init:   the model a fresh use starts with #
-# update: (Model, Action) -> Model, run when the GUI acts #
-# view:   Model -> Html.T, whose handlers emit Actions #
-# expand: Model -> Expansion, checked against the declaration #
+# init:   the model a fresh use starts with. The paper's init is an #
+#         UpdateCmd(Model) (Sec. 3.2.1); here it is a plain Model, #
+#         pasted as text when you type ^pct #
+# update: Model -> Action -> UpdateCmd(Model), curried, run when #
+#         the GUI acts; the same in the paper (Sec. 3.2.4) #
+# view:   the paper's is Model -> ViewCmd(Html(Action)) (Sec. 3.2.3); #
+#         here it is Model -> ViewCmd(Html.T), and its handlers #
+#         still emit Actions #
+# expand: the paper's expand is a Macro -- quoted code for a #
+#         function over the use's splices, plus the list of them, #
+#         checked only at each use (Sec. 3.2.5). A number needs no #
+#         program written for it, so this one is Functional, an arm #
+#         this implementation adds: Model -> Expansion, checked here #
+#         at the definition. Macro can be written but cannot return #
+#         real code yet: its Exp can only be a hole. #
+
+# update and view return COMMANDS. Pure(x) is the command that #
+# answers x and does nothing else; a slider makes no splices, so #
+# both answer with Pure. Neither is annotated with its return type: #
+# Hazel cannot write an applied type like UpdateCmd(Model), so the #
+# member's expected type supplies it. The Overview slide says more. #
 
 let ^pct = {
   type Model = Int;
@@ -46,6 +70,10 @@ let ^pct = {
 } in
 
 # Each use below carries its own model, stored right here in the #
-# text: drag a slider and watch its argument change. #
+# text. Drag a slider: each `input` event on the way only re-renders #
+# the widget, so its label moves but nothing is written to the text. #
+# Let go, and the `change` event commits: the argument in the text #
+# becomes the new value, and the sum changes with it -- the program #
+# means what each model expands to (Sec. 2.2). #
 
 ^^livelit(^pct(25)) + ^^livelit(^pct(75))

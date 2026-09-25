@@ -1,13 +1,16 @@
 # A Tree-Care Livelit #
 
-# The biggest example in this deck, and the one whose MODEL is a data #
-# structure rather than a number. Feed the tree to grow it, click a #
-# branch to trim it, and walk the seasons to see the same tree dressed #
-# four ways. #
+# The biggest example in this deck, and the one whose MODEL is a #
+# recursive data type of its own -- a Tree that grows as you use it -- #
+# rather than a fixed handful of fields. Feed the tree to grow it, #
+# click a branch to trim it, and walk the seasons to see the same tree #
+# dressed four ways. #
 
 # Everything the widget knows is in the model, and the model is #
-# written into the program text -- so the tree you grow is literally #
-# part of your program. #
+# written into the program text (Sec. 3.2.1) -- so the tree you grow #
+# is literally part of your program. None of it is client code, so #
+# there are no splices here; compare Color (Figure 3), whose model is #
+# nothing but SpliceRefs. #
 
 type Season = + Fall + Winter + Spring + Summer in
 type LeafShape = + Oak + Maple + Elm + Aspen in
@@ -26,14 +29,15 @@ type Tree =
 # Where a trim happened, as a walk from the root: L and R pick a side. #
 type Step = + L + R in
 
-# What a use MEANS: a census, not a picture. #
+# What a use MEANS (Sec. 2.2): a census, not a picture. #
 type Census = (leaves=Int, branches=Int, scars=Int, season=Season) in
 
 let ^tree = {
   type Model = (tree=Tree, season=Season);
 
-  # The three sub-languages of this widget, in one Action type. #
-  #   season:  Next, Prev, SkipTo -- the same walk, three ways #
+  # The three sub-languages of this widget, in one Action type: what #
+  # its handlers emit and update consumes (Sec. 3.2.2). #
+  #   season:  Next, Prev, SkipTo -- three ways to set the season #
   #   growth:  Feed puts a new fork wherever a leaf is #
   #   pruning: Trim(path) cuts at a branch and leaves a Scar #
   type Action = + Next + Prev + SkipTo(Season) + Feed + Trim([Step]);
@@ -61,8 +65,10 @@ let ^tree = {
   let heal_time = fun s : Season ->
     case s | Winter => 4 | Fall => 3 | Spring => 2 | Summer => 1 end;
 
-  # A season passing ages every scar by one. At zero it stops, and the #
-  # renderer draws it as ordinary bark. #
+  # Every season control -- Next, Prev, or a season button, even the #
+  # one already pressed -- ages every scar by one, once, however far #
+  # the season moves. At zero a scar stops, and the renderer draws it #
+  # as ordinary bark; the census still counts it as a scar. #
   let age = fun t : Tree ->
     case t
     | Leaf(_) => t
@@ -105,6 +111,8 @@ let ^tree = {
       end
     end;
 
+  # update returns a command, an UpdateCmd (Sec. 3.2.4). With no #
+  # splices to write, it only answers the next model, so it is Pure. #
   let update = fun m : Model -> fun a : Action -> Pure(
     case a
     | Next => (tree=age(m.tree), season=next_of(m.season))
@@ -185,12 +193,13 @@ let ^tree = {
            Attr.create("fill", leaf_color((s, season)))], [])
       end;
 
-  # Lay the tree out by shrinking the horizontal spread three quarters #
-  # each level, so no trigonometry is needed. Shrinking SLOWLY is what #
-  # keeps a deep tree spreading: halving pinches the canopy shut into a #
-  # spire, since by the sixth fork the siblings are a pixel apart. #
-  # Each branch carries the path that reaches it, which is what a click #
-  # sends back as Trim. #
+  # Lay the tree out by shrinking the horizontal spread to three #
+  # quarters of itself each level, so no trigonometry is needed. #
+  # Shrinking SLOWLY is what keeps a deep tree spreading: halving #
+  # pinches the canopy shut into a spire, since by the sixth fork the #
+  # siblings are a pixel apart. #
+  # Each branch carries the path that reaches it, which is what a #
+  # click sends back as Trim. #
   let draw = fun (t, x, y, dx, dy, season, path, d)
       : (Tree, Int, Int, Int, Int, Season, [Step], Int) ->
     case t
@@ -232,6 +241,8 @@ let ^tree = {
       [Html.text(case s | Spring => "spr" | Summer => "sum"
                         | Fall => "fall" | Winter => "win" end)]);
 
+  # view returns a ViewCmd (Sec. 3.2.3); with no splices to read or #
+  # place, it too is Pure. #
   let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
@@ -255,6 +266,9 @@ let ^tree = {
                        Attr.style([("font-size", "0.7em")])],
                       [Html.text("water + feed")])])]));
 
+  # Functional, this implementation's own arm, since a census is plain #
+  # data computed from the model. The paper's expand is always quoted #
+  # code over the splices, plus their list (Sec. 3.2.5). #
   let expand = Functional(fun m : Model ->
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season));
@@ -265,7 +279,9 @@ let ^tree = {
 # The use below carries its whole tree in its argument. Grow it and #
 # the argument grows with it; trim a branch and a Scar appears in the #
 # text. The EXPANSION stays a census either way, so a client counts #
-# without ever matching on the tree. #
+# without ever matching on the tree: it reasons from the declared #
+# Census type (Sec. 2.3), without reading the expansion or the #
+# livelit (Sec. 1.2, Sec. 2.2). #
 
 let ^^probe(census) = ^^livelit(^tree((
   tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),

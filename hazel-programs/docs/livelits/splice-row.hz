@@ -1,0 +1,183 @@
+# Splices, Dynamically #
+
+# DRAFT. The paper's design, written before its splices can run. #
+
+# Every command below is in the types today -- new_splice in update, #
+# editor in view -- and the slide typechecks. editor runs, but there #
+# is no splice store yet, so new_splice cannot. The empty sequence #
+# still draws, and rotate works, since neither makes a splice. #
+# Clicking + cell runs new_splice, which reports #
+# "not implemented" in the browser console and adds no cell. #
+# Building that store is what switches this slide on. #
+
+# THE DESIGN #
+
+# In the paper the number of splices is not fixed: it can change as #
+# the user works, as when a $dataframe gains a row (Sec. 2.4.2). #
+# Every splice is made by a command. Figure 3's init makes its four #
+# with new_splice (Sec. 3.2.1), and update, which may act on the #
+# splices as well as the model, can make more (Sec. 3.2.4). This #
+# slide uses the second half: a row of cells, one splice each, where #
+# a click makes one more. #
+
+# The SpliceRef, MVP slide runs today by reading its splices from #
+# parens the author wrote. That is a stopgap until the splice store #
+# exists, not the design, and it is also why that slide cannot grow #
+# a splice. #
+
+# Bring the mouse near a cell and its buttons appear around it: #
+#   +   on its leading side -- a new empty cell before it #
+#   +   on its trailing side -- a new empty cell after it #
+#   x   below it -- drop it #
+# The inserts sit ALONG the sequence and delete sits ACROSS it, so #
+# each + is exactly where its new cell will land. #
+# Hover the whole sequence and "rotate" appears at both ends, turning #
+# it between a row and a column. One dimension only, for now. #
+
+# Outside the livelit so the use below can name Row as well. #
+type Orient = + Row + Column in
+
+let ^cells = {
+  type Model = (orient = Orient, refs = [SpliceRef]);
+  type Action =
+    + InsertBefore(Int) + InsertAfter(Int) + Delete(Int) + Rotate;
+  type Expansion = Int;
+
+  # EMPTY, and forced to be. init is a plain Model, not a command: it #
+  # is syntax pasted at the caret when you type ^cells, and there is #
+  # no evaluator at that moment to run new_splice. So the first cell #
+  # has to come from a click, which is why an empty sequence still #
+  # offers "+ cell". Figure 3's init is an UpdateCmd that calls #
+  # new_splice (Sec. 3.2.1); ours cannot. #
+  let init = (orient = Row, refs = []);
+
+  let len : [SpliceRef] -> Int =
+    fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+
+  let insert_at : ([SpliceRef], Int, SpliceRef) -> [SpliceRef] =
+    fun (xs, i, r) ->
+      if i <= 0 then r :: xs
+      else case xs
+        | [] => [r]
+        | x :: rest => x :: insert_at((rest, i - 1, r))
+        end;
+
+  # Deleting a cell is only FORGETTING its ref. There is no #
+  # drop_splice: a splice that nothing in the model reaches is #
+  # garbage, and the next commit can let it go. #
+  let remove_at : ([SpliceRef], Int) -> [SpliceRef] =
+    fun (xs, i) ->
+      case xs
+      | [] => []
+      | x :: rest => if i == 0 then rest else x :: remove_at((rest, i - 1))
+      end;
+
+  # update is a command, in UpdateCmd (Sec. 3.2.4), and that is what #
+  # lets it make a splice at all: new_splice lives there and nowhere #
+  # else (Sec. 3.2.1). IntT names the new cell's type and None means #
+  # it starts with no code, so this needs nothing from quotation. #
+  let update = fun m : Model -> fun a : Action ->
+    case a
+    | InsertBefore(i) =>
+      do r <- new_splice((IntT, None)) in
+      Pure((orient = m.orient, refs = insert_at((m.refs, i, r))))
+    | InsertAfter(i) =>
+      do r <- new_splice((IntT, None)) in
+      Pure((orient = m.orient, refs = insert_at((m.refs, i + 1, r))))
+    | Delete(i) => Pure((orient = m.orient, refs = remove_at((m.refs, i))))
+    | Rotate =>
+      Pure((orient = (case m.orient | Row => Column | Column => Row end),
+            refs = m.refs))
+    end;
+
+  # view answers in ViewCmd, where editor lives (Sec. 3.2.3). #
+  # Each cell's editor is its own command, so a row of them means #
+  # sequencing one command per cell -- a do per cell, threaded down #
+  # the list. #
+
+  # The controls are ordinary buttons revealed by a :hover rule, not #
+  # model state. Hover as state would be the MVU catalog's approach, #
+  # and in a livelit it is wrong: the model lives in the program text #
+  # (Sec. 3.2.1), so every mouse movement would rewrite the program. #
+  # If the style element is not honored the rule never applies and the #
+  # controls simply stay visible -- worse looking, still usable. #
+  let view = fun m : Model ->
+    let editors = fun rs ->
+      case rs
+      # The one place the monad has to be SAID. This base case sits #
+      # outside any do, so nothing tells it which monad it is in, and #
+      # the helper cannot be annotated: ViewCmd([Html.T]) is not a #
+      # writable type. So it spells Pure out as view_return: Pure at #
+      # ViewCmd, told its answer type explicitly. #
+      | [] => view_return @<[Html.T]>([])
+      | r :: rest =>
+        do e <- editor((r, FixedWidth(6))) in
+        do es <- editors(rest) in
+        Pure(e :: es)
+      end
+    in
+    let ctl = fun (label, tip, act) ->
+      Html.button(
+        [Attr.class("ll-hov"), Attr.create("title", tip), Attr.on_click(act),
+         Attr.style([("font-size", "0.65em"), ("padding", "0 3px")])],
+        [Html.text(label)])
+    in
+    # Inserts flank the editor along the sequence; delete sits across #
+    # it, in ll-core. Hidden buttons keep their space, so the hover #
+    # region is the cell PLUS its button margins: they appear when the #
+    # mouse is near the cell, not only when it is over the editor. #
+    # The reveal rule is a DESCENDANT selector, .ll-cell:hover .ll-hov, #
+    # because the x sits one level down, inside ll-core. #
+    let cell = fun (i, ed) ->
+      Html.div([Attr.class("ll-cell")],
+        [ctl(("+", "insert before", InsertBefore(i))),
+         Html.div([Attr.class("ll-core")],
+           [ed, ctl(("x", "delete", Delete(i)))]),
+         ctl(("+", "insert after", InsertAfter(i)))])
+    in
+    let cells = fun (i, eds) ->
+      case eds
+      | [] => []
+      | e :: rest => cell((i, e)) :: cells((i + 1, rest))
+      end
+    in
+    let rot =
+      Html.button(
+        [Attr.class("ll-edge"), Attr.create("title", "rotate"),
+         Attr.on_click(Rotate), Attr.style([("font-size", "0.65em")])],
+        [Html.text("rotate")])
+    in
+    let css =
+      ".ll-seq{display:flex;gap:6px;align-items:center}.ll-col{flex-direction:column;align-items:flex-start}.ll-cell{display:flex;align-items:center;gap:2px}.ll-core{display:flex;flex-direction:column;align-items:center;gap:1px}.ll-col .ll-cell{flex-direction:column}.ll-col .ll-core{flex-direction:row}.ll-hov{visibility:hidden}.ll-cell:hover .ll-hov{visibility:visible}.ll-edge{visibility:hidden}.ll-seq:hover>.ll-edge{visibility:visible}"
+    in
+    let seq_class =
+      case m.orient | Row => "ll-seq" | Column => "ll-seq ll-col" end
+    in
+    do eds <- editors(m.refs) in
+    let body =
+      case m.refs
+      | [] =>
+        [Html.button([Attr.on_click(InsertBefore(0))], [Html.text("+ cell")])]
+      | _ => cells((0, eds))
+      end
+    in
+    Pure(
+      Html.div([], [
+        Html.node("style", [], [Html.text(css)]),
+        Html.div([Attr.class(seq_class)], [rot] @ body @ [rot])
+      ]));
+
+  # What a use of ^cells MEANS (Sec. 3.2.5). Functional can only #
+  # compute from the model, so here the use denotes how many cells #
+  # there are. It cannot denote what the client WROTE in them: a #
+  # Functional expand is a plain function and cannot eval_splice, #
+  # which lives in ViewCmd alone (Sec. 3.2.3). Making the use mean the #
+  # list of the cells' values is the Macro arm's job -- #
+  # (Exp, List(SpliceRef)), an expansion parameterized over exactly #
+  # these refs (Sec. 3.2.5) -- and that waits on quotation to inhabit #
+  # Exp. #
+  let expand = Functional(fun m : Model -> len(m.refs));
+  let shape = Block(48, 10)
+} in
+# A use, starting empty: init cannot make a splice (see init). #
+^^livelit(^cells((orient = Row, refs = [])))

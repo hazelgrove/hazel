@@ -5,6 +5,7 @@
 let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     ("Overview", [%blob "overview.hz"]),
+    ("Color (Figure 3)", [%blob "color-fig3.hz"]),
     ("Define a Slider", [%blob "defined-slider.hz"]),
     ("The Expansion", [%blob "expansion.hz"]),
     ("SpliceRef, MVP", [%blob "splices-mvp.hz"]),
@@ -13,6 +14,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Tree Care", [%blob "tree-care.hz"]),
     ("Timings", [%blob "timings.hz"]),
     ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),
+    ("Splices, Dynamically (draft)", [%blob "splice-row.hz"]),
   ]
   |> List.map(((name, text)) =>
        (

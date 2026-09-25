@@ -1,0 +1,180 @@
+# Color: the Paper's Figure 3, Rebuilt #
+
+# Figure 3 of the paper -- Omar et al., Filling Typed Holes with Live #
+# GUIs, PLDI 2021 -- defines $color, and Sec. 3.1 through 3.2.5 walk #
+# through it member by member. This slide is that same definition in #
+# this implementation, written to follow the figure as closely as the #
+# language allows. Each piece is tagged "Fig. 3 l.N" with the line of #
+# the figure it corresponds to, so the paper can sit open beside it. #
+
+# Where a line CANNOT be written yet, it is still written -- as a hole #
+# (?) in exactly the place the paper puts its code. A hole stands for #
+# code not written yet and checks against any type, so the definition #
+# still typechecks and each gap sits where it actually is. A result #
+# that needs a hole is indeterminate, not a value (Sec. 2.5.2). #
+
+# WHAT IS MISSING #
+
+# Figure 3's expand (l.55-57) is a MACRO: it returns a quoted #
+# function, `fun r g b a -> (r, g, b, a)`, together with the four #
+# splices to apply it to. That is the paper's expand member #
+# (Sec. 3.2.5, formalized in Sec. 4.2.2): the use's meaning is that #
+# function applied to the client's splices. It never sees them as Exp #
+# -- it must treat them parametrically -- and applying it to them is #
+# what keeps them capture-avoiding (Sec. 2.4.3). The quoted function #
+# cannot be written here. Exp has no inhabitants -- there is no #
+# quotation -- so this expand is a Macro with a hole where the quoted #
+# function goes. A Macro can be written, but it cannot return. #
+
+# The same missing Exp shows up twice more: set_splice has no code to #
+# write (l.49-52), and init could not quote its starting values #
+# (l.9-12) even if it ran. Two gaps are not about Exp at all. init is #
+# a plain Model, not an UpdateCmd(Model), so it cannot call new_splice #
+# (l.8-13, Sec. 3.2.1). And there is no splice store yet, so of the #
+# five splice commands only editor runs. The view's first command, #
+# eval_splice, reports "not implemented", and the widget below shows #
+# that error. #
+
+# Fig. 3 l.1 -- the expansion type. The paper spells labeled fields #
+# .r Int; here they are r = Int. #
+type Color = (r = Int, g = Int, b = Int, a = Int) in
+
+# Fig. 3 l.2 -- the declaration, livelit $color at Color, which gives #
+# the name and the expansion type (Sec. 3.1). There is no separate #
+# declaration form here: the name is the caret binding, and "at Color" #
+# is the Expansion member. #
+let ^color = {
+  type Expansion = Color;
+
+  # Fig. 3 l.3-4 -- the model is four SpliceRefs, one per channel. The #
+  # model holds HANDLES to the client's code, not the numbers. #
+  type Model = (r = SpliceRef, g = SpliceRef, b = SpliceRef, a = SpliceRef);
+
+  # Fig. 3 l.6 -- context { }, the definition-site context (Sec. 3.2). #
+  # There is no context clause here, and nothing checks what a #
+  # definition refers to. By convention a definition is closed: its #
+  # helpers are its own members, and builtins like Html and #
+  # string_of_int are in scope. That matters because update runs at #
+  # event time, where only the builtins are in scope. #
+
+  # Fig. 3 l.15-16 -- the one action: the reader clicked a color. #
+  type Action = + ClickOn(Color);
+
+  # Fig. 3 l.8-13 -- init. In the paper this is a COMMAND: #
+  # an UpdateCmd(Model) that makes four splices with new_splice, each #
+  # holding a quoted starting value like `0`, and returns their refs. #
+  # Neither half works here. init is a plain Model, pasted as text when #
+  # you type ^color, with no evaluator to run new_splice at that moment; #
+  # and `0` is quotation. So the four refs are holes. #
+  let init = (r = ?, g = ?, b = ?, a = ?);
+
+  # Fig. 3 l.18-44 -- view, a function that returns a ViewCmd #
+  # (Sec. 3.2.3). This part follows the figure closely: the do block #
+  # is the paper's own notation (Sec. 3). #
+  let view = fun model : Model ->
+    # Fig. 3 l.20-24 -- determine a color to display, by evaluating #
+    # each channel's splice (Sec. 3.2.3). #
+    do r_res <- eval_splice(model.r) in
+    do g_res <- eval_splice(model.g) in
+    do b_res <- eval_splice(model.b) in
+    do a_res <- eval_splice(model.a) in
+    # Fig. 3 l.25-35 -- all four must be values to make a color. The #
+    # paper matches Some(Val(IntLit(r))): its results are values AS #
+    # SYNTAX, an Exp. With no Exp here, Val carries the value itself, #
+    # so the pattern is Some(Val(r)). Anything else -- a splice that is #
+    # still a hole, say -- gives no color (Sec. 2.5.2). #
+    let cur_color =
+      case (r_res, g_res, b_res, a_res)
+      | (Some(Val(r)), Some(Val(g)), Some(Val(b)), Some(Val(a))) =>
+        Some((r, g, b, a))
+      | _ => None
+      end
+    in
+    # Fig. 3 l.37-42 -- one editor per splice, each FixedWidth(20), the #
+    # constructor the figure uses (Sec. 3.2.3). #
+    let size = FixedWidth(20) in
+    do r_editor <- editor((model.r, size)) in
+    do g_editor <- editor((model.g, size)) in
+    do b_editor <- editor((model.b, size)) in
+    do a_editor <- editor((model.a, size)) in
+    # Fig. 3 l.44 -- the paper elides the rendering. Here: a swatch of #
+    # the current color, shown as X when it is indeterminate (l.33), #
+    # the four editors, and a few colors to click. #
+    let swatch =
+      case cur_color
+      | Some((r, g, b, a)) =>
+        Html.div(
+          [Attr.style([
+             ("width", "28px"), ("height", "28px"),
+             ("border", "1px solid #888"),
+             ("background",
+              "rgb(" ++ string_of_int(r) ++ " " ++ string_of_int(g) ++ " "
+              ++ string_of_int(b) ++ " / " ++ string_of_int(a) ++ "%)")])],
+          [])
+      | _ =>
+        Html.div(
+          [Attr.style([("width", "28px"), ("height", "28px"),
+                       ("border", "1px solid #888"),
+                       ("text-align", "center")])],
+          [Html.text("X")])
+      end
+    in
+    let channel = fun (label, ed) ->
+      Html.div([Attr.style([("display", "flex"), ("gap", "4px")])],
+        [Html.text(label), ed])
+    in
+    let pick = fun (label, c) ->
+      Html.button([Attr.on_click(ClickOn(c))], [Html.text(label)])
+    in
+    Pure(
+      Html.div([Attr.style([("display", "flex"), ("gap", "8px")])],
+        [swatch,
+         Html.div([],
+           [channel(("r", r_editor)), channel(("g", g_editor)),
+            channel(("b", b_editor)), channel(("a", a_editor))]),
+         Html.div([],
+           [pick(("red", (r = 255, g = 0, b = 0, a = 100))),
+            pick(("teal", (r = 0, g = 128, b = 128, a = 100))),
+            pick(("clear", (r = 0, g = 0, b = 0, a = 0)))])]));
+
+  # Fig. 3 l.46-53 -- update, a function that returns an UpdateCmd #
+  # (Sec. 3.2.4). In the paper a click OVERWRITES the four splices with #
+  # the clicked color: the livelit writes into the client's code, which #
+  # is exactly what set_splice is for. Here the code to write is a hole #
+  # (below), so the clicked color _c goes unused, and set_splice does #
+  # not run yet. The paper's pattern fun model (ClickOn c) is a case #
+  # here, and each bare set_splice statement binds its () answer to _. #
+  let update = fun model : Model -> fun a : Action ->
+    case a
+    | ClickOn(_c) =>
+      # Fig. 3 l.49-52 -- the paper writes IntLit(c.r), a number as #
+      # SYNTAX. That is an Exp constructor, not quotation, so it could #
+      # arrive before quotation does -- but today Exp is empty, and the #
+      # code to write is a hole. #
+      do _ <- set_splice((model.r, ?)) in
+      do _ <- set_splice((model.g, ?)) in
+      do _ <- set_splice((model.b, ?)) in
+      do _ <- set_splice((model.a, ?)) in
+      # Fig. 3 l.53 -- return model. In the paper the model is the same #
+      # four refs, and what changes is the code they point at. #
+      Pure(model)
+    end;
+
+  # Fig. 3 l.55-57 -- expand, the MACRO. The paper hands back a quoted #
+  # curried function and the splice list to apply it to: #
+  #   (`fun r g b a -> (r, g, b, a)`, #
+  #    [model.r, model.g, model.b, model.a]) #
+  # The splice list is written exactly. The quoted function is a hole, #
+  # because Exp has no inhabitants -- see WHAT IS MISSING at the top. #
+  let expand =
+    Macro(fun model : Model -> (?, [model.r, model.g, model.b, model.a]));
+
+  let shape = Block(40, 5)
+} in
+
+# A use. Its model is four holes, because init cannot make the splices; #
+# the widget reports "not implemented" because nothing runs the splice #
+# commands yet. A splice store alone will not bring it to life: the #
+# refs stay holes until init is a command that can call new_splice, #
+# and set_splice and expand still wait on Exp. #
+^^livelit(^color((r = ?, g = ?, b = ?, a = ?)))

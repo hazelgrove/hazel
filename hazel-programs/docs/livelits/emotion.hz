@@ -4,7 +4,9 @@
 # the control -- drag it up or down to change it. #
 
 # The constructors live out here: a use writes its own model in the #
-# program text (last line), and clients match on what it means. #
+# program text (last line, Sec. 3.2.1), and clients match on what it #
+# means, the Mood, from its declared expansion type (Sec. 2.3), #
+# without reading the livelit (Sec. 1.2, Sec. 2.2). #
 type Drag = + Idle + Held(Int, Int) in
 type MoodIntensity = + Somewhat + Very in
 type Mood = + Happy(MoodIntensity) + Sad(MoodIntensity) + Neutral in
@@ -12,22 +14,28 @@ type Mood = + Happy(MoodIntensity) + Sad(MoodIntensity) + Neutral in
 let ^mood = {
   type Model = (Int, Drag);
 
-  # Three actions, and each one earns its place: #
+  # Three actions (Sec. 3.2.2), and each one earns its place: #
   #   Down(y)    Idle -> Held: records the mood AND the grab point, #
   #              so a later move knows what it is measuring from. #
   #   MoveTo(y)  the only action that changes the mood, and only #
   #              while Held -- see its Idle branch below. #
   #   Up         Held -> Idle. Without it the face would go on #
-  #              following the pointer after you let go. #
+  #              following the pointer after you let go. Up is #
+  #              also what writes the drag into the program text: #
+  #              Down and MoveTo only preview it. #
   type Action = + Down(Int) + MoveTo(Int) + Up;
 
   type Expansion = Mood;
 
 
+  # init is a plain Model here; the paper's is an UpdateCmd #
+  # (Sec. 3.2.1). This livelit makes no splices, so nothing is lost. #
   let init : Model = (50, Idle);
 
   let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
 
+  # update gives back a command, an UpdateCmd (Sec. 3.2.4). With no #
+  # splices to make or write, it answers the next model with Pure. #
   # Held remembers the mood and the y where the grab began, so a #
   # move is just the distance dragged: DOWN smiles, 2 mood per px. #
   let update = fun (v, drag) : Model -> fun a : Action -> Pure(
@@ -37,7 +45,8 @@ let ^mood = {
       case drag
       # not dragging: pointer moves over the face are ignored. This is #
       # the branch that makes Up worth having -- the two only pay off #
-      # together, and hovering leaving the mood alone is how you see it. #
+      # together, and hovering leaving the mood alone is how you see #
+      # it. #
       | Idle => (v, drag)
       | Held(v0, y0) => (clamp(v0 + 2 * (y - y0)), drag)
       end
@@ -45,8 +54,9 @@ let ^mood = {
     end);
 
   # The mouth is a quadratic whose control point sits at 90 + 4v/5, #
-  # while its corners stay at 130: the lip is flat at exactly v = 50. #
-  # Neutral brackets that crossing, and each expression takes a fifth. #
+  # while its corners stay at 130: the lip is flat at v = 50 and 51, #
+  # since Int division rounds 4v/5 down. Neutral brackets that #
+  # crossing, and each expression takes a fifth. #
   let mood = fun (v, _drag) : Model ->
     if v < 20 then Sad(Very)
     else if v < 40 then Sad(Somewhat)
@@ -58,6 +68,9 @@ let ^mood = {
   let mouth = fun v ->
     "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
 
+  # view gives back a ViewCmd (Sec. 3.2.3). With no splices to read #
+  # or show, it answers its Html with Pure. The SVG's three pointer #
+  # handlers emit the three Actions. #
   let view = fun (v, _drag) : Model -> Pure(
     Html.div(
       [Attr.create("data-hint", "drag up/down"),
@@ -84,14 +97,19 @@ let ^mood = {
       ]
     ));
 
+  # Functional, this implementation's own arm: the expansion is a #
+  # VALUE, the Mood, computed from the model. The paper's expand is #
+  # always quoted code over the splices (Sec. 3.2.5); with no splices, #
+  # the value is all this livelit needs. #
   let expand = Functional(fun m : Model -> mood(m));
 
   let shape = Tab(10, 4)
 } in
 
-# A use means its EXPANSION. Binding it gives the reader all three #
-# things at once: the WIDGET, the Mood it expands to as Hazel data #
-# (the probe below), and the String that greeting turns it into. #
+# A use means its EXPANSION (Sec. 2.2). Binding it gives the reader #
+# all three things at once: the WIDGET, the Mood it expands to as #
+# Hazel data (the probe below), and the String that greeting turns #
+# it into. #
 
 let greeting = fun m : Mood ->
   case m
