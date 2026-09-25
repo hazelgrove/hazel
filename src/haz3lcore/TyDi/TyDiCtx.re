@@ -133,10 +133,28 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
  * TODO: Only goes one level deep. Nested qualified access (A.B.x) would
  * require recursive expansion. See also: List(Prod) types could generate
  * qualified suggestions where field types are wrapped in List(...). */
-let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+
+/* Whether `name.` can start a suggestion the caller will keep. The only
+ * caller, TyDi.set_buffer, keeps a suggestion only if it starts with the
+ * token left of the caret; a qualified one is `name.label...`, so that
+ * needs the token and `name.` to be prefixes one of the other. Checked
+ * before named_fields, which normalizes the entry's type -- for a module,
+ * its whole signature -- and is most of a keystroke's cost when every
+ * builtin module is in scope. No prefix: keep everything. */
+let could_qualify = (~prefix: option(string), name: string): bool =>
+  switch (prefix) {
+  | None => true
+  | Some(tok) =>
+    let head = name ++ ".";
+    String.starts_with(~prefix=tok, head)
+    || String.starts_with(~prefix=head, tok);
+  };
+
+let bound_qualified =
+    (~prefix=?, ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
     fun
-    | Ctx.VarEntry({typ, name, _}) =>
+    | Ctx.VarEntry({typ, name, _}) when could_qualify(~prefix, name) =>
       named_fields(ctx, typ)
       |> List.filter_map(((label, field_ty)) =>
            Typ.is_consistent(ctx, ty_expect, field_ty)
@@ -157,10 +175,10 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
  * E.g., if String has (length=String->Int) and we expect Int,
  * suggest "String.length(". */
 let bound_qualified_aps =
-    (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+    (~prefix=?, ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
     fun
-    | Ctx.VarEntry({typ, name, _}) =>
+    | Ctx.VarEntry({typ, name, _}) when could_qualify(~prefix, name) =>
       named_fields(ctx, typ)
       |> List.filter_map(((label, field_ty: Typ.t)) =>
            switch (field_ty.term) {
@@ -201,7 +219,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
  * optimization is a single-pass refactor that classifies entries into
  * buckets in one traversal, and/or pre-caching results for the fixed
  * builtin context. */
-let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
+let suggest_variable = (~prefix=?, ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
   let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
   switch (ci) {
@@ -209,8 +227,8 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     bound_variables(ana, ctx)
     @ bound_livelits(ana, ctx)
     @ bound_aps(ana, ctx)
-    @ bound_qualified(ana, ctx)
-    @ bound_qualified_aps(ana, ctx)
+    @ bound_qualified(~prefix?, ana, ctx)
+    @ bound_qualified_aps(~prefix?, ana, ctx)
     @ bound_constructors(x => Exp(Common(x)), ana, ctx)
     @ bound_constructor_aps(x => Exp(Common(x)), ana, ctx)
   | InfoPat({ana, co_ctx, _}) =>
@@ -244,7 +262,8 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
  *
  */
 
-let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
+let suggest_lookahead_variable =
+    (~prefix=?, ci: Info.t): list(TyDiSuggestion.t) => {
   let restrategize = (suffix, {content, strategy}) => {
     content: content ++ suffix,
     strategy,
@@ -255,11 +274,11 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>
       bound_variables(ty, ctx)
-      @ bound_qualified(ty, ctx)
+      @ bound_qualified(~prefix?, ty, ctx)
       @ bound_constructors(x => Exp(Common(x)), ty, ctx);
     let exp_aps = ty =>
       bound_aps(ty, ctx)
-      @ bound_qualified_aps(ty, ctx)
+      @ bound_qualified_aps(~prefix?, ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>

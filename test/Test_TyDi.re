@@ -400,6 +400,75 @@ let ci_sort_tests = (
   ],
 );
 
+/* TyDi.suggest(~prefix) skips qualified entries that cannot start with
+   the typed token. It must not change what set_buffer keeps: the
+   suggestions that start with the token, in order. Compared on the
+   qualified cases above and on the builtin modules (Html, Attr, Cmd, Sub),
+   whose signatures are what the skipping saves normalizing. */
+let prefix_pruning_is_exact = code => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (Indicated.ci_for_completion(z, info_map), TyDi.token_to_left(z)) {
+  | (Some(ci), Some(tok)) =>
+    let kept = l =>
+      l
+      |> List.filter(({content, _}: TyDiSuggestion.t) =>
+           String.starts_with(~prefix=tok, content)
+         )
+      |> List.map(({content, _}: TyDiSuggestion.t) => content);
+    let all = kept(TyDi.suggest(ci, z));
+    check(list(string), code, all, kept(TyDi.suggest(~prefix=tok, ci, z)));
+    all;
+  | _ => fail("no completion point in " ++ code)
+  };
+};
+
+let prefix_pruning_tests = (
+  "TyDi.PrefixPruning",
+  [
+    test_case("same suggestions kept, with and without", `Quick, () => {
+      List.iter(
+        code => ignore(prefix_pruning_is_exact(code)),
+        [
+          "let mm : (empty=String) = (empty=\"\") in let x : String = mm¦",
+          "let mm : (double=Int -> Int) = (double=fun n -> n * 2) in let x : Int = mm¦",
+          "let math : (square=Int -> Int) = (square=fun n -> n * n) in let x : Int = ma¦",
+          "let mm : (count=Int) = (count=0) in let b : Bool = mm¦",
+          "let m = { type T = Int; let value = 1 } in m.va¦",
+          "let x : String = St¦",
+          "let x : Int = Str¦",
+          "let x : Bool = Li¦",
+          "let x : [Int] = Li¦",
+          "let x : Int = 12¦",
+          "let x = Ht¦",
+          "let x = Html¦",
+          "let x = At¦",
+          "let x = Cm¦",
+          "let x : Bool = Su¦",
+        ],
+      )
+    }),
+    /* The control: builtin modules do offer qualified suggestions, so
+       the comparison above covers entries the pruning keeps. */
+    test_case(
+      "a builtin module still completes",
+      `Quick,
+      () => {
+        let all = prefix_pruning_is_exact("let x = Ht¦");
+        check(
+          bool,
+          "some Html. suggestion",
+          true,
+          List.exists(c => String.starts_with(~prefix="Html.", c), all),
+        );
+      },
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -410,6 +479,7 @@ let tests = [
   type_tests,
   suppression_tests,
   qualified_tests,
+  prefix_pruning_tests,
   base_typ_suppression_tests,
   ci_sort_tests,
 ];
