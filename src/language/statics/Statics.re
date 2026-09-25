@@ -2274,18 +2274,50 @@ and uexp_to_info_map =
       /* What the command is a command OF. None means it is not a command
          at all; the pattern then analyzes against Unknown and the
          inconsistency is reported where the command is, not here. */
+      let monad =
+        BuiltinsADT.monad_of_typ(Typ.weak_head_normalize(ctx, cmd.ty));
       let payload =
-        switch (
-          BuiltinsADT.monad_of_typ(Typ.weak_head_normalize(ctx, cmd.ty))
-        ) {
+        switch (monad) {
         | Some((_, a)) => a
         | None => Unknown(Internal) |> Typ.temp
         };
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=payload, p, m);
       let (body, body_elab, m) = go(~ctx=p_ana.ctx, ~ana, body, m);
+      /* `do` is SUGAR. It elaborates to the real bind, instantiated:
+
+           bind @<a> @<b> (cmd, fun p -> body)
+
+         so the checking that matters is an ordinary application of a
+         value with an honest forall type, and this case's only judgement
+         is which monad and which instantiation. Hazel has no implicit
+         instantiation -- TypAp substitutes explicitly -- but the author
+         never writes `@<...>`, because both types are ones this rule has
+         already computed.
+
+         Two binds rather than one because the kinds are `Singleton |
+         Abstract` with no arrow, so `forall M. ...` is unwritable. If a
+         monad cannot be read off the command, the surface term is kept:
+         there is nothing to instantiate, and the inconsistency is already
+         reported at the command. */
+      let elab_term =
+        switch (monad) {
+        | None => Bind(p_elab, cmd_elab, body_elab) |> rewrap
+        | Some((which, a)) =>
+          let b = body.elab_syn_ty;
+          let bind_name =
+            switch (which) {
+            | BuiltinsADT.UpdateMonad => "update_bind"
+            | BuiltinsADT.ViewMonad => "view_bind"
+            };
+          let inst =
+            TypAp(TypAp(Var(bind_name) |> Exp.fresh, a) |> Exp.fresh, b)
+            |> Exp.fresh;
+          let k = Fun(p_elab, body_elab, None, None) |> Exp.fresh;
+          Ap(Forward, inst, Tuple([cmd_elab, k]) |> Exp.fresh) |> rewrap;
+        };
       add(
-        ~elab_term=Bind(p_elab, cmd_elab, body_elab) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=body.elab_syn_ty,
         ~marks=[],
         ~co_ctx=

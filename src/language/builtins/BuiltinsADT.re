@@ -1581,6 +1581,99 @@ let constructors: Ctx.t = {
   );
 };
 
+/* ---- bind and return, with real types ------------------------------ */
+
+/* These carry honest System-F types rather than the holes every other
+   builtin here uses for genericity:
+
+     return : forall a. a -> M(a)
+     bind   : forall a. forall b. (M(a), a -> M(b)) -> M(b)
+
+   Expressible because the application to `a` happens in OCaml, when the
+   type is built -- the object language never applies a type constructor,
+   which it cannot do.
+
+   There are FOUR of these and not two because Hazel's kinds are
+   `Singleton | Abstract` with no arrow: a type variable stands for a
+   type, never for a type constructor, so `forall M. a -> M(a)` cannot be
+   written and each monad needs its own pair. Nobody writes these names --
+   `do` elaborates to them and supplies the instantiations -- so the
+   duplication costs a reader nothing.
+
+   They are `const` builtins because `hazel_fn` forces `arrow(arg, ret)`
+   and a forall is not an arrow. */
+
+let monad_ops: list(const) = {
+  let a = () => var("a");
+  let b = () => var("b");
+  let tp = n => Fresh.TPat.var(n);
+  let ret_op = (~name: string, ~cmd: Typ.t => Typ.t): const => {
+    name,
+    typ: Typ.term_of(poly(tp("a"), arrow(a(), cmd(a())))),
+    imp:
+      Fresh.(
+        Exp.(
+          typ_fun(
+            tp("a"),
+            fn(
+              Pat.var("x"),
+              ap(
+                Forward,
+                constructor("Pure", Some(Some(cmd(a())))),
+                var("x"),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      ),
+  };
+  let bind_op = (~name: string, ~cmd: Typ.t => Typ.t): const => {
+    name,
+    typ:
+      Typ.term_of(
+        poly(
+          tp("a"),
+          poly(
+            tp("b"),
+            arrow(prod([cmd(a()), arrow(a(), cmd(b()))]), cmd(b())),
+          ),
+        ),
+      ),
+    imp:
+      Fresh.(
+        Exp.(
+          typ_fun(
+            tp("a"),
+            typ_fun(
+              tp("b"),
+              fn(
+                Pat.var("ck"),
+                ap(
+                  Forward,
+                  constructor("Bind", Some(Some(cmd(b())))),
+                  var("ck"),
+                ),
+                None,
+                None,
+              ),
+              None,
+            ),
+            None,
+          )
+        )
+      ),
+  };
+  [
+    ret_op(~name="update_return", ~cmd=update_cmd),
+    bind_op(~name="update_bind", ~cmd=update_cmd),
+    ret_op(~name="view_return", ~cmd=view_cmd),
+    bind_op(~name="view_bind", ~cmd=view_cmd),
+  ];
+};
+
 /* ---- Figure 3's splice commands ------------------------------------ */
 
 /* Each is a ONE-NODE tree: the constructor holding its arguments and a
