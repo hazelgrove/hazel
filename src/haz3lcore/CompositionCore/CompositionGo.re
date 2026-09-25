@@ -454,7 +454,8 @@ module Local = {
           let (run, rest) = take([], ps);
           let witness =
             switch (prev) {
-            | Some(Piece.Tile(t)) when Tile.is_semi(t) => Option.to_list(member)
+            | Some(Piece.Tile(t)) when Tile.is_semi(t) =>
+              Option.to_list(member)
             | _ => Option.to_list(Option.map(Piece.id, prev))
             };
           [
