@@ -428,6 +428,16 @@ module M: Projector = {
       keyboard: None,
     };
 
+  /* Running a view is TWO steps now. `view` returns a ViewCmd, so the
+     evaluator builds the command tree and ViewCmdRunner performs it down to
+     the Html. Both of this module's view sites go through here so the two
+     steps cannot drift apart. */
+  let eval_view = (e: DHExp.t): result(DHExp.t, string) =>
+    switch (MvuShape.safe_evaluate(e)) {
+    | Error(_) as err => err
+    | Ok(cmd) => ViewCmdRunner.run(cmd)
+    };
+
   /* Dynamics on: the view fold-in (Statics' Projector case) samples the
      live HTML of a user-defined livelit at this projector's id */
   let dynamics = true;
@@ -446,6 +456,16 @@ module M: Projector = {
       List.fold_left(
         (acc, s: Sample.t) => {
           let v = MvuShape.close_value(s.value);
+          /* The fold-in samples `view(model)`, which is a ViewCmd now, so
+             a sample has to be RUN before it can be recognised as Html.
+             A sample that is already Html is left alone: the stream also
+             carries the use's own value, and running is only meaningful
+             for the ones that are commands. */
+          let v =
+            switch (ViewCmdRunner.run(v)) {
+            | Ok(html) => html
+            | Error(_) => v
+            };
           if (MvuShape.is_html(v)) {
             switch (acc) {
             | Some((best, _)) when best >= s.seq => acc
@@ -642,7 +662,7 @@ module M: Projector = {
     let store_entry = (new_model, record, ~committed) =>
       switch (record_field(record, "view")) {
       | Some(view_fn) =>
-        switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
+        switch (eval_view(ap(Forward, view_fn, new_model))) {
         | Ok(html) when MvuShape.is_html(html) =>
           let prior = Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
@@ -902,7 +922,7 @@ module M: Projector = {
         switch (record_field(record, "view")) {
         | None => err("livelit definition is missing view")
         | Some(view_fn) =>
-          switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {
+          switch (eval_view(ap(Forward, view_fn, model))) {
           | Error(e) => err("livelit view error: " ++ e)
           | Ok(html) when MvuShape.is_html(html) =>
             ok(
