@@ -35,7 +35,11 @@ module Model = {
     core: {
       statics: true,
       elaborate: false,
-      assist: true,
+      /* Off on this branch for now: type-directed completion normalizes
+       * every module-typed variable's signature on each keystroke
+       * (TyDiCtx.bound_qualified), ~0.8 s per keystroke even on a slide
+       * with no livelits. The nut menu's Completion turns it back on. */
+      assist: false,
       dynamics: true,
       probe_all: false,
       deep_reassociate: true,
