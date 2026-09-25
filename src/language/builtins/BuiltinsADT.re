@@ -1270,100 +1270,113 @@ let result_typ: Typ.t =
    still the precedent for how a recursive effect type is declared here,
    which is why these are built the same way. */
 
-let update_cmd = (t: Typ.t): Typ.t => {
+/* Every arm but Pure is the same in every UpdateCmd(t), so it is built
+   ONCE and shared: meeting two command types then meets those arms by
+   identity (Typ.meet's first check) instead of walking them. For ViewCmd
+   that is most of the cost of checking a view; see view_cmd_arms. */
+let update_cmd_arms: list((string, option(Typ.t))) = {
   let self = var("$UpdateCmd");
+  [
+    /* A bind is a node, not a step: `do p <- c in body` IS a command
+       tree rather than something that reduces to one, so the evaluator
+       leaves it alone and the interpreter walks it. The paper is clear
+       that these commands are the system's to run.
+
+       The bound command's payload type cannot be written here. It is
+       existential -- `c` is a command of SOME a, and the continuation
+       consumes that same a -- and the type language has neither
+       existentials nor application. Unknown is the honest spelling.
+       The precision is not lost, only moved: the Bind FORM's typing
+       rule checks c against M(a) and the pattern against a. */
+    (
+      "Bind",
+      Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
+    ),
+    /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
+    (
+      "NewSplice",
+      Some(
+        prod([
+          prod([var("Typ"), var("Option")]),
+          arrow(var("SpliceRef"), self),
+        ]),
+      ),
+    ),
+    /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
+    (
+      "SetSplice",
+      Some(
+        prod([
+          prod([var("SpliceRef"), var("Exp")]),
+          arrow(prod([]), self),
+        ]),
+      ),
+    ),
+  ];
+};
+
+let update_cmd = (t: Typ.t): Typ.t =>
   rec_(
     Fresh.TPat.var("$UpdateCmd"),
-    sum_type([
-      ("Pure", Some(t)),
-      /* A bind is a node, not a step: `do p <- c in body` IS a command
-         tree rather than something that reduces to one, so the evaluator
-         leaves it alone and the interpreter walks it. The paper is clear
-         that these commands are the system's to run.
-
-         The bound command's payload type cannot be written here. It is
-         existential -- `c` is a command of SOME a, and the continuation
-         consumes that same a -- and the type language has neither
-         existentials nor application. Unknown is the honest spelling.
-         The precision is not lost, only moved: the Bind FORM's typing
-         rule checks c against M(a) and the pattern against a. */
-      (
-        "Bind",
-        Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
-      ),
-      /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
-      (
-        "NewSplice",
-        Some(
-          prod([
-            prod([var("Typ"), var("Option")]),
-            arrow(var("SpliceRef"), self),
-          ]),
-        ),
-      ),
-      /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
-      (
-        "SetSplice",
-        Some(
-          prod([
-            prod([var("SpliceRef"), var("Exp")]),
-            arrow(prod([]), self),
-          ]),
-        ),
-      ),
-    ]),
+    sum_type([("Pure", Some(t)), ...update_cmd_arms]),
   );
+
+/* Shared for the same reason as update_cmd_arms, and here it matters:
+   Editor's arm carries Html.T, a sum of 100+ recursive variants once
+   normalized, and each check against a ViewCmd type used to meet two
+   fresh copies of all four arms. Measured on Color (Figure 3), meets of
+   ViewCmd types were 2.3 s of its 2.1-4 s of statics. */
+let view_cmd_arms: list((string, option(Typ.t))) = {
+  let self = var("$ViewCmd");
+  [
+    /* A bind is a node, not a step: `do p <- c in body` IS a command
+       tree rather than something that reduces to one, so the evaluator
+       leaves it alone and the interpreter walks it. The paper is clear
+       that these commands are the system's to run.
+
+       The bound command's payload type cannot be written here. It is
+       existential -- `c` is a command of SOME a, and the continuation
+       consumes that same a -- and the type language has neither
+       existentials nor application. Unknown is the honest spelling.
+       The precision is not lost, only moved: the Bind FORM's typing
+       rule checks c against M(a) and the pattern against a. */
+    (
+      "Bind",
+      Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
+    ),
+    /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
+    (
+      "EvalSplice",
+      Some(prod([var("SpliceRef"), arrow(var("Option"), self)])),
+    ),
+    /* editor : (SpliceRef, Dim) -> ViewCmd(Html(a)) */
+    (
+      "Editor",
+      Some(
+        prod([
+          prod([var("SpliceRef"), var("Dim")]),
+          arrow(HtmlModules.path("Html", "T"), self),
+        ]),
+      ),
+    ),
+    /* result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html(a))) */
+    (
+      "ResultView",
+      Some(
+        prod([
+          prod([var("SpliceRef"), var("Dim")]),
+          arrow(var("Option"), self),
+        ]),
+      ),
+    ),
+  ];
 };
 
-let view_cmd = (t: Typ.t): Typ.t => {
-  let self = var("$ViewCmd");
+let view_cmd = (t: Typ.t): Typ.t =>
   rec_(
     Fresh.TPat.var("$ViewCmd"),
-    sum_type([
-      ("Pure", Some(t)),
-      /* A bind is a node, not a step: `do p <- c in body` IS a command
-         tree rather than something that reduces to one, so the evaluator
-         leaves it alone and the interpreter walks it. The paper is clear
-         that these commands are the system's to run.
-
-         The bound command's payload type cannot be written here. It is
-         existential -- `c` is a command of SOME a, and the continuation
-         consumes that same a -- and the type language has neither
-         existentials nor application. Unknown is the honest spelling.
-         The precision is not lost, only moved: the Bind FORM's typing
-         rule checks c against M(a) and the pattern against a. */
-      (
-        "Bind",
-        Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
-      ),
-      /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
-      (
-        "EvalSplice",
-        Some(prod([var("SpliceRef"), arrow(var("Option"), self)])),
-      ),
-      /* editor : (SpliceRef, Dim) -> ViewCmd(Html(a)) */
-      (
-        "Editor",
-        Some(
-          prod([
-            prod([var("SpliceRef"), var("Dim")]),
-            arrow(HtmlModules.path("Html", "T"), self),
-          ]),
-        ),
-      ),
-      /* result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html(a))) */
-      (
-        "ResultView",
-        Some(
-          prod([
-            prod([var("SpliceRef"), var("Dim")]),
-            arrow(var("Option"), self),
-          ]),
-        ),
-      ),
-    ]),
+    sum_type([("Pure", Some(t)), ...view_cmd_arms]),
   );
-};
 
 /* Which of the two monads a type is, and what it is a command OF.
 
