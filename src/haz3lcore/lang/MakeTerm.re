@@ -2039,37 +2039,10 @@ let for_projection =
    sliced away from its continuation is nonconvex; a synthetic convex
    grout stands in for the body and the graft replaces it. */
 module Incr = {
-  let is_semi = (p: Piece.t): bool =>
-    switch (p) {
-    | Tile(t) => Tile.label(t) == [";"]
-    | _ => false
-    };
-  let is_in_tile = (p: Piece.t): bool =>
-    switch (p) {
-    | Tile(t) =>
-      switch (List.rev(Tile.label(t))) {
-      | ["in", ..._] => true
-      | _ => false
-      }
-    | _ => false
-    };
-
   /* top-level item slices, in order (boundaries: `…in`-tiles and
-     top-level `;`s; the remainder is the tail) */
-  let slices = (seg: Segment.t): list(Segment.t) => {
-    let arr = Array.of_list(seg);
-    let len = Array.length(arr);
-    let slice = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
-    let rec walk = (i, start, acc) =>
-      if (i >= len) {
-        start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
-      } else if (is_in_tile(arr[i]) || is_semi(arr[i])) {
-        walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
-      } else {
-        walk(i + 1, start, acc);
-      };
-    walk(0, 0, []);
-  };
+     top-level `;`s; the remainder is the tail) — shared with the
+     per-item completion (Segment.top_items) */
+  let slices = Segment.top_items;
 
   let seg_eq = Segment.ptr_eq;
 
@@ -2316,8 +2289,23 @@ module Incr = {
     };
   };
 
-  let term_of_root = (~root: Sort.t, seg: Segment.t): Exp.t =>
-    root == Sort.Mod ? term_of_mod(seg) : term_of(seg);
+  /* ~masks: shard provenance of the canonically completed [seg] (see
+     go_impl); consulted by the per-item parses through shard_masks.
+     A mask only concerns tiles of items whose completion changed, and
+     those items' pieces are new objects, so memoized entries never
+     carry a stale mask. */
+  let term_of_root =
+      (
+        ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
+        ~root: Sort.t,
+        seg: Segment.t,
+      )
+      : Exp.t => {
+    shard_masks := masks;
+    let term = root == Sort.Mod ? term_of_mod(seg) : term_of(seg);
+    shard_masks := Id.Map.empty;
+    term;
+  };
 
   /* ===== go_incr: the full go() record, composed per item =====
      Per-item parses capture the side maps go accumulates globally;
@@ -2664,12 +2652,19 @@ let semantic_source = (z: Zipper.t): Segment.t =>
   |> Zipper.unselect_and_zip(~erase_buffer=true);
 
 /* The segment semantics sees: the canonical completion of [seg] at
-   [root] when it has incomplete tiles, else [seg] itself (keeping piece
-   identity, which the per-item incremental parse keys on). */
-let semantic_segment = (~root: Sort.t, seg: Segment.t): Segment.t =>
-  Segment.incomplete_tiles_deep(seg) == []
-    ? seg
-    : CanonicalCompletion.complete_segment_deep(~sort=root, seg).completed_seg;
+   [root], decided PER ITEM (CanonicalCompletion.complete_items) so
+   items without incomplete tiles keep their piece identity, which the
+   per-item incremental parse keys on. Also returns the provenance
+   masks for go_impl / Incr.term_of_root. */
+let semantic_segment =
+    (~root: Sort.t, seg: Segment.t)
+    : (Segment.t, Id.Map.t(IdTagged.IdTag.incomplete_mask)) => {
+  let result = CanonicalCompletion.complete_items(~sort=root, seg);
+  (
+    result.completed_seg,
+    CanonicalCompletion.masks_of_records(result.shard_records),
+  );
+};
 
 let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
@@ -2698,7 +2693,7 @@ let from_zip_for_sem_with_completion =
    comes from the stitched master program (exercises precedent), so no
    standalone pat statics entry is needed — just the term. */
 let from_zip_for_pat = (z: Zipper.t): Pat.t => {
-  let seg = semantic_segment(~root=Sort.Pat, semantic_source(z));
+  let (seg, _) = semantic_segment(~root=Sort.Pat, semantic_source(z));
   /* the recorders are global refs: without this, term annotations
      pick up whichever segment's secondaries were collected last */
   secondary_map := Segment.SecondaryCollection.collect(seg);
@@ -2712,7 +2707,7 @@ let from_zip_for_pat = (z: Zipper.t): Pat.t => {
    body cells): statics for such cells wrap this in a TyAlias so the
    cursor inspector has real type info. */
 let from_zip_for_typ = (z: Zipper.t): Typ.t => {
-  let seg = semantic_segment(~root=Sort.Typ, semantic_source(z));
+  let (seg, _) = semantic_segment(~root=Sort.Typ, semantic_source(z));
   /* the recorders are global refs: without this, term annotations
      pick up whichever segment's secondaries were collected last */
   secondary_map := Segment.SecondaryCollection.collect(seg);
@@ -2724,7 +2719,7 @@ let from_zip_for_typ = (z: Zipper.t): Typ.t => {
 
 /* Semantic TPAT for a TPat-rooted editor (type-alias header cells). */
 let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
-  let seg = semantic_segment(~root=Sort.TPat, semantic_source(z));
+  let (seg, _) = semantic_segment(~root=Sort.TPat, semantic_source(z));
   /* the recorders are global refs: without this, term annotations
      pick up whichever segment's secondaries were collected last */
   secondary_map := Segment.SecondaryCollection.collect(seg);

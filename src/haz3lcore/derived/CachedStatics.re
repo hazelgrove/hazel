@@ -330,12 +330,9 @@ let init_compositional =
        (caret-independent); the per-item incremental parse replaces the
        monolithic one (it falls back internally, incl. go_mod_root for
        Mod roots) */
-    let term =
-      MakeTerm.Incr.term_of_root(
-        ~root,
-        MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z)),
-      )
-      |> stitch;
+    let (seg, masks) =
+      MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+    let term = MakeTerm.Incr.term_of_root(~masks, ~root, seg) |> stitch;
     /* callers with probes living in OTHER zippers (stacked cells)
        pass the union; default = this zipper's own */
     let probe_ids =
