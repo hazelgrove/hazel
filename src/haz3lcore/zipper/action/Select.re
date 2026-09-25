@@ -678,8 +678,7 @@ let term =
          tile is the definition without its body; a module member's
          `let … =` is a prefix whose def follows the tile — it takes the
          extremes path below (from the positioned caret, so still local) */
-      | (_, Some(Tile(t))) when Tile.is_definition_form(t) =>
-        tile(id, zp)
+      | (_, Some(Tile(t))) when Tile.is_definition_form(t) => tile(id, zp)
       | _ => None
       }
     | _ => None

@@ -837,87 +837,87 @@ module Local = {
             )
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
-        /* module-member chunks carry their `;` separator (insert_member:
-           `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
-           separator, so it is split off here and spliced back as a tile
-           (molded at splice time like everything else) — else every
-           member insert fell to the quadratic parser */
-        let (lead_sep, core, trail_sep) =
-          root == Sort.Mod ? split_separators(code) : (None, code, None);
-        switch (
-          fast
-            ? PerfTimer.time("fast-parse", () =>
-                FastParse.of_text(
-                  ~materialize=Triggers.invoked_projector,
-                  ~collect_refractors=false,
-                  ~root,
-                  String.trim(core),
-                )
+      /* module-member chunks carry their `;` separator (insert_member:
+         `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
+         separator, so it is split off here and spliced back as a tile
+         (molded at splice time like everything else) — else every
+         member insert fell to the quadratic parser */
+      let (lead_sep, core, trail_sep) =
+        root == Sort.Mod ? split_separators(code) : (None, code, None);
+      switch (
+        fast
+          ? PerfTimer.time("fast-parse", () =>
+              FastParse.of_text(
+                ~materialize=Triggers.invoked_projector,
+                ~collect_refractors=false,
+                ~root,
+                String.trim(core),
               )
-            : None
-        ) {
-        | Some(segment) when reserved_binder_garbage(code, segment) != None =>
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Inserted code does not parse as intended."
-              ++ reserved_word_note(code),
-            ),
-          )
-        | Some(segment) =>
-          /* Source tokens + formatting verbatim, molds from ExpToSegment +
-             splice-time remold. No size cap needed on this path. */
-          let sep_tile = (): Piece.t =>
-            Tile({
-              id: Id.mk(),
-              form: Form.Compound(CellJoin),
-              sort: Sort.Mod,
-              shards: [0],
-              children: [],
-            });
-          let segment =
-            switch (lead_sep) {
-            | Some(ws) => [sep_tile(), ...ws_secondaries(ws)] @ segment
-            | None => segment
-            };
-          let segment =
-            switch (trail_sep) {
-            | Some(ws) => segment @ ws_secondaries(ws) @ [sep_tile()]
-            | None => segment
-            };
-          let segment =
-            if (keep_edge_ws) {
-              let (lead, trail) = edge_ws(code);
-              ws_secondaries(lead) @ segment @ ws_secondaries(trail);
-            } else {
-              segment;
-            };
-          let z' =
-            PerfTimer.time("splice", () =>
-              Zipper.insert_segment(
-                z,
-                pad_fusing_edges(z, segment),
-                ~root=splice_root,
-              )
-            );
-          Ok(z');
-        | None =>
-          if (fast) {
-            /* fallback telemetry: which construct pushed us onto the
-               quadratic path, and roughly how bad — console + any
-               registered listener (the constellation journal) */
-            let msg =
-              "FastParse fallback ("
-              ++ string_of_int(String.length(code))
-              ++ " chars): "
-              ++ Option.value(FastParse.bail_note^, ~default="no note");
-            print_endline(msg);
-            switch (fallback_notice^) {
-            | Some(f) => f(msg)
-            | None => ()
-            };
+            )
+          : None
+      ) {
+      | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Inserted code does not parse as intended."
+            ++ reserved_word_note(code),
+          ),
+        )
+      | Some(segment) =>
+        /* Source tokens + formatting verbatim, molds from ExpToSegment +
+           splice-time remold. No size cap needed on this path. */
+        let sep_tile = (): Piece.t =>
+          Tile({
+            id: Id.mk(),
+            form: Form.Compound(CellJoin),
+            sort: Sort.Mod,
+            shards: [0],
+            children: [],
+          });
+        let segment =
+          switch (lead_sep) {
+          | Some(ws) => [sep_tile(), ...ws_secondaries(ws)] @ segment
+          | None => segment
           };
-          introduce_slow(~root, ~splice_root, z, code);
+        let segment =
+          switch (trail_sep) {
+          | Some(ws) => segment @ ws_secondaries(ws) @ [sep_tile()]
+          | None => segment
+          };
+        let segment =
+          if (keep_edge_ws) {
+            let (lead, trail) = edge_ws(code);
+            ws_secondaries(lead) @ segment @ ws_secondaries(trail);
+          } else {
+            segment;
+          };
+        let z' =
+          PerfTimer.time("splice", () =>
+            Zipper.insert_segment(
+              z,
+              pad_fusing_edges(z, segment),
+              ~root=splice_root,
+            )
+          );
+        Ok(z');
+      | None =>
+        if (fast) {
+          /* fallback telemetry: which construct pushed us onto the
+             quadratic path, and roughly how bad — console + any
+             registered listener (the constellation journal) */
+          let msg =
+            "FastParse fallback ("
+            ++ string_of_int(String.length(code))
+            ++ " chars): "
+            ++ Option.value(FastParse.bail_note^, ~default="no note");
+          print_endline(msg);
+          switch (fallback_notice^) {
+          | Some(f) => f(msg)
+          | None => ()
+          };
         };
+        introduce_slow(~root, ~splice_root, z, code);
+      };
     }
     and introduce_slow =
         (~root, ~splice_root=Sort.Exp, z: Zipper.t, code: string)
