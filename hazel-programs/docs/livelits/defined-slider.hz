@@ -22,9 +22,9 @@ let ^pct = {
 
   let init : Model = 50;
 
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("gap", "0.5em"),
               ("align-items", "center"),
@@ -38,7 +38,7 @@ let ^pct = {
         ]),
         Html.text(string_of_int(m) ++ "%")
       ]
-    );
+    ));
 
   let expand = Functional(fun m : Model -> m);
 

@@ -23,7 +23,7 @@ let ^graph = {
       end;
   let has_edge : ([(Int, Int)], (Int, Int)) -> Bool =
     fun edges, e -> case edges | [] => false | hd :: tl => hd == e || has_edge(tl, e) end;
-  let update = fun (m, a) : (Model, Action) ->
+  let update = fun m : Model -> fun a : Action -> Pure(
     let (nodes, edges, sel, drag, moved) = m in
     case a
     | Clear => ([], [], -1, -1, false)
@@ -49,7 +49,7 @@ let ^graph = {
         let e = if sel < drag then (sel, drag) else (drag, sel) in
         if has_edge(edges, e) then (nodes, edges, -1, -1, false)
         else (nodes, edges @ [e], -1, -1, false)
-    end;
+    end);
   let dot = fun (p, i, sel) ->
     let (x, y) = p in
     Html.node("circle", [Attr.create("cx", string_of_int(x)), Attr.create("cy", string_of_int(y)), Attr.create("r", "10"), Attr.create("fill", if i == sel then "coral" else "teal")], []);
@@ -62,12 +62,12 @@ let ^graph = {
     fun nodes, i, sel -> case nodes | [] => [] | hd :: tl => dot((hd, i, sel)) :: dots(tl, i + 1, sel) end;
   let lines : ([(Int, Int)], [(Int, Int)]) -> [Html.T] =
     fun nodes, edges -> case edges | [] => [] | hd :: tl => line_of((nodes, hd)) :: lines(nodes, tl) end;
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     let (nodes, edges, sel, _, _) = m in
     Html.div([], [
       Html.node("svg", [Attr.create("viewBox", "0 0 200 150"), Attr.width("200"), Attr.height("150"), Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")]), Attr.on_mouse_down_at(fun (x, y) -> Down(x, y)), Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)), Attr.on_mouse_up_at(fun _ -> Up)], lines(nodes, edges) @ dots(nodes, 0, sel)),
       Html.div([], [Html.button([Attr.on_click(Clear)], [Html.text("clear")]), Html.text(string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges")])
-    ]);
+    ]));
   let shape = Block(32, 8);
   let expand = Functional(fun m : Model ->
     let (nodes, edges, _, _, _) = m in

@@ -517,7 +517,21 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
   | Some({model_t, action_t, expansion_t, _}) =>
     IdTagged.FreshGrammar.(
       switch (member) {
-      | "update" => Typ.arrow(Typ.prod([model_t, action_t]), model_t)
+      /* Figure 3, and the same builders the signature uses, so the two
+         cannot drift: update and view are commands now, not functions
+         returning values. `view` is absent from this switch on purpose --
+         it was never listed, and the fallthrough gave it `unknown`, which
+         is why a wrong view went unreported. Listing it is the fix. */
+      | "update" =>
+        Typ.arrow(
+          model_t,
+          Typ.arrow(action_t, BuiltinsADT.update_cmd(model_t)),
+        )
+      | "view" =>
+        Typ.arrow(
+          model_t,
+          BuiltinsADT.view_cmd(BuiltinsADT.HtmlModules.path("Html", "T")),
+        )
       /* The sum itself, not one arm of it: ^name.expand is the value the
          definition committed with, and a client reading it sees which
          kind of livelit this is. Same builder as the signature, with this

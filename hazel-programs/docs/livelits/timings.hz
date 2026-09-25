@@ -50,7 +50,7 @@ let ^latency = {
   let init : Model =
     (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0);
 
-  let update = fun (m, a) : (Model, Action) ->
+  let update = fun m : Model -> fun a : Action -> Pure(
     case a
     | Sample(t, q) =>
       let g = if m.n == 0 then 0.0 else t -. m.prev in
@@ -70,7 +70,7 @@ let ^latency = {
       (gap=m.gap, worst=m.worst, queue=m.queue, n=m.n, prev=m.prev, load=k)
     | Clear =>
       (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=m.load)
-    end;
+    end);
 
   let px = fun f : Float -> to_fixed((f, 0)) ++ "px";
 
@@ -126,7 +126,7 @@ let ^latency = {
                           ("background", "#cfd8dc")])],
              []))));
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
                    ("gap", "0.2em"), ("font-family", "var(--code-font)")])],
@@ -154,7 +154,7 @@ let ^latency = {
           Html.button([Attr.on_click(Clear),
                        Attr.style([("font-size", "0.7em")])],
                       [Html.text("clear")])]),
-       ballast(m)]);
+       ballast(m)]));
 
   # The expansion drops `load` -- that is a knob for the person doing #
   # the measuring, not part of the measurement. What a client gets is #

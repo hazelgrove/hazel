@@ -1207,116 +1207,6 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    clients to reason about. `shape` and helper members are deliberately
    absent -- they are optional, and extra members are allowed by width
    subtyping. */
-/* The members every livelit has. */
-let livelit_common = (model, action) => [
-  Sig.item_of_member(Sig.TypeAbstract("Model")),
-  Sig.item_of_member(Sig.TypeAbstract("Action")),
-  Sig.item_of_member(Sig.TypeAbstract("Expansion")),
-  Sig.item_of_member(Sig.Val("init", model)),
-  Sig.item_of_member(
-    Sig.Val("update", arrow(prod([model, action]), model)),
-  ),
-  Sig.item_of_member(
-    Sig.Val("view", arrow(model, HtmlModules.path("Html", "T"))),
-  ),
-];
-
-/* ONE signature, and `expand` is a SUM. A livelit's use denotes either a
-   VALUE, which `Functional` computes, or a PROGRAM, which `Macro` writes
-   while handing back the splices it refers to (Figure 3 of the livelits
-   paper, Omar et al., PLDI 2021).
-
-   This replaces an earlier design with two signatures, LivelitFun and
-   LivelitMac, carrying members `expand_fun` and `expand_mac`. The reason
-   given for splitting them was that a signature can only say a member is
-   REQUIRED -- optional members are expressed by leaving them out, since
-   extra members are allowed by width subtyping -- so "exactly one of
-   expand_fun / expand_mac" could not be said inside a single signature.
-
-   A sum says exactly that, and says it in the member's own type rather
-   than in the module system: `expand` is required, and its value commits
-   to one arm. Which kind a livelit is stops being a question about which
-   signature it answers to and becomes a question about how it inhabits
-   one type, which is the question it always was.
-
-   The Macro arm's expansion is a FUNCTION of its splices, and that shape
-   does two jobs at once: a splice passed as an argument is evaluated
-   outside the expansion, so a binder inside cannot capture it, AND the
-   expansion can be checked once against the splices' declared types
-   without knowing their contents. Capture avoidance and compositional
-   typing are the same decision.
-
-   The Macro arm is not yet usable: `Exp` below is an uninhabited
-   placeholder, so a Macro expansion can be written but never returns a
-   value. That is the honest state of it -- there is no quoted-code type,
-   no quotation syntax, and no splice_new. The arm is here so the target
-   is legible and so the two kinds have names.
-
-   Full words until someone picks something shorter. */
-/* Built here rather than inline, because the use site needs the SAME sum
-   with the livelit's concrete Model and Expansion substituted in
-   (UserLivelit.member_ty). Two copies would drift. */
-let livelit_expand_typ = (~model: Typ.t, ~expansion: Typ.t): Typ.t =>
-  sum_type([
-    ("Functional", Some(arrow(model, expansion))),
-    (
-      "Macro",
-      Some(arrow(model, prod([var("Exp"), list(var("SpliceRef"))]))),
-    ),
-  ]);
-
-/* The constructors have to be IN SCOPE at the definition site, or
-   `let expand = Functional(...)` fails with "Constructor is not defined"
-   -- measured, and while it was unresolved it silently disabled BOTH the
-   definition-site and the use-site expansion checks, which is the §3.2.5
-   obligation this whole file exists to discharge.
-
-   A livelit therefore declares the sum itself, as a `type Expand` member.
-   That is one repeated line per definition, and it is the price of
-   keeping the check: a GLOBAL alias would cost the author nothing and
-   put the constructors in scope the way `Ord` puts `Lt` there, but its
-   arms would have to be unknown -- Model and Expansion are per-livelit
-   while the alias is global -- so `Functional(f)` would synthesize at the
-   alias's type, f's real type would be widened away, and sig_sub would
-   have nothing left to compare. Measured: a livelit declaring
-   `Expansion = String` whose Functional returns Int then reports no
-   errors at all.
-
-   The durable fix is probably to make the definition-site member check
-   ANALYTIC -- analyze `expand` against the realized signature type rather
-   than synthesize and compare afterwards, which is what the declared and
-   annotated forms do implicitly and why they still catch the mismatch.
-   Open question for Cyrus, since the sum was his suggestion. */
-
-let livelit: Typ.t = {
-  let model = var("Model");
-  let action = var("Action");
-  let expansion = var("Expansion");
-  sig_(
-    livelit_common(model, action)
-    @ [
-      Sig.item_of_member(
-        Sig.Val("expand", livelit_expand_typ(~model, ~expansion)),
-      ),
-    ],
-  );
-};
-
-/* `Exp` is quoted code, and is still a placeholder: an empty sum has no
-   values, so it names what Figure 3 needs without pretending to provide
-   it. It becomes real when quotation does. */
-let exp_typ: Typ.t = sum_type([]);
-
-/* A SpliceRef is a handle to a hole holding the client's own code. It
-   carries the splice's id, which is what the projector resolves when a
-   view says `Html.splice(r)`.
-
-   The constructor is visible, so a client can in principle forge one.
-   `Html.splice` of a forged or stale ref renders as an error rather than
-   anything dangerous, and making it genuinely abstract wants a module
-   with an abstract type member -- worth doing, not worth blocking on. */
-let splice_ref_typ: Typ.t = sum_type([("SpliceRef", Some(string()))]);
-
 /* ---- Figure 3's two command monads --------------------------------- */
 
 /* Hazel's type language has Poly and Rec but NO application: `typ_term`
@@ -1518,6 +1408,130 @@ let monad_of_typ = (ty: Typ.t): option((cmd_monad, Typ.t)) =>
   | _ => None
   };
 
+/* The members every livelit has. */
+let livelit_common = (model, action) => [
+  Sig.item_of_member(Sig.TypeAbstract("Model")),
+  Sig.item_of_member(Sig.TypeAbstract("Action")),
+  Sig.item_of_member(Sig.TypeAbstract("Expansion")),
+  /* `init : Model`, not the paper's `UpdateCmd(Model)`.
+     Not an oversight and not yet fixable: init is SYNTAX, not a value --
+     UserLivelit keeps its expression as model_default and Triggers pastes
+     that text at the caret when the livelit's name is typed. There are no
+     statics and no evaluator at that moment, so a command there would
+     have nothing to perform it. Sec. 3.2.1's init runs new_splice; ours
+     cannot until init becomes a value. */
+  Sig.item_of_member(Sig.Val("init", model)),
+  /* Figure 3, curried as the paper curries it:
+       update : Model -> Action -> UpdateCmd(Model)
+       view   : Model -> ViewCmd(Html(Action))
+     Both were plain functions returning plain values. They are commands
+     now because that is the only way a splice can be written or read:
+     set_splice lives in UpdateCmd and eval_splice in ViewCmd, and neither
+     is reachable from a function that merely returns. */
+  Sig.item_of_member(
+    Sig.Val("update", arrow(model, arrow(action, update_cmd(model)))),
+  ),
+  Sig.item_of_member(
+    Sig.Val("view", arrow(model, view_cmd(HtmlModules.path("Html", "T")))),
+  ),
+];
+
+/* ONE signature, and `expand` is a SUM. A livelit's use denotes either a
+   VALUE, which `Functional` computes, or a PROGRAM, which `Macro` writes
+   while handing back the splices it refers to (Figure 3 of the livelits
+   paper, Omar et al., PLDI 2021).
+
+   This replaces an earlier design with two signatures, LivelitFun and
+   LivelitMac, carrying members `expand_fun` and `expand_mac`. The reason
+   given for splitting them was that a signature can only say a member is
+   REQUIRED -- optional members are expressed by leaving them out, since
+   extra members are allowed by width subtyping -- so "exactly one of
+   expand_fun / expand_mac" could not be said inside a single signature.
+
+   A sum says exactly that, and says it in the member's own type rather
+   than in the module system: `expand` is required, and its value commits
+   to one arm. Which kind a livelit is stops being a question about which
+   signature it answers to and becomes a question about how it inhabits
+   one type, which is the question it always was.
+
+   The Macro arm's expansion is a FUNCTION of its splices, and that shape
+   does two jobs at once: a splice passed as an argument is evaluated
+   outside the expansion, so a binder inside cannot capture it, AND the
+   expansion can be checked once against the splices' declared types
+   without knowing their contents. Capture avoidance and compositional
+   typing are the same decision.
+
+   The Macro arm is not yet usable: `Exp` below is an uninhabited
+   placeholder, so a Macro expansion can be written but never returns a
+   value. That is the honest state of it -- there is no quoted-code type,
+   no quotation syntax, and no splice_new. The arm is here so the target
+   is legible and so the two kinds have names.
+
+   Full words until someone picks something shorter. */
+/* Built here rather than inline, because the use site needs the SAME sum
+   with the livelit's concrete Model and Expansion substituted in
+   (UserLivelit.member_ty). Two copies would drift. */
+let livelit_expand_typ = (~model: Typ.t, ~expansion: Typ.t): Typ.t =>
+  sum_type([
+    ("Functional", Some(arrow(model, expansion))),
+    (
+      "Macro",
+      Some(arrow(model, prod([var("Exp"), list(var("SpliceRef"))]))),
+    ),
+  ]);
+
+/* The constructors have to be IN SCOPE at the definition site, or
+   `let expand = Functional(...)` fails with "Constructor is not defined"
+   -- measured, and while it was unresolved it silently disabled BOTH the
+   definition-site and the use-site expansion checks, which is the §3.2.5
+   obligation this whole file exists to discharge.
+
+   A livelit therefore declares the sum itself, as a `type Expand` member.
+   That is one repeated line per definition, and it is the price of
+   keeping the check: a GLOBAL alias would cost the author nothing and
+   put the constructors in scope the way `Ord` puts `Lt` there, but its
+   arms would have to be unknown -- Model and Expansion are per-livelit
+   while the alias is global -- so `Functional(f)` would synthesize at the
+   alias's type, f's real type would be widened away, and sig_sub would
+   have nothing left to compare. Measured: a livelit declaring
+   `Expansion = String` whose Functional returns Int then reports no
+   errors at all.
+
+   The durable fix is probably to make the definition-site member check
+   ANALYTIC -- analyze `expand` against the realized signature type rather
+   than synthesize and compare afterwards, which is what the declared and
+   annotated forms do implicitly and why they still catch the mismatch.
+   Open question for Cyrus, since the sum was his suggestion. */
+
+let livelit: Typ.t = {
+  let model = var("Model");
+  let action = var("Action");
+  let expansion = var("Expansion");
+  sig_(
+    livelit_common(model, action)
+    @ [
+      Sig.item_of_member(
+        Sig.Val("expand", livelit_expand_typ(~model, ~expansion)),
+      ),
+    ],
+  );
+};
+
+/* `Exp` is quoted code, and is still a placeholder: an empty sum has no
+   values, so it names what Figure 3 needs without pretending to provide
+   it. It becomes real when quotation does. */
+let exp_typ: Typ.t = sum_type([]);
+
+/* A SpliceRef is a handle to a hole holding the client's own code. It
+   carries the splice's id, which is what the projector resolves when a
+   view says `Html.splice(r)`.
+
+   The constructor is visible, so a client can in principle forge one.
+   `Html.splice` of a forged or stale ref renders as an error rather than
+   anything dangerous, and making it genuinely abstract wants a module
+   with an abstract type member -- worth doing, not worth blocking on. */
+let splice_ref_typ: Typ.t = sum_type([("SpliceRef", Some(string()))]);
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
@@ -1567,7 +1581,96 @@ let constructors: Ctx.t = {
   );
 };
 
-let builtins = Option.builtins;
+/* ---- Figure 3's splice commands ------------------------------------ */
+
+/* Each is a ONE-NODE tree: the constructor holding its arguments and a
+   continuation that stops immediately at Pure. Nothing here performs
+   anything -- `new_splice(t, e)` does not create a splice, it describes
+   creating one. The `do` form grafts a longer sequence on, and the
+   livelit machinery is what finally walks the tree and acts.
+
+   That indirection is the point rather than an artifact: creating a
+   splice changes the editor, and evaluation cannot change the editor. */
+let cmd_ctor = (~ctor: string, ~cmd_ty: Typ.t): Exp.t =>
+  Fresh.(
+    Exp.(
+      fn(
+        Pat.var("args"),
+        ap(
+          Forward,
+          constructor(ctor, Some(Some(cmd_ty))),
+          tuple([
+            var("args"),
+            fn(
+              Pat.var("x"),
+              ap(
+                Forward,
+                constructor("Pure", Some(Some(cmd_ty))),
+                var("x"),
+              ),
+              None,
+              None,
+            ),
+          ]),
+        ),
+        None,
+        Some(ctor),
+      )
+    )
+  );
+
+/* The paper spells these new_splice / set_splice / eval_splice (Sec.
+   3.2.1, 3.2.4, 3.2.3). Those names are kept: this is the interface the
+   paper describes, and a livelit author reading Figure 3 should find the
+   same words here. */
+let splice_builtins: list(hazel_fn) = [
+  {
+    /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
+    str: "fun args -> NewSplice((args, fun r -> Pure(r)))",
+    name: "new_splice",
+    arg: Prod([var("Typ"), var("Option")]),
+    ret: Typ.term_of(update_cmd(var("SpliceRef"))),
+    imp: cmd_ctor(~ctor="NewSplice", ~cmd_ty=update_cmd(var("SpliceRef"))),
+  },
+  {
+    /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
+    str: "fun args -> SetSplice((args, fun u -> Pure(u)))",
+    name: "set_splice",
+    arg: Prod([var("SpliceRef"), var("Exp")]),
+    ret: Typ.term_of(update_cmd(prod([]))),
+    imp: cmd_ctor(~ctor="SetSplice", ~cmd_ty=update_cmd(prod([]))),
+  },
+  {
+    /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
+    str: "fun args -> EvalSplice((args, fun r -> Pure(r)))",
+    name: "eval_splice",
+    arg: Typ.term_of(var("SpliceRef")),
+    ret: Typ.term_of(view_cmd(var("Option"))),
+    imp: cmd_ctor(~ctor="EvalSplice", ~cmd_ty=view_cmd(var("Option"))),
+  },
+  {
+    /* editor : (SpliceRef, Dim) -> ViewCmd(Html(a)) */
+    str: "fun args -> Editor((args, fun h -> Pure(h)))",
+    name: "editor",
+    arg: Prod([var("SpliceRef"), var("Dim")]),
+    ret: Typ.term_of(view_cmd(HtmlModules.path("Html", "T"))),
+    imp:
+      cmd_ctor(
+        ~ctor="Editor",
+        ~cmd_ty=view_cmd(HtmlModules.path("Html", "T")),
+      ),
+  },
+  {
+    /* result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html(a))) */
+    str: "fun args -> ResultView((args, fun h -> Pure(h)))",
+    name: "result_view",
+    arg: Prod([var("SpliceRef"), var("Dim")]),
+    ret: Typ.term_of(view_cmd(var("Option"))),
+    imp: cmd_ctor(~ctor="ResultView", ~cmd_ty=view_cmd(var("Option"))),
+  },
+];
+
+let builtins = Option.builtins @ splice_builtins;
 let constructor_entries = constructors.entries @ types;
 
 /* Build an Ord-returning compare builtin from an Atom.compare_entry, the

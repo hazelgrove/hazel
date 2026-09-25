@@ -41,16 +41,16 @@ let ^between = {
   # which is exactly what Figure 3's new_splice is and we do not have. #
   let init = (pct=50, lo=(0), hi=(100));
 
-  let update = fun (m, a) : (Model, Action) ->
+  let update = fun m : Model -> fun a : Action -> Pure(
     case a
     | Slide(p) => (pct=p, lo=m.lo, hi=m.hi)
-    end;
+    end);
 
   # Where the handle lands, in the client's units. #
   let at = fun m : Model ->
     m.lo.value + (m.hi.value - m.lo.value) * m.pct / 100;
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("gap", "0.4em"),
                    ("align-items", "center"),
@@ -68,7 +68,7 @@ let ^between = {
           Attr.value(string_of_int(m.pct)),
           Attr.on_input(fun s -> Slide(int_of_string(s)))]),
        Html.splice(m.hi.ref),
-       Html.text(" = " ++ string_of_int(at(m)))]);
+       Html.text(" = " ++ string_of_int(at(m)))]));
 
   let expand = Functional(fun m : Model -> at(m));
 

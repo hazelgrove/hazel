@@ -105,7 +105,7 @@ let ^tree = {
       end
     end;
 
-  let update = fun (m, a) : (Model, Action) ->
+  let update = fun m : Model -> fun a : Action -> Pure(
     case a
     | Next => (tree=age(m.tree), season=next_of(m.season))
     | Prev => (tree=age(m.tree), season=prev_of(m.season))
@@ -115,7 +115,7 @@ let ^tree = {
         tree=cut((m.tree, path, heal_time(m.season))),
         season=m.season
       )
-    end;
+    end);
 
   # THE CENSUS #
 
@@ -232,7 +232,7 @@ let ^tree = {
       [Html.text(case s | Spring => "spr" | Summer => "sum"
                         | Fall => "fall" | Winter => "win" end)]);
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
                    ("gap", "0.2em")])],
@@ -253,7 +253,7 @@ let ^tree = {
                       [Html.text(">")]),
           Html.button([Attr.on_click(Feed),
                        Attr.style([("font-size", "0.7em")])],
-                      [Html.text("water + feed")])])]);
+                      [Html.text("water + feed")])])]));
 
   let expand = Functional(fun m : Model ->
     let c = count(m.tree) in

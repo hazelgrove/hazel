@@ -103,14 +103,14 @@ let ^ramp = {
 
   let init : Model = (h=200, w=20, b=10);
 
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
 
   let swatch = fun c : Hwb ->
     Html.div([Attr.style([("width", "18px"), ("height", "18px"),
                           ("border", "1px solid black"),
                           ("background", css(c))])], []);
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("gap", "0.4em"),
                    ("align-items", "center")])],
@@ -118,7 +118,7 @@ let ^ramp = {
                    Attr.value(string_of_int(m.h)),
                    Attr.on_input(fun s -> (h=int_of_string(s), w=m.w, b=m.b))]),
        swatch(m),
-       swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]);
+       swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]));
 
   # not a color, and not text: a function FROM lightness TO structure #
   let expand = Functional(fun m : Model ->
@@ -183,9 +183,9 @@ let ^good = {
   type Action = Int;
   type Expansion = Int;
   let init : Model = 3;
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
   let view = fun m : Model ->
-    Html.text(string_of_int(m));
+    Pure(Html.text(string_of_int(m)));
   let expand = Functional(fun m : Model -> m);
   let shape = Inline(3)
 } in

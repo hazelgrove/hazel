@@ -58,8 +58,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m * 2)
 }";
 
@@ -71,8 +71,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m * 2)"
   ++ (extra == "" ? "" : ";\n" ++ extra)
   ++ "
@@ -88,8 +88,8 @@ type Expansion = "
   ++ expansion
   ++ ";
 let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional("
   ++ expand
   ++ ")
@@ -128,7 +128,7 @@ let members_out_of_order = () =>
     "let ^dbl = {
 let expand = Functional(fun m -> m * 2);
 type Expansion = Int;
-let view = fun m -> Html.text(\"\");
+let view = fun m -> Pure(Html.text(\"\"));
 type Model = Int;
 let init = 0;
 type Action = Int;
@@ -186,8 +186,8 @@ type Action = Int;
 type Expansion = Int;
 let bump = fun x -> x + 1;
 let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> bump(m))
 } in ^inc(4) + ^inc(9)",
   );
@@ -270,8 +270,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> \"not an Int\")
 } in 1",
     );
@@ -293,8 +293,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init : Model = 0;
-let update = fun (m, a) -> \"wrong\";
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(\"wrong\");
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m)
 } in 1",
     );
@@ -467,8 +467,8 @@ let missing_types_marked = () => {
     statics(
       "let ^x = {
 let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m)
 } in 1",
     );
@@ -525,8 +525,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init = 50;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"hi\");
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"hi\"));
 let expand = Functional(fun m -> m)
 }";
   let def_user = parse_exp(def_text);
@@ -666,8 +666,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(string_of_int(^^probe(m * 3)));
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(string_of_int(^^probe(m * 3))));
 let expand = Functional(fun m -> m * 2)
 } in ";
 
@@ -758,8 +758,8 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let init = 0;
-let update = fun (m, a) -> ^^probe(m + a);
-let view = fun m -> Html.text(string_of_int(m));
+let update = fun m -> fun a -> Pure(^^probe(m + a));
+let view = fun m -> Pure(Html.text(string_of_int(m)));
 let expand = Functional(fun m -> m * 2)
 } in ";
 
@@ -838,8 +838,8 @@ type Action = Int;
 type Expansion = Int;
 let bump = fun x -> x + 1;
 let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []));
 let expand = Functional(fun m -> m)
 } in ^^livelit(^pk(5))",
     );

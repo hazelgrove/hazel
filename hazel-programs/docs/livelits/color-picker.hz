@@ -27,9 +27,9 @@ let ^hwb = {
 
   let init : Model = (160, 25, 10);
 
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
 
-  let view = fun (h, w, b) : Model ->
+  let view = fun (h, w, b) : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
               ("gap", "0.35em"),
@@ -84,7 +84,7 @@ let ^hwb = {
           ]
         )
       ]
-    );
+    ));
 
   let expand = Functional(fun m : Model -> css(m));
 

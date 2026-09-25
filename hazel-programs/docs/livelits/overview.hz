@@ -88,16 +88,16 @@ let ^flag = {
   let init : Model = false;
 
   # the GUI acted; give back the next model #
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
 
   # the GUI itself. Handlers carry Actions, not functions: #
   # on_click(...) says which Action a click emits #
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.button(
       [Attr.on_click(if m then false else true),
        Attr.style([("font-family", "var(--code-font)"),
                    ("font-size", "0.8em")])],
-      [Html.text(if m then "yes" else "no")]);
+      [Html.text(if m then "yes" else "no")]));
 
   # what the use means: here, the model itself #
   let expand = Functional(fun m : Model -> m);

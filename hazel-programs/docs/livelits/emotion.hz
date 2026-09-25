@@ -30,7 +30,7 @@ let ^mood = {
 
   # Held remembers the mood and the y where the grab began, so a #
   # move is just the distance dragged: DOWN smiles, 2 mood per px. #
-  let update = fun ((v, drag), a) : (Model, Action) ->
+  let update = fun (v, drag) : Model -> fun a : Action -> Pure(
     case a
     | Down(y) => (v, Held(v, y))
     | MoveTo(y) =>
@@ -42,7 +42,7 @@ let ^mood = {
       | Held(v0, y0) => (clamp(v0 + 2 * (y - y0)), drag)
       end
     | Up => (v, Idle)
-    end;
+    end);
 
   # The mouth is a quadratic whose control point sits at 90 + 4v/5, #
   # while its corners stay at 130: the lip is flat at exactly v = 50. #
@@ -58,7 +58,7 @@ let ^mood = {
   let mouth = fun v ->
     "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
 
-  let view = fun (v, _drag) : Model ->
+  let view = fun (v, _drag) : Model -> Pure(
     Html.div(
       [Attr.create("data-hint", "drag up/down"),
        Attr.style([("cursor", "ns-resize")])],
@@ -82,7 +82,7 @@ let ^mood = {
                Attr.create("fill", "transparent"), Attr.create("stroke-width", "5")], [])
           ])
       ]
-    );
+    ));
 
   let expand = Functional(fun m : Model -> mood(m));
 
