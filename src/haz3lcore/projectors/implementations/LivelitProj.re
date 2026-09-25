@@ -606,11 +606,6 @@ module M: Projector = {
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
-        /* Spliced field labels of the model in the SYNTAX. Passed
-           separately because [model] here is whatever the view rendered
-           from -- on the optimistic path that is the evaluated value,
-           which holds no splices and would answer this wrongly. */
-        ~spliced: list(string),
         ~commit_model: TermBase.Exp.t => Ui_effect.t(unit),
         ~repaint: unit => Ui_effect.t(unit),
         gesture: HazelDOM.gesture,
@@ -818,7 +813,6 @@ module M: Projector = {
     };
     /* From the model in the SYNTAX -- `seed` shadows `model` below, and
        the optimistic path deliberately passes the evaluated value. */
-    let syntax_spliced = spliced_field_labels(model);
     let seed = (~model, ~model_value): HazelDOM.t => {
       inject:
         event_inject(
@@ -828,7 +822,6 @@ module M: Projector = {
           ~def_elab,
           ~model,
           ~model_value,
-          ~spliced=syntax_spliced,
           ~commit_model,
           ~repaint,
         ),

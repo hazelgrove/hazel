@@ -225,6 +225,10 @@ let realized_livelit_sig =
                | Some(d) => Sig.TypeManifest(n, d)
                | None => mem
                }
+             /* init is compared at the spliced fields' value types: see
+                strip_splice_refs. Dropping this broke splices-mvp. */
+             | Val("init", t) =>
+               Sig.Val("init", strip_splice_refs(realize(t)))
              | Val(n, t) => Sig.Val(n, realize(t))
              | _ => mem
              }

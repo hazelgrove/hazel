@@ -330,6 +330,91 @@ let module_well_typed_no_mismatch = () => {
   );
 };
 
+/* A spliced field is (ref=SpliceRef, value=t), but init is written before
+   any splice exists, so init is checked at t alone -- and only init: expand
+   still sees the pair. Losing this was invisible here and broke the
+   SpliceRef, MVP slide, whose init is (pct=50, lo=(0), hi=(100)). */
+let spliced_def = (~expand: string) =>
+  "let ^b = {
+type Model = (lo=(ref=SpliceRef, value=Int), n=Int);
+type Action = Int;
+type Expansion = Int;
+let init = (lo=0, n=1);
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> "
+  ++ expand
+  ++ ")
+} in 1";
+
+let init_at_value_types = () => {
+  let (m, _) = statics(spliced_def(~expand="m.lo.value + m.n"));
+  check(
+    bool,
+    "init gives a spliced field its value",
+    false,
+    has_mark(_ => true, m),
+  );
+  let (m, _) = statics(spliced_def(~expand="m.lo + m.n"));
+  check(bool, "expand still sees the pair", true, def_is_marked(m));
+};
+
+/* A do-block is in one monad (Sec. 3.2.4): update may not evaluate a
+   splice. The same bind in view is the control. */
+let bind_def = (~update: string, ~view: string) =>
+  "let ^x = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init = 0;
+let update = fun m -> fun a -> "
+  ++ update
+  ++ ";
+let view = fun m -> "
+  ++ view
+  ++ ";
+let expand = Functional(fun m -> m)
+} in 1";
+
+let bind_stays_in_its_monad = () => {
+  let eval_then = k => "do _ <- eval_splice(SpliceRef(\"s\")) in " ++ k;
+  let (m, _) =
+    statics(
+      bind_def(~update=eval_then("Pure(m)"), ~view="Pure(Html.text(\"\"))"),
+    );
+  check(bool, "update cannot eval_splice", true, has_mark(_ => true, m));
+  let (m, _) =
+    statics(
+      bind_def(~update="Pure(m)", ~view=eval_then("Pure(Html.text(\"\"))")),
+    );
+  check(bool, "view can", false, has_mark(_ => true, m));
+};
+
+/* Named, because the fixture has other unused binders (update's `a`). */
+let warns_unused = (name: string, m: Statics.Map.t): bool =>
+  Id.Map.exists(
+    (_, info) =>
+      List.mem(Warning.Pat(UnusedVar(name)), Info.warnings_of(info)),
+    m,
+  );
+
+/* A variable a do binds, and the body uses, is not unused. */
+let bind_vars_counted_used = () => {
+  let view = use =>
+    bind_def(
+      ~update="Pure(m)",
+      ~view=
+        "do r <- eval_splice(SpliceRef(\"s\")) in Pure(Html.text("
+        ++ use
+        ++ "))",
+    );
+  let (m, _) =
+    statics(view("case r | Some(_) => \"y\" | None => \"n\" end"));
+  check(bool, "used: no warning", false, warns_unused("r", m));
+  let (m, _) = statics(view("\"n\""));
+  check(bool, "unused: warned", true, warns_unused("r", m));
+};
+
 /* A livelit that lacks members is a MODULE that lacks members, and says so
    with the module system's own mark. DefMissingMembers and DefMissingTypes
    were livelit-specific restatements of it; ModuleMissingMembers already
@@ -1170,6 +1255,9 @@ let tests = [
         `Quick,
         sampled_handlers_are_closed,
       ),
+      test_case("init at value types", `Quick, init_at_value_types),
+      test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
+      test_case("bind vars counted used", `Quick, bind_vars_counted_used),
     ],
   ),
 ];

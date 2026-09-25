@@ -2268,9 +2268,22 @@ and uexp_to_info_map =
        against the same `ana` the whole bind was, so an arm of the wrong
        monad is reported by ordinary inconsistency. */
     | Bind(p, cmd, body) =>
-      /* The command is coerced to the binder's expectation the way a
-         let's definition is, so this is a coercion site too. */
-      let (cmd, cmd_elab, m) = go(~ana=syn, ~coercible=true, cmd, m);
+      /* A do-block is in ONE monad. When the context already says which
+         -- the body of update is an UpdateCmd -- the command is analyzed
+         against that monad at an unknown payload, so a command of the
+         OTHER monad is an ordinary inconsistency at the command: an
+         UpdateCmd cannot evaluate a splice (Sec. 3.2.4). Analysis is also
+         what lets `Pure(x)` stand first, since Pure only resolves against
+         a monad. Coerced like a let's definition: a coercion site too. */
+      let cmd_ana =
+        switch (BuiltinsADT.monad_of_typ(Typ.weak_head_normalize(ctx, ana))) {
+        | Some((BuiltinsADT.UpdateMonad, _)) =>
+          BuiltinsADT.update_cmd(Unknown(Internal) |> Typ.temp)
+        | Some((BuiltinsADT.ViewMonad, _)) =>
+          BuiltinsADT.view_cmd(Unknown(Internal) |> Typ.temp)
+        | None => syn
+        };
+      let (cmd, cmd_elab, m) = go(~ana=cmd_ana, ~coercible=true, cmd, m);
       /* What the command is a command OF. None means it is not a command
          at all; the pattern then analyzes against Unknown and the
          inconsistency is reported where the command is, not here. */
@@ -2281,7 +2294,10 @@ and uexp_to_info_map =
         | Some((_, a)) => a
         | None => Unknown(Internal) |> Typ.temp
         };
-      let (p_ana, p_elab, m) =
+      /* As with let: this pass is only for the context the body sees. The
+         pass that is kept comes after the body, given the body's co-ctx,
+         or every variable the pattern binds is reported unused. */
+      let (p_pre, _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=payload, p, m);
       /* A do-block is in ONE monad, and its first command decides which.
          So when nothing outside says what this bind should be -- it sits
@@ -2298,7 +2314,9 @@ and uexp_to_info_map =
           BuiltinsADT.view_cmd(Unknown(Internal) |> Typ.temp)
         | _ => ana
         };
-      let (body, body_elab, m) = go(~ctx=p_ana.ctx, ~ana=body_ana, body, m);
+      let (body, body_elab, m) = go(~ctx=p_pre.ctx, ~ana=body_ana, body, m);
+      let (p_ana, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=payload, p, m);
       /* `do` is SUGAR. It elaborates to the real bind, instantiated:
 
            bind @<a> @<b> (cmd, fun p -> body)
