@@ -111,19 +111,52 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
   | Sig(items) =>
+    /* Close every member in one pass, not one sig_project_value per
+     * member: each of those re-substitutes the type members from scratch,
+     * and for Html that is its whole HTML type substituted ~50 times, over
+     * a second a keystroke. Same substitution, same defaults, and the last
+     * declaration of each value wins, as in sig_project_value. */
+    let closed = Typ.sig_members_closed(items);
+    let closed_value = label =>
+      List.fold_left(
+        (found, (m: Sig.member, ty)) =>
+          switch (m) {
+          | Val(x, _) when x == label => Some(ty)
+          | _ => found
+          },
+        None,
+        closed,
+      );
     Sig.members(items)
     |> Sig.dedup_last
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
          | Val(label, _) =>
-           Typ.sig_project_value(items, label)
-           |> Option.map(field_ty => (label, field_ty))
+           closed_value(label) |> Option.map(field_ty => (label, field_ty))
          | TypeManifest(_)
          | TypeAbstract(_) => None
          }
-       )
+       );
   | _ => []
   };
+
+/* named_fields, remembered for one TyDi.suggest call. Every caller in that
+ * call derives its ctx the same way from the same Info.t, so an entry's
+ * fields are the same each time they are asked for; without this,
+ * bound_qualified and bound_qualified_aps compute them twice per keystroke,
+ * and the Bool lookahead more. Keyed on the entry's type by physical
+ * identity: the builtin entries are the same value throughout. */
+let fields_memo = () => {
+  let seen = ref([]);
+  (ctx: Ctx.t, typ: Typ.t) =>
+    switch (List.assq_opt(typ, seen^)) {
+    | Some(fields) => fields
+    | None =>
+      let fields = named_fields(ctx, typ);
+      seen := [(typ, fields), ...seen^];
+      fields;
+    };
+};
 
 /* Suggest qualified member access: for variables with labeled tuple or
  * module types, suggest Name.label for fields consistent with the expected
@@ -151,11 +184,12 @@ let could_qualify = (~prefix: option(string), name: string): bool =>
   };
 
 let bound_qualified =
-    (~prefix=?, ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+    (~prefix=?, ~fields=named_fields, ty_expect: Typ.t, ctx: Ctx.t)
+    : list(TyDiSuggestion.t) =>
   List.concat_map(
     fun
     | Ctx.VarEntry({typ, name, _}) when could_qualify(~prefix, name) =>
-      named_fields(ctx, typ)
+      fields(ctx, typ)
       |> List.filter_map(((label, field_ty)) =>
            Typ.is_consistent(ctx, ty_expect, field_ty)
              ? Some(
@@ -175,11 +209,12 @@ let bound_qualified =
  * E.g., if String has (length=String->Int) and we expect Int,
  * suggest "String.length(". */
 let bound_qualified_aps =
-    (~prefix=?, ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+    (~prefix=?, ~fields=named_fields, ty_expect: Typ.t, ctx: Ctx.t)
+    : list(TyDiSuggestion.t) =>
   List.concat_map(
     fun
     | Ctx.VarEntry({typ, name, _}) when could_qualify(~prefix, name) =>
-      named_fields(ctx, typ)
+      fields(ctx, typ)
       |> List.filter_map(((label, field_ty: Typ.t)) =>
            switch (field_ty.term) {
            | Arrow(_, ty_out)
@@ -219,7 +254,8 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
  * optimization is a single-pass refactor that classifies entries into
  * buckets in one traversal, and/or pre-caching results for the fixed
  * builtin context. */
-let suggest_variable = (~prefix=?, ci: Info.t): list(TyDiSuggestion.t) => {
+let suggest_variable =
+    (~prefix=?, ~fields=?, ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
   let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
   switch (ci) {
@@ -227,8 +263,8 @@ let suggest_variable = (~prefix=?, ci: Info.t): list(TyDiSuggestion.t) => {
     bound_variables(ana, ctx)
     @ bound_livelits(ana, ctx)
     @ bound_aps(ana, ctx)
-    @ bound_qualified(~prefix?, ana, ctx)
-    @ bound_qualified_aps(~prefix?, ana, ctx)
+    @ bound_qualified(~prefix?, ~fields?, ana, ctx)
+    @ bound_qualified_aps(~prefix?, ~fields?, ana, ctx)
     @ bound_constructors(x => Exp(Common(x)), ana, ctx)
     @ bound_constructor_aps(x => Exp(Common(x)), ana, ctx)
   | InfoPat({ana, co_ctx, _}) =>
@@ -263,7 +299,7 @@ let suggest_variable = (~prefix=?, ci: Info.t): list(TyDiSuggestion.t) => {
  */
 
 let suggest_lookahead_variable =
-    (~prefix=?, ci: Info.t): list(TyDiSuggestion.t) => {
+    (~prefix=?, ~fields=?, ci: Info.t): list(TyDiSuggestion.t) => {
   let restrategize = (suffix, {content, strategy}) => {
     content: content ++ suffix,
     strategy,
@@ -274,11 +310,11 @@ let suggest_lookahead_variable =
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>
       bound_variables(ty, ctx)
-      @ bound_qualified(~prefix?, ty, ctx)
+      @ bound_qualified(~prefix?, ~fields?, ty, ctx)
       @ bound_constructors(x => Exp(Common(x)), ty, ctx);
     let exp_aps = ty =>
       bound_aps(ty, ctx)
-      @ bound_qualified_aps(~prefix?, ty, ctx)
+      @ bound_qualified_aps(~prefix?, ~fields?, ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>

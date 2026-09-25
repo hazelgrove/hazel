@@ -96,9 +96,10 @@ let suggest = (~prefix=?, ci: Info.t, z: Zipper.t): list(t) => {
       TyDiForms.suggest_leading(ci)
       @ TyDiForms.suggest_operand(ci)
       |> List.sort(TyDiSuggestion.compare);
+    let fields = TyDiCtx.fields_memo();
     let ctx_suggestions =
-      TyDiCtx.suggest_variable(~prefix?, ci)
-      @ TyDiCtx.suggest_lookahead_variable(~prefix?, ci)
+      TyDiCtx.suggest_variable(~prefix?, ~fields, ci)
+      @ TyDiCtx.suggest_lookahead_variable(~prefix?, ~fields, ci)
       |> List.sort(TyDiSuggestion.compare);
     let operators =
       TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);

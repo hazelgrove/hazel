@@ -469,6 +469,110 @@ let prefix_pruning_tests = (
   ],
 );
 
+/* named_fields closes a signature's members in one pass. It must give what
+   the per-member Typ.sig_project_value it replaced gave: same labels, same
+   order, the same type for each (up to ids). Checked on the builtin modules,
+   where the one pass matters, and on signatures with abstract members and a
+   value declared twice. */
+let named_fields_by_projection = (ctx, typ) =>
+  switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+  | Sig(items) =>
+    Sig.members(items)
+    |> Sig.dedup_last
+    |> List.filter_map((m: Sig.member) =>
+         switch (m) {
+         | Val(label, _) =>
+           Typ.sig_project_value(items, label)
+           |> Option.map(ty => (label, ty))
+         | TypeManifest(_)
+         | TypeAbstract(_) => None
+         }
+       )
+  | _ => TyDiCtx.named_fields(ctx, typ)
+  };
+
+let same_fields = (what, ctx, typ) => {
+  let got = TyDiCtx.named_fields(ctx, typ);
+  let want = named_fields_by_projection(ctx, typ);
+  check(
+    list(string),
+    what ++ ": labels",
+    List.map(fst, want),
+    List.map(fst, got),
+  );
+  List.iter2(
+    ((label, w), (_, g)) =>
+      check(bool, what ++ "." ++ label, true, Typ.equal(w, g)),
+    want,
+    got,
+  );
+  List.length(got);
+};
+
+let named_fields_tests = (
+  "TyDi.NamedFields",
+  [
+    test_case(
+      "builtin modules: one pass is the projection",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(Some(Int));
+        List.iter(
+          name =>
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some({typ, _}) =>
+              check(
+                bool,
+                name ++ " has members",
+                true,
+                same_fields(name, ctx, typ) > 0,
+              )
+            | None => fail("no builtin " ++ name)
+            },
+          ["Html", "Attr", "Cmd", "Sub"],
+        );
+      },
+    ),
+    test_case(
+      "abstract members and a repeated value",
+      `Quick,
+      () => {
+        let sig_of = code => {
+          let actions = Test_Editing.mk(code ++ "¦");
+          let z = Test_Editing.perform(Zipper.init(), actions);
+          let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+          let (info_map, _) =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+          switch (Indicated.ci_for_completion(z, info_map)) {
+          | Some(ci) =>
+            let ctx = Info.ctx_of(ci);
+            switch (Ctx.lookup_var(ctx, "m")) {
+            | Some({typ, _}) => (ctx, typ)
+            | None => fail("no m in " ++ code)
+            };
+          | None => fail("no completion point in " ++ code)
+          };
+        };
+        List.iter(
+          code => {
+            let (ctx, typ) = sig_of(code);
+            check(
+              bool,
+              code ++ " has members",
+              true,
+              same_fields(code, ctx, typ) > 0,
+            );
+          },
+          [
+            "let m : { type T; type U = [T]; let x : T; let y : U -> T; let x : U } = ? in m",
+            "let m = { type T = Int; type U = (T, T); let a : U = (1, 2); let b = fun (u : U) -> 3 } in m",
+          ],
+        );
+      },
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -480,6 +584,7 @@ let tests = [
   suppression_tests,
   qualified_tests,
   prefix_pruning_tests,
+  named_fields_tests,
   base_typ_suppression_tests,
   ci_sort_tests,
 ];
