@@ -1,13 +1,13 @@
 /* Shared piece-level definition boundaries for focus, editing and presentation.
    No printing or reparsing: stable syntax ids survive each splice. */
 let ends_with_in = (t: Base.tile): bool =>
-  switch (List.rev(t.label)) {
+  switch (List.rev(Tile.label(t))) {
   | ["in", ..._] => true
   | _ => false
   };
 let is_semi = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => t.label == [";"]
+  | Tile(t) => Tile.is_semi(t)
   | _ => false
   };
 /* Edge-whitespace handling: the raw pat/def slices carry the
@@ -135,7 +135,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
         );
     switch (first_tile(start)) {
     | Some(t) =>
-      switch (t.label) {
+      switch (Tile.label(t)) {
       | ["let", ..._]
       | ["type", ..._]
       | ["module", ..._] => Some(t.id)

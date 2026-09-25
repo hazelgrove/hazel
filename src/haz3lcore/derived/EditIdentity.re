@@ -11,8 +11,8 @@ and same_piece = (a: Piece.t, b: Piece.t): bool =>
   || (
     switch (a, b) {
     | (Tile(a), Tile(b)) =>
-      a.label == b.label
-      && a.mold == b.mold
+      a.form == b.form
+      && a.sort == b.sort
       && a.shards == b.shards
       && same_content_children(a.children, b.children)
     | (Secondary(a), Secondary(b)) => a.content == b.content
@@ -52,8 +52,8 @@ and reuse_piece = (old: Piece.t, fresh: Piece.t): Piece.t =>
     switch (old, fresh) {
     | (Tile(a), Tile(b))
         when
-          a.label == b.label
-          && a.mold == b.mold
+          a.form == b.form
+          && a.sort == b.sort
           && a.shards == b.shards
           && List.length(a.children) == List.length(b.children) =>
       Tile({

@@ -454,7 +454,7 @@ module Local = {
           let (run, rest) = take([], ps);
           let witness =
             switch (prev) {
-            | Some(Piece.Tile({label: [";"], _})) => Option.to_list(member)
+            | Some(Piece.Tile(t)) when Tile.is_semi(t) => Option.to_list(member)
             | _ => Option.to_list(Option.map(Piece.id, prev))
             };
           [
@@ -464,12 +464,11 @@ module Local = {
         | [p, ...rest] =>
           let member =
             switch (p) {
-            | Piece.Tile({
-                label: ["let", ..._] | ["type", ..._] | ["module", ..._],
-                id,
-                _,
-              }) =>
-              Some(id)
+            | Piece.Tile(t) =>
+              switch (Tile.label(t)) {
+              | ["let" | "type" | "module", ..._] => Some(t.id)
+              | _ => member
+              }
             | _ => member
             };
           [`Tok(p), ...runs(Some(p), member, rest)];
@@ -502,7 +501,7 @@ module Local = {
                  let n =
                    module_body
                      ? switch (left) {
-                       | Some(Piece.Tile({label: [";"], _})) => 2
+                       | Some(Piece.Tile(t)) when Tile.is_semi(t) => 2
                        | _ => 1
                        }
                      : (

@@ -52,17 +52,22 @@ let declaration_name = (pieces: Segment.t) =>
   List.find_map(
     p =>
       switch (p) {
-      | Piece.Tile({label: [kind, ..._], children: [pat, ..._], _})
-          when kind == "let" || kind == "type" || kind == "module" =>
+      | Piece.Tile({children: [pat, ..._], _} as t)
+          when List.mem(Tile.token(t, 0), ["let", "type", "module"]) =>
+        let kind = Tile.token(t, 0);
         switch (core_ws(pat)) {
-        | [Piece.Tile({label: [name], children: [], _}), ..._]
-            when
-              Token.is_var(name)
-              || Token.is_ctr(name)
-              || Token.is_typ_var(name) =>
-          Some((kind, name))
+        | [Piece.Tile({children: [], _} as nt), ..._] =>
+          switch (Tile.single_token(nt)) {
+          | Some(name)
+              when
+                Token.is_var(name)
+                || Token.is_ctr(name)
+                || Token.is_typ_var(name) =>
+            Some((kind, name))
+          | _ => None
+          }
         | _ => None
-        }
+        };
       | _ => None
       },
     pieces,
@@ -134,7 +139,7 @@ let rec shell = (path, before: Segment.t, after: Segment.t) => {
                     switch (p) {
                     | Piece.Tile(b)
                         when
-                          b.label == t.label
+                          Tile.label(b) == Tile.label(t)
                           && List.length(b.children)
                           == List.length(t.children) =>
                       Some(b)
@@ -156,7 +161,7 @@ let rec shell = (path, before: Segment.t, after: Segment.t) => {
                     Option.bind(old, b => List.nth_opt(b.children, i))
                     |> Option.value(~default=[]);
                   let child_path = path @ [(t.id, i)];
-                  if (t.label == ["{", "}"]
+                  if (Tile.has_label(t, ["{", "}"])
                       && (has_defs(child) || has_defs(previous))) {
                     let start = previous == [] ? tail(child) : previous;
                     blocks := blocks^ @ [(child_path, start, child)];
