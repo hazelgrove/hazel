@@ -1151,6 +1151,8 @@ let view =
             ~msg_id: Id.t,
             ~usage: OpenRouter.Reply.Model.usage,
             ~prev_usage: option(OpenRouter.Reply.Model.usage),
+            ~price_in: float,
+            ~price_out: float,
           )
           : Node.t => {
         let cache_read =
@@ -1164,16 +1166,43 @@ let view =
            on why prompt_tokens is not a billing figure). */
         let fmt_credits = (c: float): string =>
           Printf.sprintf("%.6f", c) ++ " cr";
+        /* [prompt_tokens] over-reports on cache-write turns: OpenRouter appears
+           to sum the cache read and the cache write for the same content into
+           it (measured on google/gemini-3-flash-preview: 19,044 + 19,044
+           against a reported 38,087). Subtracting the write recovers the real
+           payload size, so the meter and the derived rows below stop reading
+           ~2x high on the turn that populates the cache. */
+        let payload_tokens = max(0, usage.prompt_tokens - cache_write);
+        let prev_payload = (p: OpenRouter.Reply.Model.usage) =>
+          max(
+            0,
+            p.prompt_tokens - Option.value(~default=0, p.cache_write_tokens),
+          );
         let new_this_turn =
           switch (prev_usage) {
           | Some(p) when p.model_id == usage.model_id =>
-            max(
-              0,
-              usage.prompt_tokens - p.prompt_tokens - p.completion_tokens,
-            )
-          | _ => usage.prompt_tokens
+            max(0, payload_tokens - prev_payload(p) - p.completion_tokens)
+          | _ => payload_tokens
           };
-        let preexisting = max(0, usage.prompt_tokens - new_this_turn);
+        let preexisting = max(0, payload_tokens - new_this_turn);
+        /* Saving realised on this turn, priced with OpenRouter's own published
+           per-token input rate for the active model. Both inputs are shown in
+           the expanded rows so the arithmetic is checkable rather than
+           trust-us: cached tokens would have cost [cache_read * price_in] at
+           full rate, and we were billed [usage.cost]. Only meaningful when a
+           price is known and something was actually cache-read. */
+        let saved_this_turn: option(float) =
+          switch (usage.cost) {
+          | Some(actual) when price_in > 0.0 && cache_read > 0 =>
+            let full_rate_cost =
+              float_of_int(payload_tokens)
+              *. price_in
+              +. float_of_int(usage.completion_tokens)
+              *. price_out;
+            let saved = full_rate_cost -. actual;
+            saved > 0.0 ? Some(saved) : None;
+          | _ => None
+          };
         let chip_dom_id = "agent-token-chip-" ++ Id.to_string(msg_id);
         let toggle = _ => {
           Js.Opt.iter(
@@ -1242,10 +1271,8 @@ let view =
             div(
               ~attrs=[clss(["agent-token-chip-body"])],
               [
-                row(
-                  "Total payload tokens",
-                  humanize_tokens(usage.prompt_tokens),
-                ),
+                row("Cached this turn", cache_read > 0 ? "yes" : "no"),
+                row("Total payload tokens", humanize_tokens(payload_tokens)),
                 row("New tokens this turn", humanize_tokens(new_this_turn)),
                 row(
                   "Preexisting (prior context)",
@@ -1272,6 +1299,21 @@ let view =
                   | None => "—"
                   },
                 ),
+                row(
+                  "Saved by caching",
+                  switch (saved_this_turn) {
+                  | Some(s) => fmt_credits(s)
+                  | None => "—"
+                  },
+                ),
+                /* The rate the saving above is priced against, so the number is
+                   auditable: OpenRouter's published per-token input price for
+                   the active model, not an assumption of ours. */
+                row(
+                  "Input price basis",
+                  price_in > 0.0
+                    ? Printf.sprintf("%.9f cr/tok", price_in) : "—",
+                ),
                 Node.pre(
                   ~attrs=[clss(["agent-token-chip-raw"])],
                   [text(raw_json)],
@@ -1281,6 +1323,14 @@ let view =
           ],
         );
       };
+      /* OpenRouter's published per-token prices for the active model, used only
+         to price the "saved by caching" counterfactual. Both are 0.0 when no
+         model is selected or the strings fail to parse, in which case the chip
+         shows a dash rather than a made-up number. */
+      let (price_in, price_out) =
+        AgentSlashFormat.pricing_per_token(
+          globals.settings.agent_globals.active_llm,
+        );
       let prev_agent_usage_ref =
         ref(None: option(OpenRouter.Reply.Model.usage));
       let (linear_display_rev, pending_batch) =
@@ -1306,6 +1356,8 @@ let view =
                       ~msg_id=msg.id,
                       ~usage,
                       ~prev_usage=prev_agent_usage_ref^,
+                      ~price_in,
+                      ~price_out,
                     ),
                   )
                 | None => None
