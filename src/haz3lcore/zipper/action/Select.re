@@ -409,13 +409,19 @@ let current_term_id = (z: t): option(Id.t) => {
   | Grout(_)
   | Projector(_) => Some(Piece.id(p))
   | Tile(t) =>
-    switch (t.label, Zipper.parent(z)) {
-    | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
+    switch (t.form, Zipper.parent(z)) {
+    | (
+        Form.Compound(Comma),
+        Some(Tile({form: Form.Compound(ListLit | Parens | Ap), id, _})),
+      ) =>
       Some(id)
-    | (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
+    | (
+        Form.Compound(Rule),
+        Some(Tile({form: Form.Compound(Case), id, _})),
+      )
         when rel == Sibling =>
       Some(id)
-    | (["|", "=>"], Some(Tile({label: ["|", "=>"], _})))
+    | (Form.Compound(Rule), Some(Tile({form: Form.Compound(Rule), _})))
         when rel == Parent =>
       switch (z.relatives.ancestors) {
       | [_, (gp, _), ..._] => Some(gp.id)
@@ -474,18 +480,22 @@ let containing_rule = (z: t): option(t) => {
   };
   let rule_or_end_of_seg_to_right =
     fun
-    | (_, None | Some(Piece.Tile({label: ["|", "=>"], _}))) => true
+    | (_, None) => true
+    | (_, Some(Piece.Tile({form: Form.Compound(Rule), _}))) => true
     | _ => false;
   let grow_right_until_case_or_rule = z =>
     Zipper.do_until_piece(grow_left_by_piece, rule_or_end_of_seg_to_right, z);
-  let secondary_to_left =
-    fun
-    | (Some(Piece.Secondary(_)), _) => true
-    | _ => false;
-  let shrink_past_secondary = z =>
-    !secondary_to_left(Siblings.neighbors(z.relatives.siblings))
-      ? Some(z)
-      : Zipper.do_until_piece(shrink_right_by_piece, secondary_to_left, z);
+  /* shrink while the selection still ENDS in secondaries: the grow
+     pass swept up the trailing linebreak + next line's indentation */
+  let rec shrink_past_secondary = (z: t): option(t) =>
+    switch (ListUtil.last_opt(z.selection.content)) {
+    | Some(Piece.Secondary(_)) =>
+      switch (shrink_right_by_piece(z)) {
+      | Some(z) => shrink_past_secondary(z)
+      | None => Some(z)
+      }
+    | _ => Some(z)
+    };
   let* z = current_tile(z);
   let* z = grow_right_until_case_or_rule(z);
   let* z = shrink_past_secondary(z);
@@ -540,7 +550,7 @@ let current_term =
     ) => {
   let* {piece: p, _} = Indicated.for_decoration(z);
   switch (p) {
-  | Tile({label: ["let" | "type" | "module", "=", "in"], _})
+  | Tile({form: Form.Compound(Let | TypeAlias | ModuleExp), _})
       when defs_exclude_bodies =>
     current_tile(z)
   /* Mod-sort analog (plans/mod-root.md): the `;` separator's enclosing
@@ -548,10 +558,14 @@ let current_term =
      across the entire program (~2.7s at 1k lines). The `in`-less def
      tiles need no guard: their term is item-local (Cmd+D escalation
      value → def → module is gated in Test_Editing module_tests). */
-  | Tile({label: [";"], mold, _})
-      when defs_exclude_bodies && mold.out == Sort.Mod =>
+  | Tile(t)
+      when
+        defs_exclude_bodies
+        && Tile.label(t) == [";"]
+        && Tile.mold(t).out == Sort.Mod =>
     current_tile(z)
-  | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
+  | Tile({form: Form.Compound(Rule), _}) when case_rules =>
+    containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
     switch (TermData.extreme_ids(id, term_data)) {
@@ -666,8 +680,7 @@ let def_body_indicated =
 let parent_is_rule = (z: t, info_map): option(Id.t) => {
   let is_case_or_rule = (p: Piece.t) =>
     switch (p) {
-    | Tile({label: ["case", "end"], _}) => true
-    | Tile({label: ["|", "=>"], _}) => true
+    | Tile({form: Form.Compound(Case | Rule), _}) => true
     | _ => false
     };
   let move_left_until_case_or_rule =
@@ -681,7 +694,7 @@ let parent_is_rule = (z: t, info_map): option(Id.t) => {
     let* z = move_left_until_case_or_rule(z);
     let* {piece: p, _} = Indicated.for_decoration(z);
     switch (p) {
-    | Tile({label: ["|", "=>"], id, _}) => Some(id)
+    | Tile({form: Form.Compound(Rule), id, _}) => Some(id)
     | _ => None
     };
   };
@@ -709,7 +722,7 @@ let parent_term_id = (z: t, info_map) => {
 
 let is_rule_tile =
   fun
-  | Piece.Tile({label: ["|", "=>"], _}) => true
+  | Piece.Tile({form: Form.Compound(Rule), _}) => true
   | _ => false;
 
 /* Check if id has a module item cls (ModLet, ModType, etc.).

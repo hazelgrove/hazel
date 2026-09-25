@@ -376,7 +376,8 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 | `src/language/term/Sig.re`              | Sig term utilities and cls type                                    |
 | `src/language/term/MPat.re`             | MPat term utilities and cls type                                   |
 | `src/language/term/Cls.re`              | `Mod(Mod.cls)`, `Sig(Sig.cls)`, `MPat(MPat.cls)` variants         |
-| `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
+| `src/language/grammar/FormId.re`         | Module/Sig families + labels                                       |
+| `src/haz3lcore/lang/Form.re`            | Module/Sig mold rows, `mk_pre_c'` helper                           |
 | `src/haz3lcore/tiles/Mold.re`           | `mk_pre'` for heterogeneous prefix forms                           |
 | `src/haz3lcore/tiles/Segment.re`        | `remold_mod`/`remold_sig`/`remold_mpat` with fallback patterns     |
 | `src/haz3lcore/tiles/Skel.re`           | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
