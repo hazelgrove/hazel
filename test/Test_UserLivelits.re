@@ -461,6 +461,65 @@ let text_reload_rebuilds_splices = () => {
   check(bool, "marking twice changes nothing", true, again == None);
 };
 
+/* The Splices, Dynamically slide's own view, read from the slide, applied
+   to three refs and RUN: its answer must be Html. */
+let read_file = path => {
+  let ic = open_in_bin(path);
+  let s = really_input_string(ic, in_channel_length(ic));
+  close_in(ic);
+  s;
+};
+
+let row_view_of = (path, ()) => {
+  let slide = read_file(path);
+  let cut = {
+    let marker = "\n} in";
+    let rec find = i =>
+      if (i + String.length(marker) > String.length(slide)) {
+        fail("no end of the ^cells definition");
+      } else if (String.sub(slide, i, String.length(marker)) == marker) {
+        i + String.length(marker);
+      } else {
+        find(i + 1);
+      };
+    find(0);
+  };
+  let program =
+    String.sub(slide, 0, cut)
+    ++ " ^cells.view((orient = Row, refs = [SpliceRef((\"a\", 1)), "
+    ++ "SpliceRef((\"b\", 2)), SpliceRef((\"c\", ?))]))";
+  let (m, _) = statics(program);
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) when marks != [] =>
+          acc @ List.map(Mark.show, marks)
+        | _ => acc
+        },
+      m,
+      [],
+    );
+  check(list(string), path ++ ": typechecks", [], marks);
+  let v = run(program);
+  switch (Haz3lcore.ViewCmdRunner.run(v)) {
+  | Ok(h) =>
+    check(
+      bool,
+      path ++ ": the view answers Html",
+      true,
+      Haz3lcore.MvuShape.is_html(h),
+    )
+  | Error(e) =>
+    fail(
+      "view did not run: "
+      ++ e
+      ++ "\n  evaluated to: "
+      ++ String.sub(Exp.show(v), 0, min(1500, String.length(Exp.show(v)))),
+    )
+  };
+};
+
 /* Color (Figure 3)'s own init, in the paper's form (l.8-13): four
    new_splices starting at 0, 0, 0 and 100, answered positionally. */
 let color_init = () => {
@@ -1588,6 +1647,11 @@ let tests = [
       test_case("set_splice rewrites", `Quick, set_splice_rewrites),
       test_case("Color (Figure 3) init", `Quick, color_init),
       test_case("wrapped ref is written", `Quick, wrapped_ref_is_written),
+      test_case(
+        "row slide view runs",
+        `Quick,
+        row_view_of("hazel-programs/docs/livelits/splice-row.hz"),
+      ),
       test_case(
         "text reload rebuilds splices",
         `Quick,

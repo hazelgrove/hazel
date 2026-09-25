@@ -2,13 +2,12 @@
 
 # DRAFT. The paper's design, and its splices run. #
 
-# Every command below runs -- new_splice in update, editor in view. #
-# + cell and the + buttons each make a splice with new_splice. x #
-# drops a cell's ref, and its splice goes with it. rotate turns the #
-# sequence between a row and a column. #
-# One gap: a saved row of cells survives an in-app save and reload, #
-# but not a reload from this slide's text. A text reload does not #
-# yet rebuild a splice at a list position. #
+# Every command below runs: new_splice in init and in update, editor #
+# and eval_splice in view. init makes three cells, 1, 2 and 3. The + #
+# buttons each make an empty one with new_splice. x drops a cell's #
+# ref, and its splice goes with it. rotate turns the sequence between #
+# a row and a column. Under the row, the view reads every cell and #
+# sums what it finds. #
 
 # THE DESIGN #
 
@@ -17,8 +16,8 @@
 # Every splice is made by a command. Figure 3's init makes its four #
 # with new_splice (Sec. 3.2.1), and update, which may act on the #
 # splices as well as the model, can make more (Sec. 3.2.4). This #
-# slide uses the second half: a row of cells, one splice each, where #
-# a click makes one more. #
+# slide uses both halves: init makes the first three cells, and a #
+# click makes one more. #
 
 # The SpliceRef, MVP slide uses the first half: its init makes its #
 # two bounds with new_splice, and its Model has room for just two, #
@@ -43,13 +42,16 @@ let ^cells = {
     + InsertBefore(Int) + InsertAfter(Int) + Delete(Int) + Rotate;
   type Expansion = Int;
 
-  # EMPTY, by choice. init is a command, an UpdateCmd as in Figure 3 #
-  # (Sec. 3.2.1), performed when you type ^cells then a space. The #
-  # new use's text is the model it answers. It could call new_splice, #
-  # as Figure 3's does, but this one makes no cell. So the first cell #
-  # comes from a click, which is why an empty sequence offers #
-  # "+ cell". #
-  let init = Pure((orient = Row, refs = []));
+  # init is a command, an UpdateCmd as in Figure 3 (Sec. 3.2.1), #
+  # performed when you type ^cells then a space. Like Figure 3's, it #
+  # makes its splices with new_splice, each with starting code: #
+  # IntLit(n), an Exp constructor, which needs no quotation. The new #
+  # use's text is the model it answers, with the splices it made. #
+  let init =
+    do a <- new_splice(IntT, Some(IntLit(1))) in
+    do b <- new_splice(IntT, Some(IntLit(2))) in
+    do c <- new_splice(IntT, Some(IntLit(3))) in
+    Pure((orient = Row, refs = [a, b, c]));
 
   let len : [SpliceRef] -> Int =
     fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
@@ -82,10 +84,10 @@ let ^cells = {
   let update = fun m : Model -> fun a : Action ->
     case a
     | InsertBefore(i) =>
-      do r <- new_splice((IntT, None)) in
+      do r <- new_splice(IntT, None) in
       Pure((orient = m.orient, refs = insert_at((m.refs, i, r))))
     | InsertAfter(i) =>
-      do r <- new_splice((IntT, None)) in
+      do r <- new_splice(IntT, None) in
       Pure((orient = m.orient, refs = insert_at((m.refs, i + 1, r))))
     | Delete(i) => Pure((orient = m.orient, refs = remove_at((m.refs, i))))
     | Rotate =>
@@ -93,10 +95,10 @@ let ^cells = {
             refs = m.refs))
     end;
 
-  # view answers in ViewCmd, where editor lives (Sec. 3.2.3). #
-  # Each cell's editor is its own command, so a row of them means #
-  # sequencing one command per cell -- a do per cell, threaded down #
-  # the list. #
+  # view answers in ViewCmd, where editor and eval_splice live #
+  # (Sec. 3.2.3). Each cell's editor, and each cell's value, is its #
+  # own command, so a row of them means sequencing one command per #
+  # cell -- a do per cell, threaded down the list. #
 
   # The controls are ordinary buttons revealed by a :hover rule, not #
   # model state. Hover as state is the approach of the MVU / Seed #
@@ -119,6 +121,30 @@ let ^cells = {
         do es <- editors(rest) in
         Pure(e :: es)
       end
+    in
+    # Each cell's value, read with eval_splice (Sec. 3.2.3): the view #
+    # may read a splice, which update may not (Sec. 3.2.4). #
+    let values = fun rs ->
+      case rs
+      | [] => view_return @<[Option]>([])
+      | r :: rest =>
+        do v <- eval_splice(r) in
+        do vs <- values(rest) in
+        Pure(v :: vs)
+      end
+    in
+    # Sum what reduced to a number, and count the rest: an empty cell #
+    # is a hole, so it comes back Indet, not a value (Sec. 2.5.2). Left #
+    # unannotated on purpose: an annotation casts the argument, and the #
+    # answers eval_splice gives do not yet survive a cast (a known bug #
+    # in the runner, which builds them untagged). #
+    let tally =
+      fun (vs, s, k) ->
+        case vs
+        | [] => (s, k)
+        | Some(Val(x)) :: rest => tally((rest, s + x, k))
+        | _ :: rest => tally((rest, s, k + 1))
+        end
     in
     let ctl = fun (label, tip, act) ->
       Html.button(
@@ -159,6 +185,16 @@ let ^cells = {
       case m.orient | Row => "ll-seq" | Column => "ll-seq ll-col" end
     in
     do eds <- editors(m.refs) in
+    do vs <- values(m.refs) in
+    let (total, empty) = tally((vs, 0, 0)) in
+    let summary =
+      Html.div(
+        [Attr.style([("font-family", "var(--code-font)"),
+                     ("font-size", "0.8em")])],
+        [Html.text("sum " ++ string_of_int(total)
+          ++ (if empty == 0 then ""
+              else ", " ++ string_of_int(empty) ++ " empty"))])
+    in
     let body =
       case m.refs
       | [] =>
@@ -169,7 +205,8 @@ let ^cells = {
     Pure(
       Html.div([], [
         Html.node("style", [], [Html.text(css)]),
-        Html.div([Attr.class(seq_class)], [rot] @ body @ [rot])
+        Html.div([Attr.class(seq_class)], [rot] @ body @ [rot]),
+        summary
       ]));
 
   # What a use of ^cells MEANS (Sec. 3.2.5). Functional can only #
@@ -186,5 +223,7 @@ let ^cells = {
   let expand = Functional(fun m : Model -> len(m.refs));
   let shape = Block(48, 10)
 } in
-# A use, starting empty, just as init makes one (see init). #
-^^livelit(^cells((orient = Row, refs = [])))
+# A use, as saved: the three cells init made, each in parens where #
+# its ref sits in the list. That is how the text keeps a splice, and #
+# a reload rebuilds each one from its parens. #
+^^livelit(^cells((orient = Row, refs = [(1), (2), (3)])))
