@@ -39,6 +39,7 @@ open AST
 %token <Bigint.t> INT
 %token <float> FLOAT
 %token LET
+%token DO
 %token USE
 %token MODULE
 %token FUN
@@ -52,6 +53,7 @@ open AST
 %token OPEN_CURLY
 %token CLOSE_CURLY
 %token DASH_ARROW
+%token LEFT_ARROW
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
 %token TURNSTILE
@@ -465,6 +467,7 @@ exp:
     | f = exp; UNIT { ApExp(f, TupleExp([])) }
     | f = exp; OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(Label(l), e)])) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | DO; i = pat; LEFT_ARROW; e1 = exp; IN; e2 = exp { Bind (i, e1, e2) } %prec LET_EXP
     | USE; t = typ; IN; e = exp { Use(t, e) } %prec LET_EXP
     (* Bare tuples at a let: `let a, b = e in` / `let x = e1, e2 in` *)
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (TuplePat(p1 :: ps), e1, e2) } %prec LET_EXP
