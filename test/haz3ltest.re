@@ -125,7 +125,11 @@ let (suite, exit_with_test_status) =
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
-    @ [Test_ExplainThis.tests],
+    @ [Test_ExplainThis.tests]
+    @ [Test_CompletionItems.tests]
+    /* last: the keystroke benchmark leaves the process with less stack
+       headroom for the depth probes registered above it (FlatBench) */
+    @ [Test_MegaBench.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
