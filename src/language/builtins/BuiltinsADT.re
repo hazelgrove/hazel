@@ -1317,6 +1317,133 @@ let exp_typ: Typ.t = sum_type([]);
    with an abstract type member -- worth doing, not worth blocking on. */
 let splice_ref_typ: Typ.t = sum_type([("SpliceRef", Some(string()))]);
 
+/* ---- Figure 3's two command monads --------------------------------- */
+
+/* Hazel's type language has Poly and Rec but NO application: `typ_term`
+   carries no Ap. That is why Option above is monomorphic with a hole
+   rather than Option(a), and it is why the paper's UpdateCmd(t) and
+   ViewCmd(t) are BUILT here rather than spelled -- the same way
+   livelit_expand_typ builds expand's type out of Model and Expansion.
+
+   A livelit definition never writes these types. Analysis against the
+   realized signature supplies them, which is the route that already lets
+   Functional and Macro resolve without a `type Expand` member. */
+
+/* A type, as a value. Enough to NAME the type a splice holds, which is
+   all new_splice asks of it.
+
+   Deliberately NOT the quotation of Sec. 3.2.5. Naming Int is a choice
+   from a closed set; quoting an expression is not, and the two want
+   different machinery. Keeping them apart is what lets a splice be
+   created before Exp is inhabited. */
+let typ_typ: Typ.t =
+  sum_type([
+    ("IntT", None),
+    ("FloatT", None),
+    ("BoolT", None),
+    ("StringT", None),
+  ]);
+
+/* A splice editor's size (Sec. 3.2.3). The paper's Dim "currently
+   supports only a fixed character width, with overflow causing
+   scrolling", so a character count is the whole of it. */
+let dim_typ: Typ.t = sum_type([("Chars", Some(int()))]);
+
+/* What eval_splice answers with. Sec. 3.2.3 leaves it to each provider
+   whether indeterminate results are supported -- "this behavior is
+   highly domain-specific" -- so both arms are visible and a view decides
+   what to do with Indet. */
+let result_typ: Typ.t =
+  sum_type([("Val", Some(unknown(Internal))), ("Indet", None)]);
+
+/* The two monads, as command trees.
+
+   Each is a Rec whose arms are Pure and one per command, and every
+   command carries a CONTINUATION from its own answer. That is what makes
+   sequencing expressible without do-notation, which Hazel does not have:
+   `bind` builds a tree and the system interprets it, rather than the
+   livelit running anything itself.
+
+   Sec. 3.2.4 is explicit that the difference between them is the point:
+   "The UpdateCmd monad does not itself have the ability to request
+   evaluation (eval_splice), because the model should not depend directly
+   on which closure the user has selected." Two capability sets, not one
+   monad used twice -- so eval_splice, editor and result_view appear in
+   ViewCmd only, and new_splice and set_splice in UpdateCmd only.
+
+   Not built on the Cmd type above, though the two look alike. Cmd is
+   fire-and-forget -- CmdNone, CmdBatch of a list, no Pure and no
+   continuation -- so it can neither return a value nor let one command's
+   answer decide the next. Both are exactly what these need: new_splice
+   hands back a ref that the rest of the sequence uses. Cmd's shape is
+   still the precedent for how a recursive effect type is declared here,
+   which is why these are built the same way. */
+
+let update_cmd = (t: Typ.t): Typ.t => {
+  let self = var("$UpdateCmd");
+  rec_(
+    Fresh.TPat.var("$UpdateCmd"),
+    sum_type([
+      ("Pure", Some(t)),
+      /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
+      (
+        "NewSplice",
+        Some(
+          prod([
+            prod([var("Typ"), var("Option")]),
+            arrow(var("SpliceRef"), self),
+          ]),
+        ),
+      ),
+      /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
+      (
+        "SetSplice",
+        Some(
+          prod([
+            prod([var("SpliceRef"), var("Exp")]),
+            arrow(prod([]), self),
+          ]),
+        ),
+      ),
+    ]),
+  );
+};
+
+let view_cmd = (t: Typ.t): Typ.t => {
+  let self = var("$ViewCmd");
+  rec_(
+    Fresh.TPat.var("$ViewCmd"),
+    sum_type([
+      ("Pure", Some(t)),
+      /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
+      (
+        "EvalSplice",
+        Some(prod([var("SpliceRef"), arrow(var("Option"), self)])),
+      ),
+      /* editor : (SpliceRef, Dim) -> ViewCmd(Html(a)) */
+      (
+        "Editor",
+        Some(
+          prod([
+            prod([var("SpliceRef"), var("Dim")]),
+            arrow(HtmlModules.path("Html", "T"), self),
+          ]),
+        ),
+      ),
+      /* result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html(a))) */
+      (
+        "ResultView",
+        Some(
+          prod([
+            prod([var("SpliceRef"), var("Dim")]),
+            arrow(var("Option"), self),
+          ]),
+        ),
+      ),
+    ]),
+  );
+};
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
@@ -1328,6 +1455,9 @@ let type_aliases: list((string, Typ.t)) = [
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
   ("Exp", exp_typ),
+  ("Typ", typ_typ),
+  ("Dim", dim_typ),
+  ("Result", result_typ),
   ("SpliceRef", splice_ref_typ),
   ("Livelit", livelit),
 ];
