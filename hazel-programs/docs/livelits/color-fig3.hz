@@ -167,7 +167,45 @@ let ^color = {
   let shape = Block(40, 5)
 } in
 
+# COMPOSITION #
+
+# A splice is the client's own code, in the client's scope #
+# (Sec. 2.4.2-2.4.3), so it can name the client's variables, and those #
+# can come from livelits of their own. ^byte is a slider from 0 to #
+# 255, defined here; alpha, a percentage, uses the builtin slider. #
+# Drag one and let go: the program runs again, and ^color's view #
+# reads the new value of the splice that names it (eval_splice). #
+# Clicking a color still overwrites all four splices (l.46-53), and #
+# they then hold numbers, not these variables: set_splice rewrites #
+# the client's code. #
+
+let ^byte = {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+  let init = Pure(0);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.5em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.input([
+         Attr.type_("range"), Attr.min("0"), Attr.max("255"),
+         Attr.value(string_of_int(m)),
+         Attr.on_input(fun s -> int_of_string(s))]),
+       Html.text(string_of_int(m))]));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(20)
+} in
+
+let red = ^^livelit(^byte(255)) in
+let green = ^^livelit(^byte(140)) in
+let blue = ^^livelit(^byte(0)) in
+let alpha = ^^slider(100) in
+
 # A use, as saved. Its model is four splices, each in parens where #
 # its ref sits: that is how the program text keeps what new_splice #
-# made. Edit a channel's code, or click a color to overwrite all four. #
-^^livelit(^color((r = (255), g = (140), b = (0), a = (100))))
+# made. Here each one holds a variable, bound by a slider above. #
+^^livelit(^color((r = (red), g = (green), b = (blue), a = (alpha))))
