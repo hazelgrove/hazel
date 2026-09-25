@@ -236,5 +236,5 @@ let ^flag = {
 # Color Picker     helpers are ordinary members of the module #
 # Tree Care        a model that is a tree, redrawn as it grows #
 # Timings          what one frame of a livelit costs #
-# Splices, Dynamically (draft) #
+# Dynamic Row or Column #
 #                  a row of splices that grows and shrinks #

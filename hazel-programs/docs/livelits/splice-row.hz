@@ -1,4 +1,4 @@
-# Splices, Dynamically #
+# Dynamic Row/Column #
 
 # DRAFT. The paper's design, and its splices run. #
 
@@ -24,14 +24,14 @@
 # so it never grows a splice. The parens in its uses are those #
 # splices as saved, not an author's way to make one. #
 
-# Bring the mouse near a cell and its buttons appear around it: #
-#   +   on its leading side -- a new empty cell before it #
-#   +   on its trailing side -- a new empty cell after it #
-#   x   below it in a row, beside it in a column -- drop it #
-# The inserts sit ALONG the sequence and delete sits ACROSS it, so #
-# each + is exactly where its new cell will land. #
-# Hover the whole sequence and "rotate" appears at both ends, turning #
-# it between a row and a column. One dimension only, for now. #
+# The cells sit edge to edge, like a row or a column of a #
+# spreadsheet. Hover a cell and its buttons appear on its edges: #
+#   +   on its leading edge -- a new empty cell before it #
+#   +   on its trailing edge -- a new empty cell after it #
+#   x   at its corner -- drop it #
+# Each + sits on the border where its new cell will land. Hover the #
+# whole sequence and "rotate" appears at both ends, turning it #
+# between a row and a column. One dimension only, for now. #
 
 # Outside the livelit so the use below can name Row as well. #
 type Orient = + Row + Column in
@@ -146,25 +146,22 @@ let ^cells = {
         | _ :: rest => tally((rest, s, k + 1))
         end
     in
-    let ctl = fun (label, tip, act) ->
+    # A control floats over its cell's edge, so it takes no room in #
+    # the sequence: that is what lets the cells sit edge to edge. It #
+    # is a child of its cell, so hovering the control keeps the cell #
+    # hovered even where the control overhangs the cell's border. #
+    let ctl = fun (label, tip, place, act) ->
       Html.button(
-        [Attr.class("ll-hov"), Attr.create("title", tip), Attr.on_click(act),
-         Attr.style([("font-size", "0.65em"), ("padding", "0 3px")])],
+        [Attr.class("ll-hov " ++ place), Attr.create("title", tip),
+         Attr.on_click(act)],
         [Html.text(label)])
     in
-    # Inserts flank the editor along the sequence; delete sits across #
-    # it, in ll-core. Hidden buttons keep their space, so the hover #
-    # region is the cell PLUS its button margins: they appear when the #
-    # mouse is near the cell, not only when it is over the editor. #
-    # The reveal rule is a DESCENDANT selector, #
-    # .ll-cell:hover .ll-hov, because the x sits one level down, #
-    # inside ll-core. #
     let cell = fun (i, ed) ->
       Html.div([Attr.class("ll-cell")],
-        [ctl(("+", "insert before", InsertBefore(i))),
-         Html.div([Attr.class("ll-core")],
-           [ed, ctl(("x", "delete", Delete(i)))]),
-         ctl(("+", "insert after", InsertAfter(i)))])
+        [ed,
+         ctl(("+", "insert before", "ll-before", InsertBefore(i))),
+         ctl(("x", "delete", "ll-del", Delete(i))),
+         ctl(("+", "insert after", "ll-after", InsertAfter(i)))])
     in
     let cells = fun (i, eds) ->
       case eds
@@ -172,14 +169,36 @@ let ^cells = {
       | e :: rest => cell((i, e)) :: cells((i + 1, rest))
       end
     in
-    let rot =
+    let rot = fun place ->
       Html.button(
-        [Attr.class("ll-edge"), Attr.create("title", "rotate"),
-         Attr.on_click(Rotate), Attr.style([("font-size", "0.65em")])],
+        [Attr.class("ll-edge " ++ place), Attr.create("title", "rotate"),
+         Attr.on_click(Rotate)],
         [Html.text("rotate")])
     in
+    # One rule per line. The sequence keeps a little room at each end #
+    # for the rotate buttons; cells share their borders (-1px); every #
+    # control is absolutely placed and hidden until hover. #
     let css =
-      ".ll-seq{display:flex;gap:6px;align-items:center}.ll-col{flex-direction:column;align-items:flex-start}.ll-cell{display:flex;align-items:center;gap:2px}.ll-core{display:flex;flex-direction:column;align-items:center;gap:1px}.ll-col .ll-cell{flex-direction:column}.ll-col .ll-core{flex-direction:row}.ll-hov{visibility:hidden}.ll-cell:hover .ll-hov{visibility:visible}.ll-edge{visibility:hidden}.ll-seq:hover>.ll-edge{visibility:visible}"
+      string_join(("", [
+        ".ll-seq{display:inline-flex;position:relative;padding:0 3.6em}",
+        ".ll-col{flex-direction:column;padding:1.2em 0}",
+        ".ll-cell{position:relative;border:1px solid #999;",
+        "margin-left:-1px;padding:0 3px;min-height:1.2em}",
+        ".ll-col .ll-cell{margin-left:0;margin-top:-1px}",
+        ".ll-hov,.ll-edge{position:absolute;visibility:hidden;z-index:1;",
+        "font-size:0.6em;line-height:1;padding:0 2px}",
+        ".ll-cell:hover .ll-hov,.ll-seq:hover>.ll-edge{visibility:visible}",
+        ".ll-before{left:-0.6em;top:50%;transform:translateY(-50%)}",
+        ".ll-after{right:-0.6em;top:50%;transform:translateY(-50%)}",
+        ".ll-del{right:0;top:0}",
+        ".ll-col .ll-before{left:50%;top:-0.6em;transform:translateX(-50%)}",
+        ".ll-col .ll-after{left:50%;top:auto;bottom:-0.6em;",
+        "transform:translateX(-50%)}",
+        ".ll-start{left:0;top:50%;transform:translateY(-50%)}",
+        ".ll-end{right:0;top:50%;transform:translateY(-50%)}",
+        ".ll-col>.ll-start{left:0;top:0;transform:none}",
+        ".ll-col>.ll-end{left:0;top:auto;bottom:0;transform:none}"
+      ]))
     in
     let seq_class =
       case m.orient | Row => "ll-seq" | Column => "ll-seq ll-col" end
@@ -205,7 +224,8 @@ let ^cells = {
     Pure(
       Html.div([], [
         Html.node("style", [], [Html.text(css)]),
-        Html.div([Attr.class(seq_class)], [rot] @ body @ [rot]),
+        Html.div([Attr.class(seq_class)],
+          [rot("ll-start")] @ body @ [rot("ll-end")]),
         summary
       ]));
 
@@ -221,7 +241,16 @@ let ^cells = {
   # and that waits on quotation. Exp has only IntLit today, so a #
   # Macro expand cannot return real code yet. #
   let expand = Functional(fun m : Model -> len(m.refs));
-  let shape = Block(48, 10)
+  # The widget's footprint, in character cells -- a function of the #
+  # model, because this widget grows. In a row: about 7 columns a #
+  # cell (a six-wide editor and its border), room at the ends for #
+  # rotate, and 2 lines, the row and the sum. In a column: a line a #
+  # cell, a little more for the borders, plus rotate and the sum. #
+  let shape = fun m : Model ->
+    case m.orient
+    | Row => Block(7 * len(m.refs) + 10, 2)
+    | Column => Block(12, len(m.refs) + len(m.refs) / 5 + 4)
+    end
 } in
 # A use, as saved: the three cells init made, each in parens where #
 # its ref sits in the list. That is how the text keeps a splice, and #

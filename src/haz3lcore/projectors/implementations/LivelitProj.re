@@ -312,12 +312,81 @@ module M: Projector = {
       };
   };
 
+  /* A livelit may make its footprint a function of its model --
+     `let shape = fun m : Model -> ...` -- when its layout depends on it,
+     as a row of splices that grows does. Evaluated with the use's latest
+     model sample, and cached per projector on that sample. None for a
+     constant shape (read statically: UserLivelit.shape_of), and before any
+     sample exists; the static shape stands in then. */
+  let shape_samples: Hashtbl.t(Id.t, (int, option(ProjectorShape.t))) =
+    Hashtbl.create(16);
+  let model_shape =
+      (info: info, def_elab: TermBase.Exp.t, model: TermBase.Exp.t)
+      : option(ProjectorShape.t) => {
+    let latest =
+      switch (info.dynamics_at(Exp.rep_id(model))) {
+      | None => None
+      | Some(samples) =>
+        List.fold_left(
+          (acc, s: Sample.t) =>
+            switch (acc) {
+            | Some(best: Sample.t) when best.seq >= s.seq => acc
+            | _ => Some(s)
+            },
+          None,
+          samples,
+        )
+      };
+    switch (latest) {
+    | None => None
+    | Some(s) =>
+      switch (Hashtbl.find_opt(shape_samples, info.id)) {
+      | Some((seq, shape)) when seq == s.seq => shape
+      | _ =>
+        let shape =
+          switch (MvuShape.safe_evaluate(def_elab)) {
+          | Error(_) => None
+          | Ok(record) =>
+            switch (MvuShape.record_field(record, "shape")) {
+            | Some(f) =>
+              switch (MvuShape.strip_wrappers(f).term) {
+              | Fun(_)
+              | FixF(_) =>
+                switch (
+                  MvuShape.safe_evaluate(
+                    IdTagged.FreshGrammar.Exp.ap(
+                      Forward,
+                      f,
+                      MvuShape.close_value(s.value),
+                    ),
+                  )
+                ) {
+                | Ok(v) => UserLivelit.shape_of(v)
+                | Error(_) => None
+                }
+              | _ => None
+              }
+            | None => None
+            }
+          };
+        Hashtbl.replace(shape_samples, info.id, (s.seq, shape));
+        shape;
+      }
+    };
+  };
+
   let placeholder = (_model, info, splice_size) => {
     let looked_up =
       switch (get_model(info), info.statics) {
-      | (Some((llname, _)), Some(InfoExp(exp))) =>
+      | (Some((llname, model)), Some(InfoExp(exp))) =>
         switch (Ctx.lookup_livelit(exp.ctx, llname)) {
-        | Some(ll) => Some(ll.shape)
+        | Some(ll) =>
+          let dynamic =
+            switch (ll.user_def) {
+            | Some(def_elab) => model_shape(info, def_elab, model)
+            | None => None
+            };
+          Some(Option.value(dynamic, ~default=ll.shape));
         | None => None
         }
       | _ => None
