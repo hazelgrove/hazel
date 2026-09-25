@@ -48,6 +48,7 @@ type tpat_var_err =
    Do not reorder without understanding the impact on error selection. */
 [@deriving (show({with_path: false}), sexp, yojson, variants)]
 type t =
+  | DynamicError(InvalidOperationError.t)
   | BuiltinError(error_builtin)
   | Free(Var.t)
   | IsBadPartialAp(error_partial_ap)
