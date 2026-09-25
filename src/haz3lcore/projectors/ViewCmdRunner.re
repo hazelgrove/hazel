@@ -30,8 +30,11 @@ let result_of = (v: DHExp.t): DHExp.t => {
     : ctor("Some", Exp.constructor("Indet", None));
 };
 
-/* Div([Style([... width n ch ...])], [Splice(r)]). Scrolls rather than
-   grows, so a long splice cannot push the widget's layout around. */
+/* Div([Style([... min-width n ch ...])], [Splice(r)]). At least n
+   characters wide, and it grows with the client's code rather than
+   scrolling: a scroll box clips everything inside it, the splice's own
+   context menu included, and the projector already widens the widget for
+   what its splices hold (LivelitProj.widen_for_splices). */
 let editor_html = (r: DHExp.t, n: int): DHExp.t => {
   let ctor = (name, arg) =>
     Exp.ap(Forward, Exp.constructor(name, None), arg);
@@ -44,8 +47,7 @@ let editor_html = (r: DHExp.t, n: int): DHExp.t => {
           "Style",
           Exp.list_lit([
             prop("display", "inline-block"),
-            prop("width", string_of_int(n) ++ "ch"),
-            prop("overflow-x", "auto"),
+            prop("min-width", string_of_int(n) ++ "ch"),
           ]),
         ),
       ]),
