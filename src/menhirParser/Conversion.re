@@ -251,6 +251,8 @@ module rec Exp: {
       }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | Bind(p, e1, e2) =>
+      bind_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
       theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
@@ -370,6 +372,7 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Bind(p, e1, e2) => Bind(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
     | ProofObject(t) => ProofObject(Exp.of_core(t))

@@ -336,6 +336,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
         ),
       )
+    /* A bind's type IS its body's type -- both are M(b) -- so an
+       ascription on the whole pushes into the body, as Let's does. */
+    | (Bind(p, e1, e2), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Bind(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
     | (Seq(e1, e2), _) =>
       Some(
         IdTagged.fast_copy(

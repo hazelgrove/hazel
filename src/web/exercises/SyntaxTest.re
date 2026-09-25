@@ -93,6 +93,8 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Bind(up, def, body) =>
+    l |> find_in_let(name, up, def) |> find_fn(name, body)
   | Theorem(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
@@ -256,6 +258,9 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, def)
+  | Bind(p, def, body) =>
+    (var_mention_upat(name, p) ? false : var_mention(name, body))
+    || var_mention(name, def)
   | Theorem(p, thm, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, thm)
@@ -349,6 +354,9 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
   | Let(p, def, body) =>
+    (var_mention_upat(name, p) ? false : var_applied(name, body))
+    || var_applied(name, def)
+  | Bind(p, def, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, def)
   | Theorem(p, thm, body) =>
@@ -470,6 +478,9 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Forall(args, body) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
+    var_mention_upat(name, p) || var_mention(name, def)
+      ? false : tail_check(name, body)
+  | Bind(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
   | Theorem(p, thm, body) =>

@@ -49,6 +49,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Let(p, e1, e2) =>
           let (env', p') = in_pat(env, env, p);
           Let(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+        | Bind(p, e1, e2) =>
+          let (env', p') = in_pat(env, env, p);
+          Bind(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
             in_exp(env, e),

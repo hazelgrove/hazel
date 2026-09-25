@@ -598,6 +598,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
+  | Bind(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Bind(p, edef, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
   | Theorem(p, thm, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {

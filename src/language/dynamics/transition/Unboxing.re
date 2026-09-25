@@ -226,6 +226,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ExplicitNonlabel |
         Var(_) |
         Let(_) |
+        Bind(_) |
         Theorem(_) |
         Forall(_) |
         Fun(_, _, _, _) |

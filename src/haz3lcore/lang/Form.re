@@ -407,6 +407,7 @@ type compound_form =
   | Drv(drv_compound_form)
   // TRIPLE DELIMITERS
   | Let
+  | Bind
   | Theorem
   | TypeAlias
   | If
@@ -524,6 +525,11 @@ let get: compound_form => t =
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
+  /* Figure 3's bind. Same shape and precedence as let -- a pattern, a
+     thing bound, and a body it scopes over -- so it nests and chains
+     the way a let does, which is what makes a do-block just a
+     right-nested run of these. */
+  | Bind => mk_pre_c(L, ["do", "<-", "in"], P.let_, Exp, [Pat, Exp])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
   | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
   | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp])

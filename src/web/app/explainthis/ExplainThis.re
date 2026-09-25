@@ -1303,6 +1303,10 @@ let decide =
         let exp1_id = IdTagged.rep_id(left);
         let exp2_id = IdTagged.rep_id(right);
         get_message(SeqExp.seqs(~exp1_id, ~exp2_id));
+      | Bind(pat, cmd, _body) =>
+        let pat_id = IdTagged.rep_id(bypass_parens_and_annot_pat(pat));
+        let cmd_id = IdTagged.rep_id(cmd);
+        get_message(BindExp.binds(~pat_id, ~cmd_id));
       | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(

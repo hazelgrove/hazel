@@ -76,6 +76,7 @@ module Utils = {
     | DeferredAp(e, _)
     | HintedTest(e, _) => [e]
     | Let(_, e1, e2)
+    | Bind(_, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
     | Dot(e1, e2)

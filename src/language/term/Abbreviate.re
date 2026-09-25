@@ -852,6 +852,41 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Let(p', e1', e2');
         }
 
+      /* `do p <- e1 in e2`. Same three children as Let and the same
+         overhead to the character: "do " (3) + p + " <- " (4) + e1 +
+         " in " (4) is 11, as "let " (4) + " = " (3) + " in " (4) is. */
+      | Bind(p, e1, e2) =>
+        if (available^ < 3) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ < 5) {
+          available := available^ - 2;
+          Invalid("do");
+        } else if (available^ < 8) {
+          available := available^ - 3;
+          Invalid("do…");
+        } else if (available^ < 14) {
+          available := available^ - 8;
+          Invalid("do…<-…");
+        } else {
+          available := available^ - 11;
+          let pool = available^;
+          let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
+          let (p', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 0), ~run=() =>
+              abbreviate_pat(p)
+            );
+          let (e1', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 1), ~run=() =>
+              abbreviate_exp(e1)
+            );
+          let (e2', _) =
+            AbbrevBudget.with_budget(~budget=List.nth(budgets, 2), ~run=() =>
+              abbreviate_exp(e2)
+            );
+          Bind(p', e1', e2');
+        }
+
       | Theorem(p, e1, e2) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;

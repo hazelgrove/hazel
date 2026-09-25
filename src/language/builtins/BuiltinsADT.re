@@ -1385,6 +1385,21 @@ let update_cmd = (t: Typ.t): Typ.t => {
     Fresh.TPat.var("$UpdateCmd"),
     sum_type([
       ("Pure", Some(t)),
+      /* A bind is a node, not a step: `do p <- c in body` IS a command
+         tree rather than something that reduces to one, so the evaluator
+         leaves it alone and the interpreter walks it. The paper is clear
+         that these commands are the system's to run.
+
+         The bound command's payload type cannot be written here. It is
+         existential -- `c` is a command of SOME a, and the continuation
+         consumes that same a -- and the type language has neither
+         existentials nor application. Unknown is the honest spelling.
+         The precision is not lost, only moved: the Bind FORM's typing
+         rule checks c against M(a) and the pattern against a. */
+      (
+        "Bind",
+        Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
+      ),
       /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
       (
         "NewSplice",
@@ -1415,6 +1430,21 @@ let view_cmd = (t: Typ.t): Typ.t => {
     Fresh.TPat.var("$ViewCmd"),
     sum_type([
       ("Pure", Some(t)),
+      /* A bind is a node, not a step: `do p <- c in body` IS a command
+         tree rather than something that reduces to one, so the evaluator
+         leaves it alone and the interpreter walks it. The paper is clear
+         that these commands are the system's to run.
+
+         The bound command's payload type cannot be written here. It is
+         existential -- `c` is a command of SOME a, and the continuation
+         consumes that same a -- and the type language has neither
+         existentials nor application. Unknown is the honest spelling.
+         The precision is not lost, only moved: the Bind FORM's typing
+         rule checks c against M(a) and the pattern against a. */
+      (
+        "Bind",
+        Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
+      ),
       /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
       (
         "EvalSplice",
@@ -1443,6 +1473,50 @@ let view_cmd = (t: Typ.t): Typ.t => {
     ]),
   );
 };
+
+/* Which of the two monads a type is, and what it is a command OF.
+
+   The knowledge of the encoding lives here, next to the builders, so a
+   reader never has to reconstruct it from a pattern match elsewhere. The
+   tag is the Rec's binder name, which is why the builders chose names no
+   user can write: `$UpdateCmd` is not a type variable anyone can bind.
+
+   The payload is read off the Pure arm, because Pure is the arm that
+   holds the monad's own answer -- update_cmd(t) puts t there and nowhere
+   else. */
+type cmd_monad =
+  | UpdateMonad
+  | ViewMonad;
+
+let show_cmd_monad = (m: cmd_monad): string =>
+  switch (m) {
+  | UpdateMonad => "UpdateCmd"
+  | ViewMonad => "ViewCmd"
+  };
+
+let monad_of_typ = (ty: Typ.t): option((cmd_monad, Typ.t)) =>
+  switch (Typ.term_of(ty)) {
+  | Rec(tp, body) =>
+    let named =
+      switch (TPat.tyvar_of_utpat(tp)) {
+      | Some("$UpdateCmd") => Some(UpdateMonad)
+      | Some("$ViewCmd") => Some(ViewMonad)
+      | _ => None
+      };
+    switch (named, Typ.term_of(body)) {
+    | (Some(which), Sum(variants)) =>
+      variants
+      |> List.find_map((v: ConstructorMap.variant(Typ.t)) =>
+           switch (v) {
+           | Variant("Pure", _, Some(payload)) => Some((which, payload))
+           | Variant(_, _, _)
+           | BadEntry(_) => None
+           }
+         )
+    | (_, _) => None
+    };
+  | _ => None
+  };
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),

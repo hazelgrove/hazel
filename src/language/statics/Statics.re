@@ -2244,6 +2244,60 @@ and uexp_to_info_map =
         ~probe_targets=body.probe_targets,
         m,
       );
+    /* `do p <- cmd in body` -- Figure 3's monadic bind.
+
+         cmd => M(a)    p : a    body <= M(b)
+         ------------------------------------
+              do p <- cmd in body  =>  M(b)
+
+       The pattern is an ordinary pattern, so `do (x, y) <- c in ...`
+       destructures the way a let does.
+
+       What a bind is NOT is recursive: `p` does not scope over `cmd`,
+       since `cmd` runs first and `p` names its answer. So there is no
+       fixpoint here and no mutual recursion between binds either -- a
+       recursive helper inside a do-chain is an ordinary `let ... in`
+       between two binds, which nests freely because both are just
+       expression forms.
+
+       Mixing the monads is a type error and is meant to be. Sec. 3.2.4
+       keeps eval_splice out of UpdateCmd "because the model should not
+       depend directly on which closure the user has selected", and that
+       separation is only real if UpdateCmd and ViewCmd cannot be chained
+       together. Nothing special enforces it: the body is analyzed
+       against the same `ana` the whole bind was, so an arm of the wrong
+       monad is reported by ordinary inconsistency. */
+    | Bind(p, cmd, body) =>
+      /* The command is coerced to the binder's expectation the way a
+         let's definition is, so this is a coercion site too. */
+      let (cmd, cmd_elab, m) = go(~ana=syn, ~coercible=true, cmd, m);
+      /* What the command is a command OF. None means it is not a command
+         at all; the pattern then analyzes against Unknown and the
+         inconsistency is reported where the command is, not here. */
+      let payload =
+        switch (
+          BuiltinsADT.monad_of_typ(Typ.weak_head_normalize(ctx, cmd.ty))
+        ) {
+        | Some((_, a)) => a
+        | None => Unknown(Internal) |> Typ.temp
+        };
+      let (p_ana, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=payload, p, m);
+      let (body, body_elab, m) = go(~ctx=p_ana.ctx, ~ana, body, m);
+      add(
+        ~elab_term=Bind(p_elab, cmd_elab, body_elab) |> rewrap,
+        ~elab_syn_ty=body.elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=
+          CoCtx.union([cmd.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            p_ana.probe_targets,
+            cmd.probe_targets,
+            body.probe_targets,
+          ]),
+        m,
+      );
     | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
       /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
          `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and

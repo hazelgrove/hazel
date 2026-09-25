@@ -290,6 +290,16 @@ let equality =
         | None => false
         }
       | (Let(_, _, _), _) => false
+      /* Same binding shape as Let, so alpha-equivalence is the same
+         question: the bound name scopes over the body only. */
+      | (Bind(p1, e1, e2), Bind(p2, e3, e4)) =>
+        switch (pat'(p1, p2)) {
+        | Some(alphas_exp') =>
+          exp(alphas_exp, alphas_typ, e1, e3)
+          && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
+        | None => false
+        }
+      | (Bind(_, _, _), _) => false
       | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
         switch (pat'(p1, p2)) {
         | Some(alphas_exp') =>

@@ -233,6 +233,8 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Bind(p, e1, e2) =>
+          Bind(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Theorem(p, e1, e2) =>
           Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | ProofObject(t) => ProofObject(exp_map_term(t))

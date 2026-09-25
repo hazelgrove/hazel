@@ -49,6 +49,12 @@ and exp_term('a) =
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
+  /* `do p <- e in e'`: Figure 3's monadic bind, as syntax rather than
+     as a function, which is how the paper writes it. The typing rule
+     supplies the polymorphism a builtin `bind` would have needed:
+     e : M(a), p : a, e' : M(b) gives M(b), for M one of the two
+     command monads. */
+  | Bind(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
@@ -219,6 +225,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Var(v) => Var(v)
         | Let(p, e1, e2) =>
           Let(
+            map_pat_annotation(f, p),
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
+        | Bind(p, e1, e2) =>
+          Bind(
             map_pat_annotation(f, p),
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
@@ -683,6 +695,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Let(p, e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let bind_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Bind(p, e1, e2),
       annotation: default_annotation(ann),
     };
     let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {

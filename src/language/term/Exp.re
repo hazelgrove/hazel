@@ -20,6 +20,7 @@ type cls =
   | Dot
   | Var
   | Let
+  | Bind
   | Theorem
   | ProofObject
   | Forall
@@ -112,6 +113,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Dot(_) => Dot
   | Var(_) => Var
   | Let(_) => Let
+  | Bind(_) => Bind
   | Theorem(_) => Theorem
   | ProofObject(_) => ProofObject
   | Forall(_) => Forall
@@ -174,6 +176,7 @@ let show_cls: cls => string =
   | Dot => "Dot operator"
   | Var => "Variable reference"
   | Let => "Let expression"
+  | Bind => "Monadic bind"
   | Theorem => "Theorem expression"
   | ProofObject => "Proof placeholder"
   | Forall => "Forall expression"
@@ -265,6 +268,7 @@ let rec is_fun = (e: t) => {
   | TupleExtension(_)
   | Var(_)
   | Let(_)
+  | Bind(_)
   | Theorem(_)
   | ProofObject(_)
   | Forall(_)
@@ -336,6 +340,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | BuiltinFun(_)
     | Var(_)
     | Let(_)
+    | Bind(_)
     | Theorem(_)
     | ProofObject(_)
     | Forall(_)
@@ -405,6 +410,7 @@ let rec get_num_of_functions = (e: t) =>
     | TypFun(_)
     | Var(_)
     | Let(_)
+    | Bind(_)
     | Theorem(_)
     | ProofObject(_)
     | Forall(_)
