@@ -148,9 +148,10 @@ let check_family_uniqueness = (): unit =>
 
 /* classify_label is total and label-preserving; it picks the first
    remold candidate when one fits the sort (storing that sort), and
-   otherwise falls back to stored-sort Any with the Any-fallback mold
-   (Parens: op wrapping one child; bin for operator-shaped tokens, op
-   otherwise). It emits TokInfix only where nothing else fits. */
+   otherwise falls back to stored-sort Any with the fallback mold
+   (Parens: op wrapping one child; a multi-token family with rows: one
+   of its own rows; bin for operator-shaped tokens, op otherwise). It
+   emits TokInfix only where nothing else fits. */
 let check_classify = (sort: Sort.t, label: Label.t): unit => {
   let name = case_name(sort, label);
   let (id, stored) = Form.classify_label(sort, label);
@@ -194,21 +195,46 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
       | TokInfix(_) => false
       };
     check(bool, "fallback class: " ++ name, true, fallback_ok);
-    let fallback_mold =
-      switch (id, label) {
-      | (Compound(Parens), _) => Mold.mk_op(Sort.Any, [Sort.Any])
-      | (_, [t])
-          when
-            Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
-        Mold.mk_bin(Precedence.max, Sort.Any, [])
-      | _ => Mold.mk_op(Sort.Any, [])
-      };
-    check(
-      mold_testable,
-      "fallback mold: " ++ name,
-      fallback_mold,
-      Form.mold_of(id, stored),
-    );
+    let mold = Form.mold_of(id, stored);
+    switch (id, label) {
+    | (Compound(Parens), _) =>
+      check(
+        mold_testable,
+        "fallback mold: " ++ name,
+        Mold.mk_op(Sort.Any, [Sort.Any]),
+        mold,
+      )
+    /* A multi-token family with rows keeps one of its OWN row molds
+       rather than the childless Any fallback (Form.mold_of), so that a
+       tile with children never wears a mold without inner sorts. */
+    | (Compound(fam), [_, _, ..._]) when Form.defs_of(fam) != [] =>
+      check(
+        bool,
+        "fallback mold is a row of the family: " ++ name,
+        true,
+        List.exists(
+          (def: Form.def) => Mold.equal(def.mold, mold),
+          Form.defs_of(fam),
+        ),
+      );
+      check(
+        int,
+        "fallback mold arity: " ++ name,
+        List.length(label) - 1,
+        List.length(mold.in_),
+      );
+    | _ =>
+      let fallback_mold =
+        switch (label) {
+        | [t]
+            when
+              Token.is_potential_operator(t)
+              && !Token.is_potential_operand(t) =>
+          Mold.mk_bin(Precedence.max, Sort.Any, [])
+        | _ => Mold.mk_op(Sort.Any, [])
+        };
+      check(mold_testable, "fallback mold: " ++ name, fallback_mold, mold);
+    };
   };
 };
 
@@ -392,6 +418,45 @@ let tests = (
           ),
         Form.all_of_family,
       )
+    ),
+    test_case(
+      "a rowless multi-token family keeps an own row mold, not a childless one",
+      `Quick,
+      () => {
+        /* Rule has rows only at Rul and Drv(Exp), Case only at Exp and
+           Drv(Exp); classify_label stamps Sort.Any when nothing fits.
+           Such a tile still has children, so its mold must have inner
+           sorts — a childless operand mold made MakeTerm and
+           Segment.remold_tile index past `in_` (Failure "nth"). */
+        let check_row = (fam: Form.family, sort: Sort.t) => {
+          let name = Form.show_family(fam) ++ " at " ++ Sort.to_string(sort);
+          let mold = Form.mold_of(Form.Compound(fam), sort);
+          check(
+            int,
+            name ++ ": mold arity",
+            List.length(Form.label_of(Form.Compound(fam))) - 1,
+            List.length(mold.in_),
+          );
+          check(
+            bool,
+            name ++ ": mold is a row of the family",
+            true,
+            List.exists(
+              (def: Form.def) => Mold.equal(def.mold, mold),
+              Form.defs_of(fam),
+            ),
+          );
+        };
+        check_row(Rule, Sort.Any);
+        check_row(Case, Sort.Mod);
+        /* and it stays in the requested language layer */
+        check(
+          sort_testable,
+          "Rule at Drv(Pat) takes the Drv row",
+          Sort.Drv(Exp),
+          Form.mold_of(Form.Compound(Rule), Sort.Drv(Pat)).out,
+        );
+      },
     ),
     test_case(
       "classify_label on all form labels x all sorts: label-preserving, "
