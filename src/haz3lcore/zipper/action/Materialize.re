@@ -29,9 +29,19 @@ let prepared = (z: Zipper.t): Segment.t =>
   |> Zipper.clear_unparsed_buffer
   |> Zipper.unselect_and_zip(~erase_buffer=true);
 
+/* Materialized shards splice in without lexing, so a synthesized
+   delimiter can land glued to its neighbor (end|in re-lexes as one
+   token). SpaceNormalize inserts the space the lexer would have
+   forced; it only fires at glom junctions, which parsed user
+   material cannot contain. */
 let all = (z: Zipper.t, ~root: Sort.t): Zipper.t =>
-  rezip(z, CanonicalCompletion.materialize_all(~sort=root, prepared(z)));
+  rezip(
+    z,
+    CanonicalCompletion.materialize_all(~sort=root, prepared(z))
+    |> SpaceNormalize.go,
+  );
 
 let one = (z: Zipper.t, ~root: Sort.t, id: Id.t): option(Zipper.t) =>
   CanonicalCompletion.materialize_one(~sort=root, prepared(z), id)
+  |> Option.map(SpaceNormalize.go)
   |> Option.map(rezip(z));

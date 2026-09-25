@@ -44,7 +44,7 @@ let zz = ¿} in
         switch (ps) {
         | [] => None
         | [Piece.Tile(t), ...rest] =>
-          switch (t.label) {
+          switch (Tile.label(t)) {
           | ["module", ..._] =>
             switch (List.rev(t.children)) {
             | [def, ..._] =>
@@ -243,7 +243,7 @@ let rec apply_deep =
     /* descend into tile children first (the owning block may be a
        module or fn body) */
     let is_module_tile = (t: Base.tile) =>
-      switch (t.label) {
+      switch (Tile.label(t)) {
       | ["module", ..._] => true
       | _ => false
       };
@@ -251,7 +251,7 @@ let rec apply_deep =
       if (is_module_tile(t) && is_last) {
         BModDef;
       } else if (bctx == BModDef
-                 && t.label == ["{", "}"]
+                 && Tile.label(t) == ["{", "}"]
                  && List.length(t.children) == 1) {
         BModBody;
       } else {
@@ -335,7 +335,7 @@ let new_inside =
     let rec upd_brace = (ps: Segment.t): option((Segment.t, option(Id.t))) =>
       switch (ps) {
       | [] => None
-      | [Piece.Tile(bt), ...rest] when bt.label == ["{}"] =>
+      | [Piece.Tile(bt), ...rest] when Tile.label(bt) == ["{}"] =>
         /* an EMPTY module body parses as a nullary fused `{}` tile
            (no child slot): swap in a populated 2-shard brace from a
            scaffold parse */
@@ -347,7 +347,7 @@ let new_inside =
             switch (qs) {
             | [] => None
             | [Piece.Tile(t), ...more] =>
-              t.label == ["{", "}"]
+              Tile.label(t) == ["{", "}"]
                 ? Some(Piece.Tile(t))
                 : (
                   switch (List.find_map(find_brace, t.children)) {
@@ -369,7 +369,7 @@ let new_inside =
           };
         }
       | [Piece.Tile(bt), ...rest]
-          when bt.label == ["{", "}"] && List.length(bt.children) == 1 =>
+          when Tile.label(bt) == ["{", "}"] && List.length(bt.children) == 1 =>
         switch (member_chunk({js|let new_def = ¿|js})) {
         | None => None
         | Some(chunk) =>
@@ -400,7 +400,7 @@ let new_inside =
                 at > 0
                 && (
                   switch (arr[at - 1]) {
-                  | Piece.Tile(t) => t.label == [";"]
+                  | Piece.Tile(t) => Tile.label(t) == [";"]
                   | _ => false
                   }
                 );

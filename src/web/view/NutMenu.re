@@ -158,52 +158,91 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
-let format_shortcut_control = (~globals: Globals.t) => {
-  module FS = Language.CoreSettings.FormatShortcut;
-  let current = globals.settings.core.format_shortcut;
-  let segment = (label, tooltip, mode: FS.t) =>
-    div(
-      ~attrs=[
-        clss(["segment"] @ (current == mode ? ["active"] : [])),
-        Attr.title(tooltip),
-        Attr.on_mousedown(_ =>
-          globals.inject_global(Set(Settings.Update.FormatShortcut(mode)))
-        ),
-      ],
-      [text(label)],
-    );
+/* Shared treatment for the menu's mutually exclusive choices. Native
+   buttons provide keyboard activation and expose the selected state. */
+let segmented_setting = (~name, ~tooltip, ~current, ~options, ~set) =>
   div(
     ~attrs=[clss(["segmented-setting"])],
     [
       div(
-        ~attrs=[clss(["segmented-control"])],
-        [
-          segment("None", "Do not format", FS.Nothing),
-          segment("Indent", "Re-indent only", FS.Indent),
-          segment(
-            "Spaces",
-            "Re-indent and normalize within-line spacing (linebreaks and comments untouched)",
-            FS.Spaces,
-          ),
-          segment(
-            "Breaks",
-            "Full pretty print (may change linebreaks)",
-            FS.Breaks,
-          ),
-        ],
+        ~attrs=[clss(["segmented-name"]), Attr.title(tooltip)],
+        [text(name)],
       ),
       div(
         ~attrs=[
-          clss(["segmented-name"]),
-          Attr.title(
-            "What the format shortcut ("
-            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
-            ++ "+S) does. "
-            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
-            ++ "+Shift+S always pretty-prints.",
-          ),
+          clss(["segmented-control"]),
+          Attr.create("role", "group"),
+          Attr.create("aria-label", name),
         ],
-        [text("Format")],
+        List.map(
+          ((label, tooltip, mode)) =>
+            Node.button(
+              ~attrs=[
+                Attr.create("type", "button"),
+                clss(["segment"] @ (current == mode ? ["active"] : [])),
+                Attr.create("aria-pressed", string_of_bool(current == mode)),
+                Attr.title(tooltip),
+                Attr.on_click(_ => set(mode)),
+              ],
+              [text(label)],
+            ),
+          options,
+        ),
+      ),
+    ],
+  );
+
+let format_shortcut_control = (~globals: Globals.t) => {
+  module FS = Language.CoreSettings.FormatShortcut;
+  segmented_setting(
+    ~name="Format",
+    ~tooltip=
+      "What the format shortcut ("
+      ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+      ++ "+S) does. "
+      ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+      ++ "+Shift+S always pretty-prints.",
+    ~current=globals.settings.core.format_shortcut,
+    ~set=
+      mode =>
+        globals.inject_global(Set(Settings.Update.FormatShortcut(mode))),
+    ~options=[
+      ("None", "Do not format", FS.Nothing),
+      ("Indent", "Re-indent only", FS.Indent),
+      (
+        "Spaces",
+        "Re-indent and normalize within-line spacing (linebreaks and comments untouched)",
+        FS.Spaces,
+      ),
+      ("Breaks", "Full pretty print (may change linebreaks)", FS.Breaks),
+    ],
+  );
+};
+
+let completion_display_control = (~globals: Globals.t) => {
+  module CD = Settings.CompletionDisplay;
+  segmented_setting(
+    ~name="Completion",
+    ~tooltip="How completion previews are displayed",
+    ~current=Settings.Model.completion_display(globals.settings),
+    ~set=
+      mode =>
+        globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
+    ~options=[
+      (
+        "Quiver",
+        "Show completion previews beside their insertion points",
+        CD.Quiver,
+      ),
+      (
+        "Flag",
+        "Raise the caret's completion preview on a flagpole; keep other previews beside their insertion points",
+        CD.Flag,
+      ),
+      (
+        "None",
+        "Hide all completion previews, at the caret and elsewhere",
+        CD.Hidden,
       ),
     ],
   );
@@ -303,6 +342,7 @@ let dev_group = (~globals: Globals.t) => {
 let code_display_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
+    ~extra=[completion_display_control(~globals)],
     "Code Display",
     [
       {

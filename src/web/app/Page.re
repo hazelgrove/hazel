@@ -794,8 +794,20 @@ module Selection = {
          mk(
            ~section="Settings",
            ~mdIcon="quiver",
-           ~action=inject(Globals(Set(Quiver))),
-           "Toggle Quiver (Completion Preview)",
+           ~action=inject(Globals(Set(CompletionDisplay(Quiver)))),
+           "Completion Display: Quiver",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="flag",
+           ~action=inject(Globals(Set(CompletionDisplay(Flag)))),
+           "Completion Display: Flag",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="visibility_off",
+           ~action=inject(Globals(Set(CompletionDisplay(Hidden)))),
+           "Completion Display: None",
          ),
          /* Export / Diagnostics */
          mk(

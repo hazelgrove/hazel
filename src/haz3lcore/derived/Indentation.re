@@ -1,30 +1,10 @@
-/* Indentation Calculation
- * ========================
+/* Computes indentation levels for linebreaks in a segment. Main entry
+ * point is `level_map`: a map from linebreak IDs to indent (spaces).
  *
- * This module computes indentation levels for linebreaks in a segment.
- * The main entry point is `level_map` which returns a map from linebreak
- * IDs to their indentation level (number of spaces).
- *
- * CONTINUATION LINE DESIGN DECISION:
- * ----------------------------------
- * When content starts on the same line as an indentation-creating construct
- * (e.g., `let z = 4` vs `let z =\n4`), and continues on subsequent lines,
- * we face an ambiguity at typing time: we don't know if what follows the
- * linebreak will be continuation content (`+ 4`) or a completing keyword (`in`).
- *
- * - KNOWN CASE: Linebreak immediately after `=` (prev=None in child context)
- *   We know subsequent content is in the child, so we indent immediately.
- *
- * - AMBIGUOUS CASE: Content before linebreak (prev=Some(_), next=None)
- *   At typing time, next is unknown. We use conservative behavior (no indent).
- *   After Format (Cmd+S), when next is known, we indent if next=Some(_).
- *
- * This is implemented via the rule:
- *   `(_, Some(_)) when not_top => base + 2`
- * which only fires when there IS content after the linebreak (known structure).
- *
- * See Test_Indentation.re for comprehensive examples of both behaviors.
- */
+ * Continuation lines (content both before and after a linebreak inside
+ * a child) are ambiguous at typing time — the next line could continue
+ * the child or complete the form — so indentation is conservative while
+ * typing and corrected on Format, when following content is known. */
 
 /* Remove non-contentful items (whitespace and concave grout) */
 let trim_non_content: Segment.t => Segment.t =
@@ -35,14 +15,11 @@ let trim_non_content: Segment.t => Segment.t =
     | p => Some(p),
   );
 
-/* Compute context (effective_prev, next, effective_next) for each piece in one pass.
- * - effective_prev: skips linebreaks to find the last contentful piece.
- *   Convex grout COUNTS as content (an atom, like a literal): a hole
- *   filling a branch must anchor the next line's indentation exactly
- *   as a literal would, else the incrementor/child rules re-fire and
- *   every hole-bearing line drifts deeper (empty if/then branches).
- * - next: immediate next piece (raw)
- * - effective_next: skips linebreaks to find next contentful piece */
+/* Context (effective_prev, next, effective_next) per piece, one pass;
+ * the effective_* fields skip linebreaks. Convex grout counts as
+ * content: a hole filling a branch must anchor the next line's indent
+ * exactly as a literal would, else the incrementor/child rules re-fire
+ * and every hole-bearing line drifts deeper. */
 let compute_context =
     (seg: Segment.t)
     : list((option(Piece.t), option(Piece.t), option(Piece.t))) => {
@@ -82,9 +59,6 @@ let compute_context =
   go([], seg, None);
 };
 
-/* Check if a tile is a case rule (label is ["|", "=>"]) */
-let is_case_rule_tile = (t: Tile.t): bool => t.label == ["|", "=>"];
-
 /* This does not strictly 'complete' a segment but rather does a
  * rough version of it that suffices for indentation calculation.
  * Tail-recursive in segment length (recursion depth is bounded by
@@ -99,11 +73,11 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
   let rec go = (acc, seg: Segment.t): Segment.t =>
     switch (seg) {
     | [] => List.rev(acc)
-    | [Tile(t), ...rest] when !Tile.is_complete(t) && !is_case_rule_tile(t) =>
+    | [Tile(t), ...rest] when !Tile.is_complete(t) && !Tile.is_case_rule(t) =>
       List.rev([
         Piece.Tile({
           ...t,
-          shards: List.init(List.length(t.label), i => i),
+          shards: List.init(Tile.arity(t), i => i),
           children: t.children @ [shallow_complete_segment(rest)],
           /* Note: Potentially wrong number of children */
         }),
@@ -170,23 +144,11 @@ let complete_segment = (seg: Segment.t): Segment.t => {
   };
 };
 
-let is_comma = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => t.label == [","]
-  | _ => false
-  };
-
-let is_case_rule = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-
 /* An incomplete case rule is just the `|` without the `=>`.
  * This has shards [0] instead of [0, 1]. */
 let is_incomplete_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|", "=>"], shards, _}) => shards == [0]
+  | Tile(t) when Tile.is_case_rule(t) => t.shards == [0]
   | _ => false
   };
 
@@ -205,7 +167,7 @@ let has_content = (seg: Segment.t): bool =>
  * we expect the next rule at the same level, not more body content. */
 let is_complete_case_rule_with_body = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|", "=>"], shards, children, _}) =>
+  | Tile({shards, children, _} as t) when Tile.is_case_rule(t) =>
     /* Complete = has both shards [0, 1] */
     shards == [0, 1]
     /* Body is children[1], check if it has content */
@@ -228,13 +190,7 @@ let is_convex_grout = (p: Piece.t): bool =>
    label but not the sort, and keeps its level as before. */
 let is_module_semi = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: [";"], mold, _}) => mold.out == Sort.Mod
-  | _ => false
-  };
-
-let ends_with_in = (t: Tile.t): bool =>
-  switch (t.label |> List.rev) {
-  | ["in", ..._] => true
+  | Tile(t) => Tile.is_semi(t) && Tile.mold(t).out == Sort.Mod
   | _ => false
   };
 
@@ -245,8 +201,8 @@ let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
     switch (Tile.shapes(t)) {
-    | _ when ends_with_in(t) => false
-    | (_, Concave(_)) when List.length(t.label) >= 2 => true
+    | _ when Tile.ends_with_in(t) => false
+    | (_, Concave(_)) when Tile.is_multidelimiter(t) => true
     | _ => false
     }
   | _ => false
@@ -287,8 +243,8 @@ let rec go =
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let indent =
             switch (prev, next) {
-            | (_, Some(next)) when is_comma(next) => base + 2
-            | (Some(prev), _) when is_comma(prev) => base + 2
+            | (_, Some(next)) when Piece.is_comma(next) => base + 2
+            | (Some(prev), _) when Piece.is_comma(prev) => base + 2
             /* Incomplete case rules (just `|`) shouldn't increment.
              * An incomplete `|` is Concave on right, so would match
              * is_incrementor without this check. */
@@ -305,22 +261,23 @@ let rec go =
               prev_is_lb ? level : level + 2
             | (None, _) when not_top => base + 2
             /* Check effective_next (skipping linebreaks) for case rule */
-            | _ when Option.map(is_case_rule, effective_next) == Some(true) => base
-            | (_, Some(next)) when is_case_rule(next) => base
+            | _
+                when
+                  Option.map(Piece.is_case_rule, effective_next)
+                  == Some(true) => base
+            | (_, Some(next)) when Piece.is_case_rule(next) => base
             | (_, None) => base
             /* If next is linebreak but eff_next is None, effectively at end */
             | _ when effective_next == None => base
             | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
               /* Special case for kw prefixes */
               base
-            /* Continuation lines in children: when in child context with
-             * content before and after the linebreak, use child indentation.
-             * Note: This only works after Format, not during auto-indent,
-             * because at typing time next is unknown. An incrementor
-             * earlier in the child (fun ->) may have RAISED the running
-             * level; sibling lines inherit it — base+2 alone flattened
-             * every let-chain line after the first back to the child's
-             * opening level (only the first body line sat indented). */
+            /* Continuation lines in children: with content before and
+             * after the linebreak, use child indentation. Only fires
+             * after Format (at typing time next is unknown). max, not
+             * base + 2: an incrementor earlier in the child (fun ->)
+             * may have raised the running level, which sibling lines
+             * must inherit. */
             | (_, Some(_)) when not_top => max(level, base + 2)
             | (_, Some(_)) => level
             };
@@ -364,22 +321,18 @@ let rec go =
   map;
 };
 
-/* ONE PARTITIONER (2026-07-27, andrew; ported from artifact-grout
-   cc4339373d): the walk consumes the CANONICAL COMPLETION'S
-   PARTITIONER — the same layout-intent reading that decides what the
-   surfaced completion absorbs — so indent suggestions agree with the
-   completion about which lines belong to an unclosed construct.
-   Lines WITH content partition by their actual layout (flush-written
-   lines under an unclosed let are siblings — no additive staircase);
-   a CONTENTLESS line is no evidence at all (~absorb_empty_lines):
-   the fresh line Enter just made stays inside the open construct,
-   where typing will land. Within a partition the walk keeps its
-   shallow absorb-reading rather than the completed GEOMETRY: owed
-   closers anchor at end-of-typed-content for display/Tab, but a
-   delimiter obligation's position is flexible, so an owed closer is
-   not a wall for next-line typing. */
+/* The walk consumes the canonical completion's partitioner — the same
+   layout-intent reading that decides what the surfaced completion
+   absorbs — so indent suggestions agree with the completion about
+   which lines belong to an unclosed construct. Lines with content
+   partition by their actual layout; a contentless line is no evidence
+   (~absorb_empty_lines): the fresh line Enter just made stays inside
+   the open construct, where typing will land. Within a partition the
+   walk keeps its shallow absorb-reading rather than the completed
+   geometry: an owed closer's position is flexible, so it is not a
+   wall for next-line typing. */
 let partitions = (seg: Segment.t): list(Segment.t) =>
-  SegmentPartition.partition_segment(~absorb_empty_lines=true, seg)
+  CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
   |> List.map(fst);
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
@@ -414,12 +367,8 @@ let level_of = (~target_id: Id.t, seg: Segment.t): int =>
 /* === Helper functions for user-managed indentation === */
 
 /* Drop leading space pieces from a segment */
-let rec drop_leading_spaces = (seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
-    drop_leading_spaces(rest)
-  | _ => seg
-  };
+let drop_leading_spaces = (seg: Segment.t): Segment.t =>
+  snd(Segment.split_space_run(seg));
 
 /* Drop trailing space pieces from a segment (spaces at the end, before linebreak) */
 let drop_trailing_spaces = (seg: Segment.t): Segment.t => {
@@ -434,67 +383,58 @@ let drop_trailing_spaces = (seg: Segment.t): Segment.t => {
 
 /* Strip trailing spaces before each linebreak in a segment.
    Also processes tile children recursively. */
-let rec strip_trailing_whitespace = (seg: Segment.t): Segment.t => {
-  let rec go = (acc: Segment.t, seg: Segment.t): Segment.t =>
+let strip_trailing_whitespace = (seg: Segment.t): Segment.t => {
+  let level = (seg: Segment.t): Segment.t => {
+    let rec go = (acc: Segment.t, seg: Segment.t): Segment.t =>
+      switch (seg) {
+      | [] => List.rev(acc)
+      | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
+        /* Before emitting linebreak, strip trailing spaces from accumulated */
+        let acc_stripped = drop_trailing_spaces(List.rev(acc));
+        go([p, ...List.rev(acc_stripped)], rest);
+      | [p, ...rest] => go([p, ...acc], rest)
+      };
+    go([], seg);
+  };
+  Segment.map_deep(level, seg);
+};
+
+/* For each linebreak (recursively), remove following spaces and insert
+   the count the indent map assigns. */
+let fix_leading_indentation =
+    (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t => {
+  let rec level = (seg: Segment.t): Segment.t =>
     switch (seg) {
-    | [] => List.rev(acc)
-    | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
-      /* Before emitting linebreak, strip trailing spaces from accumulated */
-      let acc_stripped = drop_trailing_spaces(List.rev(acc));
-      go([p, ...List.rev(acc_stripped)], rest);
-    | [Piece.Tile(t), ...rest] =>
-      /* Process children recursively */
-      let children = List.map(strip_trailing_whitespace, t.children);
-      go(
-        [
-          Piece.Tile({
-            ...t,
-            children,
-          }),
-          ...acc,
-        ],
-        rest,
-      );
-    | [p, ...rest] => go([p, ...acc], rest)
+    | [] => []
+    | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
+      let indent =
+        Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
+      let rest_without_leading_spaces = drop_leading_spaces(rest);
+      let spaces =
+        List.init(indent, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+      [Piece.Secondary(w), ...spaces] @ level(rest_without_leading_spaces);
+    | [p, ...rest] => [p, ...level(rest)]
     };
-  go([], seg);
+  Segment.map_deep(level, seg);
 };
 
 /* Fix indentation in a segment using the provided indent map.
-   For each linebreak, removes following spaces and inserts the
-   correct number based on the indent map.
    Also strips trailing spaces before linebreaks. */
-let rec fix_indentation_in_segment =
-        (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t => {
-  /* First strip trailing whitespace, then fix leading indentation */
-  let seg = strip_trailing_whitespace(seg);
-  fix_leading_indentation(indent_map, seg);
-}
-and fix_leading_indentation =
+let fix_indentation_in_segment =
     (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [] => []
-  | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
-    let indent =
-      Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
-    let rest_without_leading_spaces = drop_leading_spaces(rest);
-    let spaces =
-      List.init(indent, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
-    [Piece.Secondary(w), ...spaces]
-    @ fix_leading_indentation(indent_map, rest_without_leading_spaces);
-  | [Piece.Tile(t), ...rest] =>
-    let children =
-      List.map(fix_indentation_in_segment(indent_map), t.children);
-    [
-      Piece.Tile({
-        ...t,
-        children,
-      }),
-      ...fix_leading_indentation(indent_map, rest),
-    ];
-  | [p, ...rest] => [p, ...fix_leading_indentation(indent_map, rest)]
-  };
+  seg |> strip_trailing_whitespace |> fix_leading_indentation(indent_map);
 
 /* Create space pieces for a given indent level */
 let make_indent_spaces = (indent_level: int): Segment.t =>
   List.init(indent_level, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+
+/* Whole-buffer re-indentation (the Format(Indent) action; also runs
+ * before spacing normalization in Format(Spacing)). Rewrites only the
+ * leading space runs after linebreaks — never linebreaks themselves.
+ * TODO(andrew): once the pretty printer is fixed (it incorporates
+ * level_map but has remaining issues), rip out the Format Action.t in
+ * favor of an indentation-incorporating PrettyPrint as the single
+ * reformat action; related cleanup: the Format/PrettyPrint menu +
+ * keybinding split. */
+let reindent_segment = (seg: Segment.t): Segment.t =>
+  fix_indentation_in_segment(level_map(seg), seg);

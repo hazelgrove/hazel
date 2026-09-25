@@ -9,13 +9,13 @@ module Model = ScratchModel.Model;
 open Haz3lcore;
 
 let ends_with_in = (t: Base.tile): bool =>
-  switch (List.rev(t.label)) {
+  switch (List.rev(Tile.label(t))) {
   | ["in", ..._] => true
   | _ => false
   };
 let is_semi = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => t.label == [";"]
+  | Tile(t) => Tile.label(t) == [";"]
   | _ => false
   };
 /* Edge-whitespace handling: the raw pat/def slices carry the
@@ -143,7 +143,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
         );
     switch (first_tile(start)) {
     | Some(t) =>
-      switch (t.label) {
+      switch (Tile.label(t)) {
       | ["let", ..._]
       | ["type", ..._]
       | ["module", ..._] => Some(t.id)
@@ -364,7 +364,7 @@ let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
         );
     switch (first_tile(sp.sp_start)) {
     | Some(t) =>
-      switch (t.label) {
+      switch (Tile.label(t)) {
       | [hd, ..._] => hd == "test"
       | [] => false
       }
@@ -384,7 +384,7 @@ let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
       : (
         switch (arr[i]) {
         | Piece.Tile(t) =>
-          switch (t.label) {
+          switch (Tile.label(t)) {
           | ["test", ..._] => Some(t.id)
           | _ => None
           }
@@ -463,7 +463,7 @@ let rec test_run_deep_go =
         | Tile(t) =>
           List.find_map(
             test_run_deep_go(
-              ~module_body=List.mem(Sort.Mod, t.mold.in_),
+              ~module_body=List.mem(Sort.Mod, Tile.mold(t).in_),
               fid,
             ),
             t.children,
@@ -494,7 +494,7 @@ let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
               p,
               t,
               map_sharing(
-                go(~module_body=List.mem(Sort.Mod, t.mold.in_)),
+                go(~module_body=List.mem(Sort.Mod, Tile.mold(t).in_)),
                 t.children,
               ),
             )
@@ -609,7 +609,7 @@ let rec is_type_item = (fid: Id.t, seg: Segment.t): bool =>
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when t.id == fid =>
-        switch (t.label) {
+        switch (Tile.label(t)) {
         | ["type", ..._] => true
         | _ => false
         }
@@ -624,7 +624,7 @@ let rec is_module_item = (fid: Id.t, seg: Segment.t): bool =>
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when t.id == fid =>
-        switch (t.label) {
+        switch (Tile.label(t)) {
         | ["module", ..._] => true
         | _ => false
         }

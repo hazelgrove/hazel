@@ -8,11 +8,11 @@
 
 open Language;
 
-/* [ids] cut or extended to exactly [n], with DERIVED ids for any shortfall
-   (hash of [~base] + a counter; [~base] defaults to the first id, so pass it
-   where [ids] can be empty). Deriving rather than minting keeps printing a
-   pure function of the term. The result has no duplicates within itself and
-   none equal to a [forbidden] id, so the pieces it names cannot collide. */
+/* [ids] cut or extended to exactly [n], with ids DERIVED from [~base] (or,
+   by default, from the head of [ids]) for any shortfall. The result has no
+   duplicates within itself and none equal to a [forbidden] id, so the pieces
+   it names cannot collide. Deriving rather than minting keeps printing a pure
+   function of the term; pass [~base] explicitly wherever [ids] can be empty. */
 let pad_ids:
   (~forbidden: list(Id.t)=?, ~base: Id.t=?, int, list(Id.t)) => list(Id.t);
 

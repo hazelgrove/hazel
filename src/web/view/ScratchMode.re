@@ -57,6 +57,7 @@ let project_cell_statics =
     error_ids: List.filter(in_cell, item.d_error_ids),
     warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
     targets: Haz3lcore.Id.Map.empty, /* with_targets refreshes */
+    completion: None,
     probe_ids:
       Haz3lcore.CachedStatics.probe_ids_of_zipper(
         cell.editor.editor.state.zipper,
@@ -1660,6 +1661,7 @@ module Update = {
                     ~info_map=ds.merged,
                     ~probe_ids,
                   ),
+                completion: None,
                 probe_ids,
                 items: Some(ds),
               },
@@ -2564,6 +2566,7 @@ module View = {
                             ~lines=false,
                             ~escape=header_escape,
                             ~escape_vertical=Some(header_escape_vertical),
+                            ~cull=false,
                             e.e_header,
                           ),
                         ],
@@ -2588,6 +2591,13 @@ module View = {
                           ~master_result=editor.result,
                           ~escape=body_escape,
                           ~escape_vertical=Some(body_escape_vertical),
+                          /* culling measures ONE container (dev's
+                             `.cull-scope` invariant): in a focus stack only
+                             the first body cell opts in; the rest render
+                             unculled rather than against another cell's rows */
+                          ~cull={
+                            i == 0;
+                          },
                           e.e_body,
                         ),
                       ],

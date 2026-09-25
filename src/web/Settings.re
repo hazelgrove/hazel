@@ -1,5 +1,13 @@
 open Util;
 
+module CompletionDisplay = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Quiver
+    | Flag
+    | Hidden;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -14,6 +22,8 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    [@sexp.default false]
+    quiver_flagpole: bool,
     quiver: bool, /* Show completion visualization (quiver arrows) */
     /* Auto probe (Off / Caret / All): automatic probe placement mode,
        threaded through Editor.calculate into ProbePerform */
@@ -149,6 +159,7 @@ module Model = {
       canvas_panel_height: None,
       canvas_panel_hidden: false,
     },
+    quiver_flagpole: false,
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
@@ -170,6 +181,11 @@ module Model = {
     simple_indication: false,
     show_pending_eval: false,
   };
+
+  /* Keep the persisted fields compatible with existing preferences, while
+     presenting one mutually exclusive display choice to the user. */
+  let completion_display = (settings: t): CompletionDisplay.t =>
+    !settings.quiver ? Hidden : settings.quiver_flagpole ? Flag : Quiver;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
@@ -236,7 +252,7 @@ module Update = {
     | FlipAnimations
     | AnimateAllEdits
     | DragRefactor
-    | Quiver
+    | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleStickyInPlace
@@ -649,9 +665,10 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | Quiver => {
+      | CompletionDisplay(mode) => {
           ...settings,
-          quiver: !settings.quiver,
+          quiver: mode != CompletionDisplay.Hidden,
+          quiver_flagpole: mode == CompletionDisplay.Flag,
         }
       | SetCanvasPaneWidth(w) => {
           ...settings,

@@ -42,11 +42,11 @@ let rec edit_token =
         (~needle: string, ~repl: string, seg: Segment.t): (Segment.t, bool) => {
   let piece = (p: Piece.t): (Piece.t, bool) =>
     switch (p) {
-    | Tile(t) when t.label == [needle] => (
+    | Tile(t) when Tile.label(t) == [needle] => (
         Tile({
           ...t,
           id: Id.mk(),
-          label: [repl],
+          form: Form.Tok(repl),
         }),
         true,
       )

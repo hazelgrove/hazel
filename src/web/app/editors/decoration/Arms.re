@@ -37,6 +37,8 @@ let rep_tips = (tiles: tile_data) => {
   );
 };
 
+/* Find the leftmost column for decoration paths.
+ * Uses content_start (first non-whitespace) instead of absolute left edge. */
 let min_col = (~first: Point.t, ~last: Point.t, ~rows: Measured.t): int =>
   min(
     first.col,
@@ -45,6 +47,14 @@ let min_col = (~first: Point.t, ~last: Point.t, ~rows: Measured.t): int =>
       rows,
     ),
   );
+
+/* Truncate a term extent's right edge at a completion clip point
+   (see completion_clip below). */
+let apply_clip = (clip: option(Point.t), r: Point.t): Point.t =>
+  switch (clip) {
+  | Some(c) when Point.compare(c, r) < 0 => c
+  | _ => r
+  };
 
 let m_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
   m(~x=0, ~y=1) |> cmdfudge(~x=hx),
@@ -303,7 +313,7 @@ let tiles_data =
   let of_tile = (id: Id.t) => {
     open OptUtil.Syntax;
     let+ tile = TermData.root_tile(id, term_data);
-    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+    (id, Tile.mold(tile), Measured.find_shards(~msg, tile, measured));
   };
   Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
 };
@@ -317,6 +327,7 @@ let term =
       ~font_metrics: FontMetrics.t,
       ~attr: option(list(Attr.t))=?,
       ~dom_prefix: option(string)=?,
+      ~clip_right: option(Point.t)=None,
       tile: Tile.t,
     )
     : list(Node.t) => {
@@ -331,10 +342,10 @@ let term =
     | Typ({term: Sig(_), _}) => true
     | _ => false
     };
-  let is_semi = tile.label == [";"];
+  let is_semi = Tile.is_semi(tile);
   let is_not_semi_tile = ((tid, _, _)) =>
     switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => t.label != [";"]
+    | Some(t) => !Tile.is_semi(t)
     | None => true
     };
 
@@ -348,13 +359,14 @@ let term =
         ~dom_prefix?,
         ~font_metrics,
         ~base_clss=None,
-        [(tile.id, t.mold, Measured.find_shards(~msg, t, measured))],
+        [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
       )
     | None => []
     };
   } else {
     switch (TermData.extreme_measures(id, term_data, measured)) {
     | Some((l, r)) =>
+      let r = apply_clip(clip_right, r);
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
       let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
       term(
@@ -377,6 +389,7 @@ let term =
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
       ~dom_prefix: option(string)=?,
+      ~clip_right: option(Point.t)=None,
     ) =>
   term(
     ~refine_sort,
@@ -385,7 +398,81 @@ let term =
     ~measured=syntax.measured,
     ~font_metrics,
     ~dom_prefix?,
+    ~clip_right,
   );
+
+/* Completion-curtailed extent: an incomplete tile's raw term runs to
+   wherever the parse absorbed material, but the semantic reading
+   (statics, quiver, errors) closes it where the synthesized closer
+   lands. When the indicated tile's final missing shard is a true
+   closer (convex right), the arm ends at that insertion point — the
+   spot the quiver chip marks — instead of the raw extent. A concave-
+   right final (in, ->) keeps the raw extent: its term legitimately
+   continues past the insertion. No insertion found (e.g. witness
+   consumption) falls back to the raw extent. */
+/* The lazy completion the clip consumers share: forced only when an
+   arm's root tile is actually incomplete. */
+let lazy_completion =
+    (z: Zipper.t): Lazy.t(CanonicalCompletion.completion_result) =>
+  Lazy.from_fun(() =>
+    CanonicalCompletion.for_editor(
+      Zipper.unselect_and_zip(~erase_buffer=true, z),
+    )
+  );
+
+let completion_clip =
+    (
+      ~syntax: CachedSyntax.t,
+      ~completion: Lazy.t(CanonicalCompletion.completion_result),
+      t: Tile.t,
+    )
+    : option(Point.t) =>
+  if (Tile.is_complete(t)) {
+    None;
+  } else {
+    switch (ListUtil.last_opt(Tile.right_missing_shards(t))) {
+    | None => None
+    | Some(sh) =>
+      let i = Tile.r_shard(sh);
+      switch (snd(Mold.nibs(~index=i, Tile.mold(t))).shape) {
+      | Concave(_) => None
+      | Convex =>
+        let result = Lazy.force(completion);
+        let has_shard = (ins: CanonicalCompletion.insertion) =>
+          ins.delimiters
+          |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+               switch (d.of_shard) {
+               | Some((id, j)) => Id.equal(id, t.id) && j == i
+               | None => false
+               }
+             );
+        switch (List.find_opt(has_shard, result.insertions)) {
+        | None => None
+        | Some(ins) =>
+          switch (CanonicalCompletion.anchor_point(syntax.measured, ins)) {
+          | None => None
+          | Some(p) =>
+            /* the viz anchor walks left past same-tile pieces, so it
+               can sit before the tile's own shards; the extent never
+               shrinks inside the tile's present material */
+            let own_last =
+              Measured.find_shards(
+                ~msg="Arms.completion_clip",
+                t,
+                syntax.measured,
+              )
+              |> List.map(((_, sm): Shards.shard) => sm.last)
+              |> List.fold_left(
+                   (acc, pt: Point.t) =>
+                     Point.compare(pt, acc) > 0 ? pt : acc,
+                   p,
+                 );
+            Some(own_last);
+          }
+        };
+      };
+    };
+  };
 
 let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   switch (p) {
@@ -430,6 +517,7 @@ module Errors = {
         ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         id: Id.t,
       ) =>
     div_c(
@@ -494,13 +582,15 @@ module Errors = {
           /* per-piece anchor ids: each backing piece rides its own
              token (a multi-token error term's pieces move
              independently — case stays, end drops on add-arm) */
+          let clip_right = completion_clip(~syntax, ~completion, t);
           term(
             ~refine_sort,
             ~syntax,
             ~font_metrics,
             ~dom_prefix=is_warning ? "warndec-" : "errdec-",
+            ~clip_right,
             t,
-          )
+          );
         | None => []
         }
       },
@@ -513,6 +603,7 @@ module Errors = {
         ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         error_ids,
       ) =>
     div_c(
@@ -524,6 +615,7 @@ module Errors = {
           ~simple_indication,
           ~font_metrics,
           ~syntax,
+          ~completion,
         ),
         error_ids,
       ),
@@ -536,6 +628,7 @@ module Indicated = {
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~clip_right: option(Point.t)=None,
         p: Piece.t,
       )
       : list(Node.t) => {
@@ -569,6 +662,7 @@ module Indicated = {
           ~font_metrics,
           ~syntax,
           ~dom_prefix="indication-",
+          ~clip_right,
           t,
         );
       }
@@ -580,11 +674,15 @@ module Indicated = {
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
     | _ when z.selection.content != [] => []
+    | Some({piece: Tile(t) as p, _}) =>
+      let clip_right = completion_clip(~syntax, ~completion, t);
+      of_piece(~refine_sort, ~font_metrics, ~syntax, ~clip_right, p);
     | Some({piece: p, _}) =>
       of_piece(~refine_sort, ~font_metrics, ~syntax, p)
     | _ => []
@@ -628,6 +726,7 @@ module Indicated = {
         ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       ) => {
     let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
@@ -646,7 +745,7 @@ module Indicated = {
     let contents =
       switch (simple_indication, refractor_kind) {
       | (false, _) =>
-        indicated_piece(~refine_sort, ~font_metrics, ~syntax, z)
+        indicated_piece(~refine_sort, ~font_metrics, ~syntax, ~completion, z)
       | (true, Some(_)) => []
       | (true, None) =>
         simple_indicated_arm(~refine_sort, ~font_metrics, ~syntax, z)
@@ -661,13 +760,21 @@ module Refractors = {
         ~id: Id.t,
         ~kind: ProjectorCore.Kind.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         ~font_metrics: FontMetrics.t,
         ~cls: string,
       ) =>
     switch (Id.Map.find_opt(id, syntax.term_data)) {
     | Some(t) =>
       switch (term_range(~syntax, t.root_piece)) {
-      | Some(range) =>
+      | Some((first, last)) =>
+        let last =
+          switch (t.root_piece) {
+          | Tile(rt) =>
+            apply_clip(completion_clip(~syntax, ~completion, rt), last)
+          | _ => last
+          };
+        let range = (first, last);
         let sort = Piece.sort(t.root_piece) |> fst;
         let kind_cls = ProjectorCore.Kind.name(kind);
         simple_arm(
@@ -686,7 +793,12 @@ module Refractors = {
     };
 
   let of_zipper =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
+      (
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
+        z: Zipper.t,
+      )
       : list(Node.t) =>
     (
       z.refractors.manuals
@@ -695,6 +807,7 @@ module Refractors = {
              ~id,
              ~kind=entry.kind,
              ~syntax,
+             ~completion,
              ~font_metrics,
              ~cls="manual",
            )
@@ -708,6 +821,7 @@ module Refractors = {
              ~id,
              ~kind=entry.kind,
              ~syntax,
+             ~completion,
              ~font_metrics,
              ~cls=
                Haz3lcore.Indicated.index(z) == Some(id)
@@ -731,6 +845,11 @@ module Refractors = {
     );
 
   let all =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, z));
+      (
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
+        z: Zipper.t,
+      ) =>
+    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~completion, z));
 };

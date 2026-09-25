@@ -470,7 +470,8 @@ let start = default_model => {
         Haz3lcore.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
-        /* Update floating elements (backpack) to viewport coordinates */
+        /* Update floating elements (probe menus) to viewport coordinates */
+        FloatingElement.setup_scroll_listener();
         FloatingElement.update_all();
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;

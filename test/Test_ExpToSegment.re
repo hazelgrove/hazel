@@ -76,8 +76,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["1"],
-              mold: Mold.mk_op(Exp, []),
+              // Tok("1") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["1"])),
+              sort: snd(Form.classify_label(Exp, ["1"])),
               shards: [0],
               children: [],
             }),
@@ -90,8 +91,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["\"hello\""],
-              mold: Mold.mk_op(Exp, []),
+              // Tok(string) at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["\"hello\""])),
+              sort: snd(Form.classify_label(Exp, ["\"hello\""])),
               shards: [0],
               children: [],
             }),
@@ -152,8 +154,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              label: ["()"],
-              mold: Mold.mk_op(Exp, []),
+              // Tok("()") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["()"])),
+              sort: snd(Form.classify_label(Exp, ["()"])),
               shards: [0],
               children: [],
             }),
@@ -629,7 +632,7 @@ let rec tile_ids = (seg: Segment.t): list(string) =>
   |> List.concat_map((p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
-         [List.nth(t.label, 0) ++ ":" ++ Id.to_string(t.id)]
+         [Tile.token(t, 0) ++ ":" ++ Id.to_string(t.id)]
          @ List.concat_map(tile_ids, t.children)
        | Secondary(_)
        | Grout(_) => []
@@ -1725,6 +1728,35 @@ let pad_ids_tests = (
           "disjoint from next chain",
           true,
           List.for_all(id => !List.mem(id, nexts), padded),
+        );
+      },
+    ),
+    /* Terms carrying a single id (as evaluation produces) have an empty ids
+       tail, so call sites must pass ~base explicitly: falling back to
+       Id.invalid made every case's k-th rule tile derive the same id. */
+    Alcotest.test_case(
+      "rule tile ids differ across single-id cases",
+      `Quick,
+      () => {
+        let int_lit = n => Exp.fresh(Atom(Int(Util.Bigint.of_int(n))));
+        let case = (a, b) =>
+          Exp.fresh(
+            Match(
+              int_lit(0),
+              [
+                (Pat.fresh(Wild), int_lit(a)),
+                (Pat.fresh(Wild), int_lit(b)),
+              ],
+            ),
+          );
+        let ids =
+          Exp.fresh(Tuple([case(1, 2), case(3, 4)]))
+          |> exp_to_segment
+          |> tile_ids;
+        Alcotest.(check(int))(
+          "no duplicate tile ids",
+          List.length(ids),
+          List.length(List.sort_uniq(compare, ids)),
         );
       },
     ),

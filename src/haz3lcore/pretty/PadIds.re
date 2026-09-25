@@ -19,7 +19,7 @@ open Language;
 
    Padding and replacement ids are DERIVED (hash of ~base + counter),
    not minted: printing must be a pure function of the term. Fresh ids
-   here made double-prints of the same term differ. ~base defaults to
+   here would make double-prints of the same term differ. ~base defaults to
    the first id; pass it explicitly where ids can be empty. */
 let pad_ids =
     (
