@@ -84,8 +84,8 @@ let unzip_to_id =
         let a =
           Ancestor.{
             id: t.id,
-            label: t.label,
-            mold: t.mold,
+            form: t.form,
+            sort: t.sort,
             shards: (shards_l, shards_r),
             children: (kids_l, kids_r),
           };

@@ -36,7 +36,7 @@ let assert_unique_ids = (z: Zipper.t): unit => {
          | Tile(t) =>
            ids := [t.id, ...ids^];
            describe :=
-             [(t.id, "tile:" ++ String.concat("", t.label)), ...describe^];
+             [(t.id, "tile:" ++ String.concat("", Tile.label(t))), ...describe^];
            t.children |> List.iter(collect);
          | Grout(g) =>
            ids := [g.id, ...ids^];

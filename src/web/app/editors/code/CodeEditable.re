@@ -649,7 +649,7 @@ module Selection = {
       let closes_with_in =
         switch (piece) {
         | Piece.Tile(t) =>
-          switch (List.rev(t.label)) {
+          switch (List.rev(Tile.label(t))) {
           | ["in", ..._] => true
           | _ => false
           }

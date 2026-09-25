@@ -42,7 +42,7 @@ let try_canvas_nodemap = (label, code, ~caret_token) =>
           ? z
           : (
             switch (Zipper.generalized_neighbors(z)) {
-            | (_, Some(Piece.Tile(t))) when List.mem(caret_token, t.label) => z
+            | (_, Some(Piece.Tile(t))) when List.mem(caret_token, Tile.label(t)) => z
             | _ =>
               switch (Move.by_token(Right, z)) {
               | Some(z') => seek(z', n + 1)
