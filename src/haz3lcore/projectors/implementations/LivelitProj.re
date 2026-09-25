@@ -23,6 +23,199 @@ let commit_decision =
       ] =>
   MvuShape.is_checkpointable(new_model) ? `Commit : `Ephemeral;
 
+/* --- Splices in a livelit's model ---------------------------------
+ *
+ * A splice is a region of the CLIENT's program held inside the widget:
+ * edited in place, and typed in the surrounding scope, since splices
+ * are transparent to statics. new_splice is the only command that makes
+ * one (Sec. 3.2.1); the program text is where it lives. The commit
+ * (SpliceStore.write_model) writes each ref in a committed model as its
+ * splice, in PARENS, at the ref's position:
+ *
+ *     ^color((r = (0), g = (0), b = (0), a = (100)))
+ *     ^cells((orient = Row, refs = [(?), (3)]))
+ *
+ * The parens are the durable form, and they have to be, because a splice
+ * piece prints as nothing but its content and a slide loads from text --
+ * so a splice cannot round-trip by itself, and `init` below rebuilds each
+ * one from its parens on every load. The client's code stays INSIDE the
+ * parens, which is what makes the rewrap idempotent.
+ *
+ * Eligible: a labeled field whose value is exactly one parenthesized
+ * expression, or a list literal whose elements are. Which of those are
+ * refs is decided later, by the Model type (UserLivelit.expose_splice_refs);
+ * a splice anywhere else is simply the client's code in that place. */
+
+/* Split a segment into (leading secondary, core, trailing secondary). */
+let split_outer_secondary =
+    (seg: Base.segment): (Base.segment, Base.segment, Base.segment) => {
+  let (lead, rest) = Segment.take_while_secondary(seg);
+  let (rev_trail, rev_core) = Segment.take_while_secondary(List.rev(rest));
+  (lead, List.rev(rev_core), List.rev(rev_trail));
+};
+
+/* Split a field at its tuple-label separator, returning the prefix
+ * through the "=" tile and the value pieces after it. */
+let split_at_label_sep =
+    (field: Base.segment): option((Base.segment, Base.segment)) => {
+  let rec go = (prefix, ps: Base.segment) =>
+    switch (ps) {
+    | [] => None
+    | [Base.Tile({label: ["="], _}) as eq, ...rest] =>
+      Some((List.rev([eq, ...prefix]), rest))
+    | [p, ...rest] => go([p, ...prefix], rest)
+    };
+  go([], field);
+};
+
+let map_comma_groups =
+    (f: Base.segment => Base.segment, seg: Base.segment): Base.segment =>
+  Segment.split_at_commas(seg)
+  |> Aba.map_a(f)
+  |> Aba.join(Fun.id, p => [p])
+  |> List.concat;
+
+/* A parenthesized expression: Convex on both sides. The application's
+ * own argument tile carries the same ["(", ")"] label but a postfix
+ * mold, so the nibs are what tell them apart. */
+let as_parens = (p: Base.piece): option((Base.tile, Base.segment)) =>
+  switch (p) {
+  | Tile(
+      {
+        label: ["(", ")"],
+        mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+        children: [inner],
+        _,
+      } as t,
+    ) =>
+    Some((t, inner))
+  | _ => None
+  };
+
+/* `(<code>)` -> `(<splice code>)`. None when [seg] is not exactly one
+ * parenthesized expression, or already holds a splice. */
+let wrap_parens = (seg: Base.segment): option(Base.segment) => {
+  open OptUtil.Syntax;
+  let (lead, core, trail) = split_outer_secondary(seg);
+  let* (t, inner) =
+    switch (core) {
+    | [p] => as_parens(p)
+    | _ => None
+    };
+  let (ilead, icore, itrail) = split_outer_secondary(inner);
+  switch (icore) {
+  | [Base.Splice(_)] => None /* idempotent: already spliced */
+  | _ =>
+    let inner' = ilead @ [Piece.mk_splice(icore)] @ itrail;
+    Some(
+      lead
+      @ [
+        Base.Tile({
+          ...t,
+          children: [inner'],
+        }),
+      ]
+      @ trail,
+    );
+  };
+};
+
+let as_list_lit = (p: Base.piece): option((Base.tile, Base.segment)) =>
+  switch (p) {
+  | Tile({label: ["[", "]"], children: [inner], _} as t) =>
+    Some((t, inner))
+  | _ => None
+  };
+
+/* `lo=(0)` -> `lo=(<splice 0>)`, and `refs=[(1), (2)]` -> each element
+ * spliced. Returns None when the field is not marked, or is already
+ * spliced. */
+let wrap_marked_field = (field: Base.segment): option(Base.segment) => {
+  open OptUtil.Syntax;
+  let* (label_prefix, value) = split_at_label_sep(field);
+  switch (wrap_parens(value)) {
+  | Some(value') => Some(label_prefix @ value')
+  | None =>
+    let (lead, core, trail) = split_outer_secondary(value);
+    let* (t, inner) =
+      switch (core) {
+      | [p] => as_list_lit(p)
+      | _ => None
+      };
+    let wrapped = ref(false);
+    let inner' =
+      map_comma_groups(
+        el =>
+          switch (wrap_parens(el)) {
+          | Some(el') =>
+            wrapped := true;
+            el';
+          | None => el
+          },
+        inner,
+      );
+    wrapped^
+      ? Some(
+          label_prefix
+          @ lead
+          @ [
+            Base.Tile({
+              ...t,
+              children: [inner'],
+            }),
+          ]
+          @ trail,
+        )
+      : None;
+  };
+};
+
+/* Rewrite the model tuple's marked fields. [seg] is the whole
+ * invocation: the `^name` tile followed by the application's
+ * argument tile. Returns None when nothing was marked, so an
+ * unmarked livelit installs no syntax override at all. */
+let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
+  let wrapped = ref(0);
+  let wrap = (field: Base.segment) =>
+    switch (wrap_marked_field(field)) {
+    | Some(field') =>
+      incr(wrapped);
+      field';
+    | None => field
+    };
+  /* `^name((a=1, b=(2)))` puts the tuple's own parens inside the
+   * application's, so descend one layer when there is one. */
+  let rewrite_arg = (arg: Base.segment): Base.segment =>
+    switch (arg) {
+    | [p] =>
+      switch (as_parens(p)) {
+      | Some((t, inner)) => [
+          Base.Tile({
+            ...t,
+            children: [map_comma_groups(wrap, inner)],
+          }),
+        ]
+      | None => map_comma_groups(wrap, arg)
+      }
+    | _ => map_comma_groups(wrap, arg)
+    };
+  let seg' =
+    List.map(
+      (p: Base.piece) =>
+        switch (p) {
+        | Tile({label: ["(", ")"], children: [arg], _} as t)
+            when Option.is_none(as_parens(p)) =>
+          Base.Tile({
+            ...t,
+            children: [rewrite_arg(arg)],
+          })
+        | _ => p
+        },
+      seg,
+    );
+  wrapped^ > 0 ? Some(seg') : None;
+};
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -49,148 +242,6 @@ module M: Projector = {
       }
     | _ => None
     };
-
-  /* --- Splices in a livelit's model ---------------------------------
-   *
-   * A splice is a region of the CLIENT's program held inside the widget:
-   * edited in place, and typed in the surrounding scope, since splices
-   * are transparent to statics. An author opts a model field in by
-   * PARENTHESIZING its value:
-   *
-   *     let init : Model = (pct=50, lo=(0), hi=(100));
-   *
-   * The parens are the durable marker, and they have to be, because a
-   * splice piece prints as nothing but its content and the deck loads
-   * from text -- so a splice cannot round-trip and `init` rebuilds it
-   * from the parens on every load. The client's code stays INSIDE the
-   * parens, which is what makes the rewrap idempotent.
-   *
-   * Only labeled fields whose value is exactly a parenthesized
-   * expression are eligible. No invocation in the shipped deck matches,
-   * so this is inert for every livelit that has not asked for it. */
-
-  /* Split a segment into (leading secondary, core, trailing secondary). */
-  let split_outer_secondary =
-      (seg: Base.segment): (Base.segment, Base.segment, Base.segment) => {
-    let (lead, rest) = Segment.take_while_secondary(seg);
-    let (rev_trail, rev_core) =
-      Segment.take_while_secondary(List.rev(rest));
-    (lead, List.rev(rev_core), List.rev(rev_trail));
-  };
-
-  /* Split a field at its tuple-label separator, returning the prefix
-   * through the "=" tile and the value pieces after it. */
-  let split_at_label_sep =
-      (field: Base.segment): option((Base.segment, Base.segment)) => {
-    let rec go = (prefix, ps: Base.segment) =>
-      switch (ps) {
-      | [] => None
-      | [Base.Tile({label: ["="], _}) as eq, ...rest] =>
-        Some((List.rev([eq, ...prefix]), rest))
-      | [p, ...rest] => go([p, ...prefix], rest)
-      };
-    go([], field);
-  };
-
-  let map_comma_groups =
-      (f: Base.segment => Base.segment, seg: Base.segment): Base.segment =>
-    Segment.split_at_commas(seg)
-    |> Aba.map_a(f)
-    |> Aba.join(Fun.id, p => [p])
-    |> List.concat;
-
-  /* A parenthesized expression: Convex on both sides. The application's
-   * own argument tile carries the same ["(", ")"] label but a postfix
-   * mold, so the nibs are what tell them apart. */
-  let as_parens = (p: Base.piece): option((Base.tile, Base.segment)) =>
-    switch (p) {
-    | Tile(
-        {
-          label: ["(", ")"],
-          mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-          children: [inner],
-          _,
-        } as t,
-      ) =>
-      Some((t, inner))
-    | _ => None
-    };
-
-  /* `lo=(0)` -> `lo=(<splice 0>)`. Returns None when the field is not
-   * marked, or is already spliced. */
-  let wrap_marked_field = (field: Base.segment): option(Base.segment) => {
-    open OptUtil.Syntax;
-    let* (label_prefix, value) = split_at_label_sep(field);
-    let (lead, core, trail) = split_outer_secondary(value);
-    let* (t, inner) =
-      switch (core) {
-      | [p] => as_parens(p)
-      | _ => None
-      };
-    let (ilead, icore, itrail) = split_outer_secondary(inner);
-    switch (icore) {
-    | [Base.Splice(_)] => None /* idempotent: already spliced */
-    | _ =>
-      let inner' = ilead @ [Piece.mk_splice(icore)] @ itrail;
-      Some(
-        label_prefix
-        @ lead
-        @ [
-          Base.Tile({
-            ...t,
-            children: [inner'],
-          }),
-        ]
-        @ trail,
-      );
-    };
-  };
-
-  /* Rewrite the model tuple's marked fields. [seg] is the whole
-   * invocation: the `^name` tile followed by the application's
-   * argument tile. Returns None when nothing was marked, so an
-   * unmarked livelit installs no syntax override at all. */
-  let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
-    let wrapped = ref(0);
-    let wrap = (field: Base.segment) =>
-      switch (wrap_marked_field(field)) {
-      | Some(field') =>
-        incr(wrapped);
-        field';
-      | None => field
-      };
-    /* `^name((a=1, b=(2)))` puts the tuple's own parens inside the
-     * application's, so descend one layer when there is one. */
-    let rewrite_arg = (arg: Base.segment): Base.segment =>
-      switch (arg) {
-      | [p] =>
-        switch (as_parens(p)) {
-        | Some((t, inner)) => [
-            Base.Tile({
-              ...t,
-              children: [map_comma_groups(wrap, inner)],
-            }),
-          ]
-        | None => map_comma_groups(wrap, arg)
-        }
-      | _ => map_comma_groups(wrap, arg)
-      };
-    let seg' =
-      List.map(
-        (p: Base.piece) =>
-          switch (p) {
-          | Tile({label: ["(", ")"], children: [arg], _} as t)
-              when Option.is_none(as_parens(p)) =>
-            Base.Tile({
-              ...t,
-              children: [rewrite_arg(arg)],
-            })
-          | _ => p
-          },
-        seg,
-      );
-    wrapped^ > 0 ? Some(seg') : None;
-  };
 
   let init = (any: Language.Any.t, seg: Base.segment) =>
     switch (any) {
@@ -666,10 +717,10 @@ module M: Projector = {
      syntax, so each use's model lives in its own Ap argument, like builtin
      livelits. */
   /* Last successfully rendered view per projector instance. After a
-     commit, the syntax model is briefly an unevaluated update-transition
-     that the render-time fallback cannot resolve (its ^name reference is
-     free in the builtin env), so until the main evaluation delivers a
-     fresh sample the view would flash an error. Instead, show the last
+     commit, until the main evaluation delivers a fresh sample, the
+     render-time fallback has only the surface model, whose splices are
+     their code rather than refs (eval_splice needs a ref), so the view
+     would flash an error. Instead, show the last
      good render, dimmed and inert (its handlers close over the stale
      model, so letting clicks through could silently drop the in-flight
      edit). Display-only cache; entries overwrite on every successful

@@ -422,6 +422,45 @@ let expand = Functional(fun m -> 0)
   };
 };
 
+/* Loading a use from TEXT rebuilds its splices from their parens (the
+   projector's init). A labeled field's value in parens, and each element
+   in parens of a list literal: Splices, Dynamically keeps its row as
+   refs = [(...), (...)], which a reload used to drop. Marking twice
+   changes nothing. */
+let rec count_splices = (seg: Haz3lcore.Base.segment): int =>
+  List.fold_left(
+    (n, p: Haz3lcore.Base.piece) =>
+      switch (p) {
+      | Tile(t) =>
+        n + List.fold_left((m, c) => m + count_splices(c), 0, t.children)
+      | Splice(sp) => n + 1 + count_splices(sp.content)
+      | _ => n
+      },
+    0,
+    seg,
+  );
+
+let text_reload_rebuilds_splices = () => {
+  let marked = text =>
+    switch (Haz3lcore.Parser.to_segment(text, ~root=Exp)) {
+    | None => fail("did not parse: " ++ text)
+    | Some(seg) =>
+      switch (Haz3lcore.LivelitProj.splice_marked_fields(seg)) {
+      | None => (0, None)
+      | Some(seg') => (
+          count_splices(seg'),
+          Haz3lcore.LivelitProj.splice_marked_fields(seg'),
+        )
+      }
+    };
+  let (n, again) = marked("^c((r = (1), n = 2))");
+  check(int, "a labeled field in parens", 1, n);
+  check(bool, "marking twice changes nothing", true, again == None);
+  let (n, again) = marked("^cells((orient = Row, refs = [(1), (2), 3]))");
+  check(int, "list elements in parens, not bare ones", 2, n);
+  check(bool, "marking twice changes nothing", true, again == None);
+};
+
 /* Color (Figure 3)'s own init, in the paper's form (l.8-13): four
    new_splices starting at 0, 0, 0 and 100, answered positionally. */
 let color_init = () => {
@@ -1549,6 +1588,11 @@ let tests = [
       test_case("set_splice rewrites", `Quick, set_splice_rewrites),
       test_case("Color (Figure 3) init", `Quick, color_init),
       test_case("wrapped ref is written", `Quick, wrapped_ref_is_written),
+      test_case(
+        "text reload rebuilds splices",
+        `Quick,
+        text_reload_rebuilds_splices,
+      ),
       test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
       test_case("bind vars counted used", `Quick, bind_vars_counted_used),
       test_case("splice commands evaluate", `Quick, splice_commands_evaluate),
