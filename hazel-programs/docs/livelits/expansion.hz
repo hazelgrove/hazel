@@ -196,9 +196,9 @@ let hwb_string = fun c : Hwb ->
 # use. The use-site check is for Macro, whose quoted expansion has a #
 # type that depends on the splice list -- how many splices there are #
 # and what their types are -- which the definition cannot see #
-# (Sec. 3.2.5). It waits on Exp. A definition with a bad member is #
-# still bound, so its uses keep resolving: each synthesizes the #
-# declared Expansion. #
+# (Sec. 3.2.5). It waits on quotation. A definition with a bad #
+# member is still bound, so its uses keep resolving: each #
+# synthesizes the declared Expansion. #
 
 # Try it: the ^good livelit below type-checks. Change its Expansion #
 # to String and the error appears on the DEFINITION immediately. The #
@@ -236,15 +236,15 @@ let mid = shade(25) in
 
 # WHAT SPLICES CHANGE #
 
-# THE PAPER'S DESIGN, in the types but not yet running. Everything #
-# ABOVE this line works today. Its core exists on this branch as #
-# TYPES -- expand's Macro arm, SpliceRef, the five splice commands -- #
-# so a livelit that uses them typechecks. Little of it RUNS yet: #
-# with no splice store, every splice command but editor reports "not #
-# implemented", and #
-# with no inhabitants of Exp, a Macro can be written but cannot #
-# return. The Color (Figure 3) slide writes out the paper's own #
-# example in full. #
+# THE PAPER'S DESIGN, most of it running. Everything ABOVE this line #
+# works today. Its core exists on this branch -- expand's Macro arm, #
+# SpliceRef, the five splice commands -- and the splices RUN: the #
+# splice store is the program text, and new_splice, set_splice, #
+# eval_splice and editor all run. result_view still reports "not #
+# implemented". Exp has one constructor, IntLit, and no quotation, #
+# so a Macro can be written but cannot return real code: a use of #
+# one means a hole. The Color (Figure 3) slide writes out the #
+# paper's own example in full, and all of it runs but its expand. #
 
 # A splice is a region of the widget that holds the CLIENT's code #
 # (Sec. 2.4.2). Not a value the widget computed: an expression the #
@@ -319,20 +319,21 @@ let mid = shade(25) in
 
 #   new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) #
 
-# Here init stays a plain Model. It is pasted as text at the caret #
-# when you type the name, with no evaluator to run a command, so #
-# once a splice store exists a livelit's first splices will have to #
-# come from a click, in update -- which does return an UpdateCmd. #
-# Today neither path runs. update is also where the paper WRITES a #
-# splice, as Fig. 3 does on a click (Sec. 3.2.4): #
+# init is a command here too, performed when a use is created: type #
+# ^name and a space, and the new use's text is the model init #
+# answers, with the splices it made. The two inits on this slide are #
+# Pure(...) and make none. update is where the paper WRITES a splice, #
+# as Fig. 3 does on a click (Sec. 3.2.4): #
 
 #   set_splice : (SpliceRef, Exp) -> UpdateCmd(()) #
 
 # Typ is a stopgap here: a closed list of base types, IntT, FloatT, #
-# BoolT and StringT, in place of the paper's quoted types. A #
-# SpliceRef carries no type index: the splice has a type, the handle #
-# does not. And, as in the paper, no command deletes a splice: a #
-# splice the model no longer refers to is garbage. #
+# BoolT and StringT, in place of the paper's quoted types. new_splice #
+# takes one and discards it. A SpliceRef carries no type index: the #
+# splice has a type, from where it sits, and the handle does not. #
+# And, as in the paper, no command deletes a splice: one that no ref #
+# in the committed model reaches is not written back, so the next #
+# commit drops it. #
 
 # view already returns a COMMAND, a ViewCmd, and that is what lets it #
 # RUN a splice and show a live preview of code the client wrote #
@@ -341,13 +342,15 @@ let mid = shade(25) in
 #   eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) #
 #   type Result = Val(Exp) | Indet(Exp) #
 
-# That Result is the paper's. With no Exp here, Val carries the value #
-# itself and Indet carries nothing. view also places each splice's #
-# editor, and its rendered result, with editor and result_view, both #
-# taking (SpliceRef, Dim). UpdateCmd has no eval_splice, on purpose: #
-# the model must not depend DIRECTLY on which closure the user has #
-# selected, though the view may still emit actions that depend on a #
-# result (Sec. 3.2.4). #
+# That Result is the paper's. With no quotation here, Val carries the #
+# value itself and Indet carries nothing. view also places each #
+# splice's editor, and its rendered result, with editor and #
+# result_view, both taking (SpliceRef, Dim); result_view does not run #
+# yet. UpdateCmd has no eval_splice, on purpose: the model must not #
+# depend DIRECTLY on which closure the user has selected, though the #
+# view may still emit actions that depend on a result (Sec. 3.2.4). #
+# Here a ref carries its code's value from the run, so update could #
+# still take it out; making SpliceRef abstract is later work. #
 
 # Indet is the honest case: the client's expression may not reduce #
 # to a value, and a widget that demands one would be lying #
@@ -363,13 +366,15 @@ let mid = shade(25) in
 
 #   context { } #
 
-# There is no context clause here. A livelit is a module and sees #
+# There is no context clause here. A livelit is a module, typed in #
 # its ordinary lexical scope, builtins included. A Functional expand #
 # is a closure over that scope, so what it uses is bound at the #
-# definition already. Quoted code has no closure, so the clause will #
-# matter once Macro can return -- and once new_splice and set_splice #
-# carry code, which the paper checks against the same context #
-# (Sec. 3.2.1, Sec. 3.2.4). #
+# definition already. init and update are not: they run in the #
+# builtin environment alone, so their helpers must be members. #
+# Quoted code has no closure, so the clause will matter once Macro #
+# can return quoted code -- and once new_splice and set_splice carry #
+# more than an IntLit, which names nothing: the paper checks their #
+# code against the same context (Sec. 3.2.1, Sec. 3.2.4). #
 
 # WHERE THIS BRANCH IS #
 
@@ -379,11 +384,14 @@ let mid = shade(25) in
 
 # That work is merged here. SpliceRef -- the TYPE above, what the #
 # Macro arm hands back -- is a builtin, and the five commands are #
-# typed around it. Four parts of the paper's design are still #
-# missing: a splice store, so the commands other than editor RUN #
-# rather than report "not implemented"; an inhabited Exp, so Macro #
-# can return and #
-# set_splice has code to write; an init that runs as an UpdateCmd #
-# when a use is inserted, so it can call new_splice (Sec. 3.2.1); #
-# and the context clause above. Until the store exists, the #
-# SpliceRef, MVP slide runs a stopgap. #
+# typed around it. The splice store is the program text: when a #
+# model is committed, each ref in it is written back as its splice, #
+# in parens, at the ref's position, and each statics pass reads them #
+# back into refs. init runs as an UpdateCmd when a use is created, so #
+# it can call new_splice (Sec. 3.2.1). Four parts of the paper's #
+# design are still missing: quotation, so Exp holds more than IntLit #
+# and Macro can return code; result_view; livelit parameters #
+# (Sec. 2.4.1), since a use's one argument is its model; and the #
+# context clause above. The SpliceRef, MVP slide still runs a #
+# stopgap pair, because its Functional expand needs its bounds' #
+# values and cannot eval_splice. #

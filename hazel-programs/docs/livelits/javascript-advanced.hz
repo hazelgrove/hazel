@@ -9,10 +9,11 @@
 # A use has the livelit's declared expansion type (Sec. 3.1) and #
 # means what its model EXPANDS to (Sec. 2.2). In the paper that is #
 # always a program, given as quoted code (Sec. 3.2.5). Here that kind #
-# is a Macro livelit, which cannot return real code yet, since Exp #
-# has no inhabitants (see the Overview, WHAT DOES NOT RUN YET). ^js #
-# instead expands to a value, as a Functional livelit does; that arm #
-# is this implementation's own, not the paper's. #
+# is a Macro livelit, which cannot return real code yet: there is no #
+# quotation, so its Exp can only be a hole or an IntLit (see the #
+# Overview, WHAT DOES NOT RUN YET). ^js instead expands to a value, #
+# as a Functional livelit does; that arm is this implementation's #
+# own, not the paper's. #
 
 # Invocation: #
 # To invoke a livelit, type its name (always prefixed with ^), then #
@@ -26,17 +27,19 @@
 
 # Livelits are DEFINED IN THE PROGRAM: a module bound to a caret name #
 # declares types Model, Action and Expansion and provides init, #
-# update, view and expand. update and view return COMMANDS, an #
+# update, view and expand. init is a COMMAND, an UpdateCmd run when #
+# a use is created (Sec. 3.2.1); update and view return COMMANDS, an #
 # UpdateCmd and a ViewCmd (Sec. 3.2.4, Sec. 3.2.3); a plain answer is #
 # written Pure(...). An optional shape -- Inline(w), Block(w, h), or #
 # Tab(w, h) -- sets its footprint. The other slides each define one. #
 
 # One livelit ships built in, and it is NOT such a module: ^js is #
 # written in the editor's own implementation language, so it is not #
-# checked against the Livelit signature, and its update and view are #
-# plain functions there, not commands. Its code is a string in the #
-# model, not a splice (Sec. 2.4.2), so unlike a splice, which is #
-# scoped at the use site (Sec. 2.4.3), it cannot see your variables. #
+# checked against the Livelit signature, and its starting model, #
+# update and view are plain data and functions there, not commands. #
+# Its code is a string in the model, not a splice (Sec. 2.4.2), so #
+# unlike a splice, which is scoped at the use site (Sec. 2.4.3), it #
+# cannot see your variables. #
 
 # ^js #
 # Expansion type: String #

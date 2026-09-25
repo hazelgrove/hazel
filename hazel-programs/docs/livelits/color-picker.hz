@@ -12,8 +12,9 @@
 # slide -- keeps each channel as a splice, a region of the client's #
 # code inside the widget (Sec. 2.4.2), and its expand returns quoted #
 # code over them (Sec. 3.2.5). This one keeps three plain numbers and #
-# expands with Functional, straight to the String. It uses no splice #
-# commands, so all of it runs today; view and update answer with Pure. #
+# expands with Functional, straight to the String. It needs no quoted #
+# code, so all of it runs today; init, view and update all answer #
+# with Pure. #
 
 # The helpers -- css, pick, dot_x, dot_y -- are ordinary members of #
 # the module; view and expand call them like any other function. #

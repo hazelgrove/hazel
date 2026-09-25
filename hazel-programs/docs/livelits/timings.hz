@@ -188,8 +188,9 @@ let ^latency = {
 
 let reading = ^^livelit(^latency((gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0))) in
 
-# One frame at 60Hz. A gap above it means a drag the eye can see #
-# stuttering. #
+# One frame at 60Hz, rounded down. Moves arrive about one per frame, #
+# so on a 60Hz screen even a smooth drag gaps about 16.7 ms and reads #
+# over budget; on the laptop above, an idle drag gaps about 80 ms.    #
 let budget = 16.0 in
 
 (reading.n,

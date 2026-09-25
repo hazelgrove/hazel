@@ -721,8 +721,9 @@ and uexp_to_info_map =
         ) {
         | (Livelit, true, Some((name, model))) =>
           /* the view gets the ELABORATED model (located inside the
-             expansion by the surface model's id) — a committed transition's
-             surface form is not evaluable */
+             expansion by the surface model's id): only there are the
+             model's splices decoded into refs (expose_splice_refs); in the
+             surface form a splice is just its code */
           let model =
             Option.value(
               Exp.find_by_id(Exp.rep_id(model), e_elab),
@@ -1824,9 +1825,9 @@ and uexp_to_info_map =
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
           /* A user-defined livelit's expansion embeds the model, so give it
-             the ELABORATED model — the surface form of e.g. a committed
-             ^name.update(m, a) transition is not evaluable. Builtins match
-             on surface shapes and keep the user term. */
+             the ELABORATED model — only there are its splices decoded into
+             refs. Builtins match on surface shapes and keep the user
+             term. */
           let model_for_expand =
             Option.is_some(user_def) ? arg_elab : arg.user_term;
 
@@ -1840,8 +1841,8 @@ and uexp_to_info_map =
              syntax only, so what gets typed is the expansion of the SURFACE
              model even where the elaborated one is what gets evaluated.
              That re-traverses the model, so a use costs twice its model
-             subtree — small in practice, since a model is a literal or a
-             committed transition over one. */
+             subtree — small in practice, since a model is a literal, or
+             one holding splices of the client's code. */
           let expansion_marks = (expanded: Exp.t) => {
             let to_check =
               Option.is_some(user_def)

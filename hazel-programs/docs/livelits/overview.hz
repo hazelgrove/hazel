@@ -32,7 +32,7 @@
 #     type Model;          the state of one use           #
 #     type Action;         what the GUI emits             #
 #     type Expansion;      what a use means               #
-#     let init   : Model;                                 #
+#     let init   : UpdateCmd(Model);                      #
 #     let update : Model -> Action -> UpdateCmd(Model);   #
 #     let view   : Model -> ViewCmd(Html.T);              #
 #     let expand :                                        #
@@ -57,9 +57,10 @@
 # does not return Html; it returns a ViewCmd that yields Html. update #
 # does not return the next model; it returns an UpdateCmd that yields #
 # it. That is the paper's design (Sec. 3.2.3, Sec. 3.2.4), and it is #
-# what lets a livelit touch splices -- next section. In the paper #
-# init is an UpdateCmd as well (Sec. 3.2.1); here it is not yet -- #
-# see WHAT DOES NOT RUN YET. #
+# what lets a livelit touch splices -- next section. init is an #
+# UpdateCmd as well, as in the paper (Sec. 3.2.1). It is performed #
+# when a use is created, by typing ^name then a space, and the new #
+# use's text is the model it answers, with the splices it made. #
 
 # Two ways to write a command: #
 
@@ -67,12 +68,13 @@
 #   do p <- c in body    runs command c, binds its answer to the #
 #                        pattern p, then runs the command body #
 
-# Pure is how every livelit in this deck answers, unless it has #
-# commands to sequence. The do form is the paper's own notation: #
-# Sec. 3 says Figure 3 is written with do-notation for presentation. #
-# Here it is real syntax. A bind is not recursive -- p does not reach #
-# into c -- so a recursive helper goes in an ordinary let between #
-# two binds. #
+# Every livelit in this deck answers with Pure. One with commands to #
+# sequence runs them with do, then answers with Pure, where the #
+# paper's do block ends in return (Fig. 3 l.13). The do form is the #
+# paper's own notation: Sec. 3 says Figure 3 is written with #
+# do-notation for presentation. Here it is real syntax. A bind is #
+# not recursive -- p does not reach into c -- so a recursive helper #
+# goes in an ordinary let between two binds. #
 
 # There are two command types, and the difference between them is #
 # the point (Sec. 3.2.4). An UpdateCmd may make and write splices. A #
@@ -88,9 +90,10 @@
 # A splice is a region of the CLIENT's program that sits inside the #
 # widget: an editor for ordinary code (Sec. 2.4.2), in the client's #
 # scope (Sec. 2.4.3). The livelit holds a SpliceRef, a handle to #
-# one. It is #
-# just SpliceRef, never SpliceRef(Int): the hole a splice creates has #
-# a type, the handle to it does not. #
+# one: just SpliceRef, never SpliceRef(Int), as in the paper, where #
+# the splice has a type and the handle does not (Sec. 3.2.1). Here a #
+# splice is typed only by where it sits. Under a bare SpliceRef, as #
+# in Color (Figure 3), that is ?, so no type is checked there yet. #
 
 # Five commands, with the paper's names: #
 
@@ -100,15 +103,24 @@
 #   editor      : (SpliceRef, Dim)  -> ViewCmd(Html.T)       3.2.3 #
 #   result_view : (SpliceRef, Dim)  -> ViewCmd(Maybe(Html.T)) 3.2.3 #
 
-# eval_splice answers Val(v) or Indet. The paper's Val and Indet each #
-# hold an Exp, such as IntLit (Sec. 3.2.3); here Val holds the value #
-# itself, and Indet holds nothing. #
+# eval_splice answers Some(Val(v)) or Some(Indet); None, for no run #
+# at all, cannot happen while a ref carries its value. The paper's #
+# Val and Indet each hold an Exp, such as IntLit (Sec. 3.2.3); here #
+# Val holds the value itself, and Indet holds nothing. #
+
+# The splice store is the program text. When a model is committed, #
+# each SpliceRef in it is written back as the splice itself, in #
+# parens, where the ref sits in the use's model argument. Each pass #
+# reads those parens back as refs, directed by the Model type. So #
+# parens in a use's text are how its splices are saved, not a way to #
+# make one: new_splice is the only command that makes a splice #
+# (Sec. 3.2.1). #
 
 # Splices are capture-avoiding: the expansion takes them as function #
 # arguments, so a splice sees the client's bindings and never the #
 # livelit's (Sec. 2.4.3). The paper lists no command to delete one. #
-# The plan here: a splice that nothing in the model refers to is #
-# garbage, dropped when the model is next committed. #
+# Here deletion is implicit: a splice that no ref in the committed #
+# model reaches is not written back, so it is gone. #
 
 # WHAT DOES NOT RUN YET #
 
@@ -116,30 +128,29 @@
 # a Val holds a value, not an Exp. Beyond those, four parts of the #
 # paper's design are not here yet: #
 
-# The splice commands are all in the types, and a livelit that uses #
-# them typechecks. Only editor runs: it places a splice that is #
-# already in the widget, so it needs no store. The other four need a #
-# splice store, which does not exist yet, so running one reports #
-# "not implemented". Until it exists, SpliceRef, MVP runs a stopgap #
-# in its place. Pure and the do form DO run: the runner performs a #
-# bind by running its command and passing the answer on. Every #
-# widget in this deck answers through Pure. The one slide that #
-# sequences, Color (Figure 3), stops at its first command, #
-# eval_splice. #
+# result_view does not run yet. It is in the types, and a livelit #
+# that uses it typechecks, but running it reports #
+# "not implemented". The other four splice commands run, and #
+# Color (Figure 3) uses all four. Pure and the do form run too: the #
+# runner performs a bind by running its command and passing the #
+# answer on. #
 
-# init is a plain Model, not an UpdateCmd(Model) as in Sec. 3.2.1. #
-# init is pasted into the program as TEXT when you type the name, #
-# and at that moment there is no evaluator to run a command. So init #
-# cannot call new_splice. Once the store exists, a livelit's first #
-# splices will have to come from a click, not from init as in the #
-# paper; today neither path runs. #
+# There is no quotation yet. The paper writes Exp and Typ values #
+# with quasiquotation, like `0` (Sec. 3.2.1), and Macro returns a #
+# quoted function over the splices (Sec. 3.2.5). Here Exp has one #
+# constructor, IntLit(Int), which Fig. 3 l.49-52 writes. So #
+# new_splice can start a splice only empty or at a number, and #
+# set_splice can only give it a number. A Macro expand cannot return #
+# real code: its Exp can only be a hole or an IntLit, and a use does #
+# not call it yet, so a use of a Macro livelit means a hole of its #
+# Expansion type. Typ is a stopgap, a closed list of base type names #
+# like IntT. new_splice takes one and discards it: a splice is typed #
+# only by where it sits. #
 
-# Exp has no inhabitants. The paper writes Exp and Typ values with #
-# quasiquotation, like `0` (Sec. 3.2.1), and Macro returns a quoted #
-# function over the splices (Sec. 3.2.5). Neither exists here yet. #
-# Macro can be written but cannot return; set_splice cannot be #
-# given its code. Typ is a stopgap: a closed list of base type names, #
-# IntT and so on, enough to say what a new splice holds. #
+# SpliceRef is not abstract yet. A ref carries the value its code #
+# had in the current run, and its constructor is visible, so an #
+# update could take the value out of a ref, which Sec. 3.2.4 is #
+# designed to prevent. #
 
 # The paper's implementation also lists a context: the bindings from #
 # its definition site that the expansion may use (Sec. 3.2, Fig. 3 #
@@ -164,7 +175,8 @@ let ^flag = {
   type Action = Bool;
   type Expansion = Bool;
 
-  # what a fresh use starts as: typing ^flag then space inserts it #
+  # init is a command: typing ^flag then a space performs it, and #
+  # the model it answers, false, is the new use's text. #
   let init = Pure(false);
 
   # update takes the model, then the action, and returns a COMMAND. #
@@ -182,7 +194,7 @@ let ^flag = {
       [Html.text(if m then "yes" else "no")]));
 
   # what a use means: here, the model itself, so Functional. Macro, #
-  # the paper's arm, cannot return yet: Exp is empty. #
+  # the paper's arm, cannot return real code yet: no quotation. #
   let expand = Functional(fun m : Model -> m);
 
   # optional: the widget's footprint, in character cells #
@@ -203,25 +215,26 @@ let ^flag = {
 # the sum. A wrong member reads as an ordinary type error at that #
 # member. #
 
-# At each USE: in the paper this is the ONLY check (Sec. 3.2.5). #
-# expand returns untyped quoted code, and the type of the function it #
-# quotes depends on every splice in the list, which grows and shrinks #
-# per use. So nothing ahead of time says that the generated code has #
-# the declared Expansion type. The definition-site check above is an #
+# At each USE: in the paper this is the ONLY check that what expand #
+# generates has the declared type (Sec. 3.2.5). expand returns #
+# untyped quoted code, and the type of the function it quotes #
+# depends on every splice in the list, which grows and shrinks per #
+# use. So nothing ahead of time says that the generated code has the #
+# declared Expansion type. Checking expand at the definition is an #
 # addition here, and is enough for Functional. The use-site check #
 # runs at every use today. For a Functional livelit it repeats what #
 # the definition already guaranteed. For Macro it checks only a #
-# placeholder until Exp has inhabitants; then it does real work. #
+# placeholder until there is quotation; then it does real work. #
 
 # WHERE TO GO NEXT #
 
 # Color (Figure 3) the paper's own example, rebuilt line by line #
 # Define a Slider  a number you drag, expanding to that number #
 # The Expansion    Functional and Macro side by side #
-# SpliceRef, MVP   stopgap splices from parens, until the store #
+# SpliceRef, MVP   a slider whose two bounds are splices #
 # Emotion          the widget IS the control: drag a face #
 # Color Picker     helpers are ordinary members of the module #
 # Tree Care        a model that is a tree, redrawn as it grows #
 # Timings          what one frame of a livelit costs #
 # Splices, Dynamically (draft) #
-#                  a row of splices that grows; waits on the store #
+#                  a row of splices that grows and shrinks #

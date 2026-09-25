@@ -42,25 +42,30 @@ let ^color = {
   type Expansion = Color;
 
   # Fig. 3 l.3-4 -- the model is four SpliceRefs, one per channel. The #
-  # model holds HANDLES to the client's code, not the numbers. #
+  # model holds HANDLES to the client's code. Here a ref also carries #
+  # the value its code had in the last run: that is what eval_splice #
+  # reads. update could take the value out too, which Sec. 3.2.4 means #
+  # to prevent; making SpliceRef abstract is later work. #
   type Model = (r = SpliceRef, g = SpliceRef, b = SpliceRef, a = SpliceRef);
 
   # Fig. 3 l.6 -- context { }, the definition-site context (Sec. 3.2). #
   # There is no context clause here, and nothing checks what a #
   # definition refers to. By convention a definition is closed: its #
   # helpers are its own members, and builtins like Html and #
-  # string_of_int are in scope. That matters because update runs at #
-  # event time, where only the builtins are in scope. #
+  # string_of_int are in scope. That matters because init and update #
+  # run in the editor -- init when a use is made, update at each #
+  # event -- where only the builtins are in scope. #
 
   # Fig. 3 l.15-16 -- the one action: the reader clicked a color. #
   type Action = + ClickOn(Color);
 
   # Fig. 3 l.8-13 -- init, a COMMAND: an UpdateCmd(Model) that makes #
-  # four splices with new_splice, each an Int, and answers their refs #
-  # (Sec. 3.2.1). r, g and b start at 0, a at 100. It runs when a use #
-  # is created: type ^color and a space. The paper's starting code is #
-  # the quoted `0`; here it is IntLit(0), an Exp constructor, which #
-  # needs no quotation. `Int` is IntT, and return is Pure. #
+  # four splices with new_splice and answers their refs (Sec. 3.2.1). #
+  # r, g and b start at 0, a at 100. It runs when a use is created: #
+  # type ^color and a space. The paper's starting code is the quoted #
+  # `0`; here it is IntLit(0), an Exp constructor, which needs no #
+  # quotation. `Int` is IntT, which new_splice takes and does not keep #
+  # yet: a splice is typed only by where it sits. return is Pure. #
   let init =
     do r <- new_splice(IntT, Some(IntLit(0))) in
     do g <- new_splice(IntT, Some(IntLit(0))) in
@@ -80,7 +85,7 @@ let ^color = {
     do a_res <- eval_splice(model.a) in
     # Fig. 3 l.25-35 -- all four must be values to make a color. The #
     # paper matches Some(Val(IntLit(r))): its results are values AS #
-    # SYNTAX, an Exp. With no Exp here, Val carries the value itself, #
+    # SYNTAX, an Exp. Here Val carries the value itself, not syntax, #
     # so the pattern is Some(Val(r)). Anything else -- a splice that is #
     # still a hole, say -- gives no color (Sec. 2.5.2). #
     let cur_color =
@@ -160,7 +165,7 @@ let ^color = {
   #   (`fun r g b a -> (r, g, b, a)`, #
   #    [model.r, model.g, model.b, model.a]) #
   # The splice list is written exactly. The quoted function is a hole, #
-  # because Exp has no inhabitants -- see WHAT IS MISSING at the top. #
+  # as there is no quotation yet -- see WHAT IS MISSING at the top. #
   let expand =
     Macro(fun model : Model -> (?, [model.r, model.g, model.b, model.a]));
 

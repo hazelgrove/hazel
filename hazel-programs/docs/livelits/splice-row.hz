@@ -1,14 +1,14 @@
 # Splices, Dynamically #
 
-# DRAFT. The paper's design, written before its splices can run. #
+# DRAFT. The paper's design, and its splices run. #
 
-# Every command below is in the types today -- new_splice in update, #
-# editor in view -- and the slide typechecks. editor runs, but there #
-# is no splice store yet, so new_splice cannot. The empty sequence #
-# still draws, and rotate works, since neither makes a splice. #
-# Clicking + cell runs new_splice, which reports #
-# "not implemented" in the browser console and adds no cell. #
-# Building that store is what switches this slide on. #
+# Every command below runs -- new_splice in update, editor in view. #
+# + cell and the + buttons each make a splice with new_splice. x #
+# drops a cell's ref, and its splice goes with it. rotate turns the #
+# sequence between a row and a column. #
+# One gap: a saved row of cells survives an in-app save and reload, #
+# but not a reload from this slide's text. A text reload does not #
+# yet rebuild a splice at a list position. #
 
 # THE DESIGN #
 
@@ -20,15 +20,15 @@
 # slide uses the second half: a row of cells, one splice each, where #
 # a click makes one more. #
 
-# The SpliceRef, MVP slide runs today by reading its splices from #
-# parens the author wrote. That is a stopgap until the splice store #
-# exists, not the design, and it is also why that slide cannot grow #
-# a splice. #
+# The SpliceRef, MVP slide uses the first half: its init makes its #
+# two bounds with new_splice, and its Model has room for just two, #
+# so it never grows a splice. The parens in its uses are those #
+# splices as saved, not an author's way to make one. #
 
 # Bring the mouse near a cell and its buttons appear around it: #
 #   +   on its leading side -- a new empty cell before it #
 #   +   on its trailing side -- a new empty cell after it #
-#   x   below it -- drop it #
+#   x   below it in a row, beside it in a column -- drop it #
 # The inserts sit ALONG the sequence and delete sits ACROSS it, so #
 # each + is exactly where its new cell will land. #
 # Hover the whole sequence and "rotate" appears at both ends, turning #
@@ -43,12 +43,12 @@ let ^cells = {
     + InsertBefore(Int) + InsertAfter(Int) + Delete(Int) + Rotate;
   type Expansion = Int;
 
-  # EMPTY, and forced to be. init is a plain Model, not a command: it #
-  # is syntax pasted at the caret when you type ^cells, and there is #
-  # no evaluator at that moment to run new_splice. So the first cell #
-  # has to come from a click, which is why an empty sequence still #
-  # offers "+ cell". Figure 3's init is an UpdateCmd that calls #
-  # new_splice (Sec. 3.2.1); ours cannot. #
+  # EMPTY, by choice. init is a command, an UpdateCmd as in Figure 3 #
+  # (Sec. 3.2.1), performed when you type ^cells then a space. The #
+  # new use's text is the model it answers. It could call new_splice, #
+  # as Figure 3's does, but this one makes no cell. So the first cell #
+  # comes from a click, which is why an empty sequence offers #
+  # "+ cell". #
   let init = Pure((orient = Row, refs = []));
 
   let len : [SpliceRef] -> Int =
@@ -63,8 +63,8 @@ let ^cells = {
         end;
 
   # Deleting a cell is only FORGETTING its ref. There is no #
-  # drop_splice: a splice that nothing in the model reaches is #
-  # garbage, and the next commit can let it go. #
+  # drop_splice: a splice that no ref in the committed model reaches #
+  # is not written back, so committing the new model drops it. #
   let remove_at : ([SpliceRef], Int) -> [SpliceRef] =
     fun (xs, i) ->
       case xs
@@ -74,8 +74,11 @@ let ^cells = {
 
   # update is a command, in UpdateCmd (Sec. 3.2.4), and that is what #
   # lets it make a splice at all: new_splice lives there and nowhere #
-  # else (Sec. 3.2.1). IntT names the new cell's type and None means #
-  # it starts with no code, so this needs nothing from quotation. #
+  # else (Sec. 3.2.1). None starts the new cell empty, a hole, so #
+  # this needs nothing from quotation. IntT names the cell's expected #
+  # type, which a livelit gives each splice it makes (Sec. 2.4.2). #
+  # new_splice takes it and discards it for now, and a SpliceRef slot #
+  # holds code of any type, so nothing checks that a cell is an Int. #
   let update = fun m : Model -> fun a : Action ->
     case a
     | InsertBefore(i) =>
@@ -96,11 +99,12 @@ let ^cells = {
   # the list. #
 
   # The controls are ordinary buttons revealed by a :hover rule, not #
-  # model state. Hover as state would be the MVU catalog's approach, #
-  # and in a livelit it is wrong: the model lives in the program text #
-  # (Sec. 3.2.1), so every mouse movement would rewrite the program. #
-  # If the style element is not honored the rule never applies and the #
-  # controls simply stay visible -- worse looking, still usable. #
+  # model state. Hover as state is the approach of the MVU / Seed #
+  # Catalog slide, and in a livelit it is wrong: the model lives in #
+  # the program text (Sec. 3.2.1), so each time the mouse entered or #
+  # left a cell the program would be rewritten. If the style element #
+  # is not honored the rule never applies and the controls simply #
+  # stay visible -- worse looking, still usable. #
   let view = fun m : Model ->
     let editors = fun rs ->
       case rs
@@ -126,8 +130,9 @@ let ^cells = {
     # it, in ll-core. Hidden buttons keep their space, so the hover #
     # region is the cell PLUS its button margins: they appear when the #
     # mouse is near the cell, not only when it is over the editor. #
-    # The reveal rule is a DESCENDANT selector, .ll-cell:hover .ll-hov, #
-    # because the x sits one level down, inside ll-core. #
+    # The reveal rule is a DESCENDANT selector, #
+    # .ll-cell:hover .ll-hov, because the x sits one level down, #
+    # inside ll-core. #
     let cell = fun (i, ed) ->
       Html.div([Attr.class("ll-cell")],
         [ctl(("+", "insert before", InsertBefore(i))),
@@ -169,15 +174,17 @@ let ^cells = {
 
   # What a use of ^cells MEANS (Sec. 3.2.5). Functional can only #
   # compute from the model, so here the use denotes how many cells #
-  # there are. It cannot denote what the client WROTE in them: a #
+  # there are. It should not denote what the client WROTE in them. A #
   # Functional expand is a plain function and cannot eval_splice, #
-  # which lives in ViewCmd alone (Sec. 3.2.3). Making the use mean the #
-  # list of the cells' values is the Macro arm's job -- #
-  # (Exp, List(SpliceRef)), an expansion parameterized over exactly #
-  # these refs (Sec. 3.2.5) -- and that waits on quotation to inhabit #
-  # Exp. #
+  # which lives in ViewCmd alone (Sec. 3.2.3). A ref does carry its #
+  # value today, but reading it there breaks the abstraction that #
+  # Sec. 3.2.5 asks for. Making the use mean the list of the cells' #
+  # values is the Macro arm's job -- (Exp, List(SpliceRef)), an #
+  # expansion parameterized over exactly these refs (Sec. 3.2.5) -- #
+  # and that waits on quotation. Exp has only IntLit today, so a #
+  # Macro expand cannot return real code yet. #
   let expand = Functional(fun m : Model -> len(m.refs));
   let shape = Block(48, 10)
 } in
-# A use, starting empty: init cannot make a splice (see init). #
+# A use, starting empty, just as init makes one (see init). #
 ^^livelit(^cells((orient = Row, refs = [])))

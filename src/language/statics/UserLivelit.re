@@ -577,8 +577,8 @@ let use_parts =
    the projector's dynamics probe watches — so the projector can render the
    live HTML without evaluating anything itself. The model is bound once
    (`%model`, not a lexable token) and shared between the view call and the
-   expansion, so a committed ^name.update(m, a) transition runs — and its
-   probes fire — exactly once. The model keeps its surface ids as the
+   expansion, so the model's code, the splices it holds included, runs —
+   and its probes fire — exactly once. The model keeps its surface ids as the
    binding's definition, so its value samples at the model's own id. */
 let instrument_view =
     (

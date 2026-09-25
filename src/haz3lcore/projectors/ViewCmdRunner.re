@@ -115,8 +115,7 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
       }
     | _ => Error("malformed eval_splice: expected a ref and a continuation")
     }
-  | Some(("ResultView", _)) =>
-    Error("result_view is not implemented: there is no splice store yet")
+  | Some(("ResultView", _)) => Error("result_view is not implemented yet")
 
   | Some((name, _)) => Error("not a ViewCmd command: " ++ name)
   };

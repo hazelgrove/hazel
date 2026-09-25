@@ -17,9 +17,10 @@
 # Action:    what the GUI emits (Sec. 3.2.2) #
 # Expansion: what a use MEANS to the program (Sec. 3.1) #
 
-# init:   the model a fresh use starts with. The paper's init is an #
-#         UpdateCmd(Model) (Sec. 3.2.1); here it is a plain Model, #
-#         pasted as text when you type ^pct #
+# init:   UpdateCmd(Model), the command that answers the model a #
+#         fresh use starts with; the same in the paper (Sec. 3.2.1). #
+#         It runs when you type ^pct then a space, and the new use's #
+#         text is the model it answers #
 # update: Model -> Action -> UpdateCmd(Model), curried, run when #
 #         the GUI acts; the same in the paper (Sec. 3.2.4) #
 # view:   the paper's is Model -> ViewCmd(Html(Action)) (Sec. 3.2.3); #
@@ -31,13 +32,15 @@
 #         program written for it, so this one is Functional, an arm #
 #         this implementation adds: Model -> Expansion, checked here #
 #         at the definition. Macro can be written but cannot return #
-#         real code yet: its Exp can only be a hole. #
+#         real code yet: with no quotation, its Exp can only be a #
+#         hole or an IntLit. #
 
-# update and view return COMMANDS. Pure(x) is the command that #
-# answers x and does nothing else; a slider makes no splices, so #
-# both answer with Pure. Neither is annotated with its return type: #
-# Hazel cannot write an applied type like UpdateCmd(Model), so the #
-# member's expected type supplies it. The Overview slide says more. #
+# init is a COMMAND, and update and view return commands. Pure(x) is #
+# the command that answers x and does nothing else; a slider makes no #
+# splices, so all three answer with Pure. None is annotated with its #
+# command type: Hazel cannot write an applied type like #
+# UpdateCmd(Model), so the member's expected type supplies it. The #
+# Overview slide says more. #
 
 let ^pct = {
   type Model = Int;
