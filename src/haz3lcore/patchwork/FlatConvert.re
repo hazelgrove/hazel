@@ -46,7 +46,12 @@ let validate_tile =
    still carries (label, mold), so recover the form by exact mold match
    among the label's base candidates — the same information the old
    record held. Fallback molds (pending-remold tiles stored at Any)
-   match no candidate and get re-classified. */
+   match no candidate and get re-classified.
+   TODO: the wire tile (FlatTypes.Flat.tile, embed/src/types/flatdoc.d.ts,
+   FlatDoc.mli via `pnpm type:flatdoc`, PatchworkComm.JsConvert) should
+   carry (form, sort) instead of (label, mold); until it does, a
+   pending-remold tile stored at Any can come back as a different family
+   (e.g. Ap -> Parens) after a sync_replace round trip. */
 let form_of_label_mold = (label: Label.t, mold: Mold.t): (Form.t, Sort.t) =>
   switch (
     List.find_opt(
