@@ -1236,8 +1236,9 @@ let typ_typ: Typ.t =
 
 /* A splice editor's size (Sec. 3.2.3). The paper's Dim "currently
    supports only a fixed character width, with overflow causing
-   scrolling", so a character count is the whole of it. */
-let dim_typ: Typ.t = sum_type([("Chars", Some(int()))]);
+   scrolling", so a character count is the whole of it -- and the
+   constructor is FixedWidth, the name Figure 3 uses at line 38. */
+let dim_typ: Typ.t = sum_type([("FixedWidth", Some(int()))]);
 
 /* What eval_splice answers with. Sec. 3.2.3 leaves it to each provider
    whether indeterminate results are supported -- "this behavior is

@@ -545,24 +545,6 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
   | None => unknown()
   };
 
-/* The transition an interaction commits as the new model argument:
-   ^name.update(prev_model, action). Living in the text, the last
-   transition stays where probes and the stepper can reach it; the next
-   commit collapses it to its value first, so depth stays constant. */
-let mk_update_redex =
-    (~name: string, ~model_value: TermBase.Exp.t, ~action: TermBase.Exp.t)
-    : TermBase.Exp.t => {
-  let model_value = Exp.replace_all_ids(model_value);
-  let action = Exp.replace_all_ids(action);
-  IdTagged.FreshGrammar.(
-    Exp.ap(
-      Operators.Forward,
-      Exp.dot(Exp.var("^" ++ name), Exp.label("update")),
-      Exp.tuple([model_value, action]),
-    )
-  );
-};
-
 /* A projected use of a user-defined livelit: (bare name, model term) */
 let use_parts =
     (ctx: Ctx.t, use: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>

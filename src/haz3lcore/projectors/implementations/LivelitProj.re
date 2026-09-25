@@ -633,29 +633,6 @@ module M: Projector = {
       | None => model_value
       };
     let base = Option.value(base_value, ~default=model);
-    /* What goes in the syntax: the update redex when the base model is a
-       committable value (keeps the interaction visible to probes and the
-       stepper), independent of whether the optimistic path succeeds. */
-    let redex =
-      switch (base_value) {
-      | Some(mv)
-          /* A spliced model cannot go through the redex: the redex is a
-             fresh `^name.update((value, action))` term carrying no Splice
-             nodes, so committing it would drop the client's code. Such a
-             model commits the merged term instead (see commit_model). */
-          when
-            spliced == []
-            && MvuShape.is_checkpointable(mv)
-            && MvuShape.is_checkpointable(action) =>
-        Some(
-          UserLivelit.mk_update_redex(
-            ~name=ll_name,
-            ~model_value=mv,
-            ~action,
-          ),
-        )
-      | _ => None
-      };
     /* ~committed=None: an ephemeral store — the syntax is not changing
        (uncommittable model), so like a transient event it leaves the
        set of "ours" syntax states alone. */
@@ -730,20 +707,22 @@ module M: Projector = {
         switch (record_field(record, "update")) {
         | None => `Error("definition is missing update")
         | Some(update_fn) =>
-          let applied =
-            ap(
-              Forward,
-              update_fn,
-              IdTagged.FreshGrammar.Exp.tuple([base, action]),
-            );
-          switch (MvuShape.safe_evaluate(applied)) {
+          /* Curried, as Figure 3 curries it, and the result is a
+             command: `update(m)(a)` describes the transition and
+             UpdateCmdRunner performs it. */
+          let applied = ap(Forward, ap(Forward, update_fn, base), action);
+          switch (
+            switch (MvuShape.safe_evaluate(applied)) {
+            | Error(_) as err => err
+            | Ok(cmd) => UpdateCmdRunner.run(cmd)
+            }
+          ) {
           | Error(e) => `Error("update error: " ++ e)
           | Ok(new_model) when commit_decision(new_model) == `Ephemeral =>
             /* The model carries a closure, so it cannot live in the
                syntax tree. Degrade gracefully instead of wedging: keep
                the widget running off the optimistic entry and skip the
-               syntax commit (including the redex — its value could not
-               persist either). Warned once; undo/external edits drop
+               syntax commit. Warned once; undo/external edits drop
                the ephemeral state. */
             warn_ephemeral(~id, ~ll_name);
             store_entry(new_model, record, ~committed=None);
@@ -759,11 +738,16 @@ module M: Projector = {
             if (unchanged && (gesture == HazelDOM.Transient || !dirty_prior)) {
               `Skip;
             } else {
-              let committed =
-                switch (redex) {
-                | Some(r) => r
-                | None => new_model
-                };
+              /* What goes in the syntax is the performed update's VALUE.
+                 It used to be a redex, ^name.update((value, action)), left
+                 in the text so probes and the stepper could see the last
+                 transition; but update returns a command now, so that redex
+                 would hold a command tree where a model belongs. The cost:
+                 the transition is no longer visible in the text, and a
+                 definition that is not closed -- which used to fall back
+                 to the redex and the program's own run -- now fails at the
+                 event instead. */
+              let committed = new_model;
               store_entry(new_model, record, ~committed=Some(committed));
               `Ok(committed);
             };
@@ -781,11 +765,6 @@ module M: Projector = {
       repaint()
     | (Transient, `Error(e)) => fail(e)
     | (Commit, `Ok(committed)) => commit_model(committed)
-    | (Commit, `Error(_)) when Option.is_some(redex) =>
-      /* The redex commit does not need the event-time evaluation to have
-         succeeded (e.g. a definition that is not closed still works via
-         the program's own evaluation). */
-      commit_model(Option.get(redex))
     | (Commit, `Error(e)) => fail(e)
     };
   };
@@ -995,8 +974,8 @@ module M: Projector = {
           | [_, ..._] =>
             let merged = preserve_spliced_fields(~from=model, new_model);
             /* Refuse rather than destroy. If what we are about to commit
-               does not carry the splices -- an update redex, say, which is
-               an Ap with no fields to merge into -- writing it would erase
+               does not carry the splices -- anything with no fields to
+               merge the spliced ones into -- writing it would erase
                the client's code. Losing the interaction is the right
                failure; losing what they typed is not. */
             if (spliced_field_labels(merged) == []) {

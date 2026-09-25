@@ -2283,7 +2283,22 @@ and uexp_to_info_map =
         };
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=payload, p, m);
-      let (body, body_elab, m) = go(~ctx=p_ana.ctx, ~ana, body, m);
+      /* A do-block is in ONE monad, and its first command decides which.
+         So when nothing outside says what this bind should be -- it sits
+         in synthetic position, as the body of an unannotated helper does
+         -- its body is checked against that same monad instead of against
+         nothing. Without this, `Pure` in a helper returning a command had
+         no type to resolve against, and such a helper cannot be annotated
+         either: `ViewCmd([Html.T])` is not a type anyone can write. */
+      let body_ana =
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana)), monad) {
+        | (Unknown(_), Some((BuiltinsADT.UpdateMonad, _))) =>
+          BuiltinsADT.update_cmd(Unknown(Internal) |> Typ.temp)
+        | (Unknown(_), Some((BuiltinsADT.ViewMonad, _))) =>
+          BuiltinsADT.view_cmd(Unknown(Internal) |> Typ.temp)
+        | _ => ana
+        };
+      let (body, body_elab, m) = go(~ctx=p_ana.ctx, ~ana=body_ana, body, m);
       /* `do` is SUGAR. It elaborates to the real bind, instantiated:
 
            bind @<a> @<b> (cmd, fun p -> body)

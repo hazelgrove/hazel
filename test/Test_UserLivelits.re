@@ -63,6 +63,16 @@ let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m * 2)
 }";
 
+/* view returns a ViewCmd, so a sampled view is a command tree until it is
+   RUN. Mirrors LivelitProj.live_html: run it, and keep the sample as it
+   is when it is not a command (the stream also carries the use's own
+   value). */
+let run_view_sample = v =>
+  switch (Haz3lcore.ViewCmdRunner.run(v)) {
+  | Ok(h) => h
+  | Error(_) => v
+  };
+
 /* The standard definition plus one extra member, for tests about members
    other than the four required ones. */
 let def_with = (~extra: string) =>
@@ -578,13 +588,21 @@ let expand = Functional(fun m -> m)
     };
   switch (member("view")) {
   | Some(view_fn) =>
+    /* view(model) is a ViewCmd; running it is what yields the Html */
     let html =
-      evaluate(
-        IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, parse_exp("50")),
-      );
+      switch (
+        Haz3lcore.ViewCmdRunner.run(
+          evaluate(
+            IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, parse_exp("50")),
+          ),
+        )
+      ) {
+      | Ok(h) => h
+      | Error(e) => fail("view did not run: " ++ e)
+      };
     check(
       bool,
-      "view(model) is Html.T",
+      "view(model), run, is Html.T",
       true,
       Haz3lcore.MvuShape.is_html(html),
     );
@@ -711,7 +729,9 @@ let projector_gets_html_sample = () => {
               List.filter(
                 (s: Sample.t) =>
                   Haz3lcore.MvuShape.is_html(
-                    Haz3lcore.MvuShape.strip_wrappers(s.value),
+                    run_view_sample(
+                      Haz3lcore.MvuShape.strip_wrappers(s.value),
+                    ),
                   ),
                 samples,
               ),
@@ -743,14 +763,19 @@ let member_access = () =>
     "let ^dbl = "
     ++ dbl_def
     ++ " in (case ^dbl.expand | Functional(f) => f(21) | Macro(_) => 0 end) "
-    ++ "+ ^dbl.update((3, 9))",
+    /* update is curried and answers a COMMAND: read the model out of Pure */
+    ++ "+ (case ^dbl.update(3)(9) | Pure(x) => x | _ => 0 end)",
   );
 
-let redex_as_model = () =>
+/* The projector now commits the performed update's VALUE. It used to leave
+   the redex ^dbl.update(m, a) in the text, but update returns a command, so
+   that redex would put a command tree where a model belongs. What the text
+   carries is an ordinary model argument, so that is what this checks. */
+let committed_value_as_model = () =>
   run_test(
-    "a committed transition normalizes in the main run",
+    "a committed model is an ordinary argument",
     "18",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl(^dbl.update(3, 9))",
+    "let ^dbl = " ++ dbl_def ++ " in ^dbl(9)",
   );
 
 let update_probe_def = "let ^dbl = {
@@ -763,9 +788,14 @@ let view = fun m -> Pure(Html.text(string_of_int(m)));
 let expand = Functional(fun m -> m * 2)
 } in ";
 
-let update_probe_fires_once = () => {
+/* update runs in the PROJECTOR, at event time, and never in the main
+   evaluation -- that is what performing it as a command means. So a probe
+   inside update must not fire during an ordinary run. A zero on its own
+   proves nothing (the probes could simply be broken), so the model value is
+   checked to be sampled too: the machinery is live, and update is silent. */
+let update_not_run_in_main = () => {
   let (_, manuals, probes) =
-    probe_run(update_probe_def ++ "^^livelit(^dbl(^dbl.update(3, 9)))");
+    probe_run(update_probe_def ++ "^^livelit(^dbl(12))");
   let count_12 = ids =>
     List.fold_left(
       (acc, id) =>
@@ -783,46 +813,18 @@ let update_probe_fires_once = () => {
       0,
       ids,
     );
-  check(int, "update probe sampled exactly once", 1, count_12(manuals));
-  /* the model argument is also targeted — the commit path reads its value */
-  let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
   check(
     int,
-    "transition value also sampled at the model",
-    2,
-    count_12(all_ids),
+    "update's probe never fires in the main run",
+    0,
+    count_12(manuals),
   );
-};
-
-/* The commit path's product: the redex term must print to text that
-   reparses and evaluates to the same transition */
-let redex_roundtrip = () => {
-  let redex =
-    UserLivelit.mk_update_redex(
-      ~name="dbl",
-      ~model_value=parse_exp("3"),
-      ~action=parse_exp("9"),
-    );
-  let seg =
-    Haz3lcore.ExpToSegment.any_to_segment(
-      ~settings={
-        ...
-          Haz3lcore.ExpToSegment.Settings.of_core(
-            ~inline=true,
-            CoreSettings.off,
-          ),
-        show_unknown_as_hole: false,
-        hole_tiles: false,
-        fold_fn_bodies: `NoFold,
-        project_tables: false,
-      },
-      Exp(redex),
-    );
-  let text = Haz3lcore.Printer.of_segment(~holes="?", ~indent="", seg);
-  run_test(
-    "committed transition text round-trips: " ++ text,
-    "18",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl(" ++ text ++ ")",
+  let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
+  check(
+    bool,
+    "the model value IS sampled, so the probes are live",
+    true,
+    count_12(all_ids) >= 1,
   );
 };
 
@@ -852,7 +854,8 @@ let expand = Functional(fun m -> m)
           Option.bind(Sample.Map.lookup(id, probes), samples =>
             List.find_map(
               (s: Sample.t) => {
-                let v = Haz3lcore.MvuShape.close_value(s.value);
+                let v =
+                  run_view_sample(Haz3lcore.MvuShape.close_value(s.value));
                 Haz3lcore.MvuShape.is_html(v) ? Some(v) : None;
               },
               samples,
@@ -1160,9 +1163,8 @@ let tests = [
         unprojected_view_not_run,
       ),
       test_case("member access", `Quick, member_access),
-      test_case("redex as model", `Quick, redex_as_model),
-      test_case("update probe fires once", `Quick, update_probe_fires_once),
-      test_case("redex round-trips", `Quick, redex_roundtrip),
+      test_case("committed value as model", `Quick, committed_value_as_model),
+      test_case("update not run in main", `Quick, update_not_run_in_main),
       test_case(
         "sampled handlers are closed",
         `Quick,
