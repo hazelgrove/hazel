@@ -265,6 +265,15 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
+    /* collaborative editing (docs/collab-modular.md): collab.js, when
+       present, delivers the shared document's changes through here */
+    ScratchCollab.JsApi.register_host(msg => {
+      switch (msg) {
+      | Load(_) => schedule_action(Page.Update.Editors(SwitchMode(Scratch)))
+      | _ => ()
+      };
+      schedule_action(Page.Update.Editors(Scratch(CollabApply(msg))));
+    });
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,

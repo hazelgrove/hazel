@@ -209,6 +209,8 @@ module Update = {
     | FinishImportScratchpad(option(string))
     | Export
     | Encode
+    /* a message from the shared document (docs/collab-modular.md) */
+    | CollabApply(ScratchCollab.msg)
     | AddSlide
     | AddDrvSlide
     | RenameSlide
@@ -359,7 +361,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_inner =
       (
         ~schedule_action,
         ~settings: Settings.t,
@@ -368,6 +370,14 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    | CollabApply(Peers(_) as msg) =>
+      /* carets only: re-render, nothing to save or recompute */
+      ScratchCollabMode.apply(model, msg) |> Updated.return_quiet
+    | CollabApply(msg) =>
+      /* stacked statics recompute on the next Force frame */
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      ScratchCollabMode.apply(model, msg)
+      |> Updated.return(~historic=false, ~logged=false, ~scroll_active=false);
     | AgentAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
@@ -1461,6 +1471,81 @@ module Update = {
     ) =
     Hashtbl.create(8);
 
+  /* While collaborating, the current slide IS the shared document:
+     actions that would swap it out are blocked (the local sync would read
+     a different program as deleting everything), and after every other
+     action the program and caret are synced to the document. */
+  let blocked_while_collaborating = (action: t): bool =>
+    switch (action) {
+    | SwitchSlide(_)
+    | ResetCurrent
+    | InitImportScratchpad(_)
+    | FinishImportScratchpad(_)
+    | AddSlide
+    | AddDrvSlide
+    | RenameSlide
+    | DeleteSlide => true
+    | _ => false
+    };
+
+  let update =
+      (
+        ~schedule_action,
+        ~settings: Settings.t,
+        ~is_documentation: bool,
+        action,
+        model: Model.t,
+      ) =>
+    if (ScratchCollab.State.active^ && blocked_while_collaborating(action)) {
+      model |> Updated.return_quiet;
+    } else {
+      let updated =
+        update_inner(
+          ~schedule_action,
+          ~settings,
+          ~is_documentation,
+          action,
+          model,
+        );
+      if (ScratchCollab.State.active^) {
+        let target =
+          switch (action) {
+          | CollabApply(_) => None
+          | StackHeader(i, _) => Some(Some((i, true)))
+          | StackBody(i, _) => Some(Some((i, false)))
+          | _ => Some(None)
+          };
+        switch (target) {
+        | None => updated
+        | Some(target) =>
+          let edits =
+            switch (ScratchCollabMode.live_seg(updated.model)) {
+            | Some(seg) => ScratchCollab.sync_local(seg)
+            | None => []
+            };
+          /* adopt the parsed form of leaves whose hole arrangement the
+             text doesn't determine, so every peer shows the same thing */
+          let model = ScratchCollabMode.normalize(updated.model, edits);
+          if (model !== updated.model) {
+            switch (ScratchCollabMode.live_seg(model)) {
+            | Some(seg) => ScratchCollab.mark_synced(seg)
+            | None => ()
+            };
+          };
+          switch (ScratchCollabMode.local_caret(model, target)) {
+          | Some(c) => ScratchCollab.send_caret(Some(c))
+          | None => ()
+          };
+          {
+            ...updated,
+            model,
+          };
+        };
+      } else {
+        updated;
+      };
+    };
+
   let calculate =
       (
         ~settings,
@@ -2159,6 +2244,8 @@ module View = {
     k_body_sel: option(CellEditor.Selection.t),
     k_meta_down: bool,
     k_visible_rows: option(Globals.VisibleRows.t),
+    /* collaborators' carets in this cell's definition (overlays) */
+    k_peers: list(ScratchCollab.Wire.peer),
   };
   type cached_cell = {
     c_key: stack_cache_key,
@@ -2256,6 +2343,7 @@ module View = {
                   k_body_sel: body_sel,
                   k_meta_down: globals.Globals.Model.meta_down,
                   k_visible_rows: globals.Globals.Model.visible_rows,
+                  k_peers: ScratchCollabMode.peers_on(e),
                 };
                 switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
@@ -2486,6 +2574,13 @@ module View = {
                             ~escape=header_escape,
                             ~escape_vertical=Some(header_escape_vertical),
                             ~cull=false,
+                            ~extra_overlays=
+                              ScratchCollabMode.peer_overlays(
+                                ~font_metrics=globals.font_metrics,
+                                ~item=ScratchCollabMode.entry_item(e),
+                                ~leaf=Header,
+                                e.e_header,
+                              ),
                             e.e_header,
                           ),
                         ],
@@ -2517,6 +2612,13 @@ module View = {
                           ~cull={
                             i == 0;
                           },
+                          ~extra_overlays=
+                            ScratchCollabMode.peer_overlays(
+                              ~font_metrics=globals.font_metrics,
+                              ~item=ScratchCollabMode.entry_item(e),
+                              ~leaf=Body,
+                              e.e_body,
+                            ),
                           e.e_body,
                         ),
                       ],
@@ -2616,6 +2718,11 @@ module View = {
                 },
               ~locked=false,
               ~lines=true,
+              ~extra_overlays=
+                ScratchCollabMode.master_peer_overlays(
+                  ~font_metrics=globals.font_metrics,
+                  editor,
+                ),
               editor,
             ),
           ]
@@ -2781,3 +2888,16 @@ module View = {
     );
   };
 };
+
+/* Collaboration: focusing another cell (or the master) moves where others
+   see our caret, even if nothing inside that cell moved. */
+let collab_focus_changed = (model: Model.t, sel: Selection.t): unit =>
+  ScratchCollabMode.focus_changed_to(
+    model,
+    switch (sel, model.focus) {
+    | (StackH(i, MainEditor), Some(_)) => Some(Some((i, true)))
+    | (StackB(i, MainEditor), Some(_)) => Some(Some((i, false)))
+    | (Cell(MainEditor), None) => Some(None)
+    | _ => None
+    },
+  );

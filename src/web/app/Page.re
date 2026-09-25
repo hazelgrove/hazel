@@ -471,11 +471,18 @@ module Update = {
         explain_this,
       };
     | MakeActive(selection) =>
+      /* collaboration: focusing another cell moves where others see our
+         caret, even if nothing inside the cell moved */
+      switch (selection, model.editors) {
+      | (Scratch(sel), Scratch(m)) =>
+        ScratchMode.collab_focus_changed(m, sel)
+      | _ => ()
+      };
       {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
+      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false);
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));

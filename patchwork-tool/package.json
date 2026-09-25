@@ -1,0 +1,27 @@
+{
+  "name": "@hazelgrove/patchwork-hazel-collab",
+  "version": "0.1.0",
+  "description": "Patchwork datatype + tool: collaborative Hazel on Automerge text leaves (docs/collab-modular.md)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "vite build && node scripts/pack-hazel.mjs",
+    "typecheck": "tsc --noEmit",
+    "push": "npm run build && npx pushwork@latest sync"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@automerge/automerge": "^3.2.5",
+    "@automerge/automerge-repo": "2.5.6",
+    "@automerge/automerge-repo-network-messagechannel": "2.5.6",
+    "@inkandswitch/patchwork-bootloader": "^0.7.2",
+    "@inkandswitch/patchwork-plugins": "^1.2.5",
+    "fractional-indexing": "^3.2.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-css-injected-by-js": "^3.5.2"
+  }
+}

@@ -174,22 +174,27 @@ module Store = {
     };
   };
 
-  let save = (~instructor_mode, model: Model.t) => {
-    switch (model) {
-    | Model.Scratch(m) =>
-      StoreMode.save(Scratch);
-      ScratchMode.Persist.save_current("scratch", m);
-    | Model.Documentation(m) =>
-      StoreMode.save(Documentation);
-      ScratchMode.Persist.save_current("doc", m);
-    | Model.Tutorial(m) =>
-      StoreMode.save(Tutorial);
-      TutorialsMode.Store.save(~instructor_mode, m);
-    | Model.Exercises(m) =>
-      StoreMode.save(Exercises);
-      ExercisesMode.Store.save(~instructor_mode, m);
+  let save = (~instructor_mode, model: Model.t) =>
+    /* a shared document persists itself (Automerge); the local store must
+       not capture it over the user's own slides */
+    if (ScratchCollab.State.active^) {
+      ();
+    } else {
+      switch (model) {
+      | Model.Scratch(m) =>
+        StoreMode.save(Scratch);
+        ScratchMode.Persist.save_current("scratch", m);
+      | Model.Documentation(m) =>
+        StoreMode.save(Documentation);
+        ScratchMode.Persist.save_current("doc", m);
+      | Model.Tutorial(m) =>
+        StoreMode.save(Tutorial);
+        TutorialsMode.Store.save(~instructor_mode, m);
+      | Model.Exercises(m) =>
+        StoreMode.save(Exercises);
+        ExercisesMode.Store.save(~instructor_mode, m);
+      };
     };
-  };
 
   let reset = (~settings, ~instructor_mode) => {
     StoreMode.save(Tutorial);
