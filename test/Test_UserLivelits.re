@@ -463,7 +463,15 @@ let text_reload_rebuilds_splices = () => {
 
 /* The Splices, Dynamically slide's own view, read from the slide, applied
    to three refs and RUN: its answer must be Html. */
+/* From the repository root locally, from _build/default/test under CI's
+   `dune test`: try both rather than depend on the working directory. */
 let read_file = path => {
+  let path =
+    List.find_opt(
+      Sys.file_exists,
+      [path, Filename.concat("../../..", path)],
+    )
+    |> Option.value(~default=path);
   let ic = open_in_bin(path);
   let s = really_input_string(ic, in_channel_length(ic));
   close_in(ic);
