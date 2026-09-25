@@ -7,12 +7,13 @@ open Language;
 let min_prefix_len = 2;
 
 /* Delimiter suggestions come from the completion engine: a witness
-   insertion anchored at the token left of the caret IS the engine
-   recognizing that token. One recognition source — ghost and quiver
-   agree by construction. Syntax-derived: needs no statics. */
+   insertion anchored at the token left of the caret is the engine
+   recognizing that token, so ghost and quiver share one recognition
+   source. Syntax-derived; needs no statics. */
 let suggest_witnesses = (z: Zipper.t): list(t) =>
   switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
-  | (Outer, [Tile({label: [tok], id, _}), ..._]) =>
+  | (Outer, [Tile({id, _} as t), ..._]) when Tile.arity(t) == 1 =>
+    let tok = Tile.token(t, 0);
     let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     let result = CanonicalCompletion.for_editor(seg);
     result.insertions
@@ -113,8 +114,8 @@ let token_to_left = (z: Zipper.t): option(string) =>
     z.relatives.siblings |> fst |> List.rev,
     z.relatives.siblings |> snd,
   ) {
-  | (Outer, [Tile({label: [tok_to_left], _}), ..._], _) =>
-    Some(tok_to_left)
+  | (Outer, [Tile(t), ..._], _) when Tile.arity(t) == 1 =>
+    Some(Tile.token(t, 0))
   | _ => None
   };
 
@@ -181,7 +182,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
         strategy == Any(FromMissingShards),
       suggestions,
     );
-  /* Graphemes, not bytes: a single `Ã©` or `æ¥` must not clear a 2-char gate. */
+  /* Graphemes, not bytes: a single `é` or `日` must not clear a 2-char gate. */
   let* _ =
     Util.Unicode.length(tok_to_left) >= min_prefix_len || expectation_backed
       ? Some() : None;

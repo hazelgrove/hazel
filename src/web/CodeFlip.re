@@ -75,7 +75,7 @@ let rec tile_label = (seg: Segment.t, id: Id.t): option(list(string)) =>
        switch (p) {
        | Tile(t) =>
          t.id == id
-           ? Some(t.label)
+           ? Some(Tile.label(t))
            : t.children |> List.find_map(c => tile_label(c, id))
        | _ => None
        }
@@ -304,7 +304,8 @@ let rec keyed_tokens_of_segment =
                   ? [
                     (
                       Shard(t.id, i),
-                      List.nth_opt(t.label, i) |> Option.value(~default=""),
+                      List.nth_opt(Tile.label(t), i)
+                      |> Option.value(~default=""),
                     ),
                   ]
                   : [],
@@ -329,13 +330,13 @@ let rec keyed_cls_tokens_of_segment =
   |> List.concat_map((piece: Piece.t) =>
        switch (piece) {
        | Tile(t) =>
-         let plurality = List.length(t.label) == 1 ? "mono" : "poly";
-         let sort_cls = Sort.class_of(t.mold.out);
+         let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
+         let sort_cls = Sort.class_of(Tile.mold(t).out);
          (
            List.mem(t.id, ids)
              ? t.shards
                |> List.filter_map(i =>
-                    switch (List.nth_opt(t.label, i)) {
+                    switch (List.nth_opt(Tile.label(t), i)) {
                     | Some(txt) =>
                       let cls =
                         ["token", sort_cls, plurality]

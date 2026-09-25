@@ -44,12 +44,12 @@ let rec repl_last =
       (true, [p, ...rest']);
     } else {
       switch (p) {
-      | Tile(t) when t.label == [needle] => (
+      | Tile(t) when Tile.label(t) == [needle] => (
           true,
           [
             Piece.Tile({
               ...t,
-              label: [repl],
+              form: Form.Tok(repl),
             }),
             ...rest',
           ],
@@ -93,12 +93,12 @@ let rec repl_first =
   | [] => (false, [])
   | [p, ...rest] =>
     switch (p) {
-    | Tile(t) when t.label == [needle] => (
+    | Tile(t) when Tile.label(t) == [needle] => (
         true,
         [
           Piece.Tile({
             ...t,
-            label: [repl],
+            form: Form.Tok(repl),
           }),
           ...rest,
         ],

@@ -145,7 +145,7 @@ let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
         );
     switch (first_tile(sp.sp_start)) {
     | Some(t) =>
-      switch (t.label) {
+      switch (Tile.label(t)) {
       | [hd, ..._] => hd == "test"
       | [] => false
       }
@@ -165,7 +165,7 @@ let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
       : (
         switch (arr[i]) {
         | Piece.Tile(t) =>
-          switch (t.label) {
+          switch (Tile.label(t)) {
           | ["test", ..._] => Some(t.id)
           | _ => None
           }
@@ -244,7 +244,7 @@ let rec test_run_deep_go =
         | Tile(t) =>
           List.find_map(
             test_run_deep_go(
-              ~module_body=List.mem(Sort.Mod, t.mold.in_),
+              ~module_body=List.mem(Sort.Mod, Tile.mold(t).in_),
               fid,
             ),
             t.children,
@@ -275,7 +275,7 @@ let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
               p,
               t,
               map_sharing(
-                go(~module_body=List.mem(Sort.Mod, t.mold.in_)),
+                go(~module_body=List.mem(Sort.Mod, Tile.mold(t).in_)),
                 t.children,
               ),
             )
@@ -390,7 +390,7 @@ let rec is_type_item = (fid: Id.t, seg: Segment.t): bool =>
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when t.id == fid =>
-        switch (t.label) {
+        switch (Tile.label(t)) {
         | ["type", ..._] => true
         | _ => false
         }
@@ -405,7 +405,7 @@ let rec is_module_item = (fid: Id.t, seg: Segment.t): bool =>
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when t.id == fid =>
-        switch (t.label) {
+        switch (Tile.label(t)) {
         | ["module", ..._] => true
         | _ => false
         }

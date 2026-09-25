@@ -84,8 +84,8 @@ let unzip_to_id =
         let a =
           Ancestor.{
             id: t.id,
-            label: t.label,
-            mold: t.mold,
+            form: t.form,
+            sort: t.sort,
             shards: (shards_l, shards_r),
             children: (kids_l, kids_r),
           };
@@ -501,9 +501,9 @@ let rescan_parent_shards = (z: t): t => {
   /* For each ancestor, compute its missing shards as (token, index) pairs */
   let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
     let all_shards = fst(a.shards) @ snd(a.shards);
-    List.init(List.length(a.label), Fun.id)
+    List.init(List.length(Ancestor.label(a)), Fun.id)
     |> List.filter(i => !List.mem(i, all_shards))
-    |> List.map(i => (List.nth(a.label, i), i));
+    |> List.map(i => (List.nth(Ancestor.label(a), i), i));
   };
 
   let convert_piece =
@@ -516,8 +516,8 @@ let rescan_parent_shards = (z: t): t => {
         Tile({
           ...t,
           id: a.Ancestor.id,
-          label: a.Ancestor.label,
-          mold: a.Ancestor.mold,
+          form: a.Ancestor.form,
+          sort: a.Ancestor.sort,
           shards: [idx],
         })
       | None => p
@@ -643,11 +643,10 @@ let rescan_parent_shards = (z: t): t => {
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
-  let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    if (siblings == z.relatives.siblings) {
-      z;
-    } else {
+    switch (Siblings.rescan_opt(z.relatives.siblings)) {
+    | None => z
+    | Some(siblings) =>
       let relatives =
         {
           ...z.relatives,
@@ -658,7 +657,8 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         |> Relatives.regrout(d);
       {
         ...z,
-        relatives,
+        /* unchanged pieces keep their pre-rescan objects (see restore_sibs) */
+        relatives: restore_relatives(z.relatives, relatives),
       };
     };
   /* After normal rescan+reassemble, try matching shard tiles in
@@ -678,7 +678,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
       {
         ...z',
-        relatives,
+        relatives: restore_relatives(z'.relatives, relatives),
       };
     } else {
       z;
@@ -725,8 +725,8 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
   } else {
     Tile({
       id: Id.mk(),
-      label: [tok],
-      mold: Mold.mk_op(Sort.Any, []),
+      form: Form.Tok(tok),
+      sort: Sort.Any,
       shards: [0],
       children: [],
     });
@@ -782,11 +782,13 @@ let splittable_token = (p: Piece.t): option(Token.t) =>
  * have no mold to reuse and fall back to the generic monotile. */
 let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
   switch (p) {
-  | Tile({label: [_], shards: [0], _} as t) =>
+  | Tile({shards: [0], _} as t) when Tile.arity(t) == 1 =>
+    /* Tok at the source tile's stored sort, so mold_of lands on that
+     * sort's mold rather than the Any fallback mk_remainder_piece gives */
     Tile({
       ...t,
       id: Id.mk(),
-      label: [tok],
+      form: Form.Tok(tok),
     })
   | _ => mk_remainder_piece(tok)
   };
@@ -1385,8 +1387,10 @@ let delete = (d: Direction.t, z: t): option(t) =>
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
-  | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)
-  | (_, Some(Tile({id, label: [_], _}))) when d == Right => Some(id)
+  | (Some(Tile({id, _} as t)), _) when d == Left && Tile.arity(t) == 1 =>
+    Some(id)
+  | (_, Some(Tile({id, _} as t))) when d == Right && Tile.arity(t) == 1 =>
+    Some(id)
   | _ => None
   };
 

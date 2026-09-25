@@ -12,14 +12,14 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     List.exists(
       (p: Piece.t) =>
         switch (p) {
-        | Tile({label: ["case", "end"], shards: [0], _}) => true
+        | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
         | _ => false
         },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
     switch (Ancestors.parent(z.relatives.ancestors)) {
-    | Some({label: ["case", "end"], _}) => true
+    | Some(a) when Form.has_label_of(a.form, Case) => true
     | _ => false
     };
   switch (t) {
@@ -36,9 +36,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
        an expression. Sort-specific expansion would fail to find | for Typ.
 
        This bypasses Form.Expansion.get entirely for | inside case expressions,
-       hardcoding the Rule form label. A more principled fix might register |
+       forcing the Rule form label. A more principled fix might register |
        for multiple sorts (Exp, Typ, etc.) in Form.Expansion. */
-    (["|", "=>"], Left)
+    (Form.label_of(Compound(Rule)), Left)
   | "|" =>
     /* Outside case: | has no meaning, don't expand */
     ([t], Left)
@@ -77,9 +77,7 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   };
 };
 
-/* Calculate indentation for a newly inserted linebreak and insert spaces */
 let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
-  /* Get the full segment to calculate indentation */
   let seg = Zipper.unselect_and_zip(z);
   let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
   let spaces = Indentation.make_indent_spaces(indent_level);
@@ -107,7 +105,6 @@ let insert_shard_core =
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
     let z = put_down([Piece.mk_secondary(id, t)], z);
-    /* Auto-insert indentation after linebreaks (only when auto_indent=true) */
     if (auto_indent && t == Token.linebreak) {
       insert_indentation_spaces(~linebreak_id=id, z);
     } else {
@@ -116,9 +113,9 @@ let insert_shard_core =
   } else {
     let sort = effective_sort(t, z, ~root);
     let (label, delim_d) = expansion(sort, t, z);
-    let mold = Form.Molds.get(sort, label);
+    let (form, sort) = Form.classify_label(sort, label);
     let shard =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      Tile.split_shards(id, form, sort, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
     put_down([Tile(shard)], z);
   };
@@ -257,7 +254,7 @@ let parens_edge_case = (char: string, z: t): bool =>
  * make `inner`). */
 let has_complete_multishard_right_sibling = (z: t): bool =>
   switch (Siblings.neighbor(Right, z.relatives.siblings)) {
-  | Some(Tile(t)) => Tile.is_complete(t) && List.length(t.label) > 1
+  | Some(Tile(t)) => Tile.is_complete(t) && Tile.arity(t) > 1
   | _ => false
   };
 
@@ -456,15 +453,12 @@ let insert_or_append =
  * backtick, hash) serialize the selection to text and create a
  * token or secondary piece. */
 
-let is_opening_delimiter = (char: string): bool =>
-  char == "(" || char == "[" || char == "{";
+let is_opening_delimiter = Token.is_opening_bracket;
 
 let delimiter_label = (char: string): Label.t =>
-  switch (char) {
-  | "(" => ["(", ")"]
-  | "[" => ["[", "]"]
-  | "{" => ["{", "}"]
-  | _ => failwith("not a delimiter: " ++ char)
+  switch (Token.label_of_opening_bracket(char)) {
+  | Some(lbl) => lbl
+  | None => failwith("not a delimiter: " ++ char)
   };
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
@@ -484,11 +478,11 @@ let wrap_balanced = (char: string, z: t, ~root): t => {
     right_rem @ right_sibs,
   );
   let label = delimiter_label(char);
-  let mold = Form.Molds.get(sort, label);
+  let (form, sort) = Form.classify_label(sort, label);
   let ancestor: Ancestor.t = {
     id: Id.mk(),
-    label,
-    mold,
+    form,
+    sort,
     shards: ([0], [1]),
     children: ([], []),
   };
@@ -580,7 +574,7 @@ let is_valid_quote_content = (delim: string, text: string): bool =>
 /* Wrap selection in a quote delimiter (string, label, or comment).
  * Returns None if the text contains invalid characters, causing
  * fallthrough to normal insert behavior (selection replacement). */
-let wrap_quote = (char: string, z: t, ~root): option(t) => {
+let wrap_quote = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   let text = selected_text(z);
   if (!is_valid_quote_content(char, text)) {
     None;
@@ -602,18 +596,18 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
     switch (z.caret, Zipper.neighbor_tokens(z)) {
     | (Inner(idx), (_, Some(t))) =>
       /* Seam inside a surviving token: split it around the new one. */
-      split(~auto_indent=false, z, token, idx + 1, t, ~root)
+      split(~auto_indent, z, token, idx + 1, t, ~root)
     | _ =>
       let piece =
         if (Token.is_comment_delim(char)) {
           Piece.mk_secondary(Id.mk(), token);
         } else {
           let sort = Relatives.sort(~root, z.relatives);
-          let mold = Form.Molds.get(sort, [token]);
+          let (form, sort) = Form.classify_label(sort, [token]);
           Piece.Tile({
             id: Id.mk(),
-            label: [token],
-            mold,
+            form,
+            sort,
             shards: [0],
             children: [],
           });
@@ -625,11 +619,12 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
 
 /* Try to wrap selection in a delimiter. Returns Some if wrapping
  * occurred, None to fall through to normal insert behavior. */
-let try_wrap_selection = (char: string, z: t, ~root): option(t) =>
+let try_wrap_selection =
+    (~auto_indent: bool=true, char: string, z: t, ~root): option(t) =>
   if (is_opening_delimiter(char)) {
     Some(wrap_balanced(char, z, ~root));
   } else if (Token.is_string_or_comment_delim(char)) {
-    wrap_quote(char, z, ~root);
+    wrap_quote(~auto_indent, char, z, ~root);
   } else {
     None;
   };
@@ -637,7 +632,8 @@ let try_wrap_selection = (char: string, z: t, ~root): option(t) =>
 let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != [] ? try_wrap_selection(char, z, ~root) : None
+    z.selection.content != []
+      ? try_wrap_selection(~auto_indent, char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>

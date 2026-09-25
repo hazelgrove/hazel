@@ -127,7 +127,7 @@ let rows_of_segment =
            List.mem(i, t.shards) ? Some((i, m)) : None
          )
       |> List.map(((index, m)) => {
-           let token = List.nth(t.label, index);
+           let token = Tile.token(t, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [
@@ -139,7 +139,8 @@ let rows_of_segment =
              |> List.map(Option.map(x => (x, false)))
            };
          });
-    let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
+    let shape_at = index =>
+      Some(snd(Mold.nibs(~index, Tile.mold(t))).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
@@ -822,7 +823,9 @@ let bbox_of_range =
            | (_, None) => None
            | (Some(bb), Some(shape: Measured.Rows.shape)) =>
              let left =
-               float_of_int(row == origin.row ? origin.col : shape.indent);
+               float_of_int(
+                 row == origin.row ? origin.col : shape.content_start,
+               );
              let right =
                float_of_int(row == final.row ? final.col : shape.max_col);
              Some({
@@ -896,7 +899,7 @@ let contour_of_range =
                 with cols from a different row */
              let left =
                row == origin.row
-                 ? max(origin.col, shape.indent) : shape.indent;
+                 ? max(origin.col, shape.content_start) : shape.content_start;
              let right =
                row == final.row
                  ? min(final.col, shape.max_col) : shape.max_col;

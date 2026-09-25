@@ -8,6 +8,7 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
+  completion: option(MakeTerm.completion_snapshot),
   targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
   /* the probe ids the info_map was ANALYZED with (per-node probe_targets
      witnesses depend on them). with_targets deliberately does NOT update
@@ -32,6 +33,7 @@ let empty: t = {
   info_map: Id.Map.empty,
   error_ids: [],
   warning_ids: [],
+  completion: None,
   targets: Sample.no_targets,
   probe_ids: Id.Map.empty,
   items: None,
@@ -218,6 +220,7 @@ let init_from_term =
     info_map,
     error_ids,
     warning_ids,
+    completion: None,
     targets,
     probe_ids,
     items: None,
@@ -256,12 +259,24 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
+  let (make_term_result, completion) =
+    MakeTerm.from_zip_for_sem_with_completion(z, ~root);
   let term = make_term_result.term |> stitch;
   let probe_ids =
     probe_ids_of_zipper(~projectors=make_term_result.projectors, z);
 
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
+  {
+    ...
+      init_from_term(
+        ~settings,
+        ~ctx?,
+        ~is_dynamic_term,
+        ~ana?,
+        ~probe_ids,
+        term,
+      ),
+    completion: Some(completion),
+  };
 };
 
 let init =
@@ -307,6 +322,7 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       error_ids: Statics.Map.error_ids(info_map),
       warning_ids: [],
       targets: Sample.no_targets,
+      completion: None,
       probe_ids: Id.Map.empty,
       items: None,
     };
@@ -335,6 +351,7 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       error_ids: Statics.Map.error_ids(info_map),
       warning_ids: [],
       targets: Sample.no_targets,
+      completion: None,
       probe_ids: Id.Map.empty,
       items: None,
     };
@@ -368,6 +385,7 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       error_ids: Statics.Map.error_ids(info_map),
       warning_ids: [],
       targets: Sample.no_targets,
+      completion: None,
       probe_ids: Id.Map.empty,
       items: None,
     };
@@ -383,8 +401,7 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
    no-eval error term instead of crashing. Falls back to the
    monolithic path for non-Exp roots or custom ctx/ana. */
 /* compositional statics from an already-made TERM: callers that hold
-   a plain segment (restructure ops) skip the zipper round-trip —
-   from_zip_for_sem's Dump.to_segment walk alone was ~300ms on mega-2k */
+   a plain segment (restructure ops) skip the zipper round-trip */
 let init_compositional_term =
     (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
   let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
@@ -406,6 +423,7 @@ let init_compositional_term =
     error_ids: DefStatics.all_error_ids(ds),
     warning_ids: DefStatics.all_warning_ids(ds),
     targets: compute_targets(~settings, ~info_map, ~probe_ids),
+    completion: None,
     probe_ids,
     items: Some(ds),
   };
@@ -418,24 +436,13 @@ let init_compositional =
   } else if (root != Sort.Exp && root != Sort.Mod) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
-    /* from_zip_for_sem exists to EMPTY THE BACKPACK for semantics —
-       with an empty backpack its Dump.to_segment walk is pure
-       overhead (~660ms at 4k lines), and the per-item incremental
-       parse replaces the monolithic one. Mod roots would be MISPARSED
-       by the Exp-rooted [go], so their backpack fallback goes through
-       go_mod_root on the emptied segment instead. */
-    /* (this branch has no backpack: a segment with MISSING shards takes
-       the canonical-completion parse instead of the per-item one) */
-    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-    let term =
-      Segment.global_missing_shards(seg) == []
-        ? MakeTerm.Incr.term_of_root(~root, seg) |> stitch
-        : (
-            root == Sort.Mod
-              ? MakeTerm.go_mod_root(seg).term
-              : MakeTerm.from_zip_for_sem(z, ~root).term
-          )
-          |> stitch;
+    /* semantics reads the canonical completion of the visible segment
+       (caret-independent); the per-item incremental parse replaces the
+       monolithic one (it falls back internally, incl. go_mod_root for
+       Mod roots) */
+    let (seg, masks) =
+      MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+    let term = MakeTerm.Incr.term_of_root(~masks, ~root, seg) |> stitch;
     /* callers with probes living in OTHER zippers (stacked cells)
        pass the union; default = this zipper's own */
     let probe_ids =

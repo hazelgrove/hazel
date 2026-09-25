@@ -130,7 +130,7 @@ module Local = {
 
   let projector_to_segment = (pr: Base.projector): Segment.t =>
     switch (pr.kind) {
-    | Fold => [Piece.mk_tile(Form.mk_atom_op(Exp, {|⋱|}), [])]
+    | Fold => [Piece.mk_tile((Form.Tok({|⋱|}), Sort.Any), [])]
     | _ => Triggers.projector_to_invoke(pr)
     };
 
