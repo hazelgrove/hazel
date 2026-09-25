@@ -577,11 +577,10 @@ let rescan_parent_shards = (z: t): t => {
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
-  let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    if (siblings == z.relatives.siblings) {
-      z;
-    } else {
+    switch (Siblings.rescan_opt(z.relatives.siblings)) {
+    | None => z
+    | Some(siblings) =>
       let relatives =
         {
           ...z.relatives,
@@ -592,7 +591,8 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         |> Relatives.regrout(d);
       {
         ...z,
-        relatives,
+        /* unchanged pieces keep their pre-rescan objects (see restore_sibs) */
+        relatives: restore_relatives(z.relatives, relatives),
       };
     };
   /* After normal rescan+reassemble, try matching shard tiles in
@@ -612,7 +612,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
       {
         ...z',
-        relatives,
+        relatives: restore_relatives(z'.relatives, relatives),
       };
     } else {
       z;

@@ -1188,7 +1188,11 @@ let presplit_orphans = (seg: t): t =>
        | p => [p],
      );
 
-let rescan = (seg: t): t => {
+/* Also reports whether any token was converted into a shard: a
+   caller can skip the reassemble/remold/regrout that a conversion
+   requires (and the piece-identity loss it causes) when nothing
+   changed. */
+let rescan_converting = (seg: t): (t, bool) => {
   let has_incomplete =
     List.exists(
       p =>
@@ -1199,8 +1203,9 @@ let rescan = (seg: t): t => {
       seg,
     );
   if (!has_incomplete) {
-    seg;
+    (seg, false);
   } else {
+    let any_converted = ref(false);
     /* Walk left-to-right with a STACK of expectation frames.
      * Each incomplete tile pushes a new frame with its missing shards.
      * Only the TOP frame is checked for matching.
@@ -1248,6 +1253,7 @@ let rescan = (seg: t): t => {
             switch (List.assoc_opt(tok, entries)) {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
+              any_converted := true;
               let converted = Piece.Tile(target_shard);
               let entries = List.filter(((k, _)) => k != tok, entries);
               /* If this frame is exhausted, pop to previous frame */
@@ -1277,9 +1283,12 @@ let rescan = (seg: t): t => {
           };
         }
       };
-    go(seg);
+    let seg = go(seg);
+    (seg, any_converted^);
   };
 };
+
+let rescan = (seg: t): t => fst(rescan_converting(seg));
 
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
@@ -1557,6 +1566,39 @@ let to_string = Base.segment_to_string;
 /* pointer-elementwise equality: caret/selection moves rebuild the
    zipper (and thus the unzipped top-level piece list) but reuse every
    PIECE, so this cheap scan distinguishes "moved" from "edited" */
+/* Top-level ITEM slices of a segment, in order: a slice ends with an
+   `…in` tile or a top-level `;`; the remainder is the tail. This is
+   the unit of the per-item incremental layers (MakeTerm.Incr,
+   CanonicalCompletion.complete_items, ItemPersist). */
+let is_top_semi = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) => Tile.label(t) == [";"]
+  | _ => false
+  };
+let is_in_tile = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (List.rev(Tile.label(t))) {
+    | ["in", ..._] => true
+    | _ => false
+    }
+  | _ => false
+  };
+let top_items = (seg: t): list(t) => {
+  let arr = Array.of_list(seg);
+  let len = Array.length(arr);
+  let slice = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
+  let rec walk = (i, start, acc) =>
+    if (i >= len) {
+      start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
+    } else if (is_in_tile(arr[i]) || is_top_semi(arr[i])) {
+      walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
+    } else {
+      walk(i + 1, start, acc);
+    };
+  walk(0, 0, []);
+};
+
 let ptr_eq = (a: t, b: t): bool => {
   let rec go = (xs, ys) =>
     switch (xs, ys) {

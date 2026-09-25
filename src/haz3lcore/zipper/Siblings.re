@@ -78,6 +78,21 @@ let rescan = ((pre, suf): t): t => {
   ListUtil.split_n(n, combined);
 };
 
+/* None when the rescan could not have changed anything: no token was
+   re-associated and the presplit found no incomplete multi-shard tile
+   to split (a split always adds pieces). Otherwise the caller must
+   reassemble the presplit result, as before. */
+let rescan_opt = ((pre, suf): t): option(t) => {
+  let pre' = Segment.presplit_orphans(pre);
+  let suf' = Segment.presplit_orphans(suf);
+  let split =
+    List.length(pre') != List.length(pre)
+    || List.length(suf') != List.length(suf);
+  let n = List.length(pre');
+  let (combined, converted) = Segment.rescan_converting(pre' @ suf');
+  converted || split ? Some(ListUtil.split_n(n, combined)) : None;
+};
+
 let regrout =
     (
       ~l_shape: option(Nib.Shape.t)=?,
