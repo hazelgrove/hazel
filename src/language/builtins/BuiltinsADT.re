@@ -1685,30 +1685,38 @@ let monad_ops: list(const) = {
 
    That indirection is the point rather than an artifact: creating a
    splice changes the editor, and evaluation cannot change the editor. */
+/* Wrapped in a fix, as every list builtin is, though it never recurs:
+   the environment holds this term unevaluated, and a bare `fun` looked
+   up from there has no closure, so applying it is Indet. That left each
+   splice command a stuck application the runners could not read. */
 let cmd_ctor = (~ctor: string, ~cmd_ty: Typ.t): Exp.t =>
   Fresh.(
     Exp.(
-      fn(
-        Pat.var("args"),
-        ap(
-          Forward,
-          constructor(ctor, Some(Some(cmd_ty))),
-          tuple([
-            var("args"),
-            fn(
-              Pat.var("x"),
-              ap(
-                Forward,
-                constructor("Pure", Some(Some(cmd_ty))),
-                var("x"),
+      fix_f(
+        Pat.var("self"),
+        fn(
+          Pat.var("args"),
+          ap(
+            Forward,
+            constructor(ctor, Some(Some(cmd_ty))),
+            tuple([
+              var("args"),
+              fn(
+                Pat.var("x"),
+                ap(
+                  Forward,
+                  constructor("Pure", Some(Some(cmd_ty))),
+                  var("x"),
+                ),
+                None,
+                None,
               ),
-              None,
-              None,
-            ),
-          ]),
+            ]),
+          ),
+          None,
+          Some(ctor),
         ),
         None,
-        Some(ctor),
       )
     )
   );

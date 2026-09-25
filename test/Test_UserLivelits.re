@@ -415,6 +415,69 @@ let bind_vars_counted_used = () => {
   check(bool, "unused: warned", true, warns_unused("r", m));
 };
 
+/* Each splice command EVALUATES to its one-node command tree. They did
+   not: a bare `fun` builtin has no closure, so applying one was Indet,
+   and every runner saw a stuck application instead of a command. */
+let splice_commands_evaluate = () =>
+  List.iter(
+    ((src, ctor)) =>
+      check(
+        option(string),
+        src,
+        Some(ctor),
+        Option.map(fst, Haz3lcore.MvuShape.of_constructor_raw(run(src))),
+      ),
+    [
+      ("new_splice((IntT, None))", "NewSplice"),
+      ("set_splice((SpliceRef(\"s\"), ?))", "SetSplice"),
+      ("eval_splice(SpliceRef(\"s\"))", "EvalSplice"),
+      ("editor((SpliceRef(\"s\"), FixedWidth(6)))", "Editor"),
+      ("result_view((SpliceRef(\"s\"), FixedWidth(6)))", "ResultView"),
+    ],
+  );
+
+/* editor runs (Sec. 3.2.3): its answer is Html holding a Splice node for
+   the ref, which HazelDOM resolves to the projector's own splice when it
+   draws. The do is at top level, so its first command sets the monad. */
+let editor_runs = () => {
+  let v =
+    run(
+      "do e <- editor((SpliceRef(\"s\"), FixedWidth(6))) in "
+      ++ "Pure(Html.div([], [e]))",
+    );
+  let children = h =>
+    Haz3lcore.MvuShape.(
+      switch (of_constructor_raw(h)) {
+      | Some(("Div", b)) =>
+        switch (of_tuple(b)) {
+        | Some([_, cs]) => of_list(cs)
+        | _ => None
+        }
+      | _ => None
+      }
+    );
+  let id =
+    switch (Haz3lcore.ViewCmdRunner.run(v)) {
+    | Error(e) => fail("editor did not run: " ++ e)
+    | Ok(html) =>
+      Haz3lcore.MvuShape.(
+        switch (Option.map(List.map(children), children(html))) {
+        | Some([Some([sp])]) =>
+          switch (of_constructor_raw(sp)) {
+          | Some(("Splice", r)) =>
+            switch (of_constructor(strip_wrappers(r))) {
+            | Some(("SpliceRef", s)) => of_string(s)
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ => None
+        }
+      )
+    };
+  check(option(string), "the editor holds the ref's splice", Some("s"), id);
+};
+
 /* A livelit that lacks members is a MODULE that lacks members, and says so
    with the module system's own mark. DefMissingMembers and DefMissingTypes
    were livelit-specific restatements of it; ModuleMissingMembers already
@@ -1258,6 +1321,8 @@ let tests = [
       test_case("init at value types", `Quick, init_at_value_types),
       test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
       test_case("bind vars counted used", `Quick, bind_vars_counted_used),
+      test_case("splice commands evaluate", `Quick, splice_commands_evaluate),
+      test_case("editor runs", `Quick, editor_runs),
     ],
   ),
 ];
