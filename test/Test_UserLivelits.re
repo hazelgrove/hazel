@@ -388,6 +388,55 @@ let init_makes_splices = () => {
   };
 };
 
+/* Color (Figure 3)'s own init, in the paper's form (l.8-13): four
+   new_splices starting at 0, 0, 0 and 100, answered positionally. */
+let color_init = () => {
+  let def = "{
+type Expansion = (r = Int, g = Int, b = Int, a = Int);
+type Model = (r = SpliceRef, g = SpliceRef, b = SpliceRef, a = SpliceRef);
+type Action = Int;
+let init =
+  do r <- new_splice(IntT, Some(IntLit(0))) in
+  do g <- new_splice(IntT, Some(IntLit(0))) in
+  do b <- new_splice(IntT, Some(IntLit(0))) in
+  do a <- new_splice(IntT, Some(IntLit(100))) in
+  Pure((r, g, b, a));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> (r = 0, g = 0, b = 0, a = 0))
+}";
+  let (m, _) = statics("let ^color = " ++ def ++ " in 1");
+  check(bool, "typechecks", false, has_mark(_ => true, m));
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(
+      run("let ^color = " ++ def ++ " in ^color.init"),
+    )
+  ) {
+  | Error(e) => fail("init did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let codes =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.New(_, code) =>
+          switch (code.term) {
+          | Atom(Int(n)) => Bigint.to_int(n)
+          | _ => None
+          }
+        | _ => None,
+        effects,
+      );
+    check(list(int), "four splices, 0 0 0 100", [0, 0, 0, 100], codes);
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      int,
+      "all four written into the model",
+      4,
+      List.length(Haz3lcore.SpliceStore.splice_ids(written)),
+    );
+  };
+};
+
 /* update's set_splice: a Set effect, and the commit writes a FRESH splice
    in place of the old one, so reattaching by id cannot restore the old
    code; the ref is decoded from its position next pass. */
@@ -1464,6 +1513,7 @@ let tests = [
       ),
       test_case("init makes splices", `Quick, init_makes_splices),
       test_case("set_splice rewrites", `Quick, set_splice_rewrites),
+      test_case("Color (Figure 3) init", `Quick, color_init),
       test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
       test_case("bind vars counted used", `Quick, bind_vars_counted_used),
       test_case("splice commands evaluate", `Quick, splice_commands_evaluate),

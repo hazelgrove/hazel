@@ -56,17 +56,17 @@ let ^color = {
   type Action = + ClickOn(Color);
 
   # Fig. 3 l.8-13 -- init, a COMMAND: an UpdateCmd(Model) that makes #
-  # four splices with new_splice, each an Int starting at zero, and #
-  # answers their refs (Sec. 3.2.1). It runs when a use is created: #
-  # type ^color and a space. The paper's starting code is the quoted #
-  # `0`; here it is IntLit(0), an Exp constructor, which needs no #
-  # quotation. #
+  # four splices with new_splice, each an Int, and answers their refs #
+  # (Sec. 3.2.1). r, g and b start at 0, a at 100. It runs when a use #
+  # is created: type ^color and a space. The paper's starting code is #
+  # the quoted `0`; here it is IntLit(0), an Exp constructor, which #
+  # needs no quotation. `Int` is IntT, and return is Pure. #
   let init =
-    do r <- new_splice((IntT, Some(IntLit(0)))) in
-    do g <- new_splice((IntT, Some(IntLit(0)))) in
-    do b <- new_splice((IntT, Some(IntLit(0)))) in
-    do a <- new_splice((IntT, Some(IntLit(0)))) in
-    Pure((r = r, g = g, b = b, a = a));
+    do r <- new_splice(IntT, Some(IntLit(0))) in
+    do g <- new_splice(IntT, Some(IntLit(0))) in
+    do b <- new_splice(IntT, Some(IntLit(0))) in
+    do a <- new_splice(IntT, Some(IntLit(100))) in
+    Pure((r, g, b, a));
 
   # Fig. 3 l.18-44 -- view, a function that returns a ViewCmd #
   # (Sec. 3.2.3). This part follows the figure closely: the do block #
