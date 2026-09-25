@@ -43,6 +43,7 @@
   haz3lcore
   b2t2
   docslides
+  ts2ocaml-jsoo-stdlib
   tutorialslides
   omd)
  (js_of_ocaml)
