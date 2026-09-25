@@ -44,7 +44,7 @@ let ^pct = {
   type Action = Int;
   type Expansion = Int;
 
-  let init : Model = 50;
+  let init = Pure(50);
 
   let update = fun _m : Model -> fun a : Action -> Pure(a);
 

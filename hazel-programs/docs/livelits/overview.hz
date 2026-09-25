@@ -165,7 +165,7 @@ let ^flag = {
   type Expansion = Bool;
 
   # what a fresh use starts as: typing ^flag then space inserts it #
-  let init : Model = false;
+  let init = Pure(false);
 
   # update takes the model, then the action, and returns a COMMAND. #
   # Pure(a) is the command that answers a -- the next model -- and #

@@ -8,8 +8,8 @@ open Util;
        type Action = ...;               what the GUI emits
        type Expansion = ...;            what a use MEANS to the program
        let init : Model = ...;          initial model, inserted on ^name<space>
-       let update = fun (m, a) -> ...;  (Model, Action) => Model
-       let view = fun m -> ...;         Model => HTML, handlers emit Actions
+       let update = fun m -> fun a -> ...;   Model -> Action -> UpdateCmd(Model)
+       let view = fun m -> ...;         Model -> ViewCmd(Html.T)
        let expand = Functional(fun m -> ...)   or Macro(...)
      } in ...
 
@@ -24,11 +24,12 @@ open Util;
    strategy (PLDI 2021, S3.2.5), not an approximation of it: the expansion
    is validated at each invocation site, with errors reported to the client.
 
-   Splices are the part of the paper still absent. When they arrive as a
-   SpliceRef type with operations over it, `expand` extends to return a
-   pair whose second component is the list of SpliceRefs, and the check
-   here becomes a check of that pair's parameterized first component. With
-   the splice list empty it degenerates to what this file does.
+   update and view answer with commands (Sec. 3.2.3-3.2.4), performed by
+   UpdateCmdRunner and ViewCmdRunner. A model holds SpliceRefs, made by
+   new_splice (Sec. 3.2.1) and kept in the program text as the splices
+   themselves, at the refs' positions in the use's model argument:
+   expose_splice_refs decodes them. The Macro arm returns quoted code and
+   the splice list (Sec. 3.2.5); it cannot return yet, as Exp is empty.
 
    Optional member `shape = Inline(w) | Block(w, h) | Tab(w, h)` (a
    LivelitShape) sets the projector's footprint in character cells. Helpers
@@ -121,65 +122,45 @@ let missing = (required: list(string), have: list((string, 'a))) =>
 
    Consistency, not equality: a member may be more precise than declared, and
    a member still containing holes must not be reported as wrong. */
-/* `init` supplies VALUES; the use site supplies REFS.
+/* The two shapes a spliced model field can have.
 
-   A spliced model field has type (ref=SpliceRef, value=t), but `init` is
-   written before any splice exists -- there is nothing for it to name, and
-   making it a command so it could is precisely what Figure 3 does and we
-   have not. So when checking `init` against Model, a spliced field is
-   compared at its value type alone. Every other member (update, view,
-   expand) sees the pair, because by then the use site has made it. */
-let rec strip_splice_refs = (ty: Typ.t): Typ.t => {
-  let is_ref = (t: Typ.t) =>
-    switch (Typ.term_of(t)) {
-    | Var("SpliceRef") => true
-    | _ => false
-    };
-  /* (ref=SpliceRef, value=t)  ~>  t */
-  let value_of = (t: Typ.t): option(Typ.t) =>
-    switch (Typ.term_of(t)) {
-    | Prod(fields) =>
-      let named = n =>
-        List.find_map(
-          (f: Typ.t) =>
-            switch (Typ.term_of(f)) {
-            | TupLabel(l, v) =>
-              switch (Typ.term_of(l)) {
-              | Label(x) when x == n => Some(v)
-              | _ => None
-              }
-            | _ => None
-            },
-          fields,
-        );
-      switch (named("ref"), named("value")) {
-      | (Some(r), Some(v)) when is_ref(r) => Some(v)
-      | _ => None
-      };
-    | _ => None
-    };
-  switch (Typ.term_of(ty)) {
-  | Prod(fields) =>
-    Typ.fresh(
-      Prod(
-        List.map(
-          (f: Typ.t) =>
-            switch (Typ.term_of(f)) {
-            | TupLabel(l, v) =>
-              switch (value_of(v)) {
-              | Some(inner) => Typ.fresh(TupLabel(l, inner))
-              | None => f
-              }
-            | _ => f
-            },
-          fields,
-        ),
-      ),
-    )
-  | Parens(inner) => Typ.fresh(Parens(strip_splice_refs(inner)))
-  | _ => ty
+   A bare SpliceRef is Figure 3's: the model holds only a handle (l.3-4),
+   and the view reads the code behind it with eval_splice. The pair
+   (ref=SpliceRef, value=t) is the SpliceRef, MVP stopgap: the value rides
+   beside the ref, because a Functional expand cannot eval_splice and a
+   Macro cannot return quoted code yet. */
+let rec is_splice_ref_ty = (t: Typ.t): bool =>
+  switch (Typ.term_of(t)) {
+  | Var("SpliceRef") => true
+  | Parens(t) => is_splice_ref_ty(t)
+  | _ => false
   };
-};
+
+let labeled_ty = (fields: list(Typ.t), n: string): option(Typ.t) =>
+  List.find_map(
+    (f: Typ.t) =>
+      switch (Typ.term_of(f)) {
+      | TupLabel(l, v) =>
+        switch (Typ.term_of(l)) {
+        | Label(x) when x == n => Some(v)
+        | _ => None
+        }
+      | _ => None
+      },
+    fields,
+  );
+
+/* (ref=SpliceRef, value=t)  ~>  Some(t) */
+let rec pair_value_ty = (t: Typ.t): option(Typ.t) =>
+  switch (Typ.term_of(t)) {
+  | Parens(t) => pair_value_ty(t)
+  | Prod(fields) =>
+    switch (labeled_ty(fields, "ref"), labeled_ty(fields, "value")) {
+    | (Some(r), Some(v)) when is_splice_ref_ty(r) => Some(v)
+    | _ => None
+    }
+  | _ => None
+  };
 
 /* The `Livelit` signature with THIS definition's Model, Action and
    Expansion made MANIFEST rather than abstract.
@@ -225,10 +206,6 @@ let realized_livelit_sig =
                | Some(d) => Sig.TypeManifest(n, d)
                | None => mem
                }
-             /* init is compared at the spliced fields' value types: see
-                strip_splice_refs. Dropping this broke splices-mvp. */
-             | Val("init", t) =>
-               Sig.Val("init", strip_splice_refs(realize(t)))
              | Val(n, t) => Sig.Val(n, realize(t))
              | _ => mem
              }
@@ -391,37 +368,41 @@ let default_shape: ProjectorShape.t = {
    form, so typing it consults the definition's ACTUAL expand member rather
    than the interface `member_ty` advertises — which is what makes the
    use-site expansion check below non-vacuous. */
-/* A spliced model field carries its REF as well as its value.
+/* The refs a use's model argument holds.
 
-   A field the author marked with parens holds a splice: the client's own
-   code, living inside the widget. Figure 3 puts a HANDLE to that code in
-   the model, so a marked field reads as
+   new_splice is the only thing that makes a splice (Sec. 3.2.1). What
+   it makes is kept in the program text: the commit writes each ref in
+   the model as the splice itself, in parens, at the ref's position, so
+   the client's code lives in the client's program. This rewrite DECODES
+   that, on every pass. Figure 3's model holds a HANDLE (l.3-4), so where
+   Model says SpliceRef a parenthesized splice reads as
 
-     (ref = SpliceRef("<id>"), value = <the code>)
+     SpliceRef(("<id>", <the code>))
 
-   rather than just the code. A view can then place the splice by naming
-   it -- `Html.splice(m.lo.ref)` -- instead of counting positions, and
-   still read what it evaluates to as `m.lo.value`.
+   The id is what editor and Html.splice resolve to this projector's own
+   splice. The code evaluates in place, in the client's scope, so the ref
+   carries the value it had in this run, and that is what eval_splice
+   reads (Sec. 3.2.3): the "selected closure" is the run the view sample
+   came from.
+
+   Where Model says the stopgap pair (ref=SpliceRef, value=t), the field
+   reads as (ref=SpliceRef(...), value=<the code>), for a Functional
+   expand, which cannot eval_splice. It goes when Macro can return quoted
+   code.
 
    This is a rewrite of the model ARGUMENT, applied before analysis, not a
    rule about splices. Splice transparency is load-bearing elsewhere (a
-   table infers its headers through it) and is left alone. The value
-   component keeps the splice, so the client's code is still typed in the
-   client's scope and still evaluates in place.
-
-   What this is NOT: the paper reads a splice with
-   `eval_splice : SpliceRef -> ViewCmd(Maybe(Result))`, which can answer
-   Indet for a bound that does not reduce. Here the value simply rides
-   along, eagerly, and there is no way to say "this one has no value" --
-   which is why an unreducible bound renders as a hole rather than as
-   something the widget chose to show. */
-let expose_splice_refs = (arg: TermBase.Exp.t): TermBase.Exp.t => {
-  open IdTagged.FreshGrammar;
-  let mk_ref = (id: Id.t): TermBase.Exp.t =>
-    Exp.ap(
+   table infers its headers through it) and is left alone. */
+let expose_splice_refs =
+    (~ctx: Ctx.t, ~model_t: Typ.t, arg: TermBase.Exp.t): TermBase.Exp.t => {
+  module F = IdTagged.FreshGrammar;
+  /* SpliceRef((id, code)): the code evaluates in place, in the client's
+     scope, and its value is what eval_splice reads. */
+  let mk_ref = (id: Id.t, code: TermBase.Exp.t): TermBase.Exp.t =>
+    F.Exp.ap(
       Forward,
-      Exp.constructor("SpliceRef", None),
-      Exp.string(Id.to_string(id)),
+      F.Exp.constructor("SpliceRef", None),
+      F.Exp.tuple([F.Exp.string(Id.to_string(id)), code]),
     );
   /* The splice under any parens the author wrote, with its id. */
   let rec find_splice = (e: TermBase.Exp.t): option(Id.t) =>
@@ -430,38 +411,68 @@ let expose_splice_refs = (arg: TermBase.Exp.t): TermBase.Exp.t => {
     | Parens(inner) => find_splice(inner)
     | _ => None
     };
-  let expose_field = (x: TermBase.Exp.t): TermBase.Exp.t =>
-    switch (x.term) {
-    | TupLabel(l, v) =>
-      switch (find_splice(v)) {
-      | None => x
-      | Some(id) => {
-          ...x,
-          term:
-            TupLabel(
-              l,
-              Exp.tuple([
-                Exp.tup_label(Exp.label("ref"), mk_ref(id)),
-                Exp.tup_label(Exp.label("value"), v),
-              ]),
-            ),
+  /* A value, rewritten for the type its position asks for, looking
+     through tuples and lists to every position the Model gives a type.
+     A splice where Model says SpliceRef becomes a ref; where it says the
+     stopgap pair, the pair, naming the code once through a let so it
+     runs once. A splice anywhere else is left alone: a splice is
+     transparent, and is then simply the client's code in that place. */
+  let rec expose = (ty: Typ.t, v: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (find_splice(v)) {
+    | Some(id) when is_splice_ref_ty(ty) => mk_ref(id, v)
+    | Some(id) when Option.is_some(pair_value_ty(ty)) =>
+      let x = "$splice_value";
+      F.Exp.let_(
+        F.Pat.var(x),
+        v,
+        F.Exp.tuple([
+          F.Exp.tup_label(F.Exp.label("ref"), mk_ref(id, F.Exp.var(x))),
+          F.Exp.tup_label(F.Exp.label("value"), F.Exp.var(x)),
+        ]),
+      );
+    | Some(_) => v
+    | None =>
+      switch (v.term, Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
+      | (Parens(inner), _) => {
+          ...v,
+          term: (Parens(expose(ty, inner)): TermBase.Exp.term),
         }
+      | (Tuple(xs), Prod(tys)) =>
+        let labeled =
+          List.exists(
+            (x: TermBase.Exp.t) =>
+              switch (x.term) {
+              | TupLabel(_) => true
+              | _ => false
+              },
+            xs,
+          );
+        let field = (i, x: TermBase.Exp.t) =>
+          switch (x.term) {
+          | TupLabel({term: Label(name), _} as l, xv) =>
+            switch (labeled_ty(tys, name)) {
+            | Some(t) => {
+                ...x,
+                term: (TupLabel(l, expose(t, xv)): TermBase.Exp.term),
+              }
+            | None => x
+            }
+          | _ when !labeled && List.length(xs) == List.length(tys) =>
+            expose(List.nth(tys, i), x)
+          | _ => x
+          };
+        {
+          ...v,
+          term: (Tuple(List.mapi(field, xs)): TermBase.Exp.term),
+        };
+      | (ListLit(xs), List(t)) => {
+          ...v,
+          term: (ListLit(List.map(expose(t), xs)): TermBase.Exp.term),
+        }
+      | _ => v
       }
-    | _ => x
     };
-  let rec go = (e: TermBase.Exp.t): TermBase.Exp.t =>
-    switch (e.term) {
-    | Parens(inner) => {
-        ...e,
-        term: Parens(go(inner)),
-      }
-    | Tuple(xs) => {
-        ...e,
-        term: Tuple(List.map(expose_field, xs)),
-      }
-    | _ => e
-    };
-  go(arg);
+  expose(model_t, arg);
 };
 
 /* The elaboration of a use: discriminate on which arm of `expand` this
@@ -542,7 +553,7 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
          livelit's concrete types substituted for the abstract ones. */
       | "expand" =>
         BuiltinsADT.livelit_expand_typ(~model=model_t, ~expansion=expansion_t)
-      | "init" => model_t
+      | "init" => BuiltinsADT.update_cmd(model_t)
       | _ => unknown()
       }
     )

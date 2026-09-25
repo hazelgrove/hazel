@@ -30,7 +30,7 @@ let ^mood = {
 
   # init is a plain Model here; the paper's is an UpdateCmd #
   # (Sec. 3.2.1). This livelit makes no splices, so nothing is lost. #
-  let init : Model = (50, Idle);
+  let init = Pure((50, Idle));
 
   let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
 

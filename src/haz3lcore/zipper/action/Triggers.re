@@ -202,9 +202,23 @@ let expand_livelit = (~ctx, z: t): option(t) =>
   | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
       when Token.is_livelit(t) && w == Token.space =>
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
-    let seg = exp_to_seg(ll.model_default);
+    /* A user livelit's init is a command (Sec. 3.2.1): perform it, so the
+       new use starts with the model it answers and the splices it made.
+       A builtin's model_default is already a model. */
+    let model =
+      switch (ll.user_def) {
+      | Some(def_elab) =>
+        switch (UpdateCmdRunner.init_model(def_elab)) {
+        | Ok(m) => m
+        | Error(e) =>
+          print_endline("Triggers: livelit init failed: " ++ e);
+          Language.IdTagged.FreshGrammar.Exp.empty_hole();
+        }
+      | None => ll.model_default
+      };
+    let seg = exp_to_seg(model);
     let seg =
-      switch (ll.model_default) {
+      switch (model) {
       | {term: Tuple(_), _} => Segment.unparenthesize(seg)
       | _ => seg
       };

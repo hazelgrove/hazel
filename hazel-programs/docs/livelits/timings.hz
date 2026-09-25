@@ -51,8 +51,8 @@ let ^latency = {
   type Expansion = Reading;
 
 
-  let init : Model =
-    (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0);
+  let init = Pure(
+    (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0));
 
   let update = fun m : Model -> fun a : Action -> Pure(
     case a

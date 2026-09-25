@@ -38,7 +38,7 @@ let ^hwb = {
 
   let dot_y = fun b -> b * 92 / 100;
 
-  let init : Model = (160, 25, 10);
+  let init = Pure((160, 25, 10));
 
   let update = fun _m : Model -> fun a : Action -> Pure(a);
 

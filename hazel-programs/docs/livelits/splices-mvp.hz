@@ -59,7 +59,10 @@ let ^between = {
   # its parens have been read as splices. So init is checked at each #
   # spliced field's value type, Int, not at the (ref, value) pair. #
   # That is also why it has no `: Model`, which would ask for pairs. #
-  let init = (pct=50, lo=(0), hi=(100));
+  let init =
+    do lo <- new_splice((IntT, Some(IntLit(0)))) in
+    do hi <- new_splice((IntT, Some(IntLit(100)))) in
+    Pure((pct=50, lo=(ref=lo, value=0), hi=(ref=hi, value=100)));
 
   let update = fun m : Model -> fun a : Action -> Pure(
     case a

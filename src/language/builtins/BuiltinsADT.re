@@ -1414,14 +1414,11 @@ let livelit_common = (model, action) => [
   Sig.item_of_member(Sig.TypeAbstract("Model")),
   Sig.item_of_member(Sig.TypeAbstract("Action")),
   Sig.item_of_member(Sig.TypeAbstract("Expansion")),
-  /* `init : Model`, not the paper's `UpdateCmd(Model)`.
-     Not an oversight and not yet fixable: init is SYNTAX, not a value --
-     UserLivelit keeps its expression as model_default and Triggers pastes
-     that text at the caret when the livelit's name is typed. There are no
-     statics and no evaluator at that moment, so a command there would
-     have nothing to perform it. Sec. 3.2.1's init runs new_splice; ours
-     cannot until init becomes a value. */
-  Sig.item_of_member(Sig.Val("init", model)),
+  /* init : UpdateCmd(Model), the paper's (Sec. 3.2.1, Fig. 3 l.8-13): a
+     command, so it can make the first splices with new_splice. It is
+     performed when a use is created (Triggers.expand_livelit), and the
+     model it answers, with its splices, becomes the use's text. */
+  Sig.item_of_member(Sig.Val("init", update_cmd(model))),
   /* Figure 3, curried as the paper curries it:
        update : Model -> Action -> UpdateCmd(Model)
        view   : Model -> ViewCmd(Html(Action))
@@ -1518,20 +1515,32 @@ let livelit: Typ.t = {
   );
 };
 
-/* `Exp` is quoted code, and is still a placeholder: an empty sum has no
-   values, so it names what Figure 3 needs without pretending to provide
-   it. It becomes real when quotation does. */
-let exp_typ: Typ.t = sum_type([]);
+/* `Exp` is code as a value. Its first constructor is IntLit, an integer
+   literal, the one Figure 3 writes (l.49-52: set_splice(model.r,
+   IntLit(c.r))). A literal needs no quotation, so it comes first; the
+   rest of Exp, and the quasiquotation that builds it (Sec. 3.2.1), come
+   later. */
+let exp_typ: Typ.t = sum_type([("IntLit", Some(int()))]);
 
 /* A SpliceRef is a handle to a hole holding the client's own code. It
    carries the splice's id, which is what the projector resolves when a
-   view says `Html.splice(r)`.
+   view says `editor(r, ...)` or `Html.splice(r)`, and the VALUE that
+   code had in this run of the program, which is what eval_splice reads.
 
-   The constructor is visible, so a client can in principle forge one.
-   `Html.splice` of a forged or stale ref renders as an error rather than
-   anything dangerous, and making it genuinely abstract wants a module
-   with an abstract type member -- worth doing, not worth blocking on. */
-let splice_ref_typ: Typ.t = sum_type([("SpliceRef", Some(string()))]);
+   The value rides in the ref because the use's model argument is
+   evaluated in the use's own scope, once per run: the paper's "the
+   closure the user has selected" (Sec. 3.2.3) is then simply the run a
+   view sample came from, and a view and the refs it reads always come
+   from the same run. A ref from new_splice carries a hole.
+
+   The constructor is visible, so a client can in principle forge one,
+   or take the value out of one in update, which Sec. 3.2.4 is designed
+   to prevent. A forged or stale id renders as an error rather than
+   anything dangerous. Making the type genuinely abstract wants an
+   unwritable constructor or a sealed module -- worth doing, not worth
+   blocking on. */
+let splice_ref_typ: Typ.t =
+  sum_type([("SpliceRef", Some(prod([string(), unknown(Internal)])))]);
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),

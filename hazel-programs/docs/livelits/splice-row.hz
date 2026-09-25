@@ -49,7 +49,7 @@ let ^cells = {
   # has to come from a click, which is why an empty sequence still #
   # offers "+ cell". Figure 3's init is an UpdateCmd that calls #
   # new_splice (Sec. 3.2.1); ours cannot. #
-  let init = (orient = Row, refs = []);
+  let init = Pure((orient = Row, refs = []));
 
   let len : [SpliceRef] -> Int =
     fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;

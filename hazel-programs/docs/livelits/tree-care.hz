@@ -45,10 +45,10 @@ let ^tree = {
   type Expansion = Census;
 
 
-  let init : Model = (
+  let init = Pure((
     tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
     season=Spring
-  );
+  ));
 
   # SEASONS #
 

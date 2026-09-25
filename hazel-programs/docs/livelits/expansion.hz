@@ -118,7 +118,7 @@ let ^ramp = {
     "hwb(" ++ string_of_int(c.h) ++ " "
     ++ string_of_int(c.w) ++ "% " ++ string_of_int(c.b) ++ "%)";
 
-  let init : Model = (h=200, w=20, b=10);
+  let init = Pure((h=200, w=20, b=10));
 
   let update = fun _m : Model -> fun a : Action -> Pure(a);
 
@@ -210,7 +210,7 @@ let ^good = {
   type Model = Int;
   type Action = Int;
   type Expansion = Int;
-  let init : Model = 3;
+  let init = Pure(3);
   let update = fun _m : Model -> fun a : Action -> Pure(a);
   let view = fun m : Model ->
     Pure(Html.text(string_of_int(m)));

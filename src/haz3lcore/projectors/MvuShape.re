@@ -363,3 +363,38 @@ let restore_model =
     | Error(_) => None
     }
   };
+
+/* Extract a member from the evaluated definition. A definition is a
+   module; under Modules II it evaluates to a Module whose items are
+   ModVal(x, v) bindings, read by name (the last binding wins, as for
+   Dot). The labeled-tuple reading is kept for values that still arrive
+   in that shape. Member order and helper count don't matter either way. */
+let record_field =
+    (record: TermBase.Exp.t, label: string): option(TermBase.Exp.t) => {
+  let record = strip_wrappers(record);
+  switch (record.term) {
+  | Module(items) =>
+    List.fold_left(
+      (acc, item: TermBase.Mod.t) =>
+        switch (item.term) {
+        | ModVal(x, v) when x == label => Some(v)
+        | _ => acc
+        },
+      None,
+      items,
+    )
+  | _ =>
+    switch (of_tuple(record)) {
+    | Some(fs) =>
+      List.find_map(
+        f =>
+          switch (of_field(f)) {
+          | Some((l, v)) when l == label => Some(v)
+          | _ => None
+          },
+        fs,
+      )
+    | None => None
+    }
+  };
+};

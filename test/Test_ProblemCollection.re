@@ -548,9 +548,9 @@ let livelit_def = {|{
 type Model = Int;
 type Action = Int;
 type Expansion = String;
-let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(""));
 let expand = Functional(fun m : Model -> m)
 }|};
 

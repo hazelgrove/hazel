@@ -57,7 +57,7 @@ let dbl_def = "{
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m * 2)
@@ -80,7 +80,7 @@ let def_with = (~extra: string) =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m * 2)"
@@ -97,7 +97,7 @@ type Action = Int;
 type Expansion = "
   ++ expansion
   ++ ";
-let init : Model = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional("
@@ -140,7 +140,7 @@ let expand = Functional(fun m -> m * 2);
 type Expansion = Int;
 let view = fun m -> Pure(Html.text(\"\"));
 type Model = Int;
-let init = 0;
+let init = Pure(0);
 type Action = Int;
 let update = fun (m, a) -> a
 } in ^dbl(21)",
@@ -195,7 +195,7 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let bump = fun x -> x + 1;
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> bump(m))
@@ -216,7 +216,7 @@ let module_funlet_members = () =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
+let init = Pure(0);
 let update(m, a) = a;
 let view(m) = Html.text(\"\");
 let expand = Functional(fun m -> m * 2)
@@ -279,7 +279,7 @@ let module_expand_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> \"not an Int\")
@@ -302,7 +302,7 @@ let module_update_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(\"wrong\");
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m)
@@ -330,33 +330,89 @@ let module_well_typed_no_mismatch = () => {
   );
 };
 
-/* A spliced field is (ref=SpliceRef, value=t), but init is written before
-   any splice exists, so init is checked at t alone -- and only init: expand
-   still sees the pair. Losing this was invisible here and broke the
-   SpliceRef, MVP slide, whose init is (pct=50, lo=(0), hi=(100)). */
-let spliced_def = (~expand: string) =>
-  "let ^b = {
-type Model = (lo=(ref=SpliceRef, value=Int), n=Int);
+/* Figure 3's shape: init is a command that makes the splices (Sec.
+   3.2.1, Fig. 3 l.8-13), update writes one (l.46-53), and the model holds
+   only refs (l.3-4). */
+let spliced_def = "{
+type Model = (r=SpliceRef, n=Int);
 type Action = Int;
 type Expansion = Int;
-let init = (lo=0, n=1);
-let update = fun m -> fun a -> Pure(m);
+let init =
+  do r <- new_splice((IntT, Some(IntLit(3)))) in
+  Pure((r=r, n=1));
+let update = fun m -> fun a ->
+  do _ <- set_splice((m.r, IntLit(a))) in Pure(m);
 let view = fun m -> Pure(Html.text(\"\"));
-let expand = Functional(fun m -> "
-  ++ expand
-  ++ ")
-} in 1";
+let expand = Functional(fun m -> m.n)
+}";
 
-let init_at_value_types = () => {
-  let (m, _) = statics(spliced_def(~expand="m.lo.value + m.n"));
-  check(
-    bool,
-    "init gives a spliced field its value",
-    false,
-    has_mark(_ => true, m),
-  );
-  let (m, _) = statics(spliced_def(~expand="m.lo + m.n"));
-  check(bool, "expand still sees the pair", true, def_is_marked(m));
+let init_makes_splices_typechecks = () => {
+  let (m, _) = statics("let ^c = " ++ spliced_def ++ " in 1");
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) when marks != [] =>
+          acc @ List.map(Mark.show, marks)
+        | _ => acc
+        },
+      m,
+      [],
+    );
+  check(list(string), "Figure 3's shape typechecks", [], marks);
+};
+
+/* init PERFORMED: one New effect, the ref carrying its starting code, and
+   written out as a splice, in parens, at the ref's position. */
+let init_makes_splices = () => {
+  let cmd = run("let ^c = " ++ spliced_def ++ " in ^c.init");
+  switch (Haz3lcore.UpdateCmdRunner.run(cmd)) {
+  | Error(e) => fail("init did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let news =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.New(id, _) => Some(id)
+        | _ => None,
+        effects,
+      );
+    check(int, "one splice made", 1, List.length(news));
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      list(string),
+      "the splice is written where its ref was",
+      news,
+      Haz3lcore.SpliceStore.splice_ids(written),
+    );
+  };
+};
+
+/* update's set_splice: a Set effect, and the commit writes a FRESH splice
+   in place of the old one, so reattaching by id cannot restore the old
+   code; the ref is decoded from its position next pass. */
+let set_splice_rewrites = () => {
+  let id = "00000000-0000-0000-0000-000000000001";
+  let m = "(r=SpliceRef((\"" ++ id ++ "\", 3)), n=1)";
+  let cmd =
+    run("let ^c = " ++ spliced_def ++ " in ^c.update(" ++ m ++ ")(7)");
+  switch (Haz3lcore.UpdateCmdRunner.run(cmd)) {
+  | Error(e) => fail("update did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let sets =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.Set(i, _) => Some(i)
+        | _ => None,
+        effects,
+      );
+    check(list(string), "one set, of that splice", [id], sets);
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[id], model);
+    let ids = Haz3lcore.SpliceStore.splice_ids(written);
+    check(int, "one splice written", 1, List.length(ids));
+    check(bool, "under a fresh id", false, ids == [id]);
+  };
 };
 
 /* A do-block is in one monad (Sec. 3.2.4): update may not evaluate a
@@ -366,7 +422,7 @@ let bind_def = (~update: string, ~view: string) =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> "
   ++ update
   ++ ";
@@ -377,7 +433,7 @@ let expand = Functional(fun m -> m)
 } in 1";
 
 let bind_stays_in_its_monad = () => {
-  let eval_then = k => "do _ <- eval_splice(SpliceRef(\"s\")) in " ++ k;
+  let eval_then = k => "do _ <- eval_splice(SpliceRef((\"s\", 7))) in " ++ k;
   let (m, _) =
     statics(
       bind_def(~update=eval_then("Pure(m)"), ~view="Pure(Html.text(\"\"))"),
@@ -404,7 +460,7 @@ let bind_vars_counted_used = () => {
     bind_def(
       ~update="Pure(m)",
       ~view=
-        "do r <- eval_splice(SpliceRef(\"s\")) in Pure(Html.text("
+        "do r <- eval_splice(SpliceRef((\"s\", 7))) in Pure(Html.text("
         ++ use
         ++ "))",
     );
@@ -429,10 +485,10 @@ let splice_commands_evaluate = () =>
       ),
     [
       ("new_splice((IntT, None))", "NewSplice"),
-      ("set_splice((SpliceRef(\"s\"), ?))", "SetSplice"),
-      ("eval_splice(SpliceRef(\"s\"))", "EvalSplice"),
-      ("editor((SpliceRef(\"s\"), FixedWidth(6)))", "Editor"),
-      ("result_view((SpliceRef(\"s\"), FixedWidth(6)))", "ResultView"),
+      ("set_splice((SpliceRef((\"s\", 7)), ?))", "SetSplice"),
+      ("eval_splice(SpliceRef((\"s\", 7)))", "EvalSplice"),
+      ("editor((SpliceRef((\"s\", 7)), FixedWidth(6)))", "Editor"),
+      ("result_view((SpliceRef((\"s\", 7)), FixedWidth(6)))", "ResultView"),
     ],
   );
 
@@ -442,7 +498,7 @@ let splice_commands_evaluate = () =>
 let editor_runs = () => {
   let v =
     run(
-      "do e <- editor((SpliceRef(\"s\"), FixedWidth(6))) in "
+      "do e <- editor((SpliceRef((\"s\", 7)), FixedWidth(6))) in "
       ++ "Pure(Html.div([], [e]))",
     );
   let children = h =>
@@ -466,7 +522,11 @@ let editor_runs = () => {
           switch (of_constructor_raw(sp)) {
           | Some(("Splice", r)) =>
             switch (of_constructor(strip_wrappers(r))) {
-            | Some(("SpliceRef", s)) => of_string(s)
+            | Some(("SpliceRef", p)) =>
+              switch (of_tuple(p)) {
+              | Some([s, _]) => of_string(s)
+              | _ => None
+              }
             | _ => None
             }
           | _ => None
@@ -476,6 +536,85 @@ let editor_runs = () => {
       )
     };
   check(option(string), "the editor holds the ref's splice", Some("s"), id);
+};
+
+/* eval_splice reads the value its ref carries from this run (Sec. 3.2.3):
+   Val when the code reduced, Indet when it did not -- a hole here. */
+let eval_splice_reads_the_run = () => {
+  let read = code =>
+    run(
+      "do x <- eval_splice(SpliceRef((\"s\", "
+      ++ code
+      ++ "))) in Pure(case x | Some(Val(n)) => n | Some(Indet) => -1 "
+      ++ "| None => -2 end)",
+    );
+  let answer = code =>
+    switch (Haz3lcore.ViewCmdRunner.run(read(code))) {
+    | Ok(v) => Haz3lcore.MvuShape.of_int(v)
+    | Error(e) => fail("eval_splice did not run: " ++ e)
+    };
+  check(option(int), "a value", Some(7), answer("3 + 4"));
+  check(option(int), "a hole is indeterminate", Some(-1), answer("?"));
+};
+
+/* The rewrite a use's model argument gets is directed by Model: a marked
+   field becomes a bare ref where Model says SpliceRef, the stopgap pair
+   where it says (ref=SpliceRef, value=t), and is left as code elsewhere.
+   Built by hand: only the editor makes Splice terms, never the parser. */
+let rewrite_follows_model = () => {
+  open IdTagged.FreshGrammar;
+  let marked = n => {
+    let code = Exp.int(n);
+    Exp.parens({
+      ...Exp.int(n),
+      term: Splice(code),
+    });
+  };
+  let arg =
+    Exp.tuple([
+      Exp.tup_label(Exp.label("r"), marked(1)),
+      Exp.tup_label(Exp.label("p"), marked(2)),
+      Exp.tup_label(Exp.label("n"), marked(3)),
+    ]);
+  let model_t =
+    Typ.prod([
+      Typ.tup_label(Typ.label("r"), Typ.var("SpliceRef")),
+      Typ.tup_label(
+        Typ.label("p"),
+        Typ.prod([
+          Typ.tup_label(Typ.label("ref"), Typ.var("SpliceRef")),
+          Typ.tup_label(Typ.label("value"), Typ.int()),
+        ]),
+      ),
+      Typ.tup_label(Typ.label("n"), Typ.int()),
+    ]);
+  let out =
+    UserLivelit.expose_splice_refs(
+      ~ctx=Builtins.ctx_init(Some(Int)),
+      ~model_t,
+      arg,
+    );
+  let shape = (e: Exp.t) =>
+    switch (e.term) {
+    | Ap(_, {term: Constructor("SpliceRef", _), _}, _) => "ref"
+    | Let(_, _, _) => "pair"
+    | Parens({term: Splice(_), _}) => "code"
+    | _ => "other"
+    };
+  let shapes =
+    switch (out.term) {
+    | Tuple(fs) =>
+      List.map(
+        (f: Exp.t) =>
+          switch (f.term) {
+          | TupLabel(_, v) => shape(v)
+          | _ => "unlabeled"
+          },
+        fs,
+      )
+    | _ => []
+    };
+  check(list(string), "ref, pair, code", ["ref", "pair", "code"], shapes);
 };
 
 /* A livelit that lacks members is a MODULE that lacks members, and says so
@@ -526,8 +665,8 @@ let module_adapter = () => {
   let ll = mk_ll(def_with(~extra="let shape = Tab(30, 5)"));
   check(
     dhexp_typ,
-    "model_default is the init member",
-    parse_exp("0"),
+    "model_default is the init member, a command the trigger runs",
+    parse_exp("Pure(0)"),
     ll.model_default,
   );
   check(
@@ -624,7 +763,7 @@ let missing_types_marked = () => {
   let (m, _) =
     statics(
       "let ^x = {
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"\"));
 let expand = Functional(fun m -> m)
@@ -682,7 +821,7 @@ let adapter = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 50;
+let init = Pure(50);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(\"hi\"));
 let expand = Functional(fun m -> m)
@@ -707,8 +846,8 @@ let expand = Functional(fun m -> m)
   /* model_default comes from init */
   check(
     dhexp_typ,
-    "model_default is the init field",
-    parse_exp("50"),
+    "model_default is the init member, a command the trigger runs",
+    parse_exp("Pure(50)"),
     ll.model_default,
   );
   /* the stored definition evaluates and view(model) is HTML */
@@ -831,7 +970,7 @@ let view_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.text(string_of_int(^^probe(m * 3))));
 let expand = Functional(fun m -> m * 2)
@@ -930,7 +1069,7 @@ let update_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(^^probe(m + a));
 let view = fun m -> Pure(Html.text(string_of_int(m)));
 let expand = Functional(fun m -> m * 2)
@@ -987,7 +1126,7 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let bump = fun x -> x + 1;
-let init = 0;
+let init = Pure(0);
 let update = fun m -> fun a -> Pure(a);
 let view = fun m -> Pure(Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []));
 let expand = Functional(fun m -> m)
@@ -1318,11 +1457,23 @@ let tests = [
         `Quick,
         sampled_handlers_are_closed,
       ),
-      test_case("init at value types", `Quick, init_at_value_types),
+      test_case(
+        "init makes splices: typechecks",
+        `Quick,
+        init_makes_splices_typechecks,
+      ),
+      test_case("init makes splices", `Quick, init_makes_splices),
+      test_case("set_splice rewrites", `Quick, set_splice_rewrites),
       test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
       test_case("bind vars counted used", `Quick, bind_vars_counted_used),
       test_case("splice commands evaluate", `Quick, splice_commands_evaluate),
       test_case("editor runs", `Quick, editor_runs),
+      test_case(
+        "eval_splice reads the run",
+        `Quick,
+        eval_splice_reads_the_run,
+      ),
+      test_case("rewrite follows Model", `Quick, rewrite_follows_model),
     ],
   ),
 ];

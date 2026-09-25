@@ -152,15 +152,15 @@ let ^pct = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 50;
-let update(m: Model, a: Action) = a;
-let view(m: Model) =
+let init = Pure(50);
+let update = fun m: Model -> fun a: Action -> Pure(a);
+let view = fun m: Model -> Pure(
 Html.div([], [
 Html.input([Attr.type_("range"), Attr.min("0"), Attr.max("100"),
 Attr.value(string_of_int(m)),
 Attr.on_input(fun s -> int_of_string(s))]),
 Html.text(string_of_int(m))
-]);
+]));
 let expand = Functional(fun m: Model -> m)
 } in
 ^^livelit(^pct(25)) + ^^livelit(^pct(75))
@@ -177,12 +177,35 @@ All three type members are REQUIRED — they are the livelit's interface:
 
 and the four value members:
 
-- `init : Model` — the model a fresh use starts with
-- `update : (Model, Action) -> Model` — no commands, unlike apps
-- `view : Model -> Html.T` — same Html/Attr vocabulary as apps
+- `init : UpdateCmd(Model)` — the model a fresh use starts with, run
+  when the use is created
+- `update : Model -> Action -> UpdateCmd(Model)` — curried
+- `view : Model -> ViewCmd(Html.T)` — same Html/Attr vocabulary as apps
   (see read_docs("mvu")); handlers emit Actions
 - `expand : +Functional(Model -> Expansion) + Macro(...)` — for a Functional
   livelit, `^pct(25)` evaluates to that arm's function applied to 25
+
+init, update and view answer with COMMANDS. `Pure(x)` answers x and does
+nothing else; `do p <- c in body` runs command c, binds its answer to p,
+then runs body. Do not annotate a command's type (UpdateCmd(Model) cannot
+be written); the member's expected type supplies it.
+
+## Splices: the client's code inside the widget
+
+A model may hold `SpliceRef`s, handles to splices: regions of the
+client's own code shown inside the widget. They are made and used only
+through commands:
+
+- `new_splice((IntT, Some(IntLit(0))))` in init or update (UpdateCmd)
+  makes one, answering its ref; `None` starts it empty
+- `set_splice((ref, IntLit(n)))` in update overwrites its code
+- `eval_splice(ref)` in view (ViewCmd) answers `Some(Val(v))` or
+  `Some(Indet)`
+- `editor((ref, FixedWidth(n)))` in view answers Html: an editor for it
+
+A ViewCmd command inside update is a type error. A splice nothing in the
+model refers to any more is dropped. `Exp`'s only constructor so far is
+`IntLit`, so a Macro expand cannot return code yet: use Functional.
 
 ## Rules
 
@@ -211,10 +234,8 @@ and the four value members:
   discriminates: `case ^pct.expand | Functional(f) => f(25) | Macro(_) => ... end`.
 - `Attr.create("data-hint", "drag me")` on a view element shows an instant
   tooltip on hover — advertise non-obvious gestures this way.
-- When the user operates the widget, the argument is rewritten to the
-  transition `^name.update(prev, action)` — this is expected; it
-  evaluates in the program (probes inside update fire) and stays
-  visible as the last interaction.
+- When the user operates the widget, update runs and its answer is
+  written into the argument as the use's new model.
 - Gestures: mouse-down and mouse-move actions preview the next model
   live WITHOUT rewriting the program; the gesture-ending event (mouse
   up, click, ...) commits once. So a drag is smooth and lands as a

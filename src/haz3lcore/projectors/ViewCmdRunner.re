@@ -12,11 +12,23 @@ open MvuShape;
    CmdRunner already makes for MVU's Cmd, except that a ViewCmd RETURNS
    a value and threads it through a continuation, which Cmd never does.
 
-   editor runs. The splice it names is the projector's own, found by id
-   when HazelDOM draws the Html, so the runner needs no store for it.
-   eval_splice and result_view need a splice's VALUE, which the runner
-   has no way to reach yet; reporting that plainly beats rendering
-   something misleading. */
+   editor and eval_splice run. The splice editor names is the
+   projector's own, found by id when HazelDOM draws the Html. The value
+   eval_splice reads rides in the ref itself (see splice_ref_typ). So
+   neither needs a store. result_view is not implemented yet; reporting
+   that plainly beats rendering something misleading. */
+
+/* eval_splice's answer (Sec. 3.2.3): Some(Val(v)) when the code reduced
+   to a value, Some(Indet) when it did not -- a hole, or a variable with
+   no value in this run. None is for no run at all, which a ref carrying
+   its value never is. */
+let result_of = (v: DHExp.t): DHExp.t => {
+  let ctor = (name, arg) =>
+    Exp.ap(Forward, Exp.constructor(name, None), arg);
+  ValueChecker.is_value(v)
+    ? ctor("Some", ctor("Val", v))
+    : ctor("Some", Exp.constructor("Indet", None));
+};
 
 /* Div([Style([... width n ch ...])], [Splice(r)]). Scrolls rather than
    grows, so a long splice cannot push the widget's layout around. */
@@ -94,8 +106,15 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
     | _ => Error("malformed editor: expected arguments and a continuation")
     }
 
-  | Some(("EvalSplice", _)) =>
-    Error("eval_splice is not implemented: there is no splice store yet")
+  | Some(("EvalSplice", body)) =>
+    switch (of_tuple(body)) {
+    | Some([r, k]) =>
+      switch (SpliceStore.splice_ref(r)) {
+      | Some((_, v)) => resume(k, result_of(v))
+      | None => Error("eval_splice: expected a SpliceRef")
+      }
+    | _ => Error("malformed eval_splice: expected a ref and a continuation")
+    }
   | Some(("ResultView", _)) =>
     Error("result_view is not implemented: there is no splice store yet")
 

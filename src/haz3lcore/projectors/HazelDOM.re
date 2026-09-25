@@ -553,8 +553,18 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
        program text. Out-of-range renders as an error rather than nothing,
        so a miscounted index is visible instead of silently blank. */
     | ("Splice", body) =>
-      switch (of_constructor(strip_wrappers(body))) {
-      | Some(("SpliceRef", {term: Atom(String(id)), _})) =>
+      /* SpliceRef((id, value)): only the id matters here. */
+      let ref_id =
+        switch (of_constructor(strip_wrappers(body))) {
+        | Some(("SpliceRef", payload)) =>
+          switch (of_tuple(payload)) {
+          | Some([id, _]) => of_string(id)
+          | _ => None
+          }
+        | _ => None
+        };
+      switch (ref_id) {
+      | Some(id) =>
         switch (mvu.splice_view(id)) {
         | Some(node) =>
           /* Keyed: see the note in CodeEditable's render_splice. The
@@ -568,7 +578,7 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
         | None => of_error(elide_errors, mvu, d)
         }
       | _ => of_error(elide_errors, mvu, d)
-      }
+      };
 
     // === Input element ===
     | ("Input", body) =>

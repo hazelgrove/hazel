@@ -7,11 +7,10 @@
 # language allows. Each piece is tagged "Fig. 3 l.N" with the line of #
 # the figure it corresponds to, so the paper can sit open beside it. #
 
-# Where a line CANNOT be written yet, it is still written -- as a hole #
-# (?) in exactly the place the paper puts its code. A hole stands for #
-# code not written yet and checks against any type, so the definition #
-# still typechecks and each gap sits where it actually is. A result #
-# that needs a hole is indeterminate, not a value (Sec. 2.5.2). #
+# Everything runs except one line, and that line is still written: as #
+# a hole (?) in exactly the place the paper puts its code. A hole #
+# stands for code not written yet and checks against any type, so the #
+# definition still typechecks and the gap sits where it actually is. #
 
 # WHAT IS MISSING #
 
@@ -22,18 +21,14 @@
 # function applied to the client's splices. It never sees them as Exp #
 # -- it must treat them parametrically -- and applying it to them is #
 # what keeps them capture-avoiding (Sec. 2.4.3). The quoted function #
-# cannot be written here. Exp has no inhabitants -- there is no #
-# quotation -- so this expand is a Macro with a hole where the quoted #
-# function goes. A Macro can be written, but it cannot return. #
+# cannot be written here: there is no quotation yet, and Exp's only #
+# constructor is IntLit. So this expand is a Macro with a hole where #
+# the quoted function goes, and a use of ^color means a hole. #
 
-# The same missing Exp shows up twice more: set_splice has no code to #
-# write (l.49-52), and init could not quote its starting values #
-# (l.9-12) even if it ran. Two gaps are not about Exp at all. init is #
-# a plain Model, not an UpdateCmd(Model), so it cannot call new_splice #
-# (l.8-13, Sec. 3.2.1). And there is no splice store yet, so of the #
-# five splice commands only editor runs. The view's first command, #
-# eval_splice, reports "not implemented", and the widget below shows #
-# that error. #
+# The rest runs. init makes the four splices (l.8-13), the view reads #
+# and places them (l.18-44), and a click writes them (l.46-53). The #
+# paper's starting code is the quoted `0`; here it is IntLit(0), an #
+# Exp constructor, which needs no quotation. #
 
 # Fig. 3 l.1 -- the expansion type. The paper spells labeled fields #
 # .r Int; here they are r = Int. #
@@ -60,13 +55,18 @@ let ^color = {
   # Fig. 3 l.15-16 -- the one action: the reader clicked a color. #
   type Action = + ClickOn(Color);
 
-  # Fig. 3 l.8-13 -- init. In the paper this is a COMMAND: #
-  # an UpdateCmd(Model) that makes four splices with new_splice, each #
-  # holding a quoted starting value like `0`, and returns their refs. #
-  # Neither half works here. init is a plain Model, pasted as text when #
-  # you type ^color, with no evaluator to run new_splice at that moment; #
-  # and `0` is quotation. So the four refs are holes. #
-  let init = (r = ?, g = ?, b = ?, a = ?);
+  # Fig. 3 l.8-13 -- init, a COMMAND: an UpdateCmd(Model) that makes #
+  # four splices with new_splice, each an Int starting at zero, and #
+  # answers their refs (Sec. 3.2.1). It runs when a use is created: #
+  # type ^color and a space. The paper's starting code is the quoted #
+  # `0`; here it is IntLit(0), an Exp constructor, which needs no #
+  # quotation. #
+  let init =
+    do r <- new_splice((IntT, Some(IntLit(0)))) in
+    do g <- new_splice((IntT, Some(IntLit(0)))) in
+    do b <- new_splice((IntT, Some(IntLit(0)))) in
+    do a <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure((r = r, g = g, b = b, a = a));
 
   # Fig. 3 l.18-44 -- view, a function that returns a ViewCmd #
   # (Sec. 3.2.3). This part follows the figure closely: the do block #
@@ -138,23 +138,18 @@ let ^color = {
             pick(("clear", (r = 0, g = 0, b = 0, a = 0)))])]));
 
   # Fig. 3 l.46-53 -- update, a function that returns an UpdateCmd #
-  # (Sec. 3.2.4). In the paper a click OVERWRITES the four splices with #
-  # the clicked color: the livelit writes into the client's code, which #
-  # is exactly what set_splice is for. Here the code to write is a hole #
-  # (below), so the clicked color _c goes unused, and set_splice does #
-  # not run yet. The paper's pattern fun model (ClickOn c) is a case #
-  # here, and each bare set_splice statement binds its () answer to _. #
+  # (Sec. 3.2.4). A click OVERWRITES the four splices with the clicked #
+  # color: the livelit writes into the client's code, which is exactly #
+  # what set_splice is for. The paper's pattern fun model (ClickOn c) #
+  # is a case here, and each set_splice binds its () answer to _. #
   let update = fun model : Model -> fun a : Action ->
     case a
-    | ClickOn(_c) =>
-      # Fig. 3 l.49-52 -- the paper writes IntLit(c.r), a number as #
-      # SYNTAX. That is an Exp constructor, not quotation, so it could #
-      # arrive before quotation does -- but today Exp is empty, and the #
-      # code to write is a hole. #
-      do _ <- set_splice((model.r, ?)) in
-      do _ <- set_splice((model.g, ?)) in
-      do _ <- set_splice((model.b, ?)) in
-      do _ <- set_splice((model.a, ?)) in
+    | ClickOn(c) =>
+      # Fig. 3 l.49-52 -- IntLit(c.r) is a number as SYNTAX, an Exp. #
+      do _ <- set_splice((model.r, IntLit(c.r))) in
+      do _ <- set_splice((model.g, IntLit(c.g))) in
+      do _ <- set_splice((model.b, IntLit(c.b))) in
+      do _ <- set_splice((model.a, IntLit(c.a))) in
       # Fig. 3 l.53 -- return model. In the paper the model is the same #
       # four refs, and what changes is the code they point at. #
       Pure(model)
@@ -172,9 +167,7 @@ let ^color = {
   let shape = Block(40, 5)
 } in
 
-# A use. Its model is four holes, because init cannot make the splices; #
-# the widget reports "not implemented" because nothing runs the splice #
-# commands yet. A splice store alone will not bring it to life: the #
-# refs stay holes until init is a command that can call new_splice, #
-# and set_splice and expand still wait on Exp. #
-^^livelit(^color((r = ?, g = ?, b = ?, a = ?)))
+# A use, as saved. Its model is four splices, each in parens where #
+# its ref sits: that is how the program text keeps what new_splice #
+# made. Edit a channel's code, or click a color to overwrite all four. #
+^^livelit(^color((r = (255), g = (140), b = (0), a = (100))))
