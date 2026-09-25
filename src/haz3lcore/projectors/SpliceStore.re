@@ -130,37 +130,39 @@ let write_model =
     | _ => None
     };
   };
+  /* A value's wrappers -- an Asc left by an annotation the value passed
+     through, a Closure, parens -- are looked through at every level: a
+     ref inside one is still a ref, and must be written as its splice. */
   let rec go = (e: TermBase.Exp.t): TermBase.Exp.t => {
     let as_splice = r =>
       Option.bind(splice_ref(r), ((id, _)) => splice_for(id));
-    switch (e.term) {
-    | Ap(_, {term: Constructor("SpliceRef", _), _}, _) =>
-      Option.value(as_splice(e), ~default=e)
-    | Tuple(fs) =>
-      switch (Option.bind(pair_ref(fs), as_splice)) {
-      | Some(s) => s
-      | None => {
-          ...e,
-          term: Tuple(List.map(go, fs)),
+    switch (as_splice(e)) {
+    | Some(s) => s
+    | None =>
+      let e = strip_wrappers(e);
+      switch (e.term) {
+      | Tuple(fs) =>
+        switch (Option.bind(pair_ref(fs), as_splice)) {
+        | Some(s) => s
+        | None => {
+            ...e,
+            term: Tuple(List.map(go, fs)),
+          }
         }
-      }
-    | TupLabel(l, v) => {
-        ...e,
-        term: TupLabel(l, go(v)),
-      }
-    | ListLit(xs) => {
-        ...e,
-        term: ListLit(List.map(go, xs)),
-      }
-    | Parens(inner) => {
-        ...e,
-        term: Parens(go(inner)),
-      }
-    | Ap(dir, {term: Constructor(_), _} as c, arg) => {
-        ...e,
-        term: Ap(dir, c, go(arg)),
-      }
-    | _ => e
+      | TupLabel(l, v) => {
+          ...e,
+          term: TupLabel(l, go(v)),
+        }
+      | ListLit(xs) => {
+          ...e,
+          term: ListLit(List.map(go, xs)),
+        }
+      | Ap(dir, c, arg) when Option.is_some(of_constructor(e)) => {
+          ...e,
+          term: Ap(dir, c, go(arg)),
+        }
+      | _ => e
+      };
     };
   };
   go(model);

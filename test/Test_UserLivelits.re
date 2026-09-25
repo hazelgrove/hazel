@@ -388,6 +388,40 @@ let init_makes_splices = () => {
   };
 };
 
+/* A ref that passed through an annotated helper arrives wrapped (an Asc
+   from the annotation), and must still be written as its splice, not as
+   a literal. Splices, Dynamically (draft) wrote SpliceRef("...", ?) into
+   its text this way. */
+let wrapped_ref_is_written = () => {
+  let def = "{
+type Model = (refs = [SpliceRef]);
+type Action = Int;
+type Expansion = Int;
+let ins : ([SpliceRef], SpliceRef) -> [SpliceRef] = fun (xs, r) -> r :: xs;
+let init = Pure((refs = []));
+let update = fun m -> fun a ->
+  do r <- new_splice(IntT, None) in Pure((refs = ins((m.refs, r))));
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> 0)
+}";
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(
+      run("let ^cells = " ++ def ++ " in ^cells.update((refs = []))(0)"),
+    )
+  ) {
+  | Error(e) => fail("update did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      int,
+      "the new ref is written as a splice",
+      1,
+      List.length(Haz3lcore.SpliceStore.splice_ids(written)),
+    );
+  };
+};
+
 /* Color (Figure 3)'s own init, in the paper's form (l.8-13): four
    new_splices starting at 0, 0, 0 and 100, answered positionally. */
 let color_init = () => {
@@ -1514,6 +1548,7 @@ let tests = [
       test_case("init makes splices", `Quick, init_makes_splices),
       test_case("set_splice rewrites", `Quick, set_splice_rewrites),
       test_case("Color (Figure 3) init", `Quick, color_init),
+      test_case("wrapped ref is written", `Quick, wrapped_ref_is_written),
       test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
       test_case("bind vars counted used", `Quick, bind_vars_counted_used),
       test_case("splice commands evaluate", `Quick, splice_commands_evaluate),
