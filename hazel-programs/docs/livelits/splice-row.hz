@@ -28,7 +28,7 @@
 # spreadsheet. Hover a cell and its buttons appear on its edges: #
 #   +   on its leading edge -- a new empty cell before it #
 #   +   on its trailing edge -- a new empty cell after it #
-#   x   at its corner -- drop it #
+#   x   centered on its top edge (its right edge, in a column) -- drop it #
 # Each + sits on the border where its new cell will land. Hover the #
 # whole sequence and "rotate" appears at both ends, turning it #
 # between a row and a column. One dimension only, for now. #
@@ -190,10 +190,11 @@ let ^cells = {
         ".ll-cell:hover .ll-hov,.ll-seq:hover>.ll-edge{visibility:visible}",
         ".ll-before{left:-0.6em;top:50%;transform:translateY(-50%)}",
         ".ll-after{right:-0.6em;top:50%;transform:translateY(-50%)}",
-        ".ll-del{right:0;top:0}",
+        ".ll-del{left:50%;top:0;transform:translate(-50%,-50%)}",
         ".ll-col .ll-before{left:50%;top:-0.6em;transform:translateX(-50%)}",
-        ".ll-col .ll-after{left:50%;top:auto;bottom:-0.6em;",
+        ".ll-col .ll-after{left:50%;right:auto;top:auto;bottom:-0.6em;",
         "transform:translateX(-50%)}",
+        ".ll-col .ll-del{left:auto;right:0;top:50%;transform:translate(50%,-50%)}",
         ".ll-start{left:0;top:50%;transform:translateY(-50%)}",
         ".ll-end{right:0;top:50%;transform:translateY(-50%)}",
         ".ll-col>.ll-start{left:0;top:0;transform:none}",
