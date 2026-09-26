@@ -224,6 +224,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        any other request is at the wrong type. */
     | (SumNoArg(_) | SumWithArg(_), Quote(_)) => DoesNotMatch
     | (_, Quote(_)) => IndetMatch
+    | (_, Unquote(_)) => IndetMatch
     /* Forms that are not yet or will never be a value */
     | (
         _,

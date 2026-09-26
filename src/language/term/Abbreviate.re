@@ -780,6 +780,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ~make_term=e' => Quote(e'),
           e,
         )
+      | Unquote(e) =>
+        handle_unary(
+          ~cost=12, // "unquote " + " end"
+          ~make_term=e' => Unquote(e'),
+          e,
+        )
       | HintedTest(e, hint) =>
         handle_op_indet(
           ~cost=15, // "hint " + " test " + " end"

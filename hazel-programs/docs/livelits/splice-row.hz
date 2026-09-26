@@ -40,7 +40,7 @@ let ^cells = {
   type Model = (orient = Orient, refs = [SpliceRef]);
   type Action =
     + InsertBefore(Int) + InsertAfter(Int) + Delete(Int) + Rotate;
-  type Expansion = Int;
+  type Expansion = [Int];
 
   # init is a command, an UpdateCmd as in Figure 3 (Sec. 3.2.1), #
   # performed when you type ^cells then a space. Like Figure 3's, it #
@@ -230,18 +230,31 @@ let ^cells = {
         summary
       ]));
 
-  # What a use of ^cells MEANS (Sec. 3.2.5). Functional can only #
-  # compute from the model, so here the use denotes how many cells #
-  # there are. It should not denote what the client WROTE in them. A #
-  # Functional expand is a plain function and cannot eval_splice, #
-  # which lives in ViewCmd alone (Sec. 3.2.3). A ref does carry its #
-  # value today, but reading it there breaks the abstraction that #
-  # Sec. 3.2.5 asks for. Making the use mean the list of the cells' #
-  # values is the Macro arm's job -- (Exp, List(SpliceRef)), an #
-  # expansion parameterized over exactly these refs (Sec. 3.2.5) -- #
-  # and that waits on quotation. Exp has only IntLit today, so a #
-  # Macro expand cannot return real code yet. #
-  let expand = Functional(fun m : Model -> len(m.refs));
+  # What a use of ^cells MEANS (Sec. 3.2.5): the list of its cells' #
+  # values. That is a MACRO expansion, as in Figure 3: a function over #
+  # the splices, applied to them at the use. But here the number of #
+  # splices is not fixed -- it is however many cells the row has -- #
+  # so no one quotation can be that function. expand BUILDS it for the #
+  # n refs it is given, as the paper says a livelit whose splice count #
+  # varies must (Sec. 3.2.5, its dataframe): #
+  #   fun x0 -> fun x1 -> ... -> x0 :: x1 :: ... :: [] #
+  # unquote e end, inside a quotation, splices in the code e computes; #
+  # Ident(n) is the variable named n and Lambda((n, c)) is fun n -> c. #
+  # The binder names are the author's to keep apart: x0, x1, ... #
+  let expand =
+    Macro(fun m : Model ->
+      let n = len(m.refs) in
+      let name = fun i : Int -> "x" ++ string_of_int(i) in
+      # x_i :: ... :: x_(n-1) :: [] #
+      let elems = fun i : Int ->
+        if i == n then quote [] end
+        else quote unquote Ident(name(i)) end :: unquote elems(i + 1) end end
+      in
+      # fun x_i -> ... -> fun x_(n-1) -> x0 :: ... #
+      let funs = fun i : Int ->
+        if i == n then elems(0) else Lambda((name(i), funs(i + 1)))
+      in
+      (funs(0), m.refs));
   # The widget's footprint, in character cells -- a function of the #
   # model, because this widget grows. In a row: about 7 columns a #
   # cell (a six-wide editor and its border), room at the ends for #

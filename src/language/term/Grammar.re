@@ -73,6 +73,11 @@ and exp_term('a) =
      body is never evaluated; a livelit's Macro expand returns it, and the
      livelit mechanism decodes it at each use. */
   | Quote(exp_t('a))
+  /* `unquote e end`, inside a quotation: e is an Exp in the scope the
+     quotation is written in, and its value -- code -- is spliced in where
+     the unquote sits (quasiquotation's antiquote). Elaborated away by
+     statics; the evaluator never sees one. */
+  | Unquote(exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
@@ -278,6 +283,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           Seq(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Test(e) => Test(map_exp_annotation(f, e))
         | Quote(e) => Quote(map_exp_annotation(f, e))
+        | Unquote(e) => Unquote(map_exp_annotation(f, e))
         | HintedTest(e1, h) =>
           HintedTest(map_exp_annotation(f, e1), map_exp_annotation(f, h))
         | Filter(k, e) =>
@@ -757,6 +763,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let quote = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
       term: Quote(e),
+      annotation: default_annotation(ann),
+    };
+    let unquote = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Unquote(e),
       annotation: default_annotation(ann),
     };
     let hinted_test = (~ann=?, e, h): exp_t(DefaultAnnotation.t) => {

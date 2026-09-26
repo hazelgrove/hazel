@@ -1533,7 +1533,117 @@ let livelit: Typ.t = {
    IntLit(c.r))). A literal needs no quotation, so it comes first; the
    rest of Exp, and the quasiquotation that builds it (Sec. 3.2.1), come
    later. */
-let exp_typ: Typ.t = sum_type([("IntLit", Some(int()))]);
+let exp_typ: Typ.t =
+  rec_(
+    Fresh.TPat.var("Exp"),
+    sum_type([
+      ("IntLit", Some(int())),
+      /* Code built from author-supplied names, for what a fixed quotation
+         cannot write: a function over as many splices as a model has
+         (Sec. 3.2.5's dataframe). Ident("x") is the variable x;
+         Lambda(("x", e)) is fun x -> e. Hygiene is the author's: a name
+         chosen twice is captured like any shadowing binder. */
+      ("Ident", Some(string())),
+      ("Lambda", Some(prod([string(), var("Exp")]))),
+    ]),
+  );
+
+/* The code an Exp value denotes: a quotation's body, or the expression a
+   constructor spells. None for anything else. The one decoder, used by
+   the livelit mechanism (a Macro use) and by %fill_quote (antiquotes). */
+let rec code_of_exp_value = (d: DHExp.t): option(Exp.t) => {
+  let rec strip = (d: DHExp.t): DHExp.t =>
+    switch (d.term) {
+    | Asc(inner, _)
+    | Parens(inner)
+    | Closure(_, inner) => strip(inner)
+    | _ => d
+    };
+  let d = strip(d);
+  switch (d.term) {
+  | Quote(body) => Some(body)
+  | Ap(Forward, fn, arg) =>
+    switch (strip(fn).term, strip(arg).term) {
+    | (Constructor("IntLit", _), Atom(Int(_)) as n) => Some(n |> Exp.fresh)
+    | (Constructor("Ident", _), Atom(String(x))) =>
+      Some(Var(x) |> Exp.fresh)
+    | (Constructor("Lambda", _), Tuple([x, body])) =>
+      switch (strip(x).term, code_of_exp_value(body)) {
+      | (Atom(String(x)), Some(body)) =>
+        Some(
+          Fun((Var(x): Pat.term) |> Pat.fresh, body, None, None) |> Exp.fresh,
+        )
+      | _ => None
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/* The placeholder an antiquote leaves in its quotation's body, the i-th
+   in document order. `%` is not lexable, so no program can write one. */
+let unquote_placeholder = (i: int): string =>
+  "%unquote_" ++ string_of_int(i);
+
+/* %fill_quote((quote <body with placeholders> end, [e_0, ..., e_n])): the
+   quotation with each placeholder replaced by the code its Exp denotes.
+   What a quotation containing antiquotes elaborates to (Statics). */
+let fill_quote_name = "%fill_quote";
+
+let fill_quote: BuiltinsUtil.fn = {
+  let rec strip = (d: DHExp.t): DHExp.t =>
+    switch (d.term) {
+    | Asc(inner, _)
+    | Parens(inner) => strip(inner)
+    | _ => d
+    };
+  {
+    name: fill_quote_name,
+    arg:
+      Prod([
+        Unknown(Internal) |> Typ.temp,
+        List(unknown(Internal)) |> Typ.temp,
+      ]),
+    ret: Unknown(Internal),
+    imp: d =>
+      switch (strip(d).term) {
+      | Tuple([q, fills]) =>
+        switch (strip(q).term, strip(fills).term) {
+        | (Quote(body), ListLit(fills)) =>
+          let codes = List.map(code_of_exp_value, fills);
+          if (List.exists(Stdlib.Option.is_none, codes)) {
+            None;
+          } else {
+            let codes = List.map(Stdlib.Option.get, codes);
+            let body =
+              Exp.map_term(
+                ~f_exp=
+                  (continue, e) =>
+                    switch (e.term) {
+                    | Var(x) =>
+                      switch (
+                        List.find_opt(
+                          ((i, _)) => unquote_placeholder(i) == x,
+                          List.mapi((i, c) => (i, c), codes),
+                        )
+                      ) {
+                      | Some((_, code)) => code
+                      | None => e
+                      }
+                    | _ => continue(e)
+                    },
+                body,
+              );
+            Some(Quote(body) |> Exp.fresh);
+          };
+        | _ => None
+        }
+      | _ => None
+      },
+    custom_statics: None,
+  };
+};
 
 /* A SpliceRef is a handle to a hole holding the client's own code. It
    carries the splice's id, which is what the projector resolves when a

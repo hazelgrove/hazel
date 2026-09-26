@@ -912,6 +912,11 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* Elaborated away inside a quotation (Statics); outside one it is an
+       error, and stuck. */
+    | Unquote(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | Atom(_)
     | LivelitName(_)
     | Label(_)

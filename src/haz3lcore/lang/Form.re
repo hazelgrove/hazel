@@ -387,6 +387,7 @@ type compound_form =
   | Case
   | Test
   | Quote
+  | Unquote
   | ProofOf
   | ProofObject
   | HintedTest
@@ -504,6 +505,7 @@ let get: compound_form => t =
   | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
   | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
   | Quote => mk_op_c(L, ["quote", "end"], Exp, [Exp])
+  | Unquote => mk_op_c(L, ["unquote", "end"], Exp, [Exp])
   | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
   | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])

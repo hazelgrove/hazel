@@ -30,6 +30,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         /* A quotation's body is closed (checked in the builtin context):
            there is nothing to substitute, and its code stays as written. */
         | Quote(_) => e
+        | Unquote(_) => cont(e)
         // Variables: lookup if bound
         | Var(x) =>
           switch (Environment.lookup(env, x)) {

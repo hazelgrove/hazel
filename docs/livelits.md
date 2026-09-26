@@ -21,18 +21,20 @@ program text. What the use means is the livelit's **expansion**.
 | Splices: `new_splice`, `set_splice`, `eval_splice`, `editor` | done; `result_view` not yet |
 | `SpliceRef` not type-indexed | done |
 | A livelit's footprint may depend on its model (`shape`) | done |
-| `Exp` inhabited by quoted Hazel code | **started**: `quote e end` is a term with its statics; a use cannot apply one yet. See [Quotation](#quotation-the-plan) |
+| `Exp` inhabited by quoted Hazel code | **done**: `quote e end`, `unquote e end`, `Ident` and `Lambda`; a Macro use is its expansion applied to its splices. See [Quotation](#quotation-the-plan) |
 
 Working examples, shipped as the Documentation → Livelits slides
 (`hazel-programs/docs/livelits/`):
 
 - **Color (Figure 3)**: the paper's `$color`, keyed to Fig. 3 line by line.
-  Its four splices name variables that sliders set. Everything runs except
-  its Macro `expand` (Fig. 3 l.56), which needs quotation.
+  Its four splices name variables that sliders set, and its Macro `expand` is
+  Fig. 3 l.56: a use means the quoted function applied to its four splices.
 - **Dynamic Row or Column**: a row or column of cells that grows and shrinks.
   `init` makes three cells with `new_splice`, **+** and **x** add and drop
   cells, and the view sums them with `eval_splice`: the number of splices is
-  not fixed by the livelit.
+  not fixed by the livelit. So its Macro `expand` *builds* its expansion, a
+  function of as many parameters as there are cells, and a use means the
+  list of the cells' values.
 
 ## Defining a livelit
 
@@ -68,8 +70,8 @@ type Livelit = {
   livelit today is Functional. This arm is ours; the paper's `expand` is the
   Macro arm alone.
 - **`Macro(g)`**: `g(model)` returns code and the splices that code takes,
-  as in Fig. 3. Until quotation exists, a use of a Macro livelit elaborates to
-  a hole ascribed to `Expansion`.
+  as in Fig. 3, and a use means that code applied to them. See
+  [Quotation](#quotation-the-plan).
 
 ## Commands
 
@@ -210,9 +212,17 @@ Hazel program needs an `eval : Exp -> a`.
   `set_splice(model.r, IntLit(c.r))`, puts a number *computed by update* into
   the client's code. `quote c.r end` would quote the expression `c.r` itself, not its
   value. So lifting functions stay (`IntLit : Int -> Exp`, and siblings for
-  other base types), and antiquotation, splicing an `Exp` value into a
-  quotation, is the later generalization. Color needs neither in `expand`: its
+  other base types). Color needs no more than a quotation in `expand`: its
   quoted function is closed.
+- **Building code: antiquotation, and names.** `unquote e end`, inside a
+  quotation, is an antiquote: `e` is an `Exp` computed where the quotation is
+  written, and its code is spliced in. `Ident(n)` is the variable named `n`
+  and `Lambda((n, c))` is `fun n -> c`. Together they let `expand` build what
+  no fixed quotation can: the row's
+  `fun x0 -> fun x1 -> ... -> x0 :: x1 :: ... :: []`, for however many cells
+  it has, which is how the paper says a livelit with a varying number of
+  splices works (Sec. 3.2.5, its dataframe). Binder names are the author's
+  to keep apart: this is quasiquotation without hygiene.
 
 ### The `quote e end` syntax
 
@@ -255,9 +265,18 @@ printing, so text containing one loads on FastParse's linear path.
   substitution. It passes a cast to `Exp`. A constructor pattern does not
   match it, so `case q | IntLit(n) => ... | _ => ...` takes the last arm;
   `==` on two quotations is indeterminate.
-- **Not yet**: a use of a Macro livelit still elaborates to a hole. Running
-  `expand(model)`, decoding its quotation and applying it to the splices is
-  the next step, as planned above.
+- **Antiquotes.** A quotation containing them elaborates to
+  `%fill_quote((quote <body with placeholders> end, [e_0, ...]))`, which
+  fills each placeholder with the code its `Exp` denotes when the quotation
+  is evaluated; the evaluator never sees an `unquote`. Each antiquote's `e` is
+  analyzed in the quotation's lexical scope, against `Exp`, so its variables
+  are uses there; the body stays in the builtin context. An `unquote` outside
+  every quotation is an error (`BadOperator` for now).
+- **A Macro use**: `expand(model)` is run while the use is checked, with each
+  ref's code blanked; its answer is decoded (`BuiltinsADT.code_of_exp_value`:
+  a quotation's body, or code spelled with `Lambda`, `Ident`, `IntLit`),
+  checked against the splices' types and `Expansion`, and applied to the
+  splices' values, read out of the model once bound (`%splice_value`).
 
 `test/Test_Quote.re` covers each of these.
 

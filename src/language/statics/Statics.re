@@ -11,6 +11,12 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* How many quotation bodies the analysis is inside. An antiquote in one is
+   code of a type known only once spliced, and its expression has already
+   been analyzed by the enclosing Quote case, in the quotation's lexical
+   scope; outside every quotation an antiquote is an error. */
+let quote_depth = ref(0);
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -1700,19 +1706,104 @@ and uexp_to_info_map =
        co_ctx -- an outer variable named inside refers to nothing, so it is
        not a use -- and no probe targets, since quoted code never runs. */
     | Quote(body) =>
-      let (_, _, m) =
-        go(
-          ~ctx=Builtins.ctx_init(ctx.use_mode),
-          ~ana=Unknown(Internal) |> Typ.temp,
+      /* Antiquotes, `unquote e end`, in document order -- not inside a
+         nested quotation, whose antiquotes are its own -- each replaced
+         by a numbered placeholder in a copy of the body. */
+      let unquotes = ref([]);
+      let placeholder_body =
+        Exp.map_term(
+          ~f_exp=
+            (continue, e) =>
+              switch (e.term) {
+              | Quote(_) => e
+              | Unquote(inner) =>
+                let i = List.length(unquotes^);
+                unquotes := unquotes^ @ [inner];
+                (Var(BuiltinsADT.unquote_placeholder(i)): Exp.term)
+                |> Exp.fresh;
+              | _ => continue(e)
+              },
           body,
-          m,
         );
+      /* Each antiquote's expression runs where the quotation is written,
+         so it is analyzed HERE, in the lexical scope, as an Exp; its
+         variables are uses of that scope. */
+      let (unquote_infos, unquote_elabs, m) =
+        List.fold_left(
+          ((infos, elabs, m), e) => {
+            let (info, elab, m) = go(~ana=Var("Exp") |> Typ.temp, e, m);
+            (infos @ [info], elabs @ [elab], m);
+          },
+          ([], [], m),
+          unquotes^,
+        );
+      incr(quote_depth);
+      let (_, _, m) =
+        switch (
+          go(
+            ~ctx=Builtins.ctx_init(ctx.use_mode),
+            ~ana=Unknown(Internal) |> Typ.temp,
+            body,
+            m,
+          )
+        ) {
+        | result =>
+          decr(quote_depth);
+          result;
+        | exception e =>
+          decr(quote_depth);
+          raise(e);
+        };
+      /* With antiquotes, the quotation is built when it is evaluated:
+         %fill_quote puts each antiquote's code where its placeholder is. */
+      let elab_term =
+        unquote_elabs == []
+          ? Quote(body) |> rewrap
+          : Ap(
+              Forward,
+              (BuiltinFun(BuiltinsADT.fill_quote_name): Exp.term) |> Exp.fresh,
+              (
+                Tuple([
+                  (Quote(placeholder_body): Exp.term) |> Exp.fresh,
+                  (ListLit(unquote_elabs): Exp.term) |> Exp.fresh,
+                ]): Exp.term
+              )
+              |> Exp.fresh,
+            )
+            |> rewrap;
       add(
-        ~elab_term=Quote(body) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=Var("Exp") |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=
+          CoCtx.union(List.map((i: Info.exp) => i.co_ctx, unquote_infos)),
+        ~probe_targets=
+          SubexpProbeTargets.union_all(
+            List.map((i: Info.exp) => i.probe_targets, unquote_infos),
+          ),
+        m,
+      );
+    /* `unquote e end`. Inside a quotation's body its expression was
+       analyzed by the Quote case above, in the quotation's scope, and it
+       is code of a type known only once spliced. Outside every quotation
+       it is an error. */
+    | Unquote(e) when quote_depth^ > 0 =>
+      add(
+        ~elab_term=Unquote(e) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         ~probe_targets=SubexpProbeTargets.empty,
+        m,
+      )
+    | Unquote(e) =>
+      let (e, e_elab, m) = go(~ana=Var("Exp") |> Typ.temp, e, m);
+      add(
+        ~elab_term=Unquote(e_elab) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[BadOperator("unquote outside a quotation")],
+        ~co_ctx=e.co_ctx,
+        ~probe_targets=e.probe_targets,
         m,
       );
     | Test(e) =>

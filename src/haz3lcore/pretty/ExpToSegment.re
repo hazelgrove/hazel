@@ -139,6 +139,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | ListLit(_)
   | Test(_)
   | Quote(_)
+  | Unquote(_)
   | HintedTest(_)
   | ProofObject(_)
   | Match(_) => Precedence.max
@@ -546,6 +547,8 @@ let rec parenthesize =
   | Asc(e, _) => parenthesize(e) // skip ascription if not showing
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Quote(e) => Quote(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Unquote(e) =>
+    Unquote(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | HintedTest(e, hint) =>
     HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
   | Parens(e) =>
@@ -2215,6 +2218,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Quote, id, [e])]);
+  | Unquote(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ e = go(e);
+    wrap(exp, [mk_form(Unquote, id, [e])]);
   | HintedTest(e, hint) =>
     let id = exp |> Exp.rep_id;
     let* hint = go(hint)

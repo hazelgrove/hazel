@@ -121,6 +121,7 @@ rule token =
     | "let" { LET }
     | "do" { DO }
     | "quote" { QUOTE }
+    | "unquote" { UNQUOTE }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }

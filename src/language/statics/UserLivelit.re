@@ -647,11 +647,9 @@ let run_macro_expand =
     eval(IdTagged.FreshGrammar.Exp.ap(Forward, g, blank_refs(model)));
   switch (strip_value(answer).term) {
   | Tuple([code, refs]) =>
-    let* body =
-      switch (strip_value(code).term) {
-      | Quote(body) => Some(body)
-      | _ => None
-      };
+    /* A quotation (its antiquotes already filled when it was evaluated),
+       or code spelled with Exp's constructors: Lambda, Ident, IntLit. */
+    let* body = BuiltinsADT.code_of_exp_value(code);
     let* refs =
       switch (strip_value(refs).term) {
       | ListLit(items) => Util.OptUtil.sequence(List.map(ref_id, items))

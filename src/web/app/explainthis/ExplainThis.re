@@ -841,6 +841,10 @@ let decide =
         Markdown(
           "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
         )
+      | Unquote(_) =>
+        Markdown(
+          "An antiquotation, inside a quotation: its body is an `Exp` computed where the quotation is written, and that code is spliced in here. Outside a quotation it is an error.",
+        )
       | Quote(_) =>
         Markdown(
           "A quotation is code as a value, of type `Exp`. The body is not evaluated. A livelit's `Macro` expand returns a quotation, which is applied to the livelit's splices at each use. The body is checked in the builtin context only, so it cannot name a variable bound in your program: an expansion must be closed.",

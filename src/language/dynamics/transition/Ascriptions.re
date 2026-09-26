@@ -413,6 +413,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TypFun(_), _)
     | (Test(_), _)
     | (Quote(_), _)
+    | (Unquote(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
     | (ProofObject(_), _)

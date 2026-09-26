@@ -227,21 +227,21 @@ let bad_expansion = (m: Statics.Map.t): bool =>
   );
 
 /* The Color slide, loaded as the editor loads it, statics and all. */
-let color_slide = () => {
+let slide = (file: string) => {
   let path =
     List.find_opt(
       Sys.file_exists,
       [
-        "hazel-programs/docs/livelits/color-fig3.hz",
-        "../../../hazel-programs/docs/livelits/color-fig3.hz",
+        "hazel-programs/docs/livelits/" ++ file,
+        "../../../hazel-programs/docs/livelits/" ++ file,
       ],
     )
-    |> Option.value(~default="hazel-programs/docs/livelits/color-fig3.hz");
+    |> Option.value(~default="hazel-programs/docs/livelits/" ++ file);
   let ic = open_in_bin(path);
   let text = really_input_string(ic, in_channel_length(ic));
   close_in(ic);
-  switch (PersistentZipper.parse_text(~source="color-fig3", ~root=Exp, text)) {
-  | None => fail("color-fig3.hz did not parse")
+  switch (PersistentZipper.parse_text(~source=file, ~root=Exp, text)) {
+  | None => fail(file ++ " did not parse")
   | Some(z) =>
     let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
@@ -255,7 +255,7 @@ let macro_tests = (
       "Color (Figure 3): a use means its color",
       `Quick,
       () => {
-        let (m, elab) = color_slide();
+        let (m, elab) = slide("color-fig3.hz");
         check(bool, "no BadLivelitExpansion", false, bad_expansion(m));
         let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
         check(
@@ -361,6 +361,65 @@ let macro_tests = (
           ),
         ),
       )
+    ),
+  ],
+);
+
+/* ==================== Antiquotation ==================== */
+
+let unquote_tests = (
+  "Quote.Unquote",
+  [
+    test_case("an antiquote splices code, it does not compute", `Quick, () =>
+      switch (run("quote 1 + unquote IntLit(2) end end").term) {
+      | Quote({term: BinOp(_, _, {term: Atom(Int(two)), _}), _})
+          when Bigint.to_string(two) == "2" =>
+        ()
+      | _ => fail("expected the code 1 + 2")
+      }
+    ),
+    test_case(
+      "its expression runs in the quotation's scope",
+      `Quick,
+      () => {
+        let (m, _) =
+          statics("let k = 5 in quote 1 + unquote IntLit(k) end end");
+        check(list(string), "k is not free", [], free_marks(m));
+        switch (run("let k = 5 in quote 1 + unquote IntLit(k) end end").term) {
+        | Quote({term: BinOp(_, _, {term: Atom(Int(five)), _}), _})
+            when Bigint.to_string(five) == "5" =>
+          ()
+        | _ => fail("expected the code 1 + 5")
+        };
+      },
+    ),
+    test_case("outside a quotation it is an error", `Quick, () =>
+      check(
+        bool,
+        "marked",
+        true,
+        Test_UserLivelits.has_mark(
+          fun
+          | BadOperator(_) => true
+          | _ => false,
+          fst(statics("unquote IntLit(1) end")),
+        ),
+      )
+    ),
+    test_case(
+      "Dynamic Row or Column: a use means its cells' values",
+      `Quick,
+      () => {
+        let (m, elab) = slide("splice-row.hz");
+        check(bool, "no BadLivelitExpansion", false, bad_expansion(m));
+        let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+        check(
+          Test_Evaluator_Prelude.dhexp_typ,
+          "the three cells init made",
+          run("[1, 2, 3]"),
+          v,
+        );
+      },
     ),
   ],
 );

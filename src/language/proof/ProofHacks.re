@@ -472,6 +472,7 @@ let rec replace_exp =
         | Seq(_, _)
         | Test(_)
         | Quote(_)
+        | Unquote(_)
         | HintedTest(_, _)
         | Filter(_)
         | Closure(_)

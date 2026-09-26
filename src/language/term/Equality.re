@@ -407,6 +407,8 @@ let equality =
       | (Test(_), _) => false
       | (Quote(e1), Quote(e2)) => exp'(e1, e2)
       | (Quote(_), _) => false
+      | (Unquote(e1), Unquote(e2)) => exp'(e1, e2)
+      | (Unquote(_), _) => false
       | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
         exp'(e1, e3) && exp'(e2, e4)
       | (HintedTest(_, _), _) => false
