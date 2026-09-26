@@ -41,18 +41,22 @@ type GrowthStyle = + Percent(Int) + Constant(Int) in
 let ^tree = {
   # seed drives the choice of where the tree grows (RANDOMNESS). It #
   # is in the model, so it is in the text: a tree regrows the same way #
-  # from the same seed. #
-  type Model = (tree=Tree, season=Season, growth=SpliceRef, seed=Int);
+  # from the same seed. scale is the picture's size, a percent. #
+  type Model =
+    (tree=Tree, season=Season, growth=SpliceRef, seed=Int, scale=Int);
 
   # The three sub-languages of this widget, in one Action type: what #
   # its handlers emit and update consumes (Sec. 3.2.2). #
   #   season:  Next, Prev, SkipTo -- three ways to set the season #
   #   growth:  Feed(style) grows the tree the way style says #
   #   pruning: Trim(path) cuts at a branch and leaves a Scar #
+  #   zoom:    Zoom(-1), Zoom(0) and Zoom(1) shrink, reset and grow #
+  #            the picture #
   # Feed carries the growth style because update cannot read a #
   # splice (Sec. 3.2.4): the view reads it, and passes it on here. #
   type Action =
-    + Next + Prev + SkipTo(Season) + Feed(GrowthStyle) + Trim([Step]);
+    + Next + Prev + SkipTo(Season) + Feed(GrowthStyle) + Trim([Step])
+    + Zoom(Int);
 
   type Expansion = Census;
 
@@ -67,7 +71,8 @@ let ^tree = {
       tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
       season=Spring,
       growth=g,
-      seed=1
+      seed=1,
+      scale=100
     ));
 
   # SEASONS #
@@ -212,23 +217,43 @@ let ^tree = {
 
   # update returns a command, an UpdateCmd (Sec. 3.2.4). It writes no #
   # splice, so it only answers the next model: Pure. #
+  # How many forks deep the tree goes. #
+  let depth = fun t : Tree ->
+    case t
+    | Branch(_, l, r) =>
+      let a = depth(l) in
+      let b = depth(r) in
+      1 + (if a > b then a else b)
+    | _ => 0
+    end;
+
+  # The picture's frame, in drawing units: 260 wide, and tall enough #
+  # for the tree, 20 a fork plus room for the trunk and the canopy. #
+  let frame_h = fun t : Tree -> 40 + 20 * depth(t);
+
+  # Zoom: - and + step the size by a quarter, from half to three #
+  # times. 0 is the standard size for this tree: the scale that makes #
+  # the whole tree 122 pixels tall, so a small tree is shown larger #
+  # and a big one smaller. #
+  let clamp_scale = fun s : Int -> if s < 50 then 50 else if s > 300 then 300 else s;
+  let fit_scale = fun t : Tree -> clamp_scale(100 * 170 / frame_h(t));
+  let zoom = fun (t, scale, z) : (Tree, Int, Int) ->
+    if z == 0 then fit_scale(t) else clamp_scale(scale + 25 * z);
+
   let update = fun m : Model -> fun a : Action -> Pure(
+    let rebuild = fun (tree, season, seed, scale) ->
+      (tree=tree, season=season, growth=m.growth, seed=seed, scale=scale) in
     case a
-    | Next =>
-      (tree=age(m.tree), season=next_of(m.season), growth=m.growth, seed=m.seed)
-    | Prev =>
-      (tree=age(m.tree), season=prev_of(m.season), growth=m.growth, seed=m.seed)
-    | SkipTo(s) =>
-      (tree=age(m.tree), season=s, growth=m.growth, seed=m.seed)
+    | Next => rebuild((age(m.tree), next_of(m.season), m.seed, m.scale))
+    | Prev => rebuild((age(m.tree), prev_of(m.season), m.seed, m.scale))
+    | SkipTo(s) => rebuild((age(m.tree), s, m.seed, m.scale))
     | Feed(style) =>
       let (t, seed) = feed((m.tree, style, heal_time(m.season), m.seed)) in
-      (tree=t, season=m.season, growth=m.growth, seed=seed)
-    | Trim(path) => (
-        tree=cut((m.tree, path, heal_time(m.season))),
-        season=m.season,
-        growth=m.growth,
-        seed=m.seed
-      )
+      rebuild((t, m.season, seed, m.scale))
+    | Trim(path) =>
+      rebuild((cut((m.tree, path, heal_time(m.season))), m.season, m.seed,
+               m.scale))
+    | Zoom(z) => rebuild((m.tree, m.season, m.seed, zoom((m.tree, m.scale, z))))
     end);
 
   # THE CENSUS #
@@ -347,6 +372,20 @@ let ^tree = {
       [Html.text(case s | Spring => "spr" | Summer => "sum"
                         | Fall => "fall" | Winter => "win" end)]);
 
+  # The picture's size on the page: 186 pixels wide at 100%, and as #
+  # tall as its frame is, in proportion. #
+  let width_px = fun m : Model -> 186 * m.scale / 100;
+  let height_px = fun m : Model -> width_px(m) * frame_h(m.tree) / 260;
+
+  # Zoom out, to the standard size for this tree, and in. #
+  let zoom_button = fun (label, z) : (String, Int) ->
+    Html.button([Attr.on_click(Zoom(z)),
+                 Attr.create("title",
+                   if z < 0 then "smaller" else if z > 0 then "bigger"
+                   else "standard size for this tree"),
+                 Attr.style([("font-size", "0.9em"), ("min-width", "1.6em")])],
+                [Html.text(label)]);
+
   # How the growth style reads on the feed button. #
   let style_text = fun g : GrowthStyle ->
     case g
@@ -382,11 +421,16 @@ let ^tree = {
       [Html.div([Attr.style([("display", "flex"), ("gap", "0.4em"),
                              ("align-items", "center"),
                              ("font-size", "0.7em")])],
-         [Html.text("growth style"), growth_editor]),
+         [Html.text("growth style"), growth_editor,
+          Html.div([Attr.style([("margin-left", "auto"), ("display", "flex"),
+                                ("gap", "0.1em")])],
+            [zoom_button(("-", -1)), zoom_button(("0", 0)),
+             zoom_button(("+", 1))])]),
        Html.node("svg",
-         [Attr.create("viewBox", "0 0 260 170"),
-          Attr.width("186"), Attr.height("122")],
-         draw((m.tree, 130, 150, 34, 20, m.season, [], 0))),
+         [Attr.create("viewBox", "0 0 260 " ++ str(frame_h(m.tree))),
+          Attr.width(str(width_px(m))),
+          Attr.height(str(height_px(m)))],
+         draw((m.tree, 130, frame_h(m.tree) - 20, 34, 20, m.season, [], 0))),
        Html.div([Attr.style([("display", "flex"), ("gap", "0.2em")])],
          [Html.button([Attr.on_click(Prev),
                        Attr.style([("font-size", "0.7em")])],
@@ -407,7 +451,14 @@ let ^tree = {
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season));
 
-  let shape = Block(20, 8)
+  # The footprint follows the picture, so it follows the tree: its #
+  # width in cells, at least the 20 the buttons need, and two lines of #
+  # controls plus the picture's height, about 20 pixels a line. The #
+  # picture is as tall as the tree is deep, so a tree that grows a #
+  # level grows its widget too, at any zoom. #
+  let shape = fun m : Model ->
+    let w = width_px(m) / 9 + 1 in
+    Block(if w < 20 then 20 else w, 3 + height_px(m) / 20)
 } in
 
 # GROWTH STYLE #
@@ -441,45 +492,62 @@ let ^range = {
   let shape = Inline(22)
 } in
 
-# One of two, by a switch. It has a label, a button that flips which #
-# case is on, and a splice for each case; a use means the case that #
-# is on. A Macro (Sec. 3.2.5): its code is a function of both #
-# splices, fun t -> fun _ -> t (or the other), applied to them at #
-# the use. #
-# Its Expansion is ?, the unknown type, so it is not tied to any one #
-# type: a livelit declares one expansion type, and cannot take a #
-# type parameter, so ? is how it says "whatever the cases are". #
+# One of two, by a pair of buttons: a label and a splice for each #
+# case, and a use means the case whose button is pressed. A Macro #
+# (Sec. 3.2.5): its code is a function of both splices, applied to #
+# them at the use. Its Expansion is ?, the unknown type, so it is not #
+# tied to any one type: a livelit declares one expansion type, and #
+# this one is whatever its cases are (Either, Two Versions has the #
+# type-parameter alternative). #
 let ^either = {
-  type Model = (label=String, on=Bool, t=SpliceRef, f=SpliceRef);
+  # Two cases, each with a label and a splice; on_a says which is on. #
+  # A Bool is the implementation, but not the interface: the widget #
+  # shows both labels as buttons, and exactly one is pressed. #
+  type Model = (a_label=String, b_label=String, on_a=Bool,
+                a=SpliceRef, b=SpliceRef);
   type Action = Bool;
   type Expansion = ?;
   let init =
-    do t <- new_splice((IntT, None)) in
-    do f <- new_splice((IntT, None)) in
-    Pure((label="either", on=true, t=t, f=f));
-  let update = fun m : Model -> fun on : Action ->
-    Pure((label=m.label, on=on, t=m.t, f=m.f));
+    do a <- new_splice((IntT, None)) in
+    do b <- new_splice((IntT, None)) in
+    Pure((a_label="a", b_label="b", on_a=true, a=a, b=b));
+  let update = fun m : Model -> fun on_a : Action ->
+    Pure((a_label=m.a_label, b_label=m.b_label, on_a=on_a, a=m.a, b=m.b));
+  # A pair of radio buttons, like an old car radio's: the pressed one #
+  # is drawn inverted, and pressing it again changes nothing. #
+  let button = fun (label, pressed, choose) : (String, Bool, Bool) ->
+    Html.button(
+      [Attr.on_click(choose),
+       Attr.style([("font-family", "var(--code-font)"),
+                   ("font-size", "0.9em"),
+                   ("font-weight", if pressed then "bold" else "normal"),
+                   ("background", if pressed then "#3e2723" else "#f3efe6"),
+                   ("color", if pressed then "#fdfcf7" else "#3e2723"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px")])],
+      [Html.text(label)]);
   let view = fun m : Model ->
-    do t <- editor((m.t, FixedWidth(12))) in
-    do f <- editor((m.f, FixedWidth(12))) in
-    let dim = fun live ->
-      Attr.style([("opacity", if live then "1" else "0.45")]) in
+    do a <- editor((m.a, FixedWidth(10))) in
+    do b <- editor((m.b, FixedWidth(10))) in
+    let case_ = fun (label, pressed, choose, ed) ->
+      Html.div([Attr.style([("display", "flex"), ("gap", "0.3em"),
+                            ("align-items", "center"),
+                            ("opacity", if pressed then "1" else "0.55")])],
+               [button((label, pressed, choose)), ed]) in
     Pure(
       Html.div(
-        [Attr.style([("display", "flex"), ("gap", "0.4em"),
+        [Attr.style([("display", "flex"), ("gap", "0.8em"),
                      ("align-items", "center"),
-                     ("font-family", "var(--code-font)"),
                      ("font-size", "0.8em")])],
-        [Html.text(m.label),
-         Html.button([Attr.on_click(if m.on then false else true)],
-                     [Html.text(if m.on then "yes" else "no")]),
-         Html.node("span", [dim(m.on)], [t]),
-         Html.node("span", [dim(if m.on then false else true)], [f])]));
+        [case_((m.a_label, m.on_a, true, a)),
+         case_((m.b_label, if m.on_a then false else true, false, b))]));
+  # A Macro (Sec. 3.2.5): code for a function of both splices, applied #
+  # to them at the use. The binder of the case not taken is _. #
   let expand = Macro(fun m : Model ->
-    (if m.on then quote fun t -> fun _ -> t end
-     else quote fun _ -> fun f -> f end,
-     [m.t, m.f]));
-  let shape = Inline(40)
+    (if m.on_a then quote fun a -> fun _ -> a end
+     else quote fun _ -> fun b -> b end,
+     [m.a, m.b]));
+  let shape = Inline(44)
 } in
 
 # Two growth styles, each with its slider: style a grows by a #
@@ -489,12 +557,12 @@ let style_a = Percent(a_pct) in
 let b_leaves = ^^livelit(^range((lo=0, hi=13, value=4))) in
 let style_b = Constant(b_leaves) in
 
-# The switch between them. Each case is client code naming a style, #
+# The choice between them. Each case is client code naming a style, #
 # as Color's splices name its sliders' variables; style means the #
 # one that is on. #
 let style =
-  ^^livelit(^either((label="style a?", on=true,
-                     t=(style_a), f=(style_b)))) in
+  ^^livelit(^either((a_label="style a", b_label="style b", on_a=true,
+                     a=(style_a), b=(style_b)))) in
 
 # The use below carries its whole tree in its argument. Grow it and #
 # the argument grows with it; trim a branch and a Scar appears in the #
@@ -507,7 +575,8 @@ let ^^probe(census) = ^^livelit(^tree((
   tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
   season=Spring,
   growth=(style),
-  seed=1
+  seed=1,
+  scale=100
 ))) in
 
 (census.leaves, census.branches, census.scars)
