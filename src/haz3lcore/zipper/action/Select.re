@@ -553,6 +553,17 @@ let current_term =
   | Tile({form: Form.Compound(Let | TypeAlias | ModuleExp), _})
       when defs_exclude_bodies =>
     current_tile(z)
+  /* Mod-sort analog (plans/mod-root.md): the `;` separator's enclosing
+     term is the WHOLE module body — selecting that walked shard_range
+     across the entire program (~2.7s at 1k lines). The `in`-less def
+     tiles need no guard: their term is item-local (Cmd+D escalation
+     value → def → module is gated in Test_Editing module_tests). */
+  | Tile(t)
+      when
+        defs_exclude_bodies
+        && Tile.label(t) == [";"]
+        && Tile.mold(t).out == Sort.Mod =>
+    current_tile(z)
   | Tile({form: Form.Compound(Rule), _}) when case_rules =>
     containing_rule(z)
   | _ =>

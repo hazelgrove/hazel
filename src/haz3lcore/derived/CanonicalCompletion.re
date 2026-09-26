@@ -2643,7 +2643,191 @@ let for_editor = (seg: Segment.t): completion_result => {
   };
 };
 
+/* Whole-segment reading, kept for the parity gate (Test_CompletionItems) */
+let for_editor_whole = for_editor;
+
+/* === Per-item completion ===
+ * A whole-program editor's segment is a sequence of top-level items
+ * (Segment.top_items: cut after `…in` tiles and top-level `;`).
+ * Completion is decided per item: an item with no incomplete tile is
+ * its own completion and comes back PHYSICALLY unchanged, so the
+ * pointer-keyed layers downstream (MakeTerm.Incr, Measured.Incr)
+ * localize to the edited item; an item with incomplete tiles is
+ * completed on its own, memoized on the item's piece identity. A
+ * completion that synthesizes a shard at the very END of a non-final
+ * item ran off the item — its reading may depend on what follows — so
+ * that item is widened by its successor and completed again, bounded
+ * by the whole segment, where per-item and whole-segment completion
+ * coincide. Parity with complete_segment_deep is test-gated. */
+type item_entry = {
+  it_pieces: Segment.t,
+  it_result: completion_result,
+};
+/* anchor (first piece id) -> last completion of that item; entries are
+   validated by piece identity, so a stale key costs one recompletion.
+   Bounded by wholesale reset: items of every open editor share it. */
+let item_cache: Hashtbl.t(Id.t, item_entry) = Hashtbl.create(256);
+let item_cache_bound = 4096;
+let items_completed: ref(int) = ref(0); /* observability for tests */
+
+/* Completing an item in isolation regrouts it in isolation: a hole
+   stands in at an edge for the operand the neighbouring item supplies
+   (the body after a trailing `in`). Such edge grout is debris of the
+   cut, not of the completion — the per-item incremental parse stands
+   in its own hole for a nonconvex item — so drop edge grout the item
+   did not already have. */
+let strip_edge_grout =
+    (
+      ~leading: bool,
+      ~trailing: bool,
+      ~original: Segment.t,
+      completed: Segment.t,
+    )
+    : Segment.t => {
+  let had = p => List.exists(q => Piece.id(q) == Piece.id(p), original);
+  let rec drop = (sg: Segment.t) =>
+    switch (sg) {
+    | [Piece.Grout(_) as p, ...tl] when !had(p) => drop(tl)
+    | _ => sg
+    };
+  let completed = leading ? drop(completed) : completed;
+  trailing ? completed |> List.rev |> drop |> List.rev : completed;
+};
+
+let complete_item_uncached = (~sort, item: Segment.t): completion_result =>
+  switch (Segment.incomplete_tiles_deep(item)) {
+  | [] => {
+      completed_seg: item,
+      shard_records: [],
+      insertions: [],
+    }
+  | _ =>
+    incr(items_completed);
+    let result = complete_segment_deep(~sort, item);
+    {
+      ...result,
+      insertions:
+        derive_insertions(
+          ~original=item,
+          ~records=result.shard_records,
+          result.completed_seg,
+        ),
+    };
+  };
+
+let complete_item = (~sort, item: Segment.t): completion_result =>
+  switch (item) {
+  | [] => complete_item_uncached(~sort, item)
+  | [p, ..._] =>
+    let key = Piece.id(p);
+    switch (Hashtbl.find_opt(item_cache, key)) {
+    | Some(e) when Segment.ptr_eq(e.it_pieces, item) => e.it_result
+    | _ =>
+      let r = complete_item_uncached(~sort, item);
+      if (Hashtbl.length(item_cache) >= item_cache_bound) {
+        Hashtbl.reset(item_cache);
+      };
+      Hashtbl.replace(
+        item_cache,
+        key,
+        {
+          it_pieces: item,
+          it_result: r,
+        },
+      );
+      r;
+    };
+  };
+
+/* Did completing [item] append material after its last original piece?
+   Either the closing tile grew a shard past its old last one, or the
+   completed item ends in a piece the item did not have. */
+let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
+  switch (ListUtil.last_opt(item), ListUtil.last_opt(completed)) {
+  | (Some(Piece.Tile(t0)), Some(Piece.Tile(t1))) when t0.id == t1.id =>
+    Tile.r_shard(t1) > Tile.r_shard(t0)
+  | (Some(p0), Some(p1)) => Piece.id(p0) != Piece.id(p1)
+  | _ => false
+  };
+
+let items_widened: ref(int) = ref(0); /* observability for tests */
+
+/* The cached reading anchored at [item] may cover a widened block; if
+   the following items add up to exactly its length, try the block
+   first (its identity check decides), so a stable widened block hits
+   the memo instead of recompleting twice per frame. */
+let cached_block =
+    (item: Segment.t, rest: list(Segment.t)): (Segment.t, list(Segment.t)) =>
+  switch (item) {
+  | [] => (item, rest)
+  | [p, ..._] =>
+    switch (Hashtbl.find_opt(item_cache, Piece.id(p))) {
+    | Some(e) when List.length(e.it_pieces) > List.length(item) =>
+      let n = List.length(e.it_pieces);
+      let rec take = (acc, len, items) =>
+        if (len == n) {
+          Some((acc, items));
+        } else {
+          switch (items) {
+          | [it, ...tl] when len < n =>
+            take(acc @ it, len + List.length(it), tl)
+          | _ => None
+          };
+        };
+      switch (take(item, List.length(item), rest)) {
+      | Some((block, rest')) when Segment.ptr_eq(e.it_pieces, block) => (
+          block,
+          rest',
+        )
+      | _ => (item, rest)
+      };
+    | _ => (item, rest)
+    }
+  };
+
+let complete_items = (~sort, seg: Segment.t): completion_result => {
+  /* edge grout is cut debris only at a cut: the segment's own ends
+     keep theirs (a missing body at the end of the program is real) */
+  let rec go =
+          (~first: bool, items: list(Segment.t)): list(completion_result) =>
+    switch (items) {
+    | [] => []
+    | [item, ...rest] =>
+      let (block, rest) = cached_block(item, rest);
+      let r = complete_item(~sort, block);
+      let last = rest == [];
+      let completed_seg =
+        strip_edge_grout(
+          ~leading=!first,
+          ~trailing=!last,
+          ~original=block,
+          r.completed_seg,
+        );
+      let r = {
+        ...r,
+        completed_seg,
+      };
+      switch (rest) {
+      | [] => [r]
+      | [next, ...more] =>
+        if (ran_off_end(block, completed_seg)) {
+          incr(items_widened);
+          go(~first, [block @ next, ...more]);
+        } else {
+          [r, ...go(~first=false, rest)];
+        }
+      };
+    };
+  let results = go(~first=true, Segment.top_items(seg));
+  {
+    completed_seg: List.concat_map(r => r.completed_seg, results),
+    shard_records: List.concat_map(r => r.shard_records, results),
+    insertions: List.concat_map(r => r.insertions, results),
+  };
+};
+
 /* Rendered per frame by every completion-aware decoration (quiver
-   chips, arm curtailing) and by tab dispatch — memoized on the
-   segment so one edit-state completes once. */
-let for_editor = Core.Memo.general(~cache_size_bound=64, for_editor);
+   chips, arm curtailing) and by tab dispatch: per item, so one edit
+   recompletes one item. */
+let for_editor = (seg: Segment.t): completion_result =>
+  complete_items(~sort=Sort.Exp, seg);

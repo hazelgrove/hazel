@@ -78,10 +78,45 @@ let rescan = ((pre, suf): t): t => {
   ListUtil.split_n(n, combined);
 };
 
-let regrout = ((pre, suf): t) => {
+/* None when the rescan re-associated nothing: the presplit alone makes
+   the result structurally different from the input, so a caller
+   comparing the two would otherwise reassemble/remold/regrout the whole
+   level after every edit near an incomplete tile (and the reassembly of
+   an unconverted presplit is the identity: the shards it split are
+   merged straight back). */
+let rescan_opt = ((pre, suf): t): option(t) => {
+  let pre = Segment.presplit_orphans(pre);
+  let suf = Segment.presplit_orphans(suf);
+  let n = List.length(pre);
+  let (combined, converted) = Segment.rescan_converting(pre @ suf);
+  converted ? Some(ListUtil.split_n(n, combined)) : None;
+};
+
+let regrout =
+    (
+      ~l_shape: option(Nib.Shape.t)=?,
+      ~r_shape: option(Nib.Shape.t)=?,
+      ~skip_clean: option(Piece.t => bool)=?,
+      (pre, suf): t,
+    ) => {
+  /* boundary shapes default to the segment-edge convention (concave);
+     WINDOWED runs (sparse regrout) pass the true shapes at the window
+     boundaries instead */
   let s = Nib.Shape.concave();
-  let suf = Segment.regrout_affix(Right, suf, s);
-  let (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
+  let suf =
+    Segment.regrout_affix(
+      ~skip_clean?,
+      Right,
+      suf,
+      Option.value(~default=s, r_shape),
+    );
+  let (trim_l, s_l, pre) =
+    Segment.regrout_affix(
+      ~skip_clean?,
+      Left,
+      pre,
+      Option.value(~default=s, l_shape),
+    );
   ((pre, s_l, trim_l), suf);
 };
 

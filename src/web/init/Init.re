@@ -9,8 +9,14 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-let documentation_slides: list((string, PersistentZipper.t)) =
-  Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
+/* each slide carries its editor ROOT sort: the mega-mod corpus is a
+   module body (root Mod, plans/mod-root.md); everything else is Exp */
+let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
+  List.map(
+    ((n, z)) => (n, Sort.Exp, z),
+    Docslides.Slides.all_slides @ B2t2.Slides.all_slides,
+  )
+  @ List.map(((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
@@ -24,17 +30,24 @@ let startup: Lazy.t(PersistentData.t) =
     documentation: (
       0,
       documentation_slides
-      |> List.map(((name, content: PersistentZipper.t)) =>
+      |> List.map(((name, root, content: PersistentZipper.t)) =>
            (
              name,
              {
-               editor: content |> Editor.Model.mk_persistent(~root=Exp),
+               editor: content |> Editor.Model.mk_persistent(~root),
                result: EvalResult.Model.init |> EvalResult.Model.persist,
              }: CellEditor.Model.persistent,
            )
          ),
     ),
   });
+
+/* canonical ROOT sort for a documentation slide (mega-mod slides are
+   Mod-rooted): persisted blobs are repaired against this on load */
+let documentation_slide_root = (name: string): option(Sort.t) =>
+  documentation_slides
+  |> List.find_opt(((n, _, _)) => n == name)
+  |> Option.map(((_, root, _)) => root);
 
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation
