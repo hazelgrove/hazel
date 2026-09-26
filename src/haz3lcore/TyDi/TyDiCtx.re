@@ -140,6 +140,88 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   | _ => []
   };
 
+/* named_fields across keystrokes. While the typed token is a prefix of a
+ * builtin module, completion needs that module's fields on every keystroke,
+ * and for Html they cost ~0.5 s: normalizing its signature and closing its
+ * members, the same work each time.
+ *
+ * named_fields reads its ctx only through Ctx.lookup_tvar, lookup_var and
+ * lookup_alias (normalize, weak_head_normalize, path_sig; the ctxs they
+ * extend put local entries in front of the one passed in). So its answer is
+ * a function of the type and of those lookups' answers, in the ctx passed
+ * in, for the names it asked about. A cached answer records those names
+ * and what each resolved to, and is reused only if every one resolves to
+ * the same entry again. Shadowing any of them -- `module Attr = ...`,
+ * `type HTML = ...` -- changes an answer and recomputes. Entries are
+ * compared by identity: the builtin ones are one list, shared by every
+ * keystroke. */
+type resolution = {
+  name: string,
+  tvar: option(Ctx.kind),
+  var: option(Ctx.var_entry),
+};
+
+let resolve = (ctx: Ctx.t, name: string): resolution => {
+  name,
+  tvar: Ctx.lookup_tvar(ctx, name),
+  var: Ctx.lookup_var(ctx, name),
+};
+
+let same_opt = (a, b) =>
+  switch (a, b) {
+  | (None, None) => true
+  | (Some(x), Some(y)) => x === y
+  | _ => false
+  };
+
+let still_resolves = (ctx: Ctx.t, r: resolution): bool => {
+  let now = resolve(ctx, r.name);
+  same_opt(now.tvar, r.tvar) && same_opt(now.var, r.var);
+};
+
+type cached_fields = {
+  typ: Typ.t,
+  deps: list(resolution),
+  fields: list((string, Typ.t)),
+};
+
+/* Most recent first; a handful of module-typed entries is all a keystroke
+ * sees. */
+let fields_cache: ref(list(cached_fields)) = ref([]);
+let fields_cache_size = 16;
+
+/* For tests: how many calls reused a cached answer. */
+let fields_cache_hits = ref(0);
+
+let named_fields_cached = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
+  switch (
+    List.find_opt(
+      c => c.typ === typ && List.for_all(still_resolves(ctx), c.deps),
+      fields_cache^,
+    )
+  ) {
+  | Some(c) =>
+    incr(fields_cache_hits);
+    c.fields;
+  | None =>
+    let (fields, names) =
+      Ctx.with_lookup_trace(() => named_fields(ctx, typ));
+    let deps =
+      names |> List.sort_uniq(String.compare) |> List.map(resolve(ctx));
+    let others = List.filter(c => c.typ !== typ, fields_cache^);
+    fields_cache :=
+      [
+        {
+          typ,
+          deps,
+          fields,
+        },
+        ...others,
+      ]
+      |> List.filteri((i, _) => i < fields_cache_size);
+    fields;
+  };
+
 /* named_fields, remembered for one TyDi.suggest call. Every caller in that
  * call derives its ctx the same way from the same Info.t, so an entry's
  * fields are the same each time they are asked for; without this,
@@ -152,7 +234,7 @@ let fields_memo = () => {
     switch (List.assq_opt(typ, seen^)) {
     | Some(fields) => fields
     | None =>
-      let fields = named_fields(ctx, typ);
+      let fields = named_fields_cached(ctx, typ);
       seen := [(typ, fields), ...seen^];
       fields;
     };

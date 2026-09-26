@@ -124,13 +124,45 @@ let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
 let extend_sig_items = (ctx: t, items: list(TermBase.Sig.t)): t =>
   List.fold_left(extend_sig_item, ctx, items);
 
-let lookup_tvar = (ctx: t, name: string): option(kind) =>
+/* While Some, lookup_tvar and lookup_var add each name they are asked
+ * for. A computation that reads its ctx only through those two (and
+ * lookup_alias, which is lookup_tvar) depends on the ctx only through their
+ * answers for the names recorded, which is what lets a caller cache it and
+ * check the cache by asking again: see TyDiCtx.named_fields_cached. Off, it
+ * costs one dereference per lookup. */
+let lookup_trace: ref(option(list(string))) = ref(None);
+
+let note_lookup = (name: string): unit =>
+  switch (lookup_trace^) {
+  | Some(names) => lookup_trace := Some([name, ...names])
+  | None => ()
+  };
+
+/* Run [f] with the trace on; its answer and the names it looked up. */
+let with_lookup_trace = (f: unit => 'a): ('a, list(string)) => {
+  let outer = lookup_trace^;
+  lookup_trace := Some([]);
+  switch (f()) {
+  | result =>
+    let names = Option.value(lookup_trace^, ~default=[]);
+    /* An enclosing trace sees these lookups too. */
+    lookup_trace := Option.map(outer_names => names @ outer_names, outer);
+    (result, names);
+  | exception e =>
+    lookup_trace := outer;
+    raise(e);
+  };
+};
+
+let lookup_tvar = (ctx: t, name: string): option(kind) => {
+  note_lookup(name);
   List.find_map(
     fun
     | TVarEntry(v) when v.name == name => Some(v.kind)
     | _ => None,
     ctx.entries,
   );
+};
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
@@ -155,13 +187,15 @@ let get_id: entry => Id.t =
   | TVarEntry({id, _}) => id
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
-let lookup_var = (ctx: t, name: string): option(var_entry) =>
+let lookup_var = (ctx: t, name: string): option(var_entry) => {
+  note_lookup(name);
   List.find_map(
     fun
     | VarEntry(v) when v.name == name => Some(v)
     | _ => None,
     ctx.entries,
   );
+};
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(

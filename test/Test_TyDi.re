@@ -573,6 +573,115 @@ let named_fields_tests = (
   ],
 );
 
+/* TyDiCtx.named_fields_cached reuses a module's fields across keystrokes
+   only while every name they were computed from resolves as it did. */
+let ctx_at = code => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (Indicated.ci_for_completion(z, info_map)) {
+  | Some(ci) => Info.ctx_of(ci)
+  | None => fail("no completion point in " ++ code)
+  };
+};
+
+let html_typ = () =>
+  switch (Ctx.lookup_var(Builtins.ctx_init(Some(Int)), "Html")) {
+  | Some({typ, _}) => typ
+  | None => fail("no builtin Html")
+  };
+
+let same_as_uncached = (what, ctx, typ) => {
+  let got = TyDiCtx.named_fields_cached(ctx, typ);
+  let want = TyDiCtx.named_fields(ctx, typ);
+  check(
+    list(string),
+    what ++ ": labels",
+    List.map(fst, want),
+    List.map(fst, got),
+  );
+  List.iter2(
+    ((l, w), (_, g)) =>
+      check(bool, what ++ "." ++ l, true, Typ.equal(w, g)),
+    want,
+    got,
+  );
+};
+
+let fields_equal = (a, b) =>
+  List.length(a) == List.length(b)
+  && List.for_all2(
+       ((la, ta), (lb, tb)) => la == lb && Typ.equal(ta, tb),
+       a,
+       b,
+     );
+
+let fields_cache_tests = (
+  "TyDi.FieldsCache",
+  [
+    test_case(
+      "reused on the next keystroke",
+      `Quick,
+      () => {
+        TyDiCtx.fields_cache := [];
+        let typ = html_typ();
+        let a = ctx_at("let a = 1 in let x = Ht¦");
+        let b = ctx_at("let a = 1 in let bb = 2 in let x = Htm¦");
+        ignore(TyDiCtx.named_fields_cached(a, typ));
+        let hits = TyDiCtx.fields_cache_hits^;
+        same_as_uncached("second keystroke", b, typ);
+        check(int, "one reuse", hits + 1, TyDiCtx.fields_cache_hits^);
+      },
+    ),
+    test_case(
+      "shadowing Attr recomputes",
+      `Quick,
+      () => {
+        TyDiCtx.fields_cache := [];
+        let typ = html_typ();
+        let plain = ctx_at("let x = Ht¦");
+        let shadowed =
+          ctx_at("module Attr = { type T = Int } in let x = Ht¦");
+        ignore(TyDiCtx.named_fields_cached(plain, typ));
+        let hits = TyDiCtx.fields_cache_hits^;
+        same_as_uncached("Attr shadowed", shadowed, typ);
+        check(int, "no reuse", hits, TyDiCtx.fields_cache_hits^);
+        /* The control: shadowing Attr does change Html's fields, so a
+           reused answer would have been wrong, not merely redundant. */
+        check(
+          bool,
+          "the answer differs",
+          false,
+          fields_equal(
+            TyDiCtx.named_fields(plain, typ),
+            TyDiCtx.named_fields(shadowed, typ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "shadowing HTML recomputes",
+      `Quick,
+      () => {
+        TyDiCtx.fields_cache := [];
+        let typ = html_typ();
+        ignore(TyDiCtx.named_fields_cached(ctx_at("let x = Ht¦"), typ));
+        /* Html's fields are computed from HTML (with Attr, Sub, SpliceRef
+           and T), so shadowing it is a miss. */
+        let hits = TyDiCtx.fields_cache_hits^;
+        same_as_uncached(
+          "HTML shadowed",
+          ctx_at("type HTML = Int in let x = Ht¦"),
+          typ,
+        );
+        check(int, "no reuse", hits, TyDiCtx.fields_cache_hits^);
+      },
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -585,6 +694,7 @@ let tests = [
   qualified_tests,
   prefix_pruning_tests,
   named_fields_tests,
+  fields_cache_tests,
   base_typ_suppression_tests,
   ci_sort_tests,
 ];
