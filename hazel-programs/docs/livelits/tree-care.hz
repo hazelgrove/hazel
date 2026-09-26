@@ -484,7 +484,7 @@ let ^either = {
 
 # Two growth styles, each with its slider: style a grows by a #
 # percent, 30% to start, and style b by a constant, 4 leaves. #
-let a_pct = ^^livelit(^range((lo=-50, hi=100, value=30))) in
+let a_pct = ^^livelit(^range((lo = -50, hi = 100, value = 30))) in
 let style_a = Percent(a_pct) in
 let b_leaves = ^^livelit(^range((lo=0, hi=13, value=4))) in
 let style_b = Constant(b_leaves) in
