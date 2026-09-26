@@ -15,6 +15,17 @@ open Haz3lcore;
 let reveal_request: ref(option(Id.t)) = ref(None: option(Id.t));
 let request_reveal = (id: Id.t): unit => reveal_request := Some(id);
 
+/* Keep a pointer resize authoritative across sample/evaluation renders.
+   Only the final size is persisted in settings. */
+let resizing_card: ref(option((string, string, (float, float)))) =
+  ref(Option.none);
+
+/* Content identity comes from CanvasProbe's value-view cache. Measuring
+   unchanged content during every agent/camera frame forces layout and
+   can feed animated geometry back into the stored natural size. */
+let measured_card_content: ref(list(((string, string), Node.t))) =
+  ref([]);
+
 /* the outline row of a definition selected on the CANVAS scrolls into
    view after the render that highlights it */
 let scroll_outline_to_selection = (): unit => {
@@ -162,7 +173,7 @@ let install_zoom_listener = (): unit => {
                 pending_dy := 0.;
                 /* detent at 1:1 so pinching back to normal lands exactly */
                 let z = abs_float(z -. 1.) < 0.05 ? 1. : z;
-                let z = max(0.4, min(2.5, z));
+                let z = CanvasZoom.clamp(z);
                 switch (zoom_send^) {
                 | Some(send) =>
                   /* apply the zoom IMPERATIVELY and correct the scroll
@@ -542,11 +553,17 @@ let canvas_menu_at: ref((float, float)) = ref((0., 0.));
 /* Some((key, type syntax)) when opened on a node */
 let canvas_menu_node: ref(option((string, string))) =
   ref(None: option((string, string)));
+let canvas_menu_definition: ref(option((Id.t, string))) = ref(Option.none);
+let canvas_menu_function: ref(bool) = ref(false);
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 /* camera follow: the avatar position last handed to the camera, and
    whether the agent was busy then (a resting avatar waking up = a hop
    of attention even though it didn't move) */
+/* the site the camera last followed the avatar to: a HOP is a change of
+   site. A relayout that moves the avatar's node (the user opened a card
+   next to it) is not a hop and does not move the camera. */
+let last_followed_id: ref(option(Id.t)) = ref(None: option(Id.t));
 let last_followed: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 let last_followed_busy: ref(bool) = ref(false);
@@ -663,6 +680,171 @@ let ty_syntax = (n: CanvasGraph.tynode): string =>
   | Ghost => n.label /* dup keys carry @anchors; holes print as ? */
   | _ => n.key /* alias / [T] / (A, B) keys are literal type syntax */
   };
+
+/* a card just opened / closed / resized: re-fit the camera after the
+   render that lays it out */
+let fit_pending: ref(bool) = ref(false);
+/* the render right after a burst ends re-frames the graph: that one big
+   move is the tidy act. A big move the USER caused (a card opening pushes
+   its neighbours) is not scored: it plays on the staged beat at once,
+   not after an actor's drift. */
+let burst_end_reframe: ref(bool) = ref(false);
+
+/* ---- imperative layout follow (node drag, card resize): apply a
+   layout's geometry straight to the DOM — no vdom, no app render ---- */
+module LayoutDom = {
+  open Js_of_ocaml;
+  let set_attr = (el, name: string, v: string) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        el,
+        "setAttribute",
+        [|
+          Js.Unsafe.inject(Js.string(name)),
+          Js.Unsafe.inject(Js.string(v)),
+        |],
+      ),
+    );
+  let set_pos = (id: string, x: float, y: float) =>
+    switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+    | Some(el) =>
+      let st = Js.Unsafe.coerce(el)##.style;
+      st##.left := Js.string(Printf.sprintf("%.1fpx", x));
+      st##.top := Js.string(Printf.sprintf("%.1fpx", y));
+    | None => ()
+    };
+  let fmt' = (v: float) => Printf.sprintf("%f", v);
+  let pull_back = (p: CanvasLayout.pos, c: CanvasLayout.pos, d: float) => {
+    let vx = p.x -. c.x
+    and vy = p.y -. c.y;
+    let len = max(1., Float.hypot(vx, vy));
+    CanvasLayout.{
+      x: p.x -. vx /. len *. d,
+      y: p.y -. vy /. len *. d,
+    };
+  };
+  let apply_layout = (l: CanvasLayout.t): unit => {
+    List.iter(
+      (nl: CanvasLayout.node_layout) =>
+        set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
+      l.nodes,
+    );
+    List.iter(
+      (el: CanvasLayout.edge_layout) => {
+        let e = el.edge;
+        if (el.endo) {
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(
+              "corbit-" ++ CanvasView.sanitize(e.e_name),
+            )
+          ) {
+          | Some(c) =>
+            set_attr(c, "cx", fmt'(el.dst_p.x));
+            set_attr(c, "cy", fmt'(el.dst_p.y));
+          | None => ()
+          };
+        } else {
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(
+              "cpath-" ++ CanvasView.sanitize(e.e_name),
+            )
+          ) {
+          | Some(path_el) =>
+            set_attr(path_el, "d", CanvasLayout.edge_path(~pull=9., el))
+          | None => ()
+          };
+        };
+        set_pos(
+          CanvasView.edge_dom_id(e.e_name),
+          el.label_p.x,
+          el.label_p.y,
+        );
+        switch (
+          Util.JsUtil.get_elem_by_id_opt(
+            "clead-" ++ CanvasView.sanitize(e.e_name),
+          )
+        ) {
+        | Some(lel) =>
+          set_attr(lel, "x1", fmt'(el.label_p.x));
+          set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
+          set_attr(lel, "x2", fmt'(el.label_anchor.x));
+          set_attr(lel, "y2", fmt'(el.label_anchor.y));
+        | None => ()
+        };
+      },
+      l.edges,
+    );
+    List.iteri(
+      (
+        _i,
+        (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+      ) => {
+        let pp' = pull_back(pp, cp, 5.);
+        switch (
+          Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
+        ) {
+        | Some(el) =>
+          set_attr(
+            el,
+            "d",
+            CanvasLayout.relation_path(
+              ~nodes=l.nodes,
+              ~from_key=a,
+              ~to_key=b,
+              cp,
+              pp',
+            ),
+          )
+        | None => ()
+        };
+      },
+      l.formations,
+    );
+    List.iteri(
+      (
+        _i,
+        (a, b, dp, tp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+      ) => {
+        let tp' = pull_back(tp, dp, 5.);
+        switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))) {
+        | Some(el) =>
+          set_attr(
+            el,
+            "d",
+            CanvasLayout.relation_path(
+              ~nodes=l.nodes,
+              ~from_key=a,
+              ~to_key=b,
+              dp,
+              tp',
+            ),
+          )
+        | None => ()
+        };
+      },
+      l.dep_links,
+    );
+    List.iter(
+      (vl: CanvasLayout.value_layout) =>
+        set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
+      l.values,
+    );
+    /* hull sausages track exactly (no springs for paths) */
+    List.iter(
+      path =>
+        List.iter(
+          ((id, d, _)) =>
+            switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+            | Some(el) => set_attr(el, "d", d)
+            | None => ()
+            },
+          CanvasView.hull_sausages_at(l, path),
+        ),
+      CanvasView.hull_paths_of(l),
+    );
+    CanvasJelly.set_targets(CanvasView.hull_targets(l));
+  };
+};
 
 let px_float = (s: string): float =>
   try(float_of_string(String.sub(s, 0, String.length(s) - 2))) {
@@ -787,6 +969,87 @@ let locate =
    replay harness asserts on the last value) */
 let last_static_errs: ref(int) = ref(-1);
 
+let canvas_visible = (s: Settings.t) =>
+  s.canvas_main
+  || s.canvas_split
+  || s.sidebar.show
+  && s.sidebar.panel == Canvas;
+let presentation_slide = ref("");
+let presentation_enabled = ref(false);
+
+/* Page calls this once, before any of the three program views. */
+let present_editor = (~globals: Globals.t, ~editors: Editors.Model.t, editor) => {
+  let enabled =
+    globals.settings.canvas_pace && canvas_visible(globals.settings);
+  let slide = current_slide(editors);
+  if (presentation_slide^ != slide || presentation_enabled^ && !enabled) {
+    CanvasBuffer.reset();
+    CanvasEnact.cancel_score();
+  };
+  presentation_slide := slide;
+  presentation_enabled := enabled;
+  let test_results = test_results_of(editors);
+  let schedule_tick = (delay: float) => {
+    open Js_of_ocaml;
+    let cb =
+      Js.Unsafe.callback(() => {
+        CanvasBuffer.tick_fired();
+        globals.inject_global(Set(CanvasTick)) |> Bonsai.Effect.Expert.handle;
+      });
+    ignore(Js.Unsafe.global##setTimeout(cb, delay));
+  };
+  CanvasEnact.request_tick := schedule_tick;
+  CanvasBuffer.observe(
+    ~enabled,
+    ~weight=graph_delta(~test_results),
+    ~schedule_tick,
+    editor,
+  );
+};
+
+let lab_initialized = ref(false);
+let init_layout_lab = () =>
+  if (! lab_initialized^) {
+    lab_initialized := true;
+    let query = key => {
+      Js_of_ocaml.(
+        try({
+          let search =
+            Js.Unsafe.get(
+              Js.Unsafe.get(Js.Unsafe.global, "location"),
+              "search",
+            );
+          let params =
+            Js.Unsafe.new_obj(
+              Js.Unsafe.get(Js.Unsafe.global, "URLSearchParams"),
+              [|Js.Unsafe.inject(search)|],
+            );
+          Js.Opt.to_option(
+            Js.Unsafe.meth_call(
+              params,
+              "get",
+              [|Js.Unsafe.inject(Js.string(key))|],
+            ),
+          )
+          |> Option.map(Js.to_string);
+        }) {
+        | _ => None
+        }
+      );
+    };
+    let get = (url, key, default) =>
+      Option.value(
+        ~default=Option.value(~default, CanvasAvatar.storage_get(key)),
+        query(url),
+      );
+    let mode = get("layout", "constellation.layoutExperiment", "current");
+    CanvasLayoutExperiments.mode :=
+      CanvasLayoutExperiments.known(mode) ? mode : "current";
+    CanvasLayoutExperiments.wires :=
+      get("wires", "constellation.wireExperiment", "curves") == "circuit"
+        ? "circuit" : "curves";
+  };
+
 let view_impl =
     (
       ~globals: Globals.t,
@@ -807,8 +1070,47 @@ let view_impl =
       (),
     )
     : Node.t => {
-  let test_results = test_results_of(editors);
+  let test_results =
+    CanvasBuffer.presenting^ ? Option.none : test_results_of(editors);
   let slide = current_slide(editors);
+  init_layout_lab();
+  /* Keep related value cards and the values panel on one completed
+     evaluation. The live app still uses its optimistic/streamed view;
+     replay snapshots must keep their own historical dynamics. */
+  let value_editor =
+    switch (CanvasBuffer.presenting^, current_code(editors)) {
+    | (false, Some({editor: cell, _})) =>
+      let dynamics = EvalResult.Model.card_dynamics(cell.result);
+      dynamics === editor.dynamics
+        ? editor
+        : {
+          ...editor,
+          dynamics,
+        };
+    | _ => editor
+    };
+  CanvasLayoutExperiments.on_result :=
+    (
+      () => {
+        if (CanvasLayoutExperiments.awaiting_fit^) {
+          CanvasLayoutExperiments.awaiting_fit := false;
+          fit_pending := true;
+        };
+        globals.inject_global(Set(CanvasTick)) |> Bonsai.Effect.Expert.handle;
+      }
+    );
+  CanvasLayoutExperiments.scene :=
+    (
+      switch (editors) {
+      | Scratch(m) => "scratch/" ++ string_of_int(m.current)
+      | Documentation(m) => "docs/" ++ string_of_int(m.current)
+      | Tutorial(_) => "tutorial"
+      | Exercises(_) => "exercises"
+      }
+    )
+    ++ "/"
+    ++ slide;
+
   {
     let n = List.length(editor.statics.error_ids);
     /* readable by harnesses at any time (the journal's ring evicts) */
@@ -829,7 +1131,13 @@ let view_impl =
     (
       () =>
         Some(
-          Haz3lcore.Printer.of_zipper(~holes="?", editor.editor.state.zipper),
+          Haz3lcore.Printer.of_zipper(
+            ~holes="?",
+            switch (current_code(editors)) {
+            | Some(c) => c.editor.editor.editor.state.zipper
+            | None => editor.editor.state.zipper
+            },
+          ),
         )
     );
   {
@@ -838,6 +1146,7 @@ let view_impl =
     let pl = CanvasBuffer.pacing_live();
     if (last_pacing_live^ && !pl) {
       CanvasBuffer.stage_beat(~slow=true, ());
+      burst_end_reframe := true;
     };
     last_pacing_live := pl;
   };
@@ -848,33 +1157,12 @@ let view_impl =
     last_avatar_pos := None;
     last_avatar_id := None;
     last_followed := None;
+    last_followed_id := None;
     CanvasCamera.reset_exposure();
     CanvasBuffer.avatar_site := None;
     last_followed_busy := false;
     CanvasBuffer.beat_avatar := None;
     CanvasCamera.roi := [];
-  };
-  /* temporal pacing: within an agent burst the canvas renders queued
-     snapshots at a max rate so each tool call reads as its own beat */
-  let editor = {
-    let schedule_tick = (delay: float) => {
-      open Js_of_ocaml;
-      let cb =
-        Js.Unsafe.callback(() => {
-          CanvasBuffer.tick_fired();
-          globals.inject_global(Set(CanvasTick))
-          |> Bonsai.Effect.Expert.handle;
-        });
-      ignore(Js.Unsafe.global##setTimeout(cb, delay));
-    };
-    CanvasEnact.request_tick := schedule_tick;
-    CanvasBuffer.observe(
-      ~enabled=globals.settings.canvas_pace,
-      ~viable=(m: CodeWithStatics.Model.t) => viable_cached(m.statics),
-      ~weight=graph_delta(~test_results),
-      ~schedule_tick,
-      editor,
-    );
   };
   /* the graph MUST derive from the PACED editor: extracting from the
      live model rendered every intermediate state instantly (final-state
@@ -882,6 +1170,15 @@ let view_impl =
      already-settled graph */
   let (graph, collapsed_counts) =
     collapse_filter(extract_cached(~test_results, editor.statics));
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__canvasLayoutStudy",
+    Js_of_ocaml.Js.Unsafe.callback(() =>
+      Js_of_ocaml.Js.string(
+        Yojson.Safe.to_string(CanvasLayoutStudy.compare(graph)),
+      )
+    ),
+  );
   CanvasEnact.label_of :=
     (
       k =>
@@ -1025,6 +1322,28 @@ let view_impl =
       cached_avail_h := avail_height;
       avail_height;
     };
+  /* expanded type cards: their extents shape the layout (a card claims
+     its box plus a buffer; neighbours are pushed) */
+  let card_default = (360., 260.);
+  let card_size = (key: string): (float, float) =>
+    switch (resizing_card^) {
+    | Some((s, k, wh)) when s == slide && k == key => wh
+    | _ =>
+      Option.value(
+        ~default=card_default,
+        List.assoc_opt(
+          (slide, key),
+          globals.settings.sidebar.canvas_card_sizes,
+        ),
+      )
+    };
+  CanvasLayout.card_extents :=
+    List.filter_map(
+      key =>
+        List.exists((n: CanvasGraph.tynode) => n.key == key, graph.nodes)
+          ? Some((key, card_size(key))) : None,
+      globals.settings.sidebar.canvas_value_nodes,
+    );
   let lay = {
     /* pins/offsets for nodes that no longer exist (another program on this
        slide) must not keep a stale frame alive */
@@ -1044,11 +1363,14 @@ let view_impl =
     let fits_cached =
       switch (cached_frame^, avail_height) {
       | (Some(fc), Some(ah)) when !manual =>
+        /* ~cards=[]: an open card never decides the frame (a toggle is
+           not a relayout) */
         let l =
           CanvasLayout.layout(
             ~x_scale=fc.fc_x_scale,
             ~y_scale=fc.fc_y_scale,
             ~origin_override=Some(fc.fc_origin),
+            ~cards=[],
             graph,
           );
         l.height <= ah -. 8. && l.width <= aw +. 40.;
@@ -1102,7 +1424,7 @@ let view_impl =
       switch (persisted_frame) {
       | Some((_, xs, _)) when runtime_frame == None =>
         /* laid in a wider pane: it would strew the program off-screen */
-        let v = CanvasLayout.layout(graph);
+        let v = CanvasLayout.layout(~cards=[], graph);
         v.width *. xs > aw *. 1.25 ? Option.none : persisted_frame;
       | p => p
       };
@@ -1132,7 +1454,7 @@ let view_impl =
          from the VIRGIN layout — no user offsets/pins — so dragging a
          node can never rescale or re-anchor the rest of the graph. The
          final layout applies the frozen frame plus the user's edits. */
-      let virgin = CanvasLayout.layout(graph);
+      let virgin = CanvasLayout.layout(~cards=[], graph);
       let y_scale =
         switch (layout_height) {
         | Some(h) => min(2.1, max(1., (h -. 40.) /. virgin.height))
@@ -1151,7 +1473,8 @@ let view_impl =
           if (s1 >= 1.8 || s1 <= 1.) {
             s1;
           } else {
-            let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
+            let v1 =
+              CanvasLayout.layout(~x_scale=s1, ~y_scale, ~cards=[], graph);
             v1.width >= target -. 30. && v1.width <= target +. 30.
               ? s1 : min(1.8, max(1., s1 *. target /. v1.width));
           };
@@ -1162,6 +1485,7 @@ let view_impl =
           ~x_scale,
           ~y_scale,
           ~center_within=avail_width,
+          ~cards=[],
           graph,
         );
       cached_frame :=
@@ -1174,18 +1498,27 @@ let view_impl =
           fc_y_scale: y_scale,
           fc_avail_w: aw,
         });
-      offsets == [] && pins == []
-        ? framed
-        : CanvasLayout.layout(
-            ~x_scale,
-            ~y_scale,
-            ~origin_override=Some(framed.origin),
-            ~offsets,
-            ~pins,
-            graph,
-          );
+      /* the rendered layout: the frozen frame plus the user's edits and
+         the open cards (rims and board extent) */
+      CanvasLayout.layout(
+        ~x_scale,
+        ~y_scale,
+        ~origin_override=Some(framed.origin),
+        ~offsets,
+        ~pins,
+        graph,
+      );
     };
   };
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__canvasLayoutSnapshot",
+    Js_of_ocaml.Js.Unsafe.callback(() =>
+      Js_of_ocaml.Js.string(
+        Yojson.Safe.to_string(CanvasLayoutStudy.json(lay)),
+      )
+    ),
+  );
   /* zoom while the agent works is the camera's job now: CanvasCamera.follow
      frames the sites touched this burst (with hysteresis) on each hop */
   /* canvas clicks SELECT the definition (caret at front, cell focused) */
@@ -1197,30 +1530,46 @@ let view_impl =
   /* MAIN mode: a canvas click selects the definition as the ONE open
      cell (the info panel's definition tab); the outline row scrolls into
      view (source = canvas, so the canvas itself holds still) */
-  /* wells act on the master editor (see CanvasProbe.master_perform) */
+  /* wells and app cards act on the master editor (see
+     CanvasProbe.master_perform); an EDIT goes through MasterPerform so
+     it lands in the live program even while a definition cell is open
+     (the master zipper is stale then, and a commit made there was
+     invisible and lost on unfocus — andrew's app clicks doing nothing) */
   CanvasProbe.master_perform :=
     Some(
       (a: Haz3lcore.Action.t) =>
         editors_inject(
-          Editors.Update.Scratch(
-            ScratchMode.Update.CellAction(
-              CellEditor.Update.MainEditor(CodeEditable.Update.Perform(a)),
-            ),
-          ),
+          Editors.Update.Scratch(ScratchMode.Update.MasterPerform(a)),
         ),
     );
   let show_panel =
     globals.inject_global(Set(Sidebar(SetCanvasPanelHidden(false))));
-  let select_def = (id: Id.t) =>
+  let select_def = (~reveal=true, id: Id.t) =>
     Effect.Many([
       editors_inject(
         Editors.Update.Scratch(ScratchMode.Update.FocusDef(id)),
       ),
       globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-      show_panel,
+      reveal ? show_panel : Effect.Ignore,
       Ui_effect.of_sync_fun(scroll_outline_to_selection, ()),
       Effect.Stop_propagation,
     ]);
+  let focus_dom = dom_id =>
+    Ui_effect.of_sync_fun(CanvasView.focus_selector, "#" ++ dom_id);
+  let delete_definition = id =>
+    CanvasBuffer.presenting^
+      ? Effect.Ignore
+      : Effect.Many([
+          editors_inject(
+            Editors.Update.Scratch(
+              ScratchMode.Update.OutlineDefOp(OutlineSidebar.Delete, id),
+            ),
+          ),
+          globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+          globals.inject_global(Set(Sidebar(SetCanvasFocus(None)))),
+          focus_dom("canvas-scroll"),
+          Effect.Stop_propagation,
+        ]);
   /* MAIN mode: the selection is the stack's one entry; its canvas
      element (an edge by e_id, a node by n_id) wears the indication and
      feeds the values tab. A glyph node (no definition of its own) can
@@ -1258,18 +1607,19 @@ let view_impl =
         };
       switch (
         Option.bind(anchor, a =>
-          Language.Dynamics.Map.lookup(a, editor.dynamics)
+          Language.Dynamics.Map.lookup(a, value_editor.dynamics)
         )
       ) {
       | Some([_, ..._] as samples) =>
         let sf = editor.editor.state.zipper.refractors.sample_focus;
         let cursor_stack = Language.Sample.Focus.effective_stack(sf);
         let aligned =
-          List.exists(
-            (smp: Language.Sample.t) =>
-              Language.CallStack.equal(smp.call_stack, cursor_stack),
-            samples,
-          );
+          sf.anchor != None
+          && List.exists(
+               (smp: Language.Sample.t) =>
+                 Language.CallStack.equal(smp.call_stack, cursor_stack),
+               samples,
+             );
         if (aligned) {
           [];
         } else {
@@ -1281,11 +1631,16 @@ let view_impl =
               samples,
             );
           [
-            globals.inject_global(
-              ActiveEditor(
-                Project(
-                  SampleFocus(
-                    Capture(Language.Sample.capture_of_sample(first), None),
+            editors_inject(
+              Editors.Update.Scratch(
+                ScratchMode.Update.MasterPerform(
+                  Project(
+                    SampleFocus(
+                      Capture(
+                        Language.Sample.capture_of_sample(first),
+                        None,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1306,7 +1661,8 @@ let view_impl =
             Effect.Stop_propagation,
           ]
       )
-      @ align,
+      @ align
+      @ [focus_dom(CanvasView.edge_dom_id(e.e_name))],
     );
   };
   /* ---- canvas authoring: stubs go through the agent's own edit tools
@@ -1407,35 +1763,37 @@ let view_impl =
     globals.inject_global(Set(Sidebar(SetCanvasPlace(p))));
   /* plain click (no drag, no connect mode): focus the type's values;
      aliases also select their definition */
-  let click_effect = (n: CanvasGraph.tynode) => {
+  let click_effect = (~reveal=true, n: CanvasGraph.tynode) => {
     focused_value := None;
-    switch (main_mode, n.n_id) {
-    /* a definition: select it (the halo and values follow the selection) */
-    | (true, Some(id)) => select_def(id)
-    /* a glyph: look at its values without changing the selected definition */
-    | (true, None) =>
-      Effect.Many([
-        globals.inject_global(
-          Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
-        ),
-        show_panel,
-      ])
-    | (false, _) =>
-      Effect.Many(
-        [
+    let selection =
+      switch (main_mode, n.n_id) {
+      /* a definition: select it (the halo and values follow the selection) */
+      | (true, Some(id)) => select_def(~reveal, id)
+      /* a glyph: look at its values without changing the selected definition */
+      | (true, None) =>
+        Effect.Many([
           globals.inject_global(
             Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
           ),
-          show_panel,
-        ]
-        @ (
-          switch (n.n_id) {
-          | Some(id) => [globals.inject_global(SelectTile(id))]
-          | None => []
-          }
-        ),
-      )
-    };
+          reveal ? show_panel : Effect.Ignore,
+        ])
+      | (false, _) =>
+        Effect.Many(
+          [
+            globals.inject_global(
+              Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
+            ),
+            reveal ? show_panel : Effect.Ignore,
+          ]
+          @ (
+            switch (n.n_id) {
+            | Some(id) => [globals.inject_global(SelectTile(id))]
+            | None => []
+            }
+          ),
+        )
+      };
+    Effect.Many([selection, focus_dom(CanvasView.node_dom_id(n.key))]);
   };
   /* drag-vs-click on a node: document listeners move the div imperatively;
      release either commits a layout delta or fires the click */
@@ -1464,11 +1822,12 @@ let view_impl =
       )
       : Effect.t(unit) => {
     open Js_of_ocaml;
+    open LayoutDom;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
     /* dragging while the actor works pauses the workload; it resumes on
        release, re-planned around the moved node */
-    let during_score = CanvasBuffer.score_playing();
+    let during_score = CanvasBuffer.pacing_live();
     if (during_score) {
       CanvasEnact.pause_score();
     } else {
@@ -1542,35 +1901,6 @@ let view_impl =
     drag_active := true;
     let moved = ref(false);
     let delta = ref((0., 0.));
-    let set_attr = (el, name: string, v: string) =>
-      ignore(
-        Js.Unsafe.meth_call(
-          el,
-          "setAttribute",
-          [|
-            Js.Unsafe.inject(Js.string(name)),
-            Js.Unsafe.inject(Js.string(v)),
-          |],
-        ),
-      );
-    let set_pos = (id: string, x: float, y: float) =>
-      switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-      | Some(el) =>
-        let st = Js.Unsafe.coerce(el)##.style;
-        st##.left := Js.string(Printf.sprintf("%.1fpx", x));
-        st##.top := Js.string(Printf.sprintf("%.1fpx", y));
-      | None => ()
-      };
-    let fmt' = (v: float) => Printf.sprintf("%f", v);
-    let pull_back = (p: CanvasLayout.pos, c: CanvasLayout.pos, d: float) => {
-      let vx = p.x -. c.x
-      and vy = p.y -. c.y;
-      let len = max(1., Float.hypot(vx, vy));
-      CanvasLayout.{
-        x: p.x -. vx /. len *. d,
-        y: p.y -. vy /. len *. d,
-      };
-    };
     /* EXACT drag follow: recompute the REAL layout with the pending
        delta (same frame + offsets the commit will use) and apply every
        piece of geometry imperatively — no vdom, no app render, and
@@ -1607,174 +1937,6 @@ let view_impl =
       | None => None
       };
     };
-    let apply_layout = (l: CanvasLayout.t): unit => {
-      List.iter(
-        (nl: CanvasLayout.node_layout) =>
-          set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
-        l.nodes,
-      );
-      List.iter(
-        (el: CanvasLayout.edge_layout) => {
-          let e = el.edge;
-          if (el.endo) {
-            switch (
-              Util.JsUtil.get_elem_by_id_opt(
-                "corbit-" ++ CanvasView.sanitize(e.e_name),
-              )
-            ) {
-            | Some(c) =>
-              set_attr(c, "cx", fmt'(el.dst_p.x));
-              set_attr(c, "cy", fmt'(el.dst_p.y));
-            | None => ()
-            };
-          } else {
-            let dstp = pull_back(el.dst_p, el.c2, 7.);
-            switch (
-              Util.JsUtil.get_elem_by_id_opt(
-                "cpath-" ++ CanvasView.sanitize(e.e_name),
-              )
-            ) {
-            | Some(path_el) =>
-              set_attr(
-                path_el,
-                "d",
-                Printf.sprintf(
-                  "M %f,%f C %f,%f %f,%f %f,%f",
-                  el.src_p.x,
-                  el.src_p.y,
-                  el.c1.x,
-                  el.c1.y,
-                  el.c2.x,
-                  el.c2.y,
-                  dstp.x,
-                  dstp.y,
-                ),
-              )
-            | None => ()
-            };
-          };
-          set_pos(
-            CanvasView.edge_dom_id(e.e_name),
-            el.label_p.x,
-            el.label_p.y,
-          );
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(
-              "clead-" ++ CanvasView.sanitize(e.e_name),
-            )
-          ) {
-          | Some(lel) =>
-            set_attr(lel, "x1", fmt'(el.label_p.x));
-            set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
-            set_attr(lel, "x2", fmt'(el.label_anchor.x));
-            set_attr(lel, "y2", fmt'(el.label_anchor.y));
-          | None => ()
-          };
-        },
-        l.edges,
-      );
-      List.iteri(
-        (
-          _i,
-          (a, b, cp, pp): (
-            string,
-            string,
-            CanvasLayout.pos,
-            CanvasLayout.pos,
-          ),
-        ) => {
-          let mx = (cp.x +. pp.x) /. 2.;
-          let pp' =
-            pull_back(
-              pp,
-              CanvasLayout.{
-                x: mx,
-                y: pp.y,
-              },
-              5.,
-            );
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
-          ) {
-          | Some(el) =>
-            let (ox, oy) =
-              CanvasLayout.link_offset(
-                ~nodes=l.nodes,
-                ~from_key=a,
-                ~to_key=b,
-                cp,
-                pp',
-              );
-            set_attr(
-              el,
-              "d",
-              CanvasLayout.link_d(
-                cp,
-                CanvasLayout.{
-                  x: mx +. ox,
-                  y: cp.y +. oy,
-                },
-                CanvasLayout.{
-                  x: mx +. ox,
-                  y: pp'.y +. oy,
-                },
-                pp',
-              ),
-            );
-          | None => ()
-          };
-        },
-        l.formations,
-      );
-      List.iteri(
-        (
-          _i,
-          (a, b, dp, tp): (
-            string,
-            string,
-            CanvasLayout.pos,
-            CanvasLayout.pos,
-          ),
-        ) => {
-          let tp' = pull_back(tp, dp, 5.);
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))
-          ) {
-          | Some(el) =>
-            let (c1, c2) =
-              CanvasLayout.route_link(
-                ~nodes=l.nodes,
-                ~from_key=a,
-                ~to_key=b,
-                dp,
-                tp',
-              );
-            set_attr(el, "d", CanvasLayout.link_d(dp, c1, c2, tp'));
-          | None => ()
-          };
-        },
-        l.dep_links,
-      );
-      List.iter(
-        (vl: CanvasLayout.value_layout) =>
-          set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
-        l.values,
-      );
-      /* hull sausages track exactly (no springs for paths) */
-      List.iter(
-        path =>
-          List.iter(
-            ((id, d, _)) =>
-              switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-              | Some(el) => set_attr(el, "d", d)
-              | None => ()
-              },
-            CanvasView.hull_sausages_at(l, path),
-          ),
-        CanvasView.hull_paths_of(l),
-      );
-      CanvasJelly.set_targets(CanvasView.hull_targets(l));
-    };
     let raf_busy = ref(false);
     let pending: ref(option((float, float))) =
       ref(None: option((float, float)));
@@ -1809,7 +1971,7 @@ let view_impl =
       let x: int = Js.Unsafe.coerce(e)##.clientX;
       let y: int = Js.Unsafe.coerce(e)##.clientY;
       /* CSS zoom scales screen deltas; convert to layout px */
-      let z = max(0.2, globals.settings.canvas_zoom);
+      let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
       let dx = float_of_int(x - sx) /. z
       and dy = float_of_int(y - sy) /. z;
       if (abs_float(dx) +. abs_float(dy) > 4.) {
@@ -1869,8 +2031,32 @@ let view_impl =
           };
         };
       };
+      /* an expanded card: a click selects the card (its probe takes
+         the keyboard, ← → step samples), not the definition — whose
+         selection would pull focus to the editor */
+      let expanded =
+        List.mem(n.key, globals.settings.sidebar.canvas_value_nodes);
+      if (! moved^ && expanded) {
+        CanvasView.focus_card_probe(n.key);
+      };
       Effect.Expert.handle_non_dom_event_exn(
-        moved^ ? commit(delta^) : click_effect(n),
+        moved^
+          ? Effect.Many([
+              commit(delta^),
+              /* Dropping selects the object without reopening a hidden
+                 info panel over the place where it was just dropped. */
+              expanded ? Effect.Ignore : click_effect(~reveal=false, n),
+            ])
+          : expanded
+              /* the info panel follows the card's type; no definition
+                 select (that would focus the editor) */
+              ? Effect.Many([
+                  globals.inject_global(
+                    Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
+                  ),
+                  show_panel,
+                ])
+              : click_effect(n),
       );
       ();
     };
@@ -2015,11 +2201,11 @@ let view_impl =
     open Js_of_ocaml;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
-    let z = max(0.2, globals.settings.canvas_zoom);
+    let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
     switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.avatar_dom_id)) {
     | None => Effect.Ignore
     | Some(av) =>
-      if (CanvasBuffer.score_playing()) {
+      if (CanvasBuffer.pacing_live()) {
         CanvasEnact.pause_score();
       };
       let body = Js.Unsafe.get(av, "firstElementChild");
@@ -2175,6 +2361,8 @@ let view_impl =
   let menu_close = (): unit => {
     canvas_menu := None;
     canvas_menu_node := None;
+    canvas_menu_definition := None;
+    canvas_menu_function := false;
   };
   /* icon palette: gestures are glyphs with tooltips, not text rows.
      Payloads are THUNKS — building the menu must not run the gesture. */
@@ -2198,6 +2386,561 @@ let view_impl =
       ],
       [text(glyph)],
     );
+  /* type nodes expanded into cards: each is a probe in card mode over
+     the newest rich-renderable sample site of that type */
+  let toggle_value_node = (key: string) => {
+    let expanding =
+      !List.mem(key, globals.settings.sidebar.canvas_value_nodes);
+    /* armed INSIDE the effect: this function is called at render time
+       to build the cards' callbacks */
+    let arm_beat =
+      Ui_effect.of_sync_fun(
+        () =>
+          /* the circle ↔ card morph is a relayout beat: the edges morph
+             to the new rim on the movers' timing instead of snapping
+             ahead of the growing card. The camera stays where the user
+             left it: a toggle never pans. */
+          if (!Animation.staged()) {
+            CanvasBuffer.stage_beat(~slow=true, ());
+          },
+        (),
+      );
+    /* opening a card is a request for live values: turn sampling on if
+       it is off, and end the agent-burst mask if it is holding samples
+       back — the user asked, so the evaluation goes out now */
+    let samples =
+      if (!expanding) {
+        Effect.Ignore;
+      } else if (!globals.settings.core.probe_all) {
+        globals.inject_global(Set(ProbeAll));
+      } else if (Util.AgentPulse.in_burst()) {
+        globals.inject_global(Set(RequestSamples));
+      } else {
+        Effect.Ignore;
+      };
+    Effect.Many([
+      arm_beat,
+      samples,
+      globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key)))),
+    ]);
+  };
+  /* corner drag: the card's box follows imperatively; the size commits
+     on release (one relayout, neighbours pushed) */
+  let start_card_resize = (key: string, evt): Effect.t(unit) => {
+    open Js_of_ocaml;
+    let sx: int = Js.Unsafe.coerce(evt)##.clientX;
+    let sy: int = Js.Unsafe.coerce(evt)##.clientY;
+    let (w0, h0) = card_size(key);
+    let z = CanvasZoom.clamp(globals.settings.canvas_zoom);
+    let cur = ref((w0, h0));
+    resizing_card := Some((slide, key, (w0, h0)));
+    let set_resizing = active =>
+      switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
+      | Some(el) =>
+        if (active) {
+          el##setAttribute(Js.string("data-card-resizing"), Js.string(""));
+        } else {
+          el##removeAttribute(Js.string("data-card-resizing"));
+        }
+      | None => ()
+      };
+    set_resizing(true);
+    let natural =
+      List.assoc_opt(
+        (slide, key),
+        globals.settings.sidebar.canvas_card_natural,
+      );
+    /* LIVE follow: the card's box and its view's zoom track the pointer,
+       and the whole layout (neighbours pushed, edges re-landed) is
+       recomputed with the pending size and applied to the DOM each
+       frame — the committed render then changes nothing */
+    let raf_busy = ref(false);
+    let pending: ref(option((float, float))) = ref(Option.none);
+    let apply_size = ((w, h)) => {
+      switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
+      | Some(el) =>
+        let st = Js.Unsafe.coerce(el)##.style;
+        st##.width := Js.string(Printf.sprintf("%.1fpx", w));
+        st##.height := Js.string(Printf.sprintf("%.1fpx", h));
+        switch (natural) {
+        | Option.Some((nw, nh)) when nw > 1. && nh > 1. =>
+          let zc =
+            Float.min((w -. 8.) /. nw, (h -. 8.) /. nh)
+            |> Float.max(0.15)
+            |> Float.min(6.);
+          ignore(
+            Js.Unsafe.meth_call(
+              st,
+              "setProperty",
+              [|
+                Js.Unsafe.inject(Js.string("--card-zoom")),
+                Js.Unsafe.inject(Js.string(Printf.sprintf("%.4f", zc))),
+              |],
+            ),
+          );
+          let zb =
+            Float.min(w /. nw, h /. nh) |> Float.max(0.15) |> Float.min(6.);
+          ignore(
+            Js.Unsafe.meth_call(
+              st,
+              "setProperty",
+              [|
+                Js.Unsafe.inject(Js.string("--card-bleed-zoom")),
+                Js.Unsafe.inject(Js.string(Printf.sprintf("%.4f", zb))),
+              |],
+            ),
+          );
+        | _ => ()
+        };
+      | Option.None => ()
+      };
+      CanvasLayout.card_extents :=
+        [
+          (key, (w, h)),
+          ...List.remove_assoc(key, CanvasLayout.card_extents^),
+        ];
+      switch (cached_frame^) {
+      | Option.Some(fc) =>
+        LayoutDom.apply_layout(
+          CanvasLayout.layout(
+            ~x_scale=fc.fc_x_scale,
+            ~y_scale=fc.fc_y_scale,
+            ~origin_override=Option.some(fc.fc_origin),
+            ~offsets,
+            ~pins,
+            graph,
+          ),
+        )
+      | Option.None => ()
+      };
+    };
+    let follow = (wh: (float, float)) => {
+      pending := Option.some(wh);
+      if (! raf_busy^) {
+        raf_busy := true;
+        let _ =
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "requestAnimationFrame",
+            [|
+              Js.Unsafe.inject(
+                Js.Unsafe.callback(() => {
+                  raf_busy := false;
+                  switch (pending^) {
+                  | Option.Some(wh) => apply_size(wh)
+                  | Option.None => ()
+                  };
+                }),
+              ),
+            |],
+          );
+        ();
+      };
+    };
+    let rec on_move = evt => {
+      let x: int = Js.Unsafe.coerce(evt)##.clientX;
+      let y: int = Js.Unsafe.coerce(evt)##.clientY;
+      let w = max(40., w0 +. float_of_int(x - sx) /. z);
+      let h = max(28., h0 +. float_of_int(y - sy) /. z);
+      cur := (w, h);
+      resizing_card := Some((slide, key, (w, h)));
+      follow((w, h));
+      ();
+    }
+    and on_up = _ => {
+      let doc = Js.Unsafe.coerce(Dom_html.document);
+      let _ = doc##removeEventListener("mousemove", on_move);
+      let _ = doc##removeEventListener("mouseup", on_up);
+      let (w, h) = cur^;
+      /* A queued RAF must not apply an older pointer position after the
+         committed render. Finish with transitions disabled, then restore
+         the circle/card morph for later expand/collapse gestures. */
+      pending := None;
+      apply_size((w, h));
+      resizing_card := None;
+      Effect.Expert.handle_non_dom_event_exn(
+        globals.inject_global(
+          Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+        ),
+      );
+      ignore(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "requestAnimationFrame",
+          [|
+            Js.Unsafe.inject(Js.Unsafe.callback(() => set_resizing(false))),
+          |],
+        ),
+      );
+      ();
+    };
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##addEventListener("mousemove", on_move);
+    let _ = doc##addEventListener("mouseup", on_up);
+    Effect.Prevent_default;
+  };
+  /* Explicit Fit is an overview, independent of Follow's readability
+     floor. Include the rendered cards, labels and wires, not just node
+     radii: any of them can extend beyond the layout's nominal box. */
+  let fit_view = () => {
+    let aw = Option.value(~default=lay.width, avail_width)
+    and ah = Option.value(~default=lay.height, avail_height);
+    let top = min(max(0., ah -. 40.), CanvasCamera.overview_top_inset());
+    CanvasCamera.note_user_zoom();
+    let bounds =
+      switch (CanvasCamera.rendered_graph_bbox()) {
+      | Some(b) => Some(b)
+      | None => CanvasCamera.graph_bbox^
+      };
+    switch (bounds) {
+    | Some((x0, y0, x1, y1)) =>
+      let z =
+        CanvasZoom.fit(~width=x1 -. x0, ~height=y1 -. y0, ~aw, ~ah=ah -. top);
+      CanvasCamera.animate(
+        ~aw,
+        ~ah,
+        ~zoom=Some(z),
+        ~dur=320.,
+        ~easing=CanvasCamera.EaseOut,
+        ((x0 +. x1) /. 2., (y0 +. y1) /. 2. -. top /. (2. *. z)),
+      );
+    | None =>
+      animate_fit(
+        ~z_to=CanvasZoom.fit(~width=lay.width, ~height=lay.height, ~aw, ~ah),
+        ~lw=lay.width,
+        ~lh=lay.height,
+        ~aw,
+        ~ah,
+      )
+    };
+  };
+  /* a card just opened or resized: bring IT into view (pan; zoom up to
+     a readable minimum) rather than re-fitting the whole graph */
+  if (fit_pending^) {
+    fit_pending := false;
+    CanvasEnact.after_render(fit_view);
+  };
+  CanvasProbe.retain_card_views(
+    List.map(
+      key => "ty/" ++ key,
+      globals.settings.sidebar.canvas_value_nodes,
+    ),
+  );
+  let cards =
+    List.filter_map(
+      key => {
+        let selected_fn =
+          switch (selected_edge) {
+          | Some(e) => Some(e.e_name)
+          | None => globals.settings.sidebar.canvas_focus
+          };
+        let within =
+          switch (selected_fn) {
+          | Some(name) =>
+            List.find_opt(
+              (e: CanvasGraph.edge) => e.e_name == name,
+              graph.edges,
+            )
+            |> Option.map((e: CanvasGraph.edge) =>
+                 TermData.extreme_measures(
+                   e.e_id,
+                   editor.editor.syntax.term_data,
+                   editor.editor.syntax.measured,
+                 )
+               )
+            |> Option.join
+          | None => None
+          };
+        let is_livelit_node =
+          switch (
+            List.find_opt(
+              (n: CanvasGraph.tynode) => n.key == key,
+              graph.nodes,
+            )
+          ) {
+          | Some(n) => Language.UserLivelit.is_livelit_name(n.label)
+          | None => false
+          };
+        let editor = is_livelit_node ? editor : value_editor;
+        let site =
+          CanvasFocus.value_site(
+            ~dynamics=editor.dynamics,
+            ~info_map=editor.statics.info_map,
+            ~graph,
+            ~focus=editor.editor.state.zipper.refractors.sample_focus,
+            ~within?,
+            ~syntax=editor.editor.syntax,
+            key,
+          );
+        let content =
+          switch (site) {
+          | Some(id) =>
+            CanvasProbe.card_view(
+              ~globals,
+              ~editor,
+              ~key="ty/" ++ key,
+              ~app=is_livelit_node,
+              id,
+            )
+          | None => None
+          };
+        let content =
+          switch (content) {
+          | Some(c) => c
+          | None =>
+            /* no site of this type has samples the card can stand on */
+            div(
+              ~attrs=[clss(["card-empty"])],
+              [
+                text(
+                  globals.settings.core.probe_all
+                    ? "no samples" : "no samples yet",
+                ),
+              ],
+            )
+          };
+        Some((
+          key,
+          (
+            content,
+            card_size(key),
+            List.assoc_opt(
+              (slide, key),
+              globals.settings.sidebar.canvas_card_natural,
+            ),
+            !
+              List.mem_assoc(
+                (slide, key),
+                globals.settings.sidebar.canvas_card_sizes,
+              ),
+            /* an app's card opens LIVE (the toggle then means "node") */
+            is_livelit_node
+            != List.mem(key, globals.settings.sidebar.canvas_card_live),
+            toggle_value_node(key),
+            start_card_resize(key),
+            globals.inject_global(Set(Sidebar(ToggleCanvasCardLive(key)))),
+          ),
+        ));
+      },
+      globals.settings.sidebar.canvas_value_nodes,
+    );
+  measured_card_content :=
+    List.filter(
+      (((s, key), _)) => s == slide && List.mem_assoc(key, cards),
+      measured_card_content^,
+    );
+  let needs_measure = (key, content) =>
+    switch (List.assoc_opt((slide, key), measured_card_content^)) {
+    | Some(previous) =>
+      previous !== content
+      || !
+           List.mem_assoc(
+             (slide, key),
+             globals.settings.sidebar.canvas_card_natural,
+           )
+      || !
+           List.mem_assoc(
+             (slide, key),
+             globals.settings.sidebar.canvas_card_sizes,
+           )
+    | None => true
+    };
+  let pending_measure =
+    List.filter(
+      ((key, (content, _, _, _, _, _, _, _))) =>
+        needs_measure(key, content),
+      cards,
+    );
+  /* MEASURE changed card content at its natural size (zoom 1,
+     shrink-wrapped) after the render: the natural size drives the
+     zoom-to-fit, and a card without a stored size opens at a standard
+     size with the content's proportions (long side 168px; plain values
+     at their own size, capped 360x260). Stored only on change. */
+  if (pending_measure != [] && resizing_card^ == None) {
+    CanvasEnact.after_render(() => {
+      Js_of_ocaml.
+        /* Another queued render may already have measured this content. */
+        (
+          List.iter(
+            ((key, (content, _, _, _, _, _, _, _))) =>
+              if (needs_measure(key, content) && resizing_card^ == None) {
+                switch (
+                  Js.Opt.to_option(
+                    Dom_html.document##getElementById(
+                      Js.string(CanvasView.node_dom_id(key)),
+                    ),
+                  )
+                ) {
+                | Some(el) =>
+                  let inner =
+                    el##querySelector(
+                      Js.string(
+                        ".probe-card-rich, .probe-card-plain, .canvas-app",
+                      ),
+                    );
+                  let rich =
+                    Js.Opt.test(
+                      el##querySelector(
+                        Js.string(".probe-card-rich, .canvas-app"),
+                      ),
+                    );
+                  let is_list =
+                    Js.Opt.test(
+                      el##querySelector(Js.string(".rich-livelit-list")),
+                    );
+                  switch (Js.Opt.to_option(inner)) {
+                  | Some(c) =>
+                    let z = {
+                      let root =
+                        Dom_html.document##querySelector(
+                          Js.string(".canvas-root"),
+                        );
+                      switch (Js.Opt.to_option(root)) {
+                      | Some(r) =>
+                        let cs = Dom_html.window##getComputedStyle(r);
+                        let zs = Js.to_string(Js.Unsafe.get(cs, "zoom"));
+                        switch (float_of_string_opt(zs)) {
+                        | Some(z) when z > 0.05 => z
+                        | _ => 1.
+                        };
+                      | None => 1.
+                      };
+                    };
+                    /* natural size: content zoom 1 (override the card's
+                       --card-zoom), shrink-wrapped; union of descendants */
+                    let est = Js.Unsafe.coerce(el)##.style;
+                    let saved_card =
+                      Js.to_string(Js.Unsafe.get(est, "cssText"));
+                    Js.Unsafe.set(
+                      est,
+                      "cssText",
+                      Js.string(
+                        saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;",
+                      ),
+                    );
+                    let cst = Js.Unsafe.coerce(c)##.style;
+                    let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
+                    Js.Unsafe.set(
+                      cst,
+                      "cssText",
+                      Js.string(
+                        saved
+                        ++ "; position: absolute; width: max-content; height: max-content; max-width: none; max-height: none; overflow: visible;",
+                      ),
+                    );
+                    let r0 = c##getBoundingClientRect;
+                    let x0 = r0##.left
+                    and y0 = r0##.top;
+                    let (x1, y1) = {
+                      let ds = c##querySelectorAll(Js.string("*"));
+                      let mx = ref(x0)
+                      and my = ref(y0);
+                      for (j in 0 to min(ds##.length, 600) - 1) {
+                        switch (Js.Opt.to_option(ds##item(j))) {
+                        | Some(d) =>
+                          let r = d##getBoundingClientRect;
+                          let w = Js.Optdef.get(r##.width, () => 0.);
+                          if (w > 0.) {
+                            mx := Float.max(mx^, r##.right);
+                            my := Float.max(my^, r##.bottom);
+                          };
+                        | None => ()
+                        };
+                      };
+                      (mx^, my^);
+                    };
+                    Js.Unsafe.set(cst, "cssText", Js.string(saved));
+                    Js.Unsafe.set(est, "cssText", Js.string(saved_card));
+                    measured_card_content :=
+                      [
+                        ((slide, key), content),
+                        ...List.remove_assoc(
+                             (slide, key),
+                             measured_card_content^,
+                           ),
+                      ];
+                    let nw = Float.max(8., (x1 -. x0) /. z)
+                    and nh = Float.max(8., (y1 -. y0) /. z);
+                    let stored =
+                      List.assoc_opt(
+                        (slide, key),
+                        globals.settings.sidebar.canvas_card_natural,
+                      );
+                    let changed =
+                      switch (stored) {
+                      | Some((sw, sh)) =>
+                        Float.abs(sw -. nw) > 1.5
+                        || Float.abs(sh -. nh) > 1.5
+                      | None => true
+                      };
+                    if (changed) {
+                      Effect.Expert.handle_non_dom_event_exn(
+                        globals.inject_global(
+                          Set(
+                            Sidebar(
+                              SetCanvasCardNatural(slide, key, nw, nh),
+                            ),
+                          ),
+                        ),
+                      );
+                    };
+                    if (!
+                          List.mem_assoc(
+                            (slide, key),
+                            globals.settings.sidebar.canvas_card_sizes,
+                          )) {
+                      let (w, h) =
+                        if (rich && !is_list) {
+                          /* standard size, the content's proportions */
+                          let long = 168.;
+                          let k = long /. Float.max(nw, nh);
+                          (
+                            Float.max(48., nw *. k +. 8.),
+                            Float.max(48., nh *. k +. 8.),
+                          );
+                        } else if (rich) {
+                          (
+                            Float.max(64., Float.min(360., nw +. 12.)),
+                            Float.max(48., Float.min(260., nh +. 12.)),
+                          );
+                        } else {
+                          (
+                            Float.max(40., Float.min(360., nw +. 22.)),
+                            Float.max(28., Float.min(260., nh +. 16.)),
+                          );
+                        };
+                      Effect.Expert.handle_non_dom_event_exn(
+                        globals.inject_global(
+                          Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+                        ),
+                      );
+                    };
+                  | None => ()
+                  };
+                | None => ()
+                };
+              },
+            pending_measure,
+          )
+        )
+    });
+  };
+  let delete_menu =
+    switch (canvas_menu_definition^) {
+    | None => []
+    | Some((id, name)) => [
+        button(
+          ~attrs=[
+            clss(["cmenu-delete"]),
+            Attr.title("Delete definition " ++ name),
+            Attr.create("aria-label", "Delete definition " ++ name),
+            CanvasBuffer.presenting^ ? Attr.disabled : Attr.empty,
+            Attr.on_click(_ => menu_act(() => delete_definition(id))),
+          ],
+          [text({js|×|js})],
+        ),
+      ]
+    };
   let menu_rows: list(Node.t) =
     switch (canvas_menu_node^) {
     | Some((key, syntax)) => [
@@ -2214,6 +2957,14 @@ let view_impl =
               () =>
               set_place(Some(("tuple", [syntax])))
             ),
+            menu_icon(
+              {js|≡|js},
+              List.mem(key, globals.settings.sidebar.canvas_value_nodes)
+                ? "show the type node again"
+                : "show a value of this type here (a navigable probe well; rich view when one applies)",
+              () =>
+              toggle_value_node(key)
+            ),
             menu_icon("[]", "list of this type, placed beside it", () => {
               let pos =
                 lay.nodes
@@ -2228,8 +2979,12 @@ let view_impl =
                 };
               place_stub_at(~kind="list", ~comps=[syntax], pt);
             }),
-          ],
+          ]
+          @ delete_menu,
         ),
+      ]
+    | None when canvas_menu_function^ => [
+        div(~attrs=[clss(["cmenu-row"])], delete_menu),
       ]
     | None =>
       let at = canvas_menu_at^;
@@ -2282,24 +3037,50 @@ let view_impl =
   let open_canvas_menu =
       (
         ~node: option((string, string)),
+        ~definition: option((Id.t, string)),
+        ~is_function: bool,
         ~client: (float, float),
         ~at: (float, float),
       )
       : Effect.t(unit) => {
     canvas_menu_node := node;
+    canvas_menu_definition := definition;
+    canvas_menu_function := is_function;
     canvas_menu_client := client;
     canvas_menu_at := at;
     canvas_menu := Util.Menu.opened;
     nudge;
   };
   let on_canvas_contextmenu = (at: (float, float), client: (float, float)) =>
-    open_canvas_menu(~node=None, ~client, ~at);
-  let on_node_contextmenu = (n: CanvasGraph.tynode, client: (float, float)) =>
     open_canvas_menu(
-      ~node=Some((n.key, ty_syntax(n))),
+      ~node=None,
+      ~definition=None,
+      ~is_function=false,
       ~client,
-      ~at=(0., 0.),
+      ~at,
     );
+  let on_node_contextmenu = (n: CanvasGraph.tynode, client: (float, float)) =>
+    Effect.Many([
+      click_effect(n),
+      open_canvas_menu(
+        ~node=Some((n.key, ty_syntax(n))),
+        ~definition=Option.map(id => (id, n.label), n.n_id),
+        ~is_function=false,
+        ~client,
+        ~at=(0., 0.),
+      ),
+    ]);
+  let on_edge_contextmenu = (e: CanvasGraph.edge, client: (float, float)) =>
+    Effect.Many([
+      on_edge_click(e),
+      open_canvas_menu(
+        ~node=None,
+        ~definition=Some((e.e_id, e.e_name)),
+        ~is_function=true,
+        ~client,
+        ~at=(0., 0.),
+      ),
+    ]);
   let menu_layer =
     div(
       ~attrs=[clss(["canvas-menu-layer"])],
@@ -2310,11 +3091,10 @@ let view_impl =
         [
           div(
             ~attrs=[
-              clss([
-                "context-menu",
-                "canvas-context-menu",
-                "open-down-right",
-              ]),
+              clss(
+                ["context-menu", "canvas-context-menu", "open-down-right"]
+                @ (canvas_menu_function^ ? ["canvas-function-menu"] : []),
+              ),
               Attr.create(
                 "style",
                 Printf.sprintf(
@@ -2545,15 +3325,11 @@ let view_impl =
            are planned per act); the generic follow is for the rest */
         && !CanvasBuffer.pacing_live()
         && CanvasBuffer.now() >= CanvasCamera.scored_until^ =>
-    let moved =
-      switch (last_followed^) {
-      | Some(lp: CanvasLayout.pos) =>
-        abs_float(lp.x -. p.x) > 1. || abs_float(lp.y -. p.y) > 1.
-      | None => true
-      };
+    let hopped = last_avatar_id^ != last_followed_id^;
     let woke = agent_busy && ! last_followed_busy^;
-    if (moved || woke) {
+    if (hopped || woke) {
       last_followed := Some(p);
+      last_followed_id := last_avatar_id^;
       CanvasCamera.follow(~aw, ~ah, (p.x, p.y));
     };
     last_followed_busy := agent_busy;
@@ -2749,7 +3525,7 @@ let view_impl =
       |> Option.map(v =>
            CanvasFocus.value_info(
              ~globals,
-             ~editor,
+             ~editor=value_editor,
              ~inject_jump,
              ~on_close=
                () => {
@@ -2780,7 +3556,7 @@ let view_impl =
         | Some(v) => [
             CanvasFocus.value_info(
               ~globals,
-              ~editor,
+              ~editor=value_editor,
               ~inject_jump,
               ~on_close=
                 () =>
@@ -2793,11 +3569,11 @@ let view_impl =
         | None =>
           CanvasFocus.type_view(
             ~globals,
-            ~editor,
+            ~editor=value_editor,
             ~inject_jump,
             ~on_close=
               globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-            ~dynamics=editor.dynamics,
+            ~dynamics=value_editor.dynamics,
             ~info_map=editor.statics.info_map,
             ~graph,
             key,
@@ -2807,7 +3583,7 @@ let view_impl =
       | (None, Some(name)) =>
         CanvasFocus.view(
           ~globals,
-          ~editor,
+          ~editor=value_editor,
           ~inject_jump,
           ~on_close=
             main_mode
@@ -2826,6 +3602,174 @@ let view_impl =
 
   /* harness: the live program's text (the master buffer; a stack's
      cells are spliced in) */
+  /* memory diagnostics: sample counts and marshalled size of the current
+     editor's dynamics map, and of its statics info map */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__dynamicsStats",
+    Js_of_ocaml.Js.Unsafe.callback(() => {
+      let dyn = editor.dynamics;
+      let ids = Id.Map.cardinal(dyn);
+      let samples = Id.Map.fold((_, ss, n) => n + List.length(ss), dyn, 0);
+      /* node counts (capped) of sample values and env entries, and the
+         five biggest sites */
+      let nodes = (e: Language.Exp.t) =>
+        switch (Language.TermPrune.size_within(20000, e)) {
+        | Some(n) => n
+        | None => 20000
+        };
+      let sample_nodes = (sm: Language.Sample.t) =>
+        nodes(sm.value)
+        + List.fold_left(
+            (acc, en: Language.Sample.Env.entry) =>
+              acc
+              + (
+                switch (en.value) {
+                | Val(e) => nodes(e)
+                | Opaque => 1
+                }
+              ),
+            0,
+            sm.env,
+          );
+      let total = ref(0);
+      let total_val = ref(0);
+      let sites =
+        Id.Map.fold(
+          (id, ss, acc) => {
+            let n = List.fold_left((a, sm) => a + sample_nodes(sm), 0, ss);
+            let nv =
+              List.fold_left(
+                (a, sm: Language.Sample.t) => a + nodes(sm.value),
+                0,
+                ss,
+              );
+            total := total^ + n;
+            total_val := total_val^ + nv;
+            [(Id.to_string(id), List.length(ss), n, nv), ...acc];
+          },
+          dyn,
+          [],
+        )
+        |> List.sort(((_, _, a, _), (_, _, b, _)) => compare(b, a));
+      let top =
+        Util.ListUtil.take(5, sites)
+        |> List.map(((id, k, n, nv)) =>
+             Printf.sprintf(
+               "%s:%d samples/%d nodes (values %d)",
+               String.sub(id, 0, 8),
+               k,
+               n,
+               nv,
+             )
+           )
+        |> String.concat("; ");
+      Js_of_ocaml.Js.string(
+        Printf.sprintf(
+          "ids=%d samples=%d total_nodes=%d value_nodes=%d top=[%s]",
+          ids,
+          samples,
+          total^,
+          total_val^,
+          top,
+        ),
+      );
+    }),
+  );
+  /* TEMP debug: candidate sites of a TYPE node — id, sort, whether the
+     site has a syntax segment (a card anchors a probe to it), samples */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__typeSites",
+    Js_of_ocaml.Js.Unsafe.callback(
+      (ty: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+      let ty = Js_of_ocaml.Js.to_string(ty);
+      let info_map = editor.statics.info_map;
+      let names =
+        switch (CanvasFocus.node_of(graph, ty)) {
+        | Some(n) => CanvasFocus.node_type_names(~graph, n)
+        | None => [ty]
+        };
+      let rows =
+        Language.Sample.Map.fold(
+          (id, samples, acc) =>
+            switch (CanvasFocus.site_ty(~info_map, id)) {
+            | Some(t) when List.mem(t, names) =>
+              let sort =
+                switch (Id.Map.find_opt(id, info_map)) {
+                | Some(Language.Info.InfoExp(_)) => "Exp"
+                | Some(Language.Info.InfoPat(_)) => "Pat"
+                | _ => "?"
+                };
+              let seg =
+                TermData.segment(id, editor.editor.syntax.term_data)
+                |> Option.map(Haz3lcore.Printer.of_segment(~holes="?"))
+                |> Option.value(~default="<NO SEGMENT>");
+              let depth =
+                switch (samples) {
+                | [s, ..._] => List.length((s: Language.Sample.t).call_stack)
+                | [] => 0
+                };
+              [
+                Printf.sprintf(
+                  "%s %s n=%d depth=%d seg=%s",
+                  String.sub(Id.to_string(id), 0, 6),
+                  sort,
+                  List.length(samples),
+                  depth,
+                  String.sub(seg, 0, min(50, String.length(seg))),
+                ),
+                ...acc,
+              ];
+            | _ => acc
+            },
+          editor.dynamics,
+          [],
+        );
+      Js_of_ocaml.Js.string(String.concat("\n", rows));
+    }),
+  );
+  /* debug: the samples of one site (id prefix) in stored order */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__siteSamples",
+    Js_of_ocaml.Js.Unsafe.callback(
+      (prefix: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+      let prefix = Js_of_ocaml.Js.to_string(prefix);
+      let dyn = editor.dynamics;
+      let rows =
+        Id.Map.fold(
+          (id, ss, acc) => {
+            let sid = Id.to_string(id);
+            String.length(sid) >= String.length(prefix)
+            && String.sub(sid, 0, String.length(prefix)) == prefix
+              ? acc
+                @ List.map(
+                    (sm: Language.Sample.t) =>
+                      Printf.sprintf(
+                        "seq=%d step=%d depth=%d %s",
+                        sm.seq,
+                        sm.step_start,
+                        List.length(sm.call_stack),
+                        String.sub(
+                          Language.Exp.show(sm.value),
+                          0,
+                          min(
+                            60,
+                            String.length(Language.Exp.show(sm.value)),
+                          ),
+                        ),
+                      ),
+                    ss,
+                  )
+              : acc;
+          },
+          dyn,
+          [],
+        );
+      Js_of_ocaml.Js.string(String.concat("\n", rows));
+    }),
+  );
   Js_of_ocaml.Js.Unsafe.set(
     Js_of_ocaml.Js.Unsafe.global,
     "__programText",
@@ -3218,6 +4162,132 @@ let view_impl =
           ],
         );
   };
+  let catch_up = () => {
+    CanvasTrajectory.stop();
+    CanvasEnact.cancel_score();
+    CanvasBuffer.reset();
+    CanvasBuffer.last_agent_action := 0.;
+    last_layout := Option.none;
+    leaving := Option.none;
+    last_node_snapshot := ("", []);
+    last_pacing_live := false;
+    CanvasCamera.gen := CanvasCamera.gen^ + 1;
+    CanvasCamera.inflight := Option.none;
+    CanvasCamera.scored_until := 0.;
+    CanvasLog.log(
+      "presentation: catch up to accepted program; stop current run",
+    );
+  };
+  let change_layout = (~reset=false, mode, wires) => {
+    if (CanvasLayoutExperiments.known(mode)) {
+      CanvasLayoutExperiments.mode := mode;
+      CanvasLayoutExperiments.awaiting_fit :=
+        CanvasLayoutExperiments.research(mode);
+      CanvasLayoutExperiments.wires :=
+        wires == "circuit" ? "circuit" : "curves";
+      if (reset) {
+        CanvasLayoutExperiments.reset();
+      };
+      CanvasAvatar.storage_set("constellation.layoutExperiment", mode);
+      CanvasAvatar.storage_set(
+        "constellation.wireExperiment",
+        CanvasLayoutExperiments.wires^,
+      );
+      cached_frame := None;
+      CanvasBuffer.stage_beat(~slow=true, ());
+      fit_pending := true;
+      CanvasLog.log("layout lab: " ++ mode ++ "/" ++ wires);
+    };
+    globals.inject_global(Set(CanvasTick));
+  };
+  let lab_select = (label, current, choices, action) =>
+    Node.label([
+      text(label),
+      select(
+        ~attrs=[
+          Attr.create("aria-label", label),
+          Attr.on_change((_, v) => action(v)),
+        ],
+        List.map(
+          ((value, label)) =>
+            option(
+              ~attrs=
+                [Attr.value(value)]
+                @ (
+                  value == current
+                    ? [Attr.create("selected", "selected")] : []
+                ),
+              [text(label)],
+            ),
+          choices,
+        ),
+      ),
+    ]);
+  let layout_lab =
+    Node.create(
+      "details",
+      ~attrs=[clss(["canvas-layout-lab"])],
+      [
+        Node.create(
+          "summary",
+          ~attrs=[
+            Attr.title(
+              "Compare experimental layouts while editing or running the agent",
+            ),
+          ],
+          [text("layout")],
+        ),
+        div(
+          ~attrs=[clss(["canvas-layout-options"])],
+          [
+            div(
+              ~attrs=[clss(["layout-lab-heading"])],
+              [text("Layout experiments")],
+            ),
+            CanvasLayoutExperiments.research(CanvasLayoutExperiments.mode^)
+              ? Node.p([text(CanvasLayoutExperiments.engine_status())])
+              : Node.none,
+            lab_select(
+              "Placement",
+              CanvasLayoutExperiments.mode^,
+              CanvasLayoutExperiments.modes,
+              mode =>
+              change_layout(mode, CanvasLayoutExperiments.wires^)
+            ),
+            lab_select(
+              "Connections",
+              CanvasLayoutExperiments.wires^,
+              [
+                ("curves", "Original curves"),
+                ("circuit", "Circuit routes"),
+              ],
+              wires =>
+              change_layout(CanvasLayoutExperiments.mode^, wires)
+            ),
+            Node.button(
+              ~attrs=[
+                Attr.on_click(_ =>
+                  change_layout(
+                    ~reset=true,
+                    CanvasLayoutExperiments.mode^,
+                    CanvasLayoutExperiments.wires^,
+                  )
+                ),
+                Attr.title(
+                  "Recompute automatic positions using the current graph; keep your manual placements",
+                ),
+              ],
+              [text("Rearrange automatic nodes")],
+            ),
+            Node.p([
+              text(
+                "Applies to live agent edits and replay. Manual placements are retained. Current + Original curves restores the baseline.",
+              ),
+            ]),
+          ],
+        ),
+      ],
+    );
   let toolbar = {
     let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
       div(
@@ -3231,50 +4301,29 @@ let view_impl =
         ],
         [text(label)],
       );
-    let mode_btn = (kind, label, tooltip) => {
-      let active =
-        switch (place) {
-        | Some((k, _)) => k == kind
-        | None => false
-        };
-      btn(
-        ~cls=active ? "tool-active" : "",
-        label,
-        tooltip,
-        set_place(active ? None : Some((kind, []))),
-      );
-    };
     div(
       ~attrs=[clss(["canvas-toolbar"])],
       [
-        mode_btn(
-          "type",
-          {js|τ|js},
-          "stub type: click the canvas where it should go; creates type T = ? in",
-        ),
-        mode_btn(
-          "tuple",
-          "()",
-          "tuple former: click component nodes in order, then the canvas to place; creates type T = (A, B) in",
-        ),
-        mode_btn(
-          "list",
-          "[]",
-          "list former: click the element node, then the canvas to place; creates type T = [A] in",
-        ),
-        btn(
-          ~cls=connect == None ? "" : "tool-active",
-          {js|ƒ|js},
-          "draw a function: click a source node then a target node (shift-click collects several sources into a tuple input); creates let f : A -> B = ? in",
-          set_connect(connect == None ? Some([]) : None),
-        ),
-      ]
-      @ [
         btn(
           ~cls=globals.settings.canvas_pace ? "tool-active" : "",
           "pace",
-          "play bursts of agent edits as separate animated beats (travel, act, settle; bigger edits dwell longer) instead of one jump-cut",
+          "present definition edits together in the code, outline and canvas",
           globals.inject_global(Set(ToggleCanvasPace)),
+        ),
+        btn(
+          ~on_press=catch_up,
+          "catch up",
+          "stop the current run and show the latest editable program everywhere",
+          Effect.Many([
+            editors_inject(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.CatchUpAgent,
+                ),
+              ),
+            ),
+            globals.inject_global(Set(CanvasTick)),
+          ]),
         ),
         btn(
           ~cls=globals.settings.canvas_follow ? "tool-active" : "",
@@ -3283,46 +4332,7 @@ let view_impl =
           globals.inject_global(Set(ToggleCanvasFollow)),
         ),
         btn(
-          ~on_press=
-            () => {
-              /* slack: equality lets sub-pixel rounding re-summon the
-                 scrollbar the fit was meant to remove */
-              /* fit the NODES' extent, not the layout box: nodes pinned
-                 or dragged above/left of the frame origin sit outside
-                 the box (a board of only such nodes has a 0-high box) */
-              let aw = Option.value(~default=lay.width, avail_width)
-              and ah = Option.value(~default=lay.height, avail_height);
-              switch (CanvasCamera.graph_bbox^) {
-              | Some((x0, y0, x1, y1)) =>
-                let pad = 28.;
-                let gw = max(1., x1 -. x0 +. 2. *. pad)
-                and gh = max(1., y1 -. y0 +. 2. *. pad);
-                CanvasCamera.animate(
-                  ~aw,
-                  ~ah,
-                  ~zoom=
-                    Some(
-                      max(
-                        0.4,
-                        min(2.5, min((aw -. 24.) /. gw, (ah -. 24.) /. gh)),
-                      ),
-                    ),
-                  ~dur=320.,
-                  ~easing=CanvasCamera.EaseOut,
-                  ((x0 +. x1) /. 2., (y0 +. y1) /. 2.),
-                );
-              | None =>
-                let zw = (aw -. 24.) /. max(1., lay.width)
-                and zh = (ah -. 24.) /. max(1., lay.height);
-                animate_fit(
-                  ~z_to=max(0.4, min(2.5, min(zw, zh))),
-                  ~lw=lay.width,
-                  ~lh=lay.height,
-                  ~aw,
-                  ~ah,
-                );
-              };
-            },
+          ~on_press=fit_view,
           "fit",
           "zoom so the whole graph fits the pane",
           Effect.Ignore,
@@ -3336,15 +4346,6 @@ let view_impl =
           offsets == [] && pins == []
             ? Effect.Ignore
             : globals.inject_global(Set(ClearCanvasNodeOffsets(slide))),
-        ),
-        btn(
-          ~cls=CanvasAvatar.is_rig() ? "tool-active" : "",
-          ~on_press=CanvasAvatar.toggle_look,
-          {js|◬|js},
-          CanvasAvatar.is_rig()
-            ? "agent look: constellation rig with moods — click for the minimal @ glyph"
-            : "agent look: minimal @ glyph — click for the constellation rig with moods",
-          globals.inject_global(Set(CanvasTick)),
         ),
         btn(
           ~cls=
@@ -3363,6 +4364,7 @@ let view_impl =
             ),
           ),
         ),
+        layout_lab,
         div(~attrs=[clss(["toolbar-spacer"])], []),
         div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
         CanvasReplayView.rec_dot(),
@@ -3541,6 +4543,12 @@ let view_impl =
              );
            }
          );
+    if (added != [] || new_edges != []) {
+      let nodes =
+        List.map((nl: CanvasLayout.node_layout) => nl.node.key, added)
+      and edges = List.map(e => e.CanvasScore.name, new_edges);
+      CanvasEnact.after_render(() => CanvasEnact.revive(~nodes, ~edges));
+    };
     let moved =
       lay.nodes
       |> List.filter_map((nl: CanvasLayout.node_layout) =>
@@ -3583,7 +4591,9 @@ let view_impl =
           || changed_edges != []
         )
         || big_move
+        && burst_end_reframe^
       );
+    burst_end_reframe := false;
     if (scored) {
       /* a render nobody staged (the burst-end re-frame) still needs its
          movers recorded before the patch, or the drift is a jump */
@@ -3747,7 +4757,16 @@ let view_impl =
                     },
                   zoom: CanvasCamera.zoom_now^,
                 },
-              ~pos_of,
+              ~pos_of=
+                CanvasScore.with_edge_positions(
+                  ~pos_of,
+                  ~edges=
+                    List.map(
+                      (el: CanvasLayout.edge_layout) =>
+                        (el.edge.e_name, el.src_p, el.dst_p),
+                      lay.edges @ removed_edge_layouts,
+                    ),
+                ),
               ~all_keys=cur_keys,
               ~exposed=CanvasCamera.exposed_keys(),
               score,
@@ -4052,6 +5071,8 @@ let view_impl =
               let fire = prev_n >= 0 && n > prev_n && nowt -. last_t > 1000.;
               if (fire) {
                 CanvasRipple.pulse_edge(
+                  ~wire=
+                    List.map((p: CanvasLayout.pos) => (p.x, p.y), el.wire),
                   (el.src_p.x, el.src_p.y),
                   (el.c1.x, el.c1.y),
                   (el.c2.x, el.c2.y),
@@ -4335,7 +5356,11 @@ let view_impl =
       hint_row,
       CanvasReplayView.overlay(),
       div(
-        ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
+        ~attrs=[
+          Attr.id("canvas-scroll"),
+          Attr.tabindex(-1),
+          clss(["canvas-scroll"]),
+        ],
         [
           /* the dot field: a viewport-fixed canvas UNDER the board
              (sticky 0x0 holder), redrawn on scroll/zoom with the
@@ -4356,6 +5381,9 @@ let view_impl =
             ~inject_jump,
             ~collapsed_counts,
             ~on_hull_toggle,
+            ~cards,
+            ~on_node_dblclick=
+              (n: CanvasGraph.tynode) => toggle_value_node(n.key),
             ~dep_fan,
             ~on_edge_hover,
             ~on_value_click=Some(on_value_click),
@@ -4365,6 +5393,9 @@ let view_impl =
             ~on_canvas_dblclick,
             ~on_canvas_contextmenu,
             ~on_node_contextmenu,
+            ~on_node_select=n => click_effect(n),
+            ~on_delete_definition=delete_definition,
+            ~on_edge_contextmenu,
             ~on_avatar_mousedown,
             ~focused_ty,
             ~on_edge_click,

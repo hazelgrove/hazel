@@ -461,6 +461,17 @@ module Update = {
     switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
+    | Editors(
+        Scratch(
+          CellAction(MainEditor(_)) | StackHeader(_, MainEditor(_)) |
+          StackBody(_, MainEditor(_)) |
+          MasterPerform(_) |
+          OutlineDefOp(_, _) |
+          AgentAction(DirectEdit(_, _)),
+        ),
+      )
+        when CanvasBuffer.presenting^ =>
+      Updated.return_quiet(model)
     | Editors(action) =>
       /* Cross-cell jump-to-definition: a stack cell's jump whose binder
          lives in another definition is rewritten to (ensure the target
@@ -869,6 +880,79 @@ module MetaListener = {
     };
   };
 };
+/* A focused editor stores the whole program in the focus stack. Never feed
+   the timeline its frozen master zipper (that would replay a stale program). */
+let presentation_master:
+  ref(
+    option(
+      (Haz3lcore.Segment.t, Language.CoreSettings.t, CodeWithStatics.Model.t),
+    ),
+  ) =
+  ref(Option.none);
+let live_presentation_editor =
+    (
+      ~settings: Settings.t,
+      editors: Editors.Model.t,
+      fallback: CodeWithStatics.Model.t,
+    ) =>
+  switch (editors) {
+  | Scratch({focus: Some(f), _})
+  | Documentation({focus: Some(f), _}) =>
+    let seg = ScratchFocus.splice_all(f);
+    switch (presentation_master^) {
+    | Some((old, st, ed)) when old === seg && st === settings.core =>
+      /* The source can be unchanged while sample focus moves or resets.
+         Reusing the cached zipper's refractors silently resurrected the
+         previous focus on the next render (notably after app clicks). */
+      let refractors = fallback.editor.state.zipper.refractors;
+      let editor =
+        ed.editor.state.zipper.refractors === refractors
+          ? ed.editor
+          : {
+            ...ed.editor,
+            state: {
+              ...ed.editor.state,
+              zipper: {
+                ...ed.editor.state.zipper,
+                refractors,
+              },
+            },
+          };
+      let ed =
+        ed.dynamics === fallback.dynamics && editor === ed.editor
+          ? ed
+          : {
+            ...ed,
+            editor,
+            dynamics: fallback.dynamics,
+          };
+      presentation_master := Some((seg, settings.core, ed));
+      ed;
+    | _ =>
+      let z = Haz3lcore.Zipper.unzip(seg);
+      let z = {
+        ...z,
+        refractors: fallback.editor.state.zipper.refractors,
+      };
+      let statics =
+        Haz3lcore.CachedStatics.init_compositional(
+          ~settings=settings.core,
+          ~stitch=x => x,
+          ~root=fallback.editor.root,
+          z,
+        );
+      let ed =
+        CodeWithStatics.Model.mk(
+          ~statics,
+          ~dynamics=fallback.dynamics,
+          Haz3lcore.Editor.Model.mk(~root=fallback.editor.root, z),
+        );
+      presentation_master := Some((seg, settings.core, ed));
+      ed;
+    };
+  | _ => fallback
+  };
+
 /* single-slot vdom memo for the outline sidebar: the roll-up walk,
    row construction and diff are O(program) per render at 4k (ledger
    §14); its inputs change on Force frames and outline interaction,
@@ -876,6 +960,7 @@ module MetaListener = {
    rebuilt-on-change (statics, the DefStatics slot, test results) and
    structurally where small. */
 type outline_memo_key = {
+  ok_presenting: bool,
   ok_statics: Haz3lcore.CachedStatics.t,
   ok_slot: option(Haz3lcore.DefStatics.t),
   ok_focused: list((Haz3lcore.Id.t, option(string))),
@@ -889,7 +974,8 @@ type outline_memo_key = {
 let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
   ref(Option.none);
 let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
-  a.ok_statics === b.ok_statics
+  a.ok_presenting == b.ok_presenting
+  && a.ok_statics === b.ok_statics
   && (
     switch (a.ok_slot, b.ok_slot) {
     | (Some(x), Some(y)) => x === y
@@ -1151,6 +1237,60 @@ module View = {
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
     AppBridgeInstall.install(~globals);
+    let live_editor =
+      !CanvasSidebar.canvas_visible(globals.settings)
+        ? Update.get_editor(model)
+        : live_presentation_editor(
+            ~settings=globals.settings,
+            editors,
+            Update.get_editor(model),
+          );
+    let current_editor =
+      CanvasSidebar.present_editor(~globals, ~editors, live_editor);
+    let presenting = CanvasBuffer.presenting^;
+    let shared_program = CanvasSidebar.canvas_visible(globals.settings);
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__presentedProgramText",
+      Js.Unsafe.callback(() =>
+        Js.string(
+          Haz3lcore.Printer.of_zipper(
+            ~holes="?",
+            current_editor.editor.state.zipper,
+          ),
+        )
+      ),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__presentationPending",
+      List.length(CanvasBuffer.queue^),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__presentationHeld",
+      Js.bool(CanvasBuffer.held^),
+    );
+
+    let inject_editors = action => {
+      let inspected =
+        switch ((action: Editors.Update.t)) {
+        | Scratch(FocusDef(id))
+        | Scratch(FocusEnsure(id))
+        | Scratch(FocusToggle(id)) => Some(id)
+        | _ => None
+        };
+      switch (inspected) {
+      | Some(id) when presenting =>
+        Effect.Many([
+          Ui_effect.of_sync_fun(() => CanvasBuffer.selected := Some(id), ()),
+          /* Selection is safe in the accepted program and should survive
+             catch-up. Historical code itself remains read-only. */
+          inject(Editors(action)),
+        ])
+      | _ => inject(Editors(action))
+      };
+    };
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let task_reference: option(string) =
       switch (editors) {
@@ -1164,10 +1304,10 @@ module View = {
         ~explain_this_inject=
           (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
         ~explainThisModel,
-        ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
+        ~editors_inject=inject_editors,
         ~editors,
         ~selection=model.selection,
-        ~editor=Update.get_editor(model),
+        ~editor=current_editor,
         ~problem_editors=Update.get_problem_editors(model),
         ~signal=
           fun
@@ -1187,35 +1327,60 @@ module View = {
           visible_rows: None,
         };
     let editors_view =
-      Editors.View.view(
-        ~globals=editors_globals,
-        ~signal=
-          fun
-          | MakeActive(selection) => inject(MakeActive(selection)),
-        ~inject=a => inject(Editors(a)),
-        ~inject_explainthis=a => inject(ExplainThis(a)),
-        ~selection=Some(selection),
-        model.editors,
-      );
+      presenting
+        ? [
+          div(
+            ~attrs=[Attr.classes(["presentation-code"])],
+            [
+              div(
+                ~attrs=[Attr.classes(["presentation-note"])],
+                [text("Watching edits · Catch up to edit")],
+              ),
+              CodeWithStatics.View.view(
+                ~globals=editors_globals,
+                current_editor,
+              ),
+            ],
+          ),
+        ]
+        : Editors.View.view(
+            ~globals=editors_globals,
+            ~signal=
+              fun
+              | MakeActive(selection) => inject(MakeActive(selection)),
+            ~inject=inject_editors,
+            ~inject_explainthis=a => inject(ExplainThis(a)),
+            ~selection=Some(selection),
+            model.editors,
+          );
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
-    let current_editor = Update.get_editor(model);
     /* every stacked definition's id (+ live header name) */
     let focused_entries =
-      switch (model.editors) {
-      | Scratch(m)
-      | Documentation(m) => ScratchMode.Model.focused_names(m)
-      | _ => []
-      };
+      presenting
+        ? switch (CanvasBuffer.selected^) {
+          | Some(id) => [(id, Option.none)]
+          | None => []
+          }
+        : (
+          switch (model.editors) {
+          | Scratch(m)
+          | Documentation(m) => ScratchMode.Model.focused_names(m)
+          | _ => []
+          }
+        );
     /* module/definition outline (modular-editors phases 1-2) */
     let outline = {
       /* structural def ops only make sense in scratch-style modes */
       let is_scratch =
-        switch (model.editors) {
-        | Scratch(_)
-        | Documentation(_) => true
-        | _ => false
-        };
+        !presenting
+        && (
+          switch (model.editors) {
+          | Scratch(_)
+          | Documentation(_) => true
+          | _ => false
+          }
+        );
       let (slide_prefix, slide_name) =
         switch (model.editors) {
         | Scratch(m) => (
@@ -1238,22 +1403,27 @@ module View = {
         ScratchMode.collapse_paths(slide_prefix, slide_name);
       let menu = is_scratch ? ScratchMode.outline_menu^ : None;
       let test_results =
-        switch (model.editors) {
-        | Scratch(m)
-        | Documentation(m) =>
-          switch (
-            List.nth_opt(m.scratchpads, m.current)
-            |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
-          ) {
-          | Some(Code({editor, _})) =>
-            EvalResult.Model.test_results(editor.CellEditor.Model.result)
-          | _ => None
-          }
-        | _ => None
-        };
+        presenting
+          ? Option.none
+          : (
+            switch (model.editors) {
+            | Scratch(m)
+            | Documentation(m) =>
+              switch (
+                List.nth_opt(m.scratchpads, m.current)
+                |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
+              ) {
+              | Some(Code({editor, _})) =>
+                EvalResult.Model.test_results(editor.CellEditor.Model.result)
+              | _ => None
+              }
+            | _ => None
+            }
+          );
       let memo_key = {
+        ok_presenting: presenting,
         ok_statics: current_editor.statics,
-        ok_slot: Haz3lcore.DefStatics.current(),
+        ok_slot: shared_program ? Option.none : Haz3lcore.DefStatics.current(),
         ok_focused: focused_entries,
         ok_is_scratch: is_scratch,
         ok_name: slide_name,
@@ -1286,10 +1456,12 @@ module View = {
                 (n: OutlineTree.node) => n.o_label != "",
                 OutlineTree.of_term(term),
               );
-            if (!stacked && named()) {
+            if (shared_program || !stacked && named()) {
               term;
             } else {
-              switch (Haz3lcore.DefStatics.current()) {
+              switch (
+                shared_program ? Option.none : Haz3lcore.DefStatics.current()
+              ) {
               | Some(ds) => ds.Haz3lcore.DefStatics.term
               | None => term
               };
@@ -1300,7 +1472,9 @@ module View = {
             /* prefer the DefStatics slot: it stays live during stacked
                editing (the master's own statics are frozen then) */
             let (info_map, error_ids) =
-              switch (Haz3lcore.DefStatics.current()) {
+              switch (
+                shared_program ? Option.none : Haz3lcore.DefStatics.current()
+              ) {
               | Some(ds) => (
                   ds.merged,
                   Haz3lcore.DefStatics.all_error_ids(ds),
@@ -1355,7 +1529,7 @@ module View = {
              The canvas reveals the selection (source = outline). */
           let select_one = id =>
             Effect.Many([
-              inject(Editors(Scratch(FocusDef(id)))),
+              inject_editors(Scratch(FocusDef(id))),
               globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
               Ui_effect.of_sync_fun(CanvasSidebar.request_reveal, id),
             ]);
@@ -1363,20 +1537,20 @@ module View = {
           OutlineSidebar.view(
             ~jump=
               id =>
-                main
+                main || presenting
                   ? select_one(id) : globals.inject_global(JumpToTile(id)),
             /* plain click with a stack open ADDS (or moves to) that cell —
                never replaces the stack (andrew: replacing was a footgun) */
             ~focus=
               id =>
-                main
+                main || presenting
                   ? select_one(id)
-                  : inject(Editors(Scratch(FocusEnsure(id)))),
+                  : inject_editors(Scratch(FocusEnsure(id))),
             ~toggle=
               id =>
-                main
+                main || presenting
                   ? select_one(id)
-                  : inject(Editors(Scratch(FocusToggle(id)))),
+                  : inject_editors(Scratch(FocusToggle(id))),
             ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
             ~is_collapsed=path => List.mem(path, collapsed_paths),
             ~toggle_collapse=
@@ -1490,21 +1664,42 @@ module View = {
                   CanvasSidebar.view(
                     ~globals,
                     ~editors,
-                    ~editors_inject=
-                      (a: Editors.Update.t) => inject(Editors(a)),
+                    ~editors_inject=inject_editors,
                     ~editor=current_editor,
                     ~use_sidebar_width=false,
                     ~main_mode=true,
                     ~selected_item,
                     ~definition_view=
-                      selected_item == None
-                        ? None
-                        : Some(
-                            div(
-                              ~attrs=[Attr.classes(["canvas-def-stack"])],
-                              editors_view,
-                            ),
-                          ),
+                      presenting
+                        ? Option.bind(
+                            selected_item,
+                            id => {
+                              let seg =
+                                Haz3lcore.Zipper.unselect_and_zip(
+                                  current_editor.editor.state.zipper,
+                                );
+                              Option.map(
+                                def =>
+                                  CanvasDefPreview.view(
+                                    ~globals,
+                                    ~key=seg,
+                                    ~id,
+                                    def,
+                                  ),
+                                ScratchFocus.find_def(id, seg),
+                              );
+                            },
+                          )
+                        : selected_item == None
+                            ? None
+                            : Some(
+                                div(
+                                  ~attrs=[
+                                    Attr.classes(["canvas-def-stack"]),
+                                  ],
+                                  editors_view,
+                                ),
+                              ),
                     (),
                   ),
                 ],
@@ -1636,8 +1831,7 @@ module View = {
                       CanvasSidebar.view(
                         ~globals,
                         ~editors,
-                        ~editors_inject=
-                          (a: Editors.Update.t) => inject(Editors(a)),
+                        ~editors_inject=inject_editors,
                         ~editor=current_editor,
                         ~use_sidebar_width=false,
                         (),

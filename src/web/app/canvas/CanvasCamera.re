@@ -77,6 +77,91 @@ let root_el = (): option(Js.t(Dom_html.element)) =>
     ),
   );
 
+/* Only explicit Fit measures the rendered graph. Follow continues to use
+   the staged layout's stable targets rather than chasing animation frames. */
+let rendered_graph_bbox = (): option((float, float, float, float)) =>
+  switch (root_el()) {
+  | None => None
+  | Some(root) =>
+    let rr = Js.Unsafe.meth_call(root, "getBoundingClientRect", [||]);
+    let left: float = Js.Unsafe.get(rr, "left")
+    and top: float = Js.Unsafe.get(rr, "top");
+    let style =
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global,
+        "getComputedStyle",
+        [|Js.Unsafe.inject(root)|],
+      );
+    let zoom =
+      Js.to_string(Js.Unsafe.get(style, "zoom"))
+      |> float_of_string_opt
+      |> Option.value(~default=zoom_now^)
+      |> CanvasZoom.clamp;
+    let els =
+      Js.Unsafe.meth_call(
+        root,
+        "querySelectorAll",
+        [|
+          Js.Unsafe.inject(
+            Js.string(
+              "[id^='cnode-'], .canvas-node-label, [id^='cedge-'], [id^='cpath-'], [id^='cform-'], [id^='cdep-'], [id^='corbit-'], [id^='clead-'], [id^='cval-'], .canvas-hull path",
+            ),
+          ),
+        |],
+      );
+    let count: int = Js.Unsafe.get(els, "length");
+    let bounds = ref(None: option((float, float, float, float)));
+    for (i in 0 to count - 1) {
+      let el = Js.Unsafe.get(els, i);
+      let r = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
+      let w: float = Js.Unsafe.get(r, "width")
+      and h: float = Js.Unsafe.get(r, "height");
+      if (w > 0. || h > 0.) {
+        let x0 = (Js.Unsafe.get(r, "left") -. left) /. zoom
+        and y0 = (Js.Unsafe.get(r, "top") -. top) /. zoom
+        and x1 = (Js.Unsafe.get(r, "right") -. left) /. zoom
+        and y1 = (Js.Unsafe.get(r, "bottom") -. top) /. zoom;
+        bounds :=
+          Some(
+            switch (bounds^) {
+            | None => (x0, y0, x1, y1)
+            | Some((bx0, by0, bx1, by1)) => (
+                min(x0, bx0),
+                min(y0, by0),
+                max(x1, bx1),
+                max(y1, by1),
+              )
+            },
+          );
+      };
+    };
+    bounds^;
+  };
+
+/* The floating replay controls occupy the top of the graph pane. Explicit
+   overview uses the unobstructed area so "inside the pane" also means seen. */
+let overview_top_inset = (): float =>
+  switch (scroll_el()) {
+  | None => 0.
+  | Some(pane) =>
+    let hud =
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.document,
+        "querySelector",
+        [|Js.Unsafe.inject(Js.string(".canvas-replay-hud"))|],
+      );
+    switch (Js.Opt.to_option(hud)) {
+    | None => 0.
+    | Some(hud) =>
+      let p = Js.Unsafe.meth_call(pane, "getBoundingClientRect", [||])
+      and h = Js.Unsafe.meth_call(hud, "getBoundingClientRect", [||]);
+      let height: float = Js.Unsafe.get(h, "height");
+      height <= 0.
+        ? 0.
+        : max(0., Js.Unsafe.get(h, "bottom") -. Js.Unsafe.get(p, "top"));
+    };
+  };
+
 /* viewport center in board coords, read from the DOM (user scrolls are
    the truth) */
 let center = (~aw: float, ~ah: float): option((float, float)) =>

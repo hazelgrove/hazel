@@ -1605,11 +1605,14 @@ let top_items = (seg: t): list(t) => {
 
 let ptr_eq = (a: t, b: t): bool => {
   let rec go = (xs, ys) =>
-    switch (xs, ys) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
-    | _ => false
-    };
+    xs === ys
+    || (
+      switch (xs, ys) {
+      | ([], []) => true
+      | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
+      | _ => false
+      }
+    );
   go(a, b);
 };
 

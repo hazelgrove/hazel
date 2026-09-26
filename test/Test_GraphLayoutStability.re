@@ -48,6 +48,56 @@ let weak_edges = [("b", "x"), ("a", "y"), ("b", "y")];
 
 let tests = [
   test_case(
+    "small input fans keep aligned nearby slots",
+    `Quick,
+    () => {
+      let attach = (id): GL.Spec.attachment => {
+        id,
+        host: "host",
+        radius: 18.,
+        prefer: In,
+        dist: 56.,
+      };
+      let res =
+        GL.layout({
+          ...GL.Spec.default,
+          nodes: [node("host")],
+          attachments: [attach("one"), attach("two")],
+        });
+      let a = Option.get(GL.pos_of(res, "one"));
+      let b = Option.get(GL.pos_of(res, "two"));
+      check(float(0.01), "same input column", a.x, b.x);
+      check(
+        bool,
+        "tight collision-free fan",
+        true,
+        abs_float(a.y -. b.y) >= 42. && abs_float(a.y -. b.y) <= 50.,
+      );
+    },
+  ),
+  test_case(
+    "balanced column alignment does not ratchet downward",
+    `Quick,
+    () => {
+      let res =
+        GL.layout(
+          spec(
+            ~hysteresis=0.,
+            ["a", "b", "c", "d"],
+            [("a", "c"), ("a", "d"), ("b", "c"), ("b", "d")],
+          ),
+        );
+      let y = k => Option.get(GL.pos_of(res, k)).y;
+      check(
+        float(0.01),
+        "equivalent columns have equal centers",
+        (y("a") +. y("b")) /. 2.,
+        (y("c") +. y("d")) /. 2.,
+      );
+      check(bool, "clear rows", true, y("b") -. y("a") >= 96. -. 0.01);
+    },
+  ),
+  test_case(
     "weak pull keeps program order",
     `Quick,
     () => {

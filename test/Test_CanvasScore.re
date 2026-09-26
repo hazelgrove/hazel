@@ -383,7 +383,76 @@ let changes_choreographed = () => {
   );
 };
 
+let camera_frames_function_draw = () => {
+  let pane = (638., 503.);
+  let cur: S.frame = {
+    center: p(308., 1223.),
+    zoom: 0.5,
+  };
+  let nodes = [
+    ("A", p(84., 1498.)),
+    ("B", p(84., 1624.)),
+    ("top", p(0., 0.)),
+  ];
+  let src = p(318., 392.)
+  and dst = p(489., 546.);
+  let node_pos = key => List.assoc_opt(key, nodes);
+  let pos_of =
+    S.with_edge_positions(
+      ~pos_of=node_pos,
+      ~edges=[("garden_update", src, dst)],
+    );
+  let d =
+    diff(
+      ~edges=[
+        {
+          S.name: "garden_update",
+          src: "A",
+          dst: "B",
+          product: None,
+        },
+      ],
+      (),
+    );
+  let score = S.plan(~pos_of=node_pos, d);
+  let framed =
+    S.with_frames(
+      ~pane,
+      ~cur,
+      ~pos_of,
+      ~all_keys=["A", "B", "top"],
+      ~exposed=["A", "B", "top"],
+      score,
+    );
+  check(
+    bool,
+    "drawing an offscreen edge requests a frame",
+    true,
+    framed.frames != [],
+  );
+  let last = snd(List.nth(framed.frames, List.length(framed.frames) - 1));
+  let visible = S.view_rect(~pane, last);
+  List.iter(
+    (point: S.pos) =>
+      check(
+        bool,
+        "the rendered endpoint is in view",
+        true,
+        point.x >= visible.x0
+        && point.x <= visible.x1
+        && point.y >= visible.y0
+        && point.y <= visible.y1,
+      ),
+    [src, dst],
+  );
+};
+
 let tests = [
+  test_case(
+    "camera frames function draws, not just nodes",
+    `Quick,
+    camera_frames_function_draw,
+  ),
   test_case(
     "three types, terminals with their type, path monotonic",
     `Quick,

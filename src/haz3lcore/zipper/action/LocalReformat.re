@@ -187,8 +187,8 @@ let rec collect_lb_indents = (seg: Segment.t): list((Id.t, int)) =>
   | [_, ...rest] => collect_lb_indents(rest)
   };
 
-let set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
-  let rec level = (seg: Segment.t): Segment.t =>
+let rec set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
+  let next =
     switch (seg) {
     | [] => []
     | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
@@ -204,10 +204,20 @@ let set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
                   Piece.Secondary(Secondary.mk_space(Id.mk()))
                 )
         };
-      [p] @ spaces @ level(rest);
-    | [p, ...rest] => [p, ...level(rest)]
+      [p] @ spaces @ set_lb_indents(targets, rest);
+    | [Piece.Tile(t) as p, ...rest] =>
+      let children = List.map(set_lb_indents(targets), t.children);
+      let p =
+        List.for_all2(Segment.ptr_eq, t.children, children)
+          ? p
+          : Piece.Tile({
+              ...t,
+              children,
+            });
+      [p, ...set_lb_indents(targets, rest)];
+    | [p, ...rest] => [p, ...set_lb_indents(targets, rest)]
     };
-  Segment.map_deep(level, seg);
+  Segment.ptr_eq(seg, next) ? seg : next;
 };
 
 let go_region =
@@ -270,7 +280,15 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
         |> Id.Map.of_seq;
       let indent_map = lazy(Indentation.level_map(full));
       Id.Map.is_empty(plans)
-        ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);
+        ? z
+        : ZipperBase.MapSegment.go(
+            seg =>
+              EditIdentity.restore(
+                seg,
+                apply_plans(~indent_map, plans, seg),
+              ),
+            z,
+          );
     };
   };
 

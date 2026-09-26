@@ -22,6 +22,10 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
+    /* Type cards present related values together. The streaming map may
+       mix fresh entries with the previous run; retain one complete map
+       so a restarted evaluation cannot outrank its own final results. */
+    completed_dynamics: option(Dynamics.Map.t),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
@@ -51,6 +55,7 @@ module Model = {
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
+    completed_dynamics: None,
     incr_eval: Calc.Pending,
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
@@ -79,6 +84,7 @@ module Model = {
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
+        completed_dynamics: None,
         incr_eval: Calc.Pending,
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
@@ -110,6 +116,9 @@ module Model = {
     | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
+
+  let card_dynamics = (model: t): Dynamics.Map.t =>
+    Option.value(~default=dynamics(model), model.completed_dynamics);
 
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
@@ -287,6 +296,7 @@ module Update = {
           cached_targets,
           result,
           dynamics,
+          completed_dynamics,
           incr_eval,
           streaming_outbox,
           streaming_state,
@@ -591,6 +601,15 @@ module Update = {
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
+        completed_dynamics:
+          switch (Calc.get_value(result)) {
+          | ProgramResult.ResultOk(_) =>
+            Option.map(
+              (d: Dynamics.t) => d.probe_map,
+              Calc.get_value(dynamics),
+            )
+          | _ => completed_dynamics
+          },
         incr_eval: incr_eval |> Calc.save,
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,

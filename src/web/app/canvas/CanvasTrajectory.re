@@ -534,9 +534,18 @@ let dispatch_tick: ref(unit => unit) = ref(() => ());
 /* opens the replay (and each recorded prompt) as a user turn: the chat
    display assumes agent messages answer one, and the chat is autosaved */
 let dispatch_begin: ref(string => unit) = ref(_ => ());
-/* a trace with a starting program replays on a fresh slide */
+/* Versioned traces own their starting slide, including blank programs. */
 let dispatch_new_slide: ref(unit => unit) = ref(() => ());
 let dispatch_paste: ref(string => unit) = ref(_ => ());
+
+let prepare_replay = (header: option(header)): unit =>
+  switch (header) {
+  | Some({program, slide, _}) =>
+    CanvasLog.log("replay: fresh slide with the program from " ++ slide);
+    dispatch_new_slide^();
+    Option.iter(prog => dispatch_paste^(prog), program);
+  | None => () /* legacy event-only recordings have no starting state */
+  };
 
 type player = {
   steps: array(stamped),
@@ -587,8 +596,8 @@ let dispatch = (s: stamped): unit =>
 
 let finish = (p: player): unit =>
   if (!p.finished) {
-    p.finished = true;
     p.t_trace = trace_now(p);
+    p.finished = true;
     cancel_timer(p);
     replaying := false;
     recording_off := false;
@@ -755,13 +764,7 @@ let replay = (~speed: float=1., ~record: bool=false, text: string): unit =>
     );
     replaying := true;
     recording_off := !record;
-    switch (header) {
-    | Some({program: Some(prog), slide, _}) =>
-      CanvasLog.log("replay: fresh slide with the program from " ++ slide);
-      dispatch_new_slide^();
-      dispatch_paste^(prog);
-    | _ => ()
-    };
+    prepare_replay(header);
     dispatch_begin^(
       switch (header) {
       | Some({prompt, _}) when prompt != "" => label ++ "\n\n" ++ prompt

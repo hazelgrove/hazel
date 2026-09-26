@@ -72,6 +72,7 @@ let clock = (): float =>
   CanvasBuffer.now()
   -. paused_total^
   -. (paused^ ? CanvasBuffer.now() -. pause_started^ : 0.);
+let generation = ref(0);
 let pending: ref(list((float, unit => unit))) = ref([]);
 let ticking: ref(bool) = ref(false);
 let rec tick = (): unit =>
@@ -118,6 +119,7 @@ let canvas_animations = (): list(Js.Unsafe.any) => {
 let paused_anims: ref(list(Js.Unsafe.any)) = ref([]);
 let pause_score = (): unit =>
   if (! paused^) {
+    CanvasBuffer.held := true;
     paused := true;
     pause_started := CanvasBuffer.now();
     paused_anims :=
@@ -140,6 +142,7 @@ let resume_score = (): unit =>
   if (paused^) {
     let since = pause_started^;
     let dt = CanvasBuffer.now() -. since;
+    CanvasBuffer.held := false;
     paused := false;
     paused_total := paused_total^ +. dt;
     CanvasBuffer.shift_hold(~since, dt);
@@ -324,17 +327,45 @@ let retract = (~delay: float, ~dur: float, el): unit => {
   let total: float = Js.Unsafe.meth_call(el, "getTotalLength", [||]);
   let on_len = arm_dash(el, total);
   later(delay, () => set_attr(el, "marker-end", "none"));
+  let opacity =
+    Js.to_string(
+      Js.Unsafe.get(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(el)|],
+        ),
+        "opacity",
+      ),
+    );
   animate(
     el,
     [
-      [("strokeDashoffset", num(0.))],
-      [("strokeDashoffset", num(on_len))],
+      [
+        ("offset", num(0.)),
+        ("strokeDashoffset", num(0.)),
+        ("opacity", str(opacity)),
+      ],
+      [
+        ("offset", num(0.999)),
+        ("strokeDashoffset", num(on_len *. 0.999)),
+        ("opacity", str(opacity)),
+      ],
+      /* A fully retracted round-capped stroke still paints a dot. This
+         is conspicuous on the thick module hull stroke. Hide the
+         completed erasure, on the same pausable animation clock. */
+      [
+        ("offset", num(1.)),
+        ("strokeDashoffset", num(on_len)),
+        ("opacity", num(0.)),
+      ],
     ],
     [
       ("duration", num(dur)),
       ("delay", num(delay)),
       ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
       ("fill", str("forwards")),
+      ("id", str("canvas-exit")),
     ],
   );
 };
@@ -353,7 +384,72 @@ let shrink_out = (~delay: float, ~dur: float, el): unit => {
       ("delay", num(delay)),
       ("easing", str("cubic-bezier(0.55, 0, 1, 0.45)")),
       ("fill", str("forwards")),
+      ("id", str("canvas-exit")),
     ],
+  );
+};
+
+/* A hull has one owner and may also have copies in ancestor modules.
+   Include those copies, but never a similarly named sibling's geometry. */
+let owned_hull_ids =
+    (~ids: list(string), ~prefix: string, name: string): list(string) => {
+  let base = prefix ++ CanvasView.sanitize(name);
+  let ancestor = base ++ "--v";
+  List.filter(
+    id =>
+      id == base
+      || String.length(id) > String.length(ancestor)
+      && String.sub(id, 0, String.length(ancestor)) == ancestor,
+    ids,
+  );
+};
+let hull_copies = (~prefix: string, name: string): list(string) =>
+  owned_hull_ids(~ids=Util.JsUtil.ids_with_prefix(prefix), ~prefix, name);
+
+/* A returning definition can reuse the DOM element of its departing
+   ghost. Its old forwards-filled erasure must not outlive that ghost.
+   Cancel only exit effects; the new arrival/movement keeps its timing. */
+let revive = (~nodes: list(string), ~edges: list(string)): unit => {
+  let ids =
+    List.concat_map(
+      k =>
+        [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
+        @ hull_copies(~prefix="hullc-n-", k),
+      nodes,
+    )
+    @ List.concat_map(
+        k =>
+          [
+            CanvasView.path_dom_id(k),
+            CanvasView.edge_dom_id(k),
+            CanvasView.orbit_dom_id(k),
+            "clead-" ++ CanvasView.sanitize(k),
+          ]
+          @ hull_copies(~prefix="hulls-e-", k)
+          @ hull_copies(~prefix="hullc-l-", k),
+        edges,
+      );
+  List.iter(
+    id =>
+      switch (by_id(id)) {
+      | None => ()
+      | Some(el) =>
+        let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+        let n: int = Js.Unsafe.get(anims, "length");
+        let restored = ref(false);
+        for (i in 0 to n - 1) {
+          let a = Js.Unsafe.get(anims, i);
+          if (Js.to_string(Js.Unsafe.get(a, "id")) == "canvas-exit") {
+            ignore(Js.Unsafe.meth_call(a, "cancel", [||]));
+            restored := true;
+          };
+        };
+        if (restored^) {
+          clear_dash(el);
+          restore_marker(el, stashed_marker(el));
+        };
+      },
+    ids,
   );
 };
 
@@ -1378,14 +1474,20 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             | Some(el) => shrink_out(~delay=tf, ~dur=float_of_int(e.dur), el)
             | None => ()
             },
-          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)],
+          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
+          @ hull_copies(~prefix="hullc-n-", k),
         );
       | Erase(name) =>
         later(tf, () => CanvasAvatar.set_mood("erase"));
-        switch (by_id(CanvasView.path_dom_id(name))) {
-        | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
-        | None => ()
-        };
+        List.iter(
+          id =>
+            switch (by_id(id)) {
+            | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
+            | None => ()
+            },
+          [CanvasView.path_dom_id(name)]
+          @ hull_copies(~prefix="hulls-e-", name),
+        );
         List.iter(
           id =>
             switch (by_id(id)) {
@@ -1397,7 +1499,8 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             CanvasView.edge_dom_id(name),
             CanvasView.orbit_dom_id(name),
             "clead-" ++ CanvasView.sanitize(name),
-          ],
+          ]
+          @ hull_copies(~prefix="hullc-l-", name),
         );
       | Change(k) =>
         /* the view swaps the staged old look for the new one on the next
@@ -1475,6 +1578,52 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     headings(~t_from=0., sorted);
   };
   avatar_timeline(~from=None, s, sorted);
+};
+
+/* Catch-up invalidates queued choreography as well as the display queue. */
+let cancel_score = () => {
+  generation := generation^ + 1;
+  pending := [];
+  current_score := None;
+  paused := false;
+  CanvasBuffer.held := false;
+  paused_anims := [];
+  List.iter(
+    a => ignore(Js.Unsafe.meth_call(a, "cancel", [||])),
+    canvas_animations(),
+  );
+  Animation.held := ([], 0.);
+  Animation.tracked_elems := [];
+  Animation.beat := None;
+  Animation.arrival_schedule := [];
+  Animation.geom_schedule := [];
+  /* Geometry held for a future Draw act has an inline dash offset. */
+  Util.JsUtil.ids_with_prefix("cpath-")
+  @ Util.JsUtil.ids_with_prefix("cform-")
+  @ Util.JsUtil.ids_with_prefix("cdep-")
+  @ Util.JsUtil.ids_with_prefix("corbit-")
+  @ Util.JsUtil.ids_with_prefix("clead-")
+  |> List.iter(id =>
+       switch (by_id(id)) {
+       | Some(el) =>
+         let style = Js.Unsafe.get(el, "style");
+         ignore(
+           Js.Unsafe.meth_call(
+             style,
+             "removeProperty",
+             [|str("stroke-dashoffset")|],
+           ),
+         );
+         ignore(
+           Js.Unsafe.meth_call(
+             style,
+             "removeProperty",
+             [|str("stroke-dasharray")|],
+           ),
+         );
+       | None => ()
+       }
+     );
 };
 
 /* re-plan the live score from the actor's current position at the current
@@ -1678,16 +1827,26 @@ let check_jumps = (~zoom: float): unit => {
 };
 
 /* run after the current render has been patched into the DOM */
-let after_render = (f: unit => unit): unit =>
+let after_render = (f: unit => unit): unit => {
+  let epoch = generation^;
   later(0., () =>
     ignore(
       Js.Unsafe.meth_call(
         Js.Unsafe.global##.window,
         "requestAnimationFrame",
-        [|Js.Unsafe.inject(Js.Unsafe.callback(f))|],
+        [|
+          Js.Unsafe.inject(
+            Js.Unsafe.callback(() =>
+              if (epoch == generation^) {
+                f();
+              }
+            ),
+          ),
+        |],
       ),
     )
   );
+};
 
 /* console testers: __canvasStage() stages the next render as an agent
    beat; __canvasEnact("edge") replays the ride on an existing edge;

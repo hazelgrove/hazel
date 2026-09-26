@@ -242,5 +242,17 @@ let tests = (
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz", 20)),
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz", 20)),
     test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz", 20)),
-  ],
+  ]
+  @ List.map(
+      c => {
+        let cache = Measured.Incr.mk_cache();
+        Test_DrawerMeasurement.case_(
+          ~measure=
+            (seg, rows) =>
+              Measured.Incr.of_segment(~cache, seg, empty_shapes, rows),
+          c,
+        );
+      },
+      Test_DrawerMeasurement.cases,
+    ),
 );

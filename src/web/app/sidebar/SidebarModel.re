@@ -225,6 +225,26 @@ module Settings = {
        until the next selection brings it back */
     [@sexp.default false] [@yojson.default false]
     canvas_panel_hidden: bool,
+    /* type nodes shown as VALUES on the canvas: the node becomes a card
+       holding a probe well over a sample site of that type (rich view
+       when one applies), navigable like the panel wells */
+    [@sexp.default []] [@yojson.default []]
+    canvas_value_nodes: list(string),
+    /* expanded type cards' sizes (w, h) in canvas px, keyed by slide and
+       node key; a node without an entry opens at its content's natural
+       size (rich views) or the plain-value cap */
+    [@sexp.default []] [@yojson.default []]
+    canvas_card_sizes: list(((string, string), (float, float))),
+    /* expanded cards in LIVE mode: the view takes the pointer (an app
+       plays, a probe's own gestures work); a card not listed is a NODE
+       (drag anywhere, dbl-click collapses, the view is inert) */
+    [@sexp.default []] [@yojson.default []]
+    canvas_card_live: list(string),
+    /* a card's content at its natural size (w, h): the view scales to
+       the card (zoom-to-fit, proportions kept), and a fresh card opens
+       at a standard size with these proportions */
+    [@sexp.default []] [@yojson.default []]
+    canvas_card_natural: list(((string, string), (float, float))),
   };
 
   let is_debug_expanded = (key: string, settings: t) =>
@@ -273,6 +293,10 @@ module Settings = {
     | SetCanvasPlace(option((string, list(string))))
     | SetCanvasExpand(option((int, int)))
     | SetCanvasProbeModel(string, string)
+    | ToggleCanvasValueNode(string)
+    | SetCanvasCardSize(string, string, float, float)
+    | ToggleCanvasCardLive(string)
+    | SetCanvasCardNatural(string, string, float, float)
     | SetCanvasTab(string)
     | SetCanvasPanelHeight(option(int))
     | SetCanvasPanelHidden(bool)

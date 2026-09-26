@@ -158,6 +158,10 @@ module Model = {
       canvas_tab: "definition",
       canvas_panel_height: None,
       canvas_panel_hidden: false,
+      canvas_value_nodes: [],
+      canvas_card_sizes: [],
+      canvas_card_live: [],
+      canvas_card_natural: [],
     },
     quiver_flagpole: false,
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -224,6 +228,7 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
+    | RequestSamples
     | AutoReindent
     | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
@@ -311,6 +316,12 @@ module Update = {
             dynamics: !settings.core.dynamics,
           },
         }
+      | RequestSamples =>
+        /* the user opened something that needs live values (a type
+           card): end the agent-burst mask and re-evaluate, keeping the
+           settings as they are */
+        Util.AgentPulse.release();
+        settings;
       | ProbeAll =>
         /* an explicit request for samples ends the agent-burst mask */
         if (!settings.core.probe_all) {
@@ -515,6 +526,58 @@ module Update = {
             canvas_panel_hidden: b,
           },
         }
+      | Sidebar(ToggleCanvasValueNode(key)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_value_nodes:
+              List.mem(key, settings.sidebar.canvas_value_nodes)
+                ? List.filter(
+                    k => k != key,
+                    settings.sidebar.canvas_value_nodes,
+                  )
+                : [key, ...settings.sidebar.canvas_value_nodes],
+          },
+        }
+      | Sidebar(SetCanvasCardNatural(slide, key, w, h)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_card_natural: [
+              ((slide, key), (w, h)),
+              ...List.remove_assoc(
+                   (slide, key),
+                   settings.sidebar.canvas_card_natural,
+                 ),
+            ],
+          },
+        }
+      | Sidebar(ToggleCanvasCardLive(key)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_card_live:
+              List.mem(key, settings.sidebar.canvas_card_live)
+                ? List.filter(
+                    k => k != key,
+                    settings.sidebar.canvas_card_live,
+                  )
+                : [key, ...settings.sidebar.canvas_card_live],
+          },
+        }
+      | Sidebar(SetCanvasCardSize(slide, key, w, h)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_card_sizes: [
+              ((slide, key), (w, h)),
+              ...List.remove_assoc(
+                   (slide, key),
+                   settings.sidebar.canvas_card_sizes,
+                 ),
+            ],
+          },
+        }
       | Sidebar(SetCanvasProbeModel(key, model)) => {
           ...settings,
           sidebar: {
@@ -683,7 +746,7 @@ module Update = {
         }
       | SetCanvasZoom(z) => {
           ...settings,
-          canvas_zoom: max(0.4, min(2.5, z)),
+          canvas_zoom: CanvasZoom.clamp(z),
         }
       | ToggleCanvasPace => {
           ...settings,
@@ -830,6 +893,12 @@ module Update = {
          ~recalculate=!is_canvas_geometry(action),
          ~historic=
            switch (action) {
+           /* Render ticks and selection chrome must not consume undo
+              entries or clear redo after a Canvas edit. */
+           | CanvasTick
+           | Sidebar(SetCanvasFocus(_))
+           | Sidebar(SetCanvasFocusTy(_))
+           | Sidebar(SetCanvasPanelHidden(_))
            | Evaluation(ShowSettings) => false
            | _ => true
            },
