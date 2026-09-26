@@ -64,6 +64,7 @@ module Utils = {
     | Fun(_, e, _, _)
     | UnOp(_, e)
     | Test(e)
+    | Quote(e)
     | Parens(e)
     | Splice(e)
     | Filter(_, e)

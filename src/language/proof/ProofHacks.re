@@ -471,6 +471,7 @@ let rec replace_exp =
         | If(_, _, _)
         | Seq(_, _)
         | Test(_)
+        | Quote(_)
         | HintedTest(_, _)
         | Filter(_)
         | Closure(_)

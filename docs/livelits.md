@@ -21,7 +21,7 @@ program text. What the use means is the livelit's **expansion**.
 | Splices: `new_splice`, `set_splice`, `eval_splice`, `editor` | done; `result_view` not yet |
 | `SpliceRef` not type-indexed | done |
 | A livelit's footprint may depend on its model (`shape`) | done |
-| `Exp` inhabited by quoted Hazel code | **next**: `IntLit` is its only constructor; see [Quotation](#quotation-the-plan) |
+| `Exp` inhabited by quoted Hazel code | **started**: `quote e end` is a term with its statics; a use cannot apply one yet. See [Quotation](#quotation-the-plan) |
 
 Working examples, shipped as the Documentation → Livelits slides
 (`hazel-programs/docs/livelits/`):
@@ -196,9 +196,11 @@ Hazel program needs an `eval : Exp -> a`.
 
 ### `Exp`: quotation for code, lifting for values
 
-- **Introduction.** `'( e )` quotes the expression `e`, written in ordinary
-  Hazel syntax. Color's l.56 becomes
-  `Macro(fun m -> ('(fun r g b a -> (r, g, b, a)), [m.r, m.g, m.b, m.a]))`.
+- **Introduction.** `quote e end` quotes the expression `e`, written in
+  ordinary Hazel syntax. Color's l.56 becomes
+  `Macro(fun m -> (quote fun r -> fun g -> fun b -> fun a -> (r, g, b, a) end, [m.r, m.g, m.b, m.a]))`.
+  (Hazel's `fun r g b a -> ...` is not a curried function: the parameters
+  become a multi-hole, so the curried form is written out.)
 - **No elimination form for authors.** Decoding belongs to the livelit
   mechanism. `Exp` can be abstract: authors build `Exp` values and hand them
   to `expand`, `new_splice` and `set_splice`, but do not inspect them.
@@ -206,29 +208,58 @@ Hazel program needs an `eval : Exp -> a`.
   Indet`.)
 - **Computed values need lifting, not quotation.** Fig. 3 l.49-52,
   `set_splice(model.r, IntLit(c.r))`, puts a number *computed by update* into
-  the client's code. `'(c.r)` would quote the expression `c.r` itself, not its
+  the client's code. `quote c.r end` would quote the expression `c.r` itself, not its
   value. So lifting functions stay (`IntLit : Int -> Exp`, and siblings for
   other base types), and antiquotation, splicing an `Exp` value into a
   quotation, is the later generalization. Color needs neither in `expand`: its
   quoted function is closed.
 
-### The `'( e )` syntax
+### The `quote e end` syntax
 
-It fits the lexer, with three things to settle in a spike:
+Chosen after a spike on `'( e )` and a survey of the syntax in the
+repository's 97 `.hz` files, counting code only:
 
-- `'` cannot **start** a name (`Token.name_start_class` excludes it), so at
-  the start of an operand `'(` is unambiguous. But `'` may appear later in a
-  name (`x'`, `x''`: `Var.next_name` primes names), so `f'(e)` stays an
-  application of `f'`, and a quotation must follow a space or an operator.
-- Backtick, the paper's own notation, is taken: `` `...` `` is a quoted label
-  (`Token.quoted_label_regexp`).
-- The tile system needs a two-shard form `'(` ... `)` like parentheses, and
-  typing it passes through a lone `'`, which must be an acceptable token
-  prefix. A new form also needs a `MakeTerm` case (`.hz` files load through
-  the tiles and FastParse), Menhir support for the CLI, and printing.
+- **Keyword forms are how Hazel introduces forms with special meaning**:
+  `let`, `fun`, `case`, `do`, `typfun`, `type`, `module`, `test`. The two
+  existing sigils mean other things: `^^name(e)` (411 uses) invokes a
+  projector, a view that does *not* change what `e` means, which a
+  quotation does; and `^name` (39) is a livelit.
+- **`test e end` is an exact template**: it too wraps one expression and
+  changes how it is treated, and `quote` follows it in `Form.re`
+  (`mk_op_c(L, ["quote", "end"], Exp, [Exp])`) and in Menhir
+  (`QUOTE; e = exp; END`).
+- **`quote` was free**: it appeared nowhere as a name in any `.hz` file.
+  `code` would not have been (67 uses as an identifier).
+- **The paper's backtick is taken**: `` `...` `` is a quoted label (539 uses).
+- **What the `'( e )` spike found** (branch `spike/quote-syntax`): it works
+  in the tiles, but only by special-casing the token, because `'` is a name
+  character and `(` never merges with a neighbour; typing passes through a
+  lone `'`, a transient invalid token; and it sits beside the 44 primed names
+  (`x'`, `row'`). Its slow parse was not the tick's fault: FastParse falls
+  back on any form Menhir does not know, and Menhir already rejects primes.
 
-If the spike shows the lone `'` is a problem, a keyword form (`quote(e)`) needs
-no new lexing.
+`quote` is a reserved word, as `do` became.
+
+### What `quote` does today
+
+`Quote(e)` is a core expression form (`Grammar.re`), in the tiles, Menhir and
+printing, so text containing one loads on FastParse's linear path.
+
+- **Statics.** It synthesizes `Exp`. Its body is analyzed in the **builtin
+  context**, not the lexical one, so a local variable named inside is an
+  ordinary free-variable error there: the closedness Fig. 5 requires,
+  reported early. The body's own type is not checked; that depends on the
+  splices, and happens at each use (premise 5). A quotation contributes no
+  uses of outer variables and no probe targets.
+- **Dynamics.** It is a value, and its body is never evaluated or entered by
+  substitution. It passes a cast to `Exp`. A constructor pattern does not
+  match it, so `case q | IntLit(n) => ... | _ => ...` takes the last arm;
+  `==` on two quotations is indeterminate.
+- **Not yet**: a use of a Macro livelit still elaborates to a hole. Running
+  `expand(model)`, decoding its quotation and applying it to the splices is
+  the next step, as planned above.
+
+`test/Test_Quote.re` covers each of these.
 
 ## Design decisions
 

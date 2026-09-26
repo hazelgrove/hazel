@@ -287,6 +287,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
       )
     | (Test(_), Prod([])) => Some(e)
+    /* A quotation is a value of type Exp. */
+    | (Quote(_), _)
+        when Typ.is_consistent(ctx, t, Typ.temp(Var("Exp"): Typ.term)) =>
+      Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
       switch (Operators.semantics_of_bin_op(bin_op)) {
@@ -408,6 +412,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Test(_), _)
+    | (Quote(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
     | (ProofObject(_), _)

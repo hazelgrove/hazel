@@ -27,6 +27,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
       (cont, e) => {
         let (term, rewrap) = Exp.unwrap(e);
         switch (term) {
+        /* A quotation's body is closed (checked in the builtin context):
+           there is nothing to substitute, and its code stays as written. */
+        | Quote(_) => e
         // Variables: lookup if bound
         | Var(x) =>
           switch (Environment.lookup(env, x)) {

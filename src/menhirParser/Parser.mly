@@ -25,6 +25,7 @@ open AST
 %token TYP_AP_SYMBOL
 %token CONS
 %token TEST
+%token QUOTE
 %token HINT
 %token PAUSE
 %token DEBUG
@@ -486,6 +487,7 @@ exp:
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
+    | QUOTE; e = exp; END { Quote(e) }
     | HINT; h = STRING; TEST; e = exp; END { HintedTest(e, Atom(Language.Atom.String(h))) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }

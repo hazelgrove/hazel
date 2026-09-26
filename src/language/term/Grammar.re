@@ -68,6 +68,11 @@ and exp_term('a) =
   | Seq(exp_t('a), exp_t('a))
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
+  /* `quote e end`: the expression e as code, a value of type Exp (PLDI
+     2021 Sec. 3.2, Fig. 3 l.56, where it is written `e` in backticks). The
+     body is never evaluated; a livelit's Macro expand returns it, and the
+     livelit mechanism decodes it at each use. */
+  | Quote(exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
@@ -272,6 +277,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Seq(e1, e2) =>
           Seq(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Test(e) => Test(map_exp_annotation(f, e))
+        | Quote(e) => Quote(map_exp_annotation(f, e))
         | HintedTest(e1, h) =>
           HintedTest(map_exp_annotation(f, e1), map_exp_annotation(f, h))
         | Filter(k, e) =>
@@ -747,6 +753,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let test = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
       term: Test(e),
+      annotation: default_annotation(ann),
+    };
+    let quote = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Quote(e),
       annotation: default_annotation(ann),
     };
     let hinted_test = (~ann=?, e, h): exp_t(DefaultAnnotation.t) => {

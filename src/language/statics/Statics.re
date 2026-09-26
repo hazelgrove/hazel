@@ -1678,6 +1678,43 @@ and uexp_to_info_map =
           m,
         )
       };
+    /* `quote e end`: e as code, of type Exp (PLDI 2021 Sec. 3.2.5, Fig. 3
+       l.56).
+
+       The body is analyzed in the BUILTIN context, not the lexical one.
+       A Macro expansion must be closed (Fig. 5, and Sec. 2.4.3's context
+       independence: it may not depend on what happens to be in scope where
+       the livelit is used), so a reference to a local variable inside a
+       quotation is an ordinary free-variable error, reported where it is.
+       Editor features inside the body (holes, cursor info, errors) work
+       as anywhere else.
+
+       What the body's TYPE must be is not checked here. That depends on the
+       splices it will be applied to, and the paper checks it at each use
+       (Sec. 3.2.5: "the parameterized expansion is only validated at each
+       livelit invocation site"). So the body synthesizes, and nothing is
+       asked of the result.
+
+       The elaboration keeps the SURFACE body: a quotation is final as it
+       stands, and that code is what a use decodes. It contributes no
+       co_ctx -- an outer variable named inside refers to nothing, so it is
+       not a use -- and no probe targets, since quoted code never runs. */
+    | Quote(body) =>
+      let (_, _, m) =
+        go(
+          ~ctx=Builtins.ctx_init(ctx.use_mode),
+          ~ana=Unknown(Internal) |> Typ.temp,
+          body,
+          m,
+        );
+      add(
+        ~elab_term=Quote(body) |> rewrap,
+        ~elab_syn_ty=Var("Exp") |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        ~probe_targets=SubexpProbeTargets.empty,
+        m,
+      );
     | Test(e) =>
       let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(

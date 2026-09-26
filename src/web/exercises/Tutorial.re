@@ -221,6 +221,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DeferredAp(_)
   | If(_)
   | Test(_)
+  | Quote(_)
   | HintedTest(_)
   | Parens(_)
   | Projector(_)

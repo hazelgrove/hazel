@@ -33,6 +33,7 @@ type cls =
   | If
   | Seq
   | Test
+  | Quote
   | HintedTest
   | Filter
   | Closure
@@ -130,6 +131,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | If(_) => If
   | Seq(_) => Seq
   | Test(_) => Test
+  | Quote(_) => Quote
   | HintedTest(_) => HintedTest
   | Filter(_) => Filter
   | Closure(_) => Closure
@@ -189,6 +191,7 @@ let show_cls: cls => string =
   | If => "If expression"
   | Seq => "Sequence expression"
   | Test => "Test"
+  | Quote => "Quotation"
   | HintedTest => "Hinted Test"
   | Filter => "Filter"
   | Closure => "Closure"
@@ -281,6 +284,7 @@ let rec is_fun = (e: t) => {
   | If(_)
   | Seq(_)
   | Test(_)
+  | Quote(_)
   | HintedTest(_)
   | Filter(_)
   | Cons(_)
@@ -353,6 +357,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | If(_)
     | Seq(_)
     | Test(_)
+    | Quote(_)
     | HintedTest(_)
     | Filter(_)
     | Cons(_)
@@ -423,6 +428,7 @@ let rec get_num_of_functions = (e: t) =>
     | If(_)
     | Seq(_)
     | Test(_)
+    | Quote(_)
     | HintedTest(_)
     | Cons(_)
     | ListConcat(_)

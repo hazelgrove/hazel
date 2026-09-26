@@ -917,6 +917,8 @@ module Transition = (EV: EV_MODE) => {
     | Label(_)
     | ExplicitNonlabel
     | Constructor(_)
+    /* A quotation is final as it stands: its body is code, not evaluated. */
+    | Quote(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;

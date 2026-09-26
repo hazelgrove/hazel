@@ -209,6 +209,7 @@ let rec match_exp =
   | (Seq(_, _), _) => None
   | (Test(e1), Test(e2)) => match_exp(alphas, ctx, e1, e2)
   | (Test(_), _) => None
+  | (Quote(_), _) => None
   | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
     let* ctx = match_exp(alphas, ctx, e1, e3);
     match_exp(alphas, ctx, e2, e4);

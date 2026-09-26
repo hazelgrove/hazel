@@ -219,6 +219,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | TypFun => IndetMatch
       }
 
+    /* A quotation is a value of type Exp but none of its constructors, so a
+       constructor pattern does not match it (the next arm is tried), and
+       any other request is at the wrong type. */
+    | (SumNoArg(_) | SumWithArg(_), Quote(_)) => DoesNotMatch
+    | (_, Quote(_)) => IndetMatch
     /* Forms that are not yet or will never be a value */
     | (
         _,

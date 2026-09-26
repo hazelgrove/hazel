@@ -160,6 +160,7 @@ and exp =
   | Undefined
   | Seq(exp, exp)
   | Test(exp)
+  | Quote(exp)
   | HintedTest(exp, exp)
   | Deferral
   | TypFun(tpat, exp)
@@ -1094,6 +1095,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e);
             return(Test(shrunk));
+          }
+        | Quote(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Quote(shrunk));
           }
         | HintedTest(e1, e2) =>
           {

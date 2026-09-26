@@ -405,6 +405,8 @@ let equality =
       | (Seq(_, _), _) => false
       | (Test(e1), Test(e2)) => exp'(e1, e2)
       | (Test(_), _) => false
+      | (Quote(e1), Quote(e2)) => exp'(e1, e2)
+      | (Quote(_), _) => false
       | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
         exp'(e1, e3) && exp'(e2, e4)
       | (HintedTest(_, _), _) => false

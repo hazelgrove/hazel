@@ -386,6 +386,7 @@ type compound_form =
   | ApExpTyp
   | Case
   | Test
+  | Quote
   | ProofOf
   | ProofObject
   | HintedTest
@@ -502,6 +503,7 @@ let get: compound_form => t =
   | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])
   | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
   | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
+  | Quote => mk_op_c(L, ["quote", "end"], Exp, [Exp])
   | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
   | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])

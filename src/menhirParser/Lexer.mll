@@ -120,6 +120,7 @@ rule token =
     | "module" { MODULE }
     | "let" { LET }
     | "do" { DO }
+    | "quote" { QUOTE }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }
