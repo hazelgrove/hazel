@@ -79,6 +79,7 @@ let (suite, exit_with_test_status) =
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
+      Test_MVU.tests,
       Test_TableCore.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,

@@ -258,14 +258,26 @@ let weave =
       Token.of_projector_invoke_base(trigger),
       Language.ProjectorKind.of_name_opt,
     );
+  /* A `_sidebar` placement suffix names a docked projector PIECE, so such a
+     trigger materializes even when its kind is otherwise a refractor. */
+  let trigger_is_docked = (trigger: string): bool =>
+    switch (Token.of_projector_invoke_parts(trigger)) {
+    | Some((_, Sidebar)) => true
+    | Some((_, Inline))
+    | None => false
+    };
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      Language.ProjectorKind.is_refractor(kind)
+      && !trigger_is_docked(trigger)
     | None => false
     };
   let trigger_is_projector = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => !Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      !Language.ProjectorKind.is_refractor(kind)
+      || trigger_is_docked(trigger)
     | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {
