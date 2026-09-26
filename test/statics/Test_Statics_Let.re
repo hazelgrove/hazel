@@ -9,7 +9,12 @@ let nested_function_lets = n => {
   let rec go = i =>
     i > n
       ? "x"
-      : Printf.sprintf("let f%d = fun x : Int -> %s in f%d(x)", i, go(i + 1), i);
+      : Printf.sprintf(
+          "let f%d = fun x : Int -> %s in f%d(x)",
+          i,
+          go(i + 1),
+          i,
+        );
   "let f0 = fun x : Int -> " ++ go(1) ++ " in f0(1)";
 };
 
@@ -50,7 +55,12 @@ let tests = (
         let t0 = Sys.time();
         let s = statics(exp);
         let dt = Sys.time() -. t0;
-        Alcotest.check(Alcotest.int, "no static errors", 0, List.length(errors(s)));
+        Alcotest.check(
+          Alcotest.int,
+          "no static errors",
+          0,
+          List.length(errors(s)),
+        );
         Alcotest.check(
           Alcotest.option(testable_typ),
           "type",
