@@ -230,6 +230,41 @@ It fits the lexer, with three things to settle in a spike:
 If the spike shows the lone `'` is a problem, a keyword form (`quote(e)`) needs
 no new lexing.
 
+## Design decisions
+
+Decisions taken on the way here, kept because the alternatives looked
+reasonable and may be proposed again. (Folded in from `livelits-full.md`, the
+plan this branch was written against.)
+
+- **`init` runs; it is not rewritten as syntax.** A livelit's `init` used to
+  be pasted into the program as text when a use was created, before any
+  statics or evaluation existed, so `new_splice` could not run there. The
+  cheaper option was to read `new_splice(Int, Some(0))` in `init`'s text as a
+  name for the parens a splice is marked by, keeping `init` as syntax. That
+  buys a declared type but not a list of splices whose length is decided
+  when the use is made. So the editor performs `init` as an `UpdateCmd` when
+  a use is created (`Triggers.expand_livelit` into
+  `UpdateCmdRunner.init_model`), which is also the faithful reading of Fig. 3.
+- **`set_splice` makes ownership a convention.** Before it, `update` could not
+  write a spliced field at all, so "a livelit may read the client's code but
+  not rewrite it" held by construction. With `set_splice` (Fig. 3 l.49-52,
+  Color's *teal* button) a livelit can overwrite the client's code, and
+  respecting it is up to the author.
+- **`eval_splice` answers `Val | Indet`, not a bare value.** Handing the view a
+  value directly (as the earlier refs-in-the-model design did) left no way to
+  say a splice has no value: delete a splice's code and the widget got a hole
+  without asking. With `Indet` the widget decides what to show, as the row
+  slide does when it counts empty cells.
+- **`Functional` avoids capture rather than solving it.** Its `expand`
+  computes a value from splices already evaluated in the client's scope, so
+  no expansion code ever surrounds client code and nothing can be captured.
+  The Macro arm is where capture avoidance is actually needed, and where the
+  paper's argument-passing provides it.
+- **Names.** This branch briefly spelled the splice operations
+  `splice_new`, `splice_set`, `splice_eval`; they are the paper's
+  `new_splice`, `set_splice`, `eval_splice` now. The older spelling survives
+  in some commit messages.
+
 ## Built-in livelits
 
 A built-in livelit implements `LivelitCtx.BuiltinLivelit` in OCaml and is
