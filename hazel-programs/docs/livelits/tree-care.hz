@@ -8,9 +8,10 @@
 
 # Everything the widget knows is in the model, and the model is #
 # written into the program text (Sec. 3.2.1) -- so the tree you grow #
-# is literally part of your program. None of it is client code, so #
-# there are no splices here; compare Color (Figure 3), whose model is #
-# nothing but SpliceRefs. #
+# is literally part of your program. One part of it is client code: #
+# how feeding grows the tree, a GrowthStyle, is a splice, and here #
+# the client builds it with two more small livelits (GROWTH STYLE, #
+# below the tree). #
 
 type Season = + Fall + Winter + Spring + Summer in
 type LeafShape = + Oak + Maple + Elm + Aspen in
@@ -32,23 +33,42 @@ type Step = + L + R in
 # What a use MEANS (Sec. 2.2): a census, not a picture. #
 type Census = (leaves=Int, branches=Int, scars=Int, season=Season) in
 
+# How feeding grows the tree: by a percent of its leaves (a negative #
+# percent scars that share of its twigs instead), or by a constant #
+# number of leaves. #
+type GrowthStyle = + Percent(Int) + Constant(Int) in
+
 let ^tree = {
-  type Model = (tree=Tree, season=Season);
+  # seed drives the choice of where the tree grows (RANDOMNESS). It #
+  # is in the model, so it is in the text: a tree regrows the same way #
+  # from the same seed. #
+  type Model = (tree=Tree, season=Season, growth=SpliceRef, seed=Int);
 
   # The three sub-languages of this widget, in one Action type: what #
   # its handlers emit and update consumes (Sec. 3.2.2). #
   #   season:  Next, Prev, SkipTo -- three ways to set the season #
-  #   growth:  Feed puts a new fork wherever a leaf is #
+  #   growth:  Feed(style) grows the tree the way style says #
   #   pruning: Trim(path) cuts at a branch and leaves a Scar #
-  type Action = + Next + Prev + SkipTo(Season) + Feed + Trim([Step]);
+  # Feed carries the growth style because update cannot read a #
+  # splice (Sec. 3.2.4): the view reads it, and passes it on here. #
+  type Action =
+    + Next + Prev + SkipTo(Season) + Feed(GrowthStyle) + Trim([Step]);
 
   type Expansion = Census;
 
 
-  let init = Pure((
-    tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
-    season=Spring
-  ));
+  # The growth splice starts empty, a hole, for the client to fill. #
+  # (new_splice names a type from a closed set, IntT, FloatT, BoolT #
+  # or StringT, and does not yet check against it: IntT here only #
+  # fills the slot. A GrowthStyle has no name in that set.) #
+  let init =
+    do g <- new_splice((IntT, None)) in
+    Pure((
+      tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
+      season=Spring,
+      growth=g,
+      seed=1
+    ));
 
   # SEASONS #
 
@@ -78,7 +98,7 @@ let ^tree = {
 
   # GROWTH #
 
-  # Feeding forks every leaf: the tree grows at its tips, as trees do. #
+  # Feeding forks leaves: the tree grows at its tips, as trees do. #
   let bark_for : LeafShape -> BarkType = fun s ->
     case s | Oak => Rough | Maple => Smooth | Elm => Smooth
            | Aspen => Aspen end;
@@ -86,11 +106,90 @@ let ^tree = {
   let next_shape : LeafShape -> LeafShape = fun s ->
     case s | Oak => Maple | Maple => Elm | Elm => Aspen | Aspen => Oak end;
 
-  let feed = fun t : Tree ->
+  # RANDOMNESS #
+
+  # A tiny pseudo-random generator, the ZX81's: the next seed is #
+  # 75 s + 74, mod 65537. Ints do not overflow, so this is exact. #
+  let next = fun s : Int -> int_mod((75 * s + 74, 65537));
+
+  # Choosing k of n uniformly, in one pass (Knuth's selection #
+  # sampling): with k still to pick among the n not yet seen, take #
+  # this one if a fresh draw mod n is below k. That takes exactly k, #
+  # each of the n equally likely. #
+  let take = fun (k, n, s) : (Int, Int, Int) -> int_mod((next(s), n)) < k;
+
+  # Fork k of the n leaves, chosen at random. Answers the tree, then #
+  # what is left of k, n and the seed, for the rest of the walk. #
+  let fork = fun (t, k, n, s) : (Tree, Int, Int, Int) ->
     case t
-    | Leaf(s) => Branch(bark_for(s), Leaf(s), Leaf(next_shape(s)))
-    | Scar(_, _) => t
-    | Branch(b, l, r) => Branch(b, feed(l), feed(r))
+    | Leaf(sh) =>
+      if take((k, n, s))
+      then (Branch(bark_for(sh), Leaf(sh), Leaf(next_shape(sh))),
+            k - 1, n - 1, next(s))
+      else (t, k, n - 1, next(s))
+    | Scar(_, _) => (t, k, n, s)
+    | Branch(b, l, r) =>
+      let (l2, k2, n2, s2) = fork((l, k, n, s)) in
+      let (r2, k3, n3, s3) = fork((r, k2, n2, s2)) in
+      (Branch(b, l2, r2), k3, n3, s3)
+    end;
+
+  # Scar k of the n twigs -- forks that hold two leaves -- chosen at #
+  # random, as a trim would, each healing in ttl seasons. #
+  let scar = fun (t, k, n, s, ttl) : (Tree, Int, Int, Int, Int) ->
+    case t
+    | Branch(b, Leaf(_), Leaf(_)) =>
+      if take((k, n, s)) then (Scar(b, ttl), k - 1, n - 1, next(s))
+      else (t, k, n - 1, next(s))
+    | Branch(b, l, r) =>
+      let (l2, k2, n2, s2) = scar((l, k, n, s, ttl)) in
+      let (r2, k3, n3, s3) = scar((r, k2, n2, s2, ttl)) in
+      (Branch(b, l2, r2), k3, n3, s3)
+    | _ => (t, k, n, s)
+    end;
+
+  let leaves_of = fun t : Tree ->
+    case t
+    | Leaf(_) => 1
+    | Branch(_, l, r) => leaves_of(l) + leaves_of(r)
+    | _ => 0
+    end;
+
+  let twigs_of = fun t : Tree ->
+    case t
+    | Branch(_, Leaf(_), Leaf(_)) => 1
+    | Branch(_, l, r) => twigs_of(l) + twigs_of(r)
+    | _ => 0
+    end;
+
+  # Add exactly n leaves: forking a leaf adds one. When n is more than #
+  # the tree has, fork every leaf and go again. #
+  let grow = fun (t, n, s) : (Tree, Int, Int) ->
+    let have = leaves_of(t) in
+    if n <= 0 || have == 0 then (t, s)
+    else if n <= have then
+      let (t2, _, _, s2) = fork((t, n, have, s)) in (t2, s2)
+    else
+      let (t2, _, _, s2) = fork((t, have, have, s)) in
+      grow((t2, n - have, s2));
+
+  # One feeding, in the given style, answering the tree and the next #
+  # seed. Constant(n) adds n leaves. A positive percent adds that #
+  # share of the leaves, at least one; a negative one scars that share #
+  # of the twigs, at least one. #
+  let feed = fun (t, style, ttl, s) : (Tree, GrowthStyle, Int, Int) ->
+    case style
+    | Constant(n) => grow((t, n, s))
+    | Percent(p) =>
+      if p > 0 then
+        let k = leaves_of(t) * p / 100 in
+        grow((t, if k < 1 then 1 else k, s))
+      else if p < 0 then
+        let n = twigs_of(t) in
+        let k = n * (0 - p) / 100 in
+        let (t2, _, _, s2) = scar((t, if k < 1 then 1 else k, n, s, ttl)) in
+        (t2, s2)
+      else (t, s)
     end;
 
   # PRUNING #
@@ -111,17 +210,24 @@ let ^tree = {
       end
     end;
 
-  # update returns a command, an UpdateCmd (Sec. 3.2.4). With no #
-  # splices to write, it only answers the next model, so it is Pure. #
+  # update returns a command, an UpdateCmd (Sec. 3.2.4). It writes no #
+  # splice, so it only answers the next model: Pure. #
   let update = fun m : Model -> fun a : Action -> Pure(
     case a
-    | Next => (tree=age(m.tree), season=next_of(m.season))
-    | Prev => (tree=age(m.tree), season=prev_of(m.season))
-    | SkipTo(s) => (tree=age(m.tree), season=s)
-    | Feed => (tree=feed(m.tree), season=m.season)
+    | Next =>
+      (tree=age(m.tree), season=next_of(m.season), growth=m.growth, seed=m.seed)
+    | Prev =>
+      (tree=age(m.tree), season=prev_of(m.season), growth=m.growth, seed=m.seed)
+    | SkipTo(s) =>
+      (tree=age(m.tree), season=s, growth=m.growth, seed=m.seed)
+    | Feed(style) =>
+      let (t, seed) = feed((m.tree, style, heal_time(m.season), m.seed)) in
+      (tree=t, season=m.season, growth=m.growth, seed=seed)
     | Trim(path) => (
         tree=cut((m.tree, path, heal_time(m.season))),
-        season=m.season
+        season=m.season,
+        growth=m.growth,
+        seed=m.seed
       )
     end);
 
@@ -241,9 +347,31 @@ let ^tree = {
       [Html.text(case s | Spring => "spr" | Summer => "sum"
                         | Fall => "fall" | Winter => "win" end)]);
 
-  # view returns a ViewCmd (Sec. 3.2.3); with no splices to read or #
-  # place, it too is Pure. #
-  let view = fun m : Model -> Pure(
+  # How the growth style reads on the feed button. #
+  let style_text = fun g : GrowthStyle ->
+    case g
+    | Percent(p) => (if p >= 0 then "+" else "") ++ str(p) ++ "%"
+    | Constant(n) => "+" ++ str(n) ++ " leaves"
+    end;
+
+  # view returns a ViewCmd (Sec. 3.2.3). It reads the growth splice #
+  # with eval_splice, shows it on the feed button, and a click hands #
+  # it to update inside Feed. Until the splice has a value, there is #
+  # nothing to feed with, and the button says so. #
+  let view = fun m : Model ->
+    do g <- eval_splice(m.growth) in
+    let feed_button =
+      case g
+      | Some(Val(style)) =>
+        Html.button([Attr.on_click(Feed(style)),
+                     Attr.style([("font-size", "0.7em")])],
+                    [Html.text("feed " ++ style_text(style))])
+      | _ =>
+        Html.button([Attr.style([("font-size", "0.7em")])],
+                    [Html.text("feed: no growth style")])
+      end
+    in
+    Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
                    ("gap", "0.2em")])],
@@ -262,9 +390,7 @@ let ^tree = {
           Html.button([Attr.on_click(Next),
                        Attr.style([("font-size", "0.7em")])],
                       [Html.text(">")]),
-          Html.button([Attr.on_click(Feed),
-                       Attr.style([("font-size", "0.7em")])],
-                      [Html.text("water + feed")])])]));
+          feed_button])]));
 
   # Functional, this implementation's own arm, since a census is plain #
   # data computed from the model. The paper's expand is always quoted #
@@ -276,6 +402,87 @@ let ^tree = {
   let shape = Block(20, 7)
 } in
 
+# GROWTH STYLE #
+
+# Two small livelits build the growth style the tree is fed with. #
+
+# A slider over a range. Its bounds are part of its model, so one #
+# definition serves both sliders below. (The paper makes bounds #
+# PARAMETERS, $slider 0 100, which this implementation does not #
+# have yet, Sec. 2.4.1.) #
+let ^range = {
+  type Model = (lo=Int, hi=Int, value=Int);
+  type Action = Int;
+  type Expansion = Int;
+  let init = Pure((lo=0, hi=10, value=5));
+  let update = fun m : Model -> fun v : Action ->
+    Pure((lo=m.lo, hi=m.hi, value=v));
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.input([
+         Attr.type_("range"), Attr.min(string_of_int(m.lo)),
+         Attr.max(string_of_int(m.hi)),
+         Attr.value(string_of_int(m.value)),
+         Attr.on_input(fun s -> int_of_string(s))]),
+       Html.text(string_of_int(m.value))]));
+  let expand = Functional(fun m : Model -> m.value);
+  let shape = Inline(22)
+} in
+
+# One of two, by a switch. It has a label, a button that flips which #
+# case is on, and a splice for each case; a use means the case that #
+# is on. A Macro (Sec. 3.2.5): its code is a function of both #
+# splices, fun t -> fun _ -> t (or the other), applied to them at #
+# the use. #
+# Its Expansion is ?, the unknown type, so it is not tied to any one #
+# type: a livelit declares one expansion type, and cannot take a #
+# type parameter, so ? is how it says "whatever the cases are". #
+let ^either = {
+  type Model = (label=String, on=Bool, t=SpliceRef, f=SpliceRef);
+  type Action = Bool;
+  type Expansion = ?;
+  let init =
+    do t <- new_splice((IntT, None)) in
+    do f <- new_splice((IntT, None)) in
+    Pure((label="either", on=true, t=t, f=f));
+  let update = fun m : Model -> fun on : Action ->
+    Pure((label=m.label, on=on, t=m.t, f=m.f));
+  let view = fun m : Model ->
+    do t <- editor((m.t, FixedWidth(12))) in
+    do f <- editor((m.f, FixedWidth(12))) in
+    let dim = fun live ->
+      Attr.style([("opacity", if live then "1" else "0.45")]) in
+    Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                     ("align-items", "center"),
+                     ("font-family", "var(--code-font)"),
+                     ("font-size", "0.8em")])],
+        [Html.text(m.label),
+         Html.button([Attr.on_click(if m.on then false else true)],
+                     [Html.text(if m.on then "yes" else "no")]),
+         Html.node("span", [dim(m.on)], [t]),
+         Html.node("span", [dim(if m.on then false else true)], [f])]));
+  let expand = Macro(fun m : Model ->
+    (if m.on then quote fun t -> fun _ -> t end
+     else quote fun _ -> fun f -> f end,
+     [m.t, m.f]));
+  let shape = Inline(40)
+} in
+
+# The two sliders, and the switch between them. Each case of the #
+# switch is client code naming a slider's value, as Color's splices #
+# name its sliders' variables. #
+let pct = ^^livelit(^range((lo=-50, hi=100, value=20))) in
+let leaves = ^^livelit(^range((lo=0, hi=13, value=3))) in
+let style =
+  ^^livelit(^either((label="by percent", on=true,
+                     t=(Percent(pct)), f=(Constant(leaves))))) in
+
 # The use below carries its whole tree in its argument. Grow it and #
 # the argument grows with it; trim a branch and a Scar appears in the #
 # text. The EXPANSION stays a census either way, so a client counts #
@@ -285,7 +492,9 @@ let ^tree = {
 
 let ^^probe(census) = ^^livelit(^tree((
   tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
-  season=Spring
+  season=Spring,
+  growth=(style),
+  seed=1
 ))) in
 
 (census.leaves, census.branches, census.scars)

@@ -126,17 +126,39 @@ typed only by where it sits.
 
 ## Checking a use
 
-A use synthesizes the declared `Expansion`. Its expansion is checked at the
-use site and a mismatch is `BadLivelitExpansion` ("Livelit expands to type
-Int, but declares Expansion = String"), located in the livelit rather than in
-the client's code. That is the paper's own strategy: Sec. 3.2.5 says `expand`
-is not checked at its definition, and the parameterized expansion is
-"validated at each livelit invocation site". Consistency, not equality, is the
-test, as elsewhere in Hazel.
+A use synthesizes the declared `Expansion`. Where a mismatch with it is
+reported depends on `expand`'s kind. The **Livelits / Expansion Type Errors**
+slides show three small examples of each.
 
-For `Functional` this check is vacuous today, because `Functional(f)` is
-already checked against `Model -> Expansion` where it is written. It does its
-real work once Macro can return code.
+- **Functional.** `expand` is an ordinary function, `Model -> Expansion`,
+  checked where it is written. Its errors are ordinary type errors in the
+  definition ("Expecting type String but got inconsistent type Int", on the
+  body), and no use is marked.
+- **Macro.** `expand` returns code, and a use means that code applied to the
+  use's splices. The code must take each listed splice, at the type its code
+  has, to `Expansion` (Fig. 5, premise 5). The splices are the client's, so
+  this can only be checked at each use: Sec. 3.2.5's "validated at each
+  livelit invocation site". A failure is `BadMacroExpansion`, on the use. It
+  says which part failed, in terms the definition states, not the arrow type
+  the check is phrased with, which appears nowhere in the program:
+  - the result: "Applied to its splice, the expansion's code has type Int,
+    but the livelit declares Expansion = String";
+  - a parameter: "The expansion's code takes String for splice 1, whose code
+    has type Int". Another use whose splice holds a string is fine, which is
+    why the check is per use;
+  - the shape: "The expansion's code has type Int, but must be a function of
+    its splice, to Expansion = Int";
+  - otherwise, when the types fit but the code has an error of its own: "The
+    expansion's code has a type error". An error inside the quotation is also
+    marked where it is written.
+
+  The code's type is taken as the author wrote it (synthesized). Analysis
+  against the arrow would fill each parameter in with its splice's type, and
+  hide an annotated parameter that cannot take its splice.
+
+`BadLivelitExpansion` ("Livelit expands to type Int, but declares Expansion =
+String") remains for the non-Macro use-site check. Consistency, not equality,
+is the test, as elsewhere in Hazel.
 
 ## Quotation: the plan
 
