@@ -1253,7 +1253,11 @@ let rescan_converting = (seg: t): (t, bool) => {
             switch (List.assoc_opt(tok, entries)) {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
-              any_converted := true;
+              /* a presplit orphan re-matching its own tile's shard is
+                 not a re-association: reassembly merges it straight back */
+              if (t.id != target_shard.id) {
+                any_converted := true;
+              };
               let converted = Piece.Tile(target_shard);
               let entries = List.filter(((k, _)) => k != tok, entries);
               /* If this frame is exhausted, pop to previous frame */
