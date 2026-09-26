@@ -10,8 +10,14 @@ ritual.
 
 Two routes fix it:
 
-  /fresh?slide=<id>   clear the saved copy, then open that slide.
+  /fresh?slide=<id>   clear saved editor state, then open that slide.
                       Without ?slide, clears every saved doc slide.
+                      KEEPS your preferences: the colour configuration (dark
+                      mode and high contrast, which are `^^check` livelits in
+                      the colors config slide) and SETTINGS (everything the
+                      nut menu toggles, including which telemetry panels are
+                      open -- those gate PerfMetrics, so a reset that closed
+                      them would silently stop measuring).
                       This is the link to keep in a tab while iterating.
 
   /status             what is actually being served: bundle mtime, git
@@ -63,7 +69,8 @@ PORTS_PAGE = """<!doctype html>
   <th>port</th><th>branch</th><th>worktree</th><th>built</th><th>state</th><th>open</th>
 </tr></thead><tbody id=rows></tbody></table>
 <p id=note>Scanning localhost 8000-8030 and 8100-8130. Refreshes every 10s.
-   <b>open</b> clears saved slide state first, so you always get the shipped source.</p>
+   <b>open</b> clears saved slide state first, so you always get the shipped
+   source -- your colour configuration is kept.</p>
 <script>
 // Two ranges: the 80xx block and an 81xx block. A distinct port is a
 // distinct ORIGIN, and IndexedDB is per-origin -- so serving an
@@ -115,30 +122,70 @@ FRESH_PAGE = """<!doctype html>
 </style>
 <p id="msg">clearing local editor state…</p>
 <script>
-  // Delete the whole database rather than picking keys out of it.
+  // Clear saved editor state, but KEEP the colour configuration, so a reset
+  // does not throw away dark mode and high contrast every time. Dark and
+  // high contrast are `^^check` livelits in the colors config slide
+  // (hazel-programs/config/colors.hz), not plain settings, so the only way
+  // to preserve them is to preserve the slide the app saved.
   //
-  // The surgical version was actively harmful: `indexedDB.open('hazel')`
-  // CREATES the database when it is absent -- an empty v1 with no `kv`
-  // object store -- and the app then hangs on "loading" forever against a
-  // database it cannot use. Deleting cannot wedge anything, because the
-  // app rebuilds the schema on boot. The cost is that other local state
-  // (mode, settings, scratch) goes too, which for a "show me the shipped
-  // source" route is the intent anyway.
+  // This used to delete the whole database, because a surgical version had
+  // wedged it: `indexedDB.open('hazel')` CREATES the database when absent --
+  // an empty v1 with no `kv` object store -- and the app then hangs on
+  // "loading" forever against a database it cannot use. Being surgical is
+  // safe as long as we never leave a database WE created:
+  //   - onupgradeneeded firing at all means it was absent or is being
+  //     upgraded, so we made it. Delete it and let the app rebuild.
+  //   - no `kv` store means the same thing by another route.
+  // Either way the fallback is the old behaviour, which cannot wedge.
+  // Store.key_to_string: Configuration, Settings.
+  //   SAVE_CONFIGURATION -- the colours config slide, which is where dark
+  //     mode and high contrast live (they are `^^check` livelits in it).
+  //   SETTINGS           -- everything the nut menu toggles, including
+  //     `show_debug_panel` and which telemetry panels are expanded. Those
+  //     panels are what gate PerfMetrics and EvalMetrics: nothing is
+  //     measured while they are collapsed, so a reset that closed them
+  //     silently turned instrumentation off.
+  // Both are PREFERENCES rather than editor state, which is the line this
+  // route is drawing: clear what you are iterating on, keep how you work.
+  const KEEP = ["SAVE_CONFIGURATION", "SETTINGS"];
   const target = {target};
   function go() {{ location.replace(target); }}
   let done = false;
   const bail = setTimeout(() => {{ if (!done) go(); }}, 3000);
+  function finish() {{
+    if (done) return;
+    done = true; clearTimeout(bail);
+    document.getElementById('msg').textContent = 'cleared; opening…';
+    setTimeout(go, 150);
+  }}
+  function nuke() {{
+    const del = indexedDB.deleteDatabase('hazel');
+    del.onsuccess = del.onerror = del.onblocked = finish;
+  }}
   try {{
-    const req = indexedDB.deleteDatabase('hazel');
-    req.onsuccess = req.onerror = req.onblocked = () => {{
-      done = true; clearTimeout(bail);
-      document.getElementById('msg').textContent = 'cleared; opening…';
-      setTimeout(go, 150);
+    const req = indexedDB.open('hazel');
+    let created = false;
+    req.onupgradeneeded = () => {{ created = true; }};
+    req.onerror = finish;
+    req.onsuccess = e => {{
+      const db = e.target.result;
+      if (created || !db.objectStoreNames.contains('kv')) {{
+        db.close(); nuke(); return;
+      }}
+      let tx;
+      try {{ tx = db.transaction('kv', 'readwrite'); }}
+      catch (err) {{ db.close(); nuke(); return; }}
+      const store = tx.objectStore('kv');
+      const all = store.getAllKeys();
+      all.onsuccess = ev => (ev.target.result || []).forEach(k => {{
+        if (!KEEP.includes(k)) store.delete(k);
+      }});
+      tx.oncomplete = () => {{ db.close(); finish(); }};
+      tx.onerror = tx.onabort = () => {{ db.close(); finish(); }};
     }};
-  }} catch (e) {{ done = true; clearTimeout(bail); go(); }}
+  }} catch (e) {{ finish(); }}
 </script>
 """
-
 
 
 def build_info(root):
@@ -157,18 +204,19 @@ def build_info(root):
         # while doing it, which is worse than not checking at all.
         # Stylesheets are deliberately absent: translate_path serves them
         # from the source tree, so they cannot go stale.
-        # Compare against the last dune RUN, not the bundle's own mtime.
-        # dune is content-based: `touch`ing a file, or editing it and
-        # undoing the edit, leaves the bundle untouched because nothing
-        # actually changed -- and an mtime-only check then reports stale
-        # forever. `_build/.filesystem-clock` is rewritten on every dune
-        # run, so "you have built since you edited" is what gets asked.
+        # Compare against THIS BUNDLE's mtime, and nothing else.
+        #
+        # A previous version compared against `_build/.filesystem-clock`,
+        # which dune rewrites on every run, reasoning that it answers "have
+        # you built since you edited" and so avoids a false positive when a
+        # file is touched but not changed. It answers a different question
+        # than the one that matters: ANY dune run satisfies it. Building the
+        # CLI and the test runner made it report stale: 0 while the page was
+        # serving a bundle from the previous day, and the stale build was
+        # caught by a human instead. A false positive here costs a needless
+        # rebuild; a false negative costs trust in the whole indicator, which
+        # is the only reason it exists.
         ref = mt
-        clock = os.path.join(repo, "_build", ".filesystem-clock")
-        try:
-            ref = max(ref, os.path.getmtime(clock))
-        except OSError:
-            pass
 
         newer = []
         for sub in ("src", "hazel-programs"):

@@ -845,6 +845,15 @@ let is_stuck_path_term = (ty: t): bool =>
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let fast_equal = Equality.semantic.typ;
+/* fast_equal, but an unknown's provenance counts: for shortcuts in meet,
+   which must merge provenances rather than drop one. Alpha-equal types
+   that are equal under this meet to themselves, exactly. */
+let exact_equal =
+  Equality.equality({
+    ...Equality.semantic_settings,
+    ignore_unknown_provenance: false,
+  }).
+    typ;
 let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 let project_type = (tys: list(t), label: string): option(t) =>
@@ -1385,6 +1394,15 @@ and meet_body = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_meet = meet'(ty_name, ty1);
     equal(ty_name, ty_meet) ? ty2 : ty_meet;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  /* The same path, in the one context both are read in, is the same type,
+     and a type meets itself in itself. Normalizing first costs dearly for a
+     builtin path: Html.T expands to a sum of 100+ recursive variants, and
+     every ViewCmd type carries it (Editor's continuation), so each check
+     against a ViewCmd met two full copies. Measured: three quarters of
+     statics on the livelit slides was here. fast_equal has no false
+     positives, so this can only skip work, never change an answer. */
+  | (ProdProjection(_), ProdProjection(_)) when exact_equal(ty1, ty2) =>
+    Some(ty1)
   | (ProdProjection(_), _)
   | (_, ProdProjection(_)) =>
     /* A projection reduces to its member's type, or is stuck on an abstract
@@ -1407,10 +1425,20 @@ and meet_body = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  /* Two copies of one recursive type -- the builtin HTML type, from a path
+     normalized on one side and a builtin's result on the other, met 200
+     times checking one slide -- meet to themselves. One equality pass,
+     with no normalizing and no allocation, instead of a meet that expands
+     every variant's paths. */
+  | (Rec(_), Rec(_)) when exact_equal(ty1, ty2) => Some(ty1)
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
+      /* Same binder name: the substitution is the identity, and skipping
+         it keeps the body's shared subterms shared, so the meet below can
+         pass over them by identity (see BuiltinsADT.view_cmd_arms). */
+      | Some(x2) when TPat.tyvar_of_utpat(tp1) == Some(x2) => ty1
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };

@@ -12,6 +12,16 @@
     overflow: hidden;
 }
 
+/* ...except while a context menu is open in a splice inside the widget.
+   The menu is positioned inside the splice's editor, so the content
+   box's clip cut it off whenever the splice was small -- which in a
+   livelit it usually is. Lifting the clip only while the menu is open
+   keeps the rule's purpose, a wide GUI never painting over the code
+   beside it, the rest of the time. */
+.livelit:has(.context-menu) > *:not(svg) {
+    overflow: visible;
+}
+
 .livelit > .slider > input {
   margin: 0;
   filter: sepia(1);

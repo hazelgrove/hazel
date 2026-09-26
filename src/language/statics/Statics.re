@@ -11,6 +11,12 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* How many quotation bodies the analysis is inside. An antiquote in one is
+   code of a type known only once spliced, and its expression has already
+   been analyzed by the enclosing Quote case, in the quotation's lexical
+   scope; outside every quotation an antiquote is an error. */
+let quote_depth = ref(0);
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -721,8 +727,9 @@ and uexp_to_info_map =
         ) {
         | (Livelit, true, Some((name, model))) =>
           /* the view gets the ELABORATED model (located inside the
-             expansion by the surface model's id) — a committed transition's
-             surface form is not evaluable */
+             expansion by the surface model's id): only there are the
+             model's splices decoded into refs (expose_splice_refs); in the
+             surface form a splice is just its code */
           let model =
             Option.value(
               Exp.find_by_id(Exp.rep_id(model), e_elab),
@@ -1677,6 +1684,128 @@ and uexp_to_info_map =
           m,
         )
       };
+    /* `quote e end`: e as code, of type Exp (PLDI 2021 Sec. 3.2.5, Fig. 3
+       l.56).
+
+       The body is analyzed in the BUILTIN context, not the lexical one.
+       A Macro expansion must be closed (Fig. 5, and Sec. 2.4.3's context
+       independence: it may not depend on what happens to be in scope where
+       the livelit is used), so a reference to a local variable inside a
+       quotation is an ordinary free-variable error, reported where it is.
+       Editor features inside the body (holes, cursor info, errors) work
+       as anywhere else.
+
+       What the body's TYPE must be is not checked here. That depends on the
+       splices it will be applied to, and the paper checks it at each use
+       (Sec. 3.2.5: "the parameterized expansion is only validated at each
+       livelit invocation site"). So the body synthesizes, and nothing is
+       asked of the result.
+
+       The elaboration keeps the SURFACE body: a quotation is final as it
+       stands, and that code is what a use decodes. It contributes no
+       co_ctx -- an outer variable named inside refers to nothing, so it is
+       not a use -- and no probe targets, since quoted code never runs. */
+    | Quote(body) =>
+      /* Antiquotes, `unquote e end`, in document order -- not inside a
+         nested quotation, whose antiquotes are its own -- each replaced
+         by a numbered placeholder in a copy of the body. */
+      let unquotes = ref([]);
+      let placeholder_body =
+        Exp.map_term(
+          ~f_exp=
+            (continue, e) =>
+              switch (e.term) {
+              | Quote(_) => e
+              | Unquote(inner) =>
+                let i = List.length(unquotes^);
+                unquotes := unquotes^ @ [inner];
+                (Var(BuiltinsADT.unquote_placeholder(i)): Exp.term)
+                |> Exp.fresh;
+              | _ => continue(e)
+              },
+          body,
+        );
+      /* Each antiquote's expression runs where the quotation is written,
+         so it is analyzed HERE, in the lexical scope, as an Exp; its
+         variables are uses of that scope. */
+      let (unquote_infos, unquote_elabs, m) =
+        List.fold_left(
+          ((infos, elabs, m), e) => {
+            let (info, elab, m) = go(~ana=Var("Exp") |> Typ.temp, e, m);
+            (infos @ [info], elabs @ [elab], m);
+          },
+          ([], [], m),
+          unquotes^,
+        );
+      incr(quote_depth);
+      let (_, _, m) =
+        switch (
+          go(
+            ~ctx=Builtins.ctx_init(ctx.use_mode),
+            ~ana=Unknown(Internal) |> Typ.temp,
+            body,
+            m,
+          )
+        ) {
+        | result =>
+          decr(quote_depth);
+          result;
+        | exception e =>
+          decr(quote_depth);
+          raise(e);
+        };
+      /* With antiquotes, the quotation is built when it is evaluated:
+         %fill_quote puts each antiquote's code where its placeholder is. */
+      let elab_term =
+        unquote_elabs == []
+          ? Quote(body) |> rewrap
+          : Ap(
+              Forward,
+              (BuiltinFun(BuiltinsADT.fill_quote_name): Exp.term) |> Exp.fresh,
+              (
+                Tuple([
+                  (Quote(placeholder_body): Exp.term) |> Exp.fresh,
+                  (ListLit(unquote_elabs): Exp.term) |> Exp.fresh,
+                ]): Exp.term
+              )
+              |> Exp.fresh,
+            )
+            |> rewrap;
+      add(
+        ~elab_term,
+        ~elab_syn_ty=Var("Exp") |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=
+          CoCtx.union(List.map((i: Info.exp) => i.co_ctx, unquote_infos)),
+        ~probe_targets=
+          SubexpProbeTargets.union_all(
+            List.map((i: Info.exp) => i.probe_targets, unquote_infos),
+          ),
+        m,
+      );
+    /* `unquote e end`. Inside a quotation's body its expression was
+       analyzed by the Quote case above, in the quotation's scope, and it
+       is code of a type known only once spliced. Outside every quotation
+       it is an error. */
+    | Unquote(e) when quote_depth^ > 0 =>
+      add(
+        ~elab_term=Unquote(e) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        ~probe_targets=SubexpProbeTargets.empty,
+        m,
+      )
+    | Unquote(e) =>
+      let (e, e_elab, m) = go(~ana=Var("Exp") |> Typ.temp, e, m);
+      add(
+        ~elab_term=Unquote(e_elab) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[BadOperator("unquote outside a quotation")],
+        ~co_ctx=e.co_ctx,
+        ~probe_targets=e.probe_targets,
+        m,
+      );
     | Test(e) =>
       let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
@@ -1808,27 +1937,26 @@ and uexp_to_info_map =
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some({expansion_t, model_t, expand, user_def, _}) =>
           let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
-          /* A spliced model field carries its REF as well as its value.
-             The splice is the client's code living inside the widget, and
-             Figure 3 puts a handle to it in the model -- so a field the
-             author marked reads as `(ref=SpliceRef("<id>"), value=<the
-             code>)` rather than just the code.
+          /* A spliced model field carries its REF. The splice is the
+             client's code living inside the widget, and Figure 3 puts a
+             handle to it in the model (l.3-4) -- so a field the author
+             marked with parens, where Model says SpliceRef, reads as
+             `SpliceRef(("<id>", <the code>))`. The code still evaluates in
+             place, in the client's scope, and the value it had in this run
+             is what eval_splice reads. Where Model says the stopgap pair
+             (ref=SpliceRef, value=t), the field gets both.
 
              Done as a rewrite of the argument before analysis, rather than
              as a rule about splices, so splice transparency is untouched
-             everywhere else -- tables still see through theirs. The value
-             component keeps the splice, so it is still typed in the
-             client's scope and still evaluates in place; the ref rides
-             alongside. That is what lets a view place the splice
-             (`Html.splice(m.lo.ref)`) AND read it (`m.lo.value`) without
-             the paper's eval_splice, which we do not have. */
-          let arg = UserLivelit.expose_splice_refs(arg);
+             everywhere else -- tables still see through theirs. */
+          let arg = UserLivelit.expose_splice_refs(~ctx, ~model_t, arg);
+          let arg_exposed = arg;
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
           /* A user-defined livelit's expansion embeds the model, so give it
-             the ELABORATED model — the surface form of e.g. a committed
-             ^name.update(m, a) transition is not evaluable. Builtins match
-             on surface shapes and keep the user term. */
+             the ELABORATED model — only there are its splices decoded into
+             refs. Builtins match on surface shapes and keep the user
+             term. */
           let model_for_expand =
             Option.is_some(user_def) ? arg_elab : arg.user_term;
 
@@ -1842,8 +1970,8 @@ and uexp_to_info_map =
              syntax only, so what gets typed is the expansion of the SURFACE
              model even where the elaborated one is what gets evaluated.
              That re-traverses the model, so a use costs twice its model
-             subtree — small in practice, since a model is a literal or a
-             committed transition over one. */
+             subtree — small in practice, since a model is a literal, or
+             one holding splices of the client's code. */
           let expansion_marks = (expanded: Exp.t) => {
             let to_check =
               Option.is_some(user_def)
@@ -1863,14 +1991,162 @@ and uexp_to_info_map =
             };
           };
 
-          // try to expand
-          switch (expand(model_for_expand)) {
-          | Some(expanded) =>
+          /* A Macro livelit (Sec. 3.2.5, Fig. 5): run its expand on this
+             model, and the use means the quoted function applied to the
+             code of the splices it lists.
+
+             - The body is elaborated in the BUILTIN context and closed
+               over the builtin environment, so it cannot capture a client
+               binding -- not even one shadowing a builtin -- and the
+               splices, passed as arguments, cannot be captured by it:
+               application substitutes without capture (Sec. 2.4.3).
+             - Premise 5: the body must be a function taking each listed
+               splice, at the type its code has, to the declared
+               Expansion. One consistency check against that arrow; a
+               mismatch is BadLivelitExpansion, at the use.
+             - The body is typed on a throwaway map, with fresh ids: its
+               ids belong to the quotation in the definition, whose cursor
+               info must not be overwritten by each use. */
+          let macro =
+            switch (user_def) {
+            | Some(def_elab) =>
+              switch (
+                UserLivelit.run_macro_expand(~def_elab, ~model=arg_elab)
+              ) {
+              | Some((body, ids)) =>
+                let codes =
+                  List.map(
+                    id =>
+                      switch (
+                        UserLivelit.splice_code(arg_exposed, id),
+                        UserLivelit.splice_code(arg_elab, id),
+                      ) {
+                      | (Some(surface), Some(_)) => Some((id, surface))
+                      | _ => None
+                      },
+                    ids,
+                  );
+                Util.OptUtil.sequence(codes)
+                |> Option.map(codes => (body, codes));
+              | None => None
+              }
+            | None => None
+            };
+          switch (macro) {
+          | Some((body, codes)) =>
+            let body = Exp.replace_all_ids(body);
+            /* Each splice's code, typed where it is: in the client's
+               scope, on a throwaway map (it was analyzed with the model
+               already; this asks only for its type). */
+            let code_tys =
+              List.map(
+                ((_, surface)) => {
+                  let (info, _, _) =
+                    go(~ana=Unknown(Internal) |> Typ.temp, surface, m);
+                  info.elab_syn_ty;
+                },
+                codes,
+              );
+            let expected =
+              List.fold_right(
+                (ty, acc) => Arrow(ty, acc) |> Typ.temp,
+                code_tys,
+                expansion_t,
+              );
+            /* Analyzed, not synthesized, against the arrow the splices
+               call for: an unannotated `fun x -> fun y -> (y, x)`
+               synthesizes ? -> ? -> (?, ?), consistent with anything, so
+               only analysis gives x and y the splices' types and finds a
+               mismatch in the body. Any mark in the body means the
+               expansion is not what the use calls for. */
+            /* The expected type is the USE's: Expansion and the splices'
+               types can name the client's type aliases (Color, on the
+               Color slide, is a `type ... in` of its own), which the builtin
+               context does not have. So it is normalized here, in the use's
+               context, before the body is analyzed against it there -- the
+               body stays closed, checked against a type with no free
+               names. */
+            let (body_info, body_elab, body_m) =
+              go(
+                ~ctx=Builtins.ctx_init(ctx.use_mode),
+                ~ana=Typ.normalize(ctx, expected),
+                body,
+                m,
+              );
+            let body_ids = {
+              let ids = ref([]);
+              let _ =
+                Exp.map_term(
+                  ~f_exp=
+                    (continue, e) => {
+                      ids := [Exp.rep_id(e), ...ids^];
+                      continue(e);
+                    },
+                  body,
+                );
+              ids^;
+            };
+            let body_has_error =
+              List.exists(
+                id =>
+                  switch (Id.Map.find_opt(id, body_m)) {
+                  | Some(Info.InfoExp({marks: [_, ..._], _})) => true
+                  | _ => false
+                  },
+                body_ids,
+              );
+            /* The model is bound once and each argument is the value its
+               splice's ref carries in it -- what the model's evaluation, in
+               the client's scope, already computed, and what eval_splice
+               reads -- so a splice's code runs once, and a probe in it
+               fires once. A projected use finds the model here by id (the
+               Projector case) to run view on it, and binds it once more
+               for the view, which this binding then reads. */
+            let m_var = "%macro_model";
+            let m_ref = () => (Var(m_var): Exp.term) |> Exp.fresh;
+            let splice_arg = id =>
+              (
+                Ap(
+                  Forward,
+                  (BuiltinFun(BuiltinsADT.splice_value_name): Exp.term)
+                  |> Exp.fresh,
+                  (
+                    Tuple([
+                      m_ref(),
+                      (Atom(String(id)): Exp.term) |> Exp.fresh,
+                    ]): Exp.term
+                  )
+                  |> Exp.fresh,
+                ): Exp.term
+              )
+              |> Exp.fresh;
+            let app =
+              List.fold_left(
+                (f, (id, _)) =>
+                  (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
+                (Closure(Builtins.env_init, body_elab): Exp.term) |> Exp.fresh,
+                codes,
+              );
+            let elab =
+              (Let(Pat.fresh(Var(m_var)), arg_elab, app): Exp.term)
+              |> Exp.fresh;
             let (info, elab, m) =
               add(
-                ~elab_term=expanded,
+                ~elab_term=elab,
                 ~elab_syn_ty=expansion_t,
-                ~marks=expansion_marks(expanded),
+                ~marks=
+                  body_has_error
+                    ? [
+                      BadLivelitExpansion({
+                        declared: expected,
+                        actual: body_info.elab_syn_ty,
+                      }),
+                    ]
+                    : UserLivelit.expansion_mark(
+                        ctx,
+                        ~declared=expected,
+                        ~actual=body_info.elab_syn_ty,
+                      ),
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
                   SubexpProbeTargets.union_all([
@@ -1882,23 +2158,47 @@ and uexp_to_info_map =
             (
               info,
               elab,
-              IdTagged.ids(expanded)
+              IdTagged.ids(elab)
               |> add_missing_info(_, Info.InfoExp(info), m),
             );
           | None =>
-            // if we can't expand, flag as improper model
-            add(
-              ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-              ~elab_syn_ty=expansion_t,
-              ~marks=[BadLivelitModel(expansion_t)],
-              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-              ~probe_targets=
-                SubexpProbeTargets.union_all([
-                  fn.probe_targets,
-                  arg.probe_targets,
-                ]),
-              m,
-            )
+            // try to expand
+            switch (expand(model_for_expand)) {
+            | Some(expanded) =>
+              let (info, elab, m) =
+                add(
+                  ~elab_term=expanded,
+                  ~elab_syn_ty=expansion_t,
+                  ~marks=expansion_marks(expanded),
+                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                  ~probe_targets=
+                    SubexpProbeTargets.union_all([
+                      fn.probe_targets,
+                      arg.probe_targets,
+                    ]),
+                  m,
+                );
+              (
+                info,
+                elab,
+                IdTagged.ids(expanded)
+                |> add_missing_info(_, Info.InfoExp(info), m),
+              );
+            | None =>
+              // if we can't expand, flag as improper model
+              add(
+                ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+                ~elab_syn_ty=expansion_t,
+                ~marks=[BadLivelitModel(expansion_t)],
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                ~probe_targets=
+                  SubexpProbeTargets.union_all([
+                    fn.probe_targets,
+                    arg.probe_targets,
+                  ]),
+                m,
+              )
+            }
           };
 
         | None =>
@@ -2244,6 +2544,125 @@ and uexp_to_info_map =
         ~probe_targets=body.probe_targets,
         m,
       );
+    /* `do p <- cmd in body` -- Figure 3's monadic bind.
+
+         cmd => M(a)    p : a    body <= M(b)
+         ------------------------------------
+              do p <- cmd in body  =>  M(b)
+
+       The pattern is an ordinary pattern, so `do (x, y) <- c in ...`
+       destructures the way a let does.
+
+       What a bind is NOT is recursive: `p` does not scope over `cmd`,
+       since `cmd` runs first and `p` names its answer. So there is no
+       fixpoint here and no mutual recursion between binds either -- a
+       recursive helper inside a do-chain is an ordinary `let ... in`
+       between two binds, which nests freely because both are just
+       expression forms.
+
+       Mixing the monads is a type error and is meant to be. Sec. 3.2.4
+       keeps eval_splice out of UpdateCmd "because the model should not
+       depend directly on which closure the user has selected", and that
+       separation is only real if UpdateCmd and ViewCmd cannot be chained
+       together. Nothing special enforces it: the body is analyzed
+       against the same `ana` the whole bind was, so an arm of the wrong
+       monad is reported by ordinary inconsistency. */
+    | Bind(p, cmd, body) =>
+      /* A do-block is in ONE monad. When the context already says which
+         -- the body of update is an UpdateCmd -- the command is analyzed
+         against that monad at an unknown payload, so a command of the
+         OTHER monad is an ordinary inconsistency at the command: an
+         UpdateCmd cannot evaluate a splice (Sec. 3.2.4). Analysis is also
+         what lets `Pure(x)` stand first, since Pure only resolves against
+         a monad. Coerced like a let's definition: a coercion site too. */
+      let cmd_ana =
+        switch (BuiltinsADT.monad_of_typ(Typ.weak_head_normalize(ctx, ana))) {
+        | Some((BuiltinsADT.UpdateMonad, _)) =>
+          BuiltinsADT.update_cmd(Unknown(Internal) |> Typ.temp)
+        | Some((BuiltinsADT.ViewMonad, _)) =>
+          BuiltinsADT.view_cmd(Unknown(Internal) |> Typ.temp)
+        | None => syn
+        };
+      let (cmd, cmd_elab, m) = go(~ana=cmd_ana, ~coercible=true, cmd, m);
+      /* What the command is a command OF. None means it is not a command
+         at all; the pattern then analyzes against Unknown and the
+         inconsistency is reported where the command is, not here. */
+      let monad =
+        BuiltinsADT.monad_of_typ(Typ.weak_head_normalize(ctx, cmd.ty));
+      let payload =
+        switch (monad) {
+        | Some((_, a)) => a
+        | None => Unknown(Internal) |> Typ.temp
+        };
+      /* As with let: this pass is only for the context the body sees. The
+         pass that is kept comes after the body, given the body's co-ctx,
+         or every variable the pattern binds is reported unused. */
+      let (p_pre, _, _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=payload, p, m);
+      /* A do-block is in ONE monad, and its first command decides which.
+         So when nothing outside says what this bind should be -- it sits
+         in synthetic position, as the body of an unannotated helper does
+         -- its body is checked against that same monad instead of against
+         nothing. Without this, `Pure` in a helper returning a command had
+         no type to resolve against, and such a helper cannot be annotated
+         either: `ViewCmd([Html.T])` is not a type anyone can write. */
+      let body_ana =
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana)), monad) {
+        | (Unknown(_), Some((BuiltinsADT.UpdateMonad, _))) =>
+          BuiltinsADT.update_cmd(Unknown(Internal) |> Typ.temp)
+        | (Unknown(_), Some((BuiltinsADT.ViewMonad, _))) =>
+          BuiltinsADT.view_cmd(Unknown(Internal) |> Typ.temp)
+        | _ => ana
+        };
+      let (body, body_elab, m) = go(~ctx=p_pre.ctx, ~ana=body_ana, body, m);
+      let (p_ana, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=payload, p, m);
+      /* `do` is SUGAR. It elaborates to the real bind, instantiated:
+
+           bind @<a> @<b> (cmd, fun p -> body)
+
+         so the checking that matters is an ordinary application of a
+         value with an honest forall type, and this case's only judgement
+         is which monad and which instantiation. Hazel has no implicit
+         instantiation -- TypAp substitutes explicitly -- but the author
+         never writes `@<...>`, because both types are ones this rule has
+         already computed.
+
+         Two binds rather than one because the kinds are `Singleton |
+         Abstract` with no arrow, so `forall M. ...` is unwritable. If a
+         monad cannot be read off the command, the surface term is kept:
+         there is nothing to instantiate, and the inconsistency is already
+         reported at the command. */
+      let elab_term =
+        switch (monad) {
+        | None => Bind(p_elab, cmd_elab, body_elab) |> rewrap
+        | Some((which, a)) =>
+          let b = body.elab_syn_ty;
+          let bind_name =
+            switch (which) {
+            | BuiltinsADT.UpdateMonad => "update_bind"
+            | BuiltinsADT.ViewMonad => "view_bind"
+            };
+          let inst =
+            TypAp(TypAp(Var(bind_name) |> Exp.fresh, a) |> Exp.fresh, b)
+            |> Exp.fresh;
+          let k = Fun(p_elab, body_elab, None, None) |> Exp.fresh;
+          Ap(Forward, inst, Tuple([cmd_elab, k]) |> Exp.fresh) |> rewrap;
+        };
+      add(
+        ~elab_term,
+        ~elab_syn_ty=body.elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=
+          CoCtx.union([cmd.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            p_ana.probe_targets,
+            cmd.probe_targets,
+            body.probe_targets,
+          ]),
+        m,
+      );
     | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
       /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
          `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and
@@ -2307,19 +2726,95 @@ and uexp_to_info_map =
         | (_, _) => def
         };
       /* The definition is coerced to the binder's annotation: every analysis
-         of it below is a coercion site. */
-      let (def_rec_probe, _, _) =
-        go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
-      let rec_check_ty =
-        switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
-        | Unknown(SynSwitch) => def_rec_probe.ty
-        | _ => p_syn.ty
+         of it below is a coercion site.
+
+         Passes MULTIPLY with let nesting, since each re-analyzes the whole
+         definition: every let-bound function took the recursive path's four
+         passes (is_recursive is structural -- any function counts), which
+         is 4^depth. Ten nested function lets took 35 s to check, and a
+         livelit's view -- a let-bound function holding let-bound helpers,
+         inside a module checked twice -- took 9-36 s a keystroke. So:
+
+         - A definition that is not function-shaped cannot be recursive
+           (is_recursive's own precondition), so it gets the single ordinary
+           pass in ctx and no probe at all. Exact.
+         - A function-shaped one gets the recursion probe, in the pattern's
+           context. When the definition does not mention its own binders,
+           and they shadow nothing in ctx, having them in scope changed
+           nothing the definition can see, so the probe IS the analysis the
+           later passes would repeat, and it is kept. One difference is
+           left, in what editor features see inside the body: the binder is
+           in scope there at its synthesized type (? when unannotated).
+         - Otherwise the old passes run, reusing the probe only where a pass
+           had exactly its inputs.
+
+         is_rec, and so the elaboration (requires_fixf below), is unchanged. */
+      let fn_shaped =
+        switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
+        | (Some(num_vars), Some(num_fns)) =>
+          num_vars != 0 && num_vars == num_fns
+        | _ => false
         };
-      let is_rec = is_recursive(ctx, p, def, rec_check_ty);
+      let probe =
+        lazy(go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m));
+      let is_rec =
+        fn_shaped
+        && {
+          let (def_rec_probe, _, _) = Lazy.force(probe);
+          let rec_check_ty =
+            switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
+            | Unknown(SynSwitch) => def_rec_probe.ty
+            | _ => p_syn.ty
+            };
+          is_recursive(ctx, p, def, rec_check_ty);
+        };
+      let shadows =
+        List.exists(
+          x => Option.is_some(Ctx.lookup_var(ctx, x)),
+          Pat.bound_vars(p),
+        );
+      let reuse_probe =
+        fn_shaped
+        && !shadows
+        && {
+          let (def_rec_probe, _, _) = Lazy.force(probe);
+          !CoCtx.has_any(def_rec_probe.co_ctx, Pat.bound_vars(p));
+        };
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
+          let def_syntax = def;
           let (def, def_elab, m) =
-            go(~ana=p_syn.ty, ~coercible=true, def, m);
+            reuse_probe
+              ? Lazy.force(probe)
+              : go(~ana=p_syn.ty, ~coercible=true, def, m);
+          /* A livelit definition gets a SECOND pass, analyzed against the
+             `Livelit` signature with its own Model, Action and Expansion
+             made manifest (UserLivelit.livelit_ana_ty).
+
+             The first pass is what tells us those three types, so the
+             realized signature cannot be built before it. The second pass
+             is the authoritative one: analyzing rather than synthesizing
+             puts every member where the ordinary type machinery can check
+             it, which is what makes a mismatched member an ordinary
+             inconsistency at the expression rather than a livelit-specific
+             mark on the whole definition -- and what puts the `expand`
+             sum's constructors in scope, so a definition needs no type
+             member of its own to name them.
+
+             Realized rather than as-written because the signature declares
+             those three ABSTRACT, and analyzing against it directly would
+             seal them: a use of ^name must keep synthesizing Expansion
+             concretely for clients to reason about. */
+          let (def, def_elab, m) =
+            switch (UserLivelit.binder_name(p)) {
+            | None => (def, def_elab, m)
+            | Some(_) =>
+              switch (UserLivelit.livelit_ana_ty(~ctx, ~m, def.user_term)) {
+              | None => (def, def_elab, m)
+              | Some(ana_sig) =>
+                go(~ana=ana_sig, ~coercible=true, def_syntax, m)
+              }
+            };
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
@@ -2331,8 +2826,11 @@ and uexp_to_info_map =
             );
           (def, def_elab, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _, _) =
-            go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
+          /* The recursive path's first pass had exactly the probe's inputs,
+             so it IS the probe. */
+          let (def_rec_probe, def_rec_probe_elab, m_probe) =
+            Lazy.force(probe);
+          let def_base = def_rec_probe;
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _, _) =
@@ -2344,28 +2842,46 @@ and uexp_to_info_map =
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _, _) =
-            go(~ctx=def_ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
-          let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
-          };
-          let ana =
-            switch (
-              (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
-              p_syn.ty |> Typ.term_of,
-            ) {
-            | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
-              let tys =
-                List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-              Prod(tys) |> Typ.temp;
-            | ((_, _), _) =>
-              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+          if (reuse_probe) {
+            (
+              /* A function that never calls itself: the two passes below
+                 would re-derive the probe's type and then re-run it (with
+                 def_base.ty == def_base2.ty, ana_ty_fn picks p_syn.ty), so
+                 the probe is the final analysis. */
+              def_rec_probe,
+              def_rec_probe_elab,
+              def_ctx,
+              m_probe,
+              ty_p_ana,
+            );
+          } else {
+            let (def_base2, _, _) =
+              go(~ctx=def_ctx, ~ana=p_syn.ty, ~coercible=true, def, m);
+            let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+              Typ.term_of(ty_p) == Unknown(SynSwitch)
+              && !Typ.equal(ty_fn1, ty_fn2)
+                ? ty_fn1 : ty_p;
             };
-          let (def, def_elab, m) =
-            go(~ctx=def_ctx, ~ana, ~coercible=true, def, m);
-          (def, def_elab, def_ctx, m, ty_p_ana);
+            let ana =
+              switch (
+                (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
+                p_syn.ty |> Typ.term_of,
+              ) {
+              | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+                let tys =
+                  List.map2(
+                    ana_ty_fn,
+                    List.combine(ty_fns1, ty_fns2),
+                    ty_ps,
+                  );
+                Prod(tys) |> Typ.temp;
+              | ((_, _), _) =>
+                ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+              };
+            let (def, def_elab, m) =
+              go(~ctx=def_ctx, ~ana, ~coercible=true, def, m);
+            (def, def_elab, def_ctx, m, ty_p_ana);
+          };
         };
       /* Bind a livelit: `let ^name = { ...members } in ...` additionally
          puts a LivelitEntry in the body's context, carrying the module's

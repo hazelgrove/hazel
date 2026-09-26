@@ -70,6 +70,10 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
       ~f_exp=
         (continue, exp) =>
           switch (term_of(exp)) {
+          /* A quotation's body is closed (it is checked in the builtin
+             context), so no type variable of the program occurs in it. */
+          | Quote(_) => exp
+          | Unquote(_) => continue(exp)
           | TypFun(utpat, _, _) =>
             switch (TPat.tyvar_of_utpat(utpat)) {
             | Some(x') when x == x' => exp
@@ -90,6 +94,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Closure(_)
           | Seq(_)
           | Let(_)
+          | Bind(_)
           | Theorem(_)
           | ProofObject(_)
           | Forall(_)
@@ -144,6 +149,7 @@ let rec ty_comparable = (d1, d2) => {
   | (Undefined, _)
   | (Var(_), _)
   | (Let(_), _)
+  | (Bind(_), _)
   | (Theorem(_), _)
   | (ProofObject(_), _)
   | (Forall(_), _)
@@ -153,6 +159,8 @@ let rec ty_comparable = (d1, d2) => {
   | (If(_), _)
   | (Seq(_), _)
   | (Test(_), _)
+  | (Quote(_), _)
+  | (Unquote(_), _)
   | (HintedTest(_), _)
   | (Filter(_), _)
   | (Closure(_), _)
@@ -251,6 +259,7 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Undefined, _)
   | (Var(_), _)
   | (Let(_), _)
+  | (Bind(_), _)
   | (Theorem(_), _)
   | (ProofObject(_), _)
   | (Forall(_), _)
@@ -260,6 +269,8 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (If(_), _)
   | (Seq(_), _)
   | (Test(_), _)
+  | (Quote(_), _)
+  | (Unquote(_), _)
   | (HintedTest(_), _)
   | (Filter(_), _)
   | (Closure(_), _)

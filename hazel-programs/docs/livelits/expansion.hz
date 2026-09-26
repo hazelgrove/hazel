@@ -1,54 +1,65 @@
 # The Expansion #
 
-# Every livelit has an expansion member -- expand_fun here -- and a #
-# Expansion. Together they answer one question: what does a use of #
-# this livelit MEAN to the program around it? #
+# Every livelit has a member called expand, and a type member called #
+# Expansion, the type the paper has a livelit declare (Sec. 3.1). #
+# Together they answer one question: what does a use of this livelit #
+# MEAN to the program around it? (Sec. 2.2) #
 
-#   let expand_fun : Model -> Expansion #
+#   let expand : + Functional(Model -> Expansion) + Macro(...) #
 
-# It is a boundary. On one side is the MODEL: the widget's state, #
-# written into the program text so it survives. Because it is stored #
-# as syntax, a model must be plain serializable data -- a model can #
-# never hold a function. #
+# It is a boundary. On one side is the MODEL: the state of the #
+# widget's GUI, written into the program text so it survives #
+# (Sec. 3.2.1). The paper requires a model type that serializes, so #
+# no functions. This implementation does not check that: a #
+# function-typed Model typechecks and runs here. #
 
-# On the other side is the EXPANSION: an ordinary Hazel expression, #
-# under no such restriction. Everything interesting a livelit does, #
-# it does here. #
+# On the other side is the EXPANSION: what a use means. It is never #
+# saved; expand rebuilds it from the model whenever it is needed #
+# (Sec. 3.2.5). In the paper, expand returns it as quoted code over #
+# the splices -- the Macro arm, in WHAT SPLICES CHANGE below. The #
+# examples first use Functional, an addition here, which computes #
+# the expansion as a value directly. #
 
 # THE DULL CASE: EXPANSION = MODEL #
 
-# A slider stores an Int and means that Int. expand_fun is the #
+# A slider stores an Int and means that Int. expand is the identity, #
 # and the livelit is a nicer way to type a number. #
 
 #   type Model = Int;  type Expansion = Int; #
-#   let expand_fun = fun m : Model -> m #
+#   let expand = Functional(fun m : Model -> m) #
 
 # BETTER: THE EXPANSION IS NOT THE MODEL #
 
-# The Color Picker slide in this deck stores (hue, whiteness, blackness) #
-# and expands to a CSS string. The client never sees the triple, and #
-# never has to know the hwb geometry the widget uses to read a click: #
+# The Color Picker slide in this deck stores (hue, whiteness, #
+# blackness) and expands to a CSS string. Client code gets the #
+# string, never the triple, and never has to know the hwb geometry #
+# the widget uses to read a click: #
 
 #   type Model = (Int, Int, Int);  type Expansion = String; #
-#   let expand_fun = fun m : Model -> css(m) #
+#   let expand = Functional(fun m : Model -> css(m)) #
 
 # The GUI absorbs the domain knowledge. That is already the point of #
-# the Expansion type: a use has that type however expand_fun is #
-# so a reader reasons about the use without reading the widget. #
+# the Expansion type (Sec. 2.3): a use that expands at all has that #
+# type, so a client can reason about it without reading the #
+# expansion or the widget (Sec. 1.2, Sec. 2.2). #
 
-# INTERESTING: AN EXPANSION THE MODEL COULD NOT BE #
+# INTERESTING: AN EXPANSION THAT IS A FUNCTION #
 
 # Pick one color, and mean a whole RAMP of them. This livelit's #
-# Expansion is a FUNCTION, Int -> Color: give it a lightness offset #
-# and it gives back that shade of the color you picked. #
+# Expansion is a FUNCTION, Int -> Color: give it k and it adds k to #
+# the whiteness of the color you picked, kept within 0 to 100. #
 
-# A model could not hold this function -- it has to be written into #
-# the program text. The expansion has no such limit, so it is #
-# where a picked color becomes a family of colors. #
+# The two sides do different jobs (Sec. 3.2.5). The model is the #
+# GUI's state, the part the program keeps (Sec. 3.2.1): here, one #
+# hwb triple the slider moves, committed back as text. The expansion #
+# is what that state means to the client, and expand may compute #
+# anything from it, a function included. That is where a picked #
+# color becomes a family of colors. #
 
-# And a Color is not a string. It is the same color in three #
+# And a Color is not a string. It gives one color in three #
 # coordinate systems, each still numeric, so a client can compute #
-# with it -- compare channels, sort by lightness, interpolate. #
+# with it -- compare channels, sort by lightness, interpolate. Two #
+# edge cases where the systems disagree are marked in the code. #
 # Turning one into text is a separate step, further down. #
 
 type Rgb = (r=Int, g=Int, b=Int) in
@@ -64,6 +75,9 @@ let ^ramp = {
   let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
   # the hue at full strength, walked around the six sectors #
+  # KNOWN BUG: h = 360, the slider's top, is not wrapped to 0, so it #
+  # lands in the last branch and comes out magenta, not red. The #
+  # swatches paint from css, so only the expansion's rgb shows it #
   let hue_rgb = fun h : Int ->
     let sector = h / 60 in
     let up = (h - sector * 60) * 255 / 60 in
@@ -85,6 +99,9 @@ let ^ramp = {
       let mix = fun v : Int -> v * span / 100 + c.w * 255 / 100 in
       (r=mix(pure.r), g=mix(pure.g), b=mix(pure.b));
 
+  # KNOWN BUG: unlike to_rgb, this misses the grey case w + b >= 100. #
+  # At this slide's model, shade(k) for k of 73 or more gets a #
+  # negative saturation (shade(80) has s = -66) though its rgb is grey #
   let to_hsl = fun c : Hwb ->
     let value = 100 - c.b in
     if value == 0 then (h=c.h, s=0, l=0)
@@ -101,16 +118,16 @@ let ^ramp = {
     "hwb(" ++ string_of_int(c.h) ++ " "
     ++ string_of_int(c.w) ++ "% " ++ string_of_int(c.b) ++ "%)";
 
-  let init : Model = (h=200, w=20, b=10);
+  let init = Pure((h=200, w=20, b=10));
 
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
 
   let swatch = fun c : Hwb ->
     Html.div([Attr.style([("width", "18px"), ("height", "18px"),
                           ("border", "1px solid black"),
                           ("background", css(c))])], []);
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("gap", "0.4em"),
                    ("align-items", "center")])],
@@ -118,11 +135,12 @@ let ^ramp = {
                    Attr.value(string_of_int(m.h)),
                    Attr.on_input(fun s -> (h=int_of_string(s), w=m.w, b=m.b))]),
        swatch(m),
-       swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]);
+       swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]));
 
-  # not a color, and not text: a function FROM lightness TO structure #
-  let expand_fun = fun m : Model ->
-    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b));
+  # not a color, and not text: a function FROM a whiteness offset #
+  # TO structure #
+  let expand = Functional(fun m : Model ->
+    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b)));
 
   let shape = Inline(14)
 } in
@@ -148,43 +166,55 @@ let hwb_string = fun c : Hwb ->
 
 # WHERE A WRONG EXPAND IS CAUGHT #
 
-# expand_fun is checked in TWO places, and both earn their keep. #
+# The paper checks an expansion only at each USE (Sec. 3.2.5). This #
+# implementation also checks expand at the DEFINITION, and for a #
+# Functional livelit that is where every expansion error now shows #
+# up -- see USE below. #
 
 # At the DEFINITION, the module is checked against the builtin #
 # `Livelit` signature with Model, Action and Expansion realized by #
 # the definition's own types. So this is an error where it is #
 # written, before any use exists: #
 
-#   type Model = Bool;  type Expansion = String;   #
-#   let expand_fun = fun m : Model -> m                #
-#                                                  #
-#   Member expand_fun is Bool -> Bool              #
-#   but its signature declares Bool -> String      #
+#   type Model = Bool;  type Expansion = String;        #
+#   let expand = Functional(fun m : Model -> m)          #
+#                                                        #
+#   Expecting type String                                #
+#   but got inconsistent type Model                      #
 
-# Note the member's type is spelled Model -> Model, not Bool -> Bool. #
-# The check realizes the type members on both sides before comparing; #
-# without that, Model means nothing outside the module, becomes ?, #
-# and ? is consistent with anything. #
+# The error marks the body, m. The expected side reads String, not #
+# Expansion: the check substitutes the definition's own types into #
+# the signature before comparing. Without that, Expansion would mean #
+# nothing outside the module, become ?, and ? is consistent with #
+# anything. The body's side keeps its own name, Model, the module's #
+# alias for Bool. #
 
-# At each USE, the expansion is checked again against the declared #
-# Expansion. That is not redundant: an expansion whose type depends #
-# on the model VALUE is invisible at the definition, so only the use #
-# can catch it. A definition with a bad member is still bound, so #
-# its uses keep resolving and keep being checked. #
+# At each USE, this implementation also checks the expansion against #
+# the declared Expansion, as the paper does. For a Functional #
+# livelit that check is vacuous: Functional(f) was already checked #
+# against Model -> Expansion, so f(model) has type Expansion at every #
+# use. The use-site check is for Macro, whose quoted expansion has a #
+# type that depends on the splice list -- how many splices there are #
+# and what their types are -- which the definition cannot see #
+# (Sec. 3.2.5). It waits on quotation. A definition with a bad #
+# member is still bound, so its uses keep resolving: each #
+# synthesizes the declared Expansion. #
 
 # Try it: the ^good livelit below type-checks. Change its Expansion #
-# to String and the error appears on the DEFINITION immediately, as #
-# well as on each use. #
+# to String and the error appears on the DEFINITION immediately. The #
+# use fails too, but for a client's reason: ^good(3) now synthesizes #
+# the declared String, and + 1 wants an Int. The use-site check #
+# itself stays silent. #
 
 let ^good = {
   type Model = Int;
   type Action = Int;
   type Expansion = Int;
-  let init : Model = 3;
-  let update = fun (_m, a) : (Model, Action) -> a;
+  let init = Pure(3);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
   let view = fun m : Model ->
-    Html.text(string_of_int(m));
-  let expand_fun = fun m : Model -> m;
+    Pure(Html.text(string_of_int(m)));
+  let expand = Functional(fun m : Model -> m);
   let shape = Inline(3)
 } in
 
@@ -206,56 +236,75 @@ let mid = shade(25) in
 
 # WHAT SPLICES CHANGE #
 
-# DESIGN SKETCH. None of this runs on this branch yet -- it is what #
-# the splices work is aiming at, written down so the target is #
-# legible. Everything ABOVE this line works today. #
+# THE PAPER'S DESIGN, most of it running. Everything ABOVE this line #
+# works today. Its core exists on this branch -- expand's Macro arm, #
+# SpliceRef, the five splice commands -- and the splices RUN: the #
+# splice store is the program text, and new_splice, set_splice, #
+# eval_splice and editor all run. result_view still reports "not #
+# implemented". Exp has one constructor, IntLit, and no quotation, #
+# so a Macro can be written but cannot return real code: a use of #
+# one means a hole. The Color (Figure 3) slide writes out the #
+# paper's own example in full, and all of it runs but its expand. #
 
-# A splice is a hole in the widget that holds the CLIENT's code. #
-# Not a value the widget computed: an expression the client wrote, #
-# edited in place inside the GUI, and typed in the client's scope. #
+# A splice is a region of the widget that holds the CLIENT's code #
+# (Sec. 2.4.2). Not a value the widget computed: an expression the #
+# client wrote, edited in place inside the GUI, and typed in the #
+# client's scope. #
 
-# The livelits paper (Omar et al., PLDI 2021) opens with a color #
-# livelit whose four channels are splices, Fig. 1b: #
+# The paper opens with a color livelit whose four channels are #
+# splices (Sec. 1, Fig. 1b). The client binds a variable, baseline, #
+# offsets green past it, and nests a slider livelit in the alpha #
+# splice. In outline, with what the text does not give elided: #
 
-#   let baseline = $slider 0 255 in                         #
-#   $color [r: baseline] [g: baseline + 50] [b: baseline]   #
+#   let baseline = ... in                                   #
+#   $color [r: baseline] [g: baseline + ...] [b: baseline]  #
+#          [a: $percent ...]                                #
 
 # `baseline` is the CLIENT's variable. The widget shows a color, but #
 # the green channel is an expression mentioning something the widget #
-# has never heard of. That is what splices buy. #
+# has never heard of, and alpha is another livelit. That is what #
+# splices buy. #
 
 # THE TWO KINDS OF LIVELIT #
 
-# A definition answers to one of two builtin signatures. #
+# There is ONE signature, and `expand` is a sum. A definition picks a #
+# kind by which arm it inhabits. #
 
-#   LivelitFun:  let expand_fun : Model -> Expansion      (a VALUE) #
+#   let expand :                                            #
+#     + Functional( Model -> Expansion )        (a VALUE)   #
+#     + Macro( Model -> (Exp, List(SpliceRef)) )            #
 
-# and the paper's (Fig. 3, line 55): #
+# The Macro arm is the paper's (Fig. 3 l.55, Sec. 3.2.5). #
 
-#   LivelitMac:  let expand_mac : Model -> (Exp, List(SpliceRef)) #
-
-# Two changes, and the second is the interesting one. #
+# Two things set the paper's arm apart from Functional, and the #
+# second is the interesting one. #
 
 # FIRST, the expansion becomes SYNTAX. `Exp` is quoted code, not a #
-# value -- so expand_mac writes a program rather than computing an #
-# answer. Hazel's own $color expands to a quoted function: #
+# value -- so Macro writes a program rather than computing an #
+# answer. In the paper, $color's expand returns a quoted function #
+# (Fig. 3 l.55-57): #
 
 #   fun model -> (`fun r g b a -> (r, g, b, a)`,          #
 #                 [model.r, model.g, model.b, model.a])   #
 
 # SECOND, the splices come back as a LIST beside it, and the quoted #
-# expression is a FUNCTION of them. The client's four expressions #
-# become the four arguments. #
+# expression is a curried FUNCTION of them -- the paper's #
+# parameterized expansion (Sec. 3.2.5). The client's four #
+# expressions become the four arguments, and the result is checked #
+# at each use. #
 
 # That shape is not decoration. It is how the paper gets CAPTURE #
-# AVOIDANCE: a splice passed as a function argument cannot be caught #
-# by a binding inside the expansion, because it is evaluated outside #
-# it. Splice the client wrote `len` into a livelit whose expansion #
-# happens to bind `len`, and nothing goes wrong. #
+# AVOIDANCE (Sec. 2.4.3): a splice cannot be caught by a binding #
+# inside the expansion, because it is scoped where the livelit is #
+# used, not inside the expansion. It arrives as an argument, and #
+# beta reduction substitutes it without capturing variables #
+# (Sec. 4.2.2). Put client code that mentions `len` in a #
+# splice of a livelit whose expansion happens to bind `len`, and #
+# nothing goes wrong. #
 
 # WHAT ELSE MOVES #
 
-# The MODEL stops holding the data. Fig. 3 line 3: #
+# The MODEL stops holding the data. Fig. 3 l.3-4 (Sec. 3.2.1): #
 
 #   type Model = (.r SpliceRef, .g SpliceRef, #
 #                 .b SpliceRef, .a SpliceRef) #
@@ -264,25 +313,68 @@ let mid = shade(25) in
 # program text; the model only says where. Compare the Tree Care #
 # slide, whose model IS the tree. #
 
-# init stops being a value and becomes a COMMAND, because making a #
-# splice is an effect on the program: #
+# In the paper, init is a COMMAND, because making a splice is an #
+# effect on the program: an UpdateCmd(Model) that makes its splices #
+# with new_splice (Sec. 3.2.1): #
 
 #   new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) #
 
-# view gains the ability to RUN a splice, which is what lets the #
-# widget show a live preview of code the client wrote: #
+# init is a command here too, performed when a use is created: type #
+# ^name and a space, and the new use's text is the model init #
+# answers, with the splices it made. The two inits on this slide are #
+# Pure(...) and make none. update is where the paper WRITES a splice, #
+# as Fig. 3 does on a click (Sec. 3.2.4): #
+
+#   set_splice : (SpliceRef, Exp) -> UpdateCmd(()) #
+
+# Typ is a stopgap here: a closed list of base types, IntT, FloatT, #
+# BoolT and StringT, in place of the paper's quoted types. new_splice #
+# takes one and discards it. A SpliceRef carries no type index: the #
+# splice has a type, from where it sits, and the handle does not. #
+# And, as in the paper, no command deletes a splice: one that no ref #
+# in the committed model reaches is not written back, so the next #
+# commit drops it. #
+
+# view already returns a COMMAND, a ViewCmd, and that is what lets it #
+# RUN a splice and show a live preview of code the client wrote #
+# (Sec. 3.2.3): #
 
 #   eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) #
 #   type Result = Val(Exp) | Indet(Exp) #
 
-# Indet is the honest case: the client's expression may not reduce #
-# to a value, and a widget that demands one would be lying. Fig. 3 #
-# disables the color preview when any channel is indeterminate. #
+# That Result is the paper's. With no quotation here, Val carries the #
+# value itself and Indet carries nothing. view also places each #
+# splice's editor, and its rendered result, with editor and #
+# result_view, both taking (SpliceRef, Dim); result_view does not run #
+# yet. UpdateCmd has no eval_splice, on purpose: the model must not #
+# depend DIRECTLY on which closure the user has selected, though the #
+# view may still emit actions that depend on a result (Sec. 3.2.4). #
+# Here a ref carries its code's value from the run, so update could #
+# still take it out; making SpliceRef abstract is later work. #
 
-# And a livelit declares the definition-site bindings its expansion #
-# may use, so a client never inherits a hidden dependency: #
+# Indet is the honest case: the client's expression may not reduce #
+# to a value, and a widget that demands one would be lying #
+# (Sec. 2.5.2). Fig. 3 disables the color preview unless all four #
+# channels are values (Sec. 3.2.3). #
+
+# And a paper livelit lists the definition-site bindings its #
+# expansion may use (Sec. 3.2, Fig. 3 l.6). They are bound where the #
+# livelit is defined, so its expansion is valid in any client #
+# context and a client never has to supply a hidden dependency -- #
+# context independence (Sec. 2.4.3). The list is explicit so that #
+# private bindings do not leak to clients (Sec. 3.2.1): #
 
 #   context { } #
+
+# There is no context clause here. A livelit is a module, typed in #
+# its ordinary lexical scope, builtins included. A Functional expand #
+# is a closure over that scope, so what it uses is bound at the #
+# definition already. init and update are not: they run in the #
+# builtin environment alone, so their helpers must be members. #
+# Quoted code has no closure, so the clause will matter once Macro #
+# can return quoted code -- and once new_splice and set_splice carry #
+# more than an IntLit, which names nothing: the paper checks their #
+# code against the same context (Sec. 3.2.1, Sec. 3.2.4). #
 
 # WHERE THIS BRANCH IS #
 
@@ -290,6 +382,16 @@ let mid = shade(25) in
 # Splice form in the grammar, sub-editors that share the host's #
 # zipper and statics, and a projector API for rendering them. #
 
-# SpliceRef -- the TYPE above, what expand_mac hands back -- exists #
-# nowhere in the repo yet. So this branch is a merge plus a build, #
-# and only the merge can be taken from somewhere else. #
+# That work is merged here. SpliceRef -- the TYPE above, what the #
+# Macro arm hands back -- is a builtin, and the five commands are #
+# typed around it. The splice store is the program text: when a #
+# model is committed, each ref in it is written back as its splice, #
+# in parens, at the ref's position, and each statics pass reads them #
+# back into refs. init runs as an UpdateCmd when a use is created, so #
+# it can call new_splice (Sec. 3.2.1). Four parts of the paper's #
+# design are still missing: quotation, so Exp holds more than IntLit #
+# and Macro can return code; result_view; livelit parameters #
+# (Sec. 2.4.1), since a use's one argument is its model; and the #
+# context clause above. The SpliceRef, MVP slide still runs a #
+# stopgap pair, because its Functional expand needs its bounds' #
+# values and cannot eval_splice. #

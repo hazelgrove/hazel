@@ -21,24 +21,28 @@
 # the honest measure is the GAP between consecutive events. #
 
 # Drag steadily across the strip. Then press a LOAD button: the widget #
-# starts rendering that many extra boxes every frame, making itself #
+# starts rendering about that many extra boxes every frame, making it #
 # slow, and the gap you are watching is the cost of that decision. #
 # On the laptop this was written on: about 80 ms between events when #
 # idle, about 800 ms at load 3000. Ten times slower, and the widget  #
 # reports it itself.                                                 #
 
-# This is the honest version of the question the Tree Care slide #
-# raises. That livelit is slow; this one says by how much, and in the #
-# units that matter -- how long until the widget answers you. #
+# The ballast stands in for a view that does real work: any livelit's #
+# view could be weighed this way, in the unit that matters -- how long #
+# until the widget answers you. #
 
 type Reading = (gap=Float, worst=Float, n=Int) in
 
 let ^latency = {
   # load is part of the MODEL, so the weight you chose is written into #
-  # the program text and survives a reload, like any other model. #
-  # prev is the previous event's occurred. The first sample has no   #
-  # predecessor -- n == 0 says so -- and reports a gap of zero rather #
-  # than the whole time since the page loaded.                        #
+  # the program text and survives a reload, like any other model     #
+  # (Sec. 3.2.1). prev is the previous event's occurred. On a fresh  #
+  # model the first sample has no predecessor -- n == 0 says so --    #
+  # and reports a gap of zero, not the time since the page loaded.    #
+  # But the clock behind occurred restarts at each page load, while   #
+  # n and prev survive in the text: the first sample after a reload   #
+  # is timed against the old page's clock and is wrong, usually       #
+  # negative. Press clear after a reload.                             #
   type Model =
     (gap=Float, worst=Float, queue=Float, n=Int, prev=Float, load=Int);
 
@@ -46,10 +50,11 @@ let ^latency = {
 
   type Expansion = Reading;
 
-  let init : Model =
-    (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0);
 
-  let update = fun (m, a) : (Model, Action) ->
+  let init = Pure(
+    (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0));
+
+  let update = fun m : Model -> fun a : Action -> Pure(
     case a
     | Sample(t, q) =>
       let g = if m.n == 0 then 0.0 else t -. m.prev in
@@ -69,7 +74,7 @@ let ^latency = {
       (gap=m.gap, worst=m.worst, queue=m.queue, n=m.n, prev=m.prev, load=k)
     | Clear =>
       (gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=m.load)
-    end;
+    end);
 
   let px = fun f : Float -> to_fixed((f, 0)) ++ "px";
 
@@ -86,7 +91,8 @@ let ^latency = {
       []);
 
   # The measuring surface. Every move dispatches one Sample carrying #
-  # the delay that event itself suffered. #
+  # when the event occurred, which update turns into the gap, and the #
+  # delay that event itself suffered, which becomes queue. #
   let strip = fun m : Model ->
     Html.div(
       [Attr.on_mouse_move(fun e -> Sample(e.occurred, e.handled -. e.occurred)),
@@ -112,8 +118,9 @@ let ^latency = {
                    ("border-radius", "3px")])],
       [Html.text(string_of_int(k))]);
 
-  # Deliberate ballast: `load` boxes rebuilt on every render. This is #
-  # the only part of the widget that exists to waste time. #
+  # Deliberate ballast: load + 1 boxes rebuilt on every render, since #
+  # range includes its end (so load 0 still draws one). This is the   #
+  # only part of the widget that exists to waste time. #
   let ballast = fun m : Model ->
     Html.div(
       [Attr.style([("display", "flex"), ("flex-wrap", "wrap"),
@@ -125,7 +132,7 @@ let ^latency = {
                           ("background", "#cfd8dc")])],
              []))));
 
-  let view = fun m : Model ->
+  let view = fun m : Model -> Pure(
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
                    ("gap", "0.2em"), ("font-family", "var(--code-font)")])],
@@ -153,27 +160,37 @@ let ^latency = {
           Html.button([Attr.on_click(Clear),
                        Attr.style([("font-size", "0.7em")])],
                       [Html.text("clear")])]),
-       ballast(m)]);
+       ballast(m)]));
 
-  # The expansion drops `load` -- that is a knob for the person doing #
-  # the measuring, not part of the measurement. What a client gets is #
-  # the reading, as numbers it can compare and threshold. #
-  let expand_fun = fun m : Model -> (gap=m.gap, worst=m.worst, n=m.n);
+  # The expansion keeps only the reading: gap, worst and n. load is a #
+  # knob for the person doing the measuring, prev is bookkeeping, and #
+  # queue is on screen to make a point; none of them is part of the #
+  # measurement. The paper draws the same line (Sec. 3.2.5): a model #
+  # holds GUI state that the expansion does not need. What a client #
+  # gets is the reading, as numbers it can compare and threshold. #
+  let expand = Functional(fun m : Model -> (gap=m.gap, worst=m.worst, n=m.n));
 
   let shape = Block(26, 7)
 } in
 
-# The use below carries its own readings in its argument, so a slow #
-# frame you provoked is still in the program when you come back to it. #
+# While you drag, the readings are a live preview only: a mouse move #
+# does not commit. They are written into the use's argument, where #
+# the result at the bottom can see them, at the next click on a load #
+# button (clear commits zeros). Once written, a slow frame you #
+# provoked is still in the program when you come back (Sec. 3.2.1). #
 
-# The expansion is data, not a picture: this program asks whether the #
-# worst frame crossed a frame budget, and a client could just as well #
-# sort, plot or test against it. #
+# The expansion is data, not a picture: the use means the Reading its #
+# model expands to (Sec. 2.2), and a client works with it through its #
+# declared type (Sec. 2.3), without inspecting the expansion #
+# (Sec. 1.2, Sec. 2.2). This program asks whether the worst frame #
+# crossed a frame budget; a client could just as well sort, plot or #
+# test against it. #
 
 let reading = ^^livelit(^latency((gap=0.0, worst=0.0, queue=0.0, n=0, prev=0.0, load=0))) in
 
-# One frame at 60Hz. A gap above it means a drag the eye can see #
-# stuttering. #
+# One frame at 60Hz, rounded down. Moves arrive about one per frame, #
+# so on a 60Hz screen even a smooth drag gaps about 16.7 ms and reads #
+# over budget; on the laptop above, an idle drag gaps about 80 ms.    #
 let budget = 16.0 in
 
 (reading.n,

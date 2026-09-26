@@ -1198,7 +1198,7 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    Model, Action and Expansion are ABSTRACT: each livelit chooses them, and
    the signature only says that the four members agree about them. The check
    realizes each abstract member by the definition's own manifest type
-   (Typ.sig_sub), so `expand_fun` is checked as `Model -> Expansion` with that
+   (Typ.sig_sub), so `expand` is checked at that sum with that
    livelit's actual types -- which is the obligation the paper discharges
    per use, moved to the definition.
 
@@ -1207,86 +1207,540 @@ let builtin_module_member = (m: string, x: string): option(Exp.t) =>
    clients to reason about. `shape` and helper members are deliberately
    absent -- they are optional, and extra members are allowed by width
    subtyping. */
-/* The members every livelit has, whichever kind it is. */
+/* ---- Figure 3's two command monads --------------------------------- */
+
+/* Hazel's type language has Poly and Rec but NO application: `typ_term`
+   carries no Ap. That is why Option above is monomorphic with a hole
+   rather than Option(a), and it is why the paper's UpdateCmd(t) and
+   ViewCmd(t) are BUILT here rather than spelled -- the same way
+   livelit_expand_typ builds expand's type out of Model and Expansion.
+
+   A livelit definition never writes these types. Analysis against the
+   realized signature supplies them, which is the route that already lets
+   Functional and Macro resolve without a `type Expand` member. */
+
+/* A type, as a value. Enough to NAME the type a splice holds, which is
+   all new_splice asks of it.
+
+   Deliberately NOT the quotation of Sec. 3.2.5. Naming Int is a choice
+   from a closed set; quoting an expression is not, and the two want
+   different machinery. Keeping them apart is what lets a splice be
+   created before Exp is inhabited. */
+let typ_typ: Typ.t =
+  sum_type([
+    ("IntT", None),
+    ("FloatT", None),
+    ("BoolT", None),
+    ("StringT", None),
+  ]);
+
+/* A splice editor's size (Sec. 3.2.3). The paper's Dim "currently
+   supports only a fixed character width, with overflow causing
+   scrolling", so a character count is the whole of it -- and the
+   constructor is FixedWidth, the name Figure 3 uses at line 38. */
+let dim_typ: Typ.t = sum_type([("FixedWidth", Some(int()))]);
+
+/* What eval_splice answers with. Sec. 3.2.3 leaves it to each provider
+   whether indeterminate results are supported -- "this behavior is
+   highly domain-specific" -- so both arms are visible and a view decides
+   what to do with Indet. */
+let result_typ: Typ.t =
+  sum_type([("Val", Some(unknown(Internal))), ("Indet", None)]);
+
+/* The two monads, as command trees.
+
+   Each is a Rec whose arms are Pure and one per command, and every
+   command carries a CONTINUATION from its own answer. That is what makes
+   sequencing expressible without do-notation, which Hazel does not have:
+   `bind` builds a tree and the system interprets it, rather than the
+   livelit running anything itself.
+
+   Sec. 3.2.4 is explicit that the difference between them is the point:
+   "The UpdateCmd monad does not itself have the ability to request
+   evaluation (eval_splice), because the model should not depend directly
+   on which closure the user has selected." Two capability sets, not one
+   monad used twice -- so eval_splice, editor and result_view appear in
+   ViewCmd only, and new_splice and set_splice in UpdateCmd only.
+
+   Not built on the Cmd type above, though the two look alike. Cmd is
+   fire-and-forget -- CmdNone, CmdBatch of a list, no Pure and no
+   continuation -- so it can neither return a value nor let one command's
+   answer decide the next. Both are exactly what these need: new_splice
+   hands back a ref that the rest of the sequence uses. Cmd's shape is
+   still the precedent for how a recursive effect type is declared here,
+   which is why these are built the same way. */
+
+/* Every arm but Pure is the same in every UpdateCmd(t), so it is built
+   ONCE and shared: meeting two command types then meets those arms by
+   identity (Typ.meet's first check) instead of walking them. For ViewCmd
+   that is most of the cost of checking a view; see view_cmd_arms. */
+let update_cmd_arms: list((string, option(Typ.t))) = {
+  let self = var("$UpdateCmd");
+  [
+    /* A bind is a node, not a step: `do p <- c in body` IS a command
+       tree rather than something that reduces to one, so the evaluator
+       leaves it alone and the interpreter walks it. The paper is clear
+       that these commands are the system's to run.
+
+       The bound command's payload type cannot be written here. It is
+       existential -- `c` is a command of SOME a, and the continuation
+       consumes that same a -- and the type language has neither
+       existentials nor application. Unknown is the honest spelling.
+       The precision is not lost, only moved: the Bind FORM's typing
+       rule checks c against M(a) and the pattern against a. */
+    (
+      "Bind",
+      Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
+    ),
+    /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
+    (
+      "NewSplice",
+      Some(
+        prod([
+          prod([var("Typ"), var("Option")]),
+          arrow(var("SpliceRef"), self),
+        ]),
+      ),
+    ),
+    /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
+    (
+      "SetSplice",
+      Some(
+        prod([
+          prod([var("SpliceRef"), var("Exp")]),
+          arrow(prod([]), self),
+        ]),
+      ),
+    ),
+  ];
+};
+
+let update_cmd = (t: Typ.t): Typ.t =>
+  rec_(
+    Fresh.TPat.var("$UpdateCmd"),
+    sum_type([("Pure", Some(t)), ...update_cmd_arms]),
+  );
+
+/* Shared for the same reason as update_cmd_arms, and here it matters:
+   Editor's arm carries Html.T, a sum of 100+ recursive variants once
+   normalized, and each check against a ViewCmd type used to meet two
+   fresh copies of all four arms. Measured on Color (Figure 3), meets of
+   ViewCmd types were 2.3 s of its 2.1-4 s of statics. */
+let view_cmd_arms: list((string, option(Typ.t))) = {
+  let self = var("$ViewCmd");
+  [
+    /* A bind is a node, not a step: `do p <- c in body` IS a command
+       tree rather than something that reduces to one, so the evaluator
+       leaves it alone and the interpreter walks it. The paper is clear
+       that these commands are the system's to run.
+
+       The bound command's payload type cannot be written here. It is
+       existential -- `c` is a command of SOME a, and the continuation
+       consumes that same a -- and the type language has neither
+       existentials nor application. Unknown is the honest spelling.
+       The precision is not lost, only moved: the Bind FORM's typing
+       rule checks c against M(a) and the pattern against a. */
+    (
+      "Bind",
+      Some(prod([unknown(Internal), arrow(unknown(Internal), self)])),
+    ),
+    /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
+    (
+      "EvalSplice",
+      Some(prod([var("SpliceRef"), arrow(var("Option"), self)])),
+    ),
+    /* editor : (SpliceRef, Dim) -> ViewCmd(Html(a)) */
+    (
+      "Editor",
+      Some(
+        prod([
+          prod([var("SpliceRef"), var("Dim")]),
+          arrow(HtmlModules.path("Html", "T"), self),
+        ]),
+      ),
+    ),
+    /* result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html(a))) */
+    (
+      "ResultView",
+      Some(
+        prod([
+          prod([var("SpliceRef"), var("Dim")]),
+          arrow(var("Option"), self),
+        ]),
+      ),
+    ),
+  ];
+};
+
+let view_cmd = (t: Typ.t): Typ.t =>
+  rec_(
+    Fresh.TPat.var("$ViewCmd"),
+    sum_type([("Pure", Some(t)), ...view_cmd_arms]),
+  );
+
+/* Which of the two monads a type is, and what it is a command OF.
+
+   The knowledge of the encoding lives here, next to the builders, so a
+   reader never has to reconstruct it from a pattern match elsewhere. The
+   tag is the Rec's binder name, which is why the builders chose names no
+   user can write: `$UpdateCmd` is not a type variable anyone can bind.
+
+   The payload is read off the Pure arm, because Pure is the arm that
+   holds the monad's own answer -- update_cmd(t) puts t there and nowhere
+   else. */
+type cmd_monad =
+  | UpdateMonad
+  | ViewMonad;
+
+let show_cmd_monad = (m: cmd_monad): string =>
+  switch (m) {
+  | UpdateMonad => "UpdateCmd"
+  | ViewMonad => "ViewCmd"
+  };
+
+let monad_of_typ = (ty: Typ.t): option((cmd_monad, Typ.t)) =>
+  switch (Typ.term_of(ty)) {
+  | Rec(tp, body) =>
+    let named =
+      switch (TPat.tyvar_of_utpat(tp)) {
+      | Some("$UpdateCmd") => Some(UpdateMonad)
+      | Some("$ViewCmd") => Some(ViewMonad)
+      | _ => None
+      };
+    switch (named, Typ.term_of(body)) {
+    | (Some(which), Sum(variants)) =>
+      variants
+      |> List.find_map((v: ConstructorMap.variant(Typ.t)) =>
+           switch (v) {
+           | Variant("Pure", _, Some(payload)) => Some((which, payload))
+           | Variant(_, _, _)
+           | BadEntry(_) => None
+           }
+         )
+    | (_, _) => None
+    };
+  | _ => None
+  };
+
+/* The members every livelit has. */
 let livelit_common = (model, action) => [
   Sig.item_of_member(Sig.TypeAbstract("Model")),
   Sig.item_of_member(Sig.TypeAbstract("Action")),
   Sig.item_of_member(Sig.TypeAbstract("Expansion")),
-  Sig.item_of_member(Sig.Val("init", model)),
+  /* init : UpdateCmd(Model), the paper's (Sec. 3.2.1, Fig. 3 l.8-13): a
+     command, so it can make the first splices with new_splice. It is
+     performed when a use is created (Triggers.expand_livelit), and the
+     model it answers, with its splices, becomes the use's text. */
+  Sig.item_of_member(Sig.Val("init", update_cmd(model))),
+  /* Figure 3, curried as the paper curries it:
+       update : Model -> Action -> UpdateCmd(Model)
+       view   : Model -> ViewCmd(Html(Action))
+     Both were plain functions returning plain values. They are commands
+     now because that is the only way a splice can be written or read:
+     set_splice lives in UpdateCmd and eval_splice in ViewCmd, and neither
+     is reachable from a function that merely returns. */
   Sig.item_of_member(
-    Sig.Val("update", arrow(prod([model, action]), model)),
+    Sig.Val("update", arrow(model, arrow(action, update_cmd(model)))),
   ),
   Sig.item_of_member(
-    Sig.Val("view", arrow(model, HtmlModules.path("Html", "T"))),
+    Sig.Val("view", arrow(model, view_cmd(HtmlModules.path("Html", "T")))),
   ),
 ];
 
-/* A FUNCTIONAL livelit: its use denotes a VALUE, and `expand_fun`
-   computes it. This is every livelit in the deck today. */
-let livelit_fun: Typ.t = {
+/* ONE signature, and `expand` is a SUM. A livelit's use denotes either a
+   VALUE, which `Functional` computes, or a PROGRAM, which `Macro` writes
+   while handing back the splices it refers to (Figure 3 of the livelits
+   paper, Omar et al., PLDI 2021).
+
+   This replaces an earlier design with two signatures, LivelitFun and
+   LivelitMac, carrying members `expand_fun` and `expand_mac`. The reason
+   given for splitting them was that a signature can only say a member is
+   REQUIRED -- optional members are expressed by leaving them out, since
+   extra members are allowed by width subtyping -- so "exactly one of
+   expand_fun / expand_mac" could not be said inside a single signature.
+
+   A sum says exactly that, and says it in the member's own type rather
+   than in the module system: `expand` is required, and its value commits
+   to one arm. Which kind a livelit is stops being a question about which
+   signature it answers to and becomes a question about how it inhabits
+   one type, which is the question it always was.
+
+   The Macro arm's expansion is a FUNCTION of its splices, and that shape
+   does two jobs at once: a splice passed as an argument is evaluated
+   outside the expansion, so a binder inside cannot capture it, AND the
+   expansion can be checked once against the splices' declared types
+   without knowing their contents. Capture avoidance and compositional
+   typing are the same decision.
+
+   The Macro arm is not yet usable: `Exp` below is an uninhabited
+   placeholder, so a Macro expansion can be written but never returns a
+   value. That is the honest state of it -- there is no quoted-code type,
+   no quotation syntax, and no splice_new. The arm is here so the target
+   is legible and so the two kinds have names.
+
+   Full words until someone picks something shorter. */
+/* Built here rather than inline, because the use site needs the SAME sum
+   with the livelit's concrete Model and Expansion substituted in
+   (UserLivelit.member_ty). Two copies would drift. */
+let livelit_expand_typ = (~model: Typ.t, ~expansion: Typ.t): Typ.t =>
+  sum_type([
+    ("Functional", Some(arrow(model, expansion))),
+    (
+      "Macro",
+      Some(arrow(model, prod([var("Exp"), list(var("SpliceRef"))]))),
+    ),
+  ]);
+
+/* The constructors have to be IN SCOPE at the definition site, or
+   `let expand = Functional(...)` fails with "Constructor is not defined"
+   -- measured, and while it was unresolved it silently disabled BOTH the
+   definition-site and the use-site expansion checks, which is the §3.2.5
+   obligation this whole file exists to discharge.
+
+   A livelit therefore declares the sum itself, as a `type Expand` member.
+   That is one repeated line per definition, and it is the price of
+   keeping the check: a GLOBAL alias would cost the author nothing and
+   put the constructors in scope the way `Ord` puts `Lt` there, but its
+   arms would have to be unknown -- Model and Expansion are per-livelit
+   while the alias is global -- so `Functional(f)` would synthesize at the
+   alias's type, f's real type would be widened away, and sig_sub would
+   have nothing left to compare. Measured: a livelit declaring
+   `Expansion = String` whose Functional returns Int then reports no
+   errors at all.
+
+   The durable fix is probably to make the definition-site member check
+   ANALYTIC -- analyze `expand` against the realized signature type rather
+   than synthesize and compare afterwards, which is what the declared and
+   annotated forms do implicitly and why they still catch the mismatch.
+   Open question for Cyrus, since the sum was his suggestion. */
+
+let livelit: Typ.t = {
   let model = var("Model");
   let action = var("Action");
   let expansion = var("Expansion");
   sig_(
     livelit_common(model, action)
-    @ [Sig.item_of_member(Sig.Val("expand_fun", arrow(model, expansion)))],
-  );
-};
-
-/* A MACRO livelit, after Figure 3 of the livelits paper (Omar et al.,
-   PLDI 2021): its use denotes a PROGRAM, and `expand_mac` writes one,
-   handing back the splices it refers to.
-
-   Why two signatures rather than one signature with two optional
-   members: a signature here can only say that a member is REQUIRED --
-   optional members are expressed by leaving them out, since extra
-   members are allowed by width subtyping (see below). So "exactly one
-   of expand_fun / expand_mac" cannot be said inside a single signature.
-   Which signature a definition answers to is the module system's own
-   question, and Modules II is what makes asking it cheap.
-
-   The expansion is a FUNCTION of its splices, and that shape does two
-   jobs at once: a splice passed as an argument is evaluated outside the
-   expansion, so a binder inside cannot capture it, AND the expansion can
-   be checked once against the splices' declared types without knowing
-   their contents. Capture avoidance and compositional typing are the
-   same decision.
-
-   NOT YET USABLE. `Exp` and `SpliceRef` below are uninhabited
-   placeholders, so nothing can currently answer to this signature --
-   which is the honest state of it: there is no quoted-code type, no
-   quotation syntax, and no new_splice. It is written down so the target
-   is legible and so the two kinds have names. */
-let livelit_mac: Typ.t = {
-  let model = var("Model");
-  let action = var("Action");
-  sig_(
-    livelit_common(model, action)
     @ [
       Sig.item_of_member(
-        Sig.Val(
-          "expand_mac",
-          arrow(model, prod([var("Exp"), list(var("SpliceRef"))])),
-        ),
+        Sig.Val("expand", livelit_expand_typ(~model, ~expansion)),
       ),
     ],
   );
 };
 
-/* `Exp` is quoted code, and is still a placeholder: an empty sum has no
-   values, so it names what Figure 3 needs without pretending to provide
-   it. It becomes real when quotation does. */
-let exp_typ: Typ.t = sum_type([]);
+/* `Exp` is code as a value. Its first constructor is IntLit, an integer
+   literal, the one Figure 3 writes (l.49-52: set_splice(model.r,
+   IntLit(c.r))). A literal needs no quotation, so it comes first; the
+   rest of Exp, and the quasiquotation that builds it (Sec. 3.2.1), come
+   later. */
+let exp_typ: Typ.t =
+  rec_(
+    Fresh.TPat.var("Exp"),
+    sum_type([
+      ("IntLit", Some(int())),
+      /* Code built from author-supplied names, for what a fixed quotation
+         cannot write: a function over as many splices as a model has
+         (Sec. 3.2.5's dataframe). Ident("x") is the variable x;
+         Lambda(("x", e)) is fun x -> e. Hygiene is the author's: a name
+         chosen twice is captured like any shadowing binder. */
+      ("Ident", Some(string())),
+      ("Lambda", Some(prod([string(), var("Exp")]))),
+      /* A binder the SYSTEM names: Abs(fun x -> c) is fun v -> c[x := v]
+         for a v no program can write, chosen when the code is decoded. So
+         no binder the author generates can capture another fragment's
+         variable -- hygiene by construction, where Lambda leaves the
+         names to the author. */
+      ("Abs", Some(arrow(var("Exp"), var("Exp")))),
+    ]),
+  );
+
+/* The code an Exp value denotes: a quotation's body, or the expression a
+   constructor spells. None for anything else.
+
+   `apply` runs an Abs's function on a fresh variable. It needs the
+   evaluator, which this library cannot call (the evaluator depends on the
+   builtins), so the caller passes it: the livelit mechanism does, when it
+   decodes a Macro use (UserLivelit). Without it an Abs does not decode, and
+   %fill_quote keeps such a value, unresolved, as an antiquote in the body
+   (`unquote <value> end`), for that final decoding to resolve. `fresh`
+   names the variables, distinct within one decoding. */
+let rec code_of_exp_value =
+        (
+          ~apply: option((DHExp.t, DHExp.t) => option(DHExp.t))=?,
+          ~fresh: ref(int)=ref(0),
+          d: DHExp.t,
+        )
+        : option(Exp.t) => {
+  let decode = code_of_exp_value(~apply?, ~fresh);
+  let rec strip = (d: DHExp.t): DHExp.t =>
+    switch (d.term) {
+    | Asc(inner, _)
+    | Parens(inner) => strip(inner)
+    | Closure(_, inner) =>
+      /* a closure around a CONSTRUCTOR value is a wrapper; around a
+         function it is the function, which Abs needs whole */
+      switch (strip(inner).term) {
+      | Fun(_) => d
+      | _ => strip(inner)
+      }
+    | _ => d
+    };
+  let d = strip(d);
+  switch (d.term) {
+  | Quote(body) =>
+    /* A body may hold antiquotes %fill_quote could not decode (they
+       contain an Abs); decode them now, if we can. */
+    let failed = ref(false);
+    let body =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (e.term) {
+            | Quote(_) => e
+            | Unquote(v) =>
+              switch (decode(v)) {
+              | Some(code) => code
+              | None =>
+                failed := true;
+                e;
+              }
+            | _ => continue(e)
+            },
+        body,
+      );
+    failed^ && apply != None ? None : Some(body);
+  | Ap(Forward, fn, arg) =>
+    switch (strip(fn).term, strip(arg).term) {
+    | (Constructor("IntLit", _), Atom(Int(_)) as n) => Some(n |> Exp.fresh)
+    | (Constructor("Ident", _), Atom(String(x))) =>
+      Some(Var(x) |> Exp.fresh)
+    | (Constructor("Lambda", _), Tuple([x, body])) =>
+      switch (strip(x).term, decode(body)) {
+      | (Atom(String(x)), Some(body)) =>
+        Some(
+          Fun((Var(x): Pat.term) |> Pat.fresh, body, None, None) |> Exp.fresh,
+        )
+      | _ => None
+      }
+    | (Constructor("Abs", _), _) =>
+      switch (apply) {
+      | None => None
+      | Some(apply) =>
+        let v = "%v" ++ string_of_int(fresh^);
+        incr(fresh);
+        let var_value =
+          IdTagged.FreshGrammar.(
+            Exp.ap(Forward, Exp.constructor("Ident", None), Exp.string(v))
+          );
+        switch (apply(strip(arg), var_value)) {
+        | Some(body) =>
+          switch (decode(body)) {
+          | Some(body) =>
+            Some(
+              Fun((Var(v): Pat.term) |> Pat.fresh, body, None, None)
+              |> Exp.fresh,
+            )
+          | None => None
+          }
+        | None => None
+        };
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/* The placeholder an antiquote leaves in its quotation's body, the i-th
+   in document order. `%` is not lexable, so no program can write one. */
+let unquote_placeholder = (i: int): string =>
+  "%unquote_" ++ string_of_int(i);
+
+/* %fill_quote((quote <body with placeholders> end, [e_0, ..., e_n])): the
+   quotation with each placeholder replaced by the code its Exp denotes.
+   What a quotation containing antiquotes elaborates to (Statics). */
+let fill_quote_name = "%fill_quote";
+
+let fill_quote: BuiltinsUtil.fn = {
+  let rec strip = (d: DHExp.t): DHExp.t =>
+    switch (d.term) {
+    | Asc(inner, _)
+    | Parens(inner) => strip(inner)
+    | _ => d
+    };
+  {
+    name: fill_quote_name,
+    arg:
+      Prod([
+        Unknown(Internal) |> Typ.temp,
+        List(unknown(Internal)) |> Typ.temp,
+      ]),
+    ret: Unknown(Internal),
+    imp: d =>
+      switch (strip(d).term) {
+      | Tuple([q, fills]) =>
+        switch (strip(q).term, strip(fills).term) {
+        | (Quote(body), ListLit(fills)) =>
+          /* A value that does not decode here (it holds an Abs, whose
+             function only the livelit mechanism can run) stays in the body
+             as an antiquote of the value itself, for the final decoding. */
+          let codes =
+            List.map(
+              v =>
+                switch (code_of_exp_value(v)) {
+                | Some(code) => code
+                | None => IdTagged.FreshGrammar.Exp.unquote(v)
+                },
+              fills,
+            );
+
+          let body =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e) =>
+                  switch (e.term) {
+                  | Var(x) =>
+                    switch (
+                      List.find_opt(
+                        ((i, _)) => unquote_placeholder(i) == x,
+                        List.mapi((i, c) => (i, c), codes),
+                      )
+                    ) {
+                    | Some((_, code)) => code
+                    | None => e
+                    }
+                  | _ => continue(e)
+                  },
+              body,
+            );
+          Some(Quote(body) |> Exp.fresh);
+        | _ => None
+        }
+      | _ => None
+      },
+    custom_statics: None,
+  };
+};
 
 /* A SpliceRef is a handle to a hole holding the client's own code. It
    carries the splice's id, which is what the projector resolves when a
-   view says `Html.splice(r)`.
+   view says `editor(r, ...)` or `Html.splice(r)`, and the VALUE that
+   code had in this run of the program, which is what eval_splice reads.
 
-   The constructor is visible, so a client can in principle forge one.
-   `Html.splice` of a forged or stale ref renders as an error rather than
-   anything dangerous, and making it genuinely abstract wants a module
-   with an abstract type member -- worth doing, not worth blocking on. */
-let splice_ref_typ: Typ.t = sum_type([("SpliceRef", Some(string()))]);
+   The value rides in the ref because the use's model argument is
+   evaluated in the use's own scope, once per run: the paper's "the
+   closure the user has selected" (Sec. 3.2.3) is then simply the run a
+   view sample came from, and a view and the refs it reads always come
+   from the same run. A ref from new_splice carries a hole.
+
+   The constructor is visible, so a client can in principle forge one,
+   or take the value out of one in update, which Sec. 3.2.4 is designed
+   to prevent. A forged or stale id renders as an error rather than
+   anything dangerous. Making the type genuinely abstract wants an
+   unwritable constructor or a sealed module -- worth doing, not worth
+   blocking on. */
+let splice_ref_typ: Typ.t =
+  sum_type([("SpliceRef", Some(prod([string(), unknown(Internal)])))]);
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
@@ -1299,9 +1753,11 @@ let type_aliases: list((string, Typ.t)) = [
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
   ("Exp", exp_typ),
+  ("Typ", typ_typ),
+  ("Dim", dim_typ),
+  ("Result", result_typ),
   ("SpliceRef", splice_ref_typ),
-  ("LivelitFun", livelit_fun),
-  ("LivelitMac", livelit_mac),
+  ("Livelit", livelit),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
@@ -1335,7 +1791,259 @@ let constructors: Ctx.t = {
   );
 };
 
-let builtins = Option.builtins;
+/* ---- bind and return, with real types ------------------------------ */
+
+/* These carry honest System-F types rather than the holes every other
+   builtin here uses for genericity:
+
+     return : forall a. a -> M(a)
+     bind   : forall a. forall b. (M(a), a -> M(b)) -> M(b)
+
+   Expressible because the application to `a` happens in OCaml, when the
+   type is built -- the object language never applies a type constructor,
+   which it cannot do.
+
+   There are FOUR of these and not two because Hazel's kinds are
+   `Singleton | Abstract` with no arrow: a type variable stands for a
+   type, never for a type constructor, so `forall M. a -> M(a)` cannot be
+   written and each monad needs its own pair. Nobody writes these names --
+   `do` elaborates to them and supplies the instantiations -- so the
+   duplication costs a reader nothing.
+
+   They are `const` builtins because `hazel_fn` forces `arrow(arg, ret)`
+   and a forall is not an arrow. */
+
+/* %splice_value((model, "<id>")): the value the ref named <id> carries
+   inside an evaluated model. A Macro livelit's use applies its quotation to
+   these, not to the splices' code again (UserLivelit / Statics' Macro
+   path): the model is evaluated once, in the client's scope, and each ref
+   in it already holds its splice's value from that run -- which is what
+   eval_splice reads too. `%` is not lexable, so no program can name or
+   shadow it. */
+let splice_value_name = "%splice_value";
+
+let splice_value: BuiltinsUtil.fn = {
+  let rec strip = (d: DHExp.t): DHExp.t =>
+    switch (d.term) {
+    | Asc(inner, _)
+    | Parens(inner) => strip(inner)
+    | _ => d
+    };
+  let ref_payload = (d: DHExp.t): option((string, DHExp.t)) =>
+    switch (strip(d).term) {
+    | Ap(Forward, fn, body) =>
+      switch (strip(fn).term, strip(body).term) {
+      | (Constructor("SpliceRef", _), Tuple([id, v])) =>
+        switch (strip(id).term) {
+        | Atom(String(s)) => Some((s, v))
+        | _ => None
+        }
+      | _ => None
+      }
+    | _ => None
+    };
+  let find = (id: string, model: DHExp.t): option(DHExp.t) => {
+    let found = ref(None);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (found^, ref_payload(e)) {
+            | (None, Some((x, v))) when x == id =>
+              found := Some(v);
+              e;
+            | _ => continue(e)
+            },
+        model,
+      );
+    found^;
+  };
+  {
+    name: splice_value_name,
+    arg: Prod([Unknown(Internal) |> Typ.temp, Atom(String) |> Typ.temp]),
+    ret: Unknown(Internal),
+    imp: d =>
+      switch (strip(d).term) {
+      | Tuple([model, id]) =>
+        switch (strip(id).term) {
+        | Atom(String(id)) => find(id, model)
+        | _ => None
+        }
+      | _ => None
+      },
+    custom_statics: None,
+  };
+};
+
+let monad_ops: list(const) = {
+  let a = () => var("a");
+  let b = () => var("b");
+  let tp = n => Fresh.TPat.var(n);
+  let ret_op = (~name: string, ~cmd: Typ.t => Typ.t): const => {
+    name,
+    typ: Typ.term_of(poly(tp("a"), arrow(a(), cmd(a())))),
+    imp:
+      Fresh.(
+        Exp.(
+          typ_fun(
+            tp("a"),
+            fn(
+              Pat.var("x"),
+              ap(
+                Forward,
+                constructor("Pure", Some(Some(cmd(a())))),
+                var("x"),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      ),
+  };
+  let bind_op = (~name: string, ~cmd: Typ.t => Typ.t): const => {
+    name,
+    typ:
+      Typ.term_of(
+        poly(
+          tp("a"),
+          poly(
+            tp("b"),
+            arrow(prod([cmd(a()), arrow(a(), cmd(b()))]), cmd(b())),
+          ),
+        ),
+      ),
+    imp:
+      Fresh.(
+        Exp.(
+          typ_fun(
+            tp("a"),
+            typ_fun(
+              tp("b"),
+              fn(
+                Pat.var("ck"),
+                ap(
+                  Forward,
+                  constructor("Bind", Some(Some(cmd(b())))),
+                  var("ck"),
+                ),
+                None,
+                None,
+              ),
+              None,
+            ),
+            None,
+          )
+        )
+      ),
+  };
+  [
+    ret_op(~name="update_return", ~cmd=update_cmd),
+    bind_op(~name="update_bind", ~cmd=update_cmd),
+    ret_op(~name="view_return", ~cmd=view_cmd),
+    bind_op(~name="view_bind", ~cmd=view_cmd),
+  ];
+};
+
+/* ---- Figure 3's splice commands ------------------------------------ */
+
+/* Each is a ONE-NODE tree: the constructor holding its arguments and a
+   continuation that stops immediately at Pure. Nothing here performs
+   anything -- `new_splice(t, e)` does not create a splice, it describes
+   creating one. The `do` form grafts a longer sequence on, and the
+   livelit machinery is what finally walks the tree and acts.
+
+   That indirection is the point rather than an artifact: creating a
+   splice changes the editor, and evaluation cannot change the editor. */
+/* Wrapped in a fix, as every list builtin is, though it never recurs:
+   the environment holds this term unevaluated, and a bare `fun` looked
+   up from there has no closure, so applying it is Indet. That left each
+   splice command a stuck application the runners could not read. */
+let cmd_ctor = (~ctor: string, ~cmd_ty: Typ.t): Exp.t =>
+  Fresh.(
+    Exp.(
+      fix_f(
+        Pat.var("self"),
+        fn(
+          Pat.var("args"),
+          ap(
+            Forward,
+            constructor(ctor, Some(Some(cmd_ty))),
+            tuple([
+              var("args"),
+              fn(
+                Pat.var("x"),
+                ap(
+                  Forward,
+                  constructor("Pure", Some(Some(cmd_ty))),
+                  var("x"),
+                ),
+                None,
+                None,
+              ),
+            ]),
+          ),
+          None,
+          Some(ctor),
+        ),
+        None,
+      )
+    )
+  );
+
+/* The paper spells these new_splice / set_splice / eval_splice (Sec.
+   3.2.1, 3.2.4, 3.2.3). Those names are kept: this is the interface the
+   paper describes, and a livelit author reading Figure 3 should find the
+   same words here. */
+let splice_builtins: list(hazel_fn) = [
+  {
+    /* new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) */
+    str: "fun args -> NewSplice((args, fun r -> Pure(r)))",
+    name: "new_splice",
+    arg: Prod([var("Typ"), var("Option")]),
+    ret: Typ.term_of(update_cmd(var("SpliceRef"))),
+    imp: cmd_ctor(~ctor="NewSplice", ~cmd_ty=update_cmd(var("SpliceRef"))),
+  },
+  {
+    /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
+    str: "fun args -> SetSplice((args, fun u -> Pure(u)))",
+    name: "set_splice",
+    arg: Prod([var("SpliceRef"), var("Exp")]),
+    ret: Typ.term_of(update_cmd(prod([]))),
+    imp: cmd_ctor(~ctor="SetSplice", ~cmd_ty=update_cmd(prod([]))),
+  },
+  {
+    /* eval_splice : SpliceRef -> ViewCmd(Maybe(Result)) */
+    str: "fun args -> EvalSplice((args, fun r -> Pure(r)))",
+    name: "eval_splice",
+    arg: Typ.term_of(var("SpliceRef")),
+    ret: Typ.term_of(view_cmd(var("Option"))),
+    imp: cmd_ctor(~ctor="EvalSplice", ~cmd_ty=view_cmd(var("Option"))),
+  },
+  {
+    /* editor : (SpliceRef, Dim) -> ViewCmd(Html(a)) */
+    str: "fun args -> Editor((args, fun h -> Pure(h)))",
+    name: "editor",
+    arg: Prod([var("SpliceRef"), var("Dim")]),
+    ret: Typ.term_of(view_cmd(HtmlModules.path("Html", "T"))),
+    imp:
+      cmd_ctor(
+        ~ctor="Editor",
+        ~cmd_ty=view_cmd(HtmlModules.path("Html", "T")),
+      ),
+  },
+  {
+    /* result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html(a))) */
+    str: "fun args -> ResultView((args, fun h -> Pure(h)))",
+    name: "result_view",
+    arg: Prod([var("SpliceRef"), var("Dim")]),
+    ret: Typ.term_of(view_cmd(var("Option"))),
+    imp: cmd_ctor(~ctor="ResultView", ~cmd_ty=view_cmd(var("Option"))),
+  },
+];
+
+let builtins = Option.builtins @ splice_builtins;
 let constructor_entries = constructors.entries @ types;
 
 /* Build an Ord-returning compare builtin from an Atom.compare_entry, the

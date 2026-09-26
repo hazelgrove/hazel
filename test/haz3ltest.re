@@ -21,6 +21,7 @@ let (suite, exit_with_test_status) =
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
+      Test_SlideReconcile.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,
@@ -76,6 +77,13 @@ let (suite, exit_with_test_status) =
       Test_RichProbeRegistry.tests,
     ]
     @ Test_UserLivelits.tests
+    @ Test_Dump.tests
+    @ [Test_CtxIndex.tests]
+    @ [Test_Move.tests]
+    @ [Test_Quote.tests]
+    @ [Test_Quote.macro_tests]
+    @ [Test_Quote.unquote_tests]
+    @ [Test_Quote.abs_tests]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]

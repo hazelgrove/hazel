@@ -153,6 +153,13 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, d1, d2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Let(_, _, _), _) => None
+  /* Same three children and the same scoping as Let: the pattern's names
+     reach the body only. */
+  | (Bind(p1, d1, e1), Bind(p2, d2, e2)) =>
+    let* alphas' = match_pat(p1, p2);
+    let* ctx = match_exp(alphas, ctx, d1, d2);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
+  | (Bind(_, _, _), _) => None
   | (Theorem(p1, e3, e1), Theorem(p2, e4, e2)) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas, ctx, e3, e4);
@@ -202,6 +209,8 @@ let rec match_exp =
   | (Seq(_, _), _) => None
   | (Test(e1), Test(e2)) => match_exp(alphas, ctx, e1, e2)
   | (Test(_), _) => None
+  | (Quote(_), _) => None
+  | (Unquote(_), _) => None
   | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
     let* ctx = match_exp(alphas, ctx, e1, e3);
     match_exp(alphas, ctx, e2, e4);

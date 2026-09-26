@@ -113,6 +113,7 @@ type example_id =
   | IfTrue
   | IfFalse
   | SeqBasic
+  | BindBasic
   | SeqTest
   | TestTrue
   | TestFalse
@@ -232,6 +233,7 @@ type form_id =
   | LivelitName
   | IfExp
   | SeqExp
+  | BindExp
   | UseExp
   | TestExp
   | HintedTestExp

@@ -138,6 +138,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Splice(_)
   | ListLit(_)
   | Test(_)
+  | Quote(_)
+  | Unquote(_)
   | HintedTest(_)
   | ProofObject(_)
   | Match(_) => Precedence.max
@@ -166,6 +168,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | TyAlias(_)
   | Use(_)
   | Let(_)
+  | Bind(_)
   | Theorem(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -460,6 +463,13 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
+  | Bind(p, e1, e2) =>
+    Bind(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e1) |> paren_at(Precedence.min),
+      parenthesize(e2) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
   | Theorem(p, thm, e) =>
     Theorem(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
@@ -536,6 +546,9 @@ let rec parenthesize =
     |> rewrap
   | Asc(e, _) => parenthesize(e) // skip ascription if not showing
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Quote(e) => Quote(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Unquote(e) =>
+    Unquote(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | HintedTest(e, hint) =>
     HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
   | Parens(e) =>
@@ -2070,6 +2083,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
+  | Bind(p, e1, e2) =>
+    /* No fixpoint to undo here: a bind never introduced one, because its
+       pattern does not scope over the thing being bound. */
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e1 = go(e1)
+    and+ e2 = go(e2);
+    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+    wrap(exp, [mk_form(Bind, id, [p, e1])] @ e2);
   | Theorem(p, thm, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -2192,6 +2214,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Test, id, [e])]);
+  | Quote(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ e = go(e);
+    wrap(exp, [mk_form(Quote, id, [e])]);
+  | Unquote(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ e = go(e);
+    wrap(exp, [mk_form(Unquote, id, [e])]);
   | HintedTest(e, hint) =>
     let id = exp |> Exp.rep_id;
     let* hint = go(hint)

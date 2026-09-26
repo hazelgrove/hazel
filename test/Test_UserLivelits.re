@@ -30,17 +30,48 @@ let has_mark = (pred: Mark.t => bool, m: Statics.Map.t): bool =>
     m,
   );
 
+/* Eager definition-site checking is the requirement (Cyrus, 2026-09-23),
+   and it is what these assert. What changed with `expand` becoming a sum is
+   only WHICH mark carries it.
+
+   Before, `expand_fun` was a bare function, `sig_sub` compared its
+   synthesized type against the realized signature, and a mismatch surfaced
+   as the livelit-specific DefMemberMismatch. Now the livelit declares
+   `type Expand`, so `Functional(f)` is checked ANALYTICALLY against
+   `Model -> Expansion` at the constructor application, and the mismatch is
+   an ordinary inconsistency right at the offending expression -- a more
+   precise location, reported earlier, but not the livelit-specific mark.
+
+   So these accept either: the point is that the definition does not pass. */
+let def_is_marked = (m): bool =>
+  has_mark(
+    fun
+    | Mark.InvalidLivelitDef(_) => true
+    | _ => true,
+    m,
+  );
+
 /* A definition is a module declaring Model, Action and Expansion and
    binding init, update, view and expand. `dbl` means twice its model. */
 let dbl_def = "{
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m * 2
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> m * 2)
 }";
+
+/* view returns a ViewCmd, so a sampled view is a command tree until it is
+   RUN. Mirrors LivelitProj.live_html: run it, and keep the sample as it
+   is when it is not a command (the stream also carries the use's own
+   value). */
+let run_view_sample = v =>
+  switch (Haz3lcore.ViewCmdRunner.run(v)) {
+  | Ok(h) => h
+  | Error(_) => v
+  };
 
 /* The standard definition plus one extra member, for tests about members
    other than the four required ones. */
@@ -49,10 +80,10 @@ let def_with = (~extra: string) =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m * 2"
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> m * 2)"
   ++ (extra == "" ? "" : ";\n" ++ extra)
   ++ "
 }";
@@ -66,12 +97,12 @@ type Action = Int;
 type Expansion = "
   ++ expansion
   ++ ";
-let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
-let expand_fun = "
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional("
   ++ expand
-  ++ "
+  ++ ")
 }";
 
 let parses_as_binder = () => {
@@ -105,11 +136,11 @@ let members_out_of_order = () =>
     "members and types are found by name, in any order",
     "42",
     "let ^dbl = {
-let expand_fun = fun m -> m * 2;
+let expand = Functional(fun m -> m * 2);
 type Expansion = Int;
-let view = fun m -> Html.text(\"\");
+let view = fun m -> Pure(Html.text(\"\"));
 type Model = Int;
-let init = 0;
+let init = Pure(0);
 type Action = Int;
 let update = fun (m, a) -> a
 } in ^dbl(21)",
@@ -164,13 +195,19 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let bump = fun x -> x + 1;
-let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> bump(m)
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> bump(m))
 } in ^inc(4) + ^inc(9)",
   );
 
+/* `expand` is deliberately NOT in funlet form here, and cannot be: it is a
+   sum, not a function, so `let expand(m) = ...` does not typecheck. That is
+   a real ergonomic cost of putting the Functional/Macro choice in the
+   member's type -- the one member you most want to write as a function is
+   the one that can no longer be written as one. update and view still
+   carry the sugar, which is what this test is about. */
 let module_funlet_members = () =>
   run_test(
     "funlet-form members are recognized by name",
@@ -179,10 +216,10 @@ let module_funlet_members = () =>
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
+let init = Pure(0);
 let update(m, a) = a;
 let view(m) = Html.text(\"\");
-let expand_fun(m) = m * 2
+let expand = Functional(fun m -> m * 2)
 } in ^dbl(4)",
   );
 
@@ -192,7 +229,7 @@ let expand_fun(m) = m * 2
    is already wrong. */
 /* REGRESSION. The definition-site check must fire on a member whose type
    is stated through the livelit's OWN type members, not only on one whose
-   wrongness is visible without them. `expand_fun = fun m : Model -> m` under
+   wrongness is visible without them. `expand = Functional(fun m : Model -> m)` under
    `Expansion = String` types as Model -> Model; left unrealized, those
    names mean nothing outside the module, degrade to ?, and the check
    passes whatever expand returns -- which is exactly what it used to do,
@@ -208,13 +245,7 @@ let module_expand_mismatch_through_aliases = () => {
     bool,
     "a mismatch stated in Model/Expansion is caught at the definition",
     true,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand_fun", _})) =>
-        true
-      | _ => false,
-      m,
-    ),
+    def_is_marked(m),
   );
 };
 
@@ -248,23 +279,17 @@ let module_expand_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> \"not an Int\"
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> \"not an Int\")
 } in 1",
     );
   check(
     bool,
     "expand's result type is checked against Expansion at the definition",
     true,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "expand_fun", _})) =>
-        true
-      | _ => false,
-      m,
-    ),
+    def_is_marked(m),
   );
 };
 
@@ -277,57 +302,538 @@ let module_update_mismatch = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init : Model = 0;
-let update = fun (m, a) -> \"wrong\";
-let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(\"wrong\");
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> m)
 } in 1",
     );
   check(
     bool,
     "update's result type is checked against Model",
     true,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch({name: "update", _})) =>
-        true
-      | _ => false,
-      m,
-    ),
+    def_is_marked(m),
   );
 };
 
-/* A definition that satisfies the signature reports no mismatch at all --
-   the check must not fire on the livelits that already work. */
+/* A definition that satisfies the signature is marked at all -- the second
+   analytic pass must not fire on the livelits that already work. This is
+   the negative control for the whole mechanism: analyzing every definition
+   against a realized signature could easily reject good ones. */
 let module_well_typed_no_mismatch = () => {
   let (m, _) = statics("let ^x = " ++ dbl_def ++ " in ^x(1)");
   check(
     bool,
-    "a well-typed definition raises no member mismatch",
+    "a well-typed definition is not marked",
     false,
-    has_mark(
-      fun
-      | Mark.InvalidLivelitDef(DefMemberMismatch(_)) => true
-      | _ => false,
-      m,
-    ),
+    has_mark(_ => true, m),
   );
 };
 
+/* Figure 3's shape: init is a command that makes the splices (Sec.
+   3.2.1, Fig. 3 l.8-13), update writes one (l.46-53), and the model holds
+   only refs (l.3-4). */
+let spliced_def = "{
+type Model = (r=SpliceRef, n=Int);
+type Action = Int;
+type Expansion = Int;
+let init =
+  do r <- new_splice((IntT, Some(IntLit(3)))) in
+  Pure((r=r, n=1));
+let update = fun m -> fun a ->
+  do _ <- set_splice((m.r, IntLit(a))) in Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> m.n)
+}";
+
+let init_makes_splices_typechecks = () => {
+  let (m, _) = statics("let ^c = " ++ spliced_def ++ " in 1");
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) when marks != [] =>
+          acc @ List.map(Mark.show, marks)
+        | _ => acc
+        },
+      m,
+      [],
+    );
+  check(list(string), "Figure 3's shape typechecks", [], marks);
+};
+
+/* init PERFORMED: one New effect, the ref carrying its starting code, and
+   written out as a splice, in parens, at the ref's position. */
+let init_makes_splices = () => {
+  let cmd = run("let ^c = " ++ spliced_def ++ " in ^c.init");
+  switch (Haz3lcore.UpdateCmdRunner.run(cmd)) {
+  | Error(e) => fail("init did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let news =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.New(id, _) => Some(id)
+        | _ => None,
+        effects,
+      );
+    check(int, "one splice made", 1, List.length(news));
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      list(string),
+      "the splice is written where its ref was",
+      news,
+      Haz3lcore.SpliceStore.splice_ids(written),
+    );
+  };
+};
+
+/* A ref that passed through an annotated helper arrives wrapped (an Asc
+   from the annotation), and must still be written as its splice, not as
+   a literal. Splices, Dynamically (draft) wrote SpliceRef("...", ?) into
+   its text this way. */
+let wrapped_ref_is_written = () => {
+  let def = "{
+type Model = (refs = [SpliceRef]);
+type Action = Int;
+type Expansion = Int;
+let ins : ([SpliceRef], SpliceRef) -> [SpliceRef] = fun (xs, r) -> r :: xs;
+let init = Pure((refs = []));
+let update = fun m -> fun a ->
+  do r <- new_splice(IntT, None) in Pure((refs = ins((m.refs, r))));
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> 0)
+}";
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(
+      run("let ^cells = " ++ def ++ " in ^cells.update((refs = []))(0)"),
+    )
+  ) {
+  | Error(e) => fail("update did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      int,
+      "the new ref is written as a splice",
+      1,
+      List.length(Haz3lcore.SpliceStore.splice_ids(written)),
+    );
+  };
+};
+
+/* Loading a use from TEXT rebuilds its splices from their parens (the
+   projector's init). A labeled field's value in parens, and each element
+   in parens of a list literal: Splices, Dynamically keeps its row as
+   refs = [(...), (...)], which a reload used to drop. Marking twice
+   changes nothing. */
+let rec count_splices = (seg: Haz3lcore.Base.segment): int =>
+  List.fold_left(
+    (n, p: Haz3lcore.Base.piece) =>
+      switch (p) {
+      | Tile(t) =>
+        n + List.fold_left((m, c) => m + count_splices(c), 0, t.children)
+      | Splice(sp) => n + 1 + count_splices(sp.content)
+      | _ => n
+      },
+    0,
+    seg,
+  );
+
+let text_reload_rebuilds_splices = () => {
+  let marked = text =>
+    switch (Haz3lcore.Parser.to_segment(text, ~root=Exp)) {
+    | None => fail("did not parse: " ++ text)
+    | Some(seg) =>
+      switch (Haz3lcore.LivelitProj.splice_marked_fields(seg)) {
+      | None => (0, None)
+      | Some(seg') => (
+          count_splices(seg'),
+          Haz3lcore.LivelitProj.splice_marked_fields(seg'),
+        )
+      }
+    };
+  let (n, again) = marked("^c((r = (1), n = 2))");
+  check(int, "a labeled field in parens", 1, n);
+  check(bool, "marking twice changes nothing", true, again == None);
+  let (n, again) = marked("^cells((orient = Row, refs = [(1), (2), 3]))");
+  check(int, "list elements in parens, not bare ones", 2, n);
+  check(bool, "marking twice changes nothing", true, again == None);
+};
+
+/* The Splices, Dynamically slide's own view, read from the slide, applied
+   to three refs and RUN: its answer must be Html. */
+/* From the repository root locally, from _build/default/test under CI's
+   `dune test`: try both rather than depend on the working directory. */
+let read_file = path => {
+  let path =
+    List.find_opt(
+      Sys.file_exists,
+      [path, Filename.concat("../../..", path)],
+    )
+    |> Option.value(~default=path);
+  let ic = open_in_bin(path);
+  let s = really_input_string(ic, in_channel_length(ic));
+  close_in(ic);
+  s;
+};
+
+let row_view_of = (path, ()) => {
+  let slide = read_file(path);
+  let cut = {
+    let marker = "\n} in";
+    let rec find = i =>
+      if (i + String.length(marker) > String.length(slide)) {
+        fail("no end of the ^cells definition");
+      } else if (String.sub(slide, i, String.length(marker)) == marker) {
+        i + String.length(marker);
+      } else {
+        find(i + 1);
+      };
+    find(0);
+  };
+  let program =
+    String.sub(slide, 0, cut)
+    ++ " ^cells.view((orient = Row, refs = [SpliceRef((\"a\", 1)), "
+    ++ "SpliceRef((\"b\", 2)), SpliceRef((\"c\", ?))]))";
+  let (m, _) = statics(program);
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) when marks != [] =>
+          acc @ List.map(Mark.show, marks)
+        | _ => acc
+        },
+      m,
+      [],
+    );
+  check(list(string), path ++ ": typechecks", [], marks);
+  let v = run(program);
+  switch (Haz3lcore.ViewCmdRunner.run(v)) {
+  | Ok(h) =>
+    check(
+      bool,
+      path ++ ": the view answers Html",
+      true,
+      Haz3lcore.MvuShape.is_html(h),
+    )
+  | Error(e) =>
+    fail(
+      "view did not run: "
+      ++ e
+      ++ "\n  evaluated to: "
+      ++ String.sub(Exp.show(v), 0, min(1500, String.length(Exp.show(v)))),
+    )
+  };
+};
+
+/* Color (Figure 3)'s own init, in the paper's form (l.8-13): four
+   new_splices starting at 0, 0, 0 and 100, answered positionally. */
+let color_init = () => {
+  let def = "{
+type Expansion = (r = Int, g = Int, b = Int, a = Int);
+type Model = (r = SpliceRef, g = SpliceRef, b = SpliceRef, a = SpliceRef);
+type Action = Int;
+let init =
+  do r <- new_splice(IntT, Some(IntLit(0))) in
+  do g <- new_splice(IntT, Some(IntLit(0))) in
+  do b <- new_splice(IntT, Some(IntLit(0))) in
+  do a <- new_splice(IntT, Some(IntLit(100))) in
+  Pure((r, g, b, a));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> (r = 0, g = 0, b = 0, a = 0))
+}";
+  let (m, _) = statics("let ^color = " ++ def ++ " in 1");
+  check(bool, "typechecks", false, has_mark(_ => true, m));
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(
+      run("let ^color = " ++ def ++ " in ^color.init"),
+    )
+  ) {
+  | Error(e) => fail("init did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let codes =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.New(_, code) =>
+          switch (code.term) {
+          | Atom(Int(n)) => Bigint.to_int(n)
+          | _ => None
+          }
+        | _ => None,
+        effects,
+      );
+    check(list(int), "four splices, 0 0 0 100", [0, 0, 0, 100], codes);
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      int,
+      "all four written into the model",
+      4,
+      List.length(Haz3lcore.SpliceStore.splice_ids(written)),
+    );
+  };
+};
+
+/* update's set_splice: a Set effect, and the commit writes a FRESH splice
+   in place of the old one, so reattaching by id cannot restore the old
+   code; the ref is decoded from its position next pass. */
+let set_splice_rewrites = () => {
+  let id = "00000000-0000-0000-0000-000000000001";
+  let m = "(r=SpliceRef((\"" ++ id ++ "\", 3)), n=1)";
+  let cmd =
+    run("let ^c = " ++ spliced_def ++ " in ^c.update(" ++ m ++ ")(7)");
+  switch (Haz3lcore.UpdateCmdRunner.run(cmd)) {
+  | Error(e) => fail("update did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let sets =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.Set(i, _) => Some(i)
+        | _ => None,
+        effects,
+      );
+    check(list(string), "one set, of that splice", [id], sets);
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[id], model);
+    let ids = Haz3lcore.SpliceStore.splice_ids(written);
+    check(int, "one splice written", 1, List.length(ids));
+    check(bool, "under a fresh id", false, ids == [id]);
+  };
+};
+
+/* A do-block is in one monad (Sec. 3.2.4): update may not evaluate a
+   splice. The same bind in view is the control. */
+let bind_def = (~update: string, ~view: string) =>
+  "let ^x = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init = Pure(0);
+let update = fun m -> fun a -> "
+  ++ update
+  ++ ";
+let view = fun m -> "
+  ++ view
+  ++ ";
+let expand = Functional(fun m -> m)
+} in 1";
+
+let bind_stays_in_its_monad = () => {
+  let eval_then = k => "do _ <- eval_splice(SpliceRef((\"s\", 7))) in " ++ k;
+  let (m, _) =
+    statics(
+      bind_def(~update=eval_then("Pure(m)"), ~view="Pure(Html.text(\"\"))"),
+    );
+  check(bool, "update cannot eval_splice", true, has_mark(_ => true, m));
+  let (m, _) =
+    statics(
+      bind_def(~update="Pure(m)", ~view=eval_then("Pure(Html.text(\"\"))")),
+    );
+  check(bool, "view can", false, has_mark(_ => true, m));
+};
+
+/* Named, because the fixture has other unused binders (update's `a`). */
+let warns_unused = (name: string, m: Statics.Map.t): bool =>
+  Id.Map.exists(
+    (_, info) =>
+      List.mem(Warning.Pat(UnusedVar(name)), Info.warnings_of(info)),
+    m,
+  );
+
+/* A variable a do binds, and the body uses, is not unused. */
+let bind_vars_counted_used = () => {
+  let view = use =>
+    bind_def(
+      ~update="Pure(m)",
+      ~view=
+        "do r <- eval_splice(SpliceRef((\"s\", 7))) in Pure(Html.text("
+        ++ use
+        ++ "))",
+    );
+  let (m, _) =
+    statics(view("case r | Some(_) => \"y\" | None => \"n\" end"));
+  check(bool, "used: no warning", false, warns_unused("r", m));
+  let (m, _) = statics(view("\"n\""));
+  check(bool, "unused: warned", true, warns_unused("r", m));
+};
+
+/* Each splice command EVALUATES to its one-node command tree. They did
+   not: a bare `fun` builtin has no closure, so applying one was Indet,
+   and every runner saw a stuck application instead of a command. */
+let splice_commands_evaluate = () =>
+  List.iter(
+    ((src, ctor)) =>
+      check(
+        option(string),
+        src,
+        Some(ctor),
+        Option.map(fst, Haz3lcore.MvuShape.of_constructor_raw(run(src))),
+      ),
+    [
+      ("new_splice((IntT, None))", "NewSplice"),
+      ("set_splice((SpliceRef((\"s\", 7)), ?))", "SetSplice"),
+      ("eval_splice(SpliceRef((\"s\", 7)))", "EvalSplice"),
+      ("editor((SpliceRef((\"s\", 7)), FixedWidth(6)))", "Editor"),
+      ("result_view((SpliceRef((\"s\", 7)), FixedWidth(6)))", "ResultView"),
+    ],
+  );
+
+/* editor runs (Sec. 3.2.3): its answer is Html holding a Splice node for
+   the ref, which HazelDOM resolves to the projector's own splice when it
+   draws. The do is at top level, so its first command sets the monad. */
+let editor_runs = () => {
+  let v =
+    run(
+      "do e <- editor((SpliceRef((\"s\", 7)), FixedWidth(6))) in "
+      ++ "Pure(Html.div([], [e]))",
+    );
+  let children = h =>
+    Haz3lcore.MvuShape.(
+      switch (of_constructor_raw(h)) {
+      | Some(("Div", b)) =>
+        switch (of_tuple(b)) {
+        | Some([_, cs]) => of_list(cs)
+        | _ => None
+        }
+      | _ => None
+      }
+    );
+  let id =
+    switch (Haz3lcore.ViewCmdRunner.run(v)) {
+    | Error(e) => fail("editor did not run: " ++ e)
+    | Ok(html) =>
+      Haz3lcore.MvuShape.(
+        switch (Option.map(List.map(children), children(html))) {
+        | Some([Some([sp])]) =>
+          switch (of_constructor_raw(sp)) {
+          | Some(("Splice", r)) =>
+            switch (of_constructor(strip_wrappers(r))) {
+            | Some(("SpliceRef", p)) =>
+              switch (of_tuple(p)) {
+              | Some([s, _]) => of_string(s)
+              | _ => None
+              }
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ => None
+        }
+      )
+    };
+  check(option(string), "the editor holds the ref's splice", Some("s"), id);
+};
+
+/* eval_splice reads the value its ref carries from this run (Sec. 3.2.3):
+   Val when the code reduced, Indet when it did not -- a hole here. */
+let eval_splice_reads_the_run = () => {
+  let read = code =>
+    run(
+      "do x <- eval_splice(SpliceRef((\"s\", "
+      ++ code
+      ++ "))) in Pure(case x | Some(Val(n)) => n | Some(Indet) => -1 "
+      ++ "| None => -2 end)",
+    );
+  let answer = code =>
+    switch (Haz3lcore.ViewCmdRunner.run(read(code))) {
+    | Ok(v) => Haz3lcore.MvuShape.of_int(v)
+    | Error(e) => fail("eval_splice did not run: " ++ e)
+    };
+  check(option(int), "a value", Some(7), answer("3 + 4"));
+  check(option(int), "a hole is indeterminate", Some(-1), answer("?"));
+};
+
+/* The rewrite a use's model argument gets is directed by Model: a marked
+   field becomes a bare ref where Model says SpliceRef, the stopgap pair
+   where it says (ref=SpliceRef, value=t), and is left as code elsewhere.
+   Built by hand: only the editor makes Splice terms, never the parser. */
+let rewrite_follows_model = () => {
+  open IdTagged.FreshGrammar;
+  let marked = n => {
+    let code = Exp.int(n);
+    Exp.parens({
+      ...Exp.int(n),
+      term: Splice(code),
+    });
+  };
+  let arg =
+    Exp.tuple([
+      Exp.tup_label(Exp.label("r"), marked(1)),
+      Exp.tup_label(Exp.label("p"), marked(2)),
+      Exp.tup_label(Exp.label("n"), marked(3)),
+    ]);
+  let model_t =
+    Typ.prod([
+      Typ.tup_label(Typ.label("r"), Typ.var("SpliceRef")),
+      Typ.tup_label(
+        Typ.label("p"),
+        Typ.prod([
+          Typ.tup_label(Typ.label("ref"), Typ.var("SpliceRef")),
+          Typ.tup_label(Typ.label("value"), Typ.int()),
+        ]),
+      ),
+      Typ.tup_label(Typ.label("n"), Typ.int()),
+    ]);
+  let out =
+    UserLivelit.expose_splice_refs(
+      ~ctx=Builtins.ctx_init(Some(Int)),
+      ~model_t,
+      arg,
+    );
+  let shape = (e: Exp.t) =>
+    switch (e.term) {
+    | Ap(_, {term: Constructor("SpliceRef", _), _}, _) => "ref"
+    | Let(_, _, _) => "pair"
+    | Parens({term: Splice(_), _}) => "code"
+    | _ => "other"
+    };
+  let shapes =
+    switch (out.term) {
+    | Tuple(fs) =>
+      List.map(
+        (f: Exp.t) =>
+          switch (f.term) {
+          | TupLabel(_, v) => shape(v)
+          | _ => "unlabeled"
+          },
+        fs,
+      )
+    | _ => []
+    };
+  check(list(string), "ref, pair, code", ["ref", "pair", "code"], shapes);
+};
+
+/* A livelit that lacks members is a MODULE that lacks members, and says so
+   with the module system's own mark. DefMissingMembers and DefMissingTypes
+   were livelit-specific restatements of it; ModuleMissingMembers already
+   carries both kinds, since ModuleHelpers.member_names is
+   value_names @ type_names. This fixture declares no types either, so all
+   five are named. */
 let module_missing_members = () => {
   let (m, _) =
     statics("let ^x = {let init = 0; let view = fun m -> 0} in 1");
-  check(
-    bool,
-    "missing members reported by name",
-    true,
+  let named = (want: list(string)) =>
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefMissingMembers(["update", "expand_fun"])) =>
-        true
+      | Mark.ModuleMissingMembers(names) =>
+        List.for_all(w => List.mem(w, names), want)
       | _ => false,
       m,
-    ),
+    );
+  check(
+    bool,
+    "missing value members reported by name",
+    true,
+    named(["update", "expand"]),
+  );
+  check(
+    bool,
+    "missing type members reported the same way",
+    true,
+    named(["Model", "Action", "Expansion"]),
   );
 };
 
@@ -348,8 +854,8 @@ let module_adapter = () => {
   let ll = mk_ll(def_with(~extra="let shape = Tab(30, 5)"));
   check(
     dhexp_typ,
-    "model_default is the init member",
-    parse_exp("0"),
+    "model_default is the init member, a command the trigger runs",
+    parse_exp("Pure(0)"),
     ll.model_default,
   );
   check(
@@ -446,10 +952,10 @@ let missing_types_marked = () => {
   let (m, _) =
     statics(
       "let ^x = {
-let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"\");
-let expand_fun = fun m -> m
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Functional(fun m -> m)
 } in 1",
     );
   check(
@@ -458,10 +964,7 @@ let expand_fun = fun m -> m
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(
-          DefMissingTypes(["Model", "Action", "Expansion"]),
-        ) =>
-        true
+      | Mark.ModuleMissingMembers(["Model", "Action", "Expansion"]) => true
       | _ => false,
       m,
     ),
@@ -507,10 +1010,10 @@ let adapter = () => {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 50;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(\"hi\");
-let expand_fun = fun m -> m
+let init = Pure(50);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(\"hi\"));
+let expand = Functional(fun m -> m)
 }";
   let def_user = parse_exp(def_text);
   let ctx = Builtins.ctx_init(Some(Int));
@@ -532,8 +1035,8 @@ let expand_fun = fun m -> m
   /* model_default comes from init */
   check(
     dhexp_typ,
-    "model_default is the init field",
-    parse_exp("50"),
+    "model_default is the init member, a command the trigger runs",
+    parse_exp("Pure(50)"),
     ll.model_default,
   );
   /* the stored definition evaluates and view(model) is HTML */
@@ -561,13 +1064,21 @@ let expand_fun = fun m -> m
     };
   switch (member("view")) {
   | Some(view_fn) =>
+    /* view(model) is a ViewCmd; running it is what yields the Html */
     let html =
-      evaluate(
-        IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, parse_exp("50")),
-      );
+      switch (
+        Haz3lcore.ViewCmdRunner.run(
+          evaluate(
+            IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, parse_exp("50")),
+          ),
+        )
+      ) {
+      | Ok(h) => h
+      | Error(e) => fail("view did not run: " ++ e)
+      };
     check(
       bool,
-      "view(model) is Html.T",
+      "view(model), run, is Html.T",
       true,
       Haz3lcore.MvuShape.is_html(html),
     );
@@ -648,10 +1159,10 @@ let view_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.text(string_of_int(^^probe(m * 3)));
-let expand_fun = fun m -> m * 2
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.text(string_of_int(^^probe(m * 3))));
+let expand = Functional(fun m -> m * 2)
 } in ";
 
 let view_probes_fire = () => {
@@ -694,7 +1205,9 @@ let projector_gets_html_sample = () => {
               List.filter(
                 (s: Sample.t) =>
                   Haz3lcore.MvuShape.is_html(
-                    Haz3lcore.MvuShape.strip_wrappers(s.value),
+                    run_view_sample(
+                      Haz3lcore.MvuShape.strip_wrappers(s.value),
+                    ),
                   ),
                 samples,
               ),
@@ -715,33 +1228,50 @@ let unprojected_view_not_run = () => {
   check(int, "no projector, no view run, no samples", 0, total);
 };
 
+/* ^name.expand hands back the SUM, not a function, so a client reading it
+   has to say which kind of livelit it expected. That is the point -- the
+   kind is now visible in the value rather than in which signature the
+   definition answered to. */
 let member_access = () =>
   run_test(
     "^name.member accesses the definition record",
     "51",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl.expand_fun(21) + ^dbl.update((3, 9))",
+    "let ^dbl = "
+    ++ dbl_def
+    ++ " in (case ^dbl.expand | Functional(f) => f(21) | Macro(_) => 0 end) "
+    /* update is curried and answers a COMMAND: read the model out of Pure */
+    ++ "+ (case ^dbl.update(3)(9) | Pure(x) => x | _ => 0 end)",
   );
 
-let redex_as_model = () =>
+/* The projector now commits the performed update's VALUE. It used to leave
+   the redex ^dbl.update(m, a) in the text, but update returns a command, so
+   that redex would put a command tree where a model belongs. What the text
+   carries is an ordinary model argument, so that is what this checks. */
+let committed_value_as_model = () =>
   run_test(
-    "a committed transition normalizes in the main run",
+    "a committed model is an ordinary argument",
     "18",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl(^dbl.update(3, 9))",
+    "let ^dbl = " ++ dbl_def ++ " in ^dbl(9)",
   );
 
 let update_probe_def = "let ^dbl = {
 type Model = Int;
 type Action = Int;
 type Expansion = Int;
-let init = 0;
-let update = fun (m, a) -> ^^probe(m + a);
-let view = fun m -> Html.text(string_of_int(m));
-let expand_fun = fun m -> m * 2
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(^^probe(m + a));
+let view = fun m -> Pure(Html.text(string_of_int(m)));
+let expand = Functional(fun m -> m * 2)
 } in ";
 
-let update_probe_fires_once = () => {
+/* update runs in the PROJECTOR, at event time, and never in the main
+   evaluation -- that is what performing it as a command means. So a probe
+   inside update must not fire during an ordinary run. A zero on its own
+   proves nothing (the probes could simply be broken), so the model value is
+   checked to be sampled too: the machinery is live, and update is silent. */
+let update_not_run_in_main = () => {
   let (_, manuals, probes) =
-    probe_run(update_probe_def ++ "^^livelit(^dbl(^dbl.update(3, 9)))");
+    probe_run(update_probe_def ++ "^^livelit(^dbl(12))");
   let count_12 = ids =>
     List.fold_left(
       (acc, id) =>
@@ -759,46 +1289,18 @@ let update_probe_fires_once = () => {
       0,
       ids,
     );
-  check(int, "update probe sampled exactly once", 1, count_12(manuals));
-  /* the model argument is also targeted — the commit path reads its value */
-  let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
   check(
     int,
-    "transition value also sampled at the model",
-    2,
-    count_12(all_ids),
+    "update's probe never fires in the main run",
+    0,
+    count_12(manuals),
   );
-};
-
-/* The commit path's product: the redex term must print to text that
-   reparses and evaluates to the same transition */
-let redex_roundtrip = () => {
-  let redex =
-    UserLivelit.mk_update_redex(
-      ~name="dbl",
-      ~model_value=parse_exp("3"),
-      ~action=parse_exp("9"),
-    );
-  let seg =
-    Haz3lcore.ExpToSegment.any_to_segment(
-      ~settings={
-        ...
-          Haz3lcore.ExpToSegment.Settings.of_core(
-            ~inline=true,
-            CoreSettings.off,
-          ),
-        show_unknown_as_hole: false,
-        hole_tiles: false,
-        fold_fn_bodies: `NoFold,
-        project_tables: false,
-      },
-      Exp(redex),
-    );
-  let text = Haz3lcore.Printer.of_segment(~holes="?", ~indent="", seg);
-  run_test(
-    "committed transition text round-trips: " ++ text,
-    "18",
-    "let ^dbl = " ++ dbl_def ++ " in ^dbl(" ++ text ++ ")",
+  let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
+  check(
+    bool,
+    "the model value IS sampled, so the probes are live",
+    true,
+    count_12(all_ids) >= 1,
   );
 };
 
@@ -813,10 +1315,10 @@ type Model = Int;
 type Action = Int;
 type Expansion = Int;
 let bump = fun x -> x + 1;
-let init = 0;
-let update = fun (m, a) -> a;
-let view = fun m -> Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []);
-let expand_fun = fun m -> m
+let init = Pure(0);
+let update = fun m -> fun a -> Pure(a);
+let view = fun m -> Pure(Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []));
+let expand = Functional(fun m -> m)
 } in ^^livelit(^pk(5))",
     );
   let html =
@@ -828,7 +1330,8 @@ let expand_fun = fun m -> m
           Option.bind(Sample.Map.lookup(id, probes), samples =>
             List.find_map(
               (s: Sample.t) => {
-                let v = Haz3lcore.MvuShape.close_value(s.value);
+                let v =
+                  run_view_sample(Haz3lcore.MvuShape.close_value(s.value));
                 Haz3lcore.MvuShape.is_html(v) ? Some(v) : None;
               },
               samples,
@@ -889,6 +1392,26 @@ let expansion_mark = (m: Statics.Map.t): option(Mark.t) =>
     None,
   );
 
+/* THE USE-SITE CHECK IS NOW VACUOUS FOR FUNCTIONAL LIVELITS, and these two
+   tests record that rather than pretending otherwise.
+
+   The paper checks per use (PLDI 2021, S3.2.5) because a MACRO expansion is
+   a program whose type depends on the model value, which no definition-site
+   check can see. A functional livelit is different: with eager
+   definition-site checking (what Cyrus asked for, and what #2596 had),
+   `Functional(f)` is checked against `Model -> Expansion` where it is
+   written, so `f(model)` has type Expansion at every use, and there is
+   nothing left for the use site to catch.
+
+   So the fixture below -- `Expansion = String`, expand returns `Model` --
+   no longer reaches the use at all. It is rejected at the definition, with
+   a more precise error, which is the better outcome and the reason these
+   assertions moved.
+
+   The use-site machinery stays in Statics.re, untouched and still covered
+   by the negative tests below. It becomes load-bearing again when the Macro
+   arm is inhabitable, which is what `Exp` is for. Do not read these two
+   tests as evidence the use-site check was removed. */
 let expansion_mismatch_marked = () => {
   let (m, _) =
     statics(
@@ -896,22 +1419,18 @@ let expansion_mismatch_marked = () => {
       ++ def(~expansion="String", ~expand="fun m : Model -> m")
       ++ " in ^s(1)",
     );
-  switch (expansion_mark(m)) {
-  | Some(BadLivelitExpansion({declared, actual})) =>
-    check(
-      bool,
-      "declared type reported",
-      true,
-      Typ.fast_equal(declared, IdTagged.FreshGrammar.Typ.string()),
-    );
-    check(
-      bool,
-      "actual type reported",
-      true,
-      Typ.fast_equal(actual, IdTagged.FreshGrammar.Typ.int()),
-    );
-  | _ => fail("expected BadLivelitExpansion on the use")
-  };
+  check(
+    bool,
+    "an expansion inconsistent with Expansion is rejected at the definition",
+    true,
+    def_is_marked(m),
+  );
+  check(
+    bool,
+    "and never reaches the use, so no use-site mark is owed",
+    true,
+    Option.is_none(expansion_mark(m)),
+  );
 };
 
 /* The check is discharged per use, since the expansion is a function of
@@ -945,14 +1464,17 @@ let expansion_mismatch_at_each_use = () => {
       0,
     );
   };
-  let one = marked("^s(1)");
-  check(bool, "one use is marked", true, one > 0);
+  /* Was: one use marked, two uses marked twice over -- the per-use
+     discharge. With eager definition-site checking this fixture dies at
+     the definition, so no use is marked however many there are. The
+     per-use SHAPE is still what the code does; see the comment above. */
   check(
     int,
-    "two uses are marked twice over",
-    2 * one,
-    marked("(^s(1), ^s(2))"),
+    "no use is marked: the definition already failed",
+    0,
+    marked("^s(1)"),
   );
+  check(int, "and still none with two uses", 0, marked("(^s(1), ^s(2))"));
 };
 
 /* The declaration is what clients type against: `^s(7) ++ "!"` is fine
@@ -1117,14 +1639,42 @@ let tests = [
         unprojected_view_not_run,
       ),
       test_case("member access", `Quick, member_access),
-      test_case("redex as model", `Quick, redex_as_model),
-      test_case("update probe fires once", `Quick, update_probe_fires_once),
-      test_case("redex round-trips", `Quick, redex_roundtrip),
+      test_case("committed value as model", `Quick, committed_value_as_model),
+      test_case("update not run in main", `Quick, update_not_run_in_main),
       test_case(
         "sampled handlers are closed",
         `Quick,
         sampled_handlers_are_closed,
       ),
+      test_case(
+        "init makes splices: typechecks",
+        `Quick,
+        init_makes_splices_typechecks,
+      ),
+      test_case("init makes splices", `Quick, init_makes_splices),
+      test_case("set_splice rewrites", `Quick, set_splice_rewrites),
+      test_case("Color (Figure 3) init", `Quick, color_init),
+      test_case("wrapped ref is written", `Quick, wrapped_ref_is_written),
+      test_case(
+        "row slide view runs",
+        `Quick,
+        row_view_of("hazel-programs/docs/livelits/splice-row.hz"),
+      ),
+      test_case(
+        "text reload rebuilds splices",
+        `Quick,
+        text_reload_rebuilds_splices,
+      ),
+      test_case("bind stays in its monad", `Quick, bind_stays_in_its_monad),
+      test_case("bind vars counted used", `Quick, bind_vars_counted_used),
+      test_case("splice commands evaluate", `Quick, splice_commands_evaluate),
+      test_case("editor runs", `Quick, editor_runs),
+      test_case(
+        "eval_splice reads the run",
+        `Quick,
+        eval_splice_reads_the_run,
+      ),
+      test_case("rewrite follows Model", `Quick, rewrite_follows_model),
     ],
   ),
 ];

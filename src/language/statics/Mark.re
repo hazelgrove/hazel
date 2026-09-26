@@ -30,19 +30,13 @@ type error_builtin =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type livelit_def_error =
-  | DefNotModule
-  | DefMissingMembers(list(string))
-  | DefMissingTypes(list(string))
-  /* A member whose type disagrees with what the builtin `Livelit`
-     signature requires of it, once that signature's abstract Model,
-     Action and Expansion are realized by this definition's own types.
-     `expand` failing this is the definition-site half of the expansion
-     obligation the paper checks only per use. */
-  | DefMemberMismatch({
-      name: string,
-      expected: Typ.t,
-      actual: Typ.t,
-    });
+  /* All that is left of the livelit-specific family. A definition that is
+     not a module cannot be analyzed against the `Livelit` signature at
+     all, so there is nothing for the module machinery to say about it.
+     Every other way a definition can be wrong -- a missing member, a
+     member of the wrong type -- is now reported by that machinery:
+     ModuleMissingMembers, or an ordinary inconsistency at the member. */
+  | DefNotModule;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =

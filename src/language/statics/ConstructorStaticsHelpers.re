@@ -149,8 +149,19 @@ let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
     | Arrow(_, ret) => is_builtin_path(ret)
     | _ => is_builtin_path(ty)
     };
+  /* A livelit command type, ViewCmd(t) or UpdateCmd(t), is builtin in the
+     same way: a Rec whose binder ($ViewCmd, $UpdateCmd) no user can write.
+     Normalizing it expands the Html.T and Attr.T paths inside every arm,
+     so Pure(...) against a ViewCmd synthesized a type ~90x the size of
+     the compact one -- 6 MB printed -- and every check met the two.
+     Measured: most of the statics time on the livelit slides. */
+  let returns_builtin_cmd =
+    switch (Typ.term_of(ty)) {
+    | Arrow(_, ret) => Option.is_some(BuiltinsADT.monad_of_typ(ret))
+    | _ => Option.is_some(BuiltinsADT.monad_of_typ(ty))
+    };
   switch (return_type_name) {
-  | _ when returns_builtin_path => ty
+  | _ when returns_builtin_path || returns_builtin_cmd => ty
   | Some(name)
       when
         List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)

@@ -1,0 +1,272 @@
+# Dynamic Row/Column #
+
+# DRAFT. The paper's design, and its splices run. #
+
+# Every command below runs: new_splice in init and in update, editor #
+# and eval_splice in view. init makes three cells, 1, 2 and 3. The + #
+# buttons each make an empty one with new_splice. x drops a cell's #
+# ref, and its splice goes with it. rotate turns the sequence between #
+# a row and a column. Under the row, the view reads every cell and #
+# sums what it finds. #
+
+# THE DESIGN #
+
+# In the paper the number of splices is not fixed: it can change as #
+# the user works, as when a $dataframe gains a row (Sec. 2.4.2). #
+# Every splice is made by a command. Figure 3's init makes its four #
+# with new_splice (Sec. 3.2.1), and update, which may act on the #
+# splices as well as the model, can make more (Sec. 3.2.4). This #
+# slide uses both halves: init makes the first three cells, and a #
+# click makes one more. #
+
+# The SpliceRef, MVP slide uses the first half: its init makes its #
+# two bounds with new_splice, and its Model has room for just two, #
+# so it never grows a splice. The parens in its uses are those #
+# splices as saved, not an author's way to make one. #
+
+# The cells sit edge to edge, like a row or a column of a #
+# spreadsheet. Hover a cell and its buttons appear on its edges: #
+#   +   on its leading edge -- a new empty cell before it #
+#   +   on its trailing edge -- a new empty cell after it #
+#   x   centered on its top edge (its right edge, in a column) -- drop it #
+# Each + sits on the border where its new cell will land. Hover the #
+# whole sequence and "rotate" appears at both ends, turning it #
+# between a row and a column. One dimension only, for now. #
+
+# Outside the livelit so the use below can name Row as well. #
+type Orient = + Row + Column in
+
+let ^cells = {
+  type Model = (orient = Orient, refs = [SpliceRef]);
+  type Action =
+    + InsertBefore(Int) + InsertAfter(Int) + Delete(Int) + Rotate;
+  type Expansion = [Int];
+
+  # init is a command, an UpdateCmd as in Figure 3 (Sec. 3.2.1), #
+  # performed when you type ^cells then a space. Like Figure 3's, it #
+  # makes its splices with new_splice, each with starting code: #
+  # IntLit(n), an Exp constructor, which needs no quotation. The new #
+  # use's text is the model it answers, with the splices it made. #
+  let init =
+    do a <- new_splice(IntT, Some(IntLit(1))) in
+    do b <- new_splice(IntT, Some(IntLit(2))) in
+    do c <- new_splice(IntT, Some(IntLit(3))) in
+    Pure((orient = Row, refs = [a, b, c]));
+
+  let len : [SpliceRef] -> Int =
+    fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+
+  let insert_at : ([SpliceRef], Int, SpliceRef) -> [SpliceRef] =
+    fun (xs, i, r) ->
+      if i <= 0 then r :: xs
+      else case xs
+        | [] => [r]
+        | x :: rest => x :: insert_at((rest, i - 1, r))
+        end;
+
+  # Deleting a cell is only FORGETTING its ref. There is no #
+  # drop_splice: a splice that no ref in the committed model reaches #
+  # is not written back, so committing the new model drops it. #
+  let remove_at : ([SpliceRef], Int) -> [SpliceRef] =
+    fun (xs, i) ->
+      case xs
+      | [] => []
+      | x :: rest => if i == 0 then rest else x :: remove_at((rest, i - 1))
+      end;
+
+  # update is a command, in UpdateCmd (Sec. 3.2.4), and that is what #
+  # lets it make a splice at all: new_splice lives there and nowhere #
+  # else (Sec. 3.2.1). None starts the new cell empty, a hole, so #
+  # this needs nothing from quotation. IntT names the cell's expected #
+  # type, which a livelit gives each splice it makes (Sec. 2.4.2). #
+  # new_splice takes it and discards it for now, and a SpliceRef slot #
+  # holds code of any type, so nothing checks that a cell is an Int. #
+  let update = fun m : Model -> fun a : Action ->
+    case a
+    | InsertBefore(i) =>
+      do r <- new_splice(IntT, None) in
+      Pure((orient = m.orient, refs = insert_at((m.refs, i, r))))
+    | InsertAfter(i) =>
+      do r <- new_splice(IntT, None) in
+      Pure((orient = m.orient, refs = insert_at((m.refs, i + 1, r))))
+    | Delete(i) => Pure((orient = m.orient, refs = remove_at((m.refs, i))))
+    | Rotate =>
+      Pure((orient = (case m.orient | Row => Column | Column => Row end),
+            refs = m.refs))
+    end;
+
+  # view answers in ViewCmd, where editor and eval_splice live #
+  # (Sec. 3.2.3). Each cell's editor, and each cell's value, is its #
+  # own command, so a row of them means sequencing one command per #
+  # cell -- a do per cell, threaded down the list. #
+
+  # The controls are ordinary buttons revealed by a :hover rule, not #
+  # model state. Hover as state is the approach of the MVU / Seed #
+  # Catalog slide, and in a livelit it is wrong: the model lives in #
+  # the program text (Sec. 3.2.1), so each time the mouse entered or #
+  # left a cell the program would be rewritten. If the style element #
+  # is not honored the rule never applies and the controls simply #
+  # stay visible -- worse looking, still usable. #
+  let view = fun m : Model ->
+    let editors = fun rs ->
+      case rs
+      # The one place the monad has to be SAID. This base case sits #
+      # outside any do, so nothing tells it which monad it is in, and #
+      # the helper cannot be annotated: ViewCmd([Html.T]) is not a #
+      # writable type. So it spells Pure out as view_return: Pure at #
+      # ViewCmd, told its answer type explicitly. #
+      | [] => view_return @<[Html.T]>([])
+      | r :: rest =>
+        do e <- editor((r, FixedWidth(6))) in
+        do es <- editors(rest) in
+        Pure(e :: es)
+      end
+    in
+    # Each cell's value, read with eval_splice (Sec. 3.2.3): the view #
+    # may read a splice, which update may not (Sec. 3.2.4). #
+    let values = fun rs ->
+      case rs
+      | [] => view_return @<[Option]>([])
+      | r :: rest =>
+        do v <- eval_splice(r) in
+        do vs <- values(rest) in
+        Pure(v :: vs)
+      end
+    in
+    # Sum what reduced to a number, and count the rest: an empty cell #
+    # is a hole, so it comes back Indet, not a value (Sec. 2.5.2). Left #
+    # unannotated on purpose: an annotation casts the argument, and the #
+    # answers eval_splice gives do not yet survive a cast (a known bug #
+    # in the runner, which builds them untagged). #
+    let tally =
+      fun (vs, s, k) ->
+        case vs
+        | [] => (s, k)
+        | Some(Val(x)) :: rest => tally((rest, s + x, k))
+        | _ :: rest => tally((rest, s, k + 1))
+        end
+    in
+    # A control floats over its cell's edge, so it takes no room in #
+    # the sequence: that is what lets the cells sit edge to edge. It #
+    # is a child of its cell, so hovering the control keeps the cell #
+    # hovered even where the control overhangs the cell's border. #
+    let ctl = fun (label, tip, place, act) ->
+      Html.button(
+        [Attr.class("ll-hov " ++ place), Attr.create("title", tip),
+         Attr.on_click(act)],
+        [Html.text(label)])
+    in
+    let cell = fun (i, ed) ->
+      Html.div([Attr.class("ll-cell")],
+        [ed,
+         ctl(("+", "insert before", "ll-before", InsertBefore(i))),
+         ctl(("x", "delete", "ll-del", Delete(i))),
+         ctl(("+", "insert after", "ll-after", InsertAfter(i)))])
+    in
+    let cells = fun (i, eds) ->
+      case eds
+      | [] => []
+      | e :: rest => cell((i, e)) :: cells((i + 1, rest))
+      end
+    in
+    let rot = fun place ->
+      Html.button(
+        [Attr.class("ll-edge " ++ place), Attr.create("title", "rotate"),
+         Attr.on_click(Rotate)],
+        [Html.text("rotate")])
+    in
+    # One rule per line. The sequence keeps a little room at each end #
+    # for the rotate buttons; cells share their borders (-1px); every #
+    # control is absolutely placed and hidden until hover. #
+    let css =
+      string_join(("", [
+        ".ll-seq{display:inline-flex;position:relative;padding:0 3.6em}",
+        ".ll-col{flex-direction:column;padding:1.2em 0}",
+        ".ll-cell{position:relative;border:1px solid #999;",
+        "margin-left:-1px;padding:0 3px;min-height:1.2em}",
+        ".ll-col .ll-cell{margin-left:0;margin-top:-1px}",
+        ".ll-hov,.ll-edge{position:absolute;visibility:hidden;z-index:1;",
+        "font-size:0.6em;line-height:1;padding:0 2px}",
+        ".ll-cell:hover .ll-hov,.ll-seq:hover>.ll-edge{visibility:visible}",
+        ".ll-before{left:-0.6em;top:50%;transform:translateY(-50%)}",
+        ".ll-after{right:-0.6em;top:50%;transform:translateY(-50%)}",
+        ".ll-del{left:50%;top:0;transform:translate(-50%,-50%)}",
+        ".ll-col .ll-before{left:50%;top:-0.6em;transform:translateX(-50%)}",
+        ".ll-col .ll-after{left:50%;right:auto;top:auto;bottom:-0.6em;",
+        "transform:translateX(-50%)}",
+        ".ll-col .ll-del{left:auto;right:0;top:50%;transform:translate(50%,-50%)}",
+        ".ll-start{left:0;top:50%;transform:translateY(-50%)}",
+        ".ll-end{right:0;top:50%;transform:translateY(-50%)}",
+        ".ll-col>.ll-start{left:0;top:0;transform:none}",
+        ".ll-col>.ll-end{left:0;top:auto;bottom:0;transform:none}"
+      ]))
+    in
+    let seq_class =
+      case m.orient | Row => "ll-seq" | Column => "ll-seq ll-col" end
+    in
+    do eds <- editors(m.refs) in
+    do vs <- values(m.refs) in
+    let (total, empty) = tally((vs, 0, 0)) in
+    let summary =
+      Html.div(
+        [Attr.style([("font-family", "var(--code-font)"),
+                     ("font-size", "0.8em")])],
+        [Html.text("sum " ++ string_of_int(total)
+          ++ (if empty == 0 then ""
+              else ", " ++ string_of_int(empty) ++ " empty"))])
+    in
+    let body =
+      case m.refs
+      | [] =>
+        [Html.button([Attr.on_click(InsertBefore(0))], [Html.text("+ cell")])]
+      | _ => cells((0, eds))
+      end
+    in
+    Pure(
+      Html.div([], [
+        Html.node("style", [], [Html.text(css)]),
+        Html.div([Attr.class(seq_class)],
+          [rot("ll-start")] @ body @ [rot("ll-end")]),
+        summary
+      ]));
+
+  # What a use of ^cells MEANS (Sec. 3.2.5): the list of its cells' #
+  # values. That is a MACRO expansion, as in Figure 3: a function over #
+  # the splices, applied to them at the use. But here the number of #
+  # splices is not fixed -- it is however many cells the row has -- #
+  # so no one quotation can be that function. expand BUILDS it for the #
+  # n refs it is given, as the paper says a livelit whose splice count #
+  # varies must (Sec. 3.2.5, its dataframe): #
+  #   fun x0 -> fun x1 -> ... -> x0 :: x1 :: ... :: [] #
+  # unquote e end, inside a quotation, splices in the code e computes; #
+  # Ident(n) is the variable named n and Lambda((n, c)) is fun n -> c. #
+  # The binder names are the author's to keep apart: x0, x1, ... #
+  let expand =
+    Macro(fun m : Model ->
+      let n = len(m.refs) in
+      let name = fun i : Int -> "x" ++ string_of_int(i) in
+      # x_i :: ... :: x_(n-1) :: [] #
+      let elems = fun i : Int ->
+        if i == n then quote [] end
+        else quote unquote Ident(name(i)) end :: unquote elems(i + 1) end end
+      in
+      # fun x_i -> ... -> fun x_(n-1) -> x0 :: ... #
+      let funs = fun i : Int ->
+        if i == n then elems(0) else Lambda((name(i), funs(i + 1)))
+      in
+      (funs(0), m.refs));
+  # The widget's footprint, in character cells -- a function of the #
+  # model, because this widget grows. In a row: about 7 columns a #
+  # cell (a six-wide editor and its border), room at the ends for #
+  # rotate, and 2 lines, the row and the sum. In a column: a line a #
+  # cell, a little more for the borders, plus rotate and the sum. #
+  let shape = fun m : Model ->
+    case m.orient
+    | Row => Block(7 * len(m.refs) + 10, 2)
+    | Column => Block(12, len(m.refs) + len(m.refs) / 5 + 4)
+    end
+} in
+# A use, as saved: the three cells init made, each in parens where #
+# its ref sits in the list. That is how the text keeps a splice, and #
+# a reload rebuilds each one from its parens. #
+^^livelit(^cells((orient = Row, refs = [(1), (2), (3)])))

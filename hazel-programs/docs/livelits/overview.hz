@@ -1,115 +1,240 @@
 # What is a Livelit? #
 
-# A livelit is a live GUI for one value in your program. You write #
-# the GUI once; then every USE of it is a widget you can click or #
-# drag, sitting in the code where the value goes. #
+# This deck follows one paper throughout: #
+#   Omar, Moon, Blinn, Voysey, Collins, Chugh. #
+#   Filling Typed Holes with Live GUIs. PLDI 2021. #
+#   doi.org/10.1145/3453483.3454059 #
+# Every "Sec." below is a section of that paper. Where this #
+# implementation does something different, the slide says so, and #
+# says why. The next slide, Color (Figure 3), rebuilds the paper's #
+# own example line by line. #
 
-# The widget is not a preview. Its state lives in the program text, #
-# so each use remembers what you did to it, and the program means #
-# whatever that state expands to. #
+# A livelit is a live GUI that fills a typed hole in a program #
+# (Sec. 1, Sec. 2). You write the GUI once; every USE of it is then a #
+# widget sitting in the code, right where the value goes. #
 
-# A livelit definition is a MODULE bound to a livelit name -- a #
-# name written with a leading caret, like ^flag below. #
+# The widget is not a preview. Its state -- the MODEL -- is kept in #
+# the program itself (Sec. 3.2.1), so each use remembers what you #
+# did to it. A use is given its meaning by expansion (Sec. 2.2): the #
+# model and its splices EXPAND to what the use means. Only the model #
+# is saved; expand rebuilds the rest when needed (Sec. 3.2.5). #
 
-# THE LIVELIT TYPE #
+# The paper writes a livelit as $color. Here the name has a leading #
+# caret instead, ^color, and it is bound to a module. #
 
-# Every definition is checked against a builtin module signature. #
-# There are two, and a definition answers to exactly one: #
+# THE SIGNATURE #
 
-#   type LivelitFun = {         #
-#     type Model;               #
-#     type Action;              #
-#     type Expansion;           #
-#     let init     : Model;                      #
-#     let update   : (Model, Action) -> Model;   #
-#     let view     : Model -> Html.T;            #
-#     let expand_fun : Model -> Expansion        #
-#   }                                            #
+# The paper splits a livelit into a declaration -- its name and #
+# expansion type (Sec. 3.1) -- and an implementation (Sec. 3.2). #
+# Here they are one module, checked against this builtin signature: #
 
-# A LivelitFun denotes a VALUE: expand_fun computes it. Every #
-# livelit in this deck is one. #
+#   type Livelit = {                                      #
+#     type Model;          the state of one use           #
+#     type Action;         what the GUI emits             #
+#     type Expansion;      what a use means               #
+#     let init   : UpdateCmd(Model);                      #
+#     let update : Model -> Action -> UpdateCmd(Model);   #
+#     let view   : Model -> ViewCmd(Html.T);              #
+#     let expand :                                        #
+#       + Functional( Model -> Expansion )                #
+#       + Macro( Model -> (Exp, List(SpliceRef)) )        #
+#   }                                                     #
 
-# The other is LivelitMac, which denotes a PROGRAM: #
+# Model is Sec. 3.2.1, Action Sec. 3.2.2, view Sec. 3.2.3, update #
+# Sec. 3.2.4, expand Sec. 3.2.5. Expansion is the one clients see: a #
+# use has that type however expand is written (Sec. 2.3), so a #
+# client can reason about a use without reading the widget or its #
+# expansion (Sec. 1.2, Sec. 2.2). #
 
-#   let expand_mac : Model -> (Exp, List(SpliceRef))   #
+# The Functional arm is an addition here. The paper's expand is the #
+# Macro arm alone: quoted code over the splices, plus the splice #
+# list (Sec. 3.2.5). Functional lets a livelit whose use means a #
+# plain value compute that value instead of writing a program. #
 
-# Nothing can answer to LivelitMac yet, but the two halves are not #
-# missing for the same reason. Exp is named and uninhabited: Hazel #
-# has no quoted-code type and no quotation syntax, so there is no #
-# program value to hand back. SpliceRef IS inhabited -- the slide #
-# SpliceRef, MVP has a model holding two -- but a macro still #
-# cannot MAKE one, because making a splice is an effect and there #
-# is no new_splice. #
+# COMMANDS #
 
-# Two signatures rather than one with an optional member, because a #
-# signature can only say a member is REQUIRED: optional members are #
-# expressed by leaving them out, since a definition may always have #
-# EXTRA members. So "exactly one of expand_fun / expand_mac" has to #
-# be a question about which signature you answer to. #
+# The members that act are COMMANDS, not plain functions. view #
+# does not return Html; it returns a ViewCmd that yields Html. update #
+# does not return the next model; it returns an UpdateCmd that yields #
+# it. That is the paper's design (Sec. 3.2.3, Sec. 3.2.4), and it is #
+# what lets a livelit touch splices -- next section. init is an #
+# UpdateCmd as well, as in the paper (Sec. 3.2.1). It is performed #
+# when a use is created, by typing ^name then a space, and the new #
+# use's text is the model it answers, with the splices it made. #
 
-# The three types are abstract in that signature, which is what #
-# lets each livelit choose its own. YOUR definition says what they #
-# are, and the members are then checked at those types. #
+# Two ways to write a command: #
 
-# Model     the state one use carries, stored in its argument #
-# Action    what the GUI emits when the reader interacts #
-# Expansion what a use MEANS to the program #
+#   Pure(x)              answers x, and does nothing else #
+#   do p <- c in body    runs command c, binds its answer to the #
+#                        pattern p, then runs the command body #
 
-# Expansion is the one clients see. A use of ^flag has type #
-# Expansion no matter how expand_fun is written, so a reader can #
-# reason about the use without reading the widget's code. #
+# Every livelit in this deck answers with Pure. One with commands to #
+# sequence runs them with do, then answers with Pure, where the #
+# paper's do block ends in return (Fig. 3 l.13). The do form is the #
+# paper's own notation: Sec. 3 says Figure 3 is written with #
+# do-notation for presentation. Here it is real syntax. A bind is #
+# not recursive -- p does not reach into c -- so a recursive helper #
+# goes in an ordinary let between two binds. #
+
+# There are two command types, and the difference between them is #
+# the point (Sec. 3.2.4). An UpdateCmd may make and write splices. A #
+# ViewCmd may read and show them. An UpdateCmd may NOT evaluate a #
+# splice, so that the model cannot depend directly on which closure #
+# the reader has selected (a view can still put a result into an #
+# Action it emits, Sec. 3.2.4). A do block is in one of the two, so #
+# a command of the other kind -- eval_splice inside update, say -- #
+# is a type error at that command. #
+
+# SPLICES #
+
+# A splice is a region of the CLIENT's program that sits inside the #
+# widget: an editor for ordinary code (Sec. 2.4.2), in the client's #
+# scope (Sec. 2.4.3). The livelit holds a SpliceRef, a handle to #
+# one: just SpliceRef, never SpliceRef(Int), as in the paper, where #
+# the splice has a type and the handle does not (Sec. 3.2.1). Here a #
+# splice is typed only by where it sits. Under a bare SpliceRef, as #
+# in Color (Figure 3), that is ?, so no type is checked there yet. #
+
+# Five commands, with the paper's names: #
+
+#   new_splice  : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef)  3.2.1 #
+#   set_splice  : (SpliceRef, Exp)  -> UpdateCmd(())         3.2.4 #
+#   eval_splice : SpliceRef -> ViewCmd(Maybe(Result))        3.2.3 #
+#   editor      : (SpliceRef, Dim)  -> ViewCmd(Html.T)       3.2.3 #
+#   result_view : (SpliceRef, Dim)  -> ViewCmd(Maybe(Html.T)) 3.2.3 #
+
+# eval_splice answers Some(Val(v)) or Some(Indet); None, for no run #
+# at all, cannot happen while a ref carries its value. The paper's #
+# Val and Indet each hold an Exp, such as IntLit (Sec. 3.2.3); here #
+# Val holds the value itself, and Indet holds nothing. #
+
+# The splice store is the program text. When a model is committed, #
+# each SpliceRef in it is written back as the splice itself, in #
+# parens, where the ref sits in the use's model argument. Each pass #
+# reads those parens back as refs, directed by the Model type. So #
+# parens in a use's text are how its splices are saved, not a way to #
+# make one: new_splice is the only command that makes a splice #
+# (Sec. 3.2.1). #
+
+# Splices are capture-avoiding: the expansion takes them as function #
+# arguments, so a splice sees the client's bindings and never the #
+# livelit's (Sec. 2.4.3). The paper lists no command to delete one. #
+# Here deletion is implicit: a splice that no ref in the committed #
+# model reaches is not written back, so it is gone. #
+
+# WHAT DOES NOT RUN YET #
+
+# Two departures are flagged above: Functional is an addition, and #
+# a Val holds a value, not an Exp. Beyond those, four parts of the #
+# paper's design are not here yet: #
+
+# result_view does not run yet. It is in the types, and a livelit #
+# that uses it typechecks, but running it reports #
+# "not implemented". The other four splice commands run, and #
+# Color (Figure 3) uses all four. Pure and the do form run too: the #
+# runner performs a bind by running its command and passing the #
+# answer on. #
+
+# There is no quotation yet. The paper writes Exp and Typ values #
+# with quasiquotation, like `0` (Sec. 3.2.1), and Macro returns a #
+# quoted function over the splices (Sec. 3.2.5). Here Exp has one #
+# constructor, IntLit(Int), which Fig. 3 l.49-52 writes. So #
+# new_splice can start a splice only empty or at a number, and #
+# set_splice can only give it a number. A Macro expand cannot return #
+# real code: its Exp can only be a hole or an IntLit, and a use does #
+# not call it yet, so a use of a Macro livelit means a hole of its #
+# Expansion type. Typ is a stopgap, a closed list of base type names #
+# like IntT. new_splice takes one and discards it: a splice is typed #
+# only by where it sits. #
+
+# SpliceRef is not abstract yet. A ref carries the value its code #
+# had in the current run, and its constructor is visible, so an #
+# update could take the value out of a ref, which Sec. 3.2.4 is #
+# designed to prevent. #
+
+# The paper's implementation also lists a context: the bindings from #
+# its definition site that the expansion may use (Sec. 3.2, Fig. 3 #
+# l.6), which keeps an expansion independent of where it is used #
+# (Sec. 3.2.5). There is no such member here. #
+
+# Two more differences come from the language, not the paper. Hazel #
+# cannot write an applied type, so you cannot yourself annotate #
+# something as UpdateCmd(Model). The member's expected type supplies #
+# it, which is also why Pure needs no declaration. And the paper's #
+# Html takes as a parameter the Action its handlers emit, so view #
+# gives ViewCmd(Html(Action)) (Sec. 3.2.3). Html.T takes none here: #
+# Hazel has no type-level application to give it one. #
 
 # A LIVELIT IN FULL #
 
-# Everything above, in the smallest thing that is still a livelit: #
-# a toggle whose expansion is a Bool. #
+# The smallest thing that is still a livelit: a toggle whose #
+# expansion is a Bool. No splices, so every command it runs is Pure. #
 
 let ^flag = {
   type Model = Bool;
   type Action = Bool;
   type Expansion = Bool;
 
-  # what a fresh use starts as: typing ^flag then space inserts it #
-  let init : Model = false;
+  # init is a command: typing ^flag then a space performs it, and #
+  # the model it answers, false, is the new use's text. #
+  let init = Pure(false);
 
-  # the GUI acted; give back the next model #
-  let update = fun (_m, a) : (Model, Action) -> a;
+  # update takes the model, then the action, and returns a COMMAND. #
+  # Pure(a) is the command that answers a -- the next model -- and #
+  # does nothing else. #
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
 
-  # the GUI itself. Handlers carry Actions, not functions: #
-  # on_click(...) says which Action a click emits #
-  let view = fun m : Model ->
+  # view returns a command too. Handlers carry Actions, not #
+  # functions: on_click(...) says which Action a click emits. #
+  let view = fun m : Model -> Pure(
     Html.button(
       [Attr.on_click(if m then false else true),
        Attr.style([("font-family", "var(--code-font)"),
                    ("font-size", "0.8em")])],
-      [Html.text(if m then "yes" else "no")]);
+      [Html.text(if m then "yes" else "no")]));
 
-  # what the use means: here, the model itself #
-  let expand_fun = fun m : Model -> m;
+  # what a use means: here, the model itself, so Functional. Macro, #
+  # the paper's arm, cannot return real code yet: no quotation. #
+  let expand = Functional(fun m : Model -> m);
 
   # optional: the widget's footprint, in character cells #
   let shape = Inline(5)
 } in
 
-# Each use below carries its own model, right here in the text: #
-# click one and watch its argument change, and the result with it. #
-# The two toggles are independent -- one use knows nothing of the #
-# other. #
+# Each use carries its own model, right here in the text: click one #
+# and watch its argument change, and the result with it. The two #
+# toggles are independent -- one use knows nothing of the other. #
 
 (^^livelit(^flag(true)), ^^livelit(^flag(false)))
 
 # WHAT IS CHECKED, AND WHERE #
 
-# At the DEFINITION: your module is checked against Livelit above, #
-# so expand_fun really does produce an Expansion, update really #
-# take a (Model, Action), and view really does produce Html.T. #
+# At the DEFINITION: the module is checked against Livelit. update #
+# must take a Model then an Action and give back an UpdateCmd(Model); #
+# view must give back a ViewCmd(Html.T); expand must be one arm of #
+# the sum. A wrong member reads as an ordinary type error at that #
+# member. #
 
-# At each USE: the expansion is checked again, against the declared #
-# Expansion. A definition-site check cannot see an expansion whose #
-# type depends on the model VALUE, so both checks earn their keep. #
+# At each USE: in the paper this is the ONLY check that what expand #
+# generates has the declared type (Sec. 3.2.5). expand returns #
+# untyped quoted code, and the type of the function it quotes #
+# depends on every splice in the list, which grows and shrinks per #
+# use. So nothing ahead of time says that the generated code has the #
+# declared Expansion type. Checking expand at the definition is an #
+# addition here, and is enough for Functional. The use-site check #
+# runs at every use today. For a Functional livelit it repeats what #
+# the definition already guaranteed. For Macro it checks only a #
+# placeholder until there is quotation; then it does real work. #
 
 # WHERE TO GO NEXT #
 
+# Color (Figure 3) the paper's own example, rebuilt line by line #
 # Define a Slider  a number you drag, expanding to that number #
+# The Expansion    Functional and Macro side by side #
+# SpliceRef, MVP   a slider whose two bounds are splices #
 # Emotion          the widget IS the control: drag a face #
 # Color Picker     helpers are ordinary members of the module #
+# Tree Care        a model that is a tree, redrawn as it grows #
+# Timings          what one frame of a livelit costs #
+# Dynamic Row or Column #
+#                  a row of splices that grows and shrinks #

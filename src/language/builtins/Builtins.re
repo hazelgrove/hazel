@@ -14,8 +14,13 @@ let builtins =
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
   @ List.map(const_builtin, BuiltinsADT.module_builtins)
+  @ List.map(const_builtin, BuiltinsADT.monad_ops)
   @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
-  @ List.map(fn_builtin, BuiltinsColor.builtins);
+  @ List.map(fn_builtin, BuiltinsColor.builtins)
+  @ [
+    fn_builtin(BuiltinsADT.splice_value),
+    fn_builtin(BuiltinsADT.fill_quote),
+  ];
 
 let builtins =
   List.sort(
@@ -37,6 +42,9 @@ let ctx_entries =
       ((name, typ)) => BuiltinsADT.create_type_alias(name, typ),
       BuiltinsColorScheme.type_aliases,
     );
+
+/* Every statics ctx ends in this list; index it once (see Ctx.tail_index). */
+let () = Ctx.index_tail(ctx_entries);
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
