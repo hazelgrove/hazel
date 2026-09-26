@@ -1,203 +1,284 @@
 # Livelits in Hazel
 
-## Background
+Hazel implements the live literals (livelits) of Omar, Moon, Blinn, Voysey,
+Collins and Chugh, *Filling Typed Holes with Live GUIs*, PLDI 2021
+([paper](https://hazel.org/papers/livelits-pldi2021.pdf)). Section, figure and
+line numbers below are that paper's. This document is the current design and
+the plan for what is missing; the running record of the work, with
+measurements, is the description of PR #2597.
 
-Hazel implements a version of the live literals (livelits) mechanism described in [our PLDI 2021 paper](https://hazel.org/papers/livelits-pldi2021.pdf), currently limited to:
+A livelit is a GUI that fills an expression hole. A client writes `^name`,
+presses space, and gets a widget whose state, the **model**, is part of the
+program text. What the use means is the livelit's **expansion**.
 
-- No parameters
-- No splices
+## Status
 
-### Functional livelits and macro livelits
+| | |
+|---|---|
+| One signature, `expand` a sum of `Functional` and `Macro` | done |
+| Livelit errors are type errors (a definition is checked against the signature) | done |
+| Commands: `init`, `update` and `view` as command trees, with `do` syntax | done |
+| Splices: `new_splice`, `set_splice`, `eval_splice`, `editor` | done; `result_view` not yet |
+| `SpliceRef` not type-indexed | done |
+| A livelit's footprint may depend on its model (`shape`) | done |
+| `Exp` inhabited by quoted Hazel code | **next**: `IntLit` is its only constructor; see [Quotation](#quotation-the-plan) |
 
-Two terms for the two points in the design space. Use them; they keep the
-distinction from being re-argued each time.
+Working examples, shipped as the Documentation → Livelits slides
+(`hazel-programs/docs/livelits/`):
 
-A **functional livelit** produces a *value*. It answers to the `LivelitFun`
-signature, whose expansion member is an ordinary function from the model to
-the expansion type:
+- **Color (Figure 3)**: the paper's `$color`, keyed to Fig. 3 line by line.
+  Its four splices name variables that sliders set. Everything runs except
+  its Macro `expand` (Fig. 3 l.56), which needs quotation.
+- **Dynamic Row or Column**: a row or column of cells that grows and shrinks.
+  `init` makes three cells with `new_splice`, **+** and **x** add and drop
+  cells, and the view sums them with `eval_splice`: the number of splices is
+  not fixed by the livelit.
 
-```
-expand_fun : Model -> Expansion
-```
+## Defining a livelit
 
-Everything in Hazel today is a functional livelit. The GUI edits the model, the
-model determines a value, and clients type against `Expansion`.
-
-A **macro livelit** produces a *program fragment*. It answers to `LivelitMac`,
-whose expansion member returns an AST together with the list of splices that
-fragment takes as arguments, as in Fig. 3 of the paper:
-
-```
-expand_mac : Model -> (Exp, List(SpliceRef))
-```
-
-The pair is there because the expansion must treat splices parametrically: the
-first component takes one argument per listed `SpliceRef` and returns the
-expansion type. `expand_mac` itself stays pure — splices bring the monads, but
-not to `expand_mac`.
-
-The two are separate *signatures* rather than two optional members of one,
-because a signature here can only say that a member is REQUIRED: optional
-members are expressed by omission, since a definition may always carry extra
-members (width subtyping). So "exactly one of `expand_fun` / `expand_mac`" has
-to be a question about which signature a definition answers to.
-
-**Macro livelits subsume functional ones, not the other way round.** A macro
-livelit whose splice list is empty and whose `Exp` is a closed encoding of a
-value is exactly a functional livelit; a functional livelit cannot embed a
-client's expression, because it never handles syntax. So today's
-`expand_fun : Model -> Expansion` is an equivalent encoding of the paper's closed
-expansion rather than a deviation from it, and the macro form is a
-generalization rather than a replacement.
-
-Reaching the macro form needs a `SpliceRef` primitive type with operations over
-it (`new_splice`, `set_splice`, `eval_splice`, in the paper's `UpdateCmd` and
-`ViewCmd` monads), a reflected `Exp` type, and splice editors in the GUI. The
-statics side is already shaped for it: the use-site expansion check below
-becomes a check of the pair's parameterized first component, which degenerates
-to what it does now when the splice list is empty.
-
-## Overview
-
-A livelit is a live GUI widget which can be inserted into expressions and generates code by expansion to an expression of some given type. To invoke a livelit, insert the name of the livelit (always prefixed with ^) then press space.
-
-Each livelit maintains an internal model, which we do not intend clients of the livelit to interact with. When testing a livelit you've created, you can unproject the livelit (by clicking the button on the bottom right of the Hazel UI) and edit this internal model directly.
-
-Livelits live in the typing context, so they can be viewed using the context inspector. They can be defined either as OCaml builtins or in Hazel itself.
-
-## User-Defined Livelits
-
-A Hazel program can define a functional livelit by binding a livelit name to a
-module:
+A livelit is a module bound to a `^name`, checked against one signature:
 
 ```
-let ^pct = {
-  type Model = Int;
-  type Action = Int;
-  type Expansion = Int;
-  let init : Model = 50;
-  let update = fun (m, a) : (Model, Action) -> a;
-  let view = fun m : Model -> ...;
-  let expand_fun = fun m : Model -> m
-} in
-^pct(25) + ^pct(75)
+type Livelit = {
+  type Model;  type Action;  type Expansion;
+  let init   : UpdateCmd(Model);                        (Sec. 3.2.1)
+  let update : Model -> Action -> UpdateCmd(Model);     (Sec. 3.2.4)
+  let view   : Model -> ViewCmd(Html.T);                (Sec. 3.2.3)
+  let expand : + Functional( Model -> Expansion )
+               + Macro( Model -> (Exp, List(SpliceRef)) )   (Sec. 3.2.5)
+}
 ```
 
-with `update: (Model, Action) => Model`, `view: Model => Html.T` (handlers emit
-Actions, as in the MVU apps — see mvu.md), and `expand: Model => Expansion`.
-An optional member `shape = Inline(width) | Block(width, height) |
-Tab(width, height)` (a `LivelitShape`) sets the projector's footprint in
-character cells. Helpers are ordinary additional members.
+- The three type members are the livelit's interface: `Model` types each
+  use's argument, `Action` types what the view emits, and `Expansion` is what
+  clients type against.
+- A missing member is `ModuleMissingMembers`; a mistyped one is an ordinary
+  type error at that member.
+- Optionally, `let shape = Inline(w) | Block(w, h) | Tab(w, h)` sets the
+  widget's footprint in character cells, or `let shape = fun m : Model -> ...`
+  makes it follow the model.
+- There is no `context` clause (Fig. 3 l.6). `init` and `update` run in the
+  builtin environment, so a definition must be closed: helpers are members.
 
-All three type members are required, and they are the livelit's interface.
-`Model` types each use's argument, `Action` types what the view emits, and
-`Expansion` is what clients type against. There is no tuple form: a tuple
-has nowhere to declare the types.
+### Functional and Macro
 
-## Type-Checking the Expansion
+`expand` commits to one of two arms.
 
-A use of `^pct` synthesizes the declared `Expansion`, not the type of whatever
-code `expand` produced. The check that earns this is performed for each
-expansion, on its output: statics types the expansion (in synthetic mode, on a
-throwaway info map) and compares the result with the declaration, marking the
-use `BadLivelitExpansion` on an inconsistency — "Livelit expands to type Int,
-but declares Expansion = String". The fault is located in the livelit rather
-than in the client's surrounding code.
+- **`Functional(f)`**: the use means `f(model)`, a value. Every working
+  livelit today is Functional. This arm is ours; the paper's `expand` is the
+  Macro arm alone.
+- **`Macro(g)`**: `g(model)` returns code and the splices that code takes,
+  as in Fig. 3. Until quotation exists, a use of a Macro livelit elaborates to
+  a hole ascribed to `Expansion`.
 
-Checking at the use site is the PLDI 2021 paper's own strategy rather than a
-deviation from it. §3.2.5 records that Hazel does not statically check
-`expand`'s definition, and that the parameterized expansion is instead
-"validated at each livelit invocation site, with errors reported to the
-client". For a functional livelit that expansion takes no arguments, so
-validating it degenerates to checking the expansion at the expansion type,
-which is what happens here; the macro form generalizes the same check. The paper names definition-site verification via "a typed
-quotation system as in, e.g., MetaOCaml" as the alternative, awkward because
-"the type of the quotation depends on the type of each splice in the splice
-list".
+## Commands
 
-Consistency, not equality, is the test, as everywhere else in the language: an
-expansion that synthesizes `Unknown` (an unannotated `expand` whose body gives
-statics nothing to go on, or a builtin livelit generating a hole) stays gradual
-and is not marked. What the declaration buys in that case is still real —
-clients type against a known type instead of `Unknown`.
+`UpdateCmd(t)` and `ViewCmd(t)` are builtin trees of commands, which the
+editor performs:
 
-The expansion typed is the one built from the *surface* model, since statics
-traverses surface syntax only; the elaborated model, which a user-defined
-livelit's expansion embeds, is what actually evaluates.
+- both have `Pure` (answer a value) and `Bind`;
+- `UpdateCmd` has `NewSplice` and `SetSplice`;
+- `ViewCmd` has `EvalSplice`, `Editor` and `ResultView`.
 
-Each use elaborates to `^name.expand_fun(model)` through the runtime `^name`
-binding, so shadowing and scoping behave like ordinary lets, and each use's
-model lives in its own argument syntax. `^name.member` is also surface
-syntax: it accesses the definition record (e.g. `^pct.expand_fun(25)`).
+`do p <- c in body` is real syntax, in the tile parser and in Menhir. The
+checker works out both command types, so authors never write `@<...>` for a
+bind. A do-block is in one kind of command, so `eval_splice` inside `update`
+is a type error (Sec. 3.2.4: the model must not depend *directly* on the
+client's code).
 
-A projected use's `view` runs in the main evaluation (sampled at the
-projector, which renders the live Html.T), so probes inside `view` and
-`expand` see samples per use. Interactions commit the transition itself as
-the new argument — `^name(^name.update(prev, action))` — normalized by the
-next evaluation, so the last interaction stays in the program where
-`update`'s probes and the stepper can reach it; each commit collapses the
-previous transition to its value first. Actions must therefore be
-first-order data. `update` alone still evaluates in the builtin environment
-(at event time, as a fallback), so helpers belong among the members.
+`init` runs when a use is created (typing `^name` then space), `update` at each
+event, and `view` whenever the use is drawn. `update`'s answer is written into
+the program text as the new model.
 
-Example programs: `hazel-programs/docs/livelits/` (shipped as the "Livelits"
-doc slides, embedded at compile time — an edit there ships on the next
-build). The adapter is `src/language/statics/UserLivelit.re`; rendering is
-the `user_def` branch of `LivelitProj.re`.
+## Splices
 
-## Creating a Built-in Livelit
+A splice is a piece of the client's own code inside a livelit's GUI, in the
+client's scope (Sec. 2.4). `new_splice` is the only way to make one.
 
-A built-in livelit is created by implementing the `BuiltinLivelit` module type. The current structure uses OCaml modules to define livelits, which are converted into raw livelits (which use Hazel language encodings in preparation for future work on user-defined livelits) at compile time.
+- **The program text is where splices live.** Each ref in a use's model is
+  written back as the splice itself, in parens, at the ref's position:
+  Color's use reads `^color((r = (red), g = (green), b = (blue), a = (alpha)))`.
+  Nothing is kept beside the text, so undo, save and reload keep every splice,
+  and reloading rebuilds each parenthesized field or list element.
+- **A ref carries the value its code had in that run**, because the use's
+  model argument is evaluated in the use's own scope. `eval_splice` reads it
+  and answers `Some(Val(v))` or `Some(Indet)`.
+- `set_splice` writes new code at the ref's position. Deletion is implicit:
+  a splice no ref reaches is not written back.
+- `new_splice(IntT, Some(IntLit(0)))` gives a splice initial code. `IntLit` is
+  `Exp`'s one constructor, because a literal needs no quotation.
 
-### Module Type for Built-in Livelits
+Known gaps: the `SpliceRef` constructor is visible, so a ref can be forged or
+read in `update`; `new_splice` discards its `Typ` argument, so a splice is
+typed only by where it sits.
+
+## Checking a use
+
+A use synthesizes the declared `Expansion`. Its expansion is checked at the
+use site and a mismatch is `BadLivelitExpansion` ("Livelit expands to type
+Int, but declares Expansion = String"), located in the livelit rather than in
+the client's code. That is the paper's own strategy: Sec. 3.2.5 says `expand`
+is not checked at its definition, and the parameterized expansion is
+"validated at each livelit invocation site". Consistency, not equality, is the
+test, as elsewhere in Hazel.
+
+For `Functional` this check is vacuous today, because `Functional(f)` is
+already checked against `Model -> Expansion` where it is written. It does its
+real work once Macro can return code.
+
+## Quotation: the plan
+
+### What the paper requires
+
+Fig. 3 l.55-57:
+
+```
+let expand : Model -> (Exp, List(SpliceRef)) =
+  fun model -> (`fun r g b a -> (r, g, b, a)`,
+                [model.r, model.g, model.b, model.a])
+```
+
+1. **The author writes the function over the splices.** `` `fun r g b a ->
+   ...` `` is a quotation of a closed function with one parameter per listed
+   splice. The system does not form this function; it checks that it is one
+   (Sec. 3.2.5: "a function (here curried) that takes an argument for each
+   listed SpliceRef ... So here, the parameterized expansion for $color must
+   be a function of type Int -> Int -> Int -> Int -> Color").
+2. **The list says which splice feeds which parameter.** It holds refs, not
+   code: `expand` never sees the client's code (the splices are treated
+   "parametrically").
+3. **The system does the rest, at each use** (Fig. 5, Sec. 4.2):
+   - it evaluates `expand(model)` to get the encoded expansion and the list
+     (premise 3);
+   - it decodes the encoding into an ordinary expression (premise 4);
+   - it checks that expression against `τ1 -> ... -> τn -> Expansion`, where
+     `τi` is each listed splice's declared type (premise 5), and marks the use
+     with an error if not;
+   - it expands each splice's code in the client's own context (premise 6);
+   - the use **means the decoded function applied to the splice code**:
+     `e_pexpansion(e_1)...(e_n)` (the rule's conclusion).
+4. **Two binding properties fall out.** The quoted function must be closed, so
+   it cannot depend on what happens to be in scope where the livelit is used
+   (context independence). And the splices arrive as arguments, so a binder
+   inside the expansion cannot capture a client variable, since application
+   substitutes without capture (Sec. 2.4.3, Sec. 4.2).
+
+So `Exp` is a staging device: `expand` produces a value of type `Exp`, and only
+the livelit mechanism takes one apart, by decoding it into program code. No
+Hazel program needs an `eval : Exp -> a`.
+
+### How this maps onto this branch
+
+- **Where the application happens.** `UserLivelit.mk_expand_dot` builds each
+  use's elaboration: today a `case` on `^name.expand` whose `Macro` arm is an
+  ascribed hole. With quotation, the Macro arm becomes the decoded function
+  applied, in list order, to the code of each listed splice.
+- **Where the splice code comes from.** It is already in the use's text (the
+  parenthesized splices above), and `UserLivelit.expose_splice_refs` already
+  pairs each ref with its code on every statics pass. So each listed
+  `SpliceRef` resolves to the code at its position in the use's model.
+- **When `expand` runs.** The paper runs `expand(model)` during expansion,
+  before the program is checked. Two ways to do that here:
+  - *at edit time*, like `init` and `update`: the editor evaluates
+    `expand(model)` when a use's model or the definition changes, decodes the
+    quotation, and the use elaborates to the application. The splice types
+    are checked statically at the use and errors are ordinary static errors,
+    as in the paper. This is the recommendation.
+  - *at run time*: the Macro arm elaborates to a builtin that evaluates
+    `g(model)`, decodes the quotation, evaluates it, and applies it to the
+    values the refs carry. Smaller, but a type mismatch would only surface as
+    a failed cast when the program runs.
+- **Splice types.** Premise 5 needs each splice's declared type, but
+  `new_splice` discards its `Typ` today. Either the type is kept with the
+  splice (for example as an ascription on the parenthesized code in the
+  model text) or the check uses the type the splice's code synthesizes.
+  Which is an open decision.
+
+### `Exp`: quotation for code, lifting for values
+
+- **Introduction.** `'( e )` quotes the expression `e`, written in ordinary
+  Hazel syntax. Color's l.56 becomes
+  `Macro(fun m -> ('(fun r g b a -> (r, g, b, a)), [m.r, m.g, m.b, m.a]))`.
+- **No elimination form for authors.** Decoding belongs to the livelit
+  mechanism. `Exp` can be abstract: authors build `Exp` values and hand them
+  to `expand`, `new_splice` and `set_splice`, but do not inspect them.
+  (Hazel's `Result` already carries values rather than `Exp`: `Val(v) |
+  Indet`.)
+- **Computed values need lifting, not quotation.** Fig. 3 l.49-52,
+  `set_splice(model.r, IntLit(c.r))`, puts a number *computed by update* into
+  the client's code. `'(c.r)` would quote the expression `c.r` itself, not its
+  value. So lifting functions stay (`IntLit : Int -> Exp`, and siblings for
+  other base types), and antiquotation, splicing an `Exp` value into a
+  quotation, is the later generalization. Color needs neither in `expand`: its
+  quoted function is closed.
+
+### The `'( e )` syntax
+
+It fits the lexer, with three things to settle in a spike:
+
+- `'` cannot **start** a name (`Token.name_start_class` excludes it), so at
+  the start of an operand `'(` is unambiguous. But `'` may appear later in a
+  name (`x'`, `x''`: `Var.next_name` primes names), so `f'(e)` stays an
+  application of `f'`, and a quotation must follow a space or an operator.
+- Backtick, the paper's own notation, is taken: `` `...` `` is a quoted label
+  (`Token.quoted_label_regexp`).
+- The tile system needs a two-shard form `'(` ... `)` like parentheses, and
+  typing it passes through a lone `'`, which must be an acceptable token
+  prefix. A new form also needs a `MakeTerm` case (`.hz` files load through
+  the tiles and FastParse), Menhir support for the CLI, and printing.
+
+If the spike shows the lone `'` is a problem, a keyword form (`quote(e)`) needs
+no new lexing.
+
+## Built-in livelits
+
+A built-in livelit implements `LivelitCtx.BuiltinLivelit` in OCaml and is
+converted to a raw livelit by `raw_of_builtin`:
 
 ```reasonml
-type model_exp = TermBase.Exp.t;
-type expansion_exp = TermBase.Exp.t;
-type action_exp = TermBase.Exp.t;
-
 module type BuiltinLivelit = {
-  // Livelit name (used with ^ prefix to invoke)
-  let name: livelit_name;
-
-  // Model type and related conversions
+  let name: string;
   type model_t;
-  let hazel_model_t: TermBase.Typ.t; // defines the type of model_exp
+  type expansion_t;
+  type action_t;
+
+  let hazel_model_t: TermBase.Typ.t;
   let model_to_hazel: model_t => model_exp;
   let model_from_hazel: model_exp => option(model_t);
   let model_default: model_t;
 
-  // Expansion type and related conversions
-  type expansion_t;
-  let hazel_expansion_t: TermBase.Typ.t; // defines the type of expansion_exp
-  let expansion_f: model_t => expansion_t;
-  let expansion_to_hazel: expansion_t => expansion_exp;
+  let hazel_expansion_t: TermBase.Typ.t;
+  let expand: model_t => expansion_t;
+  let expand_to_hazel: expansion_t => expansion_exp;
 
-  // Actions that update the model
-  type action_t;
-  let hazel_action_t: TermBase.Typ.t; // defines the type of action_exp
+  let hazel_action_t: TermBase.Typ.t;
   let action_to_hazel: action_t => action_exp;
   let action_from_hazel: action_exp => option(action_t);
+
   let update: (action_t, model_t) => model_t;
-
-  // View/rendering function
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
-
-  // Shape (footprint) specification
+  let view:
+    (model_t, action_t => Ui_effect.t(unit)) => Virtual_dom.Vdom.Node.t;
   let shape: ProjectorShape.t;
 };
 ```
 
-## Registering a New Livelit
-
-After creating a module that implements the `BuiltinLivelit` interface, add it to the `livelits` list at the end of the file:
+Register it in the `livelits` list at the end of `src/language/Livelit.re`,
+which today holds `Js`:
 
 ```reasonml
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module YourNewLivelit)]
-  |> List.map(raw_of_builtin);
+  [(module Js), (module YourNewLivelit)] |> List.map(raw_of_builtin);
 ```
 
-## Styling Livelits
+Style livelits in `src/web/www/style/projectors/proj-livelit.css`.
 
-To add CSS to style your livelit, modify the `src/web/www/style/projectors/proj-livelit.css` file.
+## Where the code is
+
+| | |
+|---|---|
+| the signature, `Functional` / `Macro`, `Exp`, commands | `src/language/builtins/BuiltinsADT.re` |
+| checking a definition, splice refs, a use's elaboration | `src/language/statics/UserLivelit.re` |
+| performing commands | `src/haz3lcore/projectors/UpdateCmdRunner.re`, `ViewCmdRunner.re` |
+| the splice store in the text | `src/haz3lcore/projectors/SpliceStore.re` |
+| the widget | `src/haz3lcore/projectors/implementations/LivelitProj.re` |
+| example programs | `hazel-programs/docs/livelits/` |
