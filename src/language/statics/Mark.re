@@ -49,6 +49,25 @@ type tpat_var_err =
   | Other
   | NotCapitalized;
 
+/* What is wrong with a Macro use's expansion (Sec. 3.2.5, Fig. 5 premise 5).
+   The code expand returns must be a function taking each listed splice, at
+   the type its code has, to the declared Expansion; this says which part
+   of that it fails, so the message can be about Expansion itself and not
+   the arrow the check is phrased with. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type macro_expansion_problem =
+  /* Fewer parameters than splices: the code is not a function of them. */
+  | TooFewParameters
+  /* Parameter i (from 0) cannot take splice i's code. */
+  | SpliceParameter({
+      index: int,
+      param: Typ.t,
+    })
+  /* Applied to its splices, the code has this type, not Expansion. */
+  | Result(Typ.t)
+  /* The types fit, but the code has an error of its own. */
+  | ErrorInCode;
+
 /* NOTE: Declaration order is load-bearing.
    The priority of a mark (for cursor inspector / error printer selection)
    is determined by its position in this type: earlier-declared constructors
@@ -86,6 +105,15 @@ type t =
   | BadLivelitExpansion({
       declared: Typ.t,
       actual: Typ.t,
+    })
+  /* A Macro use: the code its expand returned, `code`, does not take the
+     listed splices (their codes' types, in order) to `expansion`, the
+     declared Expansion. */
+  | BadMacroExpansion({
+      expansion: Typ.t,
+      splices: list(Typ.t),
+      code: Typ.t,
+      problem: macro_expansion_problem,
     })
   | InvalidLivelitDef(livelit_def_error)
   | BadTheorem(Typ.t)

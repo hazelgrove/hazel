@@ -4,6 +4,8 @@
 
 (copy_files ../../hazel-programs/docs/livelits/hygiene/*.hz)
 
+(copy_files ../../hazel-programs/docs/livelits/expansion-errors/*.hz)
+
 (library
  (name livelitdemos)
  (libraries haz3lcore)

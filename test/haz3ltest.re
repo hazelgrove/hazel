@@ -79,6 +79,7 @@ let (suite, exit_with_test_status) =
     @ Test_UserLivelits.tests
     @ Test_Dump.tests
     @ [Test_CtxIndex.tests]
+    @ [Test_ExpansionErrors.tests]
     @ [Test_Move.tests]
     @ [Test_Quote.tests]
     @ [Test_Quote.macro_tests]

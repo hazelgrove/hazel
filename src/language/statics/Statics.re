@@ -2030,8 +2030,10 @@ and uexp_to_info_map =
                application substitutes without capture (Sec. 2.4.3).
              - Premise 5: the body must be a function taking each listed
                splice, at the type its code has, to the declared
-               Expansion. One consistency check against that arrow; a
-               mismatch is BadLivelitExpansion, at the use.
+               Expansion. The body is analyzed against that arrow, and a
+               failure is BadMacroExpansion, at the use, saying which part
+               fails: a parameter, the result against Expansion, or an
+               error in the code itself (UserLivelit.macro_expansion_mark).
              - The body is typed on a throwaway map, with fresh ids: its
                ids belong to the quotation in the definition, whose cursor
                info must not be overwritten by each use. */
@@ -2101,15 +2103,28 @@ and uexp_to_info_map =
                 body,
                 m,
               );
+            /* Every id in the body, of every sort: a parameter annotated
+               with a type its splice cannot have is marked on the
+               PATTERN, and would be missed by looking at expressions. */
             let body_ids = {
               let ids = ref([]);
+              let f:
+                'a.
+                (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) =>
+                IdTagged.t('a)
+               = (
+                (continue, x) => {
+                  ids := IdTagged.ids(x) @ ids^;
+                  continue(x);
+                }
+              );
               let _ =
                 Exp.map_term(
-                  ~f_exp=
-                    (continue, e) => {
-                      ids := [Exp.rep_id(e), ...ids^];
-                      continue(e);
-                    },
+                  ~f_exp=f,
+                  ~f_pat=f,
+                  ~f_typ=f,
+                  ~f_tpat=f,
+                  ~f_rul=f,
                   body,
                 );
               ids^;
@@ -2118,8 +2133,8 @@ and uexp_to_info_map =
               List.exists(
                 id =>
                   switch (Id.Map.find_opt(id, body_m)) {
-                  | Some(Info.InfoExp({marks: [_, ..._], _})) => true
-                  | _ => false
+                  | Some(info) => Info.marks_of(info) != []
+                  | None => false
                   },
                 body_ids,
               );
@@ -2164,17 +2179,33 @@ and uexp_to_info_map =
                 ~elab_syn_ty=expansion_t,
                 ~marks=
                   body_has_error
-                    ? [
-                      BadLivelitExpansion({
-                        declared: expected,
-                        actual: body_info.elab_syn_ty,
-                      }),
-                    ]
-                    : UserLivelit.expansion_mark(
+                  || !
+                       Typ.is_consistent(
+                         ctx,
+                         body_info.elab_syn_ty,
+                         Typ.normalize(ctx, expected),
+                       )
+                    ? UserLivelit.macro_expansion_mark(
                         ctx,
-                        ~declared=expected,
-                        ~actual=body_info.elab_syn_ty,
-                      ),
+                        ~expansion=Typ.normalize(ctx, expansion_t),
+                        ~splices=List.map(Typ.normalize(ctx), code_tys),
+                        /* The code's type as the author wrote it: analysis
+                           against the arrow fills each parameter in with
+                           its splice's type, which would hide an annotated
+                           parameter that cannot take its splice. Only
+                           computed when there is something to report. */
+                        ~code={
+                          let (syn, _, _) =
+                            go(
+                              ~ctx=Builtins.ctx_init(ctx.use_mode),
+                              body,
+                              m,
+                            );
+                          syn.elab_syn_ty;
+                        },
+                        ~code_has_error=body_has_error,
+                      )
+                    : [],
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
                   SubexpProbeTargets.union_all([

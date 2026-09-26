@@ -22,6 +22,34 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Hygiene / 2. Context Independence", [%blob "context.hz"]),
     ("Hygiene / 3. Generated Binders", [%blob "generated-binders.hz"]),
     ("Hygiene / 4. Abs", [%blob "abs.hz"]),
+    /* Livelits / Expansion Type Errors: where a mismatch with
+       Expansion is reported, and how, for each kind of expand
+       (hazel-programs/docs/livelits/expansion-errors). */
+    ("Expansion Type Errors / About", [%blob "errors-about.hz"]),
+    (
+      "Expansion Type Errors / Functional 1. The Result",
+      [%blob "functional-result.hz"],
+    ),
+    (
+      "Expansion Type Errors / Functional 2. Inside the Body",
+      [%blob "functional-body.hz"],
+    ),
+    (
+      "Expansion Type Errors / Functional 3. The Model",
+      [%blob "functional-model.hz"],
+    ),
+    (
+      "Expansion Type Errors / Macro 1. The Result",
+      [%blob "macro-result.hz"],
+    ),
+    (
+      "Expansion Type Errors / Macro 2. A Parameter",
+      [%blob "macro-parameter.hz"],
+    ),
+    (
+      "Expansion Type Errors / Macro 3. Not a Function of the Splices",
+      [%blob "macro-not-a-function.hz"],
+    ),
   ]
   |> List.map(((name, text)) =>
        (

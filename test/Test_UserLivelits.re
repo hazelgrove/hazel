@@ -43,11 +43,16 @@ let has_mark = (pred: Mark.t => bool, m: Statics.Map.t): bool =>
    precise location, reported earlier, but not the livelit-specific mark.
 
    So these accept either: the point is that the definition does not pass. */
+/* The definition is rejected: marked invalid, or a member disagreeing
+   with its signature, which is an ordinary mismatch where it is written.
+   (This once accepted ANY mark, so a test using it passed whatever the
+   error was.) */
 let def_is_marked = (m): bool =>
   has_mark(
     fun
-    | Mark.InvalidLivelitDef(_) => true
-    | _ => true,
+    | Mark.InvalidLivelitDef(_)
+    | Mark.ExpectationMismatch(_) => true
+    | _ => false,
     m,
   );
 

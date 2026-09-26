@@ -797,6 +797,63 @@ let mk =
     )
   };
 
+/* A Macro use's expansion obligation (Fig. 5 premise 5), said in terms of
+   Expansion. The code expand returned, of type `code`, must take each
+   listed splice, at the type its code has (`splices`, in order), to the
+   declared `expansion`. Rather than one consistency check against the
+   arrow -- whose failure would name the arrow as if it were Expansion --
+   walk the code's parameters against the splices and report the first
+   thing that fails: too few parameters, a parameter that cannot take its
+   splice, or a result that is not Expansion. When all of that fits but the
+   code still has an error of its own (`code_has_error`), say so. An
+   Unknown along the way stays gradual, as everywhere else. */
+let macro_expansion_mark =
+    (
+      ctx: Ctx.t,
+      ~expansion: TermBase.Typ.t,
+      ~splices: list(TermBase.Typ.t),
+      ~code: TermBase.Typ.t,
+      ~code_has_error: bool,
+    )
+    : list(Mark.t) => {
+  let rec walk = (i, splices, code): option(Mark.macro_expansion_problem) =>
+    switch (splices) {
+    | [] =>
+      if (!Typ.is_consistent(ctx, code, expansion)) {
+        Some(Result(code));
+      } else if (code_has_error) {
+        Some(ErrorInCode);
+      } else {
+        None;
+      }
+    | [splice, ...rest] =>
+      switch (Typ.term_of(Typ.weak_head_normalize(ctx, code))) {
+      | Arrow(param, result) =>
+        Typ.is_consistent(ctx, param, splice)
+          ? walk(i + 1, rest, result)
+          : Some(
+              SpliceParameter({
+                index: i,
+                param,
+              }),
+            )
+      | Unknown(_) => code_has_error ? Some(ErrorInCode) : None
+      | _ => Some(TooFewParameters)
+      }
+    };
+  switch (walk(0, splices, code)) {
+  | None => []
+  | Some(problem) => [
+      Mark.BadMacroExpansion({
+        expansion,
+        splices,
+        code,
+        problem,
+      }),
+    ]
+  };
+};
+
 /* The use-site expansion obligation: a use of ^name synthesizes the DECLARED
    expansion type, so statics owes a check that the expansion actually has
    that type. `actual` is the type the expansion synthesizes on its own; a

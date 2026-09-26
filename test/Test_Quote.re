@@ -218,10 +218,13 @@ let pair_use = (a, b) =>
   ++ b
   ++ "))))";
 
+/* A use-site expansion mark of either kind: a Macro use's is
+   BadMacroExpansion, so "no expansion error" must look for both. */
 let bad_expansion = (m: Statics.Map.t): bool =>
   Test_UserLivelits.has_mark(
     fun
-    | BadLivelitExpansion(_) => true
+    | BadLivelitExpansion(_)
+    | BadMacroExpansion(_) => true
     | _ => false,
     m,
   );
@@ -345,10 +348,7 @@ let macro_tests = (
         ),
       )
     ),
-    test_case(
-      "a splice of the wrong type is BadLivelitExpansion at the use",
-      `Quick,
-      () =>
+    test_case("a splice of the wrong type is marked at the use", `Quick, () =>
       check(
         bool,
         "marked",
