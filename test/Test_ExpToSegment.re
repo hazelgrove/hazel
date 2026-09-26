@@ -1684,7 +1684,7 @@ let property_tests = (
 /* pad_ids: padding/replacement ids must be derived, not minted —
    printing is a pure function of the term */
 let pad_ids_tests = (
-  "ExpToSegment.PadIds",
+  "PadIds.pad_ids",
   [
     Alcotest.test_case(
       "padding is deterministic",

@@ -312,10 +312,10 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Show horizontal lines between each row of code"),
       },
       {
-        name: "Incremental Reuse",
-        active: globals.settings.show_incremental_deco,
-        setting: ShowIncrementalDeco,
-        tooltip: Some("Show incremental evaluator cache hits"),
+        name: "Eval Progress",
+        active: globals.settings.show_pending_eval,
+        setting: ShowPendingEval,
+        tooltip: Some("Highlight code pending re-evaluation after edits"),
       },
       {
         name: "Debug Sidebar",
@@ -356,6 +356,20 @@ let code_display_group = (~globals: Globals.t) => {
         active: globals.settings.core.flip_animations,
         setting: FlipAnimations,
         tooltip: Some("Enable flip animations for code changes"),
+      },
+      {
+        name: "Animate All Edits",
+        active: globals.settings.core.animate_all_edits,
+        setting: AnimateAllEdits,
+        tooltip:
+          Some("Experimental: ghost-animate code movement on every edit"),
+      },
+      {
+        name: "Drag Refactoring",
+        active: globals.settings.core.drag_refactor,
+        setting: DragRefactor,
+        tooltip:
+          Some("Modal: drag a token to pull it along refactoring tracks"),
       },
       {
         name: "Line Numbers",

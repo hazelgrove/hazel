@@ -183,6 +183,17 @@ let is_convex_grout = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Module members: `;`-separated ModLets have no `in` to exempt them from
+   the incrementor rule, so without a reset each member's body indent
+   compounds diagonally. A linebreak after a module semicolon returns to
+   member level (one step inside the braces). The Exp `;` (Seq) shares the
+   label but not the sort, and keeps its level as before. */
+let is_module_semi = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) => Tile.is_semi(t) && Tile.mold(t).out == Sort.Mod
+  | _ => false
+  };
+
 /* Linebreaks following these tiles should increment the indent. Basically
  * any non-infix-operator tiles which are concave on the right, except
  * for definition forms */
@@ -241,6 +252,9 @@ let rec go =
             /* After a complete case rule WITH a body, we expect the next
              * rule at the same level. Don't indent for "next rule" position. */
             | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
+            /* A module member's body may not compound indent past the
+               member level (see is_module_semi). */
+            | (Some(prev), _) when is_module_semi(prev) => base + 2
             /* only the FIRST linebreak after an incrementor takes
                the +2; consecutive linebreaks inherit its level */
             | (Some(prev), _) when is_incrementor(prev) =>

@@ -1331,7 +1331,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
       FoldProj.sexp_of_t({
         text: f_name,
         expanded: false,
-        always_render: true,
+        always_render: false //TODO(andrew): re-enable maybe (causes massive slowdown for progs with big types)
       })
       |> Sexplib.Sexp.to_string;
     [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
@@ -3683,6 +3683,9 @@ let exp_to_segment =
   |> strip_if_incomplete(Exp(exp))
   |> uniquify_repeated_tiles;
 };
+
+let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t =>
+  pat_to_pretty(~settings, pat) |> PrettySegment.select;
 
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {

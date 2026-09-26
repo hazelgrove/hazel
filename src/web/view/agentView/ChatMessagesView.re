@@ -585,7 +585,7 @@ module ViewComponents = {
 };
 
 type timeline_node = {
-  segment: option(Segment.t),
+  segment: option(string), /* program text; parsed on click */
   label: string,
   index: int,
 };
@@ -695,8 +695,17 @@ module ChatMessagesScrollHook = {
     type t = {
       mutable stick_to_bottom: bool,
       mutable listener_id: option(Dom_html.event_listener_id),
+      /* the follow loop is alive only for a stretch after the last
+         render that touched the list (streamed text, autosize): an idle
+         tab must not read scrollTop every frame — each read forced a
+         layout against the canvas animations and pinned a whole core
+         (Chrome trace, 2026-09-05) */
+      mutable last_touch: float,
+      mutable following: bool,
     };
   };
+  let follow_grace_ms = 1500.;
+  let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
   module Input = {
     [@deriving sexp_of]
@@ -748,11 +757,44 @@ module ChatMessagesScrollHook = {
       State.{
         stick_to_bottom: true,
         listener_id: None,
+        last_touch: 0.,
+        following: false,
+      };
+    /* (re)start the per-frame follow; it retires itself after the grace */
+    let start_follow = (state: State.t, element) =>
+      if (!state.following) {
+        state.following = true;
+        let rec follow = (_: float) =>
+          if (state.listener_id != None
+              && now()
+              -. state.last_touch < follow_grace_ms) {
+            if (ChatScrollPin.request^) {
+              ChatScrollPin.request := false;
+              state.stick_to_bottom = true;
+            };
+            if (state.stick_to_bottom && !is_near_bottom(element)) {
+              scroll_to_bottom(element);
+            };
+            ignore(
+              Dom_html.window##requestAnimationFrame(
+                Js.wrap_callback(follow),
+              ),
+            );
+          } else {
+            state.following = false;
+          };
+        ignore(
+          Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
+        );
       };
 
     let on_mount = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
       schedule_scroll_to_bottom(element);
+      /* keep up every frame while pinned AND recently rendered: streamed
+         text, autosizing textareas and late layout all grow the list
+         between renders, and waiting for a render left the list sitting
+         at the top for readers who never scrolled */
       let handler =
         Dom.handler(_evt => {
           state.stick_to_bottom = is_near_bottom(element);
@@ -766,18 +808,38 @@ module ChatMessagesScrollHook = {
           Js._false,
         );
       state.listener_id = Some(id);
+      state.last_touch = now();
+      start_follow(state, element);
     };
 
+    /* every render while pinned, not only when the stamp changes: streamed
+       reasoning grows the list between stamps, and the first stretch of a
+       run would not scroll until a message landed */
     let update =
-        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) =>
-      if (old_input != new_input && state.stick_to_bottom) {
+        (
+          ~old_input as _: Input.t,
+          ~new_input as _: Input.t,
+          state: State.t,
+          element,
+        ) => {
+      /* a sent prompt re-pins: the reader wants to see it land */
+      if (ChatScrollPin.request^) {
+        ChatScrollPin.request := false;
+        state.stick_to_bottom = true;
+      };
+      if (state.stick_to_bottom) {
         scroll_to_bottom(element);
         schedule_scroll_to_bottom(element);
       };
+      state.last_touch = now();
+      start_follow(state, element);
+    };
 
     let destroy = (_input: Input.t, state: State.t, _element) =>
       switch (state.listener_id) {
-      | Some(id) => Dom_html.removeEventListener(id)
+      | Some(id) =>
+        Dom_html.removeEventListener(id);
+        state.listener_id = None; /* stops the follow loop */
       | None => ()
       };
   });
@@ -801,8 +863,9 @@ let view =
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    HighLevelNodeMap.build(z, info_map);
+    Id.Map.is_empty(code_with_statics.statics.info_map)
+      ? CompositionGo.Public.node_map_of(z)
+      : HighLevelNodeMap.build_for(z, code_with_statics.statics);
   };
 
   // Auto-resize textarea helper
@@ -1506,7 +1569,7 @@ let view =
                 Effect.Many([
                   agent_inject(
                     Agent.Update.Action.LoadTimelineSegment(
-                      segment,
+                      AgentToolResult.segment_of_text(segment),
                       node.index,
                     ),
                   ),
@@ -1605,7 +1668,7 @@ let view =
           };
 
           let initial_node: timeline_node = {
-            segment: first.before_segment,
+            segment: first.before_text,
             label: "Initial",
             index: 0,
           };
@@ -1618,7 +1681,7 @@ let view =
                   let tool_link = render_summary_tool_link(tool_result);
                   if (tool_result.success) {
                     let next_node: timeline_node = {
-                      segment: tool_result.after_segment,
+                      segment: tool_result.after_text,
                       label: "After Edit " ++ string_of_int(node_idx),
                       index: node_idx,
                     };
@@ -1693,10 +1756,10 @@ let view =
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
-          // Filbert identifier
+          // Trine identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [Icons.filbert, text("Filbert")],
+            [CanvasAvatar.brand_icon(), text("Trine")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
@@ -1872,7 +1935,7 @@ let view =
                       ~attrs=[
                         clss(["message-identifier", "llm-identifier"]),
                       ],
-                      [Icons.filbert, text("Filbert")],
+                      [CanvasAvatar.brand_icon(), text("Trine")],
                     ),
                     ...body_nodes,
                   ],

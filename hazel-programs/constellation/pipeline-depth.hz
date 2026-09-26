@@ -1,0 +1,29 @@
+# A depth-4 pipeline for call-stack navigation: each stage calls the #
+# next, so samples carry deep stacks (focus-sync + drill-down work). #
+
+type Tok = + TNum(Int) + TPlus in
+type Ast = + Num(Int) + Add(Ast, Ast) in
+
+let lex : Int -> [Tok] =
+  fun n -> [TNum(n), TPlus, TNum(n + 1)] in
+
+let parse : [Tok] -> Ast =
+  fun ts ->
+    case ts
+    | [TNum(a), TPlus, TNum(b)] => Add(Num(a), Num(b))
+    | _ => Num(0)
+    end in
+
+let evaluate : Ast -> Int =
+  fun a ->
+    case a
+    | Num(n) => n
+    | Add(l, r) => evaluate(l) + evaluate(r)
+    end in
+
+let run : Int -> Int = fun n -> evaluate(parse(lex(n))) in
+
+test run(1) == 3 end;
+test run(20) == 41 end;
+
+run(7)
