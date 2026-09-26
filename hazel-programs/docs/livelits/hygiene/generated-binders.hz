@@ -10,6 +10,8 @@
 # With Lambda the author names each binder, and this helper names #
 # them all x: fun x -> fun x -> [x, x]. The second x captures the #
 # first, and the use means [2, 2] where [1, 2] was meant. #
+# Lambda and Ident are the unhygienic escape hatch. Dynamic Row or #
+# Column binds with Abs instead (slide 4). #
 
 let ^two = {
   type Model = (a = SpliceRef, b = SpliceRef);

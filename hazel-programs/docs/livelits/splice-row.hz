@@ -238,23 +238,24 @@ let ^cells = {
   # n refs it is given, as the paper says a livelit whose splice count #
   # varies must (Sec. 3.2.5, its dataframe): #
   #   fun x0 -> fun x1 -> ... -> x0 :: x1 :: ... :: [] #
-  # unquote e end, inside a quotation, splices in the code e computes; #
-  # Ident(n) is the variable named n and Lambda((n, c)) is fun n -> c. #
-  # The binder names are the author's to keep apart: x0, x1, ... #
+  # unquote e end, inside a quotation, splices in the code e computes. #
+  # Abs(fun v -> c) is fun _ -> c whose binder the SYSTEM names, fresh, #
+  # and v is that variable -- so no binder here can capture another or #
+  # a splice's code (Hygiene / 4. Abs). #
+  let list_of = fun vars : [Exp] ->
+    case vars
+    | [] => quote [] end
+    | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+    end;
   let expand =
     Macro(fun m : Model ->
       let n = len(m.refs) in
-      let name = fun i : Int -> "x" ++ string_of_int(i) in
-      # x_i :: ... :: x_(n-1) :: [] #
-      let elems = fun i : Int ->
-        if i == n then quote [] end
-        else quote unquote Ident(name(i)) end :: unquote elems(i + 1) end end
+      # one binder per cell, then the list of their variables #
+      let gen = fun vars : [Exp] -> fun i : Int ->
+        if i == n then list_of(vars)
+        else Abs(fun v -> gen(vars @ [v])(i + 1))
       in
-      # fun x_i -> ... -> fun x_(n-1) -> x0 :: ... #
-      let funs = fun i : Int ->
-        if i == n then elems(0) else Lambda((name(i), funs(i + 1)))
-      in
-      (funs(0), m.refs));
+      (gen([])(0), m.refs));
   # The widget's footprint, in character cells -- a function of the #
   # model, because this widget grows. In a row: about 7 columns a #
   # cell (a six-wide editor and its border), room at the ends for #

@@ -19,6 +19,10 @@
 #    With Lambda the use means [2, 2], where [1, 2] was meant. #
 # 4. Abs: binders the system names cannot. The use means [1, 2]. #
 
+# Slide 3 is the deck's one unhygienic example, there to show the #
+# capture. Every other expansion, Dynamic Row or Column's included, #
+# binds with Abs or inside a quotation. #
+
 # Why it holds: a splice reaches the expansion only as an ARGUMENT, #
 # and application substitutes without capture; the expansion is #
 # checked and run in the builtin context, so it is closed; and Abs #

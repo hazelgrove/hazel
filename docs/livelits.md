@@ -38,8 +38,13 @@ Working examples, shipped as the Documentation → Livelits slides
   `init` makes three cells with `new_splice`, **+** and **x** add and drop
   cells, and the view sums them with `eval_splice`: the number of splices is
   not fixed by the livelit. So its Macro `expand` *builds* its expansion, a
-  function of as many parameters as there are cells, and a use means the
-  list of the cells' values.
+  function of as many parameters as there are cells, with one `Abs` per
+  binder so that the system names each one, and a use means the list of the
+  cells' values.
+
+Every example is hygienic except one: Hygiene / 3. Generated Binders, which
+names its binders with `Lambda` and `Ident` to show the capture that `Abs`
+rules out.
 
 ## Defining a livelit
 
@@ -221,13 +226,15 @@ Hazel program needs an `eval : Exp -> a`.
   quoted function is closed.
 - **Building code: antiquotation, and names.** `unquote e end`, inside a
   quotation, is an antiquote: `e` is an `Exp` computed where the quotation is
-  written, and its code is spliced in. `Ident(n)` is the variable named `n`
-  and `Lambda((n, c))` is `fun n -> c`. Together they let `expand` build what
-  no fixed quotation can: the row's
+  written, and its code is spliced in. With `Abs` (next), this lets
+  `expand` build what no fixed quotation can: the row's
   `fun x0 -> fun x1 -> ... -> x0 :: x1 :: ... :: []`, for however many cells
   it has, which is how the paper says a livelit with a varying number of
-  splices works (Sec. 3.2.5, its dataframe). With `Lambda` the binder
-  names are the author's to keep apart.
+  splices works (Sec. 3.2.5, its dataframe). `Ident(n)`, the variable named
+  `n`, and `Lambda((n, c))`, `fun n -> c`, spell binders by name. They are
+  unhygienic by design: keeping the names apart is the author's job, which
+  is the Lisp `gensym` discipline. No example uses them except the
+  counterexample slide.
 - **Hygiene: `Abs(fun v -> c)`.** A binder the *system* names: decoding
   applies the function to a fresh variable whose name no program can write
   (`%v0`, `%v1`, ...), so no generated binder can capture another
