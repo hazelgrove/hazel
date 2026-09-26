@@ -295,6 +295,53 @@ printing, so text containing one loads on FastParse's linear path.
 
 `test/Test_Quote.re` covers each of these.
 
+### Hygiene, by example
+
+The first example on the **Hygiene** slide. The program binds `x`; the
+livelit's splice, edited in the widget, holds the client's code `x`, meaning
+that `x`; and the expansion binds and uses an `x` of its own:
+
+```
+let x = 1 in
+
+let ^add_ten = {
+  type Model = (s = SpliceRef);
+  type Action = Int;
+  type Expansion = Int;
+  let init =
+    do s <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure((s = s));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do e <- editor((m.s, FixedWidth(6))) in
+    Pure(Html.div([], [Html.text("s = "), e, Html.text(" + 10")]));
+  let expand =
+    Macro(fun m : Model ->
+      (quote fun s -> let x = 10 in s + x end, [m.s]));
+  let shape = Inline(16)
+} in
+
+^^livelit(^add_ten((s = (x))))
+```
+
+- **What it means: 11.** The use is the quoted function applied to the
+  splice (Fig. 5): `(fun s -> let x = 10 in s + x)(x)`, with the splice's
+  `x` evaluated where the client wrote it, so the argument is 1, and
+  `1 + 10 = 11`. The expansion's `x` is internal to it.
+- **What naive textual expansion would give: 20.** Pasting the client's code
+  in for `s` gives `let x = 10 in x + x`: the expansion's `x` has captured
+  the client's.
+- **Why it cannot happen here.** A splice reaches the expansion only as an
+  argument, and application substitutes without capture (Sec. 2.4.3). The
+  converse holds too: the quotation is analyzed in the builtin context, so
+  its body cannot name the client's `x` -- a free `x` in it would be an
+  error where the quotation is written.
+
+The slide's other three uses: a client binding that shadows a builtin the
+expansion uses (it means 3; naive, 0), and a generated two-splice
+expansion whose binders a helper names, captured with `Lambda` (`[2, 2]`)
+and not with `Abs` (`[1, 2]`).
+
 ## Design decisions
 
 Decisions taken on the way here, kept because the alternatives looked
