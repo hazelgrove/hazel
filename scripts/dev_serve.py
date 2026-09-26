@@ -26,7 +26,7 @@ Two routes fix it:
 
 Usage:
     python3 scripts/dev_serve.py --port 8011
-    # then open http://localhost:8011/fresh?slide=livelits-splices-mvp
+    # then open http://localhost:8011/fresh?slide=livelits-parameterized-slider-two-splicerefs
 """
 
 import argparse

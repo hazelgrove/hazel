@@ -19,7 +19,7 @@
 # slide uses both halves: init makes the first three cells, and a #
 # click makes one more. #
 
-# The SpliceRef, MVP slide uses the first half: its init makes its #
+# The Parameterized Slider slide uses the first half: its init makes its #
 # two bounds with new_splice, and its Model has room for just two, #
 # so it never grows a splice. The parens in its uses are those #
 # splices as saved, not an author's way to make one. #

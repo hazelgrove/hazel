@@ -202,6 +202,12 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
         ? "The expansion's code has a type error"
         : prn("The expansion's code has a type error, given %s", of_splices)
     };
+  | LivelitNeedsTypeArgument(name) =>
+    prn(
+      "^%s takes a type argument: give it one with let ^name = ^%s@<Type> in",
+      name,
+      name,
+    )
   | InvalidLivelitDef(DefNotModule) => "Livelit definition should be a module declaring types Model, Action, Expansion and members init, update, view, expand"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))

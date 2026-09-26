@@ -1,0 +1,73 @@
+# Either, Version 2: Type Parameter #
+
+# The definition is a type function over its Expansion, A. It is not #
+# used directly: an abbreviation gives it a type, and each #
+# abbreviation is a livelit of its own, with A in place (Sec. 2.4.1's #
+# let $uslider = $slider 0, with a type for the value). Using ^either #
+# itself is an error: it takes a type argument. #
+
+let ^either = typfun A -> {
+  # Two cases, each with a label and a splice; on_a says which is on. #
+  # A Bool is the implementation, but not the interface: the widget #
+  # shows both labels as buttons, and exactly one is pressed. #
+  type Model = (a_label=String, b_label=String, on_a=Bool,
+                a=SpliceRef, b=SpliceRef);
+  type Action = Bool;
+  type Expansion = A;
+  let init =
+    do a <- new_splice((IntT, None)) in
+    do b <- new_splice((IntT, None)) in
+    Pure((a_label="a", b_label="b", on_a=true, a=a, b=b));
+  let update = fun m : Model -> fun on_a : Action ->
+    Pure((a_label=m.a_label, b_label=m.b_label, on_a=on_a, a=m.a, b=m.b));
+  # A pair of radio buttons, like an old car radio's: the pressed one #
+  # is drawn inverted, and pressing it again changes nothing. #
+  let button = fun (label, pressed, choose) : (String, Bool, Bool) ->
+    Html.button(
+      [Attr.on_click(choose),
+       Attr.style([("font-family", "var(--code-font)"),
+                   ("font-size", "0.9em"),
+                   ("font-weight", if pressed then "bold" else "normal"),
+                   ("background", if pressed then "#3e2723" else "#f3efe6"),
+                   ("color", if pressed then "#fdfcf7" else "#3e2723"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px")])],
+      [Html.text(label)]);
+  let view = fun m : Model ->
+    do a <- editor((m.a, FixedWidth(10))) in
+    do b <- editor((m.b, FixedWidth(10))) in
+    let case_ = fun (label, pressed, choose, ed) ->
+      Html.div([Attr.style([("display", "flex"), ("gap", "0.3em"),
+                            ("align-items", "center"),
+                            ("opacity", if pressed then "1" else "0.55")])],
+               [button((label, pressed, choose)), ed]) in
+    Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.8em"),
+                     ("align-items", "center"),
+                     ("font-size", "0.8em")])],
+        [case_((m.a_label, m.on_a, true, a)),
+         case_((m.b_label, if m.on_a then false else true, false, b))]));
+  # A Macro (Sec. 3.2.5): code for a function of both splices, applied #
+  # to them at the use. The binder of the case not taken is _. #
+  let expand = Macro(fun m : Model ->
+    (if m.on_a then quote fun a -> fun _ -> a end
+     else quote fun _ -> fun b -> b end,
+     [m.a, m.b]));
+  let shape = Inline(44)
+} in
+
+let ^either_int = ^either@<Int> in
+let ^either_str = ^either@<String> in
+
+# Each use has a static type, Int and String, so n ++ "!" would be a #
+# static error here. A splice of the wrong type is an expansion error #
+# at the use: put "one" in a case of ^either_int and see. #
+
+let n = ^^livelit(^either_int((a_label="small", b_label="large",
+                                on_a=true, a=(1), b=(100)))) in
+let s = ^^livelit(^either_str((a_label="hi", b_label="bye",
+                                on_a=false, a=("hello"), b=("goodbye")))) in
+
+# (2, "goodbye!") #
+(n + 1, s ++ "!")

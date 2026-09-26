@@ -6,6 +6,8 @@
 
 (copy_files ../../hazel-programs/docs/livelits/expansion-errors/*.hz)
 
+(copy_files ../../hazel-programs/docs/livelits/either/*.hz)
+
 (library
  (name livelitdemos)
  (libraries haz3lcore)

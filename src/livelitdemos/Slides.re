@@ -7,10 +7,10 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Overview", [%blob "overview.hz"]),
     ("Color (Figure 3)", [%blob "color-fig3.hz"]),
     ("Define a Slider", [%blob "defined-slider.hz"]),
-    ("Functional Expansion", [%blob "expansion.hz"]),
-    ("SpliceRef, MVP", [%blob "splices-mvp.hz"]),
     ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
+    ("Functional Expansion", [%blob "expansion.hz"]),
+    ("Parameterized Slider (two SpliceRefs)", [%blob "splices-mvp.hz"]),
     ("Tree Care", [%blob "tree-care.hz"]),
     ("Timings", [%blob "timings.hz"]),
     ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),
@@ -50,6 +50,15 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       "Expansion Type Errors / Macro 3. Not a Function of the Splices",
       [%blob "macro-not-a-function.hz"],
     ),
+    /* Livelits / Either, Two Versions: one livelit whose expansion type
+       varies by use, written with Expansion = ? and with a type
+       parameter (hazel-programs/docs/livelits/either). */
+    ("Either, Two Versions / About", [%blob "either-about.hz"]),
+    (
+      "Either, Two Versions / 1. Unknown Expansion",
+      [%blob "either-unknown.hz"],
+    ),
+    ("Either, Two Versions / 2. Type Parameter", [%blob "either-typed.hz"]),
   ]
   |> List.map(((name, text)) =>
        (

@@ -1638,6 +1638,16 @@ let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
     | (_, TupLabel({term: ExplicitNonlabel, _}, t)) =>
       coercion(ctx, ~from, ~to_=t)
     | (Sig(f), Sig(t)) => sig_sub(ctx, ~from=f, ~to_=t) ? Some(to_) : None
+    /* forall a. F coerces to forall b. T when F does to T, b renamed to
+       a, with a in scope as an abstract type. */
+    | (Poly(pf, f), Poly(pt, t)) =>
+      switch (TPat.tyvar_of_utpat(pf), TPat.tyvar_of_utpat(pt)) {
+      | (Some(a), Some(_)) =>
+        let t = subst(Var(a) |> temp, pt, t);
+        let+ r = coercion(Ctx.extend_dummy_tvar(ctx, pf), ~from=f, ~to_=t);
+        Poly(pf, r) |> temp;
+      | _ => None
+      }
     | (Prod(fs), Prod(ts)) when List.length(fs) == List.length(ts) =>
       let+ tys =
         List.map2((f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)

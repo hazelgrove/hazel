@@ -534,6 +534,26 @@ and uexp_to_info_map =
         )
       };
 
+    /* A type-parameterized livelit's bare name is its DEFINITION, a type
+       function, as an ordinary variable is: that is what an abbreviation
+       applies, `let ^b = ^a@<T> in`. */
+    | LivelitName(name)
+        when
+          switch (Ctx.lookup_livelit(ctx, name)) {
+          | Some({tparam: Some(_), _}) => true
+          | _ => false
+          } =>
+      let def_ty =
+        switch (Ctx.lookup_var(ctx, "^" ++ name)) {
+        | Some({typ, _}) => typ
+        | None => SynTy.unknown_internal()
+        };
+      add(
+        ~elab_term=Var("^" ++ name) |> rewrap,
+        ~elab_syn_ty=def_ty,
+        ~co_ctx=CoCtx.singleton("^" ++ name, Exp.rep_id(uexp), ana),
+        m,
+      );
     | LivelitName(name) =>
       let (syn_lit, marks_lit) =
         switch (Ctx.lookup_livelit(ctx, name)) {
@@ -1960,6 +1980,25 @@ and uexp_to_info_map =
       };
     | Ap(dir, fn, arg) =>
       switch (fn.term) {
+      /* A type-parameterized livelit cannot be used until it has its
+         type argument: the paper's "missing livelit parameter" (Sec.
+         2.4.1). The argument is still checked, and the use means a hole. */
+      | LivelitName(s)
+          when
+            switch (Ctx.lookup_livelit(ctx, s)) {
+            | Some({tparam: Some(_), _}) => true
+            | _ => false
+            } =>
+        let (fn, _, m) = go(~ana=syn, fn, m);
+        let (arg, arg_elab, m) =
+          go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+        add(
+          ~elab_term=Ap(dir, fn.elab_term, arg_elab) |> rewrap,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~marks=[LivelitNeedsTypeArgument(s)],
+          ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+          m,
+        );
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
@@ -2594,7 +2633,12 @@ and uexp_to_info_map =
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
-      let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
+      /* A coercion site passes through a type function: coercing
+         typfun A -> e to forall A. S coerces e to S, so a module under a
+         type function may be wider than its signature, as it may anywhere
+         else a signature is expected (Typ.coercion's Poly case). */
+      let (body, body_elab, m) =
+        go(~ctx=ctx_body, ~ana=mode_body, ~coercible, body, m);
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
@@ -2948,9 +2992,32 @@ and uexp_to_info_map =
          remains an ordinary binding of `^name`, which the expansion of
          each use references at runtime — and which typing that expansion
          consults, so the declaration is an obligation, not an assertion. */
+      /* An abbreviation, `let ^b = ^a@<T> in`, where ^a takes a type
+         argument: ^b is ^a at T. */
+      let abbreviation =
+        switch (UserLivelit.binder_name(p), def.user_term.term) {
+        | (Some(ll_name), TypAp(fn, ty)) =>
+          switch (UserLivelit.strip_parens(fn).term) {
+          | LivelitName(a) =>
+            Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
+              UserLivelit.instantiate(
+                ~name=ll_name,
+                ~id=Pat.rep_id(p),
+                ~ty=Typ.normalize(ctx, ty),
+                ll,
+              )
+            )
+          | _ => None
+          }
+        | _ => None
+        };
       let (p_ana_ctx, livelit_marks) =
-        switch (UserLivelit.binder_name(p)) {
-        | Some(ll_name) =>
+        switch (UserLivelit.binder_name(p), abbreviation) {
+        | (Some(_), Some(ll)) => (
+            Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)),
+            [],
+          )
+        | (Some(ll_name), None) =>
           let (ll, marks) =
             UserLivelit.mk(
               ~ctx,
@@ -2966,7 +3033,7 @@ and uexp_to_info_map =
           | Some(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), marks)
           | None => (p_ana_ctx, marks)
           };
-        | None => (p_ana_ctx, [])
+        | (None, _) => (p_ana_ctx, [])
         };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */

@@ -116,6 +116,9 @@ type t =
       problem: macro_expansion_problem,
     })
   | InvalidLivelitDef(livelit_def_error)
+  /* A use of a type-parameterized livelit, which needs its type argument
+     first, through an abbreviation `let ^b = ^a@<T> in`. */
+  | LivelitNeedsTypeArgument(string)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,

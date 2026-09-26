@@ -276,6 +276,7 @@ let core_mark_err_view =
     | BadLivelitModel(_)
     | BadLivelitExpansion(_)
     | BadMacroExpansion(_)
+    | LivelitNeedsTypeArgument(_)
     | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
@@ -913,6 +914,12 @@ let exp_mark_err_view =
         ]
       },
     );
+  | LivelitNeedsTypeArgument(name) =>
+    div_err([
+      code("^" ++ name),
+      text(" takes a type argument: give it one with "),
+      code("let ^name = ^" ++ name ++ "@<Type> in"),
+    ])
   | InvalidLivelitDef(DefNotModule) =>
     div_err([
       text("Livelit definition should be a module declaring "),

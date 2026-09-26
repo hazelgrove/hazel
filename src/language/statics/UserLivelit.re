@@ -80,6 +80,8 @@ type def = {
   model_t: TermBase.Typ.t,
   action_t: TermBase.Typ.t,
   expansion_t: TermBase.Typ.t,
+  /* The type parameter of a `typfun A -> { ... }` definition. */
+  tparam: option(string),
 };
 
 let required_members = ["init", "update", "view", "expand"];
@@ -126,9 +128,10 @@ let missing = (required: list(string), have: list((string, 'a))) =>
 
    A bare SpliceRef is Figure 3's: the model holds only a handle (l.3-4),
    and the view reads the code behind it with eval_splice. The pair
-   (ref=SpliceRef, value=t) is the SpliceRef, MVP stopgap: the value rides
-   beside the ref, because a Functional expand cannot eval_splice and a
-   Macro cannot return quoted code yet. */
+   (ref=SpliceRef, value=t) is an older stopgap: the value rode beside the
+   ref, from before a Macro could return quoted code, since a Functional
+   expand cannot eval_splice. No shipped slide uses it now; it is kept so
+   programs written that way still load. */
 let rec is_splice_ref_ty = (t: Typ.t): bool =>
   switch (Typ.term_of(t)) {
   | Var("SpliceRef") => true
@@ -228,6 +231,31 @@ let rec detect =
         : result(def, Mark.t) =>
   switch (strip_parens(def).term) {
   | Let(_, _, body) => detect(~ctx, ~m, body)
+  /* A type-parameterized definition: the module is the type function's
+     body, read with A in scope as an abstract type, so member types may
+     mention it (`type Expansion = A`). One parameter, at the top. */
+  | TypFun(tp, body, _) =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(a) =>
+      let ctx =
+        Ctx.extend_tvar(
+          ctx,
+          {
+            name: a,
+            id: TPat.rep_id(tp),
+            kind: Abstract,
+          },
+        );
+      switch (detect(~ctx, ~m, body)) {
+      | Ok(d) =>
+        Ok({
+          ...d,
+          tparam: Some(a),
+        })
+      | Error(_) as e => e
+      };
+    | None => Error(Mark.InvalidLivelitDef(DefNotModule))
+    }
   | TyAlias(tp, ty, body) =>
     let ctx =
       switch (tp.term) {
@@ -274,6 +302,7 @@ let rec detect =
         model_t: List.assoc("Model", types),
         action_t: List.assoc("Action", types),
         expansion_t: List.assoc("Expansion", types),
+        tparam: None,
       })
     };
   | _ => Error(Mark.InvalidLivelitDef(DefNotModule))
@@ -292,7 +321,7 @@ let livelit_ana_ty =
     : option(TermBase.Typ.t) =>
   switch (detect(~ctx, ~m, def)) {
   | Error(_) => None
-  | Ok({model_t, action_t, expansion_t, _}) =>
+  | Ok({model_t, action_t, expansion_t, tparam, _}) =>
     realized_livelit_sig(
       ~ctx,
       ~types=[
@@ -301,6 +330,15 @@ let livelit_ana_ty =
         ("Expansion", expansion_t),
       ],
     )
+    /* typfun A -> { ... } is analyzed against forall A. <signature>. */
+    |> Option.map(sig_ =>
+         switch (tparam) {
+         | Some(a) =>
+           (Poly(IdTagged.FreshGrammar.TPat.var(a), sig_): Typ.term)
+           |> Typ.temp
+         | None => sig_
+         }
+       )
   };
 
 let unknown = () => IdTagged.FreshGrammar.Typ.unknown(Internal);
@@ -770,7 +808,7 @@ let mk =
     : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
   switch (detect(~ctx, ~m, def_user)) {
   | Error(mark) => (None, [mark])
-  | Ok({members, model_t, action_t, expansion_t}) => (
+  | Ok({members, model_t, action_t, expansion_t, tparam}) => (
       Some({
         LivelitCtx.name,
         id,
@@ -788,6 +826,7 @@ let mk =
           | None => default_shape
           },
         user_def: Some(def_elab),
+        tparam,
       }),
       /* A member whose type is wrong is reported by the second analytic
          pass, as an ordinary inconsistency where it is written, and does
@@ -795,6 +834,36 @@ let mk =
          being checked themselves. */
       [],
     )
+  };
+
+/* An abbreviation, `let ^b = ^a@<T> in`, of a type-parameterized livelit
+   ^a: the same livelit with T in place of its parameter, in each member
+   type, under the new name. Its definition is ^a's applied to T, which
+   stays closed, so the projector can still run it at event time. */
+let instantiate =
+    (
+      ~name: string,
+      ~id: Id.t,
+      ~ty: TermBase.Typ.t,
+      ll: LivelitCtx.raw_livelit,
+    )
+    : option(LivelitCtx.raw_livelit) =>
+  switch (ll.tparam, ll.user_def) {
+  | (Some(a), Some(def)) =>
+    let sub = t => Typ.subst(ty, IdTagged.FreshGrammar.TPat.var(a), t);
+    let expansion_t = sub(ll.expansion_t);
+    Some({
+      ...ll,
+      name,
+      id,
+      model_t: sub(ll.model_t),
+      action_t: sub(ll.action_t),
+      expansion_t,
+      expand: mk_expand_dot(~name, ~expansion_t),
+      user_def: Some((TypAp(def, ty): TermBase.Exp.term) |> Exp.fresh),
+      tparam: None,
+    });
+  | _ => None
   };
 
 /* A Macro use's expansion obligation (Fig. 5 premise 5), said in terms of

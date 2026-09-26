@@ -335,7 +335,7 @@ let macro_tests = (
       },
     ),
     test_case(
-      "SpliceRef, MVP: bounds are splices, and a use means its function of them",
+      "Parameterized Slider: bounds are splices, and a use means its function of them",
       `Quick,
       () => {
         let (m, elab) = slide("splices-mvp.hz");
