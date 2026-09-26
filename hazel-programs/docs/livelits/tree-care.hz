@@ -354,12 +354,16 @@ let ^tree = {
     | Constant(n) => "+" ++ str(n) ++ " leaves"
     end;
 
-  # view returns a ViewCmd (Sec. 3.2.3). It reads the growth splice #
-  # with eval_splice, shows it on the feed button, and a click hands #
-  # it to update inside Feed. Until the splice has a value, there is #
-  # nothing to feed with, and the button says so. #
+  # view returns a ViewCmd (Sec. 3.2.3). At the top it places the #
+  # growth splice's editor, labelled, so the client's code for the #
+  # style -- here, the variable style -- is edited in the widget. It #
+  # reads the splice with eval_splice, shows the style on the feed #
+  # button, and a click hands it to update inside Feed. Until the #
+  # splice has a value, there is nothing to feed with, and the button #
+  # says so. #
   let view = fun m : Model ->
     do g <- eval_splice(m.growth) in
+    do growth_editor <- editor((m.growth, FixedWidth(8))) in
     let feed_button =
       case g
       | Some(Val(style)) =>
@@ -375,7 +379,11 @@ let ^tree = {
     Html.div(
       [Attr.style([("display", "flex"), ("flex-direction", "column"),
                    ("gap", "0.2em")])],
-      [Html.node("svg",
+      [Html.div([Attr.style([("display", "flex"), ("gap", "0.4em"),
+                             ("align-items", "center"),
+                             ("font-size", "0.7em")])],
+         [Html.text("growth style"), growth_editor]),
+       Html.node("svg",
          [Attr.create("viewBox", "0 0 260 170"),
           Attr.width("186"), Attr.height("122")],
          draw((m.tree, 130, 150, 34, 20, m.season, [], 0))),
@@ -399,7 +407,7 @@ let ^tree = {
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season));
 
-  let shape = Block(20, 7)
+  let shape = Block(20, 8)
 } in
 
 # GROWTH STYLE #
@@ -474,14 +482,19 @@ let ^either = {
   let shape = Inline(40)
 } in
 
-# The two sliders, and the switch between them. Each case of the #
-# switch is client code naming a slider's value, as Color's splices #
-# name its sliders' variables. #
-let pct = ^^livelit(^range((lo=-50, hi=100, value=20))) in
-let leaves = ^^livelit(^range((lo=0, hi=13, value=3))) in
+# Two growth styles, each with its slider: style a grows by a #
+# percent, 30% to start, and style b by a constant, 4 leaves. #
+let a_pct = ^^livelit(^range((lo=-50, hi=100, value=30))) in
+let style_a = Percent(a_pct) in
+let b_leaves = ^^livelit(^range((lo=0, hi=13, value=4))) in
+let style_b = Constant(b_leaves) in
+
+# The switch between them. Each case is client code naming a style, #
+# as Color's splices name its sliders' variables; style means the #
+# one that is on. #
 let style =
-  ^^livelit(^either((label="by percent", on=true,
-                     t=(Percent(pct)), f=(Constant(leaves))))) in
+  ^^livelit(^either((label="style a?", on=true,
+                     t=(style_a), f=(style_b)))) in
 
 # The use below carries its whole tree in its argument. Grow it and #
 # the argument grows with it; trim a branch and a Scar appears in the #
