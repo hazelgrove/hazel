@@ -221,8 +221,16 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    /* The mark, the message and the fixed type all ask meet the same
+       question when neither type has an ExplicitNonlabel wrapper to strip
+       (it strips by returning its argument), so it is asked once. */
+    let plain =
+      ana_skip_explicit_nonlabel(ana) === ana
+      && ana_skip_explicit_nonlabel(elab_syn_ty) === elab_syn_ty;
+    let met = lazy(Typ.meet(ctx, ana, elab_syn_ty));
+    let shared = plain ? Some(met) : None;
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (expectation_mismatch_mark(~met=?shared, ctx, ana, elab_syn_ty)) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -233,12 +241,17 @@ and uexp_to_info_map =
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
           | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+            Message.Exp(
+              Common(syn_ana_ok_common(~met=?shared, ctx, ana, elab_syn_ty)),
+            )
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty =
+      plain
+        ? fixed_typ_of(ana, elab_syn_ty, Lazy.force(met))
+        : fixed_typ(ctx, ana, elab_syn_ty);
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
