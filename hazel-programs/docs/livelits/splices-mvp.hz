@@ -7,102 +7,95 @@
 # $slider takes its bounds as parameters, Sec. 2.4.1, written outside #
 # the widget. Here they are splices, edited inside it.) #
 
-# This slide runs a STOPGAP beside the paper's design. In the paper #
-# (Figure 3, Sec. 3.2) a livelit MAKES its splices with new_splice #
-# and WRITES them with set_splice, both UpdateCmds. Only the view #
-# READS one, with eval_splice, and places its editor with editor, #
-# both ViewCmds. expand writes code for a function over them. All #
-# four commands run here, and this slider's init makes its two #
-# bounds with new_splice, as Figure 3's init does (l.8-13). The #
-# stopgap is in the model: each bound carries its value beside its #
-# ref, because this expand is Functional and needs the values, and #
-# only a ViewCmd can eval_splice. #
+# It is written the way Figure 3 is (Sec. 3.2): init MAKES the two #
+# bounds with new_splice, the model holds only their refs, the view #
+# READS them with eval_splice and places their editors, and expand #
+# is a Macro, returning code for a function of the two bounds, which #
+# a use applies to them. #
 
-# Once Macro can return quoted code, the pair goes and this slide's #
-# code is to be rewritten against the paper's commands. Until then #
-# the comments say which part is the paper's design and which is the #
-# stopgap; THE STOPGAP BESIDE THE PAPER, at the end, sets the two #
-# side by side. #
-
-# WHAT RUNS TODAY #
-
-# Here is a slider reporting a number between two bounds. Drag it. #
+# Drag the handle. #
 
 let ^between = {
   # pct is where the handle sits, 0 to 100. lo and hi are the ends of #
-  # the range. #
-  # In Figure 3 a spliced field is only a HANDLE, a SpliceRef (l.3-4), #
-  # and the view evaluates the code behind it with eval_splice, under #
-  # the closure the reader has selected (Sec. 3.2.3). Here each bound #
-  # also carries its value. That is the stopgap: expand needs the #
-  # values, and cannot eval_splice, which only a ViewCmd can do. So #
-  # the value rides in the model instead. #
-  type Model = (
-    pct=Int,
-    lo=(ref=SpliceRef, value=Int),
-    hi=(ref=SpliceRef, value=Int)
-  );
+  # the range: handles, SpliceRefs, as a spliced field is in Figure 3 #
+  # (l.3-4). The model never holds the bounds' values. #
+  type Model = (pct=Int, lo=SpliceRef, hi=SpliceRef);
 
   # Only the handle moves: there is no SetLo or SetHi. The bounds are #
   # the client's code, and this slider leaves them alone -- though the #
-  # paper does let update rewrite a splice; see WHY THE BOUNDS ARE #
-  # SPLICES below. #
+  # paper does let update rewrite a splice, with set_splice; Color #
+  # (Figure 3) does. #
   type Action = + Slide(Int);
 
   type Expansion = Int;
 
-
-  # init is a command, an UpdateCmd(Model), as in the paper #
-  # (Sec. 3.2.1). It is performed when a use is created -- type #
-  # ^between, then a space -- and it MAKES the two bounds with #
-  # new_splice, starting them at 0 and 100. It answers them as the #
-  # stopgap pair, each ref beside its value. The new use's text is #
-  # that model, each pair written back as its splice, in parens: #
-  # lo=(0) is the splice new_splice made, as saved. The uses below #
-  # are written the same way. #
+  # init is a command, an UpdateCmd(Model) (Sec. 3.2.1). It is #
+  # performed when a use is created -- type ^between, then a space -- #
+  # and it MAKES the two bounds with new_splice, starting them at 0 #
+  # and 100. The new use's text is that model, each ref written as its #
+  # splice, in parens: lo=(0) is the splice new_splice made, as saved. #
+  # The uses below are written the same way. #
   let init =
     do lo <- new_splice((IntT, Some(IntLit(0)))) in
     do hi <- new_splice((IntT, Some(IntLit(100)))) in
-    Pure((pct=50, lo=(ref=lo, value=0), hi=(ref=hi, value=100)));
+    Pure((pct=50, lo=lo, hi=hi));
 
   let update = fun m : Model -> fun a : Action -> Pure(
     case a
     | Slide(p) => (pct=p, lo=m.lo, hi=m.hi)
     end);
 
-  # Where the handle lands, in the client's units. #
-  let at = fun m : Model ->
-    m.lo.value + (m.hi.value - m.lo.value) * m.pct / 100;
+  # The view reads each bound with eval_splice, a ViewCmd (Sec. #
+  # 3.2.3), under the closure the reader has selected. It answers #
+  # Maybe(Result): Some(Val(n)) for a number, and otherwise nothing #
+  # to show -- a hole in a bound is Indet (Sec. 2.5.2) -- so the #
+  # widget shows ? until both bounds have values. Each editor is #
+  # placed by its ref, with Html.splice: the same splice node as the #
+  # ViewCmd editor((ref, dim)), without editor's fixed-width box. #
+  # They are real editors: click in and type. What you type is code #
+  # in YOUR scope, not in the livelit's (Sec. 2.4.3). #
+  let view = fun m : Model ->
+    do lo <- eval_splice(m.lo) in
+    do hi <- eval_splice(m.hi) in
+    let result =
+      case (lo, hi)
+      | (Some(Val(l)), Some(Val(h))) =>
+        string_of_int(l + (h - l) * m.pct / 100)
+      | _ => "?"
+      end
+    in
+    Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                     ("align-items", "center"),
+                     ("font-family", "var(--code-font)"),
+                     ("font-size", "0.8em")])],
+        [Html.splice(m.lo),
+         Html.input(
+           [Attr.type_("range"), Attr.min("0"), Attr.max("100"),
+            Attr.value(string_of_int(m.pct)),
+            Attr.on_input(fun s -> Slide(int_of_string(s)))]),
+         Html.splice(m.hi),
+         Html.text(" = " ++ result)]));
 
-  let view = fun m : Model -> Pure(
-    Html.div(
-      [Attr.style([("display", "flex"), ("gap", "0.4em"),
-                   ("align-items", "center"),
-                   ("font-family", "var(--code-font)"),
-                   ("font-size", "0.8em")])],
-      # Each splice's editor is placed by the ref its field carries. #
-      # The paper does this with the ViewCmd editor((ref, dim)) #
-      # (Sec. 3.2.3), which runs here too. This view uses #
-      # Html.splice(ref): the same splice node, without editor's #
-      # fixed-width box. #
-      # They are real editors: click in and type. What you type is #
-      # code in YOUR scope, not in the livelit's (Sec. 2.4.3). #
-      [Html.splice(m.lo.ref),
-       Html.input(
-         [Attr.type_("range"), Attr.min("0"), Attr.max("100"),
-          Attr.value(string_of_int(m.pct)),
-          Attr.on_input(fun s -> Slide(int_of_string(s)))]),
-       Html.splice(m.hi.ref),
-       Html.text(" = " ++ string_of_int(at(m)))]));
-
-  let expand = Functional(fun m : Model -> at(m));
+  # What a use MEANS, as the paper writes it (Sec. 3.2.5): CODE, a #
+  # quoted function of the bounds, with the list of refs whose code #
+  # fills its parameters, in order. The handle's position, a number #
+  # in the model, is written into the code with unquote IntLit(...) #
+  # end: an antiquote, whose code is spliced in where it stands. A #
+  # use means that function applied to its two bounds, so a bound's #
+  # code is passed in as an argument and no binder in the expansion #
+  # can capture it (Sec. 2.4.3; the Hygiene folder). expand never #
+  # sees a bound's value: it treats the splices parametrically. #
+  let expand = Macro(fun m : Model ->
+    (quote fun lo -> fun hi ->
+       lo + (hi - lo) * unquote IntLit(m.pct) end / 100
+     end,
+     [m.lo, m.hi]));
 
   # Width of the widget's OWN chrome only -- the slider and the #
   # " = N". The splices add their own width on top, because only the #
-  # editor knows how long the client's code is. Counting them here #
-  # too double-reserves and the widget sits in a wide empty box. 22 #
-  # was too tight and clipped the " = N"; 26 leaves room for a #
-  # three-digit result. #
+  # editor knows how long the client's code is. #
   let shape = Inline(26)
 } in
 
@@ -128,23 +121,11 @@ let ^between = {
 # A livelit may still REWRITE a splice. That is set_splice, and #
 # Figure 3's update uses it to overwrite all four channels on a click #
 # (Sec. 3.2.4). This slider has no reason to, though it could: #
-# set_splice runs, and its code is an Exp, whose one constructor so #
-# far, IntLit(n), is Figure 3's own (l.49-52). Color (Figure 3) #
-# does just that. #
-
-# READING AND SHOWING #
-
-# Note what `at` does. It reads m.lo.value and m.hi.value, and both #
-# view and expand call it, while the view places m.lo.ref and #
-# m.hi.ref. In the paper only the view evaluates a splice, with the #
-# ViewCmd eval_splice, and places it with editor (Sec. 3.2.3). expand #
-# never sees a value and treats the splices parametrically #
-# (Sec. 3.2.5). Here the value rides in the model, as the stopgap for #
-# an expand that cannot eval_splice, so expand reads it too. THE #
-# MODEL and THE EXPANSION, below, say what that costs. #
+# set_splice runs, and Color (Figure 3) does just that. #
 
 let baseline = 10 in
 
+# baseline * 2 is 20, and the handle is halfway: the use means 15. #
 let shown = ^^livelit(^between((pct=50, lo=(baseline), hi=(baseline * 2)))) in
 
 # SPLICES COMPOSE #
@@ -189,123 +170,3 @@ let computed =
 # Try: change baseline to 20 and watch both bounds follow. Or type #
 # `baseline * 3` into the right-hand splice. Or empty a bound and see #
 # what the widget does with a hole. #
-
-# ============ THE STOPGAP BESIDE THE PAPER ============ #
-
-# The slider above runs on the stopgap. Here is the paper's design #
-# beside it, piece by piece (Omar et al., PLDI 2021, Figure 3). It is #
-# also the shape this slide's code will take once Macro can return #
-# quoted code. #
-
-# THE MODEL: REFS, NOT VALUES, IN THE PAPER #
-
-# Figure 3's model holds splice refs, never their values (l.3-4). #
-# For this slider that would be: #
-#   type Model = (pct=Int, lo=SpliceRef, hi=SpliceRef) #
-
-# Here each bound is a pair: #
-#   lo=(ref=SpliceRef, value=Int) #
-
-# The ref is what `view` names. The VALUE riding alongside is the #
-# stopgap for an expand that cannot eval_splice, and it costs two #
-# things here. (A third, that expand sees it, is under THE #
-# EXPANSION.) #
-
-# First, update is handed the value too. The paper keeps eval_splice #
-# out of UpdateCmd so that the model does not depend DIRECTLY on the #
-# selected closure; a view may still pass a result to update, on #
-# purpose, inside an action (Sec. 3.2.4). Here that dependence is #
-# built in on every update, not opted into by the view. Dropping #
-# the pair would not end it yet: here a SpliceRef carries its value #
-# too, and its constructor is visible, so update could take the #
-# value out of a bare ref. Making SpliceRef abstract is later work. #
-
-# Second, the value alone cannot say a bound has NO value. #
-# eval_splice answers Maybe(Result): None when there is nothing to #
-# evaluate it under, and otherwise Val(v), or Indet for an expression #
-# held up by a hole (Sec. 3.2.3, Sec. 2.5.2). The widget then decides #
-# what to show. Delete a bound here and the widget decides nothing -- #
-# the result simply renders as a hole, because nothing asked it. The #
-# view could ask: eval_splice runs, and would answer Some(Indet). #
-
-# new_splice RUNS #
-
-#   new_splice : (Typ, Maybe(Exp)) -> UpdateCmd(SpliceRef) #
-
-# The paper MAKES a splice as an effect, at a declared type, with #
-# optional starting code (Sec. 3.2.1). UpdateCmd declares the same #
-# command here, and it runs: None starts the splice empty, a hole, #
-# and Some(IntLit(n)) starts it at n. Its Typ is a stopgap closed #
-# sum -- IntT, FloatT, BoolT, StringT -- standing in for the paper's #
-# quoted types; new_splice takes it and discards it. set_splice, #
-# eval_splice and editor run too; only result_view reports "not #
-# implemented". Deletion is implicit, with no drop_splice: a splice #
-# that no ref in the committed model reaches is not written back, so #
-# the next commit drops it. #
-
-# The store is the program text. A commit writes each ref in the #
-# model back as its splice, in parens, at the ref's position; a load #
-# rebuilds the splices from those parens, and each pass reads them #
-# back as refs, directed by the Model type. Nothing types a splice at #
-# the Typ it was made with; it is typed only by where it sits in the #
-# model tuple. For `between` that gives the right answer, Int, but by #
-# position, not by a mechanism. #
-
-# The paper's init is itself an UpdateCmd, so it can make the first #
-# splices (Sec. 3.2.1). Ours is too: it is performed when you type #
-# the name, then a space, and the new use's text is the model it #
-# answers, with the splices it made. #
-
-# The number of splices can change as the user interacts, as the #
-# paper says (Sec. 2.4.2). An update that makes one, #
-#   do r <- new_splice((IntT, None)) in Pure(...) #
-# runs, so an editable LIST of splices runs too; Splices, #
-# Dynamically (draft) is that slide. #
-
-# THE EXPANSION: A FUNCTION OF THE SPLICES #
-
-#   Macro( Model -> (Exp, List(SpliceRef)) ) #
-
-# The paper's expand writes a PROGRAM: quoted code for a function #
-# (curried, in Figure 3) taking one argument per SpliceRef in the #
-# list it is handed back with -- splices, and parameters too #
-# (Sec. 3.2.5). For this slider: #
-
-#   (`fun lo hi -> lo + (hi - lo) * pct / 100`, [m.lo, m.hi]) #
-
-# with pct standing for the model's number, written into the code. #
-
-# That shape is not decoration. It is how the paper gets CAPTURE #
-# AVOIDANCE: a splice passed in as an argument is scoped at the use, #
-# so no binding inside the expansion can capture it (Sec. 2.4.3, #
-# Sec. 3.2.5). #
-
-# This slider uses the Functional arm instead, this implementation's #
-# addition. It returns a VALUE, from bounds already evaluated in the #
-# client's scope -- the values riding in the model. Capture cannot #
-# arise because nothing is substituted into a binder -- but equally, #
-# nothing here demonstrates the paper's solution. The Macro arm, with #
-# quote ... end, does: see Color (Figure 3) and the Hygiene folder. #
-
-# WHAT WOULD BREAK FIRST #
-
-# Two known walls, in the order you would hit them: #
-
-#   A splice piece prints as nothing but its content, so the text #
-#   keeps each splice as its parens, and on every load the livelit #
-#   projector (not the livelit's own init) rebuilds the splices from #
-#   them. It does so only for a labeled field of the model tuple #
-#   whose whole value is one paren group, so a splice at a list #
-#   position does not yet survive a reload from text. #
-
-#   Committing a model rebuilds the zipper from the ROOT, so a widget #
-#   action destroys the editor the caret was sitting in. Nothing about #
-#   a splice survives that on its own; focus is put back afterwards, #
-#   explicitly, by matching the splice id #
-#   (FocusEffect.keep_splice_focus). That restoration is not #
-#   complete -- it is a patch over a rebuild, not a caret the #
-#   rebuild preserves. #
-
-# Both come from building the splice store out of the editor's #
-# existing machinery: the store is the program text, and a projector #
-# rebuilds the splices from it. #

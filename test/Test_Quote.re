@@ -334,6 +334,40 @@ let macro_tests = (
         check(int, "occurrences", 1, n^);
       },
     ),
+    test_case(
+      "SpliceRef, MVP: bounds are splices, and a use means its function of them",
+      `Quick,
+      () => {
+        let (m, elab) = slide("splices-mvp.hz");
+        check(
+          list(string),
+          "no errors",
+          [],
+          Id.Map.fold(
+            (_, info, acc) =>
+              switch (Info.marks_of(info)) {
+              | [] => acc
+              | marks => [
+                  Haz3lcore.ErrorPrint.string_of_marks(info, marks),
+                  ...acc,
+                ]
+              },
+            m,
+            [],
+          )
+          |> List.sort_uniq(String.compare),
+        );
+        let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+        /* shown: 10..20 at 50%; by_name, nested: 0..100; computed:
+           0..210. */
+        check(
+          Test_Evaluator_Prelude.dhexp_typ,
+          "the four uses",
+          run("(15, 50, 50, 105)"),
+          v,
+        );
+      },
+    ),
     test_case("a well-typed use has no BadLivelitExpansion", `Quick, () =>
       check(
         bool,
