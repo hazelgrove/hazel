@@ -799,7 +799,7 @@ let sig_project_value =
    when manifest, its replacement (see abstract_replacement) when abstract. */
 /* As sig_project_value: value members are never read when extending sigma,
    so reading one TYPE member does not need the others substituted into. */
-let sig_project_type_member =
+let sig_project_type_member_uncached =
     (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
     : option((Sig.member, t)) => {
   let (_, found) =
@@ -827,10 +827,53 @@ let sig_project_type_member =
   found;
 };
 
+/* The answer depends only on the items, self and the name, and the same
+   signature (Html's, the Livelit signature's) is projected from over and over:
+   on the Dynamic Row or Column slide this was ~20% of statics, most of it
+   re-substituting every manifest member for each projection. So the last few
+   answers are kept, keyed on the items physically -- a list that is the same
+   object is the same signature -- and on self by structure. keep_local is a closure and cannot
+   be compared, so a call that passes one is not cached. */
+let sig_project_type_member_cache:
+  ref(list((list(Sig.t), option(t), Var.t, option((Sig.member, t))))) =
+  ref([]);
+
+let sig_project_type_member =
+    (~self: option(t)=?, ~keep_local=?, items: list(Sig.t), name: Var.t)
+    : option((Sig.member, t)) =>
+  switch (keep_local) {
+  | Some(keep_local) =>
+    sig_project_type_member_uncached(~self?, ~keep_local, items, name)
+  | None =>
+    let same_self = (s: option(t)) =>
+      switch (s, self) {
+      | (None, None) => true
+      /* self is rebuilt on every call (path_sig makes `Var(n)` afresh),
+         so it is compared by structure; it is a short path. */
+      | (Some(a), Some(b)) => a === b || Equality.semantic.typ(a, b)
+      | _ => false
+      };
+    switch (
+      List.find_opt(
+        ((its, s, n, _)) => its === items && n == name && same_self(s),
+        sig_project_type_member_cache^,
+      )
+    ) {
+    | Some((_, _, _, found)) => found
+    | None =>
+      let found = sig_project_type_member_uncached(~self?, items, name);
+      sig_project_type_member_cache :=
+        [
+          (items, self, name, found),
+          ...ListUtil.take(15, sig_project_type_member_cache^),
+        ];
+      found;
+    };
+  };
+
 let sig_project_type =
-    (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
-    : option(t) =>
-  sig_project_type_member(~self?, ~keep_local, items, name)
+    (~self=?, ~keep_local=?, items: list(Sig.t), name: Var.t): option(t) =>
+  sig_project_type_member(~self?, ~keep_local?, items, name)
   |> Option.map(snd);
 
 /* An abstract type member projected out of a module path, `M.T`, does not

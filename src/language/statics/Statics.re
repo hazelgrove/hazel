@@ -228,8 +228,25 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    /* The mark, the message and the fixed type all ask subsume the same
+       question when neither type has an ExplicitNonlabel wrapper to strip
+       (it strips by returning its argument), so it is asked once. On the
+       Dynamic Row or Column slide it was a third of statics' meets. */
+    let plain =
+      ana_skip_explicit_nonlabel(ana) === ana
+      && ana_skip_explicit_nonlabel(elab_syn_ty) === elab_syn_ty;
+    let subsumed = lazy(subsume(~coercible, ctx, ana, elab_syn_ty));
+    let shared = plain ? Some(subsumed) : None;
     let marks =
-      switch (expectation_mismatch_mark(~coercible, ctx, ana, elab_syn_ty)) {
+      switch (
+        expectation_mismatch_mark(
+          ~coercible,
+          ~subsumed=?shared,
+          ctx,
+          ana,
+          elab_syn_ty,
+        )
+      ) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -241,13 +258,24 @@ and uexp_to_info_map =
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
           | _ =>
             Message.Exp(
-              Common(syn_ana_ok_common(~coercible, ctx, ana, elab_syn_ty)),
+              Common(
+                syn_ana_ok_common(
+                  ~coercible,
+                  ~subsumed=?shared,
+                  ctx,
+                  ana,
+                  elab_syn_ty,
+                ),
+              ),
             )
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(~coercible, ctx, ana, elab_syn_ty);
+    let ty =
+      plain
+        ? fixed_typ_of(ana, elab_syn_ty, Lazy.force(subsumed))
+        : fixed_typ(~coercible, ctx, ana, elab_syn_ty);
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(

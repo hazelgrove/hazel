@@ -273,9 +273,9 @@ let subsume = (~coercible, ctx: Ctx.t, ana: Typ.t, syn: Typ.t): option(Typ.t) =>
 /* Type after hole fixing: best type consistent with analysis expectation and
    statics synthetic type. On failure, prefer syn under synthesis and ana
    under analysis. */
-let fixed_typ =
-    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
-  switch (subsume(~coercible, ctx, ana, elab_syn_ty)) {
+let fixed_typ_of =
+    (ana: Typ.t, elab_syn_ty: Typ.t, subsumed: option(Typ.t)): Typ.t =>
+  switch (subsumed) {
   | Some(ty) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
@@ -284,6 +284,10 @@ let fixed_typ =
       ana;
     }
   };
+
+let fixed_typ =
+    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
+  fixed_typ_of(ana, elab_syn_ty, subsume(~coercible, ctx, ana, elab_syn_ty));
 
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
@@ -321,14 +325,27 @@ let should_emit_nomeet_mark =
   | None => true
   };
 
+/* SUBSUMED, when given, is subsume(~coercible, ctx, ana, elab_syn_ty) with
+   the wrappers already stripped, computed once by the caller. */
 let syn_ana_ok_common =
-    (~coercible=false, ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t)
+    (
+      ~coercible=false,
+      ~subsumed: option(Lazy.t(option(Typ.t)))=?,
+      ctx: Ctx.t,
+      ty_ana: Typ.t,
+      elab_syn_ty: Typ.t,
+    )
     : Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
-    switch (subsume(~coercible, ctx, ana, elab_syn_ty)) {
+    switch (
+      switch (subsumed) {
+      | Some(s) => Lazy.force(s)
+      | None => subsume(~coercible, ctx, ana, elab_syn_ty)
+      }
+    ) {
     | None => Message.Syn(elab_syn_ty)
     | Some(meet) =>
       Message.Ana(
@@ -343,14 +360,25 @@ let syn_ana_ok_common =
 };
 
 let expectation_mismatch_mark =
-    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t)
+    (
+      ~coercible=false,
+      ~subsumed: option(Lazy.t(option(Typ.t)))=?,
+      ctx: Ctx.t,
+      ana: Typ.t,
+      elab_syn_ty: Typ.t,
+    )
     : option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
   let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (subsume(~coercible, ctx, ana', syn')) {
+    switch (
+      switch (subsumed) {
+      | Some(s) => Lazy.force(s)
+      | None => subsume(~coercible, ctx, ana', syn')
+      }
+    ) {
     | Some(_) => None
     | None =>
       Some(
