@@ -29,6 +29,11 @@ Working examples, shipped as the Documentation → Livelits slides
 - **Color (Figure 3)**: the paper's `$color`, keyed to Fig. 3 line by line.
   Its four splices name variables that sliders set, and its Macro `expand` is
   Fig. 3 l.56: a use means the quoted function applied to its four splices.
+- **Hygiene**: the binding discipline, each part shown beside what naive
+  textual expansion would do: a splice holding the client's `x` next to an
+  expansion that binds its own `x` (11, not 20); a client shadowing a
+  builtin the expansion uses (3, not 0); and generated binders, captured
+  with author-named `Lambda` (`[2, 2]`) and not with `Abs` (`[1, 2]`).
 - **Dynamic Row or Column**: a row or column of cells that grows and shrinks.
   `init` makes three cells with `new_splice`, **+** and **x** add and drop
   cells, and the view sums them with `eval_splice`: the number of splices is
@@ -221,8 +226,18 @@ Hazel program needs an `eval : Exp -> a`.
   no fixed quotation can: the row's
   `fun x0 -> fun x1 -> ... -> x0 :: x1 :: ... :: []`, for however many cells
   it has, which is how the paper says a livelit with a varying number of
-  splices works (Sec. 3.2.5, its dataframe). Binder names are the author's
-  to keep apart: this is quasiquotation without hygiene.
+  splices works (Sec. 3.2.5, its dataframe). With `Lambda` the binder
+  names are the author's to keep apart.
+- **Hygiene: `Abs(fun v -> c)`.** A binder the *system* names: decoding
+  applies the function to a fresh variable whose name no program can write
+  (`%v0`, `%v1`, ...), so no generated binder can capture another
+  fragment's variable. The final decoding of a Macro use runs it, since it
+  needs the evaluator; `%fill_quote` cannot, so it leaves an antiquote
+  holding an `Abs` in place for that decoding. With the paper's two
+  properties -- a splice is passed as an argument and cannot be captured,
+  and the expansion is closed and cannot see the client's names -- this
+  is the binding discipline in full. The **Hygiene** slide shows all
+  three, each beside what naive textual expansion would do.
 
 ### The `quote e end` syntax
 

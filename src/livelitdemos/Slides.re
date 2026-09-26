@@ -15,6 +15,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Timings", [%blob "timings.hz"]),
     ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),
     ("Dynamic Row or Column", [%blob "splice-row.hz"]),
+    ("Hygiene", [%blob "hygiene.hz"]),
   ]
   |> List.map(((name, text)) =>
        (

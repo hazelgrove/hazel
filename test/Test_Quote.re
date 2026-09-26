@@ -423,3 +423,86 @@ let unquote_tests = (
     ),
   ],
 );
+
+/* ==================== Hygiene: Abs ==================== */
+
+/* A two-splice livelit whose expansion is generated: fun _ -> fun _ ->
+   [first, second], one binder per splice, built by a helper. BINDER says
+   how the helper binds. */
+let two_def = (binder: string) =>
+  "{
+type Model = (a=SpliceRef, b=SpliceRef);
+type Action = Int;
+type Expansion = [Int];
+let init =
+  do a <- new_splice((IntT, Some(IntLit(1)))) in
+  do b <- new_splice((IntT, Some(IntLit(2)))) in
+  Pure((a=a, b=b));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let list_of = fun (vars : [Exp]) ->
+  case vars
+  | [] => quote [] end
+  | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+  end;
+let gen = fun (vars : [Exp]) -> fun (i : Int) ->
+  if i == 2 then list_of(vars) else "
+  ++ binder
+  ++ ";
+let expand = Macro(fun m -> (gen([])(0), [m.a, m.b]))
+}";
+
+/* Every binder named x by the author: the second captures the first's
+   variable. */
+let named = "Lambda((\"x\", gen(vars @ [Ident(\"x\")])(i + 1)))";
+/* The system names each binder. */
+let hygienic = "Abs(fun v -> gen(vars @ [v])(i + 1))";
+
+let two_use = "^two((a=SpliceRef((\"s1\", 1)), b=SpliceRef((\"s2\", 2))))";
+
+let abs_tests = (
+  "Quote.Abs",
+  [
+    test_case("author-named binders capture: [2, 2]", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "the second x captures the first",
+        "[2, 2]",
+        "let ^two = " ++ two_def(named) ++ " in " ++ two_use,
+      )
+    ),
+    test_case("Abs binders do not: [1, 2]", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "each splice in its place",
+        "[1, 2]",
+        "let ^two = " ++ two_def(hygienic) ++ " in " ++ two_use,
+      )
+    ),
+    test_case(
+      "the Hygiene slide shows all four",
+      `Quick,
+      () => {
+        let (m, elab) = slide("hygiene.hz");
+        check(bool, "no BadLivelitExpansion", false, bad_expansion(m));
+        let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+        check(
+          Test_Evaluator_Prelude.dhexp_typ,
+          "capture 11, context 3, named [2, 2], hygienic [1, 2]",
+          run(
+            "(capture = 11, context = 3, named = [2, 2], hygienic = [1, 2])",
+          ),
+          v,
+        );
+      },
+    ),
+    test_case("a client's x is not confused with an Abs binder", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "the client's x stays 7",
+        "[7, 2]",
+        "let x = 7 in let ^two = "
+        ++ two_def(hygienic)
+        ++ " in "
+        ++ "^two((a=SpliceRef((\"s1\", x)), b=SpliceRef((\"s2\", 2))))",
+      )
+    ),
+  ],
+);

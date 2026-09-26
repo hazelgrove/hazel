@@ -1545,35 +1545,105 @@ let exp_typ: Typ.t =
          chosen twice is captured like any shadowing binder. */
       ("Ident", Some(string())),
       ("Lambda", Some(prod([string(), var("Exp")]))),
+      /* A binder the SYSTEM names: Abs(fun x -> c) is fun v -> c[x := v]
+         for a v no program can write, chosen when the code is decoded. So
+         no binder the author generates can capture another fragment's
+         variable -- hygiene by construction, where Lambda leaves the
+         names to the author. */
+      ("Abs", Some(arrow(var("Exp"), var("Exp")))),
     ]),
   );
 
 /* The code an Exp value denotes: a quotation's body, or the expression a
-   constructor spells. None for anything else. The one decoder, used by
-   the livelit mechanism (a Macro use) and by %fill_quote (antiquotes). */
-let rec code_of_exp_value = (d: DHExp.t): option(Exp.t) => {
+   constructor spells. None for anything else.
+
+   `apply` runs an Abs's function on a fresh variable. It needs the
+   evaluator, which this library cannot call (the evaluator depends on the
+   builtins), so the caller passes it: the livelit mechanism does, when it
+   decodes a Macro use (UserLivelit). Without it an Abs does not decode, and
+   %fill_quote keeps such a value, unresolved, as an antiquote in the body
+   (`unquote <value> end`), for that final decoding to resolve. `fresh`
+   names the variables, distinct within one decoding. */
+let rec code_of_exp_value =
+        (
+          ~apply: option((DHExp.t, DHExp.t) => option(DHExp.t))=?,
+          ~fresh: ref(int)=ref(0),
+          d: DHExp.t,
+        )
+        : option(Exp.t) => {
+  let decode = code_of_exp_value(~apply?, ~fresh);
   let rec strip = (d: DHExp.t): DHExp.t =>
     switch (d.term) {
     | Asc(inner, _)
-    | Parens(inner)
-    | Closure(_, inner) => strip(inner)
+    | Parens(inner) => strip(inner)
+    | Closure(_, inner) =>
+      /* a closure around a CONSTRUCTOR value is a wrapper; around a
+         function it is the function, which Abs needs whole */
+      switch (strip(inner).term) {
+      | Fun(_) => d
+      | _ => strip(inner)
+      }
     | _ => d
     };
   let d = strip(d);
   switch (d.term) {
-  | Quote(body) => Some(body)
+  | Quote(body) =>
+    /* A body may hold antiquotes %fill_quote could not decode (they
+       contain an Abs); decode them now, if we can. */
+    let failed = ref(false);
+    let body =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (e.term) {
+            | Quote(_) => e
+            | Unquote(v) =>
+              switch (decode(v)) {
+              | Some(code) => code
+              | None =>
+                failed := true;
+                e;
+              }
+            | _ => continue(e)
+            },
+        body,
+      );
+    failed^ && apply != None ? None : Some(body);
   | Ap(Forward, fn, arg) =>
     switch (strip(fn).term, strip(arg).term) {
     | (Constructor("IntLit", _), Atom(Int(_)) as n) => Some(n |> Exp.fresh)
     | (Constructor("Ident", _), Atom(String(x))) =>
       Some(Var(x) |> Exp.fresh)
     | (Constructor("Lambda", _), Tuple([x, body])) =>
-      switch (strip(x).term, code_of_exp_value(body)) {
+      switch (strip(x).term, decode(body)) {
       | (Atom(String(x)), Some(body)) =>
         Some(
           Fun((Var(x): Pat.term) |> Pat.fresh, body, None, None) |> Exp.fresh,
         )
       | _ => None
+      }
+    | (Constructor("Abs", _), _) =>
+      switch (apply) {
+      | None => None
+      | Some(apply) =>
+        let v = "%v" ++ string_of_int(fresh^);
+        incr(fresh);
+        let var_value =
+          IdTagged.FreshGrammar.(
+            Exp.ap(Forward, Exp.constructor("Ident", None), Exp.string(v))
+          );
+        switch (apply(strip(arg), var_value)) {
+        | Some(body) =>
+          switch (decode(body)) {
+          | Some(body) =>
+            Some(
+              Fun((Var(v): Pat.term) |> Pat.fresh, body, None, None)
+              |> Exp.fresh,
+            )
+          | None => None
+          }
+        | None => None
+        };
       }
     | _ => None
     }
@@ -1611,32 +1681,39 @@ let fill_quote: BuiltinsUtil.fn = {
       | Tuple([q, fills]) =>
         switch (strip(q).term, strip(fills).term) {
         | (Quote(body), ListLit(fills)) =>
-          let codes = List.map(code_of_exp_value, fills);
-          if (List.exists(Stdlib.Option.is_none, codes)) {
-            None;
-          } else {
-            let codes = List.map(Stdlib.Option.get, codes);
-            let body =
-              Exp.map_term(
-                ~f_exp=
-                  (continue, e) =>
-                    switch (e.term) {
-                    | Var(x) =>
-                      switch (
-                        List.find_opt(
-                          ((i, _)) => unquote_placeholder(i) == x,
-                          List.mapi((i, c) => (i, c), codes),
-                        )
-                      ) {
-                      | Some((_, code)) => code
-                      | None => e
-                      }
-                    | _ => continue(e)
-                    },
-                body,
-              );
-            Some(Quote(body) |> Exp.fresh);
-          };
+          /* A value that does not decode here (it holds an Abs, whose
+             function only the livelit mechanism can run) stays in the body
+             as an antiquote of the value itself, for the final decoding. */
+          let codes =
+            List.map(
+              v =>
+                switch (code_of_exp_value(v)) {
+                | Some(code) => code
+                | None => IdTagged.FreshGrammar.Exp.unquote(v)
+                },
+              fills,
+            );
+
+          let body =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e) =>
+                  switch (e.term) {
+                  | Var(x) =>
+                    switch (
+                      List.find_opt(
+                        ((i, _)) => unquote_placeholder(i) == x,
+                        List.mapi((i, c) => (i, c), codes),
+                      )
+                    ) {
+                    | Some((_, code)) => code
+                    | None => e
+                    }
+                  | _ => continue(e)
+                  },
+              body,
+            );
+          Some(Quote(body) |> Exp.fresh);
         | _ => None
         }
       | _ => None

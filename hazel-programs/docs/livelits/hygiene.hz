@@ -1,0 +1,150 @@
+# Hygiene: What an Expansion Cannot Capture #
+
+# A Macro livelit's use means code it generates, applied to code the #
+# client wrote -- the splices, edited inside the widget. Two programs #
+# are being combined, and each has its own names. Hygiene is the #
+# promise that neither can reach into the other by accident. The #
+# paper calls it the binding discipline (Sec. 2.4.3) and asks for two #
+# things; generating an expansion, as Dynamic Row or Column does, #
+# asks for a third. Each is shown below with what naive textual #
+# expansion -- pasting the client's code into the generated code -- #
+# would do instead. The value at the bottom collects all four. #
+
+# 1. CAPTURE AVOIDANCE: the client's x is not the expansion's x. #
+
+# The program binds x = 1. Below, the widget's editor holds the #
+# client's code, just x -- the program's x. The expansion is #
+#   fun s -> let x = 10 in s + x #
+# which binds an x of its own. Pasting the client's x in for s gives #
+# let x = 10 in x + x, which is 20: the expansion's x has captured #
+# the client's. Here the splice is passed to the expansion as an #
+# ARGUMENT, so it arrives as a value, 1, and cannot be captured: the #
+# use means 1 + 10 = 11 (Sec. 2.4.3, Fig. 5). #
+
+let x = 1 in
+
+let ^add_ten = {
+  type Model = (s = SpliceRef);
+  type Action = Int;
+  type Expansion = Int;
+  let init =
+    do s <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure((s = s));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do e <- editor((m.s, FixedWidth(6))) in
+    Pure(Html.div([], [Html.text("s = "), e, Html.text(" + 10")]));
+  let expand =
+    Macro(fun m : Model ->
+      (quote fun s -> let x = 10 in s + x end, [m.s]));
+  let shape = Inline(16)
+} in
+
+let capture = ^^livelit(^add_ten((s = (x)))) in
+
+# 2. CONTEXT INDEPENDENCE: the expansion's names are not the client's. #
+
+# The expansion below uses the builtin string_length. The client has #
+# its own string_length, which answers 0. Pasting the expansion into #
+# the client's program would pick up the client's, and give 0. Here #
+# the expansion is checked and run in the builtin context -- it must #
+# be closed -- so it means the builtin, and the use means 3. The #
+# editor agrees: it warns that the client's string_length is unused. #
+# Nothing uses it; the expansion never sees it. #
+
+let ^len = {
+  type Model = (s = SpliceRef);
+  type Action = Int;
+  type Expansion = Int;
+  let init =
+    do s <- new_splice((StringT, Some(IntLit(0)))) in
+    Pure((s = s));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do e <- editor((m.s, FixedWidth(8))) in
+    Pure(Html.div([], [Html.text("length of "), e]));
+  let expand =
+    Macro(fun m : Model -> (quote fun s -> string_length(s) end, [m.s]));
+  let shape = Inline(20)
+} in
+
+let string_length = fun _s : String -> 0 in
+let context = ^^livelit(^len((s = ("abc")))) in
+
+# 3. GENERATED BINDERS: names the author picks can collide. #
+
+# Dynamic Row or Column builds its expansion, a function with one #
+# parameter per cell. Here is the same idea for two splices, built by #
+# a helper, gen, that adds one binder per splice and collects the #
+# variables into a list: #
+#   fun _ -> fun _ -> [first, second] #
+# With Lambda the author names each binder, and this helper names #
+# them all x: fun x -> fun x -> [x, x]. The second x captures the #
+# first, and the use means [2, 2] where [1, 2] was meant. #
+
+let ^two = {
+  type Model = (a = SpliceRef, b = SpliceRef);
+  type Action = Int;
+  type Expansion = [Int];
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(1)))) in
+    do b <- new_splice((IntT, Some(IntLit(2)))) in
+    Pure((a = a, b = b));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do a <- editor((m.a, FixedWidth(4))) in
+    do b <- editor((m.b, FixedWidth(4))) in
+    Pure(Html.div([], [Html.text("["), a, Html.text(", "), b, Html.text("]")]));
+  let list_of = fun vars : [Exp] ->
+    case vars
+    | [] => quote [] end
+    | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+    end;
+  let gen = fun vars : [Exp] -> fun i : Int ->
+    if i == 2 then list_of(vars)
+    else Lambda(("x", gen(vars @ [Ident("x")])(i + 1)));
+  let expand = Macro(fun m : Model -> (gen([])(0), [m.a, m.b]));
+  let shape = Inline(16)
+} in
+
+let named = ^^livelit(^two((a = (1), b = (2)))) in
+
+# 4. ...AND WITH Abs, THEY CANNOT. #
+
+# The same helper, but each binder is made with Abs. Abs(fun v -> c) #
+# is a function whose binder the SYSTEM names -- a name no program can #
+# write -- and v is its variable, as code. gen never picks a name, so #
+# no binder can capture another's variable, and the use means [1, 2]. #
+# The client's code in the splices is safe from these binders for the #
+# reason in 1: it arrives as an argument. #
+
+let ^two_abs = {
+  type Model = (a = SpliceRef, b = SpliceRef);
+  type Action = Int;
+  type Expansion = [Int];
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(1)))) in
+    do b <- new_splice((IntT, Some(IntLit(2)))) in
+    Pure((a = a, b = b));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do a <- editor((m.a, FixedWidth(4))) in
+    do b <- editor((m.b, FixedWidth(4))) in
+    Pure(Html.div([], [Html.text("["), a, Html.text(", "), b, Html.text("]")]));
+  let list_of = fun vars : [Exp] ->
+    case vars
+    | [] => quote [] end
+    | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+    end;
+  let gen = fun vars : [Exp] -> fun i : Int ->
+    if i == 2 then list_of(vars)
+    else Abs(fun v -> gen(vars @ [v])(i + 1));
+  let expand = Macro(fun m : Model -> (gen([])(0), [m.a, m.b]));
+  let shape = Inline(16)
+} in
+
+let hygienic = ^^livelit(^two_abs((a = (1), b = (2)))) in
+
+# capture = 11 (naive: 20), context = 3 (naive: 0), #
+# named = [2, 2] (captured), hygienic = [1, 2]. #
+(capture = capture, context = context, named = named, hygienic = hygienic)

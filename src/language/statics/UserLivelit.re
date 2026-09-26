@@ -649,7 +649,10 @@ let run_macro_expand =
   | Tuple([code, refs]) =>
     /* A quotation (its antiquotes already filled when it was evaluated),
        or code spelled with Exp's constructors: Lambda, Ident, IntLit. */
-    let* body = BuiltinsADT.code_of_exp_value(code);
+    /* An Abs's function is run here, on a fresh variable, in the builtin
+       environment: the decoding is what names its binder. */
+    let apply = (f, x) => eval(IdTagged.FreshGrammar.Exp.ap(Forward, f, x));
+    let* body = BuiltinsADT.code_of_exp_value(~apply, code);
     let* refs =
       switch (strip_value(refs).term) {
       | ListLit(items) => Util.OptUtil.sequence(List.map(ref_id, items))
