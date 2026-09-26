@@ -31,6 +31,9 @@ let ctx_entries =
   @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
   @ BuiltinsADT.constructor_entries;
 
+/* Every statics ctx ends in this list; index it once (see Ctx.tail_index). */
+let () = Ctx.index_tail(ctx_entries);
+
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
     use_mode,
