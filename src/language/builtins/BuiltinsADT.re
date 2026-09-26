@@ -1626,6 +1626,68 @@ let constructors: Ctx.t = {
    They are `const` builtins because `hazel_fn` forces `arrow(arg, ret)`
    and a forall is not an arrow. */
 
+/* %splice_value((model, "<id>")): the value the ref named <id> carries
+   inside an evaluated model. A Macro livelit's use applies its quotation to
+   these, not to the splices' code again (UserLivelit / Statics' Macro
+   path): the model is evaluated once, in the client's scope, and each ref
+   in it already holds its splice's value from that run -- which is what
+   eval_splice reads too. `%` is not lexable, so no program can name or
+   shadow it. */
+let splice_value_name = "%splice_value";
+
+let splice_value: BuiltinsUtil.fn = {
+  let rec strip = (d: DHExp.t): DHExp.t =>
+    switch (d.term) {
+    | Asc(inner, _)
+    | Parens(inner) => strip(inner)
+    | _ => d
+    };
+  let ref_payload = (d: DHExp.t): option((string, DHExp.t)) =>
+    switch (strip(d).term) {
+    | Ap(Forward, fn, body) =>
+      switch (strip(fn).term, strip(body).term) {
+      | (Constructor("SpliceRef", _), Tuple([id, v])) =>
+        switch (strip(id).term) {
+        | Atom(String(s)) => Some((s, v))
+        | _ => None
+        }
+      | _ => None
+      }
+    | _ => None
+    };
+  let find = (id: string, model: DHExp.t): option(DHExp.t) => {
+    let found = ref(None);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (found^, ref_payload(e)) {
+            | (None, Some((x, v))) when x == id =>
+              found := Some(v);
+              e;
+            | _ => continue(e)
+            },
+        model,
+      );
+    found^;
+  };
+  {
+    name: splice_value_name,
+    arg: Prod([Unknown(Internal) |> Typ.temp, Atom(String) |> Typ.temp]),
+    ret: Unknown(Internal),
+    imp: d =>
+      switch (strip(d).term) {
+      | Tuple([model, id]) =>
+        switch (strip(id).term) {
+        | Atom(String(id)) => find(id, model)
+        | _ => None
+        }
+      | _ => None
+      },
+    custom_statics: None,
+  };
+};
+
 let monad_ops: list(const) = {
   let a = () => var("a");
   let b = () => var("b");

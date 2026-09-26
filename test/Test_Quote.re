@@ -304,6 +304,33 @@ let macro_tests = (
         ++ " in let string_length = fun s -> 0 in ^len((s=SpliceRef((\"s\", \"abc\"))))",
       )
     ),
+    test_case(
+      "a splice's code occurs once in the use's elaboration",
+      `Quick,
+      () => {
+        /* Twice would mean it runs twice: once in the model, and again as
+           the quoted function's argument. */
+        let (_, elab) =
+          statics(
+            "let ^pair = " ++ pair_def ++ " in " ++ pair_use("424242", "20"),
+          );
+        let n = ref(0);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (continue, e) => {
+                switch (e.term) {
+                | Atom(Int(i)) when Bigint.to_string(i) == "424242" =>
+                  incr(n)
+                | _ => ()
+                };
+                continue(e);
+              },
+            elab,
+          );
+        check(int, "occurrences", 1, n^);
+      },
+    ),
     test_case("a well-typed use has no BadLivelitExpansion", `Quick, () =>
       check(
         bool,

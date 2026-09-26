@@ -1930,8 +1930,7 @@ and uexp_to_info_map =
                         UserLivelit.splice_code(arg_exposed, id),
                         UserLivelit.splice_code(arg_elab, id),
                       ) {
-                      | (Some(surface), Some(elab)) =>
-                        Some((surface, elab))
+                      | (Some(surface), Some(_)) => Some((id, surface))
                       | _ => None
                       },
                     ids,
@@ -1950,7 +1949,7 @@ and uexp_to_info_map =
                already; this asks only for its type). */
             let code_tys =
               List.map(
-                ((surface, _)) => {
+                ((_, surface)) => {
                   let (info, _, _) =
                     go(~ana=Unknown(Internal) |> Typ.temp, surface, m);
                   info.elab_syn_ty;
@@ -2005,22 +2004,41 @@ and uexp_to_info_map =
                   },
                 body_ids,
               );
-            let elab =
+            /* The model is bound once and each argument is the value its
+               splice's ref carries in it -- what the model's evaluation, in
+               the client's scope, already computed, and what eval_splice
+               reads -- so a splice's code runs once, and a probe in it
+               fires once. A projected use finds the model here by id (the
+               Projector case) to run view on it, and binds it once more
+               for the view, which this binding then reads. */
+            let m_var = "%macro_model";
+            let m_ref = () => (Var(m_var): Exp.term) |> Exp.fresh;
+            let splice_arg = id =>
+              (
+                Ap(
+                  Forward,
+                  (BuiltinFun(BuiltinsADT.splice_value_name): Exp.term)
+                  |> Exp.fresh,
+                  (
+                    Tuple([
+                      m_ref(),
+                      (Atom(String(id)): Exp.term) |> Exp.fresh,
+                    ]): Exp.term
+                  )
+                  |> Exp.fresh,
+                ): Exp.term
+              )
+              |> Exp.fresh;
+            let app =
               List.fold_left(
-                (f, (_, code_elab)) =>
-                  (Ap(Forward, f, code_elab): Exp.term) |> Exp.fresh,
+                (f, (id, _)) =>
+                  (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
                 (Closure(Builtins.env_init, body_elab): Exp.term) |> Exp.fresh,
                 codes,
               );
-            /* The elaborated model rides along, unused by the value: a
-               projected use finds it here by id (the Projector case) to run
-               view on it, as it finds a Functional use's model as f's
-               argument. Only there are the splices decoded into refs.
-               Known cost: a splice's code then runs twice, in the model and
-               as an argument -- and a probe in it fires twice. Reading the
-               arguments out of the model's refs instead would fix both. */
             let elab =
-              (Let(Pat.fresh(Wild), arg_elab, elab): Exp.term) |> Exp.fresh;
+              (Let(Pat.fresh(Var(m_var)), arg_elab, app): Exp.term)
+              |> Exp.fresh;
             let (info, elab, m) =
               add(
                 ~elab_term=elab,

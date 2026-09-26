@@ -16,7 +16,8 @@ let builtins =
   @ List.map(const_builtin, BuiltinsADT.module_builtins)
   @ List.map(const_builtin, BuiltinsADT.monad_ops)
   @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
-  @ List.map(fn_builtin, BuiltinsColor.builtins);
+  @ List.map(fn_builtin, BuiltinsColor.builtins)
+  @ [fn_builtin(BuiltinsADT.splice_value)];
 
 let builtins =
   List.sort(
