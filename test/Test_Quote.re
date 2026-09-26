@@ -181,3 +181,159 @@ let tests = (
     ),
   ],
 );
+
+/* ==================== A use of a Macro livelit ==================== */
+
+let pair_def = "{
+type Model = (a=SpliceRef, b=SpliceRef);
+type Action = Int;
+type Expansion = (Int, Int);
+let init =
+  do a <- new_splice((IntT, Some(IntLit(1)))) in
+  do b <- new_splice((IntT, Some(IntLit(2)))) in
+  Pure((a=a, b=b));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Macro(fun m -> (quote fun x -> fun y -> (y, x) end, [m.a, m.b]))
+}";
+
+/* The body names a builtin, to see that a client binding shadowing it does
+   not reach in. */
+let len_def = "{
+type Model = (s=SpliceRef);
+type Action = Int;
+type Expansion = Int;
+let init =
+  do s <- new_splice((StringT, Some(IntLit(0)))) in
+  Pure((s=s));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Macro(fun m -> (quote fun s -> string_length(s) end, [m.s]))
+}";
+
+let pair_use = (a, b) =>
+  "^pair((a=SpliceRef((\"s1\", "
+  ++ a
+  ++ ")), b=SpliceRef((\"s2\", "
+  ++ b
+  ++ "))))";
+
+let bad_expansion = (m: Statics.Map.t): bool =>
+  Test_UserLivelits.has_mark(
+    fun
+    | BadLivelitExpansion(_) => true
+    | _ => false,
+    m,
+  );
+
+/* The Color slide, loaded as the editor loads it, statics and all. */
+let color_slide = () => {
+  let path =
+    List.find_opt(
+      Sys.file_exists,
+      [
+        "hazel-programs/docs/livelits/color-fig3.hz",
+        "../../../hazel-programs/docs/livelits/color-fig3.hz",
+      ],
+    )
+    |> Option.value(~default="hazel-programs/docs/livelits/color-fig3.hz");
+  let ic = open_in_bin(path);
+  let text = really_input_string(ic, in_channel_length(ic));
+  close_in(ic);
+  switch (PersistentZipper.parse_text(~source="color-fig3", ~root=Exp, text)) {
+  | None => fail("color-fig3.hz did not parse")
+  | Some(z) =>
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  };
+};
+
+let macro_tests = (
+  "Quote.Macro",
+  [
+    test_case(
+      "Color (Figure 3): a use means its color",
+      `Quick,
+      () => {
+        let (m, elab) = color_slide();
+        check(bool, "no BadLivelitExpansion", false, bad_expansion(m));
+        let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+        check(
+          Test_Evaluator_Prelude.dhexp_typ,
+          "the sliders' values",
+          Test_UserLivelits.run("(r = 255, g = 140, b = 0, a = 100)"),
+          v,
+        );
+      },
+    ),
+    test_case(
+      "the use is the quoted function applied to the splices", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "swapped",
+        "(20, 10)",
+        "let ^pair = " ++ pair_def ++ " in " ++ pair_use("10", "20"),
+      )
+    ),
+    test_case("splice code runs in the client's scope", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "k is the client's",
+        "(5, 6)",
+        "let k = 5 in let ^pair = "
+        ++ pair_def
+        ++ " in "
+        ++ pair_use("k + 1", "k"),
+      )
+    ),
+    test_case("a client's x is not captured by the body's x", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "x stays the client's",
+        "(1, 100)",
+        "let x = 100 in let ^pair = "
+        ++ pair_def
+        ++ " in "
+        ++ pair_use("x", "1"),
+      )
+    ),
+    test_case(
+      "a client shadowing a builtin does not reach the body", `Quick, () =>
+      Test_UserLivelits.run_test(
+        "the builtin string_length",
+        "3",
+        "let ^len = "
+        ++ len_def
+        ++ " in let string_length = fun s -> 0 in ^len((s=SpliceRef((\"s\", \"abc\"))))",
+      )
+    ),
+    test_case("a well-typed use has no BadLivelitExpansion", `Quick, () =>
+      check(
+        bool,
+        "none",
+        false,
+        bad_expansion(
+          fst(
+            statics(
+              "let ^pair = " ++ pair_def ++ " in " ++ pair_use("10", "20"),
+            ),
+          ),
+        ),
+      )
+    ),
+    test_case(
+      "a splice of the wrong type is BadLivelitExpansion at the use",
+      `Quick,
+      () =>
+      check(
+        bool,
+        "marked",
+        true,
+        bad_expansion(
+          fst(
+            statics(
+              "let ^pair = " ++ pair_def ++ " in " ++ pair_use("\"no\"", "20"),
+            ),
+          ),
+        ),
+      )
+    ),
+  ],
+);

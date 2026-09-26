@@ -7,26 +7,24 @@
 # language allows. Each piece is tagged "Fig. 3 l.N" with the line of #
 # the figure it corresponds to, so the paper can sit open beside it. #
 
-# Everything runs except one line, and that line is still written: as #
-# a hole (?) in exactly the place the paper puts its code. A hole #
-# stands for code not written yet and checks against any type, so the #
-# definition still typechecks and the gap sits where it actually is. #
+# All of it runs, expand included: each use means the quoted function #
+# of Fig. 3 l.56 applied to that use's four splices, so the value at #
+# the bottom of this program is the color the sliders make. #
 
-# WHAT IS MISSING #
+# THE EXPANSION #
 
 # Figure 3's expand (l.55-57) is a MACRO: it returns a quoted #
-# function, `fun r g b a -> (r, g, b, a)`, together with the four #
-# splices to apply it to. That is the paper's expand member #
-# (Sec. 3.2.5, formalized in Sec. 4.2.2): the use's meaning is that #
-# function applied to the client's splices. It never sees them as Exp #
-# -- it must treat them parametrically -- and applying it to them is #
-# what keeps them capture-avoiding (Sec. 2.4.3). The quoted function #
-# cannot be written here: there is no quotation yet, and Exp's only #
-# constructor is IntLit. So this expand is a Macro with a hole where #
-# the quoted function goes, and a use of ^color means a hole. #
+# function together with the four splices to apply it to. That is #
+# the paper's expand member (Sec. 3.2.5, formalized in Sec. 4.2.2): #
+# the use's meaning is that function applied to the client's #
+# splices. It never sees them as Exp -- it treats them #
+# parametrically -- and applying it to them is what keeps them #
+# capture-avoiding (Sec. 2.4.3). The paper writes the quotation in #
+# backticks; here it is quote ... end, and the function is curried #
+# by hand, since fun r g b a is not a curried function here. #
 
-# The rest runs. init makes the four splices (l.8-13), the view reads #
-# and places them (l.18-44), and a click writes them (l.46-53). The #
+# init makes the four splices (l.8-13), the view reads and places #
+# them (l.18-44), and a click writes them (l.46-53). The #
 # paper's starting code is the quoted `0`; here it is IntLit(0), an #
 # Exp constructor, which needs no quotation. #
 
@@ -164,10 +162,13 @@ let ^color = {
   # curried function and the splice list to apply it to: #
   #   (`fun r g b a -> (r, g, b, a)`, #
   #    [model.r, model.g, model.b, model.a]) #
-  # The splice list is written exactly. The quoted function is a hole, #
-  # as there is no quotation yet -- see WHAT IS MISSING at the top. #
+  # The quotation is closed: it names only its own parameters. Each use #
+  # means it applied to that use's four splices, in the list's order, #
+  # and is checked there against Int -> Int -> Int -> Int -> Color. #
   let expand =
-    Macro(fun model : Model -> (?, [model.r, model.g, model.b, model.a]));
+    Macro(fun model : Model ->
+      (quote fun r -> fun g -> fun b -> fun a -> (r, g, b, a) end,
+       [model.r, model.g, model.b, model.a]));
 
   let shape = Block(40, 5)
 } in

@@ -81,6 +81,7 @@ let (suite, exit_with_test_status) =
     @ [Test_CtxIndex.tests]
     @ [Test_Move.tests]
     @ [Test_Quote.tests]
+    @ [Test_Quote.macro_tests]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]

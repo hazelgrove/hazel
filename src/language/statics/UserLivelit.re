@@ -518,6 +518,150 @@ let mk_expand_dot =
   );
 };
 
+/* ==================== Macro expansion (Sec. 3.2.5) ====================
+   A Macro livelit's use means its quoted function applied to the code of
+   the splices it lists (Fig. 5). Finding that out means RUNNING expand on
+   the model -- the paper's premise 3 -- which is done here, while the use
+   is checked, from the definition's closed elaboration (the one init runs
+   from too), in the builtin environment. */
+
+/* Looking through what an evaluated value may be wrapped in. */
+let rec strip_value = (d: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => strip_value(inner)
+  | _ => d
+  };
+
+/* C(payload) ~> (C, payload) */
+let of_ctr = (d: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>
+  switch (strip_value(d).term) {
+  | Ap(Forward, fn, body) =>
+    switch (strip_value(fn).term) {
+    | Constructor(name, _) => Some((name, strip_value(body)))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The id a SpliceRef term or value names: SpliceRef(("<id>", _)). */
+let ref_id = (d: TermBase.Exp.t): option(string) =>
+  switch (of_ctr(d)) {
+  | Some(("SpliceRef", body)) =>
+    switch (strip_value(body).term) {
+    | Tuple([id, _]) =>
+      switch (strip_value(id).term) {
+      | Atom(String(s)) => Some(s)
+      | _ => None
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The model with every ref's code replaced by a hole. expand must treat
+   splices parametrically -- it gets their identities, not their code --
+   and the code is the client's, open in the client's scope, so it could
+   not be evaluated here anyway. */
+let rec blank_refs = (e: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (ref_id(e)) {
+  | Some(id) =>
+    IdTagged.FreshGrammar.(
+      Exp.ap(
+        Forward,
+        Exp.constructor("SpliceRef", None),
+        Exp.tuple([Exp.string(id), Exp.empty_hole()]),
+      )
+    )
+  | None =>
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (ref_id(e)) {
+          | Some(_) => blank_refs(e)
+          | None => continue(e)
+          },
+      e,
+    )
+  };
+
+/* The code at the position of the ref naming [id] in a model: the second
+   component of SpliceRef(("<id>", code)), as expose_splice_refs left it. */
+let splice_code = (model: TermBase.Exp.t, id: string): option(TermBase.Exp.t) => {
+  let found = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (of_ctr(e), found^) {
+          | (Some(("SpliceRef", body)), None) when ref_id(e) == Some(id) =>
+            switch (body.term) {
+            | Tuple([_, code]) =>
+              found := Some(code);
+              e;
+            | _ => continue(e)
+            }
+          | _ => continue(e)
+          },
+      model,
+    );
+  found^;
+};
+
+/* What a Macro livelit's expand answers for this model: the body of its
+   quotation, and the ids of the refs it lists, in order. None when the
+   livelit is not a Macro one, or its expand does not answer
+   (quote body end, [refs]) -- the use then keeps the ordinary path. */
+let run_macro_expand =
+    (~def_elab: TermBase.Exp.t, ~model: TermBase.Exp.t)
+    : option((TermBase.Exp.t, list(string))) => {
+  let eval = d =>
+    switch (Evaluator.evaluate(~env=Builtins.env_init, d)) {
+    | (v, _) => Some(v)
+    | exception _ => None
+    };
+  let field = (record: TermBase.Exp.t, label: string) =>
+    switch (strip_value(record).term) {
+    | Module(items) =>
+      List.fold_left(
+        (acc, item: TermBase.Mod.t) =>
+          switch (item.term) {
+          | ModVal(x, v) when x == label => Some(v)
+          | _ => acc
+          },
+        None,
+        items,
+      )
+    | _ => None
+    };
+  open Util.OptUtil.Syntax;
+  let* def = eval(def_elab);
+  let* expand = field(def, "expand");
+  let* g =
+    switch (of_ctr(expand)) {
+    | Some(("Macro", g)) => Some(g)
+    | _ => None
+    };
+  let* answer =
+    eval(IdTagged.FreshGrammar.Exp.ap(Forward, g, blank_refs(model)));
+  switch (strip_value(answer).term) {
+  | Tuple([code, refs]) =>
+    let* body =
+      switch (strip_value(code).term) {
+      | Quote(body) => Some(body)
+      | _ => None
+      };
+    let* refs =
+      switch (strip_value(refs).term) {
+      | ListLit(items) => Util.OptUtil.sequence(List.map(ref_id, items))
+      | _ => None
+      };
+    Some((body, refs));
+  | _ => None
+  };
+};
+
 let is_user_livelit = (ctx: Ctx.t, name: string): bool =>
   switch (Ctx.lookup_livelit(ctx, name)) {
   | Some({user_def: Some(_), _}) => true
