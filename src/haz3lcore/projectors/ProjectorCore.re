@@ -16,25 +16,9 @@ open Util;
  * sharing with Grammar.re (which is in the language library) */
 module Kind = Language.ProjectorKind;
 
-/* Where a projector instance draws its primary UI. Inline means
- * in-place in the code; Sidebar means docked in the projector panel,
- * leaving a compact chip at the code site. */
-module Placement = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    | Inline
-    | Sidebar;
-
-  let toggle: t => t =
-    fun
-    | Inline => Sidebar
-    | Sidebar => Inline;
-
-  let is_sidebar: t => bool =
-    fun
-    | Inline => false
-    | Sidebar => true;
-};
+/* Placement lives in src/language/ProjectorPlacement.re (like Kind) so
+ * Token can spell the placement suffix of an invoke token. */
+module Placement = Language.ProjectorPlacement;
 
 /* Projectors in syntax.
  * `placement` is defaulted on deserialization so documents persisted
