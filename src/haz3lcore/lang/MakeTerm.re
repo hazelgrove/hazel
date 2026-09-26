@@ -1189,6 +1189,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         set_lexeme(t);
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
       | (F(Tok(t)), []) when Token.is_var(t) => ret(Var(t))
+      /* Livelit binder `let ^name = ...`: reuse Var, keeping the caret.
+         No var token can contain `^`, so the name is unambiguous. */
+      | (F(Tok(t)), []) when Token.is_livelit(t) => ret(Var(t))
       | (F(Tok(t)), []) when Token.is_wild(t) => ret(Wild)
       | (F(Tok(t)), []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (F(Compound(Parens)), [Pat(body)]) => ret(Parens(body))
