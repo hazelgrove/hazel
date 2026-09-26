@@ -477,22 +477,27 @@ let abs_tests = (
         "let ^two = " ++ two_def(hygienic) ++ " in " ++ two_use,
       )
     ),
-    test_case(
-      "the Hygiene slide shows all four",
-      `Quick,
-      () => {
-        let (m, elab) = slide("hygiene.hz");
-        check(bool, "no BadLivelitExpansion", false, bad_expansion(m));
-        let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
-        check(
-          Test_Evaluator_Prelude.dhexp_typ,
-          "capture 11, context 3, named [2, 2], hygienic [1, 2]",
-          run(
-            "(capture = 11, context = 3, named = [2, 2], hygienic = [1, 2])",
-          ),
-          v,
-        );
-      },
+    test_case("each Livelit Hygiene slide means what it says", `Quick, () =>
+      List.iter(
+        ((file, expected)) => {
+          let (m, elab) = slide("hygiene/" ++ file);
+          check(
+            bool,
+            file ++ ": no BadLivelitExpansion",
+            false,
+            bad_expansion(m),
+          );
+          let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+          check(Test_Evaluator_Prelude.dhexp_typ, file, run(expected), v);
+        },
+        [
+          ("about.hz", "\"see the four slides that follow\""),
+          ("capture.hz", "11"),
+          ("context.hz", "3"),
+          ("generated-binders.hz", "[2, 2]"),
+          ("abs.hz", "[1, 2]"),
+        ],
+      )
     ),
     test_case("a client's x is not confused with an Abs binder", `Quick, () =>
       Test_UserLivelits.run_test(

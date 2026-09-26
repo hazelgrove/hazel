@@ -7,7 +7,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Overview", [%blob "overview.hz"]),
     ("Color (Figure 3)", [%blob "color-fig3.hz"]),
     ("Define a Slider", [%blob "defined-slider.hz"]),
-    ("The Expansion", [%blob "expansion.hz"]),
+    ("Functional Expansion", [%blob "expansion.hz"]),
     ("SpliceRef, MVP", [%blob "splices-mvp.hz"]),
     ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
@@ -15,7 +15,13 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Timings", [%blob "timings.hz"]),
     ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),
     ("Dynamic Row or Column", [%blob "splice-row.hz"]),
-    ("Hygiene", [%blob "hygiene.hz"]),
+    /* A subfolder, Livelits / Hygiene: a slide per part, so each loads
+       only the livelit it shows (hazel-programs/docs/livelits/hygiene). */
+    ("Hygiene / About", [%blob "about.hz"]),
+    ("Hygiene / 1. Capture Avoidance", [%blob "capture.hz"]),
+    ("Hygiene / 2. Context Independence", [%blob "context.hz"]),
+    ("Hygiene / 3. Generated Binders", [%blob "generated-binders.hz"]),
+    ("Hygiene / 4. Abs", [%blob "abs.hz"]),
   ]
   |> List.map(((name, text)) =>
        (

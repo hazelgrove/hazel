@@ -31,9 +31,9 @@
 #         checked only at each use (Sec. 3.2.5). A number needs no #
 #         program written for it, so this one is Functional, an arm #
 #         this implementation adds: Model -> Expansion, checked here #
-#         at the definition. Macro can be written but cannot return #
-#         real code yet: with no quotation, its Exp can only be a #
-#         hole or an IntLit. #
+#         at the definition. A Macro returns its code as a #
+#         quotation, quote ... end: see Color (Figure 3), and #
+#         Dynamic Row or Column for code built by expand. #
 
 # init is a COMMAND, and update and view return commands. Pure(x) is #
 # the command that answers x and does nothing else; a slider makes no #

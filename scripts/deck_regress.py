@@ -50,7 +50,7 @@ FRESH_URL = f"/fresh?{SLIDE_QUERY}"
 
 # Every slide in the livelits deck, in the order the demo presents them.
 DECK = [
-    "Overview", "Define a Slider", "The Expansion", SLIDE_NAME, "Emotion",
+    "Overview", "Define a Slider", "Functional Expansion", SLIDE_NAME, "Emotion",
     "Color Picker", "Tree Care", "Timings", "JavaScript (advanced)",
 ]
 

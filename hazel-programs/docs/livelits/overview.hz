@@ -118,7 +118,17 @@
 
 # Splices are capture-avoiding: the expansion takes them as function #
 # arguments, so a splice sees the client's bindings and never the #
-# livelit's (Sec. 2.4.3). The paper lists no command to delete one. #
+# livelit's (Sec. 2.4.3). The Hygiene folder shows it. #
+
+# QUOTATION: a Macro's code is written quote e end, the paper's #
+# backticks (Sec. 3.2.1, 3.2.5). Its body is checked in the builtin #
+# context, so it cannot name the client's variables, and a use means #
+# it applied to the splices. For code a fixed quotation cannot write, #
+# expand builds it: unquote e end splices in code computed by e, and #
+# Abs(fun v -> c) makes a binder whose name the system chooses. #
+# Dynamic Row or Column builds a function of one parameter per cell. #
+
+# The paper lists no command to delete a splice. #
 # Here deletion is implicit: a splice that no ref in the committed #
 # model reaches is not written back, so it is gone. #
 
@@ -135,17 +145,10 @@
 # runner performs a bind by running its command and passing the #
 # answer on. #
 
-# There is no quotation yet. The paper writes Exp and Typ values #
-# with quasiquotation, like `0` (Sec. 3.2.1), and Macro returns a #
-# quoted function over the splices (Sec. 3.2.5). Here Exp has one #
-# constructor, IntLit(Int), which Fig. 3 l.49-52 writes. So #
-# new_splice can start a splice only empty or at a number, and #
-# set_splice can only give it a number. A Macro expand cannot return #
-# real code: its Exp can only be a hole or an IntLit, and a use does #
-# not call it yet, so a use of a Macro livelit means a hole of its #
-# Expansion type. Typ is a stopgap, a closed list of base type names #
-# like IntT. new_splice takes one and discards it: a splice is typed #
-# only by where it sits. #
+# Typ is a stopgap, a closed list of base type names like IntT. #
+# new_splice takes one and discards it: a splice is typed only by #
+# where it sits, and a use checks its expansion against the types its #
+# splices' code has. #
 
 # SpliceRef is not abstract yet. A ref carries the value its code #
 # had in the current run, and its constructor is visible, so an #
@@ -194,7 +197,7 @@ let ^flag = {
       [Html.text(if m then "yes" else "no")]));
 
   # what a use means: here, the model itself, so Functional. Macro, #
-  # the paper's arm, cannot return real code yet: no quotation. #
+  # the paper's arm, returns code instead: see Color (Figure 3). #
   let expand = Functional(fun m : Model -> m);
 
   # optional: the widget's footprint, in character cells #
@@ -223,14 +226,16 @@ let ^flag = {
 # declared Expansion type. Checking expand at the definition is an #
 # addition here, and is enough for Functional. The use-site check #
 # runs at every use today. For a Functional livelit it repeats what #
-# the definition already guaranteed. For Macro it checks only a #
-# placeholder until there is quotation; then it does real work. #
+# the definition already guaranteed. For Macro it does the real #
+# work: the quoted code, against the types of the splices it is #
+# applied to. #
 
 # WHERE TO GO NEXT #
 
 # Color (Figure 3) the paper's own example, rebuilt line by line #
 # Define a Slider  a number you drag, expanding to that number #
-# The Expansion    Functional and Macro side by side #
+# Functional Expansion #
+#                  an expansion that is a value, not code #
 # SpliceRef, MVP   a slider whose two bounds are splices #
 # Emotion          the widget IS the control: drag a face #
 # Color Picker     helpers are ordinary members of the module #
@@ -238,3 +243,5 @@ let ^flag = {
 # Timings          what one frame of a livelit costs #
 # Dynamic Row or Column #
 #                  a row of splices that grows and shrinks #
+# Hygiene          why an expansion cannot capture the client's #
+#                  names, nor see them: a folder, a slide per part #

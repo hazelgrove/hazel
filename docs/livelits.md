@@ -29,8 +29,8 @@ Working examples, shipped as the Documentation → Livelits slides
 - **Color (Figure 3)**: the paper's `$color`, keyed to Fig. 3 line by line.
   Its four splices name variables that sliders set, and its Macro `expand` is
   Fig. 3 l.56: a use means the quoted function applied to its four splices.
-- **Hygiene**: the binding discipline, each part shown beside what naive
-  textual expansion would do: a splice holding the client's `x` next to an
+- **Hygiene**, a folder of slides (Livelits / Hygiene), one per part of the
+  binding discipline, each beside what naive textual expansion would do: a splice holding the client's `x` next to an
   expansion that binds its own `x` (11, not 20); a client shadowing a
   builtin the expansion uses (3, not 0); and generated binders, captured
   with author-named `Lambda` (`[2, 2]`) and not with `Abs` (`[1, 2]`).
@@ -236,8 +236,9 @@ Hazel program needs an `eval : Exp -> a`.
   holding an `Abs` in place for that decoding. With the paper's two
   properties -- a splice is passed as an argument and cannot be captured,
   and the expansion is closed and cannot see the client's names -- this
-  is the binding discipline in full. The **Hygiene** slide shows all
-  three, each beside what naive textual expansion would do.
+  is the binding discipline in full. The **Livelits / Hygiene** folder
+  shows each part on a slide of its own, beside what naive textual
+  expansion would do.
 
 ### The `quote e end` syntax
 
@@ -297,7 +298,7 @@ printing, so text containing one loads on FastParse's linear path.
 
 ### Hygiene, by example
 
-The first example on the **Hygiene** slide. The program binds `x`; the
+From the **Hygiene / 1. Capture Avoidance** slide. The program binds `x`; the
 livelit's splice, edited in the widget, holds the client's code `x`, meaning
 that `x`; and the expansion binds and uses an `x` of its own:
 
@@ -337,7 +338,7 @@ let ^add_ten = {
   its body cannot name the client's `x` -- a free `x` in it would be an
   error where the quotation is written.
 
-The slide's other three uses: a client binding that shadows a builtin the
+The folder's other slides: a client binding that shadows a builtin the
 expansion uses (it means 3; naive, 0), and a generated two-splice
 expansion whose binders a helper names, captured with `Lambda` (`[2, 2]`)
 and not with `Abs` (`[1, 2]`).

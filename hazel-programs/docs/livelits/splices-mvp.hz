@@ -280,14 +280,12 @@ let computed =
 # so no binding inside the expansion can capture it (Sec. 2.4.3, #
 # Sec. 3.2.5). #
 
-# Here Macro can be written but cannot return real code: there is no #
-# quotation, so its Exp can only be a hole or an IntLit. This slider #
-# uses the Functional arm instead, this implementation's addition. It #
-# returns a VALUE, from bounds already evaluated in the client's #
-# scope -- the values riding in the model. Capture cannot arise #
-# because nothing is substituted into a binder -- but equally, #
-# nothing here demonstrates the paper's solution. We avoided the #
-# problem rather than solving it. #
+# This slider uses the Functional arm instead, this implementation's #
+# addition. It returns a VALUE, from bounds already evaluated in the #
+# client's scope -- the values riding in the model. Capture cannot #
+# arise because nothing is substituted into a binder -- but equally, #
+# nothing here demonstrates the paper's solution. The Macro arm, with #
+# quote ... end, does: see Color (Figure 3) and the Hygiene folder. #
 
 # WHAT WOULD BREAK FIRST #
 

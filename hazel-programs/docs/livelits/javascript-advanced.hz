@@ -9,11 +9,10 @@
 # A use has the livelit's declared expansion type (Sec. 3.1) and #
 # means what its model EXPANDS to (Sec. 2.2). In the paper that is #
 # always a program, given as quoted code (Sec. 3.2.5). Here that kind #
-# is a Macro livelit, which cannot return real code yet: there is no #
-# quotation, so its Exp can only be a hole or an IntLit (see the #
-# Overview, WHAT DOES NOT RUN YET). ^js instead expands to a value, #
-# as a Functional livelit does; that arm is this implementation's #
-# own, not the paper's. #
+# is a Macro livelit, whose code is written quote ... end (see Color #
+# (Figure 3)). ^js instead expands to a value, as a Functional #
+# livelit does; that arm is this implementation's own, not the #
+# paper's. #
 
 # Invocation: #
 # To invoke a livelit, type its name (always prefixed with ^), then #
