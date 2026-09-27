@@ -105,8 +105,25 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
   let (ilead, icore, itrail) = split_outer_secondary(inner);
   /* `(code : T)`: a splice with its declared type. Only the code is
      spliced; the ascription stays outside it, so the splice editor shows
-     the client's code alone. The last top-level `:` is the ascription:
-     one inside the code is inside a tile of its own, not at top level. */
+     the client's code alone. Only when the ascription is the ROOT of the
+     parens' content: it binds tighter than `*`, so `x * 10 : Int` is
+     `x * (10 : Int)`, and splitting at its `:` would change the term. It
+     is the root when no top-level operator before it binds more loosely
+     (a higher Precedence number) than it does. Compound typed code is
+     written `((x * 10) : Int)` (SpliceStore.mk_typed_splice). */
+  let looser_than_asc = (p: Base.piece) =>
+    switch (p) {
+    | Tile({mold: {nibs: (l, r), _}, _}) =>
+      List.exists(
+        (n: Nib.t) =>
+          switch (n.shape) {
+          | Concave(prec) => prec > Precedence.asc
+          | Convex => false
+          },
+        [l, r],
+      )
+    | _ => false
+    };
   let rec last_colon = (i, found, ps: Base.segment) =>
     switch (ps) {
     | [] => found
@@ -116,7 +133,10 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
     };
   let (code, typed) =
     switch (last_colon(0, None, icore)) {
-    | Some(k) when k > 0 =>
+    | Some(k)
+        when
+          k > 0
+          && !List.exists(looser_than_asc, fst(ListUtil.split_n(k, icore))) =>
       let (code, typed) = ListUtil.split_n(k, icore);
       let (clead, ccore, ctrail) = split_outer_secondary(code);
       (clead @ ccore, ctrail @ typed);

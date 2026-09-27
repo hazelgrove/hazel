@@ -283,7 +283,12 @@ Hazel program needs an `eval : Exp -> a`.
   premise 5 sees. A commit keeps each splice's type (read back by id from
   the text), and `set_splice` keeps the type of the splice it rewrites.
   Text with no ascription, like every use saved before this, still loads,
-  typed by its code as before.
+  typed by its code as before. An ascription binds tighter than an
+  operator, so compound typed code is written with parens of its own,
+  `((x * 10) : Int)`: `(x * 10 : Int)` is `x * (10 : Int)`, and a reload
+  splits off the ascription only when it is the parens' root. `AnyT`
+  declares no type, for a splice whose type the closed `Typ` list cannot
+  name (a sum like Tree Care's GrowthStyle, or a type parameter).
 
 ### `Exp`: quotation for code, lifting for values
 

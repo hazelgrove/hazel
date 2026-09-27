@@ -1237,6 +1237,10 @@ let typ_typ: Typ.t =
     ("FloatT", None),
     ("BoolT", None),
     ("StringT", None),
+    /* No declared type: the splice is typed by its code. For a splice
+       whose type is not a base type -- a sum, or a livelit's type
+       parameter -- which this closed list cannot name. */
+    ("AnyT", None),
   ]);
 
 /* A splice editor's size (Sec. 3.2.3). The paper's Dim "currently

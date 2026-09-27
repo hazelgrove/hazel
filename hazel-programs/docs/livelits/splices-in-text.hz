@@ -14,6 +14,10 @@
 # The splice is the code inside, x or 2; the ascription is not part #
 # of it, so the widget's splice editor shows only the code. #
 
+# Code with an operator in it gets parens of its own: ((x * 10) : #
+# Int). An ascription binds tighter than *, so (x * 10 : Int) means #
+# x * (10 : Int), a splice holding all of that, untyped. #
+
 # WHERE IT COMES FROM. Not from the paper. The paper's Hazel was a #
 # structure editor, so a splice lived in the saved syntax tree, not #
 # in text: the paper-era implementation kept, for each splice, its #
@@ -68,10 +72,10 @@ let ^pair = {
 let x = 4 in
 
 # Written by hand, not projected, with declared types: 4 + 40. #
-let by_hand = ^pair((a = (x : Int), b = (x * 10 : Int))) in
+let by_hand = ^pair((a = (x : Int), b = ((x * 10) : Int))) in
 
 # The same text, projected: the widget shows each splice's code, x #
-# and x * 10, and edits the same parens. 4 + 40 again. #
-let projected = ^^livelit(^pair((a = (x : Int), b = (x * 10 : Int)))) in
+# and (x * 10), and edits the same parens. 4 + 40 again. #
+let projected = ^^livelit(^pair((a = (x : Int), b = ((x * 10) : Int)))) in
 
 (by_hand, projected)

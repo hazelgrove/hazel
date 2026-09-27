@@ -15,8 +15,8 @@ let ^either = typfun A -> {
   type Action = Bool;
   type Expansion = A;
   let init =
-    do a <- new_splice((IntT, None)) in
-    do b <- new_splice((IntT, None)) in
+    do a <- new_splice((AnyT, None)) in
+    do b <- new_splice((AnyT, None)) in
     Pure((a_label="a", b_label="b", on_a=true, a=a, b=b));
   let update = fun m : Model -> fun on_a : Action ->
     Pure((a_label=m.a_label, b_label=m.b_label, on_a=on_a, a=m.a, b=m.b));

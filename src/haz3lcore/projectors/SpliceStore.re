@@ -141,13 +141,28 @@ let mk_splice = (id: Id.t, code: TermBase.Exp.t): TermBase.Exp.t =>
    where it is written (Sec. 3.2.1: new_splice checks "the expression
    against the splice type"). */
 let mk_typed_splice =
-    (id: Id.t, code: TermBase.Exp.t, typ: TermBase.Typ.t): TermBase.Exp.t =>
+    (id: Id.t, code: TermBase.Exp.t, typ: TermBase.Typ.t): TermBase.Exp.t => {
+  /* An ascription binds tighter than an operator, so compound code is
+     parenthesized inside the splice: `((x * 10) : Int)`, which reads back
+     as the same term, where `(x * 10 : Int)` would be x * (10 : Int). */
+  let code =
+    switch (code.term) {
+    | Var(_)
+    | Atom(_)
+    | EmptyHole
+    | Constructor(_)
+    | Parens(_)
+    | ListLit(_)
+    | Ap(_) => code
+    | _ => Exp.parens(code)
+    };
   Exp.parens(
     Exp.asc(
       IdTagged.mk_internal([id], Splice(code): TermBase.Exp.term),
       typ,
     ),
   );
+};
 
 /* new_splice's Typ argument as the Hazel type it names. */
 let typ_of_typ_value = (t: DHExp.t): option(TermBase.Typ.t) =>
@@ -156,6 +171,9 @@ let typ_of_typ_value = (t: DHExp.t): option(TermBase.Typ.t) =>
   | Some(("FloatT", _)) => Some(Typ.float())
   | Some(("BoolT", _)) => Some(Typ.bool())
   | Some(("StringT", _)) => Some(Typ.string())
+  /* AnyT declares no type: the splice is typed by its code, for a splice
+     whose type the closed list cannot name (a sum, a type variable). */
+  | Some(("AnyT", _))
   | _ => None
   };
 

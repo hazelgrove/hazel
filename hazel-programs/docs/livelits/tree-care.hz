@@ -63,10 +63,11 @@ let ^tree = {
 
   # The growth splice starts empty, a hole, for the client to fill. #
   # (new_splice names a type from a closed set, IntT, FloatT, BoolT #
-  # or StringT, and does not yet check against it: IntT here only #
-  # fills the slot. A GrowthStyle has no name in that set.) #
+  # or StringT, which it writes into the text as an ascription. A #
+  # GrowthStyle has no name in that set, so this says AnyT: no #
+  # declared type, and the splice is typed by its code.) #
   let init =
-    do g <- new_splice((IntT, None)) in
+    do g <- new_splice((AnyT, None)) in
     Pure((
       tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
       season=Spring,
@@ -508,8 +509,8 @@ let ^either = {
   type Action = Bool;
   type Expansion = ?;
   let init =
-    do a <- new_splice((IntT, None)) in
-    do b <- new_splice((IntT, None)) in
+    do a <- new_splice((AnyT, None)) in
+    do b <- new_splice((AnyT, None)) in
     Pure((a_label="a", b_label="b", on_a=true, a=a, b=b));
   let update = fun m : Model -> fun on_a : Action ->
     Pure((a_label=m.a_label, b_label=m.b_label, on_a=on_a, a=m.a, b=m.b));

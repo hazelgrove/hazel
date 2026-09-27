@@ -15,7 +15,7 @@ let ^len = {
   type Action = Int;
   type Expansion = Int;
   let init =
-    do s <- new_splice((StringT, Some(IntLit(0)))) in
+    do s <- new_splice((StringT, Some(StringLit("abc")))) in
     Pure((s = s));
   let update = fun m : Model -> fun _a : Action -> Pure(m);
   let view = fun m : Model ->

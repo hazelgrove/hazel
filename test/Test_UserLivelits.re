@@ -672,8 +672,72 @@ let splice_types_are_kept = () => {
   let (codes, idempotent) = spliced_code("^c((r = (1 : Int), n = 2))");
   check(list(string), "only the code is spliced", ["1"], codes);
   check(bool, "marking twice changes nothing", true, idempotent);
-  let (codes, _) = spliced_code("^c((r = (price * qty : Int), n = 2))");
-  check(list(string), "an operator's code too", ["price * qty"], codes);
+  /* An ascription binds tighter than `*`: `(x * 10 : Int)` is
+     x * (10 : Int), not typed code, so it is spliced whole; compound
+     typed code is written with parens of its own, which stay inside. */
+  let (codes, _) = spliced_code("^c((r = (x * 10 : Int), n = 2))");
+  check(list(string), "x * 10 : Int is not split", ["x * 10 : Int"], codes);
+  let (codes, idempotent) =
+    spliced_code("^c((r = ((x * 10) : Int), n = 2))");
+  check(
+    list(string),
+    "((x * 10) : Int) splices (x * 10)",
+    ["(x * 10)"],
+    codes,
+  );
+  check(bool, "marking twice changes nothing", true, idempotent);
+  /* The write-back parenthesizes compound typed code, so it reads back as
+     the same term: Asc of the code, not an operator over an Asc. */
+  let id = "00000000-0000-0000-0000-000000000003";
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(
+      run(
+        "let ^c = "
+        ++ spliced_def
+        ++ " in do _ <- set_splice((SpliceRef((\""
+        ++ id
+        ++ "\", 0)), quote 10 * 3 end)) in Pure((r = SpliceRef((\""
+        ++ id
+        ++ "\", 0)), n = 1))",
+      ),
+    )
+  ) {
+  | Error(e) => fail("set_splice did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let written =
+      Haz3lcore.SpliceStore.write_model(
+        ~effects,
+        ~existing=[id],
+        ~declared=[(id, IdTagged.FreshGrammar.Typ.int())],
+        model,
+      );
+    let text =
+      EditingPrelude.print_seg(Test_ExpToSegment.exp_to_segment(written));
+    switch (Haz3lcore.Parser.to_term(text, ~root=Exp)) {
+    | None => fail("did not parse: " ++ text)
+    | Some(back) =>
+      let rec field = (e: Exp.t) =>
+        switch (e.term) {
+        | Parens(e) => field(e)
+        | Tuple([{term: TupLabel(_, v), _}, ..._]) => v
+        | _ => fail("not the model: " ++ text)
+        };
+      let rec strip = (e: Exp.t) =>
+        switch (e.term) {
+        | Parens(e) => strip(e)
+        | _ => e
+        };
+      check(
+        bool,
+        "printed as " ++ text ++ ", it reads back as (10 * 3) : Int",
+        true,
+        switch (strip(field(back)).term) {
+        | Asc({term: Parens({term: BinOp(_), _}), _}, _) => true
+        | _ => false
+        },
+      );
+    };
+  };
   /* 4. The ascription checks the client's code. */
   let use = model => "let ^c = " ++ spliced_def ++ " in ^c(" ++ model ++ ")";
   let errors = text => error_messages(fst(statics(text)));
