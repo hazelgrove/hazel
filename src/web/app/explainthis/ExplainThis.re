@@ -1786,6 +1786,81 @@ type info = {
   deduction: info_deduction,
 };
 
+/* The livelit use at the cursor, as the syntax it is: its GUI stands in
+   for that syntax in the editor, so this is where a reader sees the
+   model the use carries, splices included. None elsewhere.
+
+   A model with several fields is laid out one field per line, which is
+   how it reads on a projector; code does not wrap, so a one-line use of
+   Color would run off the sidebar. Each field is printed on its own, so
+   the lines are real code, highlighted as code. */
+let livelit_use_syntax = (~globals: Globals.t, info: option(Info.t)) => {
+  let rec strip = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(e)
+    | Projector(_, e) => strip(e)
+    | _ => e
+    };
+  let code = (e: Exp.t) =>
+    ExpToSegment.exp_to_segment(
+      e,
+      ~settings=
+        ExpToSegment.Settings.of_core(~inline=true, globals.settings.core),
+    )
+    |> CodeViewable.view_segment(~globals);
+  let line = (~indent=false, parts) =>
+    div(
+      ~attrs=[clss(["livelit-use-line"] @ (indent ? ["indent"] : []))],
+      parts,
+    );
+  let punct = s => span(~attrs=[clss(["livelit-use-punct"])], [text(s)]);
+  switch (info) {
+  | Some(InfoExp({user_term, _})) =>
+    switch (strip(user_term)) {
+    | {term: Ap(Forward, {term: LivelitName(name), _}, model), _} as use =>
+      switch (strip(model).term) {
+      | Tuple([_, _, ..._] as fields) =>
+        let n = List.length(fields);
+        Some(
+          div(
+            ~attrs=[clss(["livelit-use-lines"])],
+            [line([punct("^" ++ name ++ "(")])]
+            @ List.mapi(
+                (i, f: Exp.t) =>
+                  line(
+                    ~indent=true,
+                    /* A labeled field printed on its own loses the
+                       spaces the printer puts around `=` inside a tuple,
+                       so its label and value are printed apart. */
+                    (
+                      switch (f.term) {
+                      | TupLabel({term: Label(name), _}, v) => [
+                          span(
+                            ~attrs=[clss(["livelit-use-label"])],
+                            [text(name)],
+                          ),
+                          punct(" = "),
+                          code(v),
+                        ]
+                      | TupLabel(l, v) => [code(l), punct(" = "), code(v)]
+                      | _ => [code(f)]
+                      }
+                    )
+                    @ (i < n - 1 ? [punct(",")] : []),
+                  ),
+                fields,
+              )
+            @ [line([punct(")")])],
+          ),
+        );
+      | _ => Some(code(use))
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
 let view =
     (
       ~globals: Globals.t,
@@ -1855,6 +1930,14 @@ let view =
         syn_form @ explanation,
       ),
     ]
+    @ (
+      switch (livelit_use_syntax(~globals, info_cursor)) {
+      | Some(code) => [
+          section(~section_clss="livelit-use", ~title="This use", [code]),
+        ]
+      | None => []
+      }
+    )
     @ (
       example == []
         ? []
