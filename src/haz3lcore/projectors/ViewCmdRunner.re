@@ -12,11 +12,10 @@ open MvuShape;
    CmdRunner already makes for MVU's Cmd, except that a ViewCmd RETURNS
    a value and threads it through a continuation, which Cmd never does.
 
-   editor and eval_splice run. The splice editor names is the
-   projector's own, found by id when HazelDOM draws the Html. The value
-   eval_splice reads rides in the ref itself (see splice_ref_typ). So
-   neither needs a store. result_view is not implemented yet; reporting
-   that plainly beats rendering something misleading. */
+   editor, eval_splice and result_view run. The splice editor names is
+   the projector's own, found by id when HazelDOM draws the Html. The
+   value eval_splice reads, and result_view draws, rides in the ref
+   itself (see splice_ref_typ). So none of them needs a store. */
 
 /* eval_splice's answer (Sec. 3.2.3): Some(Val(v)) when the code reduced
    to a value, Some(Indet) when it did not -- a hole, or a variable with
@@ -52,6 +51,30 @@ let editor_html = (r: DHExp.t, n: int): DHExp.t => {
         ),
       ]),
       Exp.list_lit([ctor("Splice", r)]),
+    ]),
+  );
+};
+
+/* result_view's Html: Div([Style([... min-width n ch ...])],
+   [SpliceResult(r)]), sized as editor_html is, so a view can swap one for
+   the other. HazelDOM draws the value r carries. */
+let result_html = (r: DHExp.t, n: int): DHExp.t => {
+  let ctor = (name, arg) =>
+    Exp.ap(Forward, Exp.constructor(name, None), arg);
+  let prop = (k, v) => Exp.tuple([Exp.string(k), Exp.string(v)]);
+  ctor(
+    "Div",
+    Exp.tuple([
+      Exp.list_lit([
+        ctor(
+          "Style",
+          Exp.list_lit([
+            prop("display", "inline-block"),
+            prop("min-width", string_of_int(n) ++ "ch"),
+          ]),
+        ),
+      ]),
+      Exp.list_lit([ctor("SpliceResult", r)]),
     ]),
   );
 };
@@ -117,7 +140,44 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
       }
     | _ => Error("malformed eval_splice: expected a ref and a continuation")
     }
-  | Some(("ResultView", _)) => Error("result_view is not implemented yet")
+  /* result_view(r, FixedWidth(n)) (Sec. 3.2.3, "Result Rendering"): the
+     splice's evaluation result, drawn by Hazel, for the view to place --
+     the paper's $dataframe shows each cell this way, and only its formula
+     bar is an editor. Some(html) when the code reduced to a value; None
+     exactly when eval_splice would answer Indet, since a variable with no
+     value in this run would otherwise be drawn as its own unevaluated
+     code, which reads as a result and is not one. The view decides what
+     None looks like. */
+  | Some(("ResultView", body)) =>
+    switch (of_tuple(body)) {
+    | Some([args, k]) =>
+      switch (of_tuple(args)) {
+      | Some([r, dim]) =>
+        switch (of_constructor_raw(dim), SpliceStore.splice_ref(r)) {
+        | (Some(("FixedWidth", n)), Some((_, v))) =>
+          switch (of_int(n)) {
+          | Some(n) =>
+            resume(
+              k,
+              ValueChecker.is_value(v)
+                ? Exp.ap(
+                    Forward,
+                    Exp.constructor("Some", None),
+                    result_html(r, n),
+                  )
+                : Exp.constructor("None", None),
+            )
+          | None => Error("result_view: FixedWidth needs an Int")
+          }
+        | (Some(("FixedWidth", _)), None) =>
+          Error("result_view: expected a SpliceRef")
+        | _ => Error("result_view: expected a Dim, FixedWidth(n)")
+        }
+      | _ => Error("malformed result_view: expected (SpliceRef, Dim)")
+      }
+    | _ =>
+      Error("malformed result_view: expected arguments and a continuation")
+    }
 
   | Some((name, _)) => Error("not a ViewCmd command: " ++ name)
   };

@@ -751,6 +751,68 @@ let eval_splice_reads_the_run = () => {
   check(option(int), "a hole is indeterminate", Some(-1), answer("?"));
 };
 
+/* result_view draws the value its ref carries (Sec. 3.2.3, "Result
+   Rendering"): Some(Html) holding a SpliceResult of the ref, sized like
+   editor's, when the code reduced to a value, and None when eval_splice
+   would say Indet -- a hole here. */
+let result_view_draws_the_run = () => {
+  open Haz3lcore.MvuShape;
+  let answer = code =>
+    switch (
+      Haz3lcore.ViewCmdRunner.run(
+        run(
+          "result_view((SpliceRef((\"s\", " ++ code ++ ")), FixedWidth(6)))",
+        ),
+      )
+    ) {
+    | Ok(v) => v
+    | Error(e) => fail("result_view did not run: " ++ e)
+    };
+  /* Some(Div(attrs, [SpliceResult(SpliceRef((id, v)))])) -> (id, v) */
+  let drawn = v =>
+    switch (of_constructor_raw(v)) {
+    | Some(("Some", h)) =>
+      switch (of_constructor_raw(h)) {
+      | Some(("Div", b)) =>
+        switch (Option.bind(of_tuple(b), l => List.nth_opt(l, 1))) {
+        | Some(cs) =>
+          switch (of_list(cs)) {
+          | Some([sr]) =>
+            switch (of_constructor_raw(sr)) {
+            | Some(("SpliceResult", r)) =>
+              switch (of_constructor(strip_wrappers(r))) {
+              | Some(("SpliceRef", p)) =>
+                switch (of_tuple(p)) {
+                | Some([s, x]) =>
+                  Option.map(s => (s, of_int(x)), of_string(s))
+                | _ => None
+                }
+              | _ => None
+              }
+            | _ => None
+            }
+          | _ => None
+          }
+        | None => None
+        }
+      | _ => None
+      }
+    | _ => None
+    };
+  check(
+    option(pair(string, option(int))),
+    "a value is drawn",
+    Some(("s", Some(7))),
+    drawn(answer("3 + 4")),
+  );
+  check(
+    option(string),
+    "a hole has no result",
+    Some("None"),
+    Option.map(fst, of_constructor_raw(answer("?"))),
+  );
+};
+
 /* The rewrite a use's model argument gets is directed by Model: a marked
    field becomes a bare ref where Model says SpliceRef, the stopgap pair
    where it says (ref=SpliceRef, value=t), and is left as code elsewhere.
@@ -1678,6 +1740,11 @@ let tests = [
         "eval_splice reads the run",
         `Quick,
         eval_splice_reads_the_run,
+      ),
+      test_case(
+        "result_view draws the run",
+        `Quick,
+        result_view_draws_the_run,
       ),
       test_case("rewrite follows Model", `Quick, rewrite_follows_model),
     ],

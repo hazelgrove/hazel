@@ -134,16 +134,14 @@
 
 # WHAT DOES NOT RUN YET #
 
-# Two departures are flagged above: Functional is an addition, and #
-# a Val holds a value, not an Exp. Beyond those, four parts of the #
-# paper's design are not here yet: #
-
-# result_view does not run yet. It is in the types, and a livelit #
-# that uses it typechecks, but running it reports #
-# "not implemented". The other four splice commands run, and #
-# Color (Figure 3) uses all four. Pure and the do form run too: the #
-# runner performs a bind by running its command and passing the #
+# All five splice commands run. Color (Figure 3) uses four of them, #
+# and Result View uses result_view. Pure and the do form run too: #
+# the runner performs a bind by running its command and passing the #
 # answer on. #
+
+# Two departures are flagged above: Functional is an addition, and #
+# a Val holds a value, not an Exp. Beyond those, three parts of the #
+# paper's design are not here yet: #
 
 # Typ is a stopgap, a closed list of base type names like IntT. #
 # new_splice takes one and discards it: a splice is typed only by #
@@ -234,6 +232,7 @@ let ^flag = {
 
 # Color (Figure 3) the paper's own example, rebuilt line by line #
 # Define a Slider  a number you drag, expanding to that number #
+# Parameters       one slider definition, its bounds as parameters #
 # Emotion          the widget IS the control: drag a face #
 # Color Picker     helpers are ordinary members of the module #
 # Functional Expansion #
@@ -244,6 +243,7 @@ let ^flag = {
 # Timings          what one frame of a livelit costs #
 # Dynamic Row or Column #
 #                  a row of splices that grows and shrinks #
+# Result View      cells that show their results, one formula bar #
 # Hygiene          why an expansion cannot capture the client's #
 #                  names, nor see them: a folder, a slide per part #
 # Expansion Type Errors #

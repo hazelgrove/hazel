@@ -278,6 +278,11 @@ module HTML = {
            typed in the client's scope. The ref comes from the model:
            a field marked with parens has type (ref=SpliceRef, value=t). */
         ("Splice", Some(var("SpliceRef"))),
+        /* SpliceResult(r): the value the splice `r` names had in this
+           run, drawn by Hazel as it draws any value. result_view makes
+           one (Sec. 3.2.3, "Result Rendering"); like Splice, what it
+           draws is under Hazel's control, not the livelit's. */
+        ("SpliceResult", Some(var("SpliceRef"))),
         // === Generic element (escape hatch) ===
         // Node(tagName, attrs, children)
         ("Node", Some(prod([string(), attrs_only(), list(var("HTML"))]))),

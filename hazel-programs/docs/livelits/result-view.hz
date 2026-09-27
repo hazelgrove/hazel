@@ -1,0 +1,85 @@
+# Result View #
+
+# A sheet of three cells, after the paper's $dataframe (Fig. 1c): #
+# each cell SHOWS its result, and only the formula bar at the top is #
+# an editor. Click a cell to edit its code in the bar. #
+
+# The view gets both with commands (Sec. 3.2.3): #
+
+#   editor      : (SpliceRef, Dim) -> ViewCmd(Html.T) #
+#   result_view : (SpliceRef, Dim) -> ViewCmd(Maybe(Html.T)) #
+
+# result_view mirrors editor. Where editor places the client's CODE, #
+# result_view places the VALUE that code had in this run, drawn by #
+# Hazel as it draws any value, so the livelit does not format it. It #
+# answers None when the code has no value: a hole, or a name with no #
+# value in this run. The view decides what None looks like; here, a #
+# dash. #
+
+# The cells are splices, so their code is the client's, in the #
+# client's scope: they name price and qty, bound below. Change qty #
+# and the third cell's result follows. #
+
+let ^sheet = {
+  type Model = (sel = Int, a = SpliceRef, b = SpliceRef, c = SpliceRef);
+  type Action = Int;
+  type Expansion = (Int, Int, Int);
+
+  let init =
+    do a <- new_splice(IntT, Some(IntLit(1))) in
+    do b <- new_splice(IntT, Some(IntLit(2))) in
+    do c <- new_splice(IntT, Some(IntLit(3))) in
+    Pure((sel = 0, a = a, b = b, c = c));
+
+  # Clicking a cell selects it. The splices are untouched. #
+  let update = fun m : Model -> fun i : Action ->
+    Pure((sel = i, a = m.a, b = m.b, c = m.c));
+
+  let selected = fun m : Model ->
+    if m.sel == 0 then m.a else if m.sel == 1 then m.b else m.c;
+
+  let view = fun m : Model ->
+    do bar <- editor((selected(m), FixedWidth(16))) in
+    do ra <- result_view((m.a, FixedWidth(6))) in
+    do rb <- result_view((m.b, FixedWidth(6))) in
+    do rc <- result_view((m.c, FixedWidth(6))) in
+    let shown = fun r ->
+      case r
+      | Some(h) => h
+      | None => Html.text("-")
+      end
+    in
+    let cell = fun (i, name, r) ->
+      Html.div(
+        [Attr.on_click(i),
+         Attr.style([("display", "flex"), ("gap", "0.4em"),
+                     ("padding", "0.1em 0.4em"), ("cursor", "pointer"),
+                     ("border", if i == m.sel then "1px solid currentColor"
+                                else "1px solid transparent")])],
+        [Html.text(name), shown(r)])
+    in
+    Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("flex-direction", "column"),
+                     ("gap", "0.3em"),
+                     ("font-family", "var(--code-font)"),
+                     ("font-size", "0.8em")])],
+        [Html.div([Attr.style([("display", "flex"), ("gap", "0.4em")])],
+           [Html.text(if m.sel == 0 then "a =" else if m.sel == 1 then "b =" else "c ="),
+            bar]),
+         Html.div([Attr.style([("display", "flex"), ("gap", "0.6em")])],
+           [cell((0, "a", ra)), cell((1, "b", rb)), cell((2, "c", rc))])]));
+
+  # A use means the three cells' values, as Color means its four: the #
+  # quoted function applied to the splices (Fig. 5). #
+  let expand =
+    Macro(fun m : Model ->
+      (quote fun a -> fun b -> fun c -> (a, b, c) end, [m.a, m.b, m.c]));
+
+  let shape = Block(36, 3)
+} in
+
+let price = 12 in
+let qty = 3 in
+
+^^livelit(^sheet((sel = 2, a = (price), b = (qty), c = (price * qty))))

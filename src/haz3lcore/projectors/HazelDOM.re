@@ -580,6 +580,31 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
       | _ => of_error(elide_errors, mvu, d)
       };
 
+    // === SpliceResult: a splice's value in this run, drawn by Hazel ===
+    /* result_view's node. SpliceResult(SpliceRef((id, value))): the ref
+       carries the value its code had, so this draws that value the way
+       the projector draws any term, and needs no lookup. result_view only
+       makes one for a value; anything else here is a forged node, and
+       renders as an error. */
+    | ("SpliceResult", body) =>
+      switch (of_constructor(strip_wrappers(body))) {
+      | Some(("SpliceRef", payload)) =>
+        switch (of_tuple(payload)) {
+        | Some([id, v]) =>
+          switch (of_string(id)) {
+          | Some(id) =>
+            Node.span(
+              ~key="livelit-splice-result-" ++ id,
+              ~attrs=[Attr.classes(["livelit-splice-result"])],
+              [mvu.view_term(v)],
+            )
+          | None => of_error(elide_errors, mvu, d)
+          }
+        | _ => of_error(elide_errors, mvu, d)
+        }
+      | _ => of_error(elide_errors, mvu, d)
+      }
+
     // === Input element ===
     | ("Input", body) =>
       let (attrs, _) = attrs_only(mvu, body);

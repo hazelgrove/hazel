@@ -18,7 +18,7 @@ program text. What the use means is the livelit's **expansion**.
 | One signature, `expand` a sum of `Functional` and `Macro` | done |
 | Livelit errors are type errors (a definition is checked against the signature) | done |
 | Commands: `init`, `update` and `view` as command trees, with `do` syntax | done |
-| Splices: `new_splice`, `set_splice`, `eval_splice`, `editor` | done; `result_view` not yet |
+| Splices: `new_splice`, `set_splice`, `eval_splice`, `editor`, `result_view` | done |
 | `SpliceRef` not type-indexed | done |
 | A livelit's footprint may depend on its model (`shape`) | done |
 | Parameters: values (Sec. 2.4.1) and types, through an abbreviation | done, with closed arguments; see [Parameters](#parameters) |
@@ -39,6 +39,9 @@ Working examples, shipped as the Documentation → Livelits slides
   abbreviations of it, `^percent` over 0-100 and `^die` over 1-6.
 - **Either, Two Versions**, a folder: one livelit whose expansion type
   varies by use, written with `Expansion = ?` and with a type parameter.
+- **Result View**: a sheet of three cells after the paper's `$dataframe`
+  (Fig. 1c). Each cell shows its result with `result_view`, and only the
+  formula bar, for the selected cell, is an `editor`.
 - **Dynamic Row or Column**: a row or column of cells that grows and shrinks.
   `init` makes three cells with `new_splice`, **+** and **x** add and drop
   cells, and the view sums them with `eval_splice`: the number of splices is
@@ -120,6 +123,13 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
 - **A ref carries the value its code had in that run**, because the use's
   model argument is evaluated in the use's own scope. `eval_splice` reads it
   and answers `Some(Val(v))` or `Some(Indet)`.
+- **`result_view` draws what `eval_splice` reads.** It mirrors `editor`
+  (Sec. 3.2.3, "Result Rendering"): `result_view(r, FixedWidth(n))`
+  answers `Some(html)`, an opaque node that Hazel draws as it draws any
+  value, for the view to place; `None` exactly when `eval_splice` would
+  answer `Indet`, since a name with no value in this run would otherwise
+  be drawn as its own unevaluated code. The view decides what `None`
+  looks like.
 - `set_splice` writes new code at the ref's position. Deletion is implicit:
   a splice no ref reaches is not written back.
 - `new_splice(IntT, Some(IntLit(0)))` gives a splice initial code. `IntLit` is
