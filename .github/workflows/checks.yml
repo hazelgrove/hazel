@@ -105,7 +105,10 @@ jobs:
 
       - name: Run tests
         run: opam exec -- make ci
-        timeout-minutes: 60
+        # 60 was outgrown on the livelits branch (PR #2597): the suite ran
+        # 44 min, then 55, then hit 60 and was killed with no failing test.
+        # The job's own 90 still bounds it.
+        timeout-minutes: 75
 
       # Results UI, not the gate: the step above already fails on a red suite.
       - name: Test Report
