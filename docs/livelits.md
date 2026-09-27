@@ -438,6 +438,118 @@ expansion uses (it means 3; naive, 0), and a generated two-splice
 expansion whose binders a helper names, captured with `Lambda` (`[2, 2]`)
 and not with `Abs` (`[1, 2]`).
 
+### Maintenance: quotation as Hazel grows
+
+Hazel will keep gaining expression forms. The question for its developers
+is what a new form costs the quotation system, and the answer is designed
+to be: nothing of its own, and a test says so when that stops being true.
+
+**A quotation holds ordinary syntax.** `quote e end` is `Quote(e)` with `e`
+the parsed term, whatever form it is. Nothing in quotation enumerates the
+forms it can hold:
+
+- *Statics* analyzes the body with the ordinary checker, in the builtin
+  context (the `Quote` case of `Statics.re`). A new form is checked there
+  exactly as it is anywhere else.
+- *Dynamics* treat a quotation as a value whose body is never entered:
+  evaluation stops at it (`Transition.re` counts it a value), and both
+  substitutions pass over it (`Substitution.re`, and `DHExp.ty_subst` for
+  types, each have a `Quote(_)` arm returning the quotation whole).
+- *Antiquotes* are found, and later filled, by `Exp.map_term`: the
+  `Quote` case of `Statics.re` collects them, `%fill_quote` fills them
+  (`BuiltinsADT.fill_quote`), and decoding resolves any left over
+  (`BuiltinsADT.code_of_exp_value`).
+
+**So the one place a new form must be known is `Exp.map_term`**
+(`TermBase.re`), and it must be known there for every other pass Hazel
+has, not for quotation's sake. `map_term` is an exhaustive switch with no
+default arm, so in the dev profile a form missing from it does not compile.
+
+**What a new form in two weeks costs, case by case:**
+
+- *An ordinary expression form*, whose sub-expressions `map_term` visits:
+  nothing. It can be quoted, antiquoted inside, decoded and applied to
+  splices the day it parses.
+- *A form holding an expression `map_term` does not visit* (inside a
+  payload it treats as opaque): an antiquote there would be silently left
+  unfilled. This is the one real hazard, and the coverage test below
+  catches it, because it places an antiquote in each form's child
+  position.
+- *A new binding form*: hygiene does not depend on knowing the binders.
+  A splice reaches an expansion only as an argument, so capture avoidance
+  is ordinary substitution, which a new binder must support to evaluate at
+  all. The names the system generates, `%v0`, `%v1`, ... for `Abs` and
+  `%unquote_i` for antiquote placeholders, start with `%`, which does not
+  lex, so no binder any program writes can capture one, and none can
+  capture a program's.
+
+**Authors never name AST nodes.** The `Exp` constructors, `IntLit`,
+`Ident`, `Lambda` and `Abs`, are not a mirror of the AST, and they do not
+grow with it. Each exists for what a fixed quotation cannot write:
+
+- `IntLit(n)` lifts a number *computed by* `update` into code
+  (Fig. 3 l.49-52), since `quote c.r end` would quote the expression `c.r`.
+- `Abs(fun v -> c)` makes a binder the system names, for code whose shape
+  depends on the model.
+- `Ident` and `Lambda` spell binders by name, unhygienically, and are kept
+  for the counterexample slide.
+
+Everything else is concrete syntax inside `quote ... end`, with
+`unquote e end` where computed code goes. Dynamic Row or Column builds a
+function of one parameter per cell, and the list of those parameters,
+without naming a single node:
+
+```
+let list_of = fun vars : [Exp] ->
+  case vars
+  | [] => quote [] end
+  | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+  end;
+let gen = fun vars : [Exp] -> fun i : Int ->
+  if i == n then list_of(vars)
+  else Abs(fun v -> gen(vars @ [v])(i + 1))
+```
+
+`::` and `[]` here, like `fun` in the code `Abs` decodes to, are written or
+produced as syntax. A new form is used the same way: write it inside a
+quotation.
+
+What *would* grow with Hazel is lifting: `IntLit` is the only lifting
+constructor today, so `update` cannot yet put a computed Float, String or
+Bool into a splice. That grows with Hazel's *base types*, not its forms,
+and is a gap now, not a maintenance cost.
+
+**The coverage test, `test/Test_QuoteCoverage.re`**, makes the claim
+checkable, in two layers:
+
+- *Compile time.* It has an exhaustive switch over `Exp.cls` with no default
+  arm, giving every form a `Sample` of closed concrete syntax or an
+  `Exempt` with a reason (made by elaboration or evaluation, or malformed
+  input). `Exp.cls_of_term` is itself exhaustive, so a new constructor in
+  `Grammar.re` forces a new `Exp.cls` tag, which forces an entry here.
+- *Run time.* It iterates `Exp.all_of_cls`, which `ppx_enumerate` derives,
+  so no tag can be skipped, and for each sample checks that `quote <sample>
+  end` parses to a quotation whose body is that form, evaluates to the
+  same quotation unchanged, and decodes back to the body. Where the sample
+  marks a child position, it checks that an antiquote there is filled
+  exactly as the code written in place.
+
+Both layers are exercised, not only green: making `map_term` skip a list
+literal's elements fails the run for `ListLit` and `ListConcat`, and
+deleting one arm of the switch fails the build (warning 8, which CI's
+strict-warning gate, `make ci-check`, makes an error). CI's Full tests run
+the group with the rest.
+
+Exempt forms are the ones no author writes: holes made by evaluation
+(`DynamicErrorHole`, `Closure`), elaboration's products (`BuiltinFun`, and
+the Nat and SInt literals and operators, which are written with the Int
+syntax), malformed input (`Invalid`, `MultiHole`), `Unquote` (the
+mechanism itself, covered by the `Quote` group), `Parens` (never a class)
+and `Projector`, which is transparent to semantics, so a quotation of
+`^^fold(e)` holds `e`. Forms that occur only inside another, a tuple's
+labeled item or a partial application's `_`, have samples that contain
+them.
+
 ## Design decisions
 
 Decisions taken on the way here, kept because the alternatives looked

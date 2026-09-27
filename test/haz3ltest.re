@@ -84,6 +84,7 @@ let (suite, exit_with_test_status) =
     @ [Test_Either.tests]
     @ [Test_Parameters.tests]
     @ [Test_ResultView.tests]
+    @ [Test_QuoteCoverage.tests]
     @ [Test_Move.tests]
     @ [Test_Quote.tests]
     @ [Test_Quote.macro_tests]
