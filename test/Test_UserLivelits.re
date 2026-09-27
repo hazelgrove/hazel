@@ -1172,6 +1172,35 @@ let eval_splice_reads_the_run = () => {
   check(option(int), "a hole is indeterminate", Some(-1), answer("?"));
 };
 
+/* A let in a do-block that shadows the name it matches on, as a slide
+   would write `let b = case b | Some(Val(n)) => n | _ => 0 end`. The
+   body's closure is substituted away when the command runs, and that once
+   renamed the definition's b along with the binder, to an unbound b', so
+   the run answered an unreduced case. */
+let shadowing_let_in_a_do_block = () => {
+  let answer = body =>
+    switch (
+      Haz3lcore.ViewCmdRunner.run(
+        run("do b <- eval_splice(SpliceRef((\"b\", 60))) in " ++ body),
+      )
+    ) {
+    | Ok(v) => Haz3lcore.MvuShape.of_int(v)
+    | Error(e) => fail("the command did not run: " ++ e)
+    };
+  check(
+    option(int),
+    "a fresh name",
+    Some(60),
+    answer("let c = case b | Some(Val(n)) => n | _ => 0 end in Pure(c)"),
+  );
+  check(
+    option(int),
+    "the same name",
+    Some(60),
+    answer("let b = case b | Some(Val(n)) => n | _ => 0 end in Pure(b)"),
+  );
+};
+
 /* result_view draws the value its ref carries (Sec. 3.2.3, "Result
    Rendering"): Some(Html) holding a SpliceResult of the ref, sized like
    editor's, when the code reduced to a value, and None when eval_splice
@@ -2161,6 +2190,11 @@ let tests = [
         "eval_splice reads the run",
         `Quick,
         eval_splice_reads_the_run,
+      ),
+      test_case(
+        "a shadowing let in a do-block",
+        `Quick,
+        shadowing_let_in_a_do_block,
       ),
       test_case("splices take every lift", `Quick, splice_lifts),
       test_case("splice types are kept", `Quick, splice_types_are_kept),
