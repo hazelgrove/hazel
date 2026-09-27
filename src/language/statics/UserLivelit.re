@@ -479,6 +479,11 @@ let expose_splice_refs =
       F.Exp.constructor("SpliceRef", None),
       F.Exp.tuple([F.Exp.string(Id.to_string(id)), code]),
     );
+  let is_parens = (e: TermBase.Exp.t) =>
+    switch (e.term) {
+    | Parens(_) => true
+    | _ => false
+    };
   /* The splice under any parens the author wrote, with its id. */
   let rec find_splice = (e: TermBase.Exp.t): option(Id.t) =>
     switch (e.term) {
@@ -506,6 +511,16 @@ let expose_splice_refs =
         ]),
       );
     | Some(_) => v
+    /* Parens with no splice inside, where Model says SpliceRef: the text
+       form of a splice. Parens are how a splice is written in program
+       text -- a projected use is saved that way, and reloads that way --
+       and the editor's Splice piece exists only inside a projector.
+       Removing the projector unwraps each Splice back into its parens,
+       so without this the unprojected use `^sheet((a = (price), ...))`
+       would type its fields as Int against SpliceRef. The parens' own id
+       names the splice. */
+    | None when is_splice_ref_ty(ty) && is_parens(v) =>
+      mk_ref(IdTagged.rep_id(v), v)
     | None =>
       switch (v.term, Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
       | (Parens(inner), _) => {
