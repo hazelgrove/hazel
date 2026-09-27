@@ -396,9 +396,9 @@ let ^tree = {
 
   # view returns a ViewCmd (Sec. 3.2.3). At the top it places the #
   # growth splice's editor, labelled, so the client's code for the #
-  # style -- here, the variable style -- is edited in the widget. It #
-  # reads the splice with eval_splice, shows the style on the feed #
-  # button, and a click hands it to update inside Feed. Until the #
+  # style -- here, the variable style_selected -- is edited in the #
+  # widget. It reads the splice with eval_splice, shows the style on #
+  # the feed button, and a click hands it to update inside Feed. Until the #
   # splice has a value, there is nothing to feed with, and the button #
   # says so. #
   let view = fun m : Model ->
@@ -551,33 +551,33 @@ let ^either = {
   let shape = Inline(44)
 } in
 
-# Two growth styles, each with its slider: style a grows by a #
-# percent, 30% to start, and style b by a constant, 4 leaves. #
 let a_pct = ^^livelit(^range((lo = -50, hi = 100, value = 30))) in
 let style_a = Percent(a_pct) in
 let b_leaves = ^^livelit(^range((lo=0, hi=13, value=4))) in
 let style_b = Constant(b_leaves) in
-
-# The choice between them. Each case is client code naming a style, #
-# as Color's splices name its sliders' variables; style means the #
-# one that is on. #
-let style =
+let style_selected =
   ^^livelit(^either((a_label="style a", b_label="style b", on_a=true,
                      a=(style_a), b=(style_b)))) in
-
-# The use below carries its whole tree in its argument. Grow it and #
-# the argument grows with it; trim a branch and a Scar appears in the #
-# text. The EXPANSION stays a census either way, so a client counts #
-# without ever matching on the tree: it reasons from the declared #
-# Census type (Sec. 2.3), without reading the expansion or the #
-# livelit (Sec. 1.2, Sec. 2.2). #
-
 let ^^probe(census) = ^^livelit(^tree((
   tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
   season=Spring,
-  growth=(style),
+  growth=(style_selected),
   seed=1,
   scale=100
 ))) in
 
 (census.leaves, census.branches, census.scars)
+
+# Two growth styles, each with its slider: style a grows by a #
+# percent, 30% to start, and style b by a constant, 4 leaves. #
+
+# The choice between them. Each case is client code naming a style, #
+# as Color's splices name its sliders' variables; style_selected #
+# means the one that is on. #
+
+# The use above carries its whole tree in its argument. Grow it and #
+# the argument grows with it; trim a branch and a Scar appears in the #
+# text. The EXPANSION stays a census either way, so a client counts #
+# without ever matching on the tree: it reasons from the declared #
+# Census type (Sec. 2.3), without reading the expansion or the #
+# livelit (Sec. 1.2, Sec. 2.2). #
