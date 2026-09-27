@@ -21,6 +21,7 @@ program text. What the use means is the livelit's **expansion**.
 | Splices: `new_splice`, `set_splice`, `eval_splice`, `editor` | done; `result_view` not yet |
 | `SpliceRef` not type-indexed | done |
 | A livelit's footprint may depend on its model (`shape`) | done |
+| Parameters: values (Sec. 2.4.1) and types, through an abbreviation | done, with closed arguments; see [Parameters](#parameters) |
 | `Exp` inhabited by quoted Hazel code | **done**: `quote e end`, `unquote e end`, `Ident` and `Lambda`; a Macro use is its expansion applied to its splices. See [Quotation](#quotation-the-plan) |
 
 Working examples, shipped as the Documentation → Livelits slides
@@ -34,6 +35,10 @@ Working examples, shipped as the Documentation → Livelits slides
   expansion that binds its own `x` (11, not 20); a client shadowing a
   builtin the expansion uses (3, not 0); and generated binders, captured
   with author-named `Lambda` (`[2, 2]`) and not with `Abs` (`[1, 2]`).
+- **Parameters**: one `^slider` whose bounds are value parameters, and two
+  abbreviations of it, `^percent` over 0-100 and `^die` over 1-6.
+- **Either, Two Versions**, a folder: one livelit whose expansion type
+  varies by use, written with `Expansion = ?` and with a type parameter.
 - **Dynamic Row or Column**: a row or column of cells that grows and shrinks.
   `init` makes three cells with `new_splice`, **+** and **x** add and drop
   cells, and the view sums them with `eval_splice`: the number of splices is
@@ -123,6 +128,57 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
 Known gaps: the `SpliceRef` constructor is visible, so a ref can be forged or
 read in `update`; `new_splice` discards its `Typ` argument, so a splice is
 typed only by where it sits.
+
+## Parameters
+
+A definition may be a function of its parameters, so one definition serves
+many uses that differ only in them (Sec. 2.4.1). It is used through an
+**abbreviation**, which gives the parameters once and names the result; the
+abbreviation is then an ordinary livelit.
+
+```
+let ^slider = fun (lo, hi) : (Int, Int) -> {
+  type Model = Int;  type Action = Int;  type Expansion = Int;
+  let init = Pure((lo + hi) / 2);
+  ...
+} in
+let ^percent = ^slider(0, 100) in
+let ^die = ^slider(1, 6) in
+^^livelit(^percent(25)) + ^^livelit(^die(3))
+```
+
+- **Value parameters**, the paper's `$slider 0 100`. The definition
+  `fun p -> { ... }` is checked against `? -> Livelit`, so every member may
+  use `p`, and the parameter's type is whatever its pattern says. Member
+  types cannot mention a value, so an abbreviation has the definition's
+  `Model`, `Action` and `Expansion`. `let ^b = ^a(args) in` makes `^b`
+  `^a`'s definition applied to `args`: its `init`, `update`, `view` and
+  `expand` all see them.
+- **Type parameters**, which the paper does not have. The definition
+  `typfun A -> { ... }` is checked against `forall A. Livelit`, with `A`
+  abstract, so member types may mention it (`type Expansion = A`).
+  `let ^b = ^a@<T> in` puts `T` in place of `A` in each member type.
+  `typfun A -> fun p -> { ... }` is accepted, a value parameter inside a
+  type parameter, but no test or slide instantiates one yet.
+- **A parameterized livelit is not used directly.** `^slider(50)` is
+  `LivelitNeedsArguments`, and a use of a type-parameterized one is
+  `LivelitNeedsTypeArgument`, the paper's "missing livelit parameter".
+  Either use synthesizes the unknown type.
+- **Arguments are closed.** They are analyzed in the builtin context, as a
+  quotation's body is, because `init` and `update` run there: an argument
+  naming a client binding is an unbound variable where it is written.
+
+Not yet: partial application (the paper's `let $uslider = $slider 0`),
+since a definition takes one parameter, possibly a tuple, not a curried
+sequence; a direct use with parameters, `$slider 0 100`, which would need a
+second application slot beside the model's; and arguments that depend on
+the client's scope.
+
+The code: `UserLivelit.detect` reads `Fun` and `TypFun` around the module;
+`UserLivelit.apply_args` and `UserLivelit.instantiate` build an
+abbreviation's `LivelitCtx.raw_livelit`; `Statics.re` marks a use and
+recognizes an abbreviation at its `let` (`livelit_abbrev_site`). Tests:
+`test/Test_Parameters.re`, `test/Test_Either.re`.
 
 ## Checking a use
 
