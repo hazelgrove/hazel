@@ -424,6 +424,61 @@ let prepend_pat_mark =
   };
 };
 
+/* The builtin modules' types by their paths (`Html.T`, `Attr.T`, ...), and
+   what each path resolves to in the builtin context. An ascription holding
+   one of these types written out, as a Rec of ~7800 nodes, is about 87 KB
+   marshaled to the eval worker, and each copy is its own value, so none is
+   shared: every `[]` in a recursive Html builder carried one. The path is
+   compact, one shared value, and the evaluator resolves an ascription's
+   type in the builtin context (Ascriptions.set_ctx), whatever the program
+   binds. */
+let builtin_type_paths: Lazy.t(list((Typ.t, Typ.t))) =
+  lazy({
+    let ctx = Builtins.ctx_init(None);
+    List.concat_map(
+      ((_alias, (m, t))) => {
+        let path = BuiltinsADT.HtmlModules.path(m, t);
+        let resolved = Typ.weak_head_normalize(ctx, path);
+        switch (Typ.term_of(resolved)) {
+        /* As it resolves, with its own references still paths, and fully
+           normalized, every alias inside expanded: the form statics
+           usually hands an ascription. */
+        | Rec(_)
+        | Sum(_) => [
+            (resolved, path),
+            (Typ.normalize(ctx, resolved), path),
+          ]
+        | _ => []
+        };
+      },
+      BuiltinsADT.HtmlModules.homes,
+    );
+  });
+
+/* A type for embedding in an elaboration, with each builtin module type
+   written out replaced by its path. Bottom up: once the types inside are
+   paths, `Html.T` written out is the form it resolves to, whose own
+   references (`Attr.T`, ...) are paths too. */
+let compact_builtin_types = (ty: Typ.t): Typ.t => {
+  let paths = Lazy.force(builtin_type_paths);
+  Typ.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) => {
+        let t = continue(t);
+        switch (Typ.term_of(t)) {
+        | Rec(_)
+        | Sum(_) =>
+          switch (List.find_opt(((r, _)) => Typ.fast_equal(r, t), paths)) {
+          | Some((_, path)) => path
+          | None => t
+          }
+        | _ => t
+        };
+      },
+    ty,
+  );
+};
+
 /* Add an ascription wrapper if the types differ after normalization. */
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
@@ -434,7 +489,8 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
        sides first (`Var("HTML")` alone expands to ~7800 nodes). In practice
        the two sides are the same type in 85-100% of calls. */
     | Some(ty) when Typ.fast_equal(ty, t) => d
-    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
+    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) =>
+      asc(d, compact_builtin_types(ty))
     | _ => d
     }
   );
