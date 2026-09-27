@@ -5,14 +5,7 @@
 # most livelits are defined in the program, as the earlier slides #
 # show, and need no escape hatch. #
 
-# A livelit is a live GUI that fills a typed hole (Sec. 1, Sec. 2). #
-# A use has the livelit's declared expansion type (Sec. 3.1) and #
-# means what its model EXPANDS to (Sec. 2.2). In the paper that is #
-# always a program, given as quoted code (Sec. 3.2.5). Here that kind #
-# is a Macro livelit, whose code is written quote ... end (see Color #
-# (Figure 3)). ^js instead expands to a value, as a Functional #
-# livelit does; that arm is this implementation's own, not the #
-# paper's. #
+# ^js expands to a value, as a Functional livelit does (Overview). #
 
 # Invocation: #
 # To invoke a livelit, type its name (always prefixed with ^), then #
@@ -24,15 +17,8 @@
 # for that text; to see the text, right-click the widget and choose #
 # Remove Livelit. #
 
-# Livelits are DEFINED IN THE PROGRAM: a module bound to a caret name #
-# declares types Model, Action and Expansion and provides init, #
-# update, view and expand. init is a COMMAND, an UpdateCmd run when #
-# a use is created (Sec. 3.2.1); update and view return COMMANDS, an #
-# UpdateCmd and a ViewCmd (Sec. 3.2.4, Sec. 3.2.3); a plain answer is #
-# written Pure(...). An optional shape -- Inline(w), Block(w, h), or #
-# Tab(w, h) -- sets its footprint. The other slides each define one. #
-
-# One livelit ships built in, and it is NOT such a module: ^js is #
+# Every other livelit in this deck is a module checked against the #
+# Livelit signature (Overview). One ships built in, and it is NOT: ^js is #
 # written in the editor's own implementation language, so it is not #
 # checked against the Livelit signature, and its starting model, #
 # update and view are plain data and functions there, not commands. #

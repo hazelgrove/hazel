@@ -15,11 +15,10 @@
 
 # On the other side is the EXPANSION: what a use means. It is never #
 # saved; expand rebuilds it from the model whenever it is needed #
-# (Sec. 3.2.5). This slide is about the Functional arm, an addition #
-# here, which computes the expansion as a value directly. In the #
-# paper, expand returns it as quoted code over the splices -- the #
-# Macro arm, shown on Color (Figure 3), Dynamic Row or Column and the #
-# Hygiene folder (see MACRO EXPANSIONS at the end). #
+# (Sec. 3.2.5). This slide is about the Functional arm, which #
+# computes the expansion as a value (Overview). The paper's Macro arm #
+# returns quoted code instead: Color (Figure 3), Dynamic Row or #
+# Column, and the Hygiene folder. #
 
 # THE DULL CASE: EXPANSION = MODEL #
 
@@ -39,10 +38,8 @@
 #   type Model = (Int, Int, Int);  type Expansion = String; #
 #   let expand = Functional(fun m : Model -> css(m)) #
 
-# The GUI absorbs the domain knowledge. That is already the point of #
-# the Expansion type (Sec. 2.3): a use that expands at all has that #
-# type, so a client can reason about it without reading the #
-# expansion or the widget (Sec. 1.2, Sec. 2.2). #
+# The GUI absorbs the domain knowledge, and the client reasons from #
+# the Expansion type alone (Overview). #
 
 # INTERESTING: A HIGHER-ORDER EXPANSION #
 
@@ -172,40 +169,10 @@ let ^ramp = {
 
 # WHERE A WRONG EXPAND IS CAUGHT #
 
-# The paper checks an expansion only at each USE (Sec. 3.2.5). This #
-# implementation also checks expand at the DEFINITION, and for a #
-# Functional livelit that is where every expansion error now shows #
-# up -- see USE below. #
-
-# At the DEFINITION, the module is checked against the builtin #
-# `Livelit` signature with Model, Action and Expansion realized by #
-# the definition's own types. So this is an error where it is #
-# written, before any use exists: #
-
-#   type Model = Bool;  type Expansion = String;        #
-#   let expand = Functional(fun m : Model -> m)          #
-#                                                        #
-#   Expecting type String                                #
-#   but got inconsistent type Model                      #
-
-# The error marks the body, m. The expected side reads String, not #
-# Expansion: the check substitutes the definition's own types into #
-# the signature before comparing. Without that, Expansion would mean #
-# nothing outside the module, become ?, and ? is consistent with #
-# anything. The body's side keeps its own name, Model, the module's #
-# alias for Bool. #
-
-# At each USE, this implementation also checks the expansion against #
-# the declared Expansion, as the paper does. For a Functional #
-# livelit that check is vacuous: Functional(f) was already checked #
-# against Model -> Expansion, so f(model) has type Expansion at every #
-# use. The use-site check is for Macro, whose quoted expansion has a #
-# type that depends on the splice list -- how many splices there are #
-# and what their types are -- which the definition cannot see #
-# (Sec. 3.2.5). It runs: a splice whose code has the wrong type makes #
-# the use a BadLivelitExpansion error. A definition with a bad member #
-# is still bound, so its uses keep resolving: each synthesizes the #
-# declared Expansion. #
+# A Functional expand is checked at the definition, so a wrong one is #
+# an ordinary type error there. Its expected side reads the #
+# definition's own type, String, not Expansion, which outside the #
+# module would mean nothing. Expansion Type Errors shows each kind. #
 
 # Try it: the ^good livelit below type-checks. Change its Expansion #
 # to String and the error appears on the DEFINITION immediately. The #
@@ -238,13 +205,3 @@ let in_hsl = shade(Hsl) in
  shade(Rgb)(25),
  shade(Hwb)(0),
  ^^livelit(^good(3)) + 1)
-
-# MACRO EXPANSIONS #
-
-# This slide is about Functional expansions, which compute a VALUE. #
-# The paper's own kind, the Macro arm, returns CODE -- a quotation, #
-# quote ... end -- applied at each use to the client's splices: #
-# Color (Figure 3) is the paper's example, Dynamic Row or Column #
-# builds its code for however many cells it has, and the Hygiene #
-# folder shows why that code can neither capture the client's names #
-# nor see them. #

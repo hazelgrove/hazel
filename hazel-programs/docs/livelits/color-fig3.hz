@@ -24,9 +24,7 @@
 # by hand, since fun r g b a is not a curried function here. #
 
 # init makes the four splices (l.8-13), the view reads and places #
-# them (l.18-44), and a click writes them (l.46-53). The #
-# paper's starting code is the quoted `0`; here it is IntLit(0), an #
-# Exp constructor, which needs no quotation. #
+# them (l.18-44), and a click writes them (l.46-53). #
 
 # Fig. 3 l.1 -- the expansion type. The paper spells labeled fields #
 # .r Int; here they are r = Int. #
@@ -42,8 +40,7 @@ let ^color = {
   # Fig. 3 l.3-4 -- the model is four SpliceRefs, one per channel. The #
   # model holds HANDLES to the client's code. Here a ref also carries #
   # the value its code had in the last run: that is what eval_splice #
-  # reads. update could take the value out too, which Sec. 3.2.4 means #
-  # to prevent; making SpliceRef abstract is later work. #
+  # reads. (SpliceRef is not abstract yet: see Overview.) #
   type Model = (r = SpliceRef, g = SpliceRef, b = SpliceRef, a = SpliceRef);
 
   # Fig. 3 l.6 -- context { }, the definition-site context (Sec. 3.2). #
@@ -62,8 +59,8 @@ let ^color = {
   # r, g and b start at 0, a at 100. It runs when a use is created: #
   # type ^color and a space. The paper's starting code is the quoted #
   # `0`; here it is IntLit(0), an Exp constructor, which needs no #
-  # quotation. `Int` is IntT, which new_splice takes and does not keep #
-  # yet: a splice is typed only by where it sits. return is Pure. #
+  # quotation. `Int` is IntT, which new_splice keeps: a new use writes #
+  # each splice as (0 : Int). return is Pure. #
   let init =
     do r <- new_splice(IntT, Some(IntLit(0))) in
     do g <- new_splice(IntT, Some(IntLit(0))) in

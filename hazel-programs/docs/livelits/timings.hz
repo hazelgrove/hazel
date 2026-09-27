@@ -180,9 +180,8 @@ let ^latency = {
 # provoked is still in the program when you come back (Sec. 3.2.1). #
 
 # The expansion is data, not a picture: the use means the Reading its #
-# model expands to (Sec. 2.2), and a client works with it through its #
-# declared type (Sec. 2.3), without inspecting the expansion #
-# (Sec. 1.2, Sec. 2.2). This program asks whether the worst frame #
+# model expands to, which a client works with through its declared #
+# type (Overview). This program asks whether the worst frame #
 # crossed a frame budget; a client could just as well sort, plot or #
 # test against it. #
 

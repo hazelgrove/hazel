@@ -1,6 +1,4 @@
-# Dynamic Row/Column #
-
-# DRAFT. The paper's design, and its splices run. #
+# Dynamic Row or Column #
 
 # Every command below runs: new_splice in init and in update, editor #
 # and eval_splice in view. init makes three cells, 1, 2 and 3. The + #
@@ -18,11 +16,6 @@
 # splices as well as the model, can make more (Sec. 3.2.4). This #
 # slide uses both halves: init makes the first three cells, and a #
 # click makes one more. #
-
-# The Editable Parameters slide uses the first half: its init makes its #
-# two bounds with new_splice, and its Model has room for just two, #
-# so it never grows a splice. The parens in its uses are those #
-# splices as saved, not an author's way to make one. #
 
 # The cells sit edge to edge, like a row or a column of a #
 # spreadsheet. Hover a cell and its buttons appear on its edges: #
@@ -42,11 +35,8 @@ let ^cells = {
     + InsertBefore(Int) + InsertAfter(Int) + Delete(Int) + Rotate;
   type Expansion = [Int];
 
-  # init is a command, an UpdateCmd as in Figure 3 (Sec. 3.2.1), #
-  # performed when you type ^cells then a space. Like Figure 3's, it #
-  # makes its splices with new_splice, each with starting code: #
-  # IntLit(n), an Exp constructor, which needs no quotation. The new #
-  # use's text is the model it answers, with the splices it made. #
+  # Like Figure 3's, init makes its splices with new_splice, each with #
+  # starting code IntLit(n). #
   let init =
     do a <- new_splice(IntT, Some(IntLit(1))) in
     do b <- new_splice(IntT, Some(IntLit(2))) in
@@ -269,6 +259,5 @@ let ^cells = {
     end
 } in
 # A use, as saved: the three cells init made, each in parens where #
-# its ref sits in the list. That is how the text keeps a splice, and #
-# a reload rebuilds each one from its parens. #
+# its ref sits in the list (Splices in Text). #
 ^^livelit(^cells((orient = Row, refs = [(1), (2), (3)])))

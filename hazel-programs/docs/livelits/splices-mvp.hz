@@ -41,19 +41,15 @@ let ^between = {
   type Model = (pct=Int, lo=SpliceRef, hi=SpliceRef);
 
   # Only the handle moves: there is no SetLo or SetHi. The bounds are #
-  # the client's code, and this slider leaves them alone -- though the #
-  # paper does let update rewrite a splice, with set_splice; Color #
-  # (Figure 3) does. #
+  # the client's code, and this slider leaves them alone. (A livelit #
+  # may rewrite a splice, with set_splice: Color (Figure 3) does.) #
   type Action = + Slide(Int);
 
   type Expansion = Int;
 
-  # init is a command, an UpdateCmd(Model) (Sec. 3.2.1). It is #
-  # performed when a use is created -- type ^between, then a space -- #
-  # and it MAKES the two bounds with new_splice, starting them at 0 #
-  # and 100. The new use's text is that model, each ref written as its #
-  # splice, in parens: lo=(0) is the splice new_splice made, as saved. #
-  # The uses below are written the same way. #
+  # init MAKES the two bounds with new_splice, starting them at 0 and #
+  # 100, when a use is created. The new use's text is that model, each #
+  # ref written as its splice with its declared type: lo=(0 : Int). #
   let init =
     do lo <- new_splice((IntT, Some(IntLit(0)))) in
     do hi <- new_splice((IntT, Some(IntLit(100)))) in
@@ -137,11 +133,6 @@ let ^between = {
 # The code inside stays the client's, in the client's scope #
 # (Sec. 2.4.3). #
 
-# A livelit may still REWRITE a splice. That is set_splice, and #
-# Figure 3's update uses it to overwrite all four channels on a click #
-# (Sec. 3.2.4). This slider has no reason to, though it could: #
-# set_splice runs, and Color (Figure 3) does just that. #
-
 let baseline = 10 in
 
 # baseline * 2 is 20, and the handle is halfway: the use means 15. #
@@ -175,14 +166,9 @@ let computed =
   ^^livelit(^between((pct=50, lo=(0),
     hi=((^^livelit(^between((pct=50, lo=(0), hi=(200))))) * 2 + 10)))) in
 
-# Watch where the parens close in 3. Parens are how a splice is #
-# written in text, and a field's parens are read as a splice only #
-# when they hold its WHOLE value, spaces aside. Written #
-# `hi=(slider) * 2 + 10`, the parens hold only part of the value, so #
-# they are not read as a splice at all: the field has no ref, and it #
-# does not typecheck. A livelit makes each new splice with new_splice #
-# (Sec. 3.2.1), but writing one by hand is legal too, whole-value #
-# parens and all: see Splices in Text. #
+# Watch where the parens close in 3: they hold the WHOLE value. #
+# Written `hi=(slider) * 2 + 10`, they would hold only part of it, #
+# which is no splice, and does not typecheck (Splices in Text). #
 
 (shown, by_name, nested, computed)
 

@@ -84,9 +84,8 @@ type Livelit = {
 
 `expand` commits to one of two arms.
 
-- **`Functional(f)`**: the use means `f(model)`, a value. Every working
-  livelit today is Functional. This arm is ours; the paper's `expand` is the
-  Macro arm alone.
+- **`Functional(f)`**: the use means `f(model)`, a value. This arm is ours;
+  the paper's `expand` is the Macro arm alone.
 - **`Macro(g)`**: `g(model)` returns code and the splices that code takes,
   as in Fig. 3, and a use means that code applied to them. See
   [Quotation](#quotation-the-plan).

@@ -45,9 +45,9 @@
 # each parenthesized field back as a splice editor. Removing the #
 # widget gives the same text back. #
 
-# One thing is legal and should not be: SpliceRef's constructor is #
-# visible, so SpliceRef(("id", 1)) can be written by hand, forging a #
-# ref to no splice. That is a known gap, listed in the PR. #
+# One thing is legal and should not be: SpliceRef(("id", 1)) written #
+# by hand forges a ref to no splice (SpliceRef is not abstract yet: #
+# Overview). #
 
 let ^pair = {
   type Model = (a = SpliceRef, b = SpliceRef);

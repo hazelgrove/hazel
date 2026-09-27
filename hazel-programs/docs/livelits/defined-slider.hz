@@ -5,15 +5,12 @@
 # slide goes through it one member at a time, the paper's type for #
 # each beside the type here, and ends by adding two uses as Ints. #
 
-# Three types declare the interface. Expansion is the one clients #
-# see: a use of ^pct has type Expansion however expand is written, #
-# so a client can reason about it from that type alone #
-# (Sec. 2.2, 2.3). #
+# Three types declare the interface; Expansion is the one clients #
+# see (Overview). #
 
 # Model:     the state a use carries, persisted in the program #
-#            (Sec. 3.2.1). Here it is written as the use's argument, #
-#            ^pct(25); in the paper an argument at a use is a #
-#            parameter instead (Sec. 2.4.1) #
+#            (Sec. 3.2.1), written as the use's argument, ^pct(25). #
+#            A parameter is given differently: see Parameters #
 # Action:    what the GUI emits (Sec. 3.2.2) #
 # Expansion: what a use MEANS to the program (Sec. 3.1) #
 
@@ -26,14 +23,9 @@
 # view:   the paper's is Model -> ViewCmd(Html(Action)) (Sec. 3.2.3); #
 #         here it is Model -> ViewCmd(Html.T), and its handlers #
 #         still emit Actions #
-# expand: the paper's expand is a Macro -- quoted code for a #
-#         function over the use's splices, plus the list of them, #
-#         checked only at each use (Sec. 3.2.5). A number needs no #
-#         program written for it, so this one is Functional, an arm #
-#         this implementation adds: Model -> Expansion, checked here #
-#         at the definition. A Macro returns its code as a #
-#         quotation, quote ... end: see Color (Figure 3), and #
-#         Dynamic Row or Column for code built by expand. #
+# expand: Functional, Model -> Expansion, checked at the #
+#         definition. A number needs no program written for it; the #
+#         paper's Macro arm returns one (Overview, Color (Figure 3)) #
 
 # init is a COMMAND, and update and view return commands. Pure(x) is #
 # the command that answers x and does nothing else; a slider makes no #

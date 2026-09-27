@@ -8,13 +8,9 @@
 # percent: it works in whole pixels and whole percents. Clicking the #
 # dot itself can move the color by a percent. #
 
-# The paper's own color livelit -- rebuilt on the Color (Figure 3) #
-# slide -- keeps each channel as a splice, a region of the client's #
-# code inside the widget (Sec. 2.4.2), and its expand returns quoted #
-# code over them (Sec. 3.2.5). This one keeps three plain numbers and #
-# expands with Functional, straight to the String. It needs no quoted #
-# code, so all of it runs today; init, view and update all answer #
-# with Pure. #
+# Color (Figure 3) keeps each channel as a splice and expands with a #
+# Macro. This one keeps three plain numbers and is Functional, #
+# straight to the String; with no splices, every command is Pure. #
 
 # The helpers -- css, pick, dot_x, dot_y -- are ordinary members of #
 # the module; view and expand call them like any other function. #

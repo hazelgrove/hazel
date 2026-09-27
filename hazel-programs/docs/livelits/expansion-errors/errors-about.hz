@@ -11,8 +11,9 @@
 
 # Macro (Sec. 3.2.5): expand returns CODE, a quotation, and a use #
 # means that code applied to the use's splices (Fig. 5). The code #
-# must be a function taking each splice, at the type the splice's #
-# code has, to Expansion (premise 5). The splices' code is the #
+# must be a function taking each splice, at its declared type (or #
+# its code's type, if it declares none), to Expansion (premise 5). #
+# The splices' code is the #
 # client's, in each use, so this is checked at each use, and the #
 # error is on the use. It names what went wrong in terms the #
 # definition states -- Expansion, the splices, the code expand #

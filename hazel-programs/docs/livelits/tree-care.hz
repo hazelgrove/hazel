@@ -216,8 +216,6 @@ let ^tree = {
       end
     end;
 
-  # update returns a command, an UpdateCmd (Sec. 3.2.4). It writes no #
-  # splice, so it only answers the next model: Pure. #
   # How many forks deep the tree goes. #
   let depth = fun t : Tree ->
     case t
@@ -445,9 +443,7 @@ let ^tree = {
                       [Html.text(">")]),
           feed_button])]));
 
-  # Functional, this implementation's own arm, since a census is plain #
-  # data computed from the model. The paper's expand is always quoted #
-  # code over the splices, plus their list (Sec. 3.2.5). #
+  # Functional (Overview): a census is plain data from the model. #
   let expand = Functional(fun m : Model ->
     let c = count(m.tree) in
     (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season));
@@ -467,9 +463,8 @@ let ^tree = {
 # Two small livelits build the growth style the tree is fed with. #
 
 # A slider over a range. Its bounds are part of its model, so one #
-# definition serves both sliders below. (The paper makes bounds #
-# PARAMETERS, $slider 0 100, which this implementation does not #
-# have yet, Sec. 2.4.1.) #
+# definition serves both sliders below with no abbreviation. (Bounds #
+# as parameters, $slider 0 100, are the Parameters slide.) #
 let ^range = {
   type Model = (lo=Int, hi=Int, value=Int);
   type Action = Int;
@@ -578,6 +573,4 @@ let ^^probe(census) = ^^livelit(^tree((
 # The use above carries its whole tree in its argument. Grow it and #
 # the argument grows with it; trim a branch and a Scar appears in the #
 # text. The EXPANSION stays a census either way, so a client counts #
-# without ever matching on the tree: it reasons from the declared #
-# Census type (Sec. 2.3), without reading the expansion or the #
-# livelit (Sec. 1.2, Sec. 2.2). #
+# without ever matching on the tree. #

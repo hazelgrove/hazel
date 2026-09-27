@@ -91,9 +91,8 @@
 # widget: an editor for ordinary code (Sec. 2.4.2), in the client's #
 # scope (Sec. 2.4.3). The livelit holds a SpliceRef, a handle to #
 # one: just SpliceRef, never SpliceRef(Int), as in the paper, where #
-# the splice has a type and the handle does not (Sec. 3.2.1). Here a #
-# splice is typed only by where it sits. Under a bare SpliceRef, as #
-# in Color (Figure 3), that is ?, so no type is checked there yet. #
+# the splice has a type and the handle does not (Sec. 3.2.1). The #
+# type is the one new_splice declared, kept in the text. #
 
 # Five commands, with the paper's names: #
 
@@ -103,18 +102,13 @@
 #   editor      : (SpliceRef, Dim)  -> ViewCmd(Html.T)       3.2.3 #
 #   result_view : (SpliceRef, Dim)  -> ViewCmd(Maybe(Html.T)) 3.2.3 #
 
-# eval_splice answers Some(Val(v)) or Some(Indet); None, for no run #
-# at all, cannot happen while a ref carries its value. The paper's #
-# Val and Indet each hold an Exp, such as IntLit (Sec. 3.2.3); here #
-# Val holds the value itself, and Indet holds nothing. #
+# eval_splice answers Some(Val(v)) or Some(Indet). Val holds the #
+# value itself, where the paper's holds an Exp: see Color (Figure 3). #
 
-# The splice store is the program text. When a model is committed, #
-# each SpliceRef in it is written back as the splice itself, in #
-# parens, where the ref sits in the use's model argument. Each pass #
-# reads those parens back as refs, directed by the Model type. So #
-# parens in a use's text are how its splices are saved, not a way to #
-# make one: new_splice is the only command that makes a splice #
-# (Sec. 3.2.1). #
+# The splice store is the program text: a splice is written as #
+# parens, (code) or (code : T), where its ref sits in the use's #
+# model, and read back from them on every pass. Splices in Text says #
+# more, writing one by hand included. #
 
 # Splices are capture-avoiding: the expansion takes them as function #
 # arguments, so a splice sees the client's bindings and never the #
@@ -154,10 +148,10 @@
 # update could take the value out of a ref, which Sec. 3.2.4 is #
 # designed to prevent. #
 
-# The paper's implementation also lists a context: the bindings from #
-# its definition site that the expansion may use (Sec. 3.2, Fig. 3 #
-# l.6), which keeps an expansion independent of where it is used #
-# (Sec. 3.2.5). There is no such member here. #
+# The paper's implementation also lists a context, the definition- #
+# site bindings an expansion may use (Fig. 3 l.6). There is no such #
+# member here; a definition must be closed instead. See Color #
+# (Figure 3). #
 
 # Two more differences come from the language, not the paper. Hazel #
 # cannot write an applied type, so you cannot yourself annotate #
@@ -211,23 +205,10 @@ let ^flag = {
 
 # WHAT IS CHECKED, AND WHERE #
 
-# At the DEFINITION: the module is checked against Livelit. update #
-# must take a Model then an Action and give back an UpdateCmd(Model); #
-# view must give back a ViewCmd(Html.T); expand must be one arm of #
-# the sum. A wrong member reads as an ordinary type error at that #
-# member. #
-
-# At each USE: in the paper this is the ONLY check that what expand #
-# generates has the declared type (Sec. 3.2.5). expand returns #
-# untyped quoted code, and the type of the function it quotes #
-# depends on every splice in the list, which grows and shrinks per #
-# use. So nothing ahead of time says that the generated code has the #
-# declared Expansion type. Checking expand at the definition is an #
-# addition here, and is enough for Functional. The use-site check #
-# runs at every use today. For a Functional livelit it repeats what #
-# the definition already guaranteed. For Macro it does the real #
-# work: the quoted code, against the types of the splices it is #
-# applied to. #
+# The module is checked against Livelit at its DEFINITION, an #
+# addition here: a wrong member is an ordinary type error at that #
+# member. A Macro's generated code is checked at each USE, the #
+# paper's only check (Sec. 3.2.5). Expansion Type Errors shows both. #
 
 # WHERE TO GO NEXT #
 
