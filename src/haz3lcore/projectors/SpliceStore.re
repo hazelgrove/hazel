@@ -23,7 +23,10 @@ type effect =
   /* new_splice: a fresh splice's id, and the code it starts with */
   | New(string, TermBase.Exp.t)
   /* set_splice: the ref's id, and the code that replaces what it holds */
-  | Set(string, TermBase.Exp.t);
+  | Set(string, TermBase.Exp.t)
+  /* new_splice's declared type (Sec. 3.2.1): kept in the text, as an
+     ascription outside the splice, `(code : Int)`, so it survives reload. */
+  | Declare(string, TermBase.Typ.t);
 
 /* SpliceRef((id, value)) ~> (id, value) */
 let splice_ref = (r: DHExp.t): option((string, DHExp.t)) =>
@@ -132,6 +135,59 @@ let code_of_init = (init: DHExp.t): result(TermBase.Exp.t, string) =>
 let mk_splice = (id: Id.t, code: TermBase.Exp.t): TermBase.Exp.t =>
   Exp.parens(IdTagged.mk_internal([id], Splice(code): TermBase.Exp.term));
 
+/* A splice with its declared type: `(<splice code> : T)`. The ascription
+   is OUTSIDE the splice, so the widget's splice editor shows only the
+   client's code, and Hazel's own ascription checks that code against T
+   where it is written (Sec. 3.2.1: new_splice checks "the expression
+   against the splice type"). */
+let mk_typed_splice =
+    (id: Id.t, code: TermBase.Exp.t, typ: TermBase.Typ.t): TermBase.Exp.t =>
+  Exp.parens(
+    Exp.asc(
+      IdTagged.mk_internal([id], Splice(code): TermBase.Exp.term),
+      typ,
+    ),
+  );
+
+/* new_splice's Typ argument as the Hazel type it names. */
+let typ_of_typ_value = (t: DHExp.t): option(TermBase.Typ.t) =>
+  switch (of_constructor(t)) {
+  | Some(("IntT", _)) => Some(Typ.int())
+  | Some(("FloatT", _)) => Some(Typ.float())
+  | Some(("BoolT", _)) => Some(Typ.bool())
+  | Some(("StringT", _)) => Some(Typ.string())
+  | _ => None
+  };
+
+/* The declared type of each typed splice in a model's text, by id: the
+   ascription around it, `(<splice> : T)`. What a commit keeps, since the
+   ref a model value carries holds no type. */
+let declared_types = (model: TermBase.Exp.t): list((string, TermBase.Typ.t)) => {
+  let found = ref([]);
+  let rec strip = (e: TermBase.Exp.t) =>
+    switch (e.term) {
+    | Parens(e) => strip(e)
+    | _ => e
+    };
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (e.term) {
+          | Asc(inner, t) =>
+            switch (strip(inner)) {
+            | {term: Splice(_), _} as sp =>
+              found := [(Id.to_string(IdTagged.rep_id(sp)), t), ...found^];
+              e;
+            | _ => continue(e)
+            }
+          | _ => continue(e)
+          },
+      model,
+    );
+  found^;
+};
+
 /* The committed model VALUE, back into program text.
 
    Each SpliceRef becomes the splice it names, in parens:
@@ -150,8 +206,32 @@ let mk_splice = (id: Id.t, code: TermBase.Exp.t): TermBase.Exp.t =>
    The stopgap pair (ref=SpliceRef(...), value=v) collapses to its splice
    the same way: the value is the splice's own, and is rebuilt from it. */
 let write_model =
-    (~effects: list(effect), ~existing: list(string), model: TermBase.Exp.t)
+    (
+      ~effects: list(effect),
+      ~existing: list(string),
+      ~declared: list((string, TermBase.Typ.t))=[],
+      model: TermBase.Exp.t,
+    )
     : TermBase.Exp.t => {
+  /* A splice's declared type: from new_splice, or from the text it was
+     loaded with. set_splice keeps the type of the splice it rewrites. */
+  let type_of = id =>
+    switch (
+      List.find_map(
+        fun
+        | Declare(i, t) when i == id => Some(t)
+        | _ => None,
+        effects,
+      )
+    ) {
+    | Some(t) => Some(t)
+    | None => List.assoc_opt(id, declared)
+    };
+  let mk = (~typed_as, id, code) =>
+    switch (type_of(typed_as)) {
+    | Some(t) => mk_typed_splice(id, code, t)
+    | None => mk_splice(id, code)
+    };
   let set_code = id =>
     List.find_map(
       fun
@@ -168,11 +248,14 @@ let write_model =
     );
   let splice_for = (id: string): option(TermBase.Exp.t) =>
     switch (set_code(id), new_code(id)) {
-    | (Some(code), _) => Some(mk_splice(Id.mk(), code))
+    | (Some(code), _) => Some(mk(~typed_as=id, Id.mk(), code))
     | (None, Some(code)) =>
-      Option.map(id => mk_splice(id, code), Id.of_string(id))
+      Option.map(i => mk(~typed_as=id, i, code), Id.of_string(id))
     | (None, None) when List.mem(id, existing) =>
-      Option.map(id => mk_splice(id, Exp.empty_hole()), Id.of_string(id))
+      Option.map(
+        i => mk(~typed_as=id, i, Exp.empty_hole()),
+        Id.of_string(id),
+      )
     | (None, None) =>
       print_endline("SpliceStore: a ref to no splice of this use: " ++ id);
       None;
@@ -235,6 +318,7 @@ let rec splice_ids = (e: TermBase.Exp.t): list(string) =>
   switch (e.term) {
   | Splice(_) => [Id.to_string(IdTagged.rep_id(e))]
   | Parens(x)
+  | Asc(x, _)
   | TupLabel(_, x) => splice_ids(x)
   | Tuple(xs)
   | ListLit(xs) => List.concat_map(splice_ids, xs)

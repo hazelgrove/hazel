@@ -400,9 +400,17 @@ let splice_lifts = () => {
     switch (Haz3lcore.UpdateCmdRunner.run(run(cmd))) {
     | Error(e) => fail(cmd ++ " did not run: " ++ e)
     | Ok((_, effects)) =>
-      switch (effects) {
-      | [Haz3lcore.SpliceStore.New(_, code)]
-      | [Haz3lcore.SpliceStore.Set(_, code)] => code.term
+      /* new_splice also declares its type; the code is in New or Set. */
+      switch (
+        List.filter_map(
+          fun
+          | Haz3lcore.SpliceStore.New(_, code)
+          | Haz3lcore.SpliceStore.Set(_, code) => Some(code)
+          | Haz3lcore.SpliceStore.Declare(_) => None,
+          effects,
+        )
+      ) {
+      | [code] => code.term
       | _ => fail(cmd ++ ": expected one splice effect")
       }
     };
@@ -574,6 +582,139 @@ let expand = Macro(fun m : Model -> (quote fun x -> x end, [m.r]))
       Exp.fast_equal(field, Test_MakeTerm.parse_exp("10 * (1 + 2)")),
     );
   };
+};
+
+/* The printed marks of a statics map, as the editor would show them.
+   (Test_ExpansionErrors has the same helper, but depends on this file.) */
+let error_messages = (m: Statics.Map.t): list(string) =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (Info.marks_of(info)) {
+      | [] => acc
+      | marks => [Haz3lcore.ErrorPrint.string_of_marks(info, marks), ...acc]
+      },
+    m,
+    [],
+  )
+  |> List.sort_uniq(String.compare);
+
+/* new_splice's declared type is kept (Sec. 3.2.1): in the text, as an
+   ascription outside the splice, `(3 : Int)`, which survives reload, is
+   checked by Hazel's own ascription, and is what the Macro check sees. */
+let splice_types_are_kept = () => {
+  /* 1. The runner declares it. */
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(run("new_splice((IntT, Some(IntLit(3))))"))
+  ) {
+  | Error(e) => fail(e)
+  | Ok((_, effects)) =>
+    check(
+      bool,
+      "new_splice declares Int",
+      true,
+      List.exists(
+        fun
+        | Haz3lcore.SpliceStore.Declare(_, {term: Atom(Int), _}) => true
+        | _ => false,
+        effects,
+      ),
+    )
+  };
+  /* 2. The write-back puts it in the text. */
+  switch (
+    Haz3lcore.UpdateCmdRunner.run(
+      run("let ^c = " ++ spliced_def ++ " in ^c.init"),
+    )
+  ) {
+  | Error(e) => fail(e)
+  | Ok((model, effects)) =>
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    let text =
+      EditingPrelude.print_seg(Test_ExpToSegment.exp_to_segment(written));
+    check(
+      bool,
+      "written as (3 : Int), in " ++ text,
+      true,
+      Str.string_match(Str.regexp(".*(3 *: *Int)"), text, 0),
+    );
+    check(
+      list(string),
+      "the declared type is read back by id",
+      Haz3lcore.SpliceStore.splice_ids(written),
+      List.map(fst, Haz3lcore.SpliceStore.declared_types(written)),
+    );
+  };
+  /* 3. Reload splices the code, not the ascription. */
+  let spliced_code = text =>
+    switch (Haz3lcore.Parser.to_segment(text, ~root=Exp)) {
+    | None => fail("did not parse: " ++ text)
+    | Some(seg) =>
+      switch (Haz3lcore.LivelitProj.splice_marked_fields(seg)) {
+      | None => fail("nothing marked in " ++ text)
+      | Some(seg') =>
+        let rec contents = (seg: Haz3lcore.Base.segment) =>
+          List.concat_map(
+            (p: Haz3lcore.Base.piece) =>
+              switch (p) {
+              | Splice(sp) => [EditingPrelude.print_seg(sp.content)]
+              | Tile(t) => List.concat_map(contents, t.children)
+              | _ => []
+              },
+            seg,
+          );
+        (
+          contents(seg'),
+          Haz3lcore.LivelitProj.splice_marked_fields(seg') == None,
+        );
+      }
+    };
+  let (codes, idempotent) = spliced_code("^c((r = (1 : Int), n = 2))");
+  check(list(string), "only the code is spliced", ["1"], codes);
+  check(bool, "marking twice changes nothing", true, idempotent);
+  let (codes, _) = spliced_code("^c((r = (price * qty : Int), n = 2))");
+  check(list(string), "an operator's code too", ["price * qty"], codes);
+  /* 4. The ascription checks the client's code. */
+  let use = model => "let ^c = " ++ spliced_def ++ " in ^c(" ++ model ++ ")";
+  let errors = text => error_messages(fst(statics(text)));
+  check(
+    list(string),
+    "an Int splice",
+    [],
+    errors(use("(r = (1 : Int), n = 1)")),
+  );
+  check(
+    bool,
+    "a String in an Int splice is an error",
+    true,
+    errors(use("(r = (\"hi\" : Int), n = 1)")) != [],
+  );
+};
+
+/* 5. The Macro check (Fig. 5, premise 5) sees the declared type: a hole
+   declared Int cannot feed code taking a String, where an untyped hole,
+   of unknown type, can. */
+let macro_sees_declared_type = () => {
+  let def = "{
+type Model = (r = SpliceRef);
+type Action = Int;
+type Expansion = String;
+let init = Pure((r = SpliceRef((\"x\", 0))));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Macro(fun m : Model -> (quote fun s : String -> s end, [m.r]))
+}";
+  let errors = model =>
+    error_messages(
+      fst(statics("let ^s = " ++ def ++ " in ^s(" ++ model ++ ")")),
+    );
+  check(list(string), "an untyped hole fits", [], errors("(r = (?))"));
+  check(
+    bool,
+    "a hole declared Int does not",
+    true,
+    errors("(r = (? : Int))") != [],
+  );
 };
 
 /* A StringLit's code is written into the program text, so it must print
@@ -1958,6 +2099,12 @@ let tests = [
         eval_splice_reads_the_run,
       ),
       test_case("splices take every lift", `Quick, splice_lifts),
+      test_case("splice types are kept", `Quick, splice_types_are_kept),
+      test_case(
+        "the Macro check sees a declared type",
+        `Quick,
+        macro_sees_declared_type,
+      ),
       test_case(
         "set_splice takes quoted code",
         `Quick,

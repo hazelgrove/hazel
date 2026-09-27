@@ -144,9 +144,10 @@
 # paper's design are not here yet: #
 
 # Typ is a stopgap, a closed list of base type names like IntT. #
-# new_splice takes one and discards it: a splice is typed only by #
-# where it sits, and a use checks its expansion against the types its #
-# splices' code has. #
+# new_splice keeps the one it is given: the splice is written into #
+# the text with an ascription outside it, (0 : Int), which checks #
+# the client's code against Int, and a use checks its expansion #
+# against that type. See Splices in Text. #
 
 # SpliceRef is not abstract yet. A ref carries the value its code #
 # had in the current run, and its constructor is visible, so an #

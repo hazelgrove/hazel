@@ -103,10 +103,30 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
     | _ => None
     };
   let (ilead, icore, itrail) = split_outer_secondary(inner);
-  switch (icore) {
+  /* `(code : T)`: a splice with its declared type. Only the code is
+     spliced; the ascription stays outside it, so the splice editor shows
+     the client's code alone. The last top-level `:` is the ascription:
+     one inside the code is inside a tile of its own, not at top level. */
+  let rec last_colon = (i, found, ps: Base.segment) =>
+    switch (ps) {
+    | [] => found
+    | [Base.Tile({label: [":"], _}), ...rest] =>
+      last_colon(i + 1, Some(i), rest)
+    | [_, ...rest] => last_colon(i + 1, found, rest)
+    };
+  let (code, typed) =
+    switch (last_colon(0, None, icore)) {
+    | Some(k) when k > 0 =>
+      let (code, typed) = ListUtil.split_n(k, icore);
+      let (clead, ccore, ctrail) = split_outer_secondary(code);
+      (clead @ ccore, ctrail @ typed);
+    | _ => (icore, [])
+    };
+  let (clead, ccore, _) = split_outer_secondary(code);
+  switch (ccore) {
   | [Base.Splice(_)] => None /* idempotent: already spliced */
   | _ =>
-    let inner' = ilead @ [Piece.mk_splice(icore)] @ itrail;
+    let inner' = ilead @ clead @ [Piece.mk_splice(ccore)] @ typed @ itrail;
     Some(
       lead
       @ [
@@ -964,7 +984,12 @@ module M: Projector = {
             (~effects: list(SpliceStore.effect), new_model: TermBase.Exp.t) => {
           let existing = SpliceStore.splice_ids(model);
           let written =
-            SpliceStore.write_model(~effects, ~existing, new_model);
+            SpliceStore.write_model(
+              ~effects,
+              ~existing,
+              ~declared=SpliceStore.declared_types(model),
+              new_model,
+            );
           if (existing == [] && SpliceStore.splice_ids(written) == []) {
             switch (
               info.utility.lift_syntax(

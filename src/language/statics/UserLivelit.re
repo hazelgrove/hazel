@@ -488,7 +488,10 @@ let expose_splice_refs =
   let rec find_splice = (e: TermBase.Exp.t): option(Id.t) =>
     switch (e.term) {
     | Splice(_) => Some(IdTagged.rep_id(e))
-    | Parens(inner) => find_splice(inner)
+    | Parens(inner)
+    /* `(<splice> : T)`, a splice with its declared type: the ascription
+       checks the code against T, and is what the code then synthesizes. */
+    | Asc(inner, _) => find_splice(inner)
     | _ => None
     };
   /* A value, rewritten for the type its position asks for, looking

@@ -275,11 +275,15 @@ Hazel program needs an `eval : Exp -> a`.
     `g(model)`, decodes the quotation, evaluates it, and applies it to the
     values the refs carry. Smaller, but a type mismatch would only surface as
     a failed cast when the program runs.
-- **Splice types.** Premise 5 needs each splice's declared type, but
-  `new_splice` discards its `Typ` today. Either the type is kept with the
-  splice (for example as an ascription on the parenthesized code in the
-  model text) or the check uses the type the splice's code synthesizes.
-  Which is an open decision.
+- **Splice types.** Premise 5 needs each splice's declared type. It is
+  kept in the text, as an ascription outside the splice: `new_splice(IntT,
+  Some(IntLit(0)))` is written `(0 : Int)`, and the splice editor shows
+  only `0`. Hazel's own ascription then checks the client's code against
+  `Int` where it is written, and the code synthesizes `Int`, which is what
+  premise 5 sees. A commit keeps each splice's type (read back by id from
+  the text), and `set_splice` keeps the type of the splice it rewrites.
+  Text with no ascription, like every use saved before this, still loads,
+  typed by its code as before.
 
 ### `Exp`: quotation for code, lifting for values
 

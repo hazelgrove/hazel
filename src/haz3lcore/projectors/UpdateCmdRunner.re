@@ -41,13 +41,20 @@ let rec run =
     switch (of_tuple(body)) {
     | Some([args, k]) =>
       switch (of_tuple(args)) {
-      | Some([_typ, init]) =>
+      | Some([typ, init]) =>
         switch (SpliceStore.code_of_init(init)) {
         | Error(e) => Error("new_splice: " ++ e)
         | Ok(code) =>
           let id = Id.to_string(Id.mk());
+          /* The declared type is kept (Sec. 3.2.1), written into the text
+             as an ascription around the splice. */
+          let declare =
+            switch (SpliceStore.typ_of_typ_value(typ)) {
+            | Some(t) => [SpliceStore.Declare(id, t)]
+            | None => []
+            };
           resume(
-            ~done_=[SpliceStore.New(id, code)],
+            ~done_=[SpliceStore.New(id, code), ...declare],
             k,
             SpliceStore.mk_ref(id, code),
           );

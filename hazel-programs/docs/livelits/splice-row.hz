@@ -79,8 +79,9 @@ let ^cells = {
   # else (Sec. 3.2.1). None starts the new cell empty, a hole, so #
   # this needs nothing from quotation. IntT names the cell's expected #
   # type, which a livelit gives each splice it makes (Sec. 2.4.2). #
-  # new_splice takes it and discards it for now, and a SpliceRef slot #
-  # holds code of any type, so nothing checks that a cell is an Int. #
+  # new_splice keeps it: a new cell is written (? : Int), and Hazel's #
+  # ascription checks that its code is an Int. The three saved cells #
+  # below predate that, written (1), and are typed by their code. #
   let update = fun m : Model -> fun a : Action ->
     case a
     | InsertBefore(i) =>
