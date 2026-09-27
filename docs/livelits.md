@@ -134,34 +134,16 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
   a splice no ref reaches is not written back.
 - `new_splice(IntT, Some(IntLit(0)))` gives a splice initial code, and
   `set_splice(r, IntLit(n))` replaces it. Either takes a lift of any base
-  type: `IntLit`, `FloatLit`, `StringLit` or `BoolLit`. A string holding a
-  double quote is refused, since Hazel's literals do not unescape and so
-  cannot spell one: written into the text, it would corrupt it. Quoted code is not
-  taken there yet: its ids are the definition's, and writing them into the
-  client's text would duplicate them.
-
-Known gaps: the `SpliceRef` constructor is visible, so a ref can be forged or
-read in `update`; `new_splice` discards its `Typ` argument, so a splice is
-typed only by where it sits.
-
-## Parameters
-
-A definition may be a function of its parameters, so one definition serves
-many uses that differ only in them (Sec. 2.4.1). It is used through an
-**abbreviation**, which gives the parameters once and names the result; the
-abbreviation is then an ordinary livelit.
-
-```
-let ^slider = fun (lo, hi) : (Int, Int) -> {
-  type Model = Int;  type Action = Int;  type Expansion = Int;
-  let init = Pure((lo + hi) / 2);
-  ...
-} in
-let ^percent = ^slider(0, 100) in
-let ^die = ^slider(1, 6) in
-^^livelit(^percent(25)) + ^^livelit(^die(3))
-```
-
+  type, `IntLit`, `FloatLit`, `StringLit` or `BoolLit`, or quoted code:
+  `set_splice(r, quote string_of_int(n) end)` writes the quotation's body,
+  its antiquotes filled, under fresh ids, so it shares none with the
+  definition it came from. Written into a splice, that code is the
+  client's: it is resolved in the client's scope, as all splice code is,
+  so a quotation naming a builtin the client shadows means the client's
+  binding there, where in a Macro expansion it would not. Code built with
+  `Abs` is refused (it decodes only in a Macro expand), and so is a string
+  holding a double quote, since Hazel's literals do not unescape and so
+  cannot spell one: written into the text, it would corrupt it.
 - **Value parameters**, the paper's `$slider 0 100`. The definition
   `fun p -> { ... }` is checked against `? -> Livelit`, so every member may
   use `p`, and the parameter's type is whatever its pattern says. Member

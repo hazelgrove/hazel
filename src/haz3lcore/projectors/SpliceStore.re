@@ -46,46 +46,80 @@ let mk_ref = (id: string, code: TermBase.Exp.t): DHExp.t =>
     Exp.tuple([Exp.string(id), code]),
   );
 
+/* A Hazel string literal cannot hold a double quote: literals keep their
+   backslashes (Token.strip_quotes does not unescape), so none spells one,
+   and code holding such a string would corrupt the program text it is
+   written into. A computed string can hold one -- typed into a widget,
+   say -- and reach code through StringLit, directly or in an antiquote. */
+let has_unwritable_string = (code: TermBase.Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (e.term) {
+          | Atom(String(s)) when String.contains(s, '"') =>
+            found := true;
+            e;
+          | _ => continue(e)
+          },
+      code,
+    );
+  found^;
+};
+
 /* An Exp value as the code it denotes, for new_splice and set_splice to
-   write into a splice. The lifts only: IntLit(n) is Figure 3's own
-   (l.49-52), and FloatLit, StringLit and BoolLit its siblings. Quoted code
-   is not taken here yet: its ids are the definition's, and writing them
-   into the client's text would duplicate them. */
-let code_of_exp = (e: DHExp.t): result(TermBase.Exp.t, string) =>
-  switch (of_constructor(e)) {
-  | Some(("IntLit", n)) =>
-    switch (of_int(n)) {
-    | Some(n) => Ok(Exp.int(n))
-    | None => Error("IntLit needs an Int")
-    }
-  | Some(("FloatLit", f)) =>
-    switch (of_float(f)) {
-    | Some(f) => Ok(Exp.float(f))
-    | None => Error("FloatLit needs a Float")
-    }
-  /* The code is written into the program text, and a Hazel string
-     literal cannot hold a double quote: literals keep their backslashes
-     (Token.strip_quotes does not unescape), so none spells one, and the
-     text would be corrupted. A computed string can hold one, typed into a
-     widget, say, so it is refused here rather than written. */
-  | Some(("StringLit", s)) =>
-    switch (of_string(s)) {
-    | Some(s) when String.contains(s, '"') =>
-      Error(
-        "StringLit: a Hazel string literal cannot hold a double quote, so "
-        ++ "this string cannot be written into the program",
-      )
-    | Some(s) => Ok(Exp.string(s))
-    | None => Error("StringLit needs a String")
-    }
-  | Some(("BoolLit", b)) =>
-    switch (of_bool(b)) {
-    | Some(b) => Ok(Exp.bool(b))
-    | None => Error("BoolLit needs a Bool")
-    }
-  | Some((name, _)) => Error("no code for the Exp " ++ name ++ " yet")
-  | None => Error("expected an Exp")
+   write into a splice: a lift -- IntLit(n), Figure 3's own (l.49-52), or
+   FloatLit, StringLit, BoolLit -- or quoted code, `quote e end`, with any
+   antiquotes in it already filled.
+
+   Quoted code carries the ids of the quotation in the definition, so it
+   is given fresh ones: written into the client's text with its own, it
+   would share them with the definition. An Abs does not decode here (its
+   function needs the evaluator), so code built with one is refused; it
+   belongs in a Macro expand. */
+let code_of_exp = (e: DHExp.t): result(TermBase.Exp.t, string) => {
+  let lifted =
+    switch (of_constructor(e)) {
+    | Some(("IntLit", n)) =>
+      switch (of_int(n)) {
+      | Some(n) => Ok(Exp.int(n))
+      | None => Error("IntLit needs an Int")
+      }
+    | Some(("FloatLit", f)) =>
+      switch (of_float(f)) {
+      | Some(f) => Ok(Exp.float(f))
+      | None => Error("FloatLit needs a Float")
+      }
+    | Some(("StringLit", s)) =>
+      switch (of_string(s)) {
+      | Some(s) => Ok(Exp.string(s))
+      | None => Error("StringLit needs a String")
+      }
+    | Some(("BoolLit", b)) =>
+      switch (of_bool(b)) {
+      | Some(b) => Ok(Exp.bool(b))
+      | None => Error("BoolLit needs a Bool")
+      }
+    | _ =>
+      switch (Language.BuiltinsADT.code_of_exp_value(e)) {
+      | Some(code) => Ok(Language.Exp.replace_all_ids(code))
+      | None =>
+        Error(
+          "expected an Exp: a lift, or quoted code (code built with Abs "
+          ++ "belongs in a Macro expand)",
+        )
+      }
+    };
+  switch (lifted) {
+  | Ok(code) when has_unwritable_string(code) =>
+    Error(
+      "a Hazel string literal cannot hold a double quote, so this code "
+      ++ "cannot be written into the program",
+    )
+  | r => r
   };
+};
 
 /* new_splice's Maybe(Exp): None starts the splice empty, a hole. */
 let code_of_init = (init: DHExp.t): result(TermBase.Exp.t, string) =>

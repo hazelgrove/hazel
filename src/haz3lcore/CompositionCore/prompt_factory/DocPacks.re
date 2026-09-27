@@ -207,7 +207,8 @@ A ViewCmd command inside update is a type error. A splice nothing in the
 model refers to any more is dropped. `IntLit(n)`, `FloatLit(f)`,
 `StringLit(s)` and `BoolLit(b)` lift a computed value into code, for
 new_splice, set_splice and antiquotes; `quote e end` is code written as
-syntax, and a Macro expand returns one.
+syntax, which a Macro expand returns and new_splice or set_splice writes
+into a splice.
 
 ## Rules
 

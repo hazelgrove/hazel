@@ -428,6 +428,76 @@ let splice_lifts = () => {
   );
 };
 
+/* set_splice takes quoted code: the code is the quotation's body, with
+   any antiquotes filled, under fresh ids, so none of its ids is shared
+   with the quotation it came from. Code built with Abs is refused. */
+let splice_takes_quoted_code = () => {
+  let ids_of = (e: Exp.t) => {
+    let found = ref([]);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            found := IdTagged.ids(e) @ found^;
+            continue(e);
+          },
+        e,
+      );
+    found^;
+  };
+  let set = code => "set_splice((SpliceRef((\"s\", 1)), " ++ code ++ "))";
+  let written = cmd =>
+    switch (Haz3lcore.UpdateCmdRunner.run(run(cmd))) {
+    | Error(e) => Error(e)
+    | Ok((_, [Haz3lcore.SpliceStore.Set(_, code)])) => Ok(code)
+    | Ok(_) => fail(cmd ++ ": expected one Set")
+    };
+  let expect_code = (name, cmd, text) =>
+    switch (written(cmd)) {
+    | Error(e) => fail(name ++ ": " ++ e)
+    | Ok(code) =>
+      check(
+        bool,
+        name,
+        true,
+        Exp.fast_equal(code, Test_MakeTerm.parse_exp(text)),
+      )
+    };
+  expect_code(
+    "a quotation's body",
+    set("quote string_of_int(1 + 2) end"),
+    "string_of_int(1 + 2)",
+  );
+  expect_code(
+    "with its antiquote filled",
+    "let k = 5 in " ++ set("quote 1 + unquote IntLit(k) end end"),
+    "1 + 5",
+  );
+  /* Fresh ids: the quotation's own body, as evaluated, shares none. */
+  let quoted = run("quote string_of_int(1 + 2) end");
+  let body =
+    switch (quoted.term) {
+    | Quote(b) => b
+    | _ => fail("not a quotation")
+    };
+  switch (written(set("quote string_of_int(1 + 2) end"))) {
+  | Error(e) => fail(e)
+  | Ok(code) =>
+    check(
+      bool,
+      "no id shared with the quotation",
+      false,
+      List.exists(id => List.mem(id, ids_of(body)), ids_of(code)),
+    )
+  };
+  check(
+    bool,
+    "code built with Abs is refused",
+    true,
+    Result.is_error(written(set("Abs(fun v -> v)"))),
+  );
+};
+
 /* A StringLit's code is written into the program text, so it must print
    as a string that parses back to itself, quotes and backslashes too. */
 let string_lift_survives_text = () => {
@@ -1810,6 +1880,11 @@ let tests = [
         eval_splice_reads_the_run,
       ),
       test_case("splices take every lift", `Quick, splice_lifts),
+      test_case(
+        "set_splice takes quoted code",
+        `Quick,
+        splice_takes_quoted_code,
+      ),
       test_case(
         "a StringLit survives the program text",
         `Quick,
