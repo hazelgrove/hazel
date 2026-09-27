@@ -245,6 +245,7 @@ let ^flag = {
 # Dynamic Row or Column #
 #                  a row of splices that grows and shrinks #
 # Result View      cells that show their results, one formula bar #
+# Splices in Text  how a splice is written, and writing one by hand #
 # Hygiene          why an expansion cannot capture the client's #
 #                  names, nor see them: a folder, a slide per part #
 # Expansion Type Errors #

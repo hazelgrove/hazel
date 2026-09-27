@@ -17,6 +17,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),
     ("Dynamic Row or Column", [%blob "splice-row.hz"]),
     ("Result View", [%blob "result-view.hz"]),
+    ("Splices in Text", [%blob "splices-in-text.hz"]),
     /* A subfolder, Livelits / Hygiene: a slide per part, so each loads
        only the livelit it shows (hazel-programs/docs/livelits/hygiene). */
     ("Hygiene / About", [%blob "about.hz"]),

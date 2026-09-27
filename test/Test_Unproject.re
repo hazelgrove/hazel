@@ -126,7 +126,41 @@ let check_slide = (file, ()) => {
   );
 };
 
+/* Splices in Text: a use written by hand, unprojected, means what the
+   projected one does, and a spliced field written without its parens is
+   an error, as the slide says. */
+let splices_in_text = () => {
+  let text = read(Filename.concat(root(), "splices-in-text.hz"));
+  let (m, elab) = load(~source="splices-in-text", text);
+  check(list(string), "no errors", [], messages(m));
+  check(
+    Test_Evaluator_Prelude.dhexp_typ,
+    "means (44, 6)",
+    Test_UserLivelits.run("(44, 6)"),
+    Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+  );
+  /* In the code, not in the slide's comment, which shows the same form. */
+  let from = "let by_hand = ^pair((a = (x : Int)";
+  let i = Str.search_forward(Str.regexp_string(from), text, 0);
+  let bare =
+    String.sub(text, 0, i)
+    ++ "let by_hand = ^pair((a = x"
+    ++ String.sub(
+         text,
+         i + String.length(from),
+         String.length(text) - i - String.length(from),
+       );
+  check(
+    bool,
+    "a = x, without parens, is an error",
+    true,
+    messages(fst(load(~source="bare", bare))) != [],
+  );
+};
+
 let tests = (
   "Unproject",
-  slides() |> List.map(f => test_case(f, `Quick, check_slide(f))),
+  slides()
+  |> List.map(f => test_case(f, `Quick, check_slide(f)))
+  |> List.append([test_case("Splices in Text", `Quick, splices_in_text)]),
 );

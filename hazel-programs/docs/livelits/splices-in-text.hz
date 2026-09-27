@@ -1,0 +1,76 @@
+# Splices in Text #
+
+# A splice is the client's own code inside a livelit's model. In the #
+# program text it is written as PARENS, at a field whose Model type #
+# is SpliceRef: #
+
+#   ^pair((a = (x), b = (2))) #
+
+# and, with the type new_splice declared for it, as an ascription #
+# outside the splice: #
+
+#   ^pair((a = (x : Int), b = (2 : Int))) #
+
+# The splice is the code inside, x or 2; the ascription is not part #
+# of it, so the widget's splice editor shows only the code. #
+
+# WHERE IT COMES FROM. Not from the paper. The paper's Hazel was a #
+# structure editor, so a splice lived in the saved syntax tree, not #
+# in text: the paper-era implementation kept, for each splice, its #
+# type and its expression (branch livelits-def, SpliceInfo.re). The #
+# paper's related work spliced in text, recovering splices with a #
+# custom parser that kept provenance, and says that complicated its #
+# design (Sec. 6). Here the text #
+# is what is saved and reloaded, and a splice piece prints as #
+# nothing but its code, so something in the text must say where each #
+# splice is. Parens are that marker, chosen on this branch #
+# (2026-09-22), and the ascription is how its type survives a reload. #
+
+# WRITING IT YOURSELF. It is ordinary Hazel syntax, and it is legal #
+# to write by hand: parens, a labeled tuple, an ascription. The rule #
+# is statics', and holds whether or not the use is projected: #
+
+# - (e) or (e : T) where Model says SpliceRef is a splice holding e, #
+#   in the client's scope; the ascription checks e against T #
+# - e WITHOUT parens there is an error: Model says SpliceRef, and e #
+#   is not one. Try it below: delete the parens around x #
+# - the same code in parens anywhere else is just parens #
+
+# So a use typed by hand means what the widget would have written, #
+# and wrapping it in ^^livelit(...) gives it the widget, which reads #
+# each parenthesized field back as a splice editor. Removing the #
+# widget gives the same text back. #
+
+# One thing is legal and should not be: SpliceRef's constructor is #
+# visible, so SpliceRef(("id", 1)) can be written by hand, forging a #
+# ref to no splice. That is a known gap, listed in the PR. #
+
+let ^pair = {
+  type Model = (a = SpliceRef, b = SpliceRef);
+  type Action = Int;
+  type Expansion = Int;
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(0)))) in
+    do b <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure((a = a, b = b));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do ea <- editor((m.a, FixedWidth(6))) in
+    do eb <- editor((m.b, FixedWidth(6))) in
+    Pure(Html.div([], [ea, Html.text(" + "), eb]));
+  # A use means its two splices' sum: the quoted function applied to #
+  # them (Fig. 5). #
+  let expand =
+    Macro(fun m : Model -> (quote fun a -> fun b -> a + b end, [m.a, m.b]));
+  let shape = Inline(20)
+} in
+
+let x = 4 in
+
+# Written by hand, not projected, with declared types: 4 + 40. #
+let by_hand = ^pair((a = (x : Int), b = (x * 10 : Int))) in
+
+# The same form, projected: the widget edits the same parens. 4 + 2. #
+let projected = ^^livelit(^pair((a = (x), b = (2)))) in
+
+(by_hand, projected)

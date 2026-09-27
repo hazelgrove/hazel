@@ -1870,6 +1870,7 @@ let view =
     ) => {
   // This gets the info from the infomap before singleton autolabelling
   let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
+  let this_use = livelit_use_syntax(~globals, info_cursor);
   let (syn_form, (explanation, _), example) =
     view_doc(
       ~globals,
@@ -1931,7 +1932,7 @@ let view =
       ),
     ]
     @ (
-      switch (livelit_use_syntax(~globals, info_cursor)) {
+      switch (this_use) {
       | Some(code) => [
           section(~section_clss="livelit-use", ~title="This use", [code]),
         ]
@@ -1941,7 +1942,15 @@ let view =
     @ (
       example == []
         ? []
-        : [section(~section_clss="examples", ~title="Examples", example)]
+        : [
+          section(
+            ~section_clss="examples",
+            /* Beside the use at the cursor, the generic example is the
+               other one. */
+            ~title=Option.is_some(this_use) ? "Another example" : "Examples",
+            example,
+          ),
+        ]
     ),
   );
 };
