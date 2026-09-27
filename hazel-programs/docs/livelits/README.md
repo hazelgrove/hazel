@@ -2,7 +2,8 @@
 
 Each `.hz` here is one slide of the **Documentation → Livelits** deck. The
 deck's order and titles are the list in `src/livelitdemos/Slides.re`; the
-folders `hygiene/`, `expansion-errors/` and `either/` are sub-decks. Each
+folders `hygiene/`, `expansion-errors/`, `either/` and `advanced/` are
+sub-decks. Each
 slide is an ordinary Hazel program that defines a livelit and uses it. On
 the command line the `^^livelit(...)` wrappers are inert and the program
 runs as written:

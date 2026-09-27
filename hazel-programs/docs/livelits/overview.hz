@@ -235,3 +235,4 @@ let ^flag = {
 # Either, Two Versions #
 #                  one livelit whose expansion type varies by use: #
 #                  Expansion = ?, or a type parameter #
+# Advanced         a folder: JavaScript, the one built-in livelit #

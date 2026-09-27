@@ -1,9 +1,9 @@
-# JavaScript Livelits (advanced) #
+# JavaScript Livelits #
 
 # The livelit that ships built in, ^js, evaluates JavaScript. It is #
-# here near the end of the deck because it is the least typical one: #
-# most livelits are defined in the program, as the earlier slides #
-# show, and need no escape hatch. #
+# in the Advanced folder, at the end of the deck, because it is the #
+# least typical one: most livelits are defined in the program, as the #
+# earlier slides show, and need no escape hatch. #
 
 # ^js expands to a value, as a Functional livelit does (Overview). #
 

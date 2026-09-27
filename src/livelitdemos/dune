@@ -8,6 +8,8 @@
 
 (copy_files ../../hazel-programs/docs/livelits/either/*.hz)
 
+(copy_files ../../hazel-programs/docs/livelits/advanced/*.hz)
+
 (library
  (name livelitdemos)
  (libraries haz3lcore)

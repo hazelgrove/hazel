@@ -14,7 +14,6 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Editable Parameters", [%blob "splices-mvp.hz"]),
     ("Tree Care", [%blob "tree-care.hz"]),
     ("Timings", [%blob "timings.hz"]),
-    ("JavaScript (advanced)", [%blob "javascript-advanced.hz"]),
     ("Dynamic Row or Column", [%blob "splice-row.hz"]),
     ("Result View", [%blob "result-view.hz"]),
     ("Splices in Text", [%blob "splices-in-text.hz"]),
@@ -62,6 +61,9 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       [%blob "either-unknown.hz"],
     ),
     ("Either, Two Versions / 2. Type Parameter", [%blob "either-typed.hz"]),
+    /* Livelits / Advanced: the least typical livelits, at the end of
+       the deck (hazel-programs/docs/livelits/advanced). */
+    ("Advanced / JavaScript", [%blob "javascript.hz"]),
   ]
   |> List.map(((name, text)) =>
        (
