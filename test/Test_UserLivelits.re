@@ -393,6 +393,74 @@ let init_makes_splices = () => {
   };
 };
 
+/* new_splice and set_splice take every lift: the code a splice starts
+   with, or is overwritten with, is the literal of the lifted value. */
+let splice_lifts = () => {
+  let code_of = cmd =>
+    switch (Haz3lcore.UpdateCmdRunner.run(run(cmd))) {
+    | Error(e) => fail(cmd ++ " did not run: " ++ e)
+    | Ok((_, effects)) =>
+      switch (effects) {
+      | [Haz3lcore.SpliceStore.New(_, code)]
+      | [Haz3lcore.SpliceStore.Set(_, code)] => code.term
+      | _ => fail(cmd ++ ": expected one splice effect")
+      }
+    };
+  check(
+    bool,
+    "new_splice with a FloatLit",
+    true,
+    code_of("new_splice((FloatT, Some(FloatLit(2.5))))") == Atom(Float(2.5)),
+  );
+  check(
+    bool,
+    "new_splice with a StringLit",
+    true,
+    code_of("new_splice((StringT, Some(StringLit(\"a\"))))")
+    == Atom(String("a")),
+  );
+  check(
+    bool,
+    "set_splice with a BoolLit",
+    true,
+    code_of("set_splice((SpliceRef((\"s\", 1)), BoolLit(false)))")
+    == Atom(Bool(false)),
+  );
+};
+
+/* A StringLit's code is written into the program text, so it must print
+   as a string that parses back to itself, quotes and backslashes too. */
+let string_lift_survives_text = () => {
+  let lift = v =>
+    Haz3lcore.SpliceStore.code_of_exp(
+      IdTagged.FreshGrammar.Exp.(
+        ap(Forward, constructor("StringLit", None), string(v))
+      ),
+    );
+  /* A backslash is kept as written, so it prints and parses back. */
+  let v = "a \\ b";
+  switch (lift(v)) {
+  | Error(e) => fail(e)
+  | Ok(code) =>
+    let text =
+      EditingPrelude.print_seg(Test_ExpToSegment.exp_to_segment(code));
+    switch (Haz3lcore.Parser.to_term(text, ~root=Exp)) {
+    | Some({term: Atom(String(back)), _}) =>
+      check(string, "printed as " ++ text ++ ", parsed back", v, back)
+    | _ => fail("did not parse back to a string: " ++ text)
+    };
+  };
+  /* A double quote cannot be spelled by a Hazel literal, and would corrupt
+     the text: built here rather than parsed, as a widget would compute
+     it, and refused. */
+  check(
+    bool,
+    "a double quote is refused",
+    true,
+    Result.is_error(lift("say \"hi\"")),
+  );
+};
+
 /* A ref that passed through an annotated helper arrives wrapped (an Asc
    from the annotation), and must still be written as its splice, not as
    a literal. Splices, Dynamically (draft) wrote SpliceRef("...", ?) into
@@ -1740,6 +1808,12 @@ let tests = [
         "eval_splice reads the run",
         `Quick,
         eval_splice_reads_the_run,
+      ),
+      test_case("splices take every lift", `Quick, splice_lifts),
+      test_case(
+        "a StringLit survives the program text",
+        `Quick,
+        string_lift_survives_text,
       ),
       test_case(
         "result_view draws the run",

@@ -132,8 +132,13 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
   looks like.
 - `set_splice` writes new code at the ref's position. Deletion is implicit:
   a splice no ref reaches is not written back.
-- `new_splice(IntT, Some(IntLit(0)))` gives a splice initial code. `IntLit` is
-  `Exp`'s one constructor, because a literal needs no quotation.
+- `new_splice(IntT, Some(IntLit(0)))` gives a splice initial code, and
+  `set_splice(r, IntLit(n))` replaces it. Either takes a lift of any base
+  type: `IntLit`, `FloatLit`, `StringLit` or `BoolLit`. A string holding a
+  double quote is refused, since Hazel's literals do not unescape and so
+  cannot spell one: written into the text, it would corrupt it. Quoted code is not
+  taken there yet: its ids are the definition's, and writing them into the
+  client's text would duplicate them.
 
 Known gaps: the `SpliceRef` constructor is visible, so a ref can be forged or
 read in `update`; `new_splice` discards its `Typ` argument, so a splice is
@@ -309,9 +314,11 @@ Hazel program needs an `eval : Exp -> a`.
 - **Computed values need lifting, not quotation.** Fig. 3 l.49-52,
   `set_splice(model.r, IntLit(c.r))`, puts a number *computed by update* into
   the client's code. `quote c.r end` would quote the expression `c.r` itself, not its
-  value. So lifting functions stay (`IntLit : Int -> Exp`, and siblings for
-  other base types). Color needs no more than a quotation in `expand`: its
-  quoted function is closed.
+  value. So lifting constructors stay, one per base type: `IntLit`,
+  `FloatLit`, `StringLit` and `BoolLit`, each usable in `set_splice`,
+  `new_splice`, or an antiquote (`quote unquote StringLit(s) end ++ "!" end`).
+  Color needs no more than a quotation in `expand`: its quoted function is
+  closed.
 - **Building code: antiquotation, and names.** `unquote e end`, inside a
   quotation, is an antiquote: `e` is an `Exp` computed where the quotation is
   written, and its code is spliced in. With `Abs` (next), this lets
@@ -514,10 +521,13 @@ let gen = fun vars : [Exp] -> fun i : Int ->
 produced as syntax. A new form is used the same way: write it inside a
 quotation.
 
-What *would* grow with Hazel is lifting: `IntLit` is the only lifting
-constructor today, so `update` cannot yet put a computed Float, String or
-Bool into a splice. That grows with Hazel's *base types*, not its forms,
-and is a gap now, not a maintenance cost.
+What *does* grow with Hazel is lifting, one constructor per base type:
+`IntLit`, `FloatLit`, `StringLit` and `BoolLit` today, so a new base type
+wants a lift of its own. That grows with Hazel's *types*, not its forms,
+and is two short cases, one in each decoder (`BuiltinsADT.code_of_exp_value`
+and `SpliceStore.code_of_exp`), plus a constructor in `exp_typ`. Values of
+compound types (tuples, lists) have no lift; their code can be built with
+antiquotes over the lifts of their parts.
 
 **The coverage test, `test/Test_QuoteCoverage.re`**, makes the claim
 checkable, in two layers:

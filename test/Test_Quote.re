@@ -412,6 +412,45 @@ let unquote_tests = (
       | _ => fail("expected the code 1 + 2")
       }
     ),
+    /* Lifting (Fig. 3 l.49-52): a value computed where the quotation is
+       written becomes a literal in the code, for each base type. */
+    test_case(
+      "FloatLit, StringLit and BoolLit lift a value",
+      `Quick,
+      () => {
+        let body = code =>
+          switch (run(code).term) {
+          | Quote(b) => b
+          | _ => fail("not a quotation: " ++ code)
+          };
+        let lit = (name, code, expected) =>
+          check(
+            bool,
+            name,
+            true,
+            switch (body(code).term) {
+            | BinOp(_, {term: Atom(a), _}, _) => a == expected
+            | If({term: Atom(a), _}, _, _) => a == expected
+            | _ => false
+            },
+          );
+        lit(
+          "a Float",
+          "let x = 1.25 in quote unquote FloatLit(x *. 2.) end +. 1. end",
+          Float(2.5),
+        );
+        lit(
+          "a String",
+          "let s = \"hi\" in quote unquote StringLit(s ++ \"!\") end ++ \"?\" end",
+          String("hi!"),
+        );
+        lit(
+          "a Bool",
+          "let b = 1 < 2 in quote if unquote BoolLit(b) end then 1 else 2 end",
+          Bool(true),
+        );
+      },
+    ),
     test_case(
       "its expression runs in the quotation's scope",
       `Quick,

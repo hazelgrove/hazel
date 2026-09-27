@@ -1533,16 +1533,21 @@ let livelit: Typ.t = {
   );
 };
 
-/* `Exp` is code as a value. Its first constructor is IntLit, an integer
-   literal, the one Figure 3 writes (l.49-52: set_splice(model.r,
-   IntLit(c.r))). A literal needs no quotation, so it comes first; the
-   rest of Exp, and the quasiquotation that builds it (Sec. 3.2.1), come
-   later. */
+/* `Exp` is code as a value. Its first constructors LIFT a value computed
+   by the livelit into code: IntLit is the one Figure 3 writes (l.49-52:
+   set_splice(model.r, IntLit(c.r))), and FloatLit, StringLit and BoolLit
+   do the same for Hazel's other base types. A quotation cannot do this --
+   `quote c.r end` quotes the expression c.r, not its value -- so lifting
+   grows with Hazel's base types, one constructor each. Quoted code, `quote
+   e end`, is the rest of Exp, and needs no constructor per form. */
 let exp_typ: Typ.t =
   rec_(
     Fresh.TPat.var("Exp"),
     sum_type([
       ("IntLit", Some(int())),
+      ("FloatLit", Some(float())),
+      ("StringLit", Some(string())),
+      ("BoolLit", Some(bool())),
       /* Code built from author-supplied names, for what a fixed quotation
          cannot write: a function over as many splices as a model has
          (Sec. 3.2.5's dataframe). Ident("x") is the variable x;
@@ -1616,7 +1621,11 @@ let rec code_of_exp_value =
     failed^ && apply != None ? None : Some(body);
   | Ap(Forward, fn, arg) =>
     switch (strip(fn).term, strip(arg).term) {
-    | (Constructor("IntLit", _), Atom(Int(_)) as n) => Some(n |> Exp.fresh)
+    | (Constructor("IntLit", _), Atom(Int(_)) as n)
+    | (Constructor("FloatLit", _), Atom(Float(_)) as n)
+    | (Constructor("StringLit", _), Atom(String(_)) as n)
+    | (Constructor("BoolLit", _), Atom(Bool(_)) as n) =>
+      Some(n |> Exp.fresh)
     | (Constructor("Ident", _), Atom(String(x))) =>
       Some(Var(x) |> Exp.fresh)
     | (Constructor("Lambda", _), Tuple([x, body])) =>

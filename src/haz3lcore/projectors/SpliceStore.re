@@ -46,14 +46,42 @@ let mk_ref = (id: string, code: TermBase.Exp.t): DHExp.t =>
     Exp.tuple([Exp.string(id), code]),
   );
 
-/* An Exp value as the code it denotes. IntLit(n) is Figure 3's own (l.49-52)
-   and needs no quotation. The rest of Exp arrives with quotation. */
+/* An Exp value as the code it denotes, for new_splice and set_splice to
+   write into a splice. The lifts only: IntLit(n) is Figure 3's own
+   (l.49-52), and FloatLit, StringLit and BoolLit its siblings. Quoted code
+   is not taken here yet: its ids are the definition's, and writing them
+   into the client's text would duplicate them. */
 let code_of_exp = (e: DHExp.t): result(TermBase.Exp.t, string) =>
   switch (of_constructor(e)) {
   | Some(("IntLit", n)) =>
     switch (of_int(n)) {
     | Some(n) => Ok(Exp.int(n))
     | None => Error("IntLit needs an Int")
+    }
+  | Some(("FloatLit", f)) =>
+    switch (of_float(f)) {
+    | Some(f) => Ok(Exp.float(f))
+    | None => Error("FloatLit needs a Float")
+    }
+  /* The code is written into the program text, and a Hazel string
+     literal cannot hold a double quote: literals keep their backslashes
+     (Token.strip_quotes does not unescape), so none spells one, and the
+     text would be corrupted. A computed string can hold one, typed into a
+     widget, say, so it is refused here rather than written. */
+  | Some(("StringLit", s)) =>
+    switch (of_string(s)) {
+    | Some(s) when String.contains(s, '"') =>
+      Error(
+        "StringLit: a Hazel string literal cannot hold a double quote, so "
+        ++ "this string cannot be written into the program",
+      )
+    | Some(s) => Ok(Exp.string(s))
+    | None => Error("StringLit needs a String")
+    }
+  | Some(("BoolLit", b)) =>
+    switch (of_bool(b)) {
+    | Some(b) => Ok(Exp.bool(b))
+    | None => Error("BoolLit needs a Bool")
     }
   | Some((name, _)) => Error("no code for the Exp " ++ name ++ " yet")
   | None => Error("expected an Exp")
