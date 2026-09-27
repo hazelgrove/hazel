@@ -498,6 +498,84 @@ let splice_takes_quoted_code = () => {
   );
 };
 
+/* The whole trip for quoted code: update sets a splice to `quote 10 * (1
+   + 2) end`, the commit writes the model back (SpliceStore.write_model),
+   and that is printed as program text. The text, parsed again as a use of
+   the livelit, must type-check and mean the splice's value, 30, and its
+   splice must read back as the quoted code. */
+let quoted_splice_survives_text = () => {
+  let def = "{
+type Model = (r = SpliceRef);
+type Action = Int;
+type Expansion = Int;
+let init =
+  do r <- new_splice((IntT, Some(IntLit(0)))) in
+  Pure((r = r));
+let update = fun m -> fun a ->
+  do _ <- set_splice((m.r, quote 10 * (1 + 2) end)) in Pure(m);
+let view = fun m -> Pure(Html.text(\"\"));
+let expand = Macro(fun m : Model -> (quote fun x -> x end, [m.r]))
+}";
+  let id = "00000000-0000-0000-0000-000000000002";
+  let m = "(r = SpliceRef((\"" ++ id ++ "\", 0)))";
+  let cmd = run("let ^q = " ++ def ++ " in ^q.update(" ++ m ++ ")(1)");
+  let written =
+    switch (Haz3lcore.UpdateCmdRunner.run(cmd)) {
+    | Error(e) => fail("update did not run: " ++ e)
+    | Ok((model, effects)) =>
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[id], model)
+    };
+  let model_text =
+    EditingPrelude.print_seg(Test_ExpToSegment.exp_to_segment(written));
+  let program = "let ^q = " ++ def ++ " in ^q(" ++ model_text ++ ")";
+  let (m_, elab) = statics(program);
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) when marks != [] =>
+          acc @ List.map(Mark.show, marks)
+        | _ => acc
+        },
+      m_,
+      [],
+    );
+  check(
+    list(string),
+    "reparsed as " ++ model_text ++ ": typechecks",
+    [],
+    marks,
+  );
+  check(
+    Test_Evaluator_Prelude.dhexp_typ,
+    "means the splice's value",
+    run("30"),
+    Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+  );
+  /* The splice's code, read back out of the text, is the quoted code. */
+  switch (Haz3lcore.Parser.to_term(model_text, ~root=Exp)) {
+  | None => fail("the model did not parse: " ++ model_text)
+  | Some(model) =>
+    let rec strip = (e: Exp.t): Exp.t =>
+      switch (e.term) {
+      | Parens(e) => strip(e)
+      | _ => e
+      };
+    let field =
+      switch (strip(model).term) {
+      | Tuple([{term: TupLabel(_, v), _}])
+      | TupLabel(_, v) => strip(v)
+      | _ => fail("not the model: " ++ model_text)
+      };
+    check(
+      bool,
+      "the splice holds 10 * (1 + 2)",
+      true,
+      Exp.fast_equal(field, Test_MakeTerm.parse_exp("10 * (1 + 2)")),
+    );
+  };
+};
+
 /* A StringLit's code is written into the program text, so it must print
    as a string that parses back to itself, quotes and backslashes too. */
 let string_lift_survives_text = () => {
@@ -1884,6 +1962,11 @@ let tests = [
         "set_splice takes quoted code",
         `Quick,
         splice_takes_quoted_code,
+      ),
+      test_case(
+        "a quoted-code splice survives the program text",
+        `Quick,
+        quoted_splice_survives_text,
       ),
       test_case(
         "a StringLit survives the program text",
