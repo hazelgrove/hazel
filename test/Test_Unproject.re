@@ -158,9 +158,33 @@ let splices_in_text = () => {
   );
 };
 
+/* Higher-order, Functional Expansion: the slide type-checks, and its use
+   is a curried function of a format and an offset, giving text. */
+let higher_order_expansion = () => {
+  let text = read(Filename.concat(root(), "expansion.hz"));
+  let (m, elab) = load(~source="expansion", text);
+  check(list(string), "no errors", [], messages(m));
+  check(
+    Test_Evaluator_Prelude.dhexp_typ,
+    "its value",
+    Test_UserLivelits.run(
+      "(\"hsl(200 69% 67%)\", \"hsl(200 52% 79%)\", "
+      ++ "\"rgb(114 190 228)\", \"hwb(200 20% 10%)\", 4)",
+    ),
+    Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+  );
+};
+
 let tests = (
   "Unproject",
   slides()
   |> List.map(f => test_case(f, `Quick, check_slide(f)))
-  |> List.append([test_case("Splices in Text", `Quick, splices_in_text)]),
+  |> List.append([
+       test_case("Splices in Text", `Quick, splices_in_text),
+       test_case(
+         "Higher-order, Functional Expansion",
+         `Quick,
+         higher_order_expansion,
+       ),
+     ]),
 );

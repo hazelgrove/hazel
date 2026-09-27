@@ -1,4 +1,4 @@
-# Functional Expansion #
+# Higher-order, Functional Expansion #
 
 # Every livelit has a member called expand, and a type member called #
 # Expansion, the type the paper has a livelit declare (Sec. 3.1). #
@@ -44,24 +44,33 @@
 # type, so a client can reason about it without reading the #
 # expansion or the widget (Sec. 1.2, Sec. 2.2). #
 
-# INTERESTING: AN EXPANSION THAT IS A FUNCTION #
+# INTERESTING: A HIGHER-ORDER EXPANSION #
 
-# Pick one color, and mean a whole RAMP of them. This livelit's #
-# Expansion is a FUNCTION, Int -> Color: give it k and it adds k to #
-# the whiteness of the color you picked, kept within 0 to 100. #
+# Pick one color, and mean a whole family of them, written out in #
+# whichever notation the client asks for. This livelit's Expansion is #
+# a CURRIED function, #
 
-# The two sides do different jobs (Sec. 3.2.5). The model is the #
-# GUI's state, the part the program keeps (Sec. 3.2.1): here, one #
-# hwb triple the slider moves, committed back as text. The expansion #
-# is what that state means to the client, and expand may compute #
-# anything from it, a function included. That is where a picked #
-# color becomes a family of colors. #
+#   Format -> Int -> String #
 
-# And a Color is not a string. It gives one color in three #
-# coordinate systems, each still numeric, so a client can compute #
-# with it -- compare channels, sort by lightness, interpolate. Two #
-# edge cases where the systems disagree are marked in the code. #
-# Turning one into text is a separate step, further down. #
+# Give it a format, Rgb, Hsl or Hwb, and get back a function; give #
+# that an offset k, and get the color you picked with k added to its #
+# whiteness (kept within 0 to 100), as text in that format: #
+
+#   shade(Hsl)(25)  is  "hsl(200 69% 67%)" #
+
+# A function that returns a function is higher-order, and expand #
+# computes it from the model like any other expansion (Sec. 3.2.5). #
+# The model is the GUI's state, the part the program keeps #
+# (Sec. 3.2.1): here, one hwb triple the slider moves, committed back #
+# as text. The expansion is what that state means to the client: #
+# not one color but every shade of it, in every notation. #
+
+# The format is the client's choice, made at the use, not the #
+# livelit's. It is a sum type, so it is declared ABOVE the livelit: #
+# a constructor is in scope only where its type is, and the client #
+# names Hsl at the use. #
+
+type Format = + Rgb + Hsl + Hwb in
 
 type Rgb = (r=Int, g=Int, b=Int) in
 type Hsl = (h=Int, s=Int, l=Int) in
@@ -71,7 +80,7 @@ type Color = (rgb=Rgb, hsl=Hsl, hwb=Hwb) in
 let ^ramp = {
   type Model = Hwb;
   type Action = Hwb;
-  type Expansion = Int -> Color;
+  type Expansion = Format -> Int -> String;
 
   let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
@@ -138,32 +147,28 @@ let ^ramp = {
        swatch(m),
        swatch((h=m.h, w=clamp(m.w + 35), b=m.b))]));
 
-  # not a color, and not text: a function FROM a whiteness offset #
-  # TO structure #
+  # A color in each notation. Members, not bindings outside: the #
+  # definition runs in the builtin environment, so it must be closed. #
+  let rgb_string = fun c : Rgb ->
+    "rgb(" ++ string_of_int(c.r) ++ " " ++ string_of_int(c.g)
+    ++ " " ++ string_of_int(c.b) ++ ")";
+  let hsl_string = fun c : Hsl ->
+    "hsl(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.s)
+    ++ "% " ++ string_of_int(c.l) ++ "%)";
+  let render = fun (fmt, c) : (Format, Color) ->
+    case fmt
+    | Rgb => rgb_string(c.rgb)
+    | Hsl => hsl_string(c.hsl)
+    | Hwb => css(c.hwb)
+    end;
+
+  # Curried: a format, then an offset, then text. #
   let expand = Functional(fun m : Model ->
-    fun k : Int -> color((h=m.h, w=clamp(m.w + k), b=m.b)));
+    fun fmt : Format -> fun k : Int ->
+      render((fmt, color((h=m.h, w=clamp(m.w + k), b=m.b)))));
 
   let shape = Inline(14)
 } in
-
-# TEXT COMES LAST #
-
-# Each coordinate system gets its own to_string, out here, where the #
-# client can choose one -- or none. The expansion handed over #
-# structure; these are what you reach for only once you want to LOOK #
-# at it. #
-
-let rgb_string = fun c : Rgb ->
-  "rgb(" ++ string_of_int(c.r) ++ " " ++ string_of_int(c.g)
-  ++ " " ++ string_of_int(c.b) ++ ")" in
-
-let hsl_string = fun c : Hsl ->
-  "hsl(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.s)
-  ++ "% " ++ string_of_int(c.l) ++ "%)" in
-
-let hwb_string = fun c : Hwb ->
-  "hwb(" ++ string_of_int(c.h) ++ " " ++ string_of_int(c.w)
-  ++ "% " ++ string_of_int(c.b) ++ "%)" in
 
 # WHERE A WRONG EXPAND IS CAUGHT #
 
@@ -220,20 +225,18 @@ let ^good = {
   let shape = Inline(3)
 } in
 
-# The use below IS a function. Drag the hue and every shade moves, #
-# because they all come from the one expansion. #
-
-# Note what the client gets to do: read a channel as a number, and #
-# pick which coordinate system to render -- decisions the livelit #
-# never made for it. #
+# The use below IS a function, of two arguments, one at a time. Drag #
+# the hue and every shade moves, in every notation, because they all #
+# come from the one expansion. shade(Hsl) is itself a function, a #
+# palette in one notation, which can be passed around before any #
+# offset is given. #
 
 let shade = ^^livelit(^ramp((h=200, w=20, b=10))) in
-let mid = shade(25) in
-(mid.rgb.r,
- mid.hsl.l,
- rgb_string(mid.rgb),
- hsl_string(mid.hsl),
- hwb_string(shade(50).hwb),
+let in_hsl = shade(Hsl) in
+(in_hsl(25),
+ in_hsl(50),
+ shade(Rgb)(25),
+ shade(Hwb)(0),
  ^^livelit(^good(3)) + 1)
 
 # MACRO EXPANSIONS #

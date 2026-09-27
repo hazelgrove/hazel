@@ -1,11 +1,30 @@
-# The Smallest Livelit That Needs Splices #
+# Editable Parameters #
 
-# A splice is a region of the CLIENT's program that sits inside a #
-# widget: an editor for ordinary code, in the client's scope #
-# (Sec. 2.4.2, 2.4.3). This is the smallest livelit that needs one #
-# -- a slider whose two ends are the client's code. (The paper's own #
-# $slider takes its bounds as parameters, Sec. 2.4.1, written outside #
-# the widget. Here they are splices, edited inside it.) #
+# The Parameters slide gives a slider its bounds as PARAMETERS, the #
+# paper's $slider 0 100 (Sec. 2.4.1): once, in an abbreviation, #
+
+#   let ^percent = ^slider(0, 100) in #
+
+# and from then on they are FIXED, for the lifetime of the livelit: #
+# every use of ^percent runs from 0 to 100, the bounds are closed #
+# (no client variable in them), and changing them means changing the #
+# abbreviation. #
+
+# This slider takes its bounds another way: as SPLICES, regions of #
+# the CLIENT's program inside the widget (Sec. 2.4.2, 2.4.3). So they #
+# are EDITABLE parameters: #
+
+#                    Parameters            Editable Parameters #
+#   given            once, abbreviation    per use, in the widget #
+#   may name         builtins only         the client's variables #
+#   changes          never                 whenever you edit a bound #
+#   the livelit      reads their values    reads their values, and #
+#                                          could rewrite them #
+
+# Both are the paper's: parameters for what a livelit is configured #
+# with, splices for what the client keeps writing. This one is the #
+# smallest livelit that needs splices -- a slider whose two ends are #
+# the client's code. #
 
 # It is written the way Figure 3 is (Sec. 3.2): init MAKES the two #
 # bounds with new_splice, the model holds only their refs, the view #
@@ -156,14 +175,14 @@ let computed =
   ^^livelit(^between((pct=50, lo=(0),
     hi=((^^livelit(^between((pct=50, lo=(0), hi=(200))))) * 2 + 10)))) in
 
-# Watch where the parens close in 3. Parens are how a saved use keeps #
-# its splices, and a load reads a field's parens back as a splice #
-# only when they hold its WHOLE value, spaces aside. Written #
+# Watch where the parens close in 3. Parens are how a splice is #
+# written in text, and a field's parens are read as a splice only #
+# when they hold its WHOLE value, spaces aside. Written #
 # `hi=(slider) * 2 + 10`, the parens hold only part of the value, so #
-# the load does not read them as a splice at all: the field has no #
-# ref, and it does not typecheck. The parens are not how a client #
-# makes a splice. As in the paper, the livelit makes each splice #
-# itself, with new_splice (Sec. 3.2.1). #
+# they are not read as a splice at all: the field has no ref, and it #
+# does not typecheck. A livelit makes each new splice with new_splice #
+# (Sec. 3.2.1), but writing one by hand is legal too, whole-value #
+# parens and all: see Splices in Text. #
 
 (shown, by_name, nested, computed)
 

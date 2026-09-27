@@ -20,8 +20,10 @@
 # the client's variables are not in scope, so an argument that names #
 # one is reported where it is written. #
 
-# Compare Define a Slider, whose bounds are fixed in its view, and #
-# Tree Care, whose ^range keeps its bounds in its model. #
+# Compare Define a Slider, whose bounds are fixed in its view; Tree #
+# Care, whose ^range keeps its bounds in its model; and Editable #
+# Parameters, whose bounds are splices, the client's code, edited in #
+# the widget and free to name the client's variables. #
 
 let ^slider = fun (lo, hi) : (Int, Int) -> {
   type Model = Int;

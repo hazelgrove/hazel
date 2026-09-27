@@ -236,10 +236,10 @@ let ^flag = {
 # Parameters       one slider definition, its bounds as parameters #
 # Emotion          the widget IS the control: drag a face #
 # Color Picker     helpers are ordinary members of the module #
-# Functional Expansion #
-#                  an expansion that is a value, not code #
-# Parameterized Slider (two SpliceRefs) #
-#                  a slider whose two bounds are splices #
+# Higher-order, Functional Expansion #
+#                  an expansion that is a curried function #
+# Editable Parameters #
+#                  a slider whose bounds are splices, not fixed #
 # Tree Care        a model that is a tree, fed by a growth style #
 # Timings          what one frame of a livelit costs #
 # Dynamic Row or Column #

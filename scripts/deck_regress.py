@@ -40,8 +40,8 @@ import urllib.request
 
 # One place for the slide's identity. The deep-link id is derived from the
 # NAME, so renaming the slide changes the URL too -- keep them together.
-SLIDE_NAME = "Parameterized Slider (two SpliceRefs)"
-SLIDE_ID = "livelits-parameterized-slider-two-splicerefs"
+SLIDE_NAME = "Editable Parameters"
+SLIDE_ID = "livelits-editable-parameters"
 # /fresh forwards every query param to the page it opens, so the two
 # URLs differ only in whether saved state is cleared on the way in.
 SLIDE_QUERY = f"slide={SLIDE_ID}&panel=none"
@@ -50,7 +50,7 @@ FRESH_URL = f"/fresh?{SLIDE_QUERY}"
 
 # Every slide in the livelits deck, in the order the demo presents them.
 DECK = [
-    "Overview", "Define a Slider", "Functional Expansion", SLIDE_NAME, "Emotion",
+    "Overview", "Define a Slider", "Higher-order, Functional Expansion", SLIDE_NAME, "Emotion",
     "Color Picker", "Tree Care", "Timings", "JavaScript (advanced)",
 ]
 
