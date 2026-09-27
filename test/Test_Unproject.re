@@ -175,12 +175,137 @@ let higher_order_expansion = () => {
   );
 };
 
+/* Emotion (Kids' Choice): the slide means how its face reads, and its
+   view draws candy only as far as the head is exploded. */
+let kids_emotion = () => {
+  let text = read(Filename.concat(root(), "emotion-kids.hz"));
+  let (m, elab) = load(~source="emotion-kids", text);
+  check(list(string), "no errors", [], messages(m));
+  check(
+    Test_Evaluator_Prelude.dhexp_typ,
+    "means how the face reads",
+    Test_UserLivelits.run(
+      "(feeling = \"happy\", smile = 85, brow = 30, exploded = 0, candy = 0, "
+      ++ "eyes = \"plain\", eye_size = 50, side_lines = 0, rays = 0, teeth = 0)",
+    ),
+    Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+  );
+  /* The view on a model whose cells carry c, b and k. */
+  let marker = "\n} in\n\nlet head";
+  let cut = Str.search_forward(Str.regexp_string(marker), text, 0) + 5;
+  let circles = (c, b, k) => {
+    let program =
+      String.sub(text, 0, cut)
+      ++ " ^kid_face.view((smile = 85, brow = 30, drag = Idle, "
+      ++ "color = SpliceRef((\"c\", "
+      ++ string_of_int(c)
+      ++ ")), burst = SpliceRef((\"b\", "
+      ++ string_of_int(b)
+      ++ ")), candy = SpliceRef((\"k\", "
+      ++ string_of_int(k)
+      ++ ")), stars = SpliceRef((\"st\", false)), "
+      ++ "hearts = SpliceRef((\"ht\", false)), eyes = SpliceRef((\"e\", 50)), "
+      ++ "sides = SpliceRef((\"sd\", 0)), rays = SpliceRef((\"r\", 0)), "
+      ++ "teeth = SpliceRef((\"t\", 0))))";
+    /* Loaded as the editor loads a slide: Test_UserLivelits.run parses
+       another way, which takes ~45 s on a program this size. */
+    let (_, elab) = load(~source="emotion-kids-view", program);
+    let cmd = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+    switch (Haz3lcore.ViewCmdRunner.run(cmd)) {
+    | Error(e) => fail("view did not run: " ++ e)
+    | Ok(h) =>
+      check(bool, "Html", true, Haz3lcore.MvuShape.is_html(h));
+      /* The pieces of candy and confetti: nodes whose opacity is "1". */
+      let visible = attrs =>
+        Haz3lcore.MvuShape.(
+          switch (of_list(attrs)) {
+          | Some(xs) =>
+            List.exists(
+              a =>
+                switch (of_constructor_raw(strip_wrappers(a))) {
+                | Some(("Create", nv)) =>
+                  switch (of_tuple(strip_wrappers(nv))) {
+                  | Some([n, v]) =>
+                    of_string(strip_wrappers(n)) == Some("opacity")
+                    && of_string(strip_wrappers(v)) == Some("1")
+                  | _ => false
+                  }
+                | _ => false
+                },
+              xs,
+            )
+          | None => false
+          }
+        );
+      let rec count = d =>
+        Haz3lcore.MvuShape.(
+          switch (of_constructor_raw(strip_wrappers(d))) {
+          | Some(("Node", body)) =>
+            switch (of_tuple(strip_wrappers(body))) {
+            | Some([_tag, attrs, kids]) =>
+              (visible(attrs) ? 1 : 0) + count(kids)
+            | _ => 0
+            }
+          | Some((_, body)) => count(body)
+          | None =>
+            let d = strip_wrappers(d);
+            switch (of_tuple(d), of_list(d)) {
+            | (Some(ds), _)
+            | (None, Some(ds)) =>
+              List.fold_left((n, d) => n + count(d), 0, ds)
+            | (None, None) => 0
+            };
+          }
+        );
+      count(h);
+    };
+  };
+  check(int, "9 pieces show", 9, circles(90, 20, 30));
+  check(int, "no candy while unexploded", 0, circles(90, 0, 100));
+  check(int, "all forty by halfway", 40, circles(90, 50, 50));
+};
+
+/* 1990s Face: the slide means its caption, for the stamp its slider
+   picks. */
+let nineties_face = () => {
+  let text = read(Filename.concat(root(), "nineties-face.hz"));
+  let (m, elab) = load(~source="nineties-face", text);
+  check(list(string), "no errors", [], messages(m));
+  check(
+    Test_Evaluator_Prelude.dhexp_typ,
+    "means its caption",
+    Test_UserLivelits.run("\"Have a profitable day\""),
+    Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+  );
+  /* In the corner of fear and horror, the mood joins the caption. */
+  let corner =
+    text
+    |> Str.global_replace(
+         Str.regexp_string("^love_dial(50)"),
+         "^love_dial(0)",
+       )
+    |> Str.global_replace(
+         Str.regexp_string("^dread_dial(50)"),
+         "^dread_dial(100)",
+       );
+  let (m, elab) = load(~source="nineties-face-corner", corner);
+  check(list(string), "no errors in the corner", [], messages(m));
+  check(
+    Test_Evaluator_Prelude.dhexp_typ,
+    "a terrified day",
+    Test_UserLivelits.run("\"Have a terrified, profitable day\""),
+    Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+  );
+};
+
 let tests = (
   "Unproject",
   slides()
   |> List.map(f => test_case(f, `Quick, check_slide(f)))
   |> List.append([
        test_case("Splices in Text", `Quick, splices_in_text),
+       test_case("Emotion (Kids' Choice)", `Quick, kids_emotion),
+       test_case("1990s Face", `Quick, nineties_face),
        test_case(
          "Higher-order, Functional Expansion",
          `Quick,

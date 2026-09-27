@@ -216,6 +216,10 @@ let ^flag = {
 # Define a Slider  a number you drag, expanding to that number #
 # Parameters       one slider definition, its bounds as parameters #
 # Emotion          the widget IS the control: drag a face #
+# Emotion (Kids' Choice) #
+#                  a bigger face, fed by three sliders: color, #
+#                  exploding, and candy #
+# 1990s Face       the "Have a Day" poster: one smiley, a stamp per day #
 # Color Picker     helpers are ordinary members of the module #
 # Higher-order, Functional Expansion #
 #                  an expansion that is a curried function #
