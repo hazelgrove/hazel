@@ -119,6 +119,9 @@ type t =
   /* A use of a type-parameterized livelit, which needs its type argument
      first, through an abbreviation `let ^b = ^a@<T> in`. */
   | LivelitNeedsTypeArgument(string)
+  /* A use of a livelit that takes value parameters, which it needs first,
+     through an abbreviation `let ^b = ^a(args) in`. */
+  | LivelitNeedsArguments(string)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,

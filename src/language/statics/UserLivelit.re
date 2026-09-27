@@ -61,6 +61,15 @@ let rec strip_parens = (e: TermBase.Exp.t): TermBase.Exp.t =>
   | _ => e
   };
 
+/* The argument of an elaborated application, `^a(args)` elaborated,
+   looking through parens. */
+let rec ap_arg = (e: TermBase.Exp.t): option(TermBase.Exp.t) =>
+  switch (e.term) {
+  | Ap(_, _, arg) => Some(arg)
+  | Parens(e) => ap_arg(e)
+  | _ => None
+  };
+
 let rec pat_name = (p: TermBase.Pat.t): option(string) =>
   switch (p.term) {
   | Parens(p)
@@ -82,6 +91,8 @@ type def = {
   expansion_t: TermBase.Typ.t,
   /* The type parameter of a `typfun A -> { ... }` definition. */
   tparam: option(string),
+  /* Whether it is a `fun p -> { ... }` definition, taking values. */
+  vparam: bool,
 };
 
 let required_members = ["init", "update", "view", "expand"];
@@ -256,6 +267,21 @@ let rec detect =
       };
     | None => Error(Mark.InvalidLivelitDef(DefNotModule))
     }
+  /* A definition taking value parameters (Sec. 2.4.1): the module is the
+     function's body. Member types cannot mention a value, so they are
+     read as for a plain module; the members' own types come from the
+     statics map, where the parameter is bound. One parameter, possibly a
+     tuple, inside any type parameter and not around one. */
+  | Fun(_, body, _, _) =>
+    switch (detect(~ctx, ~m, body)) {
+    | Ok({tparam: None, vparam: false, _} as d) =>
+      Ok({
+        ...d,
+        vparam: true,
+      })
+    | Ok(_) => Error(Mark.InvalidLivelitDef(DefNotModule))
+    | Error(_) as e => e
+    }
   | TyAlias(tp, ty, body) =>
     let ctx =
       switch (tp.term) {
@@ -303,6 +329,7 @@ let rec detect =
         action_t: List.assoc("Action", types),
         expansion_t: List.assoc("Expansion", types),
         tparam: None,
+        vparam: false,
       })
     };
   | _ => Error(Mark.InvalidLivelitDef(DefNotModule))
@@ -321,7 +348,7 @@ let livelit_ana_ty =
     : option(TermBase.Typ.t) =>
   switch (detect(~ctx, ~m, def)) {
   | Error(_) => None
-  | Ok({model_t, action_t, expansion_t, tparam, _}) =>
+  | Ok({model_t, action_t, expansion_t, tparam, vparam, _}) =>
     realized_livelit_sig(
       ~ctx,
       ~types=[
@@ -330,6 +357,16 @@ let livelit_ana_ty =
         ("Expansion", expansion_t),
       ],
     )
+    /* fun p -> { ... } is analyzed against ? -> <signature>: the
+       parameter's type is whatever its pattern says. */
+    |> Option.map(sig_ =>
+         vparam
+           ? (
+               Arrow(IdTagged.FreshGrammar.Typ.unknown(Internal), sig_): Typ.term
+             )
+             |> Typ.temp
+           : sig_
+       )
     /* typfun A -> { ... } is analyzed against forall A. <signature>. */
     |> Option.map(sig_ =>
          switch (tparam) {
@@ -808,7 +845,7 @@ let mk =
     : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
   switch (detect(~ctx, ~m, def_user)) {
   | Error(mark) => (None, [mark])
-  | Ok({members, model_t, action_t, expansion_t, tparam}) => (
+  | Ok({members, model_t, action_t, expansion_t, tparam, vparam}) => (
       Some({
         LivelitCtx.name,
         id,
@@ -827,6 +864,7 @@ let mk =
           },
         user_def: Some(def_elab),
         tparam,
+        vparam,
       }),
       /* A member whose type is wrong is reported by the second analytic
          pass, as an ordinary inconsistency where it is written, and does
@@ -863,6 +901,34 @@ let instantiate =
       user_def: Some((TypAp(def, ty): TermBase.Exp.term) |> Exp.fresh),
       tparam: None,
     });
+  | _ => None
+  };
+
+/* An abbreviation, `let ^b = ^a(args) in`, of a livelit ^a that takes
+   value parameters: the same livelit under the new name, whose definition
+   is ^a's applied to the arguments. The arguments were analyzed in the
+   builtin context, so the application stays closed and the projector can
+   still run it at event time. Member types cannot mention a value, so
+   they carry over unchanged. */
+let apply_args =
+    (
+      ~name: string,
+      ~id: Id.t,
+      ~args: TermBase.Exp.t,
+      ll: LivelitCtx.raw_livelit,
+    )
+    : option(LivelitCtx.raw_livelit) =>
+  switch (ll.vparam, ll.user_def) {
+  | (true, Some(def)) =>
+    Some({
+      ...ll,
+      name,
+      id,
+      expand: mk_expand_dot(~name, ~expansion_t=ll.expansion_t),
+      user_def:
+        Some((Ap(Forward, def, args): TermBase.Exp.term) |> Exp.fresh),
+      vparam: false,
+    })
   | _ => None
   };
 

@@ -208,6 +208,12 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       name,
       name,
     )
+  | LivelitNeedsArguments(name) =>
+    prn(
+      "^%s takes parameters: give them with let ^name = ^%s(args) in, then use ^name",
+      name,
+      name,
+    )
   | InvalidLivelitDef(DefNotModule) => "Livelit definition should be a module declaring types Model, Action, Expansion and members init, update, view, expand"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))

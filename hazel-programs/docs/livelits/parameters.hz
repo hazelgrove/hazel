@@ -1,0 +1,66 @@
+# Parameters #
+
+# One slider, many ranges. ^slider takes its bounds as PARAMETERS, #
+# the paper's $slider 0 100 (Sec. 2.4.1): the definition is a #
+# function from them to the livelit module, so every member may use #
+# lo and hi, and the module's types are the same for every range. #
+
+# A livelit that takes parameters is used through an ABBREVIATION, #
+# which gives them once and names the result, the paper's #
+# let $uslider = $slider 0: #
+
+#   let ^percent = ^slider(0, 100) in #
+
+# ^percent is then an ordinary livelit: type ^percent then a space #
+# for a new use. Using ^slider directly, as ^slider(50), is an #
+# error: it takes parameters. #
+
+# The parameters are CLOSED: literals, or expressions over builtins. #
+# init and update run when you create a use and at each event, where #
+# the client's variables are not in scope, so an argument that names #
+# one is reported where it is written. #
+
+# Compare Define a Slider, whose bounds are fixed in its view, and #
+# Tree Care, whose ^range keeps its bounds in its model. #
+
+let ^slider = fun (lo, hi) : (Int, Int) -> {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+
+  # A new use starts in the middle of its range. #
+  let init = Pure((lo + hi) / 2);
+
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.5em"),
+              ("align-items", "center"),
+              ("font-family", "var(--code-font)"),
+              ("font-size", "0.8em")])],
+      [
+        Html.text(string_of_int(lo)),
+        Html.input([
+          Attr.type_("range"),
+          Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+          Attr.value(string_of_int(m)),
+          Attr.on_input(fun s -> int_of_string(s))
+        ]),
+        Html.text(string_of_int(hi) ++ ": " ++ string_of_int(m))
+      ]
+    ));
+
+  let expand = Functional(fun m : Model -> m);
+
+  let shape = Inline(28)
+} in
+
+# Two abbreviations of one definition. #
+
+let ^percent = ^slider(0, 100) in
+let ^die = ^slider(1, 6) in
+
+# 25 + 3: each use means its own model, within its own range. #
+
+^^livelit(^percent(25)) + ^^livelit(^die(3))

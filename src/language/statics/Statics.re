@@ -16,6 +16,10 @@ let add_missing_info = Map.add_missing_info;
    been analyzed by the enclosing Quote case, in the quotation's lexical
    scope; outside every quotation an antiquote is an error. */
 let quote_depth = ref(0);
+/* The application on the right of `let ^b = ^a(args) in`, while that let
+   is analyzed: there, applying a livelit that takes value parameters is an
+   abbreviation, and anywhere else it is a use missing them. */
+let livelit_abbrev_site: ref(option(Id.t)) = ref(None);
 
 let rec any_to_info_map =
         (
@@ -534,13 +538,14 @@ and uexp_to_info_map =
         )
       };
 
-    /* A type-parameterized livelit's bare name is its DEFINITION, a type
-       function, as an ordinary variable is: that is what an abbreviation
-       applies, `let ^b = ^a@<T> in`. */
+    /* A parameterized livelit's bare name is its DEFINITION, a type or
+       value function, as an ordinary variable is: that is what an
+       abbreviation applies, `let ^b = ^a@<T> in` or `let ^b = ^a(args) in`. */
     | LivelitName(name)
         when
           switch (Ctx.lookup_livelit(ctx, name)) {
-          | Some({tparam: Some(_), _}) => true
+          | Some({tparam: Some(_), _})
+          | Some({vparam: true, _}) => true
           | _ => false
           } =>
       let def_ty =
@@ -1999,6 +2004,38 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
           m,
         );
+      /* A livelit that takes value parameters (Sec. 2.4.1) is applied to
+         them only in an abbreviation, `let ^b = ^a(args) in`, and then
+         means its definition applied to them. The arguments are analyzed
+         in the BUILTIN context, as a quotation's body is: init and update
+         run there, so an argument naming a client binding is reported
+         where it is written. Anywhere else the application is a use
+         missing its parameters, and means a hole. */
+      | LivelitName(s)
+          when
+            switch (Ctx.lookup_livelit(ctx, s)) {
+            | Some({vparam: true, _}) => true
+            | _ => false
+            } =>
+        let (fn, fn_elab, m) = go(~ana=syn, fn, m);
+        let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+        let (_, arg_elab, m) =
+          go(
+            ~ctx=Builtins.ctx_init(ctx.use_mode),
+            ~ana=ty_in,
+            ~coercible=true,
+            arg,
+            m,
+          );
+        let is_abbreviation = livelit_abbrev_site^ == Some(Exp.rep_id(uexp));
+        add(
+          ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+          ~elab_syn_ty=
+            is_abbreviation ? ty_out : Unknown(Internal) |> Typ.temp,
+          ~marks=is_abbreviation ? [] : [LivelitNeedsArguments(s)],
+          ~co_ctx=fn.co_ctx,
+          m,
+        );
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
@@ -2852,12 +2889,24 @@ and uexp_to_info_map =
            had exactly its inputs.
 
          is_rec, and so the elaboration (requires_fixf below), is unchanged. */
+      let outer_abbrev_site = livelit_abbrev_site^;
+      switch (UserLivelit.binder_name(p), UserLivelit.strip_parens(def)) {
+      | (Some(_), {term: Ap(_, {term: LivelitName(_), _}, _), _} as ap) =>
+        livelit_abbrev_site := Some(Exp.rep_id(ap))
+      | _ => ()
+      };
+      /* A livelit binder is never function-shaped: `let ^a = fun p -> {...}`
+         is a definition taking parameters, not a recursive function, and
+         must take the path with the livelit's second pass. */
       let fn_shaped =
-        switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
-        | (Some(num_vars), Some(num_fns)) =>
-          num_vars != 0 && num_vars == num_fns
-        | _ => false
-        };
+        Option.is_none(UserLivelit.binder_name(p))
+        && (
+          switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
+          | (Some(num_vars), Some(num_fns)) =>
+            num_vars != 0 && num_vars == num_fns
+          | _ => false
+          }
+        );
       let probe =
         lazy(go(~ctx=p_syn.ctx, ~ana=p_syn.ty, ~coercible=true, def, m));
       let is_rec =
@@ -2992,10 +3041,30 @@ and uexp_to_info_map =
          remains an ordinary binding of `^name`, which the expansion of
          each use references at runtime — and which typing that expansion
          consults, so the declaration is an obligation, not an assertion. */
+      livelit_abbrev_site := outer_abbrev_site;
       /* An abbreviation, `let ^b = ^a@<T> in`, where ^a takes a type
-         argument: ^b is ^a at T. */
+         argument: ^b is ^a at T. Or `let ^b = ^a(args) in`, where ^a takes
+         values: ^b is ^a applied to them. */
       let abbreviation =
-        switch (UserLivelit.binder_name(p), def.user_term.term) {
+        switch (
+          UserLivelit.binder_name(p),
+          UserLivelit.strip_parens(def.user_term).term,
+        ) {
+        | (Some(ll_name), Ap(_, fn, _)) =>
+          switch (UserLivelit.strip_parens(fn).term) {
+          | LivelitName(a) =>
+            Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
+              Option.bind(UserLivelit.ap_arg(def_elab), args =>
+                UserLivelit.apply_args(
+                  ~name=ll_name,
+                  ~id=Pat.rep_id(p),
+                  ~args,
+                  ll,
+                )
+              )
+            )
+          | _ => None
+          }
         | (Some(ll_name), TypAp(fn, ty)) =>
           switch (UserLivelit.strip_parens(fn).term) {
           | LivelitName(a) =>

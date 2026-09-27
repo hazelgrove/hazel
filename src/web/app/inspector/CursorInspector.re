@@ -277,6 +277,7 @@ let core_mark_err_view =
     | BadLivelitExpansion(_)
     | BadMacroExpansion(_)
     | LivelitNeedsTypeArgument(_)
+    | LivelitNeedsArguments(_)
     | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
@@ -919,6 +920,14 @@ let exp_mark_err_view =
       code("^" ++ name),
       text(" takes a type argument: give it one with "),
       code("let ^name = ^" ++ name ++ "@<Type> in"),
+    ])
+  | LivelitNeedsArguments(name) =>
+    div_err([
+      code("^" ++ name),
+      text(" takes parameters: give them with "),
+      code("let ^name = ^" ++ name ++ "(args) in"),
+      text(", then use "),
+      code("^name"),
     ])
   | InvalidLivelitDef(DefNotModule) =>
     div_err([
