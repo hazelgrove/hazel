@@ -70,7 +70,8 @@ let x = 4 in
 # Written by hand, not projected, with declared types: 4 + 40. #
 let by_hand = ^pair((a = (x : Int), b = (x * 10 : Int))) in
 
-# The same form, projected: the widget edits the same parens. 4 + 2. #
-let projected = ^^livelit(^pair((a = (x), b = (2)))) in
+# The same text, projected: the widget shows each splice's code, x #
+# and x * 10, and edits the same parens. 4 + 40 again. #
+let projected = ^^livelit(^pair((a = (x : Int), b = (x * 10 : Int)))) in
 
 (by_hand, projected)

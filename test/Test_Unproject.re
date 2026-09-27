@@ -135,8 +135,8 @@ let splices_in_text = () => {
   check(list(string), "no errors", [], messages(m));
   check(
     Test_Evaluator_Prelude.dhexp_typ,
-    "means (44, 6)",
-    Test_UserLivelits.run("(44, 6)"),
+    "means (44, 44)",
+    Test_UserLivelits.run("(44, 44)"),
     Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
   );
   /* In the code, not in the slide's comment, which shows the same form. */
