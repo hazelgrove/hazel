@@ -428,6 +428,7 @@ let apply_structure =
 
 let load = (model: Model.t, l: C.Wire.load): Model.t => {
   C.State.active := true;
+  C.State.read_only := l.readonly;
   C.State.load_seq := l.seq;
   Hashtbl.reset(C.State.bases);
   C.State.orders := Id.Map.empty;

@@ -307,7 +307,6 @@ let test_caret_offsets = () => {
   check_offsets(~root=Pat, "(a, b) : (Int, Int)");
 };
 
-
 /* rearranging a program in place = rebuilding it from items, and keeps
    untouched items' pieces */
 let test_restructure = () => {
@@ -319,7 +318,12 @@ let test_restructure = () => {
   let check_same = (label, items') => {
     let got = Option.get(C.restructure(~tail_id, items', seg));
     let want = Option.get(C.seg_of_items(items'));
-    check(string, label ++ ": text", C.text_of_seg(want), C.text_of_seg(got));
+    check(
+      string,
+      label ++ ": text",
+      C.text_of_seg(want),
+      C.text_of_seg(got),
+    );
     check(
       list(string),
       label ++ ": items",
@@ -374,8 +378,7 @@ let test_restructure = () => {
     check_same(
       "move",
       List.concat_map(
-        (it: C.item) =>
-          it.id == x.id ? [] : it.id == f.id ? [it, x] : [it],
+        (it: C.item) => it.id == x.id ? [] : it.id == f.id ? [it, x] : [it],
         items,
       ),
     );
@@ -388,7 +391,12 @@ let test_restructure = () => {
         (it: C.item) =>
           it.id == x.id
             ? None
-            : it.id == tl.id ? Some({...it, body: "\nf(2)"}) : Some(it),
+            : it.id == tl.id
+                ? Some({
+                    ...it,
+                    body: "\nf(2)",
+                  })
+                : Some(it),
         items,
       ),
     );
@@ -406,7 +414,12 @@ let test_canonical_holes = () => {
   let settings = Language.CoreSettings.on;
   let go = (z, a) => {
     let st =
-      CachedStatics.init_compositional(~settings, ~stitch=x => x, ~root=Exp, z);
+      CachedStatics.init_compositional(
+        ~settings,
+        ~stitch=x => x,
+        ~root=Exp,
+        z,
+      );
     switch (
       Editor.Update.update(
         ~settings,
@@ -427,7 +440,12 @@ let test_canonical_holes = () => {
       [Insert("1"), Insert("0"), Insert(" ")],
     );
   check(bool, "space held back", true, Grout.suppressed_space^ != None);
-  check(string, "text has it", "10 1", C.text_of_seg(Zipper.unselect_and_zip(z)));
+  check(
+    string,
+    "text has it",
+    "10 1",
+    C.text_of_seg(Zipper.unselect_and_zip(z)),
+  );
   check(int, "caret counts it", 3, C.caret_offset(z));
   Grout.suppressed_space := None;
 };
@@ -499,7 +517,9 @@ let check_stops = (text: string) => {
 
 let test_caret_stops = () => {
   check_stops(src);
-  check_stops("let f = fun x ->\n  if x then \"é\" else case 1 | 0 => 2 end in\nf");
+  check_stops(
+    "let f = fun x ->\n  if x then \"é\" else case 1 | 0 => 2 end in\nf",
+  );
   check_stops("let x = # note # 1 in\nlet y = \n");
   check_stops("if 1 then\n  (2, [3, 4])");
   check_stops("let x = 1 in in 2");

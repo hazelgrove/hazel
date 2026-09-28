@@ -21,10 +21,11 @@ Status: design + in-progress implementation on branch `patchwork-modular`
 Patchwork page                                  Hazel iframe (served from the tool's own module)
 ┌────────────────────────────────┐              ┌──────────────────────────────────────────────┐
 │ tool.ts                        │  MessagePort │ collab.js (Automerge Repo, in-memory)        │
-│  - host Repo (window.repo)     │◀────────────▶│  - DocHandle for the program doc             │
-│  - iframe src = ./hazel/…      │  (automerge  │  - reconcile loop (heads + echo flag)        │
-│  - hands the iframe a port     │   sync +     │  - Presence (carets)                         │
-│    + the doc URL               │   ephemeral) │        ▲  per-leaf splices / carets          │
+│  - host Repo (window.repo)     │◀────────────▶│  - binding: points at the backing doc,       │
+│  - iframe src = ./hazel/…      │  (automerge  │    swapping sessions as it changes           │
+│  - hands the iframe a port,    │   sync +     │  - session: reconcile loop (heads + echo)    │
+│    then the *backing* doc URL  │   ephemeral) │  - Presence (carets)                         │
+│    (follows drafts/scrubbing)  │              │        ▲  per-leaf splices / carets          │
 └────────────────────────────────┘              │        ▼  (direct JS calls, same realm)      │
                                                 │ Hazel (js_of_ocaml)                          │
                                                 │  - Collab module: items ⇄ leaf texts,        │
@@ -45,6 +46,37 @@ Patchwork page                                  Hazel iframe (served from the to
 - automerge-repo relays ephemeral messages to all other peers
   (`DocSynchronizer.receiveEphemeralMessage`), so `Presence` inside the iframe
   reaches other users through the host repo.
+
+### Drafts and the history scrubber
+
+Patchwork doesn't hand a tool a fixed document. The `DocHandle` a tool gets
+has a stable url, but the document *behind* it changes while the view stays
+mounted: checking out a draft points it at the draft's clone, and scrubbing
+history pins it to earlier heads (read-only). Tools that only read through
+the handle (`handle.doc()`, `handle.on("change")`) follow along for free.
+Ours can't: the document lives in the iframe's own replica, which finds it by
+url, and `handle.url` never changes.
+
+The host's `OverlayRepo` learns about these switches from a streaming
+`repo:handle-descriptor` subscription that answers `{ url, cloneUrl? }`, the
+clone url carrying the pinned heads when there are any. `tool.ts` opens the
+same subscription for the document and forwards each answer's backing url
+(`cloneUrl ?? url`, heads preserved) to the iframe as a
+`hazel-collab:point` message. Inside, `HazelBinding` (`collab/src/binding.ts`)
+resolves the url in the replica and swaps the `CollabSession` under Hazel:
+
+- the new session sends Hazel a fresh `load`, and continues the old session's
+  seq numbering (`firstSeq`), so an edit Hazel reports against a basis from
+  the previous document is recognised as stale and dropped rather than merged
+  into the new one;
+- a url with heads resolves to a read-only view handle; the session refuses
+  writes and `load` carries `readonly: true`, on which Hazel drops editing
+  actions (`ScratchMode.Update.edits_program`) but still lets the caret move;
+- a newer `point` supersedes one still resolving, and pointing at the current
+  url is a no-op.
+
+If no provider answers within a few seconds (a host without the overlay
+protocol) the tool falls back to `handle.url`.
 
 ## Document schema (datatype `hazel`)
 
@@ -197,14 +229,17 @@ undo as inverse text splices mapped through remote edits.
 Working end to end in a two-peer harness (two host repos, each running the
 real tool + Hazel iframe with its own replica): typing in the master editor
 (including new definitions), leads, remote edits, peer carets in the master
-and in stack cells. Tests: `test/Test_Collab.re` (bridge), `collab/` vitest
-(protocol, including lagging-Hazel races).
+and in stack cells. Drafts and the history scrubber re-point the iframe's
+replica (see above). Tests: `test/Test_Collab.re` (bridge), `collab/` vitest
+(protocol, including lagging-Hazel races; draft/scrub re-pointing).
 
 Known gaps:
 - module members aren't separate items yet (a module's body is one leaf);
 - remote edits to an open *test-run* cell rebuild the cell (caret resets);
 - undo isn't collaboration-aware yet (snapshot undo can revert remote work);
-- projector models aren't synced (projectors travel as trigger syntax).
+- projector models aren't synced (projectors travel as trigger syntax);
+- while the document is pinned (scrubbing), edits are dropped silently: no
+  read-only indicator yet, and no draft diff highlighting (`draft:baseline`).
 
 ## Performance
 

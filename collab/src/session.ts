@@ -22,6 +22,17 @@
 //   than the message: it has typed since, and if the merged text differs a
 //   newer message is already on its way. Otherwise it takes the text and the
 //   message's seq as the leaf's basis.
+//
+// A session is bound to one handle for its whole life. When the document
+// Hazel should show changes underneath it (the host checks out a draft, or
+// scrubs history: see binding.ts), a new session takes over the same Hazel
+// with `firstSeq` continuing where the old one stopped, so seqs stay
+// monotonic across the switch and an edit Hazel reports against a basis from
+// the old document is recognised as stale and dropped rather than applied.
+//
+// The handle may be a read-only view at fixed heads (a url with heads). Then
+// every write is refused here and Hazel is told so in `load`; it shows the
+// program and lets the caret move, but nothing edits.
 import * as A from "@automerge/automerge/slim";
 import {
   decodeHeads,
@@ -71,11 +82,20 @@ export type PeerCaret = {
 export type Identity = { user: string | null; name: string; color: string };
 
 // What Hazel implements. Each call is a message Hazel applies in order.
-export interface HazelSide {
-  load(seq: number, items: ItemSnapshot[]): void;
+export type HazelSide = {
+  // Replace the whole program. `readonly`: the document is pinned to a point
+  // in its history; show it, but refuse edits.
+  load(seq: number, items: ItemSnapshot[], readonly: boolean): void;
   remote(seq: number, changes: RemoteChange[]): void;
   peers(carets: PeerCaret[]): void;
-}
+};
+
+export type SessionOptions = {
+  // The first seq this session hands out (default 1). A session replacing an
+  // earlier one on the same Hazel continues its numbering; bases below this
+  // belong to the old document and are stale.
+  firstSeq?: number;
+};
 
 type Splice = { index: number; delete: number; insert: string };
 
@@ -114,7 +134,8 @@ const MAX_VERSIONS = 256;
 
 export class CollabSession {
   readonly sessionId = Math.random().toString(36).slice(2, 10);
-  #seq = 0;
+  readonly firstSeq: number;
+  #seq: number;
   #versions = new Map<number, UrlHeads>();
   #sentHeads: UrlHeads; // the version Hazel will reach after its queued messages
   #applyingLocal = false;
@@ -128,16 +149,30 @@ export class CollabSession {
     readonly handle: DocHandle<HazelDoc>,
     readonly hazel: HazelSide,
     public identity: Identity,
+    options: SessionOptions = {},
   ) {
+    this.firstSeq = options.firstSeq ?? 1;
+    this.#seq = this.firstSeq - 1;
     this.#sentHeads = handle.heads();
     handle.on("change", this.#onChange);
     handle.on("ephemeral-message", this.#onEphemeral);
     this.#timer = setInterval(this.#tick, HEARTBEAT_MS);
-    hazel.load(this.#record(this.#sentHeads), allItems(this.doc));
+    hazel.load(this.#record(this.#sentHeads), allItems(this.doc), this.readOnly);
   }
 
   get doc(): HazelDoc {
     return this.handle.doc()!;
+  }
+
+  // The last seq handed out; a successor session starts at lastSeq + 1.
+  get lastSeq(): number {
+    return this.#seq;
+  }
+
+  // A handle pinned to fixed heads (found through a url with heads) refuses
+  // writes; so do we, and Hazel is told in `load`.
+  get readOnly(): boolean {
+    return typeof this.handle.isReadOnly === "function" && this.handle.isReadOnly();
   }
 
   // ---- local edits (called by Hazel) ----
@@ -145,6 +180,13 @@ export class CollabSession {
   // Hazel's leaf now reads `text`, edited from its state at `basis`.
   // Returns Hazel's new basis.
   edit(basis: number, id: string, leaf: Leaf, text: string): number {
+    if (this.readOnly) return basis;
+    if (basis < this.firstSeq) {
+      // an edit against the document a previous session showed; the `load`
+      // that replaced it is already on its way to Hazel
+      console.warn("[hazel-collab] dropping edit against a stale document", basis);
+      return basis;
+    }
     const basisHeads = this.#versions.get(basis);
     if (!this.doc.items[id]) return basis; // item deleted concurrently
     if (!basisHeads) {
@@ -182,6 +224,7 @@ export class CollabSession {
   // Insert a new item after sibling `after` (null = first) under `parent`.
   // Returns the basis for the new item's leaves (a version that has it).
   insert(item: NewItem, after: string | null, parent: string | null = null): number {
+    if (this.readOnly) return this.#record(this.handle.heads());
     this.#structural((d) => {
       d.items[item.id] = {
         parent,
@@ -267,6 +310,7 @@ export class CollabSession {
   }
 
   #structural(fn: (d: HazelDoc) => void) {
+    if (this.readOnly) return;
     this.handle.change(fn); // not #local: the change listener schedules the echo
   }
 
@@ -293,12 +337,13 @@ export class CollabSession {
     this.#sentHeads = now;
     const changes = changesOf(doc, patches);
     const seq = this.#record(now);
-    if (changes === "reload") this.hazel.load(seq, allItems(doc));
+    if (changes === "reload") this.hazel.load(seq, allItems(doc), this.readOnly);
     else this.hazel.remote(seq, changes);
     this.#schedulePeers();
   }
 
   #send(msg: PresenceMsg) {
+    if (this.readOnly) return; // a pinned view has no peers
     try {
       this.handle.broadcast({ [MARKER]: msg });
     } catch {

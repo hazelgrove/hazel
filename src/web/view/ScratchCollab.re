@@ -1215,10 +1215,13 @@ module Wire = {
     leaf: string,
     text: string,
   };
+  /* [readonly]: the document is pinned to a point in its history (the
+     host is scrubbing); show it but refuse edits until the next load. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type load = {
     seq: int,
     items: list(item),
+    readonly: bool,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type remote = {
@@ -1305,6 +1308,9 @@ type caret =
    persisted) app model. */
 module State = {
   let active = ref(false);
+  /* the document is a read-only view at fixed heads (see Wire.load);
+     editing actions are dropped while this is set */
+  let read_only = ref(false);
   /* per-leaf basis: the seq of the document version each leaf's text
      derives from (see collab/src/session.ts); unset leaves use [load_seq] */
   let load_seq = ref(0);
@@ -1506,7 +1512,7 @@ module JsApi = {
    difference. Cheap per keystroke: unchanged items are reused by piece
    identity. */
 let sync_local = (seg: Segment.t): list((Id.t, leaf, string, string)) =>
-  if (State.active^) {
+  if (State.active^ && ! State.read_only^) {
     switch (
       items_of_seg_cached(~tail_id=State.tail_id^, ~prev=State.synced^, seg)
     ) {

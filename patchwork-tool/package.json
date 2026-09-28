@@ -19,6 +19,7 @@
     "@automerge/automerge-repo-network-messagechannel": "2.5.6",
     "@inkandswitch/patchwork-bootloader": "^0.7.2",
     "@inkandswitch/patchwork-plugins": "^1.2.5",
+    "@inkandswitch/patchwork-providers": "^0.5.2",
     "fractional-indexing": "^3.2.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
