@@ -1,0 +1,633 @@
+<title>Jev × Hazel Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f4f6f3; --surface: #ffffff; --sunk: #e9ede7; --ink: #1a2029; --ink-2: #444c58; --muted: #6d7580; --line: #d7ddd5; --grid: #e4e8e2;
+  --agent: #2f5bd3; --agent-soft: #e3eafb; --jev: #c7630f; --jev-soft: #fbeadb; --hazel: #3f7d5c; --hazel-soft: #e0efe6;
+  --good: #2e7d4f; --good-soft: #dcf0e3; --bad: #b8392f; --bad-soft: #f8e1de; --idle: #c9cfc6;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #12161b; --surface: #1a2027; --sunk: #222a32; --ink: #e8ebee; --ink-2: #b9c0c8; --muted: #8b939c; --line: #2e3740; --grid: #262e36;
+    --agent: #7d9cf0; --agent-soft: #1f2a45; --jev: #f0994d; --jev-soft: #3a2616; --hazel: #6cbf92; --hazel-soft: #1a3226;
+    --good: #6cc792; --good-soft: #17301f; --bad: #ef7d72; --bad-soft: #3b1c19; --idle: #3a434c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12161b; --surface: #1a2027; --sunk: #222a32; --ink: #e8ebee; --ink-2: #b9c0c8; --muted: #8b939c; --line: #2e3740; --grid: #262e36;
+  --agent: #7d9cf0; --agent-soft: #1f2a45; --jev: #f0994d; --jev-soft: #3a2616; --hazel: #6cbf92; --hazel-soft: #1a3226;
+  --good: #6cc792; --good-soft: #17301f; --bad: #ef7d72; --bad-soft: #3b1c19; --idle: #3a434c;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 1140px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(28px, 4.4vw, 44px); line-height: 1.05; letter-spacing: -0.01em; }
+h2 { font-size: 22px; }
+h3 { font-size: 15.5px; }
+.eyebrow { font: 600 11px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sec { display: grid; gap: 16px; }
+a { color: var(--agent); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.card-h small { display: block; color: var(--muted); font: 12px var(--mono); margin-top: 2px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.scroll { overflow-x: auto; }
+svg text { font-family: var(--mono); }
+
+/* info icon */
+.i { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--muted); color: var(--muted);
+  font: 700 11px/1 var(--mono); background: transparent; cursor: pointer; padding: 0; flex: none; }
+.i:hover, .i:focus-visible { border-color: var(--ink); color: var(--ink); outline: none; }
+.i:focus-visible { box-shadow: 0 0 0 3px var(--agent-soft); }
+
+/* actors */
+.who { display: flex; gap: 10px; flex-wrap: wrap; }
+.tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; border-radius: 999px; font: 600 13px var(--body); }
+.tag .dot { width: 10px; height: 10px; border-radius: 50%; }
+.tag.agent { background: var(--agent-soft); color: var(--agent); } .tag.agent .dot { background: var(--agent); }
+.tag.jev { background: var(--jev-soft); color: var(--jev); } .tag.jev .dot { background: var(--jev); }
+.tag.hazel { background: var(--hazel-soft); color: var(--hazel); } .tag.hazel .dot { background: var(--hazel); }
+
+/* stat tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.stat .top { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.stat b { font: 700 28px/1.05 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--ink-2); font-size: 13px; }
+.stat.lead { background: var(--jev-soft); border-color: var(--jev); }
+.stat.lead b { font-size: 21px; color: var(--jev); }
+
+/* setups + jobs */
+.setups { display: flex; gap: 8px; flex-wrap: wrap; }
+.setup { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+  border-radius: 999px; padding: 6px 8px 6px 14px; font: 600 13px var(--body); cursor: pointer; }
+.setup[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.setup .n { font: 600 11px var(--mono); opacity: 0.75; }
+.setup[aria-pressed="true"] .i { border-color: var(--bg); color: var(--bg); }
+.jobs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.job { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; background: var(--bg); }
+.job-h { display: flex; align-items: center; gap: 8px; }
+.steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 40px; }
+.step { display: inline-flex; align-items: center; border-radius: 9px; padding: 7px 11px; font: 600 12.5px var(--body); border: 1.5px solid; }
+.step.agent { background: var(--agent-soft); color: var(--agent); border-color: var(--agent); }
+.step.jev { background: var(--jev-soft); color: var(--jev); border-color: var(--jev); }
+.step.hazel { background: var(--hazel-soft); color: var(--hazel); border-color: var(--hazel); }
+.arrow { color: var(--muted); font: 600 14px var(--mono); }
+.status { font-size: 13.5px; color: var(--ink-2); }
+
+/* loop svg */
+.loop .node rect { stroke-width: 1.5; transition: opacity .2s; }
+.loop .off { opacity: 0.18; }
+.loop .lbl { font: 600 12px var(--body); }
+.loop .sub { font: 11px var(--mono); }
+.loop .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; transition: opacity .2s; }
+
+/* sequence */
+.seq { display: grid; gap: 8px; counter-reset: s; }
+.seq li { list-style: none; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.seq li::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font: 700 12px var(--mono); background: var(--c, var(--sunk)); color: var(--surface); }
+.seq { padding: 0; margin: 0; }
+.seq li span { font-size: 14px; }
+.seq li code { font: 12px var(--mono); background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+
+/* legend + tip */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); align-items: center; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend i.line { height: 3px; border-radius: 2px; vertical-align: 3px; }
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg); font: 12.5px/1.4 var(--body); padding: 8px 10px; border-radius: 8px; max-width: 280px; }
+.picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.picker button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 5px 11px; font: 600 12px var(--body); cursor: pointer; }
+.picker button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.minis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mini { background: var(--sunk); border-radius: 10px; padding: 10px; display: grid; gap: 2px; }
+.mini b { font: 700 20px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.mini span { font-size: 12px; color: var(--ink-2); }
+
+/* findings + trend */
+.finds { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.find { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; }
+.sev { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; }
+.sev.bad { background: var(--bad); } .sev.warn { background: var(--jev); } .sev.good { background: var(--good); } .sev.fix { background: var(--agent); }
+.find p { margin: 0; font-weight: 500; }
+.find .was { display: block; font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.trend { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.lane { border-radius: 12px; padding: 14px; display: grid; gap: 8px; align-content: start; border: 1px solid var(--line); background: var(--surface); }
+.lane h3 { display: flex; align-items: center; gap: 8px; }
+.lane h3::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.pill { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-radius: 9px; background: var(--sunk); padding: 8px 10px; font-size: 13.5px; font-weight: 500; }
+.foot { color: var(--muted); font-size: 13px; }
+
+/* modal */
+dialog { border: 0; padding: 0; border-radius: 16px; width: min(660px, calc(100vw - 32px)); max-height: calc(100vh - 48px); background: var(--surface); color: var(--ink); box-shadow: 0 24px 60px rgba(10, 15, 25, 0.35); }
+dialog::backdrop { background: rgba(10, 15, 25, 0.45); }
+.m { display: grid; grid-template-rows: auto auto 1fr; max-height: calc(100vh - 48px); }
+.m-h { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 20px 20px 10px; }
+.m-h h2 { font-size: 21px; }
+.close { border: 0; background: var(--sunk); color: var(--ink); width: 32px; height: 32px; border-radius: 50%; font: 600 16px var(--body); cursor: pointer; flex: none; }
+.m-tabs { display: flex; gap: 6px; padding: 0 20px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.m-tabs button { border: 1px solid var(--line); background: transparent; color: var(--ink-2); border-radius: 999px; padding: 6px 12px; font: 600 12.5px var(--body); cursor: pointer; }
+.m-tabs button[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.m-body { padding: 16px 20px 22px; overflow: auto; display: grid; gap: 12px; align-content: start; }
+.m-body p { margin: 0; max-width: 62ch; }
+.m-body ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.m-body code, .m-body .f { font: 12.5px var(--mono); background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+.m-body .calc { font: 12.5px/1.7 var(--mono); background: var(--sunk); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
+.kf { display: grid; gap: 8px; }
+.kf div { display: grid; grid-template-columns: auto 1fr; gap: 10px; background: var(--sunk); border-radius: 10px; padding: 10px 12px; }
+.kf p { margin: 0; }
+.kf h4 { margin: 6px 0 0; font: 600 11px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+button:focus-visible, .setup:focus-visible { outline: 2px solid var(--agent); outline-offset: 2px; }
+@media (max-width: 560px) { .minis { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .loop .node rect, .loop .edge { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="sec">
+    <span class="eyebrow">Hazel · research board · 2026-09-28</span>
+    <h1>Jev in Hazel's coding agent: architecture and results</h1>
+    <div class="who">
+      <span class="tag agent"><span class="dot"></span>Agent (LLM)<button class="i" data-info="agent" aria-label="About the agent">i</button></span>
+      <span class="tag jev"><span class="dot"></span>Jev<button class="i" data-info="jev" aria-label="About Jev">i</button></span>
+      <span class="tag hazel"><span class="dot"></span>Hazel<button class="i" data-info="hazel" aria-label="About Hazel">i</button></span>
+    </div>
+  </header>
+
+  <section class="sec" aria-labelledby="vh">
+    <span class="eyebrow" id="vh">Where we are</span>
+    <div class="tiles">
+      <div class="stat lead"><div class="top"><b>Mixed, and too few runs to call</b><button class="i" data-info="verdict" aria-label="About the verdict">i</button></div></div>
+      <div class="stat"><div class="top"><b>+41%</b><button class="i" data-info="gap" aria-label="About this number">i</button></div><span>cost with Jev navigating, big program</span></div>
+      <div class="stat"><div class="top"><b>64%</b><button class="i" data-info="gap" aria-label="About this number">i</button></div><span>of that gap = Jev's fee</span></div>
+      <div class="stat"><div class="top"><b>0.4 s</b><button class="i" data-info="speed" aria-label="About this number">i</button></div><span>per Jev answer vs 13 s per agent turn</span></div>
+      <div class="stat"><div class="top"><b>8 · $0.20</b><button class="i" data-info="runs" aria-label="About the runs">i</button></div><span>runs · total spend</span></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="ah">
+    <div class="row"><h2 id="ah">Architecture</h2><button class="i" data-info="arch" aria-label="About the architecture">i</button></div>
+    <div class="setups" id="setups" role="group" aria-label="Pick a setup"></div>
+    <div class="card">
+      <div class="card-h"><h3>One agent turn, end to end</h3><button class="i" data-info="loop" aria-label="About the turn loop">i</button></div>
+      <div class="legend"><span><i style="background:var(--agent)"></i>Agent</span><span><i style="background:var(--jev)"></i>Jev</span><span><i style="background:var(--hazel)"></i>Hazel</span><span><i style="background:var(--idle)"></i>not used in this setup</span></div>
+      <div class="scroll"><svg class="loop" id="loop" viewBox="0 0 980 470" width="100%" style="min-width:760px" role="img" aria-label="Turn loop diagram"></svg></div>
+      <div class="status" id="setupStatus"></div>
+    </div>
+    <div class="jobs">
+      <div class="job"><div class="job-h"><h3>Choose what code to look at</h3><button class="i" data-info="view" aria-label="About viewing code">i</button></div><div class="steps" id="viewSteps"></div></div>
+      <div class="job"><div class="job-h"><h3>Write the fix</h3><button class="i" data-info="code" aria-label="About writing code">i</button></div><div class="steps" id="codeSteps"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Inside one Jev view request</h3><button class="i" data-info="navreq" aria-label="About a view request">i</button></div>
+        <ol class="seq">
+          <li style="--c:var(--agent)"><span>Agent asks in words: <code>modify_view("fuel charge, idle penalty…")</code></span></li>
+          <li style="--c:var(--hazel)"><span>Hazel lists every definition with its path + code (61 on the fleet program, ~11k tokens)</span></li>
+          <li style="--c:var(--hazel)"><span>Paths named in the request open directly — Jev isn't asked about those</span></li>
+          <li style="--c:var(--jev)"><span>Jev gets one yes/no per remaining definition, all in one batched call: <code>Must the agent read or change X?</code></span></li>
+          <li style="--c:var(--jev)"><span>Jev returns P(yes) for each → "yes" = P &gt; 0.5 (Jev's own call, no extra cutoff)</span></li>
+          <li style="--c:var(--hazel)"><span>Hazel opens the yes-set + their parent modules (a folded parent would hide them)</span></li>
+          <li style="--c:var(--hazel)"><span>Added to the current view (or replaces it if the agent asked for a reset); everything else stays folded <code>⋱</code></span></li>
+          <li style="--c:var(--agent)"><span>Agent sees the new view on its next turn</span></li>
+        </ol>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Inside one Jev code request</h3><button class="i" data-info="editreq" aria-label="About a code request">i</button></div>
+        <ol class="seq">
+          <li style="--c:var(--agent)"><span>Agent calls <code>jev_edit(path, goal, names, sketch with ?)</code> — or no sketch in "Jev builds"</span></li>
+          <li style="--c:var(--hazel)"><span>Hazel finds every <code>?</code> hole and lists what can legally go there (right type, in scope, + agent's names/numbers)</span></li>
+          <li style="--c:var(--jev)"><span>Jev picks one option per hole (multiple choice), holes batched</span></li>
+          <li style="--c:var(--hazel)"><span>Hazel rejects any pick that adds a type error</span></li>
+          <li style="--c:var(--hazel)"><span>New holes from the pick (e.g. <code>if ? then ? else ?</code>) → repeat, up to a round limit</span></li>
+          <li style="--c:var(--jev)"><span>Unsure or no valid option → hole handed back to the agent</span></li>
+          <li style="--c:var(--agent)"><span>Agent sees the result and any open holes</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="rh">
+    <div class="row"><h2 id="rh">Results</h2><button class="i" data-info="results" aria-label="How to read results">i</button></div>
+    <div class="legend"><span><i style="background:var(--agent)"></i>Agent cost</span><span><i style="background:var(--jev)"></i>Jev cost</span><span><b style="color:var(--good)">✓</b> correct output</span><span><b style="color:var(--bad)">✗</b> wrong output</span></div>
+    <div class="grid3" id="tests"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><div><h3>Where the extra cost comes from</h3><small>fleet program · symptoms only</small></div><button class="i" data-info="gap" aria-label="About the cost gap">i</button></div>
+        <div id="waterfall"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><h3>Is the agent's screen bigger with Jev?</h3><small>tokens the agent reads, per turn</small></div><button class="i" data-info="screen" aria-label="About screen size">i</button></div>
+        <div class="legend"><span><i class="line" style="background:var(--agent)"></i>Original</span><span><i class="line" style="background:var(--jev)"></i>Jev navigates</span></div>
+        <div id="inChart"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><h3>…no. But it writes more.</h3><small>tokens the agent writes, running total</small></div><button class="i" data-info="writes" aria-label="About agent output">i</button></div>
+        <div class="legend"><span><i class="line" style="background:var(--agent)"></i>Original</span><span><i class="line" style="background:var(--jev)"></i>Jev navigates</span></div>
+        <div id="outChart"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><h3>Where the time goes</h3><small>seconds per run · fleet, symptoms only</small></div><button class="i" data-info="speed" aria-label="About speed">i</button></div>
+        <div id="timeChart"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="jh">
+    <div class="row"><h2 id="jh">What Jev opened</h2><button class="i" data-info="picks" aria-label="About Jev's picks">i</button></div>
+    <div class="card">
+      <div class="picker" id="runPick" role="group" aria-label="Pick a run"></div>
+      <div class="minis" id="pickStats"></div>
+      <div class="legend"><span><i style="background:var(--good)"></i>bug locations opened</span><span><i style="background:var(--jev)"></i>other code opened</span><span><i style="background:var(--idle)"></i>left folded</span></div>
+      <div id="pickChart"></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="fh">
+    <div class="row"><h2 id="fh">What we learned</h2><button class="i" data-info="corrections" aria-label="About corrections">i</button></div>
+    <div class="finds" id="finds"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="th">
+    <div class="row"><h2 id="th">Where it's heading</h2><button class="i" data-info="trend" aria-label="About the outlook">i</button></div>
+    <div class="trend" id="trend"></div>
+  </section>
+
+  <p class="foot">Every run, transcript and cost: <a href="https://claude.ai/artifact/HNRy6AxLRLXj7X9X3uFN1t" target="_blank" rel="noopener">Jev Lab Notebook</a> · Code: <a href="https://github.com/hazelgrove/hazel/pull/2612" target="_blank" rel="noopener">hazelgrove/hazel#2612</a> (draft)</p>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+<dialog id="modal" aria-labelledby="mTitle">
+  <div class="m">
+    <div class="m-h"><div><span class="eyebrow" id="mKind"></span><h2 id="mTitle"></h2></div><button class="close" id="mClose" aria-label="Close">×</button></div>
+    <div class="m-tabs" role="tablist" id="mTabs">
+      <button role="tab" data-t="what">What it means</button>
+      <button role="tab" data-t="how">How we got it</button>
+      <button role="tab" data-t="key">Key findings</button>
+    </div>
+    <div class="m-body" id="mBody"></div>
+  </div>
+</dialog>
+
+<script>
+const RUNS = [{"ev":"002","task":"fix-middle","arm":"view","ok":true,"wall":159,"agent":0.01259,"jev":0.00046,"out":9024,"inp":475571,"cached":444305,"tp":[18698,18842,18938,19030,19186,19249,19324,19411,19497,19586,19641,19730,19812,19879,19911,20013,20201,20316,20485,20564,20745,20839,20800,20874],"to":[71,198,20,190,267,62,335,284,437,633,256,161,623,40,96,141,595,984,903,547,443,1171,21,546],"sels":[[11,5,2,263,1930],[11,8,2,185,1926],[14,4,2,251,2359],[14,8,1,207,2360],[14,11,2,268,2361]],"nTargets":2,"prec":0.14285714285714285,"rec":1},{"ev":"002","task":"nav-fleet","arm":"control","ok":true,"wall":342,"agent":0.02323,"jev":0,"out":15520,"inp":767927,"cached":687721,"tp":[19755,19975,20072,20175,20200,20471,20709,20793,20869,20973,21029,21354,21652,21736,21937,22218,22480,22915,23179,23359,23590,23764,23951,24012,24192,24308,24488,24579,24663,24721,24786,24945,25006,25071],"to":[131,392,79,22,328,1043,494,132,169,352,279,1049,550,541,839,203,610,361,478,847,533,293,256,283,498,238,219,316,487,733,293,233,177,2062],"sels":[],"nTargets":3,"prec":null,"rec":null},{"ev":"002","task":"nav-fleet","arm":"view","ok":true,"wall":528,"agent":0.02602,"jev":0.00831,"out":17780,"inp":888768,"cached":803626,"tp":[19606,19762,19859,19962,20206,20281,20400,20494,20577,20684,20800,20824,21026,21093,21261,21386,21480,21635,21697,21822,22346,22506,22916,23115,23247,23252,23425,23327,23539,23742,23793,23806,23999,23948,24036,24318,24342,24653,24661,24942],"to":[72,323,86,421,265,288,907,430,1365,219,194,220,312,226,151,483,345,378,392,322,330,800,203,556,740,219,938,509,318,560,553,278,251,323,1081,271,309,1106,283,753],"sels":[[61,10,3,284,10956],[61,16,2,425,10963],[61,23,3,388,10956],[61,24,3,252,10962],[61,7,1,310,10968],[61,15,2,269,10966],[61,10,2,624,10973],[61,11,2,260,10963],[61,16,2,394,11004],[61,12,2,377,11004],[61,53,3,431,11000],[61,31,3,395,11024],[61,37,3,365,11011],[61,28,2,382,11012],[61,11,1,281,11026],[61,27,2,398,11015],[61,12,0,475,11019],[61,30,3,340,11020]],"nTargets":3,"prec":0.05555555555555555,"rec":1},{"ev":"003","task":"nav-fleet","arm":"view","ok":false,"wall":618,"agent":0.03053,"jev":0.00658,"out":26555,"inp":894836,"cached":809191,"tp":[19633,19804,19966,20117,20214,20364,20450,20575,20747,20757,20865,21063,21087,21248,21370,21518,21762,21933,22208,22337,22388,22526,22689,22889,23158,23153,23222,23291,23360,23417,23573,23984,24169,24355,24474,24636,24945,25363,25508,25718],"to":[85,146,245,439,311,314,262,354,267,1295,554,1392,392,442,491,357,841,1098,301,1343,48,375,849,716,569,395,249,292,401,300,1552,196,214,846,1447,861,1978,550,2789,999],"sels":[[58,6,3,348,10982],[56,7,0,311,10311],[57,8,0,324,10894],[59,4,0,441,11115],[58,8,3,426,11008],[60,6,0,371,11386],[61,5,0,443,11512],[61,7,0,312,11556],[59,10,0,380,11170],[60,6,0,502,11384],[60,8,3,491,11338],[59,43,3,421,11164],[58,10,0,454,10915],[63,14,1,425,11852]],"nTargets":3,"prec":0.05263157894736842,"rec":1},{"ev":"003","task":"nav-fleet-sym","arm":"control","ok":true,"wall":438,"agent":0.02611,"jev":0,"out":16764,"inp":925175,"cached":837755,"tp":[19804,20076,20294,20435,20546,20645,20963,21222,21309,21411,21499,21533,21651,21961,22468,22572,22661,22885,23131,23203,23202,23304,23315,23709,23889,23925,24069,24326,24618,24820,24969,25073,25324,25459,25603,25678,25786,25855,25945,26037],"to":[149,219,982,80,244,315,572,361,343,85,102,30,355,706,137,115,778,1074,1208,875,101,538,391,340,916,63,440,1446,473,176,733,379,501,20,444,299,19,20,523,212],"sels":[],"nTargets":3,"prec":null,"rec":null},{"ev":"003","task":"nav-fleet-sym","arm":"view","ok":true,"wall":526,"agent":0.02991,"jev":0.00686,"out":23298,"inp":921486,"cached":827527,"tp":[19682,19912,20238,20335,20467,20594,20670,20804,21071,21165,21372,21520,21696,21953,22328,22516,22704,22892,23050,23171,23476,23645,23884,24005,24115,24187,24265,24375,24527,24555,24770,24892,24996,25104,25182,25284,25362,25480,25558,25684],"to":[147,145,108,1092,261,190,175,533,235,207,353,736,341,1815,313,288,1121,163,1442,494,563,727,371,937,544,671,1049,399,1278,329,311,329,859,345,172,790,250,1351,571,1293],"sels":[[52,17,3,291,9863],[51,23,3,224,9892],[57,8,1,254,10844],[58,7,1,288,11059],[54,13,1,482,10325],[55,11,0,417,10631],[55,16,0,423,10285],[55,10,3,284,10418],[59,10,0,358,11174],[58,7,3,415,11055],[61,2,0,388,11570],[61,2,0,357,11563],[61,4,0,429,11568],[62,2,0,418,11719],[60,7,0,497,11374]],"nTargets":3,"prec":0.05660377358490566,"rec":1}];
+// Eval 001 (no results folder kept): numbers from docs/notes/jev-nav/evals/eval-001-data.json
+const E1 = { control: { agent: 0.01365, jev: 0, wall: 205, turns: 24, ok: true }, full: { agent: 0.01053, jev: 0.00197, wall: 134, turns: 24, ok: false } };
+const find = (ev, task, arm) => RUNS.find((r) => r.ev === ev && r.task === task && r.arm === arm);
+const symC = find("003", "nav-fleet-sym", "control"), symJ = find("003", "nav-fleet-sym", "view");
+
+// ---------- content ----------
+const KEY = [
+  { sev: "warn", id: "verdict", t: "Mixed: on the small program Jev navigating was a bit cheaper and faster; on the big program it cost 41–60% more and was 20–81% slower. One run per box." },
+  { sev: "bad", id: "gap", t: "The extra cost on the big program is Jev's fee (64%) plus the agent writing more (36%)." },
+  { sev: "good", id: "screen", t: "The agent's screen was NOT bigger with Jev: ~23k tokens per turn either way, 90% cached either way." },
+  { sev: "warn", id: "fee", t: "Jev's fee comes from resending the whole program (~11k tokens) on every view request." },
+  { sev: "good", id: "speed", t: "Jev is fast: ~0.4 s per request, ~6 s per run. The slowdown is the agent's own turns (13 s vs 11 s)." },
+  { sev: "warn", id: "picks", t: "Jev's first pick is decent (30–50% of what it opens is a bug location; never misses one). The '5%' figure was misleading." },
+  { sev: "bad", id: "f-build", t: "Jev writing code is blocked: Hazel never offered it the right building blocks (e.g. map(?, ?))." },
+  { sev: "warn", id: "f-done", t: "Every run hits its turn limit — the agent never says it's done — so cost comparisons mostly measure the limit." },
+  { sev: "warn", id: "f-grader", t: "One Jev run fixed all 3 bugs but was graded wrong: the agent also rewrote the final line." },
+];
+const INFO = {
+  agent: { kind: "Actor", title: "Agent (LLM)",
+    what: `<p>The large language model that reads the bug report, plans, and (in the original setup) does everything itself.</p><ul><li>Paid per token. Every turn re-sends the prompt, history and current view; most of it is cached (cheap).</li><li>Model: <code>openai/gpt-6-luna</code> via OpenRouter.</li></ul>`,
+    how: `<p>Hazel's existing coding agent ("Filbert"), run headless with <code>hazel agent</code>. Cost = OpenRouter's reported usage, summed per call.</p>`, key: ["verdict", "gap", "f-done"] },
+  jev: { kind: "Actor", title: "Jev",
+    what: `<p>A small, fast model that only answers <b>yes/no</b> (as a probability) or <b>pick one of these options</b>. It never writes free text.</p><ul><li>Model: <code>typesafe/jev-1.13</code> via OpenRouter.</li><li>$0.042 per million input tokens; output free.</li><li>Many questions share one request.</li></ul>`,
+    how: `<p>Chosen because it can only pick from options Hazel says are valid — its output can't break the program. The bet: cheaper and faster than the agent for small, local decisions.</p>`, key: ["speed", "fee", "picks", "f-build"] },
+  hazel: { kind: "Actor", title: "Hazel",
+    what: `<p>A structure editor: the program is a tree of definitions, not a text file.</p><ul><li>Knows the type of every spot, and can list what's allowed there.</li><li>Unfinished spots are typed holes <code>?</code>.</li><li>Refuses any edit that adds a type error.</li><li><b>View</b> = which definitions are shown in full and which are folded to <code>⋱</code>.</li></ul>`,
+    how: `<p>Existing Hazel. Added for this study: Jev view requests, Jev hole filling, and a guard that rejects any Jev pick that adds an error.</p>`, key: ["f-build"] },
+  verdict: { kind: "Headline", title: "Mixed, and too few runs to call",
+    what: `<p>"Better" = on the same test: correct output, cheaper, and faster than the original agent.</p><ul><li>Small program: Jev navigating met that bar (by 4% cost, 22% time).</li><li>Big program: Jev navigating was correct but cost more and took longer, every time.</li></ul>`,
+    how: `<div class="calc">Small billing   orig $0.0137 205s ✓   Jev nav $0.0131 159s ✓   → −4% cost, −22% time
+Fleet, named    orig $0.0232 342s ✓   Jev nav $0.0343 528s ✓   → +48%, +54%   (Eval 2)
+                                      Jev nav $0.0371 618s ✗   → +60%, +81%   (Eval 3 vs Eval 2 original)
+Fleet, symptoms orig $0.0261 438s ✓   Jev nav $0.0368 526s ✓   → +41%, +20%</div><p>One run per box; a few percent can be luck. Small-program runs came from different evals (code changed between).</p>`, key: ["verdict", "gap", "f-done"] },
+  gap: { kind: "Metric", title: "Where the extra cost comes from",
+    what: `<p>On the fleet program (symptoms only), the Jev run cost $0.0107 more than the original. Two parts:</p><ul><li><b>Jev's fee</b> — 15 view requests.</li><li><b>Agent writes more</b> — same number of turns, same screen, but 39% more words written.</li></ul>`,
+    how: `<div class="calc">original  agent $0.0261
+Jev nav   agent $0.0299 + Jev $0.0069 = $0.0368
+gap       $0.0368 − $0.0261 = $0.0107  (+41%)
+Jev fee   $0.0069 / $0.0107 = 64%
+agent     $0.0038 / $0.0107 = 36%
+agent output tokens 23,298 vs 16,764 (+39%)</div><p>Source: per-call usage in the run transcripts.</p>`, key: ["gap", "screen", "fee"] },
+  screen: { kind: "Metric", title: "Screen size with vs without Jev",
+    what: `<p>How many tokens the agent reads each turn (prompt + history + current view). If Jev opened too much, this line would sit higher.</p>`,
+    how: `<div class="calc">avg per turn   original 23,129   Jev nav 23,037   (−0.4%)
+cached         original 90.6%    Jev nav 89.8%</div><p>From each turn's reported prompt tokens. This <b>corrects</b> our earlier claim that Jev's over-opening made agent turns pricier.</p>`, key: ["screen", "gap"] },
+  writes: { kind: "Metric", title: "Agent writes more with Jev",
+    what: `<p>Total tokens the agent generated, turn by turn. Output tokens cost more and take longer than input.</p>`,
+    how: `<div class="calc">total output  original 16,764   Jev nav 23,298  (+39%)
+turns         40 both (both hit the limit)</div><p>Why is still open: likely longer requests to Jev plus more re-checking. Needs a look at the transcripts.</p>`, key: ["gap", "speed"] },
+  speed: { kind: "Metric", title: "Where the time goes",
+    what: `<p>Jev itself is fast. The Jev runs are slower because each agent turn takes longer.</p>`,
+    how: `<div class="calc">Jev per request   ~0.25–0.43 s (median)
+Jev per run       5.5–6.7 s total
+agent per turn    original 10.9 s   Jev nav 13.2 s   (fleet, symptoms)
+run total         original 438 s    Jev nav 526 s</div><p>Per-turn time = run time ÷ turns. Longer turns line up with more output tokens.</p>`, key: ["speed", "gap"] },
+  fee: { kind: "Metric", title: "Why Jev's fee adds up",
+    what: `<p>Every view request sends Jev the whole program so it can judge each definition.</p>`,
+    how: `<div class="calc">~11,000 tokens per request × $0.042 / 1M = ~$0.00046
+× 15 requests = $0.0069</div><p>Cheaper options (untested): send one-line summaries instead of full code; only resend what changed.</p>`, key: ["fee", "gap"] },
+  picks: { kind: "Metric", title: "What Jev opened",
+    what: `<p>Each bar = one view request: of all definitions, how many Jev opened, and how many of those were bug locations.</p><ul><li><b>Share on target</b> = bug locations opened ÷ everything opened.</li><li><b>Found</b> = bug locations opened ÷ all bug locations.</li></ul>`,
+    how: `<p>Each test lists its bug locations (e.g. <code>Fuel/fuel_cost</code>). "Opened" includes parent modules.</p><div class="calc">first request   fleet named 3/10 (Eval 2), 3/6 (Eval 3) · symptoms 3/17 · small 2/5
+whole run       ~5% (all requests pooled, vs the 3 bug locations)</div><p>The whole-run 5% is <b>misleading</b>: later requests ask about other code (checking results, reports), so opening non-bug code there is correct. A fair score needs "what this request needed", which we don't record yet.</p>`, key: ["picks"] },
+  runs: { kind: "Scope", title: "8 runs, $0.20",
+    what: `<ul><li>Original agent: 3 runs</li><li>Jev navigates: 4 runs</li><li>Full Jev: 1 run</li><li>3 other setups: 0 runs</li></ul>`,
+    how: `<p>Spend = the lab key's usage before vs after each eval (Eval 1 $0.0245, Eval 2 $0.0701, Eval 3 $0.1000). Runs were picked ad hoc, so counts are uneven; the next step is a planned grid, costed first.</p>`, key: ["verdict"] },
+  arch: { kind: "Architecture", title: "Architecture",
+    what: `<p>Three actors: the agent (plans), Jev (picks), Hazel (lists what's valid and checks everything). Fixing a bug has two jobs — choose what to look at, and write the fix. Each setup gives those jobs to the agent, to Jev, or splits them.</p>`,
+    how: `<p>Every setup is a switch in Hazel: <code>/jev-prepass</code>, <code>/jev-view-tool</code>, <code>/jev-edit-tool</code>, <code>/jev-builds</code>, <code>/jev-mode</code>. All off = the original agent. Code: <code>JevNav.re</code>, <code>JevEdit.re</code>, <code>AgentJev.re</code>.</p>`, key: ["verdict"] },
+  loop: { kind: "Diagram", title: "One agent turn, end to end",
+    what: `<p>The agent works in turns. Each turn it reads the bug report, history and current view, then calls tools: <b>look</b> (change the view), <b>edit</b> (change code) or <b>check</b> (run the program). Hazel applies each call, type-checks, and returns the result. The loop ends when the agent says it's done or hits the turn limit.</p><p>Faded boxes aren't used in the selected setup.</p>`,
+    how: `<p>Drawn from the agent loop code (<code>AgentSend</code> → <code>AgentResponse</code> → <code>AgentToolExec</code>) and the Jev hooks: the pre-pick runs before a turn is sent; <code>modify_view</code> and <code>jev_edit</code> replace the agent's own look/edit tools when their switches are on.</p>`, key: ["f-done"] },
+  view: { kind: "Job", title: "Choose what code to look at",
+    what: `<p>The agent can't read the whole program at full size every turn. Some definitions are shown, the rest folded.</p><ul><li><b>Agent</b>: opens/folds definitions itself.</li><li><b>Jev</b>: the agent describes what it needs; Jev decides what opens.</li></ul>`,
+    how: `<p>In the Jev setup the agent's open/fold tools are removed and refused, so the agent can't bypass Jev.</p>`, key: ["picks", "screen"] },
+  code: { kind: "Job", title: "Write the fix",
+    what: `<ul><li><b>Agent</b>: writes new code directly.</li><li><b>Jev fills</b>: agent writes code with <code>?</code> holes; Jev fills each.</li><li><b>Jev builds</b>: agent gives only the goal and names; Jev grows the code from one <code>?</code>.</li></ul>`,
+    how: `<p>In Jev code setups the agent's direct edit tools are removed and refused. Tests can still be added by the agent.</p>`, key: ["f-build"] },
+  navreq: { kind: "Flow", title: "Inside one Jev view request",
+    what: `<p>How a request in words becomes a view. One batched Jev call per request.</p>`,
+    how: `<p><code>JevNav.select</code>: nodes → named paths → batches → Jev → <code>P(yes) &gt; 0.5</code> → add parent modules. The earlier 0.8 cutoff was an untested guess and is removed.</p>`, key: ["picks", "fee"] },
+  editreq: { kind: "Flow", title: "Inside one Jev code request",
+    what: `<p>How a goal becomes code, one valid choice at a time. Hazel guarantees each step type-checks.</p>`,
+    how: `<p><code>JevEdit.edit</code>: options come from Hazel's type-directed suggestions + the agent's names/numbers (+ code shapes like <code>fun</code>, <code>if</code> when building). Limits: 4 rounds (10 when building), 40 holes. A request with no <code>?</code> is refused — Jev never retypes the agent's code.</p>`, key: ["f-build"] },
+  results: { kind: "How to read", title: "Results by test",
+    what: `<p>One card per test. Each bar = one run's cost (agent blue + Jev orange); ✓/✗ = did the program print the known right answer. Hover a bar for time and turns.</p>`,
+    how: `<p>Only compare bars inside one card — tests differ in size.</p>`, key: ["verdict", "f-grader"] },
+  corrections: { kind: "Note", title: "Corrections on this board",
+    what: `<p>Looking at per-turn data changed two earlier claims:</p><ul><li><b>Was:</b> "Jev opens too much, making agent turns pricier." <b>Now:</b> screen size is the same; the gap is Jev's fee + the agent writing more.</li><li><b>Was:</b> "Only ~5% of what Jev opens is needed." <b>Now:</b> that pools every request against the 3 bug locations; first requests are 18–50% on target.</li><li><b>Was:</b> "No Jev setup beat the original." <b>Now:</b> Jev navigating narrowly did on the small program (1 run each).</li></ul>`,
+    how: `<p>Recomputed from each run's per-turn usage and per-request Jev records in the saved results.</p>`, key: ["screen", "picks", "verdict"] },
+  trend: { kind: "Outlook", title: "Where it's heading",
+    what: `<p>Our current read. Hypotheses, not results.</p>`,
+    how: `<p>Drawn from the findings: Jev's fee is the main cost; the agent navigated fine without help; building failed for tooling reasons.</p>`, key: ["gap", "fee", "f-build"] },
+  "f-build": { kind: "Finding", title: "Jev writing code is blocked",
+    what: `<p>In the one full-Jev run, Jev couldn't finish: the needed pieces weren't among its options, and half-built code was left behind.</p>`,
+    how: `<p>Eval 1, small program. Hazel offered <code>map</code> as a bare name, never as a call <code>map(?, ?)</code>. Jev correctly gave up 14 times. Fixes (not built): offer calls with holes; undo an edit if holes remain.</p>`, key: ["f-build"] },
+  "f-done": { kind: "Finding", title: "Every run hits the turn limit",
+    what: `<p>No run ever said it was done — each used all 24 or 40 turns, even after fixing everything. So cost mostly reflects the limit, for every setup.</p>`,
+    how: `<p>Seen in all 8 transcripts. Fix (not built): stop when the output is correct.</p>`, key: ["f-done"] },
+  "f-grader": { kind: "Finding", title: "A correct fix graded wrong",
+    what: `<p>One Jev run fixed all 3 bugs but also replaced the program's final line with its own checks, so the output no longer matched.</p>`,
+    how: `<p>Eval 3, fleet program, bugs named. The grader compares the final output exactly. Fix (not built): test each fixed definition.</p>`, key: ["f-grader"] },
+  "t-fee": { kind: "Outlook", title: "Cheaper Jev requests", what: `<p>Send one-line summaries instead of full code, or only what changed. Attacks 64% of the gap.</p>`, how: `<p>Untested. Can be scored with Jev alone, no agent (&lt; 1¢).</p>`, key: ["fee", "gap"] },
+  "t-done": { kind: "Outlook", title: "Stop at done, then re-compare", what: `<p>With both setups capped at 40 turns, costs mostly measure the cap. Stop when correct, then compare.</p>`, how: `<p>Harness change; helps every setup.</p>`, key: ["f-done"] },
+  "t-topk": { kind: "Outlook", title: "Pick a few, in big programs", what: `<p>Ask Jev to rank and show only the top few, instead of yes/no on each.</p>`, how: `<p>Untested.</p>`, key: ["picks"] },
+  "t-holes": { kind: "Outlook", title: "Filling holes, few options", what: `<p>When Hazel's list of valid choices is short and complete, Jev's pick is quick and can't break types.</p>`, how: `<p>Untested; blocked by missing building blocks.</p>`, key: ["f-build"] },
+  "t-repeat": { kind: "Outlook", title: "Same fix in many places", what: `<p>One small change across many sites — a fast chooser over valid options fits this shape.</p>`, how: `<p>Untested.</p>`, key: ["f-build"] },
+  "t-bignav": { kind: "Outlook", title: "Jev navigating big programs, as is", what: `<p>Every big-program run cost more and took longer. The agent navigated fine alone.</p>`, how: `<p>3 runs.</p>`, key: ["verdict", "gap"] },
+  "t-value": { kind: "Outlook", title: "Speed, or correctness?", what: `<p>Jev's real value may be code that's type-correct by construction, not speed or cost.</p>`, how: `<p>Open.</p>`, key: ["verdict"] },
+};
+
+const SETUPS = [
+  { id: "orig", name: "Original", runs: 3, status: "3 of 3 correct", pre: false, look: "agent", edit: "agent",
+    view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent writes the fix"]],
+    info: { kind: "Setup", title: "Agent navigates + edits (original)", what: `<p>Hazel's default agent, unchanged. One LLM chooses what to look at and writes every fix. No Jev.</p>`, how: `<p>All Jev switches off. Every other setup is compared to this.</p>`, key: ["verdict", "f-done"] } },
+  { id: "prepass", name: "Jev picks first view", runs: 0, status: "not run yet", pre: true, look: "agent", edit: "agent",
+    view: [["jev", "Jev picks a starting view"], ["agent", "Agent adjusts"]], code: [["agent", "Agent writes the fix"]],
+    info: { kind: "Setup", title: "Jev picks first view, agent navigates + edits", what: `<p>Before each message reaches the agent, Jev opens what looks relevant. The agent can still open/fold and writes every fix.</p>`, how: `<p><code>/jev-prepass</code>. Not run yet.</p>`, key: ["picks"] } },
+  { id: "view", name: "Jev navigates", runs: 4, status: "3 of 4 correct — the 4th fixed all bugs but changed the final line", pre: false, look: "jev", edit: "agent",
+    view: [["agent", "Agent asks in words"], ["jev", "Jev chooses"], ["hazel", "Hazel opens"]], code: [["agent", "Agent writes the fix"]],
+    info: { kind: "Setup", title: "Jev navigates, agent edits", what: `<p>The agent loses open/fold. It describes what it needs; Jev decides what's shown. The agent still writes every fix.</p>`, how: `<p><code>/jev-view-tool</code>. The setup we tested most.</p>`, key: ["verdict", "gap", "picks", "f-grader"] } },
+  { id: "sketch", name: "Jev fills blanks", runs: 0, status: "not run yet", pre: false, look: "agent", edit: "jev",
+    view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent writes code with ?"], ["hazel", "Hazel lists options"], ["jev", "Jev picks"]],
+    info: { kind: "Setup", title: "Agent sketches, Jev fills blanks", what: `<p>The agent writes the fix with <code>?</code> holes; Jev fills each from Hazel's list of valid options.</p>`, how: `<p><code>/jev-edit-tool</code>. Mostly a baseline: the agent could often type the holes itself.</p>`, key: ["f-build"] } },
+  { id: "build", name: "Jev builds code", runs: 0, status: "not run yet", pre: false, look: "agent", edit: "jev",
+    view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent gives goal + names"], ["hazel", "Hazel lists shapes"], ["jev", "Jev builds step by step"]],
+    info: { kind: "Setup", title: "Agent specs, Jev builds code", what: `<p>No code from the agent: only where, what for, and which names. Jev grows the code from one <code>?</code>.</p>`, how: `<p><code>/jev-builds</code>. Blocked by missing building blocks.</p>`, key: ["f-build"] } },
+  { id: "full", name: "Full Jev", runs: 1, status: "0 of 1 correct", pre: true, look: "jev", edit: "jev",
+    view: [["jev", "Jev pre-picks"], ["agent", "Agent asks in words"], ["jev", "Jev chooses"]], code: [["agent", "Agent gives the plan"], ["hazel", "Hazel lists options"], ["jev", "Jev writes the code"]],
+    info: { kind: "Setup", title: "Jev navigates + builds, agent plans", what: `<p>Everything at once: Jev picks the view and writes all the code; the agent only plans.</p>`, how: `<p><code>/jev-mode</code>. One run (small program): wrong output, half-built code left behind.</p>`, key: ["f-build", "verdict"] } },
+];
+SETUPS.forEach((s) => (INFO["s-" + s.id] = s.info));
+
+const FINDS = [
+  { sev: "bad", t: "Extra cost = Jev's fee + agent writing more", id: "gap" },
+  { sev: "good", t: "Agent's screen is the same size with Jev", id: "screen", was: "corrects: “Jev bloats the screen”" },
+  { sev: "good", t: "Jev answers in ~0.4 s", id: "speed" },
+  { sev: "warn", t: "Jev's first picks: 18–50% on target, never misses", id: "picks", was: "corrects: “only 5% needed”" },
+  { sev: "bad", t: "Jev writing code: blocked by missing options", id: "f-build" },
+  { sev: "warn", t: "Every run hits the turn limit", id: "f-done" },
+  { sev: "warn", t: "One correct fix graded wrong", id: "f-grader" },
+];
+const TREND = [
+  { name: "Not paying off yet", c: "var(--bad)", items: [["Jev navigating big programs, as is", "t-bignav"]] },
+  { name: "Worth testing (< 5¢ each)", c: "var(--jev)", items: [["Cheaper Jev requests", "t-fee"], ["Stop at done, then re-compare", "t-done"], ["Pick a few, in big programs", "t-topk"], ["Filling holes, few options", "t-holes"], ["Same fix in many places", "t-repeat"]] },
+  { name: "Open question", c: "var(--agent)", items: [["Speed, or correctness?", "t-value"]] },
+];
+
+// ---------- helpers ----------
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const iBtn = (key, label) => `<button class="i" data-info="${key}" aria-label="${esc(label)}">i</button>`;
+const usd = (x) => "$" + x.toFixed(4);
+const k = (x) => (x >= 1000 ? (x / 1000).toFixed(x >= 10000 ? 0 : 1) + "k" : String(x));
+const tip = $("tip");
+function bindTips(root) {
+  root.querySelectorAll("[data-tip]").forEach((el) => {
+    el.addEventListener("mousemove", (e) => { tip.textContent = el.getAttribute("data-tip"); tip.hidden = false; tip.style.left = Math.min(e.clientX + 14, innerWidth - 300) + "px"; tip.style.top = e.clientY + 14 + "px"; });
+    el.addEventListener("mouseleave", () => (tip.hidden = true));
+  });
+}
+
+// ---------- architecture: turn loop ----------
+const NODES = {
+  task:   { x: 20,  y: 196, w: 120, h: 58, c: "agent", l: "Bug report", s: "task prompt" },
+  pre:    { x: 180, y: 40,  w: 170, h: 58, c: "jev",   l: "Jev pre-pick", s: "before each turn" },
+  turn:   { x: 180, y: 196, w: 170, h: 58, c: "agent", l: "Agent turn", s: "reads prompt + view" },
+  look_a: { x: 420, y: 20,  w: 190, h: 50, c: "agent", l: "expand / collapse", s: "agent opens code" },
+  look_j: { x: 420, y: 84,  w: 190, h: 50, c: "agent", l: "modify_view(need)", s: "asks in words" },
+  jevnav: { x: 650, y: 84,  w: 150, h: 50, c: "jev",   l: "Jev: yes/no each", s: "1 batched call" },
+  edit_a: { x: 420, y: 172, w: 190, h: 50, c: "agent", l: "update / insert", s: "agent writes code" },
+  edit_j: { x: 420, y: 236, w: 190, h: 50, c: "agent", l: "jev_edit(goal, ?)", s: "spec or sketch" },
+  jeved:  { x: 650, y: 236, w: 150, h: 50, c: "jev",   l: "Jev picks options", s: "per hole" },
+  check:  { x: 420, y: 324, w: 190, h: 50, c: "agent", l: "run / add tests", s: "check the value" },
+  hazel:  { x: 830, y: 150, w: 130, h: 140, c: "hazel", l: "Hazel", s: "applies · type-checks" },
+  stop:   { x: 180, y: 380, w: 170, h: 58, c: "agent", l: "Done or turn limit", s: "24 / 40 turns" },
+};
+const EDGES = [
+  ["task", "turn", "M140,225 L180,225"],
+  ["pre", "turn", "M265,98 L265,196"],
+  ["turn", "look_a", "M350,215 C385,215 385,45 420,45"],
+  ["turn", "look_j", "M350,220 C390,220 390,109 420,109"],
+  ["look_j", "jevnav", "M610,109 L650,109"],
+  ["turn", "edit_a", "M350,225 C385,225 385,197 420,197"],
+  ["turn", "edit_j", "M350,230 C385,230 385,261 420,261"],
+  ["edit_j", "jeved", "M610,261 L650,261"],
+  ["turn", "check", "M350,238 C385,238 385,349 420,349"],
+  ["look_a", "hazel", "M610,45 C760,45 780,170 830,175"],
+  ["jevnav", "hazel", "M800,109 C815,109 815,190 830,190"],
+  ["edit_a", "hazel", "M610,197 C720,197 780,205 830,205"],
+  ["jeved", "hazel", "M800,261 C815,261 815,240 830,240"],
+  ["check", "hazel", "M610,349 C760,349 790,280 830,275"],
+  ["hazel", "turn", "M895,290 C895,450 300,470 300,254"],
+  ["turn", "stop", "M230,254 L230,380"],
+];
+function nodeOn(id, s) {
+  if (id === "pre") return s.pre;
+  if (id === "look_a") return s.look === "agent";
+  if (id === "look_j" || id === "jevnav") return s.look === "jev";
+  if (id === "edit_a") return s.edit === "agent";
+  if (id === "edit_j" || id === "jeved") return s.edit === "jev";
+  return true;
+}
+function drawLoop(s) {
+  const fill = { agent: "var(--agent-soft)", jev: "var(--jev-soft)", hazel: "var(--hazel-soft)" };
+  const ink = { agent: "var(--agent)", jev: "var(--jev)", hazel: "var(--hazel)" };
+  const edges = EDGES.map(([a, b, d]) => `<path class="edge ${nodeOn(a, s) && nodeOn(b, s) ? "" : "off"}" d="${d}" marker-end="url(#ah)"/>`).join("");
+  const nodes = Object.entries(NODES).map(([id, n]) => {
+    const on = nodeOn(id, s);
+    return `<g class="node ${on ? "" : "off"}"><rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="10" fill="${on ? fill[n.c] : "var(--sunk)"}" stroke="${on ? ink[n.c] : "var(--idle)"}"/>`
+      + `<text class="lbl" x="${n.x + n.w / 2}" y="${n.y + (id === "hazel" ? 62 : n.h / 2 - 2)}" text-anchor="middle" fill="${on ? ink[n.c] : "var(--muted)"}">${esc(n.l)}</text>`
+      + `<text class="sub" x="${n.x + n.w / 2}" y="${n.y + (id === "hazel" ? 82 : n.h / 2 + 14)}" text-anchor="middle" fill="var(--muted)">${esc(n.s)}</text></g>`;
+  }).join("");
+  const labels = `<text class="sub" x="424" y="14" fill="var(--muted)">LOOK</text><text class="sub" x="424" y="166" fill="var(--muted)">EDIT</text><text class="sub" x="424" y="318" fill="var(--muted)">CHECK</text><text class="sub" x="560" y="462" fill="var(--muted)">result back to the agent → next turn</text>`;
+  $("loop").innerHTML = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>${labels}${edges}${nodes}`;
+}
+let current = "view";
+function renderSetup() {
+  $("setups").innerHTML = SETUPS.map((s) => `<span class="setup" role="button" tabindex="0" data-s="${s.id}" aria-pressed="${s.id === current}">${esc(s.name)} <span class="n">${s.runs} run${s.runs === 1 ? "" : "s"}</span>${iBtn("s-" + s.id, "About " + s.name)}</span>`).join("");
+  const s = SETUPS.find((x) => x.id === current);
+  const chain = (steps) => steps.map(([c, t]) => `<span class="step ${c}">${esc(t)}</span>`).join(`<span class="arrow">→</span>`);
+  $("viewSteps").innerHTML = chain(s.view);
+  $("codeSteps").innerHTML = chain(s.code);
+  $("setupStatus").innerHTML = `<b>${esc(s.name)}</b> · ${s.runs} run${s.runs === 1 ? "" : "s"} · ${esc(s.status)}`;
+  drawLoop(s);
+}
+$("setups").addEventListener("click", (e) => { if (e.target.closest(".i")) return; const b = e.target.closest(".setup"); if (b) { current = b.dataset.s; renderSetup(); } });
+$("setups").addEventListener("keydown", (e) => { const b = e.target.closest(".setup"); if (b && e.target === b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); current = b.dataset.s; renderSetup(); $("setups").querySelector(`[data-s="${current}"]`).focus(); } });
+renderSetup();
+
+// ---------- results: per-test bars ----------
+const r2 = (r, who, c) => ({ who, c, agent: r.agent, jev: r.jev, ok: r.ok, s: r.wall, turns: r.tp.length });
+const TESTS = [
+  { name: "Small billing program", sub: "33 lines · 2 bugs", runs: [
+    { who: "Original", c: "agent", ...E1.control, s: E1.control.wall },
+    r2(find("002", "fix-middle", "view"), "Jev navigates", "jev"),
+    { who: "Full Jev", c: "jev", ...E1.full, s: E1.full.wall } ] },
+  { name: "Fleet cost report", sub: "61 definitions · 3 bugs named", runs: [
+    r2(find("002", "nav-fleet", "control"), "Original", "agent"),
+    r2(find("002", "nav-fleet", "view"), "Jev nav (Eval 2)", "jev"),
+    { ...r2(find("003", "nav-fleet", "view"), "Jev nav (Eval 3)", "jev"), note: "fixed all 3 bugs; changed the final line" } ] },
+  { name: "Fleet cost report", sub: "61 definitions · symptoms only", runs: [
+    r2(symC, "Original", "agent"), r2(symJ, "Jev navigates", "jev") ] },
+];
+$("tests").innerHTML = TESTS.map((t) => {
+  const max = Math.max(...t.runs.map((r) => r.agent + r.jev));
+  return `<div class="card"><div class="card-h"><div><h3>${esc(t.name)}</h3><small>${esc(t.sub)}</small></div>${iBtn("results", "How to read")}</div>`
+    + `<svg viewBox="0 0 400 ${t.runs.length * 38 + 4}" width="100%" role="img" aria-label="Cost per run">${t.runs.map((r, i) => {
+      const y = i * 38 + 6, tot = r.agent + r.jev, x0 = 112, W = 160, wa = (r.agent / max) * W, wj = (r.jev / max) * W;
+      const tipText = `${r.who}: ${usd(tot)} (agent ${usd(r.agent)}, Jev ${usd(r.jev)}) · ${r.s}s · ${r.turns} turns${r.note ? " · " + r.note : ""}`;
+      return `<g data-tip="${esc(tipText)}"><rect x="0" y="${y - 4}" width="400" height="34" fill="transparent"/><text x="0" y="${y + 15}" font-size="11" fill="var(--ink-2)">${esc(r.who)}</text>`
+        + `<rect x="${x0}" y="${y}" width="${Math.max(wa, 2)}" height="22" rx="3" fill="var(--agent)"/>`
+        + (r.jev ? `<rect x="${x0 + wa + 2}" y="${y}" width="${Math.max(wj - 2, 2)}" height="22" rx="3" fill="var(--jev)"/>` : "")
+        + `<text x="${x0 + wa + wj + 6}" y="${y + 15}" font-size="11" fill="var(--ink-2)">${usd(tot)} · ${r.s}s</text>`
+        + `<text x="${x0 + wa + wj + 6 + 102}" y="${y + 15}" font-size="12" font-weight="700" fill="${r.ok ? "var(--good)" : "var(--bad)"}">${r.ok ? "✓" : "✗"}</text></g>`;
+    }).join("")}</svg></div>`;
+}).join("");
+
+// ---------- waterfall ----------
+(function () {
+  const base = symC.agent, jev = symJ.jev, extra = symJ.agent - symC.agent, total = base + jev + extra;
+  const steps = [["Original run", 0, base, "var(--agent)", `Original agent: ${usd(base)}`], ["+ Jev's fee", base, jev, "var(--jev)", `15 view requests: ${usd(jev)} (${Math.round((jev / (jev + extra)) * 100)}% of the gap)`],
+    ["+ agent writes more", base + jev, extra, "var(--agent)", `+39% output tokens: ${usd(extra)} (${Math.round((extra / (jev + extra)) * 100)}% of the gap)`], ["Jev navigates run", 0, total, "var(--ink-2)", `Total: ${usd(total)} (+${Math.round((total / base - 1) * 100)}%)`]];
+  const W = 460, H = 200, x0 = 150, sc = (W - x0 - 70) / (total * 1.02);
+  $("waterfall").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Cost gap breakdown">${steps.map(([l, from, v, c, tt], i) => {
+    const y = 14 + i * 46;
+    return `<g data-tip="${esc(tt)}"><rect x="0" y="${y - 8}" width="${W}" height="42" fill="transparent"/><text x="0" y="${y + 17}" font-size="11.5" fill="var(--ink-2)">${esc(l)}</text>`
+      + `<rect x="${x0 + from * sc}" y="${y}" width="${Math.max(v * sc, 2)}" height="26" rx="3" fill="${c}"/>`
+      + `<text x="${x0 + (from + v) * sc + 6}" y="${y + 17}" font-size="11" fill="var(--ink-2)">${usd(v)}</text></g>`
+      + (i < 3 ? `<line x1="${x0 + (from + v) * sc}" x2="${x0 + (from + v) * sc}" y1="${y + 26}" y2="${y + 46}" stroke="var(--muted)" stroke-dasharray="3 3"/>` : "");
+  }).join("")}</svg>`;
+})();
+
+// ---------- line charts ----------
+function lineChart(el, series, { yLabel, cumulative }) {
+  const W = 460, H = 210, L = 46, B = 26, T = 10, R = 10;
+  const data = series.map((s) => { let acc = 0; return { ...s, ys: s.ys.map((v) => (cumulative ? (acc += v) : v)) }; });
+  const n = Math.max(...data.map((s) => s.ys.length)), maxY = Math.max(...data.flatMap((s) => s.ys)) * 1.08, minY = cumulative ? 0 : Math.min(...data.flatMap((s) => s.ys)) * 0.95;
+  const x = (i) => L + (i / (n - 1)) * (W - L - R), y = (v) => T + (1 - (v - minY) / (maxY - minY)) * (H - T - B);
+  const ticks = 4, grid = Array.from({ length: ticks + 1 }, (_, i) => minY + ((maxY - minY) * i) / ticks);
+  const lines = data.map((s) => `<path d="${s.ys.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}" fill="none" stroke="${s.c}" stroke-width="2"/>`
+    + `<circle cx="${x(s.ys.length - 1)}" cy="${y(s.ys[s.ys.length - 1])}" r="4" fill="${s.c}" stroke="var(--surface)" stroke-width="2"/>`).join("");
+  const hits = Array.from({ length: n }, (_, i) => `<rect x="${x(i) - (W - L - R) / n / 2}" y="${T}" width="${(W - L - R) / n}" height="${H - T - B}" fill="transparent" data-tip="Turn ${i + 1}: ${data.map((s) => `${s.name} ${s.ys[i] != null ? k(Math.round(s.ys[i])) : "–"}`).join(" · ")} ${yLabel}"/>`).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(yLabel)} per turn">`
+    + grid.map((g) => `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(g) + 4}" font-size="10" text-anchor="end" fill="var(--muted)">${k(Math.round(g))}</text>`).join("")
+    + [1, 10, 20, 30, 40].filter((t) => t <= n).map((t) => `<text x="${x(t - 1)}" y="${H - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${t}</text>`).join("")
+    + `<text x="${W - R}" y="${H - 8}" font-size="10" text-anchor="end" fill="var(--muted)">turn</text>` + lines + hits + `</svg>`;
+  bindTips(el);
+}
+lineChart($("inChart"), [{ name: "Original", c: "var(--agent)", ys: symC.tp }, { name: "Jev", c: "var(--jev)", ys: symJ.tp }], { yLabel: "tokens read" });
+lineChart($("outChart"), [{ name: "Original", c: "var(--agent)", ys: symC.to }, { name: "Jev", c: "var(--jev)", ys: symJ.to }], { yLabel: "tokens written (total)", cumulative: true });
+
+// ---------- time chart ----------
+(function () {
+  const jevS = symJ.sels.reduce((a, s) => a + s[3], 0) / 1000;
+  const rows = [["Original", [[symC.wall, "var(--agent)", `agent turns: ${symC.wall}s (${(symC.wall / symC.tp.length).toFixed(1)} s/turn)`]]],
+    ["Jev navigates", [[symJ.wall - jevS, "var(--agent)", `agent turns: ${Math.round(symJ.wall - jevS)}s (${((symJ.wall - jevS) / symJ.tp.length).toFixed(1)} s/turn)`], [jevS, "var(--jev)", `Jev: ${jevS.toFixed(1)}s over ${symJ.sels.length} requests`]]]];
+  const W = 460, x0 = 110, sc = (W - x0 - 60) / (symJ.wall * 1.05);
+  $("timeChart").innerHTML = `<svg viewBox="0 0 ${W} 110" width="100%" role="img" aria-label="Time per run">${rows.map(([l, parts], i) => {
+    const y = 12 + i * 46; let x = x0;
+    return `<text x="0" y="${y + 17}" font-size="11.5" fill="var(--ink-2)">${l}</text>` + parts.map(([v, c, tt]) => { const w = Math.max(v * sc, 3), g = `<rect x="${x}" y="${y}" width="${w}" height="26" rx="3" fill="${c}" data-tip="${esc(tt)}"/>`; x += w + 2; return g; }).join("")
+      + `<text x="${x + 6}" y="${y + 17}" font-size="11" fill="var(--ink-2)">${Math.round(parts.reduce((a, p) => a + p[0], 0))}s</text>`;
+  }).join("")}<text x="${x0}" y="104" font-size="10" fill="var(--muted)">Jev's share is the thin orange sliver (~6 s)</text></svg>`;
+  bindTips($("timeChart"));
+})();
+
+// ---------- Jev picks ----------
+const PICK_RUNS = [["Fleet · symptoms", symJ], ["Fleet · named (Eval 3)", find("003", "nav-fleet", "view")], ["Fleet · named (Eval 2)", find("002", "nav-fleet", "view")], ["Small program", find("002", "fix-middle", "view")]];
+let pickI = 0;
+function renderPicks() {
+  $("runPick").innerHTML = PICK_RUNS.map(([l], i) => `<button aria-pressed="${i === pickI}" data-i="${i}">${esc(l)}</button>`).join("");
+  const r = PICK_RUNS[pickI][1], sels = r.sels, first = sels[0];
+  const pooled = r.prec != null ? Math.round(r.prec * 100) + "%" : "–";
+  const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+  $("pickStats").innerHTML = [[`${first[2]}/${first[1]}`, "first request on target"], [`${Math.round((first[2] / r.nTargets) * 100)}%`, "bug locations found, first request"], [String(med(sels.map((s) => s[1]))), `median opened per request (of ~${med(sels.map((s) => s[0] + 3))})`]]
+    .map(([b, s]) => `<div class="mini"><b>${b}</b><span>${s}</span></div>`).join("") ;
+  const W = 900, rowH = 20, L = 34, H = sels.length * rowH + 30, total = Math.max(...sels.map((s) => Math.max(s[0], s[1]))) ;
+  const sc = (W - L - 60) / total;
+  $("pickChart").innerHTML = `<div class="scroll"><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Definitions opened per request">${sels.map((s, i) => {
+    const [q, opened, hit, ms] = s, y = 6 + i * rowH, all = Math.max(q, opened), tt = `Request ${i + 1}: opened ${opened} of ~${all} · ${hit} of ${r.nTargets} bug locations · ${ms} ms`;
+    return `<g data-tip="${esc(tt)}"><text x="0" y="${y + 11}" font-size="10" fill="var(--muted)">#${i + 1}</text>`
+      + `<rect x="${L}" y="${y}" width="${all * sc}" height="13" rx="2" fill="var(--idle)"/>`
+      + `<rect x="${L}" y="${y}" width="${Math.max(hit * sc - 1, hit ? 2 : 0)}" height="13" rx="2" fill="var(--good)"/>`
+      + `<rect x="${L + hit * sc + (hit ? 1 : 0)}" y="${y}" width="${Math.max((opened - hit) * sc - 1, 0)}" height="13" rx="2" fill="var(--jev)"/>`
+      + `<text x="${L + all * sc + 6}" y="${y + 11}" font-size="10" fill="var(--ink-2)">${hit}+${opened - hit}</text></g>`;
+  }).join("")}<text x="${L}" y="${H - 6}" font-size="10" fill="var(--muted)">definitions in the program → (whole run pooled: ${pooled} on target)</text></svg></div>`;
+  bindTips($("pickChart"));
+}
+$("runPick").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { pickI = Number(b.dataset.i); renderPicks(); } });
+renderPicks();
+
+// ---------- findings + trend ----------
+$("finds").innerHTML = FINDS.map((f) => `<div class="find"><span class="sev ${f.sev}"></span><p>${esc(f.t)}${f.was ? `<span class="was">${esc(f.was)}</span>` : ""}</p>${iBtn(f.id, "More on this finding")}</div>`).join("");
+$("trend").innerHTML = TREND.map((l) => `<div class="lane" style="--c:${l.c}"><h3>${esc(l.name)}</h3>${l.items.map(([t, id]) => `<div class="pill">${esc(t)}${iBtn(id, "More on " + t)}</div>`).join("")}</div>`).join("");
+bindTips(document);
+
+// ---------- modal ----------
+const modal = $("modal");
+let open = null, tab = "what";
+function renderModal() {
+  const d = INFO[open];
+  $("mKind").textContent = d.kind; $("mTitle").textContent = d.title;
+  $("mTabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.t === tab)));
+  if (tab !== "key") { $("mBody").innerHTML = d[tab]; return; }
+  const row = (f) => `<div><span class="sev ${f.sev}"></span><p>${esc(f.t)}</p></div>`;
+  const rel = KEY.filter((f) => d.key.includes(f.id)), rest = KEY.filter((f) => !d.key.includes(f.id));
+  $("mBody").innerHTML = `<div class="kf"><h4>Related to this</h4>${rel.map(row).join("")}${rest.length ? `<h4>All other key findings</h4>${rest.map(row).join("")}` : ""}</div>`;
+}
+document.addEventListener("click", (e) => { const b = e.target.closest(".i"); if (!b) return; e.stopPropagation(); open = b.dataset.info; tab = "what"; renderModal(); tip.hidden = true; modal.showModal(); });
+$("mTabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { tab = b.dataset.t; renderModal(); } });
+$("mClose").addEventListener("click", () => modal.close());
+modal.addEventListener("click", (e) => { if (e.target === modal) modal.close(); });
+</script>

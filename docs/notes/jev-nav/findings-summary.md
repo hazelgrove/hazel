@@ -17,12 +17,21 @@ things at a time. Treat everything below as early signal, not results.
 
 ## Findings
 
-1. **No Jev setup has beaten the original agent yet.** On the small program, Jev-navigates matched
-   it (both correct, ~same cost). On the big fleet program it was correct but **~40–50% more expensive
-   and ~20–55% slower**.
-2. **Jev over-opens code.** Of what Jev opened, only **~5–6% was needed** (it did find 100% of the needed
-   code). A bigger view makes every agent turn more expensive, which is where the extra cost comes from.
-   Jev's own fee was small (~20% of the run).
+> **Correction (2026-09-28):** per-turn data overturned two earlier claims. Jev did *not* make the
+> agent's screen bigger, and the "~5% needed" figure was misleading. Details in 1–2 below.
+
+1. **Mixed result, too few runs to call.** Small program: Jev navigating was slightly cheaper (−4%) and
+   faster (−22%) than the original. Big fleet program: correct, but +41–60% cost and +20–81% time.
+   Where the big-program gap comes from (symptoms test, +$0.0107):
+   - **Jev's fee: 64%.** Every view request resends the whole program (~11k tokens × 15 requests).
+   - **The agent writing more: 36%.** It produced 39% more output tokens (23.3k vs 16.8k).
+   - **Not screen size.** Input per turn was the same (23.0k vs 23.1k tokens; 90% cached either way).
+   - **Time:** Jev took about 6 s per run (~0.4 s per request). The slowdown came from the agent's own
+     turns (13.2 s vs 10.9 s each).
+2. **Jev's picks are better than "5%" suggested.** First requests were 18–50% on target (3/10, 3/6,
+   3/17, 2/5) and never missed a bug location. The 5% figure pooled every request in a run against
+   only the 3 bug locations, but later requests legitimately ask about other code. A fair score needs
+   a per-request "what was needed", which we don't record yet.
 3. **Jev building code failed** (1 run). The choices Hazel offered it didn't include the needed shapes
    (e.g. `map(?, ?)`), and half-built code was left in the program.
 4. **The agent never says DONE.** Every run used all its turns, even after fixing everything. This
@@ -34,24 +43,22 @@ things at a time. Treat everything below as early signal, not results.
 
 ## Conclusions we can draw
 
-- Jev as a **per-definition yes/no navigator** is not paying off: its answers are cheap, but its
-  over-selection makes the expensive model slower and costlier.
-- The **navigation idea isn't disproven**. What's failing is the question format (one yes/no per
-  definition, full code in, no budget). We haven't tested alternatives.
-- The **"Jev writes all the code" idea is blocked by our engine**, not by Jev: it never got the right
-  options to choose from.
+- Jev as a navigator is **fast and roughly on target, but its fee plus the agent's extra writing
+  outweigh any saving** on big programs. The agent navigates fine by itself.
+- The **biggest lever is cheaper Jev requests**: send one-line summaries instead of full code, or
+  only what changed. That targets 64% of the gap.
+- **Cost comparisons are mostly measuring the turn limit**, because every run hit it. Fix "stop when
+  done" before drawing firm cost conclusions.
+- **"Jev writes the code" is blocked by our engine, not by Jev**: it never got the right options.
 
 ## Where it's trending
 
-- **Likely a poor fit:** Jev as a general navigator for small programs. The agent navigates fine alone,
-  and there is little to save.
-- **Plausible fit, untested:**
-  - picking a *small, ranked* set of definitions in large programs (a "top-k" pick, not yes/no on each);
-  - repetitive, local edits across many sites (the same fix applied many times), where a fast chooser
-    over typed options is the natural shape;
-  - filling holes when the typed option list is small and complete.
-- **Open question:** whether the time and cost Jev saves can ever beat the extra agent turns it causes.
-  If not, Jev's value is in *correctness by construction* (only type-correct choices), not in speed.
+- **Not paying off yet:** Jev navigating big programs as currently built.
+- **Worth testing (< 5¢ each):** cheaper Jev requests; stop-at-done then re-compare; top-k picks;
+  filling holes with few options; the same fix in many places.
+- **Open:** Jev's value may be type-correct-by-construction code rather than speed or cost.
+
+Visual board: https://claude.ai/artifact/Thzcf8nyh8RzEhgYioSnEK
 
 ## Next (nothing runs without Russ's go-ahead; each costs < 5¢)
 
