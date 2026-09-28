@@ -97,6 +97,8 @@ module StaticsDebounce = {
   let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
   let force_on_next: ref(bool) = ref(false);
 
+  let pending = () => timer_id^ != None || force_on_next^;
+
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
   let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
@@ -106,7 +108,7 @@ module StaticsDebounce = {
        than after the typing debounce (livelit drag → result: -225ms) */
     let projector_edit = Util.AgentPulse.projector_commit^;
     Util.AgentPulse.projector_commit := false;
-    if (is_edited && projector_edit) {
+    if (force_now || is_edited && projector_edit) {
       switch (timer_id^) {
       | Some(id) =>
         Js_of_ocaml.Dom_html.window##clearTimeout(id);
@@ -124,14 +126,14 @@ module StaticsDebounce = {
           Js_of_ocaml.Dom_html.window##setTimeout(
             Js_of_ocaml.Js.wrap_callback(() => {
               timer_id := None;
+              /* Keep sends waiting until the scheduled refresh is consumed. */
+              force_on_next := true;
               schedule_refresh();
             }),
             debounce_ms,
           ),
         );
       Defer;
-    } else if (force_now) {
-      Force;
     } else {
       Normal;
     };
@@ -173,8 +175,15 @@ module Update = {
      * computed there for its error check — one statics pass per tool call
      * instead of several. */
     let do_init = (editor: Editor.t) =>
-      switch (CachedStatics.offered_for(editor.state.zipper)) {
-      | Some(st) => st
+      switch (
+        ctx == None
+        && ana == None
+        && !is_dynamic_term
+        && editor.root == Sort.Exp
+          ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
+      ) {
+      | Some(st) when stitch(st.term) === st.term => st
+      | Some(_)
       | None =>
         PerfMetrics.time_statics(() =>
           CachedStatics.init(

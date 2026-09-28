@@ -110,12 +110,13 @@ let llm_context_snapshot_text =
   );
 };
 
-/* (zipper, dynamics, agent view) -> (printed program, error list) */
+/* (zipper, statics, dynamics, agent view) -> (printed program, error list) */
 let context_memo:
   ref(
     option(
       (
         Zipper.t,
+        Language.Statics.Map.t,
         Language.Dynamics.Map.t,
         AgentContext.Model.t,
         string,
@@ -136,14 +137,15 @@ let update_context =
     : Model.t => {
   let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
   /* the printed program and its error list depend only on the zipper, the
-     probe values and the agent's collapse state: the same (physically
+     statics, probe values and the agent's collapse state: the same (physically
      identical) inputs give the same strings, and a reply's tools followed
      by its send ask several times for one program */
   let (agent_editor_view_string, static_errors_info_string) =
     switch (context_memo^) {
-    | Some((z, dyn, view, printed, errs))
+    | Some((z, info, dyn, view, printed, errs))
         when
           z === editor.editor.state.zipper
+          && info === editor.statics.info_map
           && dyn === editor.dynamics
           && view == curr_chat.agent_view => (
         printed,
@@ -163,6 +165,7 @@ let update_context =
       context_memo :=
         Some((
           editor.editor.state.zipper,
+          editor.statics.info_map,
           editor.dynamics,
           curr_chat.agent_view,
           printed,

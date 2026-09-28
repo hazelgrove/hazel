@@ -7,10 +7,6 @@ open OptUtil.Syntax;
 let build = (z, info_map) =>
   PerfTimer.time("node-map", () => build(z, info_map));
 
-/* web-side listener for FastParse fallback telemetry (the journal);
-   core stays UI-agnostic */
-let fallback_notice: ref(option(string => unit)) = ref(None);
-
 type node_map = HighLevelNodeMap.t;
 type node = HighLevelNodeMap.node;
 
@@ -301,22 +297,11 @@ module Local = {
         ? seg @ [space()] : seg;
     };
 
-    /* Post-edit vertical-whitespace normalization for the agent structural
-       edit path. Operates on the zipper's top-level segment only (the
-       outermost binding chain); inner definition/body layout is untouched.
-       Motivation: the insert/update arms wrap pasted code as "\n"++code++"\n"
-       ("magic space"), and nothing collapses the resulting linebreak runs, so
-       (1) prepends leave a leading blank line and (2) trailing linebreaks
-       accumulate across successive edits near the program end. Policy:
-       - no blank lines before the first piece,
-       - exactly one blank line (two linebreaks) between consecutive top-level
-         bindings (tiles whose form ends in `in`),
-       - a single linebreak on any other inter-piece boundary that already had
-         one, and at most a single trailing linebreak at program end.
-       Only maximal runs of linebreaks are rewritten; spaces (including body
-       indentation) and comment secondaries are left in place and bound the
-       runs. Fresh ids on the linebreaks are overlay-safe: statics/probes key
-       to term ids. */
+    /* Local boundary hygiene after a structural splice. Existing whitespace
+       is part of the document: preserve it when its neighbours survive.
+       New joins collapse the edit's padding to one blank line between
+       bindings, one newline elsewhere, and none at program start. Reuse
+       the run's linebreak ids and allocate only missing pieces. */
     let is_linebreak = (p: Piece.t): bool =>
       switch (p) {
       | Secondary({content: Whitespace(s), _}) => s == Token.linebreak
@@ -332,42 +317,133 @@ module Local = {
         id: Id.mk(),
         content: Secondary.Whitespace(Token.linebreak),
       });
-    let normalize_top_level_whitespace = (seg: Segment.t): Segment.t => {
-      /* Group into maximal linebreak runs and everything else (tokens), so a
-         run's immediately bounding tokens decide its normalized count. */
-      let items =
-        List.fold_right(
-          (p, acc) =>
-            switch (is_linebreak(p), acc) {
-            | (true, [`Run(n), ...rest]) => [`Run(n + 1), ...rest]
-            | (true, _) => [`Run(1), ...acc]
-            | (false, _) => [`Tok(p), ...acc]
-            },
-          seg,
-          [],
-        );
-      let rec go = (prev_tok: option(Piece.t), items) =>
-        switch (items) {
+    /* Preserve an existing whitespace run when its two neighbours survive.
+       Newly inserted runs and newly joined boundaries receive the local
+       spacing policy; pre-existing formatting elsewhere is not our scope. */
+    let normalize_runs = (~before=[], ~module_body=false, seg: Segment.t) => {
+      let rec runs = (prev, member, ps) =>
+        switch (ps) {
         | [] => []
-        | [`Tok(p), ...rest] => [p, ...go(Some(p), rest)]
-        | [`Run(_), ...rest] =>
-          let next_tok =
-            switch (rest) {
-            | [`Tok(p), ..._] => Some(p)
-            | _ => None
+        | [p, ..._] when is_linebreak(p) =>
+          let rec take = (acc, ps) =>
+            switch (ps) {
+            | [p, ...rest]
+                when
+                  is_linebreak(p)
+                  || module_body
+                  && (
+                    switch (p) {
+                    | Secondary({content: Whitespace(_), _}) => true
+                    | _ => false
+                    }
+                  ) =>
+              take([p, ...acc], rest)
+            | _ => (List.rev(acc), ps)
             };
-          let replacement =
-            switch (prev_tok, next_tok) {
-            | (None, _) => [] /* start of program: no leading blank */
-            | (_, None) => [linebreak()] /* end: single trailing linebreak */
-            | (Some(l), Some(r)) =>
-              is_binding_tile(l) && is_binding_tile(r)
-                ? [linebreak(), linebreak()] : [linebreak()]
+          let (run, rest) = take([], ps);
+          let witness =
+            switch (prev) {
+            | Some(Piece.Tile(t)) when Tile.is_semi(t) =>
+              Option.to_list(member)
+            | _ => Option.to_list(Option.map(Piece.id, prev))
             };
-          replacement @ go(prev_tok, rest);
+          [
+            `Run((prev, run, List.nth_opt(rest, 0), witness)),
+            ...runs(prev, member, rest),
+          ];
+        | [p, ...rest] =>
+          let member =
+            switch (p) {
+            | Piece.Tile(t) =>
+              switch (Tile.label(t)) {
+              | ["let" | "type" | "module", ..._] => Some(t.id)
+              | _ => member
+              }
+            | _ => member
+            };
+          [`Tok(p), ...runs(Some(p), member, rest)];
         };
-      go(None, items);
+      let id = Option.map(Piece.id);
+      let old_runs =
+        runs(None, None, before)
+        |> List.filter_map(
+             fun
+             | `Run(_, [p, ..._] as run, r, witness) =>
+               Some((Piece.id(p), (witness, run, id(r))))
+             | _ => None,
+           )
+        |> List.to_seq
+        |> Id.Map.of_seq;
+      runs(None, None, seg)
+      |> List.concat_map(
+           fun
+           | `Tok(p) => [p]
+           | `Run(left, run, right, witness) => {
+               let preserved =
+                 switch (Id.Map.find_opt(Piece.id(List.hd(run)), old_runs)) {
+                 | Some((l, old, r)) =>
+                   l == witness && r == id(right) && old == run
+                 | None => false
+                 };
+               if (preserved) {
+                 run;
+               } else {
+                 let n =
+                   module_body
+                     ? switch (left) {
+                       | Some(Piece.Tile(t)) when Tile.is_semi(t) => 2
+                       | _ => 1
+                       }
+                     : (
+                       switch (left, right) {
+                       | (None, _) => 0
+                       | (Some(l), Some(r))
+                           when is_binding_tile(l) && is_binding_tile(r) => 2
+                       | _ => 1
+                       }
+                     );
+                 if (module_body) {
+                   /* A retained newline keeps its indent pieces too. The
+                      region reindenter only visits newly allocated lines. */
+                   let rec lines = ps =>
+                     switch (ps) {
+                     | [] => []
+                     | [lb, ...rest] =>
+                       let rec spaces = (acc, ps) =>
+                         switch (ps) {
+                         | [p, ...rest] when !is_linebreak(p) =>
+                           spaces([p, ...acc], rest)
+                         | _ => (List.rev(acc), ps)
+                         };
+                       let (indent, rest) = spaces([], rest);
+                       [(lb, indent), ...lines(rest)];
+                     };
+                   let existing = lines(run);
+                   let last_indent = snd(List.hd(List.rev(existing)));
+                   List.init(n, i =>
+                     switch (List.nth_opt(existing, i)) {
+                     | Some((lb, indent)) => [
+                         lb,
+                         ...i == n - 1 ? last_indent : indent,
+                       ]
+                     | None => [linebreak()]
+                     }
+                   )
+                   |> List.concat;
+                 } else {
+                   let kept = List.filteri((i, _) => i < n, run);
+                   kept
+                   @ List.init(max(0, n - List.length(kept)), _ =>
+                       linebreak()
+                     );
+                 };
+               };
+             },
+         );
     };
+    let normalize_top_level_whitespace =
+        (~before=[], seg: Segment.t): Segment.t =>
+      normalize_runs(~before, seg);
 
     /* Module-body hygiene, applied recursively wherever a module literal
        appears. Two passes over a ModBody child segment:
@@ -377,7 +453,11 @@ module Local = {
          normalize to one blank line (mirroring the top-level policy);
          every other run to a single linebreak. Runs-only, like the
          top-level pass: single-line modules are never exploded. */
-    let is_semi = (p: Piece.t): bool => Piece.is_semi(p);
+    let is_semi = (p: Piece.t): bool =>
+      switch (p) {
+      | Tile(t) => Tile.is_semi(t)
+      | _ => false
+      };
     let is_space = (p: Piece.t): bool =>
       switch (p) {
       | Secondary({content: Whitespace(w), _}) => w != Token.linebreak
@@ -385,13 +465,33 @@ module Local = {
       };
     let is_mod_body = (t: Tile.t): bool =>
       t.form == Form.Compound(ModBody) && Tile.mold(t).in_ == [Sort.Mod];
-    let clean_member_separators = (seg: Segment.t): Segment.t => {
+    let clean_member_separators = (~before=[], seg: Segment.t): Segment.t => {
       let rec next_tok = ps =>
         switch (ps) {
         | [] => None
         | [Piece.Secondary(_), ...rest] => next_tok(rest)
         | [p, ..._] => Some(p)
         };
+      /* Cleanup is confined to new joins. Even an incomplete old member or
+         hand-spaced separator elsewhere in this module is outside the edit. */
+      let id = Option.map(Piece.id);
+      let rec boundaries = (prev, ps, acc) =>
+        switch (ps) {
+        | [] => acc
+        | [p, ...rest] =>
+          let acc =
+            Id.Map.add(Piece.id(p), (id(prev), id(next_tok(rest))), acc);
+          let prev =
+            switch (p) {
+            | Piece.Secondary(_) => prev
+            | _ => Some(p)
+            };
+          boundaries(prev, rest, acc);
+        };
+      let old_boundaries = boundaries(None, before, Id.Map.empty);
+      let unchanged = (prev, p, rest) =>
+        Id.Map.find_opt(Piece.id(p), old_boundaries)
+        == Some((id(prev), id(next_tok(rest))));
       /* Deleting a member leaves a convex grout in its slot (destruct
          replaces, it does not remove); a hole standing alone between
          separators/edges is that leftover, and goes together with the
@@ -406,7 +506,9 @@ module Local = {
         switch (ps) {
         | [] => []
         | [Piece.Grout(_) as g, ...rest] =>
-          is_member_boundary(prev_tok) && is_member_boundary(next_tok(rest))
+          !unchanged(prev_tok, g, rest)
+          && is_member_boundary(prev_tok)
+          && is_member_boundary(next_tok(rest))
             ? drop_hole_members(prev_tok, rest)
             : [g, ...drop_hole_members(Some(g), rest)]
         | [Piece.Secondary(_) as p, ...rest] => [
@@ -425,13 +527,14 @@ module Local = {
             | (_, None) => true /* trailing */
             | (_, Some(r)) => is_semi(r) /* doubled */
             };
-          dangling ? go(prev_tok, rest) : [p, ...go(Some(p), rest)];
+          dangling && !unchanged(prev_tok, p, rest)
+            ? go(prev_tok, rest) : [p, ...go(Some(p), rest)];
         | [Piece.Secondary(_) as p, ...rest] => [p, ...go(prev_tok, rest)]
         | [p, ...rest] => [p, ...go(Some(p), rest)]
         };
       /* Canonical `x;` — drop space runs that sit directly before a
          member separator (deletes leave one behind). */
-      let rec trim_space_before_semi = (ps: list(Piece.t)) =>
+      let rec trim_space_before_semi = (prev, ps: list(Piece.t)) =>
         switch (ps) {
         | [] => []
         | [p, ...rest] when is_space(p) =>
@@ -441,76 +544,92 @@ module Local = {
             | [q, ..._] when is_semi(q) => true
             | _ => false
             };
-          upcoming(rest)
-            ? trim_space_before_semi(rest)
-            : [p, ...trim_space_before_semi(rest)];
-        | [p, ...rest] => [p, ...trim_space_before_semi(rest)]
+          upcoming(rest) && !unchanged(prev, p, rest)
+            ? trim_space_before_semi(prev, rest)
+            : [p, ...trim_space_before_semi(prev, rest)];
+        | [Piece.Secondary(_) as p, ...rest] => [
+            p,
+            ...trim_space_before_semi(prev, rest),
+          ]
+        | [p, ...rest] => [p, ...trim_space_before_semi(Some(p), rest)]
         };
       seg
       |> drop_hole_members(None, _)
       |> go(None, _)
-      |> trim_space_before_semi;
+      |> trim_space_before_semi(None, _);
     };
-    let normalize_member_whitespace = (seg: Segment.t): Segment.t => {
-      /* Left to right. A linebreak run ABSORBS the spaces between and after
-         its linebreaks: stored indentation would double up with the
-         display's nesting indent, and a blank line inside a module is
-         "\n␣␣\n" — treating the two linebreaks as separate runs turned
-         one blank line into two on every edit (1, 3, 7, 15, 31, 63 blank
-         lines between members after six agent edits). */
-      let replacement = (prev_tok: option(Piece.t)): list(Piece.t) =>
-        switch (prev_tok) {
-        | Some(p) when is_semi(p) => [linebreak(), linebreak()]
-        | _ => [linebreak()]
-        };
-      let rec go =
-              (prev_tok: option(Piece.t), run: int, ps: list(Piece.t))
-              : list(Piece.t) =>
-        switch (ps) {
-        | [] => run > 0 ? replacement(prev_tok) : []
-        | [p, ...rest] when is_linebreak(p) => go(prev_tok, run + 1, rest)
-        | [p, ...rest] when is_space(p) && run > 0 =>
-          go(prev_tok, run, rest)
-        | [p, ...rest] =>
-          (run > 0 ? replacement(prev_tok) : [])
-          @ [p, ...go(Some(p), 0, rest)]
-        };
-      go(None, 0, seg);
-    };
-    let rec normalize_module_bodies = (seg: Segment.t): Segment.t =>
-      List.map(
-        (p: Piece.t) =>
+    let normalize_member_whitespace = (~before=[], seg: Segment.t): Segment.t =>
+      normalize_runs(~before, ~module_body=true, seg);
+
+    let normalize_module_bodies = (~before=[], seg: Segment.t): Segment.t => {
+      let originals = EditIdentity.index(before);
+      let rec walk = ps => {
+        let next = List.map(piece, ps);
+        Segment.ptr_eq(next, ps) ? ps : next;
+      }
+      and piece = (p: Piece.t) =>
+        switch (Id.Map.find_opt(Piece.id(p), originals)) {
+        | Some(old) when old === p || compare(old, p) == 0 => old
+        | previous =>
           switch (p) {
           | Tile(t) =>
-            let children = List.map(normalize_module_bodies, t.children);
+            let old_children =
+              switch (previous) {
+              | Some(Tile(old))
+                  when List.length(old.children) == List.length(t.children) =>
+                old.children
+              | _ => List.map(_ => [], t.children)
+              };
             let children =
-              is_mod_body(t)
-                ? List.map(
-                    c =>
-                      normalize_member_whitespace(
-                        clean_member_separators(c),
-                      ),
-                    children,
-                  )
-                : children;
-            Piece.Tile({
-              ...t,
+              List.map2(
+                (old, child) => {
+                  let child = walk(child);
+                  is_mod_body(t)
+                    ? normalize_member_whitespace(
+                        ~before=old,
+                        clean_member_separators(~before=old, child),
+                      )
+                    : child;
+                },
+                old_children,
+                t.children,
+              );
+            List.for_all2(
+              (a, b) => Segment.ptr_eq(a, b),
               children,
-            });
-          | p => p
-          },
-        seg,
-      );
+              t.children,
+            )
+              ? p
+              : Piece.Tile({
+                  ...t,
+                  children,
+                });
+          | _ => p
+          }
+        };
+      walk(seg);
+    };
 
-    /* Zip to the top-level segment, normalize its whitespace, and rebuild a
-       zipper. Idempotent. The agent edit path rebuilds the editor from this
-       zipper, so resetting the caret to the segment start is harmless. */
-    let normalize_top_level = (z: Zipper.t): Zipper.t =>
-      z
-      |> Zipper.unselect_and_zip
-      |> normalize_top_level_whitespace
-      |> normalize_module_bodies
-      |> Zipper.unzip;
+    /* The edit's old program supplies boundary witnesses and sharing.
+       Unchanged subtrees are skipped; only new joins receive formatting.
+       Unchanged results avoid reconstruction; rebuilt results retain overlays. */
+    let normalize_top_level = (~before=?, z: Zipper.t): Zipper.t => {
+      let after = Zipper.unselect_and_zip(z);
+      let old =
+        Option.map(Zipper.unselect_and_zip, before)
+        |> Option.value(~default=[]);
+      let next =
+        after
+        |> normalize_top_level_whitespace(~before=old)
+        |> normalize_module_bodies(~before=old)
+        |> EditIdentity.restore(before == None ? after : old, _);
+      Segment.ptr_eq(next, after)
+        ? z
+        : {
+          ...Zipper.unzip(next),
+          refractors: z.refractors,
+        };
+    };
 
     /* Form delimiters that lex like identifiers; using one as a variable
        name makes the surrounding code misparse. */
@@ -595,11 +714,8 @@ module Local = {
         ++ " — if the code was meant to be complete, start there."
       | _ => ""
       };
-    /* ~fast: try the linear Menhir zip first (FastParse) — used by the
-       big-chunk overwrite path (update_definition / update_binding_clause),
-       where the quadratic typing parse froze the editor. The small insert
-       paths keep the typing parser so their whitespace conventions (magic
-       spaces, boundary newlines) are untouched. */
+    /* Agent structural edits try the linear Menhir zip first (FastParse).
+       Incomplete syntax falls back to the size-limited typing parser. */
     /* Edge whitespace (the insert flow's baked-in separator newlines)
        must survive the fast path's trim: re-attach it as Secondary. */
     let ws_secondaries = (ws: string): Segment.t =>
@@ -781,13 +897,24 @@ module Local = {
             segment;
           };
         let z' =
-          PerfTimer.time("splice", () =>
-            Zipper.insert_segment(
-              z,
-              pad_fusing_edges(z, segment),
-              ~root=splice_root,
-            )
-          );
+          PerfTimer.time("splice", ()
+            /* Keep a generated terminal hole after the inserted separator
+               newline, matching the typing parser's fragment insertion. */
+            =>
+              Zipper.replace_selection(
+                Right,
+                pad_fusing_edges(
+                  z,
+                  EditIdentity.reuse(z.selection.content, segment),
+                ),
+                z,
+              )
+              |> Zipper.unselect
+              |> Zipper.remold_regrout(
+                   keep_edge_ws ? Left : Right,
+                   ~root=splice_root,
+                 )
+            );
         Ok(z');
       | None =>
         if (fast) {
@@ -834,7 +961,10 @@ module Local = {
             PerfTimer.time("splice", () =>
               Zipper.insert_segment(
                 z,
-                pad_fusing_edges(z, segment),
+                pad_fusing_edges(
+                  z,
+                  EditIdentity.reuse(z.selection.content, segment),
+                ),
                 ~root=splice_root,
               )
             ),
@@ -905,18 +1035,23 @@ module Local = {
        splice: after → ";\n" ++ code (the member's original following `;` —
        or `}` for the last member — ends the new code), before → code ++
        ";\n". `introduce` trims leading whitespace, so the `;` must lead. */
-    /* member boundaries of a chunk of member code: `;` at bracket depth 0,
-       outside string literals */
+    /* Member boundaries: `;` at bracket depth 0, outside strings and
+       single-line #...# comments. */
     let split_members = (code: string): list(string) => {
       let n = String.length(code);
       let parts = ref([])
       and start = ref(0)
       and depth = ref(0)
-      and in_str = ref(false);
+      and in_str = ref(false)
+      and in_comment = ref(false);
       let i = ref(0);
       while (i^ < n) {
         let c = code.[i^];
-        if (in_str^) {
+        if (in_comment^) {
+          if (c == '#' || c == '\n') {
+            in_comment := false;
+          };
+        } else if (in_str^) {
           if (c == '\\') {
             incr(i);
           } else if (c == '"') {
@@ -924,6 +1059,7 @@ module Local = {
           };
         } else {
           switch (c) {
+          | '#' => in_comment := true
           | '"' => in_str := true
           | '('
           | '['
@@ -1473,19 +1609,6 @@ module Local = {
     };
   };
 
-  let mentions_trigger = (code: string): bool => {
-    let n = String.length(code);
-    let rec go = i =>
-      i + 1 < n && (code.[i] == '^' && code.[i + 1] == '^' || go(i + 1));
-    go(0);
-  };
-  let action_mentions_trigger = (a: Action.Structural.t): bool =>
-    switch (a) {
-    | Insert(_, _, code)
-    | Update(_, _, code) => mentions_trigger(code)
-    | _ => false
-    };
-
   let go =
       (
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
@@ -1504,6 +1627,7 @@ module Local = {
           Ok(
             PerfTimer.time("normalize", () =>
               PerformUtils.normalize_top_level(
+                ~before=z,
                 Materialize.all(new_z, ~root=Exp),
               )
             ),
@@ -1556,15 +1680,9 @@ module Public = {
       ~mk_statics=
         z =>
           PerfTimer.time("statics", () => {
-            /* the full record, computed the editor's way (probe_all is
-               masked during an agent burst as in CodeWithStatics), and
-               OFFERED: the editor's recompute for this program takes it
+            /* The full record, computed with the editor's settings and
+               offered: the editor's recompute for this program takes it
                instead of running statics again */
-            let settings =
-              Language.CoreSettings.{
-                ...settings,
-                probe_all: settings.probe_all && !AgentPulse.in_burst(),
-              };
             let full =
               CachedStatics.init(
                 ~settings,
@@ -1573,7 +1691,7 @@ module Public = {
                 ~root=Sort.Exp,
                 z,
               );
-            CachedStatics.offer(z, full);
+            CachedStatics.offer(~settings, z, full);
             full.info_map;
           }),
       ~initial_info_map=Some(initial.info_map),

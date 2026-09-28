@@ -147,6 +147,44 @@ let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
   };
 };
 
+/* Small handoff cache for top-level agent edits. Compare the actual syntax,
+   settings and probe IDs: IDs alone do not establish freshness. Full syntax
+   deliberately includes whitespace, which can affect incomplete terms. */
+type cache_entry = {
+  settings: CoreSettings.t,
+  source: Segment.t,
+  probes: Id.Map.t(unit),
+  statics: t,
+};
+let last_inits: ref(list(cache_entry)) = ref([]);
+let offered: ref(list(cache_entry)) = ref([]);
+let entry = (~settings, z: Zipper.t, statics: t): cache_entry => {
+  settings,
+  source: Zipper.unselect_and_zip(~erase_buffer=true, z),
+  probes: probe_ids_of_zipper(z),
+  statics,
+};
+let matches = (~settings, z: Zipper.t, e: cache_entry): bool =>
+  settings == e.settings
+  && Id.Map.equal((==), probe_ids_of_zipper(z), e.probes)
+  && compare(Zipper.unselect_and_zip(~erase_buffer=true, z), e.source) == 0;
+let remember = e =>
+  last_inits := [e, ...List.filteri((i, _) => i < 5, last_inits^)];
+let offer = (~settings, z: Zipper.t, st: t): unit => {
+  let e = entry(~settings, z, st);
+  offered := [e, ...List.filteri((i, _) => i < 3, offered^)];
+  remember(e);
+};
+let offered_for = (~settings, z: Zipper.t): option(t) =>
+  List.find_opt(matches(~settings, z), offered^)
+  |> Option.map(e => e.statics);
+let for_zipper = (~settings, z: Zipper.t, st: t): option(t) =>
+  List.find_opt(
+    e => e.statics.info_map === st.info_map && matches(~settings, z, e),
+    last_inits^,
+  )
+  |> Option.map(_ => st);
+
 let init =
     (
       ~settings: CoreSettings.t,
@@ -163,7 +201,7 @@ let init =
   let term = make_term_result.term |> stitch;
   let probe_ids = probe_ids_of_zipper(z);
 
-  {
+  let st = {
     ...
       init_from_term(
         ~settings,
@@ -175,88 +213,28 @@ let init =
       ),
     completion: Some(completion),
   };
-};
-
-/* The zipper the editor's statics were last computed for, and that
-   result: a structural (agent) action on the very same zipper can start
-   from this map instead of a fresh full pass (CompositionGo). Physical
-   identity is the freshness test — an edited zipper is a new value. */
-/* statics computed for a zipper by someone who is not the editor (the
-   agent tool path checks the program it just produced): offered here so the
-   editor's own recompute for that very program can take them instead.
-   Keyed by a fingerprint of the program's piece ids (secondaries left out:
-   normalization and re-indentation only move whitespace, and the editor
-   rebuilds its zipper record on every calculate, so object identity does
-   not survive the trip) */
-let rec fingerprint_seg = (seg: Segment.t, acc: list(Id.t)): list(Id.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Secondary(_) => acc
-      | Grout(g) => [g.id, ...acc]
-      | Projector(pr) => [pr.id, ...acc]
-      | Tile(t) =>
-        List.fold_left(
-          (acc, ch) => fingerprint_seg(ch, acc),
-          [t.id, ...acc],
-          t.children,
-        )
-      },
-    acc,
-    seg,
-  );
-let fingerprint = (z: Zipper.t): list(Id.t) =>
-  fingerprint_seg(Zipper.unselect_and_zip(~erase_buffer=true, z), []);
-/* the last few inits (other editors and the canvas snapshot also init),
-   keyed by program fingerprint */
-let last_inits: ref(list((list(Id.t), t))) = ref([]);
-let offered: ref(list((list(Id.t), t))) = ref([]);
-let offer = (z: Zipper.t, st: t): unit => {
-  let fp = fingerprint(z);
-  offered := [(fp, st), ...List.filteri((i, _) => i < 3, offered^)];
-  /* an editor that takes the offer holds statics that never went through
-     init: enter them in the ring too, so the next tool's initial-statics
-     reuse (for_zipper) recognizes them */
-  last_inits := [(fp, st), ...List.filteri((i, _) => i < 5, last_inits^)];
-};
-let offered_for = (z: Zipper.t): option(t) =>
-  switch (offered^) {
-  | [] => None
-  | offers =>
-    let fp = fingerprint(z);
-    switch (List.find_opt(((fp0, _)) => fp0 == fp, offers)) {
-    | Some((_, st)) => Some(st)
-    | None => None
-    };
+  /* The agent's handoff is only valid for the ordinary, unstitched Exp
+     editor. Contextual/analysis editors compute their own statics. */
+  if (!is_dynamic_term
+      && root == Sort.Exp
+      && ctx == None
+      && ana == None
+      && term === make_term_result.term) {
+    remember(entry(~settings, z, st));
   };
-/* the editor's own statics, when they were computed from the program the
-   zipper holds now (the editor rebuilds its zipper record on every
-   calculate, so this is a fingerprint match, not identity) */
-let for_zipper = (z: Zipper.t, st: t): option(t) =>
-  switch (List.find_opt(((_, st0)) => st0 === st, last_inits^)) {
-  | Some((fp0, _)) when fp0 == fingerprint(z) => Some(st)
-  | _ => None
-  };
+  st;
+};
 
 let init =
     (
       ~settings: CoreSettings.t,
       ~is_dynamic_term,
       ~stitch,
-      ~ctx=?,
       ~root,
+      ~ctx=?,
       ~ana=?,
       z: Zipper.t,
     ) =>
-  if (settings.statics) {
-    let st =
-      init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z);
-    last_inits :=
-      [
-        (fingerprint(z), st),
-        ...List.filteri((i, _) => i < 5, last_inits^),
-      ];
-    st;
-  } else {
-    empty;
-  };
+  settings.statics
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
+    : empty;
