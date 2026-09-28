@@ -1,0 +1,563 @@
+{
+  "task": "fix-middle",
+  "arm": "view",
+  "model": "openai/gpt-6-luna",
+  "program": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) + cost(r))\nin\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n)\nin\nlet target = from_station(2) in\nlet total = subtotal(with_surcharge(billed(target))) in\ntotal",
+  "prompt": "This billing report is wrong in two places.\n\n  1. A reading's billed amount is meant to be its volume multiplied by its unit cost, not added to it.\n  2. `with_surcharge` is supposed to add a 3 unit surcharge to every amount, but it currently leaves the amounts alone.\n\nFix both, checking the value after each fix so you can see the effect of the change you just made. When both are fixed, say DONE and stop.",
+  "events": [
+    {
+      "kind": "user",
+      "text": "This billing report is wrong in two places.\n\n  1. A reading's billed amount is meant to be its volume multiplied by its unit cost, not added to it.\n  2. `with_surcharge` is supposed to add a 3 unit surcharge to every amount, but it currently leaves the amounts alone.\n\nFix both, checking the value after each fix so you can see the effect of the change you just made. When both are fixed, say DONE and stop."
+    },
+    {
+      "kind": "agent",
+      "turn": 1,
+      "text": "",
+      "usage": {
+        "prompt": 18725,
+        "completion": 54,
+        "cached": 0,
+        "cost": 0.002359825
+      },
+      "tool_calls": [
+        {
+          "name": "modify_view",
+          "args": {
+            "intent": "Inspect definitions for billed and with_surcharge and the relevant values used to check each fix.",
+            "replace": false
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "open: billed, with_surcharge · added: billed, with_surcharge",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 2,
+      "text": "",
+      "usage": {
+        "prompt": 18843,
+        "completion": 162,
+        "cached": 18413,
+        "cost": 0.00031053
+      },
+      "tool_calls": [
+        {
+          "name": "update_definition",
+          "args": {
+            "path": "billed",
+            "code": "fun rows -> map(rows, fun r -> volume(r) * cost(r))"
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The update_definition tool call was successful and has been applied to the model.",
+            "diff": {
+              "old": "let billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) + cost(r))\nin",
+              "new": "let billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 3,
+      "text": "",
+      "usage": {
+        "prompt": 18939,
+        "completion": 20,
+        "cached": 18509,
+        "cost": 0.00024049
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "billed" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 4,
+      "text": "",
+      "usage": {
+        "prompt": 19031,
+        "completion": 117,
+        "cached": 18605,
+        "cost": 0.00028865
+      },
+      "tool_calls": [
+        {
+          "name": "modify_view",
+          "args": {
+            "intent": "Expand readings and the billing pipeline bindings to identify the report's current sample inputs and observable total after the billed fix.",
+            "replace": false
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "open: billed, with_surcharge, readings, total, noise, station, volume, cost, from_station, subtotal, target · added: readings, total, noise, station, volume, cost, from_station, subtotal, target",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 5,
+      "text": "",
+      "usage": {
+        "prompt": 19250,
+        "completion": 420,
+        "cached": 18665,
+        "cost": 0.0004578
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "total" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 6,
+      "text": "",
+      "usage": {
+        "prompt": 19319,
+        "completion": 407,
+        "cached": 18771,
+        "cost": 0.00044746
+      },
+      "tool_calls": [
+        {
+          "name": "update_definition",
+          "args": {
+            "path": "with_surcharge",
+            "code": "fun amounts -> map(amounts, fun n -> n + 3)"
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The update_definition tool call was successful and has been applied to the model.",
+            "diff": {
+              "old": "let with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n)\nin",
+              "new": "let with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 7,
+      "text": "",
+      "usage": {
+        "prompt": 19384,
+        "completion": 23,
+        "cached": 18829,
+        "cost": 0.00025769
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "with_surcharge", "total" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 8,
+      "text": "",
+      "usage": {
+        "prompt": 19485,
+        "completion": 1184,
+        "cached": 18925,
+        "cost": 0.0008389
+      },
+      "tool_calls": [
+        {
+          "name": "insert_after",
+          "args": {
+            "path": "target",
+            "code": "let base_total = subtotal(billed(target)) in"
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The insert_after tool call was successful and has been applied to the model.",
+            "diff": {
+              "old": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet target = from_station(2) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntotal",
+              "new": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet target = from_station(2) in\n\nlet base_total = subtotal(billed(target)) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntotal"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 9,
+      "text": "",
+      "usage": {
+        "prompt": 19540,
+        "completion": 321,
+        "cached": 18991,
+        "cost": 0.00040736
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "base_total", "total" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 10,
+      "text": "",
+      "usage": {
+        "prompt": 19629,
+        "completion": 375,
+        "cached": 19073,
+        "cost": 0.00043543
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "target", "base_total" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 11,
+      "text": "",
+      "usage": {
+        "prompt": 19704,
+        "completion": 2109,
+        "cached": 19137,
+        "cost": 0.00130417
+      },
+      "tool_calls": [
+        {
+          "name": "insert_after",
+          "args": {
+            "path": "with_surcharge",
+            "code": "let sample_billed = billed([(2, 4, 5)]) in"
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The insert_after tool call was successful and has been applied to the model.",
+            "diff": {
+              "old": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet target = from_station(2) in\n\nlet base_total = subtotal(billed(target)) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntotal",
+              "new": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet sample_billed = billed([(2, 4, 5)]) in\n\nlet target = from_station(2) in\n\nlet base_total = subtotal(billed(target)) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntotal"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 12,
+      "text": "",
+      "usage": {
+        "prompt": 19778,
+        "completion": 206,
+        "cached": 19201,
+        "cost": 0.00035516
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "sample_billed" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 13,
+      "text": "",
+      "usage": {
+        "prompt": 19860,
+        "completion": 697,
+        "cached": 19299,
+        "cost": 0.00059914
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": {
+            "paths": [
+              "billed", "with_surcharge", "target", "base_total", "total"
+            ]
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        },
+        {
+          "name": "remove_probe",
+          "args": { "paths": [ "sample_billed" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The remove_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 14,
+      "text": "",
+      "usage": {
+        "prompt": 20082,
+        "completion": 209,
+        "cached": 19361,
+        "cost": 0.00037406
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "sample_billed" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 15,
+      "text": "",
+      "usage": {
+        "prompt": 20156,
+        "completion": 1082,
+        "cached": 19515,
+        "cost": 0.0008018
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "readings", "target" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        },
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "volume", "cost" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 16,
+      "text": "",
+      "usage": {
+        "prompt": 20348,
+        "completion": 399,
+        "cached": 19577,
+        "cost": 0.00047577
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": { "paths": [ "sample_billed" ] },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 17,
+      "text": "",
+      "usage": {
+        "prompt": 20410,
+        "completion": 1486,
+        "cached": 19713,
+        "cost": 0.00101138
+      },
+      "tool_calls": [
+        {
+          "name": "update_body",
+          "args": {
+            "path": "total",
+            "code": "test billed([(2, 4, 5)]) == [20] end;\ntest with_surcharge(billed([(2, 4, 5)])) == [23] end;\ntotal"
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The update_body tool call was successful and has been applied to the model.",
+            "diff": {
+              "old": "let total = subtotal(with_surcharge(billed(target))) in",
+              "new": "let total = subtotal(with_surcharge(billed(target))) in"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 18,
+      "text": "",
+      "usage": {
+        "prompt": 20447,
+        "completion": 365,
+        "cached": 19775,
+        "cost": 0.0004511
+      },
+      "tool_calls": [
+        {
+          "name": "insert_after",
+          "args": {
+            "path": "sample_billed",
+            "code": "let sample_surcharged = with_surcharge(sample_billed) in"
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The insert_after tool call was successful and has been applied to the model.",
+            "diff": {
+              "old": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet sample_billed = billed([(2, 4, 5)]) in\n\nlet target = from_station(2) in\n\nlet base_total = subtotal(billed(target)) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntest billed([(2, 4, 5)]) == [20] end;\ntest with_surcharge(billed([(2, 4, 5)])) == [23] end;\ntotal",
+              "new": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet sample_billed = billed([(2, 4, 5)]) in\n\nlet sample_surcharged = with_surcharge(sample_billed) in\n\nlet target = from_station(2) in\n\nlet base_total = subtotal(billed(target)) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntest billed([(2, 4, 5)]) == [20] end;\ntest with_surcharge(billed([(2, 4, 5)])) == [23] end;\ntotal"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 19,
+      "text": "",
+      "usage": {
+        "prompt": 20554,
+        "completion": 196,
+        "cached": 19921,
+        "cost": 0.00036291
+      },
+      "tool_calls": [
+        {
+          "name": "place_probe",
+          "args": {
+            "paths": [ "sample_billed", "sample_surcharged", "total" ]
+          },
+          "result": {
+            "success": true,
+            "skipped": false,
+            "content": "The place_probe tool call was successful and has been applied to the model.",
+            "diff": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "agent",
+      "turn": 20,
+      "text": "DONE",
+      "usage": {
+        "prompt": 20671,
+        "completion": 1307,
+        "cached": 20017,
+        "cost": 0.00092102
+      },
+      "tool_calls": []
+    }
+  ],
+  "jev_selections": [
+    {
+      "intent": "Inspect definitions for billed and with_surcharge and the relevant values used to check each fix.",
+      "requests": 1,
+      "questions": 9,
+      "input_tokens": 1682,
+      "cost_usd": 7.0644e-05,
+      "latency_ms": 316.0,
+      "yes": [ "billed", "with_surcharge" ],
+      "closure_added": [],
+      "failed": false
+    },
+    {
+      "intent": "Expand readings and the billing pipeline bindings to identify the report's current sample inputs and observable total after the billed fix.",
+      "requests": 1,
+      "questions": 8,
+      "input_tokens": 1508,
+      "cost_usd": 6.3336e-05,
+      "latency_ms": 195.0,
+      "yes": [
+        "readings", "billed", "total", "noise", "station", "volume", "cost",
+        "from_station", "subtotal", "with_surcharge", "target"
+      ],
+      "closure_added": [],
+      "failed": false
+    }
+  ],
+  "jev_edits": [],
+  "final_program": "let noise : Int -> Int =\n  fun i -> int_mod(i * 7919 + 104729, 10007)\nin\n\nlet readings : [(Int, Int, Int)] =\n  init(300, fun i ->\n    (int_mod(noise(i), 4),\n     int_mod(noise(i + 1), 50) + 1,\n     int_mod(noise(i + 2), 20) + 5))\nin\n\nlet station : (Int, Int, Int) -> Int =\n  fun (s, _, _) -> s\nin\n\nlet volume : (Int, Int, Int) -> Int =\n  fun (_, v, _) -> v\nin\n\nlet cost : (Int, Int, Int) -> Int =\n  fun (_, _, c) -> c\nin\n\nlet from_station : Int -> [(Int, Int, Int)] =\n  fun s -> filter(readings, fun r -> station(r) == s)\nin\n\nlet billed : [(Int, Int, Int)] -> [Int] =\n  fun rows -> map(rows, fun r -> volume(r) * cost(r))\nin\n\nlet subtotal : [Int] -> Int =\n  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)\nin\n\nlet with_surcharge : [Int] -> [Int] =\n  fun amounts -> map(amounts, fun n -> n + 3)\nin\n\nlet sample_billed = billed([(2, 4, 5)]) in\n\nlet sample_surcharged = with_surcharge(sample_billed) in\n\nlet target = from_station(2) in\n\nlet base_total = subtotal(billed(target)) in\n\nlet total = subtotal(with_surcharge(billed(target))) in\ntest billed([(2, 4, 5)]) == [20] end;\ntest with_surcharge(billed([(2, 4, 5)])) == [23] end;\ntotal",
+  "final_value": "30700",
+  "goal": "30700",
+  "goal_met": true,
+  "said_done": true
+}
