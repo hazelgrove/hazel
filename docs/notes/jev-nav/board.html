@@ -192,7 +192,7 @@ button:focus-visible, .setup:focus-visible { outline: 2px solid var(--agent); ou
           <li style="--c:var(--agent)"><span>Agent asks in words: <code>modify_view("fuel charge, idle penalty…")</code></span></li>
           <li style="--c:var(--hazel)"><span>Hazel lists every definition with its path + code (61 on the fleet program, ~11k tokens)</span></li>
           <li style="--c:var(--hazel)"><span>Paths named in the request open directly — Jev isn't asked about those</span></li>
-          <li style="--c:var(--jev)"><span>Jev gets one yes/no per remaining definition, all in one batched call: <code>Must the agent read or change X?</code></span></li>
+          <li style="--c:var(--jev)"><span>For each path (e.g. <code>Fuel/fuel_cost</code>), Jev answers: expand it or keep it folded? Asked as <code>Must the agent read or change Fuel/fuel_cost to do this?</code> — all paths in one batched call</span></li>
           <li style="--c:var(--jev)"><span>Jev returns P(yes) for each → "yes" = P &gt; 0.5 (Jev's own call, no extra cutoff)</span></li>
           <li style="--c:var(--hazel)"><span>Hazel opens the yes-set + their parent modules (a folded parent would hide them)</span></li>
           <li style="--c:var(--hazel)"><span>Added to the current view (or replaces it if the agent asked for a reset); everything else stays folded <code>⋱</code></span></li>
@@ -202,8 +202,8 @@ button:focus-visible, .setup:focus-visible { outline: 2px solid var(--agent); ou
       <div class="card">
         <div class="card-h"><h3>Inside one Jev code request</h3><button class="i" data-info="editreq" aria-label="About a code request">i</button></div>
         <ol class="seq">
-          <li style="--c:var(--agent)"><span>Agent calls <code>jev_edit(path, goal, names, sketch with ?)</code> — or no sketch in "Jev builds"</span></li>
-          <li style="--c:var(--hazel)"><span>Hazel finds every <code>?</code> hole and lists what can legally go there (right type, in scope, + agent's names/numbers)</span></li>
+          <li style="--c:var(--agent)"><span>Agent calls <code>jev_edit(path, goal, names)</code> — no code, just the spec</span></li>
+          <li style="--c:var(--hazel)"><span>Hazel starts from one <code>?</code> hole and lists what can legally go there (right type, in scope, code shapes, + agent's names/numbers)</span></li>
           <li style="--c:var(--jev)"><span>Jev picks one option per hole (multiple choice), holes batched</span></li>
           <li style="--c:var(--hazel)"><span>Hazel rejects any pick that adds a type error</span></li>
           <li style="--c:var(--hazel)"><span>New holes from the pick (e.g. <code>if ? then ? else ?</code>) → repeat, up to a round limit</span></li>
@@ -346,15 +346,15 @@ whole run       ~5% (all requests pooled, vs the 3 bug locations)</div><p>The wh
     how: `<p>Spend = the lab key's usage before vs after each eval (Eval 1 $0.0245, Eval 2 $0.0701, Eval 3 $0.1000). Runs were picked ad hoc, so counts are uneven; the next step is a planned grid, costed first.</p>`, key: ["verdict"] },
   arch: { kind: "Architecture", title: "Architecture",
     what: `<p>Three actors: the agent (plans), Jev (picks), Hazel (lists what's valid and checks everything). Fixing a bug has two jobs — choose what to look at, and write the fix. Each setup gives those jobs to the agent, to Jev, or splits them.</p>`,
-    how: `<p>Every setup is a switch in Hazel: <code>/jev-prepass</code>, <code>/jev-view-tool</code>, <code>/jev-edit-tool</code>, <code>/jev-builds</code>, <code>/jev-mode</code>. All off = the original agent. Code: <code>JevNav.re</code>, <code>JevEdit.re</code>, <code>AgentJev.re</code>.</p>`, key: ["verdict"] },
+    how: `<p>Every setup is a switch in Hazel: <code>/jev-view-tool</code>, <code>/jev-edit-tool</code>, <code>/jev-builds</code>, <code>/jev-mode</code>. All off = the original agent. Code: <code>JevNav.re</code>, <code>JevEdit.re</code>, <code>AgentJev.re</code>.</p>`, key: ["verdict"] },
   loop: { kind: "Diagram", title: "One agent turn, end to end",
     what: `<p>The agent works in turns. Each turn it reads the bug report, history and current view, then calls tools: <b>look</b> (change the view), <b>edit</b> (change code) or <b>check</b> (run the program). Hazel applies each call, type-checks, and returns the result. The loop ends when the agent says it's done or hits the turn limit.</p><p>Faded boxes aren't used in the selected setup.</p>`,
-    how: `<p>Drawn from the agent loop code (<code>AgentSend</code> → <code>AgentResponse</code> → <code>AgentToolExec</code>) and the Jev hooks: the pre-pick runs before a turn is sent; <code>modify_view</code> and <code>jev_edit</code> replace the agent's own look/edit tools when their switches are on.</p>`, key: ["f-done"] },
+    how: `<p>Drawn from the agent loop code (<code>AgentSend</code> → <code>AgentResponse</code> → <code>AgentToolExec</code>) and the Jev hooks: <code>modify_view</code> and <code>jev_edit</code> replace the agent's own look/edit tools when their switches are on.</p>`, key: ["f-done"] },
   view: { kind: "Job", title: "Choose what code to look at",
     what: `<p>The agent can't read the whole program at full size every turn. Some definitions are shown, the rest folded.</p><ul><li><b>Agent</b>: opens/folds definitions itself.</li><li><b>Jev</b>: the agent describes what it needs; Jev decides what opens.</li></ul>`,
     how: `<p>In the Jev setup the agent's open/fold tools are removed and refused, so the agent can't bypass Jev.</p>`, key: ["picks", "screen"] },
   code: { kind: "Job", title: "Write the fix",
-    what: `<ul><li><b>Agent</b>: writes new code directly.</li><li><b>Jev fills</b>: agent writes code with <code>?</code> holes; Jev fills each.</li><li><b>Jev builds</b>: agent gives only the goal and names; Jev grows the code from one <code>?</code>.</li></ul>`,
+    what: `<ul><li><b>Agent</b>: writes new code directly.</li><li><b>Jev builds</b>: agent gives only the goal and names; Jev grows the code from one <code>?</code>.</li></ul>`,
     how: `<p>In Jev code setups the agent's direct edit tools are removed and refused. Tests can still be added by the agent.</p>`, key: ["f-build"] },
   navreq: { kind: "Flow", title: "Inside one Jev view request",
     what: `<p>How a request in words becomes a view. One batched Jev call per request.</p>`,
@@ -393,21 +393,15 @@ const SETUPS = [
   { id: "orig", name: "Original", runs: 3, status: "3 of 3 correct", pre: false, look: "agent", edit: "agent",
     view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent writes the fix"]],
     info: { kind: "Setup", title: "Agent navigates + edits (original)", what: `<p>Hazel's default agent, unchanged. One LLM chooses what to look at and writes every fix. No Jev.</p>`, how: `<p>All Jev switches off. Every other setup is compared to this.</p>`, key: ["verdict", "f-done"] } },
-  { id: "prepass", name: "Jev picks first view", runs: 0, status: "not run yet", pre: true, look: "agent", edit: "agent",
-    view: [["jev", "Jev picks a starting view"], ["agent", "Agent adjusts"]], code: [["agent", "Agent writes the fix"]],
-    info: { kind: "Setup", title: "Jev picks first view, agent navigates + edits", what: `<p>Before each message reaches the agent, Jev opens what looks relevant. The agent can still open/fold and writes every fix.</p>`, how: `<p><code>/jev-prepass</code>. Not run yet.</p>`, key: ["picks"] } },
   { id: "view", name: "Jev navigates", runs: 4, status: "3 of 4 correct — the 4th fixed all bugs but changed the final line", pre: false, look: "jev", edit: "agent",
     view: [["agent", "Agent asks in words"], ["jev", "Jev chooses"], ["hazel", "Hazel opens"]], code: [["agent", "Agent writes the fix"]],
     info: { kind: "Setup", title: "Jev navigates, agent edits", what: `<p>The agent loses open/fold. It describes what it needs; Jev decides what's shown. The agent still writes every fix.</p>`, how: `<p><code>/jev-view-tool</code>. The setup we tested most.</p>`, key: ["verdict", "gap", "picks", "f-grader"] } },
-  { id: "sketch", name: "Jev fills blanks", runs: 0, status: "not run yet", pre: false, look: "agent", edit: "jev",
-    view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent writes code with ?"], ["hazel", "Hazel lists options"], ["jev", "Jev picks"]],
-    info: { kind: "Setup", title: "Agent sketches, Jev fills blanks", what: `<p>The agent writes the fix with <code>?</code> holes; Jev fills each from Hazel's list of valid options.</p>`, how: `<p><code>/jev-edit-tool</code>. Mostly a baseline: the agent could often type the holes itself.</p>`, key: ["f-build"] } },
   { id: "build", name: "Jev builds code", runs: 0, status: "not run yet", pre: false, look: "agent", edit: "jev",
     view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent gives goal + names"], ["hazel", "Hazel lists shapes"], ["jev", "Jev builds step by step"]],
     info: { kind: "Setup", title: "Agent specs, Jev builds code", what: `<p>No code from the agent: only where, what for, and which names. Jev grows the code from one <code>?</code>.</p>`, how: `<p><code>/jev-builds</code>. Blocked by missing building blocks.</p>`, key: ["f-build"] } },
   { id: "full", name: "Full Jev", runs: 1, status: "0 of 1 correct", pre: true, look: "jev", edit: "jev",
-    view: [["jev", "Jev pre-picks"], ["agent", "Agent asks in words"], ["jev", "Jev chooses"]], code: [["agent", "Agent gives the plan"], ["hazel", "Hazel lists options"], ["jev", "Jev writes the code"]],
-    info: { kind: "Setup", title: "Jev navigates + builds, agent plans", what: `<p>Everything at once: Jev picks the view and writes all the code; the agent only plans.</p>`, how: `<p><code>/jev-mode</code>. One run (small program): wrong output, half-built code left behind.</p>`, key: ["f-build", "verdict"] } },
+    view: [["agent", "Agent asks in words"], ["jev", "Jev chooses"], ["hazel", "Hazel opens"]], code: [["agent", "Agent gives the plan"], ["hazel", "Hazel lists options"], ["jev", "Jev writes the code"]],
+    info: { kind: "Setup", title: "Jev navigates + builds, agent plans", what: `<p>Everything at once: Jev picks the view and writes all the code; the agent only plans.</p>`, how: `<p><code>/jev-mode</code>. One run (small program): wrong output, half-built code left behind. That run also had Jev pick a one-time starting view, a setup since dropped: the view has to change as the work goes, so a fixed start adds little.</p>`, key: ["f-build", "verdict"] } },
 ];
 SETUPS.forEach((s) => (INFO["s-" + s.id] = s.info));
 
@@ -443,21 +437,19 @@ function bindTips(root) {
 // ---------- architecture: turn loop ----------
 const NODES = {
   task:   { x: 20,  y: 196, w: 120, h: 58, c: "agent", l: "Bug report", s: "task prompt" },
-  pre:    { x: 180, y: 40,  w: 170, h: 58, c: "jev",   l: "Jev pre-pick", s: "before each turn" },
   turn:   { x: 180, y: 196, w: 170, h: 58, c: "agent", l: "Agent turn", s: "reads prompt + view" },
   look_a: { x: 420, y: 20,  w: 190, h: 50, c: "agent", l: "expand / collapse", s: "agent opens code" },
   look_j: { x: 420, y: 84,  w: 190, h: 50, c: "agent", l: "modify_view(need)", s: "asks in words" },
-  jevnav: { x: 650, y: 84,  w: 150, h: 50, c: "jev",   l: "Jev: yes/no each", s: "1 batched call" },
+  jevnav: { x: 650, y: 84,  w: 150, h: 50, c: "jev",   l: "Jev: expand this path?", s: "yes/no per path" },
   edit_a: { x: 420, y: 172, w: 190, h: 50, c: "agent", l: "update / insert", s: "agent writes code" },
-  edit_j: { x: 420, y: 236, w: 190, h: 50, c: "agent", l: "jev_edit(goal, ?)", s: "spec or sketch" },
+  edit_j: { x: 420, y: 236, w: 190, h: 50, c: "agent", l: "jev_edit(goal, names)", s: "agent gives the spec" },
   jeved:  { x: 650, y: 236, w: 150, h: 50, c: "jev",   l: "Jev picks options", s: "per hole" },
   check:  { x: 420, y: 324, w: 190, h: 50, c: "agent", l: "run / add tests", s: "check the value" },
-  hazel:  { x: 830, y: 150, w: 130, h: 140, c: "hazel", l: "Hazel", s: "applies · type-checks" },
+  hazel:  { x: 820, y: 150, w: 150, h: 140, c: "hazel", l: "Hazel", s: "applies + checks" },
   stop:   { x: 180, y: 380, w: 170, h: 58, c: "agent", l: "Done or turn limit", s: "24 / 40 turns" },
 };
 const EDGES = [
   ["task", "turn", "M140,225 L180,225"],
-  ["pre", "turn", "M265,98 L265,196"],
   ["turn", "look_a", "M350,215 C385,215 385,45 420,45"],
   ["turn", "look_j", "M350,220 C390,220 390,109 420,109"],
   ["look_j", "jevnav", "M610,109 L650,109"],
@@ -465,16 +457,15 @@ const EDGES = [
   ["turn", "edit_j", "M350,230 C385,230 385,261 420,261"],
   ["edit_j", "jeved", "M610,261 L650,261"],
   ["turn", "check", "M350,238 C385,238 385,349 420,349"],
-  ["look_a", "hazel", "M610,45 C760,45 780,170 830,175"],
-  ["jevnav", "hazel", "M800,109 C815,109 815,190 830,190"],
-  ["edit_a", "hazel", "M610,197 C720,197 780,205 830,205"],
-  ["jeved", "hazel", "M800,261 C815,261 815,240 830,240"],
-  ["check", "hazel", "M610,349 C760,349 790,280 830,275"],
+  ["look_a", "hazel", "M610,45 C760,45 780,170 820,175"],
+  ["jevnav", "hazel", "M800,109 C815,109 815,190 820,190"],
+  ["edit_a", "hazel", "M610,197 C720,197 780,205 820,205"],
+  ["jeved", "hazel", "M800,261 C815,261 815,240 820,240"],
+  ["check", "hazel", "M610,349 C760,349 790,280 820,275"],
   ["hazel", "turn", "M895,290 C895,450 300,470 300,254"],
   ["turn", "stop", "M230,254 L230,380"],
 ];
 function nodeOn(id, s) {
-  if (id === "pre") return s.pre;
   if (id === "look_a") return s.look === "agent";
   if (id === "look_j" || id === "jevnav") return s.look === "jev";
   if (id === "edit_a") return s.edit === "agent";
@@ -523,12 +514,12 @@ const TESTS = [
     r2(symC, "Original", "agent"), r2(symJ, "Jev navigates", "jev") ] },
 ];
 $("tests").innerHTML = TESTS.map((t) => {
-  const max = Math.max(...t.runs.map((r) => r.agent + r.jev));
+  const max = Math.max(...t.runs.map((r) => r.agent + r.jev)) * 1.6;
   return `<div class="card"><div class="card-h"><div><h3>${esc(t.name)}</h3><small>${esc(t.sub)}</small></div>${iBtn("results", "How to read")}</div>`
-    + `<svg viewBox="0 0 400 ${t.runs.length * 38 + 4}" width="100%" role="img" aria-label="Cost per run">${t.runs.map((r, i) => {
-      const y = i * 38 + 6, tot = r.agent + r.jev, x0 = 112, W = 160, wa = (r.agent / max) * W, wj = (r.jev / max) * W;
+    + `<svg viewBox="0 0 320 ${t.runs.length * 38 + 4}" width="100%" role="img" aria-label="Cost per run">${t.runs.map((r, i) => {
+      const y = i * 38 + 6, tot = r.agent + r.jev, x0 = 108, W = 212, wa = (r.agent / max) * W, wj = (r.jev / max) * W;
       const tipText = `${r.who}: ${usd(tot)} (agent ${usd(r.agent)}, Jev ${usd(r.jev)}) · ${r.s}s · ${r.turns} turns${r.note ? " · " + r.note : ""}`;
-      return `<g data-tip="${esc(tipText)}"><rect x="0" y="${y - 4}" width="400" height="34" fill="transparent"/><text x="0" y="${y + 15}" font-size="11" fill="var(--ink-2)">${esc(r.who)}</text>`
+      return `<g data-tip="${esc(tipText)}"><rect x="0" y="${y - 4}" width="320" height="34" fill="transparent"/><text x="0" y="${y + 15}" font-size="11" fill="var(--ink-2)">${esc(r.who)}</text>`
         + `<rect x="${x0}" y="${y}" width="${Math.max(wa, 2)}" height="22" rx="3" fill="var(--agent)"/>`
         + (r.jev ? `<rect x="${x0 + wa + 2}" y="${y}" width="${Math.max(wj - 2, 2)}" height="22" rx="3" fill="var(--jev)"/>` : "")
         + `<text x="${x0 + wa + wj + 6}" y="${y + 15}" font-size="11" fill="var(--ink-2)">${usd(tot)} · ${r.s}s</text>`
@@ -594,8 +585,8 @@ function renderPicks() {
   const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
   $("pickStats").innerHTML = [[`${first[2]}/${first[1]}`, "first request on target"], [`${Math.round((first[2] / r.nTargets) * 100)}%`, "bug locations found, first request"], [String(med(sels.map((s) => s[1]))), `median opened per request (of ~${med(sels.map((s) => s[0] + 3))})`]]
     .map(([b, s]) => `<div class="mini"><b>${b}</b><span>${s}</span></div>`).join("") ;
-  const W = 900, rowH = 20, L = 34, H = sels.length * rowH + 30, total = Math.max(...sels.map((s) => Math.max(s[0], s[1]))) ;
-  const sc = (W - L - 60) / total;
+  const W = 460, rowH = 18, L = 30, H = sels.length * rowH + 30, total = Math.max(...sels.map((s) => Math.max(s[0], s[1]))) ;
+  const sc = (W - L - 70) / total;
   $("pickChart").innerHTML = `<div class="scroll"><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Definitions opened per request">${sels.map((s, i) => {
     const [q, opened, hit, ms] = s, y = 6 + i * rowH, all = Math.max(q, opened), tt = `Request ${i + 1}: opened ${opened} of ~${all} · ${hit} of ${r.nTargets} bug locations · ${ms} ms`;
     return `<g data-tip="${esc(tt)}"><text x="0" y="${y + 11}" font-size="10" fill="var(--muted)">#${i + 1}</text>`
