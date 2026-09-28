@@ -17,9 +17,6 @@
 #                thicker and darker as the slider goes up #
 #   head rays    rays out of the open head, as long as the head is #
 #                open lets them be #
-#                (NOT DRAWN YET: these two are in the face's #
-#                meaning, but drawing them makes the face too big #
-#                for the editor's stack for now) #
 #   teeth        up to five pointed teeth along the mouth, #
 #                alternately up and down #
 
@@ -273,6 +270,50 @@ let ^kid_face = {
         [Attr.create("cx", string_of_int(x)), Attr.create("cy", "100"),
          Attr.create("r", string_of_int(r))], []);
 
+  # Lines: each from a center, along a direction (dx, dy) out of 100, #
+  # from radius r0 for len. A line of length 0 is drawn but unseen, #
+  # so the lists keep their length. #
+  let ray = fun (cx, cy, r0, len, width, color, dx, dy)
+      : (Int, Int, Int, Int, Int, String, Int, Int) ->
+    Html.node("line",
+      [Attr.create("x1", string_of_int(cx + r0 * dx / 100)),
+       Attr.create("y1", string_of_int(cy + r0 * dy / 100)),
+       Attr.create("x2", string_of_int(cx + (r0 + len) * dx / 100)),
+       Attr.create("y2", string_of_int(cy + (r0 + len) * dy / 100)),
+       Attr.create("stroke", color),
+       Attr.create("stroke-width", string_of_int(width)),
+       Attr.create("stroke-linecap", "round"),
+       Attr.create("stroke-opacity", if len > 0 then "1" else "0")], []);
+  # Side lines fan out of the right side, and mirrored out of the #
+  # left; more of the fan shows as the slider goes up, middle first. #
+  # Each direction is (dx, dy + 100), so the table has no minus signs. #
+  let fan = [(100, 100), (94, 134), (94, 66), (77, 164), (77, 36)];
+  let sides_of = fun (i, v, ds) : (Int, Int, [(Int, Int)]) ->
+    case ds
+    | [] => []
+    | (dx, oy) :: rest =>
+      let dy = oy - 100 in
+      let shown = if v == 0 then 0 else 1 + v * 4 / 100 in
+      let len = if i < shown then 8 + v * 35 / 100 else 0 in
+      let width = 2 + v / 25 in
+      let color = nth((["#999999", "#666666", "#333333", "black", "black"], v / 26)) in
+      ray((100, 111, 86, len, width, color, dx, dy))
+      :: ray((100, 111, 86, len, width, color, 0 - dx, dy))
+      :: sides_of((i + 1, v, rest))
+    end;
+  # Head rays shoot up out of the crack, in a fan of seven. Each is #
+  # (dx + 100, how far up). #
+  let up_fan =
+    [(100, 100), (134, 94), (66, 94), (164, 77), (36, 77), (187, 50),
+     (13, 50)];
+  let rays_up = fun (len, width, ds) : (Int, Int, [(Int, Int)]) ->
+    case ds
+    | [] => []
+    | (ox, up) :: rest =>
+      ray((100, 60, 18, len, width, "orange", ox - 100, 0 - up))
+      :: rays_up((len, width, rest))
+    end;
+
   # Teeth: up to five triangles along the mouth's curve, spread evenly #
   # however many there are, alternately sticking up and down. The #
   # mouth is M60 150 Q100 q 140 150, so at t = j/(n+1) it passes x = 60 #
@@ -328,6 +369,7 @@ let ^kid_face = {
     let sd = case sd_res | Some(Val(n)) => clamp(n) | _ => 0 end in
     let r = case r_res | Some(Val(n)) => clamp(n) | _ => 0 end in
     let t = case t_res | Some(Val(n)) => (if n < 0 then 0 else if n > 5 then 5 else n) | _ => 0 end in
+    let ray_len = if r == 0 then 0 else (15 + r * 6 / 10) * b / 100 in
     let shown = if k * b >= 2500 then pieces_n else k * b * pieces_n / 2500 in
     let lift = b * 7 / 10 in
     let tilt = b / 4 in
@@ -347,7 +389,9 @@ let ^kid_face = {
            Attr.on_mouse_down_at(fun (_x, y) -> Down(y)),
            Attr.on_mouse_move_at(fun (_x, y) -> MoveTo(y)),
            Attr.on_mouse_up_at(fun _p -> Up)],
-          [part(lower_head)]
+          sides_of((0, sd, fan))
+          @ [part(lower_head)]
+          @ rays_up((ray_len, 3 + r / 25, up_fan))
           @ [Html.node("g",
                [Attr.create("transform",
                   "translate(0 " ++ string_of_int(0 - lift) ++ ") rotate("
