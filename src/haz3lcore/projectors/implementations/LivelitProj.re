@@ -210,6 +210,50 @@ let wrap_marked_field = (field: Base.segment): option(Base.segment) => {
   };
 };
 
+/* `Live((0))` -> `Live((<splice 0>))`: a constructor's parenthesized
+ * arguments, each spliced as a marked field's value is, for a Model like
+ * `+ Frozen(Int, SpliceRef) + Live(SpliceRef)`. None when none is. */
+let wrap_ctor_args = (arg: Base.segment): option(Base.segment) => {
+  let (lead, core, trail) = split_outer_secondary(arg);
+  let is_ctor = (c: string) =>
+    String.length(c) > 0
+    && Char.uppercase_ascii(c.[0]) == c.[0]
+    && Char.lowercase_ascii(c.[0]) != c.[0];
+  switch (core) {
+  | [
+      Base.Tile({label: [c], _}) as ctor,
+      Base.Tile({label: ["(", ")"], children: [inner], _} as ap),
+    ]
+      when is_ctor(c) =>
+    let wrapped = ref(false);
+    let inner' =
+      map_comma_groups(
+        el =>
+          switch (wrap_parens(el)) {
+          | Some(el') =>
+            wrapped := true;
+            el';
+          | None => el
+          },
+        inner,
+      );
+    wrapped^
+      ? Some(
+          lead
+          @ [
+            ctor,
+            Base.Tile({
+              ...ap,
+              children: [inner'],
+            }),
+          ]
+          @ trail,
+        )
+      : None;
+  | _ => None
+  };
+};
+
 /* Rewrite the model tuple's marked fields. [seg] is the whole
  * invocation: the `^name` tile followed by the application's
  * argument tile. Returns None when nothing was marked, so an
@@ -226,18 +270,24 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   /* `^name((a=1, b=(2)))` puts the tuple's own parens inside the
    * application's, so descend one layer when there is one. */
   let rewrite_arg = (arg: Base.segment): Base.segment =>
-    switch (arg) {
-    | [p] =>
-      switch (as_parens(p)) {
-      | Some((t, inner)) => [
-          Base.Tile({
-            ...t,
-            children: [map_comma_groups(wrap, inner)],
-          }),
-        ]
-      | None => map_comma_groups(wrap, arg)
+    switch (wrap_ctor_args(arg)) {
+    | Some(arg') =>
+      incr(wrapped);
+      arg';
+    | None =>
+      switch (arg) {
+      | [p] =>
+        switch (as_parens(p)) {
+        | Some((t, inner)) => [
+            Base.Tile({
+              ...t,
+              children: [map_comma_groups(wrap, inner)],
+            }),
+          ]
+        | None => map_comma_groups(wrap, arg)
+        }
+      | _ => map_comma_groups(wrap, arg)
       }
-    | _ => map_comma_groups(wrap, arg)
     };
   let seg' =
     List.map(

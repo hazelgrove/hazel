@@ -562,6 +562,17 @@ let expose_splice_refs =
           ...v,
           term: (ListLit(List.map(expose(t), xs)): TermBase.Exp.term),
         }
+      /* A constructor's argument, at the type its variant gives: a Model
+         like `+ Frozen(Int, SpliceRef) + Live(SpliceRef)` holds its
+         splices inside constructors. */
+      | (Ap(Forward, {term: Constructor(name, _), _} as c, x), Sum(m)) =>
+        switch (ConstructorMap.get_entry(name, m)) {
+        | Some(Some(arg_ty)) => {
+            ...v,
+            term: (Ap(Forward, c, expose(arg_ty, x)): TermBase.Exp.term),
+          }
+        | _ => v
+        }
       | _ => v
       }
     };

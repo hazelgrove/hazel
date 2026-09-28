@@ -6,8 +6,8 @@
 #   doi.org/10.1145/3453483.3454059 #
 # Every "Sec." below is a section of that paper. Where this #
 # implementation does something different, the slide says so, and #
-# says why. The next slide, Color (Figure 3), rebuilds the paper's #
-# own example line by line. #
+# says why. Color (Figure 3), after the slides that build up to #
+# Macros, rebuilds the paper's own example line by line. #
 
 # A livelit is a live GUI that fills a typed hole in a program #
 # (Sec. 1, Sec. 2). You write the GUI once; every USE of it is then a #
@@ -212,17 +212,19 @@ let ^flag = {
 
 # WHERE TO GO NEXT #
 
-# Color (Figure 3) the paper's own example, rebuilt line by line #
 # Define a Slider  a number you drag, expanding to that number #
 # Parameters       one slider definition, its bounds as parameters #
 # Emotion          the widget IS the control: drag a face #
 # Emotion (Kids' Choice) #
-#                  a bigger face, fed by three sliders: color, #
-#                  exploding, and candy #
+#                  a bigger face, fed by sliders and toggles: #
+#                  color, exploding, candy, eyes, teeth #
 # 1990s Face       the "Have a Day" poster: one smiley, a stamp per day #
 # Color Picker     helpers are ordinary members of the module #
 # Higher-order, Functional Expansion #
 #                  an expansion that is a curried function #
+# Lockable Cell    a cell you can lock: a Macro whose code does not #
+#                  run while locked #
+# Color (Figure 3) the paper's own example, rebuilt line by line #
 # Editable Parameters #
 #                  a slider whose bounds are splices, not fixed #
 # Tree Care        a model that is a tree, fed by a growth style #
