@@ -65,6 +65,11 @@ let remold = (z: t, ~root): t => {
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
   z |> remold(~root) |> regrout(d);
 
+/* ~regrout=false skips the regrout: Parser.to_zipper ~by_run regrouts
+   once at the end instead of after every insertion. */
+let remold_maybe_regrout = (~regrout: bool, d: Direction.t, z: t, ~root): t =>
+  regrout ? remold_regrout(d, z, ~root) : remold(z, ~root);
+
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
  * ID, then absorbs them into the parent via reassemble_parent-style
@@ -943,10 +948,11 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+let put_down_target =
+    (~regrout=true, d: Direction.t, target: Tile.t, z: t, ~root): t =>
   z
   |> put_down_core([Tile(target)])
-  |> remold_regrout(Left, ~root)
+  |> remold_maybe_regrout(~regrout, Left, ~root)
   |> adj_pos(d);
 
 let put_down = (z: t, ~root): option(t) =>

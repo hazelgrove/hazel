@@ -83,14 +83,19 @@ let take_run = (chars: list(string)): option((string, list(string))) => {
 /* Insert characters one-by-one into a zipper. Used for paste and
    other operations that start from an existing zipper state.
    With ~by_run, a run from take_run goes in as one insertion whenever
-   the caret is between tokens, so a run of n characters costs one pass
-   over its siblings instead of n. */
+   the caret is between tokens, and insertions skip their regrout, which
+   is done once at the end: regrouting walks the whole sibling run, so
+   doing it per insertion made loading quadratic in the run's length. */
 let to_zipper =
     (~by_run=false, ~root, ~zipper_init=Zipper.init(), str: string)
     : option(Zipper.t) => {
   let insert = (z: Zipper.t, c: string): option(Zipper.t) =>
     /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
-    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
+    try(
+      c == "\r"
+        ? Some(z)
+        : Insert.go(~auto_indent=false, ~regrout=!by_run, c, z, ~root)
+    ) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
@@ -111,6 +116,8 @@ let to_zipper =
       go(z, rest);
     };
   let+ z = go(zipper_init, Token.to_list(str));
+  /* ~by_run skipped every per-insertion regrout; do it once here. */
+  let z = by_run ? Zipper.remold_regrout(Left, z, ~root) : z;
   Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
