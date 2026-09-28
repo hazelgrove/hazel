@@ -1488,6 +1488,27 @@ module Update = {
     | _ => false
     };
 
+  /* While the shared document is a read-only view (the host is scrubbing
+     its history), the program can be read and navigated but not changed:
+     actions that would edit it are dropped. The document rejects writes
+     too; this keeps the view from drifting away from it. */
+  let edits_program = (action: t): bool => {
+    let cell_edit = (a: CellEditor.Update.t) =>
+      switch (a) {
+      | MainEditor(Perform(a)) => Haz3lcore.Action.is_edit(a)
+      | MainEditor(TAB) => true
+      | MainEditor(ContextMenu(_) | DebugConsole(_))
+      | ResultAction(_) => false
+      };
+    switch (action) {
+    | CellAction(a)
+    | StackHeader(_, a)
+    | StackBody(_, a) => cell_edit(a)
+    | OutlineDefOp(_) => true
+    | _ => false
+    };
+  };
+
   let update =
       (
         ~schedule_action,
@@ -1496,7 +1517,12 @@ module Update = {
         action,
         model: Model.t,
       ) =>
-    if (ScratchCollab.State.active^ && blocked_while_collaborating(action)) {
+    if (ScratchCollab.State.active^
+        && (
+          blocked_while_collaborating(action)
+          || ScratchCollab.State.read_only^
+          && edits_program(action)
+        )) {
       model |> Updated.return_quiet;
     } else {
       let updated =
