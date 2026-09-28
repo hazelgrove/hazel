@@ -50,7 +50,7 @@ let ^dread_dial = ^slider("whimsy / horror", 0, 100) in
 
 let ^smiley = {
   type Model = (stamp = SpliceRef, love = SpliceRef, dread = SpliceRef);
-  type Action = Int;
+  type Action = ();
   # What a use means: the poster's caption for its day. #
   type Expansion = String;
 
