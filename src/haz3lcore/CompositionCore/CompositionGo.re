@@ -428,13 +428,21 @@ module Local = {
             ),
           )
         | None =>
+          /* The parse above minted a fresh id for every piece, so on its own
+             this edit makes everything it touches uncacheable. Diff the
+             replacement against the syntax it is replacing (the selection,
+             which insert_segment is about to drop) and carry the ids of the
+             parts that did not change across. Every transplant is checked and
+             a failure discards the whole match; see IdMatch's header comment
+             for what a wrong match does and does not cost. */
+          let segment = IdMatch.for_selection(z, segment);
           Ok(
             Zipper.insert_segment(
               z,
               pad_fusing_edges(z, segment),
               ~root=Exp,
             ),
-          )
+          );
         }
       | None =>
         Error(

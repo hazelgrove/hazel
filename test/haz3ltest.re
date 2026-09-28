@@ -72,6 +72,7 @@ let (suite, exit_with_test_status) =
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
     @ Test_Introduce.tests
+    @ Test_IdMatch.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
     @ Test_RoundtripFuzz.tests
