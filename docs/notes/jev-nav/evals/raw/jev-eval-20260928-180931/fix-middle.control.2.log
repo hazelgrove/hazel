@@ -1,0 +1,68 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+error: exceeded --max-turns (24); stopping.
+--- final program ---
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+
+let readings : [(Int, Int, Int)] =
+  init(300, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+
+let station : (Int, Int, Int) -> Int =
+  fun (s, _, _) -> s
+in
+
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+
+let cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+
+let from_station : Int -> [(Int, Int, Int)] =
+  fun s -> filter(readings, fun r -> station(r) == s)
+in
+
+let billed : [(Int, Int, Int)] -> [Int] =
+  fun rows -> map(rows, fun r -> volume(r) * cost(r))
+in
+
+let subtotal : [Int] -> Int =
+  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)
+in
+
+let with_surcharge : [Int] -> [Int] =
+  fun amounts -> map(amounts, fun n -> n + 3)
+in
+
+let target = from_station(2) in
+
+let billed_check = subtotal(billed([(2, 3, 4)])) in
+
+let billed_target = billed(target) in
+
+let surcharge_check = with_surcharge([1, 2]) in
+
+let total = subtotal(with_surcharge(billed(target))) in
+total
+--- final value ---
+30700
+--- goal: MET (expected 30700) ---
+--- feedback rounds used: 0 ---
+--- editor actions (9) ---
+  update_definition: (Structural(Update Definition billed"fun rows -> map(rows, fun r -> volume(r) * cost(r))"))
+  insert_before: (Structural(Insert Before total"let billed_target = billed(target) in"))
+  insert_before: (Structural(Insert Before billed_target"let billed_check = billed([(2, 3, 4)]) in"))
+  update_definition: (Structural(Update Definition with_surcharge"fun amounts -> map(amounts, fun n -> n + 3)"))
+  update_definition: (Structural(Update Definition billed_check"subtotal(billed([(2, 3, 4)]))"))
+  update_definition: (Structural(Update Definition billed_check"billed([(2, 3, 4)])"))
+  insert_before: (Structural(Insert Before total"let surcharge_check = with_surcharge([1, 2]) in"))
+  update_definition: (Structural(Update Definition with_surcharge"fun amounts -> map(amounts, fun n -> n + 3)"))
+  update_definition: (Structural(Update Definition billed_check"subtotal(billed([(2, 3, 4)]))"))
+wrote transcript: <repo>/bench/results/jev-eval-20260928-180931/fix-middle.control.2.transcript.json
+appended metrics: <repo>/bench/results/jev-eval-20260928-180931/rows.jsonl

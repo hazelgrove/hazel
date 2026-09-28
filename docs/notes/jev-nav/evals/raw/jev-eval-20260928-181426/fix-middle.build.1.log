@@ -1,0 +1,63 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+error: exceeded --max-turns (24); stopping.
+--- final program ---
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+
+let readings : [(Int, Int, Int)] =
+  init(300, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+
+let station : (Int, Int, Int) -> Int =
+  fun (s, _, _) -> s
+in
+
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+
+let cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+
+let from_station : Int -> [(Int, Int, Int)] =
+  fun s -> filter(readings, fun r -> station(r) == s)
+in
+
+let billed : [(Int, Int, Int)] -> [Int] = fun rows -> ? in
+
+let subtotal : [Int] -> Int =
+  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)
+in
+
+let with_surcharge : [Int] -> [Int] =
+  fun amounts -> map(amounts, fun n -> n)
+in
+
+let target = from_station(2) in
+
+let total = subtotal(with_surcharge(billed(target))) in
+total
+--- final value ---
+case case ?:[Int]
+| [] => []:[Int]:[Int]
+| x:: xs' => ((fun n -> n)(x):: (fix map' -> fun (xs, f) -> case xs
+| [] => []
+| x:: xs' => f(x):: map'(xs', f)
+end)(xs', fun n:(?) -> n)):[Int]:[Int]
+end
+| [] => 0:Int
+| x:: xs' => (fix fold_left' -> fun (xs, f, acc) -> case xs
+| [] => acc
+| x:: xs' => fold_left'(xs', f, f(acc, x))
+end)(xs', fun (acc, n):((?, ?)) -> acc + n, (fun (acc, n) -> acc + n)(0, x)):Int
+end
+--- goal: NOT met (expected 30700) ---
+--- feedback rounds used: 0 ---
+--- editor actions (0) ---
+wrote transcript: <repo>/bench/results/jev-eval-20260928-181426/fix-middle.build.1.transcript.json
+appended metrics: <repo>/bench/results/jev-eval-20260928-181426/rows.jsonl

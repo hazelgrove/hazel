@@ -1,0 +1,66 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+--- final program ---
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+
+let readings : [(Int, Int, Int)] =
+  init(300, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+
+let station : (Int, Int, Int) -> Int =
+  fun (s, _, _) -> s
+in
+
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+
+let cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+
+let from_station : Int -> [(Int, Int, Int)] =
+  fun s -> filter(readings, fun r -> station(r) == s)
+in
+
+let billed : [(Int, Int, Int)] -> [Int] =
+  fun rows -> map(rows, fun r -> volume(r) * cost(r))
+in
+
+let subtotal : [Int] -> Int =
+  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)
+in
+
+let with_surcharge : [Int] -> [Int] =
+  fun amounts -> map(amounts, fun n -> n + 3)
+in
+
+let sample_billed = billed([(2, 4, 5)]) in
+
+let sample_surcharged = with_surcharge(sample_billed) in
+
+let target = from_station(2) in
+
+let base_total = subtotal(billed(target)) in
+
+let total = subtotal(with_surcharge(billed(target))) in
+test billed([(2, 4, 5)]) == [20] end;
+test with_surcharge(billed([(2, 4, 5)])) == [23] end;
+total
+--- final value ---
+30700
+--- goal: MET (expected 30700) ---
+--- feedback rounds used: 1 ---
+--- editor actions (6) ---
+  update_definition: (Structural(Update Definition billed"fun rows -> map(rows, fun r -> volume(r) * cost(r))"))
+  update_definition: (Structural(Update Definition with_surcharge"fun amounts -> map(amounts, fun n -> n + 3)"))
+  insert_after: (Structural(Insert After target"let base_total = subtotal(billed(target)) in"))
+  insert_after: (Structural(Insert After with_surcharge"let sample_billed = billed([(2, 4, 5)]) in"))
+  update_body: (Structural(Update Body total"test billed([(2, 4, 5)]) == [20] end;\ntest with_surcharge(billed([(2, 4, 5)])) == [23] end;\ntotal"))
+  insert_after: (Structural(Insert After sample_billed"let sample_surcharged = with_surcharge(sample_billed) in"))
+wrote transcript: <repo>/bench/results/jev-eval-20260928-180935/fix-middle.view.2.transcript.json
+appended metrics: <repo>/bench/results/jev-eval-20260928-180935/rows.jsonl

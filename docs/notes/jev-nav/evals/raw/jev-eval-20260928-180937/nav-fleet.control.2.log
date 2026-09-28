@@ -1,0 +1,208 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+error: exceeded --max-turns (40); stopping.
+--- final program ---
+# Fleet telematics cost report.                                            #
+# Trips are simulated. A trip is (vehicle, km, litres, idle_min, weekday). #
+type TripRow = (Int, Int, Int, Int, Int) in
+
+module Data =
+  let noise : Int -> Int =
+    fun i -> int_mod(i * 7919 + 104729, 10007)
+  in
+  let vehicle_count = 12 in
+  let trip_count = 150 in
+  let trip_of : Int -> TripRow =
+    fun i ->
+      (int_mod(noise(i), vehicle_count),
+       int_mod(noise(i + 1), 300) + 20,
+       int_mod(noise(i + 2), 40) + 5,
+       int_mod(noise(i + 3), 90),
+       int_mod(noise(i + 4), 7))
+  in
+  let trips : [TripRow] = init(trip_count, trip_of) in
+  { let trips = trips; let vehicle_count = vehicle_count }
+in
+
+module Trip =
+  let vehicle : TripRow -> Int = fun (v, _, _, _, _) -> v in
+  let km : TripRow -> Int = fun (_, k, _, _, _) -> k in
+  let litres : TripRow -> Int = fun (_, _, l, _, _) -> l in
+  let idle : TripRow -> Int = fun (_, _, _, m, _) -> m in
+  let weekday : TripRow -> Int = fun (_, _, _, _, d) -> d in
+  let is_weekend : TripRow -> Bool = fun t -> weekday(t) >= 5 in
+  {
+    let vehicle = vehicle;
+    let km = km;
+    let litres = litres;
+    let idle = idle;
+    let weekday = weekday;
+    let is_weekend = is_weekend
+  }
+in
+
+module Stats =
+  let sum : [Int] -> Int =
+    fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+  in
+  let count : [TripRow] -> Int = fun ts -> length(ts) in
+  let larger : (Int, Int) -> Int = fun (a, b) -> if a > b then a else b in
+  let clamp_low : Int -> Int = fun n -> larger(n, 0) in
+  let mean : [Int] -> Int =
+    fun xs -> if length(xs) == 0 then 0 else sum(xs) / length(xs)
+  in
+  let argmax : [Int] -> Int =
+    fun xs ->
+      let indexed = mapi(xs, fun (i, x) -> (i, x)) in
+      let pick : ((Int, Int), (Int, Int)) -> (Int, Int) =
+        fun ((bi, bx), (i, x)) -> if x > bx then (i, x) else (bi, bx)
+      in
+      let (best, _) = fold_left(indexed, pick, (0, 0 - 1)) in
+      best
+  in
+  {
+    let sum = sum;
+    let count = count;
+    let clamp_low = clamp_low;
+    let mean = mean;
+    let argmax = argmax
+  }
+in
+
+module Fuel =
+  let price_per_litre = 2 in
+  let co2_grams_per_litre = 2300 in
+  # Fuel is billed on what the vehicle burned. #
+  let fuel_cost : TripRow -> Int =
+    fun t -> Trip.litres(t) * price_per_litre
+  in
+  let co2_kg : TripRow -> Int =
+    fun t -> Trip.litres(t) * co2_grams_per_litre / 1000
+  in
+  let efficiency : TripRow -> Int =
+    fun t -> Trip.km(t) * 100 / Trip.litres(t)
+  in
+  {
+    let fuel_cost = fuel_cost;
+    let co2_kg = co2_kg;
+    let efficiency = efficiency
+  }
+in
+
+module Maintenance =
+  let wear_per_km = 1 in
+  let service_interval_km = 2400 in
+  let wear_cost : TripRow -> Int = fun t -> Trip.km(t) * wear_per_km / 4 in
+  let tyre_budget =
+    let tyre_price = 180 in
+    let tyres_per_vehicle = 4 in
+    tyre_price * tyres_per_vehicle
+  in
+  let needs_service : Int -> Bool =
+    fun total_km -> total_km >= service_interval_km
+  in
+  {
+    let wear_cost = wear_cost;
+    let tyre_budget = tyre_budget;
+    let needs_service = needs_service
+  }
+in
+
+module Driver =
+  let idle_allowance_min = 30 in
+  let idle_rate = 1 in
+  let weekend_bonus = 15 in
+  # Idling is only penalised beyond the allowance. #
+  let idle_penalty : TripRow -> Int =
+    fun t -> Stats.clamp_low(Trip.idle(t) - idle_allowance_min) * idle_rate
+  in
+  let bonus : TripRow -> Int =
+    fun t -> if Trip.is_weekend(t) then weekend_bonus else 0
+  in
+  { let idle_penalty = idle_penalty; let bonus = bonus }
+in
+
+module Costing =
+  let trip_cost : TripRow -> Int =
+    fun t ->
+      Fuel.fuel_cost(t)
+      + Maintenance.wear_cost(t)
+      + Driver.idle_penalty(t)
+      + Driver.bonus(t)
+  in
+  let costs : [TripRow] -> [Int] = fun ts -> map(ts, trip_cost) in
+  { let trip_cost = trip_cost; let costs = costs }
+in
+
+module PerVehicle =
+  let vehicles : [Int] = init(Data.vehicle_count, fun v -> v) in
+  let trips_of : Int -> [TripRow] =
+    fun v -> filter(Data.trips, fun t -> Trip.vehicle(t) == v)
+  in
+  let km_of : Int -> Int =
+    fun v -> Stats.sum(map(trips_of(v), Trip.km))
+  in
+  let cost_of : Int -> Int =
+    fun v -> Stats.sum(Costing.costs(trips_of(v)))
+  in
+  let co2_of : Int -> Int =
+    fun v -> Stats.sum(map(trips_of(v), Fuel.co2_kg))
+  in
+  {
+    let vehicles = vehicles;
+    let trips_of = trips_of;
+    let km_of = km_of;
+    let cost_of = cost_of;
+    let co2_of = co2_of
+  }
+in
+
+module Report =
+  let total_cost = Stats.sum(Costing.costs(Data.trips)) in
+  let total_co2 = Stats.sum(map(PerVehicle.vehicles, PerVehicle.co2_of)) in
+  let mean_efficiency = Stats.mean(map(Data.trips, Fuel.efficiency)) in
+  let weekend_trips =
+    Stats.count(filter(Data.trips, Trip.is_weekend))
+  in
+  let service_due =
+    let due = filter(PerVehicle.vehicles, fun v -> Maintenance.needs_service(PerVehicle.km_of(v))) in
+    length(due)
+  in
+  let costliest_vehicle =
+    Stats.argmax(map(PerVehicle.vehicles, PerVehicle.cost_of))
+  in
+  {
+    let total_cost = total_cost;
+    let total_co2 = total_co2;
+    let mean_efficiency = mean_efficiency;
+    let weekend_trips = weekend_trips;
+    let service_due = service_due;
+    let costliest_vehicle = costliest_vehicle
+  }
+in
+test Fuel.fuel_cost((0, 100, 10, 20, 1)) == 20 end;
+test Driver.idle_penalty((0, 100, 10, 20, 1)) == 0 end;
+test Driver.idle_penalty((0, 100, 10, 45, 1)) == 15 end;
+test !Maintenance.needs_service(2399) end;
+test Maintenance.needs_service(2400) end;
+let fix_checks =
+(Fuel.fuel_cost((0, 100, 10, 20, 1)),
+Driver.idle_penalty((0, 100, 10, 20, 1)),
+Driver.idle_penalty((0, 100, 10, 45, 1)),
+Maintenance.needs_service(2399),
+Maintenance.needs_service(2400))
+in
+
+let report_value = (Report.total_cost, Report.service_due, Report.costliest_vehicle) in
+report_value
+--- final value ---
+(17175, 4, 11)
+--- goal: MET (expected (17175, 4, 11)) ---
+--- feedback rounds used: 0 ---
+--- editor actions (5) ---
+  update_definition: (Structural(Update Definition Fuel/fuel_cost"fun t -> Trip.litres(t) * price_per_litre"))
+  update_definition: (Structural(Update Definition Driver/idle_penalty"fun t -> Stats.clamp_low(Trip.idle(t) - idle_allowance_min) * idle_rate"))
+  update_definition: (Structural(Update Definition Maintenance/needs_service"fun total_km -> total_km >= service_interval_km"))
+  update_body: (Structural(Update Body Report"test Fuel.fuel_cost((0, 100, 10, 20, 1)) == 20 end;\ntest Driver.idle_penalty((0, 100, 10, 20, 1)) == 0 end;\ntest Driver.idle_penalty((0, 100, 10, 45, 1)) == 15 end;\ntest !Maintenance.needs_service(2399) end;\ntest Maintenance.needs_service(2400) end;\nlet report_value = (Report.total_cost, Report.service_due, Report.costliest_vehicle) in\nreport_value"))
+  insert_before: (Structural(Insert Before report_value"let fix_checks =\n  (Fuel.fuel_cost((0, 100, 10, 20, 1)),\n   Driver.idle_penalty((0, 100, 10, 20, 1)),\n   Driver.idle_penalty((0, 100, 10, 45, 1)),\n   Maintenance.needs_service(2399),\n   Maintenance.needs_service(2400))\nin"))
+wrote transcript: <repo>/bench/results/jev-eval-20260928-180937/nav-fleet.control.2.transcript.json
+appended metrics: <repo>/bench/results/jev-eval-20260928-180937/rows.jsonl

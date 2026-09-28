@@ -1,0 +1,65 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+error: exceeded --max-turns (24); stopping.
+--- final program ---
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+
+let readings : [(Int, Int, Int)] =
+  init(300, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+
+let station : (Int, Int, Int) -> Int =
+  fun (s, _, _) -> s
+in
+
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+
+let cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+
+let from_station : Int -> [(Int, Int, Int)] =
+  fun s -> filter(readings, fun r -> station(r) == s)
+in
+
+let billed : [(Int, Int, Int)] -> [Int] =
+  fun rows -> map(rows, fun (_, v, c) -> v * c)
+in
+
+let billed_check = billed([(0, 2, 5)]) in
+
+let subtotal : [Int] -> Int =
+  fun amounts -> fold_left(amounts, fun (acc, n) -> acc + n, 0)
+in
+
+let with_surcharge : [Int] -> [Int] =
+  fun amounts -> map(amounts, fun n -> n + 3)
+in
+
+let surcharge_check = with_surcharge([2, 5]) in
+
+let target = from_station(2) in
+
+let billed_preview = billed(target) in
+
+let total = subtotal(with_surcharge(billed(target))) in
+total
+--- final value ---
+30700
+--- goal: MET (expected 30700) ---
+--- feedback rounds used: 0 ---
+--- editor actions (6) ---
+  update_definition: (Structural(Update Definition billed"fun rows -> map(rows, fun r -> volume(r) * cost(r))"))
+  insert_after: (Structural(Insert After target"let billed_preview = billed(target) in"))
+  update_definition: (Structural(Update Definition with_surcharge"fun amounts -> map(amounts, fun n -> n + 3)"))
+  insert_after: (Structural(Insert After billed"let billed_check = billed([(0, 2, 5)]) in"))
+  insert_after: (Structural(Insert After with_surcharge"let surcharge_check = with_surcharge([2, 5]) in"))
+  update_definition: (Structural(Update Definition billed"fun rows -> map(rows, fun (_, v, c) -> v * c)"))
+wrote transcript: <repo>/bench/results/jev-eval-20260924-120453/fix-middle.view.1.transcript.json
+appended metrics: <repo>/bench/results/jev-eval-20260924-120453/rows.jsonl
