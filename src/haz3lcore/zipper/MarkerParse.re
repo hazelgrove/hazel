@@ -80,7 +80,9 @@ let strip_implicit_holes = (~implicit_hole: string, z: Zipper.t): Zipper.t =>
 let of_text =
     (~implicit_hole=default_implicit_hole, ~root, text: string)
     : option(Zipper.t) =>
-  switch (Parser.to_zipper(~root, text)) {
+  /* The segmented parser: linear, where the char-by-char one is
+     quadratic (4 KB of prose took 15 s), and the same result. */
+  switch (Parser.to_zipper_segmented(~root, text)) {
   | None => None
   | Some(z) => Some(strip_implicit_holes(~implicit_hole, z))
   };

@@ -106,9 +106,14 @@ let strip_trailing_grout = (seg: Segment.t): Segment.t => {
    is parsed independently; trailing grout (from Zipper.init) is
    stripped, segments are concatenated, and a final top-level regrout
    ensures shape consistency across boundaries. */
-let to_segment = (str: string, ~root): option(Segment.t) => {
+let to_segment_with_manuals =
+    (str: string, ~root): option((Segment.t, Refractors.RefractorList.t)) => {
   let chars = str |> Token.to_list;
   let segments = ref([]);
+  /* Projectors typed along the way (`^^probe(` and the like) are pinned
+     in each piece's refractors, by piece id; ids survive the split, so
+     every piece's pins are kept and handed back with the segment. */
+  let manuals = ref([]);
   let current_z = ref(Some(Zipper.init()));
   let chars_since_split = ref(0);
   let min_segment_size = 100;
@@ -133,6 +138,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
       | Some(z) =>
         if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
           let z = Zipper.remold_regrout(Left, z, ~root);
+          manuals := z.refractors.manuals @ manuals^;
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
           segments := [strip_trailing_grout(seg), ...segments^];
           current_z := Some(Zipper.init());
@@ -145,10 +151,29 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
   let+ z = current_z^;
   let z = Zipper.remold_regrout(Left, z, ~root);
+  let manuals = z.refractors.manuals @ manuals^;
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
-  Segment.regrout(Nib.Shape.(concave(), concave()), combined);
+  (Segment.regrout(Nib.Shape.(concave(), concave()), combined), manuals);
+};
+
+let to_segment = (str: string, ~root): option(Segment.t) =>
+  to_segment_with_manuals(str, ~root) |> Option.map(fst);
+
+/* to_zipper's result, from the segmented parser: linear where to_zipper
+   is quadratic (each character inserted re-molds the whole sibling
+   sequence it lands in), and the same zipper, projectors and all, on
+   every program in hazel-programs (checked by printed text, holes
+   included). For text parsed on its own, not inserted into a program. */
+let to_zipper_segmented = (~root, str: string): option(Zipper.t) => {
+  let+ (seg, manuals) = to_segment_with_manuals(str, ~root);
+  Zipper.unzip(seg)
+  |> Zipper.rescan_reassemble(~with_parent=true, Left, _, ~root)
+  |> ZipperBase.update_manuals(existing =>
+       manuals
+       @ List.filter(((id, _)) => !List.mem_assoc(id, manuals), existing)
+     );
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.
