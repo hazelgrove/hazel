@@ -265,6 +265,31 @@ let kids_emotion = () => {
   check(int, "all forty by halfway", 40, circles(90, 50, 50));
 };
 
+/* Lockable Cell: unlocked, the use means its code's value. */
+let lockable_cell = () => {
+  let text = read(Filename.concat(root(), "lockable-cell.hz"));
+  let (m, elab) = load(~source="lockable-cell", text);
+  check(list(string), "no errors", [], messages(m));
+  /* By constructor name and argument: the value's constructor carries
+     its sum type, which a literal Unlocked(5) does not. */
+  let v = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+  let reading =
+    switch (DHExp.strip_ascriptions(v).term) {
+    | Ap(_, {term: Constructor(name, _), _}, arg) =>
+      switch (DHExp.strip_ascriptions(arg).term) {
+      | Atom(Int(n)) => Some((name, Bigint.to_int_exn(n)))
+      | _ => None
+      }
+    | _ => None
+    };
+  check(
+    option(pair(string, int)),
+    "means the code's value, unlocked",
+    Some(("Unlocked", 5)),
+    reading,
+  );
+};
+
 /* 1990s Face: the slide means its caption, for the stamp its slider
    picks. */
 let nineties_face = () => {
@@ -306,6 +331,7 @@ let tests = (
        test_case("Splices in Text", `Quick, splices_in_text),
        test_case("Emotion (Kids' Choice)", `Quick, kids_emotion),
        test_case("1990s Face", `Quick, nineties_face),
+       test_case("Lockable Cell", `Quick, lockable_cell),
        test_case(
          "Higher-order, Functional Expansion",
          `Quick,
