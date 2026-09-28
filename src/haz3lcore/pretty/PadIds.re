@@ -141,6 +141,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     /* A signature's item types, a sum among which has variant ids of its own
        to pad. Only the types: the pattern a value member binds is not one. */
     | Sig(items) => Sig(List.map(Sig.map_typ(pad_variant_anns), items))
+    | Implicit(mp) => Implicit(MPat.map_typ(pad_variant_anns, mp))
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -148,8 +149,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | ExplicitNonlabel
     | Var(_)
     | ProofOf(_)
-    | Escaped(_)
-    | Implicit(_) => ty.term
+    | Escaped(_) => ty.term
     };
   {
     ...ty,

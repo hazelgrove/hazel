@@ -2384,8 +2384,28 @@ let all_ids = (ty: t): list(Id.t) => {
     | ExplicitNonlabel
     | Var(_)
     | ProofOf(_)
-    | Escaped(_)
-    | Implicit(_) => ()
+    | Escaped(_) => ()
+    /* The binder's signature, as for a Sig's items below. The `:` of
+       `implicit S : SIG` is a shard of the binder's own tile, so the
+       ascription node's ids print nowhere and are not the type's. */
+    | Implicit(mp) =>
+      MPat.map_typ(
+        ty => {
+          collect_ann_ids(ty);
+          ty;
+        },
+        mp,
+      )
+      |> ignore;
+      switch (IdTagged.term_of(mp)) {
+      | Asc(_) =>
+        let unprinted = Id.Set.of_list(mp.annotation.ids);
+        ids := List.filter(id => !Id.Set.mem(id, unprinted), ids^);
+      | Var(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => ()
+      };
     /* A signature's item types, a sum among which has variant ids of its own
        -- the generic traversal reaches the items but not those. Syntactic,
        not `Sig.members`: an item whose name is a hole still prints. */
