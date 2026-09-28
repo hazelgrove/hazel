@@ -19,9 +19,10 @@ open Language;
    `bash test/run_node.sh test MenhirCorpus`); skips silently otherwise
    (sandboxed dune runtest). */
 
-/* Shares Test_FastParseCorpus's ledger: files that miss the fast path
-   are menhir gaps by construction (they load via the typing-parser
-   fallback; slide fidelity is pinned by DocSlides.ReparseBackuptext). */
+/* The docs/B2T2 slide corpus shares Test_FastParseCorpus's ledger:
+   those .hz files exercise grammar the menhir parser lacks yet (they
+   load via the typing-parser fallback; fidelity is pinned by
+   DocSlides.ReparseBackuptext). */
 let known_gaps: list((string, string)) =
   [
     (
@@ -38,7 +39,10 @@ let known_gaps: list((string, string)) =
       "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
     ),
   ]
-  @ Test_FastParseCorpus.known_gaps;
+  @ List.map(
+      name => (name, "menhir grammar gap (Test_FastParseCorpus ledger)"),
+      Test_FastParseCorpus.known_gaps,
+    );
 
 let corpus_roots = [
   "hazel-programs",

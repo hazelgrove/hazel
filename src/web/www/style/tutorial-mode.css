@@ -308,17 +308,13 @@
 #main.Tutorial .next-button:hover {
   transform: scale(1.2);
   color: #ffc107;
-  transition:
-    transform 0.2s ease,
-    color 0.2s ease;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 #main.Tutorial .prev-button:hover {
   transform: scaleX(-1) scale(1.2);
   color: #ffc107;
-  transition:
-    transform 0.2s ease,
-    color 0.2s ease;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 #main.Tutorial .prev-button {

@@ -30,10 +30,11 @@ let read_file = (path: string): string => {
    agents/users write falls back to the quadratic typing parser — fix
    FastParse or the printer rather than tolerating it. Skips silently
    when the corpus is unreachable (sandboxed dune runtest). */
-/* A new entry here means a construct regressed off the fast path — fix
-   the grammar/printer rather than ledgering, unless the file is a
-   deliberately-invalid, stale, or delimiter-incomplete exhibit. */
-let known_gaps: list((string, string)) = [];
+/* Empty as of 2026-08-08: every .hz in the repo takes the fast path.
+   A new entry here means a construct regressed off it — fix the
+   grammar/printer rather than ledgering, unless the file is a
+   deliberately-invalid or delimiter-incomplete exhibit. */
+let known_gaps: list(string) = [];
 
 let tests = (
   "FastParseCorpus",
@@ -58,8 +59,7 @@ let tests = (
                 |> Util.StringUtil.trim_leading
                 |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
-              let known_gap =
-                List.mem_assoc(Filename.basename(path), known_gaps);
+              let known_gap = List.mem(Filename.basename(path), known_gaps);
               let r =
                 known_gap
                   ? None

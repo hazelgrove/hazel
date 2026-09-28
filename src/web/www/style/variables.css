@@ -58,6 +58,7 @@
   --highlight-e: oklch(from var(--highlight-a) l c calc(h - 3 * 60));
   --highlight-f: oklch(from var(--highlight-a) l c calc(h - 5 * 60));
 
+
   /* Incremental evaluator "frozen" tint: behind code reused from the
    * previous evaluation run (cache hit), left as-is by the worker. */
   --incremental-frozen: rgba(200, 230, 255, 0.55);

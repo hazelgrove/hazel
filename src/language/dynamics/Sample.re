@@ -98,7 +98,7 @@ module Env = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type origin =
   | Probe
-  | Print;
+  | Print; /* Print statements for probes study */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {

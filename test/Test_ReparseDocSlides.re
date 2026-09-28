@@ -11,10 +11,6 @@ open Haz3lcore;
 let doc_slides: list((string, CellEditor.Model.persistent)) =
   snd(Lazy.force(Init.startup).documentation);
 
-/* Slides whose load path is known not to reproduce their text. Entries
-   are bugs waiting to be fixed, not accepted behavior. */
-let known_gaps: list((string, string)) = [];
-
 let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
   test_case(
     name,
@@ -66,10 +62,5 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
 };
 
 let tests = [
-  (
-    "DocSlides.ReparseBackuptext",
-    doc_slides
-    |> List.filter(((name, _)) => !List.mem_assoc(name, known_gaps))
-    |> List.map(doc_slide_reparses),
-  ),
+  ("DocSlides.ReparseBackuptext", List.map(doc_slide_reparses, doc_slides)),
 ];
