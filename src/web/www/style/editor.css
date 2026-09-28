@@ -101,6 +101,21 @@
 .code .token.Drv {
   color: var(--token-drv);
 }
+/* Fumola's colors, derived from the signature role rather than stated.
+   The Colors slide places --token-sig and --shard-sig on each scheme's own
+   page-to-ink axis, so a hue rotation of them is readable in all four
+   schemes, where the literals these replaced were right in light and
+   invisible in dark. They are not roles in the slide on purpose: adding a
+   role makes every saved Colors slide fail the contract and yield no theme
+   at all (ColorConfiguration.css_vars_of_value), which silently drops a
+   dark-mode user back to light. */
+:root {
+  --token-fumola: oklch(from var(--token-sig) l c calc(h + 45));
+  --token-fumola-name: oklch(from var(--token-fumola) l calc(c / 2) h);
+  --shard-fumola: oklch(from var(--shard-sig) l c calc(h + 45));
+  --fumola-pass-rule: var(--CREASE);
+  --fumola-missed-rule: var(--border-strong);
+}
 .code .token.Fumola {
   color: var(--token-fumola);
 }
