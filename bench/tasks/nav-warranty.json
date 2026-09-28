@@ -1,0 +1,14 @@
+{
+  "name": "nav-warranty",
+  "program": "bench/tasks/nav-warranty.hz",
+  "feedback": 8,
+  "max_turns": 50,
+  "goal": "(43560, 34, 47460)",
+  "prompt": "Warranty claims are being paid even when the vehicle was past its warranty mileage. A claim is only covered if the vehicle's mileage is at or below the mileage limit for that component (powertrain components have the longer limit); a claim beyond the limit is covered for nothing.\n\nThe coverage rules must live in one place: make `covered_amount` itself take the claim's mileage into account (it will need the mileage as an extra argument), rather than special-casing it in the callers. Then make every caller of `covered_amount` pass it, so both the payouts and the audit's gross exposure are right. Check the program's value after each fix. When every fix is in and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "Policy/covered_amount",
+    "Settlement/payout",
+    "Audit/exposure"
+  ],
+  "expectation": "Dependency test: a callee change that forces caller changes in different subtrees. 43 bindings in 8 modules. Changing covered_amount's signature (Policy subtree) breaks its two callers, Settlement/payout and Audit/exposure, with type errors; a run has to find both. Policy/mileage_limit already exists and should be reused (it is context, not an edit target). Changing the annotated signature needs update_binding_clause (update_definition alone is rejected by the type guard). Expected answer (43560, 34, 47460): total payout, rejected claims, gross exposure."
+}

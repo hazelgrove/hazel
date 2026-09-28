@@ -48,6 +48,24 @@ let view =
       Effect.Stop_propagation,
     ]);
 
+  /* Flip a global flag and confirm with a UI-only Notice. The reducer hasn't
+     run yet, so the new state is the inverse of [currently_on]. */
+  let toggle_with_notice =
+      (label: string, currently_on: bool, action: AgentGlobals.Update.action) =>
+    Effect.Many([
+      globals.inject_global(Globals.Action.SetAgentGlobals(action)),
+      agent_inject(
+        Agent.Update.Action.AppendSlashCommandOutput(
+          current_chat_id,
+          Message.Model.Notice(
+            label ++ " toggled " ++ (currently_on ? "off" : "on"),
+          ),
+        ),
+      ),
+      clear_text_effect,
+      Effect.Stop_propagation,
+    ]);
+
   let effect_run_slash_command = (name: string) =>
     switch (name) {
     | "compact" =>
@@ -75,27 +93,44 @@ let view =
         Agent.Update.Action.RunSlashCommandFetchUsage(current_chat_id),
       )
     | "show-thinking" =>
-      // Toggle the global flag and confirm with a UI-only Notice. The "after"
-      // state is the inverse of the current value, since the toggle reducer
-      // hasn't run yet at the time we format the message.
-      let next_on = !globals.settings.agent_globals.show_thinking;
-      let notice =
-        "Show thinking messages toggled " ++ (next_on ? "on" : "off");
-      Effect.Many([
-        globals.inject_global(
-          Globals.Action.SetAgentGlobals(
-            AgentGlobals.Update.ToggleShowThinking,
-          ),
-        ),
-        agent_inject(
-          Agent.Update.Action.AppendSlashCommandOutput(
-            current_chat_id,
-            Message.Model.Notice(notice),
-          ),
-        ),
-        clear_text_effect,
-        Effect.Stop_propagation,
-      ]);
+      toggle_with_notice(
+        "Show thinking messages",
+        globals.settings.agent_globals.show_thinking,
+        AgentGlobals.Update.ToggleShowThinking,
+      )
+    | "jev-builds" =>
+      toggle_with_notice(
+        "Jev builds (no sketch)",
+        globals.settings.agent_globals.jev_edit_builds,
+        AgentGlobals.Update.ToggleJevEditBuilds,
+      )
+    | "jev-edit-tool" =>
+      toggle_with_notice(
+        "Jev jev_edit tool",
+        globals.settings.agent_globals.jev_edit_tool,
+        AgentGlobals.Update.ToggleJevEditTool,
+      )
+    /* One switch for the whole architecture; partially-on counts as off, so
+       the first use always turns everything on. */
+    | "jev-mode" =>
+      let all_on = AgentGlobals.jev_mode_on(globals.settings.agent_globals);
+      toggle_with_notice(
+        "Jev mode (pre-selection + modify_view + jev_edit builds from spec)",
+        all_on,
+        AgentGlobals.Update.SetJevMode(!all_on),
+      );
+    | "jev-prepass" =>
+      toggle_with_notice(
+        "Jev view pre-selection",
+        globals.settings.agent_globals.jev_prepass,
+        AgentGlobals.Update.ToggleJevPrepass,
+      )
+    | "jev-view-tool" =>
+      toggle_with_notice(
+        "Jev modify_view tool",
+        globals.settings.agent_globals.jev_view_tool,
+        AgentGlobals.Update.ToggleJevViewTool,
+      )
     | _ => Effect.Stop_propagation
     };
 

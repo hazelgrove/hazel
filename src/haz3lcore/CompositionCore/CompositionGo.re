@@ -880,4 +880,35 @@ module Public = {
       )
     );
   let go = Local.go(~mk_statics);
+
+  /** Paste [code] at the program's start or end — the no-path insert_before /
+      insert_after, and how jev_edit creates new code. For an empty program
+      (just `?`) either boundary seeds it. Refused if it adds static errors. */
+  let insert_at_boundary =
+      (z: Zipper.t, direction: Action.Structural.insert_target, code: string)
+      : result(Zipper.t, string) => {
+    let z_at_boundary =
+      switch (direction) {
+      | Before => Move.to_start(z)
+      | After => Move.to_end(z)
+      };
+    switch (Local.PerformUtils.introduce(z_at_boundary, "\n" ++ code ++ "\n")) {
+    | Error(Action.Failure.Composition_action_failure(msg)) => Error(msg)
+    | Error(_) => Error("Failed to insert code at program boundary")
+    | Ok(new_z) =>
+      let old_errors = ErrorPrint.all(mk_statics(z));
+      let new_errors = ErrorPrint.all(mk_statics(new_z));
+      List.length(new_errors) > List.length(old_errors)
+        ? Error(
+            "Not applying the action you requested as it would introduce new static error(s): "
+            ++ String.concat(", ", new_errors)
+            ++ Local.PerformUtils.reserved_word_note(code),
+          )
+        : Ok(
+            Local.PerformUtils.normalize_top_level(
+              Dump.to_zipper(new_z, ~root=Exp),
+            ),
+          );
+    };
+  };
 };

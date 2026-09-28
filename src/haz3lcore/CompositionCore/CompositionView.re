@@ -158,7 +158,7 @@ module Local = {
         let expanded_ids =
           List.filter_map(
             (path: string) => path_to_id_opt(node_map, path),
-            agent_context.expanded_paths,
+            AgentContext.Utils.open_paths(agent_context),
           );
         let ids_to_collapse =
           all_top_level_ids

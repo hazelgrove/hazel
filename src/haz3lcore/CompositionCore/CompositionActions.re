@@ -33,6 +33,9 @@ type action =
   | InsertAtProgramBoundary(Action.Structural.insert_target, string) /* no-path insert: prepend (Before) or append (After) to the whole program */
   | WorkbenchAction(AgentWorkbench.Update.Action.BackendAction.action)
   | AgentContextAction(AgentContext.Update.action)
+  | AddTests(list(string)) /* boolean expressions, inserted as `test e end;` before the final expression */
+  | JevEdit(JevEdit.request) /* resolved by Jev before the tool runs, like ModifyView */
+  | ModifyView(string, bool) /* (intent, replace); Jev resolves the intent over HTTP before the tool runs (AgentResponse) */
   | ProbeAction(probe_action)
   | StaticsAction(statics_action)
   | SyntaxProjectorAction(syntax_projector_action);

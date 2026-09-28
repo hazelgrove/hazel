@@ -645,6 +645,179 @@ let bench_eval_cmd = {
   Cmd.v(info, Term.(const(bench_eval) $ iterations_arg $ files_arg));
 };
 
+let agent_cmd = {
+  let doc =
+    "Run Hazel's built-in AI agent headlessly against a program, and "
+    ++ "optionally emit the resulting edits as a bench-incr trace.";
+  let model_arg = {
+    let doc = "OpenRouter model id.";
+    Arg.(
+      value
+      & opt(string, AgentRun.default_model_id)
+      & info(["m", "model"], ~docv="MODEL", ~doc)
+    );
+  };
+  let max_turns_arg = {
+    let doc = "Maximum LLM replies before giving up (spend rail).";
+    Arg.(
+      value
+      & opt(int, AgentRun.default_max_tool_turns)
+      & info(["max-turns"], ~docv="N", ~doc)
+    );
+  };
+  let trace_arg = {
+    let doc = "Write a bench-incr editing trace to this JSON file.";
+    Arg.(
+      value & opt(some(string), None) & info(["trace"], ~docv="FILE", ~doc)
+    );
+  };
+  let trace_name_arg = {
+    let doc = "Name field for the emitted trace (defaults to the filename).";
+    Arg.(
+      value
+      & opt(some(string), None)
+      & info(["trace-name"], ~docv="NAME", ~doc)
+    );
+  };
+  let stub_arg = {
+    let doc = "Do not call OpenRouter; feed the agent one canned tool call instead.";
+    Arg.(value & flag & info(["stub"], ~doc));
+  };
+  let stub_path_arg =
+    Arg.(
+      value
+      & opt(string, "x")
+      & info(["stub-path"], ~docv="PATH", ~doc="Binding for --stub to edit.")
+    );
+  let stub_code_arg =
+    Arg.(
+      value
+      & opt(string, "42")
+      & info(["stub-code"], ~docv="CODE", ~doc="Code for --stub to write.")
+    );
+  let program_arg = {
+    let doc = "Hazel source file the agent starts from.";
+    Arg.(
+      required
+      & pos(0, some(string), None)
+      & info([], ~docv="PROGRAM", ~doc)
+    );
+  };
+  let prompt_arg = {
+    let doc = "Instruction for the agent.";
+    Arg.(value & pos(1, string, "") & info([], ~docv="PROMPT", ~doc));
+  };
+  let feedback_arg = {
+    let doc =
+      "Rounds of evaluate-and-report-back after the agent goes idle, so it "
+      ++ "can see what its program actually computes and iterate. 0 disables.";
+    Arg.(value & opt(int, 0) & info(["feedback"], ~docv="N", ~doc));
+  };
+  let goal_arg = {
+    let doc =
+      "Expected final value. When the program evaluates to this with no "
+      ++ "static errors, the run stops early.";
+    Arg.(
+      value & opt(some(string), None) & info(["goal"], ~docv="VALUE", ~doc)
+    );
+  };
+  /* Jev navigation study (docs/notes/jev-nav/plan.md §5-6). The flags pick
+     the arm; the labels only annotate the --metrics-out row. */
+  let jev_prepass_arg = {
+    let doc = "Let Jev pre-select the view before each user message.";
+    Arg.(value & flag & info(["jev-prepass"], ~doc));
+  };
+  let jev_view_tool_arg = {
+    let doc = "Give the agent the modify_view(intent) tool, backed by Jev.";
+    Arg.(value & flag & info(["jev-view-tool"], ~doc));
+  };
+  let jev_edit_tool_arg = {
+    let doc = "Replace the agent's edit tools with jev_edit: it sketches, Jev fills the holes.";
+    Arg.(value & flag & info(["jev-edit-tool"], ~doc));
+  };
+  let jev_edit_builds_arg = {
+    let doc =
+      "jev_edit without a sketch: Jev builds the code's shape as well as its "
+      ++ "leaves. Implies --jev-edit-tool. Under --stub, --stub-code is then "
+      ++ "the planner's comma-separated names.";
+    Arg.(value & flag & info(["jev-edit-builds"], ~doc));
+  };
+  let jev_batch_arg = {
+    let doc = "Max input tokens per Jev request (sets jev_batch_max_tokens).";
+    Arg.(
+      value & opt(some(int), None) & info(["jev-batch"], ~docv="N", ~doc)
+    );
+  };
+  let task_arg = {
+    let doc = "Task label written into the metrics row.";
+    Arg.(
+      value & opt(some(string), None) & info(["task"], ~docv="NAME", ~doc)
+    );
+  };
+  let arm_arg = {
+    let doc = "Arm label written into the metrics row.";
+    Arg.(
+      value & opt(some(string), None) & info(["arm"], ~docv="NAME", ~doc)
+    );
+  };
+  let nav_targets_arg = {
+    let doc =
+      "Comma-separated binding paths a good run opens; scores Jev's "
+      ++ "selection recall/precision in the metrics row.";
+    Arg.(
+      value
+      & opt(some(list(string)), None)
+      & info(["nav-targets"], ~docv="PATHS", ~doc)
+    );
+  };
+  let metrics_out_arg = {
+    let doc = "Append one JSON metrics row for this run to FILE (JSONL).";
+    Arg.(
+      value
+      & opt(some(string), None)
+      & info(["metrics-out"], ~docv="FILE", ~doc)
+    );
+  };
+  let transcript_out_arg = {
+    let doc =
+      "Write a readable JSON transcript of the run (messages, tool calls "
+      ++ "and results, Jev calls, final program) to FILE.";
+    Arg.(
+      value
+      & opt(some(string), None)
+      & info(["transcript-out"], ~docv="FILE", ~doc)
+    );
+  };
+  let info = Cmd.info("agent", ~doc);
+  Cmd.v(
+    info,
+    Term.(
+      const(AgentRun.run)
+      $ model_arg
+      $ max_turns_arg
+      $ trace_arg
+      $ trace_name_arg
+      $ stub_arg
+      $ stub_path_arg
+      $ stub_code_arg
+      $ feedback_arg
+      $ goal_arg
+      $ jev_prepass_arg
+      $ jev_view_tool_arg
+      $ jev_edit_tool_arg
+      $ jev_edit_builds_arg
+      $ jev_batch_arg
+      $ task_arg
+      $ arm_arg
+      $ nav_targets_arg
+      $ metrics_out_arg
+      $ transcript_out_arg
+      $ program_arg
+      $ prompt_arg
+    ),
+  );
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
@@ -662,8 +835,16 @@ let default_cmd = {
       grade_json_cmd,
       grade_report_cmd,
       bench_eval_cmd,
+      agent_cmd,
     ],
   );
 };
 
-let () = exit(Cmd.eval(default_cmd));
+let () = {
+  let code = Cmd.eval(default_cmd);
+  /* `hazel agent` finishes on the node event loop (an in-flight HTTP request
+     to OpenRouter), so exiting here would kill it; AgentRun exits itself. */
+  if (! AgentRun.deferred^) {
+    exit(code);
+  };
+};

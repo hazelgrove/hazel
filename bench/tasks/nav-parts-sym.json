@@ -1,0 +1,14 @@
+{
+  "name": "nav-parts-sym",
+  "program": "bench/tasks/nav-parts-sym.hz",
+  "feedback": 8,
+  "max_turns": 50,
+  "goal": "(42, 975, 47385)",
+  "prompt": "The depot's reorder run orders far too much stock and misprices some orders. What users see:\n\n  1. The expected sales per week for a part come out lower than its last three weeks of sales actually average to.\n  2. The extra stock held to cover supplier delivery delays is about seven times too large: it is sized as if the delays were counted in weeks, but suppliers quote them in days.\n  3. An order for exactly the discount-threshold quantity is charged full price, although orders of that size are supposed to get the volume discount.\n\nThe program is organised into nested modules; find where each behaviour comes from before editing. Check the program's value after each fix. When everything behaves as described and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "Demand/forecast/weekly",
+    "Replenish/policy/safety_stock",
+    "Pricing/bulk/qualifies"
+  ],
+  "expectation": "Symptom-style twin of nav-parts: same program, goal, feedback, max_turns and nav_targets; the prompt describes observable behaviour and never names a target binding or its module (checked case-insensitively against every nav_targets path segment). Added after Eval 002, where nav-parts's prompt named the bindings and control found them in ~3 expands, so navigation was never hard. Compare per arm against nav-parts. Original expectation: Navigation-hard with depth: 62 bindings, targets three levels deep (Module/inner/binding) in three different subtrees. A good run opens only the three targets and their parents; Suppliers/Storage/Num/Report stay folded. Each fix moves the result on its own (forecast alone (60, 10915, 551053); safety stock alone (31, 520, 24044); bulk alone (59, 7750, 388273)). Lead times are all multiples of 7, so lead_days / 7 and ceil_div(lead_days, 7) both reach the goal. Expected answer (42, 975, 47385): order lines, units, spend."
+}

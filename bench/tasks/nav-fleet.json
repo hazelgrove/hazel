@@ -1,0 +1,14 @@
+{
+  "name": "nav-fleet",
+  "program": "bench/tasks/nav-fleet.hz",
+  "feedback": 6,
+  "max_turns": 40,
+  "goal": "(17175, 4, 11)",
+  "prompt": "This fleet telematics report is wrong in three places.\n\n  1. Fuel is being billed on the distance driven. It should be billed on the litres the vehicle actually burned.\n  2. Drivers are penalised for every idle minute. Only idle minutes beyond the idle allowance should be penalised.\n  3. The service flag is inverted: a vehicle is due for service once its total distance has reached the service interval, not while it is still below it.\n\nThe program is large and organised into modules; find the definitions responsible before editing. Check the program's value after each fix. When every fix is in and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "Fuel/fuel_cost",
+    "Driver/idle_penalty",
+    "Maintenance/needs_service"
+  ],
+  "expectation": "Navigation-hard, 61 bindings in 10 modules (nested-let module form, so every binding has a path like Fuel/fuel_cost). Three one-line fixes in three different module subtrees (Fuel, Driver, Maintenance); nothing near the final expression needs to change. A good run opens exactly those three bindings (plus their module parents) and leaves Data/Stats/Costing/PerVehicle/Report folded. Each fix is independently observable in the result: fuel alone moves total_cost 63784->20892, idle alone 63784->60067, the service flag 8->4. Expected answer (17175, 4, 11)."
+}

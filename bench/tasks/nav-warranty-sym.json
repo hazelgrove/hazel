@@ -1,0 +1,14 @@
+{
+  "name": "nav-warranty-sym",
+  "program": "bench/tasks/nav-warranty-sym.hz",
+  "feedback": 8,
+  "max_turns": 50,
+  "goal": "(43560, 34, 47460)",
+  "prompt": "The quarter's warranty numbers are too high: claims are being paid for vehicles that were already past their warranty mileage. A claim is only covered if the vehicle's mileage is at or below the limit for that component (powertrain components have the longer limit); a claim beyond the limit is covered for nothing.\n\nThe coverage rules must stay in one place: the function that works out how much of a repair is covered should itself take the claim's mileage into account (it will need it as an extra argument), rather than each user of it special-casing mileage. Then make every place that uses that function pass the mileage, so both the money paid out and the gross liability figure in the quarterly review are right. Check the program's value after each fix. When everything behaves as described and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "Policy/covered_amount",
+    "Settlement/payout",
+    "Audit/exposure"
+  ],
+  "expectation": "Symptom-style twin of nav-warranty: same program, goal, feedback, max_turns and nav_targets; the prompt describes observable behaviour and never names a target binding or its module (checked case-insensitively against every nav_targets path segment). Added after Eval 002, where nav-warranty's prompt named the bindings and control found them in ~3 expands, so navigation was never hard. Compare per arm against nav-warranty. Original expectation: Dependency test: a callee change that forces caller changes in different subtrees. 43 bindings in 8 modules. Changing covered_amount's signature (Policy subtree) breaks its two callers, Settlement/payout and Audit/exposure, with type errors; a run has to find both. Policy/mileage_limit already exists and should be reused (it is context, not an edit target). Changing the annotated signature needs update_binding_clause (update_definition alone is rejected by the type guard). Expected answer (43560, 34, 47460): total payout, rejected claims, gross exposure."
+}

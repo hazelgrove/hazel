@@ -1,0 +1,188 @@
+[
+ {
+  "id": "control",
+  "name": "Agent navigates + edits (original)",
+  "short": "Agent navigates + edits (original)",
+  "flags": [],
+  "what": "Hazel's default coding agent, unchanged: one LLM uses Hazel's structured actions to build its own view (expand / collapse definitions) and make its own edits (update / insert / delete definitions); Hazel type-checks every edit. No Jev. Every other setup is compared against this one.",
+  "flow": [
+   [
+    "llm",
+    "Agent reads the view"
+   ],
+   [
+    "llm",
+    "expand / collapse"
+   ],
+   [
+    "llm",
+    "writes the edit"
+   ],
+   [
+    "hazel",
+    "Hazel type-checks"
+   ],
+   [
+    "llm",
+    "next turn"
+   ]
+  ]
+ },
+ {
+  "id": "prepass",
+  "name": "Jev picks first view, agent navigates + edits",
+  "short": "Jev picks first view, agent navigates + edits",
+  "flags": [
+   "--jev-prepass"
+  ],
+  "what": "Before each user message reaches the agent, Jev (a fast, cheap yes/no model) looks at every definition and opens the ones relevant to the message. The agent still has expand and collapse and still writes every edit.",
+  "flow": [
+   [
+    "jev",
+    "Jev: relevant? one question per definition"
+   ],
+   [
+    "hazel",
+    "open the yes-set plus parents"
+   ],
+   [
+    "llm",
+    "Agent reads the view"
+   ],
+   [
+    "llm",
+    "writes the edit"
+   ],
+   [
+    "hazel",
+    "Hazel type-checks"
+   ]
+  ]
+ },
+ {
+  "id": "view",
+  "name": "Jev navigates, agent edits",
+  "short": "Jev navigates, agent edits",
+  "flags": [
+   "--jev-view-tool"
+  ],
+  "what": "The agent loses expand and collapse. To see code it describes what it needs in words (modify_view), and Jev decides which definitions to open. The agent still writes every edit itself. Called Mode 3 in Eval 002.",
+  "flow": [
+   [
+    "llm",
+    "Agent: modify_view(what I need)"
+   ],
+   [
+    "jev",
+    "Jev: needed? per definition"
+   ],
+   [
+    "hazel",
+    "open the yes-set plus parents"
+   ],
+   [
+    "llm",
+    "Agent writes the edit"
+   ],
+   [
+    "hazel",
+    "Hazel type-checks"
+   ]
+  ]
+ },
+ {
+  "id": "edit-sketch",
+  "name": "Agent sketches, Jev fills blanks",
+  "short": "Agent sketches, Jev fills blanks",
+  "flags": [
+   "--jev-edit-tool"
+  ],
+  "what": "The agent loses its editing tools. It writes a sketch of the new code with ? holes, and Jev fills each hole by picking from the options Hazel says are type-correct. Kept as a baseline: the agent could often have typed the holes itself.",
+  "flow": [
+   [
+    "llm",
+    "Agent: jev_edit(path, sketch with ?)"
+   ],
+   [
+    "hazel",
+    "Hazel lists typed options per hole"
+   ],
+   [
+    "jev",
+    "Jev picks one per hole"
+   ],
+   [
+    "hazel",
+    "fill + type-check, repeat"
+   ]
+  ]
+ },
+ {
+  "id": "edit-build",
+  "name": "Agent specs, Jev builds code",
+  "short": "Agent specs, Jev builds code",
+  "flags": [
+   "--jev-edit-builds"
+  ],
+  "what": "Like the sketch mode, but the agent gives no code at all: only a path, an intent and the names it wants. Jev starts from a single hole and builds the whole shape (functions, conditionals, calls) one typed choice at a time.",
+  "flow": [
+   [
+    "llm",
+    "Agent: jev_edit(path, intent, names)"
+   ],
+   [
+    "hazel",
+    "one hole; typed options incl. forms"
+   ],
+   [
+    "jev",
+    "Jev picks a form or a term"
+   ],
+   [
+    "hazel",
+    "new holes; repeat until closed"
+   ]
+  ]
+ },
+ {
+  "id": "jev",
+  "name": "Jev navigates + builds, agent plans",
+  "short": "Jev navigates + builds, agent plans",
+  "flags": [
+   "--jev-prepass",
+   "--jev-view-tool",
+   "--jev-edit-builds"
+  ],
+  "what": "Everything at once, as the UI's /jev-mode: Jev pre-selects the view, the agent can only navigate through Jev, and every edit is built by Jev from the agent's spec. The agent only plans.",
+  "flow": [
+   [
+    "jev",
+    "Jev pre-picks the view"
+   ],
+   [
+    "llm",
+    "Agent plans"
+   ],
+   [
+    "llm",
+    "modify_view(need)"
+   ],
+   [
+    "jev",
+    "Jev opens definitions"
+   ],
+   [
+    "llm",
+    "jev_edit(path, intent, names)"
+   ],
+   [
+    "jev",
+    "Jev builds, one typed pick at a time"
+   ],
+   [
+    "hazel",
+    "Hazel type-checks every step"
+   ]
+  ]
+ }
+]

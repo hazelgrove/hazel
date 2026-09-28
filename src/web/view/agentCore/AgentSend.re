@@ -53,19 +53,56 @@ let tool_allowed_in_mode =
     && !List.mem(name, ToolUtils.overlay_tool_names)
   };
 
+/** Hidden while [jev_view_tool] is on: [modify_view] is the only way to
+    change the view in that arm (docs/notes/jev-nav/discussion-log.md #15). */
+let view_tools_replaced_by_jev = ["expand", "collapse"];
+
+/** The edit arm's own tools: the planner changes code only through
+    [jev_edit] and writes the spec's tests through [add_tests]. */
+let jev_edit_arm_tools = ["jev_edit", "add_tests"];
+
+/** Hidden while [jev_edit_tool] is on (docs/notes/jev-nav/v3-jev-implementor.md). */
+let edit_tools_replaced_by_jev =
+  List.filter(
+    name => !List.mem(name, jev_edit_arm_tools),
+    ToolUtils.edit_tool_names,
+  );
+
+/** Each Jev arm swaps a tool family for its Jev-backed tool; the arms are
+    independent flags. All off ⇒ the control's tool list (part of the cached
+    prompt prefix). */
+let jev_arms_allow = (globals: AgentGlobals.Model.t, name: string): bool =>
+  (
+    globals.jev_view_tool
+      ? !List.mem(name, view_tools_replaced_by_jev) : name != "modify_view"
+  )
+  && (
+    globals.jev_edit_tool
+      ? !List.mem(name, edit_tools_replaced_by_jev)
+      : !List.mem(name, jev_edit_arm_tools)
+  );
+
+/** The builds arm offers jev_edit without a sketch, so the planner states
+    intent and vocabulary only and Jev constructs the code. */
+let jev_schema = (globals: AgentGlobals.Model.t, tool: API.Json.t): API.Json.t =>
+  globals.jev_edit_builds && ToolUtils.get_name(tool) == Some("jev_edit")
+    ? EditTools.jev_edit_builds : tool;
+
 let enabled_tools =
-    (~mode: AgentGlobals.Model.session_mode, prompting: Model.prompting)
+    (~globals: AgentGlobals.Model.t, prompting: Model.prompting)
     : list(API.Json.t) =>
   List.filter(
     (tool: API.Json.t) =>
       switch (ToolUtils.get_name(tool)) {
       | Some(name) =>
         !List.mem(name, prompting.disabled_tool_names)
-        && tool_allowed_in_mode(mode, name)
+        && tool_allowed_in_mode(globals.session_mode, name)
+        && jev_arms_allow(globals, name)
       | None => true
       },
     CompositionUtils.Public.tools,
-  );
+  )
+  |> List.map(jev_schema(globals));
 // Exponential backoff
 let backoff_ms = (attempt: int): float => 1000.0 *. 2.0 ** float(attempt);
 
@@ -216,7 +253,7 @@ let dispatch_send =
       ~api_key: option(string),
       ~llm_id: option(string),
       ~reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
-      ~session_mode: AgentGlobals.Model.session_mode,
+      ~globals: AgentGlobals.Model.t,
       chat_id: Id.t,
       model: Model.t,
       schedule_action: Action.t => unit,
@@ -251,7 +288,7 @@ let dispatch_send =
               ChatSystem.Utils.find_chat(chat_id, model.chat_system),
             ),
           ~session_id=Some(Id.to_string(chat_id)),
-          ~tools=enabled_tools(~mode=session_mode, model.prompting),
+          ~tools=enabled_tools(~globals, model.prompting),
           ~reasoning=?
             Option.map(
               e => OpenRouter.Payload.Model.Effort(e),
@@ -336,10 +373,7 @@ let dispatch_follow_up_llm =
               ),
             ~session_id=Some(Id.to_string(chat_id)),
             ~tools=
-              enabled_tools(
-                ~mode=settings.agent_globals.session_mode,
-                model.prompting,
-              ),
+              enabled_tools(~globals=settings.agent_globals, model.prompting),
             ~reasoning=?
               Option.map(
                 e => OpenRouter.Payload.Model.Effort(e),
@@ -409,7 +443,58 @@ let send_message =
   };
 };
 
-/** Phase 2 of a send (DispatchSend): context refresh + payload + request. */
+/** Context refresh + payload + request: the tail of phase 2, run directly
+    or once the Jev pre-pass has answered. Consumes the pending flag. */
+let finish_dispatch_send =
+    (
+      chat_id: Id.t,
+      model: Model.t,
+      editor: CellEditor.Model.t,
+      settings: Settings.t,
+      schedule_action: Action.t => unit,
+    )
+    : (Model.t, Updated.t(CellEditor.Model.t)) => {
+  let model = {
+    ...model,
+    pending_dispatch_send: None,
+  };
+  let model =
+    Utils.update_context(
+      ~session_mode=settings.agent_globals.session_mode,
+      ~test_results=?EvalResult.Model.test_results(editor.result),
+      model,
+      editor.editor,
+      chat_id,
+    );
+  (
+    dispatch_send(
+      ~api_key=settings.agent_globals.api_key,
+      ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
+      ~reasoning_effort=settings.agent_globals.reasoning_effort,
+      ~globals=settings.agent_globals,
+      chat_id,
+      model,
+      schedule_action,
+    ),
+    editor |> Updated.return,
+  );
+};
+
+/** The user message the Jev pre-pass selects a view for, when it is on. */
+let prepass_intent =
+    (settings: Settings.t, model: Model.t, chat_id: Id.t): option(string) =>
+  if (settings.agent_globals.jev_prepass) {
+    let tail =
+      Chat.Utils.current_tail(
+        ChatSystem.Utils.find_chat(chat_id, model.chat_system),
+      );
+    tail.role == User ? Some(tail.content) : None;
+  } else {
+    None;
+  };
+
+/** Phase 2 of a send (DispatchSend): context refresh + payload + request,
+    optionally preceded by the Jev pre-pass. */
 let handle_dispatch_send =
     (
       chat_id: Id.t,
@@ -421,33 +506,73 @@ let handle_dispatch_send =
     : (Model.t, Updated.t(CellEditor.Model.t)) =>
   switch (model.pending_dispatch_send) {
   | Some(pending_chat_id) when pending_chat_id == chat_id =>
-    let model = {
-      ...model,
-      pending_dispatch_send: None,
-    };
-    let model =
-      Utils.update_context(
-        ~session_mode=settings.agent_globals.session_mode,
-        ~test_results=?EvalResult.Model.test_results(editor.result),
-        model,
-        editor.editor,
-        chat_id,
-      );
-    (
-      dispatch_send(
+    switch (prepass_intent(settings, model, chat_id)) {
+    | Some(intent) =>
+      /* Hold the send until Jev answers. [pending_dispatch_send] stays set,
+         so the chat stays busy and Stop cancels it like any phase gap. */
+      let prepass_seq = model.jev_prepass_seq + 1;
+      AgentJev.select_view^(
         ~api_key=settings.agent_globals.api_key,
-        ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
-        ~reasoning_effort=settings.agent_globals.reasoning_effort,
-        ~session_mode=settings.agent_globals.session_mode,
-        chat_id,
-        model,
-        schedule_action,
-      ),
-      editor |> Updated.return,
-    );
+        ~max_tokens=settings.agent_globals.jev_batch_max_tokens,
+        ~intent,
+        ~on_done=
+          selection =>
+            schedule_action(
+              Action.JevPrepassDone(chat_id, prepass_seq, selection),
+            ),
+        editor.editor.editor.state.zipper,
+      );
+      (
+        {
+          ...model,
+          jev_prepass_seq: prepass_seq,
+        },
+        editor |> Updated.return_quiet,
+      );
+    | None =>
+      finish_dispatch_send(chat_id, model, editor, settings, schedule_action)
+    }
   | _ =>
     /* Stale: Stop (or a competing dispatch) already consumed the flag. */
     (model, editor |> Updated.return_quiet)
+  };
+
+/** Pre-pass answered: apply Jev's view (a failed selection leaves the old
+    one) and resume the held send. Stale results — the send was stopped, or
+    a newer pre-pass superseded this one — are dropped. */
+let handle_jev_prepass_done =
+    (
+      chat_id: Id.t,
+      prepass_seq: int,
+      selection: JevNav.selection,
+      model: Model.t,
+      editor: CellEditor.Model.t,
+      settings: Settings.t,
+      schedule_action: Action.t => unit,
+    )
+    : (Model.t, Updated.t(CellEditor.Model.t)) =>
+  switch (model.pending_dispatch_send) {
+  | Some(pending_chat_id)
+      when pending_chat_id == chat_id && prepass_seq == model.jev_prepass_seq =>
+    let model =
+      selection.metrics.failed
+        ? model
+        : {
+          ...model,
+          chat_system:
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.AgentContextAction(
+                  SetSuggested(selection.open_paths),
+                ),
+                chat_id,
+              ),
+              model.chat_system,
+            )
+            |> ChatSystem.Update.get,
+        };
+    finish_dispatch_send(chat_id, model, editor, settings, schedule_action);
+  | _ => (model, editor |> Updated.return_quiet)
   };
 
 let stop_agentic_loop =
@@ -515,6 +640,9 @@ let stop_agentic_loop =
             ...
               Utils.append_message(~chat_id=pending_chat_id, cancelled, model),
             pending_dispatch_send: None,
+            /* Orphan any in-flight pre-pass: the next send may set
+               [pending_dispatch_send] again before its result lands. */
+            jev_prepass_seq: model.jev_prepass_seq + 1,
           },
           editor |> Updated.return,
         );
@@ -714,10 +842,7 @@ let do_retry_api_send =
               ),
             ~session_id=Some(Id.to_string(chat_id)),
             ~tools=
-              enabled_tools(
-                ~mode=settings.agent_globals.session_mode,
-                model.prompting,
-              ),
+              enabled_tools(~globals=settings.agent_globals, model.prompting),
             ~reasoning=?
               Option.map(
                 e => OpenRouter.Payload.Model.Effort(e),
@@ -807,10 +932,7 @@ let retry_empty_response =
               ),
             ~session_id=Some(Id.to_string(chat_id)),
             ~tools=
-              enabled_tools(
-                ~mode=settings.agent_globals.session_mode,
-                model.prompting,
-              ),
+              enabled_tools(~globals=settings.agent_globals, model.prompting),
             ~reasoning=?
               Option.map(
                 e => OpenRouter.Payload.Model.Effort(e),

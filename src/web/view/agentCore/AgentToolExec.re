@@ -18,7 +18,10 @@ let add_tool_result_to_active_subtask =
   // Only add editor and context tools to subtask tool results for now
   // i.e. don't include workbench tool calls in the workbench view lol
   | EditorAction(_)
-  | AgentContextAction(_) =>
+  | AgentContextAction(_)
+  | ModifyView(_)
+  | AddTests(_)
+  | JevEdit(_) =>
     let chat_system =
       ChatSystem.Update.update(
         ChatSystem.Update.Action.ChatAction(
@@ -71,7 +74,9 @@ let mk_diff =
     }
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
-  | StaticsAction(_) =>
+  | StaticsAction(_)
+  | AddTests(_)
+  | JevEdit(_) =>
     let old_segment = Select.all(old_editor.state.zipper).selection.content;
     let new_segment = Select.all(new_editor.state.zipper).selection.content;
     let old_s = CompositionView.Public.print_segment(old_segment);
@@ -100,6 +105,8 @@ let mk_segment_snapshots =
   switch (action) {
   | EditorAction(_)
   | InsertAtProgramBoundary(_)
+  | AddTests(_)
+  | JevEdit(_)
   | ProbeAction(_)
   | StaticsAction(_)
   | SyntaxProjectorAction(_) =>
@@ -117,6 +124,7 @@ let execute_one_tool_call =
       ~model: Model.t,
       ~cell_editor: CellEditor.Model.t,
       ~settings: Settings.t,
+      ~resolved: AgentJev.resolved,
       ~chat_id: Id.t,
     )
     : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
@@ -127,10 +135,13 @@ let execute_one_tool_call =
     )
   ) {
   | Action(action) =>
+    let view_before =
+      ChatSystem.Utils.find_chat(chat_id, model.chat_system).agent_view;
     switch (
       try(
         ToolCallHandler.update(
           ~settings,
+          ~resolved,
           action,
           model,
           cell_editor.editor,
@@ -152,9 +163,28 @@ let execute_one_tool_call =
           chat_id,
         );
       let success_message =
-        "The "
-        ++ tool_call.name
-        ++ " tool call was successful and has been applied to the model.";
+        switch (action) {
+        | ModifyView(_) =>
+          AgentContext.Utils.view_change_summary(
+            ~before=view_before,
+            ChatSystem.Utils.find_chat(chat_id, model.chat_system).agent_view,
+          )
+        | JevEdit(request) =>
+          switch (
+            AgentJev.find_edit(
+              ~globals=settings.agent_globals,
+              resolved,
+              request,
+            )
+          ) {
+          | Some(result) => AgentJev.edit_summary(result.metrics)
+          | None => "jev_edit applied."
+          }
+        | _ =>
+          "The "
+          ++ tool_call.name
+          ++ " tool call was successful and has been applied to the model."
+        };
       let (before_segment, after_segment) =
         mk_segment_snapshots(
           ~old_editor=cell_editor.editor.editor,
@@ -266,7 +296,7 @@ let execute_one_tool_call =
           Message.Utils.mk_tool_result_message(tool_result),
         );
       }
-    }
+    };
   | Failure(msg) =>
     let tool_result: AgentToolResult.tool_result = {
       tool_call,

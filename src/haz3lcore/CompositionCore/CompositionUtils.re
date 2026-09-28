@@ -14,6 +14,7 @@ module Local = {
   let tools = [
     ViewTools.expand,
     ViewTools.collapse,
+    ViewTools.modify_view,
     ProbeTools.place_probe,
     ProbeTools.remove_probe,
     ProbeTools.toggle_probe,
@@ -31,6 +32,8 @@ module Local = {
     EditTools.delete_body,
     EditTools.insert_after,
     EditTools.insert_before,
+    EditTools.jev_edit,
+    EditTools.add_tests,
     WorkbenchTools.create_new_task,
     WorkbenchTools.set_active_task,
     WorkbenchTools.unset_active_task,
@@ -61,6 +64,14 @@ module Local = {
     };
   };
 
+  /** Optional list field: absent means empty (planner vocab is optional). */
+  let get_optional_string_list =
+      (args: API.Json.t, field: string): list(string) =>
+    switch (API.Json.dot(field, args)) {
+    | Some(_) => API.Json.Parsers.get_string_list(args, field)
+    | None => []
+    };
+
   let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
     let k = ProjectorKind.of_name(String.trim(s));
     if (ProjectorKind.is_refractor(k)) {
@@ -88,6 +99,14 @@ module Local = {
               AgentContextAction(Expand(get_string_list(args, "paths")))
             | "collapse" =>
               AgentContextAction(Collapse(get_string_list(args, "paths")))
+            | "modify_view" =>
+              /* Additive unless the planner explicitly switches focus. */
+              let replace =
+                switch (API.Json.dot("replace", args)) {
+                | Some(`Bool(b)) => b
+                | _ => false
+                };
+              ModifyView(get_string(args, "intent"), replace);
             | "place_probe" =>
               ProbeAction(PlaceProbe(get_string_list(args, "paths")))
             | "remove_probe" =>
@@ -164,6 +183,30 @@ module Local = {
               | Some(path) => EditorAction(Insert(Before, path, code))
               | None => InsertAtProgramBoundary(Before, code)
               };
+            | "add_tests" =>
+              switch (get_string_list(args, "tests")) {
+              | [] => raise(Failure("add_tests needs at least one test."))
+              | tests => AddTests(tests)
+              }
+            | "jev_edit" =>
+              JevEdit({
+                JevEdit.path: get_string(args, "path"),
+                /* Optional: the builds arm's schema has no sketch. */
+                sketch:
+                  Option.value(
+                    ~default="",
+                    get_optional_string(args, "sketch"),
+                  ),
+                names: get_optional_string_list(args, "names"),
+                literals: get_optional_string_list(args, "literals"),
+                /* Offered only in the builds schema; accepted in both. */
+                signature:
+                  Option.value(
+                    ~default="",
+                    get_optional_string(args, "signature"),
+                  ),
+                intent: get_string(args, "intent"),
+              })
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>

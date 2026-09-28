@@ -11,6 +11,8 @@ module Action = AgentAction;
 /* Re-exported for external callers/tests ([Agent.Update.*]). */
 let defer_dispatch_send = AgentSend.defer_dispatch_send;
 let tool_allowed_in_mode = AgentSend.tool_allowed_in_mode;
+let enabled_tools = AgentSend.enabled_tools;
+let edit_tools_replaced_by_jev = AgentSend.edit_tools_replaced_by_jev;
 let backoff_ms = AgentSend.backoff_ms;
 let format_api_error_content = AgentSend.format_api_error_content;
 
@@ -52,13 +54,48 @@ let update =
       settings,
       schedule_action,
     )
+  | JevPrepassDone(chat_id, prepass_seq, selection) =>
+    AgentSend.handle_jev_prepass_done(
+      chat_id,
+      prepass_seq,
+      selection,
+      model,
+      editor,
+      settings,
+      schedule_action,
+    )
   | StopAgenticLoop =>
     AgentSend.stop_agentic_loop(model, editor, schedule_action)
   | FlushPendingSend(chat_id) =>
     AgentSend.flush_pending_send(chat_id, model, editor, schedule_action)
   | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
     let (m, e) =
+      AgentResponse.resolve_jev_then_handle(
+        reply,
+        chat_id,
+        flight_seq,
+        elapsed_ms,
+        model,
+        editor,
+        settings,
+        schedule_action,
+      );
+    AgentSend.schedule_flush_pending_if_idle_for_chat(
+      m,
+      chat_id,
+      schedule_action,
+    );
+    (m, e);
+  | HandleLLMResponseResolved(
+      reply,
+      chat_id,
+      flight_seq,
+      elapsed_ms,
+      resolved,
+    ) =>
+    let (m, e) =
       AgentResponse.handle_llm_response(
+        ~resolved,
         reply,
         chat_id,
         flight_seq,

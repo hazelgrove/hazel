@@ -1,0 +1,74 @@
+{
+  "fix-middle": {
+    "name": "Small billing program",
+    "what": "Sums the bills for one station's meter readings.",
+    "broken": "Billed amounts add volume and cost instead of multiplying them, and a 3-unit surcharge is never applied.",
+    "prompt_style": "names",
+    "bugs": 2,
+    "bindings": 11
+  },
+  "nav-fleet": {
+    "name": "Fleet cost report",
+    "what": "Trip costs for a simulated vehicle fleet, organised into 10 modules (data, fuel, maintenance, drivers, reporting).",
+    "broken": "Fuel is billed on distance instead of litres, idle time is charged from the first minute, and the service-due check is inverted.",
+    "prompt_style": "names",
+    "bugs": 3,
+    "bindings": 61
+  },
+  "nav-fleet-sym": {
+    "name": "Fleet cost report (symptoms only)",
+    "what": "The same fleet program; the request describes what users see and never names the code to change.",
+    "broken": "Same three bugs as the fleet cost report.",
+    "prompt_style": "symptoms",
+    "bugs": 3,
+    "bindings": 61
+  },
+  "nav-parts": {
+    "name": "Parts depot reorder run",
+    "what": "Weekly spare-parts reordering: expected sales, safety stock, supplier pack sizes and volume discounts, in modules nested three levels deep.",
+    "broken": "Weekly sales are averaged over the wrong number of weeks, safety stock uses supplier delays in days instead of weeks, and the volume discount misses orders of exactly the threshold size.",
+    "prompt_style": "names",
+    "bugs": 3,
+    "bindings": 62
+  },
+  "nav-parts-sym": {
+    "name": "Parts depot reorder run (symptoms only)",
+    "what": "The same depot program; the request describes what users see and never names the code to change.",
+    "broken": "Same three bugs as the parts depot run.",
+    "prompt_style": "symptoms",
+    "bugs": 3,
+    "bindings": 62
+  },
+  "nav-parts-obf": {
+    "name": "Parts depot reorder run (meaningless names)",
+    "what": "The same depot program with every name replaced by v01, M02 and so on, and comments removed, to test whether finding code depends on names.",
+    "broken": "Same three bugs as the parts depot run.",
+    "prompt_style": "names",
+    "bugs": 3,
+    "bindings": 62
+  },
+  "nav-warranty": {
+    "name": "Warranty claim settlement",
+    "what": "Pays warranty claims for one quarter: coverage rules, deductibles, payouts and an audit figure, in 8 modules.",
+    "broken": "Claims past the warranty mileage are paid. The fix changes the shared coverage function, so both places that use it must change too (a caller-and-callee test).",
+    "prompt_style": "names",
+    "bugs": 1,
+    "bindings": 43
+  },
+  "nav-warranty-sym": {
+    "name": "Warranty claim settlement (symptoms only)",
+    "what": "The same warranty program; the request describes the symptom and never names the code to change.",
+    "broken": "Same caller-and-callee bug as the warranty task.",
+    "prompt_style": "symptoms",
+    "bugs": 1,
+    "bindings": 43
+  },
+  "nav-emissions": {
+    "name": "Emissions test report",
+    "what": "A dynamometer emissions test over a four-phase driving cycle: a long, flat program with statistics repeated per phase.",
+    "broken": "The CO2 figure is ten times too high (fuel in millilitres is divided by 100 instead of 1000), and the last driving phase contains no samples.",
+    "prompt_style": "names",
+    "bugs": 2,
+    "bindings": 98
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "reshape-source",
+  "program": "bench/tasks/reshape-source.hz",
+  "feedback": 5,
+  "prompt": "We need to re-run this report against three different simulated datasets, one after another, reporting the total each time.\n\n  1. First change the multiplier in `noise` from 7919 to 6271 and report the total.\n  2. Then change the additive constant in `noise` from 104729 to 99991 and report the total.\n  3. Then change the number of generated readings from 300 to 360 and report the total.\n\nMake the changes one at a time, reading off the total after each. When you have reported all three totals, say DONE and stop.",
+  "expectation": "NEGATIVE CONTROL. Every edit changes the data source at the very TOP of the program, so every cached result downstream is invalidated and there is nothing legitimate to re-use. Incremental evaluation should show no gain here, and may lose slightly to the cost of maintaining a cache it never gets to read. A calculus that looks fast on this trace is reusing something it should not be, which the harness's a0 soundness check should catch. Reporting this alongside the wins is what keeps the other numbers credible."
+}

@@ -7,6 +7,7 @@ module Action = AgentAction;
 
 let handle_llm_response =
     (
+      ~resolved: AgentJev.resolved=AgentJev.unresolved,
       reply: OpenRouter.Reply.Model.t,
       chat_id: Id.t,
       flight_seq: int,
@@ -143,6 +144,7 @@ let handle_llm_response =
                     ~model=m,
                     ~cell_editor=ce_model,
                     ~settings,
+                    ~resolved,
                     ~chat_id,
                   );
                 let failed =
@@ -185,5 +187,64 @@ let handle_llm_response =
         );
       };
     };
+  };
+};
+
+/** Jev-backed tools (modify_view, jev_edit) need HTTP, but tools run in a
+    synchronous fold. So ask Jev everything the reply needs first
+    ([[AgentJev.resolve]]) and re-enter [handle_llm_response] with the
+    answers ([HandleLLMResponseResolved]); the fold itself is unchanged.
+    While Jev runs, [awaiting_response] and [main_llm_seq] are untouched, so
+    Stop is caught by the existing flight-seq gate on re-entry. */
+let resolve_jev_then_handle =
+    (
+      reply: OpenRouter.Reply.Model.t,
+      chat_id: Id.t,
+      flight_seq: int,
+      elapsed_ms: int,
+      model: Model.t,
+      cell_editor: CellEditor.Model.t,
+      settings: Settings.t,
+      schedule_action: Action.t => unit,
+    )
+    : (Model.t, Updated.t(CellEditor.Model.t)) => {
+  let stopped = model.pending_ignore_main_reply_seq == Some(flight_seq);
+  /* jev_edit reads the same curated view the planner sees. */
+  let agent_view =
+    ChatSystem.Utils.find_chat(chat_id, model.chat_system).agent_view;
+  let context_of = z =>
+    CompositionView.Public.print(Editor.Model.mk(z, ~root=Exp), agent_view);
+  let started =
+    !stopped
+    && AgentJev.resolve(
+         ~globals=settings.agent_globals,
+         ~context_of,
+         ~on_done=
+           resolved =>
+             schedule_action(
+               Action.HandleLLMResponseResolved(
+                 reply,
+                 chat_id,
+                 flight_seq,
+                 elapsed_ms,
+                 resolved,
+               ),
+             ),
+         reply.tool_calls,
+         cell_editor.editor.editor.state.zipper,
+       );
+  if (started) {
+    (model, cell_editor |> Updated.return_quiet);
+  } else {
+    handle_llm_response(
+      reply,
+      chat_id,
+      flight_seq,
+      elapsed_ms,
+      model,
+      cell_editor,
+      settings,
+      schedule_action,
+    );
   };
 };

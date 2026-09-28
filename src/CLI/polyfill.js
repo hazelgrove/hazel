@@ -93,3 +93,7 @@ if (typeof global.Worker === "undefined") {
     removeEventListener() {}
   };
 }
+
+// Node HTTP transport for src/util/API.re, which is written against the
+// browser XMLHttpRequest. Needed by the `hazel agent` subcommand.
+require("./xhrNode.js");

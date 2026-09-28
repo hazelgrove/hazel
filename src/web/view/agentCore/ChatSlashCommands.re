@@ -3,6 +3,26 @@ let all_alphabetical: list((string, string)) = [
   ("account-usage", "Show your OpenRouter account credit balance"),
   ("compact", "Summarize the conversation"),
   ("help", "List available slash commands"),
+  (
+    "jev-builds",
+    "Toggle Jev building code without a sketch in jev_edit (experiment)",
+  ),
+  (
+    "jev-edit-tool",
+    "Toggle the agent's jev_edit tool: it plans, Jev writes code (experiment)",
+  ),
+  (
+    "jev-mode",
+    "Toggle all Jev experiments at once: agent specifies, Jev navigates and builds the code",
+  ),
+  (
+    "jev-prepass",
+    "Toggle Jev view pre-selection on each message (experiment)",
+  ),
+  (
+    "jev-view-tool",
+    "Toggle the agent's modify_view tool, backed by Jev (experiment)",
+  ),
   ("key", "Show the currently-set OpenRouter API key"),
   ("key-usage", "Show usage and limits for the active OpenRouter key"),
   ("session-usage", "Estimate $ cost of this chat from token usage"),

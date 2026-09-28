@@ -1,0 +1,189 @@
+# Chassis-dynamometer emissions test, WLTP-style four-phase cycle.       #
+# One sample every 10 s: (t_s, speed_kmh, fuel_ml, nox_ug).              #
+# Phases: low 0-589 s, medium 590-1021 s, high 1022-1476 s,             #
+# extra-high 1477-1800 s.                                                #
+
+type Sample = (Int, Int, Int, Int) in
+
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+let sample_period_s = 10 in
+let cycle_length_s = 1800 in
+let sample_count = cycle_length_s / sample_period_s in
+
+let low_start_s = 0 in
+let medium_start_s = 590 in
+let high_start_s = 1022 in
+let extra_high_start_s = 1477 in
+
+let base_speed_kmh : Int -> Int =
+  fun t ->
+    if t < medium_start_s then 19
+    else if t < high_start_s then 40
+    else if t < extra_high_start_s then 57
+    else 92
+in
+let speed_at : Int -> Int =
+  fun i ->
+    let t = i * sample_period_s in
+    base_speed_kmh(t) + int_mod(noise(i), 21) - 10
+in
+let fuel_at : Int -> Int =
+  fun i -> speed_at(i) / 8 + int_mod(noise(i + 1), 3) + 1
+in
+let nox_at : Int -> Int =
+  fun i -> fuel_at(i) * 600 + int_mod(noise(i + 2), 400)
+in
+let samples : [Sample] =
+  init(sample_count, fun i ->
+    (i * sample_period_s, speed_at(i), fuel_at(i), nox_at(i)))
+in
+
+let time_of : Sample -> Int = fun (t, _, _, _) -> t in
+let speed_of : Sample -> Int = fun (_, v, _, _) -> v in
+let fuel_of : Sample -> Int = fun (_, _, f, _) -> f in
+let nox_of : Sample -> Int = fun (_, _, _, n) -> n in
+
+let sum : [Int] -> Int =
+  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+in
+let max_int : [Int] -> Int =
+  fun xs -> fold_left(xs, fun (acc, n) -> if n > acc then n else acc, 0)
+in
+let mean_int : [Int] -> Int =
+  fun xs -> if length(xs) == 0 then 0 else sum(xs) / length(xs)
+in
+
+# Samples whose time falls in [from_s, to_s). #
+let in_window : (Int, Int) -> [Sample] =
+  fun (from_s, to_s) ->
+    filter(samples, fun s -> time_of(s) >= from_s && time_of(s) < to_s)
+in
+
+# Metres covered in one sample period at the sample's speed. #
+let metres_of : Sample -> Int =
+  fun s -> speed_of(s) * 1000 * sample_period_s / 3600
+in
+let distance_m : [Sample] -> Int = fun ss -> sum(map(ss, metres_of)) in
+let fuel_ml : [Sample] -> Int = fun ss -> sum(map(ss, fuel_of)) in
+let nox_ug : [Sample] -> Int = fun ss -> sum(map(ss, nox_of)) in
+let idle_count : [Sample] -> Int =
+  fun ss -> length(filter(ss, fun s -> speed_of(s) < 3))
+in
+
+# Petrol: 2392 g of CO2 per litre burned. #
+let co2_g_per_litre = 2392 in
+let co2_grams : Int -> Int =
+  fun millilitres -> millilitres * co2_g_per_litre / 100
+in
+
+let low_samples = in_window(low_start_s, medium_start_s) in
+let low_distance_m = distance_m(low_samples) in
+let low_fuel_ml = fuel_ml(low_samples) in
+let low_co2_g = co2_grams(low_fuel_ml) in
+let low_nox_ug = nox_ug(low_samples) in
+let low_max_speed = max_int(map(low_samples, speed_of)) in
+let low_mean_speed = mean_int(map(low_samples, speed_of)) in
+let low_idle = idle_count(low_samples) in
+
+let medium_samples = in_window(medium_start_s, high_start_s) in
+let medium_distance_m = distance_m(medium_samples) in
+let medium_fuel_ml = fuel_ml(medium_samples) in
+let medium_co2_g = co2_grams(medium_fuel_ml) in
+let medium_nox_ug = nox_ug(medium_samples) in
+let medium_max_speed = max_int(map(medium_samples, speed_of)) in
+let medium_mean_speed = mean_int(map(medium_samples, speed_of)) in
+let medium_idle = idle_count(medium_samples) in
+
+let high_samples = in_window(high_start_s, extra_high_start_s) in
+let high_distance_m = distance_m(high_samples) in
+let high_fuel_ml = fuel_ml(high_samples) in
+let high_co2_g = co2_grams(high_fuel_ml) in
+let high_nox_ug = nox_ug(high_samples) in
+let high_max_speed = max_int(map(high_samples, speed_of)) in
+let high_mean_speed = mean_int(map(high_samples, speed_of)) in
+let high_idle = idle_count(high_samples) in
+
+let extra_high_samples = in_window(extra_high_start_s, extra_high_start_s) in
+let extra_high_distance_m = distance_m(extra_high_samples) in
+let extra_high_fuel_ml = fuel_ml(extra_high_samples) in
+let extra_high_co2_g = co2_grams(extra_high_fuel_ml) in
+let extra_high_nox_ug = nox_ug(extra_high_samples) in
+let extra_high_max_speed = max_int(map(extra_high_samples, speed_of)) in
+let extra_high_mean_speed = mean_int(map(extra_high_samples, speed_of)) in
+let extra_high_idle = idle_count(extra_high_samples) in
+
+let total_distance_m =
+  low_distance_m + medium_distance_m + high_distance_m + extra_high_distance_m
+in
+let total_co2_g = low_co2_g + medium_co2_g + high_co2_g + extra_high_co2_g in
+let total_nox_ug = low_nox_ug + medium_nox_ug + high_nox_ug + extra_high_nox_ug in
+let total_idle = low_idle + medium_idle + high_idle + extra_high_idle in
+let top_speed =
+  max_int([low_max_speed, medium_max_speed, high_max_speed, extra_high_max_speed])
+in
+
+let co2_g_per_km = total_co2_g * 1000 / total_distance_m in
+let nox_mg_per_km = total_nox_ug / total_distance_m in
+
+# Per-phase intensities, for the engineering appendix. #
+let per_km : (Int, Int) -> Int =
+  fun (amount, metres) -> if metres == 0 then 0 else amount * 1000 / metres
+in
+let low_co2_g_km = per_km(low_co2_g, low_distance_m) in
+let medium_co2_g_km = per_km(medium_co2_g, medium_distance_m) in
+let high_co2_g_km = per_km(high_co2_g, high_distance_m) in
+let extra_high_co2_g_km = per_km(extra_high_co2_g, extra_high_distance_m) in
+let low_nox_mg_km = per_km(low_nox_ug, low_distance_m) / 1000 in
+let medium_nox_mg_km = per_km(medium_nox_ug, medium_distance_m) / 1000 in
+let high_nox_mg_km = per_km(high_nox_ug, high_distance_m) / 1000 in
+let extra_high_nox_mg_km =
+  per_km(extra_high_nox_ug, extra_high_distance_m) / 1000
+in
+let total_fuel_ml =
+  low_fuel_ml + medium_fuel_ml + high_fuel_ml + extra_high_fuel_ml
+in
+let litres_per_100km = total_fuel_ml * 100 / total_distance_m in
+let tank_litres = 50 in
+let range_km =
+  if litres_per_100km == 0 then 0 else tank_litres * 100 / litres_per_100km
+in
+let idle_share_percent = total_idle * 100 / sample_count in
+let mean_speed_kmh = mean_int(map(samples, speed_of)) in
+let appendix =
+  let co2_row =
+    [low_co2_g_km, medium_co2_g_km, high_co2_g_km, extra_high_co2_g_km]
+  in
+  let nox_row =
+    [low_nox_mg_km, medium_nox_mg_km, high_nox_mg_km, extra_high_nox_mg_km]
+  in
+  let worst_co2_phase = max_int(co2_row) in
+  { let co2_row = co2_row; let nox_row = nox_row; let worst_co2_phase = worst_co2_phase }
+in
+
+let limits =
+  let co2_target_g_km = 135 in
+  let nox_limit_mg_km = 60 in
+  let tolerance_percent = 4 in
+  let co2_ceiling = co2_target_g_km * (100 + tolerance_percent) / 100 in
+  { let co2_ceiling = co2_ceiling; let nox_limit_mg_km = nox_limit_mg_km }
+in
+
+let co2_pass = co2_g_per_km <= limits.co2_ceiling in
+let nox_pass = nox_mg_per_km <= limits.nox_limit_mg_km in
+let verdict : String =
+  if co2_pass && nox_pass then "PASS"
+  else if co2_pass then "FAIL-NOX"
+  else if nox_pass then "FAIL-CO2"
+  else "FAIL-BOTH"
+in
+let phase_means =
+  [low_mean_speed, medium_mean_speed, high_mean_speed, extra_high_mean_speed]
+in
+let summary : String =
+  verdict ++ " at " ++ string_of_int(co2_g_per_km) ++ " g/km over "
+  ++ string_of_int(total_distance_m) ++ " m"
+in
+
+(co2_g_per_km, nox_mg_per_km, verdict)

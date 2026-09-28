@@ -1,0 +1,197 @@
+type T01 = (Int, Int, Int, Int, Int, Int, Int) in
+
+module M01 =
+  let v01 : Int -> Int =
+    fun i -> int_mod(i * 7919 + 104729, 10007)
+  in
+  let v02 = 60 in
+  let v03 = 4 in
+  let v04 : Int -> T01 =
+    fun i ->
+      (500 + i,
+       int_mod(v01(i), v03),
+       int_mod(v01(i + 1), 90) + 10,
+       int_mod(v01(i + 2), 60),
+       int_mod(v01(i + 3), 25),
+       int_mod(v01(i + 4), 25),
+       int_mod(v01(i + 5), 25))
+  in
+  let v05 : [T01] = init(v02, v04) in
+  { let v05 = v05; let v03 = v03 }
+in
+
+module M02 =
+  let v06 : T01 -> Int = fun (p, _, _, _, _, _, _) -> p in
+  let v07 : T01 -> Int = fun (_, s, _, _, _, _, _) -> s in
+  let v08 : T01 -> Int = fun (_, _, c, _, _, _, _) -> c in
+  let v09 : T01 -> Int = fun (_, _, _, h, _, _, _) -> h in
+  let v10 : T01 -> [Int] = fun (_, _, _, _, a, b, c) -> [a, b, c] in
+  {
+    let v06 = v06;
+    let v07 = v07;
+    let v08 = v08;
+    let v09 = v09;
+    let v10 = v10
+  }
+in
+
+module M03 =
+  let v11 : [Int] -> Int =
+    fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+  in
+  let v12 : Int -> Int = fun n -> if n < 0 then 0 else n in
+  let v13 : (Int, Int) -> Int = fun (a, b) -> (a + b - 1) / b in
+  let v14 : (Int, Int) -> Int =
+    fun (n, step) -> v13(n, step) * step
+  in
+  {
+    let v11 = v11;
+    let v12 = v12;
+    let v13 = v13;
+    let v14 = v14
+  }
+in
+
+module M04 =
+  let v15 : Int -> String =
+    fun s ->
+      case s
+      | 0 => "Northfield"
+      | 1 => "Kestrel"
+      | 2 => "Ambergate"
+      | _ => "Lowmoor"
+      end
+  in
+  let v16 : Int -> Int =
+    fun s ->
+      case s
+      | 0 => 7
+      | 1 => 14
+      | 2 => 21
+      | _ => 28
+      end
+  in
+  let v17 : Int -> Int =
+    fun s -> if s == 1 then 10 else 5
+  in
+  let v18 =
+    let v19 : Int -> Int = fun s -> 95 - s * 4 in
+    let v20 : Int -> Bool = fun s -> v19(s) >= 90 in
+    { let v19 = v19; let v20 = v20 }
+  in
+  {
+    let v15 = v15;
+    let v16 = v16;
+    let v17 = v17;
+    let v18 = v18
+  }
+in
+
+module M05 =
+  let v21 = 3 in
+  let v22 = 40 in
+  let v23 = v21 * v22 in
+  let v24 : Int -> Int = fun v06 -> int_mod(v06, v21) in
+  {
+    let v23 = v23;
+    let v24 = v24
+  }
+in
+
+module M06 =
+  let v25 =
+    let v26 = 3 in
+    let v27 : T01 -> Int =
+      fun p -> M03.v11(M02.v10(p)) / (v26 + 1)
+    in
+    let v28 : T01 -> Int = fun p -> M03.v13(v27(p), 7) in
+    { let v27 = v27; let v28 = v28 }
+  in
+  let v29 : T01 -> Int =
+    fun p ->
+      case M02.v10(p)
+      | [a, _, c] => c - a
+      | _ => 0
+      end
+  in
+  let v30 : T01 -> Bool = fun p -> v25.v27(p) < 3 in
+  {
+    let v25 = v25;
+    let v29 = v29;
+    let v30 = v30
+  }
+in
+
+module M07 =
+  let v31 =
+    let v32 = 1 in
+    let v33 : T01 -> Int =
+      fun p ->
+        let v34 = M04.v16(M02.v07(p)) in
+        M06.v25.v27(p) * v34
+    in
+    let v35 : T01 -> Int =
+      fun p ->
+        v33(p) + M06.v25.v27(p) * v32
+    in
+    { let v33 = v33; let v35 = v35 }
+  in
+  let v36 : T01 -> Int =
+    fun p -> M03.v12(v31.v35(p) - M02.v09(p))
+  in
+  let v37 : T01 -> Int =
+    fun p ->
+      let v38 = v36(p) in
+      if v38 == 0
+      then 0
+      else M03.v14(v38, M04.v17(M02.v07(p)))
+  in
+  { let v31 = v31; let v37 = v37 }
+in
+
+module M08 =
+  let v39 =
+    let v40 = 40 in
+    let v41 = 10 in
+    let v42 : Int -> Bool = fun v44 -> v44 > v40 in
+    {
+      let v40 = v40;
+      let v41 = v41;
+      let v42 = v42
+    }
+  in
+  let v43 : T01 -> Int =
+    fun p ->
+      let v44 = M07.v37(p) in
+      let v45 = v44 * M02.v08(p) in
+      if v39.v42(v44)
+      then v45 * (100 - v39.v41) / 100
+      else v45
+  in
+  { let v39 = v39; let v43 = v43 }
+in
+
+module M09 =
+  let v46 = filter(M01.v05, fun p -> M07.v37(p) > 0) in
+  let v47 = length(v46) in
+  let v48 = M03.v11(map(M01.v05, M07.v37)) in
+  let v49 = M03.v11(map(M01.v05, M08.v43)) in
+  let v50 = length(filter(M01.v05, M06.v30)) in
+  let v51 : Int -> Int =
+    fun s ->
+      M03.v11(
+        map(filter(M01.v05, fun p -> M02.v07(p) == s),
+            M08.v43))
+  in
+  let v52 = v48 > M05.v23 * 10 in
+  {
+    let v47 = v47;
+    let v48 = v48;
+    let v49 = v49;
+    let v50 = v50;
+    let v51 = v51;
+    let v52 = v52
+  }
+in
+
+(M09.v47, M09.v48, M09.v49)

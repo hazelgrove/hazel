@@ -45,6 +45,8 @@ let (suite, exit_with_test_status) =
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
     @ Test_AgentTools.tests
+    @ Test_JevNav.tests
+    @ Test_JevEdit.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]

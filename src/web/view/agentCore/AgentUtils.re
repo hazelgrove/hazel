@@ -30,6 +30,7 @@ let init = (): Model.t => {
     pending_dispatch_send: None,
     pending_assistant_content: "",
     pending_assistant_reasoning: "",
+    jev_prepass_seq: 0,
   });
 };
 

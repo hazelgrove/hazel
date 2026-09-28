@@ -1,0 +1,78 @@
+<div class="wrap">
+<header>
+  <span class="eyebrow">Hazel · Jev study · lab notebook</span>
+  <h1>Can a cheap, fast helper model make Hazel's coding agent faster and cheaper?</h1>
+  <p>Hazel's coding agent is a large LLM that is paid per turn. Jev is a small model that only answers yes/no and multiple-choice questions, quickly and cheaply. Each <b>setup</b> below hands Jev a different part of the work; <b>Agent navigates + edits (original)</b> is Hazel's default agent, unchanged: one LLM that uses Hazel's structured actions to build its own view of the code and make its own edits, with no Jev. Every other setup is compared against it. Every run of every mode on every test is recorded here.</p>
+  <div class="meta" id="meta"></div>
+</header>
+
+<nav class="tabs nb-tabs" role="tablist" id="tabs">
+  <button role="tab" data-tab="overview">Overview</button>
+  <button role="tab" data-tab="modes">Setups</button>
+  <button role="tab" data-tab="tests">Tests</button>
+  <button role="tab" data-tab="runs">All runs</button>
+  <button role="tab" data-tab="details">Run details</button>
+  <button role="tab" data-tab="findings">Findings log</button>
+  <button role="tab" data-tab="spend">Spend</button>
+</nav>
+
+<section class="nb-panel" id="overview" role="tabpanel">
+  <div class="sec-head"><span class="eyebrow">Overview</span><h2 id="ovHeadline"></h2><p id="ovLede"></p></div>
+  <div class="costs" id="ovTiles"></div>
+  <div class="sec-head"><h3>What we have learned so far</h3></div>
+  <div class="findings" id="ovFindings"></div>
+  <div class="sec-head"><h3>Newest result for each test and setup</h3><p>"Correct output" = the fixed program printed the known right answer. "Wrong output" = it did not (a run can fix the bugs and still fail this, e.g. by changing the final line). Turns = agent replies (limit: 24 on the small program, 40 on the fleet ones). "–" = not tried yet.</p></div>
+  <div class="board" id="ovBoard"></div>
+</section>
+
+<section class="nb-panel" id="modes" role="tabpanel" hidden>
+  <div class="sec-head"><span class="eyebrow">Setups</span><h2>Who decides what in each setup</h2>
+  <p>Blue: the agent model (paid per turn, re-reads the whole view each time). Orange: Jev (one cheap batched request). Grey: Hazel, which lists the legal options and rejects anything that does not type-check.</p></div>
+  <div class="nb-cards" id="modeCards"></div>
+</section>
+
+<section class="nb-panel" id="tests" role="tabpanel" hidden>
+  <div class="sec-head"><span class="eyebrow">Tests</span><h2>The programs the agent is asked to fix</h2>
+  <p>Each test is a small Hazel program with known bugs and a known correct result. A run passes when the program evaluates to that result with no errors.</p></div>
+  <div class="nb-cards" id="testCards"></div>
+</section>
+
+<section class="nb-panel" id="runs" role="tabpanel" hidden>
+  <div class="sec-head"><span class="eyebrow">All runs</span><h2>Every run across every eval</h2>
+  <p>Filter by setup or test. Click a row to open its details. The last two columns only apply when Jev chooses the view: how much of what Jev opened was actually needed, and how much of the needed code Jev opened.</p></div>
+  <div class="nb-filters"><span class="nb-flabel">Setup</span><div class="chips" id="fMode"></div></div>
+  <div class="nb-filters"><span class="nb-flabel">Test</span><div class="chips" id="fTask"></div></div>
+  <div class="table-wrap" id="runTable"></div>
+</section>
+
+<section class="nb-panel" id="details" role="tabpanel" hidden>
+  <div class="sec-head"><span class="eyebrow">Run details</span><h2 id="dTitle">Pick a run</h2><p id="dSub"></p></div>
+  <div class="nb-picker"><label for="dPick">Run</label><select id="dPick"></select></div>
+  <div class="costs" id="dTiles"></div>
+  <div class="sec-head"><h3>Every tool call, in order</h3><p>One square per call. N navigate, P probe, E edit, O other. A red outline means the call failed.</p></div>
+  <div class="legend"><span><i style="background:var(--s2)"></i>N · navigate</span><span><i style="background:var(--s1)"></i>P · probe</span><span><i style="background:var(--s3)"></i>E · edit</span><span><i style="background:var(--s4)"></i>O · other</span></div>
+  <div class="chart-card"><div class="tl" id="dTimeline"></div></div>
+  <details open><summary>Step log</summary><div class="steplog" id="dSteps" style="margin-top:10px"></div></details>
+  <div id="dSelWrap"><div class="sec-head"><h3>What Jev opened</h3><p>Each row is one request for a view. Solid chips: what Jev opened. Green: code the test actually needs. Dashed: Jev was unsure and left it folded.</p></div><div class="sels" id="dSels"></div></div>
+  <div id="dEditWrap"><div class="sec-head"><h3>What Jev built</h3><p>Each row is one edit Jev was asked to build: blanks it filled, and blanks it handed back to the agent.</p></div><div class="sels" id="dEdits"></div></div>
+  <div class="sec-head"><h3>Code changes</h3></div>
+  <div class="diffs" id="dDiffs"></div>
+</section>
+
+<section class="nb-panel" id="findings" role="tabpanel" hidden>
+  <div class="sec-head"><span class="eyebrow">Findings log</span><h2>What each eval taught us, and what we changed</h2></div>
+  <div class="nb-timeline" id="findingLog"></div>
+</section>
+
+<section class="nb-panel" id="spend" role="tabpanel" hidden>
+  <div class="sec-head"><span class="eyebrow">Spend</span><h2>What the evals have cost</h2>
+  <p>Measured spend is the change in account usage on the lab key during an eval. Logged spend is the sum of what each run's model calls reported. The two should roughly agree.</p></div>
+  <div class="costs" id="spTiles"></div>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Logged cost per run (USD)</h3><div class="legend"><span><i style="background:var(--s1)"></i>Agent</span><span><i style="background:var(--s2)"></i>Jev navigation</span><span><i style="background:var(--s3)"></i>Jev editing</span></div><div id="spRuns"></div></div>
+    <div class="chart-card"><h3>Average cost per run, by test</h3><div class="legend"><span><i style="background:var(--s1)"></i>Agent</span><span><i style="background:var(--s2)"></i>Jev navigation</span><span><i style="background:var(--s3)"></i>Jev editing</span></div><div id="spTasks"></div></div>
+  </div>
+  <div class="table-wrap" id="spTable"></div>
+</section>
+</div>
+<div class="tip" id="tip" hidden></div>

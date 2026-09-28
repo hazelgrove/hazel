@@ -1,0 +1,31 @@
+/* Notebook-only additions; everything else comes from the Eval 001/002 reports. */
+.nb-tabs { position: sticky; top: 0; z-index: 3; background: var(--bg); padding-block: 8px; }
+.nb-panel { display: grid; gap: 18px; }
+.nb-panel[hidden] { display: none; }
+.nb-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.nb-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 12px; align-content: start; }
+.nb-card .chain { gap: 5px; }
+.nb-card .node { font-size: 11.5px; padding: 6px 8px; }
+.nb-card code, .nb-card .flags { font: 12px var(--mono); color: var(--muted); }
+.nb-best { border-top: 1px solid var(--line); padding-top: 10px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.nb-best b { color: var(--ink); }
+.nb-filters { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.nb-flabel { font: 600 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); min-width: 44px; }
+button.chip { cursor: pointer; background: var(--surface); }
+button.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+#runTable tbody tr { cursor: pointer; }
+#runTable tbody tr:hover td { background: var(--sunk); }
+.nb-sub { display: block; font: 11.5px var(--mono); color: var(--muted); }
+.nb-picker { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font: 600 13px var(--body); }
+.nb-picker select { font: 13px var(--body); padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 100%; }
+.nb-timeline { display: grid; gap: 12px; border-left: 2px solid var(--line); padding-left: 16px; }
+.nb-entry { position: relative; }
+.nb-entry::before { content: ""; position: absolute; left: -23px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
+.nb-when { font: 12px var(--mono); color: var(--muted); }
+.board td.nb-cell { white-space: nowrap; }
+.nb-empty { color: var(--muted); }
+@media (max-width: 560px) { .nb-cards, .findings { grid-template-columns: 1fr; } }
+/* Grid items default to min-width:auto, so one wide table would widen the
+   whole page on a phone; let them shrink and scroll inside their wrappers. */
+.wrap > *, .nb-panel > *, .nb-card > *, .finding > * { min-width: 0; }
+.nb-test { min-width: 190px; }

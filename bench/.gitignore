@@ -1,0 +1,3 @@
+# Eval output: per-run logs and metrics JSONL. Regenerable, and too noisy
+# to review; keep them out of commits.
+results/

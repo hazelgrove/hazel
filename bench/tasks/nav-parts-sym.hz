@@ -1,0 +1,205 @@
+# Service-parts depot: weekly replenishment run.                         #
+# A part is (part_id, supplier, unit_cost, on_hand, wk1, wk2, wk3) where #
+# wk1..wk3 are the units sold in each of the last three weeks.           #
+
+type PartRow = (Int, Int, Int, Int, Int, Int, Int) in
+
+module Data =
+  let noise : Int -> Int =
+    fun i -> int_mod(i * 7919 + 104729, 10007)
+  in
+  let part_count = 60 in
+  let supplier_count = 4 in
+  let part_of : Int -> PartRow =
+    fun i ->
+      (500 + i,
+       int_mod(noise(i), supplier_count),
+       int_mod(noise(i + 1), 90) + 10,
+       int_mod(noise(i + 2), 60),
+       int_mod(noise(i + 3), 25),
+       int_mod(noise(i + 4), 25),
+       int_mod(noise(i + 5), 25))
+  in
+  let parts : [PartRow] = init(part_count, part_of) in
+  { let parts = parts; let supplier_count = supplier_count }
+in
+
+module Part =
+  let part_id : PartRow -> Int = fun (p, _, _, _, _, _, _) -> p in
+  let supplier : PartRow -> Int = fun (_, s, _, _, _, _, _) -> s in
+  let unit_cost : PartRow -> Int = fun (_, _, c, _, _, _, _) -> c in
+  let on_hand : PartRow -> Int = fun (_, _, _, h, _, _, _) -> h in
+  let sales : PartRow -> [Int] = fun (_, _, _, _, a, b, c) -> [a, b, c] in
+  {
+    let part_id = part_id;
+    let supplier = supplier;
+    let unit_cost = unit_cost;
+    let on_hand = on_hand;
+    let sales = sales
+  }
+in
+
+module Num =
+  let sum : [Int] -> Int =
+    fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+  in
+  let clamp_low : Int -> Int = fun n -> if n < 0 then 0 else n in
+  let ceil_div : (Int, Int) -> Int = fun (a, b) -> (a + b - 1) / b in
+  let round_up_to : (Int, Int) -> Int =
+    fun (n, step) -> ceil_div(n, step) * step
+  in
+  {
+    let sum = sum;
+    let clamp_low = clamp_low;
+    let ceil_div = ceil_div;
+    let round_up_to = round_up_to
+  }
+in
+
+module Suppliers =
+  let name_of : Int -> String =
+    fun s ->
+      case s
+      | 0 => "Northfield"
+      | 1 => "Kestrel"
+      | 2 => "Ambergate"
+      | _ => "Lowmoor"
+      end
+  in
+  # Lead time from order to shelf, in DAYS. #
+  let lead_time_days : Int -> Int =
+    fun s ->
+      case s
+      | 0 => 7
+      | 1 => 14
+      | 2 => 21
+      | _ => 28
+      end
+  in
+  let pack_size : Int -> Int =
+    fun s -> if s == 1 then 10 else 5
+  in
+  let rating =
+    let on_time_percent : Int -> Int = fun s -> 95 - s * 4 in
+    let preferred : Int -> Bool = fun s -> on_time_percent(s) >= 90 in
+    { let on_time_percent = on_time_percent; let preferred = preferred }
+  in
+  {
+    let name_of = name_of;
+    let lead_time_days = lead_time_days;
+    let pack_size = pack_size;
+    let rating = rating
+  }
+in
+
+module Storage =
+  let zones = 3 in
+  let bins_per_zone = 40 in
+  let capacity = zones * bins_per_zone in
+  let zone_of : Int -> Int = fun part_id -> int_mod(part_id, zones) in
+  {
+    let capacity = capacity;
+    let zone_of = zone_of
+  }
+in
+
+module Demand =
+  let forecast =
+    let window = 3 in
+    # Mean units sold per week over the window. #
+    let weekly : PartRow -> Int =
+      fun p -> Num.sum(Part.sales(p)) / (window + 1)
+    in
+    let daily : PartRow -> Int = fun p -> Num.ceil_div(weekly(p), 7) in
+    { let weekly = weekly; let daily = daily }
+  in
+  let trend : PartRow -> Int =
+    fun p ->
+      case Part.sales(p)
+      | [a, _, c] => c - a
+      | _ => 0
+      end
+  in
+  let is_slow_mover : PartRow -> Bool = fun p -> forecast.weekly(p) < 3 in
+  {
+    let forecast = forecast;
+    let trend = trend;
+    let is_slow_mover = is_slow_mover
+  }
+in
+
+module Replenish =
+  let policy =
+    let review_weeks = 1 in
+    # Cover the supplier's lead time, converted to weeks, plus one review. #
+    let safety_stock : PartRow -> Int =
+      fun p ->
+        let lead_days = Suppliers.lead_time_days(Part.supplier(p)) in
+        Demand.forecast.weekly(p) * lead_days
+    in
+    let target_level : PartRow -> Int =
+      fun p ->
+        safety_stock(p) + Demand.forecast.weekly(p) * review_weeks
+    in
+    { let safety_stock = safety_stock; let target_level = target_level }
+  in
+  let shortfall : PartRow -> Int =
+    fun p -> Num.clamp_low(policy.target_level(p) - Part.on_hand(p))
+  in
+  let order_qty : PartRow -> Int =
+    fun p ->
+      let short = shortfall(p) in
+      if short == 0
+      then 0
+      else Num.round_up_to(short, Suppliers.pack_size(Part.supplier(p)))
+  in
+  { let policy = policy; let order_qty = order_qty }
+in
+
+module Pricing =
+  let bulk =
+    let threshold_units = 40 in
+    let discount_percent = 10 in
+    # Orders of at least the threshold get the bulk discount. #
+    let qualifies : Int -> Bool = fun qty -> qty > threshold_units in
+    {
+      let threshold_units = threshold_units;
+      let discount_percent = discount_percent;
+      let qualifies = qualifies
+    }
+  in
+  let line_value : PartRow -> Int =
+    fun p ->
+      let qty = Replenish.order_qty(p) in
+      let gross = qty * Part.unit_cost(p) in
+      if bulk.qualifies(qty)
+      then gross * (100 - bulk.discount_percent) / 100
+      else gross
+  in
+  { let bulk = bulk; let line_value = line_value }
+in
+
+module Report =
+  let ordered = filter(Data.parts, fun p -> Replenish.order_qty(p) > 0) in
+  let lines = length(ordered) in
+  let units = Num.sum(map(Data.parts, Replenish.order_qty)) in
+  let spend = Num.sum(map(Data.parts, Pricing.line_value)) in
+  let slow_movers = length(filter(Data.parts, Demand.is_slow_mover)) in
+  let per_supplier : Int -> Int =
+    fun s ->
+      Num.sum(
+        map(filter(Data.parts, fun p -> Part.supplier(p) == s),
+            Pricing.line_value))
+  in
+  let over_capacity = units > Storage.capacity * 10 in
+  {
+    let lines = lines;
+    let units = units;
+    let spend = spend;
+    let slow_movers = slow_movers;
+    let per_supplier = per_supplier;
+    let over_capacity = over_capacity
+  }
+in
+
+(Report.lines, Report.units, Report.spend)

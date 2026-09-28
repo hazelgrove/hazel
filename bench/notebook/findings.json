@@ -1,0 +1,134 @@
+[
+ {
+  "date": "2026-09-24",
+  "eval": "001",
+  "round": "Round 4",
+  "tag": "Engine gap",
+  "kind": "bad",
+  "headline": true,
+  "finding": "When Jev had to build code, the right piece was not among its options: built-in functions like map were offered only as bare names, never as calls such as map(?, ?). Jev correctly gave up 14 times.",
+  "change": "Offer every in-scope function whose result fits the hole as a call with the right number of blanks, built-ins included."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "001",
+  "round": "Round 4",
+  "tag": "Engine gap",
+  "kind": "bad",
+  "finding": "Half-finished builds were left in the program, so the full-Jev run ended with a broken definition and no value.",
+  "change": "Make Jev edits all-or-nothing: if any blank is still open at the end, restore the original and tell the planner which blanks are open."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "001",
+  "round": "Round 4",
+  "tag": "Menu noise",
+  "kind": "warn",
+  "finding": "Jev was offered options that can never be right, such as re-defining an existing function's name.",
+  "change": "Only offer new-name forms for names the planner declares as new."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "001",
+  "round": "Round 4",
+  "tag": "Planner loop",
+  "kind": "warn",
+  "finding": "Neither setup said DONE. Control met the goal early but kept editing until the 24-turn cap; the full-Jev run repeated the same failing request 14 times.",
+  "change": "Stop a run when the goal is met; nudge the planner after two identical failures."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "001",
+  "round": "Round 4",
+  "tag": "Navigation",
+  "kind": "good",
+  "headline": true,
+  "finding": "Jev picked the view well on the small program: its very first selection, from the user's message alone, opened exactly the two definitions that needed fixing.",
+  "change": "None needed; kept as the reference behaviour."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "002",
+  "round": "Round 4",
+  "tag": "Jev over-selects",
+  "kind": "bad",
+  "headline": true,
+  "finding": "On the 61-definition fleet program, Jev as navigator cost 48% more and took 55% longer than control. The planner's requests named 2 or 3 definitions, but Jev opened 6 to 53 of them (6% precision): \"relevant\" was too loose a question.",
+  "change": "Tried (untested guess): stricter question + a 0.8 cutoff on Jev's yes + open paths the request names. The cutoff was later removed (see Eval 003)."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "002",
+  "round": "Round 4",
+  "tag": "View churn",
+  "kind": "warn",
+  "finding": "Every navigation request replaced the whole view, so the planner asked one definition at a time and re-asked: 18 requests and 6 extra turns.",
+  "change": "Navigation requests add to the view by default, and the tool asks for everything at once."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "002",
+  "round": "Round 4",
+  "tag": "Eval design",
+  "kind": "warn",
+  "headline": true,
+  "finding": "The test requests named the exact definitions to fix, so control found them with three clicks and navigation was never hard. Jev could only add cost.",
+  "change": "Added symptoms-only versions of the fleet, depot and warranty tests that describe what users see and never name the code."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "002",
+  "round": "Round 4",
+  "tag": "Jev cost",
+  "kind": "neutral",
+  "finding": "Jev was not free at this size: each navigation request sent all 61 definitions (about 11k tokens), 24% of the run's cost. Its own time was only about 6 s in total; the slowdown was extra, slower planner turns.",
+  "change": "Planned: send one-line headers for far-away definitions and full code only for likely candidates."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "-",
+  "round": "Round 4",
+  "tag": "Incident",
+  "kind": "bad",
+  "finding": "A test clean-up command deleted a paid run's results folder; Eval 001's numbers were recovered from captured output.",
+  "change": "Tests write to temporary folders; nothing deletes results."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "003",
+  "round": "Round 5",
+  "tag": "Grader",
+  "kind": "warn",
+  "headline": true,
+  "finding": "On the big program with named bugs, the Jev navigator fixed all three bugs correctly but was scored a fail: the planner replaced the program's final line with its own checks, so the value no longer matched.",
+  "change": "Grade by checking each fix (tests on the fixed functions) instead of the exact final value, and tell the planner not to change the final line."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "003",
+  "round": "Round 5",
+  "tag": "Over-selection",
+  "kind": "bad",
+  "headline": true,
+  "finding": "Jev still opened far too much (about 5-6% of what it opened was needed, same as Eval 002). Eval 003 changed several things at once, so we can't tell which helped or hurt.",
+  "change": "Removed the extra 0.8 cutoff: we now take Jev's own yes/no. Next: measure Jev's picks directly (no planner) and change one thing at a time, starting with the question wording."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "003",
+  "round": "Round 5",
+  "tag": "Result",
+  "kind": "warn",
+  "finding": "Symptom-only task: both setups fixed everything. Jev used fewer view calls (15 vs 19) but cost 41% more and took 20% longer; Jev itself was 19% of the run's cost.",
+  "change": "No win yet for the navigator on cost or speed."
+ },
+ {
+  "date": "2026-09-24",
+  "eval": "003",
+  "round": "Round 5",
+  "tag": "Planner loop",
+  "kind": "warn",
+  "finding": "All three runs used all 40 turns and never said DONE, even after the goal was met.",
+  "change": "Stop the run when the goal is met (pending)."
+ }
+]

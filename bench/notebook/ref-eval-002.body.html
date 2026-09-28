@@ -1,0 +1,238 @@
+<style>
+:root { --s4: #eda100; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s4: #c98500; } }
+:root[data-theme="dark"] { --s4: #c98500; }
+.board { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.board table td, .board table th { padding: 11px 14px; }
+.board .task { font: 600 13px var(--mono); }
+.board .arm { font: 600 13.5px var(--body); border: 0; padding: 0; display: table-cell; background: none; }
+.tl { display: grid; gap: 10px; }
+.tl-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; }
+.tl-label { font: 600 12.5px var(--body); color: var(--ink-2); }
+.cells { display: flex; flex-wrap: wrap; gap: 3px; }
+.cell { width: 20px; height: 22px; border-radius: 4px; display: grid; place-items: center; font: 600 10.5px var(--mono); color: #fff; cursor: default; }
+.cell.fail { outline: 2px solid var(--bad); outline-offset: 1px; }
+.more { font: 11.5px var(--mono); color: var(--muted); padding: 4px 6px; }
+.steplog { display: grid; gap: 6px; max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.step { display: grid; grid-template-columns: 34px 150px 1fr; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12.5px; }
+.step .i { font: 600 11.5px var(--mono); color: var(--muted); }
+.step .nm { font: 600 12px var(--mono); }
+.step code { font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--ink-2); }
+.step.fail { border-color: var(--bad); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button { font: 600 12.5px var(--body); padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.diffs { display: grid; gap: 12px; }
+.diff { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.diff .code { border: 0; border-radius: 0; }
+.diff .code + .code { border-left: 1px solid var(--line); }
+@media (max-width: 560px) { .tl-row { grid-template-columns: 1fr; } .step { grid-template-columns: 26px 1fr; } .step code { grid-column: 1 / -1; } }
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Hazel · Jev navigation study · run 002</span>
+  <h1>Mode 3: Jev as navigator, Luna as editor</h1>
+  <p>The planner (GPT-6 Luna) cannot use <code>expand</code> or <code>collapse</code>; it asks for a view with <code>modify_view(intent)</code> and Jev picks which bindings to show. It still edits directly. Runs from Eval 001 are included for comparison.</p>
+  <div class="meta"><span><b>Date</b> 2026-09-24</span><span><b>Planner</b> openai/gpt-6-luna</span><span><b>Jev</b> typesafe/jev-1.13</span><span><b>Runs</b> 5 across 2 tasks (n = 1 each)</span><span><b>Spend</b> $0.070 this eval · $0.095 total</span></div>
+</header>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Scoreboard</span><h2>Mode 3 matched control on the small task and lost on the large one</h2>
+  <p>Every Mode 3 run met its goal. On <code>nav-fleet</code> (61 bindings in modules) it cost 48% more and took 55% longer than control, because Jev opened far more than was needed and the planner kept re-asking.</p></div>
+  <div class="board" id="board"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Cost and time</span><h2>Per run, grouped by task</h2></div>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Total cost per run (USD)</h3><div class="legend"><span><i style="background:var(--s1)"></i>Planner (Luna)</span><span><i style="background:var(--s2)"></i>Jev navigation</span><span><i style="background:var(--s3)"></i>Jev editing</span></div><div id="costChart"></div></div>
+    <div class="chart-card"><h3>Wall time per run (s)</h3><div class="legend"><span><i style="background:var(--s1)"></i>Wall time</span></div><div id="wallChart"></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Why Mode 3 lost on nav-fleet</span><h2>Three causes, one of them in our eval</h2></div>
+  <div class="findings">
+    <div class="finding"><span class="pill bad tag">Jev over-selects</span><h3>"Relevant" is too loose a question</h3><p>Luna's intents named 2–3 bindings, yet Jev said yes to 6–53 of the 61. Precision across the run was 6%. "Is this relevant?" invites yes for anything related.</p><div class="fix"><b>Try:</b> ask "must this binding be read or changed to do the intent?", raise the yes threshold, and open bindings the intent names by exact path without asking Jev.</div></div>
+    <div class="finding"><span class="pill warn tag">View churn</span><h3>Every call replaces the whole view</h3><p>The planner used <code>modify_view</code> like <code>expand</code>, one target at a time, so each call dropped what it had just opened: 18 calls and 6 more turns than control.</p><div class="fix"><b>Try:</b> make <code>modify_view</code> add to the current view by default and fold only on a new focus, and tell the planner to ask for everything at once.</div></div>
+    <div class="finding"><span class="pill warn tag">Eval design</span><h3>The task names the answer</h3><p>The prompt names <code>fuel_cost</code>, <code>idle_penalty</code> and <code>needs_service</code>, so control found all three with three <code>expand</code> calls. Navigation was never hard; Jev could only add cost.</p><div class="fix"><b>Try:</b> describe symptoms ("the report overcharges idle trips") and let the agent locate the cause, as in symptom-to-cause localization benchmarks.</div></div>
+    <div class="finding"><span class="pill neutral tag">Jev cost</span><h3>Not free at this size</h3><p>Each selection sent all 61 bindings' code, about 11k tokens: $0.0083 over 18 calls, 24% of the run.</p><div class="fix"><b>Try:</b> send one-line heads for bindings far from the intent and full code only for candidates.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Jev's picks on nav-fleet</span><h2>18 selections, 61 yes/no questions each</h2>
+  <p>Bars: bindings Jev opened (before parents were added). Green line: the 3 bindings the task needs. A green dot means that selection opened all 3.</p></div>
+  <div class="costs" id="navTiles"></div>
+  <div class="chart-card"><h3>Bindings opened per selection (of 61)</h3><div class="legend"><span><i style="background:var(--s2)"></i>Opened by Jev</span><span><i style="background:var(--good)"></i>Needed (3)</span></div><div id="navChart"></div></div>
+  <details><summary>All 18 intents and what Jev opened</summary><div class="sels" id="sels" style="margin-top:10px"></div></details>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Action timelines</span><h2>Every tool call, in order</h2>
+  <p>One square per tool call. N navigate (expand or modify_view), P probe, E edit, O other. A red outline means the call failed.</p></div>
+  <div class="legend"><span><i style="background:var(--s2)"></i>N · navigate</span><span><i style="background:var(--s1)"></i>P · probe</span><span><i style="background:var(--s3)"></i>E · edit</span><span><i style="background:var(--s4)"></i>O · other</span></div>
+  <div class="chart-card"><div class="tl" id="timelines"></div></div>
+  <div class="tabs" role="tablist" id="logTabs"></div>
+  <div class="steplog" id="steplog"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Code</span><h2>The fixes each run made on nav-fleet</h2><p>Before and after for every successful definition edit, from the run transcripts.</p></div>
+  <div class="tabs" role="tablist" id="diffTabs"></div>
+  <div class="diffs" id="diffs"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Spend tracking</span><h2>What these evals cost</h2></div>
+  <div class="costs" id="spend"></div>
+  <ul class="caveats">
+    <li>n = 1 per task and setup: these are directions to test, not results.</li>
+    <li>Spend is the account-usage delta on a shared lab key; other usage in the same window would inflate it slightly.</li>
+    <li>Full Jev (sketch-free editing) was not rerun here: its engine fixes from Eval 001 are still pending.</li>
+  </ul>
+</section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const D = __DATA__;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const usd = (x, d = 4) => "$" + Number(x).toFixed(d);
+const tip = $("tip");
+function hoverable(el, html) {
+  el.addEventListener("mousemove", (e) => { tip.innerHTML = html; tip.hidden = false; tip.style.left = Math.min(e.clientX + 14, innerWidth - 300) + "px"; tip.style.top = (e.clientY + 14) + "px"; });
+  el.addEventListener("mouseleave", () => { tip.hidden = true; });
+}
+function hl(src) {
+  return esc(src)
+    .replace(/\b(let|in|fun|if|then|else|test|end|case|module)\b/g, '<span class="k">$1</span>')
+    .replace(/\b(Int|Bool|String|Float)\b/g, '<span class="t">$1</span>')
+    .replace(/(?<![\w#.])(\d+(?:\.\d+)?)\b/g, '<span class="d">$1</span>');
+}
+
+// ---- unify all runs
+const e1 = D.eval001;
+const runs = [
+  { task: "fix-middle", arm: "Control", src: "Eval 001", goal: true, turns: e1.control.turns, main: e1.control.main_cost, nav: 0, edit: 0, wall: e1.control.wall_s, navCalls: e1.control.tools.expand + " expand" },
+  { task: "fix-middle", arm: "Full Jev", src: "Eval 001", goal: false, turns: e1.jev.turns, main: e1.jev.main_cost, nav: e1.jev.nav.cost_usd, edit: e1.jev.edit.cost_usd, wall: e1.jev.wall_s, navCalls: e1.jev.tools.modify_view + " modify_view" },
+];
+const ARM = { control: "Control", view: "Mode 3" };
+for (const r of D.eval002) {
+  const m = r.row.main;
+  runs.push({ task: r.task, arm: ARM[r.arm] || r.arm, src: "Eval 002", goal: r.row.outcome.goal_met, turns: m.turns, main: m.cost_usd, nav: r.row.jev.cost_usd, edit: 0, wall: r.row.wall_ms / 1000,
+    navCalls: (m.tool_calls.modify_view ? m.tool_calls.modify_view + " modify_view" : m.tool_calls.expand + " expand"), said: r.tx.said_done });
+}
+runs.forEach((r) => { r.total = r.main + r.nav + r.edit; });
+const ctrlOf = (task) => runs.find((r) => r.task === task && r.arm === "Control");
+function rel(r, key) { const c = ctrlOf(r.task); if (!c || r.arm === "Control") return ""; const d = (r[key] - c[key]) / c[key] * 100; return ` <span class="delta ${d < 0 ? "down" : "up"}">${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(0)}%</span>`; }
+
+$("board").innerHTML = `<table><thead><tr><th>Task</th><th>Setup</th><th>Goal</th><th>Turns</th><th>Total cost</th><th>Jev cost</th><th>Wall</th><th>Navigation</th><th>Source</th></tr></thead><tbody>${
+  runs.map((r) => `<tr><td class="task">${r.task}</td><td><b>${r.arm}</b></td><td><span class="pill ${r.goal ? "good" : "bad"}">${r.goal ? "✓ met" : "✗ not met"}</span></td>
+  <td class="n">${r.turns}${r.turns >= (r.task === "nav-fleet" ? 40 : 24) ? " (cap)" : ""}</td><td class="n">${usd(r.total)}${rel(r, "total")}</td><td class="n">${r.nav + r.edit ? usd(r.nav + r.edit) : "–"}</td>
+  <td class="n">${r.wall.toFixed(0)}s${rel(r, "wall")}</td><td class="n">${esc(r.navCalls)}</td><td style="color:var(--muted)">${r.src}</td></tr>`).join("")}</tbody></table>`;
+
+// ---- grouped horizontal bar charts
+function hbars(el, rowsIn, valueParts, max, ticks, fmt, label) {
+  const W = 560, L = 150, R = 76, bh = 20, gapIn = 8, gapGroup = 22;
+  let y = 12, s = "", lastTask = null, marks = [];
+  const x = (v) => L + (v / max) * (W - L - R);
+  for (const r of rowsIn) {
+    if (r.task !== lastTask) { if (lastTask) y += gapGroup - gapIn; s += `<text x="10" y="${y + 13}" font-size="11.5" font-family="var(--mono)" font-weight="600" fill="var(--muted)">${r.task}</text>`; y += 18; lastTask = r.task; }
+    s += `<text x="${L - 8}" y="${y + bh / 2 + 4}" font-size="12" fill="var(--ink-2)" text-anchor="end">${r.arm}${r.goal ? "" : " ✗"}</text>`;
+    let acc = 0;
+    valueParts(r).forEach(([name, v, col], j) => { if (v <= 0) return; const x0 = x(acc) + (j ? 1 : 0); const w = Math.max(x(acc + v) - x(acc) - (j ? 1 : 0), 2); marks.push(`<rect class="hb" data-t="${esc(r.task)} · ${esc(r.arm)} · ${name}: ${fmt(v)}" x="${x0}" y="${y}" width="${w}" height="${bh}" rx="3" fill="var(${col})"/>`); acc += v; });
+    s += `<text x="${x(acc) + 6}" y="${y + bh / 2 + 4}" font-size="11.5" font-family="var(--mono)" fill="var(--ink)">${fmt(acc)}</text>`;
+    y += bh + gapIn;
+  }
+  const H = y + 22;
+  let grid = ""; for (const t of ticks) grid += `<line x1="${x(t)}" x2="${x(t)}" y1="8" y2="${H - 22}" stroke="var(--line)"/><text x="${x(t)}" y="${H - 6}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${label(t)}</text>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${grid}${marks.join("")}${s}</svg>`;
+  el.querySelectorAll(".hb").forEach((m) => hoverable(m, m.dataset.t));
+}
+const order = [...runs].sort((a, b) => a.task.localeCompare(b.task));
+hbars($("costChart"), order, (r) => [["Planner", r.main, "--s1"], ["Jev navigation", r.nav, "--s2"], ["Jev editing", r.edit, "--s3"]], 0.04, [0, 0.01, 0.02, 0.03, 0.04], (v) => usd(v), (t) => t === 0 ? "0" : "$" + t.toFixed(2));
+hbars($("wallChart"), order, (r) => [["Wall", r.wall, "--s1"]], 600, [0, 150, 300, 450, 600], (v) => v.toFixed(0) + "s", (t) => t + "s");
+
+// ---- nav-fleet selections
+const nf = D.eval002.find((r) => r.task === "nav-fleet" && r.arm === "view");
+const targets = D.targets["nav-fleet"];
+const sels = nf.tx.selections;
+const allHit = (s) => targets.every((t) => (s.yes || []).includes(t));
+const lat = sels.map((s) => s.latency_ms).sort((a, b) => a - b);
+$("navTiles").innerHTML = [
+  [String(sels.length), "selections, all from modify_view"],
+  [Math.round(sels.reduce((a, s) => a + s.yes.length, 0) / sels.length) + " / 61", "bindings opened per selection, on average"],
+  [sels.filter(allHit).length + " / " + sels.length, "selections that opened all 3 needed"],
+  [lat[Math.floor(lat.length / 2)].toFixed(0) + " ms", "median Jev latency"],
+  [usd(nf.row.jev.cost_usd), "total Jev cost this run"],
+].map(([v, k]) => `<div class="cost-tile"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
+(function () {
+  const W = 620, L = 30, R = 10, T = 12, B = 28, H = 190, maxY = 61, n = sels.length, bw = (W - L - R) / n;
+  const y = (v) => T + (1 - v / maxY) * (H - T - B);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Bindings opened per selection">`;
+  for (const t of [0, 20, 40, 61]) s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(t) + 4}" font-size="10.5" fill="var(--muted)" text-anchor="end">${t}</text>`;
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(3)}" y2="${y(3)}" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  sels.forEach((sel, i) => {
+    const v = sel.yes.length, x0 = L + i * bw + 3, w = bw - 6, hits = targets.filter((t) => sel.yes.includes(t)).length;
+    s += `<rect class="nb" data-t="#${i + 1}: opened ${v}, ${hits}/3 needed · ${sel.latency_ms.toFixed(0)} ms · ${usd(sel.cost_usd, 5)}" x="${x0}" y="${y(v)}" width="${w}" height="${y(0) - y(v)}" rx="3" fill="var(--s2)"/>`;
+    if (hits === 3) s += `<circle cx="${x0 + w / 2}" cy="${y(v) - 8}" r="3.5" fill="var(--good)"/>`;
+    s += `<text x="${x0 + w / 2}" y="${H - 10}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${i + 1}</text>`;
+  });
+  $("navChart").innerHTML = s + "</svg>";
+  $("navChart").querySelectorAll(".nb").forEach((m) => hoverable(m, m.dataset.t));
+})();
+$("sels").innerHTML = sels.map((s, i) => {
+  const yes = s.yes || [], shown = yes.slice(0, 14);
+  const chips = shown.map((p) => `<span class="chip yes${targets.includes(p) ? " target" : ""}">${esc(p)}</span>`).join("") + (yes.length > shown.length ? `<span class="more">+${yes.length - shown.length} more</span>` : "");
+  const intent = (s.intent || "").replace(/\s+/g, " ");
+  return `<div class="sel"><span class="sel-idx">#${i + 1}</span><div><div class="sel-intent">${esc(intent.length > 180 ? intent.slice(0, 180) + "…" : intent)}</div><div class="chips">${chips}</div></div><span class="sel-lat">${yes.length} open · ${s.latency_ms.toFixed(0)} ms</span></div>`;
+}).join("");
+
+// ---- timelines + step logs
+const cat = (n) => (n === "expand" || n === "collapse" || n === "modify_view") ? ["N", "--s2"] : n.includes("probe") ? ["P", "--s1"] : (n.startsWith("update_") || n.startsWith("insert_") || n.startsWith("delete_") || n === "jev_edit" || n === "add_tests") ? ["E", "--s3"] : ["O", "--s4"];
+const tlRuns = D.eval002.map((r) => ({ key: r.task + "/" + r.arm, label: `${r.task} · ${ARM[r.arm]}`, steps: r.tx.steps }));
+$("timelines").innerHTML = tlRuns.map((r) => `<div class="tl-row"><div class="tl-label">${esc(r.label)}<br><span style="color:var(--muted);font-weight:400">${r.steps.length} calls</span></div><div class="cells">${
+  r.steps.map((st, i) => { const [c, col] = cat(st.name); return `<span class="cell${st.ok === false ? " fail" : ""}" style="background:var(${col})" data-t="${esc(`#${i + 1} ${st.name} ${JSON.stringify(st.args || {}).slice(0, 120)}`)}">${c}</span>`; }).join("")}</div></div>`).join("");
+$("timelines").querySelectorAll(".cell").forEach((m) => hoverable(m, m.dataset.t));
+function argText(st) {
+  const a = st.args || {};
+  if (a.intent) return "intent: " + a.intent;
+  if (a.code) return (a.path ? "path: " + a.path + "\n" : "") + a.code;
+  if (a.paths) return "paths: " + a.paths.join(", ");
+  return JSON.stringify(a);
+}
+function showLog(key) {
+  const r = tlRuns.find((t) => t.key === key);
+  $("logTabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === key)));
+  $("steplog").innerHTML = r.steps.map((st, i) => { const [, col] = cat(st.name);
+    return `<div class="step${st.ok === false ? " fail" : ""}"><span class="i">${i + 1}</span><span class="nm" style="color:var(${col})">${esc(st.name)}${st.ok === false ? " ✗" : ""}</span><code>${hl(argText(st).slice(0, 600))}${st.ok === false ? "\n→ " + esc(st.content) : ""}</code></div>`; }).join("");
+}
+$("logTabs").innerHTML = tlRuns.map((r) => `<button role="tab" data-k="${esc(r.key)}">${esc(r.label)}</button>`).join("");
+$("logTabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => showLog(b.dataset.k)));
+showLog(tlRuns[2].key);
+
+// ---- diffs
+const diffRuns = D.eval002.filter((r) => r.task === "nav-fleet");
+function showDiffs(arm) {
+  $("diffTabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === arm)));
+  const r = diffRuns.find((x) => x.arm === arm);
+  const edits = r.tx.steps.filter((s) => s.ok && s.name === "update_definition");
+  $("diffs").innerHTML = edits.map((s) => `<div class="diff"><div class="code"><div class="code-h"><span>${esc(s.args.path)} · before</span><span class="pill bad">old</span></div><pre>${hl(s.old || "(not captured)")}</pre></div><div class="code"><div class="code-h"><span>after</span><span class="pill good">new</span></div><pre>${hl(s.new || s.args.code)}</pre></div></div>`).join("") || `<p>No definition edits captured.</p>`;
+}
+$("diffTabs").innerHTML = diffRuns.map((r) => `<button role="tab" data-k="${r.arm}">nav-fleet · ${ARM[r.arm]}</button>`).join("");
+$("diffTabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => showDiffs(b.dataset.k)));
+showDiffs("view");
+
+// ---- spend
+const perRun = runs.reduce((a, r) => a + r.total, 0) / runs.length;
+$("spend").innerHTML = [
+  [usd(D.spend.eval002, 3), "Eval 002 (3 runs), measured on the key"],
+  [usd(D.spend.eval001 + D.spend.eval002, 3), "all evals so far (5 runs)"],
+  [usd(perRun), "average per run"],
+  [usd(runs.filter((r) => r.task === "nav-fleet").reduce((a, r) => a + r.total, 0) / 2), "average nav-fleet run (61 bindings)"],
+  [usd(perRun * 12, 2), "projected 12-run eval"],
+].map(([v, k]) => `<div class="cost-tile"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
+</script>

@@ -1,0 +1,13 @@
+{
+  "name": "nav-emissions",
+  "program": "bench/tasks/nav-emissions.hz",
+  "feedback": 6,
+  "max_turns": 40,
+  "goal": "(136, 35, \"PASS\")",
+  "prompt": "This dynamometer emissions test says the car fails on CO2 by a factor of ten. Two things are wrong:\n\n  1. The CO2 conversion from fuel burned is off: petrol produces 2392 g of CO2 per LITRE, but fuel is measured in millilitres.\n  2. The extra-high phase of the cycle contains no samples at all; it should run from its start time to the end of the cycle.\n\nThe program is long and flat; find the definitions responsible before editing. Check the program's value after each fix. When every fix is in and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "co2_grams",
+    "extra_high_samples"
+  ],
+  "expectation": "Navigation-hard by volume: 98 mostly top-level bindings (per-phase statistics repeated four times, an appendix, nested limits), so the targets are needles in a long flat list rather than deep in modules. Two fixes, far apart: co2_grams (unit conversion, near the top) and extra_high_samples (the fourth phase block). Each is observable: the conversion alone gives (144, 38, \"FAIL-CO2\"), the phase alone (1370, 35, \"FAIL-CO2\"); only both give PASS. Expected answer (136, 35, \"PASS\"): CO2 g/km, NOx mg/km, verdict."
+}

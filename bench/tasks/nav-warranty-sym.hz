@@ -1,0 +1,158 @@
+# Warranty claim settlement for one quarter.                             #
+# A claim is (claim_id, model_code, component, mileage_km, repair_cost). #
+# Components: 0 engine, 1 transmission, 2 axle, 3 infotainment, 4 trim. #
+
+type ClaimRow = (Int, Int, Int, Int, Int) in
+
+module Data =
+  let noise : Int -> Int =
+    fun i -> int_mod(i * 7919 + 104729, 10007)
+  in
+  let claim_count = 90 in
+  let claim_of : Int -> ClaimRow =
+    fun i ->
+      (1000 + i,
+       int_mod(noise(i), 4),
+       int_mod(noise(i + 1), 5),
+       int_mod(noise(i + 2), 140) * 1000,
+       int_mod(noise(i + 3), 30) * 50 + 200)
+  in
+  let claims : [ClaimRow] = init(claim_count, claim_of) in
+  { let claims = claims }
+in
+
+module Claim =
+  let claim_id : ClaimRow -> Int = fun (i, _, _, _, _) -> i in
+  let model_code : ClaimRow -> Int = fun (_, m, _, _, _) -> m in
+  let component : ClaimRow -> Int = fun (_, _, c, _, _) -> c in
+  let mileage : ClaimRow -> Int = fun (_, _, _, km, _) -> km in
+  let repair_cost : ClaimRow -> Int = fun (_, _, _, _, r) -> r in
+  {
+    let claim_id = claim_id;
+    let model_code = model_code;
+    let component = component;
+    let mileage = mileage;
+    let repair_cost = repair_cost
+  }
+in
+
+module Catalog =
+  let component_name : Int -> String =
+    fun c ->
+      case c
+      | 0 => "engine"
+      | 1 => "transmission"
+      | 2 => "axle"
+      | 3 => "infotainment"
+      | _ => "trim"
+      end
+  in
+  let is_powertrain : Int -> Bool = fun c -> c <= 2 in
+  let model_name : Int -> String =
+    fun m ->
+      case m
+      | 0 => "compact"
+      | 1 => "sedan"
+      | 2 => "pickup"
+      | _ => "van"
+      end
+  in
+  {
+    let component_name = component_name;
+    let is_powertrain = is_powertrain;
+    let model_name = model_name
+  }
+in
+
+module Util =
+  let sum : [Int] -> Int =
+    fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+  in
+  let clamp_low : Int -> Int = fun n -> if n < 0 then 0 else n in
+  let max_of : [Int] -> Int =
+    fun xs -> fold_left(xs, fun (acc, n) -> if n > acc then n else acc, 0)
+  in
+  { let sum = sum; let clamp_low = clamp_low; let max_of = max_of }
+in
+
+module Policy =
+  let basic_limit_km = 60000 in
+  let powertrain_limit_km = 100000 in
+  # The mileage up to which a component is still under warranty. #
+  let mileage_limit : Int -> Int =
+    fun component ->
+      if Catalog.is_powertrain(component)
+      then powertrain_limit_km
+      else basic_limit_km
+  in
+  let coverage_percent : Int -> Int =
+    fun component -> if Catalog.is_powertrain(component) then 100 else 80
+  in
+  let deductible =
+    let flat = 100 in
+    let waived_for_model : Int -> Bool = fun m -> m == 2 in
+    { let flat = flat; let waived_for_model = waived_for_model }
+  in
+  # The single place where coverage rules live. #
+  let covered_amount : (Int, Int) -> Int =
+    fun (component, cost) -> cost * coverage_percent(component) / 100
+  in
+  {
+    let mileage_limit = mileage_limit;
+    let deductible = deductible;
+    let covered_amount = covered_amount
+  }
+in
+
+module Settlement =
+  let deductible_of : ClaimRow -> Int =
+    fun c ->
+      if Policy.deductible.waived_for_model(Claim.model_code(c))
+      then 0
+      else Policy.deductible.flat
+  in
+  let payout : ClaimRow -> Int =
+    fun c ->
+      let covered =
+        Policy.covered_amount(Claim.component(c), Claim.repair_cost(c))
+      in
+      Util.clamp_low(covered - deductible_of(c))
+  in
+  let payouts : [Int] = map(Data.claims, payout) in
+  { let payout = payout; let payouts = payouts }
+in
+
+module Audit =
+  let by_component : Int -> [ClaimRow] =
+    fun comp -> filter(Data.claims, fun c -> Claim.component(c) == comp)
+  in
+  # Gross exposure: what the policy covers before deductibles. #
+  let exposure : Int =
+    Util.sum(
+      map(Data.claims, fun c ->
+        Policy.covered_amount(Claim.component(c), Claim.repair_cost(c))))
+  in
+  let largest_claim = Util.max_of(map(Data.claims, Claim.repair_cost)) in
+  let engine_claims = length(by_component(0)) in
+  {
+    let exposure = exposure;
+    let largest_claim = largest_claim;
+    let engine_claims = engine_claims
+  }
+in
+
+module Report =
+  let total_payout = Util.sum(Settlement.payouts) in
+  let rejected = length(filter(Settlement.payouts, fun p -> p == 0)) in
+  let headline : String =
+    "Paid " ++ string_of_int(total_payout) ++ " on "
+    ++ string_of_int(length(Data.claims)) ++ " claims"
+  in
+  {
+    let total_payout = total_payout;
+    let rejected = rejected;
+    let headline = headline
+  }
+in
+
+(Report.total_payout, Report.rejected, Audit.exposure)

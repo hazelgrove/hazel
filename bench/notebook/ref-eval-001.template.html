@@ -1,0 +1,434 @@
+<title>Jev Eval 001</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #fbf9f3; --surface: #ffffff; --sunk: #f3f0e5; --ink: #1d1f1a; --ink-2: #4f5349; --muted: #858879;
+  --line: #e4e0d2; --accent: #5a48a8; --accent-soft: #ece8f7;
+  --good: #1d7f47; --good-soft: #e3f3e9; --bad: #b8402b; --bad-soft: #f8e6e1; --warn: #9a6a00; --warn-soft: #f6eed6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --kw: #6b4fb0; --num: #b3541e; --typ: #1f7a6b; --str: #8a6d00;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #17181a; --surface: #1f2023; --sunk: #25262a; --ink: #eeece4; --ink-2: #c3c1b6; --muted: #8f8e85;
+    --line: #34353a; --accent: #a998ee; --accent-soft: #2c2840;
+    --good: #5cc98a; --good-soft: #1c2f24; --bad: #ef8a73; --bad-soft: #3a221d; --warn: #e2b24a; --warn-soft: #34291a;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --kw: #b9a4f2; --num: #f0a071; --typ: #6fd0bd; --str: #e3c56a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #17181a; --surface: #1f2023; --sunk: #25262a; --ink: #eeece4; --ink-2: #c3c1b6; --muted: #8f8e85;
+  --line: #34353a; --accent: #a998ee; --accent-soft: #2c2840;
+  --good: #5cc98a; --good-soft: #1c2f24; --bad: #ef8a73; --bad-soft: #3a221d; --warn: #e2b24a; --warn-soft: #34291a;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --kw: #b9a4f2; --num: #f0a071; --typ: #6fd0bd; --str: #e3c56a;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); margin: 0; padding-inline: 20px; padding-block: 28px 64px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 4.2vw, 44px); line-height: 1.05; font-weight: 700; }
+h2 { font-size: 24px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 600; font-family: var(--body); }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.eyebrow { font: 600 11px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 13px/1.4 var(--mono); color: var(--muted); }
+.meta b { color: var(--ink-2); font-weight: 600; }
+header { display: grid; gap: 14px; }
+section { display: grid; gap: 18px; }
+.sec-head { display: grid; gap: 6px; }
+.num { font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--body); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.neutral { background: var(--sunk); color: var(--ink-2); }
+
+/* verdict */
+.arms { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.arm { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; }
+.arm-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.arm-name { font: 700 20px/1.1 var(--display); }
+.arm-sub { font-size: 13px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
+.stat { display: grid; gap: 2px; }
+.stat .v { font: 600 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.delta { font: 500 11px/1 var(--mono); }
+.delta.down { color: var(--good); } .delta.up { color: var(--bad); }
+
+/* flow diagram */
+.flows { display: grid; gap: 12px; }
+.flow { display: grid; grid-template-columns: 112px 1fr; gap: 12px; align-items: center; }
+.flow-label { font: 600 13px/1.2 var(--body); color: var(--ink-2); }
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.node { font: 500 12.5px/1.2 var(--mono); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); }
+.node.llm { border-color: var(--s1); color: var(--s1); }
+.node.jev { border-color: var(--s2); color: var(--s2); }
+.node.hazel { border-color: var(--s3); color: var(--ink-2); background: var(--sunk); }
+.arrow { color: var(--muted); font: 13px var(--mono); }
+
+/* charts */
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 16px 12px; display: grid; gap: 10px; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+svg text { font-family: var(--body); }
+.chart-card svg { display: block; max-width: 100%; max-height: 240px; margin-inline: auto; }
+#navChart svg, #editChart svg { width: 100%; max-width: 760px; }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font: 12px/1.35 var(--mono); padding: 7px 9px; border-radius: 6px; z-index: 5; max-width: 280px; }
+.bar-hit:hover + .bar-mark, .bar-mark:hover { opacity: 0.85; }
+
+/* tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--sunk); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+details > summary { cursor: pointer; font: 600 13px var(--body); color: var(--accent); }
+details > summary:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* selections */
+.sels { display: grid; gap: 8px; }
+.sel { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.sel-idx { font: 600 12px/1.6 var(--mono); color: var(--muted); }
+.sel-intent { font-size: 13px; color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { font: 500 11.5px/1 var(--mono); padding: 4px 7px; border-radius: 6px; border: 1px solid var(--line); color: var(--ink-2); }
+.chip.yes { background: var(--sunk); color: var(--ink); }
+.chip.target { border-color: var(--good); color: var(--good); background: var(--good-soft); font-weight: 600; }
+.chip.band { border-style: dashed; color: var(--muted); }
+.sel-lat { font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
+
+/* code */
+.code-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.code { background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: grid; }
+.code-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font: 600 12px var(--mono); color: var(--ink-2); }
+pre { margin: 0; padding: 12px; overflow-x: auto; font: 12.5px/1.55 var(--mono); color: var(--ink); }
+.ln { display: block; padding-inline: 6px; border-radius: 3px; }
+.ln.add { background: var(--good-soft); }
+.ln.del { background: var(--bad-soft); }
+.ln.hole { background: var(--warn-soft); }
+.k { color: var(--kw); font-weight: 600; } .d { color: var(--num); } .t { color: var(--typ); } .q { color: var(--warn); font-weight: 600; }
+
+/* action log */
+.log { display: grid; gap: 6px; }
+.act { display: grid; grid-template-columns: 26px 150px 1fr; gap: 10px; align-items: start; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.act .i { font: 600 12px var(--mono); color: var(--muted); }
+.act .tool { font: 600 12px var(--mono); color: var(--s1); }
+.act .path { font: 12px var(--mono); color: var(--ink-2); }
+.act code { font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.act.junk { border-color: var(--warn); }
+
+/* menu */
+.menu { display: flex; flex-wrap: wrap; gap: 5px; }
+.menu span { font: 12px/1 var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); }
+.menu span.nonsense { text-decoration: line-through; color: var(--muted); }
+.menu span.missing { border: 1.5px dashed var(--bad); color: var(--bad); background: var(--bad-soft); font-weight: 600; }
+
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 8px; align-content: start; }
+.finding .tag { justify-self: start; }
+.finding p { font-size: 13.5px; }
+.fix { font-size: 13px; color: var(--ink); border-top: 1px solid var(--line); padding-top: 8px; }
+.fix b { color: var(--accent); }
+.costs { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.cost-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 4px; }
+.cost-tile .v { font: 600 22px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.cost-tile .k { font-size: 12.5px; color: var(--muted); }
+ul.caveats { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; display: grid; gap: 4px; max-width: 80ch; }
+@media (max-width: 560px) {
+  .flow { grid-template-columns: 1fr; }
+  .act { grid-template-columns: 22px 1fr; }
+  .act .path { grid-column: 2; }
+  .act code { grid-column: 1 / -1; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .sel { grid-template-columns: 26px 1fr; }
+  .sel-lat { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Hazel · Jev navigation study · run 001</span>
+  <h1>Control vs. full Jev on <code style="font-family:var(--mono);font-size:0.8em">fix-middle</code></h1>
+  <p>One headless run per arm, same task, same planner model. The planner is GPT-6 Luna; in the Jev arm it can only navigate through <code>modify_view</code> and edit through spec-only <code>jev_edit</code>, while Jev (TypeSafe <code>jev-1.13</code>) makes the picks and Hazel type-checks every step.</p>
+  <div class="meta">
+    <span><b>Date</b> 2026-09-24</span><span><b>Planner</b> openai/gpt-6-luna</span><span><b>Jev</b> typesafe/jev-1.13</span>
+    <span><b>Task goal</b> program evaluates to 30700</span><span><b>Runs</b> 2 (n = 1 per arm)</span><span><b>Real spend</b> $0.025</span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Verdict</span><h2>Jev navigated well and cheaply; Jev editing could not finish the job</h2></div>
+  <div class="arms" id="arms"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">How each arm works</span><h2>Who decides what, per turn</h2>
+  <p>Blue = the planner LLM (paid per turn, re-reads ~20k tokens each time). Orange = Jev (one cheap batched request). Grey = Hazel, which lists legal options and rejects anything that does not type-check.</p></div>
+  <div class="flows">
+    <div class="flow"><div class="flow-label">Control</div><div class="chain">
+      <span class="node llm">Luna reads view</span><span class="arrow">→</span><span class="node llm">expand(paths)</span><span class="arrow">→</span><span class="node llm">update_definition(code)</span><span class="arrow">→</span><span class="node hazel">Hazel type-checks</span><span class="arrow">→</span><span class="node llm">next turn</span></div></div>
+    <div class="flow"><div class="flow-label">Full Jev</div><div class="chain">
+      <span class="node jev">Jev pre-picks view</span><span class="arrow">→</span><span class="node llm">Luna plans</span><span class="arrow">→</span><span class="node llm">modify_view(intent)</span><span class="arrow">→</span><span class="node jev">Jev: relevant? ×11</span><span class="arrow">→</span><span class="node llm">jev_edit(path, intent, names)</span><span class="arrow">→</span><span class="node hazel">Hazel lists typed options</span><span class="arrow">→</span><span class="node jev">Jev picks per hole</span><span class="arrow">→</span><span class="node hazel">fill + type-check</span></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Cost and time</span><h2>Where the money and the seconds went</h2>
+  <p>Jev's own calls cost $0.0019 of the Jev arm's $0.0125. The saving came from Luna doing less work per turn, but with the goal missed the comparison is not like-for-like.</p></div>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Cost per run (USD)</h3><div class="legend"><span><i style="background:var(--s1)"></i>Planner (Luna)</span><span><i style="background:var(--s2)"></i>Jev navigation</span><span><i style="background:var(--s3)"></i>Jev editing</span></div><div id="costChart"></div></div>
+    <div class="chart-card"><h3>Wall time and turns</h3><div class="legend"><span><i style="background:var(--s1)"></i>Wall time (s)</span></div><div id="timeChart"></div></div>
+  </div>
+  <details><summary>Table view</summary><div class="table-wrap" id="costTable"></div></details>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Navigation · Jev as navigator</span><h2>11 view selections, 121 yes/no questions, $0.00089</h2>
+  <p>Each row is one selection: the planner's intent, the bindings Jev opened (solid), and the ones it was unsure about (dashed, left folded). The two bindings the task actually needs are outlined in green. The first selection, from the user's message alone, opened exactly those two.</p></div>
+  <div class="costs" id="navTiles"></div>
+  <div class="chart-card"><h3>Bindings opened per selection</h3><div class="legend"><span><i style="background:var(--s2)"></i>Opened by Jev</span><span><i style="background:var(--good)"></i>Needed by the task (2)</span></div><div id="navChart"></div></div>
+  <div class="sels" id="sels"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Editing · Jev as implementor</span><h2>14 attempts on <code style="font-family:var(--mono);font-size:0.85em">billed</code>, 10 of 24 holes filled, never finished</h2>
+  <p>The planner asked 14 times for the same fix: "map each reading to volume(r) × cost(r)". Jev reliably built the outer <code>fun rows -&gt; ?</code>, then escalated the body every time. It was right to: the correct piece was not on its menu.</p></div>
+  <div class="chart-card"><h3>Per attempt: holes filled vs. escalated</h3><div class="legend"><span><i style="background:var(--s3)"></i>Filled</span><span><i style="background:var(--s2)"></i>Escalated (handed back)</span></div><div id="editChart"></div></div>
+  <div class="chart-card">
+    <h3>The menu Jev saw for the body hole (type <code>[Int]</code>, attempt 3)</h3>
+    <div class="menu" id="menu"></div>
+    <p style="font-size:13px">Struck through: options that can never be right here (rebinding an existing function name). Red dashed: what the fix needed and the engine never offered, because built-in functions like <code>map</code> are only listed as bare names, not as calls.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Code</span><h2>Before and after</h2></div>
+  <div class="code-grid" id="codeGrid"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Action log · control</span><h2>Luna's 10 edits in the control arm</h2>
+  <p>The two real fixes land in edits 1 and 3. Everything after is Luna poking at a scratch binding and never saying DONE, which is why it ran into the 24-turn cap even though the goal was already met. Highlighted rows are that churn.</p></div>
+  <div class="log" id="log"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Findings</span><h2>What broke, and the fix for each</h2></div>
+  <div class="findings">
+    <div class="finding"><span class="pill bad tag">Engine gap</span><h3>The right answer was not on the menu</h3><p>Built-ins (<code>map</code>, <code>filter</code>, <code>fold_left</code>) are offered only as bare names, never as typed calls like <code>map(?, ?)</code>. Jev escalated correctly 14 times.</p><div class="fix"><b>Fix:</b> offer every in-scope function whose result type fits the hole as a call with the right number of <code>?</code> arguments, built-ins included.</div></div>
+    <div class="finding"><span class="pill bad tag">Engine gap</span><h3>Partial builds left holes in the program</h3><p>Each attempt kept its half-built <code>fun rows -&gt; ?</code>. The program ended worse than it started and evaluated to a stuck term.</p><div class="fix"><b>Fix:</b> make <code>jev_edit</code> all-or-nothing: if any hole is still open at the end, restore the original and report the open holes to the planner.</div></div>
+    <div class="finding"><span class="pill warn tag">Menu noise</span><h3>Options that can never be right</h3><p><code>fun volume -&gt; ?</code>, <code>let cost = ? in ?</code>: binding forms offered once per planner name, including names of existing functions.</p><div class="fix"><b>Fix:</b> binding forms use only fresh names the planner declares as new; existing names appear only as references or calls.</div></div>
+    <div class="finding"><span class="pill warn tag">Planner loop</span><h3>Neither arm said DONE</h3><p>Control met the goal early but kept editing until the 24-turn cap; the Jev arm retried the same failing request 14 times.</p><div class="fix"><b>Fix:</b> stop the run when the goal oracle is satisfied, and tell the planner after 2 identical escalations to change the spec (for example, name <code>map</code> in the call shape).</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Spend tracking</span><h2>What an eval run costs</h2></div>
+  <div class="costs" id="spend"></div>
+  <ul class="caveats">
+    <li>n = 1 per arm on one small task: a smoke test of the pipeline, not a result.</li>
+    <li>The Round 4 code (spec-only <code>/jev-mode</code>, <code>add_tests</code>) landed while the eval started, so the two runs may have used slightly different builds.</li>
+    <li>Real spend is the account-usage delta on a shared lab key ($0.0245) and agrees with the per-run logged costs ($0.0261).</li>
+    <li>The results folder was wiped by a concurrent test script; every number here was recovered from the run output captured during analysis.</li>
+  </ul>
+</section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const D = __DATA__;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const usd = (x, d = 4) => "$" + x.toFixed(d);
+const tip = $("tip");
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const x = Math.min(e.clientX + 14, innerWidth - 300); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+function hideTip() { tip.hidden = true; }
+function hoverable(el, html) { el.addEventListener("mousemove", (e) => showTip(e, html)); el.addEventListener("mouseleave", hideTip); }
+
+const C = D.control, J = D.jev;
+const jNav = J.nav.cost_usd, jEdit = J.edit.cost_usd, jTotal = J.main_cost + jNav + jEdit;
+
+// ---- verdict cards
+function delta(a, b, lowerIsGood = true) {
+  const r = (b - a) / a * 100; const down = r < 0;
+  return `<span class="delta ${down === lowerIsGood ? "down" : "up"}">${down ? "−" : "+"}${Math.abs(r).toFixed(0)}% vs control</span>`;
+}
+$("arms").innerHTML = [
+  { name: "Control", sub: "Luna edits directly", goal: C.goal_met, val: "30700", turns: C.turns, total: C.main_cost, wall: C.wall_s, nav: C.tools.expand + " expand", done: C.said_done, cmp: false },
+  { name: "Full Jev", sub: "Luna plans · Jev navigates and builds", goal: J.goal_met, val: "stuck (billed = fun rows -> ?)", turns: J.turns, total: jTotal, wall: J.wall_s, nav: J.tools.modify_view + " modify_view", done: false, cmp: true },
+].map((a) => `
+  <div class="arm">
+    <div class="arm-top"><div><div class="arm-name">${a.name}</div><div class="arm-sub">${a.sub}</div></div>
+      <span class="pill ${a.goal ? "good" : "bad"}">${a.goal ? "✓ Goal met" : "✗ Goal not met"}</span></div>
+    <div class="stats">
+      <div class="stat"><span class="v num">${usd(a.total)}</span><span class="k">total cost</span>${a.cmp ? delta(C.main_cost, a.total) : ""}</div>
+      <div class="stat"><span class="v num">${a.wall.toFixed(0)}s</span><span class="k">wall time</span>${a.cmp ? delta(C.wall_s, a.wall) : ""}</div>
+      <div class="stat"><span class="v num">${a.turns}</span><span class="k">planner turns (cap 24)</span></div>
+      <div class="stat"><span class="v" style="font-size:14px">${esc(a.nav)}</span><span class="k">navigation calls</span></div>
+      <div class="stat" style="grid-column: span 2"><span class="v" style="font-size:13px;font-weight:500">${esc(a.val)}</span><span class="k">final value</span></div>
+    </div>
+  </div>`).join("");
+
+// ---- cost chart (stacked horizontal)
+(function () {
+  const rows = [
+    { arm: "Control", parts: [["Planner (Luna)", C.main_cost, "--s1"]] },
+    { arm: "Full Jev", parts: [["Planner (Luna)", J.main_cost, "--s1"], ["Jev navigation", jNav, "--s2"], ["Jev editing", jEdit, "--s3"]] },
+  ];
+  const W = 520, L = 72, R = 64, H = 128, bh = 26, max = 0.016;
+  const x = (v) => L + (v / max) * (W - L - R);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Stacked cost per run">`;
+  for (const t of [0, 0.004, 0.008, 0.012, 0.016]) s += `<line x1="${x(t)}" x2="${x(t)}" y1="10" y2="${H - 26}" stroke="var(--line)"/><text x="${x(t)}" y="${H - 8}" font-size="11" fill="var(--muted)" text-anchor="middle">${t === 0 ? "0" : "$" + t.toFixed(3)}</text>`;
+  rows.forEach((r, i) => {
+    const y = 20 + i * 44; let acc = 0;
+    s += `<text x="${L - 10}" y="${y + bh / 2 + 4}" font-size="12.5" fill="var(--ink-2)" text-anchor="end">${r.arm}</text>`;
+    r.parts.forEach(([name, v, col], j) => {
+      const x0 = x(acc) + (j ? 1 : 0), w = Math.max(x(acc + v) - x(acc) - (j ? 1 : 0), 2);
+      s += `<rect class="cbar" data-t="${esc(r.arm)} · ${esc(name)}: ${usd(v, 5)}" x="${x0}" y="${y}" width="${w}" height="${bh}" rx="3" fill="var(${col})"/>`;
+      acc += v;
+    });
+    s += `<text x="${x(acc) + 6}" y="${y + bh / 2 + 4}" font-size="12" font-family="var(--mono)" fill="var(--ink)">${usd(acc)}</text>`;
+  });
+  s += "</svg>"; $("costChart").innerHTML = s;
+  $("costChart").querySelectorAll(".cbar").forEach((el) => hoverable(el, el.dataset.t));
+})();
+
+// ---- wall time chart
+(function () {
+  const rows = [["Control", C.wall_s, C.turns], ["Full Jev", J.wall_s, J.turns]];
+  const W = 520, L = 72, R = 110, H = 128, bh = 26, max = 250;
+  const x = (v) => L + (v / max) * (W - L - R);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Wall time per run">`;
+  for (const t of [0, 50, 100, 150, 200, 250]) s += `<line x1="${x(t)}" x2="${x(t)}" y1="10" y2="${H - 26}" stroke="var(--line)"/><text x="${x(t)}" y="${H - 8}" font-size="11" fill="var(--muted)" text-anchor="middle">${t}s</text>`;
+  rows.forEach(([arm, v, turns], i) => {
+    const y = 20 + i * 44;
+    s += `<text x="${L - 10}" y="${y + bh / 2 + 4}" font-size="12.5" fill="var(--ink-2)" text-anchor="end">${arm}</text>`;
+    s += `<rect class="tbar" data-t="${arm}: ${v.toFixed(1)} s over ${turns} turns (${(v / turns).toFixed(1)} s/turn)" x="${x(0)}" y="${y}" width="${x(v) - x(0)}" height="${bh}" rx="3" fill="var(--s1)"/>`;
+    s += `<text x="${x(v) + 6}" y="${y + bh / 2 + 4}" font-size="12" font-family="var(--mono)" fill="var(--ink)">${v.toFixed(0)}s · ${turns} turns</text>`;
+  });
+  s += "</svg>"; $("timeChart").innerHTML = s;
+  $("timeChart").querySelectorAll(".tbar").forEach((el) => hoverable(el, el.dataset.t));
+})();
+
+$("costTable").innerHTML = `<table><thead><tr><th>Arm</th><th>Planner cost</th><th>Jev nav</th><th>Jev edit</th><th>Total</th><th>Prompt tokens</th><th>Cached</th><th>Output tokens</th><th>Wall</th><th>Goal</th></tr></thead><tbody>
+<tr><td>Control</td><td class="n">${usd(C.main_cost, 5)}</td><td class="n">–</td><td class="n">–</td><td class="n">${usd(C.main_cost, 5)}</td><td class="n">${C.prompt.toLocaleString()}</td><td class="n">${(C.cached / C.prompt * 100).toFixed(0)}%</td><td class="n">${C.completion.toLocaleString()}</td><td class="n">${C.wall_s}s</td><td>met</td></tr>
+<tr><td>Full Jev</td><td class="n">${usd(J.main_cost, 5)}</td><td class="n">${usd(jNav, 5)}</td><td class="n">${usd(jEdit, 5)}</td><td class="n">${usd(jTotal, 5)}</td><td class="n">${J.prompt.toLocaleString()}</td><td class="n">${(J.cached / J.prompt * 100).toFixed(0)}%</td><td class="n">${J.completion.toLocaleString()}</td><td class="n">${J.wall_s}s</td><td>not met</td></tr></tbody></table>`;
+
+// ---- navigation
+const sels = J.nav.selections;
+const lats = sels.map((s) => s.latency_ms).sort((a, b) => a - b);
+const med = lats[Math.floor(lats.length / 2)];
+$("navTiles").innerHTML = [
+  [String(sels.length), "Jev selections (1 pre-pass + 10 modify_view)"],
+  [`${med.toFixed(0)} ms`, "median Jev latency per selection"],
+  [usd(jNav, 5), "total Jev navigation cost"],
+  ["2 / 2", "needed bindings opened by the first selection"],
+  [(J.selection.precision * 100).toFixed(0) + "%", "precision across all 10 later selections"],
+].map(([v, k]) => `<div class="cost-tile"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
+(function () {
+  const W = 520, L = 30, R = 10, T = 12, B = 28, H = 170, n = sels.length, maxY = 8;
+  const bw = (W - L - R) / n;
+  const y = (v) => T + (1 - v / maxY) * (H - T - B);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Bindings opened per selection">`;
+  for (const t of [0, 2, 4, 6, 8]) s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(t) + 4}" font-size="11" fill="var(--muted)" text-anchor="end">${t}</text>`;
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(2)}" y2="${y(2)}" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  sels.forEach((sel, i) => {
+    const v = sel.yes.length, x0 = L + i * bw + 5, w = bw - 10;
+    const hits = sel.yes.filter((p) => D.targets.includes(p)).length;
+    s += `<rect class="nbar" data-t="Selection ${i + 1}: opened ${v} (${hits}/2 needed) · ${sel.latency_ms.toFixed(0)} ms" x="${x0}" y="${y(v)}" width="${w}" height="${y(0) - y(v)}" rx="3" fill="var(--s2)"/>`;
+    s += `<text x="${x0 + w / 2}" y="${y(v) - 5}" font-size="11" font-family="var(--mono)" fill="var(--ink)" text-anchor="middle">${v}</text>`;
+    s += `<text x="${x0 + w / 2}" y="${H - 10}" font-size="11" fill="var(--muted)" text-anchor="middle">${i === 0 ? "pre" : i}</text>`;
+  });
+  s += "</svg>"; $("navChart").innerHTML = s;
+  $("navChart").querySelectorAll(".nbar").forEach((el) => hoverable(el, el.dataset.t));
+})();
+$("sels").innerHTML = sels.map((s, i) => {
+  const intent = s.intent.replace(/\s+/g, " ");
+  const chips = s.yes.map((p) => `<span class="chip yes${D.targets.includes(p) ? " target" : ""}">${esc(p)}</span>`).join("")
+    + s.band.map((p) => `<span class="chip band" title="unsure, left folded">${esc(p)}</span>`).join("");
+  return `<div class="sel"><span class="sel-idx">${i === 0 ? "pre" : "#" + i}</span><div><div class="sel-intent">${esc(intent.length > 170 ? intent.slice(0, 170) + "…" : intent)}</div><div class="chips">${chips}</div></div><span class="sel-lat">${s.latency_ms.toFixed(0)} ms · ${usd(s.cost_usd, 5)}</span></div>`;
+}).join("");
+
+// ---- editing
+(function () {
+  const ed = J.edit.edits, W = 520, L = 30, R = 10, T = 12, B = 28, H = 170, maxY = 2;
+  const bw = (W - L - R) / ed.length;
+  const y = (v) => T + (1 - v / maxY) * (H - T - B);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Holes filled and escalated per jev_edit attempt">`;
+  for (const t of [0, 1, 2]) s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(t) + 4}" font-size="11" fill="var(--muted)" text-anchor="end">${t}</text>`;
+  ed.forEach((e, i) => {
+    const x0 = L + i * bw + 5, w = bw - 10, f = e.filled, x = e.escalated.length;
+    s += `<rect class="ebar" data-t="Attempt ${i + 1}: ${f} filled, ${x} escalated · ${e.latency_ms.toFixed(0)} ms · ${usd(e.cost_usd, 5)}" x="${x0}" y="${y(f)}" width="${w}" height="${Math.max(y(0) - y(f), 0)}" rx="2" fill="var(--s3)"/>`;
+    s += `<rect class="ebar" data-t="Attempt ${i + 1}: escalated ${e.escalated.map((h) => h.expected_type).join(", ")}" x="${x0}" y="${y(f + x)}" width="${w}" height="${Math.max(y(f) - y(f + x) - 2, 0)}" rx="2" fill="var(--s2)"/>`;
+    s += `<text x="${x0 + w / 2}" y="${H - 10}" font-size="11" fill="var(--muted)" text-anchor="middle">${i + 1}</text>`;
+  });
+  s += "</svg>"; $("editChart").innerHTML = s;
+  $("editChart").querySelectorAll(".ebar").forEach((el) => hoverable(el, el.dataset.t));
+  const menu = ed[2].escalated[0].candidates;
+  const existing = ["rows", "tail", "station_id", "v", "c", "volume", "cost", "billed"];
+  $("menu").innerHTML = menu.map((c) => {
+    const m = c.match(/^let (\w+) = /); const nonsense = m && existing.includes(m[1]);
+    return `<span class="${nonsense ? "nonsense" : ""}">${esc(c)}</span>`;
+  }).join("") + `<span class="missing">map(?, ?) — never offered</span>`;
+})();
+
+// ---- code panels
+function hl(src) {
+  return esc(src)
+    .replace(/\b(let|in|fun|if|then|else|test|end|case)\b/g, '<span class="k">$1</span>')
+    .replace(/\b(Int|Bool|String)\b/g, '<span class="t">$1</span>')
+    .replace(/(?<![\w#])(\d+)\b/g, '<span class="d">$1</span>')
+    .replace(/(^|[^\w])\?(?=[^\w]|$)/g, '$1<span class="q">?</span>');
+}
+function panel(title, pill, lines) {
+  const body = lines.map(([cls, src]) => `<span class="ln ${cls}">${hl(src) || " "}</span>`).join("");
+  return `<div class="code"><div class="code-h"><span>${title}</span>${pill}</div><pre>${body}</pre></div>`;
+}
+const bug = [
+  ["", "let billed : [(Int, Int, Int)] -> [Int] ="], ["del", "  fun rows -> map(rows, fun r -> volume(r) + cost(r))"], ["", "in"],
+  ["", "let with_surcharge : [Int] -> [Int] ="], ["del", "  fun amounts -> map(amounts, fun n -> n)"], ["", "in"],
+];
+const ctl = [
+  ["", "let billed : [(Int, Int, Int)] -> [Int] ="], ["add", "  fun rows -> map(rows, fun r -> volume(r) * cost(r))"], ["", "in"],
+  ["", "let with_surcharge : [Int] -> [Int] ="], ["add", "  fun amounts -> map(amounts, fun n -> n + 3)"], ["", "in"],
+  ["", "let target = from_station(2) in"], ["hole", "let billed_target = billed([(2, 4, 5)]) in"], ["hole", "let surcharge_check = with_surcharge(billed_target) in"],
+  ["", "test billed([(2, 4, 5)]) == [20] end;"], ["", "subtotal(with_surcharge(billed(target)))   (* = 30700 *)"],
+];
+const jv = [
+  ["", "let billed : [(Int, Int, Int)] -> [Int] ="], ["hole", "  fun rows -> ?"], ["", "in"],
+  ["", "let with_surcharge : [Int] -> [Int] ="], ["", "  fun amounts -> map(amounts, fun n -> n)"], ["", "in"],
+  ["", "let target = from_station(2) in"], ["", "let total = subtotal(with_surcharge(billed(target))) in"], ["", "total   (* stuck: billed's body is an open hole *)"],
+];
+$("codeGrid").innerHTML =
+  panel("Start (the two bugs)", `<span class="pill neutral">input</span>`, bug) +
+  panel("Control final", `<span class="pill good">30700 ✓</span>`, ctl) +
+  panel("Full Jev final", `<span class="pill bad">no value ✗</span>`, jv);
+
+// ---- control action log
+$("log").innerHTML = C.actions.map(([tool, path, code], i) => {
+  const junk = i >= 3;
+  return `<div class="act${junk ? " junk" : ""}"><span class="i">${i + 1}</span><div><div class="tool">${esc(tool)}</div><div class="path">path: ${esc(path)}</div></div><code>${hl(code)}</code></div>`;
+}).join("");
+
+// ---- spend
+const avgRun = (C.main_cost + jTotal) / 2;
+$("spend").innerHTML = [
+  [usd(0.0245, 4), "this eval (2 runs), measured on the key"],
+  [usd(avgRun, 4), "average per run"],
+  [usd(avgRun * 12, 2), "projected full eval (12 runs)"],
+  [usd(0.000023, 6), "one Jev request (3 questions, 553 tokens)"],
+  [((jNav + jEdit) / jTotal * 100).toFixed(0) + "%", "Jev's share of the Jev arm's cost"],
+].map(([v, k]) => `<div class="cost-tile"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
+</script>

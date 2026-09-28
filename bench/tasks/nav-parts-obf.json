@@ -1,0 +1,14 @@
+{
+  "name": "nav-parts-obf",
+  "program": "bench/tasks/nav-parts-obf.hz",
+  "feedback": 8,
+  "max_turns": 50,
+  "goal": "(42, 975, 47385)",
+  "prompt": "The weekly replenishment run for the service-parts depot is ordering far too much. Three rules are implemented wrongly:\n\n  1. The weekly demand forecast should be the mean of the units sold over the last three weeks; it currently divides by the wrong number of weeks.\n  2. Safety stock should cover the supplier's lead time converted to WEEKS (lead times are given in days) multiplied by the weekly forecast; it currently multiplies by the lead time in days.\n  3. The bulk discount should apply to orders of at least the threshold quantity; an order of exactly the threshold currently misses out.\n\nThe program is organised into modules, some nested; find the definitions responsible before editing. Check the program's value after each fix. When every fix is in and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "M06/v25/v27",
+    "M07/v31/v33",
+    "M08/v39/v42"
+  ],
+  "expectation": "Obfuscated twin of nav-parts: same program and prompt, every let/module/type binder renamed (v01.., M01.., T01..) and comments dropped by bench/obfuscate-task.js. Same goal, same nav_targets pushed through the mapping (Demand/forecast/weekly -> M06/v25/v27, Replenish/policy/safety_stock -> M07/v31/v33, Pricing/bulk/qualifies -> M08/v39/v42). Measures how much selection depends on names versus code: compare against nav-parts per arm. Regenerate with `node bench/obfuscate-task.js bench/tasks/nav-parts.hz > bench/tasks/nav-parts-obf.hz` after editing nav-parts.hz."
+}

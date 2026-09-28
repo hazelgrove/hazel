@@ -55,7 +55,7 @@ let registry: list((string, entry)) = {
         ),
       names,
     );
-  entries("View", Ungated, ["expand", "collapse"])
+  entries("View", Ungated, ["expand", "collapse", "modify_view"])
   @ entries(
       "View",
       OverlayGated,
@@ -83,6 +83,8 @@ let registry: list((string, entry)) = {
         "delete_body",
         "insert_after",
         "insert_before",
+        "jev_edit",
+        "add_tests",
       ],
     )
   @ entries(

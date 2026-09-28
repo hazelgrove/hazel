@@ -52,6 +52,11 @@ module Model = {
     pending_assistant_content: string,
     [@yojson.default ""] [@sexp.default ""]
     pending_assistant_reasoning: string,
+    /* Generation of the latest Jev pre-pass. A pre-pass result carries the
+       generation it was started with, so one that outlives a Stop cannot
+       hijack the next send's pending dispatch. */
+    [@yojson.default 0] [@sexp.default 0]
+    jev_prepass_seq: int,
   };
 
   /* Single source of truth for transient (per-session) field defaults; used
@@ -71,6 +76,7 @@ module Model = {
     pending_dispatch_send: None,
     pending_assistant_content: "",
     pending_assistant_reasoning: "",
+    jev_prepass_seq: 0,
   };
 };
 

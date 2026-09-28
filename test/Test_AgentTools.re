@@ -1838,6 +1838,27 @@ let composition_view_print_tests = (
         "let a = 1 in a" |> mk_zipper |> CompositionView.Public.print_zipper,
       )
     }),
+    test_case(
+      "Jev-suggested binding renders unfolded",
+      `Quick,
+      () => {
+        let editor =
+          Editor.Model.mk(
+            mk_zipper("let a = 1 in let b = 2 in a + b"),
+            ~root=Exp,
+          );
+        let view =
+          AgentContext.Update.update(
+            SetSuggested(["a"]),
+            AgentContext.Utils.init(),
+          );
+        check_rendered(
+          "a open, b folded",
+          {|let a = 1 in let b = ⋱ in a + b|},
+          CompositionView.Public.print(editor, view),
+        );
+      },
+    ),
     test_case("print_zipper preserves multi-binding", `Quick, () => {
       check_rendered(
         "multi-binding program",
@@ -1861,6 +1882,166 @@ let mk_json_args = (pairs: list((string, string))): API.Json.t => {
 let composition_utils_tests = (
   "CompositionUtils.action_of",
   [
+    test_case(
+      "parse modify_view tool call",
+      `Quick,
+      () => {
+        let args = mk_json_args([("intent", "fix how totals are summed")]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="modify_view", ~args)
+        ) {
+        | Action(ModifyView("fix how totals are summed", false)) => ()
+        | _ => Alcotest.fail("Expected ModifyView with the given intent")
+        };
+      },
+    ),
+    test_case(
+      "parse add_tests; empty list is a failure",
+      `Quick,
+      () => {
+        let tests = xs =>
+          `Assoc([("tests", `List(List.map(x => `String(x), xs)))]);
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="add_tests",
+            ~args=tests(["fib(0) == 0"]),
+          )
+        ) {
+        | Action(AddTests(["fib(0) == 0"])) => ()
+        | _ => Alcotest.fail("Expected AddTests")
+        };
+        switch (
+          CompositionUtils.Public.action_of(
+            ~tool_name="add_tests",
+            ~args=tests([]),
+          )
+        ) {
+        | Failure(_) => ()
+        | Action(_) => Alcotest.fail("Expected Failure for no tests")
+        };
+      },
+    ),
+    test_case(
+      "parse jev_edit signature (builds arm)",
+      `Quick,
+      () => {
+        let args =
+          mk_json_args([
+            ("path", "fib"),
+            ("signature", "Int -> Int"),
+            ("intent", "fibonacci"),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="jev_edit", ~args)
+        ) {
+        | Action(JevEdit(request)) =>
+          check(string, "signature", "Int -> Int", request.signature)
+        | _ => Alcotest.fail("Expected JevEdit")
+        };
+      },
+    ),
+    test_case(
+      "parse jev_edit without sketch (builds arm) gives empty sketch",
+      `Quick,
+      () => {
+        let args = mk_json_args([("path", "fib"), ("intent", "fibonacci")]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="jev_edit", ~args)
+        ) {
+        | Action(JevEdit(request)) =>
+          check(string, "sketch", "", request.sketch);
+          check(string, "signature defaults empty", "", request.signature);
+        | _ => Alcotest.fail("Expected JevEdit")
+        };
+      },
+    ),
+    test_case(
+      "parse jev_edit tool call; vocab optional",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([
+            ("path", `String("total")),
+            ("sketch", `String("fun rows -> fold(rows, 0, ?)")),
+            ("names", `List([`String("acc")])),
+            ("intent", `String("sum the rows")),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="jev_edit", ~args)
+        ) {
+        | Action(JevEdit(request)) =>
+          check(string, "path", "total", request.path);
+          check(
+            string,
+            "sketch",
+            "fun rows -> fold(rows, 0, ?)",
+            request.sketch,
+          );
+          check(list(string), "names", ["acc"], request.names);
+          check(list(string), "literals default", [], request.literals);
+          check(string, "intent", "sum the rows", request.intent);
+        | _ => Alcotest.fail("Expected JevEdit")
+        };
+      },
+    ),
+    test_case(
+      "parse modify_view replace=true",
+      `Quick,
+      () => {
+        let args =
+          `Assoc([
+            ("intent", `String("new focus")),
+            ("replace", `Bool(true)),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="modify_view", ~args)
+        ) {
+        | Action(ModifyView("new focus", true)) => ()
+        | _ => Alcotest.fail("Expected ModifyView with replace=true")
+        };
+      },
+    ),
+    test_case(
+      "modify_view schema: replace is optional",
+      `Quick,
+      () => {
+        let params =
+          Option.bind(
+            API.Json.dot("function", ViewTools.modify_view),
+            API.Json.dot("parameters"),
+          )
+          |> Option.get;
+        check(
+          bool,
+          "replace offered",
+          true,
+          Option.is_some(
+            Option.bind(
+              API.Json.dot("properties", params),
+              API.Json.dot("replace"),
+            ),
+          ),
+        );
+        check(
+          bool,
+          "only intent required",
+          true,
+          API.Json.dot("required", params)
+          == Some(`List([`String("intent")])),
+        );
+      },
+    ),
+    test_case("modify_view without intent is a parse failure", `Quick, () =>
+      switch (
+        CompositionUtils.Public.action_of(
+          ~tool_name="modify_view",
+          ~args=mk_json_args([]),
+        )
+      ) {
+      | Failure(_) => ()
+      | Action(_) => Alcotest.fail("Expected Failure for missing intent")
+      }
+    ),
     test_case(
       "parse update_definition tool call",
       `Quick,
@@ -2935,6 +3116,110 @@ let agent_context_tests = (
       },
     ),
     test_case(
+      "SetSuggested replaces suggestions wholesale, keeps model pins",
+      `Quick,
+      () => {
+        let ctx =
+          AgentContext.Update.update(
+            Expand(["a"]),
+            AgentContext.Utils.init(),
+          );
+        let ctx = AgentContext.Update.update(SetSuggested(["b", "c"]), ctx);
+        let ctx = AgentContext.Update.update(SetSuggested(["d"]), ctx);
+        check(
+          list(string),
+          "suggested replaced",
+          ["d"],
+          ctx.suggested_paths,
+        );
+        check(list(string), "pins untouched", ["a"], ctx.expanded_paths);
+      },
+    ),
+    test_case(
+      "open_paths is pins ∪ suggestions without duplicates",
+      `Quick,
+      () => {
+        let ctx =
+          AgentContext.Update.update(
+            Expand(["a", "b"]),
+            AgentContext.Utils.init(),
+          );
+        let ctx = AgentContext.Update.update(SetSuggested(["b", "c"]), ctx);
+        check(
+          list(string),
+          "union",
+          ["a", "b", "c"],
+          AgentContext.Utils.open_paths(ctx),
+        );
+      },
+    ),
+    test_case(
+      "collapse also closes a Jev suggestion",
+      `Quick,
+      () => {
+        let ctx =
+          AgentContext.Update.update(
+            SetSuggested(["a", "b"]),
+            AgentContext.Utils.init(),
+          );
+        let ctx = AgentContext.Update.update(Collapse(["a"]), ctx);
+        check(list(string), "a closed", ["b"], ctx.suggested_paths);
+      },
+    ),
+    test_case(
+      "freshen_paths drops stale suggestions",
+      `Quick,
+      () => {
+        let ctx =
+          AgentContext.Update.update(
+            SetSuggested(["a", "gone"]),
+            AgentContext.Utils.init(),
+          );
+        let ctx =
+          AgentContext.Utils.freshen_paths(
+            ctx,
+            build_node_map("let a = 1 in a"),
+          );
+        check(list(string), "only a", ["a"], ctx.suggested_paths);
+      },
+    ),
+    test_case(
+      "view_summary names every open path",
+      `Quick,
+      () => {
+        let ctx =
+          AgentContext.Update.update(
+            Expand(["b"]),
+            AgentContext.Utils.init(),
+          );
+        let ctx =
+          AgentContext.Update.update(SetSuggested(["a", "M/inner"]), ctx);
+        check(
+          string,
+          "summary",
+          "open: b, a, M/inner",
+          AgentContext.Utils.view_summary(ctx),
+        );
+        check(
+          string,
+          "empty summary",
+          "open: (none)",
+          AgentContext.Utils.view_summary(AgentContext.Utils.init()),
+        );
+      },
+    ),
+    test_case(
+      "chat saved before suggested_paths existed still loads",
+      `Quick,
+      () => {
+        let ctx =
+          AgentContext.Model.t_of_yojson(
+            Yojson.Safe.from_string({|{"expanded_paths":["a"]}|}),
+          );
+        check(list(string), "defaults to []", [], ctx.suggested_paths);
+      },
+    ),
+    test_case(
       "freshen_paths keeps valid module path M",
       `Quick,
       () => {
@@ -3111,7 +3396,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 36, List.length(tools));
+        check(int, "tool count", 39, List.length(tools));
       },
     ),
     test_case(
@@ -3295,6 +3580,7 @@ let tool_json_tests = (
         module ToolUtils = Web.Agent.ToolUtils;
         let cat = ToolUtils.category_of_tool;
         check(string, "expand", "View", cat("expand"));
+        check(string, "modify_view", "View", cat("modify_view"));
         check(string, "place_probe", "View", cat("place_probe"));
         check(string, "update_definition", "Edit", cat("update_definition"));
         check(
@@ -3323,6 +3609,8 @@ let tool_json_tests = (
             "delete_body",
             "insert_after",
             "insert_before",
+            "jev_edit",
+            "add_tests",
           ],
           ToolUtils.edit_tool_names,
         );

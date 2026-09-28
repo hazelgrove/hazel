@@ -34,6 +34,20 @@ module Model = {
     session_mode,
     [@yojson.default false] [@sexp.default false]
     collapse_top_bar: bool,
+    /* Jev navigation (docs/notes/jev-nav/plan.md §5). Off ⇒ behaves as dev. */
+    [@yojson.default false] [@sexp.default false]
+    jev_prepass: bool,
+    [@yojson.default false] [@sexp.default false]
+    jev_view_tool: bool,
+    /* V3: main model plans; Jev implements edits (jev_edit tool). */
+    [@yojson.default false] [@sexp.default false]
+    jev_edit_tool: bool,
+    /* With jev_edit_tool: the planner gives no sketch; Jev builds the code
+       form by form from path, intent, names and literals. */
+    [@yojson.default false] [@sexp.default false]
+    jev_edit_builds: bool,
+    [@yojson.default 8000] [@sexp.default 8000]
+    jev_batch_max_tokens: int,
   };
 };
 
@@ -62,6 +76,11 @@ let init = (): Model.t => {
   show_thinking: true,
   session_mode: Edit,
   collapse_top_bar: false,
+  jev_prepass: false,
+  jev_view_tool: false,
+  jev_edit_tool: false,
+  jev_edit_builds: false,
+  jev_batch_max_tokens: 8000,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -130,6 +149,13 @@ let active_supports_reasoning = (model: Model.t): bool => {
   };
 };
 
+/** Full Jev mode: the agent only plans; Jev pre-selects, navigates, and edits. */
+let jev_mode_on = (model: Model.t): bool =>
+  model.jev_prepass
+  && model.jev_view_tool
+  && model.jev_edit_tool
+  && model.jev_edit_builds;
+
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -140,6 +166,11 @@ module Update = {
     | SetOnlyFreeModels(bool)
     | SetReasoningEffort(option(OpenRouter.Payload.Model.effort_level))
     | ToggleShowThinking
+    | ToggleJevPrepass
+    | ToggleJevViewTool
+    | ToggleJevEditTool
+    | ToggleJevEditBuilds
+    | SetJevMode(bool)
     | ToggleCollapseTopBar
     | CycleSessionMode
     | SwitchInterface(Model.screen);
@@ -192,6 +223,30 @@ module Update = {
     | ToggleShowThinking => {
         ...model,
         show_thinking: !model.show_thinking,
+      }
+    | ToggleJevPrepass => {
+        ...model,
+        jev_prepass: !model.jev_prepass,
+      }
+    | ToggleJevViewTool => {
+        ...model,
+        jev_view_tool: !model.jev_view_tool,
+      }
+    | ToggleJevEditTool => {
+        ...model,
+        jev_edit_tool: !model.jev_edit_tool,
+      }
+    | ToggleJevEditBuilds => {
+        ...model,
+        jev_edit_builds: !model.jev_edit_builds,
+      }
+    | SetJevMode(on) => {
+        ...model,
+        jev_prepass: on,
+        jev_view_tool: on,
+        jev_edit_tool: on,
+        /* Jev mode is spec-only editing: the planner never writes code. */
+        jev_edit_builds: on,
       }
     | ToggleCollapseTopBar => {
         ...model,

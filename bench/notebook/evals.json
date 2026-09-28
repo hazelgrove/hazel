@@ -1,0 +1,48 @@
+[
+ {
+  "id": "001",
+  "title": "Control vs full Jev on the small billing program",
+  "date": "2026-09-24",
+  "round": "Round 4 code",
+  "planner": "openai/gpt-6-luna",
+  "jev": "typesafe/jev-1.13",
+  "spend_usd": 0.0245,
+  "spend_note": "account-usage delta on the key",
+  "data_file": "docs/notes/jev-nav/evals/eval-001-data.json",
+  "format": "eval001",
+  "results_dirs": [],
+  "report": "https://claude.ai/artifact/MxFieYu6Xmq7VPo7Sgzdia"
+ },
+ {
+  "id": "002",
+  "title": "Jev as navigator (Mode 3) on the billing and fleet programs",
+  "date": "2026-09-24",
+  "round": "Round 4 code",
+  "planner": "openai/gpt-6-luna",
+  "jev": "typesafe/jev-1.13",
+  "spend_usd": 0.0701,
+  "spend_note": "account-usage delta on the key",
+  "data_file": "docs/notes/jev-nav/evals/eval-002-data.json",
+  "format": "eval002",
+  "results_dirs": [
+   "jev-eval-20260924-120453",
+   "jev-eval-20260924-120736"
+  ],
+  "report": "https://claude.ai/artifact/CWujakFy9fVnaHMSHnF2Bs"
+ },
+ {
+  "id": "003",
+  "title": "Refined Jev navigator (Mode 3) on the big fleet program, named vs symptom-only tasks",
+  "date": "2026-09-24",
+  "round": "Round 5 code",
+  "planner": "openai/gpt-6-luna",
+  "jev": "typesafe/jev-1.13",
+  "spend_usd": 0.1,
+  "spend_note": "account-usage delta on the key",
+  "format": "results",
+  "results_dirs": [
+   "jev-eval-20260924-140218",
+   "jev-eval-20260924-141240"
+  ]
+ }
+]

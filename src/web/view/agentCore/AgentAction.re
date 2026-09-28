@@ -25,6 +25,22 @@ type t =
       int,
       int,
     )
+  | /** [HandleLLMResponse] re-entered once Jev has answered every
+        Jev-backed tool call in the reply (modify_view, jev_edit). */
+    HandleLLMResponseResolved(
+      OpenRouter.Reply.Model.t,
+      Id.t,
+      int,
+      int,
+      AgentJev.resolved,
+    )
+  | /** Jev pre-pass finished for (chat_id, pre-pass generation); resumes
+        the DispatchSend it was holding. */
+    JevPrepassDone(
+      Id.t,
+      int,
+      JevNav.selection,
+    )
   | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
   | HandleChatNamingResponse(string, Id.t)
   | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)

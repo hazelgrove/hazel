@@ -1338,3 +1338,272 @@ module KeyInfo = {
     };
   };
 };
+
+/** Typed decisions from TypeSafe's Jev ("System One") model, served by
+    OpenRouter on its own endpoint rather than chat completions. Jev returns
+    calibrated probabilities, never text, so only the Noul (yes/no) question
+    type is modelled — the one navigation needs. Contract for the Jev
+    navigation work; see docs/notes/jev-nav/plan.md. */
+module SystemOne = {
+  /* OpenRouter's slug for Jev (its TypeSafe provider page). The "latest"
+     alias is rejected as a plain slug ("does not exist"), and pinning a
+     version keeps eval runs comparable across TypeSafe releases. */
+  let default_model_id = "typesafe/jev-1.13";
+
+  type noul_question = {
+    id: string,
+    instructions: string,
+    criteria_true: string,
+    criteria_false: string,
+  };
+
+  type answer = {
+    id: string,
+    p_yes: float,
+  };
+
+  type usage = {
+    input_tokens: int,
+    cost_usd: option(float),
+  };
+
+  type reply =
+    | Answers(list(answer), usage)
+    | Failed(int, string);
+
+  /* Noul and Choice share everything but one question/answer shape: the
+     request envelope, the error body, usage, and the rule that every asked
+     id must be answered. */
+  let json_of_questions =
+      (~model_id: string, ~state: Json.t, questions: list((string, Json.t)))
+      : Json.t =>
+    `Assoc([
+      ("model", `String(model_id)),
+      ("state", state),
+      ("questions", `Assoc(questions)),
+    ]);
+
+  /* OpenRouter reports failures as {"error": {"code", "message"}} with a
+     JSON body, and API.request exposes no status, so the code comes from
+     the body. */
+  let error_of_json = (json: Json.t): option((int, string)) => {
+    let* error = Json.dot("error", json);
+    let code =
+      Json.Parsers.int_field(error, "code") |> Option.value(~default=0);
+    let message =
+      Option.bind(Json.dot("message", error), Json.str)
+      |> Option.value(~default=Json.to_string(error));
+    Some((code, message));
+  };
+
+  let usage_of_json = (json: Json.t): usage => {
+    let usage = Json.dot("usage", json) |> Option.value(~default=`Null);
+    {
+      /* Jev may report null token counts; zero keeps sums well-defined. */
+      input_tokens:
+        Json.Parsers.int_field(usage, "input_tokens")
+        |> Option.value(~default=0),
+      cost_usd: Utils.num_field(usage, "cost"),
+    };
+  };
+
+  /** Every asked id must come back: a partial answer set would silently
+      read as "no" (or as no choice) for the missing ones, so it fails. */
+  let answers_of_json =
+      (
+        ~ids: list(string),
+        ~parse: (Json.t, string) => option('answer),
+        json: option(Json.t),
+      )
+      : result((list('answer), usage), (int, string)) =>
+    switch (json) {
+    | None => Error((0, "SystemOne: no response"))
+    | Some(json) =>
+      switch (error_of_json(json), Json.dot("answers", json)) {
+      | (Some(error), _) => Error(error)
+      | (None, None) => Error((0, "SystemOne: response has no answers"))
+      | (None, Some(answers)) =>
+        let parsed = List.map(parse(answers), ids);
+        List.mem(None, parsed)
+          ? Error((0, "SystemOne: an asked question has no valid answer"))
+          : Ok((List.filter_map(Fun.id, parsed), usage_of_json(json)));
+      }
+    };
+
+  let post = (~key: string, ~body: Json.t, handler: option(Json.t) => unit) =>
+    request(
+      ~method=POST,
+      ~url="https://openrouter.ai/api/v1/systemone",
+      ~headers=[
+        ("Content-Type", "application/json"),
+        ("Authorization", "Bearer " ++ key),
+      ],
+      ~body,
+      handler,
+    );
+
+  /* ---- Noul: calibrated yes/no ---- */
+
+  let json_of_question = (q: noul_question): (string, Json.t) => (
+    q.id,
+    `Assoc([
+      ("type", `String("noul")),
+      ("instructions", `String(q.instructions)),
+      (
+        "criteria",
+        `Assoc([
+          ("true", `String(q.criteria_true)),
+          ("false", `String(q.criteria_false)),
+        ]),
+      ),
+    ]),
+  );
+
+  let json_of_request =
+      (~model_id: string, ~state: Json.t, questions: list(noul_question))
+      : Json.t =>
+    json_of_questions(
+      ~model_id,
+      ~state,
+      List.map(json_of_question, questions),
+    );
+
+  let p_yes_of = (answers: Json.t, id: string): option(answer) => {
+    let* answer = Json.dot(id, answers);
+    let+ p_yes = Utils.num_field(answer, "noul");
+    {
+      id,
+      p_yes,
+    };
+  };
+
+  let reply_of_json = (~ids: list(string), json: option(Json.t)): reply =>
+    switch (answers_of_json(~ids, ~parse=p_yes_of, json)) {
+    | Ok((answers, usage)) => Answers(answers, usage)
+    | Error((code, message)) => Failed(code, message)
+    };
+
+  /** POST https://openrouter.ai/api/v1/systemone. Calls [handler] exactly once. */
+  let decide =
+      (
+        ~key: string,
+        ~model_id: string=default_model_id,
+        ~state: Json.t,
+        ~questions: list(noul_question),
+        ~handler: reply => unit,
+        (),
+      )
+      : unit =>
+    post(~key, ~body=json_of_request(~model_id, ~state, questions), json =>
+      handler(
+        reply_of_json(
+          ~ids=List.map((q: noul_question) => q.id, questions),
+          json,
+        ),
+      )
+    );
+
+  /* ---- Choice: pick one of N (V3 editing, docs/notes/jev-nav/v3-jev-implementor.md) ---- */
+
+  /** [options] are the candidate texts; the wire format (keys, criteria)
+      is private to this module. Callers include an explicit escape option. */
+  type choice_question = {
+    id: string,
+    instructions: string,
+    options: list(string),
+  };
+
+  type choice_answer = {
+    id: string,
+    choice: string,
+    confidence: float,
+  };
+
+  type choice_reply =
+    | Chosen(list(choice_answer), usage)
+    | ChoiceFailed(int, string);
+
+  /* Option texts are code (spaces, parens, quotes), so the wire uses
+     positional keys and maps back here. */
+  let choice_key = (index: int): string => "c" ++ string_of_int(index);
+
+  let option_of_key = (options: list(string), key: string): option(string) =>
+    String.length(key) > 1 && key.[0] == 'c'
+      ? Option.bind(
+          int_of_string_opt(String.sub(key, 1, String.length(key) - 1)),
+          List.nth_opt(options),
+        )
+      : None;
+
+  let json_of_choice_question = (q: choice_question): (string, Json.t) => (
+    q.id,
+    `Assoc([
+      ("type", `String("choice")),
+      ("instructions", `String(q.instructions)),
+      (
+        "criteria",
+        `Assoc(
+          List.mapi(
+            (i, text) => (choice_key(i), `String(text)),
+            q.options,
+          ),
+        ),
+      ),
+    ]),
+  );
+
+  let json_of_choice_request =
+      (~model_id: string, ~state: Json.t, questions: list(choice_question))
+      : Json.t =>
+    json_of_questions(
+      ~model_id,
+      ~state,
+      List.map(json_of_choice_question, questions),
+    );
+
+  let choice_of =
+      (questions: list(choice_question), answers: Json.t, id: string)
+      : option(choice_answer) => {
+    let* question =
+      List.find_opt((q: choice_question) => q.id == id, questions);
+    let* answer = Json.dot(id, answers);
+    let* key = Option.bind(Json.dot("choice", answer), Json.str);
+    let* choice = option_of_key(question.options, key);
+    let+ confidence = Utils.num_field(answer, "confidence");
+    {
+      id,
+      choice,
+      confidence,
+    };
+  };
+
+  let choice_reply_of_json =
+      (~questions: list(choice_question), json: option(Json.t))
+      : choice_reply =>
+    switch (
+      answers_of_json(
+        ~ids=List.map((q: choice_question) => q.id, questions),
+        ~parse=choice_of(questions),
+        json,
+      )
+    ) {
+    | Ok((answers, usage)) => Chosen(answers, usage)
+    | Error((code, message)) => ChoiceFailed(code, message)
+    };
+
+  /** Same endpoint as [decide]. Calls [handler] exactly once. */
+  let decide_choices =
+      (
+        ~key: string,
+        ~model_id: string=default_model_id,
+        ~state: Json.t,
+        ~questions: list(choice_question),
+        ~handler: choice_reply => unit,
+        (),
+      )
+      : unit =>
+    post(
+      ~key, ~body=json_of_choice_request(~model_id, ~state, questions), json =>
+      handler(choice_reply_of_json(~questions, json))
+    );
+};

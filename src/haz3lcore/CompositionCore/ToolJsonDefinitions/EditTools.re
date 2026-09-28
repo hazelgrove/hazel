@@ -591,3 +591,179 @@ let insert_before: API.Json.t =
       ]),
     ),
   ]);
+
+let jev_edit_description = {|
+Your ONLY way to change code. You plan; a fast typed selector implements.
+Two modes, chosen by `path`:
+- `path` names an EXISTING binding: `sketch` REPLACES that binding's definition — the right-hand side of `=` only. Never include `let <name> =`, other bindings, tests, or the program's final expression; they would become part of this one definition.
+- `path` is NEW (including when the program is empty): `sketch` is new top-level code for that one binding, e.g. `let f(x: Int): Int = ? in`.
+New code goes to a NEW path. Tests go through `add_tests`, never through jev_edit.
+Write the shape in Hazel and put `?` wherever an in-scope variable, constructor, function call, or one of your `names`/`literals` fits. The selector fills each hole with a well-typed choice. Leave holes rather than writing everything out, and state the goal in `intent` so the holes are filled correctly.
+
+Returns one line: `filled N/M holes`, plus any holes it could not fill with their expected type. Fill those yourself with another jev_edit and a tighter sketch.
+
+Examples:
+jev_edit(path="total", sketch="fun rows -> fold(rows, 0, ?)", names=[], literals=[], intent="sum volume(r) * cost(r) over rows")
+jev_edit(path="fib", sketch="let fib(n: Int): Int = if n <= 1 then n else fib(?) + fib(?) in", names=[], literals=["1", "2"], intent="create recursive fibonacci")
+|};
+
+let jev_edit_builds_description = {|
+Your ONLY way to change the program. You plan; a fast typed selector builds the code.
+Give the target `path`, its type as `signature` (e.g. `Int -> Int`), a precise `intent`, and every identifier (`names`, including parameter names) and constant (`literals`) the code needs. The selector constructs the code structure by structure, choosing only well-typed forms, operators, calls, and your names/literals — you do not write code.
+An EXISTING `path` has its definition (right-hand side only) REPLACED; new code goes to a NEW path. Tests go through `add_tests`, never through jev_edit.
+Always give the `signature`: it restricts what the selector may build, so a precise type makes a correct result far more likely.
+
+Returns one line: `filled N/M holes`, plus any holes it could not fill with their expected type. Retry with a more precise intent or the missing names/literals.
+
+Example:
+jev_edit(path="fib", signature="Int -> Int", names=["fib", "n"], literals=["0", "1", "2"], intent="create recursive fibonacci: fib(n) = n when n <= 1, else fib(n - 1) + fib(n - 2)")
+|};
+
+/* Both jev_edit schemas share path/names/literals/intent. The sketch arm
+   adds [sketch]; the builds arm replaces it with [signature], so the planner
+   gives a type instead of code (the edit arm picks the variant in
+   [[AgentSend.enabled_tools]]). */
+let mk_jev_edit = (~builds: bool): API.Json.t => {
+  let string_param = description =>
+    `Assoc([
+      ("type", `String("string")),
+      ("description", `String(description)),
+    ]);
+  let string_list_param = description =>
+    `Assoc([
+      ("type", `String("array")),
+      ("description", `String(description)),
+      ("items", `Assoc([("type", `String("string"))])),
+    ]);
+  let sketch = (
+    "sketch",
+    string_param(
+      "Hazel code for the definition, with `?` holes for the selector to fill.",
+    ),
+  );
+  let shared = [
+    (
+      "names",
+      string_list_param(
+        "New identifiers the selector may use (in-scope names are always available).",
+      ),
+    ),
+    (
+      "literals",
+      string_list_param(
+        "Constants the selector may use, as Hazel literals (e.g. \"0\", \"\\\"total\\\"\").",
+      ),
+    ),
+    ("intent", string_param("What the edit must achieve, concretely.")),
+  ];
+  let signature = (
+    "signature",
+    string_param(
+      "Hazel type of the binding (e.g. \"Int -> Int\"). Strongly encouraged: it restricts what the selector may build.",
+    ),
+  );
+  let path = (
+    "path",
+    string_param(
+      "Slash-delimited path of the binding to (re)define (e.g. \"total\", \"M/inner\").",
+    ),
+  );
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("jev_edit")),
+        (
+          "description",
+          `String(
+            builds ? jev_edit_builds_description : jev_edit_description,
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc(
+                builds
+                  ? [path, signature, ...shared] : [path, sketch, ...shared],
+              ),
+            ),
+            (
+              "required",
+              `List(
+                List.map(
+                  name => `String(name),
+                  builds ? ["path", "intent"] : ["path", "sketch", "intent"],
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+};
+
+let jev_edit = mk_jev_edit(~builds=false);
+let jev_edit_builds = mk_jev_edit(~builds=true);
+
+let add_tests_description = {|
+Adds tests to the program. Tests are part of the spec, so you write them; the selector implements the code (jev_edit).
+Each entry is one Hazel boolean expression. Each becomes a `test <expression> end;` line placed just before the program's final expression, after every binding, so it can use them all.
+
+Parameters:
+tests: list(string) — boolean expressions, e.g. "fib(0) == 0"
+
+Example:
+Given the program:
+```
+let fib = ⋱ in
+fib(10)
+```
+Calling add_tests(tests=["fib(0) == 0", "fib(10) == 55"]) produces:
+```
+let fib = ⋱ in
+test fib(0) == 0 end;
+test fib(10) == 55 end;
+fib(10)
+```
+Refused if the tests would add static errors.
+|};
+
+let add_tests: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("add_tests")),
+        ("description", `String(add_tests_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "tests",
+                  `Assoc([
+                    ("type", `String("array")),
+                    (
+                      "description",
+                      `String("Hazel boolean expressions, one per test."),
+                    ),
+                    ("items", `Assoc([("type", `String("string"))])),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("tests")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);

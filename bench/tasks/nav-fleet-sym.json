@@ -1,0 +1,14 @@
+{
+  "name": "nav-fleet-sym",
+  "program": "bench/tasks/nav-fleet-sym.hz",
+  "feedback": 6,
+  "max_turns": 40,
+  "goal": "(17175, 4, 11)",
+  "prompt": "The fleet cost report is wrong; the totals it produces are far too high and one of its counts is backwards. What users see:\n\n  1. A trip's energy charge grows with the distance driven. It should depend only on the litres the vehicle actually burned: two trips that burned the same litres over very different distances currently cost very different amounts.\n  2. Long idle stops are charged for every idle minute. Only the minutes beyond the free allowance should cost anything; a short stop should cost nothing.\n  3. The count of vehicles due for service is backwards: it counts the vehicles that are not due and misses the ones that are. A vehicle is due once its total distance has reached the service interval.\n\nThe program is large; find where each behaviour comes from before editing. Check the program's value after each fix. When everything behaves as described and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "Fuel/fuel_cost",
+    "Driver/idle_penalty",
+    "Maintenance/needs_service"
+  ],
+  "expectation": "Symptom-style twin of nav-fleet: same program, goal, feedback, max_turns and nav_targets; the prompt describes observable behaviour and never names a target binding or its module (checked case-insensitively against every nav_targets path segment). Added after Eval 002, where nav-fleet's prompt named the bindings and control found them in ~3 expands, so navigation was never hard. Compare per arm against nav-fleet. Original expectation: Navigation-hard, 61 bindings in 10 modules (nested-let module form, so every binding has a path like Fuel/fuel_cost). Three one-line fixes in three different module subtrees (Fuel, Driver, Maintenance); nothing near the final expression needs to change. A good run opens exactly those three bindings (plus their module parents) and leaves Data/Stats/Costing/PerVehicle/Report folded. Each fix is independently observable in the result: fuel alone moves total_cost 63784->20892, idle alone 63784->60067, the service flag 8->4. Expected answer (17175, 4, 11)."
+}

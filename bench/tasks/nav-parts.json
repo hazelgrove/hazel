@@ -1,0 +1,14 @@
+{
+  "name": "nav-parts",
+  "program": "bench/tasks/nav-parts.hz",
+  "feedback": 8,
+  "max_turns": 50,
+  "goal": "(42, 975, 47385)",
+  "prompt": "The weekly replenishment run for the service-parts depot is ordering far too much. Three rules are implemented wrongly:\n\n  1. The weekly demand forecast should be the mean of the units sold over the last three weeks; it currently divides by the wrong number of weeks.\n  2. Safety stock should cover the supplier's lead time converted to WEEKS (lead times are given in days) multiplied by the weekly forecast; it currently multiplies by the lead time in days.\n  3. The bulk discount should apply to orders of at least the threshold quantity; an order of exactly the threshold currently misses out.\n\nThe program is organised into modules, some nested; find the definitions responsible before editing. Check the program's value after each fix. When every fix is in and the program evaluates cleanly, say DONE and stop.",
+  "nav_targets": [
+    "Demand/forecast/weekly",
+    "Replenish/policy/safety_stock",
+    "Pricing/bulk/qualifies"
+  ],
+  "expectation": "Navigation-hard with depth: 62 bindings, targets three levels deep (Module/inner/binding) in three different subtrees. A good run opens only the three targets and their parents; Suppliers/Storage/Num/Report stay folded. Each fix moves the result on its own (forecast alone (60, 10915, 551053); safety stock alone (31, 520, 24044); bulk alone (59, 7750, 388273)). Lead times are all multiples of 7, so lead_days / 7 and ceil_div(lead_days, 7) both reach the goal. Expected answer (42, 975, 47385): order lines, units, spend."
+}
