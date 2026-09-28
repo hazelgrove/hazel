@@ -868,10 +868,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   /* `_` reaches Fumola for the same reason it reaches Drv: a case pattern
      needs a catch-all, and the pattern slot is Fumola(Exp). */
-  | Wild => (
-      Token.is_wild,
-      [op(Pat), op(Drv(Exp)), op(Fumola(Exp))],
-    )
+  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp)), op(Fumola(Exp))])
   /* Fumola spells strings with double quotes as Hazel does, so the token
      carries straight through: MakeTerm reads it as Lit(Text) with its quotes
      still on, and FumolaPrint puts it back unchanged.  No `$tag`-style
