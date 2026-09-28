@@ -193,7 +193,7 @@ let kids_emotion = () => {
   /* The view on a model whose cells carry c, b and k. */
   let marker = "\n} in\n\nlet head";
   let cut = Str.search_forward(Str.regexp_string(marker), text, 0) + 5;
-  let circles = (c, b, k) => {
+  let circles = (~attr="opacity", ~sd=0, ~r=0, c, b, k) => {
     let program =
       String.sub(text, 0, cut)
       ++ " ^kid_face.view((smile = 85, brow = 30, drag = Idle, "
@@ -205,7 +205,11 @@ let kids_emotion = () => {
       ++ string_of_int(k)
       ++ ")), stars = SpliceRef((\"st\", false)), "
       ++ "hearts = SpliceRef((\"ht\", false)), eyes = SpliceRef((\"e\", 50)), "
-      ++ "sides = SpliceRef((\"sd\", 0)), rays = SpliceRef((\"r\", 0)), "
+      ++ "sides = SpliceRef((\"sd\", "
+      ++ string_of_int(sd)
+      ++ ")), rays = SpliceRef((\"r\", "
+      ++ string_of_int(r)
+      ++ ")), "
       ++ "teeth = SpliceRef((\"t\", 0))))";
     /* Loaded as the editor loads a slide: Test_UserLivelits.run parses
        another way, which takes ~45 s on a program this size. */
@@ -226,7 +230,7 @@ let kids_emotion = () => {
                 | Some(("Create", nv)) =>
                   switch (of_tuple(strip_wrappers(nv))) {
                   | Some([n, v]) =>
-                    of_string(strip_wrappers(n)) == Some("opacity")
+                    of_string(strip_wrappers(n)) == Some(attr)
                     && of_string(strip_wrappers(v)) == Some("1")
                   | _ => false
                   }
@@ -261,6 +265,12 @@ let kids_emotion = () => {
     };
   };
   check(int, "9 pieces show", 9, circles(90, 20, 30));
+  /* Lines are drawn at stroke-opacity 1 when shown, 0 when not. */
+  let lines = circles(~attr="stroke-opacity");
+  check(int, "no lines at rest", 0, lines(90, 0, 0));
+  check(int, "all ten side lines", 10, lines(~sd=100, 90, 0, 0));
+  check(int, "all seven rays, head open", 7, lines(~r=100, 90, 100, 0));
+  check(int, "no rays while the head is shut", 0, lines(~r=100, 90, 0, 0));
   check(int, "no candy while unexploded", 0, circles(90, 0, 100));
   check(int, "all forty by halfway", 40, circles(90, 50, 50));
 };
