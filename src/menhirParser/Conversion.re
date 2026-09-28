@@ -434,7 +434,6 @@ module rec Exp: {
        meaningful. */
     | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
     | FumolaQuote(_) => raise(Failure("FumolaQuote not supported"))
-    | BbQuote(_) => raise(Failure("BbQuote not supported"))
     | Projector(_, e) => of_core(e)
     | Splice(e) => of_core(e)
     /* A reference has no concrete syntax -- it is only ever produced by

@@ -96,8 +96,8 @@ Two things had to give way for this to work:
 - **`Exp` is a subsort of `Fumola(Exp)`** in `Segment.subsort_of`. Without it
   the remolding template keeps going in Fumola past the escape, and a Hazel
   tuple written inside one comes back as a *Fumola* tuple wrapped in a hole --
-  which type-checks, prints, and is the wrong program. Blackboard never needed
-  this, because `blackboard … end` only goes one way.
+  which type-checks, prints, and is the wrong program. A sub-language whose
+  quote only goes one way never needs this.
 - **`FumolaGrammar` is generic in the host term it embeds.** Hazel's `Grammar`
   already names `FumolaGrammar`, so naming `Grammar` here would close a cycle;
   instead the AST takes the host expression as a type parameter and `Grammar`

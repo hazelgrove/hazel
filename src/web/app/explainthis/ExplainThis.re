@@ -876,10 +876,6 @@ let decide =
         Markdown(
           "A quotation is code as a value, of type `Exp`. The body is not evaluated. A livelit's `Macro` expand returns a quotation, which is applied to the livelit's splices at each use. The body is checked in the builtin context only, so it cannot name a variable bound in your program: an expansion must be closed.",
         )
-      | BbQuote(_) =>
-        Markdown(
-          "A `blackboard ... end` block embeds a Blackboard document into a regular expression. A document is a sequence of `assume` and `construct` blocks, separated by `;`.",
-        )
       | Invalid(_) => Prose("Not a valid expression")
       | DynamicErrorHole(_)
       | Closure(_) => Prose("Internal expression")
@@ -1697,18 +1693,6 @@ let decide =
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
     DrvSyntax(syntax, msg);
-  | Some(InfoBb(i)) =>
-    switch (BbInfo.modality_of(i)) {
-    | Some(Assume) =>
-      Prose(
-        "An assumption block postulates names. Its only obligation is that each declared type is a type.",
-      )
-    | Some(Construct) =>
-      Prose(
-        "A construction block claims a conservative extension: the signature must be shown inhabited, and the witness is then discarded.",
-      )
-    | None => Prose("A Blackboard term")
-    }
   | Some(Secondary(s)) =>
     switch (s.cls) {
     | Secondary(Comment) =>

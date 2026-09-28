@@ -97,8 +97,6 @@ type atomic_form =
   | DrvVar
   | FumolaVar
   | FumolaTag
-  | BbVar
-  | BbType
   | ExplicitHole
   | ImplicitHoleMarker
   | LLMHole
@@ -379,38 +377,6 @@ let fumola_get: fumola_compound_form => t =
     mk_pre_c(L, ["case", "=>"], P.fum_stmt, Fumola(Exp), [Fumola(Exp)])
   | FumolaApEmpty => mk_post_c(LT, ["()"], P.fum_post, Fumola(Exp), []);
 
-/* Blackboard forms.  One sort, Bb(Term), for terms, signature entries and
-   blocks; see BbSort.  Signature entries are membership terms `x : T`,
-   separated by `;`; blocks are `assume … by … end` and `construct … by …
-   end` operands, separated by `;`; the dependent arrow `(x : A) -> B` is
-   the infix arrow with a parenthesized membership on its left, recovered
-   in MakeTerm.  `blackboard … end` embeds a document in an expression. */
-[@deriving enumerate]
-type bb_compound_form =
-  | BbOf
-  | BbMem
-  | BbArrow
-  | BbAp
-  | BbComma
-  | BbSeq
-  | BbParens
-  | BbAssume
-  | BbConstruct;
-
-let bb_get: bb_compound_form => t =
-  fun
-  | BbOf => mk_op_c(L, ["blackboard", "end"], Exp, [Bb(Term)])
-  | BbMem => mk_infix(":", Bb(Term), P.bb_mem)
-  | BbArrow => mk_infix("->", Bb(Term), P.bb_arrow)
-  | BbAp => mk_post_c(LT, ["(", ")"], P.bb_ap, Bb(Term), [Bb(Term)])
-  | BbComma => mk_infix(",", Bb(Term), P.comma)
-  | BbSeq => mk_infix(";", Bb(Term), P.semi)
-  | BbParens => mk_parens(Bb(Term))
-  | BbAssume =>
-    mk_pre_c(L, ["assume", "by"], P.bb_block, Bb(Term), [Bb(Term)])
-  | BbConstruct =>
-    mk_pre_c(L, ["construct", "by"], P.bb_block, Bb(Term), [Bb(Term)]);
-
 /* let all_of_drv_compound_form: list(_) = []; */
 
 let drv_get: drv_compound_form => t =
@@ -626,8 +592,6 @@ type compound_form =
   | Drv(drv_compound_form)
   // Fumola
   | Fumola(fumola_compound_form)
-  // Blackboard
-  | Bb(bb_compound_form)
   // TRIPLE DELIMITERS
   | Let
   | Bind
@@ -747,8 +711,6 @@ let get: compound_form => t =
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
   // Fumola
   | Fumola(fumola_compound_form) => fumola_get(fumola_compound_form)
-  // Blackboard
-  | Bb(bb_compound_form) => bb_get(bb_compound_form)
   // Theorem Capture
   | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
@@ -897,14 +859,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
-      [
-        op(Exp),
-        op(Pat),
-        op(Typ),
-        op(TPat),
-        op(Drv(Typ)),
-        op(Bb(Term)),
-      ],
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
     )
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
@@ -915,7 +870,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
      needs a catch-all, and the pattern slot is Fumola(Exp). */
   | Wild => (
       Token.is_wild,
-      [op(Pat), op(Drv(Exp)), op(Bb(Term)), op(Fumola(Exp))],
+      [op(Pat), op(Drv(Exp)), op(Fumola(Exp))],
     )
   /* Fumola spells strings with double quotes as Hazel does, so the token
      carries straight through: MakeTerm reads it as Lit(Text) with its quotes
@@ -964,9 +919,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
      the name of the Fumola VM instance the program runs against. */
   | FumolaVar => (Token.is_typ_var, [op(Fumola(Exp)), op(Fumola(Name))])
   /* `$tag`, which prints as Fumola's `#tag`; see Token.is_fumola_tag. */
-  | FumolaTag => (Token.is_fumola_tag, [op(Fumola(Exp))])
-  | BbVar => ((t => t != "type" && Token.is_typ_var(t)), [op(Bb(Term))])
-  | BbType => ((t => t == "type"), [op(Bb(Term))]);
+  | FumolaTag => (Token.is_fumola_tag, [op(Fumola(Exp))]);
 
 module Molds = {
   let atomics: list((Token.t => bool, list(Mold.t))) =

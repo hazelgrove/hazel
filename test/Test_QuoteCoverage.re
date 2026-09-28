@@ -99,7 +99,6 @@ let coverage: Exp.cls => coverage =
      builds Hazel code only. */
   | FumolaQuote => Exempt("Fumola code: quotation builds Hazel code only")
   | FumolaPeek => Exempt("made by evaluation: a Fumola value on display")
-  | BbQuote => Exempt("Blackboard code: quotation builds Hazel code only")
   | Parens =>
     Exempt("never a class: Exp.cls_of_term looks through parentheses")
   /* A projector is transparent to semantics: the term built from the

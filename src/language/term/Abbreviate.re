@@ -525,7 +525,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           | None => "<fumola instance, unnamed>"
           },
         )
-      | BbQuote(_) => Invalid("<blackboard document>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {
@@ -1890,7 +1889,6 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Rul(_) => any
   | Drv(_) => any
   | Fumola(_) => any
-  | Bb(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))

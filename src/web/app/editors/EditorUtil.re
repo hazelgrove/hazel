@@ -26,7 +26,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Atom(_)
   | DrvQuote(_)
   | FumolaQuote(_)
-  | BbQuote(_)
   | ListLit(_)
   | TupleExtension(_)
   | ExplicitNonlabel

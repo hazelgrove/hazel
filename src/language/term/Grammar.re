@@ -21,7 +21,6 @@ type any_t('a) =
   | Rul(rul_t('a))
   | Drv(DrvGrammar.any_t('a))
   | Fumola(FumolaGrammar.exp(exp_t('a), 'a))
-  | Bb(BbGrammar.t('a))
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
@@ -53,7 +52,6 @@ and exp_term('a) =
       FumolaGrammar.exp(exp_t('a), 'a),
       FumolaGrammar.exp(exp_t('a), 'a),
     )
-  | BbQuote(BbGrammar.t('a))
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -275,7 +273,6 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             FumolaGrammar.map_annotation((map_exp_annotation(f), f), mode),
             FumolaGrammar.map_annotation((map_exp_annotation(f), f), b),
           )
-        | BbQuote(b) => BbQuote(BbGrammar.map_annotation(f, b))
         | LivelitName(s) => LivelitName(s)
         | FumolaPeek({instance_id, reads, source, value, holds, info}) =>
           FumolaPeek({
@@ -423,7 +420,6 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Drv(d) => Drv(DrvGrammar.map_any_annotation(f, d))
     | Fumola(e) =>
       Fumola(FumolaGrammar.map_annotation((map_exp_annotation(f), f), e))
-    | Bb(b) => Bb(BbGrammar.map_annotation(f, b))
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
@@ -670,12 +666,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
   };
-  module BbGrammar = {
-    let placeholder = (~ann=?, ()): BbGrammar.t(DefaultAnnotation.t) => {
-      term: BbGrammar.Hole(EmptyHole),
-      annotation: default_annotation(ann),
-    };
-  };
   module DrvGrammar = {
     let placeholder = (~ann=?, ()): DrvGrammar.any_t(DefaultAnnotation.t) =>
       DrvGrammar.Exp({
@@ -741,10 +731,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let fumola_exp = (~ann=?, n, mode, b): exp_t(DefaultAnnotation.t) => {
       term: FumolaQuote(n, mode, b),
-      annotation: default_annotation(ann),
-    };
-    let bb_exp = (~ann=?, b): exp_t(DefaultAnnotation.t) => {
-      term: BbQuote(b),
       annotation: default_annotation(ann),
     };
     let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {

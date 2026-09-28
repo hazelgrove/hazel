@@ -39,13 +39,7 @@ let read_file = (path: string): string => {
    Fumola-sorted forms inside it have no menhir productions, as with the ALFA
    derivation sub-language, so these files load through the typing parser.
    `$tag` is the visible symptom: menhir's lexer reports `unknown char: '$'`.
-   Remove these entries if Fumola gains menhir support.
-
-   The Blackboard slides are the same case: `blackboard ... end` and the
-   Bb-sorted forms inside it have no menhir productions either, so these files
-   load through the typing parser too. Their fidelity is pinned by
-   DocSlides.ReparseBackuptext. Remove these entries if Blackboard gains menhir
-   support. */
+   Remove these entries if Fumola gains menhir support. */
 let known_gaps: list(string) = [
   "fumola-tiles-overview.hz",
   "fumola-tiles-instance.hz",
@@ -57,12 +51,6 @@ let known_gaps: list(string) = [
   "fumola-tiles-library.hz",
   "fumola-tiles-inspect.hz",
   "fumola-tiles-nodeinfo.hz",
-  "blackboard-overview.hz",
-  "blackboard-terms.hz",
-  "blackboard-signatures.hz",
-  "blackboard-checking.hz",
-  "blackboard-metatheory.hz",
-  "blackboard-case-studies.hz",
 ];
 
 let tests = (

@@ -114,7 +114,6 @@ module Utils = {
     | ModuleExp(_, def, body) => [def, body]
     | DrvQuote(_) => []
     | FumolaQuote(_) => []
-    | BbQuote(_) => []
     };
   };
 

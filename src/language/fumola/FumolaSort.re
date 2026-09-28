@@ -3,7 +3,7 @@
 
   [Exp] is Fumola's expressions, which is nearly all of it: the one grammar
   covers expressions, declarations and blocks, and the distinctions are made
-  by form, as DrvSort and BbSort do for their sub-languages.
+  by form, as DrvSort does for its sub-language.
 
   [Name] is the instance name in `fumola <instance> in … end`, and exists so
   that position accepts an identifier and nothing else. It is a sort rather
