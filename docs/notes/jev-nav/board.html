@@ -112,6 +112,18 @@ svg text { font-family: var(--mono); }
 .mini b { font: 700 20px/1.1 var(--display); font-variant-numeric: tabular-nums; }
 .mini span { font-size: 12px; color: var(--ink-2); }
 
+/* grid table */
+.gt { border-collapse: separate; border-spacing: 6px; width: 100%; min-width: 620px; font-size: 13px; }
+.gt th { font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 0 4px; }
+.gt td { background: var(--sunk); border-radius: 10px; padding: 10px 12px; vertical-align: top; font-variant-numeric: tabular-nums; }
+.gt td.name { background: transparent; font-weight: 600; padding-left: 0; }
+.gt td.name small { display: block; font: 11.5px var(--mono); color: var(--muted); font-weight: 400; }
+.gt b { font: 700 18px/1.1 var(--display); display: block; }
+.gt .ok { background: var(--good-soft); } .gt .ok b { color: var(--good); }
+.gt .part { background: var(--jev-soft); } .gt .part b { color: var(--jev); }
+.gt .no { background: var(--bad-soft); } .gt .no b { color: var(--bad); }
+.gt .d { color: var(--ink-2); font-size: 12px; font-family: var(--mono); }
+.gt .d.up { color: var(--bad); } .gt .d.down { color: var(--good); }
 /* findings + trend */
 .finds { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
 .find { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; }
@@ -164,11 +176,11 @@ button:focus-visible, .setup:focus-visible { outline: 2px solid var(--agent); ou
   <section class="sec" aria-labelledby="vh">
     <span class="eyebrow" id="vh">Where we are</span>
     <div class="tiles">
-      <div class="stat lead"><div class="top"><b>Mixed, and too few runs to call</b><button class="i" data-info="verdict" aria-label="About the verdict">i</button></div></div>
-      <div class="stat"><div class="top"><b>+41%</b><button class="i" data-info="gap" aria-label="About this number">i</button></div><span>cost with Jev navigating, big program</span></div>
-      <div class="stat"><div class="top"><b>64%</b><button class="i" data-info="gap" aria-label="About this number">i</button></div><span>of that gap = Jev's fee</span></div>
+      <div class="stat lead"><div class="top"><b>Mixed: Jev helps on clear fixes, costs more on vague ones</b><button class="i" data-info="grid" aria-label="About the verdict">i</button></div></div>
+      <div class="stat"><div class="top"><b>+32%</b><button class="i" data-info="grid" aria-label="About this number">i</button></div><span>cost with Jev navigating, symptoms-only test (grid avg)</span></div>
+      <div class="stat"><div class="top"><b>−22%</b><button class="i" data-info="grid-build" aria-label="About this number">i</button></div><span>cost with Jev building code, named-bug test (2/2 correct)</span></div>
       <div class="stat"><div class="top"><b>0.4 s</b><button class="i" data-info="speed" aria-label="About this number">i</button></div><span>per Jev answer vs 13 s per agent turn</span></div>
-      <div class="stat"><div class="top"><b>8 · $0.20</b><button class="i" data-info="runs" aria-label="About the runs">i</button></div><span>runs · total spend</span></div>
+      <div class="stat"><div class="top"><b>37 · $0.97</b><button class="i" data-info="runs" aria-label="About the runs">i</button></div><span>runs · total spend</span></div>
     </div>
   </section>
 
@@ -216,11 +228,16 @@ button:focus-visible, .setup:focus-visible { outline: 2px solid var(--agent); ou
 
   <section class="sec" aria-labelledby="rh">
     <div class="row"><h2 id="rh">Results</h2><button class="i" data-info="results" aria-label="How to read results">i</button></div>
+    <div class="card">
+      <div class="card-h"><div><h3>Sept 28 grid · 29 runs</h3><small>every setup × every test · 2–3 runs each · averages</small></div><button class="i" data-info="grid" aria-label="About the grid">i</button></div>
+      <div class="scroll"><table class="gt" id="gridTable"></table></div>
+    </div>
+    <div class="row"><h3>Single runs (Sept 24)</h3></div>
     <div class="legend"><span><i style="background:var(--agent)"></i>Agent cost</span><span><i style="background:var(--jev)"></i>Jev cost</span><span><b style="color:var(--good)">✓</b> correct output</span><span><b style="color:var(--bad)">✗</b> wrong output</span></div>
     <div class="grid3" id="tests"></div>
     <div class="grid2">
       <div class="card">
-        <div class="card-h"><div><h3>Where the extra cost comes from</h3><small>fleet program · symptoms only</small></div><button class="i" data-info="gap" aria-label="About the cost gap">i</button></div>
+        <div class="card-h"><div><h3>Where the extra cost comes from</h3><small>fleet program · symptoms only · Sept 24 run</small></div><button class="i" data-info="gap" aria-label="About the cost gap">i</button></div>
         <div id="waterfall"></div>
       </div>
       <div class="card">
@@ -278,6 +295,7 @@ button:focus-visible, .setup:focus-visible { outline: 2px solid var(--agent); ou
 
 <script>
 const RUNS = [{"ev":"002","task":"fix-middle","arm":"view","ok":true,"wall":159,"agent":0.01259,"jev":0.00046,"out":9024,"inp":475571,"cached":444305,"tp":[18698,18842,18938,19030,19186,19249,19324,19411,19497,19586,19641,19730,19812,19879,19911,20013,20201,20316,20485,20564,20745,20839,20800,20874],"to":[71,198,20,190,267,62,335,284,437,633,256,161,623,40,96,141,595,984,903,547,443,1171,21,546],"sels":[[11,5,2,263,1930],[11,8,2,185,1926],[14,4,2,251,2359],[14,8,1,207,2360],[14,11,2,268,2361]],"nTargets":2,"prec":0.14285714285714285,"rec":1},{"ev":"002","task":"nav-fleet","arm":"control","ok":true,"wall":342,"agent":0.02323,"jev":0,"out":15520,"inp":767927,"cached":687721,"tp":[19755,19975,20072,20175,20200,20471,20709,20793,20869,20973,21029,21354,21652,21736,21937,22218,22480,22915,23179,23359,23590,23764,23951,24012,24192,24308,24488,24579,24663,24721,24786,24945,25006,25071],"to":[131,392,79,22,328,1043,494,132,169,352,279,1049,550,541,839,203,610,361,478,847,533,293,256,283,498,238,219,316,487,733,293,233,177,2062],"sels":[],"nTargets":3,"prec":null,"rec":null},{"ev":"002","task":"nav-fleet","arm":"view","ok":true,"wall":528,"agent":0.02602,"jev":0.00831,"out":17780,"inp":888768,"cached":803626,"tp":[19606,19762,19859,19962,20206,20281,20400,20494,20577,20684,20800,20824,21026,21093,21261,21386,21480,21635,21697,21822,22346,22506,22916,23115,23247,23252,23425,23327,23539,23742,23793,23806,23999,23948,24036,24318,24342,24653,24661,24942],"to":[72,323,86,421,265,288,907,430,1365,219,194,220,312,226,151,483,345,378,392,322,330,800,203,556,740,219,938,509,318,560,553,278,251,323,1081,271,309,1106,283,753],"sels":[[61,10,3,284,10956],[61,16,2,425,10963],[61,23,3,388,10956],[61,24,3,252,10962],[61,7,1,310,10968],[61,15,2,269,10966],[61,10,2,624,10973],[61,11,2,260,10963],[61,16,2,394,11004],[61,12,2,377,11004],[61,53,3,431,11000],[61,31,3,395,11024],[61,37,3,365,11011],[61,28,2,382,11012],[61,11,1,281,11026],[61,27,2,398,11015],[61,12,0,475,11019],[61,30,3,340,11020]],"nTargets":3,"prec":0.05555555555555555,"rec":1},{"ev":"003","task":"nav-fleet","arm":"view","ok":false,"wall":618,"agent":0.03053,"jev":0.00658,"out":26555,"inp":894836,"cached":809191,"tp":[19633,19804,19966,20117,20214,20364,20450,20575,20747,20757,20865,21063,21087,21248,21370,21518,21762,21933,22208,22337,22388,22526,22689,22889,23158,23153,23222,23291,23360,23417,23573,23984,24169,24355,24474,24636,24945,25363,25508,25718],"to":[85,146,245,439,311,314,262,354,267,1295,554,1392,392,442,491,357,841,1098,301,1343,48,375,849,716,569,395,249,292,401,300,1552,196,214,846,1447,861,1978,550,2789,999],"sels":[[58,6,3,348,10982],[56,7,0,311,10311],[57,8,0,324,10894],[59,4,0,441,11115],[58,8,3,426,11008],[60,6,0,371,11386],[61,5,0,443,11512],[61,7,0,312,11556],[59,10,0,380,11170],[60,6,0,502,11384],[60,8,3,491,11338],[59,43,3,421,11164],[58,10,0,454,10915],[63,14,1,425,11852]],"nTargets":3,"prec":0.05263157894736842,"rec":1},{"ev":"003","task":"nav-fleet-sym","arm":"control","ok":true,"wall":438,"agent":0.02611,"jev":0,"out":16764,"inp":925175,"cached":837755,"tp":[19804,20076,20294,20435,20546,20645,20963,21222,21309,21411,21499,21533,21651,21961,22468,22572,22661,22885,23131,23203,23202,23304,23315,23709,23889,23925,24069,24326,24618,24820,24969,25073,25324,25459,25603,25678,25786,25855,25945,26037],"to":[149,219,982,80,244,315,572,361,343,85,102,30,355,706,137,115,778,1074,1208,875,101,538,391,340,916,63,440,1446,473,176,733,379,501,20,444,299,19,20,523,212],"sels":[],"nTargets":3,"prec":null,"rec":null},{"ev":"003","task":"nav-fleet-sym","arm":"view","ok":true,"wall":526,"agent":0.02991,"jev":0.00686,"out":23298,"inp":921486,"cached":827527,"tp":[19682,19912,20238,20335,20467,20594,20670,20804,21071,21165,21372,21520,21696,21953,22328,22516,22704,22892,23050,23171,23476,23645,23884,24005,24115,24187,24265,24375,24527,24555,24770,24892,24996,25104,25182,25284,25362,25480,25558,25684],"to":[147,145,108,1092,261,190,175,533,235,207,353,736,341,1815,313,288,1121,163,1442,494,563,727,371,937,544,671,1049,399,1278,329,311,329,859,345,172,790,250,1351,571,1293],"sels":[[52,17,3,291,9863],[51,23,3,224,9892],[57,8,1,254,10844],[58,7,1,288,11059],[54,13,1,482,10325],[55,11,0,417,10631],[55,16,0,423,10285],[55,10,3,284,10418],[59,10,0,358,11174],[58,7,3,415,11055],[61,2,0,388,11570],[61,2,0,357,11563],[61,4,0,429,11568],[62,2,0,418,11719],[60,7,0,497,11374]],"nTargets":3,"prec":0.05660377358490566,"rec":1}];
+const GRID = {"fix-middle|control":[{"ok":false,"c":0.0125,"s":131,"t":20,"jev":0},{"ok":true,"c":0.0126,"s":129,"t":24,"jev":0},{"ok":true,"c":0.0131,"s":136,"t":24,"jev":0}],"fix-middle|view":[{"ok":true,"c":0.0126,"s":143,"t":24,"jev":0.0004},{"ok":true,"c":0.0128,"s":150,"t":20,"jev":0.0001}],"nav-fleet|control":[{"ok":true,"c":0.0293,"s":383,"t":40,"jev":0},{"ok":true,"c":0.0265,"s":322,"t":40,"jev":0},{"ok":true,"c":0.0296,"s":416,"t":40,"jev":0}],"nav-fleet|view":[{"ok":true,"c":0.0312,"s":465,"t":34,"jev":0.0046},{"ok":true,"c":0.0238,"s":372,"t":31,"jev":0.0018},{"ok":true,"c":0.0319,"s":495,"t":40,"jev":0.0032}],"nav-fleet-sym|control":[{"ok":true,"c":0.026,"s":279,"t":40,"jev":0},{"ok":true,"c":0.0299,"s":566,"t":40,"jev":0},{"ok":true,"c":0.0282,"s":365,"t":40,"jev":0}],"nav-fleet-sym|view":[{"ok":true,"c":0.0356,"s":502,"t":40,"jev":0.005},{"ok":true,"c":0.0402,"s":676,"t":40,"jev":0.0064},{"ok":true,"c":0.0355,"s":484,"t":40,"jev":0.0051}],"fix-middle|build":[{"ok":false,"c":0.0129,"s":131,"t":24,"jev":0.0016},{"ok":false,"c":0.0129,"s":119,"t":24,"jev":0.002}],"fix-middle|jev":[{"ok":false,"c":0.0126,"s":118,"t":24,"jev":0.0015},{"ok":false,"c":0.013,"s":120,"t":24,"jev":0.0022}],"nav-fleet|build":[{"ok":true,"c":0.0329,"s":718,"t":40,"jev":0.0108},{"ok":true,"c":0.0114,"s":161,"t":15,"jev":0.0012}],"nav-fleet|jev":[{"ok":true,"c":0.0445,"s":707,"t":40,"jev":0.0214},{"ok":true,"c":0.0388,"s":507,"t":40,"jev":0.0114}],"nav-fleet-sym|build":[{"ok":false,"c":0.0412,"s":725,"t":40,"jev":0.0189},{"ok":false,"c":0.0368,"s":524,"t":40,"jev":0.0146}],"nav-fleet-sym|jev":[{"ok":false,"c":0.0417,"s":773,"t":40,"jev":0.0196},{"ok":false,"c":0.0398,"s":451,"t":40,"jev":0.016}]};
 // Eval 001 (no results folder kept): numbers from docs/notes/jev-nav/evals/eval-001-data.json
 const E1 = { control: { agent: 0.01365, jev: 0, wall: 205, turns: 24, ok: true }, full: { agent: 0.01053, jev: 0.00197, wall: 134, turns: 24, ok: false } };
 const find = (ev, task, arm) => RUNS.find((r) => r.ev === ev && r.task === task && r.arm === arm);
@@ -285,6 +303,8 @@ const symC = find("003", "nav-fleet-sym", "control"), symJ = find("003", "nav-fl
 
 // ---------- content ----------
 const KEY = [
+  { sev: "good", id: "grid", t: "Grid (29 runs): Jev navigating was correct 8/8, same cost as the original on 2 of 3 tests, +32% on the symptoms-only test." },
+  { sev: "good", id: "grid-build", t: "Jev building code fixed the named-bug fleet program 2/2, 22% cheaper than the original; failed 0/4 on the other tests." },
   { sev: "warn", id: "verdict", t: "Mixed: on the small program Jev navigating was a bit cheaper and faster; on the big program it cost 41–60% more and was 20–81% slower. One run per box." },
   { sev: "bad", id: "gap", t: "The extra cost on the big program is Jev's fee (64%) plus the agent writing more (36%)." },
   { sev: "good", id: "screen", t: "The agent's screen was NOT bigger with Jev: ~23k tokens per turn either way, 90% cached either way." },
@@ -311,6 +331,9 @@ const INFO = {
 Fleet, named    orig $0.0232 342s ✓   Jev nav $0.0343 528s ✓   → +48%, +54%   (Eval 2)
                                       Jev nav $0.0371 618s ✗   → +60%, +81%   (Eval 3 vs Eval 2 original)
 Fleet, symptoms orig $0.0261 438s ✓   Jev nav $0.0368 526s ✓   → +41%, +20%</div><p>One run per box; a few percent can be luck. Small-program runs came from different evals (code changed between).</p>`, key: ["verdict", "gap", "f-done"] },
+  grid: { kind: "Results", title: "Sept 28 grid",
+    what: `<p>Every setup on every test, 2–3 runs each. Each cell: how many runs got the correct output, average cost, average time, and the % difference from the original agent on the same test (green = cheaper/faster). Hover a cell for each run.</p><ul><li><b>Jev navigates</b>: always correct (8/8). Same cost as the original on the small program and the named-bug fleet test; +32% cost on the symptoms-only fleet test.</li><li><b>Jev builds code</b>: 2/2 on the named-bug fleet test, 22% cheaper — one run finished in 15 turns, all 17 blanks filled by Jev. 0/4 elsewhere.</li><li><b>Full Jev</b>: 2/2 on named bugs but ~46% more expensive; 0/4 elsewhere.</li></ul>`,
+    how: `<p>Headless runs, agent <code>openai/gpt-6-luna</code>, Jev <code>typesafe/jev-1.13</code>. Cost = each run's own logged usage (agent + Jev); total $0.77 for 29 runs. The lab key's balance isn't used: other people spend on it too.</p><ul><li>Jev navigates now uses Jev's own yes/no (no 0.8 cutoff).</li><li>One small-program Jev-navigates run died at start (no output, no cost) → 2 runs there.</li><li>9 "Jev picks first view" runs were stopped early after that setup was dropped; they logged nothing.</li><li>Almost every run still hits its turn limit, so costs partly measure the limit.</li></ul>`, key: ["grid", "grid-build", "gap"] },
   gap: { kind: "Metric", title: "Where the extra cost comes from",
     what: `<p>On the fleet program (symptoms only), the Jev run cost $0.0107 more than the original. Two parts:</p><ul><li><b>Jev's fee</b> — 15 view requests.</li><li><b>Agent writes more</b> — same number of turns, same screen, but 39% more words written.</li></ul>`,
     how: `<div class="calc">original  agent $0.0261
@@ -341,8 +364,8 @@ run total         original 438 s    Jev nav 526 s</div><p>Per-turn time = run ti
     what: `<p>Each bar = one view request: of all definitions, how many Jev opened, and how many of those were bug locations.</p><ul><li><b>Share on target</b> = bug locations opened ÷ everything opened.</li><li><b>Found</b> = bug locations opened ÷ all bug locations.</li></ul>`,
     how: `<p>Each test lists its bug locations (e.g. <code>Fuel/fuel_cost</code>). "Opened" includes parent modules.</p><div class="calc">first request   fleet named 3/10 (Eval 2), 3/6 (Eval 3) · symptoms 3/17 · small 2/5
 whole run       ~5% (all requests pooled, vs the 3 bug locations)</div><p>The whole-run 5% is <b>misleading</b>: later requests ask about other code (checking results, reports), so opening non-bug code there is correct. A fair score needs "what this request needed", which we don't record yet.</p>`, key: ["picks"] },
-  runs: { kind: "Scope", title: "8 runs, $0.20",
-    what: `<ul><li>Original agent: 3 runs</li><li>Jev navigates: 4 runs</li><li>Full Jev: 1 run</li><li>3 other setups: 0 runs</li></ul>`,
+  runs: { kind: "Scope", title: "37 runs, $0.97",
+    what: `<ul><li>Sept 24: 8 single runs, $0.20</li><li>Sept 28 grid: 29 runs, $0.77 — Original 9, Jev navigates 8, Jev builds 6, Full Jev 6</li></ul>`,
     how: `<p>Spend = the lab key's usage before vs after each eval (Eval 1 $0.0245, Eval 2 $0.0701, Eval 3 $0.1000). Runs were picked ad hoc, so counts are uneven; the next step is a planned grid, costed first.</p>`, key: ["verdict"] },
   arch: { kind: "Architecture", title: "Architecture",
     what: `<p>Three actors: the agent (plans), Jev (picks), Hazel (lists what's valid and checks everything). Fixing a bug has two jobs — choose what to look at, and write the fix. Each setup gives those jobs to the agent, to Jev, or splits them.</p>`,
@@ -371,6 +394,11 @@ whole run       ~5% (all requests pooled, vs the 3 bug locations)</div><p>The wh
   trend: { kind: "Outlook", title: "Where it's heading",
     what: `<p>Our current read. Hypotheses, not results.</p>`,
     how: `<p>Drawn from the findings: Jev's fee is the main cost; the agent navigated fine without help; building failed for tooling reasons.</p>`, key: ["gap", "fee", "f-build"] },
+  "grid-build": { kind: "Finding", title: "Jev building code: works on small, clear fixes",
+    what: `<p>When the bug report names the exact fix (e.g. "bill on litres, not distance"), Jev built the change correctly from Hazel's options — 2/2 runs, 22% cheaper. When the agent had to work out the fix from symptoms, or the fix needed a function call like <code>map(?, ?)</code>, it failed (0/4).</p>`,
+    how: `<div class="calc">fleet, named     2/2 ✓   $0.0222 avg (orig $0.0285)   best run: 15 turns, 3 edits, 17/17 blanks filled
+fleet, symptoms  0/2     $0.0390 avg                   ~34 edits/run, ~23 blanks handed back
+small program    0/2     $0.0129 avg                   15/35 and 21/45 blanks filled — needed map(?, ?)</div>`, key: ["grid-build", "f-build"] },
   "f-build": { kind: "Finding", title: "Jev writing code is blocked",
     what: `<p>In the one full-Jev run, Jev couldn't finish: the needed pieces weren't among its options, and half-built code was left behind.</p>`,
     how: `<p>Eval 1, small program. Hazel offered <code>map</code> as a bare name, never as a call <code>map(?, ?)</code>. Jev correctly gave up 14 times. Fixes (not built): offer calls with holes; undo an edit if holes remain.</p>`, key: ["f-build"] },
@@ -406,6 +434,8 @@ const SETUPS = [
 SETUPS.forEach((s) => (INFO["s-" + s.id] = s.info));
 
 const FINDS = [
+  { sev: "good", t: "Jev navigating: 8/8 correct in the grid", id: "grid" },
+  { sev: "good", t: "Jev building: 2/2 and 22% cheaper on clear fixes", id: "grid-build" },
   { sev: "bad", t: "Extra cost = Jev's fee + agent writing more", id: "gap" },
   { sev: "good", t: "Agent's screen is the same size with Jev", id: "screen", was: "corrects: “Jev bloats the screen”" },
   { sev: "good", t: "Jev answers in ~0.4 s", id: "speed" },
@@ -499,6 +529,25 @@ $("setups").addEventListener("click", (e) => { if (e.target.closest(".i")) retur
 $("setups").addEventListener("keydown", (e) => { const b = e.target.closest(".setup"); if (b && e.target === b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); current = b.dataset.s; renderSetup(); $("setups").querySelector(`[data-s="${current}"]`).focus(); } });
 renderSetup();
 
+// ---------- grid ----------
+(function () {
+  const tests = [["fix-middle", "Small billing program", "33 lines · 2 bugs"], ["nav-fleet", "Fleet cost report", "61 defs · bugs named"], ["nav-fleet-sym", "Fleet cost report", "61 defs · symptoms only"]];
+  const arms = [["control", "Original"], ["view", "Jev navigates"], ["build", "Jev builds code"], ["jev", "Full Jev"]];
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const pct = (a, b) => { const d = Math.round((a / b - 1) * 100); return `<span class="d ${d > 0 ? "up" : d < 0 ? "down" : ""}">${d > 0 ? "+" : ""}${d}%</span>`; };
+  $("gridTable").innerHTML = `<tr><th>Test</th>${arms.map(([, n]) => `<th>${n}</th>`).join("")}</tr>` + tests.map(([id, n, sub]) => {
+    const base = GRID[id + "|control"];
+    return `<tr><td class="name">${n}<small>${sub}</small></td>` + arms.map(([a]) => {
+      const rs = GRID[id + "|" + a]; if (!rs) return `<td>–</td>`;
+      const ok = rs.filter((r) => r.ok).length, c = avg(rs.map((r) => r.c)), t = avg(rs.map((r) => r.s));
+      const cls = ok === rs.length ? "ok" : ok ? "part" : "no";
+      const tt = rs.map((r, i) => `run ${i + 1}: ${r.ok ? "✓" : "✗"} ${usd(r.c)} · ${r.s}s · ${r.t} turns`).join(" | ");
+      return `<td class="${cls}" data-tip="${esc(tt)}"><b>${ok}/${rs.length} correct</b>${usd(c)} ${a === "control" ? "" : pct(c, avg(base.map((r) => r.c)))}<br>${Math.round(t)}s ${a === "control" ? "" : pct(t, avg(base.map((r) => r.s)))}</td>`;
+    }).join("") + `</tr>`;
+  }).join("");
+  bindTips($("gridTable"));
+})();
+
 // ---------- results: per-test bars ----------
 const r2 = (r, who, c) => ({ who, c, agent: r.agent, jev: r.jev, ok: r.ok, s: r.wall, turns: r.tp.length });
 const TESTS = [
@@ -514,12 +563,12 @@ const TESTS = [
     r2(symC, "Original", "agent"), r2(symJ, "Jev navigates", "jev") ] },
 ];
 $("tests").innerHTML = TESTS.map((t) => {
-  const max = Math.max(...t.runs.map((r) => r.agent + r.jev)) * 1.6;
+  const max = Math.max(...t.runs.map((r) => r.agent + r.jev));
   return `<div class="card"><div class="card-h"><div><h3>${esc(t.name)}</h3><small>${esc(t.sub)}</small></div>${iBtn("results", "How to read")}</div>`
-    + `<svg viewBox="0 0 320 ${t.runs.length * 38 + 4}" width="100%" role="img" aria-label="Cost per run">${t.runs.map((r, i) => {
-      const y = i * 38 + 6, tot = r.agent + r.jev, x0 = 108, W = 212, wa = (r.agent / max) * W, wj = (r.jev / max) * W;
+    + `<svg viewBox="0 0 400 ${t.runs.length * 38 + 4}" width="100%" role="img" aria-label="Cost per run">${t.runs.map((r, i) => {
+      const y = i * 38 + 6, tot = r.agent + r.jev, x0 = 112, W = 160, wa = (r.agent / max) * W, wj = (r.jev / max) * W;
       const tipText = `${r.who}: ${usd(tot)} (agent ${usd(r.agent)}, Jev ${usd(r.jev)}) · ${r.s}s · ${r.turns} turns${r.note ? " · " + r.note : ""}`;
-      return `<g data-tip="${esc(tipText)}"><rect x="0" y="${y - 4}" width="320" height="34" fill="transparent"/><text x="0" y="${y + 15}" font-size="11" fill="var(--ink-2)">${esc(r.who)}</text>`
+      return `<g data-tip="${esc(tipText)}"><rect x="0" y="${y - 4}" width="400" height="34" fill="transparent"/><text x="0" y="${y + 15}" font-size="11" fill="var(--ink-2)">${esc(r.who)}</text>`
         + `<rect x="${x0}" y="${y}" width="${Math.max(wa, 2)}" height="22" rx="3" fill="var(--agent)"/>`
         + (r.jev ? `<rect x="${x0 + wa + 2}" y="${y}" width="${Math.max(wj - 2, 2)}" height="22" rx="3" fill="var(--jev)"/>` : "")
         + `<text x="${x0 + wa + wj + 6}" y="${y + 15}" font-size="11" fill="var(--ink-2)">${usd(tot)} · ${r.s}s</text>`
@@ -585,8 +634,8 @@ function renderPicks() {
   const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
   $("pickStats").innerHTML = [[`${first[2]}/${first[1]}`, "first request on target"], [`${Math.round((first[2] / r.nTargets) * 100)}%`, "bug locations found, first request"], [String(med(sels.map((s) => s[1]))), `median opened per request (of ~${med(sels.map((s) => s[0] + 3))})`]]
     .map(([b, s]) => `<div class="mini"><b>${b}</b><span>${s}</span></div>`).join("") ;
-  const W = 460, rowH = 18, L = 30, H = sels.length * rowH + 30, total = Math.max(...sels.map((s) => Math.max(s[0], s[1]))) ;
-  const sc = (W - L - 70) / total;
+  const W = 900, rowH = 20, L = 34, H = sels.length * rowH + 30, total = Math.max(...sels.map((s) => Math.max(s[0], s[1]))) ;
+  const sc = (W - L - 60) / total;
   $("pickChart").innerHTML = `<div class="scroll"><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Definitions opened per request">${sels.map((s, i) => {
     const [q, opened, hit, ms] = s, y = 6 + i * rowH, all = Math.max(q, opened), tt = `Request ${i + 1}: opened ${opened} of ~${all} · ${hit} of ${r.nTargets} bug locations · ${ms} ms`;
     return `<g data-tip="${esc(tt)}"><text x="0" y="${y + 11}" font-size="10" fill="var(--muted)">#${i + 1}</text>`
