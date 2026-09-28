@@ -424,6 +424,68 @@ let qcheck_prepared_ids_are_sufficient =
     TypToSegment.ids_sufficient(~settings, typ)
   );
 
+let id_strings = (ids: Id.Set.t): list(string) =>
+  Id.Set.elements(ids) |> List.map(Id.show);
+
+/* Pins for the properties above, on an implicit binder. */
+let implicit_binder_tests = [
+  test_case(
+    "an implicit binder's dynamic ids are all emitted",
+    `Quick,
+    () => {
+      let {dynamic_ids, emitted, _} =
+        dynamic_ids_and_printed(
+          ~static_typ=Typ.fresh(Unknown(Internal)),
+          ~dynamic_typ=typ("implicit h : Int -> Int"),
+        );
+      check(
+        list(string),
+        "dynamic ids never emitted",
+        [],
+        id_strings(Id.Set.diff(dynamic_ids, emitted)),
+      );
+    },
+  ),
+  test_case(
+    "a sum in a wholly runtime-derived implicit binder's signature is green",
+    `Quick,
+    () => {
+      /* `implicit e : (+ A(String)) -> Int`, its variant carrying one id
+         rather than the two a parsed variant has, so printing it needs the
+         padding. */
+      let dynamic_typ =
+        IdTagged.FreshGrammar.(
+          Typ.arrow(
+            Typ.implicit_(
+              MPat.asc(
+                MPat.var("e"),
+                Typ.sum([
+                  Variant(
+                    "A",
+                    ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+                    Some(Typ.string()),
+                  ),
+                ]),
+              ),
+            ),
+            Typ.int(),
+          )
+        );
+      let {dynamic_ids, tiles, _} =
+        dynamic_ids_and_printed(
+          ~static_typ=Typ.fresh(Unknown(Internal)),
+          ~dynamic_typ,
+        );
+      check(
+        list(string),
+        "tiles left uncoloured",
+        [],
+        id_strings(Id.Set.diff(tiles, dynamic_ids)),
+      );
+    },
+  ),
+];
+
 /* Unit pins for the id counts typ_to_pretty pads from. */
 let count_tests =
   IdTagged.FreshGrammar.Typ.[
@@ -470,6 +532,7 @@ let tests = [
   (
     "TypToSegment.Ids",
     count_tests
+    @ implicit_binder_tests
     @ [
       QCheck_alcotest.to_alcotest(qcheck_dynamic_ids_are_emitted),
       QCheck_alcotest.to_alcotest(qcheck_fully_dynamic_colours_everything),
