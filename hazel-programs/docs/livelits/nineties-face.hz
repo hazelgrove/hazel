@@ -30,14 +30,14 @@ let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
                    ("align-items", "center"),
                    ("font-family", "var(--code-font)"),
                    ("font-size", "0.8em")])],
-      [Html.text(label),
+      [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
        Html.input([
-         Attr.type_("range"),
+         Attr.type_("range"), Attr.style([("flex", "1"), ("min-width", "0")]),
          Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
          Attr.value(string_of_int(m)),
          Attr.on_input(fun s -> int_of_string(s))
        ]),
-       Html.text(string_of_int(m))]));
+       Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])], [Html.text(string_of_int(m))])]));
   let expand = Functional(fun m : Model -> m);
   let shape = Inline(30)
 } in

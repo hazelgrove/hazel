@@ -50,15 +50,15 @@ let ^slider = fun (label, lo, hi, track) : (String, Int, Int, String) -> {
                    ("align-items", "center"),
                    ("font-family", "var(--code-font)"),
                    ("font-size", "0.8em")])],
-      [Html.text(label),
+      [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
        Html.input([
          Attr.type_("range"),
          Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
          Attr.value(string_of_int(m)),
-         Attr.style([("background", track), ("border-radius", "4px")]),
+         Attr.style([("background", track), ("border-radius", "4px"), ("flex", "1"), ("min-width", "0")]),
          Attr.on_input(fun s -> int_of_string(s))
        ]),
-       Html.text(string_of_int(m))]));
+       Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])], [Html.text(string_of_int(m))])]));
 
   let expand = Functional(fun m : Model -> m);
 
@@ -341,13 +341,13 @@ let ^kid_face = {
                    ("align-items", "center"),
                    ("font-family", "var(--code-font)"),
                    ("font-size", "0.8em")])],
-      [Html.text(label),
+      [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
        Html.input([
-         Attr.type_("range"), Attr.min("0"), Attr.max("100"),
+         Attr.type_("range"), Attr.min("0"), Attr.max("100"), Attr.style([("flex", "1"), ("min-width", "0")]),
          Attr.value(string_of_int(v)),
          Attr.on_input(fun s -> act(int_of_string(s)))
        ]),
-       Html.text(string_of_int(v))]);
+       Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])], [Html.text(string_of_int(v))])]);
 
   let view = fun m : Model ->
     do c_res <- eval_splice(m.color) in
