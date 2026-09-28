@@ -872,27 +872,12 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
-    let task_reference: option(string) =
+    let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
-        let cur = TutorialsMode.Model.get_current(t).editors;
-        /* Show the Task Reference panel for a tutorial slide whenever it has
-           reference text OR a probe strip (Quick Reference + toggles). A
-           probes slide whose @reference is empty still needs the panel, since
-           the strip lives inside it; gating only on the markdown made it (and
-           the strip) vanish, falling back to the ExplainThis sidebar. */
-        let has_strip =
-          TutorialProbeConfig.of_slide(cur.module_name).flags != [];
-        switch (cur.task_reference) {
-        | Some(_) as reference => reference
-        | None => has_strip ? Some("") : None
-        };
-      | _ => None
-      };
-    let tutorial_module: option(string) =
-      switch (editors) {
-      | Tutorial(t) =>
-        Some(TutorialsMode.Model.get_current(t).editors.module_name)
+        TutorialReferencePanel.of_lesson(
+          TutorialsMode.Model.get_current(t).editors,
+        )
       | _ => None
       };
     let sidebar =
@@ -912,8 +897,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
-        ~task_reference,
-        ~tutorial_module,
+        ~tutorial_reference,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
