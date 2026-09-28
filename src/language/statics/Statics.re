@@ -2243,7 +2243,10 @@ and uexp_to_info_map =
               List.fold_left(
                 (f, (id, _)) =>
                   (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
-                (Closure(Builtins.env_init, body_elab): Exp.term) |> Exp.fresh,
+                /* Closed over just the builtins the body needs, not all of
+                   env_init: the same meaning, a fraction of the bytes. */
+                (Closure(Builtins.env_for(body_elab), body_elab): Exp.term)
+                |> Exp.fresh,
                 codes,
               );
             let elab =

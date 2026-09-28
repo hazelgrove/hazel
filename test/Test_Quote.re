@@ -308,6 +308,39 @@ let macro_tests = (
       )
     ),
     test_case(
+      "a use's closure holds just the builtins its body names",
+      `Quick,
+      () => {
+        /* Not all of env_init, ~116 KB marshaled to the eval worker per
+           request: the body names string_length, and needs nothing else. */
+        let (_, elab) =
+          statics(
+            "let ^len = "
+            ++ len_def
+            ++ " in let string_length = fun s -> 0 in ^len((s=SpliceRef((\"s\", \"abc\"))))",
+          );
+        let envs = ref([]);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (continue, e) => {
+                switch (e.term) {
+                | Closure(env, _) => envs := [env, ...envs^]
+                | _ => ()
+                };
+                continue(e);
+              },
+            elab,
+          );
+        check(
+          list(list(string)),
+          "one closure, over string_length",
+          [["string_length"]],
+          List.map(env => List.map(fst, Environment.to_list(env)), envs^),
+        );
+      },
+    ),
+    test_case(
       "a splice's code occurs once in the use's elaboration",
       `Quick,
       () => {
