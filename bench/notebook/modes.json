@@ -29,37 +29,6 @@
   ]
  },
  {
-  "id": "prepass",
-  "name": "Jev picks first view, agent navigates + edits",
-  "short": "Jev picks first view, agent navigates + edits",
-  "flags": [
-   "--jev-prepass"
-  ],
-  "what": "Before each user message reaches the agent, Jev (a fast, cheap yes/no model) looks at every definition and opens the ones relevant to the message. The agent still has expand and collapse and still writes every edit.",
-  "flow": [
-   [
-    "jev",
-    "Jev: relevant? one question per definition"
-   ],
-   [
-    "hazel",
-    "open the yes-set plus parents"
-   ],
-   [
-    "llm",
-    "Agent reads the view"
-   ],
-   [
-    "llm",
-    "writes the edit"
-   ],
-   [
-    "hazel",
-    "Hazel type-checks"
-   ]
-  ]
- },
- {
   "id": "view",
   "name": "Jev navigates, agent edits",
   "short": "Jev navigates, agent edits",
@@ -87,33 +56,6 @@
    [
     "hazel",
     "Hazel type-checks"
-   ]
-  ]
- },
- {
-  "id": "edit-sketch",
-  "name": "Agent sketches, Jev fills blanks",
-  "short": "Agent sketches, Jev fills blanks",
-  "flags": [
-   "--jev-edit-tool"
-  ],
-  "what": "The agent loses its editing tools. It writes a sketch of the new code with ? holes, and Jev fills each hole by picking from the options Hazel says are type-correct. Kept as a baseline: the agent could often have typed the holes itself.",
-  "flow": [
-   [
-    "llm",
-    "Agent: jev_edit(path, sketch with ?)"
-   ],
-   [
-    "hazel",
-    "Hazel lists typed options per hole"
-   ],
-   [
-    "jev",
-    "Jev picks one per hole"
-   ],
-   [
-    "hazel",
-    "fill + type-check, repeat"
    ]
   ]
  },

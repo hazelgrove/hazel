@@ -1,10 +1,27 @@
-# Jev study: findings so far (2026-09-28)
+# Jev study: findings so far (updated 2026-09-28, after Eval 004)
 
-Scope: 3 evals, 8 runs, ~$0.20 total. Agent LLM = openai/gpt-6-luna; Jev = typesafe/jev-1.13.
+Scope: 4 evals, 37 runs, ~$0.97 total (Eval 004 = 29-run grid, see [evals/eval-004.md](evals/eval-004.md)). Agent LLM = openai/gpt-6-luna; Jev = typesafe/jev-1.13.
 Full data: [evals/](evals/) · Lab notebook https://claude.ai/artifact/HNRy6AxLRLXj7X9X3uFN1t
 
 **Caveat up front:** almost every setup/test pair has been run once, and the evals changed several
 things at a time. Treat everything below as early signal, not results.
+
+## Latest: Sept 28 grid (Eval 004, 29 runs, 2–3 per box)
+
+| Test | Original | Jev navigates | Jev builds code | Full Jev |
+|---|---|---|---|---|
+| Small billing program | 2/3 · $0.0127 | 2/2 · 0% | 0/2 | 0/2 |
+| Fleet, bugs named | 3/3 · $0.0285 | 3/3 · +2% | **2/2 · −22%** | 2/2 · +46% |
+| Fleet, symptoms only | 3/3 · $0.0280 | 3/3 · +32% | 0/2 | 0/2 |
+
+- **Jev navigates:** always correct (8 of 8). Same cost on 2 of 3 tests, +32% when only symptoms
+  are given. Slower on every test (11–37%).
+- **Jev builds code:** worked when the fix was spelled out: 2 of 2, 22% cheaper, and one run needed
+  only 15 turns. It failed on symptoms-only (the agent had to work out the fix) and on the small
+  program (it needs `map(?, ?)`, which Hazel doesn't offer).
+- **Full Jev:** the most expensive setup and no more accurate.
+- The "Jev picks first view" and "Jev fills blanks" setups were dropped. A fixed starting view and
+  the agent writing blanks it could fill itself both add little.
 
 ## What we tried
 
@@ -53,7 +70,9 @@ things at a time. Treat everything below as early signal, not results.
 
 ## Where it's trending
 
-- **Not paying off yet:** Jev navigating big programs as currently built.
+- **Promising:** Jev building small, clearly specified fixes (2/2, −22%). Needs more runs, and
+  `map(?, ?)`-style options to go beyond simple edits.
+- **Not paying off yet:** Jev navigating when the bug is vague (+32%).
 - **Worth testing (< 5¢ each):** cheaper Jev requests; stop-at-done then re-compare; top-k picks;
   filling holes with few options; the same fix in many places.
 - **Open:** Jev's value may be type-correct-by-construction code rather than speed or cost.

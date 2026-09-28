@@ -130,5 +130,25 @@
   "kind": "warn",
   "finding": "All three runs used all 40 turns and never said DONE, even after the goal was met.",
   "change": "Stop the run when the goal is met (pending)."
+ },
+ {
+  "date": "2026-09-28",
+  "eval": "004",
+  "round": "Grid",
+  "tag": "Result",
+  "kind": "good",
+  "headline": true,
+  "finding": "Jev builds code fixed the named-bug fleet program 2/2, 22% cheaper than the original; 0/4 on the other tests.",
+  "change": "Hypothesis: works when the fix is clear and local. Next: more runs, and offer calls like map(?, ?)."
+ },
+ {
+  "date": "2026-09-28",
+  "eval": "004",
+  "round": "Grid",
+  "tag": "Result",
+  "kind": "warn",
+  "headline": true,
+  "finding": "Jev navigates was correct 8/8; same cost on 2 of 3 tests, +32% on the symptoms-only test, and slower on all.",
+  "change": "Cheaper Jev requests (send summaries, not full code) are the main lever."
  }
 ]

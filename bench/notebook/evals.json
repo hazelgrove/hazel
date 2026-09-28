@@ -44,5 +44,33 @@
    "jev-eval-20260924-140218",
    "jev-eval-20260924-141240"
   ]
+ },
+ {
+  "id": "004",
+  "title": "Grid: Original, Jev navigates, Jev builds code, Full Jev \u00d7 3 tests \u00d7 2\u20133 runs",
+  "date": "2026-09-28",
+  "round": "No 0.8 cutoff",
+  "planner": "openai/gpt-6-luna",
+  "jev": "typesafe/jev-1.13",
+  "spend_usd": 0.7698,
+  "spend_note": "sum of logged run costs (shared key balance not usable)",
+  "format": "results",
+  "results_dirs": [
+   "jev-eval-20260928-180931",
+   "jev-eval-20260928-180933",
+   "jev-eval-20260928-180935",
+   "jev-eval-20260928-180937",
+   "jev-eval-20260928-180939",
+   "jev-eval-20260928-180941",
+   "jev-eval-20260928-180943",
+   "jev-eval-20260928-180945",
+   "jev-eval-20260928-180947",
+   "jev-eval-20260928-181426",
+   "jev-eval-20260928-181428",
+   "jev-eval-20260928-181430",
+   "jev-eval-20260928-181432",
+   "jev-eval-20260928-181434",
+   "jev-eval-20260928-181436"
+  ]
  }
 ]
