@@ -73,7 +73,7 @@ let string_has_valid_escapes = (s: t): bool => {
   let escaped = strip_quotes(~escaping=true, s);
   !String.contains(body, '\\') || body != escaped;
 };
-let string_regexp = regexp("^\"([^\"]|(\\\\\"))*\"$");
+let string_regexp = regexp("^\"([^\"\n]|(\\\\\"))*\"$");
 let is_string = t => match(string_regexp, t);
 
 let string_quote = s => "\"" ++ s ++ "\"";

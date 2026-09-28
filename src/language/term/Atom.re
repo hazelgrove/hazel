@@ -210,7 +210,7 @@ let to_literal = (e: t): string =>
   | SInt(i) => i |> string_of_int
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
-  | String(s) => "\"" ++ s ++ "\""
+  | String(s) => "\"" ++ String.escaped(s) ++ "\""
   };
 
 /* ========== BUILTINS ========== */
