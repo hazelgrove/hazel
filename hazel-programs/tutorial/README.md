@@ -26,8 +26,8 @@ whose filenames carry no order of their own — the `Slides.re` list is it.
 Keep a folder's lessons adjacent in that list; prev/next walks one folder.
 
 Renaming a probes lesson also changes its `module_name`, which keys the
-per-slide config tables (`TutorialSlideInit`, `TutorialProbeStrip`) — update
-those keys in the same pass.
+per-slide config table (`TutorialProbeConfig`) — update
+that key in the same pass.
 
 ## File format
 

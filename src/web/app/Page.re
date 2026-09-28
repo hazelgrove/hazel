@@ -882,7 +882,7 @@ module View = {
            the strip lives inside it; gating only on the markdown made it (and
            the strip) vanish, falling back to the ExplainThis sidebar. */
         let has_strip =
-          TutorialProbeStrip.flags_of_slide(cur.module_name) != [];
+          TutorialProbeConfig.of_slide(cur.module_name).flags != [];
         switch (cur.task_reference) {
         | Some(_) as reference => reference
         | None => has_strip ? Some("") : None

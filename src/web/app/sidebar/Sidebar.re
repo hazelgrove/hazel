@@ -204,10 +204,9 @@ let task_reference_view =
       sections,
     );
   let body_div = div(~attrs=[clss(["task-reference-body"])], section_nodes);
-  let flags = TutorialProbeStrip.flags_of_slide(module_name);
-  let new_flags = TutorialProbeStrip.new_flags_of_slide(module_name);
-  let console_on = TutorialProbeStrip.console_enabled(flags);
-  /* When the print console is enabled (slide 20+), the panel header becomes a
+  let config = TutorialProbeConfig.of_slide(module_name);
+  let console_on = ProbeControls.mem(config.flags, Console);
+  /* When the print console is introduced, the panel header becomes a
    * Reference / Console switch and Console mode swaps the whole body for the
    * print console. Otherwise the strip (when nonempty) sits between the
    * "Task Reference" header and the markdown body. The strip and console live
@@ -216,13 +215,11 @@ let task_reference_view =
   if (console_on) {
     let inner =
       TutorialProbeStrip.console_mode^
-        ? TutorialProbeStrip.console_body(~explain_this_inject, ~editor)
+        ? ProbeSidebar.printarium_body(~explain_this_inject, ~editor)
         : TutorialProbeStrip.strip_view(
             ~globals,
             ~explain_this_inject,
-            ~flags,
-            ~new_flags,
-            (),
+            ~config,
           )
           @ [body_div];
     div(
@@ -239,13 +236,7 @@ let task_reference_view =
     );
   } else {
     let strip =
-      TutorialProbeStrip.strip_view(
-        ~globals,
-        ~explain_this_inject,
-        ~flags,
-        ~new_flags,
-        (),
-      );
+      TutorialProbeStrip.strip_view(~globals, ~explain_this_inject, ~config);
     let strip_div =
       strip == []
         ? []

@@ -758,7 +758,7 @@
 /* below-line drawer stripe; negative margin + padding align it flush to the cell edges */
 .below-wrapper {
   pointer-events: auto;
-  background-color: var(--T2);
+  background-color: var(--value-display-bkg);
   /* border-box is global, so min-width is the outer width (padding included) */
   min-width: var(--main-scroll-width, 100ch);
   width: max-content;
