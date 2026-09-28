@@ -1,7 +1,9 @@
 open Util;
 
 module Settings = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  /* `enumerate` so a link can name a panel without a second list of names to
+     keep in step: DeepLink matches `?panel=` against these constructors. */
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type panel =
     | LanguageDocumentation
     | HelpfulAssistant

@@ -148,6 +148,38 @@ module Store = {
     );
   };
 
+  /* A `?slide=` names a documentation slide, so open the deck there instead
+     of wherever this browser left it. Matching against the deck as loaded
+     rather than the shipped names is what survives a slide added, removed or
+     renamed since this browser last visited. A name that matches nothing is
+     ignored rather than opening the deck somewhere arbitrary: a link that has
+     gone stale should be no worse than no link at all.
+
+     `hydrate_current` is not optional: `load_all` reads only the slide it
+     opens on and leaves every other one dormant, so moving `current` without
+     it lands on a placeholder -- the deck names the right slide, the
+     breadcrumb agrees, and the editor is empty. */
+  let linked_slide = (~settings): option(ScratchMode.Model.t) =>
+    switch (DeepLink.slide()) {
+    | None => None
+    | Some(_) =>
+      let m = load_documentation(~settings);
+      switch (DeepLink.slide_index(ScratchMode.Model.scratchpad_names(m))) {
+      | None => None
+      | Some(current) =>
+        Some(
+          ScratchMode.Persist.hydrate_current(
+            ~settings,
+            "doc",
+            {
+              ...m,
+              current,
+            },
+          ),
+        )
+      };
+    };
+
   let load = (~settings, ~instructor_mode) => {
     let has_share_params =
       JsUtil.QueryParams.get_param("name") != None
@@ -156,20 +188,23 @@ module Store = {
     if (has_share_params) {
       Model.Scratch(load_scratch(~settings));
     } else {
-      let mode = StoreMode.load();
-      switch (mode) {
-      | Scratch => Model.Scratch(load_scratch(~settings))
-      | Documentation => Model.Documentation(load_documentation(~settings))
-      | Tutorial =>
-        Model.Tutorial(
-          TutorialsMode.Store.load(~settings, ~instructor_mode)
-          |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
-        )
-      | Exercises =>
-        Model.Exercises(
-          ExercisesMode.Store.load(~settings, ~instructor_mode)
-          |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
-        )
+      switch (linked_slide(~settings)) {
+      | Some(m) => Model.Documentation(m)
+      | None =>
+        switch (StoreMode.load()) {
+        | Scratch => Model.Scratch(load_scratch(~settings))
+        | Documentation => Model.Documentation(load_documentation(~settings))
+        | Tutorial =>
+          Model.Tutorial(
+            TutorialsMode.Store.load(~settings, ~instructor_mode)
+            |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
+          )
+        | Exercises =>
+          Model.Exercises(
+            ExercisesMode.Store.load(~settings, ~instructor_mode)
+            |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
+          )
+        }
       };
     };
   };
