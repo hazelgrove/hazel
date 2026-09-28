@@ -218,7 +218,9 @@ let rescan_parent_shards = (z: t): t => {
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    if (siblings == z.relatives.siblings) {
+    /* Identity first: structural == walks every sibling even when rescan
+       handed back the very same pair. */
+    if (siblings === z.relatives.siblings || siblings == z.relatives.siblings) {
       z;
     } else {
       let relatives =

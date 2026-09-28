@@ -70,13 +70,26 @@ let reassemble = TupleUtil.map2(Segment.reassemble);
  * (so incomplete tiles on one side can match monotiles on the other),
  * then split back. Pre-split multi-shard orphans into singletons
  * first so each shard can be matched independently. */
-let rescan = ((pre, suf): t): t => {
-  let pre = Segment.presplit_orphans(pre);
-  let suf = Segment.presplit_orphans(suf);
-  let n = List.length(pre);
-  let combined = Segment.rescan(pre @ suf);
-  ListUtil.split_n(n, combined);
-};
+let has_incomplete =
+  List.exists(
+    fun
+    | Piece.Tile(t) => !Tile.is_complete(t)
+    | _ => false,
+  );
+
+/* Returns its argument itself when neither side holds an incomplete tile:
+   there is nothing to presplit or match then, and callers can tell "no
+   change" by identity instead of comparing every sibling. */
+let rescan = ((pre, suf) as sibs: t): t =>
+  if (!has_incomplete(pre) && !has_incomplete(suf)) {
+    sibs;
+  } else {
+    let pre = Segment.presplit_orphans(pre);
+    let suf = Segment.presplit_orphans(suf);
+    let n = List.length(pre);
+    let combined = Segment.rescan(pre @ suf);
+    ListUtil.split_n(n, combined);
+  };
 
 let regrout = ((pre, suf): t) => {
   let s = Nib.Shape.concave();
