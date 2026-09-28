@@ -64,6 +64,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       [%blob "either-unknown.hz"],
     ),
     ("Either, Two Versions / 2. Type Parameter", [%blob "either-typed.hz"]),
+    ("Remote Refs / Fumola Counter", [%blob "fumola-counter.hz"]),
     /* Livelits / Advanced: the least typical livelits, at the end of
        the deck (hazel-programs/docs/livelits/advanced). */
     ("Advanced / JavaScript", [%blob "javascript.hz"]),

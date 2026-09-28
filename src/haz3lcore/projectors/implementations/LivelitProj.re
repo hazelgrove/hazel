@@ -306,6 +306,92 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   wrapped^ > 0 ? Some(seg') : None;
 };
 
+/* REMOTE REFS (docs/remote-refs.md), first cut: a RemoteRef is a record in
+   a livelit's model, `(instance = "i", cell = "c", code = <a SpliceRef>)`,
+   whose splice a Fumola instance writes. After a run, the view peeks the
+   cell and, when it holds something other than the ref's code, commits that
+   as a set_splice, as update's would be. Outputs only: nothing feeds back.
+
+   The refs in a model value, as (instance, cell, splice id, current value),
+   looking through tuples, fields, lists and constructor arguments. */
+let rec remote_refs = (v: DHExp.t): list((string, string, string, DHExp.t)) => {
+  let v = MvuShape.strip_wrappers(v);
+  let fields =
+    switch (MvuShape.of_tuple(v)) {
+    | Some(items) => List.filter_map(MvuShape.of_field, items)
+    | None => []
+    };
+  let here =
+    switch (
+      List.assoc_opt("instance", fields),
+      List.assoc_opt("cell", fields),
+      List.assoc_opt("code", fields),
+    ) {
+    | (Some(i), Some(c), Some(r)) =>
+      switch (
+        MvuShape.of_string(i),
+        MvuShape.of_string(c),
+        SpliceStore.splice_ref(MvuShape.strip_wrappers(r)),
+      ) {
+      | (Some(instance), Some(cell), Some((id, current))) => [
+          (instance, cell, id, current),
+        ]
+      | _ => []
+      }
+    | _ => []
+    };
+  here != []
+    ? here
+    : (
+      switch (
+        MvuShape.of_tuple(v),
+        MvuShape.of_list(v),
+        MvuShape.of_constructor_raw(v),
+      ) {
+      | (Some(items), _, _)
+      | (None, Some(items), _) => List.concat_map(remote_refs, items)
+      | (None, None, Some((_, arg))) => remote_refs(arg)
+      | _ =>
+        switch (MvuShape.of_field(v)) {
+        | Some((_, x)) => remote_refs(x)
+        | None => []
+        }
+      }
+    );
+};
+
+/* What a pull would write, per splice id, already scheduled: a redraw while
+   the commit is on its way must not schedule it twice. */
+let remote_pending: Hashtbl.t(string, DHExp.t) = Hashtbl.create(8);
+
+/* The writes a pull finds: each ref whose cell holds something other than
+   its code, at the splice's declared type where it has one. */
+let remote_writes =
+    (~declared: list((string, TermBase.Typ.t)), v: DHExp.t)
+    : list(SpliceStore.effect) =>
+  remote_refs(v)
+  |> List.filter_map(((instance, cell, id, current)) => {
+       let ana =
+         List.assoc_opt(id, declared)
+         |> Option.value(~default=Typ.temp(Unknown(Internal)));
+       switch (FumolaRun.peek_cell(~instance, ~cell, ~ana)) {
+       | Some(written)
+           when
+             !Exp.fast_equal(written, MvuShape.strip_wrappers(current))
+             && !(
+                  switch (Hashtbl.find_opt(remote_pending, id)) {
+                  | Some(w) => Exp.fast_equal(w, written)
+                  | None => false
+                  }
+                ) =>
+         Hashtbl.replace(remote_pending, id, written);
+         Some(SpliceStore.Set(id, written));
+       | _ =>
+         Hashtbl.remove(remote_pending, id);
+         None;
+       };
+     });
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -1092,6 +1178,26 @@ module M: Projector = {
             |> view_seg(~background=false, Exp);
           let model_value =
             Option.bind(info.dynamics_at(Exp.rep_id(model)), latest_value);
+          /* A RemoteRef's pull: the run is over, so its instance has
+             settled; commit what its cell now holds, after this render. */
+          switch (model_value) {
+          | Some(v) =>
+            switch (
+              remote_writes(~declared=SpliceStore.declared_types(model), v)
+            ) {
+            | [] => ()
+            | effects =>
+              ignore(
+                Js_of_ocaml.Dom_html.window##setTimeout(
+                  Js_of_ocaml.Js.wrap_callback(() =>
+                    Ui_effect.Expert.handle(commit_model(~effects, v))
+                  ),
+                  0.,
+                ),
+              )
+            }
+          | None => ()
+          };
           Node.div(
             ~attrs=[
               Attr.classes([ll_name, "user-livelit"]),

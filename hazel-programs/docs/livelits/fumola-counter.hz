@@ -1,0 +1,45 @@
+# Fumola Counter #
+
+# A RemoteRef is a splice that a Fumola instance writes. Fumola counts #
+# a Hazel list here, and the count arrives in the livelit's code. #
+
+let items = [3, 1, 4, 1, 5] in
+
+let counted = fumola $graphical as demo in
+  { let c = `count` := (hazel items end).size(); @ c }
+end in
+
+# The model is a RemoteRef: an instance, a cell in it, and the splice #
+# the cell's value is written into after each run. #
+let ^remote_int = {
+  type Model = (instance=String, cell=String, code=SpliceRef);
+  type Action = Int;
+  type Expansion = Int;
+
+  let init =
+    do r <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure((instance="demo", cell="count", code=r));
+
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.text(m.cell ++ " in " ++ m.instance ++ ":"),
+       Html.splice(m.code)]));
+
+  let expand = Macro(fun m : Model -> (quote fun x -> x end, [m.code]));
+
+  let shape = Inline(20)
+} in
+
+let ^^probe(count) =
+  ^^livelit(^remote_int((instance="demo", cell="count", code=(0 : Int)))) in
+
+(counted, count)
+
+# Try: add to items. Fumola counts again, and the livelit's code #
+# follows. Nothing here feeds back: Fumola reads items, not count. #

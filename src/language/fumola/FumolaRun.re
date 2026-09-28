@@ -180,6 +180,36 @@ let eval_at = (instance_id: int, at: string): Yojson.Safe.t =>
 let eval_in = (instance_id: int, program: string): Yojson.Safe.t =>
   eval_at(instance_id, at_now(program));
 
+/* What a named cell holds, for a RemoteRef's pull (docs/remote-refs.md):
+   `peek`, so the read is not recorded as a dependency, and the value shaped
+   into Hazel at [ana], as a `fumola ... end` result is. None when there is no
+   runtime, no such cell yet, or the value does not read at [ana]: then there
+   is nothing to write. Called only once a run has finished, so the instance
+   is settled (its stack is empty). */
+let peek_cell =
+    (~instance: string, ~cell: string, ~ana: TermBase.Typ.t)
+    : option(TermBase.Exp.t) => {
+  let instance_id = instance_of_name(instance);
+  /* Fumola's own spelling of a symbol, a leading backtick only: the
+     closing one is the tile's (`count` on a slide is `count here). */
+  switch (eval_in(instance_id, "peek(`" ++ cell ++ ")!")) {
+  | `Assoc(obj) as json when List.assoc_opt("ok", obj) == Some(`Bool(true)) =>
+    switch (
+      FumolaValue.exp_of_json(
+        ~instance_id,
+        ~eval=eval_in(instance_id),
+        ~ana,
+        ~tools=FumolaTools.unknown,
+        json,
+      )
+    ) {
+    | Ok(exp) => Some(exp)
+    | Error(_) => None
+    }
+  | _ => None
+  };
+};
+
 /* Which mode an instance is running, asked of the instance rather than
    remembered. Adapton/fumola#134 added the prim for this reader in
    particular: what Hazel last *set* is a different question, and the two
