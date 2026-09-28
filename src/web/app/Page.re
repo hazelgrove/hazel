@@ -323,7 +323,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_model =
       (
         ~import_log,
         ~get_log_and,
@@ -347,20 +347,6 @@ module Update = {
           action,
           model.editors,
         );
-      /* Apply the incoming tutorial slide's initial probe settings
-         (auto-probe mode / samples / colors), once per slide entry. The
-         per-slide logic lives in TutorialSlideInit; here we just supply the
-         current slide's module_name and the settings-dispatch channel. */
-      let current_slide =
-        switch (editors) {
-        | Tutorial(t) =>
-          Some(TutorialsMode.Model.get_current(t).editors.module_name)
-        | _ => None
-        };
-      TutorialSlideInit.maybe_apply_on_change(
-        ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
-        current_slide,
-      );
       /* A different editor (mode/slide/exercise switch) invalidates the
        * culling range: stale bounds would hide its projectors until the next
        * scroll. Main.seed_visible_rows re-seeds where culling applies. */
@@ -405,6 +391,30 @@ module Update = {
       Store.save(model);
       model |> return_quiet;
     };
+  };
+
+  let update = (~import_log, ~get_log_and, ~schedule_action, action, model) => {
+    let* model =
+      update_model(
+        ~import_log,
+        ~get_log_and,
+        ~schedule_action,
+        action,
+        model,
+      );
+    /* Synchronize after every update, including startup and mode changes.
+       Only Probes lessons apply overrides; leaving restores user settings. */
+    let lesson =
+      switch (model.editors) {
+      | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
+      | _ => None
+      };
+    TutorialSlideInit.maybe_apply_on_change(
+      ~autoprobe=model.globals.settings.autoprobe_mode,
+      ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+      lesson,
+    );
+    model;
   };
 
   let calculate =

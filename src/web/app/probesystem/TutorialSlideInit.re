@@ -12,9 +12,10 @@ open Haz3lcore;
  * put them in. Both are keyed by the slide's module_name so the per-slide
  * tuning lives in one obvious place.
  *
- * Each field is `option`: None means "leave whatever it currently is"
- * (so unannotated slides are a no-op and inherit the user's state); Some x
- * forces x on entry. The knobs map onto:
+ * These overrides apply only inside the Probes folder. Auto-probe inherits
+ * its current value when unspecified; samples and colors default to Single
+ * and Simple. Entering the folder saves the user's settings, and leaving it
+ * restores them. The knobs map onto:
  *   - autoprobe : globals.settings.autoprobe_mode  (Settings state — set via
  *                 the ~set_autoprobe callback the caller threads in)
  *   - samples   : ProbeProj.Settings window         (global ref)
@@ -59,7 +60,7 @@ let none: t = {
  *   - print-statements: everything off, the print console is the focus
  *   - bonus-sample-colors also needs the Hybrid color scheme so colors
  *     show -> All + Hybrid + Many
- * Slides not listed inherit auto-probe but start Single. */
+ * Probes slides not listed inherit auto-probe but start Single. */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
   /* Early slides through auto-probe: off (not introduced until the
@@ -160,20 +161,40 @@ let apply = (~set_autoprobe: AutoProbe.t => unit, init: t): unit => {
   ProbeProj.Settings.go(SetSampleBase(colors));
 };
 
-/* Last slide we applied inits for. Used to fire `apply` exactly once per
- * slide entry: callers pass the current slide's module_name each update;
- * when it differs from what we last applied, we apply and remember it. */
+/* The current Probes lesson and the settings saved on entry to its folder.
+ * Moving between Probes lessons keeps that snapshot; leaving restores it. */
 let last_applied: ref(option(string)) = ref(None);
+let previous: ref(option(t)) = ref(None);
 
-/* Call on each Editors update with the current tutorial slide's
- * module_name (None when not in tutorial mode). Applies the slide's inits
- * the first time we observe a given slide as current — i.e. on entry. */
 let maybe_apply_on_change =
-    (~set_autoprobe: AutoProbe.t => unit, module_name: option(string)): unit =>
+    (
+      ~autoprobe: AutoProbe.t,
+      ~set_autoprobe: AutoProbe.t => unit,
+      lesson: option(Tutorial.p('a)),
+    )
+    : unit => {
+  let module_name =
+    switch (lesson) {
+    | Some(lesson) when Tutorial.is_probes_lesson(lesson) =>
+      Some(lesson.module_name)
+    | _ => None
+    };
   if (module_name != last_applied^) {
     last_applied := module_name;
     switch (module_name) {
-    | Some(name) => apply(~set_autoprobe, of_slide(name))
-    | None => ()
+    | Some(name) =>
+      if (previous^ == None) {
+        previous :=
+          Some({
+            autoprobe: Some(autoprobe),
+            samples: Some(ProbeProj.Settings.s^.window),
+            colors: Some(ProbeProj.Settings.s^.sample_base),
+          });
+      };
+      apply(~set_autoprobe, of_slide(name));
+    | None =>
+      Option.iter(apply(~set_autoprobe), previous^);
+      previous := None;
     };
   };
+};
