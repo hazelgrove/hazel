@@ -15,8 +15,13 @@ module Sidebar = SidebarModel.Settings;
  *
  *   ?slide=livelits-builtins       a documentation slide, by name
  *   ?panel=probes                  which sidebar panel is open (none: closed)
+ *   ?tab=events                    which of its views, for the Fumola panel
+ *   ?editor=dim                    show | dim | hide, for the same panel
  *   ?caret=12,4                    the caret, at line 12 column 4
  *   ?select=12,1-14,20             that span selected, instead of a caret
+ *
+ * `tab` or `editor` alone opens the Fumola panel, since neither means
+ * anything anywhere else.
  *
  * Lines and columns are 1-based, the way the gutter numbers them, and a
  * column past the end of its line lands at the end of the line -- so
@@ -29,9 +34,9 @@ module Sidebar = SidebarModel.Settings;
  * someone hand-writes will look like.
  *
  * `url` builds one of these, for the context menu's "Copy URL": the slide, the
- * panel's view state, and the span the reader was pointing at. What the panel
- * is SHOWING is not in the link, and cannot be: it is whatever running the
- * slide's program produces.
+ * panel's view state -- which panel, and its own controls -- and the span the
+ * reader was pointing at. What the panel is SHOWING is not in the link, and
+ * cannot be: it is whatever running the slide's program produces.
  *
  * Nothing here writes to the URL, and nothing here is a mode of its own: a
  * deep link sets where you are, and from then on it is ordinary state, saved
@@ -129,11 +134,35 @@ let panel = (): option(panel_request) =>
     |> Option.map(p => Open(p))
   };
 
+let fumola_tab = (): option(Sidebar.fumola_tab) =>
+  variant(
+    ~all=Sidebar.all_of_fumola_tab,
+    ~show=Sidebar.show_fumola_tab,
+    "tab",
+  );
+
+let fumola_editor = (): option(Sidebar.fumola_editor) =>
+  variant(
+    ~all=Sidebar.all_of_fumola_editor,
+    ~show=Sidebar.show_fumola_editor,
+    "editor",
+  );
+
 /* The settings a link asks for, over the ones that were stored. */
 let settings = (settings: Settings.Model.t): Settings.Model.t => {
   let sidebar = settings.sidebar;
-  let (show, panel) =
+  let tab = fumola_tab();
+  let editor = fumola_editor();
+  /* `tab` and `editor` are the Fumola panel's own controls, so either one
+     names that panel without having to say so twice. */
+  let request =
     switch (panel()) {
+    | Some(_) as p => p
+    | None =>
+      tab == None && editor == None ? None : Some(Open(Sidebar.Fumola))
+    };
+  let (show, panel) =
+    switch (request) {
     | None => (sidebar.show, sidebar.panel)
     | Some(Closed) => (false, sidebar.panel)
     | Some(Open(p)) => (true, p)
@@ -144,6 +173,8 @@ let settings = (settings: Settings.Model.t): Settings.Model.t => {
       ...sidebar,
       show,
       panel,
+      fumola_tab: Option.value(tab, ~default=sidebar.fumola_tab),
+      fumola_editor: Option.value(editor, ~default=sidebar.fumola_editor),
     },
   };
 };
@@ -203,8 +234,8 @@ let action = (): option(Action.t) =>
 
 /* --- Building one --- */
 
-/* A name as it goes into a link: `Livelits / Builtins` becomes
-   `livelits-builtins`, which `key` reads back as the same thing. The
+/* A name as it goes into a link: `Fumola (Tiles) / Overview` becomes
+   `fumola-tiles-overview`, which `key` reads back as the same thing. The
    percent-encoded title would work too and is unreadable. */
 let slug = (s: string): string => {
   let out = Buffer.create(String.length(s));
@@ -240,7 +271,9 @@ let point_key = (p: Point.t): string =>
 /* The link that lands someone where this reader is: the slide, the panel's
    view state, and the span they were pointing at. A closed sidebar is stated
    rather than omitted, since a missing parameter means "leave it alone" and
-   would hand the follower whatever panel they happened to have open. */
+   would hand the follower whatever panel they happened to have open. The
+   Fumola panel's own two controls ride along only when it is the panel
+   showing, because they mean nothing anywhere else. */
 let url =
     (
       ~slide: option(string),
@@ -256,6 +289,13 @@ let url =
   let panel =
     sidebar.show
       ? [("panel", panel_key(sidebar.panel))] : [("panel", "none")];
+  let fumola =
+    sidebar.show && sidebar.panel == Sidebar.Fumola
+      ? [
+        ("tab", slug(Sidebar.show_fumola_tab(sidebar.fumola_tab))),
+        ("editor", slug(Sidebar.show_fumola_editor(sidebar.fumola_editor))),
+      ]
+      : [];
   let span =
     switch (span) {
     | None => []
@@ -266,5 +306,5 @@ let url =
         ("select", point_key(from_) ++ "-" ++ point_key(to_)),
       ]
     };
-  JsUtil.QueryParams.url_with(slide @ panel @ span);
+  JsUtil.QueryParams.url_with(slide @ panel @ fumola @ span);
 };

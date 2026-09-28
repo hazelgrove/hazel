@@ -200,6 +200,14 @@ let is_potential_token = t =>
     || is_quoted_label(t);
   };
 
+/* A Fumola variant, which Fumola itself spells `#tag`. The `#` is not
+   available: Hazel reserves it for comments, so `#tag` is neither an operand
+   nor an operator token and cannot be a tile at all. `$` is a name character
+   here and is unused in Fumola's own grammar, so `$tag` is one token; the
+   printer puts the `#` back on the way to the runtime. */
+let fumola_tag_regexp = regexp("^\\$[a-zA-Z_][a-zA-Z_0-9]*$");
+let is_fumola_tag = match(fumola_tag_regexp);
+
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
 let is_arbitary_float = x => x != "." && x != "-" && is_float(x);

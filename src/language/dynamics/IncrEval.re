@@ -43,6 +43,7 @@ type entry('state) = {
   prev_elab: Exp.t,
   prev_reuse_map: reuse_map,
   prev_probe_targets: EvalInfo.probe_targets,
+  prev_ana: Typ.t,
   value: DHExp.t,
   state: 'state,
 };
@@ -362,6 +363,22 @@ let reuse_check =
       ),
       (),
     );
+
+  /* A Fumola quote's value is not determined by its own syntax. The program
+     runs in the VM and the result is read back as a Hazel value, and the
+     shape it takes -- a symbol as structure or as its text, a tag as which
+     sum's constructor -- is decided by the type the quote is analysed
+     against. That type lives in the enclosing annotation, so editing
+     `let x : String = fumola … end` to `: Symbol` leaves the quote's own
+     elaboration untouched and the cached value stood, which is issue 2557:
+     statics updated, the answer did not. Only the quote consults this;
+     every other form is reused on its syntax as before. */
+  let* () =
+    switch (Exp.term_of(info.elab_term)) {
+    | FumolaQuote(_) =>
+      OptUtil.some_if(Typ.fast_equal(entry.prev_ana, info.ana), ())
+    | _ => Some()
+    };
 
   Some(entry);
 };

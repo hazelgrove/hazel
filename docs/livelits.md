@@ -611,8 +611,17 @@ module type BuiltinLivelit = {
   let action_from_hazel: action_exp => option(action_t);
 
   let update: (action_t, model_t) => model_t;
+
+  // View/rendering function. [id] is the projector's persistent unique
+  // identifier: it distinguishes one live projector from another, and stays
+  // the same as the model is edited. Livelits with self-contained models
+  // ignore it; a livelit whose model names external state uses it to tell
+  // editing apart from duplication (see the fumola livelit below).
   let view:
-    (model_t, action_t => Ui_effect.t(unit)) => Virtual_dom.Vdom.Node.t;
+    (~id: Id.t, model_t, action_t => Ui_effect.t(unit)) =>
+    Virtual_dom.Vdom.Node.t;
+
+  // Shape (footprint) specification
   let shape: ProjectorShape.t;
 };
 ```

@@ -20,6 +20,12 @@ type entry = {
   elab_term: Exp.t,
   co_ctx: CoCtx.t,
   probe_targets,
+  /* The type the expression is analysed against. Almost nothing evaluates
+     differently under a different expected type, so this is not part of
+     the general reuse test -- see reuse_check, which consults it only for
+     a Fumola quote, whose result crosses a language boundary and takes its
+     shape from here. */
+  ana: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -60,11 +66,12 @@ let of_info_map =
     Id.Map.filter_map(
       (_id, info) =>
         switch (info) {
-        | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+        | Info.InfoExp({elab_term, co_ctx, probe_targets, ana, _}) =>
           Some({
             elab_term,
             co_ctx,
             probe_targets: probe_all ? ProbeAll : ProbeTargets(probe_targets),
+            ana,
           })
         | _ => None
         },

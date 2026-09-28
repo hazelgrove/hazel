@@ -38,6 +38,71 @@ let type_binder = 15;
 // poly t -> _____
 // rec t -> _____
 
+// ========= FUMOLA =========
+// Fumola is a closed sort, so only the order among these matters. The levels
+// are drawn from the ones Hazel leaves free, because associativity is keyed
+// by level number and is shared across sorts: reusing a level Hazel has
+// marked would silently give a Hazel operator Fumola's associativity. 11-15
+// belong to Hazel's types, which is why this ladder has a gap in it.
+//
+// The order is fumola_parser's ExpBin0..ExpBin9 chain, tightest first, and it
+// is not the order intuition suggests: `|`, `&` and `^` bind TIGHTER than `+`
+// and `*`. See src/language/fumola/FumolaPrint.re.
+// f(_____), _____.x, _____[i]
+/* Left-associative so that `a.b.c` and `f(x)(y)` chain.  Level 4 is Fumola's
+   alone, so marking it here gives no Hazel operator an associativity. */
+let fum_post = 4 |> left_associative;
+// #_____, ?_____, not _____, -_____
+let fum_un = 5;
+let fum_pow = 6 |> left_associative;
+// _____ << 1   (non-associative in the grammar)
+let fum_shift = 7;
+let fum_xor = 8 |> left_associative;
+let fum_bitand = 9 |> left_associative;
+let fum_bitor = 10 |> left_associative;
+let fum_mul = 16 |> left_associative;
+let fum_add = 17 |> left_associative;
+let fum_rel = 18 |> left_associative;
+let fum_and = 19 |> left_associative;
+let fum_or = 20 |> left_associative;
+// force _____, @ _____, thunk _____, _____ := e, let x = _____
+// Everything here is looser than every operator above, which is the grammar's
+// doing: `force x + 1` does not parse at all.
+let fum_stmt = 21;
+// let x = 1 ; _____   -- the sequence must be looser than what it separates
+let fum_semi = 38 |> right_associative;
+let fum_comma = 40;
+
+// ======= BLACKBOARD =======
+// Blackboard is its own sort, but unlike Fumola it is not a closed one:
+// BbSeq and BbComma reuse Hazel's `semi` and `comma` (see Form.re), so these
+// levels are placed against the Hazel ladder as well as against each other.
+//
+// This ladder was written against 17, 18 and 20, back when 16-21 were free.
+// Fumola holds those now, and sharing one is not harmless: associativity is
+// keyed by level number across every sort, and a duplicate key resolves to
+// whichever `let` comes FIRST in this file. Level 20 is fum_or above, marked
+// left, so a shared 20 would silently have made `A -> B -> C` parse as
+// `(A -> B) -> C`. The three infix levels therefore move down to 1-3, the
+// only levels left free and tighter than everything else here. Nothing about
+// how Blackboard parses changes: the order among these is the order they
+// had, and each form keeps the associativity it had.
+// f(_____)
+let bb_ap = 1;
+// _____ : T
+let bb_mem = 2 |> left_associative;
+// A -> _____
+let bb_arrow = 3 |> right_associative;
+// (x : A) -> _____
+/* Blocks must bind tighter than the `;` that separates them, so that a
+   block's tactic does not swallow the following block. */
+/* That `;` is Hazel's `semi` (35), which is what pins this level to the Hazel
+   ladder: bb_block has to stay under 35, and 4-34 is now full, so it stays
+   where it was and shares `concat`'s level. The two never meet in a segment
+   -- `@` is an Exp form and cannot appear in a Bb term -- and the Right that
+   30 carries from `concat` is what a prefix form wants anyway. */
+let bb_block = 30;
+
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 

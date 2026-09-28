@@ -95,6 +95,11 @@ let coverage: Exp.cls => coverage =
   | HintedTest => Sample("hint %% test true end")
   | Filter => Sample("hide 1 in %%")
   | Closure => Exempt("made by evaluation")
+  /* Fumola's embedded code is not quoted: a Macro expansion on this branch
+     builds Hazel code only. */
+  | FumolaQuote => Exempt("Fumola code: quotation builds Hazel code only")
+  | FumolaPeek => Exempt("made by evaluation: a Fumola value on display")
+  | BbQuote => Exempt("Blackboard code: quotation builds Hazel code only")
   | Parens =>
     Exempt("never a class: Exp.cls_of_term looks through parentheses")
   /* A projector is transparent to semantics: the term built from the

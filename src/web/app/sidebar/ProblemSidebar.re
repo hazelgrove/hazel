@@ -4,36 +4,10 @@ open Util;
 open Util.WebUtil;
 open Haz3lcore.ProblemCollection;
 
-/* ---------- Scroll-into-view hook ---------- */
-
-module ScrollIntoViewHook =
-  Attr.Hooks.Make({
-    module State = Unit;
-    module Input = {
-      type t = unit;
-      let sexp_of_t = Sexplib0.Sexp_conv.sexp_of_unit;
-      let combine = ((), ()) => ();
-    };
-    let init = ((), _el) => ();
-    let on_mount = ((), (), el) =>
-      Js_of_ocaml.Js.Unsafe.coerce(el)##scrollIntoView(
-        Js_of_ocaml.Js.Unsafe.obj([|
-          (
-            "block",
-            Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string("nearest")),
-          ),
-          (
-            "inline",
-            Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string("nearest")),
-          ),
-        |]),
-      );
-    let update = (~old_input as (), ~new_input as (), (), _el) => ();
-    let destroy = ((), (), _el) => ();
-  });
-
+/* The scroll-into-view hook lives in ScrollIntoView now, since the Fumola
+   panel wants the same thing when it follows a pointer. */
 let scroll_active_into_view: Attr.t =
-  Attr.create_hook("scroll-active-problem", ScrollIntoViewHook.create());
+  ScrollIntoView.attr(~name="scroll-active-problem", "active");
 
 /* ---------- View helpers ---------- */
 
@@ -66,6 +40,19 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
      defer entirely to the cursor inspector's drv_view rather than building
      a generic problem-row from cls/marks/message like the cases above. */
   | InfoDrv(ci) => DrvCursorInspector.drv_view(~globals, ci)
+  /* Blackboard likewise defers to its own renderer. */
+  | InfoBb(ci) => BbCursorInspector.bb_view(~globals, ci)
+  /* Likewise Fumola: no marks, and the only error it reports is a hole. */
+  | InfoFumola(fi) =>
+    span(
+      ~attrs=[clss(["problem-description"])],
+      [
+        text(
+          "Fumola "
+          ++ Language.FumolaCls.show(Language.FumolaInfo.cls_of(fi)),
+        ),
+      ],
+    )
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _}) =>

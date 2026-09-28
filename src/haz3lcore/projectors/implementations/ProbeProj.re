@@ -48,12 +48,24 @@ let probe_model_of_sexp = sexp =>
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
    renderer <rid> (in its empty state) round-trips through text. */
+/* A renderer named in the syntax -- `^^probe_table` -- is an explicit
+   activation, and an explicit activation opens the drawer when its content
+   is taller than inline_rows_cap. The interactive path does that in
+   ToggleModal, where it can measure the rows; here there is no info and no
+   samples yet, so it cannot be measured and is assumed.
+
+   Assuming it is the safe way round. A renderer asked for by name is wanted
+   whatever its size, and drawer_mode with short content simply shows the
+   ordinary drawer; the other way round -- which is what shipped -- renders
+   nothing at all, because an inline probe puts its rich view in a modal that
+   only opens on interaction. See #2552. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
   |> Option.map((r: packed_renderer) =>
        sexp_of_probe_model({
          ...init_probe_model,
          active_renderer: Some(r.empty_model),
+         drawer_mode: true,
        })
        |> Sexplib.Sexp.to_string
      );

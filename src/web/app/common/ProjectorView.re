@@ -548,6 +548,11 @@ let flex_code =
       sort,
       segment,
     ) => {
+  /* Neither branch below draws a projector layer -- both say so themselves --
+     so a nested projector would render as a gap. This is the path every
+     projector's embedded syntax goes through, probe samples and their
+     environment rows included. */
+  let segment = Printer.unproject_segment(segment);
   text_only
     ? text_code(segment)
     : simple_code(

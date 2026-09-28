@@ -20,7 +20,11 @@ type t =
   | Csv
   | HTML
   | Keybinding
-  | Color;
+  | Color
+  /* The reference a Fumola program returns when it produces a pointer.
+     Unlike the others it is never chosen by a user: translation puts it
+     there, so it does not appear in livelit_projectors below. */
+  | FumolaPeek;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -60,6 +64,7 @@ let name = (p: t): string =>
   | HTML => "html"
   | Keybinding => "keybinding"
   | Color => "color"
+  | FumolaPeek => "fumola-peek"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

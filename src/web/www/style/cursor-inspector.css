@@ -75,6 +75,12 @@
   background-color: var(--token-drv);
 }
 
+#cursor-inspector .Bb .gamma,
+#cursor-inspector .BbAssume .gamma,
+#cursor-inspector .BbConstruct .gamma {
+  background-color: var(--token-bb);
+}
+
 #cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
@@ -180,6 +186,12 @@
   background-color: var(--token-drv);
 }
 
+#cursor-inspector .ci-header.ok.Bb .toggle-switch.active,
+#cursor-inspector .ci-header.ok.BbAssume .toggle-switch.active,
+#cursor-inspector .ci-header.ok.BbConstruct .toggle-switch.active {
+  background-color: var(--token-bb);
+}
+
 #cursor-inspector .ci-header.ok.TPat .toggle-switch.active {
   background-color: var(--token-tpat);
 }
@@ -210,6 +222,12 @@
 
 #cursor-inspector .ci-header.ok.Drv .toggle-switch .toggle-knob {
   color: var(--token-drv);
+}
+
+#cursor-inspector .ci-header.ok.Bb .toggle-switch .toggle-knob,
+#cursor-inspector .ci-header.ok.BbAssume .toggle-switch .toggle-knob,
+#cursor-inspector .ci-header.ok.BbConstruct .toggle-switch .toggle-knob {
+  color: var(--token-bb);
 }
 
 #cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
@@ -252,6 +270,13 @@
 #cursor-inspector .ci-header.ok.Drv {
   background-color: var(--shard-drv);
   color: var(--token-drv);
+}
+
+#cursor-inspector .ci-header.ok.Bb,
+#cursor-inspector .ci-header.ok.BbAssume,
+#cursor-inspector .ci-header.ok.BbConstruct {
+  background-color: var(--shard-bb);
+  color: var(--token-bb);
 }
 
 #cursor-inspector .ci-header.ok.TPat {

@@ -1,0 +1,46 @@
+# BLACKBOARD: WHAT THE EDITOR CHECKS #
+
+# The editor checks the decidable part: every declared type is a type, #
+# in the context of the entries before it. That catches real mistakes. #
+# Both of the slips below are in the paper this work is based on. #
+
+blackboard
+
+assume
+  A : type;
+  B : A -> type;
+  f1 : (a : A) -> B;
+  a1 : A;
+  a2 : A
+by tychk;
+
+# THE SLIP ABOVE: `B` is a family, `A -> type`, so `B` on its own is #
+# not a type. It has to be applied: `(a : A) -> B(a)`. A second slip #
+# in the same signature in the paper binds `a1` twice, leaving `a2` #
+# unbound -- the checker reports that too. #
+
+# WHAT IT DOES NOT CHECK #
+# Typing in Blackboard is undecidable, and the logic has no reduction. #
+# `same type` here means the same term up to renaming bound variables. #
+# So a step that needs an EQUATION is out of reach, and is reported as #
+# a mismatch rather than silently accepted. #
+
+assume
+  eq : (X : type) -> (x1 : X) -> (x2 : X) -> type;
+  A : type;
+  B : A -> type;
+  a1 : A;
+  a2 : A;
+  f1 : (a : A) -> B(a);
+  f2 : (a : A) -> B(a);
+
+  # `f2(a2)` has type `B(a2)`, and the conclusion wants `B(a1)`. #
+  # Only the hypothesis a1 = a2 bridges them, by extensional typing. #
+  # The editor cannot use equations yet, so it reports the mismatch. #
+  cong_ap :
+    eq((a : A) -> B(a), f1, f2) ->
+    eq(A, a1, a2) ->
+    eq(B(a1), f1(a1), f2(a2))
+by tychk
+
+end
