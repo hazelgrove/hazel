@@ -57,20 +57,60 @@ let try_segment_paste =
   };
 };
 
+/* The longest prefix of [chars] that stays one operand, or one operator,
+   at every step: exactly the characters typing would keep appending to
+   the token they start. Brackets, quotes, comment delimiters and
+   whitespace are in neither class, so they always come one at a time. */
+let take_run = (chars: list(string)): option((string, list(string))) => {
+  let same_class =
+    switch (chars) {
+    | [c, ..._] when Token.is_potential_operand(c) =>
+      Some(Token.is_potential_operand)
+    | [c, ..._] when Token.is_potential_operator(c) =>
+      Some(Token.is_potential_operator)
+    | _ => None
+    };
+  let+ same_class = same_class;
+  let fits = t => Token.is_potential_token(t) && same_class(t);
+  let rec go = (acc, rest) =>
+    switch (rest) {
+    | [c, ...rest'] when fits(acc ++ c) => go(acc ++ c, rest')
+    | _ => (acc, rest)
+    };
+  go(List.hd(chars), List.tl(chars));
+};
+
 /* Insert characters one-by-one into a zipper. Used for paste and
-   other operations that start from an existing zipper state. */
+   other operations that start from an existing zipper state.
+   With ~by_run, a run from take_run goes in as one insertion whenever
+   the caret is between tokens, so a run of n characters costs one pass
+   over its siblings instead of n. */
 let to_zipper =
-    (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
-  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
-    let* z = z;
+    (~by_run=false, ~root, ~zipper_init=Zipper.init(), str: string)
+    : option(Zipper.t) => {
+  let insert = (z: Zipper.t, c: string): option(Zipper.t) =>
     /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
     try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
     };
-  };
-  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
+  let rec go = (z: Zipper.t, chars: list(string)): option(Zipper.t) =>
+    switch (chars) {
+    | [] => Some(z)
+    | [c, ...rest] =>
+      let (s, rest) =
+        switch (
+          by_run && z.caret == Outer && z.selection.content == []
+            ? take_run(chars) : None
+        ) {
+        | Some(run) => run
+        | None => (c, rest)
+        };
+      let* z = insert(z, s);
+      go(z, rest);
+    };
+  let+ z = go(zipper_init, Token.to_list(str));
   Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
