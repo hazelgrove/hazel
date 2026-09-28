@@ -78,7 +78,7 @@ let ^hwb = {
             Html.div(
               [Attr.style([("width", "26px"), ("height", "14px"),
                       ("border-radius", "7px"),
-                      ("border", "1px solid var(--BR1)"),
+                      ("border", "1px solid var(--border-soft)"),
                       ("background", css((h, w, b)))])],
               []
             ),
