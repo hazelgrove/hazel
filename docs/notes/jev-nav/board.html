@@ -418,18 +418,18 @@ small program    0/2     $0.0129 avg                   15/35 and 21/45 blanks fi
 };
 
 const SETUPS = [
-  { id: "orig", name: "Original", runs: 3, status: "3 of 3 correct", pre: false, look: "agent", edit: "agent",
+  { id: "orig", name: "Original", runs: 12, status: "11 of 12 correct (Sept 24 + Sept 28 grid)", pre: false, look: "agent", edit: "agent",
     view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent writes the fix"]],
     info: { kind: "Setup", title: "Agent navigates + edits (original)", what: `<p>Hazel's default agent, unchanged. One LLM chooses what to look at and writes every fix. No Jev.</p>`, how: `<p>All Jev switches off. Every other setup is compared to this.</p>`, key: ["verdict", "f-done"] } },
-  { id: "view", name: "Jev navigates", runs: 4, status: "3 of 4 correct — the 4th fixed all bugs but changed the final line", pre: false, look: "jev", edit: "agent",
+  { id: "view", name: "Jev navigates", runs: 12, status: "11 of 12 correct — the miss fixed all bugs but changed the final line", pre: false, look: "jev", edit: "agent",
     view: [["agent", "Agent asks in words"], ["jev", "Jev chooses"], ["hazel", "Hazel opens"]], code: [["agent", "Agent writes the fix"]],
-    info: { kind: "Setup", title: "Jev navigates, agent edits", what: `<p>The agent loses open/fold. It describes what it needs; Jev decides what's shown. The agent still writes every fix.</p>`, how: `<p><code>/jev-view-tool</code>. The setup we tested most.</p>`, key: ["verdict", "gap", "picks", "f-grader"] } },
-  { id: "build", name: "Jev builds code", runs: 0, status: "not run yet", pre: false, look: "agent", edit: "jev",
+    info: { kind: "Setup", title: "Jev navigates, agent edits", what: `<p>The agent loses open/fold. It describes what it needs; Jev decides what's shown. The agent still writes every fix.</p>`, how: `<p><code>/jev-view-tool</code>. 12 runs; 8/8 correct in the Sept 28 grid.</p>`, key: ["verdict", "gap", "picks", "f-grader"] } },
+  { id: "build", name: "Jev builds code", runs: 6, status: "2 of 6 correct — both on the named-bug fleet test, 22% cheaper", pre: false, look: "agent", edit: "jev",
     view: [["agent", "Agent opens / folds code"]], code: [["agent", "Agent gives goal + names"], ["hazel", "Hazel lists shapes"], ["jev", "Jev builds step by step"]],
-    info: { kind: "Setup", title: "Agent specs, Jev builds code", what: `<p>No code from the agent: only where, what for, and which names. Jev grows the code from one <code>?</code>.</p>`, how: `<p><code>/jev-builds</code>. Blocked by missing building blocks.</p>`, key: ["f-build"] } },
-  { id: "full", name: "Full Jev", runs: 1, status: "0 of 1 correct", pre: true, look: "jev", edit: "jev",
+    info: { kind: "Setup", title: "Agent specs, Jev builds code", what: `<p>No code from the agent: only where, what for, and which names. Jev grows the code from one <code>?</code>.</p>`, how: `<p><code>/jev-builds</code>. 6 runs: 2/2 on the named-bug fleet test (22% cheaper); 0/4 elsewhere — symptoms-only needs the agent to work out the fix, and the small program needs <code>map(?, ?)</code>, which Hazel doesn't offer yet.</p>`, key: ["f-build"] } },
+  { id: "full", name: "Full Jev", runs: 7, status: "2 of 7 correct — both on the named-bug fleet test, +46% cost", pre: true, look: "jev", edit: "jev",
     view: [["agent", "Agent asks in words"], ["jev", "Jev chooses"], ["hazel", "Hazel opens"]], code: [["agent", "Agent gives the plan"], ["hazel", "Hazel lists options"], ["jev", "Jev writes the code"]],
-    info: { kind: "Setup", title: "Jev navigates + builds, agent plans", what: `<p>Everything at once: Jev picks the view and writes all the code; the agent only plans.</p>`, how: `<p><code>/jev-mode</code>. One run (small program): wrong output, half-built code left behind. That run also had Jev pick a one-time starting view, a setup since dropped: the view has to change as the work goes, so a fixed start adds little.</p>`, key: ["f-build", "verdict"] } },
+    info: { kind: "Setup", title: "Jev navigates + builds, agent plans", what: `<p>Everything at once: Jev picks the view and writes all the code; the agent only plans.</p>`, how: `<p><code>/jev-mode</code>. 7 runs: 2/2 on the named-bug fleet test (+46% cost), 0/5 elsewhere. That run also had Jev pick a one-time starting view, a setup since dropped: the view has to change as the work goes, so a fixed start adds little.</p>`, key: ["f-build", "verdict"] } },
 ];
 SETUPS.forEach((s) => (INFO["s-" + s.id] = s.info));
 
