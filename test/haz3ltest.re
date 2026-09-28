@@ -11,6 +11,10 @@ Printexc.register_printer(exn => {
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
    function exit with the test status rather than raise Test_error. */
+/* Registered rather than called after the run: Alcotest exits from inside
+   run_and_report, so nothing placed after it runs. */
+at_exit(TestTiming.report);
+
 let (suite, exit_with_test_status) =
   run_and_report(
     ~and_exit=true,
@@ -118,7 +122,8 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
-    @ [Test_SubEditor.tests],
+    @ [Test_SubEditor.tests]
+    |> TestTiming.wrap,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
