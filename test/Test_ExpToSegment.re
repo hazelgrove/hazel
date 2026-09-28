@@ -18,6 +18,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
+  project_html: false,
 };
 
 let exp_to_segment =
@@ -576,6 +577,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
+  project_html: false,
 };
 
 let exp_to_segment_roundtrip =
@@ -1575,6 +1577,98 @@ let roundtrip_projector_tests = (
   ],
 );
 
+/* Auto-display of HTML values in the evaluation output (the `project_html`
+   setting, Nut menu -> HTML). Every child of an HTML element is itself an
+   HTML constructor application, so the load-bearing property is that ONE
+   projector is placed, around the outermost node only. */
+let html_projection_settings: ExpToSegment.Settings.t = {
+  ...exp_to_segment_settings,
+  project_html: true,
+};
+
+let count_projectors = (seg: Segment.t): int => {
+  let rec go = (acc, seg) =>
+    List.fold_left(
+      (acc, piece: Piece.t) =>
+        switch (piece) {
+        | Projector(_) => acc + 1
+        | Tile(t) => List.fold_left(go, acc, t.children)
+        | Grout(_)
+        | Secondary(_) => acc
+        },
+      acc,
+      seg,
+    );
+  go(0, seg);
+};
+
+let projectors_for = (~settings, program: string): int =>
+  switch (Parser.to_term(program, ~root=Exp)) {
+  | None => Alcotest.fail("failed to parse: " ++ program)
+  | Some(exp) =>
+    let (_, elaborated) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+    count_projectors(ExpToSegment.exp_to_segment(~settings, elaborated));
+  };
+
+let html_projection_tests = (
+  "ExpToSegment.ProjectHtml",
+  [
+    test_case("a nested tree projects once, at the root", `Quick, () =>
+      check(
+        int,
+        "one projector for the whole tree",
+        1,
+        projectors_for(
+          ~settings=html_projection_settings,
+          {|Div([], [Span([], [Text("a")]), Span([], [Text("b")])])|},
+        ),
+      )
+    ),
+    test_case("a nullary element projects", `Quick, () =>
+      check(
+        int,
+        "Br is a value on its own",
+        1,
+        projectors_for(~settings=html_projection_settings, {|Br|}),
+      )
+    ),
+    test_case("nothing projects while the setting is off", `Quick, () =>
+      check(
+        int,
+        "no projector",
+        0,
+        projectors_for(
+          ~settings=exp_to_segment_settings,
+          {|Div([], [Text("a")])|},
+        ),
+      )
+    ),
+    test_case("a non-HTML value is left alone", `Quick, () =>
+      check(
+        int,
+        "no projector",
+        0,
+        projectors_for(~settings=html_projection_settings, {|Some(3)|}),
+      )
+    ),
+    /* The gate is the constructor's type, not its name: statics compacts an
+       unshadowed builtin alias to Var("HTML"), and a user type that shadows
+       it keeps its own expanded form. */
+    test_case("a user ADT shadowing an element name is left alone", `Quick, () =>
+      check(
+        int,
+        "no projector",
+        0,
+        projectors_for(
+          ~settings=html_projection_settings,
+          {|type HTML = + Div(Int) in Div(1)|},
+        ),
+      )
+    ),
+  ],
+);
+
 /* P2: segment fixpoint. Render a generated exp to text, parse it to a
    parser-canonical segment, and check MakeTerm . PreserveExact-print is
    the identity on it: text always; tile ids only for hole-free renders
@@ -1772,5 +1866,6 @@ let all = [
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,
+  html_projection_tests,
   property_tests,
 ];

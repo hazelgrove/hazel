@@ -19,6 +19,7 @@ and where to look when something doesn't render.
 | `src/haz3lcore/projectors/implementations/RichProbeRegistry.re` | Registry list + sexp/yojson dispatch for `packed_model` / `packed_action` |
 | `src/haz3lcore/projectors/implementations/TableRenderer.re` | Reference implementation (the gradebook-style table view) |
 | `src/haz3lcore/projectors/implementations/TableRenderer.rei` | Mandatory interface file (see "Why a `.rei`" below) |
+| `src/haz3lcore/projectors/implementations/HtmlRenderer.re` | Renders an HTML-valued sample as the DOM it describes (see `docs/charts.md`) |
 | `src/haz3lcore/projectors/implementations/ProbeProj.re` | Probe projector — owns `active_renderer`, drives `ToggleModal` / `RendererAction`, renders the modal overlay and the sample-context-menu entries |
 
 ## The `RichProbe` module signature

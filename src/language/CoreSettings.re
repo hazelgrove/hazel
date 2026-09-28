@@ -17,6 +17,7 @@ module Evaluation = {
     show_hidden_steps: bool,
     enable_proof: bool,
     project_tables: bool,
+    project_html: bool,
   };
 
   let init = {
@@ -33,6 +34,7 @@ module Evaluation = {
     show_hidden_steps: false,
     enable_proof: false,
     project_tables: true,
+    project_html: true,
   };
 };
 

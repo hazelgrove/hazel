@@ -25,6 +25,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         use_literal_lexemes: false,
         hole_tiles: false,
         project_tables: false,
+        project_html: false,
       },
     );
   let div_name = div(~attrs=[clss(["name"])]);
