@@ -24,7 +24,7 @@
   height: 100%;
   line-height: 1;
   font-family: var(--code-font);
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -36,12 +36,12 @@
   display: block;
   fill: var(--shard_projector);
   stroke: none;
-  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+  filter: drop-shadow(0.7px 0.7px 0px var(--border-strong));
 }
 
 .projectors .base .projector.chipped.indicated > svg {
   fill: var(--shard-caret-exp);
-  filter: drop-shadow(0.7px 0.7px 0px var(--BR4));
+  filter: drop-shadow(0.7px 0.7px 0px var(--border-stronger));
 }
 
 /* PROJECTORS SIDEBAR PANEL */
@@ -55,8 +55,8 @@
 
 #projector-panel .header {
   padding: 6px 8px;
-  color: var(--BR3);
-  border-bottom: 1px solid var(--BR1);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-soft);
   font-weight: bold;
   text-transform: uppercase;
   font-size: 0.9em;
@@ -75,13 +75,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.4em;
-  color: var(--BR2);
+  color: var(--text-muted);
   padding: 1em;
   font-size: 0.9em;
 }
 
 #projector-panel .projector-card {
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--border-soft);
   border-radius: 0.3em;
   overflow: hidden;
 }
@@ -91,13 +91,13 @@
   align-items: center;
   gap: 0.4em;
   padding: 0.3em 0.5em;
-  border-bottom: 1px solid var(--BR1);
+  border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
   font-family: var(--code-font);
 }
 
 #projector-panel .projector-card-header:hover {
-  background: var(--T1);
+  background: var(--surface-default);
 }
 
 #projector-panel .projector-card-syntax {
@@ -109,13 +109,13 @@
 #projector-panel .projector-card-undock {
   background: none;
   border: none;
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0 0.2em;
 }
 
 #projector-panel .projector-card-undock:hover {
-  color: var(--BR3);
+  color: var(--text-muted);
 }
 
 #projector-panel .projector-card-body {

@@ -209,7 +209,7 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
  * keep it modest and centered. */
 .table th input.column-label-input {
     font-weight: 600;
-    color: var(--BR4);
+    color: var(--text-strong);
     font-family: var(--code-font);
     font-size: inherit;
     background: transparent;
@@ -227,5 +227,5 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
 
 .table th input.column-label-input:focus {
     background: var(--light-page-color);
-    box-shadow: inset 0 -1px 0 var(--BR4);
+    box-shadow: inset 0 -1px 0 var(--border-stronger);
 }
