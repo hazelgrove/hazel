@@ -14,7 +14,7 @@
     margin: 0 4px;
     border-radius: 3px;
     background-color: var(--table-header-bg);
-    color: var(--BR2);
+    color: var(--text-muted);
     font-size: 14px;
     transition: all 0.2s ease;
     user-select: none;
@@ -84,13 +84,13 @@
 .table th.add-column-header {
     cursor: pointer;
     padding: 2px 8px;
-    color: var(--BR3);
+    color: var(--text-accent);
     font-size: 1rem;
     user-select: none;
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .table th.add-column-header:hover {
-    color: var(--BR4);
+    color: var(--text-strong);
     background-color: var(--df-hover-bg);
 }
