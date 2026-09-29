@@ -44,7 +44,7 @@
 .html-proj-resize {
   position: absolute;
   z-index: 1;
-  background: var(--BR2);
+  background: var(--border-default);
   opacity: 0;
   transition: opacity 80ms ease-out;
 }
@@ -94,8 +94,8 @@
   bottom: 1px;
   width: 6px;
   height: 6px;
-  border-right: 2px solid var(--BR2);
-  border-bottom: 2px solid var(--BR2);
+  border-right: 2px solid var(--border-default);
+  border-bottom: 2px solid var(--border-default);
 }
 
 /* Cursor lock for the duration of a drag: the pointer is captured by the
@@ -129,7 +129,7 @@ body.html-proj-resizing-xy * {
 /* Terse status line: no value yet, or a value that is neither app nor HTML */
 .html-proj-message {
   padding: 4px 6px;
-  color: var(--BR3);
+  color: var(--text-muted);
   font-size: 0.9em;
   font-style: italic;
   opacity: 0.7;
