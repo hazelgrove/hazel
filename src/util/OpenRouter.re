@@ -604,10 +604,7 @@ module Utils = {
       let* choices = Json.list(choices);
       let* hd = ListUtil.hd_opt(choices);
       let* delta =
-        switch (Json.dot("message", hd)) {
-        | Some(message) => Some(message)
-        | None => Json.dot("delta", hd)
-        };
+        Option.first_some(Json.dot("message", hd), Json.dot("delta", hd));
       let from_content =
         switch (Json.dot("content", delta)) {
         | None => None
@@ -677,10 +674,7 @@ module Utils = {
       let* choices = Json.list(choices);
       let* hd = ListUtil.hd_opt(choices);
       let* delta =
-        switch (Json.dot("message", hd)) {
-        | Some(message) => Some(message)
-        | None => Json.dot("delta", hd)
-        };
+        Option.first_some(Json.dot("message", hd), Json.dot("delta", hd));
 
       let* tool_calls = Json.dot("tool_calls", delta);
       Json.list(tool_calls);
@@ -874,10 +868,10 @@ module Utils = {
         | Some([]) => ()
         | Some([hd, ..._]) =>
           let container =
-            switch (Json.dot("delta", hd)) {
-            | Some(d) => Some(d)
-            | None => Json.dot("message", hd)
-            };
+            Option.first_some(
+              Json.dot("delta", hd),
+              Json.dot("message", hd),
+            );
           switch (container) {
           | None => ()
           | Some(d) =>
