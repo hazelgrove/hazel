@@ -202,13 +202,6 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     custom_statics: None,
   },
   {
-    name: "round",
-    arg: Atom(Float),
-    ret: Atom(Float),
-    imp: float_op(Float.round),
-    custom_statics: None,
-  },
-  {
     name: "to_fixed",
     arg: Prod([float(), int()]),
     ret: Atom(String),
