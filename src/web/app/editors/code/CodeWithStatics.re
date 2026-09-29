@@ -98,12 +98,26 @@ module StaticsDebounce = {
   let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
   let force_on_next: ref(bool) = ref(false);
 
+  let pending = () => timer_id^ != None || force_on_next^;
+
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
   let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
     let force_now = force_on_next^;
     force_on_next := false;
-    if (is_edited && debounce_ms > 0.0) {
+    /* a projector commit is one discrete edit: run statics now rather
+       than after the typing debounce (livelit drag → result: -225ms) */
+    let projector_edit = Util.AgentPulse.projector_commit^;
+    Util.AgentPulse.projector_commit := false;
+    if (force_now || is_edited && projector_edit) {
+      switch (timer_id^) {
+      | Some(id) =>
+        Js_of_ocaml.Dom_html.window##clearTimeout(id);
+        timer_id := None;
+      | None => ()
+      };
+      Force;
+    } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
@@ -113,14 +127,14 @@ module StaticsDebounce = {
           Js_of_ocaml.Dom_html.window##setTimeout(
             Js_of_ocaml.Js.wrap_callback(() => {
               timer_id := None;
+              /* Keep sends waiting until the scheduled refresh is consumed. */
+              force_on_next := true;
               schedule_refresh();
             }),
             debounce_ms,
           ),
         );
       Defer;
-    } else if (force_now) {
-      Force;
     } else {
       Normal;
     };
@@ -157,19 +171,33 @@ module Update = {
           Language.Id.Map.map(_ => (), statics.targets),
         );
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
-     * not a stale captured one */
+     * not a stale captured one. A recompute first takes the statics the agent
+     * tool path OFFERED for this very program (CachedStatics.offered_for),
+     * computed there for its error check — one statics pass per tool call
+     * instead of several. */
     let do_init = (editor: Editor.t) =>
-      PerfMetrics.time_statics(() =>
-        CachedStatics.init(
-          ~settings,
-          ~stitch,
-          ~ctx?,
-          ~ana?,
-          ~is_dynamic_term,
-          ~root=editor.root,
-          editor.state.zipper,
+      switch (
+        ctx == None
+        && ana == None
+        && !is_dynamic_term
+        && editor.root == Sort.Exp
+          ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
+      ) {
+      | Some(st) when stitch(st.term) === st.term => st
+      | Some(_)
+      | None =>
+        PerfMetrics.time_statics(() =>
+          CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            ~root=editor.root,
+            editor.state.zipper,
+          )
         )
-      );
+      };
     let needs_refresh =
       statics_mode == StaticsMode.Force
       || probes_differ(editor.state.zipper, statics)
