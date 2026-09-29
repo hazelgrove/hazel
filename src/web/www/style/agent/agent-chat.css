@@ -21,8 +21,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75em 1em;
-  border-bottom: 0.6px solid var(--BR2);
-  background-color: var(--T1);
+  border-bottom: 0.6px solid var(--border-default);
+  background-color: var(--surface-default);
 }
 
 .chat-view-header-left {
@@ -45,16 +45,16 @@
   border-radius: 0;
   background: none;
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   transition: color 0.15s ease;
 }
 
 .chat-view-header-button:hover {
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .chat-view-header-button:active {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 .chat-view-header-icon-button {
@@ -64,23 +64,23 @@
   cursor: pointer;
   padding: 0.25em;
   border-radius: 3px;
-  fill: var(--STONE);
+  fill: var(--text-default);
   transition: background-color 0.15s ease, fill 0.15s ease;
 }
 
 .chat-view-header-icon-button:hover {
-  background-color: var(--T2);
-  fill: var(--BR3);
+  background-color: var(--surface-raised);
+  fill: var(--text-accent);
 }
 
 .chat-view-header-icon-button:active {
-  background-color: var(--T3);
-  fill: var(--BR4);
+  background-color: var(--surface-sunken);
+  fill: var(--text-strong);
 }
 
 .chat-view-header-icon-button.active {
-  background-color: var(--T3);
-  fill: var(--BR3);
+  background-color: var(--surface-sunken);
+  fill: var(--text-accent);
 }
 
 /* Content Area */
@@ -130,16 +130,16 @@
   border-radius: 0;
   background: none;
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   transition: color 0.15s ease;
 }
 
 .history-exit-button:hover {
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .history-exit-button:active {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 .history-chat-list {
@@ -155,8 +155,8 @@
   align-items: center;
   padding: 0.6em 0.8em;
   border-radius: 4px;
-  background-color: var(--T2);
-  color: var(--STONE);
+  background-color: var(--surface-raised);
+  color: var(--text-default);
   font-size: 0.85em;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -172,18 +172,18 @@
 .history-chat-item-time {
   margin-left: 0.75em;
   font-size: 0.75em;
-  color: var(--BR2);
+  color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .history-chat-item:hover {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 .history-chat-item.active {
-  border: 0.6px solid var(--BR3);
-  background-color: var(--T3);
+  border: 0.6px solid var(--border-strong);
+  background-color: var(--surface-sunken);
   font-weight: 500;
 }
 
