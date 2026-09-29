@@ -29,7 +29,9 @@ type t =
   | Graph
   | ObservablePlot
   | Patchwork
-  | Exo(exo);
+  | Exo(exo)
+  | Keybinding
+  | Color;
 
 let livelit_projectors: list(t) =
   [
@@ -42,6 +44,8 @@ let livelit_projectors: list(t) =
     Table,
     Card,
     Livelit,
+    Keybinding,
+    Color,
   ]
   @ List.map(x => Exo(x), all_of_exo);
 
@@ -73,6 +77,8 @@ let name = (p: t): string =>
   | ObservablePlot => "ObservablePlot"
   | Patchwork => "Patchwork"
   | Exo(exo_kind) => show_exo(exo_kind)
+  | Keybinding => "keybinding"
+  | Color => "color"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)
