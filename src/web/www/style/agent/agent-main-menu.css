@@ -30,24 +30,24 @@
 .agent-main-menu-label {
   font-size: 0.9em;
   font-weight: bold;
-  color: var(--BR4);
+  color: var(--text-strong);
   margin-bottom: 0.25em;
 }
 
 .agent-main-menu-info {
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
   opacity: 0.8;
   line-height: 1.4;
 }
 
 .agent-main-menu-info a {
-  color: var(--BR3);
+  color: var(--text-accent);
   text-decoration: underline;
 }
 
 .agent-main-menu-info a:hover {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 /* API Key Container */
@@ -67,16 +67,16 @@
   border-radius: 0;
   background: none;
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   transition: color 0.15s ease;
 }
 
 .agent-main-menu .named-menu-item:hover {
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .agent-main-menu .named-menu-item:active {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 /* API Key Input */
@@ -84,9 +84,9 @@
   width: 100%;
   padding: 0.5em 0.75em;
   border-radius: 4px;
-  border: 0.6px solid var(--BR2);
-  background-color: var(--SAND);
-  color: var(--STONE);
+  border: 0.6px solid var(--border-default);
+  background-color: var(--surface-code);
+  color: var(--text-default);
   font-family: var(--code-font);
   font-size: 0.8em;
   outline: none;
@@ -96,16 +96,16 @@
 }
 
 .agent-api-key-input:hover {
-  border-color: var(--BR3);
+  border-color: var(--border-strong);
 }
 
 .agent-api-key-input:focus {
-  border-color: var(--BR3);
-  outline: 0.6px solid var(--BR3);
+  border-color: var(--border-strong);
+  outline: 0.6px solid var(--border-strong);
 }
 
 .agent-api-key-input::placeholder {
-  color: var(--BR2);
+  color: var(--text-muted);
   opacity: 0.6;
 }
 
@@ -119,8 +119,8 @@
 /* LLM list container */
 .llm-list-container {
   border-radius: 4px;
-  border: 0.6px solid var(--BR2);
-  background-color: var(--T1);
+  border: 0.6px solid var(--border-default);
+  background-color: var(--surface-default);
   overflow-y: auto;
   box-sizing: border-box;
   padding: 0.4em 0.2em;
@@ -143,7 +143,7 @@
 .llm-section-header {
   font-size: 0.7em;
   font-weight: 600;
-  color: var(--BR3);
+  color: var(--text-accent);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 0 0.2em 0.3em;
@@ -161,9 +161,9 @@
   flex: 1;
   padding: 0.4em 0.6em;
   border-radius: 3px;
-  border: 0.6px solid var(--BR2);
-  background-color: var(--SAND);
-  color: var(--STONE);
+  border: 0.6px solid var(--border-default);
+  background-color: var(--surface-code);
+  color: var(--text-default);
   font-family: var(--code-font);
   font-size: 0.8em;
   outline: none;
@@ -171,21 +171,21 @@
 }
 
 .llm-search-input:hover {
-  border-color: var(--BR3);
+  border-color: var(--border-strong);
 }
 
 .llm-search-input:focus {
-  border-color: var(--BR3);
-  outline: 0.6px solid var(--BR3);
+  border-color: var(--border-strong);
+  outline: 0.6px solid var(--border-strong);
 }
 
 .llm-search-input::placeholder {
-  color: var(--BR2);
+  color: var(--text-muted);
   opacity: 0.6;
 }
 
 .llm-item-recommended {
-  border: 0.6px solid var(--BR3);
+  border: 0.6px solid var(--border-strong);
 }
 
 .llm-only-free-toggle {
@@ -197,7 +197,7 @@
 
 .llm-only-free-label {
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   letter-spacing: 0.02em;
 }
 
@@ -205,26 +205,26 @@
   margin-top: 0.2em;
   font-size: 0.7em;
   font-style: italic;
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .llm-item {
   padding: 0.4em 0.6em;
   border-radius: 3px;
-  background-color: var(--T2);
-  color: var(--STONE);
+  background-color: var(--surface-raised);
+  color: var(--text-default);
   cursor: pointer;
   font-size: 0.8em;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .llm-item:hover {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 .llm-item.active {
-  border: 0.6px solid var(--BR3);
-  background-color: var(--T3);
+  border: 0.6px solid var(--border-strong);
+  background-color: var(--surface-sunken);
 }
 
 .llm-name {
@@ -234,24 +234,24 @@
 .llm-pricing {
   margin-top: 0.1em;
   font-size: 0.75em;
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 .llm-empty {
   font-size: 0.8em;
-  color: var(--BR2);
+  color: var(--text-muted);
   padding: 0.4em 0.6em;
 }
 
 .llm-free-marker {
-  color: var(--STONE);
+  color: var(--text-default);
   font-weight: 400;
 }
 
 .llm-free-footnote {
   margin-top: 0.4em;
   font-size: 0.7em;
-  color: var(--STONE);
+  color: var(--text-default);
   line-height: 1.3;
 }
 
@@ -261,12 +261,12 @@
   flex-direction: column;
   gap: 0.1em;
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
 }
 
 .llm-current-label {
   font-size: 0.75em;
-  color: var(--BR3);
+  color: var(--text-accent);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -277,7 +277,7 @@
 
 .llm-current-pricing {
   font-size: 0.75em;
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 /* Confirm Settings Button */
@@ -296,16 +296,16 @@
   border-radius: 0;
   background: none;
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   transition: color 0.15s ease;
 }
 
 .confirm-settings-button:hover {
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .confirm-settings-button:active {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 /* Chat Interface */
@@ -322,7 +322,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--STONE);
+  color: var(--text-default);
   font-size: 0.9em;
 }
 
@@ -341,15 +341,15 @@
   border-radius: 0;
   background: none;
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   transition: color 0.15s ease;
 }
 
 .back-to-menu-button:hover {
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .back-to-menu-button:active {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
