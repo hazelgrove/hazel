@@ -101,15 +101,15 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   | Ap(Forward, {term: Constructor(name, _), _}, payload)
       when List.mem(name, symbol_constructors) =>
     symbol_source(name, payload)
-  /* Named(xs) (docs/remote-refs.md): a list sent as (symbol, element) pairs,
+  /* ById(xs) (docs/remote-refs.md): a list sent as (symbol, element) pairs,
      each symbol built from the element's AST id -- the shape List.fromIter
      and LevelTree.fromArray take, which name each cell by the caller's
      symbol. The ids are the source literals' own until evaluation finishes,
      which is when an escape is read, so a cell's name is the literal it came
      from; a computed element has an id, just not one the source shows. */
-  | Ap(Forward, {term: Constructor("Named", _), _}, payload) =>
+  | Ap(Forward, {term: Constructor("ById", _), _}, payload) =>
     switch (list_items(payload)) {
-    | None => unsupported("Named of something other than a list")
+    | None => unsupported("ById of something other than a list")
     | Some(es) =>
       switch (all(List.map(of_exp, es))) {
       | Error(e) => Error(e)

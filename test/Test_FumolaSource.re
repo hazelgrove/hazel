@@ -31,7 +31,7 @@ let refuses = (name, exp) =>
     }
   );
 
-/* Named(xs): each element as a (symbol, element) pair, the symbol built
+/* ById(xs): each element as a (symbol, element) pair, the symbol built
    from that element's own id, so equal values still name different cells. */
 let named_pairs = () => {
   let elems = [int(3), int(1), int(1)];
@@ -53,7 +53,7 @@ let named_pairs = () => {
          ),
        )
     ++ "]";
-  switch (FumolaSource.of_exp(ap("Named", list(elems)))) {
+  switch (FumolaSource.of_exp(ap("ById", list(elems)))) {
   | Error(m) => Alcotest.fail("expected source, got: " ++ m)
   | Ok(source) =>
     Alcotest.check(Alcotest.string, "pairs by id", expected, source);
@@ -70,8 +70,8 @@ let named_pairs = () => {
 let tests = (
   "FumolaSource",
   [
-    test_case("Named sends (id symbol, element) pairs", `Quick, named_pairs),
-    refuses("Named of a non-list", ap("Named", int(3))),
+    test_case("ById sends (id symbol, element) pairs", `Quick, named_pairs),
+    refuses("ById of a non-list", ap("ById", int(3))),
     renders("an integer", int(3), "3"),
     renders("a boolean", DHExp.fresh(Atom(Bool(true))), "true"),
     renders("text", str("hi"), {|"hi"|}),

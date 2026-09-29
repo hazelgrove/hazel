@@ -83,7 +83,7 @@ new_remote : (RemoteDir, Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef
 - `dir` says which way the ref carries data. `Out`: the Fumola cell writes the
   splice, pulled after each run. `In`: the splice's value is what goes into the
   cell. For now the Fumola program writes an In cell itself, with
-  `hazel Named(...) end` (below); the pull leaves In refs alone, since their
+  `hazel ById(...) end` (below); the pull leaves In refs alone, since their
   cell holds what Hazel sent rather than a value for the code. Writing In cells
   automatically, once the instance has settled, can come later on the same
   field.
@@ -105,9 +105,9 @@ new_remote : (RemoteDir, Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef
   field whose value is a parenthesized record is descended into when its use
   is loaded, so the splice is the record's `code`, not the record.
 
-### Named: a list whose cells are named by Hazel's ids
+### ById: a list whose cells are named by Hazel's ids
 
-`hazel Named(xs) end` sends a Hazel list into Fumola as `(symbol, element)`
+`hazel ById(xs) end` sends a Hazel list into Fumola as `(symbol, element)`
 pairs, each symbol built from the element's AST id,
 `` `hazel(`id_<uuid, dashes as underscores>) ``. That is the shape
 `List.fromIter` and `LevelTree.fromArray` take: they name each cell by the
@@ -196,7 +196,7 @@ increment must be guarded), and both writers.
 - **Writes into Fumola** (input refs, later) are to be buffered and applied only
   once the instance has settled, meaning its stack is empty, never mid-run.
 - **The example** is Livelits / Remote refs, a la Fumola: an `input` ref (In)
-  holds `[3, 1, 4, 1, 5]`, which goes into `demo` as `Named` pairs; the
+  holds `[3, 1, 4, 1, 5]`, which goes into `demo` as `ById` pairs; the
   pre-bound `LevelTree.fromArray`, `LevelTree.lazyMergeSort` and
   `LazyList.takeAll` sort it; and the `output` ref (Out) pulls back
   `[("hazel(id_...)", 1), ("hazel(id_...)", 1), ("hazel(id_...)", 3), ...]`,

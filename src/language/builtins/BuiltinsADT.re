@@ -1861,7 +1861,7 @@ let splice_ref_typ: Typ.t =
    binding is data in the model, so it persists as the model does. */
 /* Which way a RemoteRef carries data. Out: the Fumola cell writes the splice,
    pulled after each run. In: the splice's value goes into the cell, which the
-   program does itself for now (`hazel Named(...) end`); the pull leaves an In
+   program does itself for now (`hazel ById(...) end`); the pull leaves an In
    ref alone, since its cell holds what Hazel sent, not a value for the code. */
 let remote_dir_typ: Typ.t = sum_type([("In", None), ("Out", None)]);
 
@@ -1873,11 +1873,11 @@ let remote_ref_typ: Typ.t =
     tup_label(label("code"), var("SpliceRef")),
   ]);
 
-/* Named(xs): a Hazel list sent into Fumola as (symbol, element) pairs, each
+/* ById(xs): a Hazel list sent into Fumola as (symbol, element) pairs, each
    symbol built from the element's AST id (FumolaSource), for the collections
    that name their cells by the caller's symbols (List.fromIter,
    LevelTree.fromArray). Meaningful only inside `hazel ... end`. */
-let named_typ: Typ.t = sum_type([("Named", Some(unknown(Internal)))]);
+let by_id_typ: Typ.t = sum_type([("ById", Some(unknown(Internal)))]);
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
@@ -1899,7 +1899,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("SpliceRef", splice_ref_typ),
   ("RemoteDir", remote_dir_typ),
   ("RemoteRef", remote_ref_typ),
-  ("Named", named_typ),
+  ("ById", by_id_typ),
   ("Livelit", livelit),
 ];
 

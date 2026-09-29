@@ -51,6 +51,8 @@ let known_gaps: list(string) = [
   "fumola-tiles-library.hz",
   "fumola-tiles-inspect.hz",
   "fumola-tiles-nodeinfo.hz",
+  /* Livelits / Remote refs, a la Fumola: a fumola ... end block, same gap. */
+  "remote-refs-fumola.hz",
 ];
 
 let tests = (

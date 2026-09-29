@@ -45,11 +45,11 @@ let ^^probe(sorted) =
 
 let (unsorted, _) = sorted in
 
-# Named(unsorted) is the crossing: each element goes in as the pair #
+# ById(unsorted) is the crossing: each element goes in as the pair #
 # (`hazel(`id_...), element), and the collections below name each cell by #
 # that symbol.  LevelTree and LazyList are bound in every instance. #
 let run = fumola $graphical as demo in
-  { let i = `input` := (hazel Named(unsorted) end);
+  { let i = `input` := (hazel ById(unsorted) end);
     `output` := LazyList.takeAll(LevelTree.lazyMergeSort(LevelTree.fromArray(@ i))) }
 end in
 
