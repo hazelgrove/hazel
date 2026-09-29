@@ -510,8 +510,6 @@ let tests = (
                   )
                 ),
                 list_lit([]),
-                None,
-                None,
               )
             ),
           );
@@ -554,8 +552,6 @@ let tests = (
                   )
                 ),
                 float(132032.832758),
-                None,
-                None,
               )
             ),
           );

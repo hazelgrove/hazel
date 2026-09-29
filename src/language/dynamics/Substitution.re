@@ -15,6 +15,11 @@
 
  POSTCONDITIONS:
   - The resulting expression never contains closures (so this can be used to remove closures after evaluation)
+  - Consequently `in_exp(Environment.empty, v)` CLOSES a runtime value: every
+    closure is resolved against the env it captured. Do this before running
+    statics over an evaluated term, or the term's variables get resolved
+    against whatever is in scope at the site being typed and a same-named
+    binder captures them (see Dynamics.to_live_typing_map).
 
  KNOWN LIMITATIONS:
   - Does not handle unbound variables correctly - these could get captured

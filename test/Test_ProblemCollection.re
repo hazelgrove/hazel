@@ -50,6 +50,7 @@ let has_structural =
       switch (p.source) {
       | Structural(d) => d == desc
       | FromInfo(_)
+      | FromLiveTyping(_)
       | FromProjector(_) => false
       },
     problems,
@@ -289,6 +290,22 @@ let make_empty_inputs = () => {
   check(int, "all aggregated counts zero", 0, total_count(coll.counts));
 };
 
+let make_counts_every_category = () => {
+  let coll = ProblemCollection.make(~display_warnings=true, []);
+  check(
+    list(string),
+    "counted categories",
+    List.map(
+      ProblemCollection.show_problem_category,
+      ProblemCollection.all_of_problem_category,
+    ),
+    List.map(
+      ((cat, _)) => ProblemCollection.show_problem_category(cat),
+      coll.counts,
+    ),
+  );
+};
+
 let make_single_source_single_group = () => {
   /* One source with errors, one group around it. */
   let src = source_from_string("1 + true");
@@ -513,6 +530,11 @@ let nearest_measured_id_cases = [
 
 let make_cases = [
   test_case("make: empty inputs", `Quick, make_empty_inputs),
+  test_case(
+    "make: counts every category",
+    `Quick,
+    make_counts_every_category,
+  ),
   test_case(
     "make: single source produces single_source group",
     `Quick,

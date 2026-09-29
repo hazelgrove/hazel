@@ -64,6 +64,13 @@ let filter = (f: 'a => bool, o: option('a)): option('a) =>
   | Some(a) => f(a) ? Some(a) : None
   };
 
+/* Returns the first option if it is Some, otherwise returns the second option. */
+let or_else = (o1: option('a), o2: option('a)): option('a) =>
+  switch (o1) {
+  | Some(_) => o1
+  | None => o2
+  };
+
 let value_exn = (~none, o) => get(() => raise(none), o);
 
 module Syntax = {

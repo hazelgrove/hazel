@@ -188,6 +188,24 @@ in [f(true), f(false)]|},
   ),
 ];
 
+/* === Scoping tests === */
+
+let scoping_tests = [
+  /* `f` closes over the outer `h : Int`, and the probe sits where `h` names
+     the annotated parameter instead. Typing the sampled closure against the
+     probe site's context would read its body's `h` as the parameter and give
+     `() -> () -> Int`; the closure has to be read against the environment it
+     captured. */
+  dynamic_typ_test(
+    "Closure sample is typed under its own env, not the probe site's",
+    {|let h = 3
+in let f = fun () -> h
+in let g = fun (h : () -> Int) -> ^^probe(h)
+in g(f)|},
+    Some("() -> Int"),
+  ),
+];
+
 /* === Colouring the printed dynamic type === */
 
 /* When statics knew nothing, the whole type came from runtime, so every tile
@@ -253,9 +271,45 @@ in ^^probe(p)|},
   ),
 ];
 
+/* === Colouring a type statics refined === */
+
+/* CursorInspector hands segment_and_dynamic_ids a live-typing elab_syn_ty
+   rather than a sample-inferred type, and statics builds both with Typ.temp,
+   every node carrying the Id.invalid sentinel. With the sentinels left in this
+   coloured `Int`, which statics supplied, and the enclosing parens with it. */
+let statics_built_tests = [
+  test_case(
+    "segment_and_dynamic_ids colours only the tokens statics did not supply",
+    `Quick,
+    () => {
+      let temp = (t: Typ.term) => Typ.temp(t);
+      let (seg, dynamic_ids) =
+        DynamicTypInfer.segment_and_dynamic_ids(
+          ~typ_to_seg_with_diff_ids=
+            ProjectorInfo.utility.typ_to_seg_with_diff_ids(~inline=true),
+          ~ctx=Builtins.ctx_init(Some(Int)),
+          ~static_typ=
+            temp(Prod([temp(Atom(Atom.Int)), temp(Unknown(Internal))])),
+          ~dynamic_typ=
+            temp(Prod([temp(Atom(Atom.Int)), temp(Atom(Atom.Bool))])),
+        );
+      let classes = id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [];
+      check(
+        list(Test_TypToSegment.region),
+        "Int static, Bool dynamic",
+        Test_TypToSegment.[s("(Int,"), d("Bool"), s(")")],
+        Test_TypToSegment.segment_fragments(classes, seg)
+        |> Test_TypToSegment.group_regions,
+      );
+    },
+  ),
+];
+
 let tests = [
   ("DynamicTypInfer.Basic", basic_tests),
   ("DynamicTypInfer.Meet", meet_tests),
   ("DynamicTypInfer.UserTypes", user_type_tests),
+  ("DynamicTypInfer.Scoping", scoping_tests),
   ("DynamicTypInfer.DynamicIds", dynamic_id_tests),
+  ("DynamicTypInfer.StaticsBuilt", statics_built_tests),
 ];

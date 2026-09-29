@@ -428,7 +428,8 @@ let handle_dispatch_send =
     let model =
       Utils.update_context(
         ~session_mode=settings.agent_globals.session_mode,
-        ~test_results=?EvalResult.Model.test_results(editor.result),
+        ~test_results=?
+          EvalResult.Model.test_results(editor.result) |> Calc.get_value,
         model,
         editor.editor,
         chat_id,
@@ -681,7 +682,8 @@ let do_retry_api_send =
   let model =
     Utils.update_context(
       ~session_mode=settings.agent_globals.session_mode,
-      ~test_results=?EvalResult.Model.test_results(editor.result),
+      ~test_results=?
+        EvalResult.Model.test_results(editor.result) |> Calc.get_value,
       model,
       editor.editor,
       chat_id,
