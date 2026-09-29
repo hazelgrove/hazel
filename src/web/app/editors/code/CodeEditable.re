@@ -220,13 +220,7 @@ module Selection = {
          ),
          of_shortcut(~action=action(Probe(ToggleManual)), Probe),
          of_shortcut(~action=action(Probe(ToggleStatics)), Statics),
-         mk(
-           ~hotkey="alt+p",
-           ~mdIcon="play_circle",
-           ~section="Projection",
-           ~action=action(Probe(TogglePlayer)),
-           "Player",
-         ),
+         of_shortcut(~action=action(Probe(TogglePlayer)), Player),
          of_shortcut(
            ~action=action(Project(SetIndicated(ChooseLivelit))),
            Livelit,
