@@ -151,6 +151,7 @@ let update =
       );
     switch (updated_editor) {
     | Ok(updated_editor) =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
       Ok((
         agent,
         CodeWithStatics.Model.{
@@ -164,7 +165,7 @@ let update =
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
         },
-      ))
+      ));
     | Error(err) =>
       switch (err) {
       | Action.Failure.Composition_action_failure(msg) =>
@@ -220,6 +221,8 @@ let update =
       );
     switch (
       CompositionGo.Local.PerformUtils.introduce(
+        ~fast=true,
+        ~keep_edge_ws=true,
         z_at_boundary,
         "\n" ++ code ++ "\n",
       )
@@ -251,6 +254,7 @@ let update =
         let new_editor_model = Editor.Model.mk(final_z, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
+        CodeWithStatics.StaticsDebounce.force_on_next := true;
         Ok((agent, new_code_with_statics));
       };
     };

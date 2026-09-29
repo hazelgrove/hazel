@@ -18,7 +18,7 @@ let render_segment =
 /* diff text re-parsed for display: the same syntax rendering as before,
    from the persisted text form */
 let render_text = (~globals: Globals.t, text: string): Node.t =>
-  render_segment(~globals, AgentToolResult.segment_of_text(text));
+  render_segment(~globals, AgentToolResult.segment_of_diff_text(text));
 
 let render_pretty_args = (args: API.Json.t): Node.t => {
   let rec render_value = (json: API.Json.t): Node.t =>

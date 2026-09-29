@@ -164,10 +164,9 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
-/* the NEWEST binding of a capitalized name: a module (or any variable)
-   bound after a constructor of the same name shadows it lexically — a
-   user module named like a builtin constructor (HTML's `Text`) must win
-   at its use sites */
+/* the NEWEST binding of a capitalized name, whichever kind: a module (or
+   any variable) bound after a constructor of the same name shadows it
+   lexically, as any later binding shadows an earlier one */
 let newest_var_or_ctr =
     (ctx: t, name: string)
     : option(

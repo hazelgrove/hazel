@@ -4,14 +4,19 @@ open Language;
 /* rendered on every page render, hovered or not: the deduction view
    parses two editors and runs statics, so it is memoized on the rule
    and the globals it reads */
-let memo: ref(option((Rule.t, FontMetrics.t, Settings.Model.t, Node.t))) =
+let memo:
+  ref(option((Rule.t, FontMetrics.t, Settings.Model.t, bool, Node.t))) =
   ref(None);
 
 let view = (~globals: Globals.t) => {
   let rule = DerivationExerciseMode.NinjaKeys.current_hover_rule^;
   switch (memo^) {
-  | Some((r, fm, st, node))
-      when r === rule && fm === globals.font_metrics && st === globals.settings => node
+  | Some((r, fm, st, meta_down, node))
+      when
+        r === rule
+        && fm === globals.font_metrics
+        && st === globals.settings
+        && meta_down == globals.meta_down => node
   | _ =>
     let node =
       Node.div(
@@ -23,7 +28,14 @@ let view = (~globals: Globals.t) => {
           ~globals,
         ),
       );
-    memo := Some((rule, globals.font_metrics, globals.settings, node));
+    memo :=
+      Some((
+        rule,
+        globals.font_metrics,
+        globals.settings,
+        globals.meta_down,
+        node,
+      ));
     node;
   };
 };

@@ -825,11 +825,8 @@ module Local = {
         ++ " — if the code was meant to be complete, start there."
       | _ => ""
       };
-    /* ~fast: try the linear Menhir zip first (FastParse) — used by the
-       big-chunk overwrite path (update_definition / update_binding_clause),
-       where the quadratic typing parse froze the editor. The small insert
-       paths keep the typing parser so their whitespace conventions (magic
-       spaces, boundary newlines) are untouched. */
+    /* Agent structural edits try the linear Menhir zip first (FastParse).
+       Incomplete syntax falls back to the size-limited typing parser. */
     /* Edge whitespace (the insert flow's baked-in separator newlines)
        must survive the fast path's trim: re-attach it as Secondary. */
     let ws_secondaries = (ws: string): Segment.t =>
@@ -1011,16 +1008,24 @@ module Local = {
             segment;
           };
         let z' =
-          PerfTimer.time("splice", () =>
-            Zipper.insert_segment(
-              z,
-              pad_fusing_edges(
+          PerfTimer.time("splice", ()
+            /* Keep a generated terminal hole after the inserted separator
+               newline, matching the typing parser's fragment insertion. */
+            =>
+              Zipper.replace_selection(
+                Right,
+                pad_fusing_edges(
+                  z,
+                  EditIdentity.reuse(z.selection.content, segment),
+                ),
                 z,
-                EditIdentity.reuse(z.selection.content, segment),
-              ),
-              ~root=splice_root,
-            )
-          );
+              )
+              |> Zipper.unselect
+              |> Zipper.remold_regrout(
+                   keep_edge_ws ? Left : Right,
+                   ~root=splice_root,
+                 )
+            );
         Ok(z');
       | None =>
         if (fast) {
@@ -1146,18 +1151,23 @@ module Local = {
        splice: after → ";\n" ++ code (the member's original following `;` —
        or `}` for the last member — ends the new code), before → code ++
        ";\n". `introduce` trims leading whitespace, so the `;` must lead. */
-    /* member boundaries of a chunk of member code: `;` at bracket depth 0,
-       outside string literals */
+    /* Member boundaries: `;` at bracket depth 0, outside strings and
+       single-line #...# comments. */
     let split_members = (code: string): list(string) => {
       let n = String.length(code);
       let parts = ref([])
       and start = ref(0)
       and depth = ref(0)
-      and in_str = ref(false);
+      and in_str = ref(false)
+      and in_comment = ref(false);
       let i = ref(0);
       while (i^ < n) {
         let c = code.[i^];
-        if (in_str^) {
+        if (in_comment^) {
+          if (c == '#' || c == '\n') {
+            in_comment := false;
+          };
+        } else if (in_str^) {
           if (c == '\\') {
             incr(i);
           } else if (c == '"') {
@@ -1165,6 +1175,7 @@ module Local = {
           };
         } else {
           switch (c) {
+          | '#' => in_comment := true
           | '"' => in_str := true
           | '('
           | '['

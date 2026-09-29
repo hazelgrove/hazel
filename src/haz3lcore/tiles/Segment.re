@@ -1603,6 +1603,7 @@ let top_items = (seg: t): list(t) => {
   walk(0, 0, []);
 };
 
+/* Sharing check (also used by scoped structural cleanup). */
 let ptr_eq = (a: t, b: t): bool => {
   let rec go = (xs, ys) =>
     xs === ys

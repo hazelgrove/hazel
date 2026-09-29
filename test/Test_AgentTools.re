@@ -63,6 +63,8 @@ let run_insert_at_program_boundary =
     );
   switch (
     CompositionGo.Local.PerformUtils.introduce(
+      ~fast=true,
+      ~keep_edge_ws=true,
       z_at_boundary,
       "\n" ++ new_code ++ "\n",
     )
