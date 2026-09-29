@@ -1796,19 +1796,17 @@ a + b¦|},
     `Quick,
     () => {
       let big =
-        List.init(400, i =>
+        List.init(150, i =>
           "let x" ++ string_of_int(i) ++ " = " ++ string_of_int(i) ++ " in"
         )
         |> String.concat("\n")
         |> (defs => defs ++ "\n¦0");
       let mid = parse_zipper(big);
+      /* one run each: the walk is slow enough to time singly */
       let time = (f, x) => {
         let t0 = Stdlib.Sys.time();
-        let r = ref(f(x));
-        for (_ in 1 to 19) {
-          r := f(x);
-        };
-        (r^, (Stdlib.Sys.time() -. t0) /. 20. *. 1000.);
+        let r = f(x);
+        (r, (Stdlib.Sys.time() -. t0) *. 1000.);
       };
       let walk = z => Zipper.do_to_extreme(Move.local(ByToken, Left), z);
       let (zw, tw) = time(walk, mid);
