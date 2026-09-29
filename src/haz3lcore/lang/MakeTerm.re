@@ -1316,6 +1316,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
+  /* implicit S : SIG - the module name pattern is the body */
+  | Pre(([(_id, (F(Compound(ImplicitPat)), []))], []), MPat(mp)) =>
+    ret(Implicit(mp))
   | Pre(tiles, Pat(r)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(UnaryMinus)), []))], []) =>
@@ -1466,6 +1469,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       );
     | _ => ret(hole(tm))
     }
+  /* implicit S : SIG as a component of an arrow domain: the name is the
+     tile's child, the signature its body. */
+  | Pre(([(id, (F(Compound(ImplicitTyp)), [MPat(mp)]))], []), Typ(t)) =>
+    ret(Implicit(IdTagged.fresh_deterministic(id, Asc(mp, t): MPat.term)))
   /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */

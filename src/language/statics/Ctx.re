@@ -38,7 +38,14 @@ type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
   | TVarEntry(tvar_entry)
-  | LivelitEntry(LivelitCtx.raw_livelit);
+  | LivelitEntry(LivelitCtx.raw_livelit)
+  /* Marks the binding [id] of [name] as an implicit instance (see
+     Implicits.re); it sits in front of the VarEntry it marks and is
+     transparent to every lookup. */
+  | ImplicitEntry({
+      name: Var.t,
+      id: Id.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -152,7 +159,8 @@ let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
-  | TVarEntry({id, _}) => id
+  | TVarEntry({id, _})
+  | ImplicitEntry({id, _}) => id
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -162,6 +170,42 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
     | _ => None,
     ctx.entries,
   );
+
+/* Mark the innermost binding of [name] as an implicit instance. */
+let mark_implicit = (ctx: t, name: Var.t): t =>
+  switch (lookup_var(ctx, name)) {
+  | Some({id, _}) =>
+    extend(
+      ctx,
+      ImplicitEntry({
+        name,
+        id,
+      }),
+    )
+  | None => ctx
+  };
+
+/* The implicit instances in scope, innermost first: the marked bindings
+   whose name still resolves to the marked entry (a later ordinary binding
+   of the same name shadows the instance). */
+let implicit_instances = (ctx: t): list(var_entry) =>
+  ctx.entries
+  |> List.filter_map(
+       fun
+       | ImplicitEntry({name, id}) => Some((name, id))
+       | _ => None,
+     )
+  |> List.fold_left(
+       (acc, (name, id)) =>
+         List.mem_assoc(name, acc) ? acc : acc @ [(name, id)],
+       [],
+     )
+  |> List.filter_map(((name, id)) =>
+       switch (lookup_var(ctx, name)) {
+       | Some(v) when v.id == id => Some(v)
+       | _ => None
+       }
+     );
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
@@ -293,6 +337,9 @@ let filter_shadowed = (ctx: t): t => {
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+           /* A marker binds nothing; implicit_instances re-checks that the
+              binding it marks is still the visible one. */
+           | ImplicitEntry(_) => ([entry, ...ctx], term_set, typ_set)
            }
          },
          ([], VarSet.empty, VarSet.empty),
@@ -310,6 +357,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
            | VarEntry({name, _})
            | ConstructorEntry({name, _})
            | LivelitEntry({name, _})
+           | ImplicitEntry({name, _})
            | TVarEntry({name, _}) =>
              if (String.starts_with(~prefix="$", name)) {
                ctx;
