@@ -218,20 +218,6 @@ let replace_item =
 
 /* --- High-level edit operations --- */
 
-/* Delete a module item cleanly (no hole left).
-   target_item_id: the ID of the ModLet/ModType item to delete.
-   Returns the modified zipper, or None if the item wasn't found. */
-let module_delete = (z: Zipper.t, target_item_id: Id.t): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  switch (find_module_containing_item(target_item_id, term)) {
-  | Some((module_id, items, idx)) =>
-    let new_items = delete_item(items, idx);
-    let new_term = replace_module_items(module_id, new_items, term);
-    Some(term_to_zipper(new_term));
-  | None => None
-  };
-};
-
 /* Insert a new item into a module.
    target_item_id: the ID of the reference item (insert before/after it).
    code: the text to parse as a module item.
@@ -253,37 +239,9 @@ let module_insert =
   };
 };
 
-/* Replace a module item's binding clause.
-   target_item_id: the ID of the item to replace.
-   code: the full new binding clause text (e.g. "let y = 42"). */
-let module_update_binding =
-    (z: Zipper.t, target_item_id: Id.t, code: string): option(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  switch (find_module_containing_item(target_item_id, term)) {
-  | Some((module_id, items, idx)) =>
-    switch (exp_to_mod_item(code)) {
-    | Some(new_item) =>
-      let new_items = replace_item(items, idx, new_item);
-      let new_term = replace_module_items(module_id, new_items, term);
-      Some(term_to_zipper(new_term));
-    | None => None
-    }
-  | None => None
-  };
-};
-
-/* Check if a target ID is inside a Module expression */
-let is_module_item = (z: Zipper.t, target_id: Id.t): bool => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  switch (find_module_containing_item(target_id, term)) {
-  | Some(_) => true
-  | None => false
-  };
-};
-
 /* Find the module item ID that contains or matches a given expression ID.
    This bridges selector-focused IDs (which target sub-expressions like defs)
-   to module item IDs needed by module_insert/module_delete. */
+   to module item IDs needed by module_insert. */
 let find_module_item_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   /* First check if exp_id IS a module item ID directly */

@@ -1409,20 +1409,11 @@ module Local = {
     };
   };
 
-  /* TODO: stubbed — see merge brief. Module-member edits at "M/x" paths
-     (insert_before / insert_after, update_binding_clause,
-     delete_binding_clause) are implemented twice: dev #2427's zipper path
-     (PerformUtils.insert_member; overwrite_term(~root=Mod); destruct plus
-     the member-separator cleanup in normalize_top_level) and this
-     branch's term-level path (TermEdit.module_insert /
-     module_update_binding / module_delete). false = dev's path, true =
-     this branch's. Keep one and delete the other. */
-  let module_members_via_term_edit = false;
-
-  /* Shared by Insert(Before|After): sequence/module targets edit at term
-     level via TermEdit; plain bindings go through the zipper-level paste
-     funnel. Parse errors and reserved-keyword misuse are hard failures;
-     other new static errors warn (multi-step refactoring). */
+  /* Shared by Insert(Before|After): case arms and list/tuple elements edit
+     at term level via TermEdit; module members go through insert_member;
+     plain bindings go through the zipper-level paste funnel. Parse errors
+     and reserved-keyword misuse are hard failures; other new static errors
+     warn (multi-step refactoring). */
   let insert_relative =
       (
         ~d: Direction.t,
@@ -1513,21 +1504,13 @@ module Local = {
         TermEdit.tuple_insert_element(initial_z, target_id, code, d),
         "tuple element",
       );
-    } else if (!module_members_via_term_edit
-               && Utils.is_module_member(
-                    path_to_node(initial_node_map, path),
-                  )) {
+    } else if (Utils.is_module_member(path_to_node(initial_node_map, path))) {
       switch (
         PerformUtils.insert_member(initial_z, target_id, code, d, syntax)
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) => finish(new_z)
       };
-    } else if (TermEdit.is_module_item(initial_z, target_id)) {
-      term_edit(
-        TermEdit.module_insert(initial_z, target_id, code, d),
-        "module item",
-      );
     } else {
       switch (
         PerformUtils.insert_term(
@@ -1935,54 +1918,13 @@ module Local = {
             ++ "Use Update(Body, ...) to replace the element value.",
           ),
         );
-      } else if (!module_members_via_term_edit
-                 && Utils.is_module_member(initial_node)) {
+      } else {
         /* a member's clause parses at Mod root, so its `;` is the member
            separator */
+        let root = Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
         switch (
           PerformUtils.overwrite_term(
-            ~root=Sort.Mod,
-            initial_z,
-            target_id,
-            code,
-            true,
-            syntax,
-          )
-        ) {
-        | Error(e) => Error(e)
-        | Ok(new_z) =>
-          PerformUtils.validate_edit(
-            ~edit_action=e,
-            ~initial_node=Some(initial_node),
-            ~initial_info_map,
-            ~new_z,
-            ~mk_statics,
-            ~code,
-          )
-        };
-      } else if (TermEdit.is_module_item(initial_z, target_id)) {
-        switch (TermEdit.module_update_binding(initial_z, target_id, code)) {
-        | Some(new_z) =>
-          PerformUtils.validate_edit(
-            ~edit_action=e,
-            ~initial_node=Some(initial_node),
-            ~initial_info_map,
-            ~new_z,
-            ~mk_statics,
-            ~code,
-          )
-        | None =>
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Failed to update module item: could not parse \""
-              ++ code
-              ++ "\" as a valid binding.",
-            ),
-          )
-        };
-      } else {
-        switch (
-          PerformUtils.overwrite_term(
+            ~root,
             initial_z,
             target_id,
             code,
@@ -2047,9 +1989,7 @@ module Local = {
         ~mk_statics,
       )
     | Delete(BindingClause, path)
-        when
-          !module_members_via_term_edit
-          && Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
       /* destruct leaves a hole in the member's slot; the member-separator
          cleanup in normalize_top_level drops it with its `;` */
       switch (
@@ -2078,8 +2018,6 @@ module Local = {
             TermEdit.tuple_delete_element(initial_z, target_id),
             "tuple element",
           );
-        } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          (TermEdit.module_delete(initial_z, target_id), "module item");
         } else {
           (TermEdit.delete_binding(initial_z, target_id), "binding");
         };
