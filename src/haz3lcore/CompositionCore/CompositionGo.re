@@ -307,6 +307,15 @@ module Local = {
       | Secondary({content: Whitespace(s), _}) => s == Token.linebreak
       | _ => false
       };
+    let rec spans_lines = (seg: Segment.t): bool =>
+      List.exists(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) => List.exists(spans_lines, t.children)
+          | p => is_linebreak(p)
+          },
+        seg,
+      );
     let is_binding_tile = (p: Piece.t): bool =>
       switch (p) {
       | Tile(t) => Tile.ends_with_in(t)
@@ -463,10 +472,11 @@ module Local = {
        - separators: a deleted member's hole goes together with one
          adjacent join; dangling member `;` (leading after `{`, trailing
          before `}`, or doubled) are dropped;
-       - whitespace: old joins stay verbatim (old_joins); linebreak runs
-         that FOLLOW a new `;` normalize to one blank line (mirroring the
-         top-level policy), other new runs to a single linebreak. Runs-only,
-         like the top-level pass: single-line modules are never exploded. */
+       - whitespace: old joins stay verbatim and a new join copies one
+         (copy_joins). With none to copy, linebreak runs that FOLLOW a new
+         `;` normalize to one blank line (mirroring the top-level policy),
+         other new runs to a single linebreak. Runs-only, like the
+         top-level pass: single-line modules are never exploded. */
     let is_semi = (p: Piece.t): bool =>
       switch (p) {
       | Tile(t) => Tile.is_semi(t)
@@ -604,9 +614,15 @@ module Local = {
       |> go(None, _)
       |> trim_space_before_semi;
     };
-    /* A join whose `;` was in the old body is not the edit's: returns the
-       ids of its whitespace, which stays verbatim. */
-    let old_joins = (~before=[], seg: Segment.t): Id.Map.t(unit) => {
+    /* A new join (its `;` is not in the old body) copies the whitespace of
+       the nearest old join in the same body. Ties go to the following
+       join: insert after X copies X's old join (now after the new member),
+       insert before X copies X's join onward, or the one before X when X
+       is last. Joins holding a comment neither copy nor are copied. Returns
+       the ids of the whitespace that must stay verbatim: old joins and
+       copies. */
+    let copy_joins =
+        (~before=[], seg: Segment.t): (Segment.t, Id.Map.t(unit)) => {
       let old = ids(List.filter(is_semi, before));
       /* g0 t0 g1 t1 …: each token with the secondaries after it */
       let rec split = (gap, ps) =>
@@ -617,31 +633,105 @@ module Local = {
           let (after, items) = split([], rest);
           (List.rev(gap), [(p, after), ...items]);
         };
-      let (_, items) = split([], seg);
+      let (g0, items) = split([], seg);
       let toks = Array.of_list(List.map(fst, items));
       let gaps = Array.of_list(List.map(snd, items));
       let n = Array.length(toks);
       /* a `;` at k joins the tokens at k - 1 and k + 1; its whitespace is
          gaps[k - 1] and gaps[k] */
       let inner = k => 0 < k && k < n - 1;
-      List.init(n, k => k)
-      |> List.filter(k =>
-           inner(k)
-           && is_semi(toks[k])
-           && !is_semi(toks[k - 1])
-           && !is_semi(toks[k + 1])
-           && Id.Map.mem(Piece.id(toks[k]), old)
-         )
-      |> List.concat_map(k => gaps[k - 1] @ gaps[k])
-      |> ids;
+      let joins =
+        List.init(n, k => k)
+        |> List.filter(k =>
+             inner(k)
+             && is_semi(toks[k])
+             && !is_semi(toks[k - 1])
+             && !is_semi(toks[k + 1])
+           )
+        |> List.mapi((i, k) => (i, k));
+      let is_old = k => Id.Map.mem(Piece.id(toks[k]), old);
+      let clean = k => List.for_all(is_ws, gaps[k - 1] @ gaps[k]);
+      /* a hole standing alone is a placeholder member (a trailing `;`
+         leaves one): its spacing is no model */
+      let lone_hole = k =>
+        switch (toks[k]) {
+        | Grout(_) =>
+          (k == 0 || is_semi(toks[k - 1]))
+          && (k == n - 1 || is_semi(toks[k + 1]))
+        | _ => false
+        };
+      let sources =
+        List.filter(
+          ((_, k)) =>
+            is_old(k) && clean(k) && !lone_hole(k - 1) && !lone_hole(k + 1),
+          joins,
+        );
+      let nearest = i =>
+        List.fold_left(
+          (best, (i', k')) => {
+            let d = (abs(i' - i), i' > i ? 0 : 1);
+            switch (best) {
+            | Some((d', _)) when compare(d', d) <= 0 => best
+            | _ => Some((d, k'))
+            };
+          },
+          None,
+          sources,
+        )
+        |> Option.map(snd);
+      let content = (p: Piece.t) =>
+        switch (p) {
+        | Secondary(s) => Some(s.content)
+        | _ => None
+        };
+      let copy = (mine: Segment.t, theirs: Segment.t): Segment.t =>
+        List.map(content, mine) == List.map(content, theirs)
+          ? mine
+          : List.map(
+              (p: Piece.t) =>
+                switch (p) {
+                | Secondary(s) =>
+                  Piece.Secondary({
+                    ...s,
+                    id: Id.mk(),
+                  })
+                | p => p
+                },
+              theirs,
+            );
+      let copies =
+        joins
+        |> List.concat_map(((i, k)) =>
+             is_old(k) || !clean(k)
+               ? []
+               : (
+                 switch (nearest(i)) {
+                 | None => []
+                 | Some(src) => [
+                     (k - 1, copy(gaps[k - 1], gaps[src - 1])),
+                     (k, copy(gaps[k], gaps[src])),
+                   ]
+                 }
+               )
+           );
+      let gap = k =>
+        switch (List.assoc_opt(k, copies)) {
+        | Some(g) => g
+        | None => gaps[k]
+        };
+      let keep =
+        joins
+        |> List.filter(((_, k)) => is_old(k) || List.mem_assoc(k, copies))
+        |> List.concat_map(((_, k)) => gap(k - 1) @ gap(k))
+        |> ids;
+      List.for_all(((k, g)) => g === gaps[k], copies)
+        ? (seg, keep)
+        : (g0 @ List.concat(List.init(n, k => [toks[k], ...gap(k)])), keep);
     };
-    let normalize_member_whitespace = (~before=[], seg: Segment.t): Segment.t =>
-      normalize_runs(
-        ~before,
-        ~module_body=true,
-        ~keep=old_joins(~before, seg),
-        seg,
-      );
+    let normalize_member_whitespace = (~before=[], seg: Segment.t): Segment.t => {
+      let (seg, keep) = copy_joins(~before, seg);
+      normalize_runs(~before, ~module_body=true, ~keep, seg);
+    };
 
     let normalize_module_bodies = (~before=[], seg: Segment.t): Segment.t => {
       let originals = EditIdentity.index(before);
@@ -925,7 +1015,7 @@ module Local = {
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
       /* module-member chunks carry their `;` separator (insert_member:
-         `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
+         `;` ++ ws ++ m / m ++ `;` ++ ws); the wrap parse cannot take a bare
          separator, so it is split off here and spliced back as a tile
          (molded at splice time like everything else) — else every
          member insert fell to the quadratic parser */
@@ -1116,7 +1206,9 @@ module Local = {
        member's span to the near edge, then let the separator anchor the
        splice: after → ";\n" ++ code (the member's original following `;` —
        or `}` for the last member — ends the new code), before → code ++
-       ";\n". `introduce` trims leading whitespace, so the `;` must lead. */
+       ";\n". `introduce` trims leading whitespace, so the `;` must lead.
+       The new join then copies a neighbouring one (copy_joins); the
+       joiner here is the fallback for a body with no other join. */
     /* Member boundaries: `;` at bracket depth 0, outside strings and
        single-line #...# comments. */
     let split_members = (code: string): list(string) => {
@@ -1197,6 +1289,11 @@ module Local = {
           | [] => [code]
           | ms => ms
           };
+        /* single-line module bodies stay single-line */
+        let ws = {
+          let (l, r) = z_caret.relatives.siblings;
+          spans_lines(l @ r) ? "\n" : " ";
+        };
         List.fold_left(
           (acc, m) =>
             switch (acc) {
@@ -1207,7 +1304,7 @@ module Local = {
                 ~fast,
                 ~keep_edge_ws=true,
                 z,
-                d == Left ? m ++ ";\n" : ";\n" ++ m,
+                d == Left ? m ++ ";" ++ ws : ";" ++ ws ++ m,
               )
             },
           Ok(z_caret),
