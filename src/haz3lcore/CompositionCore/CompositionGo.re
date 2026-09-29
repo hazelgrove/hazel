@@ -194,8 +194,14 @@ module Local = {
     | SelectorInsertBefore(_, _)
     | SelectorInsertAfter(_, _) =>
       /* Selector-driven edits: diff the whole program */
-      let* old_segment = segment_of_term(old_zipper, None, syntax);
-      let new_segment = segment_of_term(new_zipper, None, syntax);
+      let* old_segment =
+        PerfTimer.time("diff/segment", () =>
+          segment_of_term(old_zipper, None, old_syntax)
+        );
+      let new_segment =
+        PerfTimer.time("diff/segment", () =>
+          segment_of_term(new_zipper, None, new_syntax)
+        );
       Some((old_segment, new_segment));
     };
   };
@@ -2044,13 +2050,17 @@ module Local = {
           && Utils.is_module_member(path_to_node(initial_node_map, path)) =>
       /* destruct leaves a hole in the member's slot; the member-separator
          cleanup in normalize_top_level drops it with its `;` */
-      PerformUtils.destruct(
-        ~defs_exclude_bodies=true,
-        initial_z,
-        path_to_id(initial_node_map, path),
-        syntax,
-      )
-      |> Result.map(z => (z, None));
+      switch (
+        PerformUtils.destruct(
+          ~defs_exclude_bodies=true,
+          initial_z,
+          path_to_id(initial_node_map, path),
+          syntax,
+        )
+      ) {
+      | Ok(new_z) => Ok((new_z, None))
+      | Error(e) => Error(e)
+      };
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       let (term_edit_result, kind) =
