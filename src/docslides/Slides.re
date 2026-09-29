@@ -12,6 +12,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Tuples", [%blob "tuples.hz"]),
     ("Modules", [%blob "modules.hz"]),
     ("Module Signatures", [%blob "module-signatures.hz"]),
+    ("Module Sealing", [%blob "module-sealing.hz"]),
     ("Tables", [%blob "tables.hz"]),
     ("Polymorphism", [%blob "polymorphism.hz"]),
     ("Cards", [%blob "cards.hz"]),
