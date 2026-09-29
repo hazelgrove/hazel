@@ -1603,6 +1603,7 @@ let top_items = (seg: t): list(t) => {
   walk(0, 0, []);
 };
 
+/* Sharing check (also used by scoped structural cleanup). */
 let ptr_eq = (a: t, b: t): bool => {
   let rec go = (xs, ys) =>
     switch (xs, ys) {
@@ -1610,7 +1611,7 @@ let ptr_eq = (a: t, b: t): bool => {
     | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
     | _ => false
     };
-  go(a, b);
+  a === b || go(a, b);
 };
 
 /* restore_identity + the ids it could NOT substitute (new or changed
