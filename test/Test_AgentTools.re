@@ -549,15 +549,17 @@ let update_body_tests = (
   "AgentTools.UpdateBody",
   [
     test_case(
-      "named function edits still reject real type errors",
+      "named function edits still flag real type errors",
       `Quick,
       () => {
-        expect_any_failure(
+        /* dev rejects these; this branch's Update family applies static
+           errors with a warning (multi-step refactoring) */
+        expect_warning(
           "let f(x: Int) = x in 0",
           Update(Definition, "f", "true + 1"),
           "invalid function definition",
         );
-        expect_any_failure(
+        expect_warning(
           "let f(x: Int) = x in 0",
           Update(Body, "f", "true + 1"),
           "invalid function continuation",
@@ -5849,10 +5851,10 @@ let selector_edit_tests = (
       "SelectorInsertAfter: module item",
       "module M = { let x = 1 } in M.x",
       SelectorInsertAfter("M/x = %", "let y = 2"),
-      /* Space before ; is from original item's stored after-secondary
-         (was space before } in original code). Cosmetic artifact of
-         PreserveExact preserving positional whitespace. */
-      "module M = { let x = 1 ; let y = 2 } in M.x",
+      /* The original item's stored after-secondary (the space before `}`)
+         lands before the new `;`; dev's member-separator cleanup trims it
+         at the new join (canonical `x;`). */
+      "module M = { let x = 1; let y = 2 } in M.x",
     ),
     /* InsertBefore in module: insert before a module item */
     edit_test(
