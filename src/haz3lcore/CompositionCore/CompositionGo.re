@@ -317,10 +317,17 @@ module Local = {
         id: Id.mk(),
         content: Secondary.Whitespace(Token.linebreak),
       });
-    /* Preserve an existing whitespace run when its two neighbours survive.
-       Newly inserted runs and newly joined boundaries receive the local
-       spacing policy; pre-existing formatting elsewhere is not our scope. */
-    let normalize_runs = (~before=[], ~module_body=false, seg: Segment.t) => {
+    /* Preserve an existing whitespace run when its two neighbours survive,
+       or when its first piece is in ~keep. Newly inserted runs and newly
+       joined boundaries receive the local spacing policy; pre-existing
+       formatting elsewhere is not our scope. */
+    let normalize_runs =
+        (
+          ~before=[],
+          ~module_body=false,
+          ~keep: Id.Map.t(unit)=Id.Map.empty,
+          seg: Segment.t,
+        ) => {
       let rec runs = (prev, member, ps) =>
         switch (ps) {
         | [] => []
@@ -380,11 +387,16 @@ module Local = {
            | `Tok(p) => [p]
            | `Run(left, run, right, witness) => {
                let preserved =
-                 switch (Id.Map.find_opt(Piece.id(List.hd(run)), old_runs)) {
-                 | Some((l, old, r)) =>
-                   l == witness && r == id(right) && old == run
-                 | None => false
-                 };
+                 Id.Map.mem(Piece.id(List.hd(run)), keep)
+                 || (
+                   switch (
+                     Id.Map.find_opt(Piece.id(List.hd(run)), old_runs)
+                   ) {
+                   | Some((l, old, r)) =>
+                     l == witness && r == id(right) && old == run
+                   | None => false
+                   }
+                 );
                if (preserved) {
                  run;
                } else {
@@ -446,13 +458,15 @@ module Local = {
       normalize_runs(~before, seg);
 
     /* Module-body hygiene, applied recursively wherever a module literal
-       appears. Two passes over a ModBody child segment:
-       - separators: drop dangling member `;` (leading after `{`, trailing
-         before `}`, or doubled after a member delete);
-       - vertical whitespace: linebreak runs that FOLLOW a member `;`
-         normalize to one blank line (mirroring the top-level policy);
-         every other run to a single linebreak. Runs-only, like the
-         top-level pass: single-line modules are never exploded. */
+       appears. A join is a member `;` with the whitespace on either side of
+       it; an edit keeps every join it did not create. Over a ModBody child:
+       - separators: a deleted member's hole goes together with one
+         adjacent join; dangling member `;` (leading after `{`, trailing
+         before `}`, or doubled) are dropped;
+       - whitespace: old joins stay verbatim (old_joins); linebreak runs
+         that FOLLOW a new `;` normalize to one blank line (mirroring the
+         top-level policy), other new runs to a single linebreak. Runs-only,
+         like the top-level pass: single-line modules are never exploded. */
     let is_semi = (p: Piece.t): bool =>
       switch (p) {
       | Tile(t) => Tile.is_semi(t)
@@ -463,8 +477,15 @@ module Local = {
       | Secondary({content: Whitespace(w), _}) => w != Token.linebreak
       | _ => false
       };
+    let is_ws = (p: Piece.t): bool => is_space(p) || is_linebreak(p);
     let is_mod_body = (t: Tile.t): bool =>
       t.form == Form.Compound(ModBody) && Tile.mold(t).in_ == [Sort.Mod];
+    let ids = (ps: Segment.t): Id.Map.t(unit) =>
+      List.fold_left(
+        (acc, p) => Id.Map.add(Piece.id(p), (), acc),
+        Id.Map.empty,
+        ps,
+      );
     let clean_member_separators = (~before=[], seg: Segment.t): Segment.t => {
       let rec next_tok = ps =>
         switch (ps) {
@@ -492,30 +513,59 @@ module Local = {
       let unchanged = (prev, p, rest) =>
         Id.Map.find_opt(Piece.id(p), old_boundaries)
         == Some((id(prev), id(next_tok(rest))));
+      let old = ids(before);
+      let is_new = p => !Id.Map.mem(Piece.id(p), old);
       /* Deleting a member leaves a convex grout in its slot (destruct
-         replaces, it does not remove); a hole standing alone between
-         separators/edges is that leftover, and goes together with the
-         separator collapse below. Holes INSIDE a member (e.g. `let x = ?`)
-         have a non-separator neighbor and are kept. */
+         replaces, it does not remove); a new hole standing alone between
+         separators/edges is that leftover. It goes with the join after it,
+         so the join before it now joins the neighbours; a last member takes
+         the join before it instead (as does a hole after a new `;`, the
+         edit's own), and an only member the whitespace after `{`.
+         Whitespace at the braces and comments stay. Holes INSIDE a member
+         (e.g. `let x = ?`) have a non-separator neighbor and are kept. */
       let is_member_boundary = (tok: option(Piece.t)): bool =>
         switch (tok) {
         | None => true
         | Some(t) => is_semi(t)
         };
-      let rec drop_hole_members = (prev_tok: option(Piece.t), ps) =>
+      let rec drop_ws = ps =>
+        switch (ps) {
+        | [p, ...rest] when is_ws(p) => drop_ws(rest)
+        | _ => ps
+        };
+      let rec drop_join_after = ps =>
         switch (ps) {
         | [] => []
-        | [Piece.Grout(_) as g, ...rest] =>
-          !unchanged(prev_tok, g, rest)
-          && is_member_boundary(prev_tok)
-          && is_member_boundary(next_tok(rest))
-            ? drop_hole_members(prev_tok, rest)
-            : [g, ...drop_hole_members(Some(g), rest)]
-        | [Piece.Secondary(_) as p, ...rest] => [
-            p,
-            ...drop_hole_members(prev_tok, rest),
-          ]
-        | [p, ...rest] => [p, ...drop_hole_members(Some(p), rest)]
+        | [p, ...rest] when is_semi(p) => drop_ws(rest)
+        | [p, ...rest] when is_ws(p) => drop_join_after(rest)
+        | [p, ...rest] => [p, ...drop_join_after(rest)]
+        };
+      /* rev: the pieces before the hole, nearest first */
+      let drop_join_before = rev =>
+        switch (drop_ws(rev)) {
+        | [p, ...rest] when is_semi(p) => drop_ws(rest)
+        | _ => rev
+        };
+      let rec drop_hole_members = (rev, prev_tok: option(Piece.t), ps) =>
+        switch (ps) {
+        | [] => List.rev(rev)
+        | [Piece.Grout(_) as g, ...rest]
+            when
+              is_new(g)
+              && is_member_boundary(prev_tok)
+              && is_member_boundary(next_tok(rest)) =>
+          switch (prev_tok, next_tok(rest)) {
+          | (Some(semi), Some(_)) when !is_new(semi) =>
+            drop_hole_members(rev, prev_tok, drop_join_after(rest))
+          | (None, Some(_)) =>
+            drop_hole_members(rev, prev_tok, drop_join_after(rest))
+          | (Some(_), _) =>
+            drop_hole_members(drop_join_before(rev), prev_tok, rest)
+          | (None, None) => drop_hole_members(drop_ws(rev), prev_tok, rest)
+          }
+        | [Piece.Secondary(_) as p, ...rest] =>
+          drop_hole_members([p, ...rev], prev_tok, rest)
+        | [p, ...rest] => drop_hole_members([p, ...rev], Some(p), rest)
         };
       let rec go = (prev_tok: option(Piece.t), ps: list(Piece.t)) =>
         switch (ps) {
@@ -532,34 +582,66 @@ module Local = {
         | [Piece.Secondary(_) as p, ...rest] => [p, ...go(prev_tok, rest)]
         | [p, ...rest] => [p, ...go(Some(p), rest)]
         };
-      /* Canonical `x;` — drop space runs that sit directly before a
-         member separator (deletes leave one behind). */
-      let rec trim_space_before_semi = (prev, ps: list(Piece.t)) =>
+      /* Canonical `x;`: drop new spaces directly before a member
+         separator; an old join keeps its own spacing. */
+      let rec trim_space_before_semi = (ps: list(Piece.t)) =>
         switch (ps) {
         | [] => []
-        | [p, ...rest] when is_space(p) =>
+        | [p, ...rest] when is_space(p) && is_new(p) =>
           let rec upcoming = qs =>
             switch (qs) {
             | [q, ...more] when is_space(q) => upcoming(more)
             | [q, ..._] when is_semi(q) => true
             | _ => false
             };
-          upcoming(rest) && !unchanged(prev, p, rest)
-            ? trim_space_before_semi(prev, rest)
-            : [p, ...trim_space_before_semi(prev, rest)];
-        | [Piece.Secondary(_) as p, ...rest] => [
-            p,
-            ...trim_space_before_semi(prev, rest),
-          ]
-        | [p, ...rest] => [p, ...trim_space_before_semi(Some(p), rest)]
+          upcoming(rest)
+            ? trim_space_before_semi(rest)
+            : [p, ...trim_space_before_semi(rest)];
+        | [p, ...rest] => [p, ...trim_space_before_semi(rest)]
         };
       seg
-      |> drop_hole_members(None, _)
+      |> drop_hole_members([], None, _)
       |> go(None, _)
-      |> trim_space_before_semi(None, _);
+      |> trim_space_before_semi;
+    };
+    /* A join whose `;` was in the old body is not the edit's: returns the
+       ids of its whitespace, which stays verbatim. */
+    let old_joins = (~before=[], seg: Segment.t): Id.Map.t(unit) => {
+      let old = ids(List.filter(is_semi, before));
+      /* g0 t0 g1 t1 …: each token with the secondaries after it */
+      let rec split = (gap, ps) =>
+        switch (ps) {
+        | [] => (List.rev(gap), [])
+        | [Piece.Secondary(_) as p, ...rest] => split([p, ...gap], rest)
+        | [p, ...rest] =>
+          let (after, items) = split([], rest);
+          (List.rev(gap), [(p, after), ...items]);
+        };
+      let (_, items) = split([], seg);
+      let toks = Array.of_list(List.map(fst, items));
+      let gaps = Array.of_list(List.map(snd, items));
+      let n = Array.length(toks);
+      /* a `;` at k joins the tokens at k - 1 and k + 1; its whitespace is
+         gaps[k - 1] and gaps[k] */
+      let inner = k => 0 < k && k < n - 1;
+      List.init(n, k => k)
+      |> List.filter(k =>
+           inner(k)
+           && is_semi(toks[k])
+           && !is_semi(toks[k - 1])
+           && !is_semi(toks[k + 1])
+           && Id.Map.mem(Piece.id(toks[k]), old)
+         )
+      |> List.concat_map(k => gaps[k - 1] @ gaps[k])
+      |> ids;
     };
     let normalize_member_whitespace = (~before=[], seg: Segment.t): Segment.t =>
-      normalize_runs(~before, ~module_body=true, seg);
+      normalize_runs(
+        ~before,
+        ~module_body=true,
+        ~keep=old_joins(~before, seg),
+        seg,
+      );
 
     let normalize_module_bodies = (~before=[], seg: Segment.t): Segment.t => {
       let originals = EditIdentity.index(before);
