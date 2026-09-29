@@ -20,6 +20,7 @@ let get_scratch_zipper = (page: Page.Model.t): option(Zipper.t) =>
     | Drv(_) => None
     };
   | Tutorial(_)
+  | Config(_)
   | Exercises(_) => None
   };
 
