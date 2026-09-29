@@ -17,6 +17,8 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
+  | Keybinding => (module Cook(KeybindingProj.M))
+  | Color => (module Cook(ColorProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
   | NotePicker => (module Cook(NotePickerProj.M))

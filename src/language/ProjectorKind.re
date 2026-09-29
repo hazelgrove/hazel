@@ -24,7 +24,9 @@ type t =
   | RhythmGrid
   | XYPad
   | SamplePicker
-  | ScalePicker;
+  | ScalePicker
+  | Keybinding
+  | Color;
 
 let livelit_projectors: list(t) = [
   Checkbox,
@@ -41,6 +43,8 @@ let livelit_projectors: list(t) = [
   XYPad,
   SamplePicker,
   ScalePicker,
+  Keybinding,
+  Color,
 ];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
@@ -70,6 +74,8 @@ let name = (p: t): string =>
   | XYPad => "xypad"
   | SamplePicker => "samplepicker"
   | ScalePicker => "scalepicker"
+  | Keybinding => "keybinding"
+  | Color => "color"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)
