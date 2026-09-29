@@ -20,13 +20,14 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
 
 let combine_list = (xs: list(t('a))): t(list('a)) =>
   List.fold_left(
-    (acc, x) =>
-      switch (acc, x) {
-      | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
-      | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
-        NewValue([x, ...acc])
-      },
-    OldValue([]),
+    ~f=
+      (acc, x) =>
+        switch (acc, x) {
+        | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
+        | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
+          NewValue([x, ...acc])
+        },
+    ~init=OldValue([]),
     xs |> List.rev,
   );
 
@@ -84,7 +85,7 @@ exception PendingValue;
 let get_saved_exc = (~print=?, x: saved('a)): 'a =>
   switch (x) {
   | Pending =>
-    let _ = Option.map(print_endline, print);
+    let _ = Option.map(~f=print_endline, print);
     raise(PendingValue);
   | Calculated(x) => x
   };
@@ -128,7 +129,7 @@ let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
 
 /* Using set, we can compare some value to the previously saved value, and create
    a new t('a) that indicates whether the value has changed. */
-let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
+let set = (~eq: ('a, 'a) => bool=Poly.equal, x: 'a, y: saved('a)) =>
   switch (y) {
   | Pending => NewValue(x)
   | Calculated(x') when eq(x, x') => OldValue(x)
@@ -147,7 +148,7 @@ let save = (x: t('a)): saved('a) =>
 // Helper functions:
 
 let old_if_same' =
-    (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
+    (~eq: ('a, 'a) => bool=Poly.equal, x: saved('a), y: t('a)): t('a) =>
   switch (y, x) {
   | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
   | (NewValue(y), _) => NewValue(y)
