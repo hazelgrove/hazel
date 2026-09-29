@@ -243,7 +243,7 @@ let theme_key = (persistent: Model.persistent): string =>
     "%d:%d",
     Hashtbl.hash(colors_source(persistent).backup_text),
     /* Joined into one string on purpose: `Hashtbl.hash` samples only the
-       first few nodes of a list, so a name added at the end of a 142-entry
+       first few nodes of a list, so a name added at the end of the
        contract would not change the hash. */
     /* The OUTPUT contract, not the slide's field names: a field can be
        re-pointed at different properties without its name changing, and the

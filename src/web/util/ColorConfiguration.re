@@ -26,18 +26,13 @@ let source: Haz3lcore.PersistentZipper.t =
 
 /* ── Hazel field -> CSS custom properties ───────────────────────────────
 
-   The slide's field names and the CSS variable names used to be the same
-   thing, which is why a themer met `shard-caret-tpat` and `backback-targets`.
-   They are separated here: a field sets the properties listed against it, and
-   a field with no entry sets the single property of its own name.
+   A field sets the properties listed against it, and a field with no entry
+   sets the single property of its own name, so the slide's names need not be
+   the CSS names.
 
-   A PALETTE field never sets a property of its own name. `--ink` and 33 others
-   were published and read by nothing -- no stylesheet, no OCaml, no script;
-   the only `var(--ink)`-shaped references left in the tree were commented out,
-   and palette.html declares its own `:root` rather than reading the theme's.
-   So the palette reaches CSS only through the semantic names below, which
-   makes "components consume roles, not the palette" true by construction
-   rather than by lint. The palette is still a first-class layer in the slide
+   A PALETTE field never sets a property of its own name: the palette reaches
+   CSS only through the semantic names below, which makes "components consume
+   roles, not the palette" true by construction rather than by lint. The palette is still a first-class layer in the slide
    and in `ColorPalette`; it is just not a CSS namespace.
 
    That indirection is what lets one semantic field stand in for a family of
@@ -99,7 +94,6 @@ let aliases: list(((string, string), list(string))) = [
       "shadow-error",
       "surface-error",
       "text-error",
-      "num-samples-indicated",
     ],
   ),
   (
@@ -195,7 +189,6 @@ let aliases: list(((string, string), list(string))) = [
       "border-typ",
       "shadow-typ",
       "text-typ",
-      "exp-ap-indicated",
       "token-sig",
     ],
   ),
@@ -259,7 +252,7 @@ let aliases: list(((string, string), list(string))) = [
   (("editor", "derivation"), ["token-drv"]),
   (("editor", "locked-cell"), ["cell-exercises-border"]),
   (("editor", "backpack-outline"), ["backpack-selection-outline"]),
-  (("cursor", "derivation"), ["shard-caret-drv", "shard-drv"]),
+  (("cursor", "derivation"), ["shard-drv"]),
   (("cursor", "module"), ["shard-caret-mod", "shard-mod"]),
   (("cursor", "signature"), ["shard-caret-sig", "shard-sig"]),
   (("cursor", "module-pattern"), ["shard-caret-mpat", "shard-mpat"]),
@@ -293,15 +286,29 @@ let aliases: list(((string, string), list(string))) = [
   (("probe", "caller"), ["sample-above-bg"]),
   (("probe", "caller-text"), ["sample-above-text"]),
   (("probe", "caller-edge"), ["sample-above-shadow"]),
+  (("probe", "caller-related-text"), ["sample-above-related-text"]),
   (("probe", "callee"), ["sample-below-bg"]),
   (("probe", "callee-text"), ["sample-below-text"]),
   (("probe", "callee-edge"), ["sample-below-shadow"]),
   (("probe", "other"), ["sample-neutral-bg"]),
   (("probe", "other-text"), ["sample-neutral-text"]),
+  (("probe", "other-edge"), ["sample-neutral-shadow"]),
   (("probe", "focus-text"), ["sample-focus-text"]),
+  (("probe", "focus-keyboard"), ["sample-focus-keyboard-bg"]),
   (("probe", "off"), ["sample-off-bg"]),
   (("probe", "off-text"), ["sample-off-text"]),
   (("probe", "off-edge"), ["sample-off-shadow"]),
+  (("probe", "drawer-edge"), ["probe-drawer-edge"]),
+  (("probe", "drawer-fade"), ["probe-drawer-fade"]),
+  (("editor", "waiting-1"), ["llm-waiting-1"]),
+  (("editor", "waiting-2"), ["llm-waiting-2"]),
+  (("editor", "waiting-3"), ["llm-waiting-3"]),
+  (("editor", "waiting-4"), ["llm-waiting-4"]),
+  (("editor", "waiting-5"), ["llm-waiting-5"]),
+  (("editor", "waiting-6"), ["llm-waiting-6"]),
+  (("results", "reused-glow"), ["incremental-frozen-glow"]),
+  (("agent", "banner"), ["agent-banner"]),
+  (("agent", "banner-edge"), ["agent-banner-edge"]),
   (("hole", "error-backing"), ["simple-error-backing"]),
   (("hole", "warning-backing"), ["simple-warning-backing"]),
   (("palette", "statics-background"), ["main-base"]),
@@ -327,12 +334,7 @@ let aliases: list(((string, string), list(string))) = [
   ),
   (
     ("palette", "attention-2"),
-    [
-      "border-highlight",
-      "shadow-highlight",
-      "surface-highlight",
-      "num-samples",
-    ],
+    ["border-highlight", "shadow-highlight", "surface-highlight"],
   ),
   (
     ("palette", "attention-4"),
@@ -355,7 +357,10 @@ let aliases: list(((string, string), list(string))) = [
     ],
   ),
   (("palette", "info"), ["text-info"]),
-  (("palette", "info-strong"), ["border-info", "text-info-strong"]),
+  (
+    ("palette", "info-strong"),
+    ["border-info", "surface-info", "text-info-strong"],
+  ),
   (
     ("palette", "success-muted"),
     ["border-success-muted", "shadow-success-muted", "text-success-muted"],
