@@ -148,6 +148,7 @@ let update =
       );
     switch (updated_editor) {
     | Ok(updated_editor) =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
       Ok((
         agent,
         CodeWithStatics.Model.{
@@ -156,7 +157,7 @@ let update =
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
         },
-      ))
+      ));
     | Error(err) =>
       switch (err) {
       | Action.Failure.Composition_action_failure(msg) =>
@@ -179,8 +180,25 @@ let update =
        For an empty program (just `?`), either boundary effectively
        seeds the program with the provided code. */
     let z = editor.editor.state.zipper;
-    let mk_statics = CompositionGo.Public.mk_statics;
-    let initial_info_map = mk_statics(z);
+    /* the editor's statics for this program when it has them; the new
+       program's statics computed once, the editor's way, and offered to it */
+    let full_statics = (z: Zipper.t): CachedStatics.t =>
+      Util.PerfTimer.time("statics", () =>
+        CachedStatics.init(
+          ~settings=settings.core,
+          ~is_dynamic_term=false,
+          ~stitch=x => x,
+          ~root=Exp,
+          z,
+        )
+      );
+    let initial_info_map =
+      switch (
+        CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
+      ) {
+      | Some(st) when st.info_map != Id.Map.empty => st.info_map
+      | _ => full_statics(z).info_map
+      };
     let z_at_boundary =
       switch ((direction: Action.Structural.insert_target)) {
       | Before => Move.to_start(z)
@@ -195,6 +213,8 @@ let update =
       );
     switch (
       CompositionGo.Local.PerformUtils.introduce(
+        ~fast=true,
+        ~keep_edge_ws=true,
         z_at_boundary,
         "\n" ++ code ++ "\n",
       )
@@ -204,7 +224,9 @@ let update =
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
-      let new_statics = mk_statics(new_z);
+      let new_full = full_statics(new_z);
+      CachedStatics.offer(~settings=settings.core, new_z, new_full);
+      let new_statics = new_full.info_map;
       let old_errors = ErrorPrint.all(initial_info_map);
       let new_errors = ErrorPrint.all(new_statics);
       if (List.length(new_errors) > List.length(old_errors)) {
@@ -216,14 +238,16 @@ let update =
           ),
         );
       } else {
-        let new_z =
+        let final_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
+            ~before=z,
             Materialize.all(new_z, ~root=Exp),
           )
           |> LocalReformat.go_region(~before_pieces);
-        let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
+        let new_editor_model = Editor.Model.mk(final_z, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
+        CodeWithStatics.StaticsDebounce.force_on_next := true;
         Ok((agent, new_code_with_statics));
       };
     };

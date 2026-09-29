@@ -262,7 +262,7 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
       | Some(s) => Attr.create("src", s)
       | None => attr_err(d)
       }
-    | ("Alt", body) =>
+    | ("AltText", body) =>
       switch (of_string(body)) {
       | Some(s) => Attr.create("alt", s)
       | None => attr_err(d)

@@ -60,6 +60,12 @@ let compute_targets =
     : Sample.targets => {
   let effective_probe_ids =
     settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
+  /* AMBIENT sites (probe_all, not an explicit probe) capture no
+     environment: only the probe context menu displays it, and a
+     sample's env copy of the enclosing bindings was ~80% of the
+     retained memory (each of a site's samples ships its own copy of
+     every bound list and view). Explicit probes keep their env. */
+  let ambient = id => settings.probe_all && !Id.Map.mem(id, probe_ids);
   /* The model argument of a projected livelit use, whose value the commit
      path reads when writing a ^name.update(model, action) transition */
   let rec livelit_model = (e: Exp.t): option(Id.t) =>
@@ -85,9 +91,11 @@ let compute_targets =
             | None => []
             };
           [(id, {Sample.refs: []}), ...model];
+        | Some(_) when ambient(id) => [(id, {refs: []})]
         | Some(_) => [(id, {refs: Statics.Map.refs_in(info_map, id)})]
         | None =>
           switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) when ambient(id) => [(id, {refs: []})]
           | Some(_) => [(id, {refs: Statics.Map.bound_in(info_map, id)})]
           | None => [(id, {refs: []})]
           }
@@ -185,6 +193,44 @@ let with_targets =
   };
 };
 
+/* Small handoff cache for top-level agent edits. Compare the actual syntax,
+   settings and probe IDs: IDs alone do not establish freshness. Full syntax
+   deliberately includes whitespace, which can affect incomplete terms. */
+type cache_entry = {
+  settings: CoreSettings.t,
+  source: Segment.t,
+  probes: Id.Map.t(unit),
+  statics: t,
+};
+let last_inits: ref(list(cache_entry)) = ref([]);
+let offered: ref(list(cache_entry)) = ref([]);
+let entry = (~settings, z: Zipper.t, statics: t): cache_entry => {
+  settings,
+  source: Zipper.unselect_and_zip(~erase_buffer=true, z),
+  probes: probe_ids_of_zipper(z),
+  statics,
+};
+let matches = (~settings, z: Zipper.t, e: cache_entry): bool =>
+  settings == e.settings
+  && Id.Map.equal((==), probe_ids_of_zipper(z), e.probes)
+  && compare(Zipper.unselect_and_zip(~erase_buffer=true, z), e.source) == 0;
+let remember = e =>
+  last_inits := [e, ...List.filteri((i, _) => i < 5, last_inits^)];
+let offer = (~settings, z: Zipper.t, st: t): unit => {
+  let e = entry(~settings, z, st);
+  offered := [e, ...List.filteri((i, _) => i < 3, offered^)];
+  remember(e);
+};
+let offered_for = (~settings, z: Zipper.t): option(t) =>
+  List.find_opt(matches(~settings, z), offered^)
+  |> Option.map(e => e.statics);
+let for_zipper = (~settings, z: Zipper.t, st: t): option(t) =>
+  List.find_opt(
+    e => e.statics.info_map === st.info_map && matches(~settings, z, e),
+    last_inits^,
+  )
+  |> Option.map(_ => st);
+
 let init =
     (
       ~settings: CoreSettings.t,
@@ -202,7 +248,7 @@ let init =
   let probe_ids =
     probe_ids_of_zipper(~projectors=make_term_result.projectors, z);
 
-  {
+  let st = {
     ...
       init_from_term(
         ~settings,
@@ -214,6 +260,16 @@ let init =
       ),
     completion: Some(completion),
   };
+  /* The agent's handoff is only valid for the ordinary, unstitched Exp
+     editor. Contextual/analysis editors compute their own statics. */
+  if (!is_dynamic_term
+      && root == Sort.Exp
+      && ctx == None
+      && ana == None
+      && term === make_term_result.term) {
+    remember(entry(~settings, z, st));
+  };
+  st;
 };
 
 let init =
@@ -221,8 +277,8 @@ let init =
       ~settings: CoreSettings.t,
       ~is_dynamic_term,
       ~stitch,
-      ~ctx=?,
       ~root,
+      ~ctx=?,
       ~ana=?,
       z: Zipper.t,
     ) =>

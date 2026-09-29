@@ -584,8 +584,8 @@ let prompt_caching_tests = [
           skipped: false,
           expanded: false,
           diff: None,
-          before_segment: None,
-          after_segment: None,
+          before_text: None,
+          after_text: None,
           content: "GUIDE_BODY_MARKER",
           content_is_payload,
         };

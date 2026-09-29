@@ -63,6 +63,8 @@ let run_insert_at_program_boundary =
     );
   switch (
     CompositionGo.Local.PerformUtils.introduce(
+      ~fast=true,
+      ~keep_edge_ws=true,
       z_at_boundary,
       "\n" ++ new_code ++ "\n",
     )
@@ -83,6 +85,7 @@ let run_insert_at_program_boundary =
          re-indent like the dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
+          ~before=z,
           Materialize.all(new_z, ~root=Exp),
         )
         |> LocalReformat.go_region(~before_pieces),
@@ -592,6 +595,37 @@ let update_definition_tests = (
 let update_body_tests = (
   "AgentTools.UpdateBody",
   [
+    test_case(
+      "named function edits still reject real type errors",
+      `Quick,
+      () => {
+        expect_any_failure(
+          "let f(x: Int) = x in 0",
+          Update(Definition, "f", "true + 1"),
+          "invalid function definition",
+        );
+        expect_any_failure(
+          "let f(x: Int) = x in 0",
+          Update(Body, "f", "true + 1"),
+          "invalid function continuation",
+        );
+      },
+    ),
+    test_case(
+      "named function added after an annotated constant",
+      `Quick,
+      () => {
+        let code = "type Model = Int in type Action = Int in let init : Model = 0 in ?";
+        let body = "let counter_update(m: Model, a: Action) = m + a in ?";
+        let result = apply_and_render(code, Update(Body, "init", body));
+        check_rendered(
+          "counter update body",
+          "type Model = Int in type Action = Int in let init : Model = 0 in "
+          ++ body,
+          result,
+        );
+      },
+    ),
     test_case(
       "update_body of first binding",
       `Quick,
@@ -2590,7 +2624,7 @@ let sequential_operations_tests = (
           bool,
           "render mentions recursive call g(y - 1)",
           true,
-          StringUtil.plain_search("g\\(y - 1\\)", result, 0) >= 0,
+          StringUtil.plain_search("g(y - 1)", result, 0) >= 0,
         );
         let z = mk_zipper(result);
         let errs = ErrorPrint.all(mk_statics(z));
@@ -2600,6 +2634,125 @@ let sequential_operations_tests = (
           0,
           List.length(errs),
         );
+      },
+    ),
+    test_case(
+      "insert_after a module member whose body is a case, with a case",
+      `Quick,
+      () => {
+        let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
+        let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert two case members after a case member",
+      `Quick,
+      () => {
+        let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
+        let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "constructor patterns over a module ADT in a nested module",
+      `Quick,
+      () => {
+        let prog = "module Outer = {\n  module M = {\n    type T =\n      + A(Int)\n      + B;\n    \n    let a(i: T): Int =\n      case i\n      | A(n) => n\n      | B => 0\n      end\n  };\n  \n  let z = 1\n} in\n1";
+        let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "Outer/M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert_after a module member with TWO case members (dungeon run: Failure nth / Exp patterns)",
+      `Quick,
+      () => {
+        let prog = {js|module Creatures = {
+  module Items = {
+    type Item =
+      + Potion(Int)
+      + Bomb(Int)
+      + Torch;
+
+    let name(i: Item): String =
+      case i
+      | Potion(n) => "potion(" ++ Show.int(n) ++ ")"
+      | Bomb(n) => "bomb(" ++ Show.int(n) ++ ")"
+      | Torch => "torch"
+      end
+  };
+  let z = 1
+} in
+1|js};
+        let code = {js|let heal_amount(i: Item): Int =
+  case i
+  | Potion(n) => n
+  | Bomb(_) => 0
+  | Torch => 0
+  end;
+let blast_amount(i: Item): Int =
+  case i
+  | Potion(_) => 0
+  | Bomb(n) => n
+  | Torch => 0
+  end|js};
+        switch (
+          try(
+            run_agent_action(
+              prog,
+              Insert(After, "Creatures/Items/name", code),
+            )
+          ) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert_after a nested module member does not raise (dungeon run: Failure nth)",
+      `Quick,
+      () => {
+        let code = "module Creatures = {\n  module Items = {\n    let name = fun i -> \"sword\";\n    let has = fun (i, c) -> true\n  };\n  let label = fun c -> \"x\"\n} in\n1";
+        switch (
+          run_agent_action(
+            code,
+            Insert(After, "Creatures/Items/name", "let weight = fun i -> 3;"),
+          )
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_after member failed: " ++ Action.Failure.show(err),
+          )
+        };
       },
     ),
     test_case(
@@ -3188,6 +3341,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
+        /* 37: DocPacks has packs here, so read_docs is offered */
         check(int, "tool count", 37, List.length(tools));
       },
     ),
@@ -4018,7 +4172,8 @@ let ascribed_binding_tests = (
               new_z,
               Delete(BindingClause, "Piece"),
               mk_statics,
-              syntax,
+              ~old_syntax=syntax,
+              ~new_syntax=CachedSyntax.init(new_z),
             );
           switch (diff) {
           | None => Alcotest.fail("get_diff returned None unexpectedly")
@@ -4067,7 +4222,8 @@ let ascribed_binding_tests = (
               new_z,
               Delete(BindingClause, "Piece"),
               mk_statics,
-              syntax,
+              ~old_syntax=syntax,
+              ~new_syntax=CachedSyntax.init(new_z),
             );
           check(bool, "diff computation did not raise", true, diff != None);
         };
