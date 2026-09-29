@@ -1030,9 +1030,16 @@ module M: Projector = {
       | Some(entry) =>
         /* An ephemeral entry never converges: no commit is in flight, so
            the sample forever reflects the stale syntax — yielding to it
-           would silently revert the state. */
+           would silently revert the state. Converging also needs the
+           evaluated model: once the entry is gone, handlers compose from
+           model_value, which is keyed by the model term's id, and every
+           commit renews that id. Until the evaluator has run on the new
+           text it is None, and an event in that gap composes from the
+           SYNTAX model, whose splices are code rather than refs. A slow
+           browser lands events in the gap. */
         let converged =
           !entry.opt_ephemeral
+          && Option.is_some(model_value)
           && (
             switch (live) {
             | Some(l) => Exp.fast_equal(l, entry.opt_html)
@@ -1146,7 +1153,21 @@ module M: Projector = {
               ~declared=SpliceStore.declared_types(model),
               new_model,
             );
-          if (existing == [] && SpliceStore.splice_ids(written) == []) {
+          /* An update cannot legitimately drop EVERY splice without an
+             effect saying so; when it seems to, the model it started from
+             held no refs (the syntax model, splices as code), and
+             committing it would write each splice back as plain code.
+             Drop that one event instead. */
+          if (existing != []
+              && effects == []
+              && SpliceStore.splice_ids(written) == []) {
+            print_endline(
+              "Warning - LivelitProj: dropped a commit that would flatten "
+              ++ string_of_int(List.length(existing))
+              ++ " splices into code",
+            );
+            Ui_effect.Ignore;
+          } else if (existing == [] && SpliceStore.splice_ids(written) == []) {
             switch (
               info.utility.lift_syntax(
                 ~inline=true,

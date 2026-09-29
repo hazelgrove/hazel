@@ -417,7 +417,7 @@ let ^kid_face = {
                [Attr.create("x", "100"), Attr.create("y", "212"),
                 Attr.create("text-anchor", "middle"),
                 Attr.create("font-size", "18"),
-                Attr.create("font-family", "var(--code-font)")],
+                Attr.create("font-family", "var(--code-font)"), Attr.style([("fill", "var(--text-default)")])],
                [Html.text(mood((c, m.brow, m.smile)))])]),
          own_slider(("smile", m.smile, fun v -> SetSmile(v))),
          own_slider(("brow", m.brow, fun v -> SetBrow(v)))]));
