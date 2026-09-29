@@ -323,8 +323,9 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     (* Base-type keywords are ordinary constructors in pat position too
-       (`let x : Int ⧖ Bool` is a pattern-level hole beside a constructor
-       pattern) — MakeTerm parity, as in exp. *)
+       (JSON's Int/Float/Bool/String cases; `let x : Int ⧖ Bool` is a
+       pattern-level hole beside a constructor pattern) — MakeTerm
+       parity, as in exp. *)
     | INT_TYPE { ConstructorPat("Int", None) }
     | SINT_TYPE { ConstructorPat("SInt", None) }
     | NAT_TYPE { ConstructorPat("Nat", None) }
