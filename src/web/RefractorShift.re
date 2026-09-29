@@ -15,12 +15,21 @@ open Haz3lcore;
  * already-open drawers as freshly opened and scroll #main for nothing. */
 let prev: ref(option((string, Id.Map.t(int)))) = ref(None);
 
+/* Rows are fractional px but scrollTop lands on whole ones, and x.5 always
+ * rounds up: without carrying the remainder, a drawer toggling between two
+ * heights creeps the page a pixel per round trip. */
+let carry = ref(0.);
+
 let scroll_main_by = (dy: float): unit =>
   Js.Opt.iter(
     Dom_html.document##getElementById(Js.string("main")),
     main => {
       let st: float = Js.Unsafe.get(main, Js.string("scrollTop"));
-      Js.Unsafe.set(main, Js.string("scrollTop"), st +. dy);
+      let target = st +. dy +. carry^;
+      Js.Unsafe.set(main, Js.string("scrollTop"), target);
+      let landed: float = Js.Unsafe.get(main, Js.string("scrollTop"));
+      /* rounding only; a clamp at either scroll end isn't carried */
+      carry := Float.abs(target -. landed) < 1. ? target -. landed : 0.;
     },
   );
 
