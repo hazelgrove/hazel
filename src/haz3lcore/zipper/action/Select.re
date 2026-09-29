@@ -947,8 +947,8 @@ let to_start: t => t = Zipper.do_to_extreme(local(Left));
 
 let to_end: t => t = Zipper.do_to_extreme(local(Right));
 
-/* P8: structural — the whole buffer IS the selection (the walk
-   grew it token-by-token from the start, twice over the buffer) */
+/* The whole buffer, selected in one rebuild rather than grown a token at
+   a time */
 let all = (z: t): t => {
   let seg = Zipper.unselect_and_zip(z);
   {
