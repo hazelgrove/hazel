@@ -9,16 +9,16 @@ let counted = fumola $graphical as demo in
   { let c = `count` := (hazel items end).size(); @ c }
 end in
 
-# The model is a RemoteRef: an instance, a cell in it, and the splice #
-# the cell's value is written into after each run. #
+# The model is a RemoteRef: a splice, bound to a cell of a Fumola #
+# instance, and written with the cell's value after each run. #
 let ^remote_int = {
-  type Model = (instance=String, cell=String, code=SpliceRef);
+  type Model = RemoteRef;
   type Action = Int;
   type Expansion = Int;
 
   let init =
-    do r <- new_splice((IntT, Some(IntLit(0)))) in
-    Pure((instance="demo", cell="count", code=r));
+    # new_splice's splice, bound to `count in demo #
+    new_remote((IntT, "demo", "count", Some(IntLit(0))));
 
   let update = fun m : Model -> fun _a : Action -> Pure(m);
 

@@ -393,6 +393,80 @@ let init_makes_splices = () => {
   };
 };
 
+/* RemoteRef (docs/remote-refs.md): a Model can BE the named record, and
+   new_remote answers one, binding its splice to a cell of an instance. */
+let remote_def = "{
+type Model = RemoteRef;
+type Action = Int;
+type Expansion = Int;
+let init = new_remote((IntT, \"demo\", \"count\", Some(IntLit(0))));
+let update = fun m -> fun a -> Pure(m);
+let view = fun m -> Pure(Html.splice(m.code));
+let expand = Macro(fun m -> (quote fun x -> x end, [m.code]))
+}";
+
+let new_remote_typechecks = () => {
+  let (m, _) = statics("let ^c = " ++ remote_def ++ " in 1");
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) when marks != [] =>
+          acc @ List.map(Mark.show, marks)
+        | _ => acc
+        },
+      m,
+      [],
+    );
+  check(list(string), "Model = RemoteRef with new_remote", [], marks);
+};
+
+/* init PERFORMED: one splice, as new_splice makes it, answered inside the
+   binding record, and written out where the record's `code` is. */
+let new_remote_binds_a_splice = () => {
+  let cmd = run("let ^c = " ++ remote_def ++ " in ^c.init");
+  switch (Haz3lcore.UpdateCmdRunner.run(cmd)) {
+  | Error(e) => fail("init did not run: " ++ e)
+  | Ok((model, effects)) =>
+    let news =
+      List.filter_map(
+        fun
+        | Haz3lcore.SpliceStore.New(id, _) => Some(id)
+        | _ => None,
+        effects,
+      );
+    check(int, "one splice made", 1, List.length(news));
+    let field = name =>
+      Haz3lcore.MvuShape.(
+        switch (of_tuple(model)) {
+        | Some(items) =>
+          List.filter_map(of_field, items) |> List.assoc_opt(name)
+        | None => None
+        }
+      );
+    check(
+      option(string),
+      "instance",
+      Some("demo"),
+      Option.bind(field("instance"), Haz3lcore.MvuShape.of_string),
+    );
+    check(
+      option(string),
+      "cell",
+      Some("count"),
+      Option.bind(field("cell"), Haz3lcore.MvuShape.of_string),
+    );
+    let written =
+      Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
+    check(
+      list(string),
+      "the splice is written at the record's code",
+      news,
+      Haz3lcore.SpliceStore.splice_ids(written),
+    );
+  };
+};
+
 /* new_splice and set_splice take every lift: the code a splice starts
    with, or is overwritten with, is the literal of the lifted value. */
 let splice_lifts = () => {
@@ -2169,6 +2243,12 @@ let tests = [
         init_makes_splices_typechecks,
       ),
       test_case("init makes splices", `Quick, init_makes_splices),
+      test_case("new_remote: typechecks", `Quick, new_remote_typechecks),
+      test_case(
+        "new_remote binds a splice",
+        `Quick,
+        new_remote_binds_a_splice,
+      ),
       test_case("set_splice rewrites", `Quick, set_splice_rewrites),
       test_case("Color (Figure 3) init", `Quick, color_init),
       test_case("wrapped ref is written", `Quick, wrapped_ref_is_written),

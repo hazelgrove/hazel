@@ -72,23 +72,26 @@ same Hazel-side commit.
 
 ## Proposed API
 
-Beside the splice commands:
+Built (question 5, below, is why it has this shape):
 
 ```
-new_remote : (Typ, Option(Exp), Instance, Symbol) -> UpdateCmd(RemoteRef)
-set_splice : (RemoteRef, Exp) -> UpdateCmd(())      // as for SpliceRef
-eval_splice : RemoteRef -> ViewCmd(Maybe(Result))    // as for SpliceRef
-editor      : (RemoteRef, Dim) -> ViewCmd(Html)      // as for SpliceRef
+type RemoteRef = (instance = String, cell = String, code = SpliceRef)
+new_remote : (Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef)
 ```
 
-- `new_remote` makes a splice as `new_splice` does, and binds it to a Fumola
-  cell: an instance, named as the Fumola tiles name one, and a symbol in it.
-- A RemoteRef is usable wherever a SpliceRef is, so a livelit can treat its
-  RemoteRefs as splices. Whether it is a subtype, or `SpliceRef` gains an
-  optional binding, is open (below).
+- `RemoteRef` is a builtin type alias, a named record. A Model says which of
+  its refs are remote by giving them this type (`type Model = RemoteRef;`,
+  or a field `count = RemoteRef`).
+- `new_remote((typ, instance, cell, init))` makes a splice exactly as
+  `new_splice((typ, init))` does, and answers it inside the record, bound to
+  cell `cell` of the instance named `instance` (a string, as the Fumola tiles
+  name one: question 6 is still open).
+- Every splice command takes the record's `code`: `eval_splice(m.count.code)`,
+  `editor((m.count.code, d))`, `set_splice((m.count.code, e))`,
+  `Html.splice(m.count.code)`. There are no RemoteRef twins.
 - In the program text, a RemoteRef's splice is written like any other,
   `(code : T)`, with its binding beside it in the model:
-  `remote=(instance="i", cell="`c", code=(0 : Int))`.
+  `(instance="demo", cell="count", code=(0 : Int))`.
 
 ## The write, step by step (option A)
 
@@ -119,9 +122,16 @@ editor      : (RemoteRef, Dim) -> ViewCmd(Html)      // as for SpliceRef
    mark?
 4. **Undo.** A remote write is an edit. Is it undoable like a keystroke, and
    what does undoing it mean when the Fumola cell still holds the value?
-5. **SpliceRef or a new type.** Is `RemoteRef` its own type (so a livelit's
-   Model says which refs are remote), or is it a `SpliceRef` with an optional
-   binding (so every livelit that takes splices can take remote ones)?
+5. **SpliceRef or a new type.** *Decided (2026-09-28): both, in the way that
+   costs least.* `RemoteRef` is a named record holding a `SpliceRef`, so a
+   Model's types say which refs are remote, and every splice command takes the
+   record's `code`, so any livelit that takes splices can take remote ones.
+   Passed over: an opaque type of its own, which without subtyping wants a twin
+   of every splice command; and a binding stored inside the splice, which
+   wants a new text form for the splice's parens, the only durable form it
+   has. The limit: values carry no alias name, so at run time the pull still
+   finds a RemoteRef by the record's shape; the alias makes that shape a
+   contract rather than a convention.
 6. **Where instances come from.** The Fumola tiles name an instance in the
    program. Does `new_remote` take that name as a string, or a value the
    program already has?
@@ -140,8 +150,8 @@ increment must be guarded), and both writers.
 ## What the first cut does
 
 - **A RemoteRef is a record in a livelit's model**, `(instance = "demo",
-  cell = "count", code = <a SpliceRef>)`, recognized by its shape. There is no
-  `new_remote` yet and no new type.
+  cell = "count", code = <a SpliceRef>)`, the builtin alias `RemoteRef`, made by
+  `new_remote`. The pull recognizes it by its shape (question 5).
 - **The pull** (`FumolaRun.peek_cell`) runs `` peek(`count)! `` in the instance,
   at the latest moment: every Hazel run happens at a named moment, and a read
   at Fumola's `Now` sees none of them. The symbol is Fumola's own spelling, a

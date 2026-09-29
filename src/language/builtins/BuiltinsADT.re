@@ -1386,6 +1386,17 @@ let update_cmd_arms: list((string, option(Typ.t))) = {
         ]),
       ),
     ),
+    /* new_remote : (Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef):
+       new_splice, bound to a cell of a Fumola instance */
+    (
+      "NewRemote",
+      Some(
+        prod([
+          prod([var("Typ"), string(), string(), var("Option")]),
+          arrow(var("RemoteRef"), self),
+        ]),
+      ),
+    ),
     /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
     (
       "SetSplice",
@@ -1835,6 +1846,19 @@ let fill_quote: BuiltinsUtil.fn = {
 let splice_ref_typ: Typ.t =
   sum_type([("SpliceRef", Some(prod([string(), unknown(Internal)])))]);
 
+/* RemoteRef (docs/remote-refs.md): a SpliceRef bound to a cell of a
+   Fumola instance, which writes that splice. A named record rather than
+   its own opaque type, so a Model says which of its refs are remote while
+   every splice command still takes the `code` field: Hazel has no
+   subtyping, and a separate type would want a twin of each command. The
+   binding is data in the model, so it persists as the model does. */
+let remote_ref_typ: Typ.t =
+  prod([
+    tup_label(label("instance"), string()),
+    tup_label(label("cell"), string()),
+    tup_label(label("code"), var("SpliceRef")),
+  ]);
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
@@ -1853,6 +1877,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("Dim", dim_typ),
   ("Result", result_typ),
   ("SpliceRef", splice_ref_typ),
+  ("RemoteRef", remote_ref_typ),
   ("Livelit", livelit),
 ];
 
@@ -2100,6 +2125,16 @@ let splice_builtins: list(hazel_fn) = [
     arg: Prod([var("Typ"), var("Option")]),
     ret: Typ.term_of(update_cmd(var("SpliceRef"))),
     imp: cmd_ctor(~ctor="NewSplice", ~cmd_ty=update_cmd(var("SpliceRef"))),
+  },
+  {
+    /* new_remote : (Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef)
+       (docs/remote-refs.md): new_splice's splice, bound to cell `cell` of
+       the Fumola instance named `instance`, which writes it. */
+    str: "fun args -> NewRemote((args, fun r -> Pure(r)))",
+    name: "new_remote",
+    arg: Prod([var("Typ"), string(), string(), var("Option")]),
+    ret: Typ.term_of(update_cmd(var("RemoteRef"))),
+    imp: cmd_ctor(~ctor="NewRemote", ~cmd_ty=update_cmd(var("RemoteRef"))),
   },
   {
     /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */

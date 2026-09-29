@@ -34,35 +34,55 @@ let rec run =
     }
 
   /* new_splice(typ, init) (Sec. 3.2.1): a fresh splice, holding init's
-     code, or a hole. The ref it answers carries that code as its value.
-     The Typ has nowhere to live yet -- a splice is typed by where it
-     sits -- so it is read and not kept. */
+     code, or a hole. The ref it answers carries that code as its value. */
   | Some(("NewSplice", body)) =>
     switch (of_tuple(body)) {
     | Some([args, k]) =>
       switch (of_tuple(args)) {
       | Some([typ, init]) =>
-        switch (SpliceStore.code_of_init(init)) {
+        switch (make_splice(typ, init)) {
         | Error(e) => Error("new_splice: " ++ e)
-        | Ok(code) =>
-          let id = Id.to_string(Id.mk());
-          /* The declared type is kept (Sec. 3.2.1), written into the text
-             as an ascription around the splice. */
-          let declare =
-            switch (SpliceStore.typ_of_typ_value(typ)) {
-            | Some(t) => [SpliceStore.Declare(id, t)]
-            | None => []
-            };
-          resume(
-            ~done_=[SpliceStore.New(id, code), ...declare],
-            k,
-            SpliceStore.mk_ref(id, code),
-          );
+        | Ok((r, done_)) => resume(~done_, k, r)
         }
       | _ => Error("malformed new_splice: expected (Typ, Maybe(Exp))")
       }
     | _ =>
       Error("malformed new_splice: expected arguments and a continuation")
+    }
+
+  /* new_remote(typ, instance, cell, init) (docs/remote-refs.md): new_splice's
+     splice, answered as a RemoteRef, the record that binds it to `cell` in
+     the Fumola instance `instance`. The binding is only data here: the
+     livelit's view pulls the cell after each run. */
+  | Some(("NewRemote", body)) =>
+    switch (of_tuple(body)) {
+    | Some([args, k]) =>
+      switch (of_tuple(args)) {
+      | Some([typ, instance, cell, init]) =>
+        switch (of_string(instance), of_string(cell)) {
+        | (Some(instance), Some(cell)) =>
+          switch (make_splice(typ, init)) {
+          | Error(e) => Error("new_remote: " ++ e)
+          | Ok((r, done_)) =>
+            resume(
+              ~done_,
+              k,
+              Exp.tuple([
+                Exp.tup_label(Exp.label("instance"), Exp.string(instance)),
+                Exp.tup_label(Exp.label("cell"), Exp.string(cell)),
+                Exp.tup_label(Exp.label("code"), r),
+              ]),
+            )
+          }
+        | _ => Error("new_remote: instance and cell must be strings")
+        }
+      | _ =>
+        Error(
+          "malformed new_remote: expected (Typ, String, String, Maybe(Exp))",
+        )
+      }
+    | _ =>
+      Error("malformed new_remote: expected arguments and a continuation")
     }
 
   /* set_splice(r, e) (Sec. 3.2.4): the splice r names will hold e. */
@@ -84,6 +104,29 @@ let rec run =
     }
 
   | Some((name, _)) => Error("not an UpdateCmd command: " ++ name)
+  }
+
+/* The splice new_splice makes, shared with new_remote: a fresh id holding
+   init's code (or a hole), and the ref naming it. The Typ has nowhere to
+   live yet -- a splice is typed by where it sits -- so beyond the declared
+   type written into the text as an ascription (Sec. 3.2.1), it is read and
+   not kept. */
+and make_splice =
+    (typ: DHExp.t, init: DHExp.t)
+    : result((DHExp.t, list(SpliceStore.effect)), string) =>
+  switch (SpliceStore.code_of_init(init)) {
+  | Error(_) as e => e
+  | Ok(code) =>
+    let id = Id.to_string(Id.mk());
+    let declare =
+      switch (SpliceStore.typ_of_typ_value(typ)) {
+      | Some(t) => [SpliceStore.Declare(id, t)]
+      | None => []
+      };
+    Ok((
+      SpliceStore.mk_ref(id, code),
+      [SpliceStore.New(id, code), ...declare],
+    ));
   }
 
 /* A command's answer, handed to its continuation, which returns the next
