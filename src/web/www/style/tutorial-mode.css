@@ -383,7 +383,7 @@
    persistent mark keeps the new row discoverable for the whole slide. */
 #probe-sidebar.tutorial-probe-strip .qr-new {
   border-radius: 1px;
-  outline: 2px solid var(--G0);
+  outline: 2px solid var(--border-success);
   outline-offset: 3px;
 }
 #probe-sidebar.tutorial-probe-strip tr.qr-new > td:first-child {
