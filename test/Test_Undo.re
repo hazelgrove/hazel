@@ -60,6 +60,32 @@ let tests = (
   "Undo",
   [
     test_case(
+      "the undo stack is capped, whatever the old setting says",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        /* the retired developer toggle defaulted to off (uncapped) */
+        check(
+          bool,
+          "stored setting is off",
+          false,
+          m0.current.globals.settings.cap_undo_stack,
+        );
+        let m =
+          List.fold_left(
+            (m, _) => apply(m, insert("1")),
+            m0,
+            List.init(History.capped_undo_stack_size + 5, Fun.id),
+          );
+        check(
+          int,
+          "stack stops at the cap",
+          History.capped_undo_stack_size,
+          undo_len(m),
+        );
+      },
+    ),
+    test_case(
       "edit then undo restores the original state",
       `Quick,
       () => {

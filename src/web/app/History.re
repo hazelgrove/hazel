@@ -102,12 +102,10 @@ module Update = {
           },
           ...model.undo_stack,
         ];
+        /* each entry holds a whole page model; uncapped, memory grows
+           with every edit */
         let undo_stack =
-          if (model.current.globals.settings.cap_undo_stack) {
-            List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
-          } else {
-            new_stack;
-          };
+          List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
         {
           ...current,
           model: {
