@@ -3,11 +3,11 @@
 .player-offside {
   display: inline-flex;
   align-items: stretch;
-  background: var(--T2);
+  background: var(--surface-raised);
   border-radius: 0.3em;
   /* overflow: hidden; */
   font-size: 0.85em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 .player-btn {
@@ -20,7 +20,7 @@
   width: 1.8em;
   padding: 0;
   font-size: 1em;
-  background: var(--G0);
+  background: var(--surface-success);
   color: white;
   border-radius: 0.25em;
 }
@@ -34,7 +34,7 @@
 }
 
 .player-btn.playing {
-  background: var(--R2);
+  background: var(--surface-error-strong);
   /* animation: player-pulse 1s ease-in-out infinite; */
 }
 
@@ -43,7 +43,7 @@
 }
 
 .player-btn.disabled {
-  background: var(--BR2);
+  background: var(--surface-shard-strong);
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -58,18 +58,18 @@
   align-items: center;
   justify-content: center;
   padding: 0 0.4em;
-  color: var(--STONE);
+  color: var(--text-default);
   font-size: 0.9em;
 }
 
 .player-speaker.playing {
   pointer-events: none;
-  color: var(--R2);
+  color: var(--text-error-strong);
   animation: player-pulse 1s ease-in-out infinite;
 }
 
 .player-speaker.no-sound {
-  color: var(--BR3);
+  color: var(--text-accent);
   opacity: 0.5;
 }
 

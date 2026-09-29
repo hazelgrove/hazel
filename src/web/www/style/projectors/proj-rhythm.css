@@ -5,14 +5,14 @@
   flex-direction: column;
   gap: 0.4em;
   padding: 0.5em;
-  background: var(--T2);
+  background: var(--surface-raised);
   border-radius: 0.3em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
   transition: border-color 0.15s;
 }
 
 .rhythm-grid:hover {
-  border-color: var(--BR3);
+  border-color: var(--border-strong);
 }
 
 .rhythm-grid .grid-controls {
@@ -21,16 +21,16 @@
   justify-content: flex-start;
   gap: 0.4em;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--BR2);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .rhythm-grid .step-btn {
   width: 1.6em;
   height: 1.6em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
   border-radius: 0.2em;
-  background: var(--T1);
-  color: var(--STONE);
+  background: var(--surface-default);
+  color: var(--text-default);
   cursor: pointer;
   font-size: 0.9em;
   font-weight: bold;
@@ -41,18 +41,18 @@
 }
 
 .rhythm-grid .step-btn:hover {
-  background: var(--T3);
-  border-color: var(--BR3);
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
 }
 
 .rhythm-grid .step-btn:active {
-  background: var(--BR2);
+  background: var(--surface-shard-strong);
 }
 
 .rhythm-grid .step-count {
   font-family: var(--code-font);
   font-size: 0.85em;
-  color: var(--STONE);
+  color: var(--text-default);
   min-width: 1.8em;
   text-align: center;
 }
@@ -73,7 +73,7 @@
   font-family: var(--code-font);
   font-size: 0.7em;
   font-weight: 600;
-  color: var(--BR4);
+  color: var(--text-strong);
   width: 2em;
   text-align: right;
   text-transform: uppercase;
@@ -93,26 +93,26 @@
 }
 
 .rhythm-grid .grid-cell.inactive {
-  background: var(--T1);
-  border: 1px solid var(--BR2);
+  background: var(--surface-default);
+  border: 1px solid var(--border-default);
 }
 
 .rhythm-grid .grid-cell.inactive:hover {
   background: white;
-  border-color: var(--BR3);
+  border-color: var(--border-strong);
 }
 
 .rhythm-grid .grid-cell.active {
-  background: var(--G0);
-  border: 1px solid var(--G0);
-  box-shadow: 0 0 3px oklch(from var(--G0) l c h / 0.3);
+  background: var(--surface-success);
+  border: 1px solid var(--border-success);
+  box-shadow: 0 0 3px oklch(from var(--shadow-success) l c h / 0.3);
 }
 
 .rhythm-grid .grid-cell.active:hover {
-  background: var(--G1);
-  box-shadow: 0 0 5px oklch(from var(--G0) l c h / 0.5);
+  background: var(--surface-success-soft);
+  box-shadow: 0 0 5px oklch(from var(--shadow-success) l c h / 0.5);
 }
 
 .rhythm-grid .grid-cell.beat-start {
-  border-left: 2px solid var(--BR3);
+  border-left: 2px solid var(--border-strong);
 }

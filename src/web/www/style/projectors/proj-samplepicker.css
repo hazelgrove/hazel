@@ -3,14 +3,14 @@
 .sample-picker {
   display: inline-flex;
   padding: 0.3em;
-  background: var(--T2);
+  background: var(--surface-raised);
   border-radius: 0.3em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
   transition: border-color 0.15s;
 }
 
 .sample-picker:hover {
-  border-color: var(--BR3);
+  border-color: var(--border-strong);
 }
 
 .sample-picker .sample-grid {
@@ -24,22 +24,22 @@
   font-family: var(--code-font);
   font-size: 0.7em;
   padding: 0.25em 0.3em;
-  background: var(--T1);
-  border: 1px solid var(--BR2);
+  background: var(--surface-default);
+  border: 1px solid var(--border-default);
   border-radius: 0.2em;
-  color: var(--STONE);
+  color: var(--text-default);
   cursor: pointer;
   transition: background-color 0.1s, border-color 0.1s, color 0.1s;
   text-align: center;
 }
 
 .sample-picker .sample-option:hover {
-  background: var(--T3);
-  border-color: var(--BR3);
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
 }
 
 .sample-picker .sample-option.selected {
-  background: var(--G1);
-  border-color: var(--G0);
+  background: var(--surface-success-soft);
+  border-color: var(--border-success);
   color: white;
 }

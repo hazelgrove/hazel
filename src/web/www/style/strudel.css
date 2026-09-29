@@ -3,17 +3,17 @@
 .strudel-controls {
   display: inline-flex;
   align-items: stretch;
-  background: var(--T2);
+  background: var(--surface-raised);
   border-radius: 0.4em;
   overflow: hidden;
   font-size: 0.85em;
   margin-bottom: 0.3em;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 .strudel-controls .pattern {
   font-family: var(--code-font);
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 0.4em 0.6em;
   display: flex;
   align-items: center;
@@ -46,15 +46,15 @@
 }
 
 .strudel-controls button.play {
-  background: var(--G0);
+  background: var(--surface-success);
   color: white;
   border-radius: 0.3em 0 0 0.3em;
   /* border-right: 1px solid rgba(255,255,255,0.2); */
 }
 
 .strudel-controls button.stop {
-  background: var(--BR1);
+  background: var(--surface-shard);
   color: white;
   border-radius: 0 0.3em 0.3em 0;
-  outline: 1px solid var(--BR2);
+  outline: 1px solid var(--border-default);
 }
