@@ -266,7 +266,11 @@ module Update = {
               editor.root == Sort.Typ
                 /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
                    entries for the inspector) under the provided ctx */
-                ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+                ? CachedStatics.init_typ(
+                    ~settings,
+                    ~ctx?,
+                    editor.state.zipper,
+                  )
                 : editor.root == Sort.Pat
                     ? CachedStatics.init_pat(
                         ~settings,

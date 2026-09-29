@@ -90,7 +90,7 @@ let mk_diff =
         },
       )
     | None => None
-    };
+    }
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
