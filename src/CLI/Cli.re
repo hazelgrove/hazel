@@ -54,7 +54,6 @@ let format_hazel = (implicit_hole: string, width, path) => {
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
         ~concave_holes=Haz3lcore.Token.concave_hole_marker,
-        ~indent=" ",
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
       );

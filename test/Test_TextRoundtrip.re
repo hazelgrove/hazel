@@ -186,6 +186,9 @@ let sole_hole_cases = [
   sole_hole_case(~name="sole parenthesized", "(¿)"),
   sole_hole_case(~name="sole argument", "f(¿)"),
   sole_hole_case(~name="list with hole and element", "[¿, 1]"),
+  /* the concave marker takes the same swap, as an operator hole */
+  sole_hole_case(~name="concave operator hole", "1 ⧖ 2"),
+  sole_hole_case(~name="concave hole in a let body", "let x = 1 in x ⧖ 2"),
 ];
 
 /* Render an arbitrary `Exp.t` to source text (same path
@@ -287,6 +290,32 @@ let concave_marker_cases = [
     ~name="infix hole (recovering parser)",
     "1 \xe2\xa7\x96 2",
   ),
+  /* the marker in every sort the editor molds it for: a document with
+     a pattern/type/type-pattern hole must load on the fast path too */
+  concave_fast_case(~name="pattern hole", "let x \xe2\xa7\x96 y = 1 in\n2"),
+  concave_fast_case(~name="fun parameter hole", "fun x \xe2\xa7\x96 y -> x"),
+  /* `x : Int ⧖ Foo` is a PATTERN hole (`:` binds tighter, `Foo` is a
+     constructor pattern); the hole is a type hole only under parens */
+  concave_fast_case(
+    ~name="pattern hole after an ascription (constructor)",
+    "let x : Int \xe2\xa7\x96 Foo = 1 in\nx",
+  ),
+  concave_fast_case(
+    ~name="type hole in a parenthesized ascription",
+    "let x : (Int \xe2\xa7\x96 Bool) = 1 in\nx",
+  ),
+  concave_fast_case(
+    ~name="type hole beside an arrow",
+    "type t = Int -> Bool \xe2\xa7\x96 String in\n1",
+  ),
+  concave_fast_case(
+    ~name="type-pattern hole",
+    "let f : poly a \xe2\xa7\x96 b -> Int = 1 in\nf",
+  ),
+  concave_fast_case(
+    ~name="pattern hole after an ascription",
+    "let x : Int \xe2\xa7\x96 y = 1 in\n2",
+  ),
 ];
 
 let debug_pieces = (tag, text) =>
@@ -359,10 +388,111 @@ let debug_parse_text = (tag, text) =>
     }
   );
 
+/* The point of the marker, end to end: grout the EDITOR leaves behind
+   (simulated typing — two operands with nothing between them) must
+   persist as text that reloads on the fast path, keep its grout, and
+   reprint as a fixed point. Any bail here is a document that would hit
+   the recovering parser on every load. */
+let deep_concave_count = (seg: Segment.t): int => {
+  let rec go = (seg: Segment.t) =>
+    List.fold_left(
+      (n, p: Piece.t) =>
+        switch (p) {
+        | Grout({shape: Concave, _}) => n + 1
+        | Tile(t) =>
+          n + List.fold_left((m, kid) => m + go(kid), 0, t.children)
+        | _ => n
+        },
+      0,
+      seg,
+    );
+  go(seg);
+};
+
+let edited_grout_fast_case = (~name, typed) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = Option.get(Parser.to_zipper(typed, ~root=Exp));
+      let concave = deep_concave_count(Zipper.unselect_and_zip(z));
+      check(bool, "typing left concave grout", true, concave > 0);
+      let persisted = PersistentZipper.persist(z);
+      let text = Util.StringUtil.strip_final_newline(persisted.backup_text);
+      switch (
+        FastParse.parsed_of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~collect_refractors=true,
+          ~root=Sort.Exp,
+          text,
+        )
+      ) {
+      | Error(why) => fail("persisted text bailed to the slow path: " ++ why)
+      | Ok(_) => ()
+      };
+      switch (
+        PersistentZipper.parse_text(
+          ~source="test",
+          ~root=Exp,
+          persisted.backup_text,
+        )
+      ) {
+      | None => fail("parse_text returned None")
+      | Some(z') =>
+        check(
+          string,
+          "reprint is the persisted text",
+          text,
+          MarkerParse.to_text(z'),
+        );
+        check(
+          int,
+          "concave grout survives the reload",
+          concave,
+          deep_concave_count(Zipper.unselect_and_zip(z')),
+        );
+      };
+    },
+  );
+
+let edited_grout_cases = [
+  edited_grout_fast_case(~name="exp: let body", "let x = 1 in x 2"),
+  edited_grout_fast_case(~name="exp: among operators", "1 + 2 3 * 4"),
+  edited_grout_fast_case(
+    ~name="exp: beside a keyword constructor",
+    "let y = 1 in y Bool",
+  ),
+  edited_grout_fast_case(~name="pat: let", "let x y = 1 in 2"),
+  edited_grout_fast_case(
+    ~name="pat: after an ascription",
+    "let x : Int y = 1 in 2",
+  ),
+  edited_grout_fast_case(
+    ~name="pat: deleted arrow in an annotation",
+    "let x : Int Bool = 1 in x",
+  ),
+  edited_grout_fast_case(~name="pat: fun parameter", "fun x y -> x"),
+  edited_grout_fast_case(~name="typ: alias", "type t = Int Bool in 1"),
+  edited_grout_fast_case(
+    ~name="typ: beside an arrow",
+    "type t = Int -> Bool String in 1",
+  ),
+  edited_grout_fast_case(
+    ~name="typ: parenthesized annotation",
+    "let x : (Int Bool) = 1 in x",
+  ),
+  edited_grout_fast_case(~name="tpat: alias binder", "type a b = Int in 1"),
+  edited_grout_fast_case(
+    ~name="all sorts in one program",
+    "let f = fun x y -> x 1 in f(2) 3",
+  ),
+];
+
 let tests = [
   ("TextRoundtrip.TextReproducers", text_reproducer_cases),
-  ("TextRoundtrip.ConcaveMarker", concave_marker_cases),
   ("TextRoundtrip.SoleHoles", sole_hole_cases),
+  ("TextRoundtrip.ConcaveMarker", concave_marker_cases),
+  ("TextRoundtrip.EditedGrout", edited_grout_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
   ("TextRoundtrip.TutorialLessons", tutorial_lesson_cases),
   (

@@ -54,6 +54,7 @@ let (suite, exit_with_test_status) =
       Test_FlatBench.tests,
       Test_ModRoot.tests,
       Test_TypeDeps.tests,
+      Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
       Test_HazelJson_JsonADT.tests,

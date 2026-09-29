@@ -54,14 +54,15 @@ let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
   );
 
 /* Swap every marker tile for a Grout with the same id: the convex
-   marker for a convex hole, the concave marker for an operator hole. A
-   label check, not a form match: the marker is caller-configurable (CLI
-   --implicit-hole), and a non-default marker classifies as whatever form
-   its token spells. Projector contents are not entered: markers inside
-   projector syntax (`^^fold(¿)`) are a KNOWN GAP (#2455) — the fast path
-   handles those (its weave maps markers to Grout before materializing
-   the projector), so only a slow-path load of a projector-wrapped hole
-   leaves a literal marker tile inside. */
+   marker for a convex hole, the concave marker for an operator hole.
+   A label check, not a form match: the convex marker is
+   caller-configurable (CLI --implicit-hole), and a non-default marker
+   classifies as whatever form its token spells. Projector contents are
+   not entered: markers inside projector syntax (`^^fold(¿)`) are a
+   KNOWN GAP (#2455) — the fast path handles those (its weave maps
+   markers to Grout before materializing the projector), so only a
+   slow-path load of a projector-wrapped hole leaves a literal marker
+   tile inside. */
 let replace_markers = (~implicit_hole: string, seg: Segment.t): Segment.t =>
   List.map(
     Base.map_piece(~f_piece=(rec_call, p: piece) =>
