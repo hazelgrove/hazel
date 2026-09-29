@@ -138,5 +138,28 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "abstract signature members compare by name",
+      `Quick,
+      () => {
+        let s = t =>
+          Typ.sig_([
+            Sig.sig_type_abstract(TPat.var(t)),
+            Sig.sig_let(Pat.asc(Pat.var("x"), Typ.var(t))),
+          ]);
+        check(
+          bool,
+          "{ type T; let x : T } === { type T; let x : T }",
+          true,
+          Equality.semantic.typ(s("T"), s("T")),
+        );
+        check(
+          bool,
+          "{ type T; let x : T } !== { type U; let x : U }",
+          false,
+          Equality.semantic.typ(s("T"), s("U")),
+        );
+      },
+    ),
   ],
 );

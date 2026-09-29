@@ -15,6 +15,9 @@ type t =
   | ModuleMemberExpected({
       members: list(Var.t),
       submodule: bool,
+      /* Abstract members reached through a signature alias rather than a
+         module: no module is named, so nothing names them. */
+      unnameable: list(Var.t),
     })
   | ProductExpected
   | ConstructorExpected(status_variant, Typ.t)
