@@ -32,10 +32,41 @@ let rescan_same_pair = (text, ()) => {
   );
 };
 
+/* A lone \r is a line break too, not nothing: skipping it glued the
+   tokens either side, `in\rx` into `inx`. */
+let lone_cr_loads_as_lf = () =>
+  check(
+    string,
+    "\\r reads as \\n",
+    MarkerParse.to_text(load("let x = 1 in\nx")),
+    MarkerParse.to_text(load("let x = 1 in\rx")),
+  );
+
+/* An insertion that fails stops the parse, with None, rather than carrying
+   on from a state it could not reach. The caret is inside a token with no
+   token after it, where Insert.go has nothing to insert into. */
+let failed_insertion_is_none = () => {
+  let z = load("x") |> Zipper.Caret.set(Inner(0));
+  check(
+    bool,
+    "None",
+    true,
+    Option.is_none(
+      Parser.to_zipper(~by_run=true, ~root=Exp, ~zipper_init=z, "1"),
+    ),
+  );
+};
+
 let tests = (
   "Parser.LoadPath",
   [
     test_case("\\r\\n loads like \\n", `Quick, crlf_loads_as_lf),
+    test_case("a lone \\r loads like \\n", `Quick, lone_cr_loads_as_lf),
+    test_case(
+      "a failed insertion ends the parse with None",
+      `Quick,
+      failed_insertion_is_none,
+    ),
     test_case(
       "rescan: no incomplete tile -> same pair",
       `Quick,
