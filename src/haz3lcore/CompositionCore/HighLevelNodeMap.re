@@ -626,11 +626,18 @@ let rec build_children =
         List.mapi((i, el) => (i, el), elements),
       )
     | Module(items) =>
-      /* Module items are expanded to a Let/TyAlias chain in the info_map.
-         Find the first named item (ModLet/ModType/ModuleMod) whose ID is
-         preserved on the expanded expression, then follow the chain to
-         discover all items as siblings. ModExp items in the chain appear
-         as "{wild}" nodes. */
+      /* Module literal: members become nodes at this path (children of the
+         enclosing binding). Statics checks module literals by expansion
+         into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
+         (ModuleHelpers.lower; reclassify only rewrites cls), so a named
+         item's wrapper info chains through the remaining members exactly
+         like a top-level binding chain — the Let/TyAlias cases above walk
+         it, making members siblings of one another. Wrapper pat/def ids
+         are the members' real syntax ids, so downstream span selection
+         works unchanged. Expression items (ModExp) get fresh, unkeyed
+         wrappers, so the chain is entered at the first NAMED item
+         (ModLet/ModType/ModuleMod); ModExp items after it appear as
+         "{wild}" nodes. */
       let first_named_item =
         List.find_opt(
           (item: Mod.t) =>
@@ -644,11 +651,11 @@ let rec build_children =
         );
       switch (first_named_item) {
       | Some(item) =>
-        let item_id = Mod.rep_id(item);
-        switch (Id.Map.find_opt(item_id, info_map)) {
-        | Some(info) => build_children(info, path, node_map, info_map)
+        switch (Id.Map.find_opt(Mod.rep_id(item), info_map)) {
+        | Some(wrapper_info) =>
+          build_children(wrapper_info, path, node_map, info_map)
         | None => node_map
-        };
+        }
       | None => node_map
       };
     | _ =>
@@ -744,8 +751,11 @@ let parse_segment = (s: string): path_segment =>
     Name(s);
   };
 
+/* Paths are slash-delimited ("M/helper"); a dotted form ("M.helper", the
+   language's own member-access syntax, which a model reaches for first) is
+   accepted as the same path. Identifiers cannot contain either character. */
 let split_path = (path: string): list(string) => {
-  String.split_on_char('/', path);
+  String.split_on_char('/', String.map(c => c == '.' ? '/' : c, path));
 };
 
 let parse_path = (path: string): list(path_segment) => {
