@@ -85,7 +85,8 @@ let current_code =
     | _ => None
     }
   | Tutorial(_)
-  | Exercises(_) => None
+  | Exercises(_)
+  | Config(_) => None
   };
 
 /* free-panning headroom (screen px, constant across zoom) around the
@@ -670,7 +671,8 @@ let current_slide = (editors: Editors.Model.t): string =>
     | None => ""
     }
   | Tutorial(_)
-  | Exercises(_) => ""
+  | Exercises(_)
+  | Config(_) => ""
   };
 
 /* the node's name as type syntax, for canvas-authored signatures */
@@ -1106,6 +1108,7 @@ let view_impl =
       | Documentation(m) => "docs/" ++ string_of_int(m.current)
       | Tutorial(_) => "tutorial"
       | Exercises(_) => "exercises"
+      | Config(_) => "config"
       }
     )
     ++ "/"
