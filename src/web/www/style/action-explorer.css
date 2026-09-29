@@ -8,7 +8,7 @@
   gap: 4px;
   padding: 6px 12px;
   background: var(--ui-bkg, #f5f5f5);
-  border-bottom: 1px solid var(--BR2, #ddd);
+  border-bottom: 1px solid var(--border-default, #ddd);
   font-size: 13px;
   z-index: 5;
 }
@@ -35,22 +35,22 @@
 
 .ae-controls select {
   padding: 3px 6px;
-  border: 1px solid var(--BR2, #ccc);
+  border: 1px solid var(--border-default, #ccc);
   border-radius: 3px;
-  background: var(--T1, white);
-  color: var(--STONE, #333);
+  background: var(--surface-default, white);
+  color: var(--text-default, #333);
   font-size: 12px;
   cursor: pointer;
 }
 
 .ae-controls input[type="text"] {
   padding: 3px 8px;
-  border: 1px solid var(--BR2, #ccc);
+  border: 1px solid var(--border-default, #ccc);
   border-radius: 3px;
   font-family: var(--code-font, monospace);
   font-size: 12px;
-  background: var(--T1, white);
-  color: var(--STONE, #333);
+  background: var(--surface-default, white);
+  color: var(--text-default, #333);
 }
 
 .ae-path,
@@ -66,7 +66,7 @@
 
 .ae-execute {
   padding: 3px 12px;
-  background: var(--G0, #4a90d9);
+  background: var(--surface-success, #4a90d9);
   color: white;
   border-radius: 3px;
   cursor: pointer;
@@ -85,7 +85,7 @@
 
 .ae-match-count {
   font-size: 11px;
-  color: var(--BR3, #888);
+  color: var(--text-accent, #888);
   white-space: nowrap;
 }
 
@@ -93,7 +93,7 @@
   font-size: 12px;
   font-family: var(--code-font, monospace);
   padding: 2px 4px;
-  color: var(--BR4, #666);
+  color: var(--text-strong, #666);
   white-space: pre-wrap;
   max-height: 60px;
   overflow-y: auto;
