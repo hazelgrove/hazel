@@ -309,8 +309,8 @@ let key_handler =
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
-    /* stash screen-y before dispatch for reflow compensation; only on an
-       actual index change (else an arrow at the clamp re-snaps the viewport) */
+    /* follow the indicated sample after the render; only on an actual
+       index change (else an arrow at the clamp re-snaps the viewport) */
     if (new_index != index) {
       SampleAnchor.capture();
     };
