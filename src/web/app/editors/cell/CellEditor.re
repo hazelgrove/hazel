@@ -43,6 +43,13 @@ module Model = {
     result: EvalResult.Model.unpersist(result),
   };
 
+  /* A cell holding a slide's stored source, with an un-run result.
+     Slide sources are text-backed zippers (see PersistentZipper). */
+  let from_persistent_zipper = (~root, zipper: PersistentZipper.t): persistent => {
+    editor: zipper |> Editor.Model.mk_persistent(~root),
+    result: EvalResult.Model.init |> EvalResult.Model.persist,
+  };
+
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
@@ -104,6 +111,7 @@ module Update = {
         ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
         ~queue_worker,
         ~stitch,
+        ~ana=?,
         {editor, result}: Model.t,
       )
       : Model.t => {
@@ -128,6 +136,7 @@ module Update = {
         ~ctx?,
         ~projected?,
         ~stitch,
+        ~ana?,
         ~dynamics=mk_dynamics(result),
         ~is_dynamic_term=false,
         editor,
@@ -171,6 +180,7 @@ module Update = {
           ~autoprobe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
+          ~ana?,
           ~dynamics=mk_dynamics(result),
           ~is_dynamic_term=false,
           editor,

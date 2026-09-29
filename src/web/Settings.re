@@ -33,6 +33,11 @@ module Model = {
     show_row_lines: bool,
     /* grey re-evaluation-progress backings after edits */
     show_pending_eval: bool,
+    /* Shortcut overrides derived from the Shortcuts config slide: a
+       ContextualAction label to its resolved hotkey, or None for an action
+       the config leaves Unbound. Applied when the command palette is built
+       (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
+    shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
   };
 
@@ -105,6 +110,7 @@ module Model = {
     cap_undo_stack: false,
     show_row_lines: false,
     show_pending_eval: false,
+    shortcut_overrides: [],
     simple_indication: false,
   };
 
@@ -174,6 +180,7 @@ module Update = {
     | CapUndoStack
     | ShowRowLines
     | ShowPendingEval
+    | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
@@ -513,6 +520,10 @@ module Update = {
           ...settings,
           show_pending_eval: !settings.show_pending_eval,
         };
+      | SetShortcutOverrides(overrides) => {
+          ...settings,
+          shortcut_overrides: overrides,
+        }
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
