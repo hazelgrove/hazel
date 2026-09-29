@@ -117,15 +117,15 @@ let derived: list(string) = [
    them in, so the slide's `palette = p` needs no rearranging.
 
    These are FIELD names, not CSS names. A palette color reaches CSS only
-   under the semantic names ColorConfiguration.aliases gives it; the bare
-   `--ink` and its 33 siblings are not published, because nothing read them. */
+   under the semantic names ColorConfiguration.aliases gives it; a bare
+   `--ink` is not published. */
 let palette: list(string) = seeds @ derived;
 
 /* Semantic roles, grouped by the part of the UI they dress. One field per
    decision a themer can make independently, named for what the color is for
-   rather than where it happens to be plumbed. A role that only forwarded a
-   stated color was doing no work -- eleven of those are palette entries
-   instead. */
+   rather than where it happens to be plumbed. A color a scheme only states,
+   such as the probe fills, is a palette entry rather than a role that would
+   just forward it. */
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   (
@@ -151,6 +151,12 @@ let role_groups: list((string, list(string))) = [
       "string",
       "comment",
       "selection",
+      "waiting-1",
+      "waiting-2",
+      "waiting-3",
+      "waiting-4",
+      "waiting-5",
+      "waiting-6",
     ],
   ),
   (
@@ -189,6 +195,7 @@ let role_groups: list((string, list(string))) = [
       "pending",
       "pending-edge",
       "step-next",
+      "reused-glow",
     ],
   ),
   ("inspector", ["badge", "text", "separator"]),
@@ -199,18 +206,24 @@ let role_groups: list((string, list(string))) = [
       "caller",
       "caller-text",
       "caller-edge",
+      "caller-related-text",
       "callee",
       "callee-text",
       "callee-edge",
       "other",
       "other-text",
+      "other-edge",
       "focus-text",
+      "focus-keyboard",
       "off",
       "off-text",
       "off-edge",
+      "drawer-edge",
+      "drawer-fade",
     ],
   ),
-  ("projector", ["textarea-text", "fold-background"]),
+  ("projector", ["textarea-text", "fold-background", "statics-arm"]),
+  ("agent", ["banner", "banner-edge"]),
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity
@@ -228,7 +241,7 @@ let scheme: list((string, Typ.t)) = [
 
 /* ── Registered in the builtin type context ───────────────────────────── */
 
-/* Six names, no more: every one of these is registered in the builtin type
+/* Four names, no more: every one of these is registered in the builtin type
    context, which means it also turns up in type completion in every Hazel
    program. A type per role group was the first cut and cost more than it was
    worth -- `InspectorColors` started winning the completion for `In` ahead of

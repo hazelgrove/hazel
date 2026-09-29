@@ -321,7 +321,7 @@ select {
 #sample-focus-bar .title {
   font-size: 0.85em;
   font-family: var(--ui-font);
-  color: rgb(255, 255, 255);
+  color: var(--text-inverse);
   background-color: var(--surface-success);
   border-radius: 0.3em 1.5em 1.3em 1.3em;
   padding: 4px 8px;
@@ -359,12 +359,12 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-entry:hover {
-  background-color: white;
+  background-color: var(--surface-code);
 }
 
 #sample-focus-bar .breadcrumb-entry.focused {
   color: var(--text-success);
-  background-color: var(--G5);
+  background-color: var(--surface-success-soft);
   font-weight: 500;
   text-decoration: underline;
 }
@@ -431,7 +431,7 @@ select {
 
 #sample-focus-bar .breadcrumb-entry.unknown.focused {
   color: var(--text-success);
-  background-color: var(--G5);
+  background-color: var(--surface-success-soft);
 }
 
 /* Pin icon - same style as sample pin but positioned for breadcrumb */
@@ -471,7 +471,7 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-body:hover {
-  background-color: white;
+  background-color: var(--surface-code);
   color: var(--text-accent);
 }
 
