@@ -25,14 +25,14 @@
 .projector.csv .icon {
     display: inline-block;
     padding: 0.05em 0.6em;
-    border: 1px solid var(--BR3);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     background: none;
-    color: var(--BR3);
+    color: var(--text-accent);
     cursor: pointer;
     user-select: none;
 }
 .projector.csv .icon:hover {
-    background: var(--BR3);
+    background: var(--surface-accent);
     color: #fff;
 }
