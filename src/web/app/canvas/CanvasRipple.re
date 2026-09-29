@@ -882,7 +882,7 @@ let rec draw = (): unit => {
           "getComputedStyle",
           [|Js.Unsafe.inject(scroll)|],
         )##getPropertyValue(
-          Js.string("--BR1"),
+          Js.string("--surface-shard"),
         );
       let fill = Js.to_string(fill);
       let fill = fill == "" ? "#d8c9a3" : fill;
