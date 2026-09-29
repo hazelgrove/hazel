@@ -126,8 +126,14 @@ let to_zipper =
         | Some(run) => run
         | None => (c, rest)
         };
-      let* z = insert(z, s);
-      go(z, rest);
+      /* A direct self call, which js_of_ocaml compiles to a loop. Through
+         `let*` it was a call inside Option.bind's closure: a stack frame per
+         run of characters, each holding the zipper it started from, so a
+         20 KB slide overflowed the stack or ran out of memory. */
+      switch (insert(z, s)) {
+      | None => None
+      | Some(z) => go(z, rest)
+      };
     };
   let+ z = go(zipper_init, Token.to_list(str));
   /* ~by_run skipped every per-insertion regrout; do it once here. */
