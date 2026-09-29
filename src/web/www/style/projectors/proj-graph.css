@@ -28,7 +28,7 @@
 }
 
 .graph-projector.graph-error {
-  /* color: var(--R2); */
+  /* color: var(--text-error-strong); */
 }
 
 .graph-projector.graph-has-data {
@@ -46,27 +46,27 @@
   right: 0.45em;
   font-size: 0.9em;
   line-height: 1;
-  color: var(--warning-color, var(--Y2));
+  color: var(--warning-color, var(--border-highlight-strong));
   cursor: help;
 }
 
 .graph-projector.graph-error .graph-warning-indicator {
-  color: var(--R2);
+  color: var(--text-error-strong);
 }
 
 .graph-chart .graph-background {
-  fill: var(--SAND);
-  /* stroke: var(--BR3);
+  fill: var(--surface-code);
+  /* stroke: var(--border-strong);
   stroke-width: 0.5px; */
 }
 
 .graph-axis {
-  stroke: var(--BR2);
+  stroke: var(--border-default);
   stroke-width: 1px;
 }
 
 .graph-axis-tick {
-  stroke: var(--BR3);
+  stroke: var(--border-strong);
   stroke-width: 0.75px;
 }
 
@@ -102,7 +102,7 @@
 }
 
 .graph-legend-swatch {
-  stroke: var(--BR3);
+  stroke: var(--border-strong);
   stroke-width: 0.5px;
 }
 
