@@ -1514,7 +1514,9 @@ module Local = {
         "tuple element",
       );
     } else if (!module_members_via_term_edit
-               && Utils.is_module_member(path_to_node(initial_node_map, path))) {
+               && Utils.is_module_member(
+                    path_to_node(initial_node_map, path),
+                  )) {
       switch (
         PerformUtils.insert_member(initial_z, target_id, code, d, syntax)
       ) {
@@ -2060,7 +2062,7 @@ module Local = {
       ) {
       | Ok(new_z) => Ok((new_z, None))
       | Error(e) => Error(e)
-      };
+      }
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       let (term_edit_result, kind) =
