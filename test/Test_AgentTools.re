@@ -1031,7 +1031,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_indented_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
+            "let a = 1 in let b = 2 in let c = 3 in a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1055,7 +1055,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\na + b",
+            "let a = 1 in let b = 2 in let c = 3 in let d = 4 in a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1064,17 +1064,18 @@ let insert_tests = (
         };
       },
     ),
-    test_case("insert_after last binding keeps line separator", `Quick, () => {
+    test_case("insert_after last binding keeps the body separated", `Quick, () => {
       check_rendered_exact(
         "insert_after_last_separator",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
+        "let a = 1 in let b = 2 in let c = 3 in a + b",
         apply_and_render(
           "let a = 1 in let b = 2 in a + b",
           Insert(After, "b", "let c = 3 in"),
         ),
       )
     }),
-    test_case("insert_after (no path) appends on its own line", `Quick, () => {
+    test_case(
+      "insert_after (no path) appends with the program's join", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "let a = 1 in let b = 2 in",
@@ -1085,7 +1086,7 @@ let insert_tests = (
       | Ok(z) =>
         check_rendered_exact(
           "boundary_append_separator",
-          "let a = 1 in let b = 2 in\n\nlet c = 3 in\n?",
+          "let a = 1 in let b = 2 in let c = 3 in\n?",
           render_zipper(z),
         )
       | Error(err) =>
@@ -4569,7 +4570,7 @@ let paste_funnel_tests = (
          the trim must live at the paste funnel, not per tool arm */
       check_rendered_exact(
         "insert_perform_level_indented",
-        "let a = 1 in\n\nlet c = 3 in\na",
+        "let a = 1 in let c = 3 in a",
         apply_and_render(
           "let a = 1 in a",
           Insert(After, "a", "  let c = 3 in"),
@@ -4994,10 +4995,11 @@ let whitespace_normalization_tests = (
         /* Live-session symptom: blank lines grew at program end as edits
            near it repeated (each insert's magic-newline wrap left a \n).
            (update_body over a hole adds no linebreaks — space-pad only —
-           so the accumulation shape is insert-driven.) */
+           so the accumulation shape is insert-driven.) The seed is
+           multi-line: a one-line program stays on one line. */
         let rendered =
           apply_chain_render(
-            "let a = 1 in ?",
+            "let a = 1 in\n?",
             [
               Insert(After, "a", "let b = 2 in"),
               Insert(After, "b", "let c = 3 in"),
@@ -5028,16 +5030,90 @@ let whitespace_normalization_tests = (
       }
     }),
     test_case(
-      "one blank line between consecutive top-level bindings", `Quick, () => {
-      check_rendered_exact(
-        "inter-binding blank line",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
-        apply_and_render(
+      "a new top-level join copies its neighbour",
+      `Quick,
+      () => {
+        check_edits(
           "let a = 1 in let b = 2 in a + b",
-          Insert(After, "b", "let c = 3 in"),
-        ),
+          [
+            (
+              Insert(After, "b", "let c = 3 in"),
+              "let a = 1 in let b = 2 in let c = 3 in a + b",
+            ),
+          ],
+        );
+        check_edits(
+          "let a = 1 in\n\nlet b = 2 in\na + b",
+          [
+            (
+              Insert(After, "b", "let c = 3 in"),
+              "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\na + b",
+            ),
+          ],
+        );
+      },
+    ),
+    test_case(
+      "top-level inserts and deletes keep a compact program compact",
+      `Quick,
+      () =>
+      check_edits(
+        "let x = 1 in\nlet y = 2 in\nlet w = 3 in\nx",
+        [
+          (
+            Insert(After, "x", "let z = 9 in"),
+            "let x = 1 in\nlet z = 9 in\nlet y = 2 in\nlet w = 3 in\nx",
+          ),
+          (
+            Insert(After, "w", "let z = 9 in"),
+            "let x = 1 in\nlet y = 2 in\nlet w = 3 in\nlet z = 9 in\nx",
+          ),
+          (
+            Insert(Before, "x", "let z = 9 in"),
+            "let z = 9 in\nlet x = 1 in\nlet y = 2 in\nlet w = 3 in\nx",
+          ),
+          (Delete(BindingClause, "y"), "let x = 1 in\nlet w = 3 in\nx"),
+          (Delete(BindingClause, "x"), "let y = 2 in\nlet w = 3 in\nx"),
+          (Delete(BindingClause, "w"), "let x = 1 in\nlet y = 2 in\nx"),
+        ],
       )
-    }),
+    ),
+    test_case(
+      "top-level edits copy the local join and keep the others",
+      `Quick,
+      () => {
+        check_edits(
+          "let x = 1 in\n\nlet y = 2 in\nlet w = 3 in\nx",
+          [
+            (
+              Insert(After, "x", "let z = 9 in"),
+              "let x = 1 in\n\nlet z = 9 in\n\nlet y = 2 in\nlet w = 3 in\nx",
+            ),
+            (
+              Insert(After, "y", "let z = 9 in"),
+              "let x = 1 in\n\nlet y = 2 in\nlet z = 9 in\nlet w = 3 in\nx",
+            ),
+            (Delete(BindingClause, "y"), "let x = 1 in\n\nlet w = 3 in\nx"),
+          ],
+        );
+        check_edits(
+          "let a = 1 in let b = 2 in a + b",
+          [
+            (Delete(BindingClause, "a"), "let b = 2 in a + b"),
+            (Delete(BindingClause, "b"), "let a = 1 in a + b"),
+          ],
+        );
+        check_edits(
+          "let a = 1 in\nlet b = 2 in\n# about c #\nlet c = 3 in a",
+          [
+            (
+              Delete(BindingClause, "b"),
+              "let a = 1 in\n# about c #\nlet c = 3 in a",
+            ),
+          ],
+        );
+      },
+    ),
     test_case(
       "normalization is idempotent across edits",
       `Quick,
