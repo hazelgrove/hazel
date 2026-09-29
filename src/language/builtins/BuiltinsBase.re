@@ -293,6 +293,54 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
+  {
+    /* Rounds half away from zero, matching OCaml's Float.round. */
+    name: "round",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(Float.round),
+    custom_statics: None,
+  },
+  {
+    name: "float_min",
+    arg: Prod([float(), float()]),
+    ret: Atom(Float),
+    imp:
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Float), d1);
+        let-unbox n = (Atom(Float), d2);
+        Some(Exp.float(Float.min(m, n)));
+      }),
+    custom_statics: None,
+  },
+  {
+    name: "float_max",
+    arg: Prod([float(), float()]),
+    ret: Atom(Float),
+    imp:
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Float), d1);
+        let-unbox n = (Atom(Float), d2);
+        Some(Exp.float(Float.max(m, n)));
+      }),
+    custom_statics: None,
+  },
+  {
+    /* clamp(x, lo, hi). Bounds are ordered defensively so a caller passing
+       them the wrong way round still gets a value inside the interval. */
+    name: "float_clamp",
+    arg: Prod([float(), float(), float()]),
+    ret: Atom(Float),
+    imp:
+      ternary((d1, d2, d3) => {
+        let-unbox x = (Atom(Float), d1);
+        let-unbox a = (Atom(Float), d2);
+        let-unbox b = (Atom(Float), d3);
+        let (lo, hi) = (Float.min(a, b), Float.max(a, b));
+        Some(Exp.float(Float.min(hi, Float.max(lo, x))));
+      }),
+    custom_statics: None,
+  },
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [

@@ -33,6 +33,11 @@ module Model = {
     cap_undo_stack: bool,
     show_row_lines: bool,
     show_incremental_deco: bool,
+    /* Shortcut overrides derived from the Shortcuts config slide: a
+       ContextualAction label to its resolved hotkey, or None for an action
+       the config leaves Unbound. Applied when the command palette is built
+       (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
+    shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
   };
 
@@ -107,6 +112,7 @@ module Model = {
     cap_undo_stack: false,
     show_row_lines: false,
     show_incremental_deco: false,
+    shortcut_overrides: [],
     simple_indication: false,
   };
 
@@ -177,6 +183,7 @@ module Update = {
     | CapUndoStack
     | ShowRowLines
     | ShowIncrementalDeco
+    | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
@@ -517,6 +524,10 @@ module Update = {
       | ShowIncrementalDeco => {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
+        }
+      | SetShortcutOverrides(overrides) => {
+          ...settings,
+          shortcut_overrides: overrides,
         }
       | SimpleIndication => {
           ...settings,
