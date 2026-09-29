@@ -50,17 +50,22 @@ let rec run =
       Error("malformed new_splice: expected arguments and a continuation")
     }
 
-  /* new_remote(typ, instance, cell, init) (docs/remote-refs.md): new_splice's
-     splice, answered as a RemoteRef, the record that binds it to `cell` in
-     the Fumola instance `instance`. The binding is only data here: the
-     livelit's view pulls the cell after each run. */
+  /* new_remote(dir, typ, instance, cell, init) (docs/remote-refs.md):
+     new_splice's splice, answered as a RemoteRef, the record that binds it to
+     `cell` in the Fumola instance `instance`, in direction `dir` (In or Out).
+     The binding is only data here: the livelit's view pulls Out cells after
+     each run. */
   | Some(("NewRemote", body)) =>
     switch (of_tuple(body)) {
     | Some([args, k]) =>
       switch (of_tuple(args)) {
-      | Some([typ, instance, cell, init]) =>
-        switch (of_string(instance), of_string(cell)) {
-        | (Some(instance), Some(cell)) =>
+      | Some([dir, typ, instance, cell, init]) =>
+        switch (
+          of_string(instance),
+          of_string(cell),
+          of_constructor_raw(dir),
+        ) {
+        | (Some(instance), Some(cell), Some((("In" | "Out") as _d, _))) =>
           switch (make_splice(typ, init)) {
           | Error(e) => Error("new_remote: " ++ e)
           | Ok((r, done_)) =>
@@ -70,15 +75,19 @@ let rec run =
               Exp.tuple([
                 Exp.tup_label(Exp.label("instance"), Exp.string(instance)),
                 Exp.tup_label(Exp.label("cell"), Exp.string(cell)),
+                Exp.tup_label(Exp.label("dir"), dir),
                 Exp.tup_label(Exp.label("code"), r),
               ]),
             )
           }
-        | _ => Error("new_remote: instance and cell must be strings")
+        | _ =>
+          Error(
+            "new_remote: expects In or Out, and strings for instance and cell",
+          )
         }
       | _ =>
         Error(
-          "malformed new_remote: expected (Typ, String, String, Maybe(Exp))",
+          "malformed new_remote: expected (RemoteDir, Typ, String, String, Maybe(Exp))",
         )
       }
     | _ =>

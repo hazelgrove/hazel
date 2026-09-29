@@ -1386,13 +1386,20 @@ let update_cmd_arms: list((string, option(Typ.t))) = {
         ]),
       ),
     ),
-    /* new_remote : (Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef):
-       new_splice, bound to a cell of a Fumola instance */
+    /* new_remote : (RemoteDir, Typ, String, String, Maybe(Exp))
+                    -> UpdateCmd(RemoteRef):
+       new_splice, bound to a cell of a Fumola instance, in one direction */
     (
       "NewRemote",
       Some(
         prod([
-          prod([var("Typ"), string(), string(), var("Option")]),
+          prod([
+            var("RemoteDir"),
+            var("Typ"),
+            string(),
+            string(),
+            var("Option"),
+          ]),
           arrow(var("RemoteRef"), self),
         ]),
       ),
@@ -1852,12 +1859,25 @@ let splice_ref_typ: Typ.t =
    every splice command still takes the `code` field: Hazel has no
    subtyping, and a separate type would want a twin of each command. The
    binding is data in the model, so it persists as the model does. */
+/* Which way a RemoteRef carries data. Out: the Fumola cell writes the splice,
+   pulled after each run. In: the splice's value goes into the cell, which the
+   program does itself for now (`hazel Named(...) end`); the pull leaves an In
+   ref alone, since its cell holds what Hazel sent, not a value for the code. */
+let remote_dir_typ: Typ.t = sum_type([("In", None), ("Out", None)]);
+
 let remote_ref_typ: Typ.t =
   prod([
     tup_label(label("instance"), string()),
     tup_label(label("cell"), string()),
+    tup_label(label("dir"), var("RemoteDir")),
     tup_label(label("code"), var("SpliceRef")),
   ]);
+
+/* Named(xs): a Hazel list sent into Fumola as (symbol, element) pairs, each
+   symbol built from the element's AST id (FumolaSource), for the collections
+   that name their cells by the caller's symbols (List.fromIter,
+   LevelTree.fromArray). Meaningful only inside `hazel ... end`. */
+let named_typ: Typ.t = sum_type([("Named", Some(unknown(Internal)))]);
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
@@ -1877,7 +1897,9 @@ let type_aliases: list((string, Typ.t)) = [
   ("Dim", dim_typ),
   ("Result", result_typ),
   ("SpliceRef", splice_ref_typ),
+  ("RemoteDir", remote_dir_typ),
   ("RemoteRef", remote_ref_typ),
+  ("Named", named_typ),
   ("Livelit", livelit),
 ];
 
@@ -2127,12 +2149,21 @@ let splice_builtins: list(hazel_fn) = [
     imp: cmd_ctor(~ctor="NewSplice", ~cmd_ty=update_cmd(var("SpliceRef"))),
   },
   {
-    /* new_remote : (Typ, String, String, Maybe(Exp)) -> UpdateCmd(RemoteRef)
+    /* new_remote : (RemoteDir, Typ, String, String, Maybe(Exp))
+                    -> UpdateCmd(RemoteRef)
        (docs/remote-refs.md): new_splice's splice, bound to cell `cell` of
-       the Fumola instance named `instance`, which writes it. */
+       the Fumola instance named `instance`; Out if the cell writes it, In if
+       it is what goes into the cell. */
     str: "fun args -> NewRemote((args, fun r -> Pure(r)))",
     name: "new_remote",
-    arg: Prod([var("Typ"), string(), string(), var("Option")]),
+    arg:
+      Prod([
+        var("RemoteDir"),
+        var("Typ"),
+        string(),
+        string(),
+        var("Option"),
+      ]),
     ret: Typ.term_of(update_cmd(var("RemoteRef"))),
     imp: cmd_ctor(~ctor="NewRemote", ~cmd_ty=update_cmd(var("RemoteRef"))),
   },

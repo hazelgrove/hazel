@@ -1,0 +1,59 @@
+# Remote refs, a la Fumola #
+
+# Two RemoteRefs, one each way.  INPUT is a list you edit here, and Hazel #
+# sends it into Fumola with each element as a cell named by that element's #
+# own AST id.  OUTPUT is what Fumola sorts those cells into, pulled back #
+# after each run: the same cells, in order, each still carrying its name. #
+
+let ^sorter = {
+  type Model = (input = RemoteRef, output = RemoteRef);
+  type Action = Int;
+  type Expansion = ([Int], [(String, Int)]);
+
+  # An In ref's cell holds what Hazel sends; an Out ref's cell writes its #
+  # splice.  The splices' types come from their ascriptions in the use. #
+  let init =
+    do i <- new_remote((In, AnyT, "demo", "input", None)) in
+    do o <- new_remote((Out, AnyT, "demo", "output", None)) in
+    Pure((input = i, output = o));
+
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "grid"), ("grid-template-columns", "auto 1fr"),
+                   ("gap", "0.2em 0.6em"), ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.text(m.input.cell ++ " into " ++ m.input.instance ++ ":"),
+       Html.splice(m.input.code),
+       Html.text(m.output.cell ++ " out of " ++ m.output.instance ++ ":"),
+       Html.splice(m.output.code)]));
+
+  let expand = Macro(fun m : Model ->
+    (quote fun i -> fun o -> (i, o) end, [m.input.code, m.output.code]));
+
+  let shape = Block(60, 3)
+} in
+
+let ^^probe(sorted) =
+  ^^livelit(^sorter((
+    input = (instance="demo", cell="input", dir=In,
+             code=([3, 1, 4, 1, 5] : [Int])),
+    output = (instance="demo", cell="output", dir=Out,
+              code=([] : [(String, Int)]))))) in
+
+let (unsorted, _) = sorted in
+
+# Named(unsorted) is the crossing: each element goes in as the pair #
+# (`hazel(`id_...), element), and the collections below name each cell by #
+# that symbol.  LevelTree and LazyList are bound in every instance. #
+let run = fumola $graphical as demo in
+  { let i = `input` := (hazel Named(unsorted) end);
+    `output` := LazyList.takeAll(LevelTree.lazyMergeSort(LevelTree.fromArray(@ i))) }
+end in
+
+(sorted, run)
+
+# Try: edit the input list.  The output follows, and the two 1s stay two #
+# cells, since each is named by its own literal rather than by its value. #

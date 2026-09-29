@@ -31,9 +31,47 @@ let refuses = (name, exp) =>
     }
   );
 
+/* Named(xs): each element as a (symbol, element) pair, the symbol built
+   from that element's own id, so equal values still name different cells. */
+let named_pairs = () => {
+  let elems = [int(3), int(1), int(1)];
+  let sym = (e: DHExp.t) =>
+    "`hazel(`id_"
+    ++ String.map(
+         c => c == '-' ? '_' : c,
+         Id.to_string(IdTagged.rep_id(e)),
+       )
+    ++ ")";
+  let expected =
+    "["
+    ++ String.concat(
+         ", ",
+         List.map2(
+           (e, v) => "(" ++ sym(e) ++ ", " ++ v ++ ")",
+           elems,
+           ["3", "1", "1"],
+         ),
+       )
+    ++ "]";
+  switch (FumolaSource.of_exp(ap("Named", list(elems)))) {
+  | Error(m) => Alcotest.fail("expected source, got: " ++ m)
+  | Ok(source) =>
+    Alcotest.check(Alcotest.string, "pairs by id", expected, source);
+    let ids = List.map(e => Id.to_string(IdTagged.rep_id(e)), elems);
+    Alcotest.check(
+      Alcotest.bool,
+      "the two 1s name different cells",
+      true,
+      List.nth(ids, 1) != List.nth(ids, 2),
+    );
+  };
+};
+
 let tests = (
   "FumolaSource",
   [
+    test_case("Named sends (id symbol, element) pairs", `Quick, named_pairs),
+    refuses("Named of a non-list", ap("Named", int(3))),
     renders("an integer", int(3), "3"),
     renders("a boolean", DHExp.fresh(Atom(Bool(true))), "true"),
     renders("text", str("hi"), {|"hi"|}),

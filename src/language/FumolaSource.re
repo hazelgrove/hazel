@@ -101,6 +101,29 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   | Ap(Forward, {term: Constructor(name, _), _}, payload)
       when List.mem(name, symbol_constructors) =>
     symbol_source(name, payload)
+  /* Named(xs) (docs/remote-refs.md): a list sent as (symbol, element) pairs,
+     each symbol built from the element's AST id -- the shape List.fromIter
+     and LevelTree.fromArray take, which name each cell by the caller's
+     symbol. The ids are the source literals' own until evaluation finishes,
+     which is when an escape is read, so a cell's name is the literal it came
+     from; a computed element has an id, just not one the source shows. */
+  | Ap(Forward, {term: Constructor("Named", _), _}, payload) =>
+    switch (list_items(payload)) {
+    | None => unsupported("Named of something other than a list")
+    | Some(es) =>
+      switch (all(List.map(of_exp, es))) {
+      | Error(e) => Error(e)
+      | Ok(values) =>
+        let pairs =
+          List.map2(
+            (el: TermBase.Exp.t, v) =>
+              "(" ++ id_symbol(IdTagged.rep_id(el)) ++ ", " ++ v ++ ")",
+            es,
+            values,
+          );
+        Ok("[" ++ String.concat(", ", pairs) ++ "]");
+      }
+    }
   /* Any other constructor is a Fumola variant tag, written as Hazel spells
      it. Fumola accepts a capitalised tag, so the capitalisation that
      translation adds on the way in survives the way out. */
@@ -144,6 +167,27 @@ let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
   | _ => unsupported("this expression")
   };
 }
+
+/* A list's elements, through the wrappers the evaluator leaves on a value. */
+and list_items = (e: TermBase.Exp.t): option(list(TermBase.Exp.t)) =>
+  switch (e.term) {
+  | Parens(inner)
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Filter(_, inner) => list_items(inner)
+  | ListLit(es) => Some(es)
+  | _ => None
+  }
+
+/* The Fumola symbol for a Hazel AST id: `hazel(`id_<uuid>), dashes as
+   underscores. An identifier rather than the string symbol `"<uuid>", which
+   Fumola accepts too, because a symbol comes back into Hazel as its text and
+   a Hazel string literal cannot hold the quotes a string symbol prints
+   with. One-to-one with the id either way. */
+and id_symbol = (id: Id.t): string =>
+  "`hazel(`id_"
+  ++ String.map(c => c == '-' ? '_' : c, Id.to_string(id))
+  ++ ")"
 
 /* A Hazel Symbol value, as Fumola writes one. */
 and symbol_source =

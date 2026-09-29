@@ -399,7 +399,7 @@ let remote_def = "{
 type Model = RemoteRef;
 type Action = Int;
 type Expansion = Int;
-let init = new_remote((IntT, \"demo\", \"count\", Some(IntLit(0))));
+let init = new_remote((Out, IntT, \"demo\", \"count\", Some(IntLit(0))));
 let update = fun m -> fun a -> Pure(m);
 let view = fun m -> Pure(Html.splice(m.code));
 let expand = Macro(fun m -> (quote fun x -> x end, [m.code]))
@@ -455,6 +455,15 @@ let new_remote_binds_a_splice = () => {
       "cell",
       Some("count"),
       Option.bind(field("cell"), Haz3lcore.MvuShape.of_string),
+    );
+    check(
+      option(string),
+      "dir",
+      Some("Out"),
+      Option.map(
+        fst,
+        Option.bind(field("dir"), Haz3lcore.MvuShape.of_constructor_raw),
+      ),
     );
     let written =
       Haz3lcore.SpliceStore.write_model(~effects, ~existing=[], model);
