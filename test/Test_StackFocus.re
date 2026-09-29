@@ -262,15 +262,22 @@ let focused_model = () => {
   );
 };
 
-let step = (action, model) =>
-  Web.ScratchMode.Update.update(
-    ~schedule_action=_ => (),
-    ~settings=Web.Settings.Model.init,
-    ~is_documentation=false,
-    action,
-    model,
-  ).
-    model;
+/* update only: an agent edit arms StaticsDebounce.force_on_next, which the
+   app's calculate phase would consume; clear it so it does not leak into
+   later tests (AgentControlFlow's dispatch gate reads it) */
+let step = (action, model) => {
+  let model =
+    Web.ScratchMode.Update.update(
+      ~schedule_action=_ => (),
+      ~settings=Web.Settings.Model.init,
+      ~is_documentation=false,
+      action,
+      model,
+    ).
+      model;
+  Web.CodeWithStatics.StaticsDebounce.force_on_next := false;
+  model;
+};
 
 let agent_segment = seg =>
   Web.ScratchMode.Update.AgentAction(
