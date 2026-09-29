@@ -56,6 +56,11 @@ let registry: list((string, entry)) = {
       names,
     );
   entries("View", Ungated, ["expand", "collapse"])
+  /* mirrors the conditional offer in CompositionUtils.Local.tools */
+  @ (
+    Haz3lcore.DocPacks.all == []
+      ? [] : entries("Docs", Ungated, ["read_docs"])
+  )
   @ entries(
       "View",
       OverlayGated,
