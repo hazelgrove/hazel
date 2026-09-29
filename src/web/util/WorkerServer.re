@@ -456,25 +456,64 @@ let resolve_payload =
     }
   };
 
+/* Incremental reuse pays for itself only past a certain program size:
+   the reuse pre-pass is a full evaluation-shaped walk and every
+   evaluated node runs a reuse check, which for a demo-sized program
+   (a few hundred statics entries) cost 2-3x the evaluation itself.
+   Below the threshold, evaluate from scratch. (Measured 2026-09-08 on
+   the graph livelit slide: 2.0s -> see the commit message.) */
+let incremental_min_statics = 2500;
+
+let wants_incremental = (eval_info_map: Language.EvalInfo.t): bool =>
+  Util.Id.Map.cardinal(eval_info_map.statics) >= incremental_min_statics;
+
+/* the reuse plan computed for a batch item, handed to its evaluation so
+   the pre-pass runs once per request (keyed by the item's PAYLOAD
+   identity: the plan and the evaluation see the same decoded request,
+   but a Resident payload's expr is re-grafted on every resolve) */
+let planned_reuse:
+  ref(
+    list((Request.payload, Language.IncrEval.t(Language.EvaluatorState.t))),
+  ) =
+  ref([]);
+
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let Request.{payload, prev, _} = req_value;
   let stream =
     switch (resolve_payload(~key, payload)) {
     | Error(_) => Language.IncrEval.empty
     | Ok((expr, eval_info_map)) =>
-      switch (
-        Language.ReusePass.reuse_pass(
-          ~prev=resolve_prev(~key, prev),
-          ~eval_info=eval_info_map,
-          ~env=Language.Builtins.env_init,
-          expr,
-        )
-      ) {
-      | exception _ => Language.IncrEval.empty
-      | stream => stream
-      }
+      let stream =
+        if (!wants_incremental(eval_info_map)) {
+          Language.IncrEval.empty;
+        } else {
+          switch (
+            Language.ReusePass.reuse_pass(
+              ~prev=resolve_prev(~key, prev),
+              ~eval_info=eval_info_map,
+              ~env=Language.Builtins.env_init,
+              expr,
+            )
+          ) {
+          | exception _ => Language.IncrEval.empty
+          | stream => stream
+          };
+        };
+      /* a superseded request's plan is never taken: keep only the newest
+         few so abandoned plans (whole reuse streams) don't accumulate */
+      planned_reuse :=
+        [(payload, stream), ...Util.ListUtil.take(3, planned_reuse^)];
+      stream;
     };
   (key, stream);
+};
+
+let take_planned_reuse =
+    (payload: Request.payload)
+    : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
+  let found = List.find_opt(((p, _)) => p === payload, planned_reuse^);
+  planned_reuse := List.filter(((p, _)) => p !== payload, planned_reuse^);
+  Option.map(snd, found);
 };
 
 /* Evaluator time accumulated for the request in flight, reported back in the
@@ -500,6 +539,7 @@ let current_stream_interest: ref(Request.stream_interest) =
 let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
   let Request.{payload, prev, stream} = req_value;
   current_stream_interest := stream;
+  let planned = take_planned_reuse(payload);
   switch (resolve_payload(~key, payload)) {
   | Error(msg) =>
     CompletedImmediately(
@@ -520,9 +560,12 @@ let start_evaluation = (~key: key, req_value: Request.value): evaluation_start =
       );
     switch (
       Language.Evaluator.start_yielding_evaluation(
-        ~prev=resolve_prev(~key, prev),
+        ~prev=
+          wants_incremental(eval_info_map)
+            ? resolve_prev(~key, prev) : Language.IncrEval.empty,
         ~eval_info=eval_info_map,
         ~env=Language.Builtins.env_init,
+        ~reuse_stream=?planned,
         expr,
       )
     ) {
