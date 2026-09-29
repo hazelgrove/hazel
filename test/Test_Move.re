@@ -179,6 +179,57 @@ let slides_shards_agree = (dir, ()) => {
   );
 };
 
+/* Select.shard_range selects a term's sibling run directly. From the end
+   of the program the walk reaches every term's left extreme, so there the
+   two must agree. */
+let ranges_agree = (name, text) =>
+  switch (PersistentZipper.parse_text(~source=name, ~root=Exp, text)) {
+  | None => fail(name ++ ": failed to parse")
+  | Some(z0) =>
+    let term_data = MakeTerm.from_zip_for_sem(z0, ~root=Exp).term_data;
+    let all =
+      Id.Map.bindings(term_data)
+      |> List.filter_map(((id, _)) =>
+           TermData.extremes_shards(id, term_data)
+         );
+    let step = max(1, List.length(all) / 15);
+    let targets = List.filteri((i, _) => i mod step == 0, all);
+    let z = Zipper.caret_to_end(z0);
+    List.iter(
+      ((l, r)) => {
+        let walked = Select.shard_range_by_walking(l, r, z);
+        if (Select.shard_range(l, r, z) != walked) {
+          fail(
+            Printf.sprintf(
+              "%s: range from %s differs",
+              name,
+              Id.to_string(Piece.id(l)),
+            ),
+          );
+        };
+      },
+      targets,
+    );
+    List.length(targets);
+  };
+
+let slides_ranges_agree = (dir, ()) => {
+  let before = Select.direct_ranges^;
+  let checked =
+    slides(dir)
+    |> List.fold_left(
+         (acc, (name, text)) => acc + ranges_agree(name, text),
+         0,
+       );
+  check(bool, "some targets", true, checked > 0);
+  check(
+    bool,
+    "direct path taken",
+    true,
+    (Select.direct_ranges^ - before) * 2 > checked,
+  );
+};
+
 let tests = (
   "Move.JumpToId",
   [
@@ -196,6 +247,11 @@ let tests = (
       "reference slides: direct shard jump is the walk",
       `Slow,
       slides_shards_agree("hazel-programs/docs/reference"),
+    ),
+    test_case(
+      "reference slides: direct term range is the walk",
+      `Slow,
+      slides_ranges_agree("hazel-programs/docs/reference"),
     ),
   ],
 );

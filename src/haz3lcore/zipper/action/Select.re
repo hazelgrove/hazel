@@ -521,7 +521,7 @@ let piece_matches_shard = (piece: Piece.t, shard: Piece.t): bool =>
   );
 
 /* Select the (inclusive) range between two shards */
-let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
+let shard_range_by_walking = (l: Piece.t, r: Piece.t, z: t): option(t) => {
   let pl = neighbors =>
     switch (neighbors) {
     | (_, Some(piece)) => piece_matches_shard(piece, l)
@@ -536,6 +536,52 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
     pl(Zipper.generalized_neighbors(z))
       ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
   Zipper.do_until(local(Right), pr, z);
+};
+
+/* For tests: ranges selected without walking. */
+let direct_ranges = ref(0);
+
+/* A term's extremes are siblings in one segment, so its range is the
+   sibling run from l's piece through r's, selected in one rebuild instead
+   of grown a token at a time (~0.5 s for a 15-line definition). Other
+   shapes walk. Unlike the walk, this also finds l to the right of the
+   caret. */
+let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
+  let rec take = (acc, pieces: Segment.t) =>
+    switch (pieces) {
+    | [] => None
+    | [p, ...rest] =>
+      piece_matches_shard(p, r)
+        ? Some((List.rev([p, ...acc]), rest)) : take([p, ...acc], rest)
+    };
+  let z' = Zipper.unselect(z);
+  switch (
+    Zipper.unzip_to_id(~side=Left, Piece.id(l), Zipper.zip(z'))
+    |> Option.map((placed: t) => placed.relatives)
+  ) {
+  | Some({siblings: (ls, [p, ..._] as rs), _} as relatives)
+      when piece_matches_shard(p, l) =>
+    switch (take([], rs)) {
+    | Some((range, rest)) =>
+      incr(direct_ranges);
+      Some(
+        Zipper.replace_selection(
+          Right,
+          range,
+          {
+            ...z',
+            relatives: {
+              ...relatives,
+              siblings: (ls, rest),
+            },
+            caret: Outer,
+          },
+        ),
+      );
+    | None => shard_range_by_walking(l, r, z)
+    }
+  | _ => shard_range_by_walking(l, r, z)
+  };
 };
 
 /* Select the currently indicated term. Optionally, we can consider
