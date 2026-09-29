@@ -38,7 +38,7 @@
   right: 0;
   width: 44%;
   min-width: 320px;
-  border-left: 0.6px solid var(--BR2, #ccc);
+  border-left: 0.6px solid var(--border-default, #ccc);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -59,7 +59,7 @@
 
 .canvas-split-btn {
   font-size: 10px;
-  border: 1px solid var(--BR1, #d8c9a3);
+  border: 1px solid var(--border-soft, #d8c9a3);
   border-radius: 4px;
   padding: 1px 8px;
   cursor: pointer;
@@ -68,7 +68,7 @@
 }
 
 .canvas-split-btn:hover {
-  background: var(--Y0, #f6efd8);
+  background: var(--surface-highlight-soft, #f6efd8);
 }
 
 .canvas-split-note {
@@ -87,7 +87,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 0.4em 0.8em;
-  border-bottom: 0.6px solid var(--BR2, #ccc);
+  border-bottom: 0.6px solid var(--border-default, #ccc);
   flex: 0 0 auto;
 }
 
@@ -172,9 +172,9 @@
   display: flex;
   align-items: center;
   gap: 3px;
-  background: var(--Y1, #f0e2b8);
-  color: var(--BR4, #4a3a20);
-  border: 1px solid var(--BR1, #d8c9a3);
+  background: var(--surface-highlight, #f0e2b8);
+  color: var(--text-strong, #4a3a20);
+  border: 1px solid var(--border-soft, #d8c9a3);
   border-radius: 10px;
   padding: 2px 12px;
   font-size: 11px;
@@ -187,7 +187,7 @@
 }
 
 .hint-chip {
-  border: 1px solid var(--BR2, #b09a6a);
+  border: 1px solid var(--border-default, #b09a6a);
   border-radius: 7px;
   padding: 0 6px;
   cursor: pointer;
@@ -196,7 +196,7 @@
 }
 
 .hint-chip:hover {
-  background: var(--Y0, #f6efd8);
+  background: var(--surface-highlight-soft, #f6efd8);
 }
 
 .toolbar-spacer {
@@ -205,7 +205,7 @@
 
 /* same family as the probes sidebar's segmented controls */
 .canvas-tool-btn {
-  border: 1px solid var(--BR1, #d8c9a3);
+  border: 1px solid var(--border-soft, #d8c9a3);
   border-radius: 4px;
   padding: 1px 8px;
   cursor: pointer;
@@ -214,7 +214,7 @@
 }
 
 .canvas-tool-btn:hover {
-  background: var(--Y0, #f6efd8);
+  background: var(--surface-highlight-soft, #f6efd8);
 }
 
 .canvas-tool-btn.tool-disabled {
@@ -227,8 +227,8 @@
 }
 
 .canvas-tool-btn.tool-active {
-  background: var(--Y1, #f0e2b8);
-  color: var(--BR4, #4a3a20);
+  background: var(--surface-highlight, #f0e2b8);
+  color: var(--text-strong, #4a3a20);
   font-weight: 500;
 }
 
@@ -451,7 +451,7 @@
 }
 
 .connect-form {
-  stroke: var(--BLACK, #333);
+  stroke: var(--border-black, #333);
   stroke-width: 1.2;
   stroke-dasharray: 0.1 4;
   stroke-linecap: round;
@@ -460,7 +460,7 @@
 }
 
 .connect-main {
-  stroke: var(--BLACK, #333);
+  stroke: var(--border-black, #333);
   stroke-width: 1.6;
   fill: none;
   opacity: 0.55;
@@ -606,7 +606,7 @@
 }
 
 .canvas-formation {
-  stroke: var(--BLACK, #333);
+  stroke: var(--border-black, #333);
   stroke-width: 1.2;
   stroke-dasharray: 0.1 4;
   stroke-linecap: round;
@@ -615,7 +615,7 @@
 }
 
 .canvas-leader {
-  stroke: var(--BLACK, #333);
+  stroke: var(--border-black, #333);
   stroke-width: 1;
   stroke-dasharray: 0.1 3.6;
   stroke-linecap: round;
@@ -626,7 +626,7 @@
    vocabulary as the product/list formation lines, not a faint solid
    line of its own that reads as an unlabeled edge */
 .canvas-dep {
-  stroke: var(--BLACK, #333);
+  stroke: var(--border-black, #333);
   stroke-width: 1.2;
   stroke-dasharray: 0.1 4;
   stroke-linecap: round;
@@ -751,7 +751,7 @@
 }
 
 .canvas-hulls .canvas-hull-label {
-  fill: var(--BR3, #8a744a);
+  fill: var(--text-accent, #8a744a);
   font-family: var(--code-font, monospace);
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -876,7 +876,7 @@
 .canvas-focus {
   position: relative;
   flex: 0 0 auto;
-  border-top: 0.6px solid var(--BR2, #ccc);
+  border-top: 0.6px solid var(--border-default, #ccc);
   padding: 6px 12px 10px;
   max-height: 240px;
   overflow: auto;
@@ -911,7 +911,7 @@
   top: 7px;
   right: 7px;
   cursor: pointer;
-  color: var(--BR3, #8a744a);
+  color: var(--text-accent, #8a744a);
   padding: 0 2px;
 }
 
@@ -1097,11 +1097,11 @@
    read as a hairline at best. Inset outlines so the well's box does
    not clip them. */
 .canvas-probe .live-offside .sample:has(.value.focus) .value {
-  outline: 2px solid var(--G0);
+  outline: 2px solid var(--border-success);
   outline-offset: -2px;
 }
 .canvas-probe .live-offside:focus .sample:has(.value.focus) .value {
-  outline: 2px solid var(--R1);
+  outline: 2px solid var(--border-error);
   outline-offset: -2px;
 }
 
@@ -1179,7 +1179,7 @@
 }
 
 .focus-fnbox {
-  border: 2px solid var(--BLACK, #333);
+  border: 2px solid var(--border-black, #333);
   border-radius: 7px;
   padding: 3px 12px;
   font-size: 12px;
@@ -1205,7 +1205,7 @@
   flex-wrap: wrap;
   gap: 2px 14px;
   padding: 4px 10px;
-  border-top: 0.6px solid var(--BR2, #ccc);
+  border-top: 0.6px solid var(--border-default, #ccc);
   font-size: 10px;
   opacity: 0.75;
 }
@@ -1547,7 +1547,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  border: 1px solid var(--BR1, #d8c9a3);
+  border: 1px solid var(--border-soft, #d8c9a3);
   background: color-mix(in srgb, var(--token-typ, #9457c9) 10%, var(--df-bg, #fdfdf4));
   color: var(--token-typ, #9457c9);
   font-family: var(--code-font, monospace);
@@ -1566,7 +1566,7 @@
 }
 
 .cmenu-icon.cmenu-base:hover {
-  background: var(--Y0, #f6efd8);
+  background: var(--surface-highlight-soft, #f6efd8);
 }
 
 /* ---- replay HUD + traces panel (CanvasReplayView) ---- */
@@ -1587,7 +1587,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--BR1, #d8c9a3);
+  background: var(--surface-shard, #d8c9a3);
   opacity: 0.55;
   cursor: pointer;
   margin: 0 3px;
@@ -1614,8 +1614,8 @@
   align-items: center;
   gap: 4px;
   padding: 3px 6px;
-  background: var(--Y0, #f6efd8);
-  border: 1px solid var(--BR1, #d8c9a3);
+  background: var(--surface-highlight-soft, #f6efd8);
+  border: 1px solid var(--border-soft, #d8c9a3);
   border-radius: 6px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   white-space: nowrap;
@@ -1646,7 +1646,7 @@
   width: 130px;
   font-size: 10px;
   padding: 1px 4px;
-  border: 1px solid var(--BR1, #d8c9a3);
+  border: 1px solid var(--border-soft, #d8c9a3);
   border-radius: 3px;
   background: white;
 }
@@ -1658,8 +1658,8 @@
   width: min(440px, calc(100% - 20px));
   max-height: 70vh;
   overflow: auto;
-  background: var(--Y0, #f6efd8);
-  border: 1px solid var(--BR1, #d8c9a3);
+  background: var(--surface-highlight-soft, #f6efd8);
+  border: 1px solid var(--border-soft, #d8c9a3);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 4px 6px 6px;
@@ -1672,7 +1672,7 @@
 }
 .traces-head.traces-sub {
   margin-top: 6px;
-  border-top: 1px solid var(--BR1, #d8c9a3);
+  border-top: 1px solid var(--border-soft, #d8c9a3);
   padding-top: 5px;
 }
 .traces-title {
@@ -1880,7 +1880,7 @@
 }
 
 .canvas-main-btn-on {
-  background: var(--Y0, #f6efd8);
+  background: var(--surface-highlight-soft, #f6efd8);
 }
 
 /* ---- the info panel under the constellation: side tabs (values ·
@@ -1893,7 +1893,7 @@
   flex-direction: row;
   align-items: stretch;
   min-height: 78px; /* the three tabs */
-  border-top: 0.6px solid var(--BR2, #ccc);
+  border-top: 0.6px solid var(--border-default, #ccc);
   overflow: hidden;
   font-family: var(--code-font, monospace);
   background: var(--ui-bkg, #fbf6e6);
@@ -1918,7 +1918,7 @@
   flex-direction: column;
   flex: 0 0 auto;
   width: 2em;
-  border-right: 0.6px solid var(--BR2, #ccc);
+  border-right: 0.6px solid var(--border-default, #ccc);
 }
 
 .canvas-info-tab {
@@ -1930,19 +1930,19 @@
   cursor: pointer;
   user-select: none;
   font-size: 13px;
-  color: var(--BR3, #a08a5a);
+  color: var(--text-accent, #a08a5a);
   transition: background-color 0.2s ease;
 }
 
 .canvas-info-tab.active {
-  color: var(--BR4, #6b5330);
-  border-right: 0.2em solid var(--BR3, #a08a5a);
+  color: var(--text-strong, #6b5330);
+  border-right: 0.2em solid var(--border-strong, #a08a5a);
   padding-left: 0.2em;
   font-weight: bold;
 }
 
 .canvas-info-tab:hover {
-  background-color: var(--T2, #f1e9d2);
+  background-color: var(--surface-raised, #f1e9d2);
 }
 
 .canvas-info-body {
@@ -2032,7 +2032,7 @@
 }
 
 .canvas-test-row:hover {
-  background-color: var(--T2, #f1e9d2);
+  background-color: var(--surface-raised, #f1e9d2);
 }
 
 .canvas-test-row .test-pip {
@@ -2202,7 +2202,7 @@
 /* the info panel's value chip that IS the dynamic focus */
 .agg-value.agg-anchored .value,
 .agg-value.agg-anchored .pill {
-  outline: 2px solid var(--R1);
+  outline: 2px solid var(--border-error);
   outline-offset: -2px;
 }
 .canvas-card-probe.canvas-probe {
@@ -2359,7 +2359,7 @@
   height: 100%;
   font-family: var(--code-font, monospace);
   font-size: 11px;
-  color: var(--BR3, #8a744a);
+  color: var(--text-accent, #8a744a);
   opacity: 0.7;
 }
 /* an app instance: the real (interactive) livelit projector. In the
@@ -2429,8 +2429,8 @@
 .canvas-layout-lab { position: relative; font: inherit; }
 .canvas-layout-lab > summary { cursor: pointer; list-style: none; padding: 2px 6px; }
 .canvas-layout-lab > summary::-webkit-details-marker { display: none; }
-.canvas-layout-lab[open] > summary { background: var(--T2, #e3eee8); border-radius: 3px; }
-.canvas-layout-options { position: absolute; z-index: 100; right: 0; top: calc(100% + 6px); width: 275px; padding: 14px; background: var(--BG, #faf8f0); color: var(--STONE, #34494c); border: 1px solid #aeb9af; border-radius: 5px; box-shadow: 0 4px 12px #293f4220; display: flex; flex-direction: column; gap: 12px; font: 12px/1.4 system-ui, sans-serif; }
+.canvas-layout-lab[open] > summary { background: var(--surface-raised, #e3eee8); border-radius: 3px; }
+.canvas-layout-options { position: absolute; z-index: 100; right: 0; top: calc(100% + 6px); width: 275px; padding: 14px; background: var(--BG, #faf8f0); color: var(--text-default, #34494c); border: 1px solid #aeb9af; border-radius: 5px; box-shadow: 0 4px 12px #293f4220; display: flex; flex-direction: column; gap: 12px; font: 12px/1.4 system-ui, sans-serif; }
 .canvas-layout-options label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .canvas-layout-options select { width: 153px; font: inherit; padding: 3px; }
 .canvas-layout-options button { font: inherit; padding: 5px; cursor: pointer; }
