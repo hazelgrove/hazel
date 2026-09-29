@@ -125,7 +125,7 @@ let insert_shard_core =
 let insert_shard =
     (
       ~auto_indent: bool=true,
-      ~regrout: bool=true,
+      ~regrout: bool,
       ~id: Id.t,
       ~d: Direction.t,
       t: Token.t,
@@ -334,7 +334,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
 let split =
     (
       ~auto_indent: bool,
-      ~regrout: bool=true,
+      ~regrout: bool,
       z: t,
       char: string,
       idx: int,
@@ -421,7 +421,7 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
 /* Append char to a neighboring token if possible (biasing left, see
  * sibling_appendability), else insert it as a new token. */
 let insert_or_append =
-    (~auto_indent: bool, ~regrout: bool=true, char: string, z: t, ~root)
+    (~auto_indent: bool, ~regrout: bool, char: string, z: t, ~root)
     : option(t) =>
   switch (sibling_appendability(char, z)) {
   | Some((Right, t))

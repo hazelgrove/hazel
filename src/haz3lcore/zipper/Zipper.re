@@ -223,9 +223,10 @@ let rescan_parent_shards = (z: t): t => {
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    /* Identity first: structural == walks every sibling even when rescan
-       handed back the very same pair. */
-    if (siblings === z.relatives.siblings || siblings == z.relatives.siblings) {
+    /* Siblings.rescan hands back its argument exactly when nothing changed,
+       so identity is the whole test: a structural == would walk every
+       sibling and could never be the one to say "unchanged". */
+    if (siblings === z.relatives.siblings) {
       z;
     } else {
       let relatives =

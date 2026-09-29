@@ -74,6 +74,7 @@ let (suite, exit_with_test_status) =
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
+    @ [Test_LoadPath.tests]
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests

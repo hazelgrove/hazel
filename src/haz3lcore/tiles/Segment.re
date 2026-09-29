@@ -1104,8 +1104,6 @@ let rescan_changed = (seg: t): (t, bool) => {
   };
 };
 
-let rescan = (seg: t): t => fst(rescan_changed(seg));
-
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
     switch (d) {
