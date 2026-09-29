@@ -832,7 +832,7 @@
   padding: 0.5em;
   margin: 0.5em;
   border-radius: 4px;
-  background: rgb(0 0 0 / 5%);
+  background: color-mix(in srgb, var(--text-default) 5%, transparent);
   white-space: pre-wrap;
 }
 
@@ -855,7 +855,7 @@
   grid-template-columns: 2.5em 8em 1fr;
   gap: 0.5em;
   padding: 0.15em 0.25em;
-  border-bottom: 1px solid rgb(0 0 0 / 6%);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-default) 6%, transparent);
 }
 
 .fumola-event-time {
@@ -894,7 +894,7 @@
   opacity: 0.7;
   padding: 0.15em 0 0.1em;
   margin-top: 0.25em;
-  border-top: 1px solid var(--fumola-pass-rule, rgba(0, 0, 0, 0.18));
+  border-top: 1px solid var(--fumola-pass-rule);
 }
 
 /* The first one heads the list, and a rule above it would float free. */
@@ -918,7 +918,7 @@
   margin: 0.5em 0.5em 0.25em;
   padding: 0.35em 0.5em;
   line-height: 1.35;
-  border-left: 2px solid var(--fumola-missed-rule, rgba(0, 0, 0, 0.25));
+  border-left: 2px solid var(--fumola-missed-rule);
   opacity: 0.85;
 }
 
@@ -943,7 +943,7 @@
   overflow-x: auto;
   padding: 0.25em 0.4em;
   border-radius: 4px;
-  background: rgb(0 0 0 / 4%);
+  background: color-mix(in srgb, var(--text-default) 4%, transparent);
 }
 
 /* A pointer in the event list leads somewhere: the node it names, as it was
@@ -1036,14 +1036,14 @@
   font-size: 0.85em;
   padding: 0.1em 0.5em;
   border-radius: 3px;
-  border: 1px solid rgb(0 0 0 / 15%);
+  border: 1px solid color-mix(in srgb, var(--text-default) 15%, transparent);
   opacity: 0.8;
   white-space: nowrap;
 }
 
 .fumola-reset:hover {
   opacity: 1;
-  background: rgb(0 0 0 / 5%);
+  background: color-mix(in srgb, var(--text-default) 5%, transparent);
 }
 
 /* An edge the editor made, marked whatever the editor setting is: the
@@ -1051,9 +1051,9 @@
    deeper mustard than the panel's ground, so it reads as the same family as
    the instance's own colour rather than as a warning. */
 .fumola-row.fumola-editor .fumola-row-value {
-  background: rgb(190 145 20 / 14%);
+  background: color-mix(in srgb, var(--text-warning) 14%, transparent);
 }
 
 .fumola-row.fumola-editor .fumola-row-key {
-  color: rgb(120 90 10 / 85%);
+  color: var(--text-warning);
 }

@@ -256,7 +256,7 @@
 #explain-this .fumola-panel-link {
   align-self: flex-start;
   cursor: pointer;
-  color: var(--BR3);
+  color: var(--text-muted);
   text-decoration: underline;
   text-underline-offset: 0.3em;
   user-select: none;
@@ -264,7 +264,7 @@
 }
 
 #explain-this .fumola-panel-link:hover {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 /* A fenced block in a doc: the form's concrete syntax, shown above the prose
@@ -280,7 +280,7 @@
   margin: 0.25em 0 0.6em;
   padding: 0.4em 0.5em;
   border-radius: 0.25em;
-  background: var(--code-bg, rgb(0 0 0 / 4%));
+  background: var(--surface-code);
 }
 
 #explain-this .section .explanation-contents pre.code-block code {
