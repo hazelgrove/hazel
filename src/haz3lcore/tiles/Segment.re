@@ -1138,7 +1138,12 @@ let presplit_orphans = (seg: t): t =>
        | p => [p],
      );
 
-let rescan = (seg: t): t => {
+/* Also says whether any piece came out different, so a caller can skip
+   comparing the whole segment. A conversion can hand back a piece equal
+   to the one it replaces (an orphan shard already carrying its
+   ancestor's id), so the flag compares that one piece. */
+let rescan_changed = (seg: t): (t, bool) => {
+  let changed = ref(false);
   let has_incomplete =
     List.exists(
       p =>
@@ -1149,7 +1154,7 @@ let rescan = (seg: t): t => {
       seg,
     );
   if (!has_incomplete) {
-    seg;
+    (seg, false);
   } else {
     /* Walk left-to-right with a STACK of backpack frames.
      * Each incomplete tile pushes a new frame with its missing shards.
@@ -1203,6 +1208,9 @@ let rescan = (seg: t): t => {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
               let converted = Piece.Tile(target_shard);
+              if (converted != hd) {
+                changed := true;
+              };
               let entries = List.filter(((k, _)) => k != tok, entries);
               /* If this frame is exhausted, pop to previous frame */
               let (frame, stack) =
@@ -1231,7 +1239,8 @@ let rescan = (seg: t): t => {
           };
         }
       };
-    go(seg);
+    let seg = go(seg);
+    (seg, changed^);
   };
 };
 
