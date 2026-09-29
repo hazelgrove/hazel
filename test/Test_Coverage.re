@@ -2,6 +2,7 @@ open Alcotest;
 open Language;
 open Mark;
 open Test_Statics_Prelude;
+open Poly;
 
 /* InexhaustiveMatch carries elab_syn_ty for the match head; statics may use a type
    alias (e.g. Var("Tree")) vs Unknown. Coverage tests care about the example
@@ -30,11 +31,11 @@ let testable_error_map =
     Fmt.using(
       m =>
         Id.Map.bindings(m)
-        |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
-        |> List.map(((id, iss)) =>
+        |> List.sort(~compare=(a, b) => Id.compare(fst(a), fst(b)))
+        |> List.map(~f=((id, iss)) =>
              Id.show(id) ++ " => " ++ show_issue(iss)
            )
-        |> String.concat("\n"),
+        |> String.concat(~sep="\n"),
       Fmt.string,
     ),
     equal_errors_map_coverage,
@@ -77,13 +78,13 @@ let has_errors =
 
       let show_error_map = (m: Id.Map.t(Test_Statics_Prelude.issue)): string =>
         Id.Map.bindings(m)
-        |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
-        |> List.map(((id, iss)) =>
+        |> List.sort(~compare=(a, b) => Id.compare(fst(a), fst(b)))
+        |> List.map(~f=((id, iss)) =>
              Id.show(id) ++ " => " ++ show_issue(iss)
            )
-        |> String.concat("\n");
+        |> String.concat(~sep="\n");
       print_endline("Actual errors: " ++ show_error_map(actual_errors));
-      let expected_errors = Id.Map.of_list(List.combine(ids, errors));
+      let expected_errors = Id.Map.of_list(List.zip_exn(ids, errors));
 
       print_endline("Expected errors: " ++ show_error_map(expected_errors));
 

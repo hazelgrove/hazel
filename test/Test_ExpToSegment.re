@@ -406,8 +406,8 @@ let tests = (
            the let tile with originally-present shards [0, 1] */
         let found =
           term.annotation.incomplete
-          |> List.exists(((_, mask: IdTagged.IdTag.incomplete_mask)) =>
-               mask.present == [0, 1]
+          |> List.exists(~f=((_, mask: IdTagged.IdTag.incomplete_mask)) =>
+               List.equal(Int.equal, mask.present, [0, 1])
              );
         check(bool, "let tile provenance recorded", true, found);
       }
@@ -431,7 +431,7 @@ let tests = (
       () => {
         let segment =
           Parser.to_term("1 |> 2 |> 3", ~root=Exp)
-          |> Option.get
+          |> Option.value_exn
           |> exp_to_segment;
         let serialized = print_seg(segment);
 
@@ -629,11 +629,11 @@ let roundtrip_test = (~known_equiv_gap=false, name: string, input: string) =>
    ephemeral by design. */
 let rec tile_ids = (seg: Segment.t): list(string) =>
   seg
-  |> List.concat_map((p: Piece.t) =>
+  |> List.concat_map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
          [Tile.token(t, 0) ++ ":" ++ Id.to_string(t.id)]
-         @ List.concat_map(tile_ids, t.children)
+         @ List.concat_map(~f=tile_ids, t.children)
        | Secondary(_)
        | Grout(_) => []
        | Projector(pr) => ["PROJ:" ++ Id.to_string(pr.id)]
@@ -1008,15 +1008,11 @@ end|}),
 
    Legacy/experimental syntax:
    - BlockExp ({...}) - preliminary syntax for probe user study
-   - LogicalOrLegacy (\/) - legacy OR syntax
-
-   === REMAINING WORK (needs investigation) ===
+   - LogicalOrLegacy (\/) - legacy OR phys_equal(syntax, REMAINING) WORK (needs investigation) ===
 
    - Grout (convex and concave) - secondary preservation unclear
    - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
-   - LLMHole (??...??) - similar concerns to explicit holes
-
-   === CONFIGURABLE BEHAVIOR (addressed via settings) ===
+   - LLMHole (??...??) - similar concerns to explicit phys_equal(holes, CONFIGURABLE) BEHAVIOR (addressed via settings) ===
 
    Defensive Parenthesization (Settings.parenthesization):
    - Defensive: Adds parens for forms like rec/poly after `:` because they
@@ -1598,8 +1594,8 @@ let arb_segment_fixpoint =
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
-        print_seg(seg) == print_seg(seg2)
-        && tile_ids(seg) == tile_ids(seg2)
+        String.equal(print_seg(seg), print_seg(seg2))
+        && List.equal(String.equal, tile_ids(seg), tile_ids(seg2))
         && Segment.equiv_mod_grout(seg, seg2)
         /* P3 closure: reparsing the print gives the same term */
         && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
@@ -1620,25 +1616,26 @@ let perturb_spaces = (seed: int, text: string): string => {
     k^ mod 6;
   };
   String.iter(
-    c => {
-      if (c == '"') {
-        in_string := ! in_string^;
-      };
-      if (c == ' ' && ! in_string^) {
-        switch (next()) {
-        | 0 => emit("  ")
-        | 1 => emit("\n")
-        | 2 => emit(" \n ")
-        | 3 => emit(" #c# ")
-        | _ => emit(" ")
+    ~f=
+      c => {
+        if (Char.equal(c, '"')) {
+          in_string := ! in_string^;
         };
-      } else {
-        emit(String.make(1, c));
-      };
-    },
+        if (Char.equal(c, ' ') && ! in_string^) {
+          switch (next()) {
+          | 0 => emit("  ")
+          | 1 => emit("\n")
+          | 2 => emit(" \n ")
+          | 3 => emit(" #c# ")
+          | _ => emit(" ")
+          };
+        } else {
+          emit(String.make(1, c));
+        };
+      },
     text,
   );
-  String.concat("", List.rev(out^));
+  String.concat(~sep="", List.rev(out^));
 };
 
 let arb_perturbed_fixpoint =
@@ -1664,8 +1661,8 @@ let arb_perturbed_fixpoint =
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
-        print_seg(seg) == print_seg(seg2)
-        && tile_ids(seg) == tile_ids(seg2)
+        String.equal(print_seg(seg), print_seg(seg2))
+        && List.equal(String.equal, tile_ids(seg), tile_ids(seg2))
         && Segment.equiv_mod_grout(seg, seg2)
         /* P3 closure: reparsing the print gives the same term */
         && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
@@ -1694,7 +1691,11 @@ let pad_ids_tests = (
         Alcotest.(check(bool))(
           "two pads agree",
           true,
-          PadIds.pad_ids(3, [base]) == PadIds.pad_ids(3, [base]),
+          List.equal(
+            Id.equal,
+            PadIds.pad_ids(3, [base]),
+            PadIds.pad_ids(3, [base]),
+          ),
         );
       },
     ),
@@ -1705,11 +1706,11 @@ let pad_ids_tests = (
         let base = Id.mk();
         let a = PadIds.pad_ids(2, [base, base]);
         let b = PadIds.pad_ids(2, [base, base]);
-        Alcotest.(check(bool))("stable", true, a == b);
+        Alcotest.(check(bool))("stable", true, List.equal(Id.equal, a, b));
         Alcotest.(check(bool))(
           "no dups",
           true,
-          List.length(List.sort_uniq(Id.compare, a)) == 2,
+          List.length(List.dedup_and_sort(~compare=Id.compare, a)) == 2,
         );
       },
     ),
@@ -1718,7 +1719,7 @@ let pad_ids_tests = (
       `Quick,
       () => {
         let base = Id.mk();
-        let padded = PadIds.pad_ids(4, [base]) |> List.tl;
+        let padded = PadIds.pad_ids(4, [base]) |> List.tl_exn;
         let nexts = [
           Id.next(base),
           Id.next(Id.next(base)),
@@ -1727,7 +1728,10 @@ let pad_ids_tests = (
         Alcotest.(check(bool))(
           "disjoint from next chain",
           true,
-          List.for_all(id => !List.mem(id, nexts), padded),
+          List.for_all(
+            ~f=id => !List.mem(nexts, id, ~equal=Id.equal),
+            padded,
+          ),
         );
       },
     ),
@@ -1756,7 +1760,7 @@ let pad_ids_tests = (
         Alcotest.(check(int))(
           "no duplicate tile ids",
           List.length(ids),
-          List.length(List.sort_uniq(compare, ids)),
+          List.length(List.dedup_and_sort(~compare=String.compare, ids)),
         );
       },
     ),

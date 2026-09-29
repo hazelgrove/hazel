@@ -28,7 +28,7 @@ let title_of_tests =
     /* An empty segment must not become an empty folder. */
     ("a doubled separator", "basics//01-holes.hzt", "Basics / 01 - Holes"),
   ]
-  |> List.map(((name, rel, expected)) =>
+  |> List.map(~f=((name, rel, expected)) =>
        test_case(name, `Quick, () =>
          check(string, rel, expected, TutorialText.title_of(rel))
        )
@@ -42,10 +42,8 @@ let indentation_tests = [
     `Quick,
     () => {
       let lesson =
-        List.find(
-          (spec: Tutorial.spec) =>
-            spec.title == "Basics / Mean of String Integers",
-          TutorialText.all,
+        List.find_exn(TutorialText.all, ~f=(spec: Tutorial.spec) =>
+          String.equal(spec.title, "Basics / Mean of String Integers")
         );
       check(
         string,
@@ -65,26 +63,26 @@ string_mean(["1", "2", "3"])|},
     `Quick,
     () => {
       let lesson =
-        List.find(
-          (spec: Tutorial.spec) =>
-            spec.title
-            == "Tuple Structural Operations / Labeled Tuple Extension",
-          TutorialText.all,
+        List.find_exn(TutorialText.all, ~f=(spec: Tutorial.spec) =>
+          String.equal(
+            spec.title,
+            "Tuple Structural Operations / Labeled Tuple Extension",
+          )
         );
       let lines =
         Haz3lcore.MarkerParse.to_text(lesson.hidden_tests.tests)
-        |> String.split_on_char('\n');
+        |> String.split(~on='\n');
       check(
         string,
         "test equality continuation",
         "  ==",
-        List.nth(lines, 1),
+        List.nth_exn(lines, 1),
       );
       check(
         string,
         "expected tuple continuation",
         "  (first=\"Thor\", age=31, last=\"Odinson\", name=\"Thor Odinson\")",
-        List.nth(lines, 2),
+        List.nth_exn(lines, 2),
       );
     },
   ),
