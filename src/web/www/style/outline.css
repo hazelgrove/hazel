@@ -12,12 +12,12 @@
   min-height: 0;
   font-family: var(--code-font, monospace);
   font-size: 12px;
-  color: var(--BR3, #6a5a3a);
+  color: var(--text-accent, #6a5a3a);
   background: var(--ui-bkg, #f6efdc);
   /* the panel edge: the sidebar owns the divider (editor cells are
      borderless in outline modes — a cell-side border stopped where
      the cell content did) */
-  border-right: 0.6px solid var(--BR2, #b5a377);
+  border-right: 0.6px solid var(--border-default, #b5a377);
 }
 
 #outline-sidebar[open] {
@@ -47,7 +47,7 @@
 }
 
 #outline-sidebar .outline-resize:hover {
-  background: color-mix(in srgb, var(--BR2, #b5a377) 25%, transparent);
+  background: color-mix(in srgb, var(--surface-shard-strong, #b5a377) 25%, transparent);
 }
 
 #outline-sidebar:not([open]) .outline-resize {
@@ -71,7 +71,7 @@
   writing-mode: horizontal-tb;
   opacity: 1;
   padding: 4px 10px;
-  border-bottom: 0.6px solid var(--BR2, #b5a377);
+  border-bottom: 0.6px solid var(--border-default, #b5a377);
 }
 
 #outline-sidebar .outline-body {
@@ -90,7 +90,7 @@
 }
 
 #outline-sidebar .outline-label:hover {
-  background: var(--BR1, #d8c9a3);
+  background: var(--surface-shard, #d8c9a3);
 }
 
 #outline-sidebar .outline-glyph {
@@ -102,7 +102,7 @@
 #outline-sidebar .outline-kids {
   margin-left: 14px;
   border-left: 0.6px solid
-    color-mix(in srgb, var(--BR2, #b5a377) 50%, transparent);
+    color-mix(in srgb, var(--border-default, #b5a377) 50%, transparent);
   padding-left: 4px;
 }
 
@@ -166,7 +166,7 @@
 }
 
 #outline-sidebar .ol-indet .outline-glyph {
-  color: var(--BR3, #6a5a3a);
+  color: var(--text-accent, #6a5a3a);
 }
 
 #outline-sidebar .outline-unfocus.outline-hidden {
@@ -195,7 +195,7 @@
 }
 
 #outline-sidebar .outline-label.outline-focused {
-  background: var(--BR1, #d8c9a3);
+  background: var(--surface-shard, #d8c9a3);
   font-weight: bold;
 }
 
@@ -203,13 +203,13 @@
   cursor: pointer;
   padding: 3px 6px;
   margin-bottom: 6px;
-  border: 0.6px solid var(--BR2, #b5a377);
+  border: 0.6px solid var(--border-default, #b5a377);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--BR1, #d8c9a3) 45%, white);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 45%, white);
 }
 
 #outline-sidebar .outline-unfocus:hover {
-  background: var(--BR1, #d8c9a3);
+  background: var(--surface-shard, #d8c9a3);
 }
 
 /* editor panes carry no borders in outline modes — the outline
@@ -223,7 +223,7 @@
    distinguished by background, not rules — top border only between
    entries (the topmost header has no preceding body) */
 #main .focus-header {
-  background: var(--T2, #f1e9d2);
+  background: var(--surface-raised, #f1e9d2);
   display: flex;
   align-items: baseline;
 }
@@ -260,7 +260,7 @@
 }
 
 #main .focus-body ~ .focus-header {
-  border-top: 0.6px solid var(--BR2, #b5a377);
+  border-top: 0.6px solid var(--border-default, #b5a377);
 }
 
 #main .focus-header .cell {
@@ -295,13 +295,13 @@
   margin-left: 5px;
   font-size: 7px;
   vertical-align: 1px;
-  color: var(--R1, #c33);
+  color: var(--text-error, #c33);
   opacity: 0.85;
 }
 
 /* erroring rows also tint the name itself (keep the dot; andrew) */
 #outline-sidebar .outline-label.outline-has-err {
-  color: var(--R1, #c33);
+  color: var(--text-error, #c33);
 }
 
 /* roll-up badge: an ancestor row shows the dot only while COLLAPSED
@@ -324,7 +324,7 @@
   z-index: 41;
   min-width: 12em;
   background: var(--T0, #fff);
-  border: 1px solid var(--T3, #ccc);
+  border: 1px solid var(--border-sunken, #ccc);
   border-radius: 4px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
   font-size: 12px;
@@ -336,7 +336,7 @@
   white-space: nowrap;
 }
 .outline-def-menu-item:hover {
-  background: var(--T2, #eee);
+  background: var(--surface-raised, #eee);
 }
 
 /* slide-loading frame (SwitchSlide paints this before hydration) */
@@ -346,7 +346,7 @@
   justify-content: center;
   gap: 2px;
   height: 40vh;
-  color: var(--BR3, #6a5a3a);
+  color: var(--text-accent, #6a5a3a);
   opacity: 0.7;
   font-family: var(--code-font, monospace);
 }
@@ -396,6 +396,6 @@
 
 /* the whole-program result, live below the stack */
 #main .stack-result {
-  border-top: 0.6px solid var(--BR2, #b5a377);
-  background: var(--T2, #f1e9d2);
+  border-top: 0.6px solid var(--border-default, #b5a377);
+  background: var(--surface-raised, #f1e9d2);
 }

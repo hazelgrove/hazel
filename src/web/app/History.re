@@ -87,7 +87,7 @@ let compact = (m: Page.Model.t): Page.Model.t => {
     switch (m.editors) {
     | Scratch(sm) => Scratch(compact_scratch(sm))
     | Documentation(sm) => Documentation(compact_scratch(sm))
-    | (Tutorial(_) | Exercises(_)) as e => e
+    | (Tutorial(_) | Exercises(_) | Config(_)) as e => e
     },
 };
 

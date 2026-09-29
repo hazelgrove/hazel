@@ -85,6 +85,11 @@ module Model = {
     simple_indication: bool,
     /* grey re-evaluation-progress backings after edits */
     show_pending_eval: bool,
+    /* Shortcut overrides derived from the Shortcuts config slide: a
+       ContextualAction label to its resolved hotkey, or None for an action
+       the config leaves Unbound. Applied when the command palette is built
+       (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
+    shortcut_overrides: list((string, option(string))),
   };
 
   let init = {
@@ -184,6 +189,7 @@ module Model = {
     canvas_tick: 0,
     simple_indication: false,
     show_pending_eval: false,
+    shortcut_overrides: [],
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -267,7 +273,8 @@ module Update = {
     | ShowRowLines
     | ShowIncrementalDeco
     | SimpleIndication
-    | ShowPendingEval;
+    | ShowPendingEval
+    | SetShortcutOverrides(list((string, option(string))));
 
   let is_canvas_geometry = (action: t): bool =>
     switch (action) {
@@ -871,6 +878,10 @@ module Update = {
       | ShowIncrementalDeco => {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
+        }
+      | SetShortcutOverrides(overrides) => {
+          ...settings,
+          shortcut_overrides: overrides,
         }
       | SimpleIndication => {
           ...settings,
