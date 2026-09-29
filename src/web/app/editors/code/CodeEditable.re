@@ -311,13 +311,21 @@ module Selection = {
           )
         ),
     }
-    /* TODO: stubbed — see merge brief. This listed one palette entry per
-       Refactor.menu_items result (program-dependent labels, e.g. "Rename x
-       to y"; section Refactoring, icon "compress", no hotkey) via
-       ContextualAction.mk, which dev #1591 removed: of_shortcut can only
-       name a static ShortcutAction variant. The context menu still lists
-       these refactorings. */
-    |> Cursor.with_lazy_actions(() => [])
+    |> Cursor.with_lazy_actions(() =>
+         Haz3lcore.Refactor.menu_items(
+           ~info_map=model.statics.info_map,
+           ~term=model.statics.term,
+           model.editor.state.zipper,
+         )
+         |> List.map(((kind, label, _tooltip)) =>
+              ContextualAction.of_dynamic(
+                ~action=inject(Perform(Refactor(kind))),
+                ~section=Refactoring,
+                ~mdIcon="compress",
+                label,
+              )
+            )
+       )
     |> Cursor.with_actions([
          /* Navigation */
          of_shortcut(
