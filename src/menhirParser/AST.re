@@ -246,7 +246,23 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let+ suffix = nonascii_name_suffix;
         let ident = String.make(1, leading) ++ tail ++ suffix;
-        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
+        /* Every capitalized word Lexer.mll reserves: generated as a
+           constructor, `Nat` or `Void` lexes as a type keyword and the
+           program fails to parse. */
+        if (List.mem(
+              ident,
+              [
+                "SInt",
+                "Nat",
+                "Int",
+                "Float",
+                "Bool",
+                "String",
+                "Void",
+                "Unknown",
+                "Internal",
+              ],
+            )) {
           "Keyword";
         } else if (!avoids_builtin(ident)) {
           ident ++ "z";
