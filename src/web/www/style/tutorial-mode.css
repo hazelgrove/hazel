@@ -2,16 +2,16 @@
   width: 40px;
   position: relative;
   height: 40px;
-  background-color: var(--G1);
+  background-color: var(--surface-success-soft);
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
   font-size: 25px;
   font-weight: bold;
-  color: white;
+  color: var(--text-inverse);
   cursor: pointer;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 #main.Tutorial .checkmark-container {
@@ -24,16 +24,16 @@
   width: 40px;
   position: relative;
   height: 40px;
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
   font-size: 25px;
   font-weight: bold;
-  color: white;
+  color: var(--text-inverse);
   cursor: pointer;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 #main.Tutorial .checkmark-grey:hover {
@@ -47,8 +47,8 @@
   position: absolute;
   bottom: 120%;
   right: 0;
-  background: #fffdf4;
-  color: #333;
+  background: var(--surface-raised);
+  color: var(--text-default);
   padding: 6px 10px;
   font-size: 13px;
   border-radius: 5px;
@@ -63,22 +63,21 @@
 }
 
 #main.Tutorial .cell:has(.test-panel) {
-  border-left: 1px solid #ffc107;
+  border-left: 1px solid var(--border-highlight-strong);
 }
 
 #main.Tutorial .hint-cell {
-  background-color: var(--Y0);
-  border-left: 1px solid #ffc107;
+  background-color: var(--surface-highlight-soft);
+  border-left: 1px solid var(--border-highlight-strong);
   padding: 13px;
   border-radius: 8px;
   font-size: 16px;
-  color: #454545;
   gap: 2em;
 }
 
 #main.Tutorial .hint-title {
   font-weight: bold;
-  color: var(--Y3);
+  color: var(--text-warning);
   font-size: 15px;
   cursor: pointer;
   user-select: none;
@@ -107,7 +106,7 @@
 
 #main.Tutorial .hint-content {
   font-size: 15px;
-  color: #555;
+  color: var(--text-muted);
 }
 
 /* breathing room between title and content once expanded */
@@ -116,20 +115,20 @@
 }
 
 /* Tasks collapsible: like the hint, but no fill — just the backdrop with a
-   thin --BR1 outline (so it reads as part of the prompt, not a callout). */
+   thin --border-soft outline (so it reads as part of the prompt, not a
+   callout). */
 #main.Tutorial .tasks-cell {
   background-color: transparent;
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--border-soft);
   padding: 13px;
   border-radius: 8px;
   font-size: 16px;
-  color: #454545;
   gap: 2em;
 }
 
 #main.Tutorial .tasks-title {
   font-weight: bold;
-  color: var(--BR4);
+  color: var(--text-strong);
   font-size: 15px;
   cursor: pointer;
   user-select: none;
@@ -158,7 +157,7 @@
 
 #main.Tutorial .tasks-content {
   font-size: 15px;
-  color: #555;
+  color: var(--text-default);
 }
 
 /* breathing room between title and content once expanded */
@@ -172,7 +171,7 @@
   top: -27px;
   font-size: 1.2em;
   right: 0px;
-  color: var(--BR2);
+  color: var(--text-muted);
   display: inline;
   vertical-align: top;
 }
@@ -186,8 +185,8 @@
   position: absolute;
   bottom: 120%;
   right: 0;
-  background: #fffdf4;
-  color: #333;
+  background: var(--surface-raised);
+  color: var(--text-default);
   padding: 6px 10px;
   font-size: 10px;
   border-radius: 5px;
@@ -234,15 +233,15 @@
 #main.Tutorial .cross {
   width: 40px;
   height: 40px;
-  color: black;
-  background-color: #838282;
+  color: var(--text-black);
+  background-color: var(--text-muted);
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
   font-size: 25px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  border: 4px solid #000000;
+  box-shadow: 0 4px 10px var(--shadow-strong);
+  border: 4px solid var(--border-black);
 }
 
 #main.Tutorial .cross::after {
@@ -250,8 +249,8 @@
   position: absolute;
   bottom: 120%;
   right: 0;
-  background: #fffdf4;
-  color: #333;
+  background: var(--surface-raised);
+  color: var(--text-default);
   padding: 6px 10px;
   font-size: 12px;
   border-radius: 2.5px;
@@ -274,7 +273,7 @@
   align-items: center;
   gap: 0.4em;
   font-size: 0.9em;
-  color: #333;
+  color: var(--text-default);
   align-content: right;
 }
 
@@ -285,7 +284,7 @@
 #main.Tutorial .hint-content code {
   font-size: 0.75em;
   font-family: monospace;
-  background-color: #f5f5f5;
+  background-color: var(--surface-sunken);
   padding: 1px 1px;
   line-height: 0;
 }
@@ -293,27 +292,27 @@
 #main.Tutorial .prev-button {
   transform: scaleX(-1);
   font-size: 30px;
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   z-index: 1000;
 }
 
 #main.Tutorial .next-button {
   font-size: 30px;
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   z-index: 1000;
 }
 
 #main.Tutorial .next-button:hover {
   transform: scale(1.2);
-  color: #ffc107;
+  color: var(--text-warning);
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
 #main.Tutorial .prev-button:hover {
   transform: scaleX(-1) scale(1.2);
-  color: #ffc107;
+  color: var(--text-warning);
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
@@ -324,7 +323,7 @@
 #main.Tutorial .done-message {
   font-size: 1.2rem;
   font-weight: bold;
-  color: var(--BR4);
+  color: var(--text-strong);
   text-align: right;
   margin-top: 1em;
   margin-bottom: 1em;
@@ -363,15 +362,15 @@
   max-width: 720px;
   margin: 0.75em auto;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  background: #000;
+  box-shadow: 0 2px 8px var(--menu-shadow);
+  background: var(--surface-black);
 }
 
 /* Inline code in a lesson's prose -- the `+` in "the operators: `+`" -- is
    marked as code where it sits in the sentence. Block code inside a locked
    cell is exempted below: there the cell carries the surface. */
 .prompt-content .code {
-  background: var(--Y0);
+  background: var(--surface-highlight-soft);
   border-radius: 3px;
 }
 
@@ -393,12 +392,12 @@
    `#main.Tutorial .cell` in cell.css -- one source for it.
 
    The Task Reference panel is deliberately NOT included: `.task-reference-
-   section` already is a card with this same --T1 fill and --BR1 border, and
-   its `-body` clips at exactly the cell's width, so a ring drawn outside the
-   cell box survives only along the top edge. */
+   section` already is a card with this same --surface-default fill and
+   --border-soft border, and its `-body` clips at exactly the cell's width, so
+   a ring drawn outside the cell box survives only along the top edge. */
 .prompt-content .cell.locked {
-  background: var(--T1);
-  box-shadow: 0 0 0 1px var(--BR1);
+  background: var(--surface-default);
+  box-shadow: 0 0 0 1px var(--shadow-soft);
 }
 
 /* `#main .code-editor` sets an I-beam for the primary editor, which also
