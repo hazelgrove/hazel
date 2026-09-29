@@ -57,6 +57,18 @@ let try_segment_paste =
   };
 };
 
+/* Line endings as the editor keeps them. Token.to_list segments by
+   grapheme, and "\r\n" is ONE grapheme, so text with Windows line endings
+   arrives as "\r\n" characters, never as a lone "\r": each was inserted as
+   an unknown token, leaving a `¿` hole at the start of every line. None
+   means skip (a lone "\r"). */
+let line_ending = (c: string): option(string) =>
+  switch (c) {
+  | "\r\n" => Some("\n")
+  | "\r" => None
+  | c => Some(c)
+  };
+
 /* The longest prefix of [chars] that stays one operand, or one operator,
    at every step: exactly the characters typing would keep appending to
    the token they start. Brackets, quotes, comment delimiters and
@@ -92,9 +104,11 @@ let to_zipper =
   let insert = (z: Zipper.t, c: string): option(Zipper.t) =>
     /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
     try(
-      c == "\r"
-        ? Some(z)
-        : Insert.go(~auto_indent=false, ~regrout=!by_run, c, z, ~root)
+      switch (line_ending(c)) {
+      | None => Some(z)
+      | Some(c) =>
+        Insert.go(~auto_indent=false, ~regrout=!by_run, c, z, ~root)
+      }
     ) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
@@ -164,7 +178,12 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
     let* z = z;
     /* Disable auto_indent so Parser faithfully reproduces input without
      * adding spaces. Matches to_zipper's behavior. */
-    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
+    try(
+      switch (line_ending(c)) {
+      | None => Some(z)
+      | Some(c) => Insert.go(~auto_indent=false, c, z, ~root)
+      }
+    ) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -178,7 +197,8 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
       switch (current_z^) {
       | None => ()
       | Some(z) =>
-        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+        if (chars_since_split^ >= min_segment_size
+            && is_split_point(Option.value(~default=c, line_ending(c)), z)) {
           let z = Zipper.remold_regrout(Left, z, ~root);
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
           segments := [strip_trailing_grout(seg), ...segments^];
