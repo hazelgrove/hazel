@@ -57,7 +57,7 @@ let source = {
     );
 
   ExpToSegment.exp_to_segment(
-    ~settings=ExpToSegment.Settings.editable(~inline=false),
+    ~settings=ExpToSegment.Settings.editable(~inline=Block),
     exp,
   )
   |> PrettySegment.prettify
