@@ -68,6 +68,74 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
+        | Module(items) =>
+          /* Items scope sequentially: a pending item binds its name for the
+             items that follow, so it shadows the substitution there. An
+             evaluated binding does not, and must not: the step that made it
+             substituted its value into the items that follow, and that is the
+             substitution this would swallow. */
+          let shadow = (env, x) =>
+            Environment.extend(env, (x, Exp.fresh(Var(x))));
+          let rec mpat_name = (mp: MPat.t) =>
+            switch (mp.term) {
+            | Var(x) => Some(x)
+            | Asc(inner, _) => mpat_name(inner)
+            | _ => None
+            };
+          let (_, rev_items) =
+            List.fold_left(
+              ((env, acc), item: Mod.t) => {
+                let (env', item') =
+                  switch (item.term) {
+                  | ModLet(p, e) =>
+                    /* Shadow rather than rename here too: a pending binding
+                       names a member, so renaming it away from capture would
+                       rename the member and break `M.x`. */
+                    (
+                      List.fold_left(shadow, env, Pat.bound_vars(p)),
+                      {
+                        ...item,
+                        term: (ModLet(p, in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModuleMod(mp, e) =>
+                    let env' =
+                      switch (mpat_name(mp)) {
+                      | Some(x) => shadow(env, x)
+                      | None => env
+                      };
+                    (
+                      env',
+                      {
+                        ...item,
+                        term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
+                      },
+                    );
+                  | ModVal(x, e) => (
+                      env,
+                      {
+                        ...item,
+                        term: (ModVal(x, in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModExp(e) => (
+                      env,
+                      {
+                        ...item,
+                        term: (ModExp(in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModType(_, _)
+                  | Invalid(_)
+                  | EmptyHole
+                  | MultiHole(_) => (env, item)
+                  };
+                (env', [item', ...acc]);
+              },
+              (env, []),
+              items,
+            );
+          Module(List.rev(rev_items)) |> rewrap;
 
         // Other cases: recurse
         | Invalid(_)
@@ -107,7 +175,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | LivelitName(_)
         | ProofObject(_)
         | Undefined
-        | Module(_)
         | ModuleExp(_) => cont(e)
         };
       },
@@ -203,7 +270,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         failwith("patterns should be handled separately in substitution"),
     ~f_typ=
       (cont, t) => {
-        let (term, _rewrap) = Typ.unwrap(t);
+        let (term, rewrap) = Typ.unwrap(t);
         switch (term) {
         // Cases without patterns: recurse
         | Unknown(_)
@@ -223,8 +290,11 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdProjection(_, _)
         | ProdExtension(_, _)
         | ProofOf(_)
-        | Sig(_)
         | DrvQuoteTy(_) => cont(t)
+        // The item types only: the generic traversal would also visit the
+        // item patterns
+        | Sig(items) =>
+          Sig(List.map(Sig.map_typ(in_typ(env)), items)) |> rewrap
         };
       },
     typ,
