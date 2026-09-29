@@ -1642,3 +1642,7 @@ module SecondaryCollection = {
     | Skel.Input_contains_secondary => Id.Map.empty
     };
 };
+
+/* Sharing check used by scoped structural cleanup. */
+let ptr_eq = (a: t, b: t): bool =>
+  a === b || List.length(a) == List.length(b) && List.for_all2((===), a, b);
