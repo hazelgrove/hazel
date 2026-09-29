@@ -1,6 +1,6 @@
 /* Gesture-keyed one-shot scroll for Left/Right sample nav: capture the
- * target's rect at keydown, consume after the next render — keeping the
- * sample under the eye (vertical) and in a comfort band (horizontal).
+ * target at keydown, consume after the next render — keeping its probe
+ * under the eye (vertical) and the sample in a comfort band (horizontal).
  * Gesture-keyed so it never fires on unrelated re-renders. */
 
 open Js_of_ocaml;
@@ -23,8 +23,6 @@ type anchor = {
   primary: string,
   fallback: string,
   top: float,
-  left: float,
-  right: float,
 };
 
 let pending: ref(option(anchor)) = ref(None);
@@ -38,9 +36,14 @@ let find_anchor = (a: anchor): option(Js.t(Dom_html.element)) =>
   | None => find(a.fallback)
   };
 
-let rect_of = (el: Js.t(Dom_html.element)): (float, float, float) => {
-  let r = el##getBoundingClientRect;
-  (r##.top, r##.left, r##.right);
+/* Measure the sample's probe display, not the sample: Many-mode depth
+ * stagger shifts a sample a few px whenever the focus moves, and following
+ * that scrolled the page on every arrow. */
+let top_of = (el: Js.t(Dom_html.element)): float => {
+  let box =
+    JsUtil.find_ancestor_with_class(el, "live-offside")
+    |> Option.value(~default=el);
+  box##getBoundingClientRect##.top;
 };
 
 let capture =
@@ -51,20 +54,15 @@ let capture =
     primary,
     fallback,
     top: 0.,
-    left: 0.,
-    right: 0.,
   };
   switch (find_anchor(a)) {
   | None => pending := None
   | Some(el) =>
-    let (top, left, right) = rect_of(el);
     pending :=
       Some({
         ...a,
-        top,
-        left,
-        right,
-      });
+        top: top_of(el),
+      })
   };
 };
 
@@ -116,8 +114,7 @@ let consume = (): unit =>
     switch (find_anchor(a)) {
     | None => ()
     | Some(el) =>
-      let (new_top, _, _) = rect_of(el);
-      let delta = new_top -. a.top;
+      let delta = top_of(el) -. a.top;
       if (delta != 0.0) {
         let doc = Dom_html.document;
         Js.Opt.iter(
