@@ -286,7 +286,7 @@ module HTML = {
       // === Links/media ===
       ("Href", Some(string())),
       ("Src", Some(string())),
-      ("Alt", Some(string())),
+      ("AltText", Some(string())),
       ("Title", Some(string())),
       ("Target", Some(string())),
       // === Input specifics ===
