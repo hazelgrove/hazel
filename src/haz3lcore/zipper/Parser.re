@@ -167,48 +167,88 @@ let strip_trailing_grout = (seg: Segment.t): Segment.t => {
    is parsed independently; trailing grout (from Zipper.init) is
    stripped, segments are concatenated, and a final top-level regrout
    ensures shape consistency across boundaries. */
-let to_segment = (str: string, ~root): option(Segment.t) => {
-  let chars = str |> Token.to_list;
+let to_segment_with_manuals =
+    (~by_run=true, str: string, ~root)
+    : option((Segment.t, Refractors.RefractorList.t)) => {
   let segments = ref([]);
+  /* Projectors typed along the way (`^^probe(` and the like) are pinned
+     in each piece's refractors, by piece id; ids survive the split, so
+     every piece's pins are kept and handed back with the segment. */
+  let manuals = ref([]);
   let current_z = ref(Some(Zipper.init()));
   let chars_since_split = ref(0);
   let min_segment_size = 100;
-
-  let insert_char = (z: option(Zipper.t), c: string): option(Zipper.t) => {
-    let* z = z;
-    try(Insert.go(line_ending(c), z, ~root)) {
+  /* With ~by_run (the default), as in to_zipper: a run that stays one
+     token goes in as one insertion, and the regrout waits for the end of
+     the segment, where it happens anyway. Each segment starts from a fresh
+     zipper, so this always parses text on its own, which is when that is
+     safe. Over all 117 hazel-programs, with and without it, the result is
+     identical. */
+  let insert = (z: Zipper.t, s: string): option(Zipper.t) =>
+    try(Insert.go(~regrout=!by_run, line_ending(s), z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
     };
-  };
-
-  List.iter(
-    c => {
-      current_z := insert_char(current_z^, c);
-      incr(chars_since_split);
+  /* A direct self call, so js_of_ocaml compiles it to a loop. */
+  let rec go = (chars: list(string)) =>
+    switch (chars, current_z^) {
+    | ([], _)
+    | (_, None) => ()
+    | ([c, ...rest], Some(z)) =>
+      let (s, rest) =
+        switch (
+          by_run && z.caret == Outer && z.selection.content == []
+            ? take_run(chars) : None
+        ) {
+        | Some(run) => run
+        | None => (c, rest)
+        };
+      current_z := insert(z, s);
+      chars_since_split :=
+        chars_since_split^ + List.length(chars) - List.length(rest);
       switch (current_z^) {
-      | None => ()
-      | Some(z) =>
-        if (chars_since_split^ >= min_segment_size
-            && is_split_point(line_ending(c), z)) {
-          let z = Zipper.remold_regrout(Left, z, ~root);
-          let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-          segments := [strip_trailing_grout(seg), ...segments^];
-          current_z := Some(Zipper.init());
-          chars_since_split := 0;
-        }
+      | Some(z)
+          when
+            chars_since_split^ >= min_segment_size
+            && is_split_point(line_ending(s), z) =>
+        let z = Zipper.remold_regrout(Left, z, ~root);
+        manuals := z.refractors.manuals @ manuals^;
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        segments := [strip_trailing_grout(seg), ...segments^];
+        current_z := Some(Zipper.init());
+        chars_since_split := 0;
+      | _ => ()
       };
-    },
-    chars,
-  );
+      go(rest);
+    };
+  go(Token.to_list(str));
 
   let+ z = current_z^;
   let z = Zipper.remold_regrout(Left, z, ~root);
+  let manuals = z.refractors.manuals @ manuals^;
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
-  Segment.regrout(Nib.Shape.(concave(), concave()), combined);
+  (Segment.regrout(Nib.Shape.(concave(), concave()), combined), manuals);
+};
+
+let to_segment = (~by_run=true, str: string, ~root): option(Segment.t) =>
+  to_segment_with_manuals(~by_run, str, ~root) |> Option.map(fst);
+
+/* to_zipper's result, from the segmented parser (hazelgrove/hazel#2610):
+   linear where to_zipper is quadratic in a long top-level sequence, and
+   the same zipper, projectors and all, on hazel-programs. For text parsed
+   on its own, not inserted into a program. */
+let to_zipper_segmented =
+    (~by_run=true, ~root, str: string): option(Zipper.t) => {
+  let+ (seg, manuals) = to_segment_with_manuals(~by_run, str, ~root);
+  Zipper.unzip(seg)
+  |> Zipper.rescan_reassemble(~with_parent=true, Left, _, ~root)
+  |> ZipperBase.update_manuals(existing =>
+       manuals
+       @ List.filter(((id, _)) => !List.mem_assoc(id, manuals), existing)
+     );
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.
