@@ -79,7 +79,11 @@ let initialize =
   Js.Unsafe.set(elem(), "data", Js.array(opts));
 };
 
-let open_with = (actions: list(ContextualAction.t)) => {
-  initialize(actions);
+let open_with =
+    (
+      ~overrides: list((string, option(string))),
+      actions: list(ContextualAction.t),
+    ) => {
+  initialize(~overrides, actions);
   open_command_palette();
 };

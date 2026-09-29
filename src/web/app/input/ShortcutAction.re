@@ -110,6 +110,7 @@ type t =
   | ToggleShowWhitespace
   | ToggleCharacterLevelMouse
   | TogglePrintBenchmarks
+  | ToggleSlowAnimations
   | ToggleDebugSidebar
   | ToggleDynamics
   | ToggleShowElaboration
@@ -378,6 +379,12 @@ let meta = (a: t): action_meta =>
       label: "Toggle Print Benchmarks",
       section: Settings,
       mdIcon: "tune",
+      default_binding: Unbound,
+    }
+  | ToggleSlowAnimations => {
+      label: "Toggle Slow Animations (5x)",
+      section: Settings,
+      mdIcon: "slow_motion_video",
       default_binding: Unbound,
     }
   | ToggleDebugSidebar => {

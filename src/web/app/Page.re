@@ -716,15 +716,13 @@ module Selection = {
            ~action=inject(Globals(Set(Benchmark))),
            TogglePrintBenchmarks,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="slow_motion_video",
+         of_shortcut(
            ~action=
              Bonsai.Effect.of_sync_fun(
                () => CodeFlip.slow_mo := ! CodeFlip.slow_mo^,
                (),
              ),
-           "Toggle Slow Animations (5x)",
+           ToggleSlowAnimations,
          ),
          of_shortcut(
            ~action=inject(Globals(Set(ShowDebugPanel))),
@@ -1064,6 +1062,7 @@ module View = {
             model,
           );
         NinjaKeys.open_with(
+          ~overrides=model.globals.settings.shortcut_overrides,
           cursor.contextual_actions @ cursor.contextual_actions_lazy(),
         );
       };
@@ -1133,6 +1132,7 @@ module View = {
               Icons.command_palette_terminal,
               _ => {
                 NinjaKeys.open_with(
+                  ~overrides=globals.settings.shortcut_overrides,
                   Cursor.(
                     cursor.contextual_actions
                     @ cursor.contextual_actions_lazy()
