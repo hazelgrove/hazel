@@ -43,9 +43,12 @@ let decode_spec = (spec: Web.Tutorial.spec): string =>
       @ ["version=" ++ string_of_int(spec.version)]
       @ ["id=" ++ Id.to_string(spec.id)];
     kv("title", spec.title)
-    ++ kv("flags", String.concat(" ", flags))
+    ++ kv("flags", String.concat(~sep=" ", flags))
     ++ kv("prompt", spec.prompt)
-    ++ (spec.display_hint == "" ? "" : kv("hint", spec.display_hint))
+    ++ (
+      String.equal(spec.display_hint, "")
+        ? "" : kv("hint", spec.display_hint)
+    )
     ++ (
       switch (spec.task_reference) {
       | None => ""
@@ -53,41 +56,44 @@ let decode_spec = (spec: Web.Tutorial.spec): string =>
       }
     )
     ++ (
-      spec.hidden_tests.hints == []
-        ? "" : kv("hints", String.concat("\n", spec.hidden_tests.hints))
+      List.is_empty(spec.hidden_tests.hints)
+        ? "" : kv("hints", String.concat(~sep="\n", spec.hidden_tests.hints))
     )
-    ++ kv("code", String.trim(code))
+    ++ kv("code", String.strip(code))
     ++ "@test\n"
-    ++ String.trim(test)
+    ++ String.strip(test)
     ++ "\n"
   );
 
 let title_of = (spec: Web.Tutorial.spec): string => Web.Tutorial.(spec.title);
 
 let kebab = (s: string): string =>
-  String.lowercase_ascii(s)
-  |> String.map(c => c >= 'a' && c <= 'z' || c >= '0' && c <= '9' ? c : '-');
+  String.lowercase(s)
+  |> String.map(~f=c =>
+       Char.(c >= 'a' && c <= 'z' || c >= '0' && c <= '9') ? c : '-'
+     );
 
 let rec ensure_dir = (path: string): unit =>
-  if (!Sys.file_exists(path)) {
+  if (!Stdlib.Sys.file_exists(path)) {
     let parent = Filename.dirname(path);
-    if (parent != path && parent != ".") {
+    if (!String.equal(parent, path) && !String.equal(parent, ".")) {
       ensure_dir(parent);
     };
-    try(Unix.mkdir(path, 0o755)) {
+    try(Stdlib.Sys.mkdir(path, 0o755)) {
     | _ => ()
     };
   };
 
 let print_matching = (substr: string): unit =>
   List.iter(
-    spec =>
-      if (substr == ""
-          || Core.String.is_substring(title_of(spec), ~substring=substr)) {
-        print_endline("=== " ++ title_of(spec) ++ " ===");
-        print_string(decode_spec(spec));
-        print_endline("");
-      },
+    ~f=
+      spec =>
+        if (String.equal(substr, "")
+            || String.is_substring(title_of(spec), ~substring=substr)) {
+          print_endline("=== " ++ title_of(spec) ++ " ===");
+          print_string(decode_spec(spec));
+          print_endline("");
+        },
     Web.TutorialSettings.lessons,
   );
 
@@ -95,21 +101,22 @@ let write_all = (dir: string): unit => {
   ensure_dir(dir);
   let specs = Web.TutorialSettings.lessons;
   List.iteri(
-    (i, spec) => {
-      /* Only the leaf: kebab maps the SlidePath separator to dashes, so a
-         folder-bearing title would give "01-basics---holes.hzt". */
-      let name =
-        Printf.sprintf(
-          "%02d-%s.hzt",
-          i + 1,
-          kebab(Web.SlidePath.leaf(Web.Tutorial.path_of(spec))),
+    ~f=
+      (i, spec) => {
+        /* Only the leaf: kebab maps the SlidePath separator to dashes, so a
+           folder-bearing title would give "01-basics---holes.hzt". */
+        let name =
+          Printf.sprintf(
+            "%02d-%s.hzt",
+            i + 1,
+            kebab(Web.SlidePath.leaf(Web.Tutorial.path_of(spec))),
+          );
+        Core.Out_channel.write_all(
+          dir ++ "/" ++ name,
+          ~data=decode_spec(spec),
         );
-      Core.Out_channel.write_all(
-        dir ++ "/" ++ name,
-        ~data=decode_spec(spec),
-      );
-      print_endline("Wrote: " ++ dir ++ "/" ++ name);
-    },
+        print_endline("Wrote: " ++ dir ++ "/" ++ name);
+      },
     specs,
   );
   print_endline(
@@ -135,29 +142,30 @@ let show_diff = (label: string, a: string, b: string): unit =>
 let verify = (verbose: bool): unit => {
   let (pass, fail) =
     List.fold_left(
-      ((pass, fail), spec) =>
-        Web.Tutorial.(
-          {
-            let (i1, i2) = roundtrip(spec.your_impl);
-            let (t1, t2) = roundtrip(spec.hidden_tests.tests);
-            let impl_ok = i1 == i2;
-            let test_ok = t1 == t2;
-            Printf.printf(
-              "%-34s impl:%-9s tests:%s\n",
-              spec.title,
-              impl_ok ? "OK" : "MISMATCH",
-              test_ok ? "OK" : "MISMATCH",
-            );
-            if (verbose && !impl_ok) {
-              show_diff("impl", i1, i2);
-            };
-            if (verbose && !test_ok) {
-              show_diff("tests", t1, t2);
-            };
-            impl_ok && test_ok ? (pass + 1, fail) : (pass, fail + 1);
-          }
-        ),
-      (0, 0),
+      ~f=
+        ((pass, fail), spec) =>
+          Web.Tutorial.(
+            {
+              let (i1, i2) = roundtrip(spec.your_impl);
+              let (t1, t2) = roundtrip(spec.hidden_tests.tests);
+              let impl_ok = String.equal(i1, i2);
+              let test_ok = String.equal(t1, t2);
+              Printf.printf(
+                "%-34s impl:%-9s tests:%s\n",
+                spec.title,
+                impl_ok ? "OK" : "MISMATCH",
+                test_ok ? "OK" : "MISMATCH",
+              );
+              if (verbose && !impl_ok) {
+                show_diff("impl", i1, i2);
+              };
+              if (verbose && !test_ok) {
+                show_diff("tests", t1, t2);
+              };
+              impl_ok && test_ok ? (pass + 1, fail) : (pass, fail + 1);
+            }
+          ),
+      ~init=(0, 0),
       Web.TutorialSettings.lessons,
     );
   Printf.printf(
