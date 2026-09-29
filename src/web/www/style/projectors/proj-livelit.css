@@ -66,8 +66,8 @@
     left: 50%;
     bottom: 3px;
     transform: translateX(-50%);
-    background: #333c;
-    color: #fff;
+    background: var(--surface-inverse);
+    color: var(--text-inverse);
     padding: 0px 6px;
     border-radius: 4px;
     font-size: 0.65em;

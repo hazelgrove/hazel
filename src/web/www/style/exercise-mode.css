@@ -337,13 +337,13 @@
   width: fit-content;
   border-radius: 1em;
   background: transparent;
-  color: var(--ui-text);
+  color: var(--text-default);
   padding: 0.2em 0.8em;
   border: 1px solid var(--border-default);
 }
 
 .rule-set-select option {
-  color: var(--ui-text);
+  color: var(--text-default);
   background: var(--surface-default);
 }
 
@@ -381,7 +381,7 @@
   padding: 0.5em;
   border: 1px solid var(--border-default);
   border-radius: 4px;
-  color: var(--ui-text);
+  color: var(--text-default);
   font-family: inherit;
   font-size: inherit;
   resize: vertical;

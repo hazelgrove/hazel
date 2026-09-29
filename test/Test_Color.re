@@ -2,7 +2,7 @@ open Alcotest;
 
 module C = Language.BuiltinsADT.Color;
 
-/* The colour ADT backs the Colors config slide. Two things need pinning that
+/* The color ADT backs the Colors config slide. Two things need pinning that
    the type system cannot: that a value survives the syntax round-trip
    (exp_of -> of_exp), and that it renders to CSS the browser will accept. */
 
@@ -24,7 +24,7 @@ let roundtrips = ((name, c: C.t), ()) =>
     C.of_exp(C.exp_of(c)) == Some(c),
   );
 
-/* Not a full CSS parser — just the properties a malformed colour would break:
+/* Not a full CSS parser — just the properties a malformed color would break:
    no OCaml-style trailing dot (90. is not valid inside oklch()), and a
    recognisable function or literal head. */
 let renders = ((name, c: C.t), ()) => {
@@ -52,7 +52,7 @@ let renders = ((name, c: C.t), ()) => {
 /* A hue of 90 must render as "90", never "90." */
 /* %g would have emitted "1e-05" / "1.23457e+06" here, and string_of_float
    "90." — all invalid inside oklch(), and setProperty swallows an invalid
-   value silently, so the variable just keeps its old colour. */
+   value silently, so the variable just keeps its old color. */
 let no_scientific_notation = () => {
   check(
     string,
@@ -88,7 +88,7 @@ let integral_floats_render_clean = () =>
     C.to_css(C.Oklch(90., 0., 120.)),
   );
 
-/* ---- colour arithmetic (BuiltinsColor) ---- */
+/* ---- color arithmetic (BuiltinsColor) ---- */
 
 module M = Language.BuiltinsColor;
 
@@ -122,7 +122,7 @@ let oklch_is = (msg, (l, c, h), actual: C.t) =>
 let lighten = (c, by) => M.map_oklch(((l, ch, h)) => (l +. by, ch, h), c);
 
 /* Lightness is a percentage: pushing past either end must saturate rather
-   than produce a colour the browser will reject. */
+   than produce a color the browser will reject. */
 let lightness_clamps = () => {
   oklch_is(
     "over 100",
@@ -171,7 +171,7 @@ let mix_takes_short_way_round = () => {
 
 let mix_endpoints = () => {
   oklch_is(
-    "t=0 is the first colour",
+    "t=0 is the first color",
     (20., 0.02, 90.),
     M.mix(C.Oklch(20., 0.02, 90.), C.Oklch(80., 0.2, 200.), 0.),
   );
@@ -213,7 +213,7 @@ let opaque_forms_pass_through = () => {
   );
 };
 
-/* A faded colour still responds to lightening, through the wrapper. */
+/* A faded color still responds to lightening, through the wrapper. */
 let fade_is_transparent_to_maths = () =>
   switch (lighten(C.Fade(C.Oklch(50., 0.1, 120.), 40.), 10.)) {
   | C.Fade(inner, a) =>
@@ -243,7 +243,7 @@ let math_tests = [
 /* The picker converts to sRGB to show a hex code and back when one is typed
    in, so a round trip has to land where it started. It cannot be exact —
    sRGB has 8 bits per channel and OKLCH does not — but it must be closer than
-   a quantisation step, or a colour would visibly drift each time someone
+   a quantisation step, or a color would visibly drift each time someone
    opened the RGB tab. */
 let srgb_roundtrips = ((name, l, c, h), ()) => {
   let (l', c', h') = C.oklch_of_rgb(C.rgb_of_oklch((l, c, h)));
@@ -264,13 +264,13 @@ let srgb_roundtrips = ((name, l, c, h), ()) => {
   near("lightness", l, l', 0.6);
   near("chroma", c, c', 0.006);
   /* Hue is meaningless at zero chroma, where the round trip may return any
-     angle for the same colour. */
+     angle for the same color. */
   if (c > 0.02) {
     near("hue", h, h', 2.0);
   };
 };
 
-/* In-gamut colours only: OKLCH describes colours sRGB cannot hold, and those
+/* In-gamut colors only: OKLCH describes colors sRGB cannot hold, and those
    clamp on the way through — which is correct, but not a round trip. */
 let srgb_colors = [
   ("mid grey", 52., 0.0, 0.),
@@ -333,7 +333,7 @@ let hsv_roundtrips_exactly = () => {
 /* Why `hsv_of_rgb` takes `~like`: a grey has no hue and black no saturation,
    and inventing zero is what makes a picker's hue jump home the moment value
    reaches the bottom. These pin that the caller's angle comes back. */
-let degenerate_colours_keep_their_handles = () => {
+let degenerate_colors_keep_their_handles = () => {
   let like = (200., 0.6, 0.5);
   let hs = (what, expected, rgb) => {
     let (h, s, _) = C.hsv_of_rgb(~like, rgb);
@@ -347,7 +347,7 @@ let degenerate_colours_keep_their_handles = () => {
   hs("black keeps hue and saturation", (200., 0.6), (0, 0, 0));
   hs("grey keeps hue", (200., 0.), (128, 128, 128));
   hs("white keeps hue", (200., 0.), (255, 255, 255));
-  /* A real colour ignores `like` entirely. */
+  /* A real color ignores `like` entirely. */
   hs("red overrides both", (0., 1.), (255, 0, 0));
 };
 
@@ -399,9 +399,9 @@ let tests = [
     [
       test_case("rgb round-trips exactly", `Quick, hsv_roundtrips_exactly),
       test_case(
-        "degenerate colours keep their handles",
+        "degenerate colors keep their handles",
         `Quick,
-        degenerate_colours_keep_their_handles,
+        degenerate_colors_keep_their_handles,
       ),
       test_case("primaries and clamping", `Quick, hsv_hits_the_primaries),
     ],
