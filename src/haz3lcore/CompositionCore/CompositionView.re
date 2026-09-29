@@ -1,6 +1,7 @@
 open Language;
 open Language.Statics;
 open HighLevelNodeMap.Public;
+open Poly;
 
 /*
  Follows a programming practice/pattern here of separating logic local to the file into a "local" module,
@@ -99,12 +100,13 @@ module Local = {
       // Retain only the ids which are not folded
       let ids =
         List.filter_map(
-          id =>
-            if (!is_term_folded(CachedSyntax.init(z).term_data, id, z)) {
-              Some(id);
-            } else {
-              None;
-            },
+          ~f=
+            id =>
+              if (!is_term_folded(CachedSyntax.init(z).term_data, id, z)) {
+                Some(id);
+              } else {
+                None;
+              },
           ids,
         );
       fold_terms(z, ids, ~root);
@@ -113,17 +115,18 @@ module Local = {
     let collapse_definitions =
         (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t), ~root) => {
       let infos =
-        List.map((id: Id.t) => Id.Map.find_opt(id, info_map), ids);
+        List.map(~f=(id: Id.t) => Id.Map.find_opt(id, info_map), ids);
       let def_ids =
         List.filter_map(
-          (info: option(Info.t)) =>
-            switch (info) {
-            | Some(info) => Some(Utils.get_def_id_of_let(info))
-            | None => None
-            },
+          ~f=
+            (info: option(Info.t)) =>
+              switch (info) {
+              | Some(info) => Some(Utils.get_def_id_of_let(info))
+              | None => None
+              },
           infos,
         )
-        |> List.filter((id: Id.t) => id != Id.invalid);
+        |> List.filter(~f=(id: Id.t) => id != Id.invalid);
       collapse_terms(~z, ~ids=def_ids, ~root);
     };
   };
@@ -154,15 +157,18 @@ module Local = {
       switch (HighLevelNodeMap.build(z, info_map)) {
       | None => z
       | Some(node_map) =>
-        let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
+        let all_top_level_ids =
+          Id.Map.bindings(node_map) |> List.map(~f=fst);
         let expanded_ids =
           List.filter_map(
-            (path: string) => path_to_id_opt(node_map, path),
+            ~f=(path: string) => path_to_id_opt(node_map, path),
             agent_context.expanded_paths,
           );
         let ids_to_collapse =
           all_top_level_ids
-          |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
+          |> List.filter(~f=(id: Id.t) =>
+               !List.mem(expanded_ids, id, ~equal=Poly.equal)
+             );
         ViewUtils.collapse_definitions(
           ~z,
           ~ids=ids_to_collapse,

@@ -6,8 +6,8 @@
 let incomplete_ids = (seg: Segment.t): Id.Map.t(unit) =>
   Segment.incomplete_tiles_deep(seg)
   |> List.fold_left(
-       (acc, t: Tile.t) => Id.Map.add(t.id, (), acc),
-       Id.Map.empty,
+       ~f=(acc, t: Tile.t) => Id.Map.add(t.id, (), acc),
+       ~init=Id.Map.empty,
      );
 
 let snapshot = (~enabled: bool, z: Zipper.t): option(Id.Map.t(unit)) =>
@@ -22,7 +22,7 @@ let rec first_linebreak = (seg: Segment.t): option((Id.t, int)) =>
     let (spaces, _) = Segment.split_space_run(rest);
     Some((w.id, List.length(spaces)));
   | [Tile(t), ...rest] =>
-    switch (List.find_map(first_linebreak, t.children)) {
+    switch (List.find_map(~f=first_linebreak, t.children)) {
     | Some(r) => Some(r)
     | None => first_linebreak(rest)
     }
@@ -45,8 +45,8 @@ let rec min_indent = (seg: Segment.t): option(int) => {
     min_opt(Some(List.length(spaces)), min_indent(rest));
   | [Tile(t), ...rest] =>
     List.fold_left(
-      (acc, ch) => min_opt(acc, min_indent(ch)),
-      min_indent(rest),
+      ~f=(acc, ch) => min_opt(acc, min_indent(ch)),
+      ~init=min_indent(rest),
       t.children,
     )
   | [_, ...rest] => min_indent(rest)
@@ -64,9 +64,9 @@ let shift = (delta: int, seg: Segment.t): Segment.t => {
       let n = max(0, List.length(spaces) + delta);
       let spaces =
         n <= List.length(spaces)
-          ? spaces |> List.filteri((i, _) => i < n)
+          ? spaces |> List.filteri(~f=(i, _) => i < n)
           : spaces
-            @ List.init(n - List.length(spaces), _ =>
+            @ List.init(n - List.length(spaces), ~f=_ =>
                 Piece.Secondary(Secondary.mk_space(Id.mk()))
               );
       [Piece.Secondary(w)] @ spaces @ level(rest);
@@ -91,7 +91,7 @@ type child_plan =
 
 let plan_tile = (full: Segment.t, t: Tile.t): list(child_plan) =>
   t.children
-  |> List.map(child =>
+  |> List.map(~f=child =>
        switch (first_linebreak(child)) {
        | None => Leave
        | Some((lb_id, current)) =>
@@ -114,13 +114,14 @@ let plan_tile = (full: Segment.t, t: Tile.t): list(child_plan) =>
 
 let rec find_tiles = (ids: Id.Map.t(unit), seg: Segment.t): list(Tile.t) =>
   List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        (Id.Map.mem(t.id, ids) ? [t] : [])
-        @ List.concat_map(find_tiles(ids), t.children)
-      | _ => []
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          (Id.Map.mem(t.id, ids) ? [t] : [])
+          @ List.concat_map(~f=find_tiles(ids), t.children)
+        | _ => []
+        },
     seg,
   );
 
@@ -131,7 +132,7 @@ let apply_plans =
       seg: Segment.t,
     ) =>
   seg
-  |> List.map((p: Piece.t) =>
+  |> List.map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
          switch (Id.Map.find_opt(t.id, plans)) {
@@ -140,16 +141,17 @@ let apply_plans =
              ...t,
              children:
                List.mapi(
-                 (i, ch) =>
-                   switch (List.nth_opt(child_plans, i)) {
-                   | Some(Fix) =>
-                     Indentation.fix_indentation_in_segment(
-                       Lazy.force(indent_map),
-                       ch,
-                     )
-                   | Some(Shift(d)) => shift(d, ch)
-                   | _ => ch
-                   },
+                 ~f=
+                   (i, ch) =>
+                     switch (List.nth(child_plans, i)) {
+                     | Some(Fix) =>
+                       Indentation.fix_indentation_in_segment(
+                         Lazy.force(indent_map),
+                         ch,
+                       )
+                     | Some(Shift(d)) => shift(d, ch)
+                     | _ => ch
+                     },
                  t.children,
                ),
            })
@@ -170,7 +172,10 @@ let apply_plans =
 
 let all_piece_ids = (seg: Segment.t): Id.Map.t(unit) =>
   Segment.ids(seg)
-  |> List.fold_left((acc, id) => Id.Map.add(id, (), acc), Id.Map.empty);
+  |> List.fold_left(
+       ~f=(acc, id) => Id.Map.add(id, (), acc),
+       ~init=Id.Map.empty,
+     );
 
 let snapshot_pieces = (~enabled: bool, z: Zipper.t): option(Id.Map.t(unit)) =>
   enabled ? Some(all_piece_ids(Zipper.unselect_and_zip(z))) : None;
@@ -182,7 +187,7 @@ let rec collect_lb_indents = (seg: Segment.t): list((Id.t, int)) =>
     let (spaces, rest) = Segment.split_space_run(rest);
     [(w.id, List.length(spaces)), ...collect_lb_indents(rest)];
   | [Tile(t), ...rest] =>
-    List.concat_map(collect_lb_indents, t.children)
+    List.concat_map(~f=collect_lb_indents, t.children)
     @ collect_lb_indents(rest)
   | [_, ...rest] => collect_lb_indents(rest)
   };
@@ -198,9 +203,9 @@ let set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
         | None => spaces
         | Some(n) =>
           List.length(spaces) >= n
-            ? spaces |> List.filteri((i, _) => i < n)
+            ? spaces |> List.filteri(~f=(i, _) => i < n)
             : spaces
-              @ List.init(n - List.length(spaces), _ =>
+              @ List.init(n - List.length(spaces), ~f=_ =>
                   Piece.Secondary(Secondary.mk_space(Id.mk()))
                 )
         };
@@ -218,7 +223,7 @@ let go_region =
     let full = Zipper.unselect_and_zip(z);
     let new_lbs =
       collect_lb_indents(full)
-      |> List.filter(((id, _)) => !Id.Map.mem(id, before));
+      |> List.filter(~f=((id, _)) => !Id.Map.mem(id, before));
     switch (new_lbs) {
     | [] => z
     | [(first_id, first_cur), ..._] =>
@@ -227,8 +232,9 @@ let go_region =
       let targets =
         settled
           ? new_lbs
-            |> List.filter_map(((id, _)) =>
-                 Id.Map.find_opt(id, indent_map) |> Option.map(l => (id, l))
+            |> List.filter_map(~f=((id, _)) =>
+                 Id.Map.find_opt(id, indent_map)
+                 |> Option.map(~f=l => (id, l))
                )
           : {
             let canonical =
@@ -236,13 +242,14 @@ let go_region =
               |> Option.value(~default=first_cur);
             let delta = canonical - first_cur;
             delta == 0
-            || List.exists(((_, cur)) => cur + delta < 0, new_lbs)
-              ? [] : new_lbs |> List.map(((id, cur)) => (id, cur + delta));
+            || List.exists(~f=((_, cur)) => cur + delta < 0, new_lbs)
+              ? []
+              : new_lbs |> List.map(~f=((id, cur)) => (id, cur + delta));
           };
-      targets == []
+      List.is_empty(targets)
         ? z
         : ZipperBase.MapSegment.go(
-            set_lb_indents(targets |> List.to_seq |> Id.Map.of_seq),
+            set_lb_indents(targets |> Stdlib.List.to_seq |> Id.Map.of_seq),
             z,
           );
     };
@@ -261,12 +268,19 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
     } else {
       let plans =
         find_tiles(completed, full)
-        |> List.filter_map((t: Tile.t) => {
+        |> List.filter_map(~f=(t: Tile.t) => {
              let child_plans = plan_tile(full, t);
-             List.exists(p => p != Leave, child_plans)
+             List.exists(
+               ~f=
+                 fun
+                 | Leave => false
+                 | Fix
+                 | Shift(_) => true,
+               child_plans,
+             )
                ? Some((t.id, child_plans)) : None;
            })
-        |> List.to_seq
+        |> Stdlib.List.to_seq
         |> Id.Map.of_seq;
       let indent_map = lazy(Indentation.level_map(full));
       Id.Map.is_empty(plans)
@@ -280,12 +294,12 @@ let around =
     (~enabled: bool, z: Zipper.t, f: Zipper.t => option(Zipper.t))
     : option(Zipper.t) => {
   let before = snapshot(~enabled, z);
-  f(z) |> Option.map(go(~before));
+  f(z) |> Option.map(~f=go(~before));
 };
 
 let around_res =
     (~enabled: bool, z: Zipper.t, f: Zipper.t => result(Zipper.t, 'e))
     : result(Zipper.t, 'e) => {
   let before = snapshot(~enabled, z);
-  f(z) |> Result.map(go(~before));
+  f(z) |> Result.map(~f=go(~before));
 };

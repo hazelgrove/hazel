@@ -280,7 +280,10 @@ let output_contract_sections = [
 ];
 
 let preamble =
-  String.concat("\n", preamble_sections @ [""] @ output_contract_sections);
+  String.concat(
+    ~sep="\n",
+    preamble_sections @ [""] @ output_contract_sections,
+  );
 
 let mk_system_prompt =
     (~agent_system_prompt: string, ~dev_notes: string): string => {

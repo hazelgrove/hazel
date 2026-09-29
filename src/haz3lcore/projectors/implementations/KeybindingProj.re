@@ -127,12 +127,15 @@ module M: Projector = {
     | "enter" => {js|↩|js}
     | "escape" => "Esc"
     | "backspace" => {js|⌫|js}
-    | k => String.uppercase_ascii(k)
+    | k => String.uppercase(k)
     };
 
   /* Canonical order, so the same chord always reads the same way. */
   let ordered_mods = (mods: list(S.key_mod)): list(S.key_mod) =>
-    List.filter(m => List.mem(m, mods), [S.Meta, S.Ctrl, S.Alt, S.Shift]);
+    List.filter(
+      ~f=m => List.mem(mods, m, ~equal=S.equal_key_mod),
+      [S.Meta, S.Ctrl, S.Alt, S.Shift],
+    );
 
   /* One description of the caps, so the rendered widget and the width the
      editor reserves for it cannot disagree — they did, and a 3-character cap
@@ -144,7 +147,7 @@ module M: Projector = {
       ]
     | Bound(mods, key) =>
       List.map(
-        m => (mod_symbol(m), "kbd-mod", mod_tooltip(m)),
+        ~f=m => (mod_symbol(m), "kbd-mod", mod_tooltip(m)),
         ordered_mods(mods),
       )
       @ [(key_symbol(key), "", "")]
@@ -153,19 +156,20 @@ module M: Projector = {
   let cap = ((text, cls, tooltip)): Node.t =>
     Node.span(
       ~attrs=
-        [Attr.classes(["kbd", ...cls == "" ? [] : [cls]])]
-        @ (tooltip == "" ? [] : [Attr.title(tooltip)]),
+        [Attr.classes(["kbd", ...String.equal(cls, "") ? [] : [cls]])]
+        @ (String.equal(tooltip, "") ? [] : [Attr.title(tooltip)]),
       [Node.text(text)],
     );
 
   let caps_of_binding = (b: S.binding): list(Node.t) =>
-    List.map(cap, cap_specs(b));
+    List.map(~f=cap, cap_specs(b));
 
   /* Width is in editor columns. A cap costs its own text plus padding; the
      modifier symbols are single glyphs whose byte length would over-count,
      so anything non-ASCII counts as one column. */
   let display_len = (s: string): int =>
-    String.for_all(c => Char.code(c) < 128, s) ? String.length(s) : 1;
+    String.for_all(s, ~f=c => Stdlib.Char.code(c) < 128)
+      ? String.length(s) : 1;
 
   let placeholder = (model, info) => {
     let cols =
@@ -174,16 +178,16 @@ module M: Projector = {
           | None => 9
           | Some(b) =>
             List.fold_left(
-              (acc, (text, _, _)) => acc + display_len(text) + 1,
+              ~f=(acc, (text, _, _)) => acc + display_len(text) + 1,
               /* the trailing "finish" hint cap */
-              3,
+              ~init=3,
               cap_specs(b),
             )
           }
         : List.fold_left(
-            (acc, (text, _, _)) => acc + display_len(text) + 1,
+            ~f=(acc, (text, _, _)) => acc + display_len(text) + 1,
             /* the clear button, always present on a bound shortcut */
-            get(info) == S.Unbound ? 1 : 3,
+            ~init=S.equal_binding(get(info), S.Unbound) ? 1 : 3,
             cap_specs(get(info)),
           );
     ProjectorCore.Shape.inline(cols);
@@ -250,7 +254,7 @@ module M: Projector = {
     | "ArrowLeft" => Some("left")
     | "ArrowRight" => Some("right")
     | " " => Some("space")
-    | k => Some(String.lowercase_ascii(k))
+    | k => Some(String.lowercase(k))
     };
   };
 
@@ -263,13 +267,15 @@ module M: Projector = {
     let platform =
       switch (key.sys) {
       | Mac =>
-        (key.meta == Down ? [S.Meta] : [])
-        @ (key.ctrl == Down ? [S.Ctrl] : [])
-      | PC => key.ctrl == Down || key.meta == Down ? [S.Meta] : []
+        (Poly.equal(key.meta, Down) ? [S.Meta] : [])
+        @ (Poly.equal(key.ctrl, Down) ? [S.Ctrl] : [])
+      | PC =>
+        Poly.equal(key.ctrl, Down) || Poly.equal(key.meta, Down)
+          ? [S.Meta] : []
       };
     platform
-    @ (key.alt == Down ? [S.Alt] : [])
-    @ (key.shift == Down ? [S.Shift] : []);
+    @ (Poly.equal(key.alt, Down) ? [S.Alt] : [])
+    @ (Poly.equal(key.shift, Down) ? [S.Shift] : []);
   };
 
   /* What the widget currently shows: a capture in progress wins over what
@@ -356,7 +362,7 @@ module M: Projector = {
     /* Always rendered for a bound shortcut rather than revealed on hover, so
        the widget does not change width under the cursor. */
     let clear =
-      !recording && binding != S.Unbound
+      !recording && !S.equal_binding(binding, S.Unbound)
         ? [
           Node.span(
             ~attrs=[
