@@ -5112,6 +5112,38 @@ let module_member_tests = (
       },
     ),
     test_case(
+      "update_definition on a member after a leading test item",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { test 1 + 1 == 2 end; let x = 1 } in M.x",
+            Update(Definition, "M/x", "5"),
+          );
+        check_rendered(
+          "member_after_leading_exp",
+          "module M = { test 1 + 1 == 2 end; let x = 5 } in M.x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on a member after a leading hole item",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { ?; let x = 1 } in M.x",
+            Update(Definition, "M/x", "5"),
+          );
+        check_rendered(
+          "member_after_leading_hole",
+          "module M = { ?; let x = 5 } in M.x",
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_definition on a nested inner let",
       `Quick,
       () => {
