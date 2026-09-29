@@ -344,3 +344,14 @@ let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
   | Some(Val(_))
   | None => None
   };
+
+/* Members [want] declares that [have] does not: value members, then type
+   members (manifest or abstract). */
+let missing_members =
+    (~want: list(member), ~have: list(member)): list(Var.t) => {
+  let missing_values =
+    value_names(want) |> List.filter(x => find_value(have, x) == None);
+  let missing_types =
+    type_names(want) |> List.filter(t => find_type(have, t) == None);
+  missing_values @ missing_types;
+};
