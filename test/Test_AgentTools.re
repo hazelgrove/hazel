@@ -63,6 +63,8 @@ let run_insert_at_program_boundary =
     );
   switch (
     CompositionGo.Local.PerformUtils.introduce(
+      ~fast=true,
+      ~keep_edge_ws=true,
       z_at_boundary,
       "\n" ++ new_code ++ "\n",
     )
@@ -83,6 +85,7 @@ let run_insert_at_program_boundary =
          re-indent like the dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
+          ~before=z,
           Materialize.all(new_z, ~root=Exp),
         )
         |> LocalReformat.go_region(~before_pieces),
@@ -593,6 +596,37 @@ let update_body_tests = (
   "AgentTools.UpdateBody",
   [
     test_case(
+      "named function edits still reject real type errors",
+      `Quick,
+      () => {
+        expect_any_failure(
+          "let f(x: Int) = x in 0",
+          Update(Definition, "f", "true + 1"),
+          "invalid function definition",
+        );
+        expect_any_failure(
+          "let f(x: Int) = x in 0",
+          Update(Body, "f", "true + 1"),
+          "invalid function continuation",
+        );
+      },
+    ),
+    test_case(
+      "named function added after an annotated constant",
+      `Quick,
+      () => {
+        let code = "type Model = Int in type Action = Int in let init : Model = 0 in ?";
+        let body = "let counter_update(m: Model, a: Action) = m + a in ?";
+        let result = apply_and_render(code, Update(Body, "init", body));
+        check_rendered(
+          "counter update body",
+          "type Model = Int in type Action = Int in let init : Model = 0 in "
+          ++ body,
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_body of first binding",
       `Quick,
       () => {
@@ -674,6 +708,40 @@ let update_pattern_tests = (
         check_rendered(
           "update_pat_annotated",
           "let a : Int = 1 in a + 1",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames a funlet head, call sites follow",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let f(x: Int): Int = x + 1 in f(2) + f(3)",
+            Update(Pattern, "f", "g(x: Int): Int"),
+          );
+        check_rendered(
+          "update_pat_funlet_rename",
+          "let g(x: Int): Int = x + 1 in g(2) + g(3)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames a funlet member helper (internal uses follow)",
+      `Quick,
+      () => {
+        /* externally-referenced members (m.g) are rejected by design;
+           internal helpers rename with their in-module use sites */
+        let result =
+          apply_and_render(
+            "let m = {\n  let helper(x) = x + 1;\n  let g(y) = helper(y)\n} in m.g(2)",
+            Update(Pattern, "m/helper", "aux(x)"),
+          );
+        check_rendered(
+          "update_pat_funlet_member_rename",
+          "let m = {\n  let aux(x) = x + 1;\n  let g(y) = aux(y)\n} in m.g(2)",
           result,
         );
       },
@@ -955,6 +1023,7 @@ let insert_tests = (
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -978,6 +1047,7 @@ let insert_tests = (
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1908,6 +1978,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Update(Definition, "a", "42"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1922,6 +1993,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Update(Body, "b", "x + 1"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1939,6 +2011,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Update(Pattern, "x", "y"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1960,6 +2033,7 @@ let composition_utils_tests = (
           ) =>
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1974,6 +2048,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Insert(After, "a", "let b = 2 in"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1988,6 +2063,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Insert(Before, "b", "let x = 0 in"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2005,6 +2081,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Delete(BindingClause, "b"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2019,6 +2096,7 @@ let composition_utils_tests = (
         ) {
         | Action(EditorAction(Delete(Body, "c"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2033,6 +2111,7 @@ let composition_utils_tests = (
         ) {
         | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2047,6 +2126,7 @@ let composition_utils_tests = (
         ) {
         | Action(InsertAtProgramBoundary(Before, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2061,6 +2141,7 @@ let composition_utils_tests = (
         ) {
         | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2074,6 +2155,7 @@ let composition_utils_tests = (
         switch (CompositionUtils.Public.action_of(~tool_name="expand", ~args)) {
         | Action(AgentContextAction(Expand(["a", "b"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2088,6 +2170,7 @@ let composition_utils_tests = (
         ) {
         | Action(AgentContextAction(Collapse(["a"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2103,6 +2186,7 @@ let composition_utils_tests = (
         ) {
         | Action(ProbeAction(PlaceProbe(["a", "b"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2117,6 +2201,7 @@ let composition_utils_tests = (
         ) {
         | Action(ProbeAction(RemoveProbe(["result"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2131,6 +2216,7 @@ let composition_utils_tests = (
         ) {
         | Action(ProbeAction(ToggleProbe(["f"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2146,6 +2232,7 @@ let composition_utils_tests = (
         ) {
         | Action(StaticsAction(PlaceStatics(["x", "y"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2163,6 +2250,7 @@ let composition_utils_tests = (
         ) {
         | Action(StaticsAction(RemoveStatics(["foo"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2180,6 +2268,7 @@ let composition_utils_tests = (
         ) {
         | Action(StaticsAction(ToggleStatics(["bar"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2204,6 +2293,7 @@ let composition_utils_tests = (
           ) =>
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2221,6 +2311,7 @@ let composition_utils_tests = (
         ) {
         | Action(SyntaxProjectorAction(RemoveSyntaxProjector(["x"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2247,6 +2338,7 @@ let composition_utils_tests = (
           ) =>
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2267,6 +2359,7 @@ let composition_utils_tests = (
           )
         ) {
         | Action(_) => Alcotest.fail("Expected Failure when kind is probe")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(_) => ()
         };
       },
@@ -2283,6 +2376,7 @@ let composition_utils_tests = (
           )
         ) {
         | Action(_) => Alcotest.fail("Expected Failure for unknown tool")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(_) => ()
         };
       },
@@ -2299,6 +2393,7 @@ let composition_utils_tests = (
           )
         ) {
         | Action(_) => Alcotest.fail("Expected Failure for missing code arg")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(_) => ()
         };
       },
@@ -2316,6 +2411,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(SetActiveTask("My Task"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2333,6 +2429,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(UnsetActiveTask)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2350,6 +2447,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(MarkActiveTaskComplete("All done"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2367,6 +2465,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(MarkActiveTaskIncomplete)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2384,6 +2483,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(SetActiveSubtask("Step 1"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2401,6 +2501,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(UnsetActiveSubtask)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2419,6 +2520,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(MarkActiveSubtaskComplete("Subtask done"))) =>
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2436,6 +2538,7 @@ let composition_utils_tests = (
         ) {
         | Action(WorkbenchAction(MarkActiveSubtaskIncomplete)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2547,7 +2650,7 @@ let sequential_operations_tests = (
           bool,
           "render mentions recursive call g(y - 1)",
           true,
-          StringUtil.plain_search("g\\(y - 1\\)", result, 0) >= 0,
+          StringUtil.plain_search("g(y - 1)", result, 0) >= 0,
         );
         let z = mk_zipper(result);
         let errs = ErrorPrint.all(mk_statics(z));
@@ -2557,6 +2660,125 @@ let sequential_operations_tests = (
           0,
           List.length(errs),
         );
+      },
+    ),
+    test_case(
+      "insert_after a module member whose body is a case, with a case",
+      `Quick,
+      () => {
+        let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
+        let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert two case members after a case member",
+      `Quick,
+      () => {
+        let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
+        let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "constructor patterns over a module ADT in a nested module",
+      `Quick,
+      () => {
+        let prog = "module Outer = {\n  module M = {\n    type T =\n      + A(Int)\n      + B;\n    \n    let a(i: T): Int =\n      case i\n      | A(n) => n\n      | B => 0\n      end\n  };\n  \n  let z = 1\n} in\n1";
+        let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "Outer/M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert_after a module member with TWO case members (dungeon run: Failure nth / Exp patterns)",
+      `Quick,
+      () => {
+        let prog = {js|module Creatures = {
+  module Items = {
+    type Item =
+      + Potion(Int)
+      + Bomb(Int)
+      + Torch;
+
+    let name(i: Item): String =
+      case i
+      | Potion(n) => "potion(" ++ Show.int(n) ++ ")"
+      | Bomb(n) => "bomb(" ++ Show.int(n) ++ ")"
+      | Torch => "torch"
+      end
+  };
+  let z = 1
+} in
+1|js};
+        let code = {js|let heal_amount(i: Item): Int =
+  case i
+  | Potion(n) => n
+  | Bomb(_) => 0
+  | Torch => 0
+  end;
+let blast_amount(i: Item): Int =
+  case i
+  | Potion(_) => 0
+  | Bomb(n) => n
+  | Torch => 0
+  end|js};
+        switch (
+          try(
+            run_agent_action(
+              prog,
+              Insert(After, "Creatures/Items/name", code),
+            )
+          ) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert_after a nested module member does not raise (dungeon run: Failure nth)",
+      `Quick,
+      () => {
+        let code = "module Creatures = {\n  module Items = {\n    let name = fun i -> \"sword\";\n    let has = fun (i, c) -> true\n  };\n  let label = fun c -> \"x\"\n} in\n1";
+        switch (
+          run_agent_action(
+            code,
+            Insert(After, "Creatures/Items/name", "let weight = fun i -> 3;"),
+          )
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_after member failed: " ++ Action.Failure.show(err),
+          )
+        };
       },
     ),
     test_case(
@@ -3145,6 +3367,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
+        /* 36 while DocPacks is empty (read_docs is not offered) */
         check(int, "tool count", 36, List.length(tools));
       },
     ),
@@ -3975,7 +4198,8 @@ let ascribed_binding_tests = (
               new_z,
               Delete(BindingClause, "Piece"),
               mk_statics,
-              syntax,
+              ~old_syntax=syntax,
+              ~new_syntax=CachedSyntax.init(new_z),
             );
           switch (diff) {
           | None => Alcotest.fail("get_diff returned None unexpectedly")
@@ -4024,7 +4248,8 @@ let ascribed_binding_tests = (
               new_z,
               Delete(BindingClause, "Piece"),
               mk_statics,
-              syntax,
+              ~old_syntax=syntax,
+              ~new_syntax=CachedSyntax.init(new_z),
             );
           check(bool, "diff computation did not raise", true, diff != None);
         };
@@ -4873,6 +5098,312 @@ let whitespace_normalization_tests = (
    AGGREGATE ALL TESTS
    ============================================================ */
 
+/* Module MEMBER operations: paths descend into module literals
+   ("m/x"). The node map chains through the statics expansion
+   (wrapper Let/TyAlias keyed by Mod item ids), so the same eight tools
+   work at member granularity. */
+let module_member_tests = (
+  "AgentTools.ModuleMembers",
+  [
+    test_case(
+      "update_definition on a member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Update(Definition, "m/x", "5"),
+          );
+        check_rendered(
+          "member_update_def",
+          "let m = { let x = 5; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on a type member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { type T = Int; let x = 1 } in m",
+            Update(Definition, "m/T", "Bool"),
+          );
+        check_rendered(
+          "member_update_type_def",
+          "let m = { type T = Bool; let x = 1 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on a nested inner let",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = let inner = 1 in inner; let y = 2 } in m",
+            Update(Definition, "m/x/inner", "7"),
+          );
+        check_rendered(
+          "member_nested_inner",
+          "let m = { let x = let inner = 7 in inner; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert_after a middle member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Insert(After, "m/x", "let z = 9"),
+          );
+        check_rendered(
+          "member_insert_after",
+          "let m = { let x = 1; let z = 9; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert_after the last member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Insert(After, "m/y", "let z = 9"),
+          );
+        check_rendered(
+          "member_insert_after_last",
+          "let m = { let x = 1; let y = 2; let z = 9 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "insert_before the first member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Insert(Before, "m/x", "let z = 9"),
+          );
+        check_rendered(
+          "member_insert_before_first",
+          "let m = { let z = 9; let x = 1; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete a middle member cleans its separator",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2; let z = 3 } in m",
+            Delete(BindingClause, "m/y"),
+          );
+        check_rendered(
+          "member_delete_middle",
+          "let m = { let x = 1; let z = 3 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete the last member cleans its separator",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Delete(BindingClause, "m/y"),
+          );
+        check_rendered(
+          "member_delete_last",
+          "let m = { let x = 1 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete the first member cleans its separator",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Delete(BindingClause, "m/x"),
+          );
+        check_rendered(
+          "member_delete_first",
+          "let m = { let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_binding_clause replaces a whole member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Update(BindingClause, "m/x", "let w = 8"),
+          );
+        check_rendered(
+          "member_update_clause",
+          "let m = { let w = 8; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames member use sites",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let y = x + 2 } in m",
+            Update(Pattern, "m/x", "base"),
+          );
+        check_rendered(
+          "member_rename",
+          "let m = { let base = 1; let y = base + 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case("update_body on a member errors clearly", `Quick, () => {
+      switch (
+        run_agent_action(
+          "let m = { let x = 1; let y = 2 } in m",
+          Update(Body, "m/x", "3"),
+        )
+      ) {
+      | Ok(_) => Alcotest.fail("expected member body update to be rejected")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "member_body_error_mentions_members",
+          true,
+          StringUtil.match(StringUtil.regexp("module member"), msg),
+        )
+      | Error(e) =>
+        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
+      }
+    }),
+    test_case(
+      "member blank-line policy on multiline modules",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1;\n  let y = 2\n} in m",
+            Insert(After, "m/x", "let z = 9"),
+          );
+        /* One blank line between members; the renderer indents every line
+           of the module body (including the blank ones) by two spaces. */
+        check_rendered_exact(
+          "member_blank_lines",
+          "let m = {\n  let x = 1;\n  \n  let z = 9;\n  \n  let y = 2\n} in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "renaming an exported member used outside is rejected", `Quick, () => {
+      switch (
+        run_agent_action(
+          "module M = { let x = 1; let y = 2 } in M.x",
+          Update(Pattern, "M/x", "z"),
+        )
+      ) {
+      | Ok(_) =>
+        Alcotest.fail("expected rename breaking external M.x to be rejected")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "member_rename_external_rejected",
+          true,
+          StringUtil.match(StringUtil.regexp("static error"), msg),
+        )
+      | Error(e) =>
+        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
+      }
+    }),
+    test_case(
+      "oversized chunk on the fast path succeeds",
+      `Quick,
+      () => {
+        /* The size cap guards only the quadratic fallback; Menhir-
+           parseable chunks of any size take the linear fast path. */
+        let big =
+          String.concat(" + ", List.init(400, i => string_of_int(i)));
+        switch (
+          run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
+        ) {
+        | Ok(_) => ()
+        | Error(e) =>
+          Alcotest.fail(
+            "fast path should take oversized parseable chunks: "
+            ++ Action.Failure.show(e),
+          )
+        };
+      },
+    ),
+    test_case(
+      "oversized fallback chunk is rejected with guidance",
+      `Quick,
+      () => {
+        /* Bare comma tuple: editor-parseable, Menhir-rejected even with
+           hole completion, so this reliably exercises the capped
+           fallback. */
+        let big = String.concat(", ", List.init(900, i => string_of_int(i)));
+        switch (
+          run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
+        ) {
+        | Ok(_) => Alcotest.fail("expected oversized fallback to be rejected")
+        | Error(Action.Failure.Composition_action_failure(msg)) =>
+          check(
+            bool,
+            "chunk_cap_mentions_split",
+            true,
+            StringUtil.match(StringUtil.regexp("too large"), msg),
+          )
+        | Error(e) =>
+          Alcotest.fail(
+            "unexpected failure kind: " ++ Action.Failure.show(e),
+          )
+        };
+      },
+    ),
+    test_case(
+      "member paths disambiguate with #k",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let x = 1; let x = 2 } in m",
+            Update(Definition, "m/x#2", "5"),
+          );
+        check_rendered(
+          "member_hash_k",
+          "let m = { let x = 1; let x = 5 } in m",
+          result,
+        );
+      },
+    ),
+  ],
+);
+
 let tests = [
   whitespace_normalization_tests,
   paste_funnel_tests,
@@ -4882,6 +5413,7 @@ let tests = [
   update_body_tests,
   update_pattern_tests,
   update_binding_clause_tests,
+  module_member_tests,
   insert_tests,
   delete_tests,
   static_error_tests,

@@ -337,9 +337,12 @@ let calculate =
              || refractor_inputs_changed) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, ~obligations, old);
   } else {
-    {
-      ...old,
-      selection_ids: Selection.selection_ids(z.selection),
-    };
+    let selection_ids = Selection.selection_ids(z.selection);
+    selection_ids == old.selection_ids
+      ? old
+      : {
+        ...old,
+        selection_ids,
+      };
   };
 };

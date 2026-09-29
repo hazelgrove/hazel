@@ -222,16 +222,18 @@ module Update = {
       || inline_persist != syntax.persist_on
         ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
-      CachedSyntax.calculate(
-        zipper,
-        statics.info_map,
-        new_dynamics,
-        ~elaborated=Some(statics.elaborated),
-        ~obligations,
-        ~armed,
-        ~inline_persist,
-        ~persist_edit=is_edited,
-        syntax,
+      PerfTimer.time("editor-syntax", () =>
+        CachedSyntax.calculate(
+          zipper,
+          statics.info_map,
+          new_dynamics,
+          ~elaborated=Some(statics.elaborated),
+          ~obligations,
+          ~armed,
+          ~inline_persist,
+          ~persist_edit=is_edited,
+          syntax,
+        )
       );
     let syntax = {
       ...syntax,
