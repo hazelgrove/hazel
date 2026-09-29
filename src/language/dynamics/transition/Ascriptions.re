@@ -27,11 +27,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e, t'), _)
+    | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
+      | Some(t) =>
+        Some(
+          recur(
+            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+          ),
+        )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
     | (e, Parens(t)) =>

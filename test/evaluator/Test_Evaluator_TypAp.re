@@ -18,5 +18,15 @@ in bs in
 map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
       )
     ),
+    /* Test_Statics_Polymorphism pins the type this result has to agree with. */
+    test_case(
+      "typfun binder shadows a type alias, so the body keeps `y` (#1717)",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        {|typfun y -> (?:y)|},
+        {|type y = Int in typfun y -> (? : y)|},
+      )
+    ),
   ],
 );

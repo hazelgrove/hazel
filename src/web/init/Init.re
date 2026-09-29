@@ -52,8 +52,9 @@ let default_documentation_slide_name =
 };
 
 /* Derivation slides included in the Documentation mode under the
-   "Derivations" section. The section prefix makes the slide names split
-   into nested dropdowns (matches how "B2T2 / ..." slides work). */
+   "Derivations" section. The folder prefix makes the slide names split into
+   nested dropdowns (matches how "B2T2 / ..." slides work) -- see SlidePath,
+   which owns that encoding. */
 let documentation_drv_slides: list((string, DerivationExercise.spec)) =
   [
     Ex_Conjunction_Commutativity.exercise,
@@ -63,7 +64,12 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
     Ex_Type_Validation_Derivation.exercise,
   ]
   |> List.map((spec: DerivationExercise.spec) =>
-       ("Derivations / " ++ spec.title, spec)
+       (
+         SlidePath.to_string(
+           SlidePath.mk(~folders=["Derivations"], spec.title),
+         ),
+         spec,
+       )
      );
 
 let find_documentation_drv_spec =

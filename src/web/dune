@@ -5,6 +5,11 @@
  (deps
   (source_tree www)))
 
+; The Colors config slide is committed Hazel text, embedded at compile time
+; the way the documentation slides are. See ColorConfiguration.re.
+
+(copy_files ../../hazel-programs/config/*.hz)
+
 (library
  (name workerServer)
  (modules WorkerServer)
@@ -29,7 +34,8 @@
   (:standard \ Main)
   \
   Worker
-  WorkerServer)
+  WorkerServer
+  Migrate_exercises)
  (libraries
   ezjs_min
   ezjs_idb
@@ -42,6 +48,7 @@
   haz3lcore
   b2t2
   docslides
+  tutorialslides
   omd)
  (js_of_ocaml)
  (preprocess
@@ -50,9 +57,13 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
+   ppx_deriving.eq
    ppx_yojson_conv
    ppx_enumerate
-   bonsai.ppx_bonsai)))
+   ppx_blob
+   bonsai.ppx_bonsai))
+ (preprocessor_deps
+  (glob_files_rec *.hz)))
 
 (executable
  (name main)
@@ -75,6 +86,24 @@
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
+
+; Example-module exporter (dev tool, not shipped): regenerates the example
+; exercise modules' persistent literals. Run under node; see the header of
+; Migrate_exercises.re.
+
+(executable
+ (name migrate_exercises)
+ (modules Migrate_exercises)
+ (libraries ppx_yojson_conv.expander web)
+ (modes js)
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   bonsai.ppx_bonsai)))
 
 (env
  (dev

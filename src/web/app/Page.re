@@ -82,6 +82,7 @@ module Update = {
     | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
+    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
     };
   };
 
@@ -114,6 +115,9 @@ module Update = {
         ~instructor_mode=model.globals.settings.instructor_mode,
         m,
       )
+    | Config(m) => [
+        (None, [(List.nth(m.configs, m.current) |> snd).editor]),
+      ]
     };
   };
 
@@ -194,6 +198,7 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -245,6 +250,19 @@ module Update = {
     | ExportForInit =>
       let (filename, contents) =
         switch (model.editors) {
+        | Config(model) =>
+          let (config_type, cell) = List.nth(model.configs, model.current);
+          let name = ConfigurationMode.Model.config_name_of_type(config_type);
+          /* Config slides are text-backed like the doc slides: export the
+             committed-.hz form, matching the scratch export below. */
+          let persisted =
+            Haz3lcore.PersistentZipper.persist(
+              cell.editor.editor.state.zipper,
+            );
+          (
+            (name |> StringUtil.sanitize_filename) ++ ".hz",
+            persisted.backup_text,
+          );
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
@@ -303,6 +321,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -344,6 +363,7 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~schedule_global=a => schedule_action(Globals(a)),
           action,
           model.editors,
         );
@@ -395,80 +415,93 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    /* Sync worker-messaging benchmark gating here (settings aren't reachable at
-       the WorkerClient.request call sites); only run when the panel is open. */
+    /* Sync debug-panel gating here (settings aren't reachable at the
+       WorkerClient.request call sites nor the per-frame instrumentation sites);
+       each collector only runs while its panel is open. */
+    let sidebar = model.globals.settings.sidebar;
+    let debug_panel_open = title =>
+      model.globals.settings.show_debug_panel
+      && SidebarModel.Settings.is_debug_expanded(title, sidebar);
     WorkerMetrics.sync(
-      ~enabled=
-        model.globals.settings.show_debug_panel
-        && !
-             SidebarModel.Settings.is_debug_collapsed(
-               WorkerMessagingSection.title,
-               model.globals.settings.sidebar,
-             ),
-      ~encodings=model.globals.settings.sidebar.worker_encodings,
+      ~enabled=debug_panel_open(WorkerMessagingSection.title),
     );
-    let editors =
-      Editors.Update.calculate(
-        ~settings=
-          dynamics
-            ? model.globals.settings.core
-            : {
-              ...model.globals.settings.core,
-              dynamics: false,
-            },
-        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-        ~schedule_action=a => schedule_action(Editors(a)),
-        ~is_edited,
-        model.editors,
-      );
-    /* Compute cursor info against the POST-calculate editors: some modes
-       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
-       stitched `cells` during calculate, not during update. Reading cursor
-       info from `model.editors` (pre-calculate) would see stale cell state
-       and yield the wrong ExplainThis highlights for a click/move-only
-       action, which doesn't trigger a full statics rebuild. */
-    let cursor_info =
-      Editors.Selection.get_cursor_info(
-        ~inject=_ => Ui_effect.Ignore,
-        ~selection=model.selection,
-        editors,
-      );
-    /* When the user's cursor is inside a derivation tree cell, the
-       deduction-specific highlight map takes precedence over the generic
-       ExplainThis one. We consult the live selection here (rather than
-       Editors.Model.get_derivation_info, which reads the stale `model.pos`
-       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation.
+    WorkerMetrics.set_encodings(sidebar.worker_encodings);
+    EvalMetrics.sync(~enabled=debug_panel_open(EvaluationSection.title));
+    PerfMetrics.sync(
+      ~enabled=
+        debug_panel_open(StaticsSection.title)
+        || debug_panel_open(EditorSection.title)
+        || debug_panel_open(FrameSection.title),
+    );
+    /* Everything below is one frame for the telemetry panels. */
+    PerfMetrics.time_frame(() => {
+      let editors =
+        Editors.Update.calculate(
+          ~settings=
+            dynamics
+              ? model.globals.settings.core
+              : {
+                ...model.globals.settings.core,
+                dynamics: false,
+              },
+          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~schedule_action=a => schedule_action(Editors(a)),
+          ~is_edited,
+          model.editors,
+        );
+      /* Compute cursor info against the POST-calculate editors: some modes
+         (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+         stitched `cells` during calculate, not during update. Reading cursor
+         info from `model.editors` (pre-calculate) would see stale cell state
+         and yield the wrong ExplainThis highlights for a click/move-only
+         action, which doesn't trigger a full statics rebuild. */
+      let cursor_info =
+        PerfMetrics.time_cursor(() =>
+          Editors.Selection.get_cursor_info(
+            ~inject=_ => Ui_effect.Ignore,
+            ~selection=model.selection,
+            editors,
+          )
+        );
+      /* When the user's cursor is inside a derivation tree cell, the
+         deduction-specific highlight map takes precedence over the generic
+         ExplainThis one. We consult the live selection here (rather than
+         Editors.Model.get_derivation_info, which reads the stale `model.pos`
+         inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+         get misclassified as focus on the derivation.
 
-       Only the winning map is computed. Each of these runs the whole of
-       ExplainThis.decide, so computing the generic one unconditionally and then
-       discarding it cost a full pass on every frame with a derivation focused. */
-    let derivation_info =
-      Editors.Selection.get_derivation_info(
-        ~selection=model.selection,
+         Only the winning map is computed. Each of these runs the whole of
+         ExplainThis.decide, so computing the generic one unconditionally and then
+         discarding it cost a full pass on every frame with a derivation focused. */
+      let derivation_info =
+        Editors.Selection.get_derivation_info(
+          ~selection=model.selection,
+          editors,
+        );
+      let color_highlights =
+        PerfMetrics.time_colors(() =>
+          switch (derivation_info) {
+          | Some(_) =>
+            ExplainThis.get_color_map_deduction(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              derivation_info,
+            )
+          | None =>
+            ExplainThis.get_color_map(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              cursor_info.info,
+            )
+          }
+        );
+      let globals = Globals.Update.calculate(color_highlights, model.globals);
+      {
+        ...model,
+        globals,
         editors,
-      );
-    let color_highlights =
-      switch (derivation_info) {
-      | Some(_) =>
-        ExplainThis.get_color_map_deduction(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          derivation_info,
-        )
-      | None =>
-        ExplainThis.get_color_map(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          cursor_info.info,
-        )
       };
-    let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {
-      ...model,
-      globals,
-      editors,
-    };
+    });
   };
 };
 
@@ -479,8 +512,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Editors.Update.t) => {
-    let meta = Keyboard.meta();
-    let mk = ContextualAction.mk;
+    let of_shortcut = ContextualAction.of_shortcut;
     Editors.Selection.get_cursor_info(
       ~inject=a => inject(Editors(a)),
       ~selection,
@@ -488,135 +520,89 @@ module Selection = {
     )
     |> Cursor.with_actions([
          /* Undo / Redo */
-         mk(
-           ~mdIcon="undo",
-           ~hotkey=meta ++ "+z",
-           ~action=inject(Globals(Undo)),
-           "Undo",
-         ),
-         mk(
-           ~mdIcon="redo",
-           ~hotkey=meta ++ "+shift+z",
-           ~action=inject(Globals(Redo)),
-           "Redo",
-         ),
+         of_shortcut(~action=inject(Globals(Undo)), Undo),
+         of_shortcut(~action=inject(Globals(Redo)), Redo),
          /* Settings */
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
-           ~action=inject(Globals(Set(Statics))),
-           "Toggle Statics",
-         ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(~action=inject(Globals(Set(Statics))), ToggleStatics),
+         of_shortcut(
            ~action=inject(Globals(Set(Assist))),
-           "Toggle Completion",
+           ToggleCompletion,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
-           "Toggle Show Whitespace",
+           ToggleShowWhitespace,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(SelectionChunkiness))),
-           "Toggle Character-level Mouse",
+           ToggleCharacterLevelMouse,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Benchmark))),
-           "Toggle Print Benchmarks",
+           TogglePrintBenchmarks,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ShowDebugPanel))),
-           "Toggle Debug Sidebar",
+           ToggleDebugSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Dynamics))),
-           "Toggle Dynamics",
+           ToggleDynamics,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Elaborate))),
-           "Toggle Show Elaboration",
+           ToggleShowElaboration,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
-           "Toggle Show Function Bodies",
+           ToggleShowFunctionBodies,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
-           "Toggle Show Case Clauses",
+           ToggleShowCaseClauses,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
-           "Toggle Show fixpoints",
+           ToggleShowFixpoints,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
-           "Toggle Show Ascription Steps",
+           ToggleShowAscriptionSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
-           "Toggle Show Lookup Steps",
+           ToggleShowLookupSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
-           "Toggle Show Stepper Filters",
+           ToggleShowStepperFilters,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
-           "Toggle Show Hidden Steps",
+           ToggleShowHiddenSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
-           "Toggle Show Sidebar",
+           ToggleShowSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
-           "Toggle Show Docs Feedback",
+           ToggleShowDocsFeedback,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Quiver)))),
+           CompletionDisplayQuiver,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Flag)))),
+           CompletionDisplayFlag,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Hidden)))),
+           CompletionDisplayNone,
          ),
          /* Export / Diagnostics */
-         mk(
-           ~mdIcon="download",
-           ~section="Export",
-           ~action=inject(Globals(ExportForInit)),
-           "Export For Init",
-         ),
-         mk(
-           ~mdIcon="timer",
-           ~section="Diagnostics",
-           ~hotkey="F7",
-           ~action=inject(Benchmark(Start)),
-           "Run Benchmark",
-         ),
+         of_shortcut(~action=inject(Globals(ExportForInit)), ExportForInit),
+         of_shortcut(~action=inject(Benchmark(Start)), RunBenchmark),
        ]);
   };
 };
@@ -720,13 +706,24 @@ module View = {
     [
       Key.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
-        JsUtil.focus_clipboard_shim();
+        /* Leave focus alone when it is moving INTO a projector. An
+           interactive projector (the keybinding recorder) needs to hold
+           focus; without this guard it receives focus and has it taken back
+           in the same frame, so it can never capture a key. */
+        if (! JsUtil.projector_holds_focus^) {
+          JsUtil.focus_clipboard_shim();
+        };
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
           : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
-        JsUtil.focus_clipboard_shim();
+        /* Focus events bubble here, so without this guard focusing a
+           projector is undone immediately: an interactive projector (the
+           keybinding recorder) could never hold focus or capture a key. */
+        if (! JsUtil.projector_holds_focus^) {
+          JsUtil.focus_clipboard_shim();
+        };
         Effect.Ignore;
       }),
     ];
@@ -746,7 +743,10 @@ module View = {
             submenu(
               ~tooltip="Settings",
               ~icon=Icons.gear,
-              NutMenu.settings_menu(~globals),
+              [
+                Editors.View.config_links(~inject),
+                ...NutMenu.settings_menu(~globals),
+              ],
             ),
             submenu(
               ~tooltip="File",
@@ -817,6 +817,12 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
+    let task_reference: option(string) =
+      switch (editors) {
+      | Tutorial(t) =>
+        TutorialsMode.Model.get_current(t).editors.task_reference
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -834,6 +840,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
+        ~task_reference,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
@@ -929,7 +936,10 @@ module View = {
       (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
-    NinjaKeys.initialize(cursor.contextual_actions);
+    NinjaKeys.initialize(
+      ~overrides=model.globals.settings.shortcut_overrides,
+      cursor.contextual_actions,
+    );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]

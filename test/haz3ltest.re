@@ -31,11 +31,13 @@ let (suite, exit_with_test_status) =
       Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_TaskReferenceSplit.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -53,16 +55,27 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_TypToSegment.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
+    @ Test_DynamicTypInfer.tests
+    @ Test_CanonicalCompletion.tests
+    @ Test_CompletionScoreboard.tests
+    @ Test_CompletionVisualization.tests
+    @ Test_QuiverDisplay.tests
+    @ Test_TabDispatch.tests
+    @ Test_ImpliedHole.tests
+    @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
+    @ Test_RoundtripFuzz.tests
+    @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
@@ -83,10 +96,18 @@ let (suite, exit_with_test_status) =
       Test_ObsBench.tests,
     ]
     @ [Test_GradingReport.tests]
+    @ Test_SlidePath.tests
+    @ Test_Tutorial.tests
+    @ Test_TutorialText.tests
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
+    @ Test_ShortcutConfiguration.tests
+    @ Test_ColorConfiguration.tests
+    @ Test_ConfigurationMode.tests
+    @ Test_ShortcutAction.tests
+    @ Test_Color.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

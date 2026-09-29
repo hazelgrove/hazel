@@ -682,7 +682,7 @@ module Update = {
         ~schedule_action,
         ~settings: Settings.t,
         ~is_documentation: bool,
-        action,
+        action: t,
         model: Model.t,
       ) => {
     switch (action) {
@@ -1079,41 +1079,29 @@ module Selection = {
       };
     cursor
     |> Cursor.with_actions([
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Export),
-           "Export Current Scratchpad",
+           ExportCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Encode),
-           "Encode Current Scratchpad in URL",
+           EncodeCurrentScratchpadInUrl,
          ),
-         ContextualAction.mk(
-           ~mdIcon="add",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddSlide),
-           "Add New Code Scratchpad",
+           AddNewCodeScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="rule",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddDrvSlide),
-           "Add New Derivation Scratchpad",
+           AddNewDerivationScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="edit",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(RenameSlide),
-           "Rename Current Scratchpad",
+           RenameCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="delete",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(DeleteSlide),
-           "Delete Current Scratchpad",
+           DeleteCurrentScratchpad,
          ),
        ]);
   };
@@ -1232,7 +1220,6 @@ module View = {
 
     let file_group_scratch =
       NutMenu.item_group(
-        ~inject,
         "File",
         [export_button, export_button_for_init, encode_button, import_button],
       );
@@ -1279,11 +1266,7 @@ module View = {
       );
 
     let reset_group_scratch =
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     [file_group_scratch, reset_group_scratch];
   };
@@ -1315,19 +1298,10 @@ module View = {
       ~add_tooltip,
       ~signal=
         fun
-        | Previous =>
-          inject(
-            SwitchSlide(
-              (model.current + List.length(model.scratchpads) - 1)
-              mod List.length(model.scratchpads),
-            ),
-          )
-        | Next =>
-          inject(
-            SwitchSlide(
-              (model.current + 1) mod List.length(model.scratchpads),
-            ),
-          )
+        /* No arrows in these modes (~nav_buttons=false above): slides are
+           reached through the breadcrumb dropdowns. */
+        | Previous
+        | Next => Virtual_dom.Vdom.Effect.Ignore
         | Add => inject(AddSlide)
         | Rename => inject(RenameSlide)
         | Delete => inject(DeleteSlide),
@@ -1335,7 +1309,10 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map((s: Scratchpad.t) => s.name, model.scratchpads),
+          List.map(
+            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            model.scratchpads,
+          ),
         ),
       (),
     );

@@ -37,10 +37,16 @@ let rt_of_encoding =
   };
 };
 
+/* The evaluator time the worker reports back. Carried by the fixture so every
+ * encoding is exercised on a Time_ns.Span crossing the boundary, not just on the
+ * expression. */
+let eval_time: Util.TimeUtil.span = Core.Time_ns.Span.of_ms(12.5);
+
 let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
   WorkerServer.ServerMessage.Result({
     request_id: 1,
     response: [("cell", Ok((e, EvaluatorState.empty)))],
+    eval_time,
   });
 
 let parse = (s: string): Exp.t =>
@@ -93,11 +99,63 @@ let test_isomorphic =
     },
   );
 
+/* The Evaluation panel reads its `eval` column straight off the wire, so the
+ * span has to survive the active encoding intact — it is an Int63 under the
+ * hood, not a plain int or float. */
+let test_eval_time_round_trips = (): test_case(_) =>
+  test_case(
+    "Marshal: evaluator time survives the round trip",
+    `Quick,
+    () => {
+      let rt = rt_of_encoding((module WorkerServer.MarshalEncoding));
+      switch (rt(~clone=true, response_of_exp(parse("1 + 1")))) {
+      | WorkerServer.ServerMessage.Result({eval_time: span, _}) =>
+        check(
+          bool,
+          "same span",
+          true,
+          Core.Time_ns.Span.equal(span, eval_time),
+        )
+      | _ => fail("round-trip did not preserve response shape")
+      };
+    },
+  );
+
+/* Span's yojson converters are hand-written (Core provides none), so pin the
+ * representation: integer nanoseconds out, the same span back. Exercised on the
+ * converters directly rather than through a whole message, since some types
+ * inside a response define yojson converters that raise. */
+let test_span_yojson = (): test_case(_) =>
+  test_case(
+    "yojson: a span round-trips as nanoseconds",
+    `Quick,
+    () => {
+      let json = Util.TimeUtil.yojson_of_span(eval_time);
+      check(
+        string,
+        "encoded as nanoseconds",
+        Yojson.Safe.to_string(json),
+        "12500000",
+      );
+      check(
+        bool,
+        "same span",
+        true,
+        Core.Time_ns.Span.equal(
+          Util.TimeUtil.span_of_yojson(json),
+          eval_time,
+        ),
+      );
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
     [
       test_marshal_depth_proof(),
+      test_eval_time_round_trips(),
+      test_span_yojson(),
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),

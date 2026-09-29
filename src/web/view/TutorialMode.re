@@ -302,6 +302,7 @@ module Update = {
             model.editors.your_impl,
           ),
         display_hint: model.editors.display_hint,
+        task_reference: model.editors.task_reference,
         hidden_tests: {
           tests:
             calculate(
@@ -386,6 +387,93 @@ module View = {
       v,
     );
   };
+  /* Inline markers in a slide prompt, kept in the prompt text so a slide
+   * stays plain data (no extra spec field):
+   *   {{video:FILE}}  embeds a <video> player with src "img/FILE"
+   *   {{no_editor}}   hides the implementation editor (text-only slide) */
+  let no_editor_marker = "{{no_editor}}";
+  let video_open = "{{video:";
+  let video_close = "}}";
+
+  let has_marker = (s: string, marker: string): bool =>
+    switch (Util.StringUtil.plain_split(s, marker)) {
+    | [_] => false
+    | _ => true
+    };
+
+  let remove_all = (s: string, marker: string): string =>
+    Util.StringUtil.plain_split(s, marker) |> String.concat("");
+
+  type prompt_seg =
+    | Text(string)
+    | Video(string);
+
+  /* An unclosed `{{video:` is left alone, as the text it literally is. */
+  let split_video = (s: string): list(prompt_seg) =>
+    switch (Util.StringUtil.plain_split(s, video_open)) {
+    | [] => []
+    | [before, ...opened] => [
+        Text(before),
+        ...List.concat_map(
+             chunk =>
+               switch (Util.StringUtil.plain_split(chunk, video_close)) {
+               | [unclosed] => [Text(video_open ++ unclosed)]
+               | [file, ...after] => [
+                   Video(String.trim(file)),
+                   Text(String.concat(video_close, after)),
+                 ]
+               | [] => []
+               },
+             opened,
+           ),
+      ]
+    };
+
+  let video_node = (file: string): Node.t =>
+    Node.create(
+      "video",
+      ~attrs=[
+        Attr.create("src", "img/" ++ file),
+        Attr.create("controls", ""),
+        Attr.create("preload", "metadata"),
+        Attr.create("playsinline", ""),
+        Attr.classes(["tutorial-video"]),
+      ],
+      [],
+    );
+
+  /* A markdown header line whose text is exactly "Task" or "Tasks" (any
+     level, case-insensitive). Used to split the prompt into preamble +
+     tasks. */
+  let is_tasks_header = (line: string): bool => {
+    let t = String.trim(line);
+    let rec count_hashes = i =>
+      i < String.length(t) && t.[i] == '#' ? count_hashes(i + 1) : i;
+    let h = count_hashes(0);
+    let rest =
+      String.lowercase_ascii(
+        String.trim(String.sub(t, h, String.length(t) - h)),
+      );
+    h > 0 && (rest == "task" || rest == "tasks");
+  };
+
+  /* Split a prompt into (preamble, optional tasks body) at the first
+     "Task(s)" header. The preamble (everything before that header) stays
+     inline; the tasks body (everything after the header line, the header
+     itself dropped) is shown in a collapsible. No header => no tasks. */
+  let split_tasks = (prompt: string) => {
+    let rec go = (pre, rest) =>
+      switch (rest) {
+      | [] => (prompt, Option.None)
+      | [line, ...more] when is_tasks_header(line) => (
+          String.trim(String.concat("\n", List.rev(pre))),
+          Option.Some(String.concat("\n", more)),
+        )
+      | [line, ...more] => go([line, ...pre], more)
+      };
+    go([], String.split_on_char('\n', prompt));
+  };
+
   let view =
       (
         ~globals: Globals.t,
@@ -393,9 +481,17 @@ module View = {
         ~inject: Update.t => 'b,
         ~inject_explainthis: ExplainThisUpdate.update => 'b,
         ~selection: option(Selection.t),
+        ~is_first: bool,
+        ~is_last: bool,
         model: Model.t,
       ) => {
     let eds = model.editors;
+    let text_only = has_marker(eds.prompt, no_editor_marker);
+    /* Only "task" slides show the grading face + report icon. We use the
+       slide's show_report flag (the immutable spec value, not the toggleable
+       editor state) as the signal: task slides set it, exploration slides
+       (whose only test is the default `test true end`) do not. */
+    let show_task_ui = model.spec.show_report && !text_only;
     //let has_checkmark = Model.all_tests_passed(model);
     let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
 
@@ -415,7 +511,7 @@ module View = {
 
     let editor_view =
         (
-          ~caption: string,
+          ~caption: option(string)=?,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
           this_pos: Tutorial.pos,
@@ -433,7 +529,8 @@ module View = {
           },
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
-        ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~caption=?
+          Option.map(c => CellCommon.caption(c, ~rest=?subcaption), caption),
         ~lines=true,
         /* the culling range is measured on the user cell; the instructor
            hidden-tests cell must not be culled with it */
@@ -441,28 +538,46 @@ module View = {
         cell,
       );
     };
-    let title_view = CellCommon.title_cell(eds.title);
+    /* The breadcrumb in the top bar already names the folder, so the slide
+       heading shows only the leaf of the lesson's SlidePath. */
+    let title_view =
+      CellCommon.title_cell(SlidePath.leaf(Tutorial.path_of(eds)));
 
     // let prompt_view =
     //   CellCommon.narrative_cell(
     //     div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     //   );
-    let prompt_view = {
-      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
-      let (msg, _) =
-        ExplainThis.mk_translation(
-          ~globals,
-          ~inject=inject_explainthis,
-          prompt_placeholder,
-        );
+    let render_markdown = (s: string) => {
+      let render_seg =
+        fun
+        | Text(t) => {
+            let (msg, _) =
+              ExplainThis.mk_translation(
+                ~globals,
+                ~inject=inject_explainthis,
+                t,
+              );
+            msg;
+          }
+        | Video(file) => [video_node(file)];
+      List.concat_map(render_seg, split_video(s));
+    };
+    let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+    let prompt_clean = remove_all(prompt_placeholder, no_editor_marker);
+    let (prompt_preamble, prompt_tasks) = split_tasks(prompt_clean);
+    let prompt_view =
       div(
         ~attrs=[Attr.class_("cell-prompt")],
-        [div(~attrs=[Attr.class_("prompt-content")], msg)],
+        [
+          div(
+            ~attrs=[Attr.class_("prompt-content")],
+            render_markdown(prompt_preamble),
+          ),
+        ],
       );
-    };
 
     let prev_button_view =
-      if (model.editors.version > 1) {
+      if (!is_first) {
         div(
           ~attrs=[Attr.class_("prev-button")],
           [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
@@ -475,14 +590,7 @@ module View = {
       Always(
         div(
           ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
-          [
-            editor_view(
-              YourImpl,
-              user_impl,
-              ~caption="Your Implementation",
-              ~result_kind=`EvalResults,
-            ),
-          ],
+          [editor_view(YourImpl, user_impl, ~result_kind=`EvalResults)],
         ),
       );
     };
@@ -490,6 +598,24 @@ module View = {
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
+      );
+    let tasks_view = (body: string) =>
+      /* Like the hint, a native <details> whose open/closed state lives in
+         the DOM; key by slide so it resets (collapsed) on slide switch
+         rather than leaking one slide's expanded state onto the next. */
+      details(
+        ~key="tasks-" ++ eds.module_name,
+        ~attrs=[Attr.class_("tasks-cell")],
+        [
+          summary(
+            ~attrs=[Attr.class_("tasks-title")],
+            [text("📋 Tasks")],
+          ),
+          div(
+            ~attrs=[Attr.class_("tasks-content")],
+            render_markdown(body),
+          ),
+        ],
       );
     let hint_view = {
       let hint_placeholder =
@@ -500,10 +626,15 @@ module View = {
           ~inject=_ => (),
           hint_placeholder,
         );
-      div(
+      /* The open/closed state of a native <details> lives in the DOM
+         node, and the vdom diff would reuse that node across slide
+         switches, leaking one slide's expanded hint onto the next.
+         Keying by slide forces a fresh (collapsed) element per slide. */
+      details(
+        ~key="hint-" ++ eds.module_name,
         ~attrs=[Attr.class_("hint-cell")],
         [
-          div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
+          summary(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
           div(~attrs=[Attr.class_("hint-content")], msg),
         ],
       );
@@ -521,7 +652,7 @@ module View = {
         ],
       );
     let next_button_view =
-      model.editors.version < 10
+      !is_last
         ? div(
             ~attrs=[Attr.class_("next-button")],
             [Widgets.button(Icons.next, _ => inject(MoveToNextExercise))],
@@ -595,11 +726,17 @@ module View = {
         );
       };
     [title_view, prompt_view]
+    @ (
+      switch (prompt_tasks) {
+      | Some(body) => [tasks_view(body)]
+      | None => []
+      }
+    )
     @ (eds.display_hint == "" ? [] : [hint_view])
     @ render_cells(
         globals.settings,
-        [
-          your_impl_view,
+        (text_only ? [] : [your_impl_view])
+        @ [
           hidden_tests_view,
           Always(
             div(
@@ -611,7 +748,13 @@ module View = {
                     prev_button_view,
                     div(
                       ~attrs=[Attr.class_("right-nav-cluster")],
-                      [impl_grading_view, report_icon_view, next_button_view],
+                      show_task_ui
+                        ? [
+                          impl_grading_view,
+                          report_icon_view,
+                          next_button_view,
+                        ]
+                        : [next_button_view],
                     ),
                   ],
                 ),

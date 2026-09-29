@@ -5,6 +5,19 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
+/* Per-slide scroll memory for tutorial mode. Each slide remembers where the
+   user last left it; revisiting a slide restores that scroll position, while
+   a slide that's never been scrolled opens at the top. */
+let slide_scrolls: ref(list((int, float))) = ref([]);
+let pending_scroll_restore: ref(option(float)) = ref(None);
+
+/* The current tutorial slide index, if the app is in tutorial mode. */
+let tutorial_slide = (m: CrashHandling.Model.t): option(int) =>
+  switch (m.model.current.current.editors) {
+  | Editors.Model.Tutorial(tm) => Some(tm.current)
+  | _ => None
+  };
+
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
@@ -94,6 +107,24 @@ let apply =
   };
   if (updated.scroll_active) {
     scroll_to_caret := true;
+  };
+  /* When the tutorial slide changes, stash the outgoing slide's scroll
+     position and queue a restore of the incoming slide's saved position
+     (the top, for slides that have never been scrolled). The restore takes
+     precedence over scroll-to-caret so a fresh slide opens at its prompt. */
+  switch (tutorial_slide(model), tutorial_slide(updated.model)) {
+  | (Some(prev), Some(next)) when prev != next =>
+    slide_scrolls :=
+      [
+        (prev, JsUtil.main_scroll_top()),
+        ...List.remove_assoc(prev, slide_scrolls^),
+      ];
+    pending_scroll_restore :=
+      Some(
+        List.assoc_opt(next, slide_scrolls^) |> Option.value(~default=0.),
+      );
+    scroll_to_caret := false;
+  | _ => ()
   };
   model';
 };
@@ -197,8 +228,6 @@ let start = default_model => {
         ),
       );
     });
-    /* Setup scroll listener for floating elements (backpack) */
-    FloatingElement.setup_scroll_listener();
     // Sync log count from database
     Log.sync_count();
   };
@@ -230,12 +259,21 @@ let start = default_model => {
         } else {
           ();
         };
+        /* restore the incoming tutorial slide's remembered scroll position */
+        switch (pending_scroll_restore^) {
+        | Some(target) =>
+          pending_scroll_restore := None;
+          JsUtil.set_main_scroll_top(target);
+        | None => ()
+        };
+        /* Handle scheduled probe focus from step-into (see FocusEffect) */
         let _ = Haz3lcore.FocusEffect.execute();
         /* restore probe focus dropped by vdom reorder moves */
         Haz3lcore.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
-        /* Update floating elements (backpack) to viewport coordinates */
+        /* Update floating elements (probe menus) to viewport coordinates */
+        FloatingElement.setup_scroll_listener();
         FloatingElement.update_all();
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;
@@ -300,6 +338,10 @@ switch (JsUtil.Fragment.get_current()) {
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
   HazelDB.kv_load_all(_pairs => {
+    /* The user's theme, before the first frame and whatever mode they are
+       in. The inline script in index.html has already themed the loading
+       screen from the same cache; this validates it and fills a miss. */
+    ConfigurationMode.apply_theme_at_startup();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(

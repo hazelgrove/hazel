@@ -110,6 +110,11 @@ let highlight =
   (Node.span(~attrs, msg), mapping);
 };
 
+let memo_parse =
+  Core.Memo.general(~cache_size_bound=1000, code =>
+    Parser.to_zipper(~root=Exp, String.trim(code))
+  );
+
 /*
  Markdown like thing:
  highlighty thing : [thing to highlight](id)
@@ -117,12 +122,10 @@ let highlight =
                 - list item
  code: `code`
  italics: *word*
+ fenced code: ```hazel ... ``` (also hazelnoeval, hazelnostatics)
  */
-let mk_translation =
-    (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
-  let omd = Omd.of_string(text);
-  //print_markdown(omd);
-
+let mk_translation_doc =
+    (~globals, ~inject, omd: Omd.doc): (list(Node.t), ColorSteps.t) => {
   let rec translate_inline =
           (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
           : (list(Node.t), ColorSteps.t) => {
@@ -169,6 +172,9 @@ let mk_translation =
         ),
         mapping,
       );
+    | Omd.Strong(_, d) =>
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      (List.append(msg, [Node.strong(d)]), mapping);
     | Omd.Soft_break(_) => (List.append(msg, [Node.br()]), mapping)
     | _ => (msg, mapping)
     };
@@ -187,17 +193,95 @@ let mk_translation =
              [translate_inline] as <br>.) */
           let (p_nodes, mapping) = translate_inline(d, [], mapping, ~inject);
           (List.append(msg, [Node.p(p_nodes)]), mapping);
-        | Omd.List(_, _, _, items) =>
+        | Omd.Heading(_, level, d) =>
+          let (inline_nodes, mapping) =
+            translate_inline(d, [], mapping, ~inject);
+          let heading_node =
+            switch (level) {
+            | 1 => Node.h1(inline_nodes)
+            | 2 => Node.h2(inline_nodes)
+            | 3 => Node.h3(inline_nodes)
+            | 4 => Node.h4(inline_nodes)
+            | 5 => Node.h5(inline_nodes)
+            | _ => Node.h6(inline_nodes)
+            };
+          (List.append(msg, [heading_node]), mapping);
+        | Omd.Thematic_break(_) => (List.append(msg, [Node.hr()]), mapping)
+        | Omd.Code_block(_, lang, code) =>
+          let core = globals.settings.core;
+          let plain = () => Node.pre([Node.code([Node.text(code)])]);
+          let hazel_settings =
+            switch (String.trim(lang)) {
+            | "hazel" => Some(core)
+            | "hazelnoeval" =>
+              Some({
+                ...core,
+                dynamics: false,
+              })
+            | "hazelnostatics" =>
+              Some({
+                ...core,
+                statics: false,
+                dynamics: false,
+              })
+            | _ => None
+            };
+          let code_node =
+            switch (hazel_settings) {
+            | None => plain()
+            | Some(settings) =>
+              switch (memo_parse(code)) {
+              | None => plain()
+              | Some(zipper) =>
+                let globals = {
+                  ...globals,
+                  settings: {
+                    ...globals.settings,
+                    core: settings,
+                  },
+                };
+                CellEditor.View.view(
+                  ~globals,
+                  ~signal=_ => Ui_effect.Ignore,
+                  ~inject=_ => Ui_effect.Ignore,
+                  ~selected=None,
+                  ~caption=None,
+                  ~locked=true,
+                  zipper
+                  |> Editor.Model.mk(~root=Exp)
+                  |> CellEditor.Model.mk
+                  |> CellEditor.Update.calculate(
+                       ~settings,
+                       ~is_edited=true,
+                       ~stitch=x => x,
+                       ~queue_worker=None,
+                     ),
+                );
+              }
+            };
+          (List.append(msg, [code_node]), mapping);
+        | Omd.List(_, list_type, list_spacing, items) =>
+          let translate_item = (d, mapping) =>
+            switch (list_spacing, d) {
+            | (Omd.Tight, [Omd.Paragraph(_, inline)]) =>
+              translate_inline(inline, [], mapping, ~inject)
+            | _ => translate_block(d, mapping)
+            };
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
-                let (n, mapping) = translate_block(d, mapping);
+                let (n, mapping) = translate_item(d, mapping);
                 (List.append(nodes, [Node.li(n)]), mapping);
               },
               ([], mapping),
               items,
             );
-          (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+          let list_node =
+            switch (list_type) {
+            | Omd.Ordered(_, _) => Node.ol(bullets)
+            | Omd.Bullet(_) => Node.ul(bullets)
+            };
+          (List.append(msg, [list_node]), mapping);
         | _ => (msg, mapping)
         }
       },
@@ -208,6 +292,10 @@ let mk_translation =
 
   translate_block(omd, ColorSteps.empty);
 };
+
+let mk_translation =
+    (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) =>
+  mk_translation_doc(~globals, ~inject, Omd.of_string(text));
 
 let mk_explanation =
     (
@@ -272,9 +360,7 @@ let expander_deco =
 
     let get_clss = segment =>
       switch (List.nth(segment, 0)) {
-      | Base.Tile({mold, _}) => [
-          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
-        ]
+      | Base.Tile(t) => ["ci-header-" ++ Sort.to_string(Tile.mold(t).out)]
       | _ => []
       };
 
@@ -376,7 +462,7 @@ let example_view =
                   ~caption=None,
                   ~locked=true,
                   {
-                    term
+                    Lazy.force(term)
                     |> Zipper.unzip
                     |> Editor.Model.mk(~root=Exp)
                     |> CellEditor.Model.mk
@@ -535,28 +621,26 @@ let decide_deduction =
             |> List.map(
                  Base.map_piece(~f_piece=(cont, piece) => {
                    switch (piece) {
-                   | Tile(
-                       {
-                         children: [],
-                         mold:
-                           {
-                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
-                             _,
-                           },
-                         _,
-                       } as t,
-                     ) =>
-                     let label = t.label |> List.hd;
+                   | Tile({children: [], _} as t)
+                       when
+                         switch (Tile.mold(t).nibs) {
+                         | ({shape: Convex, _}, {shape: Convex, _}) => true
+                         | _ => false
+                         } =>
+                     let label = Tile.label(t) |> List.hd;
                      let (_, syntax) = RuleVerify.Map.find(label, map);
+                     /* display-only markdown-link label swap; only
+                      * to_string reads this tile downstream */
                      Tile({
                        ...t,
-                       label: [
-                         Printf.sprintf(
-                           "[*%s*](%s)",
-                           label,
-                           syntax |> Drv.Any.rep_id |> Id.to_string,
+                       form:
+                         Form.Tok(
+                           Printf.sprintf(
+                             "[*%s*](%s)",
+                             label,
+                             syntax |> Drv.Any.rep_id |> Id.to_string,
+                           ),
                          ),
-                       ],
                      });
                    | _ => cont(piece)
                    }

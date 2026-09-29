@@ -53,7 +53,6 @@ let format_hazel = (implicit_hole: string, width, path) => {
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
         ~concave_holes=implicit_hole,
-        ~indent=" ",
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
       );
@@ -531,8 +530,8 @@ let format_cmd = {
     structured formatting.
   |};
   let width_arg = {
-    let doc = "Target line width in columns (default: 60).";
-    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+    let doc = "Target line width in columns (default: 80).";
+    Arg.(value & opt(int, 80) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
   Cmd.v(
@@ -576,6 +575,24 @@ let test_cmd = {
   };
   let info = Cmd.info("test", ~doc);
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
+};
+
+let tutorial_verify_cmd = {
+  let doc = "Round-trip-check every Tutorial-mode slide: assert to_text is a fixed point of (of_text >> to_text) for each slide's impl and tests.";
+  let verbose_arg = {
+    let doc = "Print the before/after text for any mismatching slide.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("tutorial-verify", ~doc);
+  Cmd.v(info, Term.(const(TutorialDecode.verify) $ verbose_arg));
+};
+
+let tutorial_decode_cmd = {
+  let doc = "Decode Tutorial-mode slides to text. With no arg, writes all lessons to hazel-programs/tutorial-imported/. With a title substring, prints matching slides to stdout.";
+  let filter_arg =
+    Arg.(value & pos(0, some(string), None) & info([], ~docv="SUBSTR"));
+  let info = Cmd.info("tutorial-decode", ~doc);
+  Cmd.v(info, Term.(const(TutorialDecode.decode) $ filter_arg));
 };
 
 let output_arg = {
@@ -639,6 +656,8 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       test_cmd,
+      tutorial_verify_cmd,
+      tutorial_decode_cmd,
       grade_json_cmd,
       grade_report_cmd,
       bench_eval_cmd,
