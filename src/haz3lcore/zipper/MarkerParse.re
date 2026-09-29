@@ -77,7 +77,7 @@ let strip_implicit_holes = (~implicit_hole: string, z: Zipper.t): Zipper.t =>
 let of_text =
     (~implicit_hole=default_implicit_hole, ~root, text: string)
     : option(Zipper.t) =>
-  switch (Parser.to_zipper(~root, text)) {
+  switch (Parser.to_zipper(~by_run=true, ~root, text)) {
   | None => None
   | Some(z) => Some(strip_implicit_holes(~implicit_hole, z))
   };
