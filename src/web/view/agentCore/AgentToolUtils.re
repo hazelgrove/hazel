@@ -45,14 +45,15 @@ type entry = {
 let registry: list((string, entry)) = {
   let entries = (category, gating, names) =>
     List.map(
-      name =>
-        (
-          name,
-          {
-            category,
-            gating,
-          },
-        ),
+      ~f=
+        name =>
+          (
+            name,
+            {
+              category,
+              gating,
+            },
+          ),
       names,
     );
   entries("View", Ungated, ["expand", "collapse"])
@@ -119,14 +120,14 @@ let registry: list((string, entry)) = {
 };
 
 let category_of_tool = (name: string): string =>
-  switch (List.assoc_opt(name, registry)) {
+  switch (List.Assoc.find(registry, name, ~equal=String.equal)) {
   | Some(entry) => entry.category
   | None => "Other"
   };
 
 let names_with_gating = (g: gating): list(string) =>
   List.filter_map(
-    ((name, entry)) => entry.gating == g ? Some(name) : None,
+    ~f=((name, entry)) => Poly.equal(entry.gating, g) ? Some(name) : None,
     registry,
   );
 

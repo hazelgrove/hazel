@@ -71,8 +71,8 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
       pairs => {
         cache :=
           List.fold_left(
-            (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
-            Util.Maps.StringMap.empty,
+            ~f=(m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
+            ~init=Util.Maps.StringMap.empty,
             pairs,
           );
         callback(pairs);

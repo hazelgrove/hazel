@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Js_of_ocaml;
 open Util.JsUtil;
+open Poly;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
@@ -95,28 +96,29 @@ let problems_tab_icon =
   /* Aggregate counts by badge group: sum counts sharing the same badge_cls */
   let grouped =
     List.fold_left(
-      (acc, (cat, n)) => {
-        let cls = category_badge_cls(cat);
-        let sev = category_badge_severity(cat);
-        let label = category_badge_label(cat);
-        switch (List.assoc_opt(cls, acc)) {
-        | Some((total, s, _)) => [
-            (cls, (total + n, max(s, sev), label)),
-            ...List.remove_assoc(cls, acc),
-          ]
-        | None => [(cls, (n, sev, label)), ...acc]
-        };
-      },
-      [],
+      ~f=
+        (acc, (cat, n)) => {
+          let cls = category_badge_cls(cat);
+          let sev = category_badge_severity(cat);
+          let label = category_badge_label(cat);
+          switch (List.Assoc.find(acc, cls, ~equal=String.equal)) {
+          | Some((total, s, _)) => [
+              (cls, (total + n, max(s, sev), label)),
+              ...List.Assoc.remove(acc, cls, ~equal=String.equal),
+            ]
+          | None => [(cls, (n, sev, label)), ...acc]
+          };
+        },
+      ~init=[],
       counts,
     );
   let sorted =
     List.sort(
-      ((_, (_, s1, _)), (_, (_, s2, _))) => compare(s2, s1),
+      ~compare=((_, (_, s1, _)), (_, (_, s2, _))) => compare(s2, s1),
       grouped,
     );
   let (status_class, icon_text, title) =
-    switch (List.find_opt(((_, (n, _, _))) => n > 0, sorted)) {
+    switch (List.find(~f=((_, (n, _, _))) => n > 0, sorted)) {
     | Some((cls, (n, _, label))) =>
       let plural = n > 1 ? label ++ "s" : label;
       (
@@ -169,31 +171,32 @@ let task_reference_view = (~globals: Globals.t, body: string) => {
   let sections = split_task_reference_sections(Omd.of_string(body));
   let section_nodes =
     List.map(
-      ((heading, content)) =>
-        switch (heading) {
-        | Option.None =>
-          div(
-            ~attrs=[clss(["task-reference-preamble"])],
-            render_md(content),
-          )
-        | Option.Some(h) =>
-          Node.details(
-            ~attrs=[
-              clss(["task-reference-section"]),
-              Attr.create("open", ""),
-            ],
-            [
-              Node.summary(
-                ~attrs=[clss(["task-reference-section-title"])],
-                [text(h)],
-              ),
-              div(
-                ~attrs=[clss(["task-reference-section-body"])],
-                render_md(content),
-              ),
-            ],
-          )
-        },
+      ~f=
+        ((heading, content)) =>
+          switch (heading) {
+          | None =>
+            div(
+              ~attrs=[clss(["task-reference-preamble"])],
+              render_md(content),
+            )
+          | Some(h) =>
+            Node.details(
+              ~attrs=[
+                clss(["task-reference-section"]),
+                Attr.create("open", ""),
+              ],
+              [
+                Node.summary(
+                  ~attrs=[clss(["task-reference-section-title"])],
+                  [text(h)],
+                ),
+                div(
+                  ~attrs=[clss(["task-reference-section-body"])],
+                  render_md(content),
+                ),
+              ],
+            )
+          },
       sections,
     );
   div(
@@ -251,22 +254,23 @@ let updateElementStyles = (new_width: int) => {
     ("history-menu", "right"),
   ];
   List.iter(
-    ((id, style)) => {
-      switch (get_elem_by_id_opt(id)) {
-      | Some(elem) =>
-        let value =
-          style == "width"
-            ? string_of_int(new_width) ++ "px"
-            : string_of_int(new_width + 20) ++ "px";
-        let elem_style = Js.Unsafe.coerce(elem)##.style;
-        switch (style) {
-        | "width" => elem_style##.width := Js.string(value)
-        | "right" => elem_style##.right := Js.string(value)
-        | _ => ()
-        };
-      | None => ()
-      }
-    },
+    ~f=
+      ((id, style)) => {
+        switch (get_elem_by_id_opt(id)) {
+        | Some(elem) =>
+          let value =
+            String.equal(style, "width")
+              ? string_of_int(new_width) ++ "px"
+              : string_of_int(new_width + 20) ++ "px";
+          let elem_style = Js.Unsafe.coerce(elem)##.style;
+          switch (style) {
+          | "width" => elem_style##.width := Js.string(value)
+          | "right" => elem_style##.right := Js.string(value)
+          | _ => ()
+          };
+        | None => ()
+        }
+      },
     elements,
   );
 };
@@ -278,18 +282,19 @@ let resetElementStyles = () => {
     ("history-menu", "right"),
   ];
   List.iter(
-    ((id, style)) => {
-      switch (get_elem_by_id_opt(id)) {
-      | Some(elem) =>
-        let elem_style = Js.Unsafe.coerce(elem)##.style;
-        switch (style) {
-        | "width" => elem_style##.width := Js.string("")
-        | "right" => elem_style##.right := Js.string("")
-        | _ => ()
-        };
-      | None => ()
-      }
-    },
+    ~f=
+      ((id, style)) => {
+        switch (get_elem_by_id_opt(id)) {
+        | Some(elem) =>
+          let elem_style = Js.Unsafe.coerce(elem)##.style;
+          switch (style) {
+          | "width" => elem_style##.width := Js.string("")
+          | "right" => elem_style##.right := Js.string("")
+          | _ => ()
+          };
+        | None => ()
+        }
+      },
     elements,
   );
 };
@@ -351,19 +356,21 @@ let view =
     Haz3lcore.ProblemCollection.make(
       ~display_warnings=globals.settings.core.display_warnings,
       List.map(
-        ((label, editors: list(CodeWithStatics.Model.t))) =>
-          Haz3lcore.ProblemCollection.{
-            label,
-            sources:
-              List.map(
-                (e: CodeWithStatics.Model.t) =>
-                  Haz3lcore.ProblemCollection.{
-                    statics: e.statics,
-                    syntax: e.editor.syntax,
-                  },
-                editors,
-              ),
-          },
+        ~f=
+          ((label, editors: list(CodeWithStatics.Model.t))) =>
+            Haz3lcore.ProblemCollection.{
+              label,
+              sources:
+                List.map(
+                  ~f=
+                    (e: CodeWithStatics.Model.t) =>
+                      Haz3lcore.ProblemCollection.{
+                        statics: e.statics,
+                        syntax: e.editor.syntax,
+                      },
+                  editors,
+                ),
+            },
         problem_editors,
       ),
     );
