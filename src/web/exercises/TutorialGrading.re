@@ -161,10 +161,7 @@ module ImplGradingReport = {
     CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
-        CellCommon.caption(
-          "Implementation Grading",
-          ~rest=": Hidden Tests vs. Your Implementation",
-        ),
+        CellCommon.caption("Hidden Tests"),
         individual_reports(~signal_jump, ~report),
       ],
       ~footer=
