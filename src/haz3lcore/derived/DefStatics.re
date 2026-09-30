@@ -1,18 +1,10 @@
 open Language;
 
-/* Whole-program statics computed per top-level item (let / type
-   alias / module / trailing expression) with chained ctxs, so an edit
-   recomputes only the dirty set:
-     - the edited item always;
-     - downstream items, only when an upstream item's EXPORTS changed
-       (name/id/type of a binding) AND they mention a changed name —
-       expression names via their co_ctx (d_free), type-side names
-       (aliases, constructors) via d_tfree;
-     - top-level unused-binding warnings are computed by the ENGINE
-       (an item in isolation can't see its downstream uses).
-   Item statics runs on the item with its body replaced by a hole, so
-   per-item info_maps compose into whole-program statics modulo the
-   item nodes' own (chain-typed) infos. */
+/* whole-program statics per top-level item (body replaced by a hole)
+   with chained ctxs: an edit recomputes the edited item plus downstream
+   items that mention a name whose export changed (d_free for expression
+   names, d_tfree for type-side ones). unused-binding warnings are
+   computed across items, since an item alone can't see its later uses */
 
 type item = {
   d_id: Id.t, /* the item's rep id (the outline id domain) */
@@ -20,7 +12,7 @@ type item = {
   d_ctx_in: Ctx.t,
   d_map: Statics.Map.t,
   d_error_ids: list(Id.t),
-  d_warning_ids: list(Id.t), /* engine-corrected (see unused pass) */
+  d_warning_ids: list(Id.t), /* raw; all_warning_ids redoes unused binders */
   d_exports: list(Ctx.entry),
   d_free: list(string), /* free expression vars of pat+def */
   d_tfree: list(string), /* type-side names the item depends on */
@@ -59,15 +51,10 @@ let rec chain = (e: Exp.t): list(Exp.t) => {
   };
 };
 
-/* A Module(items) root itemizes exactly like the monolithic lowering
-   (ModuleHelpers.wrap_item): each mod item becomes a hollow-able
-   Let/TyAlias wrapper feeding the SAME per-item machinery, plus a
-   trailing labeled tuple of the exports (the module value). Wrapper
-   and tail ids must be STABLE across calcs — head_equal gates item
-   cleanliness on them — so wrappers that can't reuse the item's rep
-   id (ModExp/hole items: the rep belongs to the expression itself)
-   get deterministic derived ids instead of the monolithic lowering's
-   per-run fresh ones. */
+/* a Module root itemizes like the monolithic lowering: each mod item
+   becomes a Let/TyAlias wrapper, plus a tail tuple of the exports.
+   head_equal gates cleanliness on wrapper and tail ids, so they must be
+   stable: wrappers that can't reuse the item's rep id get derived ids */
 let derived_id = (tag: string, rep: Id.t): Id.t =>
   Id.mk_str(tag ++ Id.to_string(rep));
 
@@ -117,11 +104,9 @@ let lower_mod_item = (item: Mod.t): Exp.t => {
   };
 };
 
-/* the module-value tail: ModuleHelpers.labeled_tuple_exp with
-   deterministic ids (derived from the root's rep + export name) so
-   the tail stays head-equal — and thus clean — across calcs unless
-   the export NAME SET changes. Its free vars are every export name,
-   so any export delta re-analyzes it through the normal dirty path. */
+/* the module-value tail, with ids derived from the root's rep and export
+   names so it stays clean unless the export name set changes; it
+   mentions every export, so any export delta re-analyzes it */
 let exports_tail = (root_rep: Id.t, items: list(Mod.t)): Exp.t => {
   let sid = (tag: string, name: string) =>
     derived_id(tag ++ name ++ ":", root_rep);
@@ -150,9 +135,8 @@ let exports_tail = (root_rep: Id.t, items: list(Mod.t)): Exp.t => {
   );
 };
 
-/* item equality between program versions: the pat+def head, body
-   excluded. Ids participate (they're stable across unrelated edits),
-   so an id-preserving MakeTerm rebuild compares equal. */
+/* item equality across versions: the head only, ids included (an
+   id-preserving rebuild compares equal) */
 let head_equal = (a: Exp.t, b: Exp.t): bool =>
   switch (a.term, b.term) {
   | (Let(p1, d1, _), Let(p2, d2, _)) => compare((p1, d1), (p2, d2)) == 0
@@ -187,14 +171,10 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
   | _ => false
   };
 
-/* ---- type-side dependency tracking ----
-   co_ctx records only EXPRESSION variables, so type-side names get a
-   parallel treatment: d_tfree per item, type-name sets in export
-   deltas, and a dirty type-name set down the chain folds — with
-   shadowing by type-side rebinds and TRANSITIVE closure through
-   alias definitions (an alias whose definition mentions a dirty name
-   is itself dirty: normalization chases chains lazily at use sites,
-   so users of the head alias never mention the tail name). */
+/* type-side dependencies: co_ctx records only expression variables, so
+   type names get parallel tracking (d_tfree, export deltas, a dirty set
+   down the chain) with transitive closure through alias definitions,
+   since users of an alias never mention the names it expands to */
 
 /* type-side names an export ENTRY involves (the ctor's typ mentions
    its sum name — case scrutinee infos mention the sum, not the ctor) */
@@ -213,10 +193,9 @@ let is_type_entry = (e: Ctx.entry): bool =>
   | _ => false
   };
 
-/* type-side names an ITEM depends on: syntactic type-position names
-   and constructor uses, plus names in the STORED (unnormalized)
-   types of its infos — an item using a var x : T depends on T
-   without ever writing it (normalization resolves lazily at use). */
+/* type-side names an item depends on: those it writes (types,
+   constructors) plus those in its infos' stored types, since using
+   x : T depends on T without writing it */
 let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   let acc = ref([]);
   let add = names =>
@@ -261,9 +240,8 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   List.sort_uniq(compare, acc^);
 };
 
-/* dirty type names SHADOWED by this item's own type-side exports
-   (a rebinding serves downstream lookups; expression bindings never
-   shadow the type namespace — lookup_tvar walks past them) */
+/* drop dirty type names this item's type-side exports rebind
+   (expression bindings never shadow the type namespace) */
 let tshadow = (exports: list(Ctx.entry), dirty: list(string)) =>
   List.filter(
     n => !List.exists(e => is_type_entry(e) && entry_name(e) == n, exports),
@@ -286,7 +264,6 @@ let ttransit = (exports: list(Ctx.entry), dirty: list(string)) =>
         exports,
       );
 
-/* did the exports change, and how? */
 type export_delta =
   | Unchanged
   | Changed({
@@ -347,9 +324,8 @@ let depends = (free: list(string), dirty: list(string)): bool =>
   dirty != []
   && (List.mem("*", free) || List.exists(v => List.mem(v, free), dirty));
 
-/* whether [q] uses a dirty name. A capitalized name resolves to a
-   module or a constructor, whichever was bound last, so it counts on
-   both sides */
+/* whether [q] uses a dirty name. a capitalized name may resolve to a
+   module or a constructor, so it counts on both sides */
 let stale = (q: item, dirty_vars, dirty_tnames): bool => {
   let caps =
     List.filter(n => n != "" && Char.uppercase_ascii(n.[0]) == n.[0]);
@@ -374,21 +350,6 @@ let seed_delta = (delta: export_delta, dirty_vars, dirty_tnames) =>
 /* observability: how many items the last calc actually re-analyzed */
 let last_analyzed: ref(int) = ref(0);
 
-/* Item statics runs with the continuation hollowed, so an item ROOT's
-   info misses everything about LATER items. Two root fields feed the
-   evaluator's incremental reuse_check, and both must look monolithic
-   or the resident cache replays stale runs:
-     - probe_targets (= probes under the node): left stale, adding a
-       probe deep in the program looks like "nothing changed" at the
-       top-level spine and the cached run replays sampleless;
-     - co_ctx (= names used under the node): reuse-map Dirty flags
-       (a re-bound definition dirtying its callers) are consulted
-       through exactly this co_ctx, so without the suffix's names a
-       spine root reuses right past a dirtied binding and the whole
-       suffix — call sites included — replays from cache.
-   Patch the merged view: each non-tail root's witness/co_ctx becomes
-   its own unioned with the items below it (minus its own bindings,
-   for co_ctx — the same scoping a monolithic analysis applies). */
 let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
   if (List.mem(hole_id, e.annotation.ids)) {
     Some(acc);
@@ -412,8 +373,11 @@ let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
     };
   };
 
-/* graft a hollow-item chain's elabs into one expression */
-
+/* item statics hollows the continuation, so a spine root's info misses
+   later items. the evaluator's reuse gating reads a root's elab_term,
+   probe_targets and co_ctx, so each non-tail root gets them extended
+   over the suffix (its co_ctx minus the root's bindings), or cached
+   runs replay stale */
 let fix_spine_infos_full =
     (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
     : (Statics.Map.t, SubexpProbeTargets.t, CoCtx.t) => {
@@ -431,27 +395,17 @@ let fix_spine_infos_full =
         let bound = List.map(entry_name, it.d_exports);
         let below_co_scoped =
           CoCtx.filter_names(name => !List.mem(name, bound), below_co);
-        /* the spine root's elab_term must be the WHOLE suffix (its
-           hollow item elab grafted onto the items below), not the
-           hollow form: the incremental evaluator gates reuse of a
-           node on its elab_term being unchanged, and a hollow root
-           reads as unchanged whatever happened downstream — an edit
-           to any item but the first was never re-evaluated. Grafting
-           shares the untouched items' subtrees, so this is the same
-           term whole_elab builds, kept per spine node. */
+        /* the root's elab_term is the whole suffix: a hollow one reads
+           as unchanged whatever happens downstream */
         let suffix_elab =
           switch (it.d_hole, below_elab) {
           | (Some(h), Some(below)) => graft_at(h, below, it.d_elab)
           | (None, _) => Some(it.d_elab)
           | (Some(_), None) => None
           };
-        /* CRITICAL: read the root's RAW info from the item's own
-           d_map, never from [m]. The incremental calc feeds the
-           previous run's PATCHED merged back in as the base — reading
-           the patched entry and unioning the suffix again DOUBLES the
-           co_ctx use-lists every calc (exponential memory: the mega
-           editors died within a few edits). d_maps stay raw, so
-           sourcing from them makes the patch idempotent. */
+        /* read the RAW info from d_map, never [m]: [m] may hold the last
+           calc's patched entry, and re-patching doubles the co_ctx
+           use-lists every calc */
         switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, it.d_map)) {
         | (Some(_), Some(raw)) =>
           let co_ctx = CoCtx.union([raw.co_ctx, below_co_scoped]);
@@ -478,9 +432,8 @@ let fix_spine_infos_full =
             suffix_elab,
           );
         | _ =>
-          /* tail item (info already whole-suffix accurate) or no
-             InfoExp at the root (e.g. module forms): thread what we
-             know upward without patching */
+          /* tail item (already accurate) or no InfoExp at the root
+             (module forms): thread upward without patching */
           let own_co =
             switch (Statics.Map.lookup_exp(it.d_id, it.d_map)) {
             | Some(raw) => raw.co_ctx
@@ -538,10 +491,8 @@ let rec calc_item =
           ~probe_ids=Id.Map.empty,
           ~probe_dirty: item => bool=_ => false,
           ~prev: option(item)=?,
-          /* dirty names INCOMING at this item's position: a module
-             item re-analyzing because an UPSTREAM export changed must
-             pass them into its member chain, or members using the
-             changed name reuse stale maps */
+          /* dirty names incoming here: a module item passes them to its
+             members, or members using a changed name reuse stale maps */
           ~dirty_vars: list(string)=[],
           ~dirty_tnames: list(string)=[],
           ~ctx_in: Ctx.t,
@@ -599,9 +550,8 @@ and calc_plain_item =
     | Some(info) => info.ctx
     | None => ctx_in /* trailing exp: no hole in the map */
     };
-  /* free expression vars: read the DEF's co_ctx (the item node itself
-     may not carry an InfoExp — e.g. ModuleExp — and a silent [] here
-     would make items falsely clean); type-side deps live in d_tfree */
+  /* read the DEF's co_ctx: the item node may lack an InfoExp (e.g.
+     ModuleExp), and a silent [] would make items falsely clean */
   let free = {
     let src =
       switch (node.term) {
@@ -644,10 +594,8 @@ and calc_plain_item =
   };
 }
 
-/* member granularity fires only for SIMPLE bindings of a module
-   literal: ascribed signatures push ana_labels into the lowering,
-   which the member path does not replicate (they keep the monolithic
-   item analysis) */
+/* member granularity only for simple bindings of a module literal:
+   ascribed signatures push ana_labels the member path doesn't replicate */
 and module_literal_members =
     (node: Exp.t): option((Pat.t, Exp.t, list(Mod.t))) => {
   let simple = (p: Pat.t): bool =>
@@ -672,13 +620,10 @@ and module_literal_members =
   };
 }
 
-/* the member-granular module item: members (+ exports tail) run as a
-   nested memoized chain; the WRAPPER's statics run on a tiny
-   surrogate where the def is (hole : actual_ty) — same Let machinery,
-   member-sized cost. The surrogate skips two module-literal-only
-   effects, replicated here: the M.T type-export alias injected into
-   the body ctx, and the def-node root info's co_ctx/probe-witness
-   view of the members (fix_spine discipline). */
+/* members (+ exports tail) run as a nested memoized chain; the wrapper
+   runs on a surrogate def (hole : actual_ty), which skips two effects
+   replicated here: the M.T type-export alias and the def's co_ctx/probe
+   view of its members */
 and calc_module_item =
     (
       ~settings,
@@ -720,8 +665,7 @@ and calc_module_item =
       Id.Map.empty,
       items_m,
     );
-  /* member roots need the same suffix co_ctx/witness patch the top
-     spine gets, or the evaluator's reuse gating replays stale runs */
+  /* member roots need the top spine's suffix patch too */
   let (member_merged, top_wit, top_co) =
     fix_spine_infos_full(~probe_ids, items_m, member_merged);
   let value_exports = ModuleHelpers.value_exports(members);
@@ -732,7 +676,6 @@ and calc_module_item =
       value_exports,
       member_merged,
     );
-  /* wrapper surrogate: def := (hole : actual_ty) */
   let sur_hole = Exp.fresh(EmptyHole);
   let sur_def =
     IdTagged.fast_copy(
@@ -751,9 +694,8 @@ and calc_module_item =
   };
   let (map_sur, elab_sur) =
     Statics.mk_unmemoized(~probe_ids, settings, ctx_in, hollow);
-  /* surrogate-only scaffolding ids (the inner hole + the synthesized
-     type annotation), minus the def's own rep id (its entry stands in
-     for the module node) */
+  /* surrogate scaffolding ids (inner hole, synthesized annotation), minus
+     the def's rep id, whose entry stands in for the module node */
   let sur_ids = {
     let acc = ref([]);
     let grab = (cont, x) => {
@@ -771,8 +713,7 @@ and calc_module_item =
       | Some(info) => info.ctx
       | None => ctx_in
       };
-    /* replicate the Let-with-module-literal special case the
-       surrogate skips: inject the M.T type-export alias */
+    /* the M.T type-export alias the surrogate skips */
     switch (
       ModuleHelpers.single_bound_var(bind_pat),
       ModuleHelpers.type_exports_alias_type(type_exports),
@@ -790,8 +731,7 @@ and calc_module_item =
       members,
       map_union(member_merged, map_sur),
     );
-  /* the module value: member elabs grafted, finished like monolithic
-     Module statics */
+  /* member elabs grafted, finished like monolithic Module statics */
   let module_value =
     graft_elabs(items_m)
     |> Option.map(g =>
@@ -816,9 +756,8 @@ and calc_module_item =
       );
     | _ => map
     };
-  /* the item ROOT's info must look monolithic for the reuse gating:
-     union the members' co_ctx/witnesses into it (raw source = this
-     freshly built map, so the patch stays idempotent across calcs) */
+  /* the item root likewise takes its members' co_ctx/witnesses (from
+     this fresh map, so the patch stays idempotent) */
   let map =
     switch (Statics.Map.lookup_exp(Exp.rep_id(node), map)) {
     | Some(raw) =>
@@ -870,9 +809,8 @@ and calc_module_item =
   };
 }
 
-/* the nested member chain: same clean/dirty discipline as the top
-   chain, without move tracking (member reorders recompute from the
-   change point on — the hot path is the in-place member edit) */
+/* the member chain: the top chain's clean/dirty discipline without move
+   tracking (a reorder recomputes from the change point on) */
 and calc_members =
     (
       ~settings,
@@ -890,9 +828,8 @@ and calc_members =
     (q: item) => Hashtbl.replace(prev_tbl, q.d_id, q),
     prev_members,
   );
-  /* a member that vanished or changed places changes what its names
-     resolve to for every member, so its names are dirty throughout;
-     a member whose surviving predecessor changed recomputes */
+  /* a member that vanished or moved (its surviving predecessor changed)
+     changes what names resolve to, so its names are dirty throughout */
   let ids = List.map(Exp.rep_id, nodes);
   let kept = List.filter(id => Hashtbl.mem(prev_tbl, id), ids);
   let kept_prev =
@@ -1003,11 +940,9 @@ and calc_members =
   go(nodes, ctx_in, dirty_vars, dirty_tnames, []);
 };
 
-/* engine-level unused-binding pass: a top-level export is used iff a
-   downstream item (up to a re-binding of the same name) mentions it,
-   or a hole below could. The per-item maps can't tell: each sees only
-   its own hole body. d_free holds only real holes, since the synthetic
-   body holes aren't in any def. */
+/* a top-level export is used iff a later item mentions it before a
+   rebinding, or a hole below could ("$hole" in d_free: real holes only,
+   since synthetic body holes aren't in any def) */
 let unused_binders = (items: list(item)): list(Id.t) => {
   let hole_below = rest =>
     List.exists(it => List.mem("$hole", it.d_free), rest);
@@ -1048,21 +983,8 @@ let unused_binders = (items: list(item)): list(Id.t) => {
    gating chains on pointer identity in the clean case */
 let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
 
-/* incremental calculate. INVARIANT down the fold: [ctx] differs from
-   the prev run's ctx at this position only at [dirty_vars] /
-   [dirty_tnames] entries. A clean item is one whose head is
-   unchanged and whose d_free/d_tfree avoid the dirty sets — its
-   statics are reused; its embedded map keeps STALE ctx entries for
-   dirty names it doesn't use (sound for typing; Γ display of
-   unrelated names can lag until the item is next recomputed).
-   Structural edits (item added/removed/reordered) align BY ID and
-   cost the changed item plus downstream mentioners of its export
-   names. */
-
-/* the top-level item chain of a whole-program term. A Module ROOT
-   (mod-rooted editors) itemizes via the lowering; a Module literal
-   anywhere else is an ordinary expression (chain never descends into
-   defs, so only the root case can see one). */
+/* [chain], except a Module root itemizes via the lowering (chain never
+   descends into defs, so only a root Module is seen here) */
 let chain_root = (e: Exp.t): list(Exp.t) => {
   let s = strip(e);
   switch (s.term) {
@@ -1072,13 +994,16 @@ let chain_root = (e: Exp.t): list(Exp.t) => {
   };
 };
 
+/* INVARIANT down the fold: [ctx] differs from the previous run's only at
+   dirty names. a clean item (same head, d_free/d_tfree avoid the dirty
+   sets) is reused; its map may keep stale ctx entries for dirty names it
+   doesn't use, sound for typing though its Γ display can lag */
 let calc =
     (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   last_analyzed := 0;
   let nodes = chain_root(whole);
-  /* probe ids are an ANALYSIS input (witness stamping): an item whose
-     map contains a toggled probe id must re-analyze. Everything else
-     stays clean — a probe toggle costs one item, not the program. */
+  /* probe ids are an analysis input (witness stamping): only items whose
+     maps contain a toggled probe id re-analyze */
   let probe_delta =
     switch (prev) {
     | Some(p) =>
@@ -1120,15 +1045,9 @@ let calc =
         ),
       );
     | Some(p) =>
-      /* diff-walk alignment BY ITEM ID: restructures (insert / delete /
-         duplicate / move a top-level item) cost the changed item plus
-         downstream mentioners of its export names — not the program.
-         Steps: heads match → the usual clean/dirty logic; prev head's
-         id gone from the program → delete (exports go dirty); prev
-         head matches a later node → move-out (pop it aside, exports go
-         dirty across the span it crossed); node's id is a popped item
-         → move-in (recompute unconditionally: its ctx here is
-         unrelated to its old position's); unknown id → insert. */
+      /* align old and new items BY ID, so a restructure costs the changed
+         item plus downstream users of its exports. a moved item is popped
+         aside where it was and recomputed where it lands */
       let prev_items = p.items;
       let prev_merged = p.merged;
       let node_ids =
@@ -1189,9 +1108,8 @@ let calc =
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         let (dirty_vars, dirty_tnames) =
           seed_delta(delta, incoming, incoming_t);
-        /* a moved item's names may resolve to a DIFFERENT binder
-           downstream (ctx entry order = shadowing order changed):
-           floor its delta at its own export names */
+        /* a move changes shadowing order, so its names may resolve to a
+           different binder downstream: all its exports go dirty */
         let (dirty_vars, dirty_tnames) =
           if (moved_in) {
             (
@@ -1204,8 +1122,6 @@ let calc =
           } else {
             (dirty_vars, dirty_tnames);
           };
-        /* aliases defined here whose definitions mention dirty names
-           are dirty downstream (transitive chains) */
         let dirty_tnames =
           List.sort_uniq(
             compare,
@@ -1254,10 +1170,9 @@ let calc =
               q.d_id != Exp.rep_id(n)
               && Id.Set.mem(Exp.rep_id(n), prev_ids)
               && !Id.Map.mem(Exp.rep_id(n), moved^) =>
-          /* the NODE head sits deeper in prev (not an insert, not
-             already popped): q matches a LATER node — a move. Its
-             exports go dirty for the span it crosses; its old map
-             stays in merged until the move-in replaces it. */
+          /* the node sits deeper in prev, so q moved later: pop it aside.
+             its exports go dirty for the span it crosses; its old map
+             stays in merged until the move-in replaces it */
           moved := Id.Map.add(q.d_id, q, moved^);
           let (dirty_vars, dirty_tnames) =
             seed_delta(
@@ -1279,9 +1194,8 @@ let calc =
               let (it, ctx_out) =
                 ctx === q.d_ctx_in
                   ? (q, q.d_ctx_out)
-                  /* upstream entries changed for names this item
-                     doesn't use: re-chain its exports onto the new
-                     ctx without re-running statics */
+                  /* upstream changed only names this item doesn't use:
+                     re-chain its exports without re-running statics */
                   : {
                     let ctx_out = Ctx.prepend_entries(ctx, q.d_exports);
                     (
@@ -1357,13 +1271,10 @@ let calc =
   };
 };
 
-/* Stitch the per-item elaborations into a whole-program elaboration:
-   each hollow item's elab contains its body hole; graft the next
-   item's (already-grafted) elab in its place. Descends only through
-   body-position shapes — None means an unexpected elab shape (the
-   caller degrades to no-eval rather than crashing). Depth is the
-   ITEM's elab depth, not the program's, so this stays within the
-   browser's stack where a monolithic elaboration doesn't. */
+/* the whole-program elaboration, each item's elab grafted into its
+   predecessor's body hole; None on an unexpected elab shape. recursion
+   depth is per item, so it fits the browser stack where a monolithic
+   elaboration doesn't */
 let whole_elab = (t: t): option(Exp.t) => {
   let grafted = graft_elabs(t.items);
   switch (strip(t.term).term) {
@@ -1402,12 +1313,10 @@ let all_warning_ids = (t: t): list(Id.t) => {
   @ engine_unused;
 };
 
-/* How [t] differs from a cold calc of its term and from monolithic
-   statics: error and warning ids, and at every id of the program the
-   type and what incremental evaluation compares (elaboration, runtime
-   free variables, probe targets). Spine roots, top-level and member,
-   keep their hollow item's type, so their types are compared only
-   against the cold calc. */
+/* how [t] differs from a cold calc and from monolithic statics: error and
+   warning ids, and per id the type, elaboration, runtime free variables
+   and probe targets. spine roots keep their hollow item's type, so their
+   types are compared only against the cold calc */
 let divergences = (~settings, ~cold=true, t: t): list(string) => {
   let analyzed = last_analyzed^;
   let cold =
@@ -1561,25 +1470,22 @@ let divergences = (~settings, ~cold=true, t: t): list(string) => {
   List.rev(out^);
 };
 
-/* the test runner sets this: every calc_auto on a program of up to
-   [parity_cap] infos also checks it against monolithic statics and
-   raises on any divergence */
+/* set by the test runner: calc_auto then checks programs of up to
+   [parity_cap] infos against monolithic statics, raising on divergence */
 let parity: ref(bool) = ref(false);
 let parity_cap = 3000;
 
 exception Divergence(list(string));
 
-/* the last calc per document, LRU-capped, so alternating documents
-   (slide switches, a second client) don't force cold re-analyses.
-   Keyed by the whole term's rep id: stable for a document unless its
-   first item is replaced, which costs one cold pass. */
+/* the last calc per document (LRU), so switching documents doesn't force
+   a cold pass; keyed by the term's rep id, stable unless the first item
+   is replaced */
 let slots: Hashtbl.t(Id.t, t) = Hashtbl.create(8);
 let slots_mru: ref(list(Id.t)) = ref([]);
 let slots_cap = 8;
 
 let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
-  /* probe changes keep the slot: calc's probe-aware dirtying
-     re-analyzes exactly the items whose maps contain a toggled id */
+  /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
   let prev = Hashtbl.find_opt(slots, key);
   let t = calc(~settings, ~prev?, ~probe_ids, whole);

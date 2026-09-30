@@ -65,8 +65,7 @@ let slide_roundtrip_case =
    path so the usual fixed-point check applies. (Includes the B2T2
    slides: they were excluded when each cost ~2s via the typing parser,
    but the fast path loads them in milliseconds.) Materialization is
-   DEFERRED into the test body: eager unpersist here would pin every
-   slide's zipper — six of them mega-scale — for the whole suite run. */
+   deferred so the suite doesn't hold every slide's zipper at once. */
 let doc_slide_cases =
   Web.Init.documentation_slides
   |> List.filter(((name, _, _)) => !CorpusUtil.mega_scale(name))

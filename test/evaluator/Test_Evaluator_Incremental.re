@@ -904,9 +904,8 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
   );
 };
 
-/* Cross-module incremental reuse: when we edit a literal inside module `a`,
- * every surface tile inside the unrelated module `c` should remain covered
- * by the reuse plan's visible-id set.
+/* Cross-module incremental reuse: after an edit inside module `a`, every
+ * surface tile of the unrelated module `c` stays in the visible-id set.
  *
  * Background:
  *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
@@ -989,8 +988,7 @@ let c = {
     List.length(c_inner_modlet_ids),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  /* The reuse plan can contain an ancestor that short-circuits evaluation;
-   * visible ids
+  /* A reused ancestor can short-circuit evaluation; visible ids
    * expand that to the elab-descendant closure by walking cached prev_elab
    * (in `incr.entries`) and union all rep_ids. */
   let visible = visible_ids_for(~prev=incr1, exp2);

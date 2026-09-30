@@ -1,10 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 
-/* How much each incremental layer redoes for one edit. The layers key
-   on piece identity, so a slip costs whole-program time rather than
-   giving a wrong answer; these bounds turn that slip into a failure.
-     bash test/run_node.sh test 'EditLocality' */
+/* what each incremental layer redoes for one edit: an identity slip costs
+   whole-program time, not a wrong answer, so these bounds catch it */
 
 let settings = {
   ...Language.CoreSettings.off,
@@ -114,8 +112,7 @@ let work = (before: Segment.t, after: Segment.t): work => {
   };
 };
 
-/* an edit: the program before and after, and how many times sparse
-   normalization fell back to the global pass while making it */
+/* fallbacks: times sparse normalization fell back to the global pass */
 type edit = {
   before: Segment.t,
   after: Segment.t,

@@ -75,10 +75,8 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path
        bails land here). Console-visible: every slow parse names itself. */
-    /* echo the offending line when the failure names one — grout
-       markers and incomplete tiles are expected there (menhir parses
-       complete terms only), but anything ELSE is a fast-parse gap
-       worth a report */
+    /* echo the failing line: grout and incomplete tiles are expected
+       (menhir parses complete terms only); anything else is a gap */
     let failing_line =
       switch (StringUtil.first_int_after(~marker="line ", why)) {
       | Some(n) =>

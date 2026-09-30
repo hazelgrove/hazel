@@ -477,35 +477,26 @@ let of_segment_inner =
   go(~top_level=final, initial_acc, seg).map;
 };
 
-/* The program is measured per top-level chunk (item runs cut only
-   where a boundary is followed by a linebreak, so every chunk is a
-   whole-lines block starting at column 0) and composed by row
-   offsets. An edit re-measures one chunk; unchanged chunks are
-   pointer-identical and reuse their measurements. Queries translate
-   at lookup time; parity with the monolithic measurement is
-   test-gated ([flatten] below exists for that). */
+/* measured per chunk of whole lines (see Incr.partition) and composed
+   by row offsets; lookups translate chunk rows to absolute ones */
 
 type chunk = {
   c_anchor: Id.t, /* first piece's id: the chunk's stable identity */
   c_start: int, /* absolute starting row */
-  c_height: int, /* flat_height(c_flat), cached: chunk_for_row runs on
-                    every row_shape and a per-probe max_binding_opt
-                    made row-sweeping decorations quadratic-ish */
+  c_height: int, /* cached flat_height: chunk_for_row runs per row_shape */
   c_pieces: Segment.t, /* the chunk's top-level pieces (for chunked views) */
   c_flat: flat,
 };
 
 type t = {
   chunks: array(chunk),
-  /* piece id -> owning chunk ANCHOR (anchors are stable across
-     partition changes; indices are not). Persistent snapshot per
-     value: retained old generations keep answering correctly. */
+  /* piece id -> owning chunk's anchor (stable across repartitions,
+     unlike indices); persistent, so old generations stay valid */
   chunk_of_id: Id.Map.t(Id.t),
   /* anchor -> index in [chunks] (rebuilt O(#chunks) per generation) */
   anchor_index: Hashtbl.t(Id.t, int),
   total_rows: int,
-  /* EAGER: a lazy thunk here is a functional value and breaks
-     structural compares of anything containing a measurement */
+  /* eager: a lazy value would break structural compares of measurements */
   all_piece_rows: list(list(Piece.t)),
 };
 
@@ -661,8 +652,7 @@ let row_shape = (row: int, m: t): option(Rows.shape) =>
   | None => None
   };
 
-/* column of the row's first non-whitespace (dev's content_start: with
-   user-owned indentation this is where the row's content starts) */
+/* the row's indentation: column of its first non-whitespace */
 let row_indent = (row: int, m: t): int =>
   switch (row_shape(row, m)) {
   | Some(sh) => sh.content_start
@@ -683,8 +673,7 @@ let piece_rows = (m: t): list(list(Piece.t)) => m.all_piece_rows;
 
 let num_rows = (m: t): int => m.total_rows;
 
-/* single-chunk construction: the compatibility path every existing
-   of_segment caller keeps using */
+/* single-chunk measurement, without the incremental cache */
 let of_segment =
     (
       ~indent_level as _: Id.Map.t(int)=Id.Map.empty,
@@ -711,8 +700,7 @@ let of_segment =
 
 let empty: t = mk_chunked(~chunk_of_id=Id.Map.empty, []);
 
-/* translate-and-union: TEST-ONLY parity target vs a monolithic
-   measurement */
+/* test-only: the chunks as one flat measurement, for parity checks */
 let flatten = (m: t): flat =>
   Array.fold_left(
     (acc, ch) => {
@@ -770,31 +758,24 @@ let start_row_width = (measurement: measurement, measured: t): int =>
   | Some(row) => row.max_col
   };
 
-/* ===== INCREMENTAL CHUNKED BUILDER =====
-   Partition the top-level piece list at linebreaks (see [partition]),
-   so measuring each run standalone equals the monolithic
-   measurement. Per-chunk results are memoized by anchor: an edit
-   re-measures only the chunks whose pieces (or projector/refractor
-   shape slices) changed. Exact parity with the monolithic build is
-   test-gated (Test_MeasuredChunks). */
+/* incremental chunked measurement, memoized per chunk anchor: an edit
+   re-measures only chunks whose pieces or shape slices changed. parity
+   with the monolithic build is test-gated (Test_MeasuredChunks) */
 module Incr = {
   type entry = {
     e_pieces: Segment.t,
     e_final: bool,
     e_flat: flat,
     e_ids: list(Id.t),
-    /* shape-map/refractor bindings landing in this chunk, in
-       descending id order (both writers cons over an ascending
-       iteration) — a projector changing shape re-measures its chunk */
+    /* this chunk's shape/refractor bindings, descending by id (both
+       writers cons over ascending iteration); a change re-measures it */
     mutable e_shape_slice: list((Id.t, ProjectorCore.Shape.t)),
     mutable e_refr_slice: list((Id.t, int)),
   };
 
-  /* One cache per editor (rides in CachedSyntax): [prev] is the last
-     build's id->anchor map + per-anchor entries. Eviction: entries
-     for anchors absent from the current partition are dropped every
-     build (retained old Measured.t generations carry their own
-     snapshots and never consult the cache). */
+  /* one per editor: the last build's id->anchor map and entries; entries
+     outside the current partition are dropped each build (old Measured.t
+     values never consult the cache) */
   type cache = {
     mutable prev: option((Id.Map.t(Id.t), Hashtbl.t(Id.t, entry))),
   };
@@ -811,15 +792,10 @@ module Incr = {
     | _ => false
     };
 
-  /* Where may we cut? Immediately after a linebreak L that is the LAST
-     linebreak of its run of consecutive secondaries, with a
-     non-secondary piece following: chunks end in a linebreak, so the
-     deferred-linebreak queue is drained and the accumulating piece-row
-     flushed at the cut, and post-linebreak spaces/comments spill to
-     the next chunk. Measurement carries no other state across rows —
-     indentation is ordinary whitespace (user-owned since canonical
-     completion), and row shapes are content bounds — so each chunk
-     measured standalone equals the monolithic measurement. */
+  /* cut after the last linebreak of a secondary run when content
+     follows: deferred linebreaks and the piece-row flush there, and
+     nothing else carries across rows (indentation is plain whitespace),
+     so a chunk measured alone matches the monolithic measurement */
   let partition = (seg: Segment.t): list((Id.t, Segment.t, bool)) =>
     switch (seg) {
     | [] => [(Id.invalid, [], true)]
@@ -859,8 +835,7 @@ module Incr = {
       take(0, List.rev(cuts^), []);
     };
 
-  /* group bindings by owning anchor under [map] (descending id order
-     per anchor: cons over Id.Map's ascending iteration) */
+  /* bindings grouped by owning anchor under [map], descending by id */
   let slices_of =
       (map: Id.Map.t(Id.t), bindings: list((Id.t, 'a)))
       : Hashtbl.t(Id.t, list((Id.t, 'a))) => {
@@ -941,10 +916,8 @@ module Incr = {
         },
         parts,
       );
-    /* chunk_of_id as a diff on the previous generation's map: first
-       remove the ids of every anchor that vanished or was rebuilt,
-       then add the rebuilt chunks' ids — O(changed ids), and no dead
-       ids linger (removal covers exactly what additions had added) */
+    /* diff the previous chunk_of_id: drop the ids of vanished or rebuilt
+       chunks, then add the rebuilt ones' ids (O(changed), no dead ids) */
     let map = ref(prev_map);
     Hashtbl.iter(
       (anchor, old_e: entry) =>

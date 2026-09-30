@@ -26,8 +26,6 @@ let result = (p: t): EvalResult.Model.t =>
   | Divided(d) => Divided.result(d)
   };
 
-/* whole-program statics (a divided program's refresh on statics
-   frames) */
 let statics = (p: t): CachedStatics.t =>
   switch (p) {
   | Whole(e) => e.editor.statics
@@ -40,14 +38,13 @@ let divided = (p: t): option(Divided.t) =>
   | Divided(d) => Some(d)
   };
 
-/* the program as one editor, joining a divided one */
 let whole = (p: t): CellEditor.Model.t =>
   switch (p) {
   | Whole(e) => e
   | Divided(d) => Divided.join(d)
   };
 
-/* the same for readers (views, the agent): joining re-measures the
+/* [whole] for readers (views, the agent): joining re-measures the
    whole program, so a divided one joins once per content change */
 let joined: ref(option((Divided.t, CellEditor.Model.t))) = ref(None);
 let whole_memo = (p: t): CellEditor.Model.t =>
@@ -71,8 +68,7 @@ let whole_memo = (p: t): CellEditor.Model.t =>
     };
   };
 
-/* (id, live header name) for each open cell; runs answer for their
-   members */
+/* (id, live header name) per open cell; runs answer for their members */
 let focused_names = (p: t): list((Id.t, option(string))) =>
   switch (p) {
   | Whole(_) => []
@@ -92,14 +88,12 @@ let of_close = (c: Divided.after_close): t =>
   | Joined(e) => Whole(e)
   };
 
-/* every manual probe in the program */
 let probes = (p: t): Refractors.RefractorList.t =>
   switch (p) {
   | Whole(e) => e.editor.editor.state.zipper.refractors.manuals
   | Divided(d) => Divided.probes(d)
   };
 
-/* the same, as the statics' probe-id set */
 let probe_ids = (p: t): Id.Map.t(unit) =>
   switch (p) {
   | Whole(e) =>

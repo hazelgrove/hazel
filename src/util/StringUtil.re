@@ -328,9 +328,7 @@ let subseq_search = (s: string, sub: string): bool => {
   search(0, 0);
 };
 
-/* first integer following the first occurrence of [marker] in [s],
-   e.g. first_int_after(~marker="line ", "Error at: line 3807, col 4")
-   == Some(3807) */
+/* the integer right after the first [marker] in [s], if any */
 let first_int_after = (~marker: string, s: string): option(int) => {
   let mlen = String.length(marker);
   let slen = String.length(s);

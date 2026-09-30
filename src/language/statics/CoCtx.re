@@ -33,10 +33,9 @@ type entry = {
   expected_ty: Typ.t,
 };
 
-/* Each co-context entry is a list of the uses of a variable within
-   some scope, including their type demands. Consume the
-   representation only through the accessor API below. A name-keyed
-   map is no faster here. */
+/* Each co-context entry is a list of the uses of a variable
+   within some scope, including their type demands (use the
+   accessors below, not the representation) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(list(entry));
 

@@ -2,11 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Laws of a divided program (Web.Divided): split then join gives back
-   the same program (text, ids, root, probes, caret); a cell's edits are
-   the document's; an edit made to the joined program survives
-   re-dividing; open cells never overlap.
-   Run: bash test/run_node.sh test 'DividedLaws' */
+/* laws of a divided program (Web.Divided) */
 
 module Divided = Web.Divided;
 module Focus = Web.ScratchFocus;
@@ -268,7 +264,7 @@ let caret = () => {
   };
 };
 
-/* the same with whitespace right of the caret, and inside a token */
+/* the same with whitespace right of the caret */
 let caret_beside_space = () => {
   let seg = parse(src);
   let three = tile("3", seg);
@@ -323,8 +319,7 @@ let cell_edit = () => {
   );
 };
 
-/* an edit to the joined program (the agent's path) survives
-   re-dividing, and the open cell stays open */
+/* an edit to the joined program survives re-dividing; the cell stays open */
 let resplit = () => {
   let seg = parse(src);
   let d = split(seg, row(term_of(seg), "a"));
@@ -351,8 +346,7 @@ let resplit = () => {
   };
 };
 
-/* an agent edit (a structural action on the joined program) re-cuts
-   only the cell it touched: the other open cell keeps its editor */
+/* agent edits act on the joined program; only the touched cell is re-cut */
 let agent_edit = () => {
   let seg = parse(src);
   let term = term_of(seg);
@@ -454,8 +448,7 @@ let no_overlap = () => {
   };
 };
 
-/* every row of the 1k-line corpus program: its modules and their
-   members */
+/* every row of mega-1k: its modules and their members */
 let mega = () =>
   switch (CorpusUtil.corpus_seg("mega-1k.hz")) {
   | None => fail("corpus unreadable")

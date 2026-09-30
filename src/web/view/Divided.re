@@ -1,10 +1,8 @@
 open Haz3lcore;
 open Util;
 
-/* A program divided into open cells. Each cell owns its item's text;
-   [document] assembles the whole program, [join] turns it back into
-   one editor. The type is abstract (Divided.rei), so nothing outside
-   can read or edit a stale whole-program copy. */
+/* A program divided into open cells, each owning its item's text.
+   Abstract, so nothing outside can read or edit a stale whole-program copy. */
 
 module Focus = ScratchFocus;
 module Cell = ScratchCell;
@@ -16,8 +14,8 @@ type side =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  /* the whole-program editor at the split: root, probes and the result
-     strip carry over; its zipper is not the program while divided */
+  /* the whole-program editor at the split, kept for its root, probes and
+     result; its zipper is not the program while divided */
   shell: CellEditor.Model.t,
   /* open cells in program order */
   cells: list(Cell.t),
@@ -46,8 +44,6 @@ let with_result = (result: EvalResult.Model.t, d: t): t => {
     result,
   },
 };
-/* whole-program statics: the divided document's once computed, else
-   the shell's from the split */
 let statics = (d: t): CachedStatics.t =>
   switch (d.statics) {
   | Some(s) => s
@@ -79,7 +75,6 @@ let owner = (id: Id.t, d: t): option(Cell.t) =>
     d.cells,
   );
 
-/* program order, via the outline */
 let outline_order = (term: Language.Exp.t): list(Id.t) => {
   let rec flatten = (acc, ns: list(OutlineTree.node)) =>
     List.fold_left(
@@ -143,8 +138,8 @@ let position = (~term, id: Id.t, d: t): int => {
 let probes_of = (c: CellEditor.Model.t): Refractors.RefractorList.t =>
   c.editor.editor.state.zipper.refractors.manuals;
 
-/* every manual probe: the shell's (placed before the split) and the
-   cells', first occurrence per anchor */
+/* manual probes of the cells and of the shell (placed before the
+   split), first per anchor */
 let probes = (d: t): Refractors.RefractorList.t =>
   List.fold_left(
     (acc, (id, _) as p) => List.mem_assoc(id, acc) ? acc : acc @ [p],
@@ -191,8 +186,6 @@ let split_run = (~info_map, editor: CellEditor.Model.t, id: Id.t): option(t) => 
 
 let active = (d: t): option((Id.t, side)) => d.active;
 
-/* the editor with the caret: the active cell's side, else the first
-   cell's body */
 let active_editor = (d: t): CellEditor.Model.t =>
   switch (
     switch (d.active) {
@@ -219,7 +212,6 @@ let anchor_of = (z: Zipper.t): option((Direction.t, Id.t)) =>
   | (None, None) => None
   };
 
-/* where the active cell's caret sits */
 let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
   switch (d.active) {
   | None => None
@@ -250,8 +242,8 @@ let with_zipper = (c: CellEditor.Model.t, z: Zipper.t): CellEditor.Model.t => {
   },
 };
 
-/* the caret moves into the open cell holding [id]'s piece, which
-   becomes active; unchanged if no cell holds it */
+/* the caret moves into the open cell holding [id], which becomes
+   active; unchanged if no cell holds it */
 let place_caret = ((side, id): (Direction.t, Id.t), d: t): t => {
   let moved = (c: CellEditor.Model.t) =>
     List.mem(id, Segment.ids(Focus.zip_of_cell(c)))
@@ -352,9 +344,8 @@ let close = (id: Id.t, d: t): after_close =>
     };
   };
 
-/* open [id] as a cell. Opening a parent folds its open descendants
-   back into it; an id already inside an open cell opens nothing (the
-   caller moves the caret there instead) */
+/* opening a parent folds its open descendants back into it; an id inside
+   an open cell opens nothing (the caller moves the caret there instead) */
 let open_ =
     (~info_map, ~term, ~sym: option(string)=?, ~inner=false, id: Id.t, d: t)
     : option(t) =>
@@ -480,9 +471,8 @@ let toggle_run = (~info_map, ~term, fid: Id.t, d: t): after_close => {
   };
 };
 
-/* after an edit made to the joined program (agent, outline menu):
-   the same cells again, cut from the edited program; cells whose
-   item is gone close */
+/* after an edit to the joined program (agent, outline menu): the same
+   cells, cut from the edited program; cells whose item is gone close */
 let resplit =
     (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
   let base = Focus.zip_of_cell(editor);
@@ -547,11 +537,8 @@ let same_content = (a: t, b: t): bool => {
      );
 };
 
-/* the whole program for the problems panel, listed after the open
-   cells so each problem is claimed where it sits: the split's editor,
-   its segment the current document (no stale holes), with the
-   whole-program statics. Memoized by content: the panel caches on
-   identity */
+/* the whole program for the problems panel, its segment the current
+   document (the shell's is stale); memoized: the panel caches on identity */
 let outside_memo: ref(option((t, CodeEditable.Model.t))) = ref(None);
 let outside_editor = (d: t): CodeEditable.Model.t =>
   switch (outside_memo^) {
@@ -594,7 +581,6 @@ let set_active = (id: Id.t, side: side, d: t): t =>
     }
     : d;
 
-/* every editor inside (shell and cells), e.g. for undo compaction */
 let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...d,
   shell: f(d.shell),
@@ -610,8 +596,7 @@ let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
     ),
 };
 
-/* an undo snapshot: every editor compacted, and the whole-program
-   statics dropped to recompute on restore */
+/* an undo snapshot: the whole-program statics recompute on restore */
 let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...map_editors(f, d),
   statics: None,

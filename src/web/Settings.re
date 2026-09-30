@@ -31,7 +31,7 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
-    /* Grey re-evaluation-progress backings after edits ("Eval Progress"). */
+    /* grey re-evaluation-progress backings after edits ("Eval Progress") */
     [@sexp.default false]
     show_incremental_deco: bool,
     /* Shortcut overrides derived from the Shortcuts config slide: a

@@ -2,12 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* DefStatics after each step of an edit script, computed incrementally
-   from the previous step, must match a cold calc and monolithic
-   statics (DefStatics.divergences): errors, warnings, and at every id
-   the type and what incremental evaluation compares. Evaluation seeded
-   from the previous step must match a cold one.
-     bash test/run_node.sh test 'DefStaticsParity' */
+/* after each edit step, DefStatics computed from the previous step matches
+   a cold calc and monolithic statics, and seeded evaluation a cold one */
 
 let settings = CoreSettings.on;
 

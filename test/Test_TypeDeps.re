@@ -2,11 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Type-side dependency tracking in DefStatics: type-alias/constructor
-   export changes dirty only items whose d_tfree mentions the changed
-   names (with shadowing and transitive alias chains).
-   Each case asserts BOTH the analyzed count and error parity vs the
-   monolithic analysis of the edited program. */
+/* DefStatics type dependencies: an alias or constructor edit re-analyzes
+   only items whose d_tfree mentions it; errors match monolithic statics */
 
 let settings = CoreSettings.on;
 let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
@@ -22,8 +19,6 @@ let parse_exp = (src: string): Segment.t =>
 
 let sorted_ids = CorpusUtil.sorted_ids;
 
-/* run: cold calc on src, apply needle edit, incremental calc; assert
-   analyzed count and error parity vs monolithic on the edited term */
 let run = (~src, ~needle, ~repl, ~expect_analyzed, name) => {
   let seg = parse_exp(src);
   let term = MakeTerm.go(seg).term;
@@ -47,8 +42,6 @@ let run = (~src, ~needle, ~repl, ~expect_analyzed, name) => {
   );
 };
 
-/* alias edit: users re-analyze (annotation use, use-through-a-var's
-   stored type, transitive alias chain) — non-users stay clean */
 let alias_users = () =>
   run(
     ~src=
@@ -63,14 +56,12 @@ let g = b +. 1. in
 1",
     ~needle="Int",
     ~repl="Bool",
-    /* T's item, a (annotation), c (a's stored type mentions T),
-       U (def mentions T: transitive), d (annotation U) —
-       b, e, g, and the tail stay clean */
+    /* T, a (annotation), c (a's type mentions T), U (transitive), d
+       (annotation U); b, e, g and the tail stay clean */
     ~expect_analyzed=5,
     "alias-users",
   );
 
-/* a shadowing redefinition stops the cascade */
 let alias_shadowed = () =>
   run(
     ~src=
@@ -81,13 +72,11 @@ let z : T = true in
 9",
     ~needle="Int",
     ~repl="Float",
-    /* first T's item + a; the second T redefines the name with an
-       unchanged, unrelated definition, so z stays clean */
+    /* the first T and a; the second T shadows it, so z stays clean */
     ~expect_analyzed=2,
     "alias-shadowed",
   );
 
-/* constructor-set change: users of the sum re-analyze */
 let ctor_change = () =>
   run(
     ~src=
@@ -103,8 +92,7 @@ case h | Aa => 1 | Bb => 2 end",
     "ctor-change",
   );
 
-/* retyping a module MEMBER changes the module's export type; users
-   of the module must re-analyze (the BenchStatics cascade class) */
+/* retyping a member changes its module's export type: its users re-analyze */
 let member_retype = () =>
   run(
     ~src=
@@ -116,8 +104,7 @@ let consume = M.f(()) in
 9",
     ~needle="Bool",
     ~repl="String",
-    /* M's item + its f member + the exports-tail member + the
-       consumer (mentions M) */
+    /* M, its f member, the exports-tail member, and the consumer */
     ~expect_analyzed=4,
     "member-retype",
   );

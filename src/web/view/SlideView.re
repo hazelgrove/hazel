@@ -1,9 +1,8 @@
 open Util;
 
-/* What a slide shows of its program: pinned items, the module it is
-   zoomed into, and whether the pins are parked behind the whole.
-   [realize] makes the program's open cells match. Zoom is only a view:
-   the program, its evaluation and its scope are unchanged. */
+/* What a slide shows of its program: pins, the zoomed module, and
+   whether the pins are parked behind the whole; [realize] opens cells
+   to match. Zoom is only a view: evaluation and scope are unchanged. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pin = {
@@ -43,7 +42,6 @@ let sym_of = (fid: Id.t, term: Language.Exp.t): option(string) =>
   | _ => None
   };
 
-/* [id] lies under [root] (anything does at the program root) */
 let inside = (~term, root: option(Id.t), id: Id.t): bool =>
   switch (root) {
   | None => true
@@ -114,11 +112,10 @@ let slot_id =
   | Pin(p) => p.p_id
   | Members(m) => m;
 
-/* the program with exactly [shown] open. What collides with an open
-   cell (members of the zoomed module's cell) opens after the closes;
-   the rest opens first, so replacing the last cell doesn't join the
-   whole program. Pins that can't open (unfinished items) drop. Going
-   from one editor to cells, the caret moves into the cell holding it. */
+/* the program with exactly [shown] open. Opens go first, so replacing
+   the last cell doesn't join; one blocked by an open cell retries after
+   the closes. Pins that can't open drop; from one editor, the caret
+   moves into the cell holding it. */
 let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   let v = normalize(~term, v);
   let want = shown(~term, v);

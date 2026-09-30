@@ -1,9 +1,6 @@
 open Haz3lcore;
 open Util;
 
-/* The scratch/documentation mode's data model: slides (Scratchpad)
-   and the mode model; a slide's program may be divided into cells. */
-
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {
@@ -160,8 +157,8 @@ module Model = {
     | None => []
     };
 
-  /* The monolithic export/import format (per-slide keys are the live
-     storage; see Persist below). */
+  /* The monolithic export/import format (ScratchPersist's per-slide keys
+     are the live storage). */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
 

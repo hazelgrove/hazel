@@ -122,14 +122,13 @@ module Update = {
                 Some(
                   Option.value(ScratchCell.header_name(e), ~default="cell"),
                 ),
-                /* header too: binder/signature errors (TPatNotAVar,
-                   shadowed type names, …) live in the header editor */
+                /* header too: binder and signature errors live there */
                 [e.e_header.editor, e.e_body.editor],
               ),
             cells,
           );
-        /* the cells first: each problem is claimed (the panel dedups
-           by id) where it sits, and the rest reports what's left */
+        /* cells first: the panel dedups by id, so a problem shows in its
+           cell and "elsewhere" gets the rest */
         stack @ [(Some("elsewhere"), [Divided.outside_editor(d)])];
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
@@ -256,10 +255,9 @@ module Update = {
               action,
               model.editors,
             );
-          /* The jump moves the model selection to the target cell but not DOM
-             focus. Schedule a focus of the now-active cell after render so
-             the editor receives keystrokes and the caret (gated on :focus)
-             shows there; a jump from the outline leaves the keys in it. */
+          /* the jump moves the selection, not DOM focus: focus the cell
+             after render so it takes keys and shows the caret (gated on
+             :focus), unless the jump came from the outline */
           Haz3lcore.FocusEffect.schedule_cell();
           {
             ...model,
@@ -414,10 +412,8 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
-      /* Cross-cell jump-to-definition: a stack cell's jump whose binder
-         lives in another definition is rewritten to (ensure the target
-         is stacked, select it, then a follow-up caret jump) — mirroring
-         the JumpToTile flow above. */
+      /* a stack cell's jump to a binder in another definition becomes:
+         stack the target, select it, then jump the caret (as JumpToTile) */
       let (action, selection, followup) =
         switch (Editors.Selection.stack_jump_override(action, model.editors)) {
         | Some((action', selection, followup)) => (
@@ -433,8 +429,8 @@ module Update = {
         Haz3lcore.FocusEffect.schedule_cell_top();
       | None => ()
       };
-      /* outline adds move the selection (and DOM focus, which also
-         scrolls the new cell into view) to the added cell */
+      /* an outline add selects and focuses the new cell (focus also
+         scrolls it into view) */
       let selection =
         switch (followup) {
         | Some(_) => selection

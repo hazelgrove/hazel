@@ -8,13 +8,10 @@ Printexc.register_printer(exn => {
   }
 });
 
-/* every editing action in the suite asserts sparse-normalize parity
-   (Zipper.remold_regrout runs BOTH pipelines and compares) */
+/* every edit checks sparse normalization against the global pass */
 Haz3lcore.Zipper.normalize_parity := true;
 
-/* and every whole-program statics computation matches a monolithic
-   analysis (DefStatics.divergences); benchmarks time the production
-   path */
+/* and statics against a monolithic analysis, except when benchmarking */
 Haz3lcore.DefStatics.parity := !CorpusUtil.bench_enabled;
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
@@ -149,8 +146,7 @@ let (suite, exit_with_test_status) =
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
     @ [Test_CompletionItems.tests]
-    /* last: the keystroke benchmark leaves the process with less stack
-       headroom for tests registered after it */
+    /* last: the keystroke benchmark leaves less stack for later tests */
     @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

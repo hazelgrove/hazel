@@ -1,7 +1,5 @@
-/* WorkerServer stream-interest filtering: with Effects interest, only
-   entries carrying tests/probes/theorems ship; husks (ids + step
-   counts, consumed only by the pending-eval highlight) are dropped and
-   a filtered-to-empty chunk is not posted (outbox_is_empty). */
+/* with Effects interest, only stream entries carrying tests, probes or
+   theorems ship; husks (ids + step counts) are dropped */
 
 open Alcotest;
 open Language;

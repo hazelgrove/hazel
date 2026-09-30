@@ -1,11 +1,9 @@
 open Haz3lcore;
 open Language;
 
-/* Renaming from the outline: the binder token and every reference
-   statics resolves to it, plus the `M.x` labels naming it when the
-   item is a member of module M. Ids are kept. A rename that would
-   capture, or be captured by, another binding is refused with a
-   reason. */
+/* Renaming from the outline: the binder, every reference statics
+   resolves to it, and `M.x` labels for a member of module M. Ids are
+   kept; a rename that would capture or be captured is refused. */
 
 type kind =
   | KValue
@@ -219,8 +217,6 @@ let keywords = [
   "false",
 ];
 
-/* a name the kind can take: one identifier, not a keyword; types and
-   modules capitalized, values not */
 let check_name = (kind, name: string): option(string) =>
   if (!is_ident(name) || List.mem(name, keywords)) {
     Some("a name is one identifier");

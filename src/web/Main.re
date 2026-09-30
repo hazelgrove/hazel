@@ -5,11 +5,9 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
-/* console: window.__incrCounters() — MakeTerm.Incr observability
-   (fell_back should stay 0; analyzed ~1 per stacked edit) */
-/* console: window.__normCounters() — sparse remold/regrout regime
-   observability (fallbacks fire on structure-entering edits; a high
-   fallback rate on plain typing means the window is missing work) */
+/* console counters. __normCounters: sparse remold/regrout fallbacks are
+   for structure-entering edits, not plain typing. __incrCounters:
+   fell_back should stay 0, analyzed ~1 per stacked edit */
 let () =
   Js_of_ocaml.Js.Unsafe.set(
     Js_of_ocaml.Js.Unsafe.global,

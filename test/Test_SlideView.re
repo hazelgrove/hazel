@@ -2,10 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* What a slide shows (Web.SlideView): pins, zoom and parking only
-   change which cells are open, never the program; pins outside the
-   zoom come back on zoom out; parking keeps the pins.
-   Run: bash test/run_node.sh test 'SlideView' */
+/* slide views (Web.SlideView): pins, zoom and parking change which cells
+   are open, never the program */
 
 module V = Web.SlideView;
 module Divided = Web.Divided;

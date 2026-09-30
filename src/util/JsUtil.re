@@ -194,11 +194,9 @@ let focus_active_cell = (): bool =>
   | None => false
   };
 
-/* Align the active cell's stack entry to the TOP of the viewport
-   (jump-to-definition lands the target under the reader's eyes; the
-   stack's trailing slack space makes this reachable even for the last
-   entry). The scroll target is the entry's HEADER band when the cell
-   is a stack body, so the name stays visible. */
+/* scroll the active cell's stack entry to the viewport top (trailing
+   slack makes this reachable for the last entry too), targeting the
+   entry's header band for a stack body so its name stays visible */
 let align_active_cell_top = (): unit =>
   switch (get_elem_by_id_opt(active_cell_id)) {
   | None => ()
@@ -224,12 +222,8 @@ let align_active_cell_top = (): unit =>
     switch (target) {
     | None => ()
     | Some(t) =>
-      /* Scrolling a just-opened cell to the viewport top is jarring
-         when the cell landed in view anyway. Skip when the
-         header is visible WITH some room below it for body context —
-         a header peeking at the bottom edge still scrolls. Off-screen
-         targets keep the align-to-top (jump-to-definition lands the
-         target under the reader's eyes). */
+      /* skip when the header is already in view with some body room
+         below it: aligning a visible cell to the top is jarring */
       let rect = Js.Unsafe.meth_call(t, "getBoundingClientRect", [||]);
       let top: float = Js.Unsafe.get(rect, "top");
       let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
@@ -470,10 +464,9 @@ let find_ancestor_with_class =
   loop(element_to_node(el));
 };
 
-/* clientHeight forces layout on a dirty tree, and scroll handlers run
-   per scrolled frame (every held key once reveals write scrollTop) —
-   a container's viewport height only changes on resize, so cache it.
-   Keyed by element identity; resize clears (see the listener below). */
+/* clientHeight forces layout on a dirty tree and scroll handlers run
+   every scrolled frame; a container's height changes only on resize,
+   which clears this one-element cache */
 let client_height_cache: ref(option((Js.t(Dom_html.element), float))) =
   ref(None);
 let client_height_listener = ref(false);
@@ -543,17 +536,15 @@ let scroll_vertically_into_view_ancestors =
 };
 
 /* find_scroll_container reads scrollHeight/clientHeight up the parent
-   chain — forced layout on dirty frames, and this runs after every
-   action. Cache the resolved container; revalidate only that it is
-   still in the document (slide/mode switches replace it). */
+   chain, forcing layout on dirty frames after every action; reuse the
+   found container while it is connected and still an ancestor */
 let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
   ref(None);
 let find_scroll_container_cached =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) => {
   let valid = (el: Js.t(Dom_html.element)): bool =>
     Js.to_bool(Js.Unsafe.get(el, "isConnected"))
-    /* must still be an ancestor: the caret can move to an editor with
-       a different scroll container (e.g. stacked cells) */
+    /* the caret may move to an editor in another scroll container */
     && Js.to_bool(
          Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
        );

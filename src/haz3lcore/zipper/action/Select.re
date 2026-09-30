@@ -553,10 +553,8 @@ let current_term =
   | Tile({form: Form.Compound(Let | TypeAlias | ModuleExp), _})
       when defs_exclude_bodies =>
     current_tile(z)
-  /* Mod-sort analog: the `;` separator's enclosing term is the whole
-     module body, and selecting it walks shard_range across the entire
-     program. The `in`-less def tiles need no guard: their term is
-     item-local. */
+  /* Mod analog: a `;`'s term is the whole module body (a whole-program
+     shard walk); `in`-less defs are item-local, so need no guard */
   | Tile(t)
       when
         defs_exclude_bodies

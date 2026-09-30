@@ -55,12 +55,9 @@ let highlight_of_id =
   };
 };
 
-/* var_highlight_ids scans the info_map for the binding's references,
-   and this view runs on every frame — during eval-stream bursts and
-   caret holds that walk repeated per frame with unchanged inputs.
-   Single-slot memo on (info_map identity, indicated id, selection
-   emptiness); the slot pins one info_map generation, which current
-   statics retains anyway. */
+/* var_highlight_ids scans info_map, and this view reruns every frame with
+   unchanged inputs (eval-stream bursts, caret holds). the one slot pins
+   only the info_map generation current statics already holds */
 let caret_ids_memo:
   ref(option((Language.Statics.Map.t, option(Id.t), bool, list(Id.t)))) =
   ref(None);

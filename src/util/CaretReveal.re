@@ -1,18 +1,10 @@
-/* Caret reveal without forced layout on the typing path (modeled on
-   Monaco's model-computed reveal and CodeMirror 6's batched measure
-   phase). The caret's position within its editor is
-   MODEL data — CaretDec positions it from Zipper.Caret.point × font
-   metrics, and publishes (row, row_height) here at render time. The
-   only DOM-dependent quantities are the editor's origin inside its
-   scroll container and the scroll state. Those are ANCHORED by one
-   real read on any reveal after a ≳500ms pause (clicks, jumps —
-   exactly when the geometry may have changed) and kept as mirrors;
-   reveals within a burst (held keys, typing) are pure arithmetic
-   plus a scrollTop WRITE — no layout read. A throttled rAF
-   verification re-reads ground truth against the frame's own layout
-   (≈free there) and heals drift, e.g. stacked-mode cells above the
-   caret growing mid-burst. window.__scrollCounters() keeps the
-   regimes observable so quiet regressions stay visible. */
+/* caret reveal without forced layout while typing. the caret's row is
+   model data (CaretDec publishes (row, row_height) at render); only the
+   editor's origin in its scroll container and the scroll state need the
+   DOM. a reveal after a pause reads them into mirrors; reveals
+   within a burst are arithmetic plus a scrollTop write. a
+   throttled rAF check re-reads ground truth and heals drift.
+   window.__scrollCounters() exposes the regimes */
 
 open Js_of_ocaml;
 
@@ -25,18 +17,15 @@ let heal_tolerance_px = 2.;
 
 type geom = {
   container: Js.t(Dom_html.element),
-  /* the caret node the anchor was read against: only the selected
-     editor renders a caret, and moving the selection to another
-     cell/header mints a fresh node — so anchor validity for a burst
-     reveal is caret-node identity (published rows are editor-relative;
-     pairing a new cell's row with the old cell's editor_top scrolls
-     wrong until the heal) */
+  /* the caret node the anchor was read against: moving to another
+     editor mints a new caret node, and published rows are
+     editor-relative, so a burst reveal requires this same node */
   caret_el: Js.t(Dom_html.element),
   /* content-space y of the active editor's row 0 */
   mutable editor_top: float,
   mutable height: float,
-  /* mirror of container##.scrollTop: our writes + a scroll listener
-     (fires for programmatic writes too, e.g. jump top-align) */
+  /* mirror of container##.scrollTop: our writes plus a scroll listener,
+     which also catches programmatic writes */
   mutable scroll_top: float,
 };
 
@@ -63,14 +52,10 @@ let connected = (el: Js.t(Dom_html.element)): bool =>
   | _ => false
   };
 
-/* the caret glide (Animation.Actions.move, a Web-Animations-API
-   `animate` call) transforms the caret; rects read mid-glide are
-   displaced and would poison the anchor. The caret ALSO carries a
-   permanent CSS blink — CSS animations/transitions have an
-   animationName/transitionProperty, WAAPI ones don't, which is how
-   we ignore the blink (found via the cold/arith counters: the
-   blanket getAnimations check pinned every reveal to the cold
-   path). */
+/* is the caret mid-glide? the glide (a WAAPI animation) displaces its
+   rect, which would poison the anchor. the permanent CSS blink is
+   ignored: CSS animations have animationName/transitionProperty,
+   WAAPI ones don't */
 let animating = (el: Js.t(Dom_html.element)): bool =>
   try({
     let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
@@ -96,10 +81,9 @@ let set_scroll_top = (g: geom, v: float): unit => {
   g.scroll_top = float_of_int(g.container##.scrollTop);
 };
 
-/* ONE stable handler that reads the current geom, attached to at most
-   one container at a time: attaching a fresh closure per cold anchor
-   would accumulate a handler (each retaining its dead geom) on every
-   post-pause action for the session's lifetime */
+/* one stable handler reading the current geom, on at most one
+   container: a closure per cold anchor would leak a handler (and its
+   dead geom) per post-pause action */
 let scroll_handler: Js.Unsafe.any =
   Js.Unsafe.inject(
     Js.wrap_callback(_ =>
@@ -138,8 +122,7 @@ let ensure_scroll_listener = (container: Js.t(Dom_html.element)): unit => {
   };
 };
 
-/* the reveal decision from mirrored geometry: scroll delta to keep
-   the caret's row-box outside the margin band, 0 when safe */
+/* scroll delta keeping the caret's row out of the margin band, else 0 */
 let decide = (g: geom, row: int, rh: float): float => {
   let y_top = g.editor_top +. float_of_int(row) *. rh -. g.scroll_top;
   let y_bot = y_top +. rh;
@@ -198,13 +181,9 @@ let schedule_verify = (): unit =>
     ();
   };
 
-/* ground-truth reveal + anchor. Deferred to the SAME frame's rAF:
-   cold reveals follow a pause, so no next keystroke races the rAF
-   (the failure mode of blanket deferral), and rAF runs before paint,
-   so the scroll is never visibly late — the read then costs the
-   frame's own layout instead of a mid-task flush of the freshly
-   patched tree. One rect pair serves both the reveal decision and
-   the burst anchor. */
+/* ground-truth reveal + anchor, in this frame's rAF: cold reveals
+   follow a pause, so no keystroke races it, and rAF runs before paint,
+   so the read costs the frame's own layout, not a mid-task flush */
 let cold_scheduled = ref(false);
 let schedule_cold = (): unit =>
   if (! cold_scheduled^) {
@@ -245,10 +224,8 @@ let schedule_cold = (): unit =>
                 };
               JsUtil.adjust_scroll(container, delta);
               if (animating(caret)) {
-                /* mid-glide rect (caret FLIP transform): reveal from
-                   it is transiently off by ≤ the glide distance and
-                   self-corrects; don't poison the anchor — glides
-                   are rate-gated, a following reveal anchors */
+                /* a mid-glide rect is off by at most the glide; don't
+                   anchor on it, a later reveal will */
                 geom := None;
               } else {
                 let g = {
@@ -313,8 +290,7 @@ let reveal = (): unit => {
   switch (published^) {
   | None => JsUtil.scroll_cursor_into_view_if_needed()
   | Some((row, rh)) =>
-    /* getElementById is a lookup, not a layout read — the burst path
-       stays read-free in the forced-layout sense */
+    /* getElementById is a lookup, not a layout read */
     let caret_now = JsUtil.get_elem_by_id_opt("caret");
     switch (geom^, caret_now) {
     | (Some(g), Some(caret))

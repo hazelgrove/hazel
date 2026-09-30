@@ -1,10 +1,9 @@
 open Js_of_ocaml;
 
-/* The outline row holding the editor's caret. Marked by a style rule
-   (see Page) rather than a class, so the memoized outline needn't
-   re-render on every caret move; after display the row scrolls into
-   view (nearest) when the mark moves and the outline isn't focused.
-   While it is focused, the keyboard cursor's row does instead. */
+/* the outline row holding the editor's caret, marked by a style rule
+   rather than a class so the memoized outline needn't re-render per caret
+   move. it scrolls into view when the mark moves, unless the outline is
+   focused: then the keyboard cursor's row does */
 
 let mark: ref(option(Language.Id.t)) = ref(None);
 let last_scrolled: ref(option(Language.Id.t)) = ref(None);

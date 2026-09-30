@@ -2,9 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* A jump to a tile outside every open cell opens the item holding it
-   (problems panel, inspector, agent results).
-   Run: bash test/run_node.sh test 'ClosedJump' */
+/* a jump to a tile outside every open cell opens the item holding it */
 
 let src = "module T = {\n  let a = 10q;\n  let b = 2\n};\n0";
 

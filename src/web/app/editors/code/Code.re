@@ -215,10 +215,8 @@ let view =
     );
 
   let nodes = of_segment(segment);
-  /* a TRAILING linebreak produces no final line box in pre flow, so
-     the editor came up one row short and the caret hung below it
-     (worst in stacked cells, where the next cell sits right there):
-     a zero-width space reserves the last row */
+  /* a trailing linebreak gets no final line box in pre flow, leaving the
+     editor a row short: a zero-width space reserves the last row */
   switch (List.rev(segment)) {
   | [Secondary(s), ..._]
       when reserve_trailing_row && Secondary.is_linebreak(s) =>
@@ -227,28 +225,20 @@ let view =
   };
 };
 
-/* One inline span per measured chunk, memoized by anchor: unchanged
-   chunks return the SAME vdom node, so the virtual-dom diff skips
-   them by reference and an edit re-renders one chunk's tokens.
-   Inline spans in pre flow reproduce the flat render exactly (the
-   text, with its embedded linebreaks, flows identically).
-
-   The memo key is CONTENT-based where identity churns per frame:
-   term_data/info_map are rebuilt wholesale each parse/statics pass,
-   so we key on the per-tile RENDER-RELEVANT projection (the refined
-   sort and the term-data sort actually consulted by of_delim) and
-   compare structurally. c_flat identity covers pieces + projector/
-   refractor shape slices (Measured.Incr guarantees slice equality
-   on reuse). Eviction: tick sweep (view-side cache discipline). */
+/* one inline span per measured chunk, memoized by anchor: an unchanged
+   chunk returns the same vdom node, so the diff skips it by reference
+   (inline spans in pre flow render exactly like the flat text).
+   term_data and info_map are rebuilt every pass, so tiles compare by the
+   sorts of_delim reads; c_flat identity covers pieces and projector/
+   refractor shapes */
 module ChunkViews = {
   type entry = {
     mutable cv_flat: Obj.t, /* Measured.flat identity */
     mutable cv_final: bool,
     mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
     mutable cv_sorts: array((Sort.t, option(Sort.t))),
-    /* info_map identity at the last sort probe: when it matches, the
-       probe is skipped entirely — for unchanged pieces go_incr shares
-       term_data values, so sorts can only change via new statics */
+    /* info_map identity at the last sort probe; a match skips the probe
+       (unchanged pieces share term_data, so only new statics move sorts) */
     mutable cv_info: Obj.t,
     mutable cv_buffer: Obj.t, /* buffer_ids identity (usually []) */
     mutable cv_fm: Obj.t,

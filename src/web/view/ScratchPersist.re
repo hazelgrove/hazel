@@ -9,24 +9,21 @@ module Focus = ScratchFocus;
    data is stored as separate HazelDB KV keys, so autosave only writes
    the current slide.
 
-   Key layout:
-     <prefix>:_meta         → slide_meta (current_index, names)
-     <prefix>:<name>        → CellEditor.Model.persistent
-     <prefix>:<name>:agent  → Agent.Persistent.t */
+   Key layout, with <k> = <prefix>:<name>:
+     <prefix>:_meta  → slide_meta (current_index, names)
+     <k>             → CellEditor.Model.persistent
+     <k>:agent       → Agent.Persistent.t
+     <k>:caret, :pins, :view, :collapse, :probes → what the slide shows
+     <k>:items:…     → per-item slices and their roster (ItemPersist) */
 
-/* every per-slide table and pending ref below is keyed/tagged by the
-   CONTENT KEY (prefix:name), never the bare name: Scratch and
-   Documentation slides may share a name, and name-keyed state bled
-   between them */
+/* per-slide tables below key on this, never the bare name: a Scratch
+   and a Documentation slide may share a name */
 let content_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name;
 
-/* modeled outline collapse (DOM-owned <details> state would bleed
-   across slides positionally and reset whenever a structural edit
-   makes the vdom recreate elements). Per-slide sets of occurrence-
-   qualified label paths; the summary click dispatches
-   OutlineCollapse; the open attr renders from this. Persisted per
-   slide (a ":collapse" side key). */
+/* outline collapse per slide, as occurrence-qualified label paths;
+   modeled because <details> DOM state bleeds across slides and resets
+   when the vdom recreates elements */
 let slide_collapse: Hashtbl.t(string, list(OutlineTree.path)) =
   Hashtbl.create(8);
 
@@ -35,12 +32,6 @@ let collapse_paths = (prefix: string, name: string): list(OutlineTree.path) =>
   | Some(ps) => ps
   | None => []
   };
-
-/* The spliced whole-program statics computed while a stack is open
-   (Force frames, first open frame, and restructure ops — which seed
-   it directly to avoid a second whole-program parse): term + merged
-   map + grafted elaboration. Feeds the master's EvalResult so
-   whole-program DYNAMICS keeps running while stacked. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slide_meta = {
@@ -90,12 +81,8 @@ let read_probes =
     }
   };
 
-/* pending restoration state is TAGGED with the content key it was
-   read for, and consumers verify the tag against the current slide
-   before applying: these are module-global refs, and an untagged
-   value could ride a hydration/mode-switch race onto the wrong
-   editor. Every read_* call SETS its ref (None on missing/malformed)
-   so a previous slide's leftovers can't survive a failed read. */
+/* restores awaiting hydration, per slide; a read_* that finds nothing
+   clears its entry, so no leftover survives a failed read */
 let pending_caret: Hashtbl.t(string, Point.t) = Hashtbl.create(8);
 /* a slide's saved view, by outline label path */
 type saved_view = {
@@ -105,9 +92,8 @@ type saved_view = {
 };
 let pending_pins: Hashtbl.t(string, saved_view) = Hashtbl.create(8);
 
-/* pins/collapse store as sexps, since outline labels are arbitrary
-   program text. The legacy line format stays as a read fallback,
-   mapping bare labels to occurrence 0. */
+/* pins and collapse store as sexps, as labels are arbitrary program text;
+   the old line format is a read fallback (bare labels at occurrence 0) */
 [@deriving sexp]
 type pin_rec = {
   pin_path: OutlineTree.path,
@@ -179,7 +165,7 @@ let read_pins = (prefix: string, name: string): unit => {
 };
 
 /* a deleted slide leaves nothing a later slide of the same name could
-   pick up: stored keys, collapse, pending restores, save caches */
+   pick up: stored keys, collapse, pending restores */
 let forget_slide = (prefix: string, name: string): unit => {
   let ck = content_key(prefix, name);
   HazelDB.kv_remove_under(ck);
@@ -188,7 +174,6 @@ let forget_slide = (prefix: string, name: string): unit => {
   Hashtbl.remove(pending_caret, ck);
 };
 
-/* a renamed slide's keys and collapse state move to the new name */
 let rename_slide = (prefix: string, old_name: string, new_name: string): unit => {
   let (old_ck, new_ck) = (
     content_key(prefix, old_name),
@@ -253,8 +238,6 @@ let write_collapse = (prefix: string, name: string): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-/* the slide's view by outline label path: pins on their key, zoom and
-   parked on another */
 let last_saved_view: Hashtbl.t(string, string) = Hashtbl.create(8);
 let save_if_changed = (key: string, s: string): unit =>
   if (Hashtbl.find_opt(last_saved_view, key) != Some(s)) {
@@ -390,23 +373,17 @@ let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
 let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
 let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
-/* Same gate for the EDITOR blob: the 1Hz autosave re-serialized the
-   whole program (splice + to_text, ~0.7s at 1k) even while idle.
-   Content identity = the whole program's zipper, or a divided
-   program's cell zippers (caret moves included, which the caret side
-   key wants). */
+/* the same gate for the editor blob, so an idle autosave serializes
+   nothing: identity of the zipper, or of a divided program's cells
+   (caret moves count, for the caret side key) */
 type save_stamp =
   | Unstacked(Zipper.t)
   | Stacked(Divided.t);
 let last_saved_content: Hashtbl.t(string, save_stamp) = Hashtbl.create(8);
 
-/* === Per-item persistence (ItemPersist) ===
-   The primary restore: top-level item slices as individual sexp
-   values + an ordered roster under side keys, so autosave writes
-   only the items an edit touched and reload restores the zipper
-   EXACTLY (incomplete tiles included) with no text parse. The text
-   blob below remains the write-through fallback and migration path:
-   no/inconsistent roster falls back to the text load. */
+/* per-item persistence, the primary restore: item slices as sexps plus a
+   roster, so autosave writes only touched items and reload restores the
+   exact zipper unparsed; the text blob is the fallback for a bad roster */
 let items_ns = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":items:";
 
@@ -440,12 +417,8 @@ let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
   | _ => false
   };
 
-/* a divided program saves its assembled document, without building a
-   live editor for it: cell_of_seg pays CachedSyntax.init (MakeTerm +
-   Measured) and Zipper.sexp_of_t re-serializes the whole zipper,
-   ~2s + ~2.5s per autosave tick on Mega 1k. The caret is in a cell
-   anyway, so it saves as text, the path committed .hz slides load
-   through. */
+/* a divided program saves its document as text, without a live editor
+   (syntax init and zipper sexps are slow); the caret is in a cell anyway */
 let persist_divided = (d: Divided.t): CellEditor.Model.persistent => {
   let z =
     Divided.document(d)
@@ -494,10 +467,8 @@ let save_current = (prefix: string, model: Model.t): unit => {
       Hashtbl.replace(last_saved_content, content_key, stamp);
     };
     if (!content_unchanged) {
-      /* whole-program saves are text-backed too: Zipper.sexp_of_t costs
-         ~2.5s per autosave tick at 1k lines. The caret can't ride the
-         text, so it saves as a (row col) side key and restores as a
-         Move(Point) after hydration. */
+      /* whole programs save as text too (zipper sexps are slow), so the
+         caret saves as a (row col) side key, restored after hydration */
       switch (program) {
       | Divided(_) => ()
       | Whole(editor) =>
@@ -538,10 +509,8 @@ let save_current = (prefix: string, model: Model.t): unit => {
                         )
                         ++ "\n",
                       ),
-                      /* the editor's OWN root: persisting a Mod-rooted
-                         slide as Exp made the reload re-parse it as an
-                         expression (backpack full of `in`s, editor
-                         wedged) */
+                      /* the editor's own root: a Mod-rooted slide saved
+                         as Exp reloads as an expression and wedges */
                       ~root=editor.editor.editor.root,
                     ),
                   result: EvalResult.Model.persist(editor.result),
@@ -611,9 +580,8 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
           program:
             Whole(
               {
-                /* repair blobs persisted with the wrong root (and track
-                   canonical root changes): the slide table is
-                   authoritative for documentation slides */
+                /* the slide table's root wins for documentation slides,
+                   repairing blobs saved under the wrong one */
                 let (persisted, root_repaired) =
                   switch (e) {
                   | Some(e) =>
@@ -635,10 +603,8 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
                       false,
                     )
                   };
-                /* per-item restore: exact zipper, no text parse. Skipped
-                   when the root was just repaired (stored items were
-                   normalized under the OLD root — reparse once instead)
-                   or on any roster inconsistency (text fallback). */
+                /* per-item restore, skipped after a root repair (the
+                   items were stored under the old root) */
                 switch (
                   root_repaired
                     ? None

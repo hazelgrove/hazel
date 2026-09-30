@@ -3,13 +3,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Informational per-keystroke timing on the mega corpus, through the
-   same stages the editor runs after a key: Perform.go (edit),
-   CachedSyntax.mk (measurement + display term, incremental caches
-   carried), CachedStatics.init_compositional (semantic term +
-   statics), and the per-frame view completion
-   (CanonicalCompletion.for_editor on the master segment). Always
-   passes; numbers print to the log. */
+/* per-keystroke timing on the mega corpus through the editor's stages
+   (perform, syntax, statics, view completion); prints, always passes */
 
 let settings = CoreSettings.on;
 
@@ -206,8 +201,7 @@ let explode = (s: string): list(string) =>
   List.init(String.length(s), i => String.make(1, s.[i]));
 
 let bench = (~root=Sort.Exp, file: string, ()) => {
-  /* the runner turns the sparse/global parity check on; the editor does
-     not — off for the measurement, restored after */
+  /* the runner turns the sparse/global parity check on; the editor doesn't */
   let parity = Zipper.normalize_parity^;
   Zipper.normalize_parity := false;
   switch (CorpusUtil.corpus_seg(~root, file)) {
@@ -232,8 +226,7 @@ let bench = (~root=Sort.Exp, file: string, ()) => {
         )
       }
     };
-    /* 2. a new incomplete item on a fresh line between two items, then
-       more typing */
+    /* 2. a new incomplete item mid-program, then more typing */
     switch (nth_item_end(n_items / 2, seg)) {
     | None => Printf.printf("MEGABENCH %s: no item\n", file)
     | Some(id) =>

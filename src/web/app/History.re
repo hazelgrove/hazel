@@ -1,17 +1,13 @@
 open Util;
 
-/* 50: even compacted snapshots cost ~5MB each on mega-scale programs
-   (zippers, frozen ctxs, master segments); a deep stack still OOMs. */
+/* compacted snapshots still hold zippers, frozen ctxs and master
+   segments: a deep stack runs out of memory on large programs */
 let capped_undo_stack_size = 50;
 
-/* Undo snapshots are COMPACTED: a raw Page.Model.t pins its
-   generation's derived caches — CachedSyntax (measured/term_data,
-   MBs per keystroke on large programs), statics maps, and decoded
-   worker eval states. None of that is needed to undo: the zipper is
-   the source of truth and everything else recomputes on restore
-   (syntax via the mark_old dummy, statics on the next edited
-   calculate, results by re-evaluating). Without this, editing a
-   mega-scale program leaked hundreds of MB within a few edits. */
+/* snapshots drop derived caches (syntax, statics, eval states), which
+   would pin memory per edit; restore rebuilds them from the zipper:
+   syntax via the mark_old dummy, statics on the next edited calculate,
+   results by re-evaluating */
 let dummy_syntax =
   lazy(
     Haz3lcore.CachedSyntax.mark_old(
@@ -182,7 +178,7 @@ module Update = {
           },
           ...model.undo_stack,
         ];
-        /* always capped: full-model history is large at mega scale */
+        /* capped even when cap_undo_stack is off */
         let undo_stack =
           List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
         {

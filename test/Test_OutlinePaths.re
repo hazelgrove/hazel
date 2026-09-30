@@ -4,10 +4,8 @@ open Language;
 module OutlineTree = Web.OutlineTree;
 module ScratchPersist = Web.ScratchPersist;
 
-/* Outline paths are occurrence-qualified, since duplicate definition
-   names and separated `tests` groups produce same-labeled rows: every
-   row's label_path resolves back to its own id, and the pins/collapse
-   sexp codecs round-trip labels containing delimiter characters. */
+/* outline paths are occurrence-qualified: every row's label_path resolves
+   back to its own id, even among same-labeled rows */
 
 let term_of_text = (text: string): Exp.t => {
   let z =
@@ -65,15 +63,13 @@ let two_test_groups = "let a = 1 in\ntest 1 == 1 end;\ntest 2 == 2 end;\nlet b =
 
 let nested_dups = "let m = module\nlet x = 1 in\nlet x = 2 in\nin\n1";
 
-/* a test row's path is its place among its block's tests: a test added
-   in another block leaves it alone */
+/* a test's path counts only its own block's tests */
 let test_elsewhere = () => {
   let before = "let a = 1 in\ntest 1 == 1 end;\nlet b = 2 in\ntest 2 == 2 end;\ntest 3 == 3 end;\na + b";
   let after = "let a = 1 in\ntest 1 == 1 end;\ntest 0 == 0 end;\nlet b = 2 in\ntest 2 == 2 end;\ntest 3 == 3 end;\na + b";
   let e0 = term_of_text(before);
   let e1 = term_of_text(after);
-  /* the last test of the program: its displayed number moves from 3 to
-     4, its path does not */
+  /* the program's last test: its number moves from 3 to 4, its path doesn't */
   let last = (e: Exp.t) => {
     let rec tests = (ns: list(OutlineTree.node)) =>
       List.concat_map(
@@ -168,8 +164,6 @@ let cases = [
     "pins codec round-trips delimiter-laden labels",
     `Quick,
     () => {
-      /* labels are arbitrary program text, including space, '/' and
-         '\n' */
       let gnarly =
         OutlineTree.[
           {

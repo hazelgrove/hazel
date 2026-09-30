@@ -37,9 +37,8 @@ let ctx_entries =
       BuiltinsColorScheme.type_aliases,
     );
 
-/* of_entries over the full builtins set is O(n log n); callers invoke
-   this per statics run (and some per frame), so build the base ONCE.
-   set_use_mode shares the maps. */
+/* built once: of_entries is O(n log n) and ctx_init runs per statics
+   run; set_use_mode shares the maps */
 let ctx_init_base: Ctx.t = Ctx.of_entries(~use_mode=None, ctx_entries);
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => Ctx.set_use_mode(ctx_init_base, use_mode);

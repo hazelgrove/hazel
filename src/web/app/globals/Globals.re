@@ -14,10 +14,8 @@ module VisibleRows = {
   };
 
   /* Compute visible row range from scroll container properties.
-   * buffer: extra rows above/below to prevent popping. Wide buffer +
-   * wide change threshold below: every visible-rows change re-renders
-   * the page, so culling must recompute per scrolled SCREEN, not per
-   * scrolled row. */
+   * buffer: extra rows above/below to prevent popping. Wide, like the
+   * change threshold below: each visible-rows change re-renders the page. */
   let compute =
       (
         ~scroll_top: float,

@@ -1,11 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 
-/* Outline restructure ops (OutlineSidebar.def_op via
-   ItemEdit.apply): the full op matrix across block
-   kinds, asserted on the resulting program TEXT. Every op is
-   id-preserving segment surgery; parses use the same FastParse entry
-   the app uses. */
+/* outline restructure ops (ItemEdit.apply) across block kinds, checked on
+   the resulting program text */
 
 module Focus = Web.ScratchMode.Focus;
 module R = Web.ItemEdit;
@@ -166,7 +163,6 @@ let top_level = (): unit => {
       contains("let a = 1 in\nlet a = 1 in", t);
     },
   );
-  /* guards */
   apply_none(
     ~src=top_src,
     ~label="a",
@@ -176,7 +172,7 @@ let top_level = (): unit => {
 };
 
 let statements = (): unit => {
-  /* test row (label "1"): delete + move */
+  /* the test row is labeled "1" */
   let t =
     apply_ok(
       ~src=top_src,
@@ -232,7 +228,6 @@ let members = (): unit => {
     true,
     contains("let b = 2;", t) && contains("new_def", t),
   );
-  /* new-inside into an EMPTY module */
   let t2 = {
     let seg = parse("module E = {} in 0");
     let fid = outline_id(statics_term(seg), "E");
@@ -247,8 +242,6 @@ let members = (): unit => {
     true,
     contains("module E = {", t2) && contains("new_def", t2),
   );
-  /* new-inside after an UNTERMINATED last member (mega style) must
-     add a separator first */
   let t3 =
     apply_ok(
       ~src="module U = {\n  let a = 1;\n  let z = fun x -> x\n} in U.a",
@@ -264,8 +257,7 @@ let members = (): unit => {
   );
 };
 
-/* the name row's commit last inside a module: the typed keyword picks
-   the kind, and the new member is the row it lands on */
+/* InsertInside: the keyword picks the kind; the target is the new member */
 let insert_inside = (): unit => {
   let run = (src, label, text) => {
     let seg = parse(src);
@@ -323,8 +315,7 @@ let insert_inside = (): unit => {
   );
 };
 
-/* mega style: the last member of a module body has no `;`. Ops that
-   put another member after it must give it one */
+/* the last member has no `;`: ops that put a member after it add one */
 let unterminated_tail = (): unit => {
   let src = "module U = {\n  let a = 1;\n  let z = fun x -> x\n} in U.a";
   /* U's members, as the outline reads them back */
@@ -535,7 +526,6 @@ let round_trip = (): unit => {
 
 let fn_body = (): unit => {
   let src = "module N = {\n  let f = fun x ->\n    let y = x + 1 in\n    y * 2;\n} in N.f(1)";
-  /* nested let INSIDE a member fn (flattened block): let-in form */
   let t =
     apply_ok(
       ~src,
@@ -551,7 +541,6 @@ let fn_body = (): unit => {
     && contains("y * 2;", t)
     && !contains("new_def = ?", t),
   );
-  /* family guard: nested let can't move above its member head */
   apply_none(
     ~src,
     ~label="y",

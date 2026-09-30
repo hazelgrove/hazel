@@ -1,22 +1,18 @@
 open Virtual_dom.Vdom;
 open Node;
 
-/* OutlineSidebar — the collapsible module/definition outline.
-   Navigation: click = jump. Focus: the cell button TOGGLES a definition
-   in the focus STACK (stacked header/body cells replace the master
-   editor); plain click while a stack is open ADDS that definition to
-   the stack (or moves to it if present) — it never replaces the
-   stack. The banner splices everything home. Modes without a focus
-   stack (~stack_controls=false) get navigation only: no cell buttons, no
-   context menu, and collapse is the native <details> toggle. */
+/* the collapsible module/definition outline. a click jumps; the cell
+   button toggles a definition in the focus stack (stacked cells replace
+   the master editor), and with a stack open a click adds or moves to that
+   cell. without a stack (~stack_controls=false) it only navigates, and
+   collapse is the native <details> toggle */
 
 let clss = cs => Attr.classes(cs);
 
 module TestStatus = Language.TestStatus;
 
-/* structural operations on a TOP-LEVEL definition, offered from the
-   row's context menu; handled by ScratchMode (segment surgery on the
-   master program) */
+/* structural operations on a definition, from its row's context menu;
+   ItemEdit applies them at the item's owning block */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type def_op =
   | NewBelow
@@ -358,10 +354,9 @@ let rec node_view =
         ]
         @ (
           switch (n.o_id) {
-          /* while a stack is open, a plain click ADDS/moves-to that
-             cell (jumping at master ids would target the hidden
-             editor). Prevent_default: label clicks must not toggle
-             the row's <details> (collapse is the chevron's job). */
+          /* with a stack open, a click adds or moves to the cell (a jump
+             would target the hidden master). Prevent_default: label
+             clicks must not toggle the row's <details> */
           | Some(id) when any_focus => [
               Attr.on_click(_ =>
                 Effect.Many([
@@ -384,9 +379,8 @@ let rec node_view =
           }
         )
         @ (
-          /* structural ops work at every block level (ItemEdit
-             recurses to the owning block); trailing-expression rows
-             stay menu-less at any depth */
+          /* every block level gets the menu, except trailing-expression
+             rows */
           switch (n.o_id) {
           | Some(id) when stack_controls && n.o_kind != OutlineTree.KTrail => [
               Attr.on_contextmenu(evt => {
@@ -482,8 +476,7 @@ let rec node_view =
                 Attr.on_click(_ =>
                   Effect.Many(
                     [Effect.Prevent_default, Effect.Stop_propagation]
-                    /* one cell spanning the whole run, at any depth
-                       (test_run_deep) */
+                    /* one cell spanning the whole run, at any depth */
                     @ (
                       switch (kid_ids) {
                       | [first, ..._] => [toggle_run(first)]

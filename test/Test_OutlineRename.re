@@ -2,9 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Renaming from the outline (Web.OutlineRename): the binder, its
-   references and `M.x` labels change; a capturing rename is refused.
-   Run: bash test/run_node.sh test 'OutlineRename' */
+/* outline rename: the binder, its references and `M.x` labels change; a
+   capturing rename is refused */
 
 let parse = (~root=Sort.Exp, src: string): Segment.t =>
   switch (FastParse.of_text(~root, src)) {

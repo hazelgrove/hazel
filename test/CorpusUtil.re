@@ -1,9 +1,7 @@
 open Haz3lcore;
 
-/* Shared helpers for corpus-driven tests (the mega programs in
-   hazel-programs/mega). Paths resolve from either the repo root or
-   test/ (run_node.sh runs from the repo root; dune runtest from
-   _build). */
+/* helpers for tests over the mega corpus (hazel-programs/mega); paths
+   resolve from the repo root (run_node.sh) or one level down (dune) */
 
 let read_file = (path: string): option(string) =>
   switch (open_in_bin(path)) {
@@ -15,7 +13,7 @@ let read_file = (path: string): option(string) =>
   | exception _ => None
   };
 
-/* Timing-only benchmark cases register only under HAZEL_BENCH=1. */
+/* timing-only cases register only under HAZEL_BENCH=1 */
 let bench_enabled = Sys.getenv_opt("HAZEL_BENCH") == Some("1");
 let bench_cases = cases => bench_enabled ? cases : [];
 
@@ -38,10 +36,8 @@ let parse = (~root: Sort.t=Exp, src: string): option(Segment.t) =>
 let corpus_seg = (~root: Sort.t=Exp, name: string): option(Segment.t) =>
   Option.bind(mega_src(name), parse(~root));
 
-/* in-place single-token rewrite with a fresh id, preserving the
-   physical identity of every untouched piece — the shape of a real
-   editor edit after the remold identity restore. Returns whether the
-   needle was found; replaces EVERY tile whose label is [needle]. */
+/* retoken every [needle] tile to [repl] (fresh id), leaving untouched
+   pieces physically shared as a real edit does; returns whether found */
 let rec edit_token =
         (~needle: string, ~repl: string, seg: Segment.t): (Segment.t, bool) => {
   let piece = (p: Piece.t): (Piece.t, bool) =>
@@ -90,12 +86,8 @@ let rec edit_token =
 let sorted_ids = (ids: list(Id.t)): list(string) =>
   List.sort_uniq(compare, List.map(Id.to_string, ids));
 
-/* Mega-scale slides/corpora skip super-linear per-slide gates (typing
-   parse, roundtrip): minutes each, composed from already-swept
-   sources. Cheap gates (load-path text fidelity) still run on them. */
-/* substring, not prefix: slide names carry folder prefixes
-   ("Perf / Mega 1k") and a miss here re-enables the typing-parse
-   gates that blew the CI budget */
+/* mega-scale slides skip the super-linear gates (typing parse, roundtrip);
+   substring match, as names carry folder prefixes ("Perf / Mega 1k") */
 let mega_scale = (name: string): bool => {
   let sub = "Mega";
   let (nl, sl) = (String.length(name), String.length(sub));

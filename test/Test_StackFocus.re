@@ -2,11 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Stack-focus slicing (modular-editors): find_pat/find_def carve the
-   header/body cells out of the master, mk_entry captures the frozen
-   ctx, and splice_entry restores the master byte-identically — across
-   the def shapes: fun-style, funlet sugar, module members, type
-   aliases. Run: bash test/run_node.sh test 'StackFocus' */
+/* focus slicing: mk_entry carves header/body cells with a frozen ctx out of
+   the program, and splice_entry restores it byte-identically */
 
 module Focus = Web.ScratchMode.Focus;
 module SModel = Web.ScratchMode.Model;
@@ -22,8 +19,7 @@ let parse = (src: string): Segment.t =>
   ) {
   | Some(seg) => seg
   | None =>
-    /* FastParse's linear path bails on some shapes — recover like
-       persistence load does */
+    /* the fast path bails on some shapes; recover like persistence */
     switch (MarkerParse.of_text(~root=Exp, src)) {
     | Some(z) => Zipper.unselect_and_zip(z)
     | None => failwith("parse failed: " ++ src)
@@ -61,9 +57,7 @@ let outline_id = (term, label: string): Id.t => {
   };
 };
 
-/* focus [label] in [src]: check the header/body cell text, that the
-   frozen ctx binds [bound], and that an unedited splice restores the
-   master exactly */
+/* focus [label]: header/body text, [bound] in the frozen ctx, exact splice */
 let check_focus =
     (
       ~src: string,
@@ -111,8 +105,7 @@ let check_focus =
   };
 };
 
-/* headerless items (tests, nested trailing bodies): symbol chip,
-   content, and splice round-trip */
+/* headerless items (tests, trailing bodies): symbol chip, body, splice */
 let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   let master = parse(src);
   let (term, info_map) = statics_of(master);
@@ -225,7 +218,7 @@ let member_restructure = (): unit => {
   );
 };
 
-/* an unfinished `let x =` has no definition slot: it can't open as a cell */
+/* a let without its `in` can't open as a cell */
 let unfinished_let = () => {
   let first_tile_id = (seg: Segment.t): Id.t =>
     switch (

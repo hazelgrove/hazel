@@ -1,8 +1,7 @@
 open Util;
 open Haz3lcore;
 
-/* A mode's slides: which one is current, and adding, renaming,
-   deleting, resetting, importing and exporting them. */
+/* A mode's slides: which one is current, and managing them. */
 
 module Scratchpad = ScratchModel.Scratchpad;
 module Model = ScratchModel.Model;
@@ -200,12 +199,10 @@ let update =
   Updated.(
     switch (action) {
     | SwitchSlide(i) =>
-      /* a divided slide stays divided: its cells are part of its program */
       WorkerClient.cancel();
-      /* hydration (parse + first statics) can take seconds on large
-         slides: paint a loading frame first, then hydrate. A plain
-         schedule_action drains before the next render, so defer via a
-         real timer. */
+      /* hydration is slow on large slides, so paint a loading frame
+         first; schedule_action drains before the next render, so defer
+         via a real timer */
       ignore(
         Js_of_ocaml.Dom_html.window##setTimeout(
           Js_of_ocaml.Js.wrap_callback(() => schedule_action(HydrateCurrent)),

@@ -4,9 +4,8 @@ open Language;
 module OutlineTree = Web.OutlineTree;
 module Focus = Web.ScratchFocus;
 
-/* Pinning a tests container opens one run cell at every block depth:
-   the run entry spans all container members, top-level and module
-   alike, and an unedited run cell splices home exactly. */
+/* pinning a tests container, top-level or in a module, opens one run cell
+   over all its members; unedited, it splices home exactly */
 
 let settings = CoreSettings.on;
 
@@ -43,16 +42,13 @@ let check_run_pin =
   | None => fail(label ++ ": mk_run_entry returned None")
   | Some(e) =>
     check(bool, label ++ ": entry is a run cell", true, e.e_run);
-    /* members carry BOTH id domains (statement `;` reps and test tile
-       reps) — the outline's kid ids must all be covered */
+    /* members carry both statement `;` and test tile ids */
     check(
       bool,
       label ++ ": members cover the container's kids",
       true,
       List.for_all(id => List.mem(id, e.e_members), ids),
     );
-    /* unedited round trip: splicing the untouched cell home must
-       reproduce the master exactly */
     check(
       bool,
       label ++ ": unedited splice is exact",

@@ -2,14 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Parity gate for per-item canonical completion
-   (CanonicalCompletion.complete_items vs complete_segment_deep): on the
-   mega corpus, on small edge programs, and on edit-derived incomplete
-   states, the per-item reading must equal the whole-segment reading
-   (segment modulo grout ids, plus the same shard records), items with
-   no incomplete tile must come back physically unchanged, and a second
-   call on the same segment must complete nothing.
-     bash test/run_node.sh test 'CompletionItems' */
+/* per-item completion (complete_items) matches whole-segment completion,
+   keeps complete items physically, and memoizes */
 
 let settings = CoreSettings.on;
 
@@ -78,7 +72,6 @@ let check_parity = (name: string, seg: Segment.t): unit => {
     true,
     kept >= List.length(complete_items) - widened,
   );
-  /* another call: nothing recompletes */
   let n0 = CanonicalCompletion.items_completed^;
   let again = CanonicalCompletion.complete_items(~sort=Exp, seg);
   check(int, name ++ ": memo hit", n0, CanonicalCompletion.items_completed^);
@@ -90,8 +83,7 @@ let check_parity = (name: string, seg: Segment.t): unit => {
   );
 };
 
-/* type [keys] on a fresh line after the k-th item (caret to the right of
-   its last piece, then Enter), the way a new item is actually typed */
+/* type [keys] on a new line after the k-th item, as a user would */
 let type_after_item =
     (k: int, keys: string, seg: Segment.t): option(Zipper.t) => {
   let z0 = Zipper.unzip(seg);
@@ -188,9 +180,8 @@ let edge_case = ((name, src), ()) =>
     };
   };
 
-/* The memo is shared by the Exp reading (decorations) and the editor-root
-   reading (semantics): one item completed at two sorts must get each
-   sort's own completion, in either order. */
+/* the memo serves both the Exp (decorations) and editor-root (semantics)
+   readings: each sort gets its own completion, in either order */
 let sort_keyed_case = () =>
   switch (ParsedCorpus.to_segment(~root=Exp, "(a")) {
   | None => fail("unparseable: (a")

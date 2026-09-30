@@ -1888,10 +1888,9 @@ let consolidate_adopted = (): unit => {
      });
 };
 
-/* Every parse runs inside [fresh]: the accumulators start empty, the
- * secondary map and shard masks are [seg]'s, and the masks and any
- * stray lexeme are cleared afterwards, even on a raise, so the next
- * parse can't see them. The accumulators stay readable after. */
+/* every parse runs inside [fresh]: accumulators start empty; masks and
+ * any stray lexeme are cleared on exit, even on a raise, while the
+ * accumulators stay readable */
 let fresh =
     (
       ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
@@ -1940,25 +1939,18 @@ let go_impl =
   );
 
 let go =
-  /* SMALL bound: each key pins a whole SEGMENT plus its full term/
-     term_data output. On mega-scale programs a deep cache retained
-     hundreds of superseded generations (every splice/edit mints a new
-     segment) — the browser heap died within a few edits. The working
-     set per frame is a handful of segments. */
+  /* small bound: each key pins a whole segment and its term/term_data,
+     and every edit mints a new segment; a frame needs only a few */
   Core.Memo.general(~cache_size_bound=8, go_impl(~masks=Id.Map.empty));
 
-/* stable synthetic id for a Mod-rooted editor's Module wrapper node:
-   statics/elab reuse keys on term identity, so it must not churn per
-   rebuild. (One id module-wide is fine: only the master editor of a
-   slide is Mod-rooted, and info maps are per-editor.) */
+/* stable id for a Mod-rooted editor's Module wrapper, since statics/elab
+   reuse keys on term identity; one id suffices as info maps are per editor */
 let mod_wrap_id: Id.t = Id.mk();
 let wrap_module = (items: list(Mod.t)): Exp.t =>
   IdTagged.fast_copy(mod_wrap_id, Exp.fresh(Module(items)));
 
-/* monolithic parse for a MOD-rooted editor: the whole-segment
-   reference for parity tests and the go_incr fallback — [go] would
-   misparse such a segment at Exp sort (every token sort-flagged).
-   Term = the stable-id Module wrapper over the flattened items. */
+/* monolithic parse of a Mod-rooted segment, which [go] would misparse at
+   Exp: the parity reference and go_incr's fallback */
 let go_mod_root =
   Core.Memo.general(~cache_size_bound=8, seg =>
     fresh(
@@ -2045,17 +2037,11 @@ let for_projection =
     }
   );
 
-/* The whole-program term, parsed per top-level item's piece span
-   (memoized on piece identity: splices rebuild the top-level list but
-   reuse item pieces) and grafted into a chain, mirroring DefStatics'
-   hollow-item composition. Only the term is built: display maps are
-   per cell. An item sliced away from its continuation is nonconvex; a
-   synthetic convex grout stands in for the body and the graft
-   replaces it. */
+/* per-item parsing: each top-level item parses alone (memoized on piece
+   identity) and grafts into a chain, as in DefStatics. a nonconvex item
+   gets a convex grout body that the graft replaces */
 module Incr = {
-  /* top-level item slices, in order (boundaries: `…in`-tiles and
-     top-level `;`s; the remainder is the tail) — shared with the
-     per-item completion (Segment.top_items) */
+  /* cut after `…in` tiles and top-level `;`s, like per-item completion */
   let slices = Segment.top_items;
 
   let seg_eq = Segment.ptr_eq;
@@ -2066,24 +2052,17 @@ module Incr = {
     e_hole: option(Id.t) /* the synthetic body hole to graft into */
   };
 
-  /* keyed by the item's FIRST piece id (stable across splices for
-     unchanged items; an edited item re-mints its changed pieces).
-     Module-level single slot: only the one whole-program master
-     editor takes this path (view builds use the per-editor cache) */
+  /* keyed by the item's first piece id; module-global, as only the
+     master editor's statics take this path (views use go_incr's cache) */
   let memo: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
   /* last whole-segment term and the root it was read at: shared by
      term_of, term_of_mod and go_incr, so a hit needs both to match */
   let last: ref(option((Sort.t, Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
 
-  /* per-slice secondary collection is exact despite the cut: ownership
-     in collect_from_skel gives a Pre node only its before-run, so with
-     cuts right after `in`-tiles no secondary run crosses a slice
-     boundary (the boundary trivia is the next item's before-run,
-     inside the next slice). Parity with go's whole-segment collection
-     is test-gated. For nonconvex slices the collection runs on the
-     holed attempt, whose skel matches the whole-segment structure
-     restricted to the item. */
+  /* collecting secondaries per slice matches the whole-segment
+     collection (test-gated): a Pre node owns only its before-run, so no
+     secondary run crosses a cut after an `in` tile */
   let parse_item =
       (~masks=Id.Map.empty, pieces: Segment.t): (Exp.t, option(Id.t)) => {
     let attempt = (ps: Segment.t) =>
@@ -2112,12 +2091,9 @@ module Incr = {
     };
   };
 
-  /* A mod-item slice ending in its `;` is nonconvex on the right (the
-     separator's right operand is the next item): the appended convex
-     grout parses to a trailing EmptyHole mod item, which is dropped
-     here (its id is scrubbed from the captured maps by the caller).
-     Composition is a plain list concat — mod items have no body
-     continuation, so there is no graft. */
+  /* a mod-item slice ending in `;` is nonconvex: the appended grout
+     parses to a trailing EmptyHole item, dropped here (the caller scrubs
+     its id). mod items have no body, so composition is a plain concat */
   let parse_item_mod =
       (~masks=Id.Map.empty, pieces: Segment.t): (list(Mod.t), option(Id.t)) => {
     let attempt = (ps: Segment.t): option(list(Mod.t)) =>
@@ -2241,9 +2217,7 @@ module Incr = {
     };
   };
 
-  /* Mod-root twin of [term_of]: per-slice mod-item parse, memoized on
-     piece identity; term = the stable-id Module wrapper over the
-     concatenated items. Shares [last] with the Exp path and go_incr. */
+  /* Mod-root twin of [term_of]: items concatenate under the stable wrapper */
   type mod_entry = {
     me_pieces: Segment.t,
     me_items: list(Mod.t),
@@ -2295,10 +2269,8 @@ module Incr = {
     };
   };
 
-  /* ~masks: shard provenance of the canonically completed [seg] (see
-     go_impl), passed to the per-item parses. A mask only concerns tiles
-     of items whose completion changed, and those items' pieces are new
-     objects, so memoized entries never carry a stale mask. */
+  /* ~masks only concern items whose completion changed, and those pieces
+     are new objects, so memoized entries never carry a stale mask */
   let term_of_root =
       (
         ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
@@ -2308,18 +2280,10 @@ module Incr = {
       : Exp.t =>
     root == Sort.Mod ? term_of_mod(~masks, seg) : term_of(~masks, seg);
 
-  /* ===== go_incr: the full go() record, composed per item =====
-     Per-item parses capture the side maps go accumulates globally;
-     three exact fixups then reconcile the one frame that differs
-     from go's single whole-segment walk (the TOP-LEVEL frame):
-       1. term map: re-add every graft-spine node under its ids
-          (per-item values hold the pre-graft holed bodies);
-       2. term_data: re-record every top-level skel node with
-          base_seg = the whole segment (per-item frames recorded
-          their slice), mirroring unsorted's sort propagation;
-       3. adopted ids: re-consolidate against the fixed maps (go
-          consolidates once at the end, when rep entries are final).
-     Exact parity with go is test-gated (Test_MakeTermIncr). */
+  /* go_incr: go's full record composed per item. per-item parses differ
+     from go only in the top-level frame, which fix_spine,
+     record_top_frame and reconsolidate replay; parity with go is
+     test-gated (Test_MakeTermIncr) */
 
   type entry_full = {
     f_pieces: Segment.t,
@@ -2333,10 +2297,8 @@ module Incr = {
     f_adopted: list(Id.t),
   };
 
-  /* one per editor (rides in CachedSyntax): last build's entries and
-     the PRE-FIXUP unions, so the next build diffs instead of
-     re-merging. Entries for vanished/changed keys are dropped every
-     build. */
+  /* one per editor: last build's entries and PRE-FIXUP unions, so the
+     next build diffs instead of re-merging */
   type cache = {
     mutable c_prev:
       option(
@@ -2400,10 +2362,9 @@ module Incr = {
     };
   };
 
-  /* mirror of the sort propagation in [unsorted]/[go_s], recording
-     TermData for every node of the top-level skel with the WHOLE
-     segment as base_seg (children of tiles are separate frames both
-     here and in go, so only this frame needs replaying) */
+  /* replays [unsorted]'s sort propagation over the top-level skel,
+     recording TermData with the WHOLE segment as base_seg (tile children
+     are separate frames, so only this one differs from go) */
   let record_top_frame =
       (~root: Sort.t=Exp, td0: TermData.t, seg: Segment.t): TermData.t => {
     let td = ref(td0);
@@ -2448,9 +2409,8 @@ module Incr = {
     td^;
   };
 
-  /* the graft replaced holed bodies along each item's spine; re-add
-     those nodes so the term map shows the grafted terms (mirrors
-     [graft_at]'s descend set) */
+  /* re-add the graft spine's nodes so the term map holds grafted terms,
+     not holed bodies (descends like [graft_at]) */
   let rec fix_spine = (m: TermMap.t, e: Exp.t): TermMap.t => {
     let m = TermMap.add_all(e.annotation.ids, Exp(e), m);
     switch (e.term) {
@@ -2582,12 +2542,10 @@ module Incr = {
       entries,
     );
     cache.c_prev = Some((entries, m_map^, m_td^, m_proj^));
-    /* compose, then the exact fixups on top of the pure union */
     let term =
       if (root == Sort.Mod) {
         wrap_module(List.concat_map(((_, e)) => e.f_mods, entries));
       } else {
-        /* graft the Exp continuation chain */
         let rec graft = (es: list((Id.t, entry_full))): Exp.t =>
           switch (es) {
           | [] => Exp.fresh(EmptyHole)
@@ -2613,9 +2571,7 @@ module Incr = {
     let term_data = record_top_frame(~root, m_td^, seg);
     let adopted = List.concat_map(((_, e)) => e.f_adopted, entries);
     let term_data = reconsolidate(adopted, terms, term_data);
-    /* go conses projector ids during a single left-to-right walk, so
-       its list has later items first: concat per-item lists (each
-       already in go's within-item order) over reversed item order */
+    /* go conses projector ids left to right, so later items come first */
     let projector_list =
       List.concat_map(((_, e)) => e.f_plist, List.rev(entries));
     {
@@ -2627,8 +2583,6 @@ module Incr = {
     };
   };
 
-  /* any structural surprise (e.g. Segment.skel on a malformed whole
-     segment) falls back to the monolithic parse */
   let fell_back = ref(0); /* observability: parity tests assert 0 */
   let go_incr = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t =>
     switch (go_incr'(~root, ~cache, seg)) {
@@ -2652,11 +2606,8 @@ let semantic_source = (z: Zipper.t): Segment.t =>
   |> Zipper.clear_unparsed_buffer
   |> Zipper.unselect_and_zip(~erase_buffer=true);
 
-/* The segment semantics sees: the canonical completion of [seg] at
-   [root], decided PER ITEM (CanonicalCompletion.complete_items) so
-   items without incomplete tiles keep their piece identity, which the
-   per-item incremental parse keys on. Also returns the provenance
-   masks for go_impl / Incr.term_of_root. */
+/* the segment semantics sees, with its provenance masks: completed per
+   item, so complete items keep the piece identity Incr keys on */
 let semantic_segment =
     (~root: Sort.t, seg: Segment.t)
     : (Segment.t, Id.Map.t(IdTagged.IdTag.incomplete_mask)) => {
@@ -2689,10 +2640,7 @@ let from_zip_for_sem_with_completion =
   /* small for the same reason as [go]: keys pin zippers */
   Core.Memo.general(~cache_size_bound=8, from_zip_for_sem_with_completion);
 
-/* Semantic PAT for a Pat-rooted editor (modular-editors header cells):
-   the pat-sorted sibling of from_zip_for_sem. Feedback for such cells
-   comes from the stitched master program (exercises precedent), so no
-   standalone pat statics entry is needed — just the term. */
+/* semantic pattern of a Pat-rooted cell (`name : T` headers) */
 let from_zip_for_pat = (z: Zipper.t): Pat.t => {
   let (seg, _) = semantic_segment(~root=Sort.Pat, semantic_source(z));
   fresh(seg, () =>
@@ -2703,9 +2651,7 @@ let from_zip_for_pat = (z: Zipper.t): Pat.t => {
   );
 };
 
-/* Semantic TYP for a Typ-rooted editor (modular-editors type-alias
-   body cells): statics for such cells wrap this in a TyAlias so the
-   cursor inspector has real type info. */
+/* semantic type of a Typ-rooted cell (type-alias bodies) */
 let from_zip_for_typ = (z: Zipper.t): Typ.t => {
   let (seg, _) = semantic_segment(~root=Sort.Typ, semantic_source(z));
   fresh(seg, () =>
@@ -2716,7 +2662,7 @@ let from_zip_for_typ = (z: Zipper.t): Typ.t => {
   );
 };
 
-/* Semantic TPAT for a TPat-rooted editor (type-alias header cells). */
+/* semantic tpat of a TPat-rooted cell (type-alias headers) */
 let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
   let (seg, _) = semantic_segment(~root=Sort.TPat, semantic_source(z));
   fresh(seg, () =>
@@ -2727,12 +2673,9 @@ let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
   );
 };
 
-/* terms + term_data + projectors for a non-Exp-rooted editor: the
-   sorted parse fills the same recorders the Exp path uses, so
-   sort-consistency highlighting and term selection work in Pat/TPat/
-   Typ (and Drv/Mod/Sig/MPat) cells, where the Exp-rooted [go] would
-   flag every token as sort-inconsistent. go_s dispatches every sort,
-   so the top-level term's own ids always land in [map]. */
+/* syntax data for a non-Exp-rooted cell, parsed at its own sort (the
+   Exp-rooted [go] would flag every token sort-inconsistent); go_s also
+   records the root term's ids in [map] */
 let sorted_syntax_data_memo =
   Core.Memo.general(~cache_size_bound=8, ((root: Sort.t, seg: Segment.t)) =>
     fresh(seg, () =>

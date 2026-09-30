@@ -3,9 +3,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Statics parity gates over the mega corpus, plus informational
-   timing cases (bench corpus, hazel-programs/bench) that print to the
-   log and register only under HAZEL_BENCH=1. */
+/* statics parity gates over the mega corpus, plus print-only timing cases */
 
 let read_file = CorpusUtil.read_file;
 
@@ -31,9 +29,7 @@ let time_statics = (src: string): option(float) =>
     Some((Sys.time() -. t0) *. 1000.);
   };
 
-/* Surgical segment edits, id-preserving — the shape of a real
-   one-keystroke change. repl_last prefers the LAST occurrence,
-   repl_first the FIRST. */
+/* id-preserving single-token edits at the last / first match of [needle] */
 let rec repl_last =
         (~needle: string, ~repl: string, ps: list(Piece.t))
         : (bool, list(Piece.t)) =>
@@ -152,13 +148,8 @@ let parse_seg_of = (src: string): Segment.t =>
   | None => failwith("BENCH: parse failed")
   };
 
-/* DefStatics (compositional statics) benchmark + parity gate:
-   - COLD: engine result must carry the same ERROR ids as whole-program
-     Statics.mk (warnings are engine-corrected, counts reported only);
-   - INCR non-export edit (deep digit swap): expect 1 item recomputed;
-   - INCR export-type edit (first ascription Int->Bool): expect the
-     users of that binding to recompute, and parity to hold on the
-     edited program too. */
+/* DefStatics error parity with whole-program statics, cold and after
+   non-export, export-type and cross-module edits; timings print */
 let defstatics_case = (name: string, ()): unit => {
   let path = "hazel-programs/mega/" ++ name;
   let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
@@ -193,8 +184,6 @@ let defstatics_case = (name: string, ()): unit => {
           List.length(e),
         );
       };
-      /* a print-only mismatch slipped through a whole stage
-         (member chains ignored incoming dirty names); ASSERT */
       check(bool, name ++ " " ++ label ++ " error parity", true, w == e);
     };
     let time = (label, f) => {
@@ -217,8 +206,7 @@ let defstatics_case = (name: string, ()): unit => {
     );
     parity("cold", term1, ds1);
     {
-      /* grafted-elaboration parity: evaluating the graft must give
-         the same value as evaluating the monolithic elaboration */
+      /* the grafted elaboration evaluates like the monolithic one */
 
       let (_, mono_elab) = Statics.mk_unmemoized(settings, ctx, term1);
       switch (DefStatics.whole_elab(ds1)) {
@@ -234,7 +222,6 @@ let defstatics_case = (name: string, ()): unit => {
         );
       };
     };
-    /* non-export edit: last digit 9 -> 8, deep in the program */
     let (f2, seg2) = repl_last(~needle="9", ~repl="8", seg1);
     assert(f2);
     let term2 = MakeTerm.go(seg2).term;
@@ -248,7 +235,6 @@ let defstatics_case = (name: string, ()): unit => {
       DefStatics.last_analyzed^,
     );
     parity("non-export", term2, ds2);
-    /* export-type edit: first ascription Int -> Bool */
     let (f3, seg3) = repl_first(~needle="Int", ~repl="Bool", seg1);
     assert(f3);
     let term3 = MakeTerm.go(seg3).term;
@@ -262,9 +248,7 @@ let defstatics_case = (name: string, ()): unit => {
       DefStatics.last_analyzed^,
     );
     parity("export-type", term3, ds3);
-    /* CROSS-MODULE cascade: retype the first selfcheck ascription
-       (Bool -> String); MetaRunner consumes every selfcheck, so
-       downstream items must re-analyze and new errors appear */
+    /* retypes a selfcheck that MetaRunner consumes downstream */
     let (f4, seg4) = repl_first(~needle="Bool", ~repl="String", seg1);
     assert(f4);
     let term4 = MakeTerm.go(seg4).term;
@@ -281,12 +265,8 @@ let defstatics_case = (name: string, ()): unit => {
   };
 };
 
-/* Slide-load pipeline probe: run each stage of the browser's
-   Calculate under whatever stack node was launched with. Chrome's
-   renderer stack is ~1MB; run_node.sh uses 8MB — to find what
-   overflows in-browser, run this manually WITHOUT --stack-size:
-     HAZEL_BENCH=1 IDB_STUB=... TEST_JS=... node --require $IDB_STUB \
-       $TEST_JS test BenchStatics 6 */
+/* times each stage of a slide load; to find what overflows Chrome's
+   smaller stack, run the test JS under plain node (no --stack-size) */
 exception Bail;
 
 let load_pipeline_probe = (): unit =>
@@ -395,11 +375,8 @@ let load_pipeline_probe = (): unit =>
     ["mega-1k.hz", "mega-2k.hz", "mega-4k.hz"],
   );
 
-/* Probe-capture parity: a probe on a fn-body var whose only call site
-   is a LATER top-level item must sample under compositional statics +
-   grafted elaboration exactly as under monolithic statics. Fresh
-   evaluations — no incremental cache — so this isolates capture from
-   reuse. */
+/* a probe in a fn body called only from a later item samples under
+   compositional statics as under monolithic (fresh evaluations) */
 let probe_capture_parity = (): unit => {
   let settings = CoreSettings.on;
   let ctx = Builtins.ctx_init(Some(Operators.default_mode));
@@ -440,9 +417,6 @@ let probe_capture_parity = (): unit => {
       Statics.mk_unmemoized(~probe_ids, settings, ctx, term);
     let (tm, pm) = capture_count(map_m, elab_m);
     Printf.printf("PROBECAP mono: targets=%d captured=%d\n", tm, pm);
-    /* probe toggle must be INCREMENTAL: only the item containing the
-       toggled id re-analyzes (probe-aware dirtying), and the result
-       must still capture like a cold probe-aware run */
     let ds0 = DefStatics.calc(~settings, term);
     let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
     Printf.printf(
@@ -456,13 +430,10 @@ let probe_capture_parity = (): unit => {
       true,
       DefStatics.last_analyzed^ < List.length(ds.items),
     );
-    /* IDEMPOTENCY gate: repeated no-change incremental calcs must not
-       grow the patched root infos (the suffix co_ctx patch once read
-       its own output back and DOUBLED per calc — exponential memory) */
+    /* guards against the spine patch re-reading its own output */
     let root_co_size = (t: DefStatics.t) =>
       switch (Statics.Map.lookup_exp(Exp.rep_id(term), t.merged)) {
       | Some(info) =>
-        /* total USES (per-name entry lists), the thing that doubled */
         CoCtx.to_list(info.co_ctx)
         |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
       | None => (-1)
@@ -500,9 +471,8 @@ let probe_capture_parity = (): unit => {
       )
     | None => Printf.printf("PROBECAP toggle-off: no root entry\n")
     };
-    /* WITNESS parity at the roots: incremental-eval reuse keys on
-       InfoExp.probe_targets — stale/empty witnesses mean the cached
-       run replays sampleless. Compare mono vs comp at the top root. */
+    /* print-only: eval reuse keys on probe_targets, so a stale root
+       witness would replay without samples */
     let witness_at = (label, info_map, id) =>
       switch (Statics.Map.lookup_exp(id, info_map)) {
       | Some(info) =>
@@ -532,12 +502,8 @@ let probe_capture_parity = (): unit => {
   };
 };
 
-/* Structural alignment: outline restructure ops (insert / delete /
-   move / duplicate a top-level item) must cost the changed item plus
-   downstream mentioners of its export names — never a full recompute —
-   and must agree with a cold recompute of the same term. Items are
-   parsed separately and concatenated so piece ids stay stable across
-   recombinations, like real segment surgery. */
+/* item insert/delete/move/duplicate re-analyzes just the changed item and
+   mentioners of its exports, and matches a cold calc */
 let structural_alignment = (): unit => {
   let settings = CoreSettings.on;
   let strip_tail = (seg: Segment.t): Segment.t =>
@@ -599,9 +565,7 @@ let structural_alignment = (): unit => {
   run("duplicate", ~expect_analyzed=3, term_of([a, a2, b, c, d, tail]));
 };
 
-/* Incremental MakeTerm parity: the grafted per-item term must carry
-   the same chain ids and statics as the monolithic parse, and reuse
-   must be per-item (one edited item => one item re-parsed). */
+/* per-item MakeTerm matches the monolithic term and re-parses per item */
 let incr_maketerm_parity = (): unit => {
   let settings = CoreSettings.on;
   let ctx = Builtins.ctx_init(Some(Operators.default_mode));
@@ -644,11 +608,10 @@ let incr_maketerm_parity = (): unit => {
   | Some(src) =>
     let seg = parse_seg_of(src);
     check_prog("mega-1k", seg);
-    /* reuse: same segment (fresh list, same pieces) => 0 items parsed */
+    /* fresh list, same pieces: nothing re-parses */
     let seg' = List.map(p => p, seg);
     let _ = MakeTerm.Incr.term_of(seg');
     check(int, "recombination reuse", 0, MakeTerm.Incr.analyzed^);
-    /* one-item edit => one item re-parsed */
     let (found, seg2) = repl_last(~needle="9", ~repl="8", seg);
     assert(found);
     let t2 = MakeTerm.Incr.term_of(seg2);
@@ -664,10 +627,8 @@ let incr_maketerm_parity = (): unit => {
   };
 };
 
-/* Incremental StreamCollector parity: drive a real yielding evaluation
-   of mega-1k, and at every drained chunk compare the O(program)-walk
-   collector against the incremental frontier collector — probes, test
-   results, and completion must agree at each step. */
+/* at every chunk of a yielding evaluation, the incremental stream
+   collector agrees with the full-walk one */
 let stream_collector_parity = (): unit => {
   let path = "hazel-programs/mega/mega-1k.hz";
   let path =

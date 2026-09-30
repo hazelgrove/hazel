@@ -40,11 +40,8 @@ type entry =
   | TVarEntry(tvar_entry)
   | LivelitEntry(LivelitCtx.raw_livelit);
 
-/* An entry list ([entries] is newest-first) plus a SIZE field, so the
-   per-binder-scope operations (added_bindings, subtract_prefix) are
-   O(diff) instead of paying O(n) List.lengths. Serialization goes
-   through [repr]; the wire format carries no size. A name-keyed map
-   is no faster here. */
+/* newest-first entries plus a size, so added_bindings/subtract_prefix
+   are O(diff) rather than paying List.length */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type repr = {
   use_mode: option(Operators.mode), // None if elaboration has already occurred
@@ -70,16 +67,14 @@ let of_entries =
   size: List.length(entries),
 };
 
-/* prepend a newest-first run of entries (preserves the old
-   [new_entries @ ctx.entries] semantics) */
+/* prepend a newest-first run of entries */
 let prepend_entries = (ctx: t, new_entries: list(entry)): t => {
   ...ctx,
   entries: new_entries @ ctx.entries,
   size: ctx.size + List.length(new_entries),
 };
 
-/* ---- serialization: [entries] is canonical; the wire format is
-   identical to the plain-record representation ---- */
+/* serialization goes through [repr], the plain record without size */
 let repr_of = (ctx: t): repr => {
   use_mode: ctx.use_mode,
   entries: ctx.entries,

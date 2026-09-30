@@ -1,21 +1,20 @@
 open Util;
 
-/* One open cell of a divided program: a pinned item's header (pattern)
-   and body (definition), or a headerless run. The cell owns that text;
-   the rest of the program lives in Divided's skeleton. */
+/* One open cell of a divided program: an item's header (pattern) and
+   body (definition). The cell owns that text; the rest of the program
+   stays in Divided's base. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   e_id: Haz3lcore.Id.t, /* the item tile's id in the program */
   /* header: pattern+signature, PAT- (or TPAT-)rooted */
   e_header: CellEditor.Model.t,
-  /* module items: binder is an MPat — wrapped pat statics would
-     misread the capitalized name as a constructor, so their headers
-     stay statics-off */
+  /* module items: private pat statics would misread the MPat binder as
+     a constructor, so the header only takes its item's projected ones */
   e_mod: bool,
   /* headerless items (statements, the trailing expression): the
      static symbol shown instead of a header cell */
   e_sym: option(string),
-  /* a RUN cell: one editor spanning a contiguous run of test
+  /* a run cell: one editor spanning a contiguous run of test
      statements, anchored at the first test's item id */
   e_run: bool,
   /* run cells: the item ids the run covers (first = e_id) */
@@ -45,6 +44,5 @@ and header_name_of_cell = (e: t): option(string) => {
   name == "" ? None : Some(name);
 };
 
-/* the ids a cell answers for in the outline: a run covers its members */
 let covers = (e: t): list(Haz3lcore.Id.t) =>
   e.e_run ? e.e_members : [e.e_id];

@@ -22,18 +22,14 @@ let first_tile_id = (seg: Segment.t): option(Id.t) =>
     seg,
   );
 
-/* fresh-id MEMBER pieces for [txt] (a single member, `;` optional):
-   the Mod-root fast parse rejects chunks with a trailing separator,
-   so parse two members and cut after the last top-level `;` (the
-   member's own terminator + trailing trivia) */
+/* fresh-id member pieces for [txt] (one member, `;` optional): parsed
+   inside a real module so it sorts as a member, before a dummy member
+   so it keeps its `;`, then cut after that `;` and its whitespace */
 let member_chunk = (txt: string): option(Segment.t) => {
   let txt = String.trim(txt);
   let txt =
     String.length(txt) > 0 && txt.[String.length(txt) - 1] == ';'
       ? String.sub(txt, 0, String.length(txt) - 1) : txt;
-  /* the Mod-root wrap parses plain braces whose child is EXP-sorted
-     (members came out as let-ins): parse a real module instead and
-     extract its body child, then cut after the member's own `;` */
   switch (parse("module Zz = {" ++ txt ++ {js|;
 let zz = ¿} in
 0|js})) {
@@ -87,9 +83,8 @@ let zz = ¿} in
   };
 };
 
-/* a member's pieces as (core, terminator): the terminator is its `;`
-   and the whitespace after, or only trailing whitespace when the
-   member is unterminated (mega style: a module's last member) */
+/* a member as (core, terminator, has `;`): the terminator is its `;` and
+   trailing whitespace, or just the whitespace (a last member may lack `;`) */
 let split_terminator = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
   let arr = Array.of_list(ps);
   let rec back = i =>
@@ -100,10 +95,9 @@ let split_terminator = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
     : (Focus.take(at, ps), Focus.drop(at, ps), false);
 };
 
-/* a member block ending in a bare `;` (its last member removed, or a
-   terminated one appended) loses it: parsed text gets a hole after a
-   trailing `;`, a hand-built segment would not, and the skeleton
-   builder fails on the bare separator */
+/* drop a member block's bare trailing `;` (its last member removed, or
+   a terminated one appended): unlike parsed text, a built segment has
+   no hole after it, and Skel fails on the bare separator */
 let drop_trailing_semi = (block: Segment.t): Segment.t => {
   let arr = Array.of_list(block);
   let rec back = i =>
@@ -113,15 +107,9 @@ let drop_trailing_semi = (block: Segment.t): Segment.t => {
     ? Focus.take(at - 1, block) @ Focus.drop(at, block) : block;
 };
 
-/* apply [op] to the item holding [fid] AT ITS OWNING BLOCK: a span
-   whose id is exactly [fid] applies at this level; an id contained
-   in a DEF span recurses into that def's tiles (module bodies, fn
-   bodies); an id contained in a statement/tail span means that span
-   IS the item. No cross-level fallback — an op invalid at its own
-   level (move at a block edge) no-ops rather than acting on the
-   enclosing item. [in_module]: the block is a module body, so
-   inserted/duplicated skeletons are 2-shard MEMBERS parsed at Mod
-   root, not `… in` forms. */
+/* [op] on span [j] of its own block: an op invalid there (a move at the
+   block's edge) no-ops rather than act on the enclosing item. [in_module]:
+   a member block, so new items are 2-shard members, not `… in` forms */
 let apply_at =
     (
       ~name: option(string)=?,
@@ -132,19 +120,15 @@ let apply_at =
       seg: Segment.t,
     )
     : option((Segment.t, option(Id.t))) => {
-  /* the new definition's name, else a placeholder */
   let named = placeholder => Option.value(name, ~default=placeholder);
   let n = Array.length(spans);
   let start_of = j => spans[j].Focus.sp_start;
   let end_of = j => spans[j].Focus.sp_stop;
   let movable = j => spans[j].Focus.sp_kind != Focus.ITail;
-  /* member-fn bodies FLATTEN into the module-body level (a fun's
-     body is siblings, not a child), so a module-level span can be a
-     let-in belonging to a member's inner chain. The op FORM follows
-     the target span's own head: an `…in`-headed span takes let-in
-     forms even inside a module; moves must not mix the two families
-     (swapping a nested let with its enclosing member head would
-     cross block levels). */
+  /* a member fn's body flattens into the module-body level (siblings,
+     not a child), so a span there can be a let-in of a member's inner
+     chain: such spans take let-in forms, and moves never mix the two
+     families (that would cross block levels) */
   let arr = Array.of_list(seg);
   let span_in_tile = j => {
     let rec first_tile = i =>
@@ -162,9 +146,7 @@ let apply_at =
     };
   };
   let member_form = j => in_module && !span_in_tile(j);
-  /* a member's pieces as (core, terminator): the terminator is its `;`
-     and the whitespace after, or only trailing whitespace when the
-     member is unterminated (mega style: a module's last member) */
+  /* as split_terminator */
   let split_term = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
     let arr = Array.of_list(ps);
     let rec back = i =>
@@ -198,8 +180,7 @@ let apply_at =
     } else {
       chunk;
     };
-  /* only module-body levels interleave two block levels (member-fn
-     flattening); at top level mixing defs/tests in moves is fine */
+  /* outside modules, moves may mix defs and statements */
   let same_family = (j, k) =>
     !in_module || span_in_tile(j) == span_in_tile(k);
   Focus.(
@@ -253,7 +234,7 @@ let apply_at =
       | None => None
       | Some(sk) =>
         /* inserting below the trailing expression would strand it
-           above the new def: insert ABOVE the tail instead */
+           above the new def: insert above the tail instead */
         let at = movable(j) ? end_of(j) : start_of(j);
         let sk = movable(j) ? after(j, sk) : sk;
         Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
@@ -274,9 +255,8 @@ let apply_at =
   );
 };
 
-/* where a level sits: module members live under a BRACE tile inside
-   the module tile's def child, so "is my parent a module" is two
-   hops away — thread it */
+/* where a level sits: members live under a brace tile inside the
+   module tile's def child, two hops from the module, so it's threaded */
 type block_ctx =
   | BPlain
   | BModDef /* the module tile's def child: the brace lives here */
@@ -317,8 +297,7 @@ let rec at_level =
     let is_body = (t: Base.tile) =>
       Tile.label(t) == ["{", "}"] && List.length(t.children) == 1;
     /* [after_head]: the tile follows a 2-shard `module X =` head, whose
-       body is its next sibling rather than a child (module members,
-       and every module of a module-rooted program) */
+       body is its next sibling rather than a child */
     let child_bctx =
         (~after_head: bool, t: Base.tile, is_last: bool): block_ctx =>
       if (is_module_tile(t) && is_last) {
@@ -383,9 +362,9 @@ let rec at_level =
     switch (try_children(seg)) {
     | Some(_) as r => r
     | None =>
-      /* contained in one of THIS level's statement/tail spans (e.g.
-         a ModExp test's row id is the inner test term): that span
-         is the item */
+      /* contained in one of this level's statement or tail spans (e.g.
+         a ModExp test's row id is the inner test term): that span is
+         the item */
       switch (
         find((sp: Focus.item_span) =>
           Focus.seg_contains_id(
@@ -420,9 +399,7 @@ let apply_deep =
     seg,
   );
 
-/* append a fresh member INSIDE a module row's body (works at any
-   depth: find_def/splice_def handle both 3-shard `module … in` and
-   2-shard member modules) */
+/* append a fresh member to module [fid]'s body, at any depth */
 let new_inside =
     (~member={js|let new_def = ¿|js}, fid: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) => {
@@ -433,7 +410,7 @@ let new_inside =
       switch (ps) {
       | [] => None
       | [Piece.Tile(bt), ...rest] when Tile.label(bt) == ["{}"] =>
-        /* an EMPTY module body parses as a nullary fused `{}` tile
+        /* an empty module body parses as a nullary fused `{}` tile
            (no child slot): swap in a populated 2-shard brace from a
            scaffold parse */
         switch (parse("module Zz = {" ++ member ++ "} in\n0")) {
@@ -486,12 +463,8 @@ let new_inside =
               let rec back = i =>
                 i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
               let at = back(n);
-              /* the LAST member may be unterminated (mega style:
-                 `…= fun _ -> true\n}`): appending needs a separator
-                 FIRST or the members run together. The chunk is
-                 [member, ;, ws] — reorder it to [;, ws, member] in
-                 that case (the new member becomes the unterminated
-                 last one). */
+              /* after an unterminated last member, the [member, ;, ws]
+                 chunk becomes [;, ws, member] so they don't run together */
               let terminated =
                 at > 0
                 && (
@@ -555,7 +528,6 @@ let apply =
   | _ => apply_deep(~name?, ~mod_root, op, fid, seg)
   };
 
-/* a `;` with a fresh id, for members that need one */
 let fresh_semi = (): option(Piece.t) =>
   Option.bind(member_chunk({js|let zz = 0|js}), chunk =>
     List.find_opt(Focus.is_semi, chunk)
@@ -715,11 +687,10 @@ let insert_near =
   )
   |> Option.map(fst);
 
-/* Alt↑↓: into an expanded module beside the item
-   (at its end going up, its start going down); from a module's first
-   or last member, out to just above or below it. Collapsed modules are
-   stepped over and function bodies keep their items. [owner]: the
-   module whose member the item is. */
+/* Alt↑↓: into an expanded module beside the item (its end going up,
+   its start going down); from a module's first or last member, out to
+   just above or below it. Collapsed modules are stepped over and
+   function bodies keep their items. [owner]: the item's module. */
 let move =
     (
       ~mod_root: bool,
@@ -790,8 +761,7 @@ let move =
     };
   };
 
-/* An edit of a program's items, addressed by id: how the outline
-   changes a program */
+/* how the outline edits a program's items, addressed by id */
 type t =
   | Op(OutlineSidebar.def_op, Id.t)
   | Rename(Id.t, string)
@@ -816,7 +786,6 @@ let typed_name = (text: string): (OutlineTree.kind, string) => {
   );
 };
 
-/* the program as an edit sees it */
 type ctx = {
   mod_root: bool,
   term: Language.Exp.t,

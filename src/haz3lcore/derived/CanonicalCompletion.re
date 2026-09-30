@@ -2646,38 +2646,26 @@ let for_editor = (seg: Segment.t): completion_result => {
 /* Whole-segment reading, kept for the parity gate (Test_CompletionItems) */
 let for_editor_whole = for_editor;
 
-/* === Per-item completion ===
- * A whole-program editor's segment is a sequence of top-level items
- * (Segment.top_items: cut after `…in` tiles and top-level `;`).
- * Completion is decided per item: an item with no incomplete tile is
- * its own completion and comes back PHYSICALLY unchanged, so the
- * pointer-keyed layers downstream (MakeTerm.Incr, Measured.Incr)
- * localize to the edited item; an item with incomplete tiles is
- * completed on its own, memoized on the item's piece identity. A
- * completion that synthesizes a shard at the very END of a non-final
- * item ran off the item — its reading may depend on what follows — so
- * that item is widened by its successor and completed again, bounded
- * by the whole segment, where per-item and whole-segment completion
- * coincide. Parity with complete_segment_deep is test-gated. */
+/* per-item completion over Segment.top_items. a complete item comes back
+ * physically unchanged, so pointer-keyed layers downstream (MakeTerm.Incr,
+ * Measured.Incr) stay local to the edit. an item whose completion runs
+ * off its end may depend on what follows, so it is widened by its
+ * successor and redone. parity with complete_segment_deep is test-gated */
 type item_entry = {
   it_pieces: Segment.t,
   it_result: completion_result,
 };
-/* (sort, anchor = first piece id) -> last completion of that item at
-   that sort; entries are validated by piece identity, so a stale key
-   costs one recompletion. The sort matters: the same items are read at
-   Exp for decorations and at the editor root for semantics. Bounded by
-   wholesale reset: items of every open editor share it. */
+/* (sort, first piece id) -> last completion, validated by piece
+   identity. keyed by sort since items are read at Exp for decorations
+   and at the root for semantics; shared by all editors, bounded by reset */
 let item_cache: Hashtbl.t((Sort.t, Id.t), item_entry) = Hashtbl.create(256);
 let item_cache_bound = 4096;
 let items_completed: ref(int) = ref(0); /* observability for tests */
 
-/* Completing an item in isolation regrouts it in isolation: a hole
-   stands in at an edge for the operand the neighbouring item supplies
-   (the body after a trailing `in`). Such edge grout is debris of the
-   cut, not of the completion — the per-item incremental parse stands
-   in its own hole for a nonconvex item — so drop edge grout the item
-   did not already have. */
+/* completing an item alone grouts an edge whose operand a neighbour
+   supplies (the body after a trailing `in`). that grout is cut debris
+   (the incremental parse adds its own hole), so drop edge grout the
+   item didn't already have */
 let strip_edge_grout =
     (
       ~leading: bool,
@@ -2741,9 +2729,7 @@ let complete_item = (~sort, item: Segment.t): completion_result =>
     };
   };
 
-/* Did completing [item] append material after its last original piece?
-   Either the closing tile grew a shard past its old last one, or the
-   completed item ends in a piece the item did not have. */
+/* did completion append past [item]'s end (a new trailing shard or piece)? */
 let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
   switch (ListUtil.last_opt(item), ListUtil.last_opt(completed)) {
   | (Some(Piece.Tile(t0)), Some(Piece.Tile(t1))) when t0.id == t1.id =>
@@ -2754,10 +2740,8 @@ let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
 
 let items_widened: ref(int) = ref(0); /* observability for tests */
 
-/* The cached reading anchored at [item] may cover a widened block; if
-   the following items add up to exactly its length, try the block
-   first (its identity check decides), so a stable widened block hits
-   the memo instead of recompleting twice per frame. */
+/* the cache entry at [item] may be a widened block: when the next items
+   match it piece for piece, take the block, so a stable one hits the memo */
 let cached_block =
     (~sort: Sort.t, item: Segment.t, rest: list(Segment.t))
     : (Segment.t, list(Segment.t)) =>

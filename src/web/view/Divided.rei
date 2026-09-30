@@ -1,8 +1,8 @@
 open Haz3lcore;
 open Util;
 
-/* A program divided into open cells; see Divided.re. Abstract: the
-   only ways back to a single editor are [close] and [join]. */
+/* A program divided into open cells. Abstract: a whole-program CellEditor
+   comes back only through [join] or a [Joined] result. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type side =

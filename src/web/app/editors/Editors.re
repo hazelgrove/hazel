@@ -527,9 +527,8 @@ module Selection = {
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
     };
 
-  /* Cross-cell jump-to-definition in scratch/documentation stacks
-     (see ScratchMode.Selection.stack_jump_override): (ensure-entry
-     action, new selection, follow-up caret jump) */
+  /* cross-cell jump-to-definition in stacks: (ensure-entry action, new
+     selection, follow-up caret jump) */
   let stack_jump_override =
       (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) =>
     switch (action, model) {
@@ -542,7 +541,7 @@ module Selection = {
     | _ => None
     };
 
-  /* a jump to a tile in no open cell (see ScratchMode.Selection) */
+  /* a jump to a tile in no open cell */
   let closed_jump =
       (tile: Haz3lcore.Id.t, model: Model.t)
       : option((Update.t, t, Update.t)) =>
@@ -556,8 +555,7 @@ module Selection = {
     | _ => None
     };
 
-  /* the selection an outline add/ensure should land on (see
-     ScratchMode.Selection.stack_add_selection) */
+  /* the selection an outline add/ensure lands on */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
     switch (action, model) {
     | (Scratch(sa), Scratch(m))
@@ -567,8 +565,7 @@ module Selection = {
     | _ => None
     };
 
-  /* after an update, the selection names the same pane (see
-     ScratchMode.Selection.follow) */
+  /* after an update, the selection names the same pane */
   let follow = (~before: Model.t, selection: t, after: Model.t): t =>
     switch (selection, before, after) {
     | (Scratch(sel), Scratch(_), Scratch(a))

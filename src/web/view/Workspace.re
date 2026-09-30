@@ -1,9 +1,8 @@
 open Haz3lcore;
 open Util;
 
-/* One slide's program and what it shows. Every edit of the program
-   (cells, the outline's item edits, the agent) and every change of
-   view goes through here. */
+/* One slide's program and what it shows: every program edit (cells,
+   outline, agent) and every view change goes through here. */
 
 module Scratchpad = ScratchModel.Scratchpad;
 module Focus = ScratchFocus;
@@ -44,10 +43,9 @@ module Action = {
 
 open Action;
 
-/* A cell's statics come from its DefStatics item, analyzed in the
-   program's real context, scoped to the ids the cell contains so
-   id-keyed consumers (Arms, occurrence highlight) never see foreign
-   ids. Unused-binder warnings are the engine's, across items. */
+/* a cell's statics: its DefStatics item (analyzed in the program's
+   context) scoped to the cell's ids, so id-keyed consumers never see
+   foreign ones; unused-binder warnings come from across items */
 let project_cell_statics =
     (
       ~item: Haz3lcore.DefStatics.item,
@@ -71,9 +69,8 @@ let project_cell_statics =
       ),
   };
 };
-/* incremental-parse cache for the stacked Force frame: go_incr with
-   a persistent cache replays the top frame exactly and re-parses only
-   the edited item */
+/* incremental-parse cache for a divided program's statics frames:
+   only the edited item re-parses */
 let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
   ref(Haz3lcore.MakeTerm.Incr.mk_cache());
 
@@ -117,8 +114,7 @@ let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
 };
 
 /* the program after an outline edit: statics seeded now (the outline
-   reads them, and the edit's one parse doubles as the next statics
-   frame), manual probes and the caret kept, cells re-cut */
+   reads them), manual probes and the caret kept, cells re-cut */
 let with_segment =
     (~settings: Settings.t, code: Scratchpad.code, new_seg: Segment.t)
     : Scratchpad.code => {
@@ -199,8 +195,8 @@ let with_segment =
   );
 };
 
-/* the program as an item edit sees it: the current document, whatever
-   the statics frames have caught up with */
+/* the program as an item edit sees it: parsed from the current
+   document, which the statics may lag */
 let item_ctx =
     (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
   let seg = Program.document(program);
@@ -239,7 +235,6 @@ let update =
     )
     : Updated.t(code) => {
   open Updated;
-  /* an edit in one pane of an open cell */
   let cell_update = (id, side: Divided.side, a) =>
     switch (code.program) {
     | Divided(d) =>
@@ -277,9 +272,8 @@ let update =
     };
   switch (action) {
   | AgentAction(a) =>
-    /* the agent reads and edits the whole program: a divided one is
-       joined for it, and re-divided with the same cells if it changed
-       anything */
+    /* the agent reads and edits the whole program: a divided one is joined
+       for it, then re-divided with the same cells if it changed anything */
     let editor = Program.whole_memo(code.program);
     let (agent, updated_editor) =
       Agent.Update.update(a, code.agent, editor, settings, a =>
@@ -434,9 +428,8 @@ let update =
     | _ => code |> return_quiet /* statics not ready: retry */
     }
   | RestoreCaret(p) =>
-    /* clearing here (not at schedule time) makes delivery robust: the
-       boot-time calculate runs with a no-op scheduler, so the table
-       keeps re-scheduling until a real action loop picks it up */
+    /* cleared here, not when scheduled: boot's calculate has a no-op
+       scheduler, so the entry must survive until a real loop runs it */
     Hashtbl.remove(Persist.pending_caret, slide_key);
     switch (code.program) {
     | Whole(editor) =>
@@ -488,10 +481,9 @@ let update =
   };
 };
 
-/* per-cell calculate memo: a cell that comes in physically identical
-   to the last calculate's output is already calculated (update
-   replaces a cell only when it's edited). Reuse also keeps the cell's
-   identity, which the stack view cache keys on. */
+/* per-cell calculate memo: a cell physically equal to the last output
+   is already calculated (update replaces only edited cells), and reuse
+   keeps the identity the view cache keys on */
 let calc_entry_memo:
   Hashtbl.t(
     Haz3lcore.Id.t,
@@ -524,9 +516,8 @@ let calculate =
           (n: OutlineTree.node) => n.o_label != "",
           OutlineTree.of_term(editor.editor.statics.term),
         ) =>
-    /* only once statics carries a named outline: hydration's first
-       frames run against placeholder programs (whose outline is a lone
-       unnamed ⇒ row), and resolving there would drop the pins */
+    /* only once statics has a named outline: early hydration frames see
+       a placeholder (a lone unnamed ⇒ row), where resolving drops pins */
     schedule_action(RestorePins)
   | _ => ()
   };
@@ -561,9 +552,8 @@ let calculate =
       );
     | Divided(d) =>
       /* on statics frames, compositional statics of the assembled
-         document: a rename in one cell errors its users in the
-         others, and cells whose item changed recapture their ctx.
-         Only dirty items re-analyze. */
+         document, re-analyzing only dirty items: a rename in one cell
+         errors its users in others; changed items' cells recapture ctx */
       let (d, ds) =
         if (statics_mode == StaticsMode.Force || !Divided.has_fresh_statics(d)) {
           let spliced = Divided.document(d);

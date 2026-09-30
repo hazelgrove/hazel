@@ -26,13 +26,9 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
-    /* load-time evaluations (fresh slide/load, and the settle churn
-       that re-requests as statics stabilize) show no pending-eval
-       highlight: the whole program is pending, and a wall of grey
-       boxes on startup is noise (and thousands of overlay nodes).
-       The highlight is for re-evaluation after USER EDITS — and load
-       frames also claim is_edited, so an edit only counts once a
-       first result exists. */
+    /* the pending-eval highlight is for re-evaluation after user edits;
+       load-time evals (the whole program pending) show none. load frames
+       also claim is_edited, so an edit counts only once a result exists */
     has_result: bool,
     edited_since_load: bool,
     display,
@@ -137,16 +133,11 @@ module Model = {
     };
 };
 
-/* Result values can be giant shared GRAPHS (a module value embeds
-   every member AST; tree walks multiply the sharing away — Statics.mk
-   on one raw value measured 574k info entries / ~17s). Cap the term
-   at the door: the pruned copy feeds BOTH the display segment and the
-   stitched statics; under-budget values pass through untouched, and
-   the raw (ship-pruned) value stays in the model for semantic
-   consumers. The worker ships values pruned to a slightly LARGER
-   budget, so this prune trips exactly iff the shipped value was
-   truncated — driving the console warning and the result strip's
-   truncation note. */
+/* result values can be giant shared graphs (a module value embeds every
+   member AST) that tree walks unshare. the pruned copy feeds both the
+   display and its statics; the model keeps the shipped value. the worker
+   prunes to a slightly larger budget, so the display prune trips exactly
+   when the value was truncated anywhere along the way */
 let display_budget = 5_000;
 
 let exceeds_display_budget = (e: Exp.t): bool =>
@@ -275,9 +266,8 @@ module Update = {
       (
         ~settings: CoreSettings.t,
         ~queue_worker: option(WorkerServer.Request.value => unit),
-        /* the pending-eval worklist feeds THIS editor's own pending
-           highlight; hosts whose editor isn't rendered (the hidden
-           master while a stack is open) skip the O(program) walk */
+        /* false where this editor isn't rendered (the hidden master under
+           an open stack): skips the O(program) pending-eval worklist */
         ~compute_pending=true,
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
@@ -316,11 +306,8 @@ module Update = {
     let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
-     * entries contain OCaml closures. LAZY: the projection folds the
-     * WHOLE info_map (O(program)), and this calculate runs on every
-     * action — including each streaming-eval update, where nothing
-     * forces it. Post-load stream processing on mega programs was
-     * paying it hundreds of times. */
+     * entries contain OCaml closures. Lazy: the projection is O(program)
+     * and most calls (e.g. each stream update) never force it. */
     let eval_info_map =
       lazy(
         EvalInfo.of_info_map(
@@ -341,16 +328,14 @@ module Update = {
         | _ when !settings.dynamics => ProgramResult.awaiting_worker_ack
         // Using the webworker:
         | Some(queue_worker) =>
-          /* the worker keeps its own incremental cache per key — do
-             NOT ship prev (it dominated the payload; see
-             WorkerServer.Request.prev_source) */
+          /* the worker keeps its own incremental cache; shipping prev
+             would dominate the payload */
           queue_worker({
             expr: elab,
             eval_info_map: Lazy.force(eval_info_map),
             prev: UseResident,
-            /* highlight off ⇒ stream only effect-bearing entries
-               (tests/probes); husk chunks cost a main-thread render
-               cycle each (WorkerServer.Request.stream_interest) */
+            /* highlight off: stream only effect-bearing entries (tests,
+               probes); each streamed chunk costs a main-thread render */
             stream: Language.EvalWorklist.compute_enabled^ ? Full : Effects,
           });
           ProgramResult.awaiting_worker_ack;
@@ -418,8 +403,7 @@ module Update = {
         and.calc streaming_outbox = streaming_outbox;
         switch (streaming_outbox) {
         | Some(streaming_outbox) =>
-          /* incremental: O(chunk) per stream message instead of an
-             O(program) walk (the walk was ~1s per chunk on mega-2k) */
+          /* incremental: O(chunk) per stream message, not O(program) */
           let (inc, state) =
             StreamCollector.collect_stream_state_inc(
               ~prev=stream_inc^,
@@ -475,7 +459,7 @@ module Update = {
         };
       };
 
-    // Calculate the display (giant values: see prune_for_display)
+    // Calculate the display
     let display =
       switch (display) {
       | Evaluation(ev_display) =>
@@ -506,10 +490,8 @@ module Update = {
              Option.map(((exp, editor)) => {
                let display_exp = prune_for_display(exp);
                let settings = settings |> Calc.get_value;
-               /* the value's statics come from the value itself, and
-                  only when it changed: parsing its printed text would be
-                  thrown away, and a giant value (a module's exports)
-                  made every program edit pay for it */
+               /* statics from the value itself (not its printed text), and
+                  only when it changed: a giant value would tax every edit */
                (
                  exp,
                  CodeSelectable.Update.calculate(
@@ -671,9 +653,6 @@ module View = {
         result: ProgramResult.t(ProgramResult.inner),
         editor: option((Exp.t, CodeSelectable.Model.t)),
       ) => {
-    /* the shipped value arrives pruned to a slightly larger budget
-       than the display's, so this trips exactly when the value was
-       truncated anywhere along the way */
     let truncated =
       switch (editor) {
       | Some((exp, _)) => value_truncated(exp)

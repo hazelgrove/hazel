@@ -65,9 +65,8 @@ let view =
   open Haz3lcore;
   let side = side_of(z);
   let origin = Zipper.Caret.point(measured, z);
-  /* the caret's model position doubles as the reveal input: the
-     scroll check reads it instead of the caret's DOM rect
-     (CaretReveal; only the selected editor renders a caret) */
+  /* CaretReveal reads this instead of the caret's DOM rect (only the
+     selected editor renders a caret) */
   CaretReveal.publish(~row=origin.row, ~row_height=font_metrics.row_height);
   main(
     ~font_metrics,

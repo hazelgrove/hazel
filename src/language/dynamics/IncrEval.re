@@ -42,8 +42,8 @@ type entry('state) = {
   prev_probe_targets: EvalInfo.probe_targets,
   value: DHExp.t,
   state: 'state,
-  /* step count at RECORD time: monotone in this run's evaluation
-     order — the stream collector orders same-chunk regions by it */
+  /* step count when recorded, monotone in evaluation order; the stream
+     collector orders same-chunk regions by it */
   seq: int,
 };
 
@@ -142,8 +142,7 @@ let copy_descendant_entries =
 };
 
 /* Surface ids covered by cache entries: each entry short-circuits a subtree,
- * so expand via prev_elab rather than using only the map keys. Used by the
- * pending-eval worklist to drop settled ids. */
+ * so expand via prev_elab rather than using only the map keys. */
 let visible_id_set = (incr: t('state)): Id.Set.t => {
   let acc = ref(Id.Set.empty);
   let collect_subtree = (root: Exp.t): unit => {

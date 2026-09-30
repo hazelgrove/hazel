@@ -1,29 +1,25 @@
 open Language;
 
-/* The module/definition tree behind the outline sidebar. Walks the
-   program term: top-level
-   definitions, module members (recursively), let-in / type-in
-   definitions inside function bodies, and — at TOP level only —
-   semicolon statements (tests grouped into a container) plus the
-   trailing expression (the symbolic ⇒ row). Every node carries a
-   jump id in the chain-item id domain (DefStatics/ItemEdit). */
+/* the module/definition tree behind the outline sidebar: definitions,
+   module members and nested lets, plus `…;` statements and trailing ⇒
+   rows. row ids are chain-item ids (as in DefStatics and ItemEdit) */
 
 type kind =
   | KModule
   | KFn
   | KConst
   | KType
-  | KTest /* one top-level `test … end;` statement */
+  | KTest /* one `test … end;` statement */
   | KTests /* container for a contiguous run of tests */
-  | KStmt /* any other top-level `…;` statement */
-  | KTrail; /* the program's trailing expression */
+  | KStmt /* any other `…;` statement */
+  | KTrail; /* a block's trailing expression */
 
 type node = {
   o_label: string,
   o_kind: kind,
   o_id: option(Id.t),
-  /* KTest: the Test term's own id — test-result lookup (o_id is the
-     enclosing Seq item, the open/jump/restructure handle) */
+  /* KTest: the Test term's own id, for result lookup (o_id is the
+     enclosing item, the open/jump/restructure handle) */
   o_test: option(Id.t),
   o_children: list(node),
 };
@@ -50,11 +46,9 @@ let rec pat_name = (p: Pat.t): option(string) =>
   | _ => None
   };
 
-/* every BLOCK — the top-level program, a named function's body — is
-   an item chain: defs, `…;` statements (tests get status rows), and
-   the trailing body. Nested blocks show their ⇒ row only when the
-   block actually has other items (a def-less body gets no lone ⇒);
-   the top level keeps ⇒ unconditionally (it anchors the result). */
+/* a block (the program, a function body) is an item chain: defs, `…;`
+   statements and the trailing body. a nested block shows its ⇒ row only
+   beside other items; the top level always does (it anchors the result) */
 let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   let e = strip_exp(e);
   switch (e.term) {
@@ -128,8 +122,7 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   };
 }
 
-/* a nested block (function body): items plus — only if divided — its
-   trailing body as a ⇒ row */
+/* a function body's items, plus its trailing body as a ⇒ row if any */
 and of_block = (fbody: Exp.t): list(node) => {
   let items = of_exp(fbody);
   switch (items) {
@@ -245,9 +238,8 @@ and of_mod = (items: list(Language.Mod.t)): list(node) =>
     items,
   );
 
-/* group each contiguous run of ≥2 tests (at ANY block level) under a
-   container row (aggregate ✓/✗ in the view); singleton tests stay
-   flat */
+/* each run of ≥2 tests, at any level, goes under a container row; a lone
+   test stays flat */
 let rec group_tests = (ns: list(node)): list(node) =>
   switch (ns) {
   | [] => []
@@ -302,10 +294,8 @@ let number_tests = (ns: list(node)): list(node) => {
   go(ns);
 };
 
-/* memoized on the term's PHYSICAL identity: statics rebuilds the term
-   only when the program changes, so between edits (and on every
-   render while a focus stack is open) this is a pointer compare —
-   the unmemoized walk was O(program) per keystroke */
+/* memoized on the term's physical identity, which statics keeps until
+   the program changes */
 let cache: ref(option((Exp.t, list(node)))) = ref(None);
 
 let of_term = (e: Exp.t): list(node) =>
@@ -317,9 +307,8 @@ let of_term = (e: Exp.t): list(node) =>
     tree;
   };
 
-/* ancestor labels of the node with id [fid], outermost first — the
-   stacked header's qualifier chip (e.g. ["Geo"] for a member of
-   module Geo, ["Geo", "area"] for a let nested in a member fn) */
+/* ancestor labels of the node with id [fid], outermost first, for the
+   stacked header's qualifier chip (["Geo"] for a member of module Geo) */
 let path_of = (fid: Id.t, e: Exp.t): list(string) => {
   let rec go = (trail, ns: list(node)) =>
     List.fold_left(
@@ -337,12 +326,9 @@ let path_of = (fid: Id.t, e: Exp.t): list(string) => {
   go([], of_term(e)) |> Option.value(~default=[]);
 };
 
-/* durable NAME anchor for a row: outline labels root-to-node,
-   OCCURRENCE-qualified — labels alone are not unique (duplicate
-   definitions, two separated `tests` groups), and first-match
-   resolution crossed wires between them. Text-backed persistence
-   re-mints ids on every load, so pins save as these paths and
-   re-resolve against the loaded outline. */
+/* a durable name for a row: its labels root to node, each qualified by
+   occurrence (labels repeat). persistence re-mints ids on load, so pins
+   save as paths and re-resolve against the loaded outline */
 open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type path_seg = {
@@ -352,13 +338,10 @@ type path_seg = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type path = list(path_seg);
 
-/* pair each node with its occurrence index — the ONE counting
-   discipline shared by label_path, resolve_path, and the sidebar's
-   collapse paths (diverging counters would cross wires again) */
-/* each row's path segment: its label, and its place among the
-   siblings sharing that label. Tests and test groups have no names of
-   their own, so they go by the named row before them (`tests@b`):
-   adding a test elsewhere leaves them where they were */
+/* each row's path segment: its label and its index among same-labeled
+   siblings; tests and test groups go by the named row before them
+   (`tests@b`), so adding a test elsewhere leaves them put. label_path,
+   resolve_path and the sidebar's collapse paths must all count here */
 let segs = (ns: list(node)): list((node, path_seg)) => {
   let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
   let prev = ref("");
@@ -420,7 +403,6 @@ let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   go(path, of_term(e));
 };
 
-/* the kind of the row with id [fid], if any */
 let kind_of = (fid: Id.t, e: Exp.t): option(kind) => {
   let rec go = (ns: list(node)) =>
     List.fold_left(
@@ -435,8 +417,8 @@ let kind_of = (fid: Id.t, e: Exp.t): option(kind) => {
   go(of_term(e));
 };
 
-/* every id in the SUBTREE rooted at [fid] (excluding fid itself) —
-   pinning a parent unpins its pinned descendants */
+/* ids below [fid] (not fid itself): pinning a parent unpins its pinned
+   descendants */
 let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
   let rec collect = (ns: list(node)): list(Id.t) =>
     List.concat_map(
@@ -482,7 +464,6 @@ let trail_of = (fid: Id.t, e: Exp.t): option(list(Id.t)) => {
   go([], of_term(e));
 };
 
-/* the row with id [fid] */
 let node_of = (fid: Id.t, e: Exp.t): option(node) => {
   let rec go = (ns: list(node)) =>
     List.fold_left(

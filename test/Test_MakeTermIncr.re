@@ -2,11 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Exact-parity gate for the incremental full parse (MakeTerm.Incr.
-   go_incr): on the mega corpus and structure edge cases, the per-item
-   composed record must equal MakeTerm.go's on every field, the memo
-   must localize reparses, and the exception fallback must not fire.
-     bash test/run_node.sh test 'MakeTermIncr' */
+/* MakeTerm.Incr.go_incr's record equals MakeTerm.go's on every field,
+   reparses only changed items, and never falls back */
 
 let corpus_seg = CorpusUtil.corpus_seg(~root=Exp);
 
@@ -71,7 +68,6 @@ let corpus_case = (file: string, ()) =>
   | None => fail("corpus unreadable/unparseable: " ++ file)
   | Some(seg) =>
     let cache = check_parity(file, seg);
-    /* identical rebuild: nothing reparses */
     let a0 = MakeTerm.Incr.full_analyzed^;
     let _ = MakeTerm.Incr.go_incr(~cache, seg);
     check(
@@ -80,7 +76,7 @@ let corpus_case = (file: string, ()) =>
       a0,
       MakeTerm.Incr.full_analyzed^,
     );
-    /* localized change: one item reparses, record stays exact */
+    /* a physically fresh copy of one piece: one item reparses */
     let n = List.length(seg);
     let seg' = List.mapi((i, p) => i == n / 2 ? copy_piece(p) : p, seg);
     let a1 = MakeTerm.Incr.full_analyzed^;
@@ -90,8 +86,6 @@ let corpus_case = (file: string, ()) =>
     records_agree(file ++ ":after edit", MakeTerm.go(seg'), incr_r);
   };
 
-/* structure edge cases: sequencing, aliases, adoption forms (lists,
-   case), top-level operator trees in the tail, comments/blank lines */
 let edge_programs = [
   ("two defs", "let a = 1 in\nlet b = 2 in\na + b"),
   ("tail op tree", "let a = 1 in\na + 2 * 3 - 4"),
@@ -115,8 +109,7 @@ let edge_case = ((name, src), ()) =>
   | Some(seg) => ignore(check_parity(name, seg))
   };
 
-/* a parse's result doesn't depend on what the previous parse left:
-   the shard masks of a completed-program parse stay with that parse */
+/* shard masks from one parse don't leak into the next */
 let independent = () =>
   switch (ParsedCorpus.to_segment(~root=Exp, "let x = 1 in\nx")) {
   | Some([Tile(t), ..._] as seg) =>

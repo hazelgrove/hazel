@@ -2,15 +2,13 @@ open Haz3lcore;
 open Util;
 open Virtual_dom.Vdom;
 
-/* The outline sidebar: what it shows and what it does. Its UI state
-   (context menu, keyboard cursor, a name being typed) lives here; its
-   collapse state is saved with the slide. */
+/* The outline sidebar. Its transient UI state lives in the refs below;
+   its collapse state is saved with the slide. */
 
 module Scratchpad = ScratchModel.Scratchpad;
 module Persist = ScratchPersist;
 
-/* context-menu state (row id, whether a module, screen position):
-   transient UI, not model data */
+/* the context menu: (row id, whether a module, screen x, y) */
 let menu: ref(option((Id.t, bool, float, float))) = ref(None);
 
 /* the keyboard cursor: a row path, None for the header row */
@@ -109,7 +107,6 @@ let update =
       let code = Workspace.with_segment(~settings, code, new_seg);
       switch (op, target, code.program) {
       | (MoveUp | MoveDown, Some(id), _) =>
-        /* the cursor follows the moved item */
         cursor :=
           OutlineTree.label_path(id, Program.statics(code.program).term)
       | (_, Some(id), Whole(_)) => schedule_workspace(FocusToggle(id))
@@ -273,10 +270,8 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
     );
   };
 
-/* single-slot vdom memo: the roll-up walk, row construction and diff
-   are O(program) per render, and the inputs change on statics frames
-   and outline interaction, not per keystroke. Parts rebuilt on change
-   compare physically, small ones structurally. */
+/* single-slot vdom memo: building the outline is O(program), but its
+   inputs change on statics frames and outline use, not per keystroke */
 type memo_key = {
   k_statics: CachedStatics.t,
   k_focused: list((Id.t, option(string))),
@@ -312,9 +307,8 @@ let same = (a: memo_key, b: memo_key): bool =>
     }
   );
 
-/* the outline of the current program: the slide's whole program in
-   Scratch and Documentation, else the current editor's ([statics],
-   [segment]) */
+/* the outline of the slide's whole program in Scratch and Documentation,
+   else of the current editor's [statics] and [segment] */
 let view =
     (
       ~deck: option(deck),
@@ -366,9 +360,8 @@ let view =
   switch (memo^) {
   | Some((k, node)) when same(k, key) => node
   | _ =>
-    /* statics compacted by undo carry no term until they recompute:
-       the outline parses this slide's program instead (never another
-       document's) */
+    /* statics compacted by undo have no term until they recompute: parse
+       this slide's program instead (never another document's) */
     let term =
       switch (program) {
       | Some(p)

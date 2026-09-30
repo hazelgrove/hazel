@@ -1,7 +1,6 @@
-/* Focus targets the definition's RHS child segment (between `=` and
-   `in`/`;`), a complete, properly-grouted expression. Slicing the
-   whole `let…in` tile instead leaves a prefix tile without its operand
-   and crashes Skel. */
+/* A cell's body is the definition's RHS child segment (between `=` and
+   `in`/`;`), complete and grouted; slicing the whole `let…in` tile
+   leaves a prefix tile without its operand and crashes Skel. */
 open Haz3lcore;
 
 let ends_with_in = (t: Base.tile): bool =>
@@ -14,13 +13,9 @@ let is_semi = (p: Piece.t): bool =>
   | Tile(t) => Tile.label(t) == [";"]
   | _ => false
   };
-/* Edge-whitespace handling: the raw pat/def slices carry the
-   master's padding (spaces around the pat, the linebreak+indent
-   before a def) — in an isolated cell that reads as stray
-   whitespace begging to be deleted. Cells hold the TRIMMED core;
-   the splice re-wraps with whatever edge whitespace the (stale)
-   master copy still carries, so padding round-trips without being
-   stored. Comments are content, not padding — they stay. */
+/* cells hold slices without edge whitespace (stray in an isolated
+   cell); splicing re-wraps them in the program's own padding, so it
+   round-trips unstored. Comments are content, not padding. */
 let is_edge_ws = (p: Piece.t): bool =>
   switch (p) {
   | Secondary({content: Whitespace(_), _}) => true
@@ -45,8 +40,8 @@ let core_ws = (seg: Segment.t): Segment.t => {
   core;
 };
 
-/* re-wrap [content] in the edge whitespace of the segment [find]
-   locates in [seg] (the master's copy, untouched while focused) */
+/* [content] in the edge whitespace of [find]'s slice of [seg], which
+   is untouched while the cell is open */
 let rewrap_ws =
     (find: (Id.t, Segment.t) => option(Segment.t), fid, seg, content)
     : Segment.t =>
@@ -57,7 +52,6 @@ let rewrap_ws =
   | None => content
   };
 
-/* does [seg] contain a piece with id [target] (recursively)? */
 let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
   List.exists(
     (p: Piece.t) =>
@@ -96,20 +90,16 @@ let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
   go([], ps);
 };
 
-/* --- top-level item spans, BY PIECE STRUCTURE (no parse) ---
-   Boundaries are `…in`-tiles (def items: the tile + trailing ws)
-   and top-level `;`s (statement items: the run since the previous
-   boundary through the `;` + trailing ws); whatever remains is the
-   trailing expression. Spans partition the top-level piece list, so
-   restructure ops and headerless cells slice/splice without ever
-   parsing the program. */
+/* top-level item spans by piece structure, without parsing: an `…in`
+   tile (+ trailing ws) is a def item, the run through a top-level `;`
+   (+ ws) a statement, and what remains the trailing expression */
 type item_kind =
   | IDef /* let / type / module: header+body cells */
   | IStmt /* a `…;` statement: headerless cell */
   | ITail; /* the trailing expression: headerless cell */
 
 type item_span = {
-  sp_id: option(Id.t), /* the boundary tile's id; None for the tail */
+  sp_id: option(Id.t), /* the def head or `;` tile; None for the tail */
   sp_start: int,
   sp_stop: int, /* exclusive */
   sp_kind: item_kind,
@@ -124,9 +114,8 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
     | Tile(t) => ends_with_in(t)
     | _ => false
     };
-  /* MODULE BODIES have 2-shard member defs terminated by `;`: a
-     `;`-run whose first tile is a def head is a DEF item, not a
-     statement (its cell takes the header/body path) */
+  /* module bodies have 2-shard member defs ended by `;`: a `;`-run
+     starting with a def head is a def item, not a statement */
   let run_def_head = (start: int, stop: int): option(Id.t) => {
     let rec first_tile = i =>
       i >= stop
@@ -159,10 +148,9 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
       let tail_ok =
         switch (run_def_head(start, len)) {
         | Some(_) => true
-        /* a boundary-less segment is an EXPRESSION, not a block: its
-           content must not read as a trailing item (deep containment
-           would otherwise swallow arbitrary ids). The program's own
-           top level keeps unconditional tails (the ⇒ row). */
+        /* a nested segment without boundaries is an expression, not a
+           block, so no tail item (deep containment would swallow
+           arbitrary ids); the program's top level keeps its tail */
         | None => !divided_only_tail || acc != []
         };
       List.rev(
@@ -225,9 +213,8 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
   walk(0, 0, []);
 };
 
-/* the span holding [fid]: by boundary id first, then containment
-   (outline ids can be tiles INSIDE an item — module binders, the
-   trailing expression's root) */
+/* the span holding [fid]: by its id first, then containment (outline
+   ids can be tiles inside an item: module binders, the tail's root) */
 let find_item_span =
     (~divided_only_tail=false, fid: Id.t, seg: Segment.t): option(item_span) => {
   let spans = item_spans(~divided_only_tail, seg);
@@ -241,9 +228,8 @@ let find_item_span =
   };
 };
 
-/* the content sub-span a HEADERLESS item's cell holds (statement:
-   the run before its `;`; trailing expr: the whole span), plus the
-   static header symbol. None for def items. */
+/* the sub-span a headerless item's cell holds (a statement's run before
+   its `;`, or the whole tail) and its header symbol; None for defs */
 let headless_span =
     (~divided_only_tail=false, fid: Id.t, seg: Segment.t)
     : option((int, int, string)) =>
@@ -260,11 +246,9 @@ let headless_span =
   | _ => None
   };
 
-/* headless extraction/splice at ANY block depth: try this segment's
-   top level, then recurse into tile children. Nested blocks (module
-   bodies, fn bodies) share the boundary structure (`…in`-tiles and
-   `;`s), so the same span walk applies at each level; a nested id
-   contained in a DEF span yields None there and recursion descends. */
+/* headerless content at any block depth: nested blocks share the
+   boundary structure, so the span walk applies at each level; an id
+   inside a def span yields None there and the walk descends */
 let rec headless_deep_go =
         (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
   switch (headless_span(~divided_only_tail=true, fid, seg)) {
@@ -281,8 +265,8 @@ let rec headless_deep_go =
     )
   };
 
-/* the top level keeps unconditional-tail semantics (the ⇒ row of a
-   bare-expression program); nested levels require DIVIDED blocks */
+/* the top level's tail is unconditional (the ⇒ row); nested levels
+   have one only after an item boundary */
 let headless_content_deep =
     (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
   switch (headless_span(fid, seg)) {
@@ -299,20 +283,16 @@ let headless_content_deep =
     )
   };
 
-/* identity-preserving map: return [xs] ITSELF when f changed nothing.
-   The splice walks below rebuilt EVERY tile record on every splice
-   (fresh children lists ⇒ fresh tiles all the way up), re-minting the
-   whole spliced segment each Force frame — which defeated every
-   pointer-keyed cache downstream (incremental parse slices, outline
-   term memo, W2 item diffing). Splices must only re-mint the spine
-   ABOVE the actual replacement. */
+/* identity-preserving map: [xs] itself when [f] changed nothing, so
+   splices re-mint only the spine above the replacement and pointer-keyed
+   caches downstream (incremental parse, outline memo) still hit */
 let map_sharing = (f: 'a => 'a, xs: list('a)): list('a) => {
   let ys = List.map(f, xs);
   List.for_all2((===), xs, ys) ? xs : ys;
 };
 
-/* NB returns the ORIGINAL piece on no-change: rebuilding even the
-   variant wrapper (Piece.Tile(t)) breaks pointer equality upstream */
+/* the original piece on no change: rebuilding even the variant wrapper
+   (Piece.Tile(t)) breaks pointer equality upstream */
 let tile_sharing =
     (p: Piece.t, t: Base.tile, children: list(Segment.t)): Piece.t =>
   children === t.children
@@ -343,8 +323,8 @@ let splice_headless_deep =
   go(~top=true, seg);
 };
 
-/* --- contiguous TEST RUNS (the outline's "tests" container pins
-   one cell spanning the whole run) --- */
+/* contiguous test runs: the outline's "tests" container opens one cell
+   spanning the whole run */
 let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
   if (sp.sp_kind != IStmt) {
     false;
@@ -368,11 +348,9 @@ let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
     };
   };
 
-/* the first `test` tile's id within a span — module members are
-   repped by their test TILE (Mod.rep_id), while top-level statements
-   are repped by their `;` (Seq's rep), so run members carry both id
-   domains (harmless supersets: the sidebar/covering checks are
-   membership tests against outline ids) */
+/* the span's leading `test` tile: module members are repped by it,
+   top-level statements by their `;`, so run members carry both ids
+   (harmless: consumers test membership against outline ids) */
 let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
   let rec go = i =>
     i >= sp.sp_stop
@@ -390,14 +368,10 @@ let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
   go(sp.sp_start);
 };
 
-/* the maximal run of adjacent test statements containing [fid]:
-   (content start, content stop — before the LAST `;` + trivia,
-   which stay master-side like any statement's — member item ids).
-   [fid] may be a span's boundary id OR any id inside it (module
-   members are repped by their test tile, not the `;`). In a MODULE
-   body a final no-`;` member parses as the tail span but is an
-   ordinary member — no tail semantics — so it joins the run; in
-   expression blocks the tail is the block's value and never does. */
+/* the maximal run of adjacent test statements holding [fid], as (start,
+   stop, member ids); the last `;` stays outside, like a statement's. In
+   a module body a final `;`-less test parses as the tail but joins the
+   run; an expression block's tail is its value and never does. */
 let test_run =
     (~module_body=false, fid: Id.t, seg: Segment.t)
     : option((int, int, list(Id.t))) => {
@@ -443,10 +417,7 @@ let test_run =
   };
 };
 
-/* test runs at ANY block depth (module bodies, fn bodies), mirroring
-   the headless_deep pattern: try this level's span walk, then recurse
-   into tile children — the sidebar's tests container pins the same
-   one-cell run at every level */
+/* test runs at any block depth, like headless_deep_go */
 let rec test_run_deep_go =
         (~module_body: bool, fid: Id.t, seg: Segment.t)
         : option((Segment.t, list(Id.t))) =>
@@ -473,8 +444,6 @@ let rec test_run_deep_go =
 let test_run_deep = (fid: Id.t, seg: Segment.t) =>
   test_run_deep_go(~module_body=false, fid, seg);
 
-/* splice a run cell home at any depth; identity-preserving off the
-   replacement path, like splice_headless_deep */
 let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
   let rec go = (~module_body: bool, seg: Segment.t): Segment.t =>
     switch (test_run(~module_body, fid, seg)) {
@@ -502,11 +471,9 @@ let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
   go(~module_body=false, seg);
 };
 
-/* The definition RHS for the item tile [fid]:
-   - `let … = … in` (3 shards): the def is the tile's LAST CHILD;
-   - module-member `let … =` (2 shards): the def is the SIBLING run
-     after the tile, up to the member separator `;` (or segment end).
-   Returns a complete, properly-grouted child segment either way. */
+/* the definition RHS of item [fid]: a 3-shard `let … = … in`'s last
+   child, or for a 2-shard member `let … =`, the sibling run after it
+   up to the next `;` (or segment end) */
 let rec find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) => {
   let rec scan = (ps: list(Piece.t)): option(Segment.t) =>
     switch (ps) {
@@ -536,7 +503,6 @@ let rec find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) => {
   scan(seg);
 };
 
-/* replace the definition RHS of item [fid] with [repl] */
 let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
   let rec scan = (ps: list(Piece.t)): list(Piece.t) =>
     switch (ps) {
@@ -562,9 +528,8 @@ let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => 
       ]
     | [p, ...rest] => [p, ...scan(rest)]
     };
-  /* preserve LIST identity on no-change: parents compare child
-     segments by ===, so a fresh-cons copy of identical pieces would
-     still rebuild every ancestor tile */
+  /* keep the list itself on no change: parents compare child segments
+     by ===, so a fresh copy would still rebuild every ancestor tile */
   let out = scan(seg);
   Segment.ptr_eq(out, seg) ? seg : out;
 };
@@ -572,7 +537,7 @@ let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => 
 let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
   Zipper.unselect_and_zip(cell.editor.editor.state.zipper);
 
-/* caret starts at the TOP of a fresh cell: unzip's default
+/* the caret starts at the top of a fresh cell: unzip's default
    direction (Right) would leave it after the whole segment */
 let cell_of_seg = (~root=Sort.Exp, seg: Segment.t): CellEditor.Model.t =>
   seg
@@ -598,8 +563,7 @@ let tpat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
   |> Editor.Model.mk(~root=TPat)
   |> CellEditor.Model.mk;
 
-/* is the item tile a `type … = …` alias? (roots differ: Typ body,
-   TPat header) */
+/* a `type … = …` alias takes a Typ body and a TPat header */
 let rec is_type_item = (fid: Id.t, seg: Segment.t): bool =>
   List.exists(
     (p: Piece.t) =>
@@ -630,8 +594,7 @@ let rec is_module_item = (fid: Id.t, seg: Segment.t): bool =>
     seg,
   );
 
-/* the pattern (header) is the FIRST child for every focusable item
-   shape: `let <pat> = …` 2- and 3-shard alike */
+/* the header pattern is the first child of 2- and 3-shard items alike */
 let rec find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
   List.fold_left(
     (acc, p: Piece.t) =>
@@ -677,12 +640,8 @@ let rec splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
     seg,
   );
 
-/* the master slide with the live focus-cell content spliced back in
-   (pure; used by unfocus AND by persistence while focused) */
-/* build a stack entry for the item [fid] (None if not found) */
-/* the ctx INSIDE the def — params included, which matters for
-   funlets: the first info found among the def's pieces, falling
-   back to the item's own info */
+/* the ctx inside the def, params included (funlets need them): the
+   first info among the def's pieces, else the item's own */
 let captured_ctx =
     (~info_map: Language.Statics.Map.t, fid: Id.t, def_seg: Segment.t)
     : option(Language.Ctx.t) => {
@@ -717,8 +676,8 @@ let captured_ctx =
   };
 };
 
-/* headerless entries carry an empty (grout) header cell — never
-   rendered, never spliced; a bare [] zipper would crash Skel */
+/* headerless cells carry a grout header, never rendered or spliced: a
+   bare [] zipper would crash Skel */
 let empty_header_cell = (): CellEditor.Model.t =>
   pat_cell_of_seg([
     Piece.Grout({
@@ -837,8 +796,6 @@ let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
     def_seg,
   );
 
-/* a module as its members alone (a zoomed module): MOD-rooted, the
-   braces stay in the program */
 let mk_members_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(ScratchCell.t) =>
@@ -875,8 +832,6 @@ let mk_members_entry =
       }
     );
 
-/* ONE cell for a whole contiguous test run (outline "tests"
-   container), anchored at the FIRST test's item id */
 let mk_run_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(ScratchCell.t) =>
@@ -909,8 +864,7 @@ let mk_run_entry =
       }
     );
 
-/* splice ONE entry's header+body home into [seg], restoring the
-   edge whitespace the master's stale copies still carry */
+/* splice a cell's text back into [seg], keeping [seg]'s edge whitespace */
 let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
   switch (e.e_sym) {
   | None when e.e_inner =>
@@ -928,10 +882,7 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
     }
   | Some(_) when e.e_run =>
     splice_run_deep(e.e_id, zip_of_cell(e.e_body), seg)
-  | Some(_) =>
-    /* headerless: replace the item's content run in place (works at
-       any block depth) */
-    splice_headless_deep(e.e_id, zip_of_cell(e.e_body), seg)
+  | Some(_) => splice_headless_deep(e.e_id, zip_of_cell(e.e_body), seg)
   | None =>
     splice_def(
       e.e_id,
@@ -944,7 +895,6 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
        )
   };
 
-/* the cell-content slice for any entry kind (ctx recapture) */
 let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
   switch (e.e_sym) {
   | None when e.e_inner => Option.bind(find_def(e.e_id, seg), brace_child)

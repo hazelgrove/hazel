@@ -1,17 +1,10 @@
-/* Budget-pruning of runtime VALUES for shipping and display: a
-   program's value can be a giant shared graph (a module's value
-   embeds every member AST), and every tree walk on the main thread —
-   marshal decode, display segment build, result statics — pays for
-   it. Values under the budget pass through UNTOUCHED (physically the
-   same term). Over-budget values prune STRUCTURE-AWARE: tuples and
-   lists keep complete leading elements while the budget lasts,
-   dropped tails are marked by ONE trailing hole, and an over-budget
-   non-structural subtree becomes a single hole. Holes are the
-   type-safe elision (the display statics run on this term; any other
-   marker would light up error decorations). */
+/* budget-pruning of runtime values for shipping and display: a value
+   can be a giant shared graph (a module value embeds every member AST).
+   within-budget values come back physically intact; elisions are holes
+   because display statics run on the result, and any other marker
+   would show as an error */
 
-/* node count if within [budget], None otherwise (bail early: stops
-   descending once the count is exceeded) */
+/* node count if within [budget], else None; stops descending once over */
 let size_within = (budget: int, e: Exp.t): option(int) => {
   let count = ref(0);
   let f = (cont, x: Exp.t) => {
@@ -83,11 +76,9 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
   (pruned, truncated^);
 };
 
-/* strip closure ENVIRONMENTS: they are display-opaque (never printed;
-   the stepper re-evaluates from the elab) but reference most of the
-   program's runtime state. The env is replaced BEFORE the recursive
-   descent, so the walk never enters the shared, program-sized
-   environment structures. */
+/* closure environments are never displayed (the stepper re-evaluates
+   from the elab) but reference most runtime state; replacing them
+   before descending keeps the walk out of them */
 let prune_closure_envs = (e: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_exp=

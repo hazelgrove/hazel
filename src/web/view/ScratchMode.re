@@ -8,14 +8,12 @@ module Model = ScratchModel.Model;
 module Focus = ScratchFocus;
 module Persist = ScratchPersist;
 
-/* the key the current slide's saved state waits under */
 let slide_key = (~is_documentation, model: Model.t): string =>
   Persist.content_key(
     is_documentation ? "doc" : "scratch",
     List.nth(model.scratchpads, model.current).name,
   );
 
-/* the current slide's open cells (none when it is whole) */
 let current_cells = (model: Model.t): list(ScratchCell.t) =>
   switch (Model.current_program(model)) {
   | Some(Divided(d)) => Divided.cells(d)
@@ -298,7 +296,6 @@ module Selection = {
            (Update.Workspace(CellAction(x)), Cell(y))
          )
     | Code({program: Divided(d), _}) =>
-      /* while divided, jump inside the open cell holding the tile */
       let caret: CellEditor.Update.t =
         MainEditor(Perform(Move(Goal(TileId(tile)))));
       let in_cell = cell =>
@@ -325,15 +322,8 @@ module Selection = {
     };
   };
 
-  /* Cross-cell jump-to-definition: a stack cell's jump whose binder is
-     OUTSIDE the cell becomes (ensure the binder's outline item is in
-     the stack, select the pane holding the binder, then a follow-up
-     caret jump there). None = local jump or not a jump — take the
-     normal path. */
-  /* resolve a MASTER-domain id to a cross-cell jump while a stack is
-     open: (open the containing item, focus the right pane, move its
-     caret). Serves goto-definition from any pane AND result-strip /
-     test jumps. */
+  /* a jump to a whole-program id across open cells: (open the item
+     holding it, select the pane holding it, move that pane's caret) */
   let cross_cell_target =
       (~target_id: Haz3lcore.Id.t, ~d: Divided.t)
       : option((Update.t, t, Update.t)) => {
@@ -367,8 +357,7 @@ module Selection = {
           | Some(e) => e.e_id
           | None => fid
           };
-        /* the target lives in the pattern (header cell) for def
-           binders, in the body for everything else */
+        /* def binders live in the header cell, all else in the body */
         let in_header =
           Focus.seg_contains_id(
             target_id,
@@ -441,9 +430,8 @@ module Selection = {
     );
   };
 
-  /* the selection an outline add/ensure should land on: the body pane
-     of the cell that will hold [fid]. None for removals: the selection
-     stays put. */
+  /* where an outline open lands the selection: the body pane of the
+     cell that will hold [fid]; None when a toggle closes it */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
     switch (action, Model.current_program(model)) {
     | (Workspace(FocusEnsure(fid)), Some(Divided(d))) =>
@@ -500,13 +488,8 @@ module View = {
   type event =
     | MakeActive(Selection.t);
 
-  /* Stack-cell view cache: with N cells open, a keystroke in one cell
-     must not rebuild the other N-1 cell views (measured 150-380ms per
-     keystroke at 5 cells vs 10-70ms at 1 on Mega 1k). Reusing the
-     physically-same nodes also short-circuits the vdom diff. Keyed on
-     everything the cell view reads; models/settings by physical
-     identity, small values structurally. Pruned to the live stack
-     every render. */
+  /* per-cell view cache, keyed on everything the cell view reads: a
+     keystroke in one cell must not rebuild the others */
   type stack_cache_key = {
     k_index: int,
     k_stack_len: int, /* escape closures bound-check against it */
@@ -527,12 +510,9 @@ module View = {
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
 
-  /* IMPORTANT: the view must read the cache through this helper, never
-     bind `stack_cache^` locally. jsoo closures share one context object
-     per scope — with the previous generation bound in the view scope,
-     every handler closure of render N retained render N-1's vdom
-     (whose handlers retained N-2's …): a linked list of generations
-     that leaks on every edit. */
+  /* read the cache only through this helper, never bind `stack_cache^` in
+     the view: jsoo closures share one context per scope, so each render's
+     handlers would retain the last one's vdom, leaking every generation */
   let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
     List.assoc_opt(id, stack_cache^);
 
@@ -548,10 +528,8 @@ module View = {
     let current = List.nth(model.scratchpads, model.current);
     if (current.dormant) {
       [
-        /* SwitchSlide painted this frame before hydration: the next
-           update parses + runs first statics, which blocks for a bit on
-           large slides */
-        /* same spinner as the app boot screen (index.html/loading.css) */
+        /* shown until hydration, which blocks on large slides; the same
+           spinner as the boot screen (index.html/loading.css) */
         Virtual_dom.Vdom.Node.div(
           ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading"])],
           [
@@ -589,8 +567,6 @@ module View = {
     } else {
       switch (current.kind) {
       | Code({program, view, _}) =>
-        /* the STACK: [header band, body cell] per entry, thin rules
-           between; rendered INSTEAD of the master cell */
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
           let term = Divided.statics(d).term;
@@ -634,8 +610,6 @@ module View = {
                     c,
                   )
                 | _ =>
-                  /* qualifier chip: the def's module path (stable while
-                     the stack is open — the master term is frozen) */
                   let qualifier =
                     switch (OutlineTree.path_of(e.e_id, term)) {
                     | [] => []
@@ -654,7 +628,7 @@ module View = {
                         ),
                       ]
                     };
-                  /* arrow keys at a pane's edge walk the stack:
+                  /* arrow keys at a pane's edge walk the cells:
                      ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
                   let headerless = idx =>
                     switch (List.nth_opt(cells, idx)) {
@@ -668,10 +642,8 @@ module View = {
                     } else {
                       /* headerless entries have no header pane */
                       let to_header = to_header && !headerless(idx);
-                      /* DOM focus must follow the selection to the new
-                         pane (after render — the active-cell id moves
-                         with the re-render) or the caret vanishes and
-                         arrows scroll the page */
+                      /* DOM focus must follow to the new pane after render,
+                         or the caret vanishes and arrows scroll the page */
                       Haz3lcore.FocusEffect.schedule_cell();
                       let id = List.nth(cells, idx).e_id;
                       Virtual_dom.Vdom.Effect.Many([
@@ -712,14 +684,10 @@ module View = {
                         : pane_focus(i, true, End)
                     | Right => pane_focus(i + 1, true, Start)
                     };
-                  /* vertical escape: Up/Down at a pane's row edge move
-                     straight to the adjacent pane at the same goal
-                     column (no end-of-line snap first). Header editors
-                     sit one qualifier-chip width right of body content,
-                     so columns shift by the qualifier's length when
-                     crossing a header boundary. At the stack's ends the
-                     plain vertical move is re-dispatched (restores the
-                     line-start/end snap). */
+                  /* Up/Down at a pane's edge keep the goal column in the
+                     adjacent pane, shifted by the qualifier chip's width
+                     across a header; at the ends the plain move is
+                     re-dispatched, keeping its line-start/end snap */
                   let qual_cols = idx =>
                     switch (List.nth_opt(cells, idx)) {
                     | Some(e) =>
@@ -815,8 +783,6 @@ module View = {
                   let header_pane =
                     switch (e.e_sym) {
                     | Some(sym) =>
-                      /* headerless items (statements, trailing expr):
-                         a static symbol chip instead of a header cell */
                       Virtual_dom.Vdom.Node.div(
                         ~attrs=[
                           Virtual_dom.Vdom.Attr.classes([
@@ -824,8 +790,7 @@ module View = {
                             "focus-header-sym",
                           ]),
                         ],
-                        /* no qualifier chip: the symbol IS the label
-                           (a run cell was rendering "tests tests") */
+                        /* no qualifier chip: the symbol is the label */
                         [
                           Virtual_dom.Vdom.Node.span(
                             ~attrs=[
@@ -888,10 +853,9 @@ module View = {
                             ~master_result=Divided.result(d),
                             ~escape=body_escape,
                             ~escape_vertical=Some(body_escape_vertical),
-                            /* culling measures ONE container (dev's
-                               `.cull-scope` invariant): in a focus stack only
-                               the first body cell opts in; the rest render
-                               unculled rather than against another cell's rows */
+                            /* culling measures one `.cull-scope`: only
+                               the first body opts in; the rest render
+                               unculled, not against another's rows */
                             ~cull={
                               i == 0;
                             },
@@ -917,8 +881,7 @@ module View = {
               cells,
             );
           stack_cache := rendered;
-          /* the whole program's RESULT stays live below the stack (the
-             master keeps evaluating the spliced program) */
+          /* the whole program's result, live below the cells */
           let (result_footer, _overlays) =
             EvalResult.View.view(
               ~globals,
@@ -926,8 +889,7 @@ module View = {
                 fun
                 | MakeActive(a) => signal(MakeActive(Cell(Result(a))))
                 | JumpTo(id) =>
-                  /* the jump target lives in the HIDDEN master while a
-                     stack is open: open the containing item instead */
+                  /* the target may be in no open cell: open its item */
                   switch (Selection.cross_cell_target(~target_id=id, ~d)) {
                   | Some((ensure, sel, caret)) =>
                     Virtual_dom.Vdom.Effect.Many([
@@ -964,9 +926,7 @@ module View = {
             ),
           ]
           @ [
-            /* trailing slack: any entry (incl. the last) can align to
-               the viewport top, and the user can scroll to position any
-               def where they like */
+            /* slack, so even the last cell can scroll to the viewport top */
             Virtual_dom.Vdom.Node.div(
               ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-slack"])],
               [],
