@@ -805,6 +805,14 @@ let import_all = (prefix: string, data: string): unit =>
     let (current, scratchpads) = persistent;
     let names =
       List.map((sp: Scratchpad.persistent) => sp.name, scratchpads);
+    /* an import replaces every slide: stale per-item saves would win
+       over the imported text on load */
+    let old_names =
+      switch (load_meta(prefix)) {
+      | Some(m) => m.names
+      | None => []
+      };
+    List.iter(forget_slide(prefix), old_names @ names);
     save_meta(
       prefix,
       {
