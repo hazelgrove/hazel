@@ -82,6 +82,23 @@ let apply =
       action,
       model,
     );
+  /* which actions count as edits (each one costs a statics/eval recompute):
+     the perf journal names them */
+  if (updated.is_edit) {
+    /* the action's constructor path, two levels deep, off its sexp */
+    let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
+      switch (sx) {
+      | Sexplib.Sexp.Atom(a) => a
+      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
+        a ++ "/" ++ head(depth - 1, inner)
+      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
+      | _ => "?"
+      };
+    Util.PerfTimer.record(
+      "edit-action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
+      0.,
+    );
+  };
   // ---------- CALCULATE PHASE ----------
   let model' =
     CrashHandling.Update.calculate(
@@ -338,6 +355,10 @@ switch (JsUtil.Fragment.get_current()) {
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
   HazelDB.kv_load_all(_pairs => {
+    /* The user's theme, before the first frame and whatever mode they are
+       in. The inline script in index.html has already themed the loading
+       screen from the same cache; this validates it and fills a miss. */
+    ConfigurationMode.apply_theme_at_startup();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(
