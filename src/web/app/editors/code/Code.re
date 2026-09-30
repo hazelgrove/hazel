@@ -47,16 +47,13 @@ let of_delim' =
         | _ => Sort.class_of(sort)
         };
       /* A witness split: the whole tile is ghost-marked, but the typed
-         prefix is the user's text. The outer span keeps normal token
-         styling (no `incomplete` color, no `in-parsed-buffer` fade);
-         only the remainder span is ghost. An inconsistency still
-         colors the whole token. */
+         prefix is the user's text. The outer span is not faded and keeps
+         the unfinished construct's color; only the remainder span is
+         ghost. */
       let is_split =
         typed_len >= 0
         && typed_len < String.length(token)
         && raw_cls != "string-lit";
-      let base_cls =
-        is_split && raw_cls == "incomplete" ? Sort.class_of(sort) : raw_cls;
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer && !is_split ? ["in-parsed-buffer"] : [];
       let var_class = is_ref(token, sort) ? ["ref"] : [];
@@ -84,7 +81,7 @@ let of_delim' =
       span(
         ~attrs=[
           Attr.classes(
-            ["token", base_cls, plurality]
+            ["token", raw_cls, plurality]
             @ in_buffer
             @ var_class
             @ keyword_class,

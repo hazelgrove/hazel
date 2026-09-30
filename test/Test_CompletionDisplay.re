@@ -2002,17 +2002,17 @@ NONE|},
     "CompletionDisplay: view",
     [
       /* a keyword witness's TYPED prefix is the user's text: the outer
-         token span keeps normal token styling, and only the untyped
-         remainder carries the ghost fade. `then` and `=>` don't split
-         here: their insertions carry more delimiters (`else`, `end`),
-         so they take the remainder-ghost channel and the typed prefix
-         stays the user's own token. */
+         token span is not faded but keeps the unfinished construct's
+         color, and only the untyped remainder carries the ghost fade.
+         `then` and `=>` don't split here: their insertions carry more
+         delimiters (`else`, `end`), so they take the remainder-ghost
+         channel and the typed prefix stays the user's own token. */
       test_case("witness typed prefix renders at full strength", `Quick, () =>
         check(
           string_testable,
           "witness spans",
-          {|i⟪n⟫ [token Exp poly keyword] ⟪in-parsed-buffer⟫
--⟪>⟫ [token Exp poly] ⟪in-parsed-buffer⟫|},
+          {|i⟪n⟫ [token incomplete poly keyword] ⟪in-parsed-buffer⟫
+-⟪>⟫ [token incomplete poly] ⟪in-parsed-buffer⟫|},
           ["let x = 4 i", "if true t", "fun x -", "case 1 | 2 ="]
           |> List.concat_map(t => split_tokens(view_of(t)))
           |> String.concat("\n"),
