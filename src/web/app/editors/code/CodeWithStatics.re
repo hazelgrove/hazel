@@ -316,6 +316,8 @@ module View = {
      a stack of cells + master all stay resident. */
   type memo_entry = {
     m_key: array(Obj.t),
+    /* piece count of the keyed segment, for same-editor eviction */
+    m_seg_len: int,
     m_nodes: list(Node.t),
   };
   let view_memo: ref(list(memo_entry)) = ref([]);
@@ -429,20 +431,16 @@ module View = {
           | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
           };
         let seg_len = List.length(segment);
-        let same_len = (e: memo_entry) =>
-          switch ((Obj.magic(e.m_key[3]): Segment.t)) {
-          | s => List.length(s) == seg_len
-          | exception _ => false
-          };
         view_memo :=
           [
             {
               m_key: key,
+              m_seg_len: seg_len,
               m_nodes: nodes,
             },
             ...take(
                  view_memo_max - 1,
-                 List.filter(e => !same_len(e), view_memo^),
+                 List.filter(e => e.m_seg_len != seg_len, view_memo^),
                ),
           ];
         nodes;

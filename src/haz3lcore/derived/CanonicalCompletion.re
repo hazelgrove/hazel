@@ -2663,10 +2663,12 @@ type item_entry = {
   it_pieces: Segment.t,
   it_result: completion_result,
 };
-/* anchor (first piece id) -> last completion of that item; entries are
-   validated by piece identity, so a stale key costs one recompletion.
-   Bounded by wholesale reset: items of every open editor share it. */
-let item_cache: Hashtbl.t(Id.t, item_entry) = Hashtbl.create(256);
+/* (sort, anchor = first piece id) -> last completion of that item at
+   that sort; entries are validated by piece identity, so a stale key
+   costs one recompletion. The sort matters: the same items are read at
+   Exp for decorations and at the editor root for semantics. Bounded by
+   wholesale reset: items of every open editor share it. */
+let item_cache: Hashtbl.t((Sort.t, Id.t), item_entry) = Hashtbl.create(256);
 let item_cache_bound = 4096;
 let items_completed: ref(int) = ref(0); /* observability for tests */
 
@@ -2719,7 +2721,7 @@ let complete_item = (~sort, item: Segment.t): completion_result =>
   switch (item) {
   | [] => complete_item_uncached(~sort, item)
   | [p, ..._] =>
-    let key = Piece.id(p);
+    let key = (sort, Piece.id(p));
     switch (Hashtbl.find_opt(item_cache, key)) {
     | Some(e) when Segment.ptr_eq(e.it_pieces, item) => e.it_result
     | _ =>
@@ -2757,11 +2759,12 @@ let items_widened: ref(int) = ref(0); /* observability for tests */
    first (its identity check decides), so a stable widened block hits
    the memo instead of recompleting twice per frame. */
 let cached_block =
-    (item: Segment.t, rest: list(Segment.t)): (Segment.t, list(Segment.t)) =>
+    (~sort: Sort.t, item: Segment.t, rest: list(Segment.t))
+    : (Segment.t, list(Segment.t)) =>
   switch (item) {
   | [] => (item, rest)
   | [p, ..._] =>
-    switch (Hashtbl.find_opt(item_cache, Piece.id(p))) {
+    switch (Hashtbl.find_opt(item_cache, (sort, Piece.id(p)))) {
     | Some(e) when List.length(e.it_pieces) > List.length(item) =>
       let n = List.length(e.it_pieces);
       let rec take = (acc, len, items) =>
@@ -2793,7 +2796,7 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
     switch (items) {
     | [] => []
     | [item, ...rest] =>
-      let (block, rest) = cached_block(item, rest);
+      let (block, rest) = cached_block(~sort, item, rest);
       let r = complete_item(~sort, block);
       let last = rest == [];
       let completed_seg =

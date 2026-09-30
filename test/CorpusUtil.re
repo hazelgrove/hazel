@@ -15,6 +15,10 @@ let read_file = (path: string): option(string) =>
   | exception _ => None
   };
 
+/* Timing-only benchmark cases register only under HAZEL_BENCH=1. */
+let bench_enabled = Sys.getenv_opt("HAZEL_BENCH") == Some("1");
+let bench_cases = cases => bench_enabled ? cases : [];
+
 let mega_path = (name: string): string => {
   let path = "hazel-programs/mega/" ++ name;
   Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;

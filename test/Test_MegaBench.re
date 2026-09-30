@@ -1,3 +1,4 @@
+/* Run: HAZEL_BENCH=1 bash test/run_node.sh test 'MegaBench' */
 open Alcotest;
 open Haz3lcore;
 open Language;
@@ -8,8 +9,7 @@ open Language;
    carried), CachedStatics.init_compositional (semantic term +
    statics), and the per-frame view completion
    (CanonicalCompletion.for_editor on the master segment). Always
-   passes; numbers print to the log.
-     bash test/run_node.sh test 'MegaBench' */
+   passes; numbers print to the log. */
 
 let settings = CoreSettings.on;
 

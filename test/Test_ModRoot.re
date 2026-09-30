@@ -132,6 +132,30 @@ let term_of_mod_matches = () => {
   check(bool, "term_of_mod ≡ mono term", true, compare(t, mono.term) == 0);
 };
 
+/* Incr's last-result slot is shared by the Exp and Mod paths: the same
+   segment read at Exp and then at Mod must get the Mod reading. */
+let last_slot_keyed_by_root = () => {
+  let seg = parse_mod(mod_src);
+  let mono = MakeTerm.go_mod_root(seg).term;
+  MakeTerm.Incr.last := None;
+  let exp_t = MakeTerm.Incr.term_of(seg);
+  check(bool, "readings differ by root", false, compare(exp_t, mono) == 0);
+  let mod_t = MakeTerm.Incr.term_of_root(~root=Mod, seg);
+  check(
+    bool,
+    "Mod reading after Exp ≡ mono",
+    true,
+    compare(mod_t, mono) == 0,
+  );
+  let exp_again = MakeTerm.Incr.term_of(seg);
+  check(
+    bool,
+    "Exp reading after Mod ≡ first Exp reading",
+    true,
+    compare(exp_again, exp_t) == 0,
+  );
+};
+
 /* ---- Phase 2: DefStatics over a Module root ---- */
 
 let settings = CoreSettings.on;
@@ -364,6 +388,7 @@ let tests = (
     test_case("full parity", `Quick, full_parity),
     test_case("incremental edit", `Quick, incremental_edit),
     test_case("term_of_mod", `Quick, term_of_mod_matches),
+    test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
     test_case("statics parity", `Quick, statics_parity),
     test_case("statics incremental", `Quick, statics_incremental),
     test_case(

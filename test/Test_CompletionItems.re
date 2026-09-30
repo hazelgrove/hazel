@@ -188,6 +188,38 @@ let edge_case = ((name, src), ()) =>
     };
   };
 
+/* The memo is shared by the Exp reading (decorations) and the editor-root
+   reading (semantics): one item completed at two sorts must get each
+   sort's own completion, in either order. */
+let sort_keyed_case = () =>
+  switch (ParsedCorpus.to_segment(~root=Exp, "(a")) {
+  | None => fail("unparseable: (a")
+  | Some(seg) =>
+    let uncached = sort =>
+      CanonicalCompletion.complete_item_uncached(~sort, seg).completed_seg;
+    let (exp, pat) = (uncached(Exp), uncached(Pat));
+    check(
+      bool,
+      "readings differ by sort",
+      false,
+      Segment.equiv_mod_grout(exp, pat),
+    );
+    let same = (name, expected, sort) =>
+      check(
+        bool,
+        name,
+        true,
+        Segment.equiv_mod_grout(
+          expected,
+          CanonicalCompletion.complete_items(~sort, seg).completed_seg,
+        ),
+      );
+    same("Exp reading", exp, Exp);
+    same("Pat reading after Exp", pat, Pat);
+    same("Exp reading after Pat", exp, Exp);
+    same("Pat reading again", pat, Pat);
+  };
+
 let tests = (
   "CompletionItems",
   List.map(
@@ -195,6 +227,7 @@ let tests = (
     edge_programs,
   )
   @ [
+    test_case("memo keyed by sort", `Quick, sort_keyed_case),
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
   ],

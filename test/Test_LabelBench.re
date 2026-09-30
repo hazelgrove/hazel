@@ -1,3 +1,4 @@
+/* Timing case: HAZEL_BENCH=1 bash test/run_node.sh test 'LabelBench' */
 open Alcotest;
 open Haz3lcore;
 open Language;
@@ -5,8 +6,7 @@ open Language;
 /* Microbench: statics cost of a labeled-tuple-heavy module (the
    measured hot item class at mega scale) vs an unlabeled control.
    Prints per-iteration Statics.mk wall time; run under node
-   --cpu-prof for attribution.
-     bash test/run_node.sh test 'LabelBench' */
+   --cpu-prof for attribution. */
 
 let slice_lines = (src: string, lo: int, hi: int): string =>
   String.split_on_char('\n', src)
@@ -30,8 +30,19 @@ let bench = (label: string, src: string, iters: int) => {
   };
 };
 
+let rec mentions = (tok: string, seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        Tile.label(t) == [tok] || List.exists(mentions(tok), t.children)
+      | _ => false
+      },
+    seg,
+  );
+
 /* the real in-situ path: DefStatics.calc incremental cost for a
-   one-item edit on full mega-4k (the sweep measures this at ~1s) */
+   one-item edit on full mega-4k */
 let insitu = () => {
   let path = "hazel-programs/mega/mega-4k.hz";
   let path = Sys.file_exists(path) ? path : "../" ++ path;
@@ -57,10 +68,17 @@ let insitu = () => {
       DefStatics.last_analyzed^,
     );
     /* a SURGICAL one-item edit: rewrite the "16" literal inside
-       SmithWorks in place; ids elsewhere preserved */
-    let (spliced, found) =
-      CorpusUtil.edit_token(~needle="16", ~repl="17", seg);
-    assert(found);
+       SmithWorks in place (the literal recurs in other items, which
+       stay untouched); ids elsewhere preserved */
+    let edited =
+      Segment.top_items(seg)
+      |> List.map(item =>
+           mentions("SmithWorks", item)
+             ? CorpusUtil.edit_token(~needle="16", ~repl="17", item)
+             : (item, false)
+         );
+    check(int, "one item edited", 1, List.length(List.filter(snd, edited)));
+    let spliced = List.concat_map(fst, edited);
     let term2 = MakeTerm.go(spliced).term;
     let t1 = Sys.time();
     let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
@@ -69,6 +87,8 @@ let insitu = () => {
       (Sys.time() -. t1) *. 1000.0,
       DefStatics.last_analyzed^,
     );
+    /* the module item plus its one edited member */
+    check(int, "incr calc: item + 1 member", 2, DefStatics.last_analyzed^);
     ignore(ds1);
     /* the FULL init_compositional path (what the browser Force frame
        runs): whole_elab graft + error/warning folds + targets on top
@@ -96,9 +116,14 @@ let insitu = () => {
       (Sys.time() -. t3) *. 1000.0,
       DefStatics.last_analyzed^,
     );
+    check(
+      int,
+      "incr init_compositional_term: item + 1 member",
+      2,
+      DefStatics.last_analyzed^,
+    );
     ignore(cs0);
     ignore(cs1);
-    check(bool, "ran", true, true);
   };
 };
 
@@ -120,8 +145,8 @@ let case = () => {
 
 let tests = (
   "LabelBench",
-  [
-    test_case("labeled module statics", `Quick, case),
-    test_case("in-situ incremental calc", `Quick, insitu),
-  ],
+  [test_case("in-situ incremental calc", `Quick, insitu)]
+  @ CorpusUtil.bench_cases([
+      test_case("labeled module statics", `Quick, case),
+    ]),
 );

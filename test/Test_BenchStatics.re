@@ -1,10 +1,11 @@
+/* Timing cases: HAZEL_BENCH=1 bash test/run_node.sh test 'BenchStatics' */
 open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Informational statics timing over the bench corpus
-   (hazel-programs/bench). Always passes; timings print to the log.
-   Run: bash test/run_node.sh test 'BenchStatics' */
+/* Statics parity gates over the mega corpus, plus informational
+   timing cases (bench corpus, hazel-programs/bench) that print to the
+   log and register only under HAZEL_BENCH=1. */
 
 let read_file = CorpusUtil.read_file;
 
@@ -151,104 +152,6 @@ let parse_seg_of = (src: string): Segment.t =>
   | None => failwith("BENCH: parse failed")
   };
 
-/* Statics.mk memoization probe (informational): the memo is
-   Core.Memo.general with POLYMORPHIC hash+equality on
-   (ana, ctx, term, probe_ids). Term ids are part of both, so the
-   realistic hazard is the EDITOR flow: ids are stable across an edit
-   except at the edit site. We model K one-deep-leaf variants of the
-   mega program (segment-level tile-label swap, ids preserved): if the
-   shallow Hashtbl.hash can't see the changed leaf, every variant
-   lands in one bucket and each lookup pays a deep structural compare
-   per resident version. Reparse (all-fresh ids) is also probed. */
-let memo_probe = (): unit => {
-  let path = "hazel-programs/mega/mega-1k.hz";
-  let path =
-    Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
-  switch (read_file(path)) {
-  | None => Printf.printf("MEMOBENCH: corpus unreadable\n")
-  | Some(src) =>
-    let parse_seg = s =>
-      switch (
-        FastParse.of_text(
-          ~materialize=Triggers.invoked_projector,
-          ~collect_refractors=true,
-          ~root=Exp,
-          s,
-        )
-      ) {
-      | Some(seg) => seg
-      | None => failwith("MEMOBENCH: parse failed")
-      };
-    let seg1 = parse_seg(src);
-    let variant = digit => {
-      let (found, seg) = repl_last(~needle="9", ~repl=digit, seg1);
-      assert(found);
-      MakeTerm.go(seg).term;
-    };
-    let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-    let time = (label, f) => {
-      let t0 = Sys.time();
-      let _ = f();
-      Printf.printf(
-        "MEMOBENCH %s: %.1fms\n",
-        label,
-        (Sys.time() -. t0) *. 1000.,
-      );
-    };
-    let term1 = MakeTerm.go(seg1).term;
-    let term2 = variant("8"); /* ids shared with term1, one leaf differs */
-    let term_reparse = MakeTerm.go(parse_seg(src)).term; /* all-fresh ids */
-    Printf.printf(
-      "MEMOBENCH shallow-hash collision, id-stable edit: %b\n",
-      Hashtbl.hash((ctx, term1)) == Hashtbl.hash((ctx, term2)),
-    );
-    Printf.printf(
-      "MEMOBENCH shallow-hash collision, reparse: %b\n",
-      Hashtbl.hash((ctx, term1)) == Hashtbl.hash((ctx, term_reparse)),
-    );
-    time("hash(term1)", () => Hashtbl.hash(term1));
-    time("cold mk(term1)", () => Statics.mk(CoreSettings.on, ctx, term1));
-    time("hit mk(term1) same phys", () =>
-      Statics.mk(CoreSettings.on, ctx, term1)
-    );
-    time("miss mk(term2) id-stable variant", () =>
-      Statics.mk(CoreSettings.on, ctx, term2)
-    );
-    time("hit mk(term2) with term1 resident", () =>
-      Statics.mk(CoreSettings.on, ctx, term2)
-    );
-    time("hit mk(term1) with term2 resident", () =>
-      Statics.mk(CoreSettings.on, ctx, term1)
-    );
-    /* pile up more colliding variants, then re-measure hit cost */
-    List.iter(
-      d => ignore(Statics.mk(CoreSettings.on, ctx, variant(d))),
-      ["7", "6", "5", "4"],
-    );
-    time("hit mk(term1) with 5 variants resident", () =>
-      Statics.mk(CoreSettings.on, ctx, term1)
-    );
-    time("hit mk(term2) with 5 variants resident", () =>
-      Statics.mk(CoreSettings.on, ctx, term2)
-    );
-    /* what does a raw polymorphic compare between colliding keys cost,
-       and do id-stable variants physically share subtrees (MakeTerm
-       memoization), which would short-circuit it? */
-    time("compare(term1, term2)", () => compare(term1, term2));
-    time("compare(term1, term_reparse)", () => compare(term1, term_reparse));
-    /* worst case: structurally identical, physically distinct — the
-       compare must walk the ENTIRE term and return equal */
-    let term1_copy = Grammar.map_exp_annotation(x => x, term1);
-    time("compare(term1, deep copy) full walk", () =>
-      compare(term1, term1_copy)
-    );
-    Printf.printf(
-      "MEMOBENCH deep copy compares equal: %b\n",
-      compare(term1, term1_copy) == 0,
-    );
-  };
-};
-
 /* DefStatics (compositional statics) benchmark + parity gate:
    - COLD: engine result must carry the same ERROR ids as whole-program
      Statics.mk (warnings are engine-corrected, counts reported only);
@@ -256,141 +159,134 @@ let memo_probe = (): unit => {
    - INCR export-type edit (first ascription Int->Bool): expect the
      users of that binding to recompute, and parity to hold on the
      edited program too. */
-let defstatics_bench = (): unit =>
-  List.iter(
-    name => {
-      let path = "hazel-programs/mega/" ++ name;
-      let path =
-        Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-      switch (read_file(path)) {
-      | None => Printf.printf("DEFSTATICS %s: <unreadable>\n", name)
-      | Some(src) =>
-        let settings = CoreSettings.on;
-        let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-        let seg1 = parse_seg_of(src);
-        let term1 = MakeTerm.go(seg1).term;
-        let sorted = ids => List.sort_uniq(compare, ids);
-        let whole = term => {
-          let (map, _) = Statics.mk_unmemoized(settings, ctx, term);
-          sorted(Statics.Map.error_ids(map));
-        };
-        let parity = (label, term, ds) => {
-          let w = whole(term);
-          let e = sorted(DefStatics.all_error_ids(ds));
-          if (w == e) {
-            Printf.printf(
-              "DEFSTATICS %s %s: parity OK (%d errors)\n",
-              name,
-              label,
-              List.length(w),
-            );
-          } else {
-            Printf.printf(
-              "DEFSTATICS %s %s: PARITY MISMATCH whole=%d engine=%d\n",
-              name,
-              label,
-              List.length(w),
-              List.length(e),
-            );
-          };
-          /* a print-only mismatch slipped through a whole stage
-             (member chains ignored incoming dirty names); ASSERT */
-          check(bool, name ++ " " ++ label ++ " error parity", true, w == e);
-        };
-        let time = (label, f) => {
-          let t0 = Sys.time();
-          let r = f();
-          Printf.printf(
-            "DEFSTATICS %s %s: %.0fms\n",
-            name,
-            label,
-            (Sys.time() -. t0) *. 1000.,
-          );
-          r;
-        };
-        let ds1 =
-          time("engine cold", () => DefStatics.calc(~settings, term1));
+let defstatics_case = (name: string, ()): unit => {
+  let path = "hazel-programs/mega/" ++ name;
+  let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
+  switch (read_file(path)) {
+  | None => fail("DEFSTATICS: corpus unreadable: " ++ name)
+  | Some(src) =>
+    let settings = CoreSettings.on;
+    let ctx = Builtins.ctx_init(Some(Operators.default_mode));
+    let seg1 = parse_seg_of(src);
+    let term1 = MakeTerm.go(seg1).term;
+    let sorted = ids => List.sort_uniq(compare, ids);
+    let whole = term => {
+      let (map, _) = Statics.mk_unmemoized(settings, ctx, term);
+      sorted(Statics.Map.error_ids(map));
+    };
+    let parity = (label, term, ds) => {
+      let w = whole(term);
+      let e = sorted(DefStatics.all_error_ids(ds));
+      if (w == e) {
         Printf.printf(
-          "DEFSTATICS %s items: %d, warnings: %d\n",
+          "DEFSTATICS %s %s: parity OK (%d errors)\n",
           name,
-          List.length(ds1.items),
-          List.length(DefStatics.all_warning_ids(ds1)),
+          label,
+          List.length(w),
         );
-        parity("cold", term1, ds1);
-        {
-          /* grafted-elaboration parity: evaluating the graft must give
-             the same value as evaluating the monolithic elaboration */
-
-          let (_, mono_elab) = Statics.mk_unmemoized(settings, ctx, term1);
-          switch (DefStatics.whole_elab(ds1)) {
-          | None => Printf.printf("DEFSTATICS %s graft: SHAPE GAP\n", name)
-          | Some(graft_elab) =>
-            let (v1, _) =
-              Evaluator.evaluate(~env=Builtins.env_init, mono_elab);
-            let (v2, _) =
-              Evaluator.evaluate(~env=Builtins.env_init, graft_elab);
-            Printf.printf(
-              "DEFSTATICS %s graft-eval parity: %b\n",
-              name,
-              Exp.fast_equal(v1, v2),
-            );
-          };
-        };
-        /* non-export edit: last digit 9 -> 8, deep in the program */
-        let (f2, seg2) = repl_last(~needle="9", ~repl="8", seg1);
-        assert(f2);
-        let term2 = MakeTerm.go(seg2).term;
-        let ds2 =
-          time("incr non-export edit", () =>
-            DefStatics.calc(~settings, ~prev=ds1, term2)
-          );
+      } else {
         Printf.printf(
-          "DEFSTATICS %s non-export analyzed: %d items\n",
+          "DEFSTATICS %s %s: PARITY MISMATCH whole=%d engine=%d\n",
           name,
-          DefStatics.last_analyzed^,
+          label,
+          List.length(w),
+          List.length(e),
         );
-        parity("non-export", term2, ds2);
-        /* export-type edit: first ascription Int -> Bool */
-        let (f3, seg3) = repl_first(~needle="Int", ~repl="Bool", seg1);
-        assert(f3);
-        let term3 = MakeTerm.go(seg3).term;
-        let ds3 =
-          time("incr export-type edit", () =>
-            DefStatics.calc(~settings, ~prev=ds1, term3)
-          );
-        Printf.printf(
-          "DEFSTATICS %s export-type analyzed: %d items\n",
-          name,
-          DefStatics.last_analyzed^,
-        );
-        parity("export-type", term3, ds3);
-        /* CROSS-MODULE cascade: retype the first selfcheck ascription
-           (Bool -> String); MetaRunner consumes every selfcheck, so
-           downstream items must re-analyze and new errors appear */
-        let (f4, seg4) = repl_first(~needle="Bool", ~repl="String", seg1);
-        assert(f4);
-        let term4 = MakeTerm.go(seg4).term;
-        let ds4 =
-          time("incr cross-module cascade", () =>
-            DefStatics.calc(~settings, ~prev=ds1, term4)
-          );
-        Printf.printf(
-          "DEFSTATICS %s cascade analyzed: %d items\n",
-          name,
-          DefStatics.last_analyzed^,
-        );
-        parity("cascade", term4, ds4);
       };
-    },
-    ["mega-1k.hz", "mega-4k.hz"],
-  );
+      /* a print-only mismatch slipped through a whole stage
+         (member chains ignored incoming dirty names); ASSERT */
+      check(bool, name ++ " " ++ label ++ " error parity", true, w == e);
+    };
+    let time = (label, f) => {
+      let t0 = Sys.time();
+      let r = f();
+      Printf.printf(
+        "DEFSTATICS %s %s: %.0fms\n",
+        name,
+        label,
+        (Sys.time() -. t0) *. 1000.,
+      );
+      r;
+    };
+    let ds1 = time("engine cold", () => DefStatics.calc(~settings, term1));
+    Printf.printf(
+      "DEFSTATICS %s items: %d, warnings: %d\n",
+      name,
+      List.length(ds1.items),
+      List.length(DefStatics.all_warning_ids(ds1)),
+    );
+    parity("cold", term1, ds1);
+    {
+      /* grafted-elaboration parity: evaluating the graft must give
+         the same value as evaluating the monolithic elaboration */
+
+      let (_, mono_elab) = Statics.mk_unmemoized(settings, ctx, term1);
+      switch (DefStatics.whole_elab(ds1)) {
+      | None => fail(name ++ " graft: shape gap")
+      | Some(graft_elab) =>
+        let (v1, _) = Evaluator.evaluate(~env=Builtins.env_init, mono_elab);
+        let (v2, _) = Evaluator.evaluate(~env=Builtins.env_init, graft_elab);
+        check(
+          bool,
+          name ++ " graft-eval parity",
+          true,
+          Exp.fast_equal(v1, v2),
+        );
+      };
+    };
+    /* non-export edit: last digit 9 -> 8, deep in the program */
+    let (f2, seg2) = repl_last(~needle="9", ~repl="8", seg1);
+    assert(f2);
+    let term2 = MakeTerm.go(seg2).term;
+    let ds2 =
+      time("incr non-export edit", () =>
+        DefStatics.calc(~settings, ~prev=ds1, term2)
+      );
+    Printf.printf(
+      "DEFSTATICS %s non-export analyzed: %d items\n",
+      name,
+      DefStatics.last_analyzed^,
+    );
+    parity("non-export", term2, ds2);
+    /* export-type edit: first ascription Int -> Bool */
+    let (f3, seg3) = repl_first(~needle="Int", ~repl="Bool", seg1);
+    assert(f3);
+    let term3 = MakeTerm.go(seg3).term;
+    let ds3 =
+      time("incr export-type edit", () =>
+        DefStatics.calc(~settings, ~prev=ds1, term3)
+      );
+    Printf.printf(
+      "DEFSTATICS %s export-type analyzed: %d items\n",
+      name,
+      DefStatics.last_analyzed^,
+    );
+    parity("export-type", term3, ds3);
+    /* CROSS-MODULE cascade: retype the first selfcheck ascription
+       (Bool -> String); MetaRunner consumes every selfcheck, so
+       downstream items must re-analyze and new errors appear */
+    let (f4, seg4) = repl_first(~needle="Bool", ~repl="String", seg1);
+    assert(f4);
+    let term4 = MakeTerm.go(seg4).term;
+    let ds4 =
+      time("incr cross-module cascade", () =>
+        DefStatics.calc(~settings, ~prev=ds1, term4)
+      );
+    Printf.printf(
+      "DEFSTATICS %s cascade analyzed: %d items\n",
+      name,
+      DefStatics.last_analyzed^,
+    );
+    parity("cascade", term4, ds4);
+  };
+};
 
 /* Slide-load pipeline probe: run each stage of the browser's
    Calculate under whatever stack node was launched with. Chrome's
    renderer stack is ~1MB; run_node.sh uses 8MB — to find what
    overflows in-browser, run this manually WITHOUT --stack-size:
-     IDB_STUB=... TEST_JS=... node --require $IDB_STUB $TEST_JS \
-       test BenchStatics 3 */
+     HAZEL_BENCH=1 IDB_STUB=... TEST_JS=... node --require $IDB_STUB \
+       $TEST_JS test BenchStatics 6 */
 exception Bail;
 
 let load_pipeline_probe = (): unit =>
@@ -498,59 +394,6 @@ let load_pipeline_probe = (): unit =>
     },
     ["mega-1k.hz", "mega-2k.hz", "mega-4k.hz"],
   );
-
-/* TEMP: how big/slow was shipping `prev` to the worker? Marshal the
-   request payload with and without the incremental cache, for a mega
-   program after one evaluation. */
-let payload_probe = (): unit => {
-  let path = "hazel-programs/mega/mega-1k.hz";
-  let path =
-    Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
-  switch (read_file(path)) {
-  | None => Printf.printf("PAYLOAD: corpus unreadable\n")
-  | Some(src) =>
-    let seg = parse_seg_of(src);
-    let term = MakeTerm.go(seg).term;
-    let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-    let (map, elab) = Statics.mk_unmemoized(CoreSettings.on, ctx, term);
-    let ei =
-      EvalInfo.of_info_map(~probe_all=false, ~targets=Sample.no_targets, map);
-    let (_, state) =
-      Evaluator.evaluate(~eval_info=ei, ~env=Builtins.env_init, elab);
-    let prev = state.EvaluatorState.incr_eval;
-    let time_size = (label, v) => {
-      let t0 = Sys.time();
-      let s = Marshal.to_string(v, []);
-      Printf.printf(
-        "PAYLOAD %s: %d KB, %.1fms to marshal\n",
-        label,
-        String.length(s) / 1024,
-        (Sys.time() -. t0) *. 1000.,
-      );
-    };
-    time_size("expr+eval_info (kept)", (elab, ei));
-    time_size("prev cache (no longer shipped)", prev);
-    time_size("old full request", (elab, ei, prev));
-    /* the #2368 crash shape: big computed VALUES live only in the
-       cache (not shared with the elab) */
-    let src2 = "let x = range(1, 20000) in length(x)";
-    let seg2 = parse_seg_of(src2);
-    let term2 = MakeTerm.go(seg2).term;
-    let (map2, elab2) = Statics.mk_unmemoized(CoreSettings.on, ctx, term2);
-    let ei2 =
-      EvalInfo.of_info_map(
-        ~probe_all=false,
-        ~targets=Sample.no_targets,
-        map2,
-      );
-    let (_, state2) =
-      Evaluator.evaluate(~eval_info=ei2, ~env=Builtins.env_init, elab2);
-    let prev2 = state2.EvaluatorState.incr_eval;
-    time_size("BIG-VALUE expr+eval_info (kept)", (elab2, ei2));
-    time_size("BIG-VALUE prev cache (no longer shipped)", prev2);
-    time_size("BIG-VALUE old full request", (elab2, ei2, prev2));
-  };
-};
 
 /* Probe-capture parity: a probe on a fn-body var whose only call site
    is a LATER top-level item must sample under compositional statics +
@@ -782,9 +625,10 @@ let incr_maketerm_parity = (): unit => {
       true,
       errs(t_mono) == errs(t_incr),
     );
-    Printf.printf(
-      "INCRMK %s: full term compare equal: %b\n",
-      label,
+    check(
+      bool,
+      label ++ ": full term equal",
+      true,
       compare(t_mono, t_incr) == 0,
     );
   };
@@ -796,7 +640,7 @@ let incr_maketerm_parity = (): unit => {
   let path =
     Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
   switch (read_file(path)) {
-  | None => Printf.printf("INCRMK: corpus unreadable\n")
+  | None => fail("INCRMK: corpus unreadable")
   | Some(src) =>
     let seg = parse_seg_of(src);
     check_prog("mega-1k", seg);
@@ -829,7 +673,7 @@ let stream_collector_parity = (): unit => {
   let path =
     Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
   switch (read_file(path)) {
-  | None => Printf.printf("STREAMINC: corpus unreadable\n")
+  | None => fail("STREAMINC: corpus unreadable")
   | Some(src) =>
     let settings = CoreSettings.on;
     let ctx = Builtins.ctx_init(Some(Operators.default_mode));
@@ -923,9 +767,14 @@ let stream_collector_parity = (): unit => {
         let (_, fast) =
           StreamCollector.collect_stream_state_inc(~prev=inc^, merged^, elab);
         Printf.printf(
-          "STREAMINC chunks=%d mismatches=%d final tests: stream<=eval %b\n",
+          "STREAMINC chunks=%d mismatches=%d\n",
           chunks^,
           mismatches^,
+        );
+        check(
+          bool,
+          "final streamed tests <= evaluated tests",
+          true,
           List.length(EvaluatorState.get_tests(fast))
           <= List.length(EvaluatorState.get_tests(final_state)),
         );
@@ -942,41 +791,47 @@ let tests = (
     test_case("probe capture parity", `Quick, probe_capture_parity),
     test_case("structural alignment", `Quick, structural_alignment),
     test_case("incremental MakeTerm parity", `Quick, incr_maketerm_parity),
-    test_case("payload probe (informational)", `Quick, payload_probe),
     test_case(
-      "DefStatics compositional (informational)",
+      "DefStatics error parity (mega-1k)",
       `Quick,
-      defstatics_bench,
+      defstatics_case("mega-1k.hz"),
     ),
-    test_case("Statics.mk memoization (informational)", `Quick, memo_probe),
-    test_case(
-      "slide-load pipeline (informational)",
-      `Quick,
-      load_pipeline_probe,
-    ),
-    test_case("corpus statics timing (informational)", `Quick, () =>
-      List.iter(
-        name => {
-          let path = "hazel-programs/bench/" ++ name;
-          let path =
-            Sys.file_exists(path) ? path : "../hazel-programs/bench/" ++ name;
-          switch (read_file(path)) {
-          | None => Printf.printf("BENCHSTATICS %s: <unreadable>\n", name)
-          | Some(src) =>
-            switch (time_statics(src)) {
-            | Some(ms) =>
-              Printf.printf(
-                "BENCHSTATICS %s (%d lines): %.0fms\n",
-                name,
-                List.length(String.split_on_char('\n', src)),
-                ms,
-              )
-            | None => Printf.printf("BENCHSTATICS %s: <no parse>\n", name)
-            }
-          };
-        },
-        ["bench-1k.hz", "bench-2k5.hz", "bench-5k.hz"],
-      )
-    ),
-  ],
+  ]
+  @ CorpusUtil.bench_cases([
+      test_case(
+        "DefStatics compositional timing (mega-4k)",
+        `Quick,
+        defstatics_case("mega-4k.hz"),
+      ),
+      test_case(
+        "slide-load pipeline (informational)",
+        `Quick,
+        load_pipeline_probe,
+      ),
+      test_case("corpus statics timing (informational)", `Quick, () =>
+        List.iter(
+          name => {
+            let path = "hazel-programs/bench/" ++ name;
+            let path =
+              Sys.file_exists(path)
+                ? path : "../hazel-programs/bench/" ++ name;
+            switch (read_file(path)) {
+            | None => Printf.printf("BENCHSTATICS %s: <unreadable>\n", name)
+            | Some(src) =>
+              switch (time_statics(src)) {
+              | Some(ms) =>
+                Printf.printf(
+                  "BENCHSTATICS %s (%d lines): %.0fms\n",
+                  name,
+                  List.length(String.split_on_char('\n', src)),
+                  ms,
+                )
+              | None => Printf.printf("BENCHSTATICS %s: <no parse>\n", name)
+              }
+            };
+          },
+          ["bench-1k.hz", "bench-2k5.hz", "bench-5k.hz"],
+        )
+      ),
+    ]),
 );
