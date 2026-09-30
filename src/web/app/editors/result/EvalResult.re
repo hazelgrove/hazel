@@ -505,14 +505,29 @@ module Update = {
         |> Calc.map_if_new(
              Option.map(((exp, editor)) => {
                let display_exp = prune_for_display(exp);
+               let settings = settings |> Calc.get_value;
+               /* the value's statics come from the value itself, and
+                  only when it changed: parsing its printed text would be
+                  thrown away, and a giant value (a module's exports)
+                  made every program edit pay for it */
                (
                  exp,
                  CodeSelectable.Update.calculate(
-                   ~settings=settings |> Calc.get_value,
+                   ~settings,
                    ~is_dynamic_term=true,
                    ~stitch=_ => display_exp,
+                   ~projected=?
+                     result_changed
+                       ? Some(
+                           Haz3lcore.CachedStatics.init_from_term(
+                             ~settings,
+                             ~is_dynamic_term=true,
+                             display_exp,
+                           ),
+                         )
+                       : None,
                    ~dynamics=Dynamics.Map.empty,
-                   ~is_edited=is_edited || result_changed,
+                   ~is_edited=result_changed,
                    editor,
                  ),
                );
