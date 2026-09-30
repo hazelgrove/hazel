@@ -132,9 +132,10 @@ let body_cell = (d: Divided.t): Web.ScratchCell.t =>
   | [c, ..._] => c
   | [] => fail("no cells")
   };
-let set_body = (e: Web.CellEditor.Model.t, d: Divided.t): Divided.t =>
+let set_body = (e: Web.CellEditor.Model.t, d: Divided.t): Divided.t => {
+  let id = body_cell(d).e_id;
   Divided.update_cell(
-    0,
+    id,
     (c: Web.ScratchCell.t) =>
       {
         ...c,
@@ -142,7 +143,8 @@ let set_body = (e: Web.CellEditor.Model.t, d: Divided.t): Divided.t =>
       },
     d,
   )
-  |> Divided.set_active(0, Divided.Body);
+  |> Divided.set_active(id, Divided.Body);
+};
 
 /* split at every row, join: the same text, ids and root; returns how
    many rows opened */

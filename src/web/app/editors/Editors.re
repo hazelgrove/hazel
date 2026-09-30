@@ -571,9 +571,9 @@ module Selection = {
      ScratchMode.Selection.follow) */
   let follow = (~before: Model.t, selection: t, after: Model.t): t =>
     switch (selection, before, after) {
-    | (Scratch(sel), Scratch(b), Scratch(a))
-    | (Scratch(sel), Documentation(b), Documentation(a)) =>
-      Scratch(ScratchMode.Selection.follow(~before=b, sel, a))
+    | (Scratch(sel), Scratch(_), Scratch(a))
+    | (Scratch(sel), Documentation(_), Documentation(a)) =>
+      Scratch(ScratchMode.Selection.follow(sel, a))
     | _ => selection
     };
 

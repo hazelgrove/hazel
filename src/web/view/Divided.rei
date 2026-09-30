@@ -76,7 +76,7 @@ let resplit:
 let same_content: (t, t) => bool;
 
 let map_cells: (ScratchCell.t => ScratchCell.t, t) => t;
-let update_cell: (int, ScratchCell.t => ScratchCell.t, t) => t;
-let set_active: (int, side, t) => t;
+let update_cell: (Id.t, ScratchCell.t => ScratchCell.t, t) => t;
+let set_active: (Id.t, side, t) => t;
 let map_editors: (CellEditor.Model.t => CellEditor.Model.t, t) => t;
 let compact: (CellEditor.Model.t => CellEditor.Model.t, t) => t;

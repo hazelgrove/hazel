@@ -467,8 +467,8 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
-      /* an unchanged selection follows its pane (cells shift as they
-         open and close); a fresh one already names its target */
+      /* an unchanged selection whose cell closed falls back to an open
+         one; a fresh one already names its target */
       let selection =
         selection === model.selection
           ? Editors.Selection.follow(

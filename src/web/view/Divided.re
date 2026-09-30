@@ -581,19 +581,18 @@ let map_cells = (f: Cell.t => Cell.t, d: t): t => {
   cells: List.map(f, d.cells),
 };
 
-let update_cell = (i: int, f: Cell.t => Cell.t, d: t): t => {
+let update_cell = (id: Id.t, f: Cell.t => Cell.t, d: t): t => {
   ...d,
-  cells: List.mapi((j, e) => i == j ? f(e) : e, d.cells),
+  cells: List.map((e: Cell.t) => e.e_id == id ? f(e) : e, d.cells),
 };
 
-let set_active = (i: int, side: side, d: t): t =>
-  switch (List.nth_opt(d.cells, i)) {
-  | Some(e) => {
+let set_active = (id: Id.t, side: side, d: t): t =>
+  List.exists((e: Cell.t) => e.e_id == id, d.cells)
+    ? {
       ...d,
-      active: Some((e.e_id, side)),
+      active: Some((id, side)),
     }
-  | None => d
-  };
+    : d;
 
 /* every editor inside (shell and cells), e.g. for undo compaction */
 let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {

@@ -114,16 +114,16 @@ let current_cells = (model: Model.t): list(ScratchCell.t) =>
   | Some(Divided(d)) => Divided.cells(d)
   | _ => []
   };
-let nth_cell = (model: Model.t, i: int): option(ScratchCell.t) =>
-  List.nth_opt(current_cells(model), i);
+let cell_by_id = (model: Model.t, id: Haz3lcore.Id.t): option(ScratchCell.t) =>
+  List.find_opt((e: ScratchCell.t) => e.e_id == id, current_cells(model));
 
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
-    | StackHeader(int, CellEditor.Update.t)
-    | StackBody(int, CellEditor.Update.t)
+    | StackHeader(Haz3lcore.Id.t, CellEditor.Update.t)
+    | StackBody(Haz3lcore.Id.t, CellEditor.Update.t)
     | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
     | FocusToggleRun(Haz3lcore.Id.t) /* one cell for a whole test run */
@@ -869,23 +869,23 @@ module Update = {
     | FocusOutline =>
       JsUtil.focus_outline();
       model |> Updated.return_quiet;
-    | StackHeader(i, a) =>
+    | StackHeader(id, a) =>
       switch (current_code(model)) {
       | Some({program: Divided(d), _} as code) =>
-        switch (List.nth_opt(Divided.cells(d), i)) {
+        switch (cell_by_id(model, id)) {
         | None => model |> Updated.return_quiet
         | Some(entry) =>
           let* new_header =
             CellEditor.Update.update(~settings, a, entry.e_header);
           let d =
             d
-            |> Divided.update_cell(i, e =>
+            |> Divided.update_cell(id, e =>
                  {
                    ...e,
                    e_header: new_header,
                  }
                )
-            |> Divided.set_active(i, Header);
+            |> Divided.set_active(id, Header);
           with_code(
             model,
             {
@@ -896,23 +896,23 @@ module Update = {
         }
       | _ => model |> Updated.return_quiet
       }
-    | StackBody(i, a) =>
+    | StackBody(id, a) =>
       switch (current_code(model)) {
       | Some({program: Divided(d), _} as code) =>
-        switch (List.nth_opt(Divided.cells(d), i)) {
+        switch (cell_by_id(model, id)) {
         | None => model |> Updated.return_quiet
         | Some(entry) =>
           let* new_body =
             CellEditor.Update.update(~settings, a, entry.e_body);
           let d =
             d
-            |> Divided.update_cell(i, e =>
+            |> Divided.update_cell(id, e =>
                  {
                    ...e,
                    e_body: new_body,
                  }
                )
-            |> Divided.set_active(i, Body);
+            |> Divided.set_active(id, Body);
           with_code(
             model,
             {
@@ -1558,8 +1558,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
-    | StackH(int, CellEditor.Selection.t)
-    | StackB(int, CellEditor.Selection.t)
+    | StackH(Haz3lcore.Id.t, CellEditor.Selection.t)
+    | StackB(Haz3lcore.Id.t, CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -1578,7 +1578,7 @@ module Selection = {
           );
         Update.CellAction(a);
       | (StackH(i, selection), Code(_)) =>
-        switch (nth_cell(model, i)) {
+        switch (cell_by_id(model, i)) {
         | Some(entry) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
@@ -1590,7 +1590,7 @@ module Selection = {
         | None => empty
         }
       | (StackB(i, selection), Code(_)) =>
-        switch (nth_cell(model, i)) {
+        switch (cell_by_id(model, i)) {
         | Some(entry) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
@@ -1658,23 +1658,26 @@ module Selection = {
       |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)))
     | Code({program: Divided(d), _}) =>
       /* while divided, jump inside the open cell holding the tile */
-      let rec find = (i, cells: list(ScratchCell.t)) =>
-        switch (cells) {
-        | [] => None
-        | [e, ...rest] =>
-          let in_cell = cell =>
-            Focus.seg_contains_id(tile, Focus.zip_of_cell(cell));
-          let caret: CellEditor.Update.t =
-            MainEditor(Perform(Move(Goal(TileId(tile)))));
-          if (in_cell(e.e_body)) {
-            Some((Update.StackBody(i, caret), StackB(i, MainEditor)));
-          } else if (in_cell(e.e_header)) {
-            Some((Update.StackHeader(i, caret), StackH(i, MainEditor)));
-          } else {
-            find(i + 1, rest);
-          };
-        };
-      find(0, Divided.cells(d));
+      let caret: CellEditor.Update.t =
+        MainEditor(Perform(Move(Goal(TileId(tile)))));
+      let in_cell = cell =>
+        Focus.seg_contains_id(tile, Focus.zip_of_cell(cell));
+      Divided.cells(d)
+      |> List.find_map((e: ScratchCell.t) =>
+           if (in_cell(e.e_body)) {
+             Some((
+               Update.StackBody(e.e_id, caret),
+               StackB(e.e_id, MainEditor),
+             ));
+           } else if (in_cell(e.e_header)) {
+             Some((
+               Update.StackHeader(e.e_id, caret),
+               StackH(e.e_id, MainEditor),
+             ));
+           } else {
+             None;
+           }
+         );
     | Drv(m) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
@@ -1717,7 +1720,12 @@ module Selection = {
             id => List.mem(id, items),
             [target_id, ...Language.Info.ancestors_of(info)],
           );
-        let j = Divided.position(~term=statics.term, fid, d);
+        /* the cell that holds [fid] once it's ensured */
+        let j =
+          switch (Divided.owner(fid, d)) {
+          | Some(e) => e.e_id
+          | None => fid
+          };
         /* the target lives in the pattern (header cell) for def
            binders, in the body for everything else */
         let in_header =
@@ -1771,7 +1779,7 @@ module Selection = {
           | StackHeader(_) => true
           | _ => false
           };
-        let* entry = List.nth_opt(Divided.cells(d), i);
+        let* entry = cell_by_id(model, i);
         let cell =
           from_header ? entry.ScratchCell.e_header : entry.ScratchCell.e_body;
         let cell_map = cell.editor.statics.info_map;
@@ -1788,67 +1796,44 @@ module Selection = {
   };
 
   /* the selection an outline add/ensure should land on: the body pane
-     of [fid] at its (future) stack position. None for removals — the
-     selection stays put. */
+     of the cell that will hold [fid]. None for removals: the selection
+     stays put. */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
     switch (action, Model.current_program(model)) {
     | (FocusEnsure(fid), Some(Divided(d))) =>
       Some(
         StackB(
-          Divided.position(~term=Divided.statics(d).term, fid, d),
+          switch (Divided.owner(fid, d)) {
+          | Some(e) => e.e_id
+          | None => fid
+          },
           MainEditor,
         ),
       )
     | (FocusToggle(fid), Some(Divided(d))) =>
       List.exists((e: ScratchCell.t) => e.e_id == fid, Divided.cells(d))
-        ? None
-        : Some(
-            StackB(
-              Divided.position(~term=Divided.statics(d).term, fid, d),
-              MainEditor,
-            ),
-          )
-    | (FocusToggle(_), Some(Whole(_))) => Some(StackB(0, MainEditor))
+        ? None : Some(StackB(fid, MainEditor))
+    | (FocusToggle(fid), Some(Whole(_))) => Some(StackB(fid, MainEditor))
     | _ => None
     };
 
-  /* keep the selection on the same pane across an update. Cells are
-     addressed by index, which shifts as cells open and close, so remap
-     by the cell's id; a closed cell falls back to the active one, and a
-     whole program selects its editor */
-  let follow = (~before: Model.t, selection: t, after: Model.t): t => {
-    let index = (id, cells) => {
-      let rec go = (k, l: list(ScratchCell.t)) =>
-        switch (l) {
-        | [] => None
-        | [e, ...rest] => e.e_id == id ? Some(k) : go(k + 1, rest)
-        };
-      go(0, cells);
-    };
-    let pane = ((i, side): (int, Divided.side), s) =>
-      side == Divided.Header ? StackH(i, s) : StackB(i, s);
+  /* after an update: a selected cell that closed falls back to the
+     active one, and a whole program selects its editor */
+  let follow = (selection: t, after: Model.t): t => {
+    let pane = ((id, side): (Haz3lcore.Id.t, Divided.side), s) =>
+      side == Divided.Header ? StackH(id, s) : StackB(id, s);
     let active = (d: Divided.t) =>
-      (
-        switch (Divided.active(d)) {
-        | Some((id, side)) =>
-          index(id, Divided.cells(d)) |> Option.map(i => (i, side))
-        | None => None
-        }
-      )
-      |> Option.value(~default=(0, Divided.Body));
-    let remap = (i, side, s, d) =>
-      switch (List.nth_opt(current_cells(before), i)) {
-      | Some(e) =>
-        switch (index(e.e_id, Divided.cells(d))) {
-        | Some(j) => pane((j, side), s)
-        | None => pane(active(d), CellEditor.Selection.MainEditor)
-        }
-      | None => pane(active(d), CellEditor.Selection.MainEditor)
+      switch (Divided.active(d), Divided.cells(d)) {
+      | (Some(a), _) => a
+      | (None, [e, ..._]) => (e.e_id, Divided.Body)
+      | (None, []) => (Haz3lcore.Id.invalid, Divided.Body)
       };
+    let open_ = (id, d) =>
+      List.exists((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
     switch (selection, Model.current_program(after)) {
     | (StackH(_) | StackB(_), Some(Whole(_))) => Cell(MainEditor)
-    | (StackH(i, s), Some(Divided(d))) => remap(i, Divided.Header, s, d)
-    | (StackB(i, s), Some(Divided(d))) => remap(i, Divided.Body, s, d)
+    | (StackH(id, _) | StackB(id, _), Some(Divided(d))) =>
+      open_(id, d) ? selection : pane(active(d), MainEditor)
     | (Cell(MainEditor), Some(Divided(d))) => pane(active(d), MainEditor)
     | _ => selection
     };
@@ -1969,12 +1954,14 @@ module View = {
               (i, e: ScratchCell.t) => {
                 let header_sel =
                   switch (selected) {
-                  | Some(Selection.StackH(j, sel)) when j == i => Some(sel)
+                  | Some(Selection.StackH(j, sel)) when j == e.e_id =>
+                    Some(sel)
                   | _ => None
                   };
                 let body_sel =
                   switch (selected) {
-                  | Some(Selection.StackB(j, sel)) when j == i => Some(sel)
+                  | Some(Selection.StackB(j, sel)) when j == e.e_id =>
+                    Some(sel)
                   | _ => None
                   };
                 let key = {
@@ -2039,22 +2026,23 @@ module View = {
                          with the re-render) or the caret vanishes and
                          arrows scroll the page */
                       Haz3lcore.FocusEffect.schedule_cell();
+                      let id = List.nth(cells, idx).e_id;
                       Virtual_dom.Vdom.Effect.Many([
                         signal(
                           MakeActive(
                             to_header
-                              ? StackH(idx, MainEditor)
-                              : StackB(idx, MainEditor),
+                              ? StackH(id, MainEditor)
+                              : StackB(id, MainEditor),
                           ),
                         ),
                         inject(
                           to_header
                             ? StackHeader(
-                                idx,
+                                id,
                                 MainEditor(Perform(Move(move))),
                               )
                             : StackBody(
-                                idx,
+                                id,
                                 MainEditor(Perform(Move(move))),
                               ),
                         ),
@@ -2117,11 +2105,11 @@ module View = {
                     inject(
                       to_header
                         ? StackHeader(
-                            i,
+                            e.e_id,
                             MainEditor(Perform(Move(Vertical(v, ByChar)))),
                           )
                         : StackBody(
-                            i,
+                            e.e_id,
                             MainEditor(Perform(Move(Vertical(v, ByChar)))),
                           ),
                     );
@@ -2200,8 +2188,8 @@ module View = {
                             ~signal=
                               fun
                               | MakeActive(sel) =>
-                                signal(MakeActive(StackH(i, sel))),
-                            ~inject=a => inject(StackHeader(i, a)),
+                                signal(MakeActive(StackH(e.e_id, sel))),
+                            ~inject=a => inject(StackHeader(e.e_id, a)),
                             ~selected=header_sel,
                             ~result_kind=`NoResults,
                             ~locked=false,
@@ -2229,8 +2217,8 @@ module View = {
                             ~signal=
                               fun
                               | MakeActive(sel) =>
-                                signal(MakeActive(StackB(i, sel))),
-                            ~inject=a => inject(StackBody(i, a)),
+                                signal(MakeActive(StackB(e.e_id, sel))),
+                            ~inject=a => inject(StackBody(e.e_id, a)),
                             ~selected=body_sel,
                             ~result_kind=`NoResults,
                             ~locked=false,

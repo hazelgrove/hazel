@@ -119,7 +119,7 @@ let zoom_members = () => {
       };
     let d =
       Divided.update_cell(
-        0,
+        List.hd(Divided.cells(d)).e_id,
         (c: Web.ScratchCell.t) =>
           {
             ...c,
