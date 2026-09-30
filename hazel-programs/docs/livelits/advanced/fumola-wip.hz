@@ -1,0 +1,42 @@
+# Fumola, a Work in Progress #
+
+# ^fumola_wip runs a Fumola computation between two cells, one each way #
+# across the language boundary: a Hazel value goes in, the computation's #
+# result comes out, and the result is what the livelit expands to. #
+
+# It is a prototype of a DSL inside Hazel, edited as tiles, inside a #
+# livelit. Its name says it is unfinished and slow: editing tiles inside #
+# a livelit costs a full view and update per keystroke today. #
+
+# Like ^js (the slide before this one) it ships built in, written in the #
+# editor's own implementation language, so it can draw the Fumola tiles #
+# and this instance's watch pane itself. #
+
+# The head row names the INSTANCE (myInstance) and the LIVELIT #
+# (myLivelit). Every cell the livelit owns is named under the livelit: #
+#   `myLivelit(`input)    written from Hazel: the In wire #
+#   `myLivelit(`compute)  the thunk the code runs in, reused across edits #
+#   `myLivelit(`output)   the code's result, read back: the Out wire #
+# (`in and `thunk would read better, but both are Fumola keywords.) #
+
+# Below the head, the full width of the notebook: on the left the In #
+# wire, the code, and the Out wire; on the right the watch pane for #
+# myInstance, its Events, Nodes and Edges. Each run adds the three cells #
+# and forces the computation, and the pane shows it happen. #
+
+# The input is a splice, and it can name a variable bound outside the #
+# livelit: n below. It crosses into Fumola as a hazel ... end escape, #
+# evaluated when the program runs, where n is in scope. #
+
+# The code reads its input as a variable, input, which the livelit binds #
+# by reading the In cell: that read is the edge from the input to the #
+# computation in the watch pane. #
+
+# The tiles box switches the code between Fumola tiles and a string. #
+# Code that cannot be converted, tiles with a hole in them or text that #
+# does not parse, stays as it is. #
+
+# Try: change 10 to 20, or input + 1 to input * 3, or untick tiles. #
+let n = 10 in
+let result = ^^livelit(^fumola_wip((instance = "myInstance", name = "myLivelit", tiles = true, input = (n * 2), code = (fumola $graphical as myInstance in input + 1 end)))) in
+result

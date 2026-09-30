@@ -319,3 +319,13 @@
     overflow-wrap: anywhere;
     resize: vertical;
 }
+/* The debug readout; the live count is an attribute FumolaRun writes. */
+.fumola-wip-debug {
+    font-size: 0.8em;
+    opacity: 0.6;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.fumola-wip-runs::after {
+    content: attr(data-live-runs);
+}

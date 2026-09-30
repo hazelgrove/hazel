@@ -396,6 +396,71 @@ let pass_of_moment = (n: int): option(string) =>
    moment: `Now` is the bottom of the order and can see none of them. Reading
    at the LATEST moment is what makes a reader see everything, since a read at
    T answers with the write at the greatest comparable T' <= T. */
+/* Debug, for ^fumola_wip's readout: how many times a quote has run in each
+   instance. Each run also writes the count straight onto the readout's DOM,
+   as the data-live-runs attribute that its CSS shows, so the count moves even
+   when the livelit is not redrawn -- which is the question the readout is
+   there to answer. No document (the test runner, the worker): no write. */
+let runs: Hashtbl.t(string, int) = Hashtbl.create(8);
+
+let runs_of = (name: string): int =>
+  Option.value(Hashtbl.find_opt(runs, name), ~default=0);
+
+let is_plain_name = (name: string): bool =>
+  name != ""
+  && String.for_all(
+       c =>
+         c >= 'a'
+         && c <= 'z'
+         || c >= 'A'
+         && c <= 'Z'
+         || c >= '0'
+         && c <= '9'
+         || c == '_',
+       name,
+     );
+
+let note_run = (name: string): unit => {
+  let n = runs_of(name) + 1;
+  Hashtbl.replace(runs, name, n);
+  if (is_plain_name(name)) {
+    switch (
+      Js_of_ocaml.Js.Optdef.to_option(
+        Js_of_ocaml.Js.Unsafe.get(Js_of_ocaml.Js.Unsafe.global, "document"),
+      )
+    ) {
+    | exception _
+    | None => ()
+    | Some(doc) =>
+      switch (
+        Js_of_ocaml.Js.Unsafe.meth_call(
+          doc,
+          "querySelectorAll",
+          [|js_string("[data-fumola-runs=\"" ++ name ++ "\"]")|],
+        )
+      ) {
+      | exception _ => ()
+      | els =>
+        let count: int =
+          Js_of_ocaml.Js.Unsafe.get(els, "length")
+          |> Js_of_ocaml.Js.float_of_number
+          |> int_of_float;
+        for (i in 0 to count - 1) {
+          let el =
+            Js_of_ocaml.Js.Unsafe.meth_call(els, "item", [|js_int(i)|]);
+          let () =
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              el,
+              "setAttribute",
+              [|js_string("data-live-runs"), js_string(string_of_int(n))|],
+            );
+          ();
+        };
+      }
+    };
+  };
+};
+
 let run =
     (
       ~ana: TermBase.Typ.t,
@@ -443,6 +508,7 @@ let run =
             },
           mode,
         );
+        note_run(instance_name);
         switch (eval_at(instance_id, at_moment(at, program))) {
         | `Null =>
           Error({

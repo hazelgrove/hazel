@@ -1565,6 +1565,36 @@ module FumolaWip: BuiltinLivelit = {
           )
         ),
         toggle(m, send_action),
+        {
+          /* Debug: "runs" moves as runs happen, straight from FumolaRun;
+             "drawn" is the count when this row was last rendered. Runs moving
+             while drawn and the watch pane stay put is a redraw problem; runs
+             not moving is a run that did not happen. */
+
+          let drawn = string_of_int(FumolaRun.runs_of(m.instance));
+          Node.span(
+            ~attrs=[
+              Attr.class_("fumola-wip-debug"),
+              Attr.title(
+                "runs in "
+                ++ m.instance
+                ++ ", counted as they happen / the count when this row was drawn",
+              ),
+            ],
+            [
+              Node.text("runs "),
+              Node.span(
+                ~attrs=[
+                  Attr.class_("fumola-wip-runs"),
+                  Attr.create("data-fumola-runs", m.instance),
+                  Attr.create("data-live-runs", drawn),
+                ],
+                [],
+              ),
+              Node.text(" \u{b7} drawn " ++ drawn),
+            ],
+          );
+        },
       ],
     );
 
@@ -1661,7 +1691,9 @@ module FumolaWip: BuiltinLivelit = {
      rows; change both together. */
   let shape: Util.ProjectorShape.t = {
     vertical: Tab(14),
-    horizontal: 44,
+    /* Room for the whole head row: badge, both fields, the toggle and the
+       run readout. At 44 the last two were clipped off. */
+    horizontal: 84,
   };
 };
 

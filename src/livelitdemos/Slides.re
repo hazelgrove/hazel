@@ -68,6 +68,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     /* Livelits / Advanced: the least typical livelits, at the end of
        the deck (hazel-programs/docs/livelits/advanced). */
     ("Advanced / JavaScript", [%blob "javascript.hz"]),
+    ("Advanced / Fumola, a Work in Progress", [%blob "fumola-wip.hz"]),
   ]
   |> List.map(((name, text)) =>
        (
