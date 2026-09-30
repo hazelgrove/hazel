@@ -55,6 +55,7 @@ let aliases: list(((string, string), list(string))) = [
       "surface-raised",
       "df-zebra-bg",
       "table-header-bg",
+      "cell-result",
     ],
   ),
   (
@@ -149,7 +150,6 @@ let aliases: list(((string, string), list(string))) = [
     ("palette", "surface-3"),
     [
       "main-bkg",
-      "cell-result",
       "live-env-bkg",
       "surface-sunken",
       "text-sunken",
