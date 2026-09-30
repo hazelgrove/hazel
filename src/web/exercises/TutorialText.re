@@ -150,8 +150,7 @@ let parse_sections = (content: string): sections => {
 };
 
 /* Filename -> module_name / title, matching the retired generator so the
-   per-slide config tables (TutorialProbeStrip, TutorialSlideInit) keep
-   their keys. */
+   per-slide config table (TutorialProbeConfig) keeps its keys. */
 let chop_lesson_ext = (rel: string): string =>
   Filename.check_suffix(rel, ".hzt")
     ? Filename.chop_suffix(rel, ".hzt") : Filename.chop_suffix(rel, ".hz");
