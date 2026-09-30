@@ -183,6 +183,8 @@ let enter_projector =
       id: pr.id,
       kind: pr.kind,
       model: pr.model,
+      placement: pr.placement,
+      show_syntax: pr.show_syntax,
       before: outer_left,
       after: outer_right,
     };

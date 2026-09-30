@@ -131,6 +131,67 @@ let tests = (
         ),
       )
     ),
+    /* A direct use gives the parameters at the use, the paper's
+       $slider 1 6, with no abbreviation. */
+    test_case(
+      "A direct use ^slider(1, 6)(3) means 3",
+      `Quick,
+      () => {
+        let (m, elab) =
+          load(
+            ~source="direct-use",
+            edited(
+              ~from="^^livelit(^die(3))",
+              ~to_="^^livelit(^slider(1, 6)(3))",
+            ),
+          );
+        check(list(string), "no errors", [], messages(m));
+        check(
+          Test_Evaluator_Prelude.dhexp_typ,
+          file,
+          Test_UserLivelits.run("28"),
+          Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+        );
+      },
+    ),
+    test_case(
+      "A direct use works without the projector too",
+      `Quick,
+      () => {
+        let (m, elab) =
+          load(
+            ~source="direct-use-bare",
+            edited(~from="^^livelit(^die(3))", ~to_="^slider(1, 6)(3)"),
+          );
+        check(list(string), "no errors", [], messages(m));
+        check(
+          Test_Evaluator_Prelude.dhexp_typ,
+          file,
+          Test_UserLivelits.run("28"),
+          Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
+        );
+      },
+    ),
+    test_case(
+      "A direct use's argument naming a client binding is an error", `Quick, () =>
+      check(
+        bool,
+        "marked",
+        true,
+        has(
+          "Variable six is not bound",
+          fst(
+            load(
+              ~source="direct-open",
+              edited(
+                ~from="^^livelit(^die(3))",
+                ~to_="(let six = 6 in ^^livelit(^slider(1, six)(3)))",
+              ),
+            ),
+          ),
+        ),
+      )
+    ),
     /* Parameters are closed: a client binding is not in scope there. */
     test_case("An argument naming a client binding is an error", `Quick, () =>
       check(

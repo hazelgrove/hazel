@@ -86,6 +86,7 @@ type project =
    * drag ticks (e.g. HTML projector resize). The first tick of a gesture
    * should be a normal SetModel so undo restores the pre-gesture state. */
   | TogglePlacement /* Dock/undock the indicated projector to/from the sidebar */
+  | ToggleSyntax(int) /* Show/hide a projector's own syntax, editable, below its UI */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -216,6 +217,7 @@ let is_edit: t => bool =
     | SetTerm(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
@@ -273,6 +275,7 @@ let is_historic: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated => true
     | SetModelQuiet(_)
     | Focus(_)
@@ -318,6 +321,7 @@ let should_animate: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)

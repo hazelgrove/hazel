@@ -111,3 +111,41 @@
   overflow-x: clip;
   overflow-y: visible;
 }
+
+/* The syntax toggle and pane (LivelitProj: show_syntax). The layer covers
+   the livelit and lets clicks through, except on its two parts. */
+.livelit-syntax-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.livelit-syntax-toggle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0 0.2em;
+    font-family: var(--code-font);
+    font-size: 0.55em;
+    line-height: 1.3;
+    border-radius: 0 0 3px 0;
+    background: var(--ui-bkg, var(--BR1));
+    color: var(--text-muted, var(--STONE));
+    opacity: 0.35;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 2;
+}
+.projector:hover .livelit-syntax-toggle,
+.livelit-syntax-toggle.on {
+    opacity: 0.9;
+}
+.livelit-syntax {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+    border-top: 1px dashed var(--border-soft, var(--BR3));
+    background: var(--ui-bkg, var(--BR1));
+    pointer-events: auto;
+}

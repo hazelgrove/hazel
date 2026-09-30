@@ -601,12 +601,20 @@ let expose_splice_refs =
    BadLivelitExpansion check silently stopped firing. Two tests caught
    that. Ascribing the hole keeps both arms at Expansion, which is what
    the use site is entitled to assume whichever arm ran. */
-let mk_expand_dot =
-    (~name: string, ~expansion_t: TermBase.Typ.t, model: TermBase.Exp.t) => {
+/* `def.expand`, matched: a Functional livelit's use means its function
+   applied to the model; a Macro's means a hole here, filled in by the use's
+   check. `def` is what the livelit is at run time: `^name`, bound by its
+   `let`, or for a direct use with parameters, `^a(args)` itself. */
+let mk_expand_dot_def =
+    (
+      ~def: TermBase.Exp.t,
+      ~expansion_t: TermBase.Typ.t,
+      model: TermBase.Exp.t,
+    ) => {
   IdTagged.FreshGrammar.(
     Some(
       Exp.match(
-        Exp.dot(Exp.var("^" ++ name), Exp.label("expand")),
+        Exp.dot(def, Exp.label("expand")),
         [
           (
             Pat.ap(Pat.constructor("Functional", None), Pat.var("f")),
@@ -621,6 +629,14 @@ let mk_expand_dot =
     )
   );
 };
+
+let mk_expand_dot =
+    (~name: string, ~expansion_t: TermBase.Typ.t, model: TermBase.Exp.t) =>
+  mk_expand_dot_def(
+    ~def=IdTagged.FreshGrammar.Exp.var("^" ++ name),
+    ~expansion_t,
+    model,
+  );
 
 /* ==================== Macro expansion (Sec. 3.2.5) ====================
    A Macro livelit's use means its quoted function applied to the code of
@@ -810,12 +826,48 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
   };
 
 /* A projected use of a user-defined livelit: (bare name, model term) */
+/* A use of a user livelit: what the livelit is at run time, and the model.
+   For `^name(model)` the livelit is `^name`; for a direct use with
+   parameters, `^a(args)(model)`, it is `^a(args)`, found in `elab` by the
+   application's id so it is the elaborated form, falling back to `^a`
+   applied to the arguments as written. */
+let rec strip_use = (e: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (e.term) {
+  | Parens(e)
+  /* A use showing its syntax holds it as one splice. */
+  | Splice(e) => strip_use(e)
+  | _ => e
+  };
+
 let use_parts =
-    (ctx: Ctx.t, use: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>
-  switch (strip_parens(use).term) {
+    (~elab: option(TermBase.Exp.t)=?, ctx: Ctx.t, use: TermBase.Exp.t)
+    : option((TermBase.Exp.t, TermBase.Exp.t)) =>
+  switch (strip_use(use).term) {
   | Ap(_, {term: LivelitName(name), _}, model) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
-    | Some({user_def: Some(_), _}) => Some((name, model))
+    | Some({user_def: Some(_), vparam: false, _}) =>
+      Some((IdTagged.FreshGrammar.Exp.var("^" ++ name), model))
+    | _ => None
+    }
+  | Ap(_, fn, model) =>
+    switch (strip_parens(fn).term) {
+    | Ap(_, {term: LivelitName(name), _}, args) =>
+      switch (Ctx.lookup_livelit(ctx, name)) {
+      | Some({user_def: Some(_), vparam: true, _}) =>
+        let written =
+          IdTagged.FreshGrammar.Exp.ap(
+            Operators.Forward,
+            IdTagged.FreshGrammar.Exp.var("^" ++ name),
+            args,
+          );
+        let def =
+          switch (Option.bind(elab, e => Exp.find_by_id(Exp.rep_id(fn), e))) {
+          | Some(d) => d
+          | None => written
+          };
+        Some((def, model));
+      | _ => None
+      }
     | _ => None
     }
   | _ => None
@@ -832,7 +884,7 @@ let use_parts =
 let instrument_view =
     (
       ~projector_id: Id.t,
-      ~name: string,
+      ~def: TermBase.Exp.t,
       ~model: TermBase.Exp.t,
       body: TermBase.Exp.t,
     )
@@ -853,7 +905,7 @@ let instrument_view =
           [projector_id],
           Grammar.Ap(
             Operators.Forward,
-            Exp.dot(Exp.var("^" ++ name), Exp.label("view")),
+            Exp.dot(def, Exp.label("view")),
             m_ref(),
           ): TermBase.Exp.term,
         );
@@ -944,6 +996,10 @@ let apply_args =
       ~name: string,
       ~id: Id.t,
       ~args: TermBase.Exp.t,
+      /* What the applied livelit is at run time, for a direct use with
+         parameters: `^a(args)` itself, since no `let` names it. Absent for
+         an abbreviation, whose `let ^b` binds it. */
+      ~runtime: option(TermBase.Exp.t)=?,
       ll: LivelitCtx.raw_livelit,
     )
     : option(LivelitCtx.raw_livelit) =>
@@ -953,7 +1009,11 @@ let apply_args =
       ...ll,
       name,
       id,
-      expand: mk_expand_dot(~name, ~expansion_t=ll.expansion_t),
+      expand:
+        switch (runtime) {
+        | Some(def) => mk_expand_dot_def(~def, ~expansion_t=ll.expansion_t)
+        | None => mk_expand_dot(~name, ~expansion_t=ll.expansion_t)
+        },
       user_def:
         Some((Ap(Forward, def, args): TermBase.Exp.term) |> Exp.fresh),
       vparam: false,

@@ -25,6 +25,7 @@ type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
+  | ToggleSyntax /* Show/hide this projector's own syntax below its UI */
   | SetSyntax(Base.segment) /* Set underlying syntax */
   | SetTerm(Any.t, bool) /* Set underlying term, optionally preserving original splices */
   | FocusById(Util.Id.t); /* Focus a projector by its term id */

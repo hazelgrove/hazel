@@ -47,14 +47,34 @@ type t('syntax) = {
   model: string,
   [@sexp.default Placement.Inline] [@yojson.default Placement.Inline]
   placement: Placement.t,
+  /* Whether the projector also shows its own syntax, editable, below its
+     GUI (a livelit's toggle). Kept here and in the invoke token, as
+     placement is, so it survives a round trip through text. Defaulted for
+     documents saved before it existed. */
+  [@sexp.default false] [@yojson.default false]
+  show_syntax: bool,
 };
 
-let mk = (~id=Id.mk(), ~placement=Placement.Inline, kind, syntax, model) => {
+let mk =
+    (
+      ~id=Id.mk(),
+      ~placement=Placement.Inline,
+      ~show_syntax=false,
+      kind,
+      syntax,
+      model,
+    ) => {
   id,
   kind,
   syntax,
   model,
   placement,
+  show_syntax,
+};
+
+let toggle_show_syntax = (p: t('syntax)): t('syntax) => {
+  ...p,
+  show_syntax: !p.show_syntax,
 };
 
 let toggle_placement = (p: t('syntax)): t('syntax) => {

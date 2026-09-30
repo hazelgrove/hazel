@@ -362,6 +362,10 @@ let projector_invoke_prefix = "^^";
    would disagree). `_` is safe as a separator: no kind name contains one. */
 let projector_invoke_sidebar = "_sidebar";
 
+/* A projector showing its own syntax says so the same way: `^^livelit_syntax`,
+   before any placement suffix (`^^livelit_syntax_sidebar`). */
+let projector_invoke_syntax = "_syntax";
+
 /* Strip the `^^` prefix, yielding the invoke body — option and placement
    suffixes and all, unlike of_projector_invoke_base below. No validation;
    that is is_projector_invoke's job.
@@ -379,24 +383,47 @@ let of_projector_invoke = (input: t): option(t) =>
 /* Split a trailing placement suffix off the invoke body. Placement is a
    SUFFIX and the option split below reads the FIRST `_`, so placement must
    come off first: "probe_table_sidebar" ==> ("probe_table", Sidebar). */
+let strip_suffix = (~suffix, body: t): option(t) =>
+  String.ends_with(~suffix, body)
+    ? Some(
+        String.sub(body, 0, String.length(body) - String.length(suffix)),
+      )
+    : None;
+
 let split_invoke_placement = (body: t): (t, ProjectorCore.Placement.t) =>
-  String.ends_with(~suffix=projector_invoke_sidebar, body)
-    ? (
-      String.sub(
-        body,
-        0,
-        String.length(body) - String.length(projector_invoke_sidebar),
-      ),
-      ProjectorCore.Placement.Sidebar,
-    )
-    : (body, ProjectorCore.Placement.Inline);
+  switch (strip_suffix(~suffix=projector_invoke_sidebar, body)) {
+  | Some(body) => (body, ProjectorCore.Placement.Sidebar)
+  | None => (body, ProjectorCore.Placement.Inline)
+  };
+
+/* The show-syntax suffix, which comes off after placement's. */
+let split_invoke_syntax = (body: t): (t, bool) =>
+  switch (strip_suffix(~suffix=projector_invoke_syntax, body)) {
+  | Some(body) => (body, true)
+  | None => (body, false)
+  };
 
 /* Invoke body and placement, split apart. The body keeps any option suffix.
    "^^slider_sidebar" ==> Some(("slider", Sidebar))
    "^^probe_table"    ==> Some(("probe_table", Inline)) */
 let of_projector_invoke_parts =
     (input: t): option((t, ProjectorCore.Placement.t)) =>
-  Option.map(split_invoke_placement, of_projector_invoke(input));
+  Option.map(
+    body => {
+      let (body, placement) = split_invoke_placement(body);
+      (fst(split_invoke_syntax(body)), placement);
+    },
+    of_projector_invoke(input),
+  );
+
+/* Whether an invoke token asks for its projector's syntax to be shown.
+   "^^livelit_syntax" / "^^livelit_syntax_sidebar" ==> true */
+let of_projector_invoke_show_syntax = (input: t): bool =>
+  switch (of_projector_invoke(input)) {
+  | Some(body) =>
+    snd(split_invoke_syntax(fst(split_invoke_placement(body))))
+  | None => false
+  };
 
 /* A `_opt` suffix on the invoke body is a trigger OPTION (e.g. the
    probe renderer in `^^probe_table`) — stripped for validity; Triggers
@@ -455,6 +482,7 @@ let mk_projector_invoke =
     (
       ~opt: option(t)=?,
       ~placement=ProjectorCore.Placement.Inline,
+      ~show_syntax=false,
       kind: ProjectorCore.Kind.t,
     )
     : string =>
@@ -465,6 +493,7 @@ let mk_projector_invoke =
     | None => ""
     }
   )
+  ++ (show_syntax ? projector_invoke_syntax : "")
   ++ (
     switch (placement) {
     | Inline => ""

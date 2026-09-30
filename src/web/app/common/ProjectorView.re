@@ -406,6 +406,7 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
+  | ToggleSyntax => Project(ToggleSyntax(idx))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | SetTerm(term, preserve_splices) =>
