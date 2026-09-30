@@ -888,6 +888,19 @@ module Local = {
       walk(seg);
     };
 
+    /* Materialize the edit's completions. The spacing repair skips what
+       the edit left unchanged: that text was lexed, so a bare junction
+       there (`{let`) is authored, not a glom. */
+    let materialize = (~before: Zipper.t, z: Zipper.t): Zipper.t => {
+      let originals = EditIdentity.index(Zipper.unselect_and_zip(before));
+      let unchanged = (p: Piece.t) =>
+        switch (Id.Map.find_opt(Piece.id(p), originals)) {
+        | Some(old) => old === p || compare(old, p) == 0
+        | None => false
+        };
+      Materialize.all(~skip=unchanged, z, ~root=Exp);
+    };
+
     /* The edit's old program supplies boundary witnesses and sharing.
        Unchanged subtrees are skipped; only new joins receive formatting.
        Unchanged results avoid reconstruction; rebuilt results retain overlays. */
@@ -1913,7 +1926,7 @@ module Local = {
             PerfTimer.time("normalize", () =>
               PerformUtils.normalize_top_level(
                 ~before=z,
-                Materialize.all(new_z, ~root=Exp),
+                PerformUtils.materialize(~before=z, new_z),
               )
             ),
           )

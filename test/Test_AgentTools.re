@@ -86,7 +86,7 @@ let run_insert_at_program_boundary =
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
           ~before=z,
-          Materialize.all(new_z, ~root=Exp),
+          CompositionGo.Local.PerformUtils.materialize(~before=z, new_z),
         )
         |> LocalReformat.go_region(~before_pieces),
       );
