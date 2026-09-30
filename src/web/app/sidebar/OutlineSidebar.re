@@ -552,12 +552,6 @@ let rec node_view =
         @ (
           is_collapsed(my_path) && Option.is_none(inside_row)
             ? [] : [Attr.create("open", "")]
-        )
-        @ (
-          switch (n.o_id) {
-          | Some(id) => [Attr.id("ol-b-" ++ Language.Id.to_string(id))]
-          | None => []
-          }
         ),
       [
         create(

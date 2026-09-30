@@ -17,8 +17,6 @@ module Action = {
     | CellAction(CellEditor.Update.t)
     | StackHeader(Haz3lcore.Id.t, CellEditor.Update.t)
     | StackBody(Haz3lcore.Id.t, CellEditor.Update.t)
-    /* show only this item at this level */
-    | FocusDef(Haz3lcore.Id.t)
     /* open or close an item's cell */
     | FocusToggle(Haz3lcore.Id.t)
     /* one cell for a whole test run */
@@ -303,12 +301,6 @@ let update =
         ),
       )
     };
-  | FocusDef(fid) =>
-    view(
-      (term, _, v) =>
-        SlideView.pin(~term, fid, SlideView.discard(~term, v)),
-      code,
-    )
   | FocusToggle(fid) =>
     view(
       (term, program, v) =>

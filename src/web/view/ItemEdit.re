@@ -1,5 +1,3 @@
-module Scratchpad = ScratchModel.Scratchpad;
-module Model = ScratchModel.Model;
 module Focus = ScratchFocus;
 
 open Haz3lcore;
@@ -585,7 +583,6 @@ let prepend_member = (item: Segment.t, members: Segment.t): option(Segment.t) =>
 type spot = {
   s_member: bool,
   s_pieces: Segment.t,
-  s_first_tile: option(Id.t),
   /* the neighbour in the move's direction, if it is a module */
   s_module: option(Id.t),
   s_edge: bool,
@@ -628,11 +625,6 @@ let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) => {
             Some({
               s_member: in_module,
               s_pieces: span_pieces(j),
-              s_first_tile:
-                Option.map(
-                  (t: Base.tile) => t.id,
-                  first_tile(span_pieces(j)),
-                ),
               s_module: module_at,
               s_edge: !movable(k),
             });

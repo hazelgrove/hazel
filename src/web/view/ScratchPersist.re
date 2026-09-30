@@ -3,7 +3,6 @@ open Util;
 
 module Scratchpad = ScratchModel.Scratchpad;
 module Model = ScratchModel.Model;
-module Focus = ScratchFocus;
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
    data is stored as separate HazelDB KV keys, so autosave only writes
