@@ -735,7 +735,7 @@ module Selection = {
    row construction and diff are O(program) per render; its inputs
    change on Force frames and outline interaction,
    not per keystroke. Key parts compare physically where the value is
-   rebuilt-on-change (statics, the DefStatics slot, test results) and
+   rebuilt-on-change (statics, test results) and
    structurally where small. */
 type outline_memo_key = {
   ok_statics: Haz3lcore.CachedStatics.t,

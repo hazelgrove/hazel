@@ -575,13 +575,8 @@ let calculate =
          document: a rename in one cell errors its users in the
          others, and cells whose item changed recapture their ctx.
          Only dirty items re-analyze. */
-      let d =
+      let (d, ds) =
         if (statics_mode == StaticsMode.Force || !Divided.has_fresh_statics(d)) {
-          let prev_items =
-            switch (Haz3lcore.DefStatics.current()) {
-            | Some(p) => p.items
-            | None => []
-            };
           let spliced = Divided.document(d);
           let term =
             Haz3lcore.MakeTerm.Incr.go_incr(
@@ -590,6 +585,11 @@ let calculate =
               spliced,
             ).
               term;
+          let prev_items =
+            switch (Haz3lcore.DefStatics.cached(term)) {
+            | Some(p) => p.items
+            | None => []
+            };
           let probe_ids = Program.probe_ids(Divided(d));
           let ds =
             Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
@@ -617,37 +617,40 @@ let calculate =
               probe_ids,
             };
           let fresh = it => !List.exists(p => p === it, prev_items);
-          d
-          |> Divided.with_statics(statics)
-          |> Divided.map_cells((e: ScratchCell.t) =>
-               switch (
-                 /* the cell may be a MODULE MEMBER: its top-level
-                    item is the one whose map knows its id */
-                 List.find_opt(
-                   (it: Haz3lcore.DefStatics.item) =>
-                     it.d_id == e.e_id || Id.Map.mem(e.e_id, it.d_map),
-                   ds.items,
-                 )
-               ) {
-               | Some(it) when fresh(it) =>
-                 switch (Focus.cell_content(e, spliced)) {
-                 | Some(def_seg) =>
-                   switch (
-                     Focus.captured_ctx(~info_map=it.d_map, e.e_id, def_seg)
-                   ) {
-                   | Some(ctx) => {
-                       ...e,
-                       e_ctx: ctx,
+          (
+            d
+            |> Divided.with_statics(statics)
+            |> Divided.map_cells((e: ScratchCell.t) =>
+                 switch (
+                   /* the cell may be a MODULE MEMBER: its top-level
+                      item is the one whose map knows its id */
+                   List.find_opt(
+                     (it: Haz3lcore.DefStatics.item) =>
+                       it.d_id == e.e_id || Id.Map.mem(e.e_id, it.d_map),
+                     ds.items,
+                   )
+                 ) {
+                 | Some(it) when fresh(it) =>
+                   switch (Focus.cell_content(e, spliced)) {
+                   | Some(def_seg) =>
+                     switch (
+                       Focus.captured_ctx(~info_map=it.d_map, e.e_id, def_seg)
+                     ) {
+                     | Some(ctx) => {
+                         ...e,
+                         e_ctx: ctx,
+                       }
+                     | None => e
                      }
                    | None => e
                    }
-                 | None => e
+                 | _ => e
                  }
-               | _ => e
-               }
-             );
+               ),
+            Some(ds),
+          );
         } else {
-          d;
+          (d, None);
         };
       /* the whole program's result keeps evaluating the assembled
          document; requests fire only when its elaboration changed */
@@ -693,7 +696,7 @@ let calculate =
           let (proj_header, proj_body) =
             statics_mode == StaticsMode.Force
               ? {
-                switch (Haz3lcore.DefStatics.current()) {
+                switch (ds) {
                 | Some(ds) =>
                   switch (
                     List.find_opt(

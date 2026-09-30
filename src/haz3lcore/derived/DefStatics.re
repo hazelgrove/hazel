@@ -1569,18 +1569,10 @@ let parity_cap = 3000;
 
 exception Divergence(list(string));
 
-/* single-slot auto cache: the scratch/documentation master is the one
-   whole-program editor; slide switches and structural edits fall back
-   to a full recompute via calc's own alignment check */
-let slot: ref(option(t)) = ref(None);
-
-/* per-DOCUMENT slots, LRU-capped: a single global slot meant any
-   alternation of statics consumers (slide switches; a second client)
-   thrashed it into full cold re-analyses (measured: 891 members /
-   ~650ms on returning to a mega slide). Keyed by the whole term's
-   rep id — stable for a document unless its first item is replaced,
-   which costs one cold pass. `slot` still tracks the ACTIVE document
-   for current()/error_item_ids. */
+/* the last calc per document, LRU-capped, so alternating documents
+   (slide switches, a second client) don't force cold re-analyses.
+   Keyed by the whole term's rep id: stable for a document unless its
+   first item is replaced, which costs one cold pass. */
 let slots: Hashtbl.t(Id.t, t) = Hashtbl.create(8);
 let slots_mru: ref(list(Id.t)) = ref([]);
 let slots_cap = 8;
@@ -1599,7 +1591,6 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
     slots_mru := keep;
   | _ => ()
   };
-  slot := Some(t);
   if (parity^ && Id.Map.cardinal(t.merged) <= parity_cap) {
     switch (divergences(~settings, ~cold=false, t)) {
     | [] => ()
@@ -1609,16 +1600,6 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   t;
 };
 
-let current = (): option(t) => slot^;
-
-/* item ids (outline id domain) currently carrying errors — the
-   outline badge feed; reads the auto-cache slot */
-let error_item_ids = (): list(Id.t) =>
-  switch (slot^) {
-  | None => []
-  | Some(t) =>
-    List.filter_map(
-      it => it.d_error_ids == [] ? None : Some(it.d_id),
-      t.items,
-    )
-  };
+/* the last calc of [whole]'s document, if still cached */
+let cached = (whole: Exp.t): option(t) =>
+  Hashtbl.find_opt(slots, Exp.rep_id(whole));
