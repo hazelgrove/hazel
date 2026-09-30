@@ -1,0 +1,220 @@
+/* SETTINGS PANEL (sidebar) */
+
+#settings-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--ui-font);
+  background-color: var(--ui-bkg);
+  color: var(--text-default);
+}
+
+#settings-panel .settings-title-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.5em 0.8em;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+#settings-panel .settings-title {
+  font-weight: bold;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  color: var(--ui-header-text);
+}
+
+#settings-panel .settings-filter {
+  margin-left: auto;
+  width: 13em;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.2em 0.7em;
+  border-radius: 1em;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface-code);
+  color: var(--text-default);
+  user-select: text;
+}
+
+#settings-panel .settings-filter:focus {
+  outline: 1.5px solid var(--primary-accent);
+  outline-offset: 0;
+}
+
+#settings-panel .settings-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: 2em;
+  scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
+}
+
+#settings-panel .settings-empty {
+  padding: 1em 0.8em;
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+/* sections: a header that folds them, then their rows */
+#settings-panel .settings-section {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+#settings-panel button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+#settings-panel .settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  width: 100%;
+  margin: 0;
+  padding: 0.6em 0.8em;
+  border: none;
+  background: none;
+  text-align: left;
+  color: var(--menu-group-name);
+  font-weight: 600;
+}
+
+#settings-panel .settings-section-header:hover {
+  background-color: color-mix(in srgb, var(--surface-shard) 18%, transparent);
+}
+
+#settings-panel .settings-chevron {
+  width: 0;
+  height: 0;
+  border-top: 0.28em solid transparent;
+  border-bottom: 0.28em solid transparent;
+  border-left: 0.4em solid var(--text-muted);
+  transform: rotate(90deg);
+  transition: transform 0.1s;
+}
+
+#settings-panel .settings-section.folded .settings-chevron {
+  transform: none;
+}
+
+#settings-panel .settings-count {
+  margin-left: auto;
+  font-weight: normal;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+#settings-panel .settings-rows {
+  padding-bottom: 0.45em;
+}
+
+/* a row: its name, its control at the right, its description beneath */
+#settings-panel .settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1em;
+  width: 100%;
+  margin: 0;
+  padding: 0.35em 0.8em 0.35em 1.95em;
+  border: none;
+  background: none;
+  text-align: left;
+}
+
+#settings-panel .settings-toggle:hover,
+#settings-panel .settings-choice:hover {
+  background-color: color-mix(in srgb, var(--surface-shard) 14%, transparent);
+}
+
+#settings-panel .settings-name {
+  color: var(--menu-item-text);
+  font-size: 0.92em;
+}
+
+#settings-panel .settings-desc {
+  grid-column: 1 / -1;
+  padding-left: 0.6em;
+  margin-top: 0.1em;
+  font-size: 0.78em;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+#settings-panel .settings-toggle .toggle-switch {
+  margin: 0;
+  height: 0.95em;
+  width: 1.65em;
+}
+
+#settings-panel .settings-toggle .toggle-switch .toggle-knob {
+  width: 0.7em;
+  height: 0.7em;
+}
+
+#settings-panel .settings-toggle .toggle-switch.active {
+  background-color: var(--primary-accent);
+}
+
+#settings-panel .settings-toggle .toggle-switch.active .toggle-knob {
+  margin-left: 0.75em;
+  margin-right: 1px;
+}
+
+/* multi-way settings: a compact segmented control where a toggle sits */
+#settings-panel .segmented-control {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 5px;
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
+}
+
+#settings-panel .segment {
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.12em 0.55em;
+  background: transparent;
+  font-size: 0.8em;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--menu-item-text);
+}
+
+#settings-panel .segment.active {
+  background-color: var(--primary-accent);
+  color: var(--cell-active);
+}
+
+#settings-panel .segment:hover:not(.active) {
+  background-color: color-mix(in srgb, var(--menu-item-hover-bkg) 65%, transparent);
+}
+
+/* actions (the config editors) */
+#settings-panel .settings-action {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#settings-panel .settings-button {
+  justify-self: start;
+  padding: 0.2em 0.7em;
+  border-radius: 4px;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface-code);
+  font-size: 0.88em;
+  color: var(--text-strong);
+}
+
+#settings-panel .settings-button:hover {
+  border-color: var(--border-strong);
+}
+
+#settings-panel button:focus-visible {
+  outline: 2px solid var(--primary-accent);
+  outline-offset: -2px;
+}
