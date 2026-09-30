@@ -12,7 +12,9 @@ Printexc.register_printer(exn => {
 Haz3lcore.Zipper.normalize_parity := true;
 
 /* and statics against a monolithic analysis, except when benchmarking */
-Haz3lcore.DefStatics.parity := !CorpusUtil.bench_enabled;
+if (!CorpusUtil.bench_enabled) {
+  DefStaticsCheck.install();
+};
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
