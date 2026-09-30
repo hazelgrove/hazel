@@ -229,6 +229,44 @@ let drop_consumed_spaces = (seg: segment): segment => {
   go(seg);
 };
 
+/* A display conversion's holes (a value or type drawn by ExpToSegment /
+ * TypToSegment) come bare, with no space of their own: between
+ * delimiters one pinches to zero width (`(,?)`), and beside an operator
+ * it takes the separator (`?+ ?`). For such a read-only render, back
+ * each hole with a space right after it, which classify hands to that
+ * hole (NextSpace). Each hole gets one cell, every separator survives,
+ * and the drawn width matches Printer.of_segment's (a hole per column).
+ * RENDER-ONLY, like drop_consumed_spaces: never stored or placed. A
+ * hole-free segment comes back physically unchanged. */
+let back_holes = (seg: segment): segment => {
+  let rec has_hole = (sg: segment): bool =>
+    List.exists(
+      (p: piece) =>
+        switch (p) {
+        | Grout(_) => true
+        | Tile(t) => List.exists(has_hole, t.children)
+        | _ => false
+        },
+      sg,
+    );
+  let rec go = (sg: segment): segment =>
+    List.concat_map(
+      (p: piece) =>
+        switch (p) {
+        | Grout(_) => [p, Secondary(Secondary.mk_space(Id.mk()))]
+        | Tile(t) => [
+            Tile({
+              ...t,
+              children: List.map(go, t.children),
+            }),
+          ]
+        | p => [p]
+        },
+      sg,
+    );
+  has_hole(seg) ? go(seg) : seg;
+};
+
 /* Pinch-class grout on `row` strictly left of (or at, when ~incl)
  * `col` — the marker shift for classification-blind printed text */
 let pinch_shift =

@@ -256,7 +256,192 @@ let sweep = (name: string, f: (string, Segment.t) => option(string)) =>
 let flat = (s: string): string =>
   String.split_on_char('\n', s) |> String.concat(" ⏎ ");
 
+/* VALUE DISPLAYS: probe samples (ProjectorView.simple_code) and
+   inspector types (CodeViewable.view_segment) draw a display
+   conversion's segment straight through Measured + GroutCells, after
+   GroutCells.back_holes gives each hole a space of its own. The pin is
+   the measured grid, plus the column of any hole pinched to zero
+   width. Eval results are different: they render through a read-only
+   editor, so their holes follow editor placement (layout-invisible,
+   filling existing spaces) and are pinned as they stand. */
+let value_render = (seg: Segment.t): string => {
+  let m = measured_of(seg);
+  let cells = GroutCells.classify(seg);
+  let pinches =
+    Segment.holes(seg)
+    |> List.filter((g: Grout.t) =>
+         GroutCells.cls_of(cells, g.id) == Some(Pinch)
+       )
+    |> List.map((g: Grout.t) =>
+         string_of_int(Measured.find_g(g, m).origin.col)
+       );
+  let g =
+    switch (grid(seg)) {
+    | Some(g) => g
+    | None => "<cell overlap>"
+    };
+  pinches == [] ? g : g ++ "  pinch@" ++ String.concat(",", pinches);
+};
+
+let hole = () => Language.Exp.fresh(EmptyHole);
+let typ_hole = () => Language.Typ.fresh(Unknown(Hole(EmptyHole)));
+let one = () => Language.Exp.fresh(Atom(Int(Util.Bigint.of_int(1))));
+
+let value_exps: list((string, unit => Language.Exp.t)) = [
+  ("(?, ?)", () => Language.Exp.fresh(Tuple([hole(), hole()]))),
+  ("(1, ?)", () => Language.Exp.fresh(Tuple([one(), hole()]))),
+  ("? + ?", () => Language.Exp.fresh(BinOp(Int(Plus), hole(), hole()))),
+  ("? + 1", () => Language.Exp.fresh(BinOp(Int(Plus), hole(), one()))),
+  /* the inline formatter writes `1:: 1`, so a backed `?:: ?` is
+     operand spacing */
+  ("1 :: 1", () => Language.Exp.fresh(Cons(one(), one()))),
+  ("? :: ?", () => Language.Exp.fresh(Cons(hole(), hole()))),
+  ("[?, ?]", () => Language.Exp.fresh(ListLit([hole(), hole()]))),
+  ("?", () => hole()),
+];
+
+let value_typs: list((string, unit => Language.Typ.t)) = [
+  ("? -> ?", () => Language.Typ.fresh(Arrow(typ_hole(), typ_hole()))),
+  ("(?, ?)", () => Language.Typ.fresh(Prod([typ_hole(), typ_hole()]))),
+  ("[?]", () => Language.Typ.fresh(List(typ_hole()))),
+];
+
+/* probe samples: ProbeUtil.seg_of_exp */
+let probe_sample = (e: Language.Exp.t): Segment.t =>
+  ExpToSegment.any_to_segment(
+    ~settings=ProjectorInfo.seg_settings(~inline=true),
+    Exp(e),
+  );
+
+/* inspector types: CursorInspector.view_type */
+let inspector_type = (t: Language.Typ.t): Segment.t =>
+  TypToSegment.typ_to_segment(
+    ~settings=Web.CursorInspector.code_view_settings,
+    t,
+  );
+
+/* eval results: CodeSelectable.Model.mk_from_exp's display segment */
+let eval_result = (e: Language.Exp.t): Segment.t => {
+  let seg =
+    ExpToSegment.exp_to_segment(
+      ~settings=
+        ExpToSegment.Settings.of_core(
+          ~inline=false,
+          Language.CoreSettings.on,
+        ),
+      e,
+    )
+    |> PrettySegment.prettify;
+  (seg |> Zipper.unzip |> Editor.Model.mk(~root=Exp)).syntax.segment;
+};
+
+let value_display_table = (): string =>
+  List.map(
+    ((label, e)) =>
+      Printf.sprintf(
+        "sample %-8s %s",
+        label,
+        value_render(GroutCells.back_holes(probe_sample(e()))),
+      ),
+    value_exps,
+  )
+  @ List.map(
+      ((label, t)) =>
+        Printf.sprintf(
+          "type   %-8s %s",
+          label,
+          value_render(GroutCells.back_holes(inspector_type(t()))),
+        ),
+      value_typs,
+    )
+  @ List.map(
+      ((label, e)) =>
+        Printf.sprintf(
+          "result %-8s %s",
+          label,
+          value_render(eval_result(e())),
+        ),
+      value_exps,
+    )
+  |> String.concat("\n");
+
+/* the renderers themselves apply the backing: count the boxed and the
+   thin (pinched) hole glyphs each draws */
+let hole_glyphs = (node: Virtual_dom.Vdom.Node.t): string => {
+  let rec count = (cls, n: Test_CompletionDisplay.rendered) =>
+    switch (n) {
+    | Test_CompletionDisplay.RText(_) => 0
+    | Test_CompletionDisplay.RElem(c, kids) =>
+      (List.mem(cls, c) ? 1 : 0)
+      + List.fold_left((a, k) => a + count(cls, k), 0, kids)
+    };
+  let r =
+    Test_CompletionDisplay.read_rendered(
+      Js_of_ocaml.Js.Unsafe.inject(Virtual_dom.Vdom.Node.to_raw(node)),
+    );
+  Printf.sprintf(
+    "boxed=%d thin=%d",
+    count("empty-hole", r),
+    count("empty-hole-thin", r),
+  );
+};
+
 let tests = [
+  (
+    "GroutGeometry: value displays",
+    [
+      test_case("holes get cells and operand spacing", `Quick, () =>
+        check(
+          string_testable,
+          "value displays",
+          {|sample (?, ?)   (?, ?)
+sample (1, ?)   (1, ?)
+sample ? + ?    ? + ?
+sample ? + 1    ? + 1
+sample 1 :: 1   1:: 1
+sample ? :: ?   ?:: ?
+sample [?, ?]   [?, ?]
+sample ?        ?
+type   ? -> ?   ? -> ?
+type   (?, ?)   (?, ?)
+type   [?]      [?]
+result (?, ?)   (,?)  pinch@1
+result (1, ?)   (1,?)
+result ? + ?    ?+ ?
+result ? + 1    ?+ 1
+result 1 :: 1   1 :: 1
+result ? :: ?   ?:: ?
+result [?, ?]   [,?]  pinch@1
+result ?        ?|},
+          value_display_table(),
+        )
+      ),
+      test_case("the value renderers give holes cells", `Quick, () =>
+        check(
+          string_testable,
+          "hole glyphs",
+          "sample (?, ?): boxed=2 thin=0\ntype (?, ?): boxed=2 thin=0",
+          "sample (?, ?): "
+          ++ hole_glyphs(
+               Web.ProjectorView.simple_code(
+                 Web.FontMetrics.init,
+                 Sort.Exp,
+                 probe_sample(Language.Exp.fresh(Tuple([hole(), hole()]))),
+               ),
+             )
+          ++ "\ntype (?, ?): "
+          ++ hole_glyphs(
+               Web.CodeViewable.view_segment(
+                 ~globals=Web.Globals.Model.init(),
+                 inspector_type(
+                   Language.Typ.fresh(Prod([typ_hole(), typ_hole()])),
+                 ),
+               ),
+             ),
+        )
+      ),
+    ],
+  ),
   (
     "GroutGeometry",
     [
