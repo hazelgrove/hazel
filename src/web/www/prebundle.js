@@ -40,3 +40,33 @@ hotkeys.filter = event => {
   }
   return flag;
   };
+
+// ninja-keys binds a hotkeys-js handler for every hotkeyed action each time
+// `data` is set and never releases it, so a palette refreshed on every render
+// fired each hotkey once per render (hazelgrove/hazel#2586). This replaces its
+// `update` with one that releases the handlers it bound the previous time.
+const boundHotkeys = new WeakMap();
+NinjaKeys.prototype.update = function (changedProperties) {
+  if (changedProperties.has('data')) {
+    this._flatData = this._flattern(this.data);
+    if (!this.disableHotkeys) {
+      (boundHotkeys.get(this) || []).forEach(({ hotkey, method }) =>
+        hotkeys.unbind(hotkey, method)
+      );
+      const bound = this._flatData
+        .filter((action) => !!action.hotkey)
+        .map((action) => {
+          const method = (event) => {
+            event.preventDefault();
+            if (action.handler) {
+              action.handler(action);
+            }
+          };
+          hotkeys(action.hotkey, method);
+          return { hotkey: action.hotkey, method };
+        });
+      boundHotkeys.set(this, bound);
+    }
+  }
+  Object.getPrototypeOf(NinjaKeys.prototype).update.call(this, changedProperties);
+};
