@@ -205,6 +205,8 @@ module Js: BuiltinLivelit = {
   };
 
   /* Input row + button + result row. */
+  let view_below = (~id as _, _model, _send_action) => None;
+
   let shape: Util.ProjectorShape.t = {
     vertical: Block(2),
     horizontal: 40,
@@ -850,6 +852,8 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
     );
   };
 
+  let view_below = (~id as _, _model, _send_action) => None;
+
   let shape: Util.ProjectorShape.t = {
     vertical: Inline,
     horizontal: 40,
@@ -1083,6 +1087,8 @@ module FumolaNew: BuiltinLivelit = {
     (SetModel(m)) => model_to_hazel(m);
   let action_from_hazel: action_exp => option(action_t) =
     (e: action_exp) => Option.map(m => SetModel(m), model_from_hazel(e));
+
+  let view_below = (~id as _, _model, _send_action) => None;
 
   let shape: Util.ProjectorShape.t = {
     vertical: Inline,

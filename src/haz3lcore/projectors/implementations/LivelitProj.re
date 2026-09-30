@@ -1190,6 +1190,9 @@ module M: Projector = {
       | _ => Ctx.empty
       };
 
+    /* Set by a builtin whose view_below draws something: the full-width
+       rows under the livelit, which its Tab(n) shape reserves. */
+    let below = ref(None);
     let node =
       switch (get_model(info)) {
       | Some((ll_name, model)) =>
@@ -1332,6 +1335,7 @@ module M: Projector = {
             commit_model(~effects=[], ll.update(action, model));
 
           let list_contents = ll.view(~id=info.id, model, action_callback);
+          below := ll.view_below(~id=info.id, model, action_callback);
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
             [list_contents],
@@ -1345,6 +1349,6 @@ module M: Projector = {
         Node.text("No livelit found");
       };
 
-    View.mk(node);
+    View.mk(~below=below^, node);
   };
 };

@@ -933,6 +933,9 @@ module View = {
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
     AppBridgeInstall.install(~globals);
+    /* And ^fumola's watch pane at this frame's panel settings. */
+    Language.FumolaWatch.instance_view :=
+      (instance => Some(FumolaSidebar.instance_view(~globals, instance)));
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let task_reference: option(string) =
       switch (editors) {

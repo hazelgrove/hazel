@@ -149,7 +149,13 @@ let kind_of = (name: string): string =>
   | other => other
   };
 
-let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
+/* The panel follows the cursor; ^fumola shows one instance in its own
+   right-hand pane, whatever the cursor is on. */
+type target('update) =
+  | AtCursor(Cursor.cursor('update))
+  | Instance(string);
+
+let render = (~globals: Globals.t, target: target('update)): Node.t => {
   let section = (cls, header, body) =>
     div(
       ~attrs=[clss(["fumola-section", cls])],
@@ -1009,130 +1015,137 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t => {
       ),
     );
 
-  let body =
-    switch (cursor.editor) {
-    | Some(editor) =>
-      let term =
-        Haz3lcore.MakeTerm.from_zip_for_sem(
-          editor.state.zipper,
-          ~root=editor.root,
-        ).
-          term;
-      let cursor_id = Option.map(Info.id_of, cursor.info);
-      switch (instance_to_show(~cursor_id, term)) {
-      | None => how_to_make_one
-      | Some(instance) =>
-        switch (FumolaHistory.of_instance(instance)) {
-        | Error(message) =>
-          section(
-            "fumola-unavailable",
-            /* No mode beside the name here: the branch a reader reaches
-               when the runtime could not be asked anything is not the place
-               to claim to know what it answered. */
-            panel_title(instance),
-            [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
-          )
-        | Ok(history) =>
-          let tab = globals.settings.sidebar.fumola_tab;
-          /* Asked once and read twice -- the header spells it out, the strip
-             marks the button that would keep it -- so that the two cannot
-             disagree about the same instance in the same render. */
-          let mode = Language.FumolaRun.mode_of_instance(instance);
-          section(
-            "fumola-events",
-            panel_title(~mode?, instance),
-            [
-              div(
-                ~attrs=[clss(["fumola-controls"])],
-                [tab_strip(tab), reset_button(~mode?, instance)],
-              ),
-            ]
-            @ [editor_strip()]
-            @ (
-              switch (tab) {
-              | Nodes =>
-                nodes_view(
-                  ~passes=history.passes,
-                  ~missed=history.nodes_missed,
-                  history.nodes,
-                )
-              | Edges =>
-                edges_view(
-                  ~passes=history.passes,
-                  ~nodes=history.nodes,
-                  ~missed=history.edges_missed,
-                  history.edges,
-                )
-              | Events =>
-                events_body(
-                  ~passes=history.passes,
-                  ~nodes=history.nodes,
-                  {
-                    /* Which edges are the editor's, by id, and which nodes
-                       the editor made, by space. Built once per render
-                       rather than searched per event.
+  let instance_body = (instance: string) =>
+    switch (FumolaHistory.of_instance(instance)) {
+    | Error(message) =>
+      section(
+        "fumola-unavailable",
+        /* No mode beside the name here: the branch a reader reaches
+           when the runtime could not be asked anything is not the place
+           to claim to know what it answered. */
+        panel_title(instance),
+        [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
+      )
+    | Ok(history) =>
+      let tab = globals.settings.sidebar.fumola_tab;
+      /* Asked once and read twice -- the header spells it out, the strip
+         marks the button that would keep it -- so that the two cannot
+         disagree about the same instance in the same render. */
+      let mode = Language.FumolaRun.mode_of_instance(instance);
+      section(
+        "fumola-events",
+        panel_title(~mode?, instance),
+        [
+          div(
+            ~attrs=[clss(["fumola-controls"])],
+            [tab_strip(tab), reset_button(~mode?, instance)],
+          ),
+        ]
+        @ [editor_strip()]
+        @ (
+          switch (tab) {
+          | Nodes =>
+            nodes_view(
+              ~passes=history.passes,
+              ~missed=history.nodes_missed,
+              history.nodes,
+            )
+          | Edges =>
+            edges_view(
+              ~passes=history.passes,
+              ~nodes=history.nodes,
+              ~missed=history.edges_missed,
+              history.edges,
+            )
+          | Events =>
+            events_body(
+              ~passes=history.passes,
+              ~nodes=history.nodes,
+              {
+                /* Which edges are the editor's, by id, and which nodes
+                   the editor made, by space. Built once per render
+                   rather than searched per event.
 
-                       An event naming an edge is judged by that edge. An
-                       event naming a node -- added, signaling, repaired --
-                       is the editor's on either of two counts: the node is
-                       the editor's own, or something the editor did points
-                       AT it. The second is what a cell needs: it signals
-                       because someone put into it, so a cell the editor put
-                       into signals on the editor's account. Without it the
-                       Hide setting left a list of signalling about nodes
-                       whose every edge it had just hidden. */
-                    let editor_edges = Hashtbl.create(64);
-                    let editor_nodes = Hashtbl.create(64);
-                    List.iter(
-                      (row: FumolaHistory.node_row) =>
-                        if (row.editor) {
-                          Hashtbl.replace(editor_nodes, row.space, true);
-                        },
-                      history.nodes,
-                    );
-                    List.iter(
-                      (row: FumolaHistory.edge_row) => {
-                        Hashtbl.replace(
-                          editor_edges,
-                          row.edge_id,
-                          row.editor,
-                        );
-                        if (row.editor) {
-                          Hashtbl.replace(editor_nodes, row.target, true);
-                        };
-                      },
-                      history.edges,
-                    );
-                    let known = (table, key) =>
-                      switch (Hashtbl.find_opt(table, key)) {
-                      | Some(p) => p
-                      | None => false
-                      };
-                    List.map(
-                      ((meta_time, name, subject, edge, node)) =>
-                        {
-                          meta_time,
-                          kind: kind_of(name),
-                          subject,
-                          editor:
-                            switch (edge, node) {
-                            | (Some(id), _) => known(editor_edges, id)
-                            | (None, Some(space)) =>
-                              known(editor_nodes, space)
-                            | (None, None) => false
-                            },
-                        },
-                      history.events,
-                    );
+                   An event naming an edge is judged by that edge. An
+                   event naming a node -- added, signaling, repaired --
+                   is the editor's on either of two counts: the node is
+                   the editor's own, or something the editor did points
+                   AT it. The second is what a cell needs: it signals
+                   because someone put into it, so a cell the editor put
+                   into signals on the editor's account. Without it the
+                   Hide setting left a list of signalling about nodes
+                   whose every edge it had just hidden. */
+                let editor_edges = Hashtbl.create(64);
+                let editor_nodes = Hashtbl.create(64);
+                List.iter(
+                  (row: FumolaHistory.node_row) =>
+                    if (row.editor) {
+                      Hashtbl.replace(editor_nodes, row.space, true);
+                    },
+                  history.nodes,
+                );
+                List.iter(
+                  (row: FumolaHistory.edge_row) => {
+                    Hashtbl.replace(editor_edges, row.edge_id, row.editor);
+                    if (row.editor) {
+                      Hashtbl.replace(editor_nodes, row.target, true);
+                    };
                   },
-                )
-              }
-            ),
-          );
-        }
-      };
-    | None => how_to_make_one
+                  history.edges,
+                );
+                let known = (table, key) =>
+                  switch (Hashtbl.find_opt(table, key)) {
+                  | Some(p) => p
+                  | None => false
+                  };
+                List.map(
+                  ((meta_time, name, subject, edge, node)) =>
+                    {
+                      meta_time,
+                      kind: kind_of(name),
+                      subject,
+                      editor:
+                        switch (edge, node) {
+                        | (Some(id), _) => known(editor_edges, id)
+                        | (None, Some(space)) => known(editor_nodes, space)
+                        | (None, None) => false
+                        },
+                    },
+                  history.events,
+                );
+              },
+            )
+          }
+        ),
+      );
+    };
+
+  let body =
+    switch (target) {
+    | Instance(instance) => instance_body(instance)
+    | AtCursor(cursor) =>
+      switch (cursor.editor) {
+      | Some(editor) =>
+        let term =
+          Haz3lcore.MakeTerm.from_zip_for_sem(
+            editor.state.zipper,
+            ~root=editor.root,
+          ).
+            term;
+        let cursor_id = Option.map(Info.id_of, cursor.info);
+        switch (instance_to_show(~cursor_id, term)) {
+        | None => how_to_make_one
+        | Some(instance) => instance_body(instance)
+        };
+      | None => how_to_make_one
+      }
     };
 
   div(~attrs=[clss(["sidebar-panel", "fumola-panel"])], [body]);
 };
+
+let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t =>
+  render(~globals, AtCursor(cursor));
+
+let instance_view = (~globals: Globals.t, instance: string): Node.t =>
+  render(~globals, Instance(instance));

@@ -53,6 +53,12 @@ type raw_livelit = {
   /* [id] identifies this occurrence: a livelit whose model names state held
      outside Hazel uses it to tell two live projectors apart. */
   view: (~id: Id.t, model_exp, send_action) => Virtual_dom.Vdom.Node.t,
+  /* Drawn from the editor's left edge on the rows below the livelit, the
+     full width of the notebook, as the probe drawer is. The shape must be
+     Tab(n), which reserves those n rows. None draws nothing there, which is
+     what every livelit but ^fumola does. */
+  view_below:
+    (~id: Id.t, model_exp, send_action) => option(Virtual_dom.Vdom.Node.t),
   shape: ProjectorShape.t,
   /* User-defined livelits only: the elaborated definition module, whose
      members are init, update, view, expand (plus helpers). The projector
@@ -113,6 +119,10 @@ module type BuiltinLivelit = {
   let view:
     (~id: Id.t, model_t, action_t => Ui_effect.t(unit)) =>
     Virtual_dom.Vdom.Node.t;
+  /* See raw_livelit's view_below. */
+  let view_below:
+    (~id: Id.t, model_t, action_t => Ui_effect.t(unit)) =>
+    option(Virtual_dom.Vdom.Node.t);
   let shape: ProjectorShape.t;
 };
 
@@ -145,6 +155,12 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
     | None => Virtual_dom.Vdom.Node.text("Error: invalid model")
     };
   },
+  view_below: (~id: Id.t, model: model_exp, send_action: send_action) =>
+    switch (B.model_from_hazel(model)) {
+    | Some(m) =>
+      B.view_below(~id, m, action => send_action(B.action_to_hazel(action)))
+    | None => None
+    },
   shape: B.shape,
   user_def: None,
   tparam: None,

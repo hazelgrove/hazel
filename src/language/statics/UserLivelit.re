@@ -911,6 +911,7 @@ let mk =
            live uses apart; this one has no use for it. */
         view: (~id as _, _model, _send) =>
           Virtual_dom.Vdom.Node.text("user-defined livelit"),
+        view_below: (~id as _, _model, _send) => None,
         shape:
           switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {
           | Some(shape) => shape
