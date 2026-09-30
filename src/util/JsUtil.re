@@ -591,6 +591,44 @@ let scroll_cursor_into_view_if_needed = () =>
   | Assert_failure(_) => ()
   };
 
+/* the nearest ancestor that really scrolls: overflow auto or scroll, with
+   content past its height (a box overflowing by a pixel doesn't count) */
+let rec scrolling_ancestor =
+        (el: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
+  switch (Js.Opt.to_option(Js.Unsafe.get(el, "parentElement"))) {
+  | None => None
+  | Some(p: Js.t(Dom_html.element)) =>
+    let style =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "getComputedStyle",
+        [|Js.Unsafe.inject(p)|],
+      );
+    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
+    (oy == "auto" || oy == "scroll") && p##.scrollHeight - p##.clientHeight > 1
+      ? Some(p) : scrolling_ancestor(p);
+  };
+
+/* after a jump: a caret out of comfortable view comes to a fifth of the
+   way down its scroll container, with the lines above it in sight */
+let align_caret_near_top = (): unit =>
+  try({
+    let caret = get_elem_by_id("caret");
+    switch (scrolling_ancestor(caret)) {
+    | Some(container) =>
+      let c = caret##getBoundingClientRect;
+      let r = container##getBoundingClientRect;
+      let h = Js.Optdef.get(r##.height, _ => 0.);
+      let top = c##.top -. r##.top;
+      if (top < h *. 0.1 || top > h *. 0.75) {
+        adjust_scroll(container, top -. h *. 0.2);
+      };
+    | None => ()
+    };
+  }) {
+  | Assert_failure(_) => ()
+  };
+
 /* main editor container scrollTop (read/write) — tutorial per-slide scroll memory */
 let main_scroll_top = (): float =>
   try({

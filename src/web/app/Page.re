@@ -257,8 +257,9 @@ module Update = {
             );
           /* the jump moves the selection, not DOM focus: focus the cell
              after render so it takes keys and shows the caret (gated on
-             :focus), unless the jump came from the outline */
-          Haz3lcore.FocusEffect.schedule_cell();
+             :focus), unless the jump came from the outline; a target out
+             of view comes near the top */
+          Haz3lcore.FocusEffect.schedule_cell_caret_top();
           {
             ...model,
             editors,

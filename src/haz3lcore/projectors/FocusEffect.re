@@ -7,6 +7,7 @@ type target =
   | Editor
   | Cell
   | CellTop /* Cell + align its stack entry to the viewport top */
+  | CellCaretTop /* Cell + bring a caret out of view near the top */
   | Probe(Id.t);
 
 let scheduled: ref(option(target)) = ref(None);
@@ -33,6 +34,13 @@ let schedule_cell_top = (): unit => {
   scheduled := Some(CellTop);
 };
 
+/* a jump: as schedule_cell, and a caret out of view comes near the top */
+let schedule_cell_caret_top = (): unit =>
+  switch (scheduled^) {
+  | Some(CellTop) => ()
+  | _ => scheduled := Some(CellCaretTop)
+  };
+
 let execute = (): bool =>
   switch (scheduled^) {
   | Some(Editor) =>
@@ -45,6 +53,12 @@ let execute = (): bool =>
     scheduled := None;
     /* a jump from the outline keeps the keys there */
     JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+  | Some(CellCaretTop) =>
+    scheduled := None;
+    let focused =
+      JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+    JsUtil.align_caret_near_top();
+    focused;
   | Some(CellTop) =>
     scheduled := None;
     let focused =
