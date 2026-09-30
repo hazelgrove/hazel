@@ -1047,43 +1047,83 @@ let header_view =
   ];
 };
 
-let view =
-    (
-      ~stack_controls: bool,
-      ~can_open: Language.Id.t => bool,
-      ~jump: Language.Id.t => Effect.t(unit),
-      ~focus: Language.Id.t => Effect.t(unit),
-      ~toggle: Language.Id.t => Effect.t(unit),
-      ~toggle_run: Language.Id.t => Effect.t(unit),
-      ~is_collapsed: OutlineTree.path => bool,
-      ~toggle_collapse: OutlineTree.path => Effect.t(unit),
-      ~header: header,
-      ~zoom_root: option(Language.Id.t),
-      ~zoom_to: option(Language.Id.t) => Effect.t(unit),
-      ~zoom_in: Language.Id.t => Effect.t(unit),
-      ~show_whole: bool => Effect.t(unit),
-      ~discard: Effect.t(unit),
-      ~zoom_out: Effect.t(unit),
-      ~cursor: option(OutlineTree.path),
-      ~get_cursor: unit => option(OutlineTree.path),
-      ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
-      ~focused: Effect.t(unit),
-      ~leave: Effect.t(unit),
-      ~edit: edit_ctl,
-      ~created: option((Language.Id.t, string)),
-      /* every pin, shown or not: a hidden one gets a quiet mark */
-      ~pinned: list(Language.Id.t),
-      ~focused_entries: list((Language.Id.t, option(string))),
-      ~error_items: list(Language.Id.t),
-      ~error_subtree: list(Language.Id.t),
-      ~menu: option((Language.Id.t, bool, float, float)),
-      ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
-      ~menu_close: Effect.t(unit),
-      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
-      ~test_status: Language.Id.t => option(TestStatus.t),
-      term: Language.Exp.t,
-    )
-    : Node.t => {
+/* what the outline shows */
+type props = {
+  /* pins, zoom and item edits: only where a slide has cells */
+  stack_controls: bool,
+  can_open: Language.Id.t => bool,
+  is_collapsed: OutlineTree.path => bool,
+  header,
+  zoom_root: option(Language.Id.t),
+  cursor: option(OutlineTree.path),
+  created: option((Language.Id.t, string)),
+  /* every pin, shown or not: a hidden one gets a quiet mark */
+  pinned: list(Language.Id.t),
+  focused_entries: list((Language.Id.t, option(string))),
+  error_items: list(Language.Id.t),
+  error_subtree: list(Language.Id.t),
+  menu: option((Language.Id.t, bool, float, float)),
+  test_status: Language.Id.t => option(TestStatus.t),
+};
+
+/* what the outline asks for */
+type handlers = {
+  jump: Language.Id.t => Effect.t(unit),
+  focus: Language.Id.t => Effect.t(unit),
+  toggle: Language.Id.t => Effect.t(unit),
+  toggle_run: Language.Id.t => Effect.t(unit),
+  toggle_collapse: OutlineTree.path => Effect.t(unit),
+  zoom_to: option(Language.Id.t) => Effect.t(unit),
+  zoom_in: Language.Id.t => Effect.t(unit),
+  show_whole: bool => Effect.t(unit),
+  discard: Effect.t(unit),
+  zoom_out: Effect.t(unit),
+  get_cursor: unit => option(OutlineTree.path),
+  set_cursor: option(OutlineTree.path) => Effect.t(unit),
+  focused: Effect.t(unit),
+  leave: Effect.t(unit),
+  edit: edit_ctl,
+  menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
+  menu_close: Effect.t(unit),
+  def_op: (def_op, Language.Id.t) => Effect.t(unit),
+};
+
+let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
+  let {
+    stack_controls,
+    can_open,
+    is_collapsed,
+    header,
+    zoom_root,
+    cursor,
+    created,
+    pinned,
+    focused_entries,
+    error_items,
+    error_subtree,
+    menu,
+    test_status,
+  } = props;
+  let {
+    jump,
+    focus,
+    toggle,
+    toggle_run,
+    toggle_collapse,
+    zoom_to,
+    zoom_in,
+    show_whole,
+    discard,
+    zoom_out,
+    get_cursor,
+    set_cursor,
+    focused,
+    leave,
+    edit,
+    menu_open,
+    menu_close,
+    def_op,
+  } = on;
   /* zoomed, the module's members are the top level; collapse paths
      stay rooted at the program */
   let (roots, root_path) =

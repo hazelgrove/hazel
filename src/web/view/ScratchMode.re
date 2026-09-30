@@ -8,23 +8,6 @@ module Model = ScratchModel.Model;
 module Focus = ScratchFocus;
 module Persist = ScratchPersist;
 
-/* per-slide pin/collapse side state lives with the persistence layer */
-let slide_collapse = ScratchPersist.slide_collapse;
-let collapse_paths = ScratchPersist.collapse_paths;
-
-/* outline context-menu state (row id + screen position): transient
-   UI, module-level like the other view caches — not model data */
-let outline_menu: ref(option((Haz3lcore.Id.t, bool, float, float))) =
-  ref(None);
-
-/* the outline's keyboard cursor: a row path, None for the header row */
-let outline_cursor: ref(option(OutlineTree.path)) = ref(None);
-
-/* a name being typed in the outline, and the row just created from a
-   `type `/`module ` name (its keyword animates away) */
-let outline_edit: ref(option(OutlineEdit.t)) = ref(None);
-let outline_created: ref(option((Haz3lcore.Id.t, string))) = ref(None);
-
 /* the key the current slide's saved state waits under */
 let slide_key = (~is_documentation, model: Model.t): string =>
   Persist.content_key(
@@ -46,14 +29,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Workspace(Workspace.Action.t)
-    | OutlineCollapse(OutlineTree.path) /* toggle a branch's collapse */
-    | OutlineMenu(option((Haz3lcore.Id.t, bool, float, float)))
-    | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
-    | OutlineCursor(option(OutlineTree.path))
-    | OutlineEdit(option(OutlineEdit.t))
-    | OutlineCommit(OutlineEdit.t, bool) /* true: then a new one */
-    | OutlineFocused /* the outline took keyboard focus */
-    | FocusOutline
+    | Outline(OutlineControl.Action.t)
     | RefreshStatics
     | DrvAction(DerivationExerciseMode.Update.t)
     | Deck(SlideDeck.Action.t);
@@ -103,149 +79,21 @@ module Update = {
           );
         with_code(model, code);
       }
-    | OutlineMenu(m) =>
-      outline_menu := m;
-      model |> Updated.return_quiet;
-    | OutlineCollapse(path) =>
-      let prefix = is_documentation ? "doc" : "scratch";
-      let name = List.nth(model.scratchpads, model.current).name;
-      let ck = Persist.content_key(prefix, name);
-      let cur = collapse_paths(prefix, name);
-      let next =
-        List.mem(path, cur)
-          ? List.filter(p => p != path, cur) : [path, ...cur];
-      next == []
-        ? Hashtbl.remove(slide_collapse, ck)
-        : Hashtbl.replace(slide_collapse, ck, next);
-      Persist.write_collapse(prefix, name);
-      model |> Updated.return_quiet;
-    | OutlineDefOp(op, fid) =>
-      outline_menu := None;
+    | Outline(a) =>
       switch (current_code(model)) {
-      | None => model |> Updated.return_quiet
-      | Some({program, _} as code) =>
-        let collapsed =
-          collapse_paths(
-            is_documentation ? "doc" : "scratch",
-            List.nth(model.scratchpads, model.current).name,
+      | None => model |> return_quiet
+      | Some(code) =>
+        let* code =
+          OutlineControl.update(
+            ~settings,
+            ~schedule_workspace=a => schedule_action(Workspace(a)),
+            ~prefix=is_documentation ? "doc" : "scratch",
+            ~name=List.nth(model.scratchpads, model.current).name,
+            a,
+            code,
           );
-        switch (
-          ItemEdit.edit(
-            Workspace.item_ctx(~settings, ~collapsed, program),
-            Op(op, fid),
-            Program.document(program),
-          )
-        ) {
-        | Error(_) => model |> Updated.return_quiet
-        | Ok((new_seg, focus_target)) =>
-          let code = Workspace.with_segment(~settings, code, new_seg);
-          switch (op, focus_target, code.program) {
-          | (MoveUp | MoveDown, Some(id), _) =>
-            /* the cursor follows the moved item */
-            outline_cursor :=
-              OutlineTree.label_path(id, Program.statics(code.program).term)
-          | (_, Some(id), Whole(_)) =>
-            schedule_action(Workspace(FocusToggle(id)))
-          | (_, Some(id), Divided(d)) when Divided.owner(id, d) == None =>
-            schedule_action(Workspace(FocusEnsure(id)))
-          | _ => ()
-          };
-          with_code(model, code) |> Updated.return;
-        };
-      };
-    | OutlineCursor(c) =>
-      outline_cursor := c;
-      outline_created := None;
-      model |> Updated.return_quiet;
-    | OutlineEdit(e) =>
-      outline_edit := e;
-      outline_created := None;
-      model |> Updated.return_quiet;
-    | OutlineCommit(ed, then_new) =>
-      /* nothing reaches the program until here: a rename is one
-         refactoring, a new definition one insertion */
-      let fresh_below = (id: Haz3lcore.Id.t): OutlineEdit.t => {
-        ed_row: None,
-        ed_anchor: Some(id),
-        ed_text: "",
-        ed_caret: 0,
-        ed_error: None,
-      };
-      let refuse = why => {
-        outline_edit :=
-          Some({
-            ...ed,
-            ed_error: Some(why),
-          });
-        model |> Updated.return_quiet;
-      };
-      switch (current_code(model)) {
-      | None => model |> Updated.return_quiet
-      | Some({program, _} as code) =>
-        let text = String.trim(ed.ed_text);
-        let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
-        let term = ctx.term;
-        let edit = e => ItemEdit.edit(ctx, e, Program.document(program));
-        switch (ed.ed_row, ed.ed_anchor) {
-        | (Some(row), _) =>
-          let old =
-            Option.map(
-              (n: OutlineTree.node) => n.o_label,
-              OutlineTree.node_of(row, term),
-            );
-          if (old == Some(text)) {
-            outline_edit := then_new ? Some(fresh_below(row)) : None;
-            model |> Updated.return_quiet;
-          } else if (!settings.core.statics) {
-            refuse("renaming needs statics on");
-          } else {
-            switch (edit(Rename(row, text))) {
-            | Error(why) => refuse(why)
-            | Ok((new_seg, _)) =>
-              let code = Workspace.with_segment(~settings, code, new_seg);
-              let new_term = Program.statics(code.program).term;
-              outline_cursor := OutlineTree.label_path(row, new_term);
-              outline_edit := then_new ? Some(fresh_below(row)) : None;
-              with_code(model, code) |> Updated.return;
-            };
-          };
-        | (None, Some(anchor)) when text == "" =>
-          outline_edit := None;
-          outline_cursor := OutlineTree.label_path(anchor, term);
-          model |> Updated.return_quiet;
-        | (None, Some(anchor)) =>
-          switch (edit(Insert(anchor, text))) {
-          | Error(why) => refuse(why)
-          | Ok((new_seg, created)) =>
-            let code = Workspace.with_segment(~settings, code, new_seg);
-            let new_term = Program.statics(code.program).term;
-            let prefix = snd(OutlineSidebar.new_kind(text));
-            switch (created) {
-            | Some(id) =>
-              outline_cursor := OutlineTree.label_path(id, new_term);
-              outline_edit := then_new ? Some(fresh_below(id)) : None;
-              outline_created := prefix == "" ? None : Some((id, prefix));
-            | None => outline_edit := None
-            };
-            with_code(model, code) |> Updated.return;
-          }
-        | (None, None) =>
-          outline_edit := None;
-          model |> Updated.return_quiet;
-        };
-      };
-    | OutlineFocused =>
-      /* the outline starts at the row holding the caret */
-      switch (current_code(model), OutlineFollow.mark^) {
-      | (Some({program, _}), Some(id)) =>
-        outline_cursor :=
-          OutlineTree.label_path(id, Program.statics(program).term)
-      | _ => ()
-      };
-      model |> Updated.return_quiet;
-    | FocusOutline =>
-      JsUtil.focus_outline();
-      model |> Updated.return_quiet;
+        with_code(model, code);
+      }
     | DrvAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
@@ -410,7 +258,7 @@ module Selection = {
     cursor
     |> Cursor.with_actions([
          ContextualAction.of_shortcut(
-           ~action=inject(FocusOutline),
+           ~action=inject(Outline(Focus)),
            FocusOutline,
          ),
          ContextualAction.of_shortcut(
