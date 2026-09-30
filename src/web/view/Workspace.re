@@ -538,6 +538,7 @@ let calculate =
     switch (program) {
     | Whole(editor) =>
       stacked_incr_cache := Haz3lcore.MakeTerm.Incr.mk_cache();
+      Hashtbl.reset(calc_entry_memo);
       Program.Whole(
         CellEditor.Update.calculate(
           ~settings,
@@ -709,16 +710,15 @@ let calculate =
                 };
               }
               : (None, None);
-          /* type bodies: statics on, dynamics off */
+          /* dynamics off: a cell shows the whole program's samples, and
+             its own run would be on the main thread with no step limit */
           let body_settings =
-            body_is_exp
-              ? settings
-              : body_is_typ || proj_body != None
-                  ? Language.CoreSettings.{
-                      ...settings,
-                      dynamics: false,
-                    }
-                  : statics_off(settings);
+            body_is_exp || body_is_typ || proj_body != None
+              ? Language.CoreSettings.{
+                  ...settings,
+                  dynamics: false,
+                }
+              : statics_off(settings);
           let e' =
             ScratchCell.{
               ...e,
@@ -760,7 +760,15 @@ let calculate =
           e';
         };
       };
-      Program.Divided(Divided.map_cells(calc_entry, d));
+      let d = Divided.map_cells(calc_entry, d);
+      /* entries only for the cells still open */
+      let open_ids =
+        List.map((e: ScratchCell.t) => e.e_id, Divided.cells(d));
+      Hashtbl.filter_map_inplace(
+        (id, entry) => List.mem(id, open_ids) ? Some(entry) : None,
+        calc_entry_memo,
+      );
+      Program.Divided(d);
     };
   let dispatch = (_key, action) =>
     schedule_action(CellAction(ResultAction(action)));
