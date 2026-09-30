@@ -3,8 +3,7 @@
    editor's origin in its scroll container and the scroll state need the
    DOM. a reveal after a pause reads them into mirrors; reveals
    within a burst are arithmetic plus a scrollTop write. a
-   throttled rAF check re-reads ground truth and heals drift.
-   window.__scrollCounters() exposes the regimes */
+   throttled rAF check re-reads ground truth and heals drift */
 
 open Js_of_ocaml;
 
@@ -37,13 +36,6 @@ let geom: ref(option(geom)) = ref(None);
 let last_reveal_ms: ref(float) = ref(0.);
 let last_verify_ms: ref(float) = ref(0.);
 let verify_scheduled = ref(false);
-
-let n_cold = ref(0);
-let n_arith = ref(0);
-let n_arith_scrolled = ref(0);
-let n_verified = ref(0);
-let n_healed = ref(0);
-let n_fallback = ref(0);
 
 let now_ms = (): float => Js.Unsafe.global##.Date##now();
 
@@ -149,7 +141,6 @@ let schedule_verify = (): unit =>
         Js.wrap_callback((_: float) => {
           verify_scheduled := false;
           last_verify_ms := now_ms();
-          incr(n_verified);
           switch (geom^, published^, JsUtil.get_elem_by_id_opt("caret")) {
           | (Some(g), Some((row, rh)), Some(caret))
               when
@@ -170,7 +161,6 @@ let schedule_verify = (): unit =>
               -. float_of_int(row)
               *. rh;
             if (abs_float(fresh -. g.editor_top) > heal_tolerance_px) {
-              incr(n_healed);
               g.editor_top = fresh;
               apply(g, decide(g, row, rh));
             };
@@ -198,15 +188,13 @@ let schedule_cold = (): unit =>
           | (Some((row, rh)), Some(caret)) =>
             switch (JsUtil.find_scroll_container_cached(caret)) {
             | None =>
-              incr(n_fallback);
               caret##scrollIntoView(
                 Js.Unsafe.obj([|
                   ("block", Js.Unsafe.inject(Js.string("nearest"))),
                   ("inline", Js.Unsafe.inject(Js.string("nearest"))),
                 |]),
-              );
+              )
             | Some(container) =>
-              incr(n_cold);
               let caret_r = caret##getBoundingClientRect;
               let cont_r = container##getBoundingClientRect;
               let height = Js.Optdef.get(cont_r##.height, _ => 0.);
@@ -266,20 +254,7 @@ let register_hooks = (): unit =>
           Js.Unsafe.inject(on_resize),
         |],
       );
-    Js.Unsafe.set(
-      Js.Unsafe.global,
-      "__scrollCounters",
-      Js.wrap_callback(() =>
-        Js.Unsafe.obj([|
-          ("cold", Js.Unsafe.inject(n_cold^)),
-          ("arith", Js.Unsafe.inject(n_arith^)),
-          ("arithScrolled", Js.Unsafe.inject(n_arith_scrolled^)),
-          ("verified", Js.Unsafe.inject(n_verified^)),
-          ("healed", Js.Unsafe.inject(n_healed^)),
-          ("fallback", Js.Unsafe.inject(n_fallback^)),
-        |])
-      ),
-    );
+    ();
   };
 
 let reveal = (): unit => {
@@ -297,12 +272,7 @@ let reveal = (): unit => {
         when burst && caret === g.caret_el && connected(g.container) =>
       /* synchronous on purpose: under long-task holds the rAF can
          lag behind keystrokes; the write keeps the caret pinned */
-      incr(n_arith);
-      let delta = decide(g, row, rh);
-      if (delta != 0.) {
-        incr(n_arith_scrolled);
-        apply(g, delta);
-      };
+      apply(g, decide(g, row, rh));
       schedule_verify();
     | _ => schedule_cold()
     };
