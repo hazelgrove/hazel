@@ -3,9 +3,105 @@ open HighLevelNodeMap.Public;
 open Language;
 open OptUtil.Syntax;
 
+/* ===== ITEMS MODE (plans/agent-items-convergence.md) =====
+   The tool path on the per-item statics engine: the node map from the
+   item chain, the maps from DefStatics (a diff-walk plus the dirty items
+   instead of a whole-program pass). Set for the duration of one structural
+   action by Public.go_items; the editor keeps its own statics meanwhile. */
+let items_mode: ref(option(Language.CoreSettings.t)) = ref(None);
+/* the per-item analysis of a zipper's program, the way the editor makes
+   it (CachedStatics.init_compositional): the incremental per-item parse,
+   so the tool path and the editor share DefStatics' memo slot for the
+   same program. One structural action asks for the same zipper several
+   times (statics, node map, diff): memoized on zipper identity. */
+let items_memo: ref(option((Zipper.t, DefStatics.t))) = ref(None);
+let items_for = (settings: Language.CoreSettings.t, z: Zipper.t): DefStatics.t =>
+  switch (items_memo^) {
+  | Some((z0, ds)) when z0 === z => ds
+  | _ =>
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let term =
+      Segment.global_missing_shards(seg) == []
+        ? MakeTerm.Incr.term_of_root(~root=Exp, seg)
+        : MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    let ds =
+      DefStatics.calc_auto(
+        ~settings,
+        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+        term,
+      );
+    items_memo := Some((z, ds));
+    ds;
+  };
+
 /* phase timers for the journal's perf lines */
 let build = (z, info_map) =>
-  PerfTimer.time("node-map", () => build(z, info_map));
+  PerfTimer.time("node-map", () =>
+    switch (items_mode^) {
+    | Some(settings) =>
+      HighLevelNodeMap.build_from_items(items_for(settings, z))
+    | None => build(z, info_map)
+    }
+  );
+
+/* web-side listener for FastParse fallback telemetry (the journal);
+   core stays UI-agnostic */
+let fallback_notice: ref(option(string => unit)) = ref(None);
+
+/* DIAGNOSTIC (merge verification): why the node map could not be built */
+let derive_fail_note = (tag: string, z: Zipper.t, info_map: StaticsBase.Map.t) => {
+  let id = Indicated.index(z);
+  let ci =
+    switch (id) {
+    | Some(id) => Id.Map.find_opt(id, info_map)
+    | None => None
+    };
+  let anc =
+    switch (ci) {
+    | Some(i) => Info.ancestors_of(i)
+    | None => []
+    };
+  let ctor = (id: Id.t): string =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(InfoExp({user_term, _})) =>
+      switch (Exp.term_of(user_term)) {
+      | Let(_) => "Let"
+      | Seq(_) => "Seq"
+      | ModuleExp(_) => "ModuleExp"
+      | TyAlias(_) => "TyAlias"
+      | Parens(_) => "Parens"
+      | EmptyHole => "Hole"
+      | _ => "exp"
+      }
+    | Some(_) => "non-exp"
+    | None => "MISSING"
+    };
+  let chain =
+    anc
+    |> List.filteri((k, _) => k < 14)
+    |> List.map(ctor)
+    |> String.concat(">");
+  let text = Printer.of_zipper(~holes="?", z);
+  let n = String.length(text);
+  let tail = n > 90 ? String.sub(text, n - 90, 90) : text;
+  Js_of_ocaml.Firebug.console##error(
+    Js_of_ocaml.Js.string(
+      Printf.sprintf(
+        "[derive-fail %s] indicated=%s in_map=%b map=%d anc=%d chain=%s tail=%S",
+        tag,
+        switch (id) {
+        | Some(id) => Id.to_string(id)
+        | None => "none"
+        },
+        ci != None,
+        Id.Map.cardinal(info_map),
+        List.length(anc),
+        chain,
+        tail,
+      ),
+    ),
+  );
+};
 
 type node_map = HighLevelNodeMap.t;
 type node = HighLevelNodeMap.node;
@@ -67,10 +163,29 @@ module Local = {
        Let/TyAlias wrapper, reclassified to a Mod cls. Their pat/def ids are
        real syntax; their "body" is the expansion continuation (the REST of
        the members), which must never be an edit target. */
-    let is_module_member = (node: node): bool =>
-      switch (node.info) {
-      | InfoExp({cls: Mod(_), _}) => true
-      | _ => false
+    /* structural: the node's parent binds a module literal. (The info's
+       cls is not a reliable signal — monolithic statics leaves the LAST
+       member's wrapper classed as a plain let, and per-item statics
+       classes every member so; both sent last-member inserts down the
+       expression path, which adds no `;` — dungeon runs: everything
+       inserted after the last member of Creatures was swallowed into it.) */
+    let is_module_member = (node_map: node_map, node: node): bool =>
+      switch (HighLevelNodeMap.parent_id_of(node)) {
+      | None => false
+      | Some(pid) =>
+        switch (Id.Map.find_opt(pid, node_map)) {
+        | Some({info: InfoExp({user_term, _}), _}) =>
+          switch (Exp.term_of(user_term)) {
+          | Let(_, def, _)
+          | ModuleExp(_, def, _) =>
+            switch (Exp.term_of(def)) {
+            | Module(_) => true
+            | _ => false
+            }
+          | _ => false
+          }
+        | _ => false
+        }
       };
 
     let member_body_error = (what: string) =>
@@ -141,15 +256,11 @@ module Local = {
       let old_statics =
         PerfTimer.time("diff/statics", () => mk_statics(old_zipper));
       let* old_node_map =
-        PerfTimer.time("diff/node-map", () =>
-          HighLevelNodeMap.build(old_zipper, old_statics)
-        );
+        PerfTimer.time("diff/node-map", () => build(old_zipper, old_statics));
       let new_statics =
         PerfTimer.time("diff/statics", () => mk_statics(new_zipper));
       let* new_node_map =
-        PerfTimer.time("diff/node-map", () =>
-          HighLevelNodeMap.build(new_zipper, new_statics)
-        );
+        PerfTimer.time("diff/node-map", () => build(new_zipper, new_statics));
       let old_target_id =
         PerfTimer.time("diff/path", () => path_to_id(old_node_map, path));
       let* old_segment =
@@ -918,14 +1029,19 @@ module Local = {
         Ok(z');
       | None =>
         if (fast) {
-          /* console-visible fallback telemetry (dev): which construct
-             pushed us onto the quadratic path, and roughly how bad */
-          print_endline(
+          /* fallback telemetry: which construct pushed us onto the
+             quadratic path, and roughly how bad — console + any
+             registered listener (the constellation journal) */
+          let msg =
             "FastParse fallback ("
             ++ string_of_int(String.length(code))
             ++ " chars): "
-            ++ Option.value(FastParse.bail_note^, ~default="no note"),
-          );
+            ++ Option.value(FastParse.bail_note^, ~default="no note");
+          print_endline(msg);
+          switch (fallback_notice^) {
+          | Some(f) => f(msg)
+          | None => ()
+          };
         };
         introduce_slow(~root, ~splice_root, z, code);
       };
@@ -1190,7 +1306,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           switch (
             PerformUtils.static_error_check(
@@ -1244,7 +1362,11 @@ module Local = {
         };
       };
     | Update(Body, path, code)
-        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+        when
+          Utils.is_module_member(
+            initial_node_map,
+            path_to_node(initial_node_map, path),
+          ) =>
       ignore(code);
       Utils.member_body_error("update the body");
     | Update(Body, path, code) =>
@@ -1265,7 +1387,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           switch (
             PerformUtils.static_error_check(
@@ -1311,7 +1435,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
           switch (
@@ -1431,7 +1557,9 @@ module Local = {
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
-      let root = Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
+      let root =
+        Utils.is_module_member(initial_node_map, initial_node)
+          ? Sort.Mod : Sort.Exp;
       switch (
         PerformUtils.overwrite_term(
           ~root,
@@ -1446,7 +1574,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           switch (
             PerformUtils.static_error_check(
@@ -1473,7 +1603,10 @@ module Local = {
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       let is_member =
-        Utils.is_module_member(path_to_node(initial_node_map, path));
+        Utils.is_module_member(
+          initial_node_map,
+          path_to_node(initial_node_map, path),
+        );
       switch (
         is_member
           ? PerformUtils.insert_member(
@@ -1514,7 +1647,10 @@ module Local = {
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       let is_member =
-        Utils.is_module_member(path_to_node(initial_node_map, path));
+        Utils.is_module_member(
+          initial_node_map,
+          path_to_node(initial_node_map, path),
+        );
       switch (
         is_member
           ? PerformUtils.insert_member(
@@ -1560,7 +1696,11 @@ module Local = {
         syntax,
       );
     | Delete(Body, path)
-        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+        when
+          Utils.is_module_member(
+            initial_node_map,
+            path_to_node(initial_node_map, path),
+          ) =>
       Utils.member_body_error("delete the body")
     | Delete(Body, path) =>
       let node = path_to_node(initial_node_map, path);
@@ -1596,7 +1736,9 @@ module Local = {
       | None => mk_statics(z)
       };
     switch (build(z, initial_info_map)) {
-    | None => Error(Action.Failure.Cant_derive_local_AST_information)
+    | None =>
+      derive_fail_note("z", z, initial_info_map);
+      Error(Action.Failure.Cant_derive_local_AST_information);
     | Some(initial_node_map) =>
       edit_dispatch(
         ~e=a,
@@ -1608,6 +1750,19 @@ module Local = {
       )
     };
   };
+
+  let mentions_trigger = (code: string): bool => {
+    let n = String.length(code);
+    let rec go = i =>
+      i + 1 < n && (code.[i] == '^' && code.[i + 1] == '^' || go(i + 1));
+    go(0);
+  };
+  let action_mentions_trigger = (a: Action.Structural.t): bool =>
+    switch (a) {
+    | Insert(_, _, code)
+    | Update(_, _, code) => mentions_trigger(code)
+    | _ => false
+    };
 
   let go =
       (
@@ -1624,14 +1779,20 @@ module Local = {
           composition_dispatch(~initial_info_map, a, syntax, z, mk_statics)
         ) {
         | Ok(new_z) =>
-          Ok(
+          /* projector triggers (^^kind) are materialized program-wide; a
+             chunk without one leaves nothing to materialize, and the walk
+             costs ~100 ms at 170 lines */
+          let materialized =
+            action_mentions_trigger(a)
+              ? PerfTimer.time("materialize", () =>
+                  Materialize.all(new_z, ~root=Exp)
+                )
+              : new_z;
+          let final =
             PerfTimer.time("normalize", () =>
-              PerformUtils.normalize_top_level(
-                ~before=z,
-                Materialize.all(new_z, ~root=Exp),
-              )
-            ),
-          )
+              PerformUtils.normalize_top_level(~before=z, materialized)
+            );
+          Ok(final);
         | Error(e) => Error(e)
         }
       ) {
@@ -1653,47 +1814,71 @@ module Local = {
 };
 
 module Public = {
-  let mk_statics_with = (settings: Language.CoreSettings.t, z: Zipper.t) =>
-    Language.(
-      fst(
-        Statics.mk(
-          settings,
-          Builtins.ctx_init(Some(Operators.default_mode)),
-          MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
-        ),
-      )
+  /* per-item statics for a zipper: the merged map with spine ancestors */
+  let mk_statics_items =
+      (~settings: Language.CoreSettings.t, z: Zipper.t)
+      : Language.StaticsBase.Map.t =>
+    PerfTimer.time("items-statics", () =>
+      ItemsSpine.merged_with_spine(items_for(settings, z))
     );
+  /* display-side callers without an editor record in hand */
   let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
-    mk_statics_with(Language.CoreSettings.on, z);
-  let go =
-    Local.go(
-      ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(z)),
-      ~initial_info_map=None,
+    mk_statics_items(~settings=Language.CoreSettings.on, z);
+  let node_map_of = (z: Zipper.t): option(HighLevelNodeMap.t) =>
+    HighLevelNodeMap.build_from_items(
+      items_for(Language.CoreSettings.on, z),
     );
-  /* With the editor's statics for this zipper in hand (CachedStatics.
-     for_zipper), both maps of the error check are computed the editor's
-     way — same settings — so the comparison stays fair while the initial
-     pass is skipped. */
-  let go_with_editor_statics =
-      (~settings: Language.CoreSettings.t, ~initial: CachedStatics.t) =>
-    Local.go(
-      ~mk_statics=
-        z =>
-          PerfTimer.time("statics", () => {
-            /* The full record, computed with the editor's settings and
-               offered: the editor's recompute for this program takes it
-               instead of running statics again */
-            let full =
-              CachedStatics.init(
-                ~settings,
-                ~is_dynamic_term=false,
-                ~stitch=x => x,
-                ~root=Sort.Exp,
-                z,
-              );
-            CachedStatics.offer(~settings, z, full);
-            full.info_map;
-          }),
-      ~initial_info_map=Some(initial.info_map),
-    );
+  /* the diff of a structural action, both programs on per-item statics */
+  let get_diff =
+      (
+        ~settings: Language.CoreSettings.t,
+        old_z,
+        new_z,
+        action,
+        ~old_syntax,
+        ~new_syntax,
+      ) => {
+    let saved = items_mode^;
+    items_mode := Some(settings);
+    let res =
+      try(
+        Local.get_diff(
+          old_z,
+          new_z,
+          action,
+          mk_statics_items(~settings),
+          ~old_syntax,
+          ~new_syntax,
+        )
+      ) {
+      | e =>
+        items_mode := saved;
+        raise(e);
+      };
+    items_mode := saved;
+    res;
+  };
+  /* the whole structural action on per-item statics */
+  let go_items =
+      (~settings: Language.CoreSettings.t, ~syntax, ~z, ~a)
+      : result(Zipper.t, Action.Failure.t) => {
+    let saved = items_mode^;
+    items_mode := Some(settings);
+    let res =
+      try(
+        Local.go(
+          ~mk_statics=z => mk_statics_items(~settings, z),
+          ~initial_info_map=None,
+          ~syntax,
+          ~z,
+          ~a,
+        )
+      ) {
+      | e =>
+        items_mode := saved;
+        raise(e);
+      };
+    items_mode := saved;
+    res;
+  };
 };

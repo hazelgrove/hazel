@@ -151,6 +151,26 @@ let tests = (
       "let inc(x) = x + 1 in let double(x) = x * 2 in double(inc(3))",
       Some(int()),
     ),
+    /* ===== Module members: funlet exports the head name =====
+       Regression: value_exports used Pat.bound_vars, which descends an
+       Ap pattern's argument — the module exported the PARAMETERS
+       instead of the function ("Label not found" at m.g, unbound
+       parameter vars in the export tuple). */
+    fully_consistent_typecheck(
+      "module member in funlet form is exported by name",
+      "let m = { let g(x: Int): Int = x + 1 } in m.g(2)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "funlet member sees earlier members",
+      "let m = { let a = 10; let g(x) = x + a } in m.g(2)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "funlet member shadowing keeps the later binding",
+      "let m = { let g(x) = x + 1; let g(x) = x + 2 } in m.g(1)",
+      Some(int()),
+    ),
     /* ===== Error surfaces: inconsistent return-type annotation =====
        `f(...) : Int = "nope"` must produce at least one static error. */
     inconsistent_typecheck(

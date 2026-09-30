@@ -1,0 +1,79 @@
+# MVU Counter #
+
+# The smallest complete app: (init, update, view, subs). #
+
+type Model = Int in
+type Action = Int in
+
+let init: Model = 0 in
+
+let update(model: Model, action: Action): Model =
+  model + action
+in
+
+let stepButton(label: String, action: Action): HTML =
+  Button(
+    [OnClick(action),
+     Style([("padding", "0.35em 0.6em"), ("background", "var(--T1)"),
+            ("border", "1px solid var(--BR1)"), ("border-radius", "3px"),
+            ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "1em"),
+            ("color", "var(--STONE)")])],
+    [Text(label)]
+  )
+in
+
+let view(model: Model): HTML =
+  Div(
+    [Class("counter"),
+     Style([("max-width", "280px"), ("margin", "0 auto"),
+            ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("overflow", "hidden")])],
+    [
+      Div(
+        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
+                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+        [Text("Counter")]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em"), ("text-align", "center"),
+                ("background", "var(--T2)"), ("font-size", "1.5em"),
+                ("font-weight", "bold"), ("color", "var(--BR4)"),
+                ("border-top", "1px solid var(--BR1)"),
+                ("border-bottom", "1px solid var(--BR1)")])],
+        [Int(model)]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em"), ("display", "grid"),
+                ("grid-template-columns", "1fr 1fr"), ("gap", "0.4em")])],
+        [stepButton("-", -1), stepButton("+", 1)]
+      ),
+      Div(
+        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+                ("font-size", "0.75em"), ("color", "var(--BR3)"),
+                ("border-top", "1px solid var(--BR1)")])],
+        [Text("Use + and - to change the count")]
+      )
+    ]
+  )
+in
+
+let subs(_model: Model): Sub = SubNone in
+
+# Tests #
+
+hint "increment adds one"
+test update(0, 1) == 1 end;
+
+hint "decrement subtracts one"
+test update(5, -1) == 4 end;
+
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
+
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+^^html_sidebar((init, noCmd(update), view, subs))

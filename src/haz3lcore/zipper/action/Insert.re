@@ -466,7 +466,8 @@ let delimiter_label = (char: string): Label.t =>
 let wrap_balanced = (char: string, z: t, ~root): t => {
   /* Sort is read before the remainders move: they are fragments of the
    * tokens already at this position, so the wrapping tile's mold is the
-   * one it would get without them. */
+   * one it would get without them. (Reassociation is unconditional on this
+   * branch: no ~deep_reassociate.) */
   let sort = Relatives.sort(~root, z.relatives);
   /* A char-level selection holds whole boundary pieces; only the selected
    * characters go inside the new tile, the rest stay outside it. */

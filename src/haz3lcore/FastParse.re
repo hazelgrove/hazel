@@ -216,13 +216,14 @@ let weave =
   /* Fast-path half of the `¿` convention (MarkerParse is the
      recovering-parser half): markers become Grout directly in the weave. */
   let implicit_hole = Token.implicit_hole_marker;
+  let concave_hole = Token.concave_hole_marker;
   let expect_hole = (): (string, string) => {
     if (idx^ >= Array.length(toks)) {
       note("segment expects a hole but source tokens are exhausted");
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (t.text == "?" || t.text == implicit_hole) {
+    if (t.text == "?" || t.text == implicit_hole || t.text == concave_hole) {
       incr(idx);
       (t.gap, t.text);
     } else {
@@ -258,14 +259,26 @@ let weave =
       Token.of_projector_invoke_base(trigger),
       Language.ProjectorKind.of_name_opt,
     );
+  /* A `_sidebar` placement suffix names a docked projector PIECE, so such a
+     trigger materializes even when its kind is otherwise a refractor. */
+  let trigger_is_docked = (trigger: string): bool =>
+    switch (Token.of_projector_invoke_parts(trigger)) {
+    | Some((_, Sidebar)) => true
+    | Some((_, Inline))
+    | None => false
+    };
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      Language.ProjectorKind.is_refractor(kind)
+      && !trigger_is_docked(trigger)
     | None => false
     };
   let trigger_is_projector = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => !Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      !Language.ProjectorKind.is_refractor(kind)
+      || trigger_is_docked(trigger)
     | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {

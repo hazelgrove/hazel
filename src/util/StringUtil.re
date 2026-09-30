@@ -95,6 +95,9 @@ let escape_linebreaks: string => string = replace(regexp("\n"), _, "\\n");
 let unescape_linebreaks: string => string =
   replace(regexp("\\\\n"), _, "\n");
 
+let normalize_line_endings = (s: string): string =>
+  s |> replace(regexp("\r\n"), _, "\n") |> replace(regexp("\r"), _, "\n");
+
 let trim_leading = (s: string): string => {
   s
   |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
@@ -326,4 +329,29 @@ let subseq_search = (s: string, sub: string): bool => {
     };
 
   search(0, 0);
+};
+
+/* first integer following the first occurrence of [marker] in [s],
+   e.g. first_int_after(~marker="line ", "Error at: line 3807, col 4")
+   == Some(3807) */
+let first_int_after = (~marker: string, s: string): option(int) => {
+  let mlen = String.length(marker);
+  let slen = String.length(s);
+  let rec find = i =>
+    if (i + mlen > slen) {
+      None;
+    } else if (String.sub(s, i, mlen) == marker) {
+      Some(i + mlen);
+    } else {
+      find(i + 1);
+    };
+  switch (find(0)) {
+  | None => None
+  | Some(start) =>
+    let rec take = (i, acc) =>
+      i < slen && s.[i] >= '0' && s.[i] <= '9'
+        ? take(i + 1, acc ++ String.make(1, s.[i])) : acc;
+    let digits = take(start, "");
+    digits == "" ? None : int_of_string_opt(digits);
+  };
 };

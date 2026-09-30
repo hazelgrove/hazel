@@ -22,13 +22,23 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
+    /* Type cards present related values together. The streaming map may
+       mix fresh entries with the previous run; retain one complete map
+       so a restarted evaluation cannot outrank its own final results. */
+    completed_dynamics: option(Dynamics.Map.t),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
-    /* ReusePass prediction for the current/last eval. Feeds the frozen debug
-     * tint; kept after completion so fast evals remain inspectable. */
-    predicted_reuse: EvaluatorState.incr_eval,
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
+    /* load-time evaluations (fresh slide/load, and the settle churn
+       that re-requests as statics stabilize) show no pending-eval
+       highlight: the whole program is pending, and a wall of grey
+       boxes on startup is noise (and thousands of overlay nodes).
+       The highlight is for re-evaluation after USER EDITS — and load
+       frames also claim is_edited, so an edit only counts once a
+       first result exists. */
+    has_result: bool,
+    edited_since_load: bool,
     display,
     theorems: Theorems.Model.t,
   };
@@ -45,11 +55,13 @@ module Model = {
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
+    completed_dynamics: None,
     incr_eval: Calc.Pending,
-    predicted_reuse: IncrEval.empty,
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
+    has_result: false,
+    edited_since_load: false,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -72,11 +84,13 @@ module Model = {
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
+        completed_dynamics: None,
         incr_eval: Calc.Pending,
-        predicted_reuse: IncrEval.empty,
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
+        has_result: false,
+        edited_since_load: false,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -103,8 +117,8 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
-  let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
-    model.predicted_reuse;
+  let card_dynamics = (model: t): Dynamics.Map.t =>
+    Option.value(~default=dynamics(model), model.completed_dynamics);
 
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
@@ -132,8 +146,51 @@ module Model = {
     };
 };
 
+/* Result values can be giant shared GRAPHS (a module value embeds
+   every member AST; tree walks multiply the sharing away — Statics.mk
+   on one raw value measured 574k info entries / ~17s). Cap the term
+   at the door: the pruned copy feeds BOTH the display segment and the
+   stitched statics; under-budget values pass through untouched, and
+   the raw (ship-pruned) value stays in the model for semantic
+   consumers. The worker ships values pruned to a slightly LARGER
+   budget, so this prune trips exactly iff the shipped value was
+   truncated — driving the console warning and the result strip's
+   truncation note. */
+let display_budget = 5_000;
+
+let exceeds_display_budget = (e: Exp.t): bool =>
+  TermPrune.size_within(display_budget, e) == None;
+
+/* single-slot memo: the view asks per render, the value is stable */
+let exceeds_memo: ref(option((Exp.t, bool))) = ref(None);
+let value_truncated = (e: Exp.t): bool =>
+  switch (exceeds_memo^) {
+  | Some((prev, r)) when prev === e => r
+  | _ =>
+    let r = exceeds_display_budget(e);
+    exceeds_memo := Some((e, r));
+    r;
+  };
+
+let prune_for_display = (e: Exp.t): Exp.t => {
+  let (pruned, truncated) = TermPrune.prune(~budget=display_budget, e);
+  if (truncated) {
+    print_endline(
+      Printf.sprintf(
+        "result value exceeds %d nodes: truncated for display (elided parts shown as holes)",
+        display_budget,
+      ),
+    );
+  };
+  pruned;
+};
+
 module Update = {
   open Updated;
+
+  /* incremental stream-collector state: keyed inside by elab identity,
+     so a new evaluation (new elab) resets it automatically */
+  let stream_inc: ref(option(StreamCollector.Inc.t)) = ref(None);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -197,16 +254,21 @@ module Update = {
       }
       |> Updated.return_quiet
     | (UpdateStreamingEval(stream), _) =>
-      /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
-       * frozen debug tint; also seed the streaming outbox / pending worklist. */
       {
         ...model,
         result: Calc.NewValue(ProgramResult.evaluating),
-        predicted_reuse: stream.completed,
         streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
         pending_eval_ids:
-          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+          /* The pending sweep feeds only the (default-off) incremental
+             deco, and clearing it walks every reused elaboration subtree
+             — skip the walk when nothing will read it. */
+          settings.show_incremental_deco
+            ? EvalWorklist.remove_streamed_ids(
+                stream,
+                model.pending_eval_ids,
+              )
+            : [],
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
@@ -220,7 +282,12 @@ module Update = {
           Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
         streaming_state: Calc.Pending,
         pending_eval_ids:
-          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+          settings.show_incremental_deco
+            ? EvalWorklist.remove_streamed_ids(
+                stream,
+                model.pending_eval_ids,
+              )
+            : [],
       }
       |> Updated.return_quiet;
     };
@@ -230,6 +297,10 @@ module Update = {
       (
         ~settings: CoreSettings.t,
         ~queue_worker: option(WorkerServer.Request.value => unit),
+        /* the pending-eval worklist feeds THIS editor's own pending
+           highlight; hosts whose editor isn't rendered (the hidden
+           master while a stack is open) skip the O(program) walk */
+        ~compute_pending=true,
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
         {
@@ -238,11 +309,13 @@ module Update = {
           cached_targets,
           result,
           dynamics,
+          completed_dynamics,
           incr_eval,
-          predicted_reuse,
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
+          has_result,
+          edited_since_load,
           display,
           theorems,
         }: Model.t,
@@ -266,12 +339,21 @@ module Update = {
     let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
-     * entries contain OCaml closures. */
+     * entries contain OCaml closures. LAZY: the projection folds the
+     * WHOLE info_map (O(program)), and this calculate runs on every
+     * action — including each streaming-eval update, where nothing
+     * forces it. Post-load stream processing on mega programs was
+     * paying it hundreds of times. */
     let eval_info_map =
-      EvalInfo.of_info_map(
-        ~probe_all=Calc.get_value(settings).probe_all,
-        ~targets=Calc.get_value(targets),
-        statics.info_map,
+      lazy(
+        EvalInfo.of_info_map(
+          /* ambient sampling masked during agent bursts (AgentPulse);
+             re-evaluated when targets re-expand at burst end */
+          ~probe_all=
+            Calc.get_value(settings).probe_all && !Util.AgentPulse.in_burst(),
+          ~targets=Calc.get_value(targets),
+          statics.info_map,
+        )
       );
     let result =
       result
@@ -285,10 +367,17 @@ module Update = {
         | _ when !settings.dynamics => ProgramResult.awaiting_worker_ack
         // Using the webworker:
         | Some(queue_worker) =>
+          /* the worker keeps its own incremental cache per key — do
+             NOT ship prev (it dominated the payload; see
+             WorkerServer.Request.prev_source) */
           queue_worker({
             expr: elab,
-            eval_info_map,
-            prev: prev_incr,
+            eval_info_map: Lazy.force(eval_info_map),
+            prev: UseResident,
+            /* highlight off ⇒ stream only effect-bearing entries
+               (tests/probes); husk chunks cost a main-thread render
+               cycle each (WorkerServer.Request.stream_interest) */
+            stream: Language.EvalWorklist.compute_enabled^ ? Full : Effects,
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -296,8 +385,9 @@ module Update = {
           switch (
             WorkerServer.evaluate_sync({
               expr: elab,
-              eval_info_map,
-              prev: prev_incr,
+              eval_info_map: Lazy.force(eval_info_map),
+              prev: Seed(prev_incr),
+              stream: Full /* sync path: nothing streams */
             })
           ) {
           | Ok((exp, state)) =>
@@ -328,7 +418,10 @@ module Update = {
     let pending_eval_ids =
       switch (result) {
       | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
-        if (Calc.get_value(settings).dynamics) {
+        if (edited_since_load
+            && compute_pending
+            && EvalWorklist.compute_enabled^
+            && Calc.get_value(settings).dynamics) {
           switch (queue_worker) {
           | Some(_) => EvalWorklist.pending_ids(statics.info_map)
           | None => []
@@ -344,22 +437,6 @@ module Update = {
       | OldValue(ProgramResult.ResultFail(_)) => []
       };
 
-    /* Clear on a fresh eval request; ReusePlan / sync path re-fills it.
-     * Otherwise keep the last prediction so the frozen tint stays useful
-     * after a fast eval completes. */
-    let predicted_reuse =
-      switch (result, queue_worker) {
-      | (NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)), _) => IncrEval.empty
-      | (NewValue(ProgramResult.ResultOk(_)), None) =>
-        ReusePass.reuse_pass(
-          ~prev=prev_incr,
-          ~eval_info=eval_info_map,
-          ~env=Builtins.env_init,
-          Calc.get_value(elab),
-        )
-      | _ => predicted_reuse
-      };
-
     let streaming_state =
       streaming_state
       |> {
@@ -367,8 +444,21 @@ module Update = {
         and.calc streaming_outbox = streaming_outbox;
         switch (streaming_outbox) {
         | Some(streaming_outbox) =>
-          Some(StreamCollector.collect_stream_state(streaming_outbox, elab))
-        | None => None
+          /* incremental: O(chunk) per stream message instead of an
+             O(program) walk (the walk was ~1s per chunk on mega-2k) */
+          let (inc, state) =
+            StreamCollector.collect_stream_state_inc(
+              ~prev=stream_inc^,
+              streaming_outbox,
+              elab,
+            );
+          stream_inc := inc;
+          Some(state);
+        | None =>
+          /* run over: drop the collector state (its frontier pins the
+             finished run's entry slices) */
+          stream_inc := None;
+          None;
         };
       };
 
@@ -387,7 +477,38 @@ module Update = {
         and.calc streaming_state = streaming_state;
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
-          Some(dynamics_of_state(state))
+          let fresh = dynamics_of_state(state);
+          /* Streaming restarts with empty results on every eval, so for
+             short evaluations test marks blink out and probe/livelit
+             samples drop to nothing (livelits then dim to their
+             last-good view). Keep the previous run's entries for
+             anything the stream hasn't reached yet — fresh results win
+             per id, and entries for deleted ids are harmless (nothing
+             looks them up) and are replaced wholesale at ResultOk. */
+          switch (dynamics |> Calc.get_saved(None)) {
+          | Some(old) =>
+            let fresh_ids =
+              List.map(fst, fresh.Dynamics.test_results.test_map);
+            let carried =
+              List.filter(
+                ((id, _)) => !List.mem(id, fresh_ids),
+                old.Dynamics.test_results.test_map,
+              );
+            Some({
+              ...fresh,
+              test_results:
+                TestResults.mk_results(
+                  fresh.Dynamics.test_results.test_map @ carried,
+                ),
+              probe_map:
+                Id.Map.union(
+                  (_, fresh_samples, _old) => Some(fresh_samples),
+                  fresh.Dynamics.probe_map,
+                  old.Dynamics.probe_map,
+                ),
+            });
+          | None => Some(fresh)
+          };
         | (ProgramResult.ResultPending(_), None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)
@@ -411,7 +532,7 @@ module Update = {
         };
       };
 
-    // Calculate the display
+    // Calculate the display (giant values: see prune_for_display)
     let display =
       switch (display) {
       | Evaluation(ev_display) =>
@@ -427,7 +548,8 @@ module Update = {
                  so the result editor is rooted at Exp. */
               Some((
                 exp,
-                exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
+                prune_for_display(exp)
+                |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
               ))
             | ResultFail(_)
             | ResultPending(_) =>
@@ -438,19 +560,20 @@ module Update = {
         ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
-             Option.map(((exp, editor)) =>
+             Option.map(((exp, editor)) => {
+               let display_exp = prune_for_display(exp);
                (
                  exp,
                  CodeSelectable.Update.calculate(
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
-                   ~stitch=_ => exp,
+                   ~stitch=_ => display_exp,
                    ~dynamics=Dynamics.Map.empty,
                    ~is_edited=is_edited || result_changed,
                    editor,
                  ),
-               )
-             ),
+               );
+             }),
            )
         |> Calc.save
         |> (x => Model.Evaluation(x));
@@ -491,11 +614,29 @@ module Update = {
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
+        completed_dynamics:
+          switch (Calc.get_value(result)) {
+          | ProgramResult.ResultOk(_) =>
+            Option.map(
+              (d: Dynamics.t) => d.probe_map,
+              Calc.get_value(dynamics),
+            )
+          | _ => completed_dynamics
+          },
         incr_eval: incr_eval |> Calc.save,
-        predicted_reuse,
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
+        has_result:
+          has_result
+          || (
+            switch (Calc.get_value(result)) {
+            | ProgramResult.ResultOk(_)
+            | ProgramResult.ResultFail(_) => true
+            | ProgramResult.ResultPending(_) => false
+            }
+          ),
+        edited_since_load: edited_since_load || is_edited && has_result,
         display,
         theorems,
       }: Model.t
@@ -579,8 +720,16 @@ module View = {
         ~selected,
         ~locked,
         result: ProgramResult.t(ProgramResult.inner),
-        editor: option(('a, CodeSelectable.Model.t)),
+        editor: option((Exp.t, CodeSelectable.Model.t)),
       ) => {
+    /* the shipped value arrives pruned to a slightly larger budget
+       than the display's, so this trips exactly when the value was
+       truncated anywhere along the way */
+    let truncated =
+      switch (editor) {
+      | Some((exp, _)) => value_truncated(exp)
+      | None => false
+      };
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
@@ -593,6 +742,7 @@ module View = {
               EditMode.Editable({
                 inject: a => inject(EvalEditorAction(a)),
                 escape: _ => Ui_effect.Ignore,
+                escape_vertical: None,
                 take_focus: _ => Ui_effect.Ignore,
                 focus: selected ? Some() : None,
               }),
@@ -612,6 +762,20 @@ module View = {
         ]
       | _ => []
       };
+    let truncated_note =
+      truncated
+        ? [
+          div(
+            ~attrs=[
+              Attr.classes(["result-truncated-note"]),
+              Attr.title(
+                "The result is too large to display in full; elided parts are shown as holes.",
+              ),
+            ],
+            [text({js|⚠ large value — display truncated|js})],
+          ),
+        ]
+        : [];
     Node.(
       div(
         ~attrs=[Attr.classes(["cell-item", "cell-result"])],
@@ -629,6 +793,7 @@ module View = {
             Option.to_list(code_view),
           ),
         ]
+        @ truncated_note
         @ (
           locked
             ? []
@@ -704,7 +869,7 @@ module View = {
       "test-decos",
       List.filter_map(
         ((id, insts)) =>
-          switch (Id.Map.find_opt(id, measured.tiles)) {
+          switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
           | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
           | None => None
           },

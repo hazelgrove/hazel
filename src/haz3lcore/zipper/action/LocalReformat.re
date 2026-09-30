@@ -187,8 +187,8 @@ let rec collect_lb_indents = (seg: Segment.t): list((Id.t, int)) =>
   | [_, ...rest] => collect_lb_indents(rest)
   };
 
-let set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
-  let rec level = (seg: Segment.t): Segment.t =>
+let rec set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
+  let next =
     switch (seg) {
     | [] => []
     | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
@@ -204,10 +204,20 @@ let set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
                   Piece.Secondary(Secondary.mk_space(Id.mk()))
                 )
         };
-      [p] @ spaces @ level(rest);
-    | [p, ...rest] => [p, ...level(rest)]
+      [p] @ spaces @ set_lb_indents(targets, rest);
+    | [Piece.Tile(t) as p, ...rest] =>
+      let children = List.map(set_lb_indents(targets), t.children);
+      let p =
+        List.for_all2(Segment.ptr_eq, t.children, children)
+          ? p
+          : Piece.Tile({
+              ...t,
+              children,
+            });
+      [p, ...set_lb_indents(targets, rest)];
+    | [p, ...rest] => [p, ...set_lb_indents(targets, rest)]
     };
-  Segment.map_deep(level, seg);
+  Segment.ptr_eq(seg, next) ? seg : next;
 };
 
 let go_region =
@@ -270,8 +280,46 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
         |> Id.Map.of_seq;
       let indent_map = lazy(Indentation.level_map(full));
       Id.Map.is_empty(plans)
-        ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);
+        ? z
+        : ZipperBase.MapSegment.go(
+            seg =>
+              EditIdentity.restore(
+                seg,
+                apply_plans(~indent_map, plans, seg),
+              ),
+            z,
+          );
     };
+  };
+
+/* === Refactor re-indent ===
+   A refactoring rearranges COMPLETE syntax but moves whitespace runs
+   verbatim (and synthesizes fresh ones), so a moved subtree keeps its
+   old indentation at a new depth. Canonicalize: set every linebreak
+   whose STORED indent differs from its canonical level. The `!=` filter
+   makes this self-scoping — in auto-indented code every untouched line
+   already sits at canonical, so only the refactor's own displacement is
+   corrected; in hand-tuned code it canonicalizes indentation (which is
+   the intent: indentation is structural, part of the refactor). Gated
+   by auto_reindent. */
+let go_refactor = (~enabled: bool, z: Zipper.t): Zipper.t =>
+  if (!enabled) {
+    z;
+  } else {
+    let full = Zipper.unselect_and_zip(z);
+    let canon = Indentation.level_map(full);
+    let targets =
+      collect_lb_indents(full)
+      |> List.filter_map(((id, cur)) =>
+           switch (Id.Map.find_opt(id, canon)) {
+           | Some(lvl) when lvl != cur => Some((id, lvl))
+           | _ => None
+           }
+         )
+      |> List.to_seq
+      |> Id.Map.of_seq;
+    Id.Map.is_empty(targets)
+      ? z : ZipperBase.MapSegment.go(set_lb_indents(targets), z);
   };
 
 /* Bracket an edit with the completion trigger: snapshot incomplete
