@@ -38,9 +38,10 @@ let rec strip = (e: Exp.t): Exp.t =>
   | _ => e
   };
 
-/* the top-level item chain; the trailing expression is its own item */
-let rec chain = (e: Exp.t): list(Exp.t) => {
-  let e = strip(e);
+/* the top-level item chain; the trailing expression is its own item.
+   a chain inside parens or a projector (a folded section) stays whole
+   in the tail: the wrapper has info and elaboration of its own */
+let rec chain = (e: Exp.t): list(Exp.t) =>
   switch (e.term) {
   | Let(_, _, body)
   | TyAlias(_, _, body)
@@ -49,7 +50,6 @@ let rec chain = (e: Exp.t): list(Exp.t) => {
   | Filter(_, body) => [e, ...chain(body)]
   | _ => [e]
   };
-};
 
 /* a Module root itemizes like the monolithic lowering: each mod item
    becomes a Let/TyAlias wrapper, plus a tail tuple of the exports.
@@ -484,6 +484,45 @@ let graft_elabs = (items: list(item)): option(Exp.t) => {
   go(items);
 };
 
+/* a top-level export is used iff a later item mentions it before a
+   rebinding, or a hole below could ("$hole" in d_free: real holes only,
+   since synthetic body holes aren't in any def) */
+let unused_binders = (items: list(item)): list(Id.t) => {
+  let hole_below = rest =>
+    List.exists(it => List.mem("$hole", it.d_free), rest);
+  let rec used_below = (name: string, rest: list(item)): bool =>
+    switch (rest) {
+    | [] => false
+    | [it, ...rest] =>
+      List.mem(name, it.d_free)
+      || (
+        List.exists(e => entry_name(e) == name, it.d_exports)
+          ? false  /* shadowed from here on */
+          : used_below(name, rest)
+      )
+    };
+  let rec go = (items: list(item)) =>
+    switch (items) {
+    | [] => []
+    | [it, ...rest] =>
+      List.filter_map(
+        e =>
+          switch (e) {
+          | Ctx.VarEntry({name, id, _}) =>
+            used_below(name, rest)
+            || hole_below(rest)
+            || String.length(name) > 0
+            && name.[0] == '_'
+              ? None : Some(id)
+          | _ => None
+          },
+        it.d_exports,
+      )
+      @ go(rest)
+    };
+  go(items);
+};
+
 /* compute one item's statics in isolation: body swapped for a hole */
 let rec calc_item =
         (
@@ -796,8 +835,10 @@ and calc_module_item =
     d_error_ids:
       List.concat_map((m: item) => m.d_error_ids, items_m)
       @ Statics.Map.error_ids(map_sur),
+    /* members' unused bindings (a shadowed one), as the top chain's */
     d_warning_ids:
       List.concat_map((m: item) => m.d_warning_ids, items_m)
+      @ unused_binders(items_m)
       @ Statics.Map.warning_ids(map_sur),
     d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
     d_free: free,
@@ -938,45 +979,6 @@ and calc_members =
       };
     };
   go(nodes, ctx_in, dirty_vars, dirty_tnames, []);
-};
-
-/* a top-level export is used iff a later item mentions it before a
-   rebinding, or a hole below could ("$hole" in d_free: real holes only,
-   since synthetic body holes aren't in any def) */
-let unused_binders = (items: list(item)): list(Id.t) => {
-  let hole_below = rest =>
-    List.exists(it => List.mem("$hole", it.d_free), rest);
-  let rec used_below = (name: string, rest: list(item)): bool =>
-    switch (rest) {
-    | [] => false
-    | [it, ...rest] =>
-      List.mem(name, it.d_free)
-      || (
-        List.exists(e => entry_name(e) == name, it.d_exports)
-          ? false  /* shadowed from here on */
-          : used_below(name, rest)
-      )
-    };
-  let rec go = (items: list(item)) =>
-    switch (items) {
-    | [] => []
-    | [it, ...rest] =>
-      List.filter_map(
-        e =>
-          switch (e) {
-          | Ctx.VarEntry({name, id, _}) =>
-            used_below(name, rest)
-            || hole_below(rest)
-            || String.length(name) > 0
-            && name.[0] == '_'
-              ? None : Some(id)
-          | _ => None
-          },
-        it.d_exports,
-      )
-      @ go(rest)
-    };
-  go(items);
 };
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse
