@@ -33,7 +33,7 @@ let of_delim' =
       typed_len: int,
       font_metrics: FontMetrics.t,
     ): t => {
-      let base_cls =
+      let raw_cls =
         switch (token) {
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
@@ -46,8 +46,19 @@ let of_delim' =
         | _ when is_infix_var => "incomplete"
         | _ => Sort.class_of(sort)
         };
+      /* A witness split: the whole tile is ghost-marked, but the typed
+         prefix is the user's text. The outer span keeps normal token
+         styling (no `incomplete` color, no `in-parsed-buffer` fade);
+         only the remainder span is ghost. An inconsistency still
+         colors the whole token. */
+      let is_split =
+        typed_len >= 0
+        && typed_len < String.length(token)
+        && raw_cls != "string-lit";
+      let base_cls =
+        is_split && raw_cls == "incomplete" ? Sort.class_of(sort) : raw_cls;
       let plurality = plurality == 1 ? "mono" : "poly";
-      let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
+      let in_buffer = is_in_buffer && !is_split ? ["in-parsed-buffer"] : [];
       let var_class = is_ref(token, sort) ? ["ref"] : [];
       let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
       /* string-lit rendering (grapheme-aware) never coincides with a
@@ -55,9 +66,7 @@ let of_delim' =
          plain text — safe for the caret overlay, which measures by
          token column, not DOM span count */
       let contents =
-        if (typed_len >= 0
-            && typed_len < String.length(token)
-            && base_cls != "string-lit") {
+        if (is_split) {
           let typed = String.sub(token, 0, typed_len);
           let ghost =
             String.sub(token, typed_len, String.length(token) - typed_len);
