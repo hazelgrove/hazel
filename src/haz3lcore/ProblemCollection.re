@@ -300,8 +300,8 @@ type problem_collection = {
    badge reads counts even when collapsed) at O(program) per source;
    sources are pointer-stable between edits, so repeats are identity
    compares */
-let memo: ref(option((bool, list(editor_group_input), problem_collection))) =
-  ref(None);
+let memo: Slot.t((bool, list(editor_group_input)), problem_collection) =
+  Slot.mk();
 
 let same_inputs =
     (a: list(editor_group_input), b: list(editor_group_input)): bool => {
@@ -437,11 +437,11 @@ let make_uncached =
 let make =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection =>
-  switch (memo^) {
-  | Some((dw, prev, out))
-      when dw == display_warnings && same_inputs(prev, inputs) => out
-  | _ =>
-    let out = make_uncached(~display_warnings, inputs);
-    memo := Some((display_warnings, inputs, out));
-    out;
-  };
+  Slot.get(
+    ~same=
+      ((dw, prev), (dw', inputs')) =>
+        dw == dw' && same_inputs(prev, inputs'),
+    memo,
+    (display_warnings, inputs),
+    () => make_uncached(~display_warnings, inputs),
+  );

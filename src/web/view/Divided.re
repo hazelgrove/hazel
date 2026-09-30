@@ -563,29 +563,29 @@ let same_content = (a: t, b: t): bool => {
 
 /* the whole program for the problems panel, its segment the current
    document (the shell's is stale); memoized: the panel caches on identity */
-let outside_memo: ref(option((t, CodeEditable.Model.t))) = ref(None);
+let outside_memo: Slot.t(t, CodeEditable.Model.t) = Slot.mk();
 let outside_editor = (d: t): CodeEditable.Model.t =>
-  switch (outside_memo^) {
-  | Some((d', e))
-      when
+  Slot.get(
+    ~same=
+      (d', d) =>
         same_content(d', d)
         && d'.statics === d.statics
-        && d'.shell === d.shell => e
-  | _ =>
-    let e: CodeEditable.Model.t = {
-      ...d.shell.editor,
-      editor: {
-        ...d.shell.editor.editor,
-        syntax: {
-          ...d.shell.editor.editor.syntax,
-          segment: document(d),
+        && d'.shell === d.shell,
+    outside_memo,
+    d,
+    () =>
+      {
+        ...d.shell.editor,
+        editor: {
+          ...d.shell.editor.editor,
+          syntax: {
+            ...d.shell.editor.editor.syntax,
+            segment: document(d),
+          },
         },
+        statics: statics(d),
       },
-      statics: statics(d),
-    };
-    outside_memo := Some((d, e));
-    e;
-  };
+  );
 
 let map_cells = (f: Cell.t => Cell.t, d: t): t => {
   ...d,

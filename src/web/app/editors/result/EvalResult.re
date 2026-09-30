@@ -144,15 +144,9 @@ let exceeds_display_budget = (e: Exp.t): bool =>
   TermPrune.size_within(display_budget, e) == None;
 
 /* single-slot memo: the view asks per render, the value is stable */
-let exceeds_memo: ref(option((Exp.t, bool))) = ref(None);
+let exceeds_memo: Slot.t(Exp.t, bool) = Slot.mk();
 let value_truncated = (e: Exp.t): bool =>
-  switch (exceeds_memo^) {
-  | Some((prev, r)) when prev === e => r
-  | _ =>
-    let r = exceeds_display_budget(e);
-    exceeds_memo := Some((e, r));
-    r;
-  };
+  Slot.get(exceeds_memo, e, () => exceeds_display_budget(e));
 
 let prune_for_display = (e: Exp.t): Exp.t => {
   let (pruned, truncated) = TermPrune.prune(~budget=display_budget, e);

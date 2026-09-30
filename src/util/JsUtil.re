@@ -484,8 +484,7 @@ let find_ancestor_with_class =
 /* clientHeight forces layout on a dirty tree and scroll handlers run
    every scrolled frame; a container's height changes only on resize,
    which clears this one-element cache */
-let client_height_cache: ref(option((Js.t(Dom_html.element), float))) =
-  ref(None);
+let client_height_cache: Slot.t(Js.t(Dom_html.element), float) = Slot.mk();
 let client_height_listener = ref(false);
 let cached_client_height = (el: Js.t(Dom_html.element)): float => {
   if (! client_height_listener^) {
@@ -499,13 +498,7 @@ let cached_client_height = (el: Js.t(Dom_html.element)): float => {
       );
     ();
   };
-  switch (client_height_cache^) {
-  | Some((el', h)) when el' === el => h
-  | _ =>
-    let h = float_of_int(el##.clientHeight);
-    client_height_cache := Some((el, h));
-    h;
-  };
+  Slot.get(client_height_cache, el, () => float_of_int(el##.clientHeight));
 };
 
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>

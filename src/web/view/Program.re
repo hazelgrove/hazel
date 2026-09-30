@@ -40,19 +40,15 @@ let whole = (p: t): CellEditor.Model.t =>
 
 /* [whole] for readers (views, the agent): joining re-measures the
    whole program, so a divided one joins once per content change */
-let joined: ref(option((Divided.t, CellEditor.Model.t))) = ref(None);
+let joined: Slot.t(Divided.t, CellEditor.Model.t) = Slot.mk();
 let whole_memo = (p: t): CellEditor.Model.t =>
   switch (p) {
   | Whole(e) => e
   | Divided(d) =>
     let e =
-      switch (joined^) {
-      | Some((d', e)) when Divided.same_content(d', d) => e
-      | last =>
-        let e = Divided.join(~prev=?Option.map(snd, last), d);
-        joined := Some((d, e));
-        e;
-      };
+      Slot.get(~same=Divided.same_content, joined, d, () =>
+        Divided.join(~prev=?Option.map(snd, joined^), d)
+      );
     {
       editor: {
         ...e.editor,

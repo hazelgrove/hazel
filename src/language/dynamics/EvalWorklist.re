@@ -117,16 +117,9 @@ let pending_ids_uncached = (info_map: StaticsBase.Map.t): list(Id.t) => {
 
 /* single-slot memo keyed by map identity; the one info_map it pins is
    retained by the current statics anyway */
-let pending_memo: ref(option((StaticsBase.Map.t, list(Id.t)))) =
-  ref(None);
+let pending_memo: Slot.t(StaticsBase.Map.t, list(Id.t)) = Slot.mk();
 let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
-  switch (pending_memo^) {
-  | Some((m, ids)) when m === info_map => ids
-  | _ =>
-    let ids = pending_ids_uncached(info_map);
-    pending_memo := Some((info_map, ids));
-    ids;
-  };
+  Slot.get(pending_memo, info_map, () => pending_ids_uncached(info_map));
 
 /* pending ids are top-level leaves, which record their own entries: an
    id settles exactly when its entry streams, so key membership suffices */

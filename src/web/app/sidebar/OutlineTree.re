@@ -296,16 +296,12 @@ let number_tests = (ns: list(node)): list(node) => {
 
 /* memoized on the term's physical identity, which statics keeps until
    the program changes */
-let cache: ref(option((Exp.t, list(node)))) = ref(None);
+let cache: Util.Slot.t(Exp.t, list(node)) = Util.Slot.mk();
 
 let of_term = (e: Exp.t): list(node) =>
-  switch (cache^) {
-  | Some((prev, tree)) when prev === e => tree
-  | _ =>
-    let tree = of_exp(~top=true, e) |> group_tests |> number_tests;
-    cache := Some((e, tree));
-    tree;
-  };
+  Util.Slot.get(cache, e, () =>
+    of_exp(~top=true, e) |> group_tests |> number_tests
+  );
 
 /* ancestor labels of the node with id [fid], outermost first, for the
    stacked header's qualifier chip (["Geo"] for a member of module Geo) */
@@ -479,25 +475,25 @@ let node_of = (fid: Id.t, e: Exp.t): option(node) => {
 };
 
 /* every row id, memoized on the term like [of_term] */
-let row_ids_cache: ref(option((Exp.t, Id.Map.t(unit)))) = ref(None);
+let row_ids_cache: Slot.t(Exp.t, Id.Map.t(unit)) = Slot.mk();
 let row_ids = (e: Exp.t): Id.Map.t(unit) =>
-  switch (row_ids_cache^) {
-  | Some((prev, ids)) when prev === e => ids
-  | _ =>
-    let rec go = (acc, ns: list(node)) =>
-      List.fold_left(
-        (acc, n) =>
-          go(
-            switch (n.o_id) {
-            | Some(id) => Id.Map.add(id, (), acc)
-            | None => acc
-            },
-            n.o_children,
-          ),
-        acc,
-        ns,
-      );
-    let ids = go(Id.Map.empty, of_term(e));
-    row_ids_cache := Some((e, ids));
-    ids;
-  };
+  Slot.get(
+    row_ids_cache,
+    e,
+    () => {
+      let rec go = (acc, ns: list(node)) =>
+        List.fold_left(
+          (acc, n) =>
+            go(
+              switch (n.o_id) {
+              | Some(id) => Id.Map.add(id, (), acc)
+              | None => acc
+              },
+              n.o_children,
+            ),
+          acc,
+          ns,
+        );
+      go(Id.Map.empty, of_term(e));
+    },
+  );
