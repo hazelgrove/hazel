@@ -133,6 +133,42 @@ let apply_at =
     };
   };
   let member_form = j => in_module && !span_in_tile(j);
+  /* a member's pieces as (core, terminator): the terminator is its `;`
+     and the whitespace after, or only trailing whitespace when the
+     member is unterminated (mega style: a module's last member) */
+  let split_term = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
+    let arr = Array.of_list(ps);
+    let rec back = i =>
+      i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+    let at = back(Array.length(arr));
+    at > 0 && Focus.is_semi(arr[at - 1])
+      ? (Focus.take(at - 1, ps), Focus.drop(at - 1, ps), true)
+      : (Focus.take(at, ps), Focus.drop(at, ps), false);
+  };
+  let unterminated = j => {
+    let (_, _, semi) =
+      split_term(Focus.slice(start_of(j), end_of(j), seg));
+    member_form(j) && !semi;
+  };
+  /* spans [a, b) and [b, c) swapped; an unterminated member moving up
+     takes the other's `;`, so the one now last goes without */
+  let swap = (a, b, c) => {
+    let (first, second) = (Focus.slice(a, b, seg), Focus.slice(b, c, seg));
+    let (c1, t1, semi1) = split_term(first);
+    let (c2, t2, semi2) = split_term(second);
+    let middle =
+      in_module && semi1 && !semi2 ? c2 @ t1 @ c1 @ t2 : second @ first;
+    Focus.take(a, seg) @ middle @ Focus.drop(c, seg);
+  };
+  /* a [member, ;, ws] chunk after an unterminated member leads with
+     its separator instead: [;, ws, member] */
+  let after = (j, chunk: Segment.t): Segment.t =>
+    if (unterminated(j)) {
+      let (core, term, _) = split_term(chunk);
+      term @ core;
+    } else {
+      chunk;
+    };
   /* only module-body levels interleave two block levels (member-fn
      flattening); at top level mixing defs/tests in moves is fine */
   let same_family = (j, k) =>
@@ -144,19 +180,11 @@ let apply_at =
     | Delete => None
     | MoveUp
         when j > 0 && movable(j) && movable(j - 1) && same_family(j, j - 1) =>
-      let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
-      Some((
-        take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
-        None,
-      ));
+      Some((swap(start_of(j - 1), start_of(j), end_of(j)), None))
     | MoveDown
         when
           j + 1 < n && movable(j) && movable(j + 1) && same_family(j, j + 1) =>
-      let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
-      Some((
-        take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
-        None,
-      ));
+      Some((swap(start_of(j), start_of(j + 1), end_of(j + 1)), None))
     | MoveUp
     | MoveDown => None
     | NewBelow
@@ -196,6 +224,7 @@ let apply_at =
         /* inserting below the trailing expression would strand it
            above the new def: insert ABOVE the tail instead */
         let at = movable(j) ? end_of(j) : start_of(j);
+        let sk = movable(j) ? after(j, sk) : sk;
         Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
       };
     | Duplicate when movable(j) =>
@@ -205,6 +234,7 @@ let apply_at =
       | None => None
       | Some(copy) =>
         let at = end_of(j);
+        let copy = after(j, copy);
         Some((take(at, seg) @ copy @ drop(at, seg), first_tile_id(copy)));
       };
     | Duplicate => None
@@ -247,20 +277,28 @@ let rec apply_deep =
       | ["module", ..._] => true
       | _ => false
       };
-    let child_bctx = (t: Base.tile, is_last: bool): block_ctx =>
+    let is_body = (t: Base.tile) =>
+      Tile.label(t) == ["{", "}"] && List.length(t.children) == 1;
+    /* [after_head]: the tile follows a 2-shard `module X =` head, whose
+       body is its next sibling rather than a child (module members,
+       and every module of a module-rooted program) */
+    let child_bctx =
+        (~after_head: bool, t: Base.tile, is_last: bool): block_ctx =>
       if (is_module_tile(t) && is_last) {
         BModDef;
-      } else if (bctx == BModDef
-                 && Tile.label(t) == ["{", "}"]
-                 && List.length(t.children) == 1) {
+      } else if ((bctx == BModDef || after_head) && is_body(t)) {
         BModBody;
       } else {
         BPlain;
       };
     let rec try_children =
-            (ps: Segment.t): option((Segment.t, option(Id.t))) =>
+            (~after_head=false, ps: Segment.t)
+            : option((Segment.t, option(Id.t))) =>
       switch (ps) {
       | [] => None
+      | [Piece.Secondary(_) as p, ...rest] =>
+        try_children(~after_head, rest)
+        |> Option.map(((rest', target)) => ([p, ...rest'], target))
       | [Piece.Tile(t), ...rest] =>
         let n_kids = List.length(t.children);
         let rec try_kids = (before, k, kids) =>
@@ -271,7 +309,7 @@ let rec apply_deep =
               apply_deep(
                 op,
                 fid,
-                ~bctx=child_bctx(t, k == n_kids - 1),
+                ~bctx=child_bctx(~after_head, t, k == n_kids - 1),
                 ~top=false,
                 ch,
               )
@@ -294,7 +332,10 @@ let rec apply_deep =
             target,
           ))
         | None =>
-          try_children(rest)
+          try_children(
+            ~after_head=is_module_tile(t) && List.length(t.shards) == 2,
+            rest,
+          )
           |> Option.map(((rest', target)) =>
                ([Piece.Tile(t), ...rest'], target)
              )

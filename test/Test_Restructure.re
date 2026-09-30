@@ -264,6 +264,87 @@ let members = (): unit => {
   );
 };
 
+/* mega style: the last member of a module body has no `;`. Ops that
+   put another member after it must give it one */
+let unterminated_tail = (): unit => {
+  let src = "module U = {\n  let a = 1;\n  let z = fun x -> x\n} in U.a";
+  /* U's members, as the outline reads them back */
+  let rows_of = (t: string): list(string) =>
+    switch (
+      List.find_opt(
+        (n: Web.OutlineTree.node) => n.o_label == "U",
+        Web.OutlineTree.of_term(statics_term(parse(t))),
+      )
+    ) {
+    | Some(u) =>
+      List.map((n: Web.OutlineTree.node) => n.o_label, u.o_children)
+    | None => []
+    };
+  check(list(string), "members before", ["a", "z"], rows_of(src));
+  let ok = (~label, ~op, ~desc, expected) => {
+    let t = apply_ok(~src, ~label, ~op, ~desc);
+    check(list(string), desc ++ ": members", expected, rows_of(t));
+  };
+  ok(~label="z", ~op=Web.OutlineSidebar.MoveUp, ~desc="move up", ["z", "a"]);
+  ok(
+    ~label="a",
+    ~op=Web.OutlineSidebar.MoveDown,
+    ~desc="move down",
+    ["z", "a"],
+  );
+  ok(
+    ~label="z",
+    ~op=Web.OutlineSidebar.Duplicate,
+    ~desc="duplicate",
+    ["a", "z", "z"],
+  );
+  ok(
+    ~label="z",
+    ~op=Web.OutlineSidebar.NewBelow,
+    ~desc="new below",
+    ["a", "z", "new_def"],
+  );
+  /* the same module at the top of a module-rooted program */
+  let mod_src = "module U = {\n  let a = 1;\n  let z = fun x -> x\n};\nU.a";
+  let mod_rows = (seg: Segment.t): list(string) =>
+    switch (
+      List.find_opt(
+        (n: Web.OutlineTree.node) => n.o_label == "U",
+        Web.OutlineTree.of_term(MakeTerm.Incr.term_of_mod(seg)),
+      )
+    ) {
+    | Some(u) =>
+      List.map((n: Web.OutlineTree.node) => n.o_label, u.o_children)
+    | None => []
+    };
+  let mod_parse = (t: string): Segment.t =>
+    switch (FastParse.of_text(~root=Mod, t)) {
+    | Some(seg) => seg
+    | None => failwith("mod parse failed: " ++ t)
+    };
+  let seg = mod_parse(mod_src);
+  check(list(string), "mod: members before", ["a", "z"], mod_rows(seg));
+  let z_id = outline_id(MakeTerm.Incr.term_of_mod(seg), "z");
+  let mod_ok = (op, desc, expected) =>
+    switch (R.apply(op, z_id, seg)) {
+    | None => fail(desc ++ " refused")
+    | Some((seg', _)) =>
+      check(
+        list(string),
+        desc ++ ": members",
+        expected,
+        mod_rows(mod_parse(text_of(seg'))),
+      )
+    };
+  mod_ok(Web.OutlineSidebar.MoveUp, "mod move up", ["z", "a"]);
+  mod_ok(Web.OutlineSidebar.Duplicate, "mod duplicate", ["a", "z", "z"]);
+  mod_ok(
+    Web.OutlineSidebar.NewBelow,
+    "mod new below",
+    ["a", "z", "new_def"],
+  );
+};
+
 let fn_body = (): unit => {
   let src = "module N = {\n  let f = fun x ->\n    let y = x + 1 in\n    y * 2;\n} in N.f(1)";
   /* nested let INSIDE a member fn (flattened block): let-in form */
@@ -298,5 +379,6 @@ let tests = (
     test_case("statement ops", `Quick, statements),
     test_case("member ops", `Quick, members),
     test_case("flattened fn-body ops", `Quick, fn_body),
+    test_case("unterminated last member", `Quick, unterminated_tail),
   ],
 );
