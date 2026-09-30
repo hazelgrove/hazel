@@ -7,28 +7,6 @@ open Language;
 
 let read_file = CorpusUtil.read_file;
 
-let time_statics = (src: string): option(float) =>
-  switch (
-    FastParse.of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root=Exp,
-      src,
-    )
-  ) {
-  | None => None
-  | Some(seg) =>
-    let term = MakeTerm.go(seg).term;
-    let t0 = Sys.time();
-    let _ =
-      Statics.mk(
-        CoreSettings.on,
-        Builtins.ctx_init(Some(Operators.default_mode)),
-        term,
-      );
-    Some((Sys.time() -. t0) *. 1000.);
-  };
-
 /* id-preserving single-token edits at the last / first match of [needle] */
 let rec repl_last =
         (~needle: string, ~repl: string, ps: list(Piece.t))
@@ -768,31 +746,6 @@ let tests = (
         "slide-load pipeline (informational)",
         `Quick,
         load_pipeline_probe,
-      ),
-      test_case("corpus statics timing (informational)", `Quick, () =>
-        List.iter(
-          name => {
-            let path = "hazel-programs/bench/" ++ name;
-            let path =
-              Sys.file_exists(path)
-                ? path : "../hazel-programs/bench/" ++ name;
-            switch (read_file(path)) {
-            | None => Printf.printf("BENCHSTATICS %s: <unreadable>\n", name)
-            | Some(src) =>
-              switch (time_statics(src)) {
-              | Some(ms) =>
-                Printf.printf(
-                  "BENCHSTATICS %s (%d lines): %.0fms\n",
-                  name,
-                  List.length(String.split_on_char('\n', src)),
-                  ms,
-                )
-              | None => Printf.printf("BENCHSTATICS %s: <no parse>\n", name)
-              }
-            };
-          },
-          ["bench-1k.hz", "bench-2k5.hz", "bench-5k.hz"],
-        )
       ),
     ]),
 );
