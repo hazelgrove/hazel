@@ -485,3 +485,27 @@ let node_of = (fid: Id.t, e: Exp.t): option(node) => {
     );
   go(of_term(e));
 };
+
+/* every row id, memoized on the term like [of_term] */
+let row_ids_cache: ref(option((Exp.t, Id.Map.t(unit)))) = ref(None);
+let row_ids = (e: Exp.t): Id.Map.t(unit) =>
+  switch (row_ids_cache^) {
+  | Some((prev, ids)) when prev === e => ids
+  | _ =>
+    let rec go = (acc, ns: list(node)) =>
+      List.fold_left(
+        (acc, n) =>
+          go(
+            switch (n.o_id) {
+            | Some(id) => Id.Map.add(id, (), acc)
+            | None => acc
+            },
+            n.o_children,
+          ),
+        acc,
+        ns,
+      );
+    let ids = go(Id.Map.empty, of_term(e));
+    row_ids_cache := Some((e, ids));
+    ids;
+  };

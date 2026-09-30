@@ -1052,6 +1052,90 @@ module View = {
       | Some(p) => Program.statics(p)
       | None => current_editor.statics
       };
+    /* the row holding the editor's caret, or its nearest visible
+       ancestor when collapsed away (OutlineFollow) */
+    let outline_mark: option(Haz3lcore.Id.t) =
+      switch (program) {
+      | None => Option.none
+      | Some(p) =>
+        let term = outline_statics.term;
+        let rows = OutlineTree.row_ids(term);
+        let row_of = id =>
+          switch (Haz3lcore.Id.Map.find_opt(id, outline_statics.info_map)) {
+          | Some(info) =>
+            List.find_opt(
+              x => Haz3lcore.Id.Map.mem(x, rows),
+              [id, ...Language.Info.ancestors_of(info)],
+            )
+          | None => None
+          };
+        /* the indicated term, else the enclosing tiles, else the
+           neighbours (a caret in a comment or between items) */
+        let z = current_editor.editor.state.zipper;
+        let candidates =
+          Option.to_list(Haz3lcore.Indicated.index(z))
+          @ List.map(
+              ((a: Haz3lcore.Ancestor.t, _)) => a.id,
+              z.relatives.ancestors,
+            )
+          @ (
+            switch (Haz3lcore.Siblings.neighbors(z.relatives.siblings)) {
+            | (l, r) =>
+              List.filter_map(
+                x => Option.map(Haz3lcore.Piece.id, x),
+                [r, l],
+              )
+            }
+          );
+        let row =
+          switch (List.find_map(row_of, candidates), p) {
+          | (Some(r), _) => Some(r)
+          | (None, Divided(d)) => Option.map(fst, Divided.active(d))
+          | (None, Whole(_)) => None
+          };
+        let (prefix, name) =
+          switch (model.editors) {
+          | Scratch(m) => (
+              "scratch",
+              List.nth(m.scratchpads, m.current).name,
+            )
+          | Documentation(m) => (
+              "doc",
+              List.nth(m.scratchpads, m.current).name,
+            )
+          | _ => ("", "")
+          };
+        let collapsed = ScratchMode.collapse_paths(prefix, name);
+        Option.map(
+          r =>
+            switch (OutlineTree.trail_of(r, term)) {
+            | Some(trail) =>
+              List.find_opt(
+                id =>
+                  id != r
+                  && (
+                    switch (OutlineTree.label_path(id, term)) {
+                    | Some(path) => List.mem(path, collapsed)
+                    | None => false
+                    }
+                  ),
+                trail,
+              )
+              |> Option.value(~default=r)
+            | None => r
+            },
+          row,
+        );
+      };
+    OutlineFollow.mark := outline_mark;
+    let outline_marks =
+      create(
+        "style",
+        switch (outline_mark) {
+        | Some(id) => [text(OutlineFollow.css(id))]
+        | None => []
+        },
+      );
     /* module/definition outline (modular-editors phases 1-2) */
     let outline = {
       /* every stacked definition's id (+ live header name) */
@@ -1334,6 +1418,7 @@ module View = {
       ),
       sidebar,
       outline,
+      outline_marks,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),

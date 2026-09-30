@@ -24,6 +24,11 @@
   width: var(--outline-w, 210px);
 }
 
+/* the row holding the editor's caret: a dim edge bar (OutlineFollow) */
+#outline-sidebar {
+  --ol-mark: color-mix(in srgb, var(--caret-color, #d33) 45%, transparent);
+}
+
 /* Chrome slots details content into an internal ::details-content
    box; without this the flex sizing never reaches .outline-body and
    the sidebar can't scroll */
@@ -77,6 +82,7 @@
   gap: 6px;
   white-space: nowrap;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* header row: ☰ collapses the sidebar; open, the rest is a breadcrumb

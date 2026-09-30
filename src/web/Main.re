@@ -368,6 +368,7 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        OutlineFollow.update();
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle

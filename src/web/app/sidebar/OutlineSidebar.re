@@ -223,6 +223,14 @@ let rec node_view =
         ]
         @ (
           switch (n.o_id) {
+          | Some(id) => [
+              Attr.create("data-ol-id", Language.Id.to_string(id)),
+            ]
+          | None => []
+          }
+        )
+        @ (
+          switch (n.o_id) {
           /* while a stack is open, a plain click ADDS/moves-to that
              cell (jumping at master ids would target the hidden
              editor). Prevent_default: label clicks must not toggle
