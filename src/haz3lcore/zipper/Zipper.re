@@ -40,11 +40,9 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
 
 exception Not_through_tiles;
 
-/* Unzips [seg] with the caret on side [side] of the first piece (in
- * document order) satisfying [matches], descending through tile children
- * only. None if the first match sits inside a projector's syntax, or there
- * is none: Move's token walk covers those. O(pieces before the match),
- * rather than a Zipper.move per token. */
+/* Unzips [seg] with the caret on [side] of the first piece, in document
+   order, that [matches], descending through tiles only. None if that piece
+   is inside a projector's syntax or absent; Move then walks. */
 let unzip_to_piece =
     (~side: Direction.t=Left, matches: Piece.t => bool, seg: Segment.t)
     : option(t) => {

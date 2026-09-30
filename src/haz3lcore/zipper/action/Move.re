@@ -120,21 +120,12 @@ let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
     ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
 };
 
-/* Where the walk above ends, found without walking. It goes to one end of
- * the program and steps a token at a time back until the piece is beside
- * the caret: a Zipper.move per token, so focusing a projector near the end
- * of a long program pays for every token before it. `local` steps into
- * tiles but not into a projector's syntax, so when the piece is reached
- * through tiles alone the walk stops at the one boundary beside it, in its
- * own segment: nothing earlier in the walk's order has it as a neighbour
- * (a tile's own children come after its left side and before its right
- * side). Zipper.unzip_to_id builds that zipper directly. A piece inside a
- * projector's syntax, or no such piece, is left to the walk. Test_Move
- * checks the two agree. */
-
 /* For tests: jumps made without walking. */
 let direct_jumps = ref(0);
 
+/* Where the walk above ends, without walking: `local` steps into tiles but
+   not projectors, so it stops at the one boundary beside the piece in its
+   own segment, which Zipper.unzip_to_id builds. Ids in projectors walk. */
 let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
   let z' = unselect(z);
   switch (Zipper.unzip_to_id(~side=d, id, Zipper.zip(z'))) {

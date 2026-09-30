@@ -542,10 +542,8 @@ let shard_range_by_walking = (l: Piece.t, r: Piece.t, z: t): option(t) => {
 let direct_ranges = ref(0);
 
 /* A term's extremes are siblings in one segment, so its range is the
-   sibling run from l's piece through r's, selected in one rebuild instead
-   of grown a token at a time (~0.5 s for a 15-line definition). Other
-   shapes walk. Unlike the walk, this also finds l to the right of the
-   caret. */
+   sibling run from l's piece through r's, taken in one rebuild. Other
+   shapes walk; unlike the walk, this also finds l right of the caret. */
 let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
   let rec take = (acc, pieces: Segment.t) =>
     switch (pieces) {
