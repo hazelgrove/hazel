@@ -36,6 +36,43 @@ let parse = (~root: Sort.t=Exp, src: string): option(Segment.t) =>
 let corpus_seg = (~root: Sort.t=Exp, name: string): option(Segment.t) =>
   Option.bind(mega_src(name), parse(~root));
 
+/* every .hz program under hazel-programs outside mega/, as loaded:
+   (path, text) */
+let slide_corpus = (): list((string, string)) => {
+  let rec find = (dir: string): list(string) =>
+    switch (Sys.readdir(dir)) {
+    | entries =>
+      entries
+      |> Array.to_list
+      |> List.concat_map(entry => {
+           let path = Filename.concat(dir, entry);
+           switch (Sys.is_directory(path)) {
+           | true => entry == "mega" ? [] : find(path)
+           | false => Filename.check_suffix(entry, ".hz") ? [path] : []
+           | exception _ => []
+           };
+         })
+    | exception _ => []
+    };
+  let root =
+    Sys.file_exists("hazel-programs")
+      ? "hazel-programs" : "../hazel-programs";
+  find(root)
+  |> List.sort(compare)
+  |> List.filter_map(path =>
+       Option.map(
+         src =>
+           (
+             path,
+             src
+             |> Util.StringUtil.trim_leading
+             |> Util.StringUtil.strip_final_newline,
+           ),
+         read_file(path),
+       )
+     );
+};
+
 /* mid-typing states: unfinished forms, missing operands, open delimiters */
 let incomplete_programs = [
   ("empty definition", "let x = in\nx"),

@@ -97,7 +97,22 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   let out = ref([]);
   let note = s => out := [s, ...out^];
   let ids = (what, reference, got) => {
-    let (r, g) = (sorted(reference), sorted(got));
+    /* statics mints ids for terms it builds (labels filled into a tuple
+       against a labeled type), new each run: those count, not match */
+    let mine = List.filter(id => Hashtbl.mem(own, id));
+    let minted = xs =>
+      List.length(sorted(xs)) - List.length(sorted(mine(xs)));
+    if (minted(reference) != minted(got)) {
+      note(
+        what
+        ++ ": "
+        ++ string_of_int(minted(reference))
+        ++ " on minted ids, "
+        ++ string_of_int(minted(got))
+        ++ " here",
+      );
+    };
+    let (r, g) = (sorted(mine(reference)), sorted(mine(got)));
     let only = (xs, ys) =>
       List.filter(x => !List.mem(x, ys), xs)
       |> List.map(id =>

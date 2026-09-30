@@ -163,6 +163,41 @@ let mega = (~root, ~eval=true, file, steps, ()) =>
   | None => fail("corpus unreadable: " ++ file)
   };
 
+/* the slide corpus through calc_auto, the app's path, so the check the
+   runner installs compares each result with monolithic statics: cold,
+   then warm after an edit to every `1` */
+let corpus_through_calc_auto = () => {
+  let checked = ref(0);
+  List.iter(
+    ((path, src)) =>
+      switch (CorpusUtil.parse(src)) {
+      | None => ()
+      | Some(seg) =>
+        let calc = seg =>
+          try(
+            ignore(
+              DefStatics.calc_auto(
+                ~settings=CoreSettings.on,
+                MakeTerm.Incr.term_of(seg),
+              ),
+            )
+          ) {
+          | DefStaticsCheck.Divergence(ds) =>
+            fail(path ++ ": " ++ String.concat("; ", ds))
+          };
+        calc(seg);
+        let (edited, changed) =
+          CorpusUtil.edit_token(~needle="1", ~repl="2", seg);
+        if (changed) {
+          calc(edited);
+        };
+        incr(checked);
+      },
+    CorpusUtil.slide_corpus(),
+  );
+  check(bool, "the corpus was there to check", true, checked^ >= 40);
+};
+
 /* module-rooted documents keep their own cache slots: the wrapper's id,
    the slot key, differs per document */
 let separate_slots = () => {
@@ -195,6 +230,11 @@ let tests = (
   "DefStaticsParity",
   [
     test_case("module-rooted documents keep apart", `Quick, separate_slots),
+    test_case(
+      "the slide corpus through calc_auto",
+      `Quick,
+      corpus_through_calc_auto,
+    ),
     test_case(
       "deleting a member dirties its users",
       `Quick,
