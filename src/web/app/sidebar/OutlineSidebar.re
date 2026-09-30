@@ -143,6 +143,7 @@ let resize_attrs: list(Attr.t) = {
 let rec node_view =
         (
           ~stack_controls: bool,
+          ~can_open: Language.Id.t => bool,
           ~jump: Language.Id.t => Effect.t(unit),
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
@@ -339,6 +340,15 @@ let rec node_view =
               [text(all_pinned ? {js|⊖|js} : {js|⊙|js})],
             ),
           ];
+        | Some(id) when !stacked && !can_open(id) => [
+            span(
+              ~attrs=[
+                clss(["outline-focus-btn", "outline-btn-disabled"]),
+                Attr.title("finish the definition to open it"),
+              ],
+              [text({js|⊙|js})],
+            ),
+          ]
         | Some(id) => [
             span(
               ~attrs=[
@@ -413,6 +423,7 @@ let rec node_view =
             ((kid, kocc)) =>
               node_view(
                 ~stack_controls,
+                ~can_open,
                 ~jump,
                 ~focus,
                 ~toggle,
@@ -520,6 +531,7 @@ let menu_view =
 let view =
     (
       ~stack_controls: bool,
+      ~can_open: Language.Id.t => bool,
       ~jump: Language.Id.t => Effect.t(unit),
       ~focus: Language.Id.t => Effect.t(unit),
       ~toggle: Language.Id.t => Effect.t(unit),
@@ -578,6 +590,7 @@ let view =
                 ((root, rocc)) =>
                   node_view(
                     ~stack_controls,
+                    ~can_open,
                     ~jump,
                     ~focus,
                     ~toggle,

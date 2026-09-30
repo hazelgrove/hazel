@@ -731,6 +731,15 @@ let empty_header_cell = (): CellEditor.Model.t =>
     }),
   ]);
 
+/* only delimiter-complete items open as cells: an unfinished `let x =`
+   has no definition slot to show */
+let item_complete = (fid: Id.t, seg: Segment.t): bool =>
+  !
+    List.exists(
+      (t: Tile.t) => t.id == fid,
+      Segment.incomplete_tiles_deep(seg),
+    );
+
 let rec mk_entry =
         (
           ~info_map: Language.Statics.Map.t,
@@ -739,30 +748,34 @@ let rec mk_entry =
           master_seg: Segment.t,
         )
         : option(Model.stack_entry) =>
-  switch (headless_content_deep(fid, master_seg)) {
-  | Some((raw, span_sym)) =>
-    let sym = Option.value(sym, ~default=span_sym);
-    let content = core_ws(raw);
-    let e_ctx =
-      switch (captured_ctx(~info_map, fid, content)) {
-      | Some(ctx) => ctx
-      | None =>
-        Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-      };
-    Some(
-      Model.{
-        e_id: fid,
-        e_mod: false,
-        e_sym: Some(sym),
-        e_run: false,
-        e_members: [],
-        e_header: empty_header_cell(),
-        e_body: cell_of_seg(content),
-        e_ctx,
-      },
-    );
-  | None => mk_def_entry(~info_map, fid, master_seg)
-  }
+  !item_complete(fid, master_seg)
+    ? None
+    : (
+      switch (headless_content_deep(fid, master_seg)) {
+      | Some((raw, span_sym)) =>
+        let sym = Option.value(sym, ~default=span_sym);
+        let content = core_ws(raw);
+        let e_ctx =
+          switch (captured_ctx(~info_map, fid, content)) {
+          | Some(ctx) => ctx
+          | None =>
+            Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+          };
+        Some(
+          Model.{
+            e_id: fid,
+            e_mod: false,
+            e_sym: Some(sym),
+            e_run: false,
+            e_members: [],
+            e_header: empty_header_cell(),
+            e_body: cell_of_seg(content),
+            e_ctx,
+          },
+        );
+      | None => mk_def_entry(~info_map, fid, master_seg)
+      }
+    )
 and mk_def_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(Model.stack_entry) =>
@@ -798,29 +811,33 @@ and mk_def_entry =
 let mk_run_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(Model.stack_entry) =>
-  switch (test_run_deep(fid, master_seg)) {
-  | None => mk_entry(~info_map, fid, master_seg)
-  | Some((run_slice, members)) =>
-    let content = core_ws(run_slice);
-    let e_ctx =
-      switch (captured_ctx(~info_map, fid, content)) {
-      | Some(ctx) => ctx
-      | None =>
-        Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-      };
-    Some(
-      Model.{
-        e_id: fid,
-        e_mod: false,
-        e_sym: Some("tests"),
-        e_run: true,
-        e_members: members,
-        e_header: empty_header_cell(),
-        e_body: cell_of_seg(content),
-        e_ctx,
-      },
+  !item_complete(fid, master_seg)
+    ? None
+    : (
+      switch (test_run_deep(fid, master_seg)) {
+      | None => mk_entry(~info_map, fid, master_seg)
+      | Some((run_slice, members)) =>
+        let content = core_ws(run_slice);
+        let e_ctx =
+          switch (captured_ctx(~info_map, fid, content)) {
+          | Some(ctx) => ctx
+          | None =>
+            Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+          };
+        Some(
+          Model.{
+            e_id: fid,
+            e_mod: false,
+            e_sym: Some("tests"),
+            e_run: true,
+            e_members: members,
+            e_header: empty_header_cell(),
+            e_body: cell_of_seg(content),
+            e_ctx,
+          },
+        );
+      }
     );
-  };
 
 /* splice ONE entry's header+body home into [seg], restoring the
    edge whitespace the master's stale copies still carry */

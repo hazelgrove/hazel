@@ -225,6 +225,35 @@ let member_restructure = (): unit => {
   );
 };
 
+/* an unfinished `let x =` has no definition slot: it can't open as a cell */
+let unfinished_let = () => {
+  let first_tile_id = (seg: Segment.t): Id.t =>
+    switch (
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) => Some(t.id)
+          | _ => None
+          },
+        seg,
+      )
+    ) {
+    | Some(id) => id
+    | None => failwith("no tile")
+    };
+  let open_at = (typed: string): bool => {
+    let seg =
+      switch (Parser.to_zipper(typed, ~root=Exp)) {
+      | Some(z) => Zipper.unselect_and_zip(z)
+      | None => failwith("typing failed: " ++ typed)
+      };
+    let (_, info_map) = statics_of(seg);
+    Focus.mk_entry(~info_map, first_tile_id(seg), seg) != None;
+  };
+  check(bool, "unfinished let stays closed", false, open_at("let x = 1"));
+  check(bool, "finished let opens", true, open_at("let x = 1 in x"));
+};
+
 let tests = (
   "StackFocus",
   [
@@ -276,6 +305,7 @@ let tests = (
       )
     ),
     test_case("member restructure", `Quick, member_restructure),
+    test_case("unfinished let stays closed", `Quick, unfinished_let),
     test_case("type alias", `Quick, () =>
       check_focus(
         ~src="type T = Int in let x: T = 1 in x",

@@ -194,6 +194,12 @@
   opacity: 1;
 }
 
+#outline-sidebar .outline-focus-btn.outline-btn-disabled,
+#outline-sidebar .outline-focus-btn.outline-btn-disabled:hover {
+  opacity: 0.25;
+  cursor: default;
+}
+
 #outline-sidebar .outline-label.outline-focused {
   background: var(--surface-shard, #d8c9a3);
   font-weight: bold;

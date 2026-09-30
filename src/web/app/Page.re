@@ -1185,6 +1185,14 @@ module View = {
           };
           OutlineSidebar.view(
             ~stack_controls=is_scratch,
+            ~can_open={
+              let incomplete =
+                Haz3lcore.Segment.incomplete_tiles_deep(
+                  current_editor.editor.syntax.segment,
+                )
+                |> List.map((t: Haz3lcore.Tile.t) => t.id);
+              id => !List.mem(id, incomplete);
+            },
             ~jump=id => globals.inject_global(JumpToTile(id)),
             /* plain click with a stack open ADDS (or moves to) that cell —
                never replaces the stack (andrew: replacing was a footgun) */
