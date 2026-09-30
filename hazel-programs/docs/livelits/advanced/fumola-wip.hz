@@ -39,9 +39,10 @@
 
 # The second livelit is the editor of the same instance. It asks the #
 # instance for its history and returns the events, which cross back as #
-# Hazel data: a list of (event = ..., metaTime = ...) records, the same #
-# events the Events tab shows. It runs after the archivist, so the #
-# archivist's run is in them. #
+# Hazel data: a list of EventRow records, (metaTime = ..., event = ...), #
+# the same events the Events tab shows. EventRow, Event, NodeId and #
+# EdgeId are builtin types, Adapton's own names for its history. It #
+# runs after the archivist, so the archivist's run is in them. #
 
 # Below each head, the full width of the notebook: on the left the In #
 # wire, the code, and the Out wire; on the right the watch pane, whose #
@@ -68,7 +69,7 @@ let result = ^^livelit(^fumola_wip((instance = "myInstance", name = "myLivelit",
   };
   force double
 end)))) in
-let events = ^^livelit(^fumola_wip((instance = "myInstance", name = "", editor = true, bind_input = false, tiles = true, input = (0), code = (fumola $graphical as myInstance in
-  (prim "adaptonPeekHistory" ()).events
+let events : [EventRow] = ^^livelit(^fumola_wip((instance = "myInstance", name = "", editor = true, bind_input = false, tiles = true, input = (0), code = (fumola $graphical as myInstance in
+  Adapton.peekHistory().events
 end)))) in
 (result, events)
