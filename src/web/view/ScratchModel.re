@@ -44,55 +44,6 @@ module Scratchpad = {
     kind: kind_persistent,
   };
 
-  let persist = (s: t): persistent => {
-    switch (s.kind) {
-    | Code({program, agent, _}) =>
-      let editor = Program.whole(program);
-      let current_zipper = editor.editor.editor.state.zipper;
-      let current_segment = Zipper.zip(current_zipper);
-      let original = Init.find_documentation_slide(s.name);
-      /* Originals are text-backed (committed .hz) and mint fresh ids on
-         every parse, so id-sensitive segment equality can never match;
-         compare by the text projection instead — FastParse loads the
-         text verbatim, so an unedited slide prints byte-identically
-         modulo the stored final newline (the writer's artifact, which
-         the print never carries). */
-      let unchanged =
-        switch (original) {
-        | None => false
-        | Some(pce) =>
-          MarkerParse.seg_to_text(
-            ~refractors=current_zipper.refractors.manuals,
-            current_segment,
-          )
-          == Util.StringUtil.strip_final_newline(
-               pce.editor.zipper.backup_text,
-             )
-        };
-      let editor_persist =
-        if (unchanged) {
-          None;
-        } else {
-          Some(CellEditor.Model.persist(editor));
-        };
-      {
-        name: s.name,
-        kind:
-          CodePersist({
-            editor: editor_persist,
-            agent: Agent.Persistent.persist(agent),
-          }),
-      };
-    | Drv(m) => {
-        name: s.name,
-        kind:
-          DrvPersist(
-            DerivationExerciseMode.Model.persist(m, ~instructor_mode=false),
-          ),
-      }
-    };
-  };
-
   let mk_code = (~name, ~editor, ()): t => {
     name,
     kind:

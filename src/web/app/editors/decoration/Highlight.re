@@ -807,67 +807,6 @@ module IncrEvalCache = {
     };
 };
 
-let bbox_of_range =
-    (~measured: Measured.t, (origin: Point.t, final: Point.t)): option(bbox) =>
-  if (final.row < origin.row) {
-    None;
-  } else {
-    List.init(final.row - origin.row + 1, i => origin.row + i)
-    |> List.fold_left(
-         (acc, row) =>
-           switch (acc, Measured.row_shape(row, measured)) {
-           | (None, _)
-           | (_, None) => None
-           | (Some(bb), Some(shape: Measured.Rows.shape)) =>
-             let left =
-               float_of_int(
-                 row == origin.row ? origin.col : shape.content_start,
-               );
-             let right =
-               float_of_int(row == final.row ? final.col : shape.max_col);
-             Some({
-               ...bb,
-               min_col: min(bb.min_col, left),
-               max_col: max(bb.max_col, right),
-             });
-           },
-         Some({
-           min_col: float_of_int(origin.col),
-           max_col: float_of_int(origin.col),
-           min_row: origin.row,
-           max_row: final.row,
-         }),
-       );
-  };
-
-let color_range =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~measured: Measured.t,
-      ~sweep: bool=false,
-      clss: list(string),
-      range: (Point.t, Point.t),
-    )
-    : list(Node.t) =>
-  switch (bbox_of_range(~measured, range)) {
-  | None => []
-  | Some(bb) =>
-    let width = bb.max_col -. bb.min_col;
-    let height = float_of_int(bb.max_row - bb.min_row + 1);
-    let path_cmds =
-      SvgUtil.Path.[
-        M({
-          x: 0.0,
-          y: 0.0,
-        }),
-        H({x: width}),
-        V({y: height}),
-        H({x: 0.0}),
-        Z,
-      ];
-    [svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb)];
-  };
-
 /* one text-hugging svg per contiguous row run of a range, from measured
    row shapes: shard-shaped at bounding-box node cost. blank rows split
    the contour, so empty lines stay clear */

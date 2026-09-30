@@ -206,9 +206,6 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
 
 /* view changes; the caller realizes */
 
-let pinned = (id: Id.t, v: t): bool =>
-  List.exists((p: pin) => p.p_id == id, v.pins);
-
 /* zoom out until [id] is in view */
 let reveal = (~term, id: Id.t, v: t): t => {
   let rec go = (zoom: list(Id.t)) =>

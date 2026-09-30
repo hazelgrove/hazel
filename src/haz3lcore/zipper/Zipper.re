@@ -88,10 +88,7 @@ let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
 /* sparse normalization: remold stays global (same-mold tiles come back
    as-is) but regrout runs only on a caret window spanning the remold
    diff and any stale runs, falling back to the global pass when
-   ancestors changed or are stale. [normalize_parity] also runs the
-   global pass and asserts they agree (on in the test runner) */
-let sparse_normalize: ref(bool) = ref(true);
-let normalize_parity: ref(bool) = ref(false);
+   ancestors changed or are stale */
 let sparse_hits: ref(int) = ref(0);
 let sparse_fallbacks: ref(int) = ref(0);
 
@@ -208,14 +205,6 @@ let ancestors_stale = (ancs: Ancestors.t): bool =>
     ancs,
   );
 
-let remold_regrout_global = (d: Direction.t, z: t, ~root): t => {
-  let z' = z |> remold(~root) |> regrout(d);
-  {
-    ...z',
-    relatives: restore_relatives(z.relatives, z'.relatives),
-  };
-};
-
 let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
   let z1 = remold(z, ~root);
   let (relatives, dirty, anc_dirty) =
@@ -269,136 +258,14 @@ let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
   };
 };
 
-/* grout and redeemed-space secondary ids are minted fresh per pass, so
-   parity compares modulo them */
-let rec scrub_grout_ids = (seg: Segment.t): Segment.t =>
-  List.map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Grout(g) =>
-        Piece.Grout({
-          ...g,
-          id: Id.invalid,
-        })
-      | Secondary(w) =>
-        Piece.Secondary({
-          ...w,
-          id: Id.invalid,
-        })
-      | Tile(t) =>
-        Piece.Tile({
-          ...t,
-          children: List.map(scrub_grout_ids, t.children),
-        })
-      | Projector(_) => p
-      },
-    seg,
-  );
-
-let relatives_equiv = (a: Relatives.t, b: Relatives.t): bool => {
-  let sibs_equiv = ((p1, s1): Siblings.t, (p2, s2): Siblings.t) =>
-    compare(scrub_grout_ids(p1), scrub_grout_ids(p2)) == 0
-    && compare(scrub_grout_ids(s1), scrub_grout_ids(s2)) == 0;
-  sibs_equiv(a.siblings, b.siblings)
-  && List.length(a.ancestors) == List.length(b.ancestors)
-  && List.for_all2(
-       ((aa, asibs): Ancestors.generation, (ba, bsibs)) =>
-         compare(aa, ba) == 0 && sibs_equiv(asibs, bsibs),
-       a.ancestors,
-       b.ancestors,
-     );
-};
+/* the test runner swaps in a check that also runs the global pass and
+   asserts they agree */
+let normalize_check: ref(option((Direction.t, t, Sort.t) => t)) = ref(None);
 
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
-  if (! sparse_normalize^) {
-    remold_regrout_global(d, z, ~root);
-  } else if (normalize_parity^) {
-    /* the first pass consumes the owed-space ref; replay it for the second */
-    let owed = Grout.suppressed_space^;
-    let zs = remold_regrout_sparse(d, z, ~root);
-    Grout.suppressed_space := owed;
-    let zg = remold_regrout_global(d, z, ~root);
-    if (!relatives_equiv(zs.relatives, zg.relatives)) {
-      let diff = (tag, a: Segment.t, b: Segment.t) => {
-        let (a, b) = (scrub_grout_ids(a), scrub_grout_ids(b));
-        if (compare(a, b) != 0) {
-          let rec first = (i, xs, ys) =>
-            switch (xs, ys) {
-            | ([x, ...xs], [y, ...ys]) when compare(x, y) == 0 =>
-              first(i + 1, xs, ys)
-            | _ => i
-            };
-          let i = first(0, a, b);
-          let at = (seg, i) =>
-            switch (List.nth_opt(seg, i)) {
-            | Some(p) =>
-              String.sub(
-                Piece.show(p) ++ "",
-                0,
-                min(200, String.length(Piece.show(p))),
-              )
-            | None => "<end>"
-            };
-          print_endline(
-            Printf.sprintf(
-              "[parity] %s differs at %d (lens %d vs %d)\n  sparse: %s\n  global: %s",
-              tag,
-              i,
-              List.length(a),
-              List.length(b),
-              at(a, i),
-              at(b, i),
-            ),
-          );
-        };
-      };
-      diff("pre", fst(zs.relatives.siblings), fst(zg.relatives.siblings));
-      diff("suf", snd(zs.relatives.siblings), snd(zg.relatives.siblings));
-      let brief = (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          Printf.sprintf(
-            "T(%s)",
-            String.concat("", Tile.effective_label(t)),
-          )
-        | Grout(g) =>
-          Printf.sprintf(
-            "G(%s)",
-            switch (g.shape) {
-            | Convex => "cvx"
-            | Concave => "ccv"
-            },
-          )
-        | Secondary(w) => Secondary.is_linebreak(w) ? "LB" : "ws"
-        | Projector(_) => "Proj"
-        };
-      let dump = (tag, seg: Segment.t) =>
-        print_endline(
-          Printf.sprintf(
-            "[parity] %s: [%s]",
-            tag,
-            String.concat(" ", List.map(brief, seg)),
-          ),
-        );
-      dump("z.pre     ", fst(z.relatives.siblings));
-      dump("z.suf     ", snd(z.relatives.siblings));
-      dump("sparse.pre", fst(zs.relatives.siblings));
-      dump("global.pre", fst(zg.relatives.siblings));
-      dump("sparse.suf", snd(zs.relatives.siblings));
-      dump("global.suf", snd(zg.relatives.siblings));
-      print_endline(
-        Printf.sprintf(
-          "[parity] sel=%d anc=%d d=%s",
-          List.length(z.selection.content),
-          List.length(z.relatives.ancestors),
-          d == Left ? "L" : "R",
-        ),
-      );
-      failwith("sparse normalize PARITY MISMATCH");
-    };
-    zs;
-  } else {
-    remold_regrout_sparse(d, z, ~root);
+  switch (normalize_check^) {
+  | Some(check) => check(d, z, root)
+  | None => remold_regrout_sparse(d, z, ~root)
   };
 
 /* Rescan ancestor-level siblings: converts standalone monotiles that

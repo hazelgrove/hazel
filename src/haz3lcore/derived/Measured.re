@@ -618,11 +618,6 @@ let find_pr_opt = (p: Base.projector, m: t): option(measurement) =>
     find_pr_opt_flat(p, ch.c_flat) |> Option.map(shift_m(ch.c_start))
   | None => None
   };
-let find_t = (t: Tile.t, m: t): measurement =>
-  switch (chunk_for_id(t.id, m)) {
-  | Some(ch) => shift_m(ch.c_start, find_t_flat(t, ch.c_flat))
-  | None => failwith("find_t")
-  };
 let find_p = (~msg="", p: Piece.t, m: t): measurement =>
   switch (chunk_for_id(Piece.id(p), m)) {
   | Some(ch) => shift_m(ch.c_start, find_p_flat(~msg, p, ch.c_flat))
@@ -697,59 +692,6 @@ let of_segment =
     );
   mk_chunked(~chunk_of_id, [(anchor, seg, f)]);
 };
-
-let empty: t = mk_chunked(~chunk_of_id=Id.Map.empty, []);
-
-/* test-only: the chunks as one flat measurement, for parity checks */
-let flatten = (m: t): flat =>
-  Array.fold_left(
-    (acc, ch) => {
-      let s = ch.c_start;
-      let f = ch.c_flat;
-      {
-        tiles:
-          Id.Map.union(
-            (_, _, y) => Some(y),
-            acc.tiles,
-            Id.Map.map(
-              List.map(((i, ms)) => (i, shift_m(s, ms))),
-              f.tiles,
-            ),
-          ),
-        grout:
-          Id.Map.union(
-            (_, _, y) => Some(y),
-            acc.grout,
-            Id.Map.map(shift_m(s), f.grout),
-          ),
-        secondary:
-          Id.Map.union(
-            (_, _, y) => Some(y),
-            acc.secondary,
-            Id.Map.map(shift_m(s), f.secondary),
-          ),
-        projectors:
-          Id.Map.union(
-            (_, _, y) => Some(y),
-            acc.projectors,
-            Id.Map.map(shift_m(s), f.projectors),
-          ),
-        rows:
-          Rows.union(
-            (_, _, y) => Some(y),
-            acc.rows,
-            f.rows
-            |> Rows.bindings
-            |> List.map(((r, sh)) => (r + s, sh))
-            |> List.to_seq
-            |> Rows.of_seq,
-          ),
-        piece_rows: f.piece_rows @ acc.piece_rows,
-      };
-    },
-    empty_flat,
-    m.chunks,
-  );
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

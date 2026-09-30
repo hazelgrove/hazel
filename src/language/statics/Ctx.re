@@ -87,9 +87,6 @@ let t_of_yojson = j => of_repr(repr_of_yojson(j));
 let pp = (fmt, ctx: t) => pp_repr(fmt, repr_of(ctx));
 let show = (ctx: t) => show_repr(repr_of(ctx));
 
-let equal = (a: t, b: t): bool =>
-  a.use_mode == b.use_mode && a.entries == b.entries;
-
 let empty: t = of_entries(~use_mode=None, []);
 
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>

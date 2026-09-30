@@ -29,6 +29,7 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    /* unused; kept so saved settings parse */
     cap_undo_stack: bool,
     show_row_lines: bool,
     /* grey re-evaluation-progress backings after edits ("Eval Progress") */
@@ -178,7 +179,6 @@ module Update = {
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | CapUndoStack
     | ShowRowLines
     | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
@@ -506,10 +506,6 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
-        }
-      | CapUndoStack => {
-          ...settings,
-          cap_undo_stack: !settings.cap_undo_stack,
         }
       | ShowRowLines => {
           ...settings,

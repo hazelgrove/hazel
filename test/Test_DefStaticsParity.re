@@ -114,7 +114,12 @@ let tests_of = (state: EvaluatorState.t) =>
 let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) => {
   let exact = (i, ds, prev) => {
     let name = "step " ++ string_of_int(i);
-    check(list(string), name, [], DefStatics.divergences(~settings, ds));
+    check(
+      list(string),
+      name,
+      [],
+      DefStaticsCheck.divergences(~settings, ds),
+    );
     eval
       ? {
         let (v, state) = evaluate(~prev, ds);

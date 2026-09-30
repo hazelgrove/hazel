@@ -5,57 +5,6 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
-/* console counters. __normCounters: sparse remold/regrout fallbacks are
-   for structure-entering edits, not plain typing. __incrCounters:
-   fell_back should stay 0, analyzed ~1 per stacked edit */
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__normCounters",
-    Js_of_ocaml.Js.wrap_callback(() =>
-      Js_of_ocaml.Js.string(
-        Printf.sprintf(
-          "sparse_hits=%d sparse_fallbacks=%d",
-          Haz3lcore.Zipper.sparse_hits^,
-          Haz3lcore.Zipper.sparse_fallbacks^,
-        ),
-      )
-    ),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__incrCountersReset",
-    Js_of_ocaml.Js.wrap_callback(() => {
-      Haz3lcore.MakeTerm.Incr.fell_back := 0;
-      Haz3lcore.MakeTerm.Incr.full_analyzed := 0;
-      Haz3lcore.MakeTerm.Incr.analyzed := 0;
-      Haz3lcore.MakeTerm.Incr.incr_calls := 0;
-      Haz3lcore.MakeTerm.Incr.incr_hits := 0;
-      Haz3lcore.MakeTerm.Incr.incr_misses := 0;
-    }),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__incrCounters",
-    Js_of_ocaml.Js.wrap_callback(() =>
-      Js_of_ocaml.Js.string(
-        Printf.sprintf(
-          "fell_back=%d full_analyzed=%d analyzed=%d calls=%d hits=%d misses=%d neq=%d nokey=%d",
-          Haz3lcore.MakeTerm.Incr.fell_back^,
-          Haz3lcore.MakeTerm.Incr.full_analyzed^,
-          Haz3lcore.MakeTerm.Incr.analyzed^,
-          Haz3lcore.MakeTerm.Incr.incr_calls^,
-          Haz3lcore.MakeTerm.Incr.incr_hits^,
-          Haz3lcore.MakeTerm.Incr.incr_misses^,
-          Haz3lcore.MakeTerm.Incr.incr_miss_neq^,
-          Haz3lcore.MakeTerm.Incr.incr_miss_nokey^,
-        ),
-      )
-    ),
-  );
-
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
    user last left it; revisiting a slide restores that scroll position, while
    a slide that's never been scrolled opens at the top. */

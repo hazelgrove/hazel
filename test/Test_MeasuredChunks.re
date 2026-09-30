@@ -19,8 +19,59 @@ let corpus_seg = (name: string): option(Segment.t) => {
 
 let empty_shapes: Id.Map.t(ProjectorCore.Shape.t) = Id.Map.empty;
 
+/* the chunks as one flat measurement */
+let flatten = (m: Measured.t): Measured.flat =>
+  Array.fold_left(
+    (acc: Measured.flat, ch: Measured.chunk): Measured.flat => {
+      let s = ch.c_start;
+      let f = ch.c_flat;
+      {
+        tiles:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.tiles,
+            Id.Map.map(
+              List.map(((i, ms)) => (i, Measured.shift_m(s, ms))),
+              f.tiles,
+            ),
+          ),
+        grout:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.grout,
+            Id.Map.map(Measured.shift_m(s), f.grout),
+          ),
+        secondary:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.secondary,
+            Id.Map.map(Measured.shift_m(s), f.secondary),
+          ),
+        projectors:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.projectors,
+            Id.Map.map(Measured.shift_m(s), f.projectors),
+          ),
+        rows:
+          Measured.Rows.union(
+            (_, _, y) => Some(y),
+            acc.rows,
+            f.rows
+            |> Measured.Rows.bindings
+            |> List.map(((r, sh)) => (r + s, sh))
+            |> List.to_seq
+            |> Measured.Rows.of_seq,
+          ),
+        piece_rows: f.piece_rows @ acc.piece_rows,
+      };
+    },
+    Measured.empty_flat,
+    m.chunks,
+  );
+
 let mono = (seg: Segment.t): Measured.flat =>
-  Measured.flatten(Measured.of_segment(seg, empty_shapes, Id.Map.empty));
+  flatten(Measured.of_segment(seg, empty_shapes, Id.Map.empty));
 
 /* piece_rows' linebreaks get fresh ids at flush time, so compare the rest */
 let canon_rows = (rows: list(list(Piece.t))): list(list(Id.t)) =>
@@ -98,7 +149,7 @@ let check_parity = (name: string, seg: Segment.t): Measured.Incr.cache => {
   let cache = Measured.Incr.mk_cache();
   let chunked =
     Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
-  flats_agree(name, mono(seg), Measured.flatten(chunked));
+  flats_agree(name, mono(seg), flatten(chunked));
   /* spot-check the query path (translation), not just flatten */
   let m_t = Measured.of_segment(seg, empty_shapes, Id.Map.empty);
   check(
@@ -196,11 +247,7 @@ let corpus_case = (file: string, min_chunks: int, ()) =>
       true,
       Measured.Incr.built^ - b1 <= 2,
     );
-    flats_agree(
-      file ++ ":after edit",
-      mono(seg'),
-      Measured.flatten(chunked'),
-    );
+    flats_agree(file ++ ":after edit", mono(seg'), flatten(chunked'));
   };
 
 let edge_programs = [

@@ -198,6 +198,25 @@ let statements = (): unit => {
 
 let m_src = "module M = {\n  let a = 1;\n  let b = 2;\n} in M.a";
 
+/* a member typed into a module's name row (ItemEdit.InsertInside) */
+let run_inside = (src, label, text) => {
+  let seg = parse(src);
+  let term = statics_term(seg);
+  let ctx: R.ctx = {
+    mod_root: false,
+    term,
+    info_map: lazy(Language.Statics.Map.empty),
+    is_open: _ => true,
+  };
+  R.edit(ctx, InsertInside(outline_id(term, label), text), seg);
+};
+
+let inside_ok = (~src, ~label, ~desc): string =>
+  switch (run_inside(src, label, "new_def")) {
+  | Error(why) => failwith(desc ++ ": " ++ why)
+  | Ok((seg', _)) => text_of(seg')
+  };
+
 let members = (): unit => {
   let t =
     apply_ok(
@@ -215,27 +234,19 @@ let members = (): unit => {
     && !contains("new_def = ?", t)
     && contains("let b = 2", t),
   );
-  let t =
-    apply_ok(
-      ~src=m_src,
-      ~label="M",
-      ~op=Web.OutlineSidebar.NewInside,
-      ~desc="module new-inside",
-    );
+  let t = inside_ok(~src=m_src, ~label="M", ~desc="module new-inside");
   check(
     bool,
     "new-inside lands in the body after b",
     true,
     contains("let b = 2;", t) && contains("new_def", t),
   );
-  let t2 = {
-    let seg = parse("module E = {} in 0");
-    let fid = outline_id(statics_term(seg), "E");
-    switch (R.apply(Web.OutlineSidebar.NewInside, fid, seg)) {
-    | None => failwith("new-inside empty module failed")
-    | Some((seg', _)) => text_of(seg')
-    };
-  };
+  let t2 =
+    inside_ok(
+      ~src="module E = {} in 0",
+      ~label="E",
+      ~desc="new-inside empty module",
+    );
   check(
     bool,
     "new-inside populates an empty module",
@@ -243,10 +254,9 @@ let members = (): unit => {
     contains("module E = {", t2) && contains("new_def", t2),
   );
   let t3 =
-    apply_ok(
+    inside_ok(
       ~src="module U = {\n  let a = 1;\n  let z = fun x -> x\n} in U.a",
       ~label="U",
-      ~op=Web.OutlineSidebar.NewInside,
       ~desc="new-inside unterminated tail member",
     );
   check(
@@ -259,18 +269,7 @@ let members = (): unit => {
 
 /* InsertInside: the keyword picks the kind; the target is the new member */
 let insert_inside = (): unit => {
-  let run = (src, label, text) => {
-    let seg = parse(src);
-    let term = statics_term(seg);
-    let ctx: R.ctx = {
-      mod_root: false,
-      term,
-      info_map: lazy(Language.Statics.Map.empty),
-      is_open: _ => true,
-    };
-    R.edit(ctx, InsertInside(outline_id(term, label), text), seg);
-  };
-  switch (run(m_src, "M", "c")) {
+  switch (run_inside(m_src, "M", "c")) {
   | Error(why) => fail("value inside: " ++ why)
   | Ok((seg', target)) =>
     let t = text_of(seg');
@@ -287,7 +286,7 @@ let insert_inside = (): unit => {
       target == Some(outline_id(statics_term(seg'), "c")),
     );
   };
-  switch (run("module E = {} in 0", "E", "type T")) {
+  switch (run_inside("module E = {} in 0", "E", "type T")) {
   | Error(why) => fail("type inside an empty module: " ++ why)
   | Ok((seg', _)) =>
     check(
@@ -297,7 +296,7 @@ let insert_inside = (): unit => {
       contains("type T", text_of(seg')),
     )
   };
-  switch (run(m_src, "M", "module N")) {
+  switch (run_inside(m_src, "M", "module N")) {
   | Error(why) => fail("module inside: " ++ why)
   | Ok((seg', _)) =>
     check(
@@ -311,7 +310,7 @@ let insert_inside = (): unit => {
     bool,
     "a name that can't bind is refused",
     true,
-    Result.is_error(run(m_src, "M", "1x")),
+    Result.is_error(run_inside(m_src, "M", "1x")),
   );
 };
 

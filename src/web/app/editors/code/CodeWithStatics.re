@@ -171,8 +171,7 @@ module Update = {
      * ref, so CachedSyntax.calculate skips the shape pass (phys-eq).
      * Probe ids are an analysis input: deferring would send this frame's
      * eval a stale map and leave the probe sampleless, so a probe change
-     * recomputes now. Compared on `targets`, not probe_ids: `with_targets`
-     * refreshes only targets, so probe_ids would keep differing. */
+     * recomputes now. */
     let probes_differ = (z, statics: CachedStatics.t) =>
       !
         Language.Id.Map.equal(

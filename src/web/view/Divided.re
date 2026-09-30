@@ -109,32 +109,6 @@ let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
   before @ [entry, ...after];
 };
 
-/* where [id]'s cell sits, or would go, in program order */
-let position = (~term, id: Id.t, d: t): int => {
-  let rec index = (k, cells: list(Cell.t)) =>
-    switch (cells) {
-    | [] => None
-    | [e, ..._] when e.e_id == id => Some(k)
-    | [_, ...rest] => index(k + 1, rest)
-    };
-  switch (index(0, d.cells)) {
-  | Some(k) => k
-  | None =>
-    let order = outline_order(term);
-    let rank = id => {
-      let rec go = (k, l) =>
-        switch (l) {
-        | [] => max_int
-        | [x, ..._] when x == id => k
-        | [_, ...rest] => go(k + 1, rest)
-        };
-      go(0, order);
-    };
-    let r = rank(id);
-    List.length(List.filter((e: Cell.t) => rank(e.e_id) < r, d.cells));
-  };
-};
-
 let probes_of = (c: CellEditor.Model.t): Refractors.RefractorList.t =>
   c.editor.editor.state.zipper.refractors.manuals;
 
@@ -432,65 +406,6 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
            }
          );
     };
-};
-
-/* the tests container's toggle: one cell for the whole run, or close
-   the run (or every member open individually) */
-let toggle_run = (~info_map, ~term, fid: Id.t, d: t): after_close => {
-  let covering =
-    List.find_opt(
-      (e: Cell.t) =>
-        e.e_run && (e.e_id == fid || List.mem(fid, e.e_members)),
-      d.cells,
-    );
-  switch (covering) {
-  | Some(run) => close(run.e_id, d)
-  | None =>
-    let members =
-      switch (Focus.test_run(fid, d.base)) {
-      | Some((_, _, ms)) => ms
-      | None => [fid]
-      };
-    let (open_members, keeping) =
-      List.partition((e: Cell.t) => List.mem(e.e_id, members), d.cells);
-    let base =
-      List.fold_left(
-        (seg, e) => Focus.splice_entry(e, seg),
-        d.base,
-        open_members,
-      );
-    let all_open =
-      members != [] && List.length(open_members) == List.length(members);
-    if (all_open) {
-      switch (keeping) {
-      | [] =>
-        Joined(
-          join({
-            ...d,
-            cells: [],
-            base,
-          }),
-        )
-      | _ =>
-        Still({
-          ...d,
-          cells: keeping,
-          base,
-        })
-      };
-    } else {
-      switch (Focus.mk_run_entry(~info_map, fid, base)) {
-      | None => Still(d)
-      | Some(entry) =>
-        Still({
-          ...d,
-          base,
-          cells: insert(~term, entry, keeping),
-          active: Some((entry.e_id, Body)),
-        })
-      };
-    };
-  };
 };
 
 /* after an edit to the joined program (agent, outline menu): the same

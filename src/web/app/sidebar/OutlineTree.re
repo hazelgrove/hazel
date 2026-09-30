@@ -501,17 +501,3 @@ let row_ids = (e: Exp.t): Id.Map.t(unit) =>
     row_ids_cache := Some((e, ids));
     ids;
   };
-
-/* a row (id or not) sits at [path] */
-let path_exists = (path: path, e: Exp.t): bool => {
-  let rec go = (path, ns: list(node)) =>
-    switch (path) {
-    | [] => false
-    | [seg, ...rest] =>
-      switch (segs(ns) |> List.find_opt(((_, s)) => s == seg)) {
-      | Some((n, _)) => rest == [] || go(rest, n.o_children)
-      | None => false
-      }
-    };
-  go(path, of_term(e));
-};

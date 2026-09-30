@@ -32,12 +32,6 @@ let statics = (p: t): CachedStatics.t =>
   | Divided(d) => Divided.statics(d)
   };
 
-let divided = (p: t): option(Divided.t) =>
-  switch (p) {
-  | Whole(_) => None
-  | Divided(d) => Some(d)
-  };
-
 let whole = (p: t): CellEditor.Model.t =>
   switch (p) {
   | Whole(e) => e
