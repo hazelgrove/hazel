@@ -1612,17 +1612,15 @@ module FumolaWip: BuiltinLivelit = {
     | _ => None
     };
 
-  /* A titled section of the right-hand pane. */
+  /* One of the livelit's panes, shown as a tab of the watch panel; the tab
+     names it, so the title is only for the element. */
   let sub_panel = (title, body) =>
     Node.div(
-      ~attrs=[Attr.class_("fumola-wip-sub")],
-      [
-        Node.div(
-          ~attrs=[Attr.class_("fumola-wip-sub-title")],
-          [Node.text(title)],
-        ),
-        ...body,
+      ~attrs=[
+        Attr.class_("fumola-wip-sub"),
+        Attr.create("data-pane", String.lowercase_ascii(title)),
       ],
+      body,
     );
 
   /* Where each use's divider sits, as the left column's share of the width.
@@ -1856,78 +1854,100 @@ module FumolaWip: BuiltinLivelit = {
           Node.div(
             ~attrs=[Attr.class_("fumola-wip-right")],
             [
-              /* The program the last run sent, as printed from the code:
-                 where the tiles grouped differently from how they read,
-                 its parentheses show it. */
-              sub_panel(
-                "Program",
-                [
-                  switch (
-                    FumolaRun.last_run_of(~instance=m.instance, ~name=m.name)
-                  ) {
-                  | Some({program: "", _}) =>
-                    Node.div(
-                      ~attrs=[Attr.class_("fumola-wip-note")],
-                      [Node.text("not sent: the code could not be printed")],
-                    )
-                  | Some({program, _}) =>
-                    Node.pre(
-                      ~attrs=[Attr.class_("fumola-wip-program")],
-                      [Node.text(program)],
-                    )
-                  | None =>
-                    Node.div(
-                      ~attrs=[Attr.class_("fumola-wip-note")],
-                      [Node.text("this livelit has not run yet")],
-                    )
-                  },
-                ],
-              ),
-              /* The outline of the runs, drawn as Fumola's web player
-                 draws it (FumolaOutline). */
-              sub_panel(
-                "Outline",
-                [
-                  switch (FumolaRun.outlines(m.instance)) {
-                  | Ok([]) =>
-                    Node.div(
-                      ~attrs=[Attr.class_("fumola-wip-note")],
+              {
+                /* The livelit's own panes go to the watch panel as tabs
+                   before Events, Nodes and Edges: the pane's rows are
+                   fixed, and stacked above the panel they pushed it out of
+                   view. */
+
+                let panes: FumolaWatch.panes = {
+                  /* The program the last run sent, as printed from the code:
+                     where the tiles grouped differently from how they read,
+                     its parentheses show it. */
+                  program:
+                    sub_panel(
+                      "Program",
                       [
-                        Node.text(
-                          "no forces yet; a $simple instance never has any",
-                        ),
+                        switch (
+                          FumolaRun.last_run_of(
+                            ~instance=m.instance,
+                            ~name=m.name,
+                          )
+                        ) {
+                        | Some({program: "", _}) =>
+                          Node.div(
+                            ~attrs=[Attr.class_("fumola-wip-note")],
+                            [
+                              Node.text(
+                                "not sent: the code could not be printed",
+                              ),
+                            ],
+                          )
+                        | Some({program, _}) =>
+                          Node.pre(
+                            ~attrs=[Attr.class_("fumola-wip-program")],
+                            [Node.text(program)],
+                          )
+                        | None =>
+                          Node.div(
+                            ~attrs=[Attr.class_("fumola-wip-note")],
+                            [Node.text("this livelit has not run yet")],
+                          )
+                        },
                       ],
-                    )
-                  | Ok(trees) => FumolaOutline.forest(trees)
-                  | Error(message) =>
-                    Node.div(
-                      ~attrs=[Attr.class_("fumola-wip-note")],
-                      [Node.text(message)],
-                    )
-                  },
-                ],
-              ),
-              /* What the last run printed. */
-              sub_panel(
-                "Printed",
-                switch (FumolaRun.printed_of(m.instance)) {
-                | [] => [
-                    Node.div(
-                      ~attrs=[Attr.class_("fumola-wip-note")],
-                      [Node.text("the last run printed nothing")],
                     ),
-                  ]
-                | lines => [
-                    Node.ol(
-                      ~attrs=[Attr.class_("fumola-wip-printed")],
-                      List.map(line => Node.li([Node.text(line)]), lines),
+                  /* The outline of the runs, drawn as Fumola's web player
+                     draws it (FumolaOutline). */
+                  outline:
+                    sub_panel(
+                      "Outline",
+                      [
+                        switch (FumolaRun.outlines(m.instance)) {
+                        | Ok([]) =>
+                          Node.div(
+                            ~attrs=[Attr.class_("fumola-wip-note")],
+                            [
+                              Node.text(
+                                "no forces yet; a $simple instance never has any",
+                              ),
+                            ],
+                          )
+                        | Ok(trees) => FumolaOutline.forest(trees)
+                        | Error(message) =>
+                          Node.div(
+                            ~attrs=[Attr.class_("fumola-wip-note")],
+                            [Node.text(message)],
+                          )
+                        },
+                      ],
                     ),
-                  ]
-                },
-              ),
-              switch (FumolaWatch.instance_view^(m.instance)) {
-              | Some(node) => node
-              | None => Node.text("the watch pane draws in the browser")
+                  /* What the last run printed. */
+                  printed:
+                    sub_panel(
+                      "Printed",
+                      switch (FumolaRun.printed_of(m.instance)) {
+                      | [] => [
+                          Node.div(
+                            ~attrs=[Attr.class_("fumola-wip-note")],
+                            [Node.text("the last run printed nothing")],
+                          ),
+                        ]
+                      | lines => [
+                          Node.ol(
+                            ~attrs=[Attr.class_("fumola-wip-printed")],
+                            List.map(
+                              line => Node.li([Node.text(line)]),
+                              lines,
+                            ),
+                          ),
+                        ]
+                      },
+                    ),
+                };
+                switch (FumolaWatch.instance_view^(m.instance, Some(panes))) {
+                | Some(node) => node
+                | None => Node.text("the watch pane draws in the browser")
+                };
               },
             ],
           ),

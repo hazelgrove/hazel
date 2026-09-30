@@ -935,7 +935,10 @@ module View = {
     AppBridgeInstall.install(~globals);
     /* And ^fumola's watch pane at this frame's panel settings. */
     Language.FumolaWatch.instance_view :=
-      (instance => Some(FumolaSidebar.instance_view(~globals, instance)));
+      (
+        (instance, panes) =>
+          Some(FumolaSidebar.instance_view(~globals, ~panes?, instance))
+      );
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let task_reference: option(string) =
       switch (editors) {

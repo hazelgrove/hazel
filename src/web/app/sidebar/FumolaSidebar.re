@@ -153,7 +153,7 @@ let kind_of = (name: string): string =>
    right-hand pane, whatever the cursor is on. */
 type target('update) =
   | AtCursor(Cursor.cursor('update))
-  | Instance(string);
+  | Instance(string, option(Language.FumolaWatch.panes));
 
 let render = (~globals: Globals.t, target: target('update)): Node.t => {
   let section = (cls, header, body) =>
@@ -686,7 +686,7 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
     );
   };
 
-  let tab_strip = (current: SidebarModel.Settings.fumola_tab) => {
+  let tab_strip = (~panes: bool, current: SidebarModel.Settings.fumola_tab) => {
     let tab = (tab, label) =>
       span(
         ~attrs=[
@@ -701,7 +701,18 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
       );
     div(
       ~attrs=[clss(["problem-view-toggle", "fumola-tabs"])],
-      [
+      /* A livelit's own panes first: what was sent, how it ran, what it
+         printed; then the instance's history. */
+      (
+        panes
+          ? [
+            tab(SidebarModel.Settings.Program, "Program"),
+            tab(SidebarModel.Settings.Outline, "Outline"),
+            tab(SidebarModel.Settings.Printed, "Printed"),
+          ]
+          : []
+      )
+      @ [
         tab(SidebarModel.Settings.Events, "Events"),
         tab(SidebarModel.Settings.Nodes, "Nodes"),
         tab(SidebarModel.Settings.Edges, "Edges"),
@@ -1015,7 +1026,8 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
       ),
     );
 
-  let instance_body = (instance: string) =>
+  let instance_body =
+      (instance: string, panes: option(Language.FumolaWatch.panes)) =>
     switch (FumolaHistory.of_instance(instance)) {
     | Error(message) =>
       section(
@@ -1027,7 +1039,13 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
       )
     | Ok(history) =>
-      let tab = globals.settings.sidebar.fumola_tab;
+      /* A livelit's pane tab, where no livelit supplied the panes -- the
+         sidebar, following the cursor -- reads as Events. */
+      let tab: SidebarModel.Settings.fumola_tab =
+        switch (globals.settings.sidebar.fumola_tab, panes) {
+        | (Program | Outline | Printed, None) => Events
+        | (tab, _) => tab
+        };
       /* Asked once and read twice -- the header spells it out, the strip
          marks the button that would keep it -- so that the two cannot
          disagree about the same instance in the same render. */
@@ -1038,83 +1056,108 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         [
           div(
             ~attrs=[clss(["fumola-controls"])],
-            [tab_strip(tab), reset_button(~mode?, instance)],
+            [
+              tab_strip(~panes=panes != None, tab),
+              reset_button(~mode?, instance),
+            ],
           ),
         ]
-        @ [editor_strip()]
+        /* Show, Dim and Hide sort the history; a livelit's own panes have
+           none of it to sort. */
         @ (
           switch (tab) {
-          | Nodes =>
-            nodes_view(
-              ~passes=history.passes,
-              ~missed=history.nodes_missed,
-              history.nodes,
-            )
-          | Edges =>
-            edges_view(
-              ~passes=history.passes,
-              ~nodes=history.nodes,
-              ~missed=history.edges_missed,
-              history.edges,
-            )
-          | Events =>
-            events_body(
-              ~passes=history.passes,
-              ~nodes=history.nodes,
-              {
-                /* Which edges are the editor's, by id, and which nodes
-                   the editor made, by space. Built once per render
-                   rather than searched per event.
+          | Program
+          | Outline
+          | Printed => []
+          | Events
+          | Nodes
+          | Edges => [editor_strip()]
+          }
+        )
+        @ (
+          switch (tab, panes) {
+          | (Program, Some({program, _})) => [program]
+          | (Outline, Some({outline, _})) => [outline]
+          | (Printed, Some({printed, _})) => [printed]
+          | (Program | Outline | Printed, None) => []
+          | (Events | Nodes | Edges, _) =>
+            switch (tab) {
+            | Nodes =>
+              nodes_view(
+                ~passes=history.passes,
+                ~missed=history.nodes_missed,
+                history.nodes,
+              )
+            | Edges =>
+              edges_view(
+                ~passes=history.passes,
+                ~nodes=history.nodes,
+                ~missed=history.edges_missed,
+                history.edges,
+              )
+            | Events =>
+              events_body(
+                ~passes=history.passes,
+                ~nodes=history.nodes,
+                {
+                  /* Which edges are the editor's, by id, and which nodes
+                     the editor made, by space. Built once per render
+                     rather than searched per event.
 
-                   An event naming an edge is judged by that edge. An
-                   event naming a node -- added, signaling, repaired --
-                   is the editor's on either of two counts: the node is
-                   the editor's own, or something the editor did points
-                   AT it. The second is what a cell needs: it signals
-                   because someone put into it, so a cell the editor put
-                   into signals on the editor's account. Without it the
-                   Hide setting left a list of signalling about nodes
-                   whose every edge it had just hidden. */
-                let editor_edges = Hashtbl.create(64);
-                let editor_nodes = Hashtbl.create(64);
-                List.iter(
-                  (row: FumolaHistory.node_row) =>
-                    if (row.editor) {
-                      Hashtbl.replace(editor_nodes, row.space, true);
+                     An event naming an edge is judged by that edge. An
+                     event naming a node -- added, signaling, repaired --
+                     is the editor's on either of two counts: the node is
+                     the editor's own, or something the editor did points
+                     AT it. The second is what a cell needs: it signals
+                     because someone put into it, so a cell the editor put
+                     into signals on the editor's account. Without it the
+                     Hide setting left a list of signalling about nodes
+                     whose every edge it had just hidden. */
+                  let editor_edges = Hashtbl.create(64);
+                  let editor_nodes = Hashtbl.create(64);
+                  List.iter(
+                    (row: FumolaHistory.node_row) =>
+                      if (row.editor) {
+                        Hashtbl.replace(editor_nodes, row.space, true);
+                      },
+                    history.nodes,
+                  );
+                  List.iter(
+                    (row: FumolaHistory.edge_row) => {
+                      Hashtbl.replace(editor_edges, row.edge_id, row.editor);
+                      if (row.editor) {
+                        Hashtbl.replace(editor_nodes, row.target, true);
+                      };
                     },
-                  history.nodes,
-                );
-                List.iter(
-                  (row: FumolaHistory.edge_row) => {
-                    Hashtbl.replace(editor_edges, row.edge_id, row.editor);
-                    if (row.editor) {
-                      Hashtbl.replace(editor_nodes, row.target, true);
+                    history.edges,
+                  );
+                  let known = (table, key) =>
+                    switch (Hashtbl.find_opt(table, key)) {
+                    | Some(p) => p
+                    | None => false
                     };
-                  },
-                  history.edges,
-                );
-                let known = (table, key) =>
-                  switch (Hashtbl.find_opt(table, key)) {
-                  | Some(p) => p
-                  | None => false
-                  };
-                List.map(
-                  ((meta_time, name, subject, edge, node)) =>
-                    {
-                      meta_time,
-                      kind: kind_of(name),
-                      subject,
-                      editor:
-                        switch (edge, node) {
-                        | (Some(id), _) => known(editor_edges, id)
-                        | (None, Some(space)) => known(editor_nodes, space)
-                        | (None, None) => false
-                        },
-                    },
-                  history.events,
-                );
-              },
-            )
+                  List.map(
+                    ((meta_time, name, subject, edge, node)) =>
+                      {
+                        meta_time,
+                        kind: kind_of(name),
+                        subject,
+                        editor:
+                          switch (edge, node) {
+                          | (Some(id), _) => known(editor_edges, id)
+                          | (None, Some(space)) =>
+                            known(editor_nodes, space)
+                          | (None, None) => false
+                          },
+                      },
+                    history.events,
+                  );
+                },
+              )
+            | Program
+            | Outline
+            | Printed => []
+            }
           }
         ),
       );
@@ -1122,7 +1165,7 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
 
   let body =
     switch (target) {
-    | Instance(instance) => instance_body(instance)
+    | Instance(instance, panes) => instance_body(instance, panes)
     | AtCursor(cursor) =>
       switch (cursor.editor) {
       | Some(editor) =>
@@ -1135,7 +1178,7 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         let cursor_id = Option.map(Info.id_of, cursor.info);
         switch (instance_to_show(~cursor_id, term)) {
         | None => how_to_make_one
-        | Some(instance) => instance_body(instance)
+        | Some(instance) => instance_body(instance, None)
         };
       | None => how_to_make_one
       }
@@ -1147,5 +1190,11 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
 let view = (~globals: Globals.t, ~cursor: Cursor.cursor('update)): Node.t =>
   render(~globals, AtCursor(cursor));
 
-let instance_view = (~globals: Globals.t, instance: string): Node.t =>
-  render(~globals, Instance(instance));
+let instance_view =
+    (
+      ~globals: Globals.t,
+      ~panes: option(Language.FumolaWatch.panes)=?,
+      instance: string,
+    )
+    : Node.t =>
+  render(~globals, Instance(instance, panes));

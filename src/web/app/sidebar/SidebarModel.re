@@ -18,10 +18,15 @@ module Settings = {
     | Hide;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+  /* The last three are ^fumola's own panes, which only a livelit's watch
+     pane has; the sidebar reads them as Events. */
   type fumola_tab =
     | Events
     | Nodes
-    | Edges;
+    | Edges
+    | Program
+    | Outline
+    | Printed;
 
   /* `enumerate` so a link can name a panel without a second list of names to
      keep in step: DeepLink matches `?panel=` against these constructors. */
