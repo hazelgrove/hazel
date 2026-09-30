@@ -38,6 +38,27 @@ let title_of_tests =
    importing both the student's implementation and its hidden tests. */
 let indentation_tests = [
   test_case(
+    "Markdown code fences preserve nested indentation",
+    `Quick,
+    () => {
+      let code = {|let f = fun x ->
+  let y = x + 1 in
+  y * 2
+in
+f(3)|};
+      switch (ExplainThis.memo_parse(code)) {
+      | None => fail("Markdown code fence did not parse")
+      | Some(zipper) =>
+        check(
+          string,
+          "authored whitespace",
+          code,
+          Haz3lcore.MarkerParse.to_text(zipper),
+        )
+      };
+    },
+  ),
+  test_case(
     "implementation keeps nested function-body indentation",
     `Quick,
     () => {
