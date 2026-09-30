@@ -1545,13 +1545,15 @@ let is_top_semi = (p: Piece.t): bool =>
   | Tile(t) => Tile.label(t) == [";"]
   | _ => false
   };
+/* only with its `in`: an unfinished `let x =` runs on into what follows */
 let is_in_tile = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    switch (List.rev(Tile.label(t))) {
-    | ["in", ..._] => true
+    let label = Tile.label(t);
+    switch (List.rev(label)) {
+    | ["in", ..._] => List.mem(List.length(label) - 1, t.shards)
     | _ => false
-    }
+    };
   | _ => false
   };
 let top_items = (seg: t): list(t) => {

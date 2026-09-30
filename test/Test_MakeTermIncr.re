@@ -109,6 +109,12 @@ let edge_case = ((name, src), ()) =>
   | Some(seg) => ignore(check_parity(name, seg))
   };
 
+let incomplete_case = ((name, src), ()) =>
+  switch (CorpusUtil.typed_seg(src)) {
+  | None => fail("untypeable program: " ++ name)
+  | Some(seg) => ignore(check_parity(name, seg))
+  };
+
 /* shard masks from one parse don't leak into the next */
 let independent = () =>
   switch (ParsedCorpus.to_segment(~root=Exp, "let x = 1 in\nx")) {
@@ -134,6 +140,15 @@ let tests = (
     ((name, src)) => test_case(name, `Quick, edge_case((name, src))),
     edge_programs,
   )
+  @ List.map(
+      ((name, src)) =>
+        test_case(
+          "incomplete: " ++ name,
+          `Quick,
+          incomplete_case((name, src)),
+        ),
+      CorpusUtil.incomplete_programs,
+    )
   @ [
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
