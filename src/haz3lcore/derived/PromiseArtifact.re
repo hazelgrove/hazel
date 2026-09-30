@@ -9,18 +9,21 @@ open Language;
    token the display shows is a REAL piece of this one artifact, with
    the SAME id semantics ran on.
 
-   artifact = reify(obligations) applied to the syntactically
-   completed segment. Both are deterministic and caret-free:
+   artifact = place(reify(obligations)) applied to the syntactically
+   completed segment. All three are deterministic and caret-free:
      completed = CanonicalCompletion.complete_segment_deep(seg)
-     reified   = TypeObligations.reify(obligations, completed)
+     reified   = GroutPlace.place(TypeObligations.reify(obligations,
+                 completed))
    This is the EXACT construction CachedStatics.init runs before its
    second statics pass (MakeTerm.from_zip_for_sem_spliced does
-   complete_segment_deep then splice=reify on the same erased-buffer
-   segment). So the artifact's ids COINCIDE with the analyzed program's
-   ids by determinism — reify mints its commas/holes with Id.next
-   chains seeded from the site tile, identical on both sides. An
-   inspector or error landing on a presumed hole finds it in the
-   info_map by construction, with no coordination.
+   complete_segment_deep then the same splice on the same
+   erased-buffer segment). So the artifact's ids COINCIDE with the
+   analyzed program's ids by determinism — reify mints its commas
+   with Id.next chains seeded from the site tile, and GroutPlace
+   re-derives EVERY hole with ids that are a pure function of the
+   segment (uuid-v5 of slot ctx + neighbors + shape), identical on
+   both sides. An inspector or error landing on a presumed hole finds
+   it in the info_map by construction, with no coordination.
 
    Per-leaf PROVENANCE is derived exactly as the diff-based chip
    placement does: a shard is USER material iff present in its tile's
@@ -63,7 +66,10 @@ let collect_ids = (seg: Segment.t): Hashtbl.t(Id.t, unit) => {
 
 let mk = (~obligations: list(TypeObligations.t), seg: Segment.t): t => {
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  let reified = TypeObligations.reify(obligations, result.completed_seg);
+  let reified =
+    GroutPlace.place(
+      TypeObligations.reify(obligations, result.completed_seg),
+    );
   {
     seg,
     completed: result.completed_seg,

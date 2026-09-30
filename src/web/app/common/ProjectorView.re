@@ -377,6 +377,8 @@ let simple_code =
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
+  /* a converted value's holes own no space: give each a cell */
+  let segment = GroutCells.back_holes(segment);
   let measured =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
