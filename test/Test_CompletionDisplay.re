@@ -683,6 +683,96 @@ let acceptance_equation_tests = [
   ),
 ];
 
+/* VIEW LEVEL: the harness above models a witness as `i⟪n⟫`. These
+   render the live frame through Code.view itself and read the classes
+   back headlessly (Node.to_raw builds plain JS objects, no DOM). */
+type rendered =
+  | RText(string)
+  | RElem(list(string), list(rendered));
+
+let rec read_rendered = (n: Js_of_ocaml.Js.Unsafe.any): rendered => {
+  open Js_of_ocaml;
+  let get = (o, k) => Js.Unsafe.get(o, Js.string(k));
+  if (Js.to_string(get(n, "type")) == "VirtualText") {
+    RText(Js.to_string(get(n, "text")));
+  } else {
+    let classes =
+      switch (
+        Js.Optdef.to_option(
+          get(get(get(n, "properties"), "attributes"), "class"),
+        )
+      ) {
+      | Some(c) => String.split_on_char(' ', Js.to_string(c))
+      | None => []
+      };
+    RElem(
+      classes,
+      get(n, "children")
+      |> Js.to_array
+      |> Array.to_list
+      |> List.map(read_rendered),
+    );
+  };
+};
+
+/* the live frame for `text¦` (CachedStatics -> CachedSyntax), drawn by
+   Code.view */
+let view_of = (text: string): list(rendered) => {
+  let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(text ++ "¦"));
+  let statics =
+    CachedStatics.init(
+      ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
+      ~stitch=x => x,
+      ~root=Sort.Exp,
+      z,
+    );
+  let syntax =
+    CachedSyntax.mk(
+      ~info_map=statics.info_map,
+      ~dyn_map=Id.Map.empty,
+      ~obligations=Some(statics.obligations),
+      ~armed=true,
+      z,
+    );
+  Web.Code.view(
+    ~measured=syntax.measured,
+    ~settings=Web.Settings.Model.init,
+    ~shape_map=syntax.shape_map,
+    ~refractor_rows=syntax.refractor_rows,
+    ~font_metrics=Web.FontMetrics.init,
+    ~term_data=syntax.term_data,
+    ~ghost_marks=syntax.ghost_marks,
+    ~typed_lens=syntax.typed_lens,
+    syntax.segment,
+  )
+  |> List.map(n =>
+       read_rendered(
+         Js_of_ocaml.Js.Unsafe.inject(Virtual_dom.Vdom.Node.to_raw(n)),
+       )
+     );
+};
+
+/* every sub-token split span as `typed⟪ghost⟫ [outer] ⟪remainder⟫` */
+let split_tokens = (nodes: list(rendered)): list(string) => {
+  let rec go = (n: rendered): list(string) =>
+    switch (n) {
+    | RElem(cls, [RText(typed), RElem(gcls, [RText(ghost)])])
+        when List.mem("token", cls) => [
+        Printf.sprintf(
+          "%s⟪%s⟫ [%s] ⟪%s⟫",
+          typed,
+          ghost,
+          String.concat(" ", cls),
+          String.concat(" ", gcls),
+        ),
+      ]
+    | RElem(_, kids) => List.concat_map(go, kids)
+    | RText(_) => []
+    };
+  List.concat_map(go, nodes);
+};
+
 let tests = [
   ("CompletionDisplay: acceptance-equation", acceptance_equation_tests),
   (
@@ -1902,6 +1992,27 @@ NONE|},
             );
           };
         },
+      ),
+    ],
+  ),
+  (
+    "CompletionDisplay: view",
+    [
+      /* a keyword witness's TYPED prefix is the user's text: the outer
+         token span keeps normal token styling, and only the untyped
+         remainder carries the ghost fade */
+      test_case("witness typed prefix renders at full strength", `Quick, () =>
+        check(
+          string_testable,
+          "witness spans",
+          {|i⟪n⟫ [token Exp poly keyword] ⟪in-parsed-buffer⟫
+t⟪hen⟫ [token Exp poly keyword] ⟪in-parsed-buffer⟫
+-⟪>⟫ [token Exp poly] ⟪in-parsed-buffer⟫
+=⟪>⟫ [token Rul poly] ⟪in-parsed-buffer⟫|},
+          ["let x = 4 i", "if true t", "fun x -", "case 1 | 2 ="]
+          |> List.concat_map(t => split_tokens(view_of(t)))
+          |> String.concat("\n"),
+        )
       ),
     ],
   ),
