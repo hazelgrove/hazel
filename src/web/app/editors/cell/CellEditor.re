@@ -308,7 +308,22 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=
+            switch (master_result) {
+            /* a cell's tests ran in the whole program: its markers too */
+            | Some(mr) when globals.settings.core.dynamics =>
+              switch (EvalResult.Model.test_results(mr)) {
+              | Some(results) => [
+                  EvalResult.View.test_result_layer(
+                    ~font_metrics=globals.font_metrics,
+                    ~measured=model.editor.editor.syntax.measured,
+                    results,
+                  ),
+                ]
+              | None => []
+              }
+            | _ => overlays(model.editor.editor)
+            },
           ~lines,
           ~cull,
           ~dynamics={
