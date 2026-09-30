@@ -461,6 +461,96 @@ let note_run = (name: string): unit => {
   };
 };
 
+/* What the last run in each instance printed, for ^fumola_wip's Printed
+   pane. The runtime drains its print buffer into every reply, as `printed`,
+   and leaves the key out when there was nothing; each run replaces the last,
+   as Fumola's web player does. Fumola keeps a `\n` in a text literal as the
+   two characters, so they are turned back into a line break here. */
+let printed: Hashtbl.t(string, list(string)) = Hashtbl.create(8);
+
+let unescape_newlines = (s: string): string => {
+  let b = Buffer.create(String.length(s));
+  let n = String.length(s);
+  let rec go = i =>
+    if (i < n) {
+      if (s.[i] == '\\' && i + 1 < n && s.[i + 1] == 'n') {
+        Buffer.add_char(b, '\n');
+        go(i + 2);
+      } else {
+        Buffer.add_char(b, s.[i]);
+        go(i + 1);
+      };
+    };
+  go(0);
+  Buffer.contents(b);
+};
+
+let note_printed = (name: string, reply: Yojson.Safe.t): unit =>
+  Hashtbl.replace(
+    printed,
+    name,
+    switch (reply) {
+    | `Assoc(obj) =>
+      switch (List.assoc_opt("printed", obj)) {
+      | Some(`List(lines)) =>
+        List.filter_map(
+          fun
+          | `String(s) => Some(unescape_newlines(s))
+          | _ => None,
+          lines,
+        )
+      | _ => []
+      }
+    | _ => []
+    },
+  );
+
+let printed_of = (name: string): list(string) =>
+  Option.value(Hashtbl.find_opt(printed, name), ~default=[]);
+
+/* The outline of every top-level force in an instance, in the text format
+   Adapton.IntoText defines -- the one Fumola's web player draws as HTML.
+   Evaluated on a scratch branch, since computing an outline memoises into
+   the store. Empty text is no forces yet; a $simple instance keeps no graph,
+   so its outline is always empty. */
+let outline_text = (name: string): result(string, string) =>
+  switch (
+    shim(
+      "evalScratch",
+      [|
+        js_int(instance_of_name(name)),
+        /* At the latest moment, as every read is (see at_now): at Now the
+           runs' thunks are invisible, and Outline's peekInfo finds null. */
+        js_string(
+          at_now("Adapton.IntoText.outlines(Adapton.Outline.outlines())"),
+        ),
+      |],
+    )
+  ) {
+  | exception _ => Error("no Fumola runtime available")
+  | r =>
+    switch (
+      Yojson.Safe.from_string(
+        r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string,
+      )
+    ) {
+    | exception _ => Error("could not read the Fumola runtime's response")
+    | `Assoc(obj) =>
+      switch (List.assoc_opt("ok", obj), List.assoc_opt("value", obj)) {
+      | (Some(`Bool(true)), Some(`String(text))) =>
+        Ok(unescape_newlines(text))
+      | _ =>
+        Error(
+          switch (List.assoc_opt("error", obj)) {
+          | Some(`String(message)) => message
+          | _ => "the outline did not come back as text"
+          },
+        )
+      }
+    | _ => Error("could not read the Fumola runtime's response")
+    }
+  };
+
 let run =
     (
       ~ana: TermBase.Typ.t,
@@ -509,7 +599,9 @@ let run =
           mode,
         );
         note_run(instance_name);
-        switch (eval_at(instance_id, at_moment(at, program))) {
+        let reply = eval_at(instance_id, at_moment(at, program));
+        note_printed(instance_name, reply);
+        switch (reply) {
         | `Null =>
           Error({
             syntax: false,

@@ -1304,6 +1304,12 @@ module FumolaWip: BuiltinLivelit = {
           },
         );
 
+  /* A Hazel string literal cannot hold a double quote -- it has no escapes
+     -- so Fumola text with a text literal in it has no string form. Taking
+     it anyway would end the literal early and lose the code. */
+  let fits_a_string = (text: string): bool => !String.contains(text, '"');
+  let no_string_form = "a Hazel string cannot hold a double quote, so code with a Fumola text literal stays as tiles";
+
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
   let requires_annotation = false;
 
@@ -1462,15 +1468,16 @@ module FumolaWip: BuiltinLivelit = {
       switch (code_body(m.code)) {
       | None => Error("the code field holds no fumola … end tile")
       | Some((_, body)) =>
-        Result.map(
-          text =>
-            {
-              ...m,
-              tiles: false,
-              code: DHExp.fresh(Atom(String(text))),
-            },
-          text_of_body(body),
-        )
+        switch (text_of_body(body)) {
+        | Error(why) => Error(why)
+        | Ok(text) when !fits_a_string(text) => Error(no_string_form)
+        | Ok(text) =>
+          Ok({
+            ...m,
+            tiles: false,
+            code: DHExp.fresh(Atom(String(text))),
+          })
+        }
       }
     | (false, Atom(String(text))) =>
       switch (FumolaParse.program(text)) {
@@ -1605,6 +1612,19 @@ module FumolaWip: BuiltinLivelit = {
     | _ => None
     };
 
+  /* A titled section of the right-hand pane. */
+  let sub_panel = (title, body) =>
+    Node.div(
+      ~attrs=[Attr.class_("fumola-wip-sub")],
+      [
+        Node.div(
+          ~attrs=[Attr.class_("fumola-wip-sub-title")],
+          [Node.text(title)],
+        ),
+        ...body,
+      ],
+    );
+
   let view_below = (~id as _, ~splice, m: model_t, send_action) => {
     let editor = (e: TermBase.Exp.t) =>
       switch (Option.bind(splice_id(e), splice)) {
@@ -1643,25 +1663,37 @@ module FumolaWip: BuiltinLivelit = {
                 [
                   switch (m.tiles, unparen(m.code).term) {
                   | (false, Atom(String(text))) =>
-                    Node.textarea(
-                      ~attrs=[
-                        Attr.class_("fumola-wip-text"),
-                        Attr.string_property("value", text),
-                        Attr.create("spellcheck", "false"),
-                        Attr.on_keydown(_ =>
-                          Virtual_dom.Vdom.Effect.Stop_propagation
-                        ),
-                        Attr.on_input((_, text) =>
-                          send_action(
-                            SetModel({
-                              ...m,
-                              code: DHExp.fresh(Atom(String(text))),
-                            }),
-                          )
-                        ),
-                      ],
-                      [],
-                    )
+                    Node.div([
+                      Node.textarea(
+                        ~attrs=[
+                          Attr.class_("fumola-wip-text"),
+                          Attr.string_property("value", text),
+                          Attr.create("spellcheck", "false"),
+                          Attr.on_keydown(_ =>
+                            Virtual_dom.Vdom.Effect.Stop_propagation
+                          ),
+                          Attr.on_input((_, text) =>
+                            fits_a_string(text)
+                              ? send_action(
+                                  SetModel({
+                                    ...m,
+                                    code: DHExp.fresh(Atom(String(text))),
+                                  }),
+                                )
+                              : Virtual_dom.Vdom.Effect.Ignore
+                          ),
+                        ],
+                        [],
+                      ),
+                      Node.div(
+                        ~attrs=[Attr.class_("fumola-wip-note")],
+                        [
+                          Node.text(
+                            "no double quotes here: a Hazel string cannot hold one. For a Fumola text literal, switch to tiles.",
+                          ),
+                        ],
+                      ),
+                    ])
                   | _ => editor(m.code)
                   },
                 ],
@@ -1676,6 +1708,51 @@ module FumolaWip: BuiltinLivelit = {
           Node.div(
             ~attrs=[Attr.class_("fumola-wip-right")],
             [
+              /* The outline of the runs, in Adapton.IntoText's format. */
+              sub_panel(
+                "Outline",
+                [
+                  switch (FumolaRun.outline_text(m.instance)) {
+                  | Ok("") =>
+                    Node.div(
+                      ~attrs=[Attr.class_("fumola-wip-note")],
+                      [
+                        Node.text(
+                          "no forces yet; a $simple instance never has any",
+                        ),
+                      ],
+                    )
+                  | Ok(text) =>
+                    Node.pre(
+                      ~attrs=[Attr.class_("fumola-wip-outline")],
+                      [Node.text(text)],
+                    )
+                  | Error(message) =>
+                    Node.div(
+                      ~attrs=[Attr.class_("fumola-wip-note")],
+                      [Node.text(message)],
+                    )
+                  },
+                ],
+              ),
+              /* What the last run printed. */
+              sub_panel(
+                "Printed",
+                switch (FumolaRun.printed_of(m.instance)) {
+                | [] => [
+                    Node.div(
+                      ~attrs=[Attr.class_("fumola-wip-note")],
+                      [Node.text("the last run printed nothing")],
+                    ),
+                  ]
+                | lines => [
+                    Node.ol(
+                      ~attrs=[Attr.class_("fumola-wip-printed")],
+                      List.map(line => Node.li([Node.text(line)]), lines),
+                    ),
+                  ]
+                },
+              ),
               switch (FumolaWatch.instance_view^(m.instance)) {
               | Some(node) => node
               | None => Node.text("the watch pane draws in the browser")

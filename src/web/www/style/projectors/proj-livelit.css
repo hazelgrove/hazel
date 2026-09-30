@@ -329,3 +329,31 @@
 .fumola-wip-runs::after {
     content: attr(data-live-runs);
 }
+/* The right-hand pane's sections above the watch pane: the outline of the
+   runs, in Adapton.IntoText's text format, and what the last run printed. */
+.fumola-wip-sub {
+    margin-bottom: 0.6em;
+}
+.fumola-wip-sub-title {
+    font-weight: 600;
+    opacity: 0.8;
+    margin-bottom: 0.2em;
+}
+.fumola-wip-outline {
+    margin: 0;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre;
+    overflow-x: auto;
+}
+.fumola-wip-printed {
+    margin: 0;
+    padding-left: 2em;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+}
+.fumola-wip-note {
+    font-size: 0.85em;
+    opacity: 0.6;
+}

@@ -319,6 +319,34 @@ window.fumola = (() => {
     }
   };
 
+  // Evaluate on a branch that is thrown away: the answer comes back and the
+  // instance is left exactly as it was. For reading that has to compute, as
+  // an outline does -- Adapton's Outline memoises itself in the store, and a
+  // top-level run of it would show up in the next outline it drew. Absent
+  // from a runtime built before the export existed, which says so.
+  const evalScratch = (id, src) => {
+    if (!ready()) {
+      return JSON.stringify({
+        ok: false,
+        kind: "runtime",
+        error: "the Fumola runtime is not loaded",
+      });
+    }
+    if (typeof wasm.fumola_eval_scratch !== "function") {
+      return JSON.stringify({
+        ok: false,
+        kind: "runtime",
+        error: "this Fumola runtime cannot evaluate on a scratch branch",
+      });
+    }
+    if (!wasm.fumola_has(id)) wasm.fumola_realize(id);
+    try {
+      return wasm.fumola_eval_scratch(id, src);
+    } catch (e) {
+      return JSON.stringify({ ok: false, kind: "runtime", error: String(e) });
+    }
+  };
+
   const evalSync = (id, thunkName, src) => {
     if (!ready()) {
       return JSON.stringify({
@@ -426,6 +454,7 @@ window.fumola = (() => {
     ensureMode,
     evalSync,
     evalTop,
+    evalScratch,
     evalFresh,
     reset,
   };
