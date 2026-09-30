@@ -1734,6 +1734,17 @@ module Selection = {
     );
   };
 
+  /* a jump (problems, inspector, agent results) to a tile outside every
+     open cell: open the item holding it, then move there */
+  let closed_jump =
+      (tile: Haz3lcore.Id.t, model: Model.t)
+      : option((Update.t, t, Update.t)) =>
+    switch (Model.current_program(model)) {
+    | Some(Divided(d)) when Divided.owner(tile, d) == None =>
+      cross_cell_target(~target_id=tile, ~d)
+    | _ => None
+    };
+
   let stack_jump_override =
       (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) => {
     Util.OptUtil.Syntax.(

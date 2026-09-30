@@ -57,6 +57,7 @@ let (suite, exit_with_test_status) =
       Test_DividedLaws.tests,
       Test_SlideView.tests,
       Test_OutlineRename.tests,
+      Test_ClosedJump.tests,
       Test_TypeDeps.tests,
       Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,

@@ -191,14 +191,6 @@ let split_run = (~info_map, editor: CellEditor.Model.t, id: Id.t): option(t) => 
 
 let active = (d: t): option((Id.t, side)) => d.active;
 
-/* the program outside the open cells, for readers that only report
-   (problems): the split's editor, stale inside the open cells' slots,
-   carrying the whole-program statics */
-let outside_editor = (d: t): CodeEditable.Model.t => {
-  ...d.shell.editor,
-  statics: statics(d),
-};
-
 /* the editor with the caret: the active cell's side, else the first
    cell's body */
 let active_editor = (d: t): CellEditor.Model.t =>
@@ -554,6 +546,35 @@ let same_content = (a: t, b: t): bool => {
        b.cells,
      );
 };
+
+/* the whole program for the problems panel, listed after the open
+   cells so each problem is claimed where it sits: the split's editor,
+   its segment the current document (no stale holes), with the
+   whole-program statics. Memoized by content: the panel caches on
+   identity */
+let outside_memo: ref(option((t, CodeEditable.Model.t))) = ref(None);
+let outside_editor = (d: t): CodeEditable.Model.t =>
+  switch (outside_memo^) {
+  | Some((d', e))
+      when
+        same_content(d', d)
+        && d'.statics === d.statics
+        && d'.shell === d.shell => e
+  | _ =>
+    let e: CodeEditable.Model.t = {
+      ...d.shell.editor,
+      editor: {
+        ...d.shell.editor.editor,
+        syntax: {
+          ...d.shell.editor.editor.syntax,
+          segment: document(d),
+        },
+      },
+      statics: statics(d),
+    };
+    outside_memo := Some((d, e));
+    e;
+  };
 
 let map_cells = (f: Cell.t => Cell.t, d: t): t => {
   ...d,

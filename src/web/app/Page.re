@@ -128,46 +128,9 @@ module Update = {
               ),
             cells,
           );
-        /* the rest of the program: whole-program statics with the open
-           items' problems masked, so each is listed once (under its
-           cell) */
-        let rest_editor: CodeEditable.Model.t = Divided.outside_editor(d);
-        let rest_editor =
-          switch (Haz3lcore.DefStatics.current()) {
-          | Some(ds) =>
-            let open_maps =
-              List.filter_map(
-                (e: ScratchCell.t) =>
-                  List.find_opt(
-                    (it: Haz3lcore.DefStatics.item) =>
-                      it.d_id == e.e_id
-                      || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
-                    ds.items,
-                  )
-                  |> Option.map((it: Haz3lcore.DefStatics.item) => it.d_map),
-                cells,
-              );
-            let covered = id =>
-              List.exists(map => Haz3lcore.Id.Map.mem(id, map), open_maps);
-            {
-              ...rest_editor,
-              statics: {
-                ...rest_editor.statics,
-                error_ids:
-                  List.filter(
-                    id => !covered(id),
-                    rest_editor.statics.error_ids,
-                  ),
-                warning_ids:
-                  List.filter(
-                    id => !covered(id),
-                    rest_editor.statics.warning_ids,
-                  ),
-              },
-            };
-          | None => rest_editor
-          };
-        [(None, [rest_editor]), ...stack];
+        /* the cells first: each problem is claimed (the panel dedups
+           by id) where it sits, and the rest reports what's left */
+        stack @ [(Some("elsewhere"), [Divided.outside_editor(d)])];
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -257,34 +220,54 @@ module Update = {
       }
       |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
-      let jump =
-        Editors.Selection.jump_to_tile(
-          ~settings=model.globals.settings,
-          id,
-          model.editors,
-        );
-      switch (jump) {
-      | None => model |> Updated.raise_invalid_action
-      | Some((action, selection)) =>
+      switch (Editors.Selection.closed_jump(id, model.editors)) {
+      | Some((ensure, selection, caret)) =>
+        /* outside every open cell: open its item, then move there */
+        schedule_action(Editors(caret));
+        Haz3lcore.FocusEffect.schedule_cell_top();
         let* editors =
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~schedule_global=a => schedule_action(Globals(a)),
-            action,
+            ensure,
             model.editors,
           );
-        /* The jump moves the model selection to the target cell but not DOM
-           focus (which stays on the clicked sidebar row). Schedule a focus
-           of the now-active cell after render so the editor receives
-           keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
           selection,
         };
-      };
+      | None =>
+        let jump =
+          Editors.Selection.jump_to_tile(
+            ~settings=model.globals.settings,
+            id,
+            model.editors,
+          );
+        switch (jump) {
+        | None => model |> Updated.raise_invalid_action
+        | Some((action, selection)) =>
+          let* editors =
+            Editors.Update.update(
+              ~globals,
+              ~schedule_action=a => schedule_action(Editors(a)),
+              ~schedule_global=a => schedule_action(Globals(a)),
+              action,
+              model.editors,
+            );
+          /* The jump moves the model selection to the target cell but not DOM
+             focus (which stays on the clicked sidebar row). Schedule a focus
+             of the now-active cell after render so the editor receives
+             keystrokes and the caret (gated on :focus) shows there. */
+          Haz3lcore.FocusEffect.schedule_cell();
+          {
+            ...model,
+            editors,
+            selection,
+          };
+        };
+      }
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
         schedule_action(Globals(FinishImportAll(data)))

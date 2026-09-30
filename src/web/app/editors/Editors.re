@@ -542,6 +542,20 @@ module Selection = {
     | _ => None
     };
 
+  /* a jump to a tile in no open cell (see ScratchMode.Selection) */
+  let closed_jump =
+      (tile: Haz3lcore.Id.t, model: Model.t)
+      : option((Update.t, t, Update.t)) =>
+    switch (model) {
+    | Scratch(m)
+    | Documentation(m) =>
+      ScratchMode.Selection.closed_jump(tile, m)
+      |> Option.map(((a, s, k)) =>
+           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
+         )
+    | _ => None
+    };
+
   /* the selection an outline add/ensure should land on (see
      ScratchMode.Selection.stack_add_selection) */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
