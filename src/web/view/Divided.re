@@ -1,0 +1,479 @@
+open Haz3lcore;
+open Util;
+
+/* A program divided into open cells. Each cell owns its item's text;
+   [document] assembles the whole program, [join] turns it back into
+   one editor. The type is abstract (Divided.rei), so nothing outside
+   can read or edit a stale whole-program copy. */
+
+module Focus = ScratchFocus;
+module Cell = ScratchCell;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type side =
+  | Header
+  | Body;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  /* the whole-program editor at the split: root, probes and the result
+     strip carry over; its zipper is not the program while divided */
+  shell: CellEditor.Model.t,
+  /* open cells in program order */
+  cells: list(Cell.t),
+  /* the program as of the last structural change; cells overwrite
+     their slots when the document is assembled */
+  base: Segment.t,
+  /* the cell (and side) that last had the caret: join lands there */
+  active: option((Id.t, side)),
+  /* whole-program statics of the assembled document, refreshed on
+     statics frames while divided */
+  statics: option(CachedStatics.t),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type after_close =
+  | Still(t)
+  | Joined(CellEditor.Model.t);
+
+let cells = (d: t): list(Cell.t) => d.cells;
+let root = (d: t): Sort.t => d.shell.editor.editor.root;
+let result = (d: t): EvalResult.Model.t => d.shell.result;
+let with_result = (result: EvalResult.Model.t, d: t): t => {
+  ...d,
+  shell: {
+    ...d.shell,
+    result,
+  },
+};
+/* whole-program statics: the divided document's once computed, else
+   the shell's from the split */
+let statics = (d: t): CachedStatics.t =>
+  switch (d.statics) {
+  | Some(s) => s
+  | None => d.shell.editor.statics
+  };
+let has_fresh_statics = (d: t): bool =>
+  switch (d.statics) {
+  | Some(_) => true
+  | None => false
+  };
+let with_statics = (s: CachedStatics.t, d: t): t => {
+  ...d,
+  statics: Some(s),
+};
+
+let document = (d: t): Segment.t =>
+  List.fold_left((seg, e) => Focus.splice_entry(e, seg), d.base, d.cells);
+
+let cell_ids = (e: Cell.t): list(Id.t) =>
+  Segment.ids(Focus.zip_of_cell(e.e_header))
+  @ Segment.ids(Focus.zip_of_cell(e.e_body));
+
+/* the open cell covering [id]: its own item, a run member, or any
+   piece inside its text */
+let owner = (id: Id.t, d: t): option(Cell.t) =>
+  List.find_opt(
+    (e: Cell.t) =>
+      List.mem(id, Cell.covers(e)) || List.mem(id, cell_ids(e)),
+    d.cells,
+  );
+
+/* program order, via the outline */
+let outline_order = (term: Language.Exp.t): list(Id.t) => {
+  let rec flatten = (acc, ns: list(OutlineTree.node)) =>
+    List.fold_left(
+      (acc, n: OutlineTree.node) =>
+        flatten(
+          switch (n.o_id) {
+          | Some(id) => [id, ...acc]
+          | None => acc
+          },
+          n.o_children,
+        ),
+      acc,
+      ns,
+    );
+  List.rev(flatten([], OutlineTree.of_term(term)));
+};
+
+let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
+  let order = outline_order(term);
+  let rank = id => {
+    let rec go = (k, l) =>
+      switch (l) {
+      | [] => max_int
+      | [x, ..._] when x == id => k
+      | [_, ...rest] => go(k + 1, rest)
+      };
+    go(0, order);
+  };
+  let r = rank(entry.e_id);
+  let (before, after) =
+    List.partition((e: Cell.t) => rank(e.e_id) < r, cells);
+  before @ [entry, ...after];
+};
+
+/* where [id]'s cell sits, or would go, in program order */
+let position = (~term, id: Id.t, d: t): int => {
+  let rec index = (k, cells: list(Cell.t)) =>
+    switch (cells) {
+    | [] => None
+    | [e, ..._] when e.e_id == id => Some(k)
+    | [_, ...rest] => index(k + 1, rest)
+    };
+  switch (index(0, d.cells)) {
+  | Some(k) => k
+  | None =>
+    let order = outline_order(term);
+    let rank = id => {
+      let rec go = (k, l) =>
+        switch (l) {
+        | [] => max_int
+        | [x, ..._] when x == id => k
+        | [_, ...rest] => go(k + 1, rest)
+        };
+      go(0, order);
+    };
+    let r = rank(id);
+    List.length(List.filter((e: Cell.t) => rank(e.e_id) < r, d.cells));
+  };
+};
+
+let probes_of = (c: CellEditor.Model.t): Refractors.RefractorList.t =>
+  c.editor.editor.state.zipper.refractors.manuals;
+
+/* every manual probe: the shell's (placed before the split) and the
+   cells', first occurrence per anchor */
+let probes = (d: t): Refractors.RefractorList.t =>
+  List.fold_left(
+    (acc, (id, _) as p) => List.mem_assoc(id, acc) ? acc : acc @ [p],
+    [],
+    List.concat_map(
+      (e: Cell.t) => probes_of(e.e_header) @ probes_of(e.e_body),
+      d.cells,
+    )
+    @ probes_of(d.shell),
+  );
+
+let mk = (editor: CellEditor.Model.t, base: Segment.t, cell: Cell.t): t => {
+  shell: editor,
+  cells: [cell],
+  base,
+  active: Some((cell.e_id, Body)),
+  statics: None,
+};
+
+let split =
+    (~info_map, ~sym: option(string)=?, editor: CellEditor.Model.t, id: Id.t)
+    : option(t) => {
+  let base = Focus.zip_of_cell(editor);
+  Focus.mk_entry(~info_map, ~sym?, id, base) |> Option.map(mk(editor, base));
+};
+
+let split_run = (~info_map, editor: CellEditor.Model.t, id: Id.t): option(t) => {
+  let base = Focus.zip_of_cell(editor);
+  Focus.mk_run_entry(~info_map, id, base) |> Option.map(mk(editor, base));
+};
+
+let active = (d: t): option((Id.t, side)) => d.active;
+
+/* the program outside the open cells, for readers that only report
+   (problems): the split's editor, stale inside the open cells' slots,
+   carrying the whole-program statics */
+let outside_editor = (d: t): CodeEditable.Model.t => {
+  ...d.shell.editor,
+  statics: statics(d),
+};
+
+/* the editor with the caret: the active cell's side, else the first
+   cell's body */
+let active_editor = (d: t): CellEditor.Model.t =>
+  switch (
+    switch (d.active) {
+    | Some((id, side)) =>
+      List.find_opt((e: Cell.t) => e.e_id == id, d.cells)
+      |> Option.map((e: Cell.t) => side == Header ? e.e_header : e.e_body)
+    | None => None
+    }
+  ) {
+  | Some(c) => c
+  | None =>
+    switch (d.cells) {
+    | [e, ..._] => e.e_body
+    | [] => d.shell
+    }
+  };
+
+/* where the active cell's caret sits, as a side of a piece id */
+let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
+  switch (d.active) {
+  | None => None
+  | Some((id, side)) =>
+    switch (List.find_opt((e: Cell.t) => e.e_id == id, d.cells)) {
+    | None => None
+    | Some(e) =>
+      let z =
+        (side == Header ? e.e_header : e.e_body).editor.editor.state.zipper;
+      switch (Siblings.neighbors(z.relatives.siblings)) {
+      | (_, Some(p)) => Some((Direction.Left, Piece.id(p)))
+      | (Some(p), None) => Some((Direction.Right, Piece.id(p)))
+      | (None, None) => Some((Direction.Left, e.e_id))
+      };
+    }
+  };
+
+/* one editor again: root, probes and the result carry over, and the
+   caret lands where it was in the active cell */
+let join = (d: t): CellEditor.Model.t => {
+  let seg = document(d);
+  let present = Segment.ids(seg);
+  let manuals =
+    List.filter(((id, _)) => List.mem(id, present), probes(d));
+  let z =
+    Zipper.unzip(~direction=Left, seg)
+    |> ZipperBase.update_refractors(_, r =>
+         Refractors.{
+           ...r,
+           manuals,
+         }
+       );
+  let z =
+    switch (caret_anchor(d)) {
+    | Some((side, id)) =>
+      Option.value(Move.jump_to_side_of_id(side, z, id), ~default=z)
+    | None => z
+    };
+  let fresh = CellEditor.Model.mk(Editor.Model.mk(z, ~root=root(d)));
+  {
+    editor: {
+      ...fresh.editor,
+      statics: statics(d),
+    },
+    result: d.shell.result,
+  };
+};
+
+let close = (id: Id.t, d: t): after_close =>
+  switch (List.partition((e: Cell.t) => e.e_id == id, d.cells)) {
+  | ([], _) => Still(d)
+  | ([closing, ..._], rest) =>
+    let base = Focus.splice_entry(closing, d.base);
+    switch (rest) {
+    | [] =>
+      Joined(
+        join({
+          ...d,
+          cells: [closing],
+          base,
+        }),
+      )
+    | _ =>
+      Still({
+        ...d,
+        cells: rest,
+        base,
+        active:
+          switch (d.active) {
+          | Some((a, _)) when a == id => None
+          | a => a
+          },
+      })
+    };
+  };
+
+/* open [id] as a cell. Opening a parent folds its open descendants
+   back into it; an id already inside an open cell opens nothing (the
+   caller moves the caret there instead) */
+let open_ =
+    (~info_map, ~term, ~sym: option(string)=?, id: Id.t, d: t): option(t) =>
+  switch (owner(id, d)) {
+  | Some(_) => None
+  | None =>
+    let desc = OutlineTree.descendant_ids(id, term);
+    let (closing, keeping) =
+      List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
+    let base =
+      List.fold_left(
+        (seg, e) => Focus.splice_entry(e, seg),
+        d.base,
+        closing,
+      );
+    Focus.mk_entry(~info_map, ~sym?, id, base)
+    |> Option.map(entry =>
+         {
+           ...d,
+           base,
+           cells: insert(~term, entry, keeping),
+           active: Some((id, Body)),
+         }
+       );
+  };
+
+/* the tests container's toggle: one cell for the whole run, or close
+   the run (or every member open individually) */
+let toggle_run = (~info_map, ~term, fid: Id.t, d: t): after_close => {
+  let covering =
+    List.find_opt(
+      (e: Cell.t) =>
+        e.e_run && (e.e_id == fid || List.mem(fid, e.e_members)),
+      d.cells,
+    );
+  switch (covering) {
+  | Some(run) => close(run.e_id, d)
+  | None =>
+    let members =
+      switch (Focus.test_run(fid, d.base)) {
+      | Some((_, _, ms)) => ms
+      | None => [fid]
+      };
+    let (open_members, keeping) =
+      List.partition((e: Cell.t) => List.mem(e.e_id, members), d.cells);
+    let base =
+      List.fold_left(
+        (seg, e) => Focus.splice_entry(e, seg),
+        d.base,
+        open_members,
+      );
+    let all_open =
+      members != [] && List.length(open_members) == List.length(members);
+    if (all_open) {
+      switch (keeping) {
+      | [] =>
+        Joined(
+          join({
+            ...d,
+            cells: [],
+            base,
+          }),
+        )
+      | _ =>
+        Still({
+          ...d,
+          cells: keeping,
+          base,
+        })
+      };
+    } else {
+      switch (Focus.mk_run_entry(~info_map, fid, base)) {
+      | None => Still(d)
+      | Some(entry) =>
+        Still({
+          ...d,
+          base,
+          cells: insert(~term, entry, keeping),
+          active: Some((entry.e_id, Body)),
+        })
+      };
+    };
+  };
+};
+
+/* after an edit made to the joined program (agent, outline menu):
+   the same cells again, cut from the edited program; cells whose
+   item is gone close */
+let resplit =
+    (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
+  let base = Focus.zip_of_cell(editor);
+  /* a cell the edit didn't touch keeps its editor (caret, selection):
+     edited tokens get fresh ids, so equal id sequences mean equal text */
+  let same = (a: Segment.t, b: Segment.t) =>
+    Segment.ids(Focus.core_ws(a)) == Segment.ids(b);
+  let untouched = (e: Cell.t): bool =>
+    switch (Focus.cell_content(e, base)) {
+    | None => false
+    | Some(slice) =>
+      same(slice, Focus.zip_of_cell(e.e_body))
+      && (
+        e.e_run
+        || e.e_sym != None
+        || (
+          switch (Focus.find_pat(e.e_id, base)) {
+          | Some(pat) => same(pat, Focus.zip_of_cell(e.e_header))
+          | None => false
+          }
+        )
+      )
+    };
+  let cells =
+    List.filter_map(
+      (e: Cell.t) =>
+        if (untouched(e)) {
+          Some(e);
+        } else if (e.e_run) {
+          Focus.mk_run_entry(~info_map, e.e_id, base);
+        } else {
+          Focus.mk_entry(~info_map, ~sym=?e.e_sym, e.e_id, base);
+        },
+      d.cells,
+    );
+  switch (cells) {
+  | [] => Joined(editor)
+  | _ =>
+    Still({
+      shell: editor,
+      cells: List.fold_left((acc, e) => insert(~term, e, acc), [], cells),
+      base,
+      active: d.active,
+      statics: None,
+    })
+  };
+};
+
+/* same text, probes and carets: the base and every cell zipper are
+   physically unchanged, and the same cell is active */
+let same_content = (a: t, b: t): bool => {
+  let zip = (c: CellEditor.Model.t) => c.editor.editor.state.zipper;
+  a.base === b.base
+  && a.active == b.active
+  && List.length(a.cells) == List.length(b.cells)
+  && List.for_all2(
+       (x: Cell.t, y: Cell.t) =>
+         zip(x.e_header) === zip(y.e_header)
+         && zip(x.e_body) === zip(y.e_body),
+       a.cells,
+       b.cells,
+     );
+};
+
+let map_cells = (f: Cell.t => Cell.t, d: t): t => {
+  ...d,
+  cells: List.map(f, d.cells),
+};
+
+let update_cell = (i: int, f: Cell.t => Cell.t, d: t): t => {
+  ...d,
+  cells: List.mapi((j, e) => i == j ? f(e) : e, d.cells),
+};
+
+let set_active = (i: int, side: side, d: t): t =>
+  switch (List.nth_opt(d.cells, i)) {
+  | Some(e) => {
+      ...d,
+      active: Some((e.e_id, side)),
+    }
+  | None => d
+  };
+
+/* every editor inside (shell and cells), e.g. for undo compaction */
+let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
+  ...d,
+  shell: f(d.shell),
+  cells:
+    List.map(
+      (e: Cell.t) =>
+        {
+          ...e,
+          e_header: f(e.e_header),
+          e_body: f(e.e_body),
+        },
+      d.cells,
+    ),
+};
+
+/* an undo snapshot: every editor compacted, and the whole-program
+   statics dropped to recompute on restore */
+let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
+  ...map_editors(f, d),
+  statics: None,
+};

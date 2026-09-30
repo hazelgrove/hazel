@@ -43,41 +43,29 @@ let compact_cell = (c: CellEditor.Model.t): CellEditor.Model.t => {
   result: EvalResult.Model.init,
 };
 
+let compact_program = (p: Program.t): Program.t =>
+  switch (p) {
+  | Whole(e) => Whole(compact_cell(e))
+  | Divided(d) => Divided(Divided.compact(compact_cell, d))
+  };
+
 let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
   ...m,
   scratchpads:
     List.map(
       (sp: ScratchMode.Scratchpad.t) =>
         switch (sp.kind) {
-        | Code({editor, agent}) => {
+        | Code({program, agent}) => {
             ...sp,
             kind:
               Code({
-                editor: compact_cell(editor),
+                program: compact_program(program),
                 agent,
               }),
           }
         | Drv(_) => sp
         },
       m.scratchpads,
-    ),
-  focus:
-    Option.map(
-      (f: ScratchMode.Model.focus_t) =>
-        ScratchMode.Model.{
-          ...f,
-          f_entries:
-            List.map(
-              (e: ScratchMode.Model.stack_entry) =>
-                ScratchMode.Model.{
-                  ...e,
-                  e_header: compact_cell(e.e_header),
-                  e_body: compact_cell(e.e_body),
-                },
-              f.f_entries,
-            ),
-        },
-      m.focus,
     ),
 };
 

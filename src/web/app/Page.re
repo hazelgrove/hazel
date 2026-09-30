@@ -70,7 +70,9 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => editor.editor
+      | Code({program: Whole(editor), _}) => editor.editor
+      /* divided: the cell with the caret */
+      | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
       /* For Drv scratch slides, expose the Setup editor so the sidebar's
          problem panel reflects errors from Setup only and ignores problems
          inside the derivation trees themselves. */
@@ -95,39 +97,33 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) =>
-        /* open stack cells report their problems too (live, unlike the
-           master's frozen copy of the same definitions) */
+      | Code({program: Whole(editor), _}) => [(None, [editor.editor])]
+      | Code({program: Divided(d), _}) =>
+        /* open cells report their own problems */
+        let cells = Divided.cells(d);
         let stack: list((option(string), list(CodeEditable.Model.t))) =
-          switch (m.focus) {
-          | None => []
-          | Some(f) =>
-            List.map(
-              (e: ScratchMode.Model.stack_entry) =>
-                (
-                  Some(
-                    Option.value(
-                      ScratchMode.Model.header_name(e),
-                      ~default="cell",
-                    ),
-                  ),
-                  /* header too: binder/signature errors (TPatNotAVar,
-                     shadowed type names, …) live in the header editor */
-                  [e.e_header.editor, e.e_body.editor],
+          List.map(
+            (e: ScratchCell.t) =>
+              (
+                Some(
+                  Option.value(ScratchCell.header_name(e), ~default="cell"),
                 ),
-              f.f_entries,
-            )
-          };
-        /* dedup: the master's copy of an OPEN definition is frozen while
-           its cell is live — mask master errors/warnings covered by open
-           items so each problem is listed once (under the cell's name) */
-        let master_editor: CodeEditable.Model.t = editor.editor;
-        let master_editor =
-          switch (m.focus, Haz3lcore.DefStatics.current()) {
-          | (Some(f), Some(ds)) =>
+                /* header too: binder/signature errors (TPatNotAVar,
+                   shadowed type names, …) live in the header editor */
+                [e.e_header.editor, e.e_body.editor],
+              ),
+            cells,
+          );
+        /* the rest of the program: whole-program statics with the open
+           items' problems masked, so each is listed once (under its
+           cell) */
+        let rest_editor: CodeEditable.Model.t = Divided.outside_editor(d);
+        let rest_editor =
+          switch (Haz3lcore.DefStatics.current()) {
+          | Some(ds) =>
             let open_maps =
               List.filter_map(
-                (e: ScratchMode.Model.stack_entry) =>
+                (e: ScratchCell.t) =>
                   List.find_opt(
                     (it: Haz3lcore.DefStatics.item) =>
                       it.d_id == e.e_id
@@ -135,32 +131,29 @@ module Update = {
                     ds.items,
                   )
                   |> Option.map((it: Haz3lcore.DefStatics.item) => it.d_map),
-                f.f_entries,
+                cells,
               );
             let covered = id =>
               List.exists(map => Haz3lcore.Id.Map.mem(id, map), open_maps);
             {
-              ...master_editor,
+              ...rest_editor,
               statics: {
-                ...master_editor.statics,
+                ...rest_editor.statics,
                 error_ids:
                   List.filter(
                     id => !covered(id),
-                    master_editor.statics.error_ids,
+                    rest_editor.statics.error_ids,
                   ),
                 warning_ids:
                   List.filter(
                     id => !covered(id),
-                    master_editor.statics.warning_ids,
+                    rest_editor.statics.warning_ids,
                   ),
               },
             };
-          | _ => master_editor
+          | None => rest_editor
           };
-        let master: list((option(string), list(CodeEditable.Model.t))) = [
-          (None, [master_editor]),
-        ];
-        master @ stack;
+        [(None, [rest_editor]), ...stack];
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -333,13 +326,13 @@ module Update = {
           let current = List.nth(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
-            | Code({editor, _}) =>
+            | Code({program, _}) =>
               /* Slides are text-backed: export the committed-.hz form
                  (marker-printed content + one final newline). */
               (
                 ".hz",
                 Haz3lcore.PersistentZipper.persist(
-                  editor.editor.editor.state.zipper,
+                  Program.whole(program).editor.editor.state.zipper,
                 ).
                   backup_text,
               )
@@ -477,6 +470,16 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
+      /* an unchanged selection follows its pane (cells shift as they
+         open and close); a fresh one already names its target */
+      let selection =
+        selection === model.selection
+          ? Editors.Selection.follow(
+              ~before=model.editors,
+              selection,
+              editors,
+            )
+          : selection;
       {
         ...model,
         editors,
@@ -1031,6 +1034,22 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    /* the outline reads the whole program, not the cell with the caret */
+    let program =
+      switch (model.editors) {
+      | Scratch(m)
+      | Documentation(m) =>
+        switch (List.nth_opt(m.scratchpads, m.current)) {
+        | Some({kind: Code({program, _}), _}) => Some(program)
+        | _ => None
+        }
+      | _ => None
+      };
+    let outline_statics =
+      switch (program) {
+      | Some(p) => Program.statics(p)
+      | None => current_editor.statics
+      };
     /* module/definition outline (modular-editors phases 1-2) */
     let outline = {
       /* every stacked definition's id (+ live header name) */
@@ -1078,14 +1097,14 @@ module View = {
             List.nth_opt(m.scratchpads, m.current)
             |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
           ) {
-          | Some(Code({editor, _})) =>
-            EvalResult.Model.test_results(editor.CellEditor.Model.result)
+          | Some(Code({program, _})) =>
+            EvalResult.Model.test_results(Program.result(program))
           | _ => None
           }
         | _ => None
         };
       let memo_key = {
-        ok_statics: current_editor.statics,
+        ok_statics: outline_statics,
         ok_slot: Haz3lcore.DefStatics.current(),
         ok_focused: focused_entries,
         ok_is_scratch: is_scratch,
@@ -1102,47 +1121,32 @@ module View = {
              DEEPEST row containing it; ancestor rows get a roll-up badge
              that CSS shows only while collapsed (andrew: error goes on the
              deepest thing not hidden by a collapse) */
-          /* While a stack is open the master's statics are FROZEN (its
-             calculate is skipped) — only the DefStatics slot tracks the
-             live spliced program (every Force frame). Rows inside open
-             cells (nested defs, renames typed into a cell) update through
-             it; without this the outline only refreshed on restructure
-             ops. Unstacked, the master's own statics are live — but they
-             can be EMPTY right after an undo restores a compacted
-             snapshot, so fall back to the slot then too. Other modes
-             read only the current editor: the slot is not theirs. */
-          let slot = is_scratch ? Haz3lcore.DefStatics.current() : None;
-          let outline_term = {
-            let term = current_editor.statics.term;
-            let stacked = focused_entries != [];
-            let named = () =>
-              List.exists(
-                (n: OutlineTree.node) => n.o_label != "",
-                OutlineTree.of_term(term),
-              );
-            if (!stacked && named()) {
-              term;
-            } else {
-              switch (slot) {
-              | Some(ds) => ds.Haz3lcore.DefStatics.term
-              | None => term
-              };
+          /* A whole program's statics can be EMPTY right after an undo
+             restores a compacted snapshot: the DefStatics slot stands in
+             until they recompute. Other modes read only the current
+             editor: the slot is not theirs. */
+          let slot =
+            is_scratch
+            && !
+                 List.exists(
+                   (n: OutlineTree.node) => n.o_label != "",
+                   OutlineTree.of_term(outline_statics.term),
+                 )
+              ? Haz3lcore.DefStatics.current() : None;
+          let outline_term =
+            switch (slot) {
+            | Some(ds) => ds.Haz3lcore.DefStatics.term
+            | None => outline_statics.term
             };
-          };
           let (error_items, error_subtree) = {
             let term = outline_term;
-            /* prefer the DefStatics slot: it stays live during stacked
-               editing (the master's own statics are frozen then) */
             let (info_map, error_ids) =
               switch (slot) {
               | Some(ds) => (
                   ds.merged,
                   Haz3lcore.DefStatics.all_error_ids(ds),
                 )
-              | None => (
-                  current_editor.statics.info_map,
-                  current_editor.statics.error_ids,
-                )
+              | None => (outline_statics.info_map, outline_statics.error_ids)
               };
             let outline_ids = {
               let rec go = (acc, ns: list(OutlineTree.node)) =>
@@ -1188,7 +1192,10 @@ module View = {
             ~can_open={
               let incomplete =
                 Haz3lcore.Segment.incomplete_tiles_deep(
-                  current_editor.editor.syntax.segment,
+                  switch (program) {
+                  | Some(Divided(d)) => Divided.document(d)
+                  | _ => current_editor.editor.syntax.segment
+                  },
                 )
                 |> List.map((t: Haz3lcore.Tile.t) => t.id);
               id => !List.mem(id, incomplete);

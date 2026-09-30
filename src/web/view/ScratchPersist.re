@@ -21,16 +21,6 @@ module Focus = ScratchFocus;
 let content_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name;
 
-/* per-slide pin retention (andrew): switching slides splices the
-   stack home; coming back re-opens the same cells. Ids stay valid
-   in-session because hydrated slides keep their models (a dormant
-   slide re-parses with fresh ids, but you can't have pinned on a
-   slide you haven't visited). Transient by design —
-   text-backed reload re-mints ids (name-anchored persistence is
-   docketed with the outline-generality spec). */
-let slide_pins: Hashtbl.t(string, list((Haz3lcore.Id.t, bool))) =
-  Hashtbl.create(8);
-
 /* modeled outline collapse (andrew: DOM-owned <details> state bled
    across slides positionally and reset whenever a structural edit
    made the vdom recreate elements). Per-slide sets of occurrence-
@@ -99,29 +89,6 @@ let read_probes =
       List.filter(((id, _)) => List.mem(id, present), probes);
     }
   };
-
-/* the slide's manual probes: the master's plus any placed in open
-   cells (the master is frozen while cells are open) */
-let current_probes =
-    (focus: option(Model.focus_t), editor: CellEditor.Model.t)
-    : Refractors.RefractorList.t => {
-  let of_cell = (c: CellEditor.Model.t) =>
-    c.editor.editor.state.zipper.refractors.manuals;
-  let cells =
-    switch (focus) {
-    | None => []
-    | Some(f) =>
-      List.concat_map(
-        (e: Model.stack_entry) => of_cell(e.e_header) @ of_cell(e.e_body),
-        f.f_entries,
-      )
-    };
-  List.fold_left(
-    (acc, (id, _) as p) => List.mem_assoc(id, acc) ? acc : acc @ [p],
-    [],
-    cells @ of_cell(editor),
-  );
-};
 
 /* pending restoration state is TAGGED with the content key it was
    read for, and consumers verify the tag against the current slide
@@ -324,12 +291,12 @@ let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
 /* Same gate for the EDITOR blob: the 1Hz autosave re-serialized the
    whole program (splice + to_text, ~0.7s at 1k) even while idle.
-   Content identity = the unstacked master zipper, or the live focus
-   record (any cell edit — including caret moves, which the caret
-   side key wants — rebuilds them). */
+   Content identity = the whole program's zipper, or a divided
+   program's cell zippers (caret moves included, which the caret side
+   key wants). */
 type save_stamp =
   | Unstacked(Zipper.t)
-  | Stacked(Model.focus_t);
+  | Stacked(Divided.t);
 let last_saved_content: Hashtbl.t(string, save_stamp) = Hashtbl.create(8);
 
 /* === Per-item persistence (ItemPersist) ===
@@ -368,39 +335,33 @@ let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
 let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
   switch (a, b) {
   | (Unstacked(x), Unstacked(y)) => x === y
-  | (Stacked(x), Stacked(y)) => x === y
+  | (Stacked(x), Stacked(y)) => Divided.same_content(x, y)
   | _ => false
   };
 
-/* the scratchpad persistence should see: the master with any live
-   focus-cell edits spliced in — never the bare focus cell. But it
-   must NOT build a live editor for the spliced program: cell_of_seg
-   pays CachedSyntax.init (MakeTerm + Measured) and Zipper.sexp_of_t
-   re-serializes the whole zipper — measured at ~2s + ~2.5s PER
-   AUTOSAVE TICK on Mega 1k. The spliced zipper's caret is synthetic
-   anyway (the live caret is in a stack cell), so snapshot as
-   TEXT-backed persistence — the same lossless path committed .hz
-   slides load through. */
-let persist_spliced =
-    (f: Model.focus_t, editor: CellEditor.Model.t)
-    : CellEditor.Model.persistent => {
-  let probes = current_probes(Some(f), editor);
+/* a divided program saves its assembled document, without building a
+   live editor for it: cell_of_seg pays CachedSyntax.init (MakeTerm +
+   Measured) and Zipper.sexp_of_t re-serializes the whole zipper,
+   ~2s + ~2.5s per autosave tick on Mega 1k. The caret is in a cell
+   anyway, so it saves as text, the path committed .hz slides load
+   through. */
+let persist_divided = (d: Divided.t): CellEditor.Model.persistent => {
   let z =
-    Focus.splice_all(f)
+    Divided.document(d)
     |> Zipper.unzip
     |> ZipperBase.update_refractors(_, r =>
          Refractors.{
            ...r,
-           manuals: probes,
+           manuals: Divided.probes(d),
          }
        );
   CellEditor.Model.{
     editor:
       Editor.Model.mk_persistent(
         PersistentZipper.of_text(PersistentZipper.to_string(z) ++ "\n"),
-        ~root=editor.editor.editor.root,
+        ~root=Divided.root(d),
       ),
-    result: EvalResult.Model.persist(editor.result),
+    result: EvalResult.Model.persist(Divided.result(d)),
   };
 };
 
@@ -416,11 +377,11 @@ let save_current = (prefix: string, model: Model.t): unit => {
   let sp = List.nth(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
-  | (false, Code({editor, agent})) =>
+  | (false, Code({program, agent})) =>
     let stamp =
-      switch (model.focus) {
-      | Some(f) => Stacked(f)
-      | None => Unstacked(editor.editor.editor.state.zipper)
+      switch (program) {
+      | Divided(d) => Stacked(d)
+      | Whole(editor) => Unstacked(editor.editor.editor.state.zipper)
       };
     let content_key = prefix ++ ":" ++ sp.name;
     let content_unchanged =
@@ -432,13 +393,13 @@ let save_current = (prefix: string, model: Model.t): unit => {
       Hashtbl.replace(last_saved_content, content_key, stamp);
     };
     if (!content_unchanged) {
-      /* UNSTACKED saves are text-backed too: Zipper.sexp_of_t costs
+      /* whole-program saves are text-backed too: Zipper.sexp_of_t costs
          ~2.5s per autosave tick at 1k lines. The caret can't ride the
          text, so it saves as a (row col) side key and restores as a
          Move(Point) after hydration. */
-      switch (model.focus) {
-      | Some(_) => ()
-      | None =>
+      switch (program) {
+      | Divided(_) => ()
+      | Whole(editor) =>
         let z = editor.editor.editor.state.zipper;
         switch (Zipper.Caret.point(editor.editor.editor.syntax.measured, z)) {
         | exception _ => ()
@@ -449,64 +410,60 @@ let save_current = (prefix: string, model: Model.t): unit => {
           )
         };
       };
-      {
-        /* pins ride a side key, name-anchored via the outline */
-
-        let term = editor.editor.statics.term;
-        let pins =
-          switch (model.focus) {
-          | None => []
-          | Some(f) =>
-            List.filter_map(
-              (e: Model.stack_entry) =>
-                OutlineTree.label_path(e.e_id, term)
-                |> Option.map(path => (path, e.e_run)),
-              f.f_entries,
-            )
-          };
-        write_pins(prefix, sp.name, pins);
-        write_probes(prefix, sp.name, current_probes(model.focus, editor));
+      /* pins ride a side key, name-anchored via the outline */
+      let pins =
+        switch (program) {
+        | Whole(_) => []
+        | Divided(d) =>
+          let term = Divided.statics(d).term;
+          List.filter_map(
+            (e: ScratchCell.t) =>
+              OutlineTree.label_path(e.e_id, term)
+              |> Option.map(path => (path, e.e_run)),
+            Divided.cells(d),
+          );
+        };
+      write_pins(prefix, sp.name, pins);
+      write_probes(prefix, sp.name, Program.probes(program));
+      switch (program) {
+      | Divided(d) =>
+        save_items(prefix, sp.name, Divided.document(d) |> Zipper.unzip)
+      | Whole(editor) =>
+        save_items(prefix, sp.name, editor.editor.editor.state.zipper)
       };
-      switch (model.focus) {
-      | Some(f) =>
-        save_items(prefix, sp.name, Focus.splice_all(f) |> Zipper.unzip)
-      | None => save_items(prefix, sp.name, editor.editor.editor.state.zipper)
-      };
-      switch (
-        switch (model.focus) {
-        | Some(f) => persist_spliced(f, editor)
-        | None =>
-          CellEditor.Model.{
-            editor:
-              Editor.Model.mk_persistent(
-                PersistentZipper.of_text(
-                  PersistentZipper.to_string(
-                    editor.editor.editor.state.zipper,
-                  )
-                  ++ "\n",
-                ),
-                /* the editor's OWN root: persisting a Mod-rooted
-                   slide as Exp made the reload re-parse it as an
-                   expression (backpack full of `in`s, editor wedged) */
-                ~root=editor.editor.editor.root,
-              ),
-            result: EvalResult.Model.persist(editor.result),
-          }
-        }
-      ) {
-      | e =>
-        /* The slide blob carries the editor only; the conversation
-           lives solely under the :agent key (it used to be embedded
-           here TOO, doubling every write and boot deserialization). */
-        save_slide_kind(
-          prefix,
-          sp.name,
-          CodePersist({
-            editor: Some(e),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
-          }),
-        )
-      };
+      /* the slide blob carries the editor only; the conversation lives
+         solely under the :agent key */
+      save_slide_kind(
+        prefix,
+        sp.name,
+        CodePersist({
+          editor:
+            Some(
+              switch (program) {
+              | Divided(d) => persist_divided(d)
+              | Whole(editor) =>
+                CellEditor.Model.{
+                  editor:
+                    Editor.Model.mk_persistent(
+                      PersistentZipper.of_text(
+                        PersistentZipper.to_string(
+                          editor.editor.editor.state.zipper,
+                        )
+                        ++ "\n",
+                      ),
+                      /* the editor's OWN root: persisting a Mod-rooted
+                         slide as Exp made the reload re-parse it as an
+                         expression (backpack full of `in`s, editor
+                         wedged) */
+                      ~root=editor.editor.editor.root,
+                    ),
+                  result: EvalResult.Model.persist(editor.result),
+                }
+              },
+            ),
+          agent: Agent.Persistent.persist(Agent.Utils.init()),
+        }),
+      );
     };
     let agent_key_str = prefix ++ ":" ++ sp.name;
     /* the agent model changes on every streamed chunk, so a physical
@@ -561,64 +518,71 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
       name,
       kind:
         Code({
-          editor: {
-            /* repair blobs persisted with the wrong root (and track
-               canonical root changes): the slide table is
-               authoritative for documentation slides */
-            let (persisted, root_repaired) =
-              switch (e) {
-              | Some(e) =>
-                switch (Init.documentation_slide_root(name)) {
-                | Some(root) when root != e.editor.root => (
-                    CellEditor.Model.{
-                      ...e,
-                      editor: {
-                        ...e.editor,
-                        root,
-                      },
-                    },
-                    true,
-                  )
-                | _ => (e, false)
-                }
-              | None => (Init.default_documentation_slide_name(name), false)
-              };
-            /* per-item restore: exact zipper, no text parse. Skipped
-               when the root was just repaired (stored items were
-               normalized under the OLD root — reparse once instead)
-               or on any roster inconsistency (text fallback). */
-            switch (
-              root_repaired
-                ? None : ItemPersist.load(~store=item_store(prefix, name))
-            ) {
-            | Some(seg) =>
-              let root = persisted.editor.root;
-              let z =
-                Zipper.unzip(~direction=Left, seg)
-                |> Zipper.remold_regrout(Right, ~root)
-                |> ZipperBase.update_refractors(_, r =>
-                     Refractors.{
-                       ...r,
-                       manuals: read_probes(prefix, name, seg),
-                     }
-                   );
-              /* prime the dirty cache: the first autosave tick after
-                 a load should rewrite nothing */
-              Hashtbl.replace(
-                last_item_saves,
-                prefix ++ ":" ++ name,
-                ItemPersist.items_of(
-                  Zipper.unselect_and_zip(~erase_buffer=true, z),
-                ),
-              );
-              CellEditor.Model.unpersist_with(
-                ~settings,
-                ~zipper=z,
-                persisted,
-              );
-            | None => CellEditor.Model.unpersist(~settings, persisted)
-            };
-          },
+          program:
+            Whole(
+              {
+                /* repair blobs persisted with the wrong root (and track
+                   canonical root changes): the slide table is
+                   authoritative for documentation slides */
+                let (persisted, root_repaired) =
+                  switch (e) {
+                  | Some(e) =>
+                    switch (Init.documentation_slide_root(name)) {
+                    | Some(root) when root != e.editor.root => (
+                        CellEditor.Model.{
+                          ...e,
+                          editor: {
+                            ...e.editor,
+                            root,
+                          },
+                        },
+                        true,
+                      )
+                    | _ => (e, false)
+                    }
+                  | None => (
+                      Init.default_documentation_slide_name(name),
+                      false,
+                    )
+                  };
+                /* per-item restore: exact zipper, no text parse. Skipped
+                   when the root was just repaired (stored items were
+                   normalized under the OLD root — reparse once instead)
+                   or on any roster inconsistency (text fallback). */
+                switch (
+                  root_repaired
+                    ? None
+                    : ItemPersist.load(~store=item_store(prefix, name))
+                ) {
+                | Some(seg) =>
+                  let root = persisted.editor.root;
+                  let z =
+                    Zipper.unzip(~direction=Left, seg)
+                    |> Zipper.remold_regrout(Right, ~root)
+                    |> ZipperBase.update_refractors(_, r =>
+                         Refractors.{
+                           ...r,
+                           manuals: read_probes(prefix, name, seg),
+                         }
+                       );
+                  /* prime the dirty cache: the first autosave tick after
+                     a load should rewrite nothing */
+                  Hashtbl.replace(
+                    last_item_saves,
+                    prefix ++ ":" ++ name,
+                    ItemPersist.items_of(
+                      Zipper.unselect_and_zip(~erase_buffer=true, z),
+                    ),
+                  );
+                  CellEditor.Model.unpersist_with(
+                    ~settings,
+                    ~zipper=z,
+                    persisted,
+                  );
+                | None => CellEditor.Model.unpersist(~settings, persisted)
+                };
+              },
+            ),
           agent: Agent.Persistent.unpersist(agent),
         }),
       dormant: false,
@@ -666,9 +630,11 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
         name,
         kind:
           Code({
-            editor:
-              Init.default_documentation_slide_name(name)
-              |> CellEditor.Model.unpersist(~settings),
+            program:
+              Whole(
+                Init.default_documentation_slide_name(name)
+                |> CellEditor.Model.unpersist(~settings),
+              ),
             agent,
           }),
         dormant: false,
@@ -700,7 +666,6 @@ let load_all =
             : Scratchpad.dormant_code(name),
         names,
       ),
-    focus: None,
   };
 };
 

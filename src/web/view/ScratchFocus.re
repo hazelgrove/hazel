@@ -1,6 +1,3 @@
-module Scratchpad = ScratchModel.Scratchpad;
-module Model = ScratchModel.Model;
-
 /* ---- definition-focus helpers (modular-editors phase 2) ----
    Focus targets the definition's RHS child segment (between `=` and
    `in`/`;`) — a complete, properly-grouted expression, per the adopted
@@ -578,10 +575,10 @@ let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
 
 /* caret starts at the TOP of a fresh cell: unzip's default
    direction (Right) would leave it after the whole segment */
-let cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
+let cell_of_seg = (~root=Sort.Exp, seg: Segment.t): CellEditor.Model.t =>
   seg
   |> Zipper.unzip(~direction=Left)
-  |> Editor.Model.mk(~root=Exp)
+  |> Editor.Model.mk(~root)
   |> CellEditor.Model.mk;
 
 let pat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
@@ -747,7 +744,7 @@ let rec mk_entry =
           fid: Id.t,
           master_seg: Segment.t,
         )
-        : option(Model.stack_entry) =>
+        : option(ScratchCell.t) =>
   !item_complete(fid, master_seg)
     ? None
     : (
@@ -762,7 +759,7 @@ let rec mk_entry =
             Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
           };
         Some(
-          Model.{
+          ScratchCell.{
             e_id: fid,
             e_mod: false,
             e_sym: Some(sym),
@@ -778,7 +775,7 @@ let rec mk_entry =
     )
 and mk_def_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
-    : option(Model.stack_entry) =>
+    : option(ScratchCell.t) =>
   switch (find_def(fid, master_seg)) {
   | None => None
   | Some(def_seg) =>
@@ -790,7 +787,7 @@ and mk_def_entry =
         Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
       };
     Some(
-      Model.{
+      ScratchCell.{
         e_id: fid,
         e_mod: is_module_item(fid, master_seg),
         e_sym: None,
@@ -800,7 +797,10 @@ and mk_def_entry =
           (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
             core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
           ),
-        e_body: (is_type ? typ_cell_of_seg : cell_of_seg)(core_ws(def_seg)),
+        e_body:
+          is_type
+            ? typ_cell_of_seg(core_ws(def_seg))
+            : cell_of_seg(core_ws(def_seg)),
         e_ctx,
       },
     );
@@ -810,7 +810,7 @@ and mk_def_entry =
    container), anchored at the FIRST test's item id */
 let mk_run_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
-    : option(Model.stack_entry) =>
+    : option(ScratchCell.t) =>
   !item_complete(fid, master_seg)
     ? None
     : (
@@ -825,7 +825,7 @@ let mk_run_entry =
             Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
           };
         Some(
-          Model.{
+          ScratchCell.{
             e_id: fid,
             e_mod: false,
             e_sym: Some("tests"),
@@ -841,7 +841,7 @@ let mk_run_entry =
 
 /* splice ONE entry's header+body home into [seg], restoring the
    edge whitespace the master's stale copies still carry */
-let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
+let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
   switch (e.e_sym) {
   | Some(_) when e.e_run =>
     splice_run_deep(e.e_id, zip_of_cell(e.e_body), seg)
@@ -862,32 +862,9 @@ let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
   };
 
 /* the cell-content slice for any entry kind (ctx recapture) */
-let cell_content = (e: Model.stack_entry, seg: Segment.t): option(Segment.t) =>
+let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
   switch (e.e_sym) {
   | Some(_) when e.e_run => test_run_deep(e.e_id, seg) |> Option.map(fst)
   | Some(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
   | None => find_def(e.e_id, seg)
-  };
-
-/* the master segment with every live entry spliced home */
-let splice_all = (focus: Model.focus_t): Segment.t =>
-  List.fold_left(
-    (seg, e) => splice_entry(e, seg),
-    focus.f_master_seg,
-    focus.f_entries,
-  );
-
-/* the master scratchpad with live stack edits spliced in (pure;
-   used by unfocus AND by persistence while the stack is open) */
-let spliced_master = (focus: Model.focus_t, sp: Scratchpad.t): Scratchpad.t =>
-  switch (sp.kind) {
-  | Code({agent, _}) => {
-      ...sp,
-      kind:
-        Code({
-          editor: cell_of_seg(splice_all(focus)),
-          agent,
-        }),
-    }
-  | _ => sp
   };

@@ -50,13 +50,29 @@ module Model = {
   /* Identity of the editor Page.Update.get_editor returns: stable across
      frames of the same editor, distinct across slides/exercises/modes. For
      after-display caches (RefractorShift) and culling-range resets. */
-  let editor_key: t => string =
-    fun
-    | Scratch(m) => "scratch:" ++ string_of_int(m.current)
-    | Documentation(m) => "documentation:" ++ string_of_int(m.current)
+  let editor_key = (model: t): string => {
+    /* a divided program's editor is its active cell */
+    let cell = (m: ScratchMode.Model.t) =>
+      switch (ScratchMode.Model.current_program(m)) {
+      | Some(Divided(d)) =>
+        switch (Divided.active(d)) {
+        | Some((id, side)) =>
+          ":"
+          ++ Haz3lcore.Id.to_string(id)
+          ++ (side == Divided.Header ? ":h" : ":b")
+        | None => ":cells"
+        }
+      | _ => ""
+      };
+    switch (model) {
+    | Scratch(m) => "scratch:" ++ string_of_int(m.current) ++ cell(m)
+    | Documentation(m) =>
+      "documentation:" ++ string_of_int(m.current) ++ cell(m)
     | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
     | Config(m) => "config:" ++ string_of_int(m.current)
-    | Exercises(m) => "exercises:" ++ string_of_int(m.current);
+    | Exercises(m) => "exercises:" ++ string_of_int(m.current)
+    };
+  };
 
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
@@ -535,6 +551,16 @@ module Selection = {
       ScratchMode.Selection.stack_add_selection(sa, m)
       |> Option.map(s => Scratch(s))
     | _ => None
+    };
+
+  /* after an update, the selection names the same pane (see
+     ScratchMode.Selection.follow) */
+  let follow = (~before: Model.t, selection: t, after: Model.t): t =>
+    switch (selection, before, after) {
+    | (Scratch(sel), Scratch(b), Scratch(a))
+    | (Scratch(sel), Documentation(b), Documentation(a)) =>
+      Scratch(ScratchMode.Selection.follow(~before=b, sel, a))
+    | _ => selection
     };
 
   let default_selection =

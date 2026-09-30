@@ -47,7 +47,8 @@ let save_then_load = () => {
   let sp = List.nth(m.scratchpads, m.current);
   switch (sp.kind) {
   | Drv(_) => fail("expected a code slide")
-  | Code({editor, agent}) =>
+  | Code({program, agent}) =>
+    let editor = Web.Program.whole(program);
     let z = editor.editor.editor.state.zipper;
     let anchor = List.hd(Segment.ids(Zipper.unselect_and_zip(z)));
     let z =
@@ -65,7 +66,7 @@ let save_then_load = () => {
       ...sp,
       kind:
         Code({
-          editor,
+          program: Whole(editor),
           agent,
         }),
     };
@@ -77,7 +78,8 @@ let save_then_load = () => {
       },
     );
     switch (Persist.load_scratchpad(~settings, "probetest", sp.name).kind) {
-    | Code({editor, _}) =>
+    | Code({program, _}) =>
+      let editor = Web.Program.whole(program);
       check(
         bool,
         "the probe comes back on the per-item load",
@@ -86,7 +88,7 @@ let save_then_load = () => {
           anchor,
           editor.editor.editor.state.zipper.refractors.manuals,
         ),
-      )
+      );
     | Drv(_) => fail("loaded a derivation slide")
     };
   };
