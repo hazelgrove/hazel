@@ -263,6 +263,28 @@
 .fumola-wip-field span {
     opacity: 0.6;
 }
+/* editor | archivist [name]. The sidebar's toggle, sized to fit the one
+   code row the head has: its padding and rule are for a panel, and here
+   they pushed the buttons past the row, which clipped them. */
+.fumola-wip-role {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+}
+.fumola-wip-roles.problem-view-toggle {
+    padding: 0;
+    border-bottom: none;
+}
+.fumola-wip-roles .toggle-option {
+    min-width: 0;
+    padding: 0 0.5em;
+    line-height: 1.4;
+}
+.fumola-wip-name {
+    width: 12em;
+    font-family: var(--code-font);
+    outline: none;
+}
 .fumola-wip-field input {
     width: 9em;
     font-family: var(--code-font);

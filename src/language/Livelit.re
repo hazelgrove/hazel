@@ -1139,7 +1139,18 @@ module FumolaWip: BuiltinLivelit = {
 
   type model_t = {
     instance: string,
+    /* The archivist's name: the thunk and cells are `name(`compute) and so
+       on. Empty means the default, named from the use's own id (see
+       default_name). Unused by the editor. */
     name: string,
+    /* Which of Fumola's two roles the code runs in. The archivist runs
+       inside a force, in a thunk the name names, so what it reads and
+       writes is recorded. The editor runs at the top level, on a stack with
+       no force on it, as the editor of the instance: it needs no name. */
+    editor: bool,
+    /* Whether the editor's code has an input at all; off, `input` is not
+       bound. The archivist always has one: its input cell. */
+    bind_input: bool,
     /* The code as tiles -- a `fumola … end` splice -- or as a string
        literal holding the body's Fumola text. */
     tiles: bool,
@@ -1161,6 +1172,8 @@ module FumolaWip: BuiltinLivelit = {
       Prod([
         field_t("instance", Typ.temp(Atom(String))),
         field_t("name", Typ.temp(Atom(String))),
+        field_t("editor", Typ.temp(Atom(Bool))),
+        field_t("bind_input", Typ.temp(Atom(Bool))),
         field_t("tiles", Typ.temp(Atom(Bool))),
         field_t("input", Typ.temp(Unknown(Internal))),
         field_t("code", Typ.temp(Unknown(Internal))),
@@ -1175,6 +1188,8 @@ module FumolaWip: BuiltinLivelit = {
       Tuple([
         field("instance", DHExp.fresh(Atom(String(m.instance)))),
         field("name", DHExp.fresh(Atom(String(m.name)))),
+        field("editor", DHExp.fresh(Atom(Bool(m.editor)))),
+        field("bind_input", DHExp.fresh(Atom(Bool(m.bind_input)))),
         field("tiles", DHExp.fresh(Atom(Bool(m.tiles)))),
         field("input", m.input),
         field("code", m.code),
@@ -1217,6 +1232,19 @@ module FumolaWip: BuiltinLivelit = {
         Some({
           instance,
           name,
+          /* Absent in a use written before the roles: the archivist, which
+             is what every such use ran as. */
+          editor:
+            switch (Option.map(unparen, get("editor"))) {
+            | Some({term: Atom(Bool(editor)), _}) => editor
+            | _ => false
+            },
+          /* Absent before the editor's input could be turned off: on. */
+          bind_input:
+            switch (Option.map(unparen, get("bind_input"))) {
+            | Some({term: Atom(Bool(b)), _}) => b
+            | _ => true
+            },
           tiles,
           input,
           code,
@@ -1229,6 +1257,23 @@ module FumolaWip: BuiltinLivelit = {
   /* Fumola terms carry ids like Hazel's; fresh ones, since none of these is
      anything the user wrote. */
   let f = IdTagged.fresh;
+
+  /* The archivist's default name, from the id of the Hazel term the use
+     is: `hazel_<uuid>`. Underscores, not the uuid's hyphens, since a
+     Fumola name cannot hold a hyphen: `hazel-1 would read as `hazel - 1. */
+  let default_name = (id: Id.t): string =>
+    "hazel_" ++ String.map(c => c == '-' ? '_' : c, Id.to_string(id));
+
+  /* The model with its archivist name filled in, for everything that names
+     a cell; the syntax keeps the empty name, so the default follows the
+     use's id. */
+  let named = (~id: Id.t, m: model_t): model_t =>
+    m.name == ""
+      ? {
+        ...m,
+        name: default_name(id),
+      }
+      : m;
 
   /* `name(`cell) */
   let cell = (m: model_t, cell): FumolaTermBase.t =>
@@ -1245,7 +1290,9 @@ module FumolaWip: BuiltinLivelit = {
 
   let model_default: model_t = {
     instance: "myInstance",
-    name: "myLivelit",
+    name: "",
+    editor: false,
+    bind_input: true,
     tiles: true,
     input: DHExp.fresh(Parens(DHExp.fresh(Atom(Int(Bigint.of_int(3)))))),
     code:
@@ -1348,21 +1395,51 @@ module FumolaWip: BuiltinLivelit = {
       }
     };
 
-  let expand = (~id as _, ~ana as _, ~tools as _, m: model_t): expansion_t =>
+  let expand = (~id, ~ana as _, ~tools as _, m: model_t): expansion_t => {
+    let m = named(~id, m);
     switch (code_decs(m)) {
     | Error(None) => DHExp.fresh(EmptyHole)
     | Error(Some(message)) => DHExp.fresh(Invalid(message))
+    /* The editor: do { let input = <the input>; <code> }, at the top level.
+       No thunk, so nothing forces it, and no cells: its value is the
+       expansion. */
+    | Ok((mode, decs)) when m.editor =>
+      DHExp.fresh(
+        FumolaQuote(
+          f(FumolaGrammar.Var(m.instance)),
+          mode,
+          f(
+            FumolaGrammar.Block(
+              (
+                m.bind_input
+                  ? [
+                    f(
+                      FumolaGrammar.DLet(
+                        f(FumolaGrammar.PVar("input")),
+                        f(FumolaGrammar.Hazel(m.input)),
+                      ),
+                    ),
+                  ]
+                  : []
+              )
+              @ decs,
+            ),
+          ),
+        ),
+      )
     | Ok((mode, decs)) =>
-      /* thunk { let input = @(`name(`input)); <code> }: reading the cell,
-         rather than taking the value, is what gives the computation an edge
-         to the input the watch pane can show. */
+      /* thunk { let input = `name(`input); <code> }: `input` is the cell,
+         not what it holds, so the code chooses when to read it, with
+         `@ input`, and in which thunk. Each read is an edge from the input
+         the watch pane shows; a sub-thunk that reads it again has an edge
+         of its own. */
       let thunk =
         f(
           FumolaGrammar.Thunk([
             f(
               FumolaGrammar.DLet(
                 f(FumolaGrammar.PVar("input")),
-                read(m, "input"),
+                cell(m, "input"),
               ),
             ),
             ...decs,
@@ -1406,6 +1483,7 @@ module FumolaWip: BuiltinLivelit = {
         FumolaQuote(f(FumolaGrammar.Var(m.instance)), mode, program),
       );
     };
+  };
 
   let expand_to_hazel = (e: expansion_t): expansion_exp => e;
 
@@ -1544,7 +1622,167 @@ module FumolaWip: BuiltinLivelit = {
     );
   };
 
-  let view = (~id as _, m: model_t, send_action) =>
+  /* editor | archivist [name]: exactly one is on, and the archivist's name
+     shows only while it is. The field shows the name in use, the default
+     included; clearing it goes back to the default. */
+  let role_switch = (~id, m: model_t, send_action) => {
+    let option = (on, label, title, m') =>
+      Node.span(
+        ~attrs=[
+          Attr.classes(["toggle-option"] @ (on ? ["active"] : [])),
+          Attr.title(title),
+          Attr.on_click(_ =>
+            on ? Virtual_dom.Vdom.Effect.Ignore : send_action(SetModel(m'))
+          ),
+        ],
+        [Node.text(label)],
+      );
+    Node.div(
+      ~attrs=[Attr.class_("fumola-wip-role")],
+      [
+        Node.div(
+          ~attrs=[Attr.classes(["problem-view-toggle", "fumola-wip-roles"])],
+          [
+            option(
+              m.editor,
+              "editor",
+              "run the code at the top level, as the editor of "
+              ++ m.instance
+              ++ ": no thunk, and no cells of its own",
+              {
+                ...m,
+                editor: true,
+              },
+            ),
+            option(
+              !m.editor,
+              "archivist",
+              "run the code inside a force, in a thunk the name names, so what it reads and writes is recorded",
+              {
+                ...m,
+                editor: false,
+              },
+            ),
+          ],
+        ),
+      ]
+      @ (
+        m.editor
+          ? [
+            /* The editor's input is optional: off, `input` is not bound. */
+            Node.label(
+              ~attrs=[
+                Attr.class_("fumola-wip-field"),
+                Attr.title(
+                  m.bind_input
+                    ? "bind input to the In wire's value; untick to run without one"
+                    : "run with no input; tick to bind input to the In wire's value",
+                ),
+              ],
+              [
+                Node.input(
+                  ~attrs=[
+                    Attr.type_("checkbox"),
+                    Attr.bool_property("checked", m.bind_input),
+                    Attr.on_keydown(_ =>
+                      Virtual_dom.Vdom.Effect.Stop_propagation
+                    ),
+                    Attr.on_change((_, _) =>
+                      send_action(
+                        SetModel({
+                          ...m,
+                          bind_input: !m.bind_input,
+                        }),
+                      )
+                    ),
+                  ],
+                  (),
+                ),
+                Node.span([Node.text("input")]),
+              ],
+            ),
+          ]
+          : [
+            Node.input(
+              ~attrs=[
+                Attr.class_("fumola-wip-name"),
+                Attr.type_("text"),
+                Attr.title("the archivist's name, which names its cells"),
+                Attr.value(named(~id, m).name),
+                Attr.on_keydown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+                Attr.on_input((_, name) =>
+                  send_action(
+                    SetModel({
+                      ...m,
+                      name,
+                    }),
+                  )
+                ),
+              ],
+              (),
+            ),
+          ]
+      ),
+    );
+  };
+
+  /* An archivist with no name gets the default written into its model,
+     once. The view's id (the projector's) is not the id the expansion is
+     given (the application's), so a default each derived for itself named
+     two different thunks; written once, both read it from the syntax. It
+     also keeps the name when a slide loads from text with fresh ids.
+
+     Not while the name field has focus: clearing the field to retype it
+     would refill it under the cursor. Deferred, as the runtime claim in
+     FumolaNew is, since acting mid-render would mutate what is rendered;
+     and only from the empty name, so it cannot loop. */
+  let write_default_name = (~id, m: model_t, send_action) =>
+    if (!m.editor && m.name == "") {
+      let editing =
+        switch (
+          Js_of_ocaml.Js.Unsafe.get(
+            Js_of_ocaml.Js.Unsafe.get(
+              Js_of_ocaml.Js.Unsafe.global,
+              "document",
+            ),
+            "activeElement",
+          )
+          |> Js_of_ocaml.Js.Opt.to_option
+        ) {
+        | Some(el) =>
+          Js_of_ocaml.Js.to_string(
+            Js_of_ocaml.Js.Unsafe.get(el, "className"),
+          )
+          == "fumola-wip-name"
+        | None => false
+        | exception _ => false
+        };
+      if (!editing) {
+        let effect =
+          send_action(
+            SetModel({
+              ...m,
+              name: default_name(id),
+            }),
+          );
+        let _ =
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            Js_of_ocaml.Js.Unsafe.js_expr("window.setTimeout"),
+            [|
+              Js_of_ocaml.Js.Unsafe.inject(
+                Js_of_ocaml.Js.wrap_callback(() =>
+                  Ui_effect.Expert.handle(effect)
+                ),
+              ),
+              Js_of_ocaml.Js.Unsafe.inject(0),
+            |],
+          );
+        ();
+      };
+    };
+
+  let view = (~id, m: model_t, send_action) => {
+    write_default_name(~id, m, send_action);
     Node.div(
       ~attrs=[Attr.class_("fumola-wip-head")],
       [
@@ -1563,14 +1801,7 @@ module FumolaWip: BuiltinLivelit = {
             }),
           )
         ),
-        text_field(~label="livelit", m.name, name =>
-          send_action(
-            SetModel({
-              ...m,
-              name,
-            }),
-          )
-        ),
+        role_switch(~id, m, send_action),
         toggle(m, send_action),
         {
           /* Debug: "runs" moves as runs happen, straight from FumolaRun;
@@ -1604,6 +1835,7 @@ module FumolaWip: BuiltinLivelit = {
         },
       ],
     );
+  };
 
   let rec splice_id = (e: TermBase.Exp.t): option(Id.t) =>
     switch (e.term) {
@@ -1701,6 +1933,7 @@ module FumolaWip: BuiltinLivelit = {
   };
 
   let view_below = (~id, ~splice, m: model_t, send_action) => {
+    let m = named(~id, m);
     let key = Id.to_string(id);
     let split = Option.value(Hashtbl.find_opt(splits, key), ~default=0.5);
     let editor = (e: TermBase.Exp.t) =>
@@ -1708,11 +1941,25 @@ module FumolaWip: BuiltinLivelit = {
       | Some(node) => node
       | None => Node.span(~attrs=[Attr.class_("fumola-wip-missing")], [])
       };
+    /* The Fumola end of a wire: the archivist's cell, or, for the editor,
+       which has none, the variable its input is bound to and its value. */
     let symbol = c =>
       Node.code(
         ~attrs=[Attr.class_("fumola-wip-cell")],
-        [Node.text("`" ++ m.name ++ "(`" ++ c ++ ")")],
+        [
+          Node.text(
+            switch (m.editor, c) {
+            | (true, "input") when !m.bind_input => "not bound"
+            | (true, "input") => "input"
+            | (true, _) => "the code's value"
+            | (false, _) => "`" ++ m.name ++ "(`" ++ c ++ ")"
+            },
+          ),
+        ],
       );
+    /* The editor's program writes no cell to say whose it is, so its runs
+       are kept under no name (FumolaRun.owner_of). */
+    let run_name = m.editor ? "" : m.name;
     /* A wire crosses the language boundary: Hazel on its left, the Fumola
        cell on its right, and the arrow says which way the value goes. */
     let wire = (~dir, hazel, fumola) =>
@@ -1808,7 +2055,10 @@ module FumolaWip: BuiltinLivelit = {
                      here is its own error, not the run before it. */
                   switch (
                     code_decs(m),
-                    FumolaRun.last_run_of(~instance=m.instance, ~name=m.name),
+                    FumolaRun.last_run_of(
+                      ~instance=m.instance,
+                      ~name=run_name,
+                    ),
                   ) {
                   | (Error(None), _) =>
                     Node.span(
@@ -1871,7 +2121,7 @@ module FumolaWip: BuiltinLivelit = {
                         switch (
                           FumolaRun.last_run_of(
                             ~instance=m.instance,
-                            ~name=m.name,
+                            ~name=run_name,
                           )
                         ) {
                         | Some({program: "", _}) =>
