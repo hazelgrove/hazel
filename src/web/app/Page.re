@@ -749,6 +749,7 @@ type outline_memo_key = {
   ok_collapsed: list(OutlineTree.path),
   ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
   ok_results: option(Language.TestResults.t),
+  ok_view: option(SlideView.t),
 };
 let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
   ref(Option.none);
@@ -766,6 +767,7 @@ let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
   && a.ok_name == b.ok_name
   && a.ok_collapsed == b.ok_collapsed
   && a.ok_menu == b.ok_menu
+  && a.ok_view == b.ok_view
   && (
     switch (a.ok_results, b.ok_results) {
     | (Some(x), Some(y)) => x === y
@@ -1103,7 +1105,14 @@ module View = {
           }
         | _ => None
         };
+      let slide_view =
+        switch (model.editors) {
+        | Scratch(m)
+        | Documentation(m) => ScratchMode.Model.current_view(m)
+        | _ => None
+        };
       let memo_key = {
+        ok_view: slide_view,
         ok_statics: outline_statics,
         ok_slot: Haz3lcore.DefStatics.current(),
         ok_focused: focused_entries,
@@ -1211,7 +1220,36 @@ module View = {
               path => inject(Editors(Scratch(OutlineCollapse(path)))),
             ~error_items,
             ~error_subtree,
-            ~unfocus=inject(Editors(Scratch(UnfocusDef))),
+            ~header={
+              let label = id =>
+                switch (OutlineTree.node_of(id, outline_term)) {
+                | Some(n) => n.o_label
+                | None => ""
+                };
+              let (h_open, h_parked) =
+                switch (slide_view) {
+                | Some(v) =>
+                  let n =
+                    List.length(SlideView.visible(~term=outline_term, v));
+                  v.parked ? (0, n) : (n, 0);
+                | None => (0, 0)
+                };
+              {
+                h_program: slide_name,
+                h_trail:
+                  switch (slide_view) {
+                  | Some(v) => List.map(id => (id, label(id)), v.zoom)
+                  | None => []
+                  },
+                h_open,
+                h_parked,
+              };
+            },
+            ~zoom_root=Option.bind(slide_view, SlideView.zoom_root),
+            ~zoom_to=m => inject(Editors(Scratch(ZoomTo(m)))),
+            ~zoom_in=id => inject(Editors(Scratch(ZoomIn(id)))),
+            ~show_whole=b => inject(Editors(Scratch(ShowWhole(b)))),
+            ~discard=inject(Editors(Scratch(UnfocusDef))),
             ~focused_entries,
             ~menu,
             ~menu_open=

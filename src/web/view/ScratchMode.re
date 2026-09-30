@@ -1142,8 +1142,10 @@ module Update = {
             switch (reuse) {
             | Some(prev) => prev
             | None =>
+              /* a zoomed module's members are a Mod-rooted body */
               let body_is_exp =
-                e.e_body.editor.editor.root == Haz3lcore.Sort.Exp;
+                e.e_body.editor.editor.root == Haz3lcore.Sort.Exp
+                || e.e_body.editor.editor.root == Haz3lcore.Sort.Mod;
               let body_is_typ =
                 e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
               /* PROJECTION: on statics frames cells read their item's
@@ -1598,6 +1600,7 @@ module View = {
     k_body_sel: option(CellEditor.Selection.t),
     k_meta_down: bool,
     k_visible_rows: option(Globals.VisibleRows.t),
+    k_zoom_cell: bool,
   };
   type cached_cell = {
     c_key: stack_cache_key,
@@ -1671,12 +1674,14 @@ module View = {
       ];
     } else {
       switch (current.kind) {
-      | Code({program, _}) =>
+      | Code({program, view, _}) =>
         /* the STACK: [header band, body cell] per entry, thin rules
            between; rendered INSTEAD of the master cell */
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
           let term = Divided.statics(d).term;
+          /* the zoomed module as one cell: the breadcrumb names it */
+          let zoom_cell = SlideView.showing_zoom_cell(~term, view);
           let rendered =
             List.mapi(
               (i, e: ScratchCell.t) => {
@@ -1697,6 +1702,7 @@ module View = {
                   k_body_sel: body_sel,
                   k_meta_down: globals.Globals.Model.meta_down,
                   k_visible_rows: globals.Globals.Model.visible_rows,
+                  k_zoom_cell: zoom_cell,
                 };
                 switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
@@ -1926,37 +1932,42 @@ module View = {
                         ],
                       )
                     };
-                  let nodes = [
-                    header_pane,
-                    Virtual_dom.Vdom.Node.div(
-                      ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
-                      [
-                        CellEditor.View.view(
-                          ~globals,
-                          ~signal=
-                            fun
-                            | MakeActive(sel) =>
-                              signal(MakeActive(StackB(i, sel))),
-                          ~inject=a => inject(StackBody(i, a)),
-                          ~selected=body_sel,
-                          ~result_kind=`NoResults,
-                          ~locked=false,
-                          ~lines=true,
-                          ~master_result=Divided.result(d),
-                          ~escape=body_escape,
-                          ~escape_vertical=Some(body_escape_vertical),
-                          /* culling measures ONE container (dev's
-                             `.cull-scope` invariant): in a focus stack only
-                             the first body cell opts in; the rest render
-                             unculled rather than against another cell's rows */
-                          ~cull={
-                            i == 0;
-                          },
-                          e.e_body,
-                        ),
-                      ],
-                    ),
-                  ];
+                  let nodes =
+                    (zoom_cell ? [] : [header_pane])
+                    @ [
+                      Virtual_dom.Vdom.Node.div(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes(
+                            ["focus-body"] @ (zoom_cell ? ["zoom-body"] : []),
+                          ),
+                        ],
+                        [
+                          CellEditor.View.view(
+                            ~globals,
+                            ~signal=
+                              fun
+                              | MakeActive(sel) =>
+                                signal(MakeActive(StackB(i, sel))),
+                            ~inject=a => inject(StackBody(i, a)),
+                            ~selected=body_sel,
+                            ~result_kind=`NoResults,
+                            ~locked=false,
+                            ~lines=true,
+                            ~master_result=Divided.result(d),
+                            ~escape=body_escape,
+                            ~escape_vertical=Some(body_escape_vertical),
+                            /* culling measures ONE container (dev's
+                               `.cull-scope` invariant): in a focus stack only
+                               the first body cell opts in; the rest render
+                               unculled rather than against another cell's rows */
+                            ~cull={
+                              i == 0;
+                            },
+                            e.e_body,
+                          ),
+                        ],
+                      ),
+                    ];
                   (
                     e.e_id,
                     {

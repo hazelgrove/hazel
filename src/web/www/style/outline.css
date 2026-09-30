@@ -72,6 +72,76 @@
   opacity: 1;
   padding: 4px 10px;
   border-bottom: 0.6px solid var(--border-default, #b5a377);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* header row: ☰ collapses the sidebar; open, the rest is a breadcrumb
+   (the program, then each zoomed module) */
+#outline-sidebar > summary .outline-crumbs {
+  display: none;
+}
+#outline-sidebar[open] > summary .outline-crumbs {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+#outline-sidebar[open] > summary .outline-word {
+  display: none;
+}
+#outline-sidebar .outline-menu-glyph {
+  opacity: 0.7;
+}
+#outline-sidebar .outline-crumb {
+  cursor: pointer;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+  min-width: 2ch;
+}
+#outline-sidebar .outline-crumb-sep,
+#outline-sidebar .outline-crumb-count,
+#outline-sidebar .outline-crumb-btn,
+#outline-sidebar .outline-crumb-chip,
+#outline-sidebar .outline-crumb.outline-crumb-here {
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-crumb:hover {
+  opacity: 1;
+}
+#outline-sidebar .outline-crumb.outline-crumb-here {
+  opacity: 1;
+  font-weight: bold;
+}
+#outline-sidebar .outline-crumb-sep {
+  opacity: 0.4;
+}
+#outline-sidebar .outline-crumb-count {
+  opacity: 0.6;
+}
+#outline-sidebar .outline-crumb-btn {
+  cursor: pointer;
+  opacity: 0.55;
+}
+#outline-sidebar .outline-crumb-btn:hover {
+  opacity: 1;
+}
+#outline-sidebar .outline-crumb-chip {
+  cursor: pointer;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 55%, transparent);
+  opacity: 0.8;
+}
+#outline-sidebar .outline-crumb-chip:hover {
+  opacity: 1;
 }
 
 #outline-sidebar .outline-body {
@@ -169,10 +239,6 @@
   color: var(--text-accent, #6a5a3a);
 }
 
-#outline-sidebar .outline-unfocus.outline-hidden {
-  display: none;
-}
-
 #outline-sidebar .outline-empty {
   opacity: 0.6;
   padding: 6px;
@@ -203,19 +269,6 @@
 #outline-sidebar .outline-label.outline-focused {
   background: var(--surface-shard, #d8c9a3);
   font-weight: bold;
-}
-
-#outline-sidebar .outline-unfocus {
-  cursor: pointer;
-  padding: 3px 6px;
-  margin-bottom: 6px;
-  border: 0.6px solid var(--border-default, #b5a377);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 45%, white);
-}
-
-#outline-sidebar .outline-unfocus:hover {
-  background: var(--surface-shard, #d8c9a3);
 }
 
 /* editor panes carry no borders in outline modes — the outline

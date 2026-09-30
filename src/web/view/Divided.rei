@@ -21,6 +21,7 @@ let split:
   (
     ~info_map: Language.Statics.Map.t,
     ~sym: string=?,
+    ~inner: bool=?,
     CellEditor.Model.t,
     Id.t
   ) =>
@@ -49,6 +50,7 @@ let open_:
     ~info_map: Language.Statics.Map.t,
     ~term: Language.Exp.t,
     ~sym: string=?,
+    ~inner: bool=?,
     Id.t,
     t
   ) =>

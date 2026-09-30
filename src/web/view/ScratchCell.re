@@ -20,6 +20,9 @@ type t = {
   e_run: bool,
   /* run cells: the item ids the run covers (first = e_id) */
   e_members: list(Haz3lcore.Id.t),
+  /* a zoomed module: the body is its members, MOD-rooted, and the
+     braces stay in the program */
+  e_inner: bool,
   /* body: the definition RHS, EXP- (or TYP-)rooted */
   e_body: CellEditor.Model.t,
   e_ctx: Language.Ctx.t /* outer ctx at the definition */

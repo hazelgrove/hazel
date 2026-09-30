@@ -28,6 +28,15 @@ type def_op =
   | MoveDown
   | Delete;
 
+/* the header row: the program and the zoom trail as a breadcrumb, and
+   how many pins the current level shows or keeps parked */
+type header = {
+  h_program: string,
+  h_trail: list((Language.Id.t, string)),
+  h_open: int,
+  h_parked: int,
+};
+
 let kind_glyph = (k: OutlineTree.kind): string =>
   switch (k) {
   | KModule => {js|⛁|js}
@@ -451,6 +460,7 @@ let menu_view =
     (
       ~menu_close: Effect.t(unit),
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~zoom_in: Language.Id.t => Effect.t(unit),
       ~is_module: bool,
       (id: Language.Id.t, x: float, y: float),
     )
@@ -513,7 +523,20 @@ let menu_view =
           clss(["outline-def-menu"]),
           Attr.style(Css_gen.combine(h, v)),
         ],
-        (is_module ? [item(NewInside, "new definition inside")] : [])
+        (
+          is_module
+            ? [
+              div(
+                ~attrs=[
+                  clss(["outline-def-menu-item"]),
+                  Attr.on_click(_ => Effect.Many([menu_close, zoom_in(id)])),
+                ],
+                [text("zoom in")],
+              ),
+              item(NewInside, "new definition inside"),
+            ]
+            : []
+        )
         @ [
           item(NewBelow, "new definition below"),
           item(NewTypeBelow, "new type below"),
@@ -528,6 +551,108 @@ let menu_view =
   ];
 };
 
+/* the breadcrumb: the program, then each zoomed module. An ancestor
+   crumb zooms out to it; the last one shows its level's whole */
+let header_view =
+    (
+      ~header: header,
+      ~zoom_to: option(Language.Id.t) => Effect.t(unit),
+      ~show_whole: bool => Effect.t(unit),
+      ~discard: Effect.t(unit),
+    )
+    : list(Node.t) => {
+  let stop = eff =>
+    Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, eff]);
+  /* documentation slides are named "Folder / Name" */
+  let program = {
+    let s = header.h_program;
+    let n = String.length(s);
+    let rec last = (i, found) =>
+      i + 3 > n
+        ? found
+        : last(i + 1, String.sub(s, i, 3) == " / " ? Some(i) : found);
+    switch (last(0, None)) {
+    | Some(i) => String.sub(s, i + 3, n - i - 3)
+    | None => s
+    };
+  };
+  let crumbs =
+    [(Option.none, program)]
+    @ List.map(((id, l)) => (Option.some(id), l), header.h_trail);
+  let n = List.length(crumbs);
+  let sep =
+    span(~attrs=[clss(["outline-crumb-sep"])], [text({js|›|js})]);
+  let crumb_nodes =
+    List.concat(
+      List.mapi(
+        (i, (id, label)) => {
+          let last = i == n - 1;
+          let node =
+            span(
+              ~attrs=[
+                clss(
+                  ["outline-crumb"] @ (last ? ["outline-crumb-here"] : []),
+                ),
+                Attr.title(
+                  last
+                    ? header.h_open > 0 ? "show all of it" : label
+                    : "zoom out to " ++ label,
+                ),
+                Attr.on_click(_ =>
+                  stop(
+                    last
+                      ? header.h_open > 0 ? show_whole(true) : Effect.Ignore
+                      : zoom_to(id),
+                  )
+                ),
+              ],
+              [text(label)],
+            );
+          i == 0 ? [node] : [sep, node];
+        },
+        crumbs,
+      ),
+    );
+  let tail =
+    header.h_open > 0
+      ? [
+        sep,
+        span(
+          ~attrs=[clss(["outline-crumb-count"])],
+          [text(string_of_int(header.h_open) ++ " open")],
+        ),
+        span(
+          ~attrs=[
+            clss(["outline-crumb-btn"]),
+            Attr.title("close these cells"),
+            Attr.on_click(_ => stop(discard)),
+          ],
+          [text({js|⊖|js})],
+        ),
+      ]
+      : header.h_parked > 0
+          ? [
+            span(
+              ~attrs=[
+                clss(["outline-crumb-chip"]),
+                Attr.title("back to the cells"),
+                Attr.on_click(_ => stop(show_whole(false))),
+              ],
+              [
+                text(
+                  {js|↩ |js} ++ string_of_int(header.h_parked) ++ " open",
+                ),
+              ],
+            ),
+          ]
+          : [];
+  [
+    span(~attrs=[clss(["outline-menu-glyph"])], [text({js|☰|js})]),
+    span(~attrs=[clss(["outline-word"])], [text("outline")]),
+    span(~attrs=[clss(["outline-crumbs"])], crumb_nodes @ tail),
+  ];
+};
+
 let view =
     (
       ~stack_controls: bool,
@@ -538,7 +663,12 @@ let view =
       ~toggle_run: Language.Id.t => Effect.t(unit),
       ~is_collapsed: OutlineTree.path => bool,
       ~toggle_collapse: OutlineTree.path => Effect.t(unit),
-      ~unfocus: Effect.t(unit),
+      ~header: header,
+      ~zoom_root: option(Language.Id.t),
+      ~zoom_to: option(Language.Id.t) => Effect.t(unit),
+      ~zoom_in: Language.Id.t => Effect.t(unit),
+      ~show_whole: bool => Effect.t(unit),
+      ~discard: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
       ~error_subtree: list(Language.Id.t),
@@ -550,21 +680,17 @@ let view =
       term: Language.Exp.t,
     )
     : Node.t => {
-  let roots = OutlineTree.of_term(term);
-  /* the banner slot is ALWAYS present: prepending it only while a
-     stack is open shifted every sibling, and the positional vdom diff
-     then recreated each <details> with its default-open attribute —
-     pinning was expanding collapsed branches (andrew's bug report) */
-  let banner = [
-    switch (focused_entries) {
-    | [] => div(~attrs=[clss(["outline-unfocus", "outline-hidden"])], [])
-    | [_, ..._] =>
-      div(
-        ~attrs=[clss(["outline-unfocus"]), Attr.on_click(_ => unfocus)],
-        [text({js|✕ close all — whole program|js})],
-      )
-    },
-  ];
+  /* zoomed, the module's members are the top level; collapse paths
+     stay rooted at the program */
+  let (roots, root_path) =
+    switch (zoom_root) {
+    | Some(m) =>
+      switch (OutlineTree.node_of(m, term), OutlineTree.label_path(m, term)) {
+      | (Some(n), Some(path)) => (n.o_children, path)
+      | _ => (OutlineTree.of_term(term), [])
+      }
+    | None => (OutlineTree.of_term(term), [])
+    };
   create(
     "details",
     ~attrs=[Attr.id("outline-sidebar"), Attr.create("open", "")],
@@ -572,49 +698,48 @@ let view =
       create(
         "summary",
         ~attrs=[clss(["outline-title"])],
-        [text({js|☰ outline|js})],
+        stack_controls
+          ? header_view(~header, ~zoom_to, ~show_whole, ~discard)
+          : [text({js|☰ outline|js})],
       ),
       div(~attrs=[clss(["outline-resize"]), ...resize_attrs], []),
       div(
         ~attrs=[clss(["outline-body"])],
-        banner
-        @ (
-          roots == []
-            ? [
-              div(
-                ~attrs=[clss(["outline-empty"])],
-                [text("no definitions")],
-              ),
-            ]
-            : List.map(
-                ((root, rocc)) =>
-                  node_view(
-                    ~stack_controls,
-                    ~can_open,
-                    ~jump,
-                    ~focus,
-                    ~toggle,
-                    ~toggle_run,
-                    ~is_collapsed,
-                    ~toggle_collapse,
-                    ~path=[],
-                    ~occ=rocc,
-                    ~menu_open,
-                    ~error_subtree,
-                    ~focused_entries,
-                    ~error_items,
-                    ~test_status,
-                    root,
-                  ),
-                OutlineTree.with_occurrences(roots),
-              )
-        ),
+        roots == []
+          ? [
+            div(
+              ~attrs=[clss(["outline-empty"])],
+              [text("no definitions")],
+            ),
+          ]
+          : List.map(
+              ((root, rocc)) =>
+                node_view(
+                  ~stack_controls,
+                  ~can_open,
+                  ~jump,
+                  ~focus,
+                  ~toggle,
+                  ~toggle_run,
+                  ~is_collapsed,
+                  ~toggle_collapse,
+                  ~path=root_path,
+                  ~occ=rocc,
+                  ~menu_open,
+                  ~error_subtree,
+                  ~focused_entries,
+                  ~error_items,
+                  ~test_status,
+                  root,
+                ),
+              OutlineTree.with_occurrences(roots),
+            ),
       ),
     ]
     @ (
       switch (menu) {
       | Some((id, is_module, x, y)) when stack_controls =>
-        menu_view(~menu_close, ~def_op, ~is_module, (id, x, y))
+        menu_view(~menu_close, ~def_op, ~zoom_in, ~is_module, (id, x, y))
       | _ => []
       }
     ),

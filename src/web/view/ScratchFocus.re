@@ -765,6 +765,7 @@ let rec mk_entry =
             e_sym: Some(sym),
             e_run: false,
             e_members: [],
+            e_inner: false,
             e_header: empty_header_cell(),
             e_body: cell_of_seg(content),
             e_ctx,
@@ -793,6 +794,7 @@ and mk_def_entry =
         e_sym: None,
         e_run: false,
         e_members: [],
+        e_inner: false,
         e_header:
           (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
             core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
@@ -805,6 +807,74 @@ and mk_def_entry =
       },
     );
   };
+
+/* a module definition's members: the child of its braces */
+let brace_child = (def_seg: Segment.t): option(Segment.t) =>
+  List.find_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when Tile.label(t) == ["{", "}"] =>
+        switch (t.children) {
+        | [kid] => Some(kid)
+        | _ => None
+        }
+      | _ => None
+      },
+    def_seg,
+  );
+
+let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
+  List.map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t)
+          when Tile.label(t) == ["{", "}"] && List.length(t.children) == 1 =>
+        Piece.Tile({
+          ...t,
+          children: [kid],
+        })
+      | p => p
+      },
+    def_seg,
+  );
+
+/* a module as its members alone (a zoomed module): MOD-rooted, the
+   braces stay in the program */
+let mk_members_entry =
+    (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
+    : option(ScratchCell.t) =>
+  !item_complete(fid, master_seg)
+    ? None
+    : (
+      switch (Option.bind(find_def(fid, master_seg), brace_child)) {
+      | None => None
+      | Some(members) =>
+        let e_ctx =
+          switch (captured_ctx(~info_map, fid, members)) {
+          | Some(ctx) => ctx
+          | None =>
+            Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+          };
+        Some(
+          ScratchCell.{
+            e_id: fid,
+            e_mod: true,
+            e_sym: None,
+            e_run: false,
+            e_members: [],
+            e_inner: true,
+            e_header:
+              pat_cell_of_seg(
+                core_ws(
+                  Option.value(find_pat(fid, master_seg), ~default=[]),
+                ),
+              ),
+            e_body: cell_of_seg(~root=Sort.Mod, core_ws(members)),
+            e_ctx,
+          },
+        );
+      }
+    );
 
 /* ONE cell for a whole contiguous test run (outline "tests"
    container), anchored at the FIRST test's item id */
@@ -831,6 +901,7 @@ let mk_run_entry =
             e_sym: Some("tests"),
             e_run: true,
             e_members: members,
+            e_inner: false,
             e_header: empty_header_cell(),
             e_body: cell_of_seg(content),
             e_ctx,
@@ -843,6 +914,19 @@ let mk_run_entry =
    edge whitespace the master's stale copies still carry */
 let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
   switch (e.e_sym) {
+  | None when e.e_inner =>
+    switch (find_def(e.e_id, seg)) {
+    | Some(def_seg) =>
+      let members =
+        rewrap_ws(
+          (id, seg) => Option.bind(find_def(id, seg), brace_child),
+          e.e_id,
+          seg,
+          zip_of_cell(e.e_body),
+        );
+      splice_def(e.e_id, with_brace_child(def_seg, members), seg);
+    | None => seg
+    }
   | Some(_) when e.e_run =>
     splice_run_deep(e.e_id, zip_of_cell(e.e_body), seg)
   | Some(_) =>
@@ -864,6 +948,7 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
 /* the cell-content slice for any entry kind (ctx recapture) */
 let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
   switch (e.e_sym) {
+  | None when e.e_inner => Option.bind(find_def(e.e_id, seg), brace_child)
   | Some(_) when e.e_run => test_run_deep(e.e_id, seg) |> Option.map(fst)
   | Some(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
   | None => find_def(e.e_id, seg)

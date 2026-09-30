@@ -164,11 +164,24 @@ let mk = (editor: CellEditor.Model.t, base: Segment.t, cell: Cell.t): t => {
   statics: None,
 };
 
+/* a cell for [id]: its header and body, or with [inner], a module's
+   members alone */
+let entry = (~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
+  inner
+    ? Focus.mk_members_entry(~info_map, id, base)
+    : Focus.mk_entry(~info_map, ~sym?, id, base);
+
 let split =
-    (~info_map, ~sym: option(string)=?, editor: CellEditor.Model.t, id: Id.t)
+    (
+      ~info_map,
+      ~sym: option(string)=?,
+      ~inner=false,
+      editor: CellEditor.Model.t,
+      id: Id.t,
+    )
     : option(t) => {
   let base = Focus.zip_of_cell(editor);
-  Focus.mk_entry(~info_map, ~sym?, id, base) |> Option.map(mk(editor, base));
+  entry(~info_map, ~sym?, ~inner, id, base) |> Option.map(mk(editor, base));
 };
 
 let split_run = (~info_map, editor: CellEditor.Model.t, id: Id.t): option(t) => {
@@ -351,7 +364,8 @@ let close = (id: Id.t, d: t): after_close =>
    back into it; an id already inside an open cell opens nothing (the
    caller moves the caret there instead) */
 let open_ =
-    (~info_map, ~term, ~sym: option(string)=?, id: Id.t, d: t): option(t) =>
+    (~info_map, ~term, ~sym: option(string)=?, ~inner=false, id: Id.t, d: t)
+    : option(t) =>
   switch (owner(id, d)) {
   | Some(_) => None
   | None =>
@@ -364,7 +378,7 @@ let open_ =
         d.base,
         closing,
       );
-    Focus.mk_entry(~info_map, ~sym?, id, base)
+    entry(~info_map, ~sym?, ~inner, id, base)
     |> Option.map(entry =>
          {
            ...d,
@@ -508,7 +522,7 @@ let resplit =
         } else if (e.e_run) {
           Focus.mk_run_entry(~info_map, e.e_id, base);
         } else {
-          Focus.mk_entry(~info_map, ~sym=?e.e_sym, e.e_id, base);
+          entry(~info_map, ~sym=?e.e_sym, ~inner=e.e_inner, e.e_id, base);
         },
       d.cells,
     );

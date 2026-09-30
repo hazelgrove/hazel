@@ -53,28 +53,27 @@ let inside = (~term, root: option(Id.t), id: Id.t): bool =>
 let visible = (~term, v: t): list(pin) =>
   List.filter((p: pin) => inside(~term, zoom_root(v), p.p_id), v.pins);
 
+/* what a cell shows: a pin, or a zoomed module's members */
+type slot =
+  | Pin(pin)
+  | Members(Id.t);
+
 /* the cells to show: the visible pins, or the level's whole: one
-   editor at the program root, the module as one cell below it */
-let shown = (~term, v: t): list(pin) =>
+   editor at the program root, the module's members below it */
+let shown = (~term, v: t): list(slot) =>
   switch (v.parked ? [] : visible(~term, v)) {
   | [] =>
     switch (zoom_root(v)) {
     | None => []
-    | Some(m) => [
-        {
-          p_id: m,
-          p_run: false,
-        },
-      ]
+    | Some(m) => [Members(m)]
     }
-  | pins => pins
+  | pins => List.map(p => Pin(p), pins)
   };
 
-/* the zoomed module's own cell is on screen (its header band is the
-   breadcrumb's job) */
+/* the zoomed module's members are on screen (the breadcrumb names it) */
 let showing_zoom_cell = (~term, v: t): bool =>
-  switch (zoom_root(v), shown(~term, v)) {
-  | (Some(m), [p]) => p.p_id == m
+  switch (shown(~term, v)) {
+  | [Members(_)] => true
   | _ => false
   };
 
@@ -102,10 +101,18 @@ let normalize = (~term, v: t): t => {
   };
 };
 
-let pin_of_cell = (e: ScratchCell.t): pin => {
-  p_id: e.e_id,
-  p_run: e.e_run,
-};
+let slot_of_cell = (e: ScratchCell.t): slot =>
+  e.e_inner
+    ? Members(e.e_id)
+    : Pin({
+        p_id: e.e_id,
+        p_run: e.e_run,
+      });
+
+let slot_id =
+  fun
+  | Pin(p) => p.p_id
+  | Members(m) => m;
 
 /* the program with exactly [shown] open. What collides with an open
    cell (members of the zoomed module's cell) opens after the closes;
@@ -118,25 +125,31 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   let current =
     switch (p) {
     | Whole(_) => []
-    | Divided(d) => List.map(pin_of_cell, Divided.cells(d))
+    | Divided(d) => List.map(slot_of_cell, Divided.cells(d))
     };
   let to_open = List.filter(w => !List.mem(w, current), want);
   let to_close = List.filter(c => !List.mem(c, want), current);
-  let open_one = (p: Program.t, w: pin): option(Program.t) => {
-    let sym = sym_of(w.p_id, term);
+  let open_one = (p: Program.t, w: slot): option(Program.t) => {
+    let id = slot_id(w);
+    let sym = sym_of(id, term);
+    let (run, inner) =
+      switch (w) {
+      | Pin(p) => (p.p_run, false)
+      | Members(_) => (false, true)
+      };
     switch (p) {
     | Whole(e) =>
       (
-        w.p_run
-          ? Divided.split_run(~info_map, e, w.p_id)
-          : Divided.split(~info_map, ~sym?, e, w.p_id)
+        run
+          ? Divided.split_run(~info_map, e, id)
+          : Divided.split(~info_map, ~sym?, ~inner, e, id)
       )
       |> Option.map(d => Program.Divided(d))
     | Divided(d) =>
       (
-        w.p_run
-          ? Divided.open_run(~info_map, ~term, w.p_id, d)
-          : Divided.open_(~info_map, ~term, ~sym?, w.p_id, d)
+        run
+          ? Divided.open_run(~info_map, ~term, id, d)
+          : Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d)
       )
       |> Option.map(d => Program.Divided(d))
     };
@@ -159,9 +172,9 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   let (p, blocked) = open_all(p, to_open);
   let p =
     List.fold_left(
-      (p: Program.t, c: pin) =>
+      (p: Program.t, c: slot) =>
         switch (p) {
-        | Divided(d) => Program.of_close(Divided.close(c.p_id, d))
+        | Divided(d) => Program.of_close(Divided.close(slot_id(c), d))
         | Whole(_) => p
         },
       p,
@@ -176,7 +189,7 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   (
     {
       ...v,
-      pins: List.filter(q => !List.mem(q, failed), v.pins),
+      pins: List.filter(q => !List.mem(Pin(q), failed), v.pins),
     },
     p,
   );

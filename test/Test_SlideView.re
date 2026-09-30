@@ -93,6 +93,50 @@ let zoom = () => {
   check(bool, "whole after zoom out", true, open_ids(p) == []);
 };
 
+let contains = (needle, hay) => {
+  let (nl, hl) = (String.length(needle), String.length(hay));
+  let rec go = i =>
+    i + nl <= hl && (String.sub(hay, i, nl) == needle || go(i + 1));
+  go(0);
+};
+
+/* zoomed, the module shows as its members alone; edits land inside
+   its braces */
+let zoom_members = () => {
+  let m = row("M");
+  let (_, p) = run([V.zoom_in(~term, m)]);
+  switch (p) {
+  | Whole(_) => fail("not divided")
+  | Divided(d) =>
+    let body = List.hd(Divided.cells(d)).e_body;
+    let txt = text_of(Focus.zip_of_cell(body));
+    check(bool, "no braces", false, String.contains(txt, '{'));
+    check(bool, "the members", true, contains("let x", txt));
+    let members =
+      switch (FastParse.of_text(~root=Mod, "let x = a + 5")) {
+      | Some(seg) => seg
+      | None => fail("mod parse")
+      };
+    let d =
+      Divided.update_cell(
+        0,
+        (c: Web.ScratchCell.t) =>
+          {
+            ...c,
+            e_body: Focus.cell_of_seg(~root=Sort.Mod, members),
+          },
+        d,
+      );
+    let doc = text_of(Divided.document(d));
+    check(
+      bool,
+      "edit inside the braces",
+      true,
+      contains("module M = {", doc) && contains("a + 5", doc),
+    );
+  };
+};
+
 let pins_outside_zoom = () => {
   let (a, m) = (row("a"), row("M"));
   let (v, p) = run([V.pin(~term, a), V.zoom_in(~term, m)]);
@@ -211,6 +255,7 @@ let tests = (
   [
     test_case("pin and unpin", `Quick, pin_unpin),
     test_case("zoom", `Quick, zoom),
+    test_case("zoom shows the members", `Quick, zoom_members),
     test_case("pins outside the zoom", `Quick, pins_outside_zoom),
     test_case("pins inside the zoom", `Quick, pins_inside_zoom),
     test_case("park", `Quick, park),
