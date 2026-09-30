@@ -696,14 +696,17 @@ let rec read_rendered = (n: Js_of_ocaml.Js.Unsafe.any): rendered => {
   if (Js.to_string(get(n, "type")) == "VirtualText") {
     RText(Js.to_string(get(n, "text")));
   } else {
+    /* an element with no attributes (a consumed space's bare span)
+       has no `attributes` object at all */
+    let attrs = get(get(n, "properties"), "attributes");
     let classes =
-      switch (
-        Js.Optdef.to_option(
-          get(get(get(n, "properties"), "attributes"), "class"),
-        )
-      ) {
-      | Some(c) => String.split_on_char(' ', Js.to_string(c))
+      switch (Js.Optdef.to_option(attrs)) {
       | None => []
+      | Some(attrs) =>
+        switch (Js.Optdef.to_option(get(attrs, "class"))) {
+        | Some(c) => String.split_on_char(' ', Js.to_string(c))
+        | None => []
+        }
       };
     RElem(
       classes,
@@ -2000,15 +2003,16 @@ NONE|},
     [
       /* a keyword witness's TYPED prefix is the user's text: the outer
          token span keeps normal token styling, and only the untyped
-         remainder carries the ghost fade */
+         remainder carries the ghost fade. `then` and `=>` don't split
+         here: their insertions carry more delimiters (`else`, `end`),
+         so they take the remainder-ghost channel and the typed prefix
+         stays the user's own token. */
       test_case("witness typed prefix renders at full strength", `Quick, () =>
         check(
           string_testable,
           "witness spans",
           {|i⟪n⟫ [token Exp poly keyword] ⟪in-parsed-buffer⟫
-t⟪hen⟫ [token Exp poly keyword] ⟪in-parsed-buffer⟫
--⟪>⟫ [token Exp poly] ⟪in-parsed-buffer⟫
-=⟪>⟫ [token Rul poly] ⟪in-parsed-buffer⟫|},
+-⟪>⟫ [token Exp poly] ⟪in-parsed-buffer⟫|},
           ["let x = 4 i", "if true t", "fun x -", "case 1 | 2 ="]
           |> List.concat_map(t => split_tokens(view_of(t)))
           |> String.concat("\n"),
