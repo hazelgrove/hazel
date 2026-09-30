@@ -19,6 +19,9 @@ let cursor: ref(option(OutlineTree.path)) = ref(None);
 let edit: ref(option(OutlineEdit.t)) = ref(None);
 let created: ref(option((Id.t, string))) = ref(None);
 
+/* the slide the state above belongs to */
+let owner: ref(option(string)) = ref(None);
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -328,6 +331,19 @@ let view =
     };
   let is_deck = deck != None;
   let name = Option.fold(~none="", ~some=slide_name, deck);
+  /* a menu, cursor or name edit doesn't follow you to another slide */
+  let slide =
+    Option.map(
+      ((prefix, _) as d) => Persist.content_key(prefix, slide_name(d)),
+      deck,
+    );
+  if (slide != owner^) {
+    owner := slide;
+    menu := None;
+    cursor := None;
+    edit := None;
+    created := None;
+  };
   let collapsed = collapsed(deck);
   let focused =
     switch (deck) {
@@ -467,12 +483,24 @@ let view =
           |> Option.map(Language.TestMap.joint_status)
         ),
     };
+    /* a row inside an open cell can't open on its own: go to it there */
+    let nested = id =>
+      switch (program) {
+      | Some(Divided(d)) =>
+        switch (Divided.owner(id, d)) {
+        | Some(e) => e.e_id != id
+        | None => false
+        }
+      | _ => false
+      };
     let on: OutlineSidebar.handlers = {
       jump,
       /* a plain click with cells open adds (or moves to) that cell; it
          never replaces them */
-      focus: id => inject_workspace(FocusEnsure(id)),
-      toggle: id => inject_workspace(FocusToggle(id)),
+      focus: id =>
+        nested(id) ? jump(id) : inject_workspace(FocusEnsure(id)),
+      toggle: id =>
+        nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
       toggle_run: id => inject_workspace(FocusToggleRun(id)),
       toggle_collapse: path => inject(Collapse(path)),
       zoom_to: m => inject_workspace(ZoomTo(m)),

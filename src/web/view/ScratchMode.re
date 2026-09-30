@@ -444,9 +444,11 @@ module Selection = {
           MainEditor,
         ),
       )
+    /* an id already in an open cell (its own or an enclosing one) opens
+       no cell, so the selection stays put */
     | (Workspace(FocusToggle(fid)), Some(Divided(d))) =>
-      List.exists((e: ScratchCell.t) => e.e_id == fid, Divided.cells(d))
-        ? None : Some(StackB(fid, MainEditor))
+      Option.is_none(Divided.owner(fid, d))
+        ? Some(StackB(fid, MainEditor)) : None
     | (Workspace(FocusToggle(fid)), Some(Whole(_))) =>
       Some(StackB(fid, MainEditor))
     | _ => None
