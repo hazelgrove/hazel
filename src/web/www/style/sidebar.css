@@ -1021,12 +1021,13 @@
   gap: 0.35em;
 }
 
-/* The tab strip and the reset buttons share a line. */
+/* The tab strip and the reset buttons share a line, the resets just after
+   the tabs: pushed to the far edge, a narrow pane clipped them. */
 .fumola-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5em;
+  gap: 0.5em 1.5em;
   margin-right: 0.5em;
 }
 
