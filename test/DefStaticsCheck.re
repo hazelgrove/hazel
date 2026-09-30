@@ -39,7 +39,10 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
       t.term,
     ),
   );
-  Hashtbl.remove(own, MakeTerm.mod_wrap_id);
+  switch (t.term.term) {
+  | Module(_) => Hashtbl.remove(own, Exp.rep_id(t.term))
+  | _ => ()
+  };
   let rec roots = items =>
     List.concat_map(
       (it: DefStatics.item) =>

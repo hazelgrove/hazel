@@ -163,9 +163,38 @@ let mega = (~root, ~eval=true, file, steps, ()) =>
   | None => fail("corpus unreadable: " ++ file)
   };
 
+/* module-rooted documents keep their own cache slots: the wrapper's id,
+   the slot key, differs per document */
+let separate_slots = () => {
+  let term = src =>
+    switch (FastParse.of_text(~root=Mod, src)) {
+    | Some(seg) => MakeTerm.Incr.term_of_mod(seg)
+    | None => fail("unparseable: " ++ src)
+    };
+  let (a, b) = (term("let x = 1;\nx"), term("let y = true;\ny"));
+  check(
+    bool,
+    "two documents, two keys",
+    false,
+    Exp.rep_id(a) == Exp.rep_id(b),
+  );
+  let ta = DefStatics.calc_auto(~settings=CoreSettings.on, a);
+  ignore(DefStatics.calc_auto(~settings=CoreSettings.on, b));
+  check(
+    bool,
+    "the first document's calc is still cached",
+    true,
+    switch (DefStatics.cached(a)) {
+    | Some(t) => t === ta
+    | None => false
+    },
+  );
+};
+
 let tests = (
   "DefStaticsParity",
   [
+    test_case("module-rooted documents keep apart", `Quick, separate_slots),
     test_case(
       "deleting a member dirties its users",
       `Quick,

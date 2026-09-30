@@ -1943,11 +1943,18 @@ let go =
      and every edit mints a new segment; a frame needs only a few */
   Core.Memo.general(~cache_size_bound=8, go_impl(~masks=Id.Map.empty));
 
-/* stable id for a Mod-rooted editor's Module wrapper, since statics/elab
-   reuse keys on term identity; one id suffices as info maps are per editor */
-let mod_wrap_id: Id.t = Id.mk();
-let wrap_module = (items: list(Mod.t)): Exp.t =>
-  IdTagged.fast_copy(mod_wrap_id, Exp.fresh(Module(items)));
+/* a Mod-rooted editor's Module wrapper: statics/elab reuse and DefStatics'
+   per-document slot key on its id, so it is derived from the first item's
+   (stable per document, distinct across documents) */
+let empty_mod_wrap_id: Id.t = Id.mk();
+let wrap_module = (items: list(Mod.t)): Exp.t => {
+  let id =
+    switch (items) {
+    | [first, ..._] => Id.derive(~salt="module-root", Mod.rep_id(first))
+    | [] => empty_mod_wrap_id
+    };
+  IdTagged.fast_copy(id, Exp.fresh(Module(items)));
+};
 
 /* monolithic parse of a Mod-rooted segment, which [go] would misparse at
    Exp: the parity reference and go_incr's fallback */
