@@ -37,7 +37,7 @@
 #outline-sidebar .outline-body:focus .outline-label.outline-cursor,
 #outline-sidebar:has(.outline-body:focus) > summary.outline-cursor {
   box-shadow: inset 2px 0 0 var(--caret-color, #d33);
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 40%, transparent);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 70%, transparent);
 }
 
 /* Chrome slots details content into an internal ::details-content
@@ -182,14 +182,16 @@
   scroll-margin-block: 6px 12px;
 }
 
+/* tints, lightest to strongest: hover, open as a cell, keyboard cursor */
 #outline-sidebar .outline-label:hover {
-  background: var(--surface-shard, #d8c9a3);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 28%, transparent);
 }
 
 #outline-sidebar .outline-glyph {
   display: inline-block;
   width: 13px;
   opacity: 0.7;
+  color: var(--text-accent, #6a5a3a);
 }
 
 #outline-sidebar .outline-kids {
@@ -235,8 +237,16 @@
   transform: translateY(-1px) rotate(45deg);
 }
 
+/* names in the editor's colors: values as binders, modules as module
+   names, types as types */
+#outline-sidebar .ol-fn,
+#outline-sidebar .ol-const {
+  color: var(--token-pat);
+}
+
 #outline-sidebar .ol-module {
   font-weight: bold;
+  color: var(--token-mod);
 }
 
 #outline-sidebar .ol-type {
@@ -284,6 +294,7 @@
    the zoom) */
 #outline-sidebar .outline-focus-btn {
   display: none;
+  color: var(--text-accent, #6a5a3a);
   box-sizing: border-box;
   width: 10px;
   height: 8px;
@@ -318,7 +329,7 @@
 /* open as a cell: a light tint from the entry itself, not the
    column's edge */
 #outline-sidebar .outline-label.outline-focused {
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 55%, transparent);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 45%, transparent);
   font-weight: bold;
 }
 
