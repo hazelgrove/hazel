@@ -69,6 +69,59 @@ let pins_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":pins";
 let collapse_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":collapse";
+let probes_key = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name ++ ":probes";
+
+/* manual probes live in zippers, not segments, so the per-item store
+   can't carry them: they ride their own key */
+let last_saved_probes: Hashtbl.t(string, string) = Hashtbl.create(8);
+
+let write_probes =
+    (prefix: string, name: string, probes: Refractors.RefractorList.t): unit => {
+  let key = probes_key(prefix, name);
+  let s = Sexplib.Sexp.to_string(Refractors.RefractorList.sexp_of_t(probes));
+  if (Hashtbl.find_opt(last_saved_probes, key) != Some(s)) {
+    Hashtbl.replace(last_saved_probes, key, s);
+    HazelDB.kv_save(key, s);
+  };
+};
+
+/* the stored probes whose anchors are still in [seg] */
+let read_probes =
+    (prefix: string, name: string, seg: Segment.t): Refractors.RefractorList.t =>
+  switch (HazelDB.kv_get(probes_key(prefix, name))) {
+  | None => []
+  | Some(s) =>
+    switch (Refractors.RefractorList.t_of_sexp(Sexplib.Sexp.of_string(s))) {
+    | exception _ => []
+    | probes =>
+      let present = Segment.ids(seg);
+      List.filter(((id, _)) => List.mem(id, present), probes);
+    }
+  };
+
+/* the slide's manual probes: the master's plus any placed in open
+   cells (the master is frozen while cells are open) */
+let current_probes =
+    (focus: option(Model.focus_t), editor: CellEditor.Model.t)
+    : Refractors.RefractorList.t => {
+  let of_cell = (c: CellEditor.Model.t) =>
+    c.editor.editor.state.zipper.refractors.manuals;
+  let cells =
+    switch (focus) {
+    | None => []
+    | Some(f) =>
+      List.concat_map(
+        (e: Model.stack_entry) => of_cell(e.e_header) @ of_cell(e.e_body),
+        f.f_entries,
+      )
+    };
+  List.fold_left(
+    (acc, (id, _) as p) => List.mem_assoc(id, acc) ? acc : acc @ [p],
+    [],
+    cells @ of_cell(editor),
+  );
+};
 
 /* pending restoration state is TAGGED with the content key it was
    read for, and consumers verify the tag against the current slide
@@ -331,7 +384,16 @@ let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
 let persist_spliced =
     (f: Model.focus_t, editor: CellEditor.Model.t)
     : CellEditor.Model.persistent => {
-  let z = Focus.splice_all(f) |> Zipper.unzip;
+  let probes = current_probes(Some(f), editor);
+  let z =
+    Focus.splice_all(f)
+    |> Zipper.unzip
+    |> ZipperBase.update_refractors(_, r =>
+         Refractors.{
+           ...r,
+           manuals: probes,
+         }
+       );
   CellEditor.Model.{
     editor:
       Editor.Model.mk_persistent(
@@ -403,6 +465,7 @@ let save_current = (prefix: string, model: Model.t): unit => {
             )
           };
         write_pins(prefix, sp.name, pins);
+        write_probes(prefix, sp.name, current_probes(model.focus, editor));
       };
       switch (model.focus) {
       | Some(f) =>
@@ -532,7 +595,13 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
               let root = persisted.editor.root;
               let z =
                 Zipper.unzip(~direction=Left, seg)
-                |> Zipper.remold_regrout(Right, ~root);
+                |> Zipper.remold_regrout(Right, ~root)
+                |> ZipperBase.update_refractors(_, r =>
+                     Refractors.{
+                       ...r,
+                       manuals: read_probes(prefix, name, seg),
+                     }
+                   );
               /* prime the dirty cache: the first autosave tick after
                  a load should rewrite nothing */
               Hashtbl.replace(
