@@ -205,7 +205,7 @@ module Js: BuiltinLivelit = {
   };
 
   /* Input row + button + result row. */
-  let view_below = (~id as _, _model, _send_action) => None;
+  let view_below = (~id as _, ~splice as _, _model, _send_action) => None;
 
   let shape: Util.ProjectorShape.t = {
     vertical: Block(2),
@@ -852,7 +852,7 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
     );
   };
 
-  let view_below = (~id as _, _model, _send_action) => None;
+  let view_below = (~id as _, ~splice as _, _model, _send_action) => None;
 
   let shape: Util.ProjectorShape.t = {
     vertical: Inline,
@@ -1088,7 +1088,7 @@ module FumolaNew: BuiltinLivelit = {
   let action_from_hazel: action_exp => option(action_t) =
     (e: action_exp) => Option.map(m => SetModel(m), model_from_hazel(e));
 
-  let view_below = (~id as _, _model, _send_action) => None;
+  let view_below = (~id as _, ~splice as _, _model, _send_action) => None;
 
   let shape: Util.ProjectorShape.t = {
     vertical: Inline,
@@ -1114,6 +1114,393 @@ module FumolaWith =
     let default_program = "input";
   });
 
+/* ^fumola_wip: a Fumola computation between two remote refs, edited as tiles.
+
+   A prototype of a DSL as a tile-based livelit, and a work in progress: it is
+   named so, because today's livelit view/update is slow enough that editing
+   tiles inside one is felt. Its model names an instance and a livelit name
+   and holds two splices, the input (any Hazel value) and the code (a
+   `fumola … end` tile, of which only the body is used, for now).
+
+   The livelit owns three cells in that instance, all under its name:
+
+     `name(`input)    the input, written from Hazel  -- the In wire
+     `name(`compute)  the thunk the code runs in, so an edit reuses its history
+     `name(`output)   the code's result, read back    -- the Out wire
+
+   (`in and `thunk would read better, but both are Fumola keywords.)
+
+   It expands to one Fumola quote that writes the input, forces the
+   computation, and reads the output. The input crosses as a `hazel … end`
+   escape, evaluated when the quote runs and so in scope at the use: it can
+   name the use's variables, which a model rendered at expansion time cannot. */
+module FumolaWip: BuiltinLivelit = {
+  let name = "fumola_wip";
+
+  type model_t = {
+    instance: string,
+    name: string,
+    /* The code as tiles, or as a string: only tiles, so far. */
+    tiles: bool,
+    /* The two splices, held verbatim: a commit that dropped their Splice
+       nodes would be refused (LivelitProj.commit_model). */
+    input: TermBase.Exp.t,
+    code: TermBase.Exp.t,
+  };
+
+  type expansion_t = expansion_exp;
+
+  type action_t =
+    | SetModel(model_t);
+
+  let field_t = (label, ty): TermBase.Typ.t =>
+    Typ.fresh(TupLabel(Typ.fresh(Label(label)), ty));
+
+  let hazel_model_t: TermBase.Typ.t =
+    Typ.fresh(
+      Prod([
+        field_t("instance", Typ.temp(Atom(String))),
+        field_t("name", Typ.temp(Atom(String))),
+        field_t("tiles", Typ.temp(Atom(Bool))),
+        field_t("input", Typ.temp(Unknown(Internal))),
+        field_t("code", Typ.temp(Unknown(Internal))),
+      ]),
+    );
+
+  let field = (label, e) =>
+    DHExp.fresh(TupLabel(DHExp.fresh(Label(label)), e));
+
+  let model_to_hazel = (m: model_t): model_exp =>
+    DHExp.fresh(
+      Tuple([
+        field("instance", DHExp.fresh(Atom(String(m.instance)))),
+        field("name", DHExp.fresh(Atom(String(m.name)))),
+        field("tiles", DHExp.fresh(Atom(Bool(m.tiles)))),
+        field("input", m.input),
+        field("code", m.code),
+      ]),
+    );
+
+  let rec unparen = (e: TermBase.Exp.t) =>
+    switch (e.term) {
+    | Parens(e) => unparen(e)
+    | _ => e
+    };
+
+  let model_from_hazel = (e: model_exp): option(model_t) =>
+    switch (unparen(e).term) {
+    | Tuple(items) =>
+      let fields =
+        List.filter_map(
+          (item: TermBase.Exp.t) =>
+            switch (item.term) {
+            | TupLabel({term: Label(label), _}, v) => Some((label, v))
+            | _ => None
+            },
+          items,
+        );
+      let get = label => List.assoc_opt(label, fields);
+      switch (
+        Option.map(unparen, get("instance")),
+        Option.map(unparen, get("name")),
+        Option.map(unparen, get("tiles")),
+        get("input"),
+        get("code"),
+      ) {
+      | (
+          Some({term: Atom(String(instance)), _}),
+          Some({term: Atom(String(name)), _}),
+          Some({term: Atom(Bool(tiles)), _}),
+          Some(input),
+          Some(code),
+        ) =>
+        Some({
+          instance,
+          name,
+          tiles,
+          input,
+          code,
+        })
+      | _ => None
+      };
+    | _ => None
+    };
+
+  /* Fumola terms carry ids like Hazel's; fresh ones, since none of these is
+     anything the user wrote. */
+  let f = IdTagged.fresh;
+
+  /* `name(`cell) */
+  let cell = (m: model_t, cell): FumolaTermBase.t =>
+    f(
+      FumolaGrammar.Ap(
+        f(FumolaGrammar.QuotedId(m.name)),
+        f(FumolaGrammar.Paren(f(FumolaGrammar.QuotedId(cell)))),
+      ),
+    );
+
+  /* @(`name(`cell)): parenthesized, since `@ `a (`b)` reads as (@`a)(`b). */
+  let read = (m: model_t, c): FumolaTermBase.t =>
+    f(FumolaGrammar.Get(f(FumolaGrammar.Paren(cell(m, c)))));
+
+  let model_default: model_t = {
+    instance: "myInstance",
+    name: "myLivelit",
+    tiles: true,
+    input: DHExp.fresh(Parens(DHExp.fresh(Atom(Int(Bigint.of_int(3)))))),
+    code:
+      DHExp.fresh(
+        Parens(
+          DHExp.fresh(
+            FumolaQuote(
+              f(FumolaGrammar.Var("myInstance")),
+              f(FumolaGrammar.Hole(EmptyHole)),
+              f(
+                FumolaGrammar.Bin(
+                  f(FumolaGrammar.Var("input")),
+                  FumolaGrammar.Add,
+                  f(FumolaGrammar.Lit(FumolaGrammar.Nat("1"))),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+  };
+
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
+  let requires_annotation = false;
+
+  /* The mode and body of the code splice's `fumola … end` tile. Its mode
+     is passed on, so `$graphical` there is what makes the instance record
+     what the watch pane shows; its instance name is ignored for the
+     model's. */
+  let rec code_body =
+          (e: TermBase.Exp.t): option((FumolaTermBase.t, FumolaTermBase.t)) =>
+    switch (e.term) {
+    | Parens(e)
+    | Splice(e) => code_body(e)
+    | FumolaQuote(_, mode, body) => Some((mode, body))
+    | _ => None
+    };
+
+  let expand = (~id as _, ~ana as _, ~tools as _, m: model_t): expansion_t =>
+    switch (code_body(m.code)) {
+    | None =>
+      DHExp.fresh(Invalid("the code field needs a fumola … end tile"))
+    | Some((mode, body)) =>
+      let decs =
+        switch (Annotated.term_of(body)) {
+        | FumolaGrammar.Block(ds) => ds
+        | _ => [f(FumolaGrammar.DExp(body))]
+        };
+      /* thunk { let input = @(`name(`input)); <code> }: reading the cell,
+         rather than taking the value, is what gives the computation an edge
+         to the input the watch pane can show. */
+      let thunk =
+        f(
+          FumolaGrammar.Thunk([
+            f(
+              FumolaGrammar.DLet(
+                f(FumolaGrammar.PVar("input")),
+                read(m, "input"),
+              ),
+            ),
+            ...decs,
+          ]),
+        );
+      let program =
+        f(
+          FumolaGrammar.Block([
+            f(
+              FumolaGrammar.DExp(
+                f(
+                  FumolaGrammar.Put(
+                    cell(m, "input"),
+                    f(FumolaGrammar.Hazel(m.input)),
+                  ),
+                ),
+              ),
+            ),
+            f(
+              FumolaGrammar.DExp(
+                f(
+                  FumolaGrammar.Put(
+                    cell(m, "output"),
+                    f(
+                      FumolaGrammar.Force(
+                        f(
+                          FumolaGrammar.Paren(
+                            f(FumolaGrammar.Put(cell(m, "compute"), thunk)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            f(FumolaGrammar.DExp(read(m, "output"))),
+          ]),
+        );
+      DHExp.fresh(
+        FumolaQuote(f(FumolaGrammar.Var(m.instance)), mode, program),
+      );
+    };
+
+  let expand_to_hazel = (e: expansion_t): expansion_exp => e;
+
+  let update = (action: action_t, _m: model_t): model_t =>
+    switch (action) {
+    | SetModel(m) => m
+    };
+
+  let hazel_action_t: TermBase.Typ.t =
+    Sum([
+      Variant(
+        "SetModel",
+        ConstructorMap.mk_variant_ann(~ids=[], ()),
+        Some(hazel_model_t),
+      ),
+    ])
+    |> Typ.fresh;
+
+  let action_to_hazel = (SetModel(m): action_t): action_exp =>
+    DHExp.fresh(
+      Ap(
+        Forward,
+        DHExp.fresh(Constructor("SetModel", Some(Some(hazel_model_t)))),
+        model_to_hazel(m),
+      ),
+    );
+
+  let action_from_hazel = (e: action_exp): option(action_t) =>
+    switch (e.term) {
+    | Ap(Forward, {term: Constructor("SetModel", _), _}, model) =>
+      Option.map(m => SetModel(m), model_from_hazel(model))
+    | _ => None
+    };
+
+  /* A text field whose keystrokes stay in it rather than editing the
+     program around the livelit. */
+  let text_field = (~label, value, set) =>
+    Node.label(
+      ~attrs=[Attr.class_("fumola-wip-field")],
+      [
+        Node.span([Node.text(label)]),
+        Node.input(
+          ~attrs=[
+            Attr.type_("text"),
+            Attr.value(value),
+            Attr.on_keydown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_input((_, v) => set(v)),
+          ],
+          (),
+        ),
+      ],
+    );
+
+  let view = (~id as _, m: model_t, send_action) =>
+    Node.div(
+      ~attrs=[Attr.class_("fumola-wip-head")],
+      [
+        Node.span(
+          ~attrs=[
+            Attr.class_("fumola-wip-badge"),
+            Attr.title("a work in progress, and slow to edit"),
+          ],
+          [Node.text("wip")],
+        ),
+        text_field(~label="instance", m.instance, instance =>
+          send_action(
+            SetModel({
+              ...m,
+              instance,
+            }),
+          )
+        ),
+        text_field(~label="livelit", m.name, name =>
+          send_action(
+            SetModel({
+              ...m,
+              name,
+            }),
+          )
+        ),
+      ],
+    );
+
+  let rec splice_id = (e: TermBase.Exp.t): option(Id.t) =>
+    switch (e.term) {
+    | Splice(_) => Some(IdTagged.rep_id(e))
+    | Parens(e) => splice_id(e)
+    | _ => None
+    };
+
+  let view_below = (~id as _, ~splice, m: model_t, _send_action) => {
+    let editor = (e: TermBase.Exp.t) =>
+      switch (Option.bind(splice_id(e), splice)) {
+      | Some(node) => node
+      | None => Node.span(~attrs=[Attr.class_("fumola-wip-missing")], [])
+      };
+    let symbol = c =>
+      Node.code(
+        ~attrs=[Attr.class_("fumola-wip-cell")],
+        [Node.text("`" ++ m.name ++ "(`" ++ c ++ ")")],
+      );
+    /* A wire crosses the language boundary: Hazel on its left, the Fumola
+       cell on its right, and the arrow says which way the value goes. */
+    let wire = (~dir, hazel, fumola) =>
+      Node.div(
+        ~attrs=[Attr.classes(["fumola-wip-wire", dir])],
+        [
+          Node.div(~attrs=[Attr.class_("fumola-wip-hazel")], hazel),
+          Node.span(
+            ~attrs=[Attr.class_("fumola-wip-arrow")],
+            [Node.text(dir == "in" ? "In →" : "← Out")],
+          ),
+          Node.div(~attrs=[Attr.class_("fumola-wip-fumola")], fumola),
+        ],
+      );
+    Some(
+      Node.div(
+        ~attrs=[Attr.class_("fumola-wip-body")],
+        [
+          Node.div(
+            ~attrs=[Attr.class_("fumola-wip-left")],
+            [
+              wire(~dir="in", [editor(m.input)], [symbol("input")]),
+              Node.div(
+                ~attrs=[Attr.class_("fumola-wip-code")],
+                [editor(m.code)],
+              ),
+              wire(
+                ~dir="out",
+                [Node.text("the expansion")],
+                [symbol("output")],
+              ),
+            ],
+          ),
+          Node.div(
+            ~attrs=[Attr.class_("fumola-wip-right")],
+            [
+              switch (FumolaWatch.instance_view^(m.instance)) {
+              | Some(node) => node
+              | None => Node.text("the watch pane draws in the browser")
+              },
+            ],
+          ),
+        ],
+      ),
+    );
+  };
+
+  let shape: Util.ProjectorShape.t = {
+    vertical: Tab(14),
+    horizontal: 44,
+  };
+};
+
 let livelits: list(raw_livelit) =
   [
     (module Js),
@@ -1121,5 +1508,6 @@ let livelits: list(raw_livelit) =
     (module FumolaPutForce),
     (module FumolaEval),
     (module FumolaWith),
+    (module FumolaWip),
   ]
   |> List.map(raw_of_builtin);

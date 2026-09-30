@@ -110,6 +110,7 @@
   inset-block: 0;
   overflow-x: clip;
   overflow-y: visible;
+}
 
 /* The fumola livelit: an editable Fumola program, its current result, and the
    id of the external Fumola runtime the model names. */
@@ -209,4 +210,92 @@
    stands out against the reference, which is at 0.65. */
 .fumola-peek-value {
     font-weight: inherit;
+}
+
+/* ^fumola_wip. The head row sits in the livelit's own cell; the body is its
+   view_below, the full width of the notebook under it: the wires and the
+   code on the left, this instance's watch pane on the right. */
+/* The content-box rule above gives every child the cell's box. Two of
+   ^fumola_wip's children are not the cell: its full-width rows keep only
+   the top and left they are placed at, and its Tab area starts the head row
+   at the top rather than centring it in the reserved rows. */
+.livelit > .below-wrapper:has(.fumola-wip-body) {
+    display: block;
+    right: auto;
+    bottom: auto;
+    overflow: auto;
+}
+.livelit > .tab-extent:has(.fumola-wip-head) {
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+.fumola-wip-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    width: 100%;
+}
+.fumola-wip-badge {
+    font-size: 0.75em;
+    padding: 0 0.4em;
+    border-radius: 0.3em;
+    color: var(--text-inverse);
+    background-color: var(--surface-inverse);
+    opacity: 0.7;
+}
+.fumola-wip-field {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    min-width: 0;
+}
+.fumola-wip-field span {
+    opacity: 0.6;
+}
+.fumola-wip-field input {
+    width: 9em;
+    font-family: var(--code-font);
+    outline: none;
+}
+.fumola-wip-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1em;
+    padding-block: 0.4em;
+}
+.fumola-wip-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 0;
+}
+.fumola-wip-right {
+    min-width: 0;
+    max-height: calc(13 * var(--line-height) * 1em);
+    overflow: auto;
+}
+/* A wire: Hazel | arrow | Fumola. The dashed rule down the middle is the
+   language boundary the value crosses. */
+.fumola-wip-wire {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6em;
+}
+.fumola-wip-arrow {
+    padding-inline: 0.6em;
+    border-inline: 1px dashed var(--text-default);
+    font-size: 0.85em;
+    opacity: 0.7;
+    white-space: nowrap;
+}
+.fumola-wip-wire.out .fumola-wip-hazel {
+    opacity: 0.6;
+}
+.fumola-wip-cell {
+    font-family: var(--code-font);
+}
+.fumola-wip-code {
+    min-width: 0;
+    overflow-x: auto;
 }

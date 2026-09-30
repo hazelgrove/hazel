@@ -500,7 +500,7 @@ module M: Projector = {
      entry is transiently unavailable (mid-commit), falling back to the
      default inline shape would collapse a Block-sized placeholder and
      jump the layout. Reuse the last known shape instead. */
-  let last_good_shape: Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
+  let last_good_shape: Hashtbl.t(Id.t, (ProjectorCore.Shape.t, bool)) =
     Hashtbl.create(16);
 
   /* Widen the author's declared shape by what its splices actually hold.
@@ -628,23 +628,30 @@ module M: Projector = {
             | Some(def_elab) => model_shape(info, def_elab, model)
             | None => None
             };
-          Some(Option.value(dynamic, ~default=ll.shape));
+          /* A builtin draws its splices where it chooses -- ^fumola_wip
+             in its full-width rows -- never inline, so its cell is not
+             widened for them. */
+          Some((
+            Option.value(dynamic, ~default=ll.shape),
+            Option.is_some(ll.user_def),
+          ));
         | None => None
         }
       | _ => None
       };
     let shape =
       switch (looked_up) {
-      | Some(shape) =>
-        Hashtbl.replace(last_good_shape, info.id, shape);
-        shape;
+      | Some((shape, widen)) =>
+        Hashtbl.replace(last_good_shape, info.id, (shape, widen));
+        (shape, widen);
       | None =>
         switch (Hashtbl.find_opt(last_good_shape, info.id)) {
-        | Some(shape) => shape
-        | None => ProjectorCore.Shape.inline(32)
+        | Some(last) => last
+        | None => (ProjectorCore.Shape.inline(32), true)
         }
       };
-    widen_for_splices(info, splice_size, shape);
+    let (shape, widen) = shape;
+    widen ? widen_for_splices(info, splice_size, shape) : shape;
   };
 
   let replace_model_term =
@@ -1335,7 +1342,10 @@ module M: Projector = {
             commit_model(~effects=[], ll.update(action, model));
 
           let list_contents = ll.view(~id=info.id, model, action_callback);
-          below := ll.view_below(~id=info.id, model, action_callback);
+          let splice = (id: Id.t) =>
+            List.find_opt((s: Base.splice) => s.id == id, splices)
+            |> Option.map((s: Base.splice) => splice_view(s.id));
+          below := ll.view_below(~id=info.id, ~splice, model, action_callback);
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
             [list_contents],
