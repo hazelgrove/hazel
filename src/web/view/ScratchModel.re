@@ -165,6 +165,39 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
 
+  /* [m]'s slides with the views [from] has for the same slides: undo
+     restores programs, not what they show */
+  let with_views_of = (~from: t, m: t): t => {
+    let view_of = name =>
+      List.find_map(
+        (sp: Scratchpad.t) =>
+          switch (sp.kind) {
+          | Code({view, _}) when sp.name == name => Some(view)
+          | _ => None
+          },
+        from.scratchpads,
+      );
+    {
+      ...m,
+      scratchpads:
+        List.map(
+          (sp: Scratchpad.t) =>
+            switch (sp.kind, view_of(sp.name)) {
+            | (Code(code), Some(view)) => {
+                ...sp,
+                kind:
+                  Code({
+                    ...code,
+                    view,
+                  }),
+              }
+            | _ => sp
+            },
+          m.scratchpads,
+        ),
+    };
+  };
+
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
 };

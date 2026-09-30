@@ -140,6 +140,7 @@ module Update = {
     | ZoomOut
     | ZoomTo(option(Haz3lcore.Id.t)) /* a breadcrumb: None = the program */
     | ShowWhole(bool) /* park (true) or unpark the pins at this level */
+    | RealizeView /* open and close cells to match the view (after undo) */
     | OutlineCursor(option(OutlineTree.path))
     | OutlineEdit(option(OutlineEdit.t))
     | OutlineCommit(OutlineEdit.t, bool) /* true: then a new one */
@@ -703,6 +704,37 @@ module Update = {
     | ZoomTo(m) => update_view(model, (_, _, v) => SlideView.zoom_to(m, v))
     | ShowWhole(parked) =>
       update_view(model, (_, _, v) => SlideView.park(parked, v))
+    | RealizeView =>
+      /* after undo: the restored program's statics may be compacted
+         away, so the view is realized against fresh ones */
+      switch (current_code(model)) {
+      | None => model |> Updated.return_quiet
+      | Some({program, view, _} as code) =>
+        let seg = Program.document(program);
+        let term =
+          Program.root(program) == Haz3lcore.Sort.Mod
+            ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
+        let info_map =
+          settings.core.statics
+            ? Haz3lcore.CachedStatics.init_compositional_term(
+                ~settings=settings.core,
+                ~probe_ids=Program.probe_ids(program),
+                term,
+              ).
+                info_map
+            : Haz3lcore.Id.Map.empty;
+        let (view, program) =
+          SlideView.realize(~info_map, ~term, view, program);
+        with_code(
+          model,
+          {
+            ...code,
+            program,
+            view,
+          },
+        )
+        |> Updated.return(~historic=false);
+      }
     | OutlineCursor(c) =>
       outline_cursor := c;
       outline_created := None;

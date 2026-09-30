@@ -127,10 +127,12 @@ module Update = {
       | [] =>
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        schedule_action(Editors(Scratch(RealizeView)));
+        {
           ...x,
           model: {
-            current: x.model,
+            current: Page.carry_views(~from=model.current, x.model),
             undo_stack: rest,
             redo_stack: [
               {
@@ -140,17 +142,19 @@ module Update = {
               ...model.redo_stack,
             ],
           },
-        }
+        };
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        schedule_action(Editors(Scratch(RealizeView)));
+        {
           ...x,
           model: {
-            current: x.model,
+            current: Page.carry_views(~from=model.current, x.model),
             undo_stack: [
               {
                 ...x,
@@ -160,7 +164,7 @@ module Update = {
             ],
             redo_stack: rest,
           },
-        }
+        };
       }
     | action =>
       let current =

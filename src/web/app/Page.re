@@ -63,6 +63,20 @@ module Store = {
   };
 };
 
+/* undo and redo restore programs; what each slide shows stays */
+let carry_views = (~from: Model.t, m: Model.t): Model.t =>
+  switch (from.editors, m.editors) {
+  | (Scratch(a), Scratch(b)) => {
+      ...m,
+      editors: Scratch(ScratchMode.Model.with_views_of(~from=a, b)),
+    }
+  | (Documentation(a), Documentation(b)) => {
+      ...m,
+      editors: Documentation(ScratchMode.Model.with_views_of(~from=a, b)),
+    }
+  | _ => m
+  };
+
 module Update = {
   open Updated;
 
