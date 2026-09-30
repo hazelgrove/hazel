@@ -87,6 +87,32 @@ let zz = ¿} in
   };
 };
 
+/* a member's pieces as (core, terminator): the terminator is its `;`
+   and the whitespace after, or only trailing whitespace when the
+   member is unterminated (mega style: a module's last member) */
+let split_terminator = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
+  let arr = Array.of_list(ps);
+  let rec back = i =>
+    i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+  let at = back(Array.length(arr));
+  at > 0 && Focus.is_semi(arr[at - 1])
+    ? (Focus.take(at - 1, ps), Focus.drop(at - 1, ps), true)
+    : (Focus.take(at, ps), Focus.drop(at, ps), false);
+};
+
+/* a member block ending in a bare `;` (its last member removed, or a
+   terminated one appended) loses it: parsed text gets a hole after a
+   trailing `;`, a hand-built segment would not, and the skeleton
+   builder fails on the bare separator */
+let drop_trailing_semi = (block: Segment.t): Segment.t => {
+  let arr = Array.of_list(block);
+  let rec back = i =>
+    i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+  let at = back(Array.length(arr));
+  at > 0 && Focus.is_semi(arr[at - 1])
+    ? Focus.take(at - 1, block) @ Focus.drop(at, block) : block;
+};
+
 /* apply [op] to the item holding [fid] AT ITS OWNING BLOCK: a span
    whose id is exactly [fid] applies at this level; an id contained
    in a DEF span recurses into that def's tiles (module bodies, fn
@@ -98,6 +124,7 @@ let zz = ¿} in
    root, not `… in` forms. */
 let apply_at =
     (
+      ~name: option(string)=?,
       op: OutlineSidebar.def_op,
       ~in_module: bool,
       spans: array(Focus.item_span),
@@ -105,6 +132,8 @@ let apply_at =
       seg: Segment.t,
     )
     : option((Segment.t, option(Id.t))) => {
+  /* the new definition's name, else a placeholder */
+  let named = placeholder => Option.value(name, ~default=placeholder);
   let n = Array.length(spans);
   let start_of = j => spans[j].Focus.sp_start;
   let end_of = j => spans[j].Focus.sp_stop;
@@ -176,7 +205,8 @@ let apply_at =
   Focus.(
     switch (op) {
     | Delete when movable(j) =>
-      Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
+      let rest = take(start_of(j), seg) @ drop(end_of(j), seg);
+      Some((in_module ? drop_trailing_semi(rest) : rest, None));
     | Delete => None
     | MoveUp
         when j > 0 && movable(j) && movable(j - 1) && same_family(j, j - 1) =>
@@ -194,9 +224,9 @@ let apply_at =
         if (member_form(j)) {
           let txt =
             switch (op) {
-            | NewTypeBelow => {js|type NewType = ¿|js}
-            | NewModuleBelow => {js|module NewModule = {}|js}
-            | _ => {js|let new_def = ¿|js}
+            | NewTypeBelow => "type " ++ named("NewType") ++ {js| = ¿|js}
+            | NewModuleBelow => "module " ++ named("NewModule") ++ " = {}"
+            | _ => "let " ++ named("new_def") ++ {js| = ¿|js}
             };
           member_chunk(txt);
         } else {
@@ -209,11 +239,12 @@ let apply_at =
             };
           let txt =
             switch (op) {
-            | NewTypeBelow => {js|type NewType = ¿ in
+            | NewTypeBelow =>
+              "type " ++ named("NewType") ++ {js| = ¿ in
 0|js}
-            | NewModuleBelow => {js|module NewModule = {} in
-0|js}
-            | _ => {js|let new_def = ¿ in
+            | NewModuleBelow =>
+              "module " ++ named("NewModule") ++ " = {} in\n0"
+            | _ => "let " ++ named("new_def") ++ {js| = ¿ in
 0|js}
             };
           Option.map(strip_tail, parse(txt));
@@ -251,9 +282,15 @@ type block_ctx =
   | BModDef /* the module tile's def child: the brace lives here */
   | BModBody; /* the brace's child: the member list */
 
-let rec apply_deep =
+/* [act] at the block that owns [fid]'s item, the block rebuilt around
+   its result. A module body, or the top level of a module-rooted
+   program, is a member block ([in_module]) */
+let rec at_level =
         (
-          op: OutlineSidebar.def_op,
+          ~act:
+             (~in_module: bool, array(Focus.item_span), int, Segment.t) =>
+             option((Segment.t, option(Id.t))),
+          ~mod_root: bool,
           fid: Id.t,
           ~bctx: block_ctx,
           ~top: bool,
@@ -266,9 +303,9 @@ let rec apply_deep =
     let rec go = j => j >= n ? None : pred(spans[j]) ? Some(j) : go(j + 1);
     go(0);
   };
-  let in_module = bctx == BModBody;
+  let in_module = bctx == BModBody || top && mod_root;
   switch (find((sp: Focus.item_span) => sp.sp_id == Some(fid))) {
-  | Some(j) => apply_at(op, ~in_module, spans, j, seg)
+  | Some(j) => act(~in_module, spans, j, seg)
   | None =>
     /* descend into tile children first (the owning block may be a
        module or fn body) */
@@ -306,8 +343,9 @@ let rec apply_deep =
           | [] => None
           | [ch, ...more] =>
             switch (
-              apply_deep(
-                op,
+              at_level(
+                ~act,
+                ~mod_root,
                 fid,
                 ~bctx=child_bctx(~after_head, t, k == n_kids - 1),
                 ~top=false,
@@ -358,12 +396,31 @@ let rec apply_deep =
           )
         )
       ) {
-      | Some(j) => apply_at(op, ~in_module, spans, j, seg)
+      | Some(j) => act(~in_module, spans, j, seg)
       | None => None
       }
     };
   };
 };
+
+let apply_deep =
+    (
+      ~name: option(string)=?,
+      ~mod_root: bool,
+      op: OutlineSidebar.def_op,
+      fid: Id.t,
+      seg: Segment.t,
+    ) =>
+  at_level(
+    ~act=
+      (~in_module, spans, j, seg) =>
+        apply_at(~name?, op, ~in_module, spans, j, seg),
+    ~mod_root,
+    fid,
+    ~bctx=BPlain,
+    ~top=true,
+    seg,
+  );
 
 /* append a fresh member INSIDE a module row's body (works at any
    depth: find_def/splice_def handle both 3-shard `module … in` and
@@ -487,9 +544,250 @@ let new_inside =
 };
 
 let apply =
-    (op: OutlineSidebar.def_op, fid: Id.t, seg: Segment.t)
+    (
+      ~name: option(string)=?,
+      ~mod_root=false,
+      op: OutlineSidebar.def_op,
+      fid: Id.t,
+      seg: Segment.t,
+    )
     : option((Segment.t, option(Id.t))) =>
   switch (op) {
   | NewInside => new_inside(fid, seg)
-  | _ => apply_deep(op, fid, ~bctx=BPlain, ~top=true, seg)
+  | _ => apply_deep(~name?, ~mod_root, op, fid, seg)
+  };
+
+/* a `;` with a fresh id, for members that need one */
+let fresh_semi = (): option(Piece.t) =>
+  Option.bind(member_chunk({js|let zz = 0|js}), chunk =>
+    List.find_opt(Focus.is_semi, chunk)
+  );
+
+let text_of = (ps: Segment.t): string =>
+  String.trim(MarkerParse.to_text(Zipper.unzip(ps)));
+
+let drop_suffix = (suffix: string, s: string): string => {
+  let (n, k) = (String.length(s), String.length(suffix));
+  n >= k && String.sub(s, n - k, k) == suffix
+    ? String.trim(String.sub(s, 0, n - k)) : s;
+};
+
+/* an item's pieces in a block's form: members end in `;`, other blocks
+   use `… in`. Converting goes through text (fresh ids) */
+let in_form =
+    (~member: bool, ~was_member: bool, ps: Segment.t): option(Segment.t) =>
+  switch (member, was_member) {
+  | (true, true)
+  | (false, false) => Some(ps)
+  | (true, false) => member_chunk(drop_suffix("in", text_of(ps)))
+  | (false, true) =>
+    let strip_tail = (sk: Segment.t): Segment.t =>
+      switch (List.rev(sk)) {
+      | [Piece.Tile(_), ...rest] => List.rev(rest)
+      | _ => sk
+      };
+    Option.map(
+      strip_tail,
+      parse(drop_suffix(";", text_of(ps)) ++ " in\n0"),
+    );
+  };
+
+/* [item] (a member) after [members], or before them; a member with
+   another after it needs its `;` */
+let append_member = (members: Segment.t, item: Segment.t): option(Segment.t) => {
+  let (mc, mt, msemi) = split_terminator(members);
+  let (ic, it, isemi) = split_terminator(item);
+  if (List.for_all(Focus.is_edge_ws, members) || msemi) {
+    Some(members @ item);
+  } else if (isemi) {
+    Some(mc @ it @ ic @ mt);
+  } else {
+    Option.map(semi => mc @ [semi] @ mt @ ic, fresh_semi());
+  };
+};
+let prepend_member = (item: Segment.t, members: Segment.t): option(Segment.t) => {
+  let (ic, it, isemi) = split_terminator(item);
+  isemi
+    ? Some(item @ members)
+    : Option.map(semi => ic @ [semi] @ it @ members, fresh_semi());
+};
+
+type spot = {
+  s_member: bool,
+  s_pieces: Segment.t,
+  s_first_tile: option(Id.t),
+  /* the neighbour in the move's direction, if it is a module */
+  s_module: option(Id.t),
+  s_edge: bool,
+};
+
+/* where the item holding [fid] sits, seen from its own block */
+let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) => {
+  let found = ref(None);
+  let first_tile = ps =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => Some(t)
+        | _ => None
+        },
+      ps,
+    );
+  let _ =
+    at_level(
+      ~act=
+        (~in_module, spans, j, seg) => {
+          let n = Array.length(spans);
+          let movable = k =>
+            k >= 0 && k < n && spans[k].Focus.sp_kind != Focus.ITail;
+          let span_pieces = k =>
+            Focus.slice(spans[k].Focus.sp_start, spans[k].Focus.sp_stop, seg);
+          let k = up ? j - 1 : j + 1;
+          let module_at =
+            movable(k)
+              ? switch (first_tile(span_pieces(k))) {
+                | Some(t) =>
+                  switch (Tile.label(t)) {
+                  | ["module", ..._] => Some(t.id)
+                  | _ => None
+                  }
+                | None => None
+                }
+              : None;
+          found :=
+            Some({
+              s_member: in_module,
+              s_pieces: span_pieces(j),
+              s_first_tile:
+                Option.map(
+                  (t: Base.tile) => t.id,
+                  first_tile(span_pieces(j)),
+                ),
+              s_module: module_at,
+              s_edge: !movable(k),
+            });
+          /* found: stop the search here */
+          Some((seg, None));
+        },
+      ~mod_root,
+      fid,
+      ~bctx=BPlain,
+      ~top=true,
+      seg,
+    );
+  found^;
+};
+
+/* a member followed by another needs its `;` */
+let ensure_term = (ps: Segment.t): option(Segment.t) => {
+  let (c, t, semi) = split_terminator(ps);
+  semi ? Some(ps) : Option.map(s => c @ [s] @ t, fresh_semi());
+};
+
+/* [ps] placed just above ([up]) or below the item holding [target];
+   in a member block, separators follow what comes after */
+let insert_near =
+    (~mod_root, ~up: bool, target: Id.t, ps: Segment.t, seg: Segment.t)
+    : option(Segment.t) =>
+  at_level(
+    ~act=
+      (~in_module, spans, j, seg) => {
+        let (a, b) = (spans[j].Focus.sp_start, spans[j].Focus.sp_stop);
+        let put = (lo, hi, mid) =>
+          Some((Focus.take(lo, seg) @ mid @ Focus.drop(hi, seg), None));
+        switch (in_module, up) {
+        | (false, true) => put(a, a, ps)
+        | (false, false) => put(b, b, ps)
+        | (true, true) => Option.bind(ensure_term(ps), put(a, a))
+        | (true, false) =>
+          let followed = j + 1 < Array.length(spans);
+          Option.bind(followed ? ensure_term(ps) : Some(ps), item =>
+            Option.bind(
+              append_member(Focus.slice(a, b, seg), item),
+              put(a, b),
+            )
+          );
+        };
+      },
+    ~mod_root,
+    target,
+    ~bctx=BPlain,
+    ~top=true,
+    seg,
+  )
+  |> Option.map(fst);
+
+/* Alt↑↓ (plans/outline-ui.md): into an expanded module beside the item
+   (at its end going up, its start going down); from a module's first
+   or last member, out to just above or below it. Collapsed modules are
+   stepped over and function bodies keep their items. [owner]: the
+   module whose member the item is. */
+let move =
+    (
+      ~mod_root: bool,
+      ~is_open: Id.t => bool,
+      ~owner: option(Id.t),
+      ~up: bool,
+      fid: Id.t,
+      seg: Segment.t,
+    )
+    : option((Segment.t, option(Id.t))) =>
+  switch (spot(~mod_root, ~up, fid, seg)) {
+  | None => None
+  | Some(s) =>
+    let removed = () => Option.map(fst, apply(~mod_root, Delete, fid, seg));
+    switch (s.s_module) {
+    | Some(k) when is_open(k) =>
+      /* in: the neighbour module's members gain the item */
+      switch (
+        removed(),
+        in_form(~member=true, ~was_member=s.s_member, s.s_pieces),
+      ) {
+      | (Some(seg1), Some(item)) =>
+        switch (Focus.find_def(k, seg1)) {
+        | Some(def_seg) =>
+          switch (Focus.brace_child(def_seg)) {
+          | Some(members) =>
+            (
+              up
+                ? append_member(members, item)
+                : prepend_member(item, members)
+            )
+            |> Option.map(drop_trailing_semi)
+            |> Option.map(members =>
+                 (
+                   Focus.splice_def(
+                     k,
+                     Focus.with_brace_child(def_seg, members),
+                     seg1,
+                   ),
+                   first_tile_id(item),
+                 )
+               )
+          | None => None
+          }
+        | None => None
+        }
+      | _ => None
+      }
+    | _ when !s.s_edge =>
+      apply(~mod_root, up ? MoveUp : MoveDown, fid, seg)
+      |> Option.map(((seg, _)) => (seg, Some(fid)))
+    | _ =>
+      /* out: just above or below the owning module, in its block's form */
+      switch (owner) {
+      | None => None
+      | Some(m) =>
+        switch (removed(), spot(~mod_root, ~up, m, seg)) {
+        | (Some(seg1), Some(ms)) =>
+          switch (in_form(~member=ms.s_member, ~was_member=true, s.s_pieces)) {
+          | Some(item) =>
+            insert_near(~mod_root, ~up, m, item, seg1)
+            |> Option.map(seg2 => (seg2, first_tile_id(item)))
+          | None => None
+          }
+        | _ => None
+        }
+      }
+    };
   };

@@ -751,6 +751,8 @@ type outline_memo_key = {
   ok_results: option(Language.TestResults.t),
   ok_view: option(SlideView.t),
   ok_cursor: option(OutlineTree.path),
+  ok_edit: option(OutlineEdit.t),
+  ok_created: option((Haz3lcore.Id.t, string)),
 };
 let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
   ref(Option.none);
@@ -770,6 +772,8 @@ let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
   && a.ok_menu == b.ok_menu
   && a.ok_view == b.ok_view
   && a.ok_cursor == b.ok_cursor
+  && a.ok_edit == b.ok_edit
+  && a.ok_created == b.ok_created
   && (
     switch (a.ok_results, b.ok_results) {
     | (Some(x), Some(y)) => x === y
@@ -1199,6 +1203,8 @@ module View = {
         };
       let memo_key = {
         ok_cursor: ScratchMode.outline_cursor^,
+        ok_edit: ScratchMode.outline_edit^,
+        ok_created: ScratchMode.outline_created^,
         ok_view: slide_view,
         ok_statics: outline_statics,
         ok_slot: Haz3lcore.DefStatics.current(),
@@ -1347,6 +1353,19 @@ module View = {
                 inject(Editors(Scratch(OutlineCursor(c))));
               },
             ~focused=inject(Editors(Scratch(OutlineFocused))),
+            ~edit={
+              current: ScratchMode.outline_edit^,
+              get: () => ScratchMode.outline_edit^,
+              set: e => {
+                ScratchMode.outline_edit := e;
+                inject(Editors(Scratch(OutlineEdit(e))));
+              },
+              commit: (ed, then_new) => {
+                ScratchMode.outline_edit := None;
+                inject(Editors(Scratch(OutlineCommit(ed, then_new))));
+              },
+            },
+            ~created=ScratchMode.outline_created^,
             ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
             ~focused_entries,
             ~menu,

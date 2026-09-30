@@ -1,0 +1,12 @@
+open Util;
+
+/* a name being typed in the outline: an existing row's (a rename), or a
+   new definition's below [ed_anchor] */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  ed_row: option(Language.Id.t),
+  ed_anchor: option(Language.Id.t),
+  ed_text: string,
+  ed_caret: int,
+  ed_error: option(string),
+};

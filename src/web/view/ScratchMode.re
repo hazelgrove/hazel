@@ -21,6 +21,11 @@ let outline_menu: ref(option((Haz3lcore.Id.t, bool, float, float))) =
 /* the outline's keyboard cursor: a row path, None for the header row */
 let outline_cursor: ref(option(OutlineTree.path)) = ref(None);
 
+/* a name being typed in the outline, and the row just created from a
+   `type `/`module ` name (its keyword animates away) */
+let outline_edit: ref(option(OutlineEdit.t)) = ref(None);
+let outline_created: ref(option((Haz3lcore.Id.t, string))) = ref(None);
+
 /* the header symbol a headerless cell for [fid] should show, from
    the OUTLINE's view of the row (span kinds mis-read member-fn tails:
    a member terminates with `;`, so its fn-body tail extracts from an
@@ -136,6 +141,8 @@ module Update = {
     | ZoomTo(option(Haz3lcore.Id.t)) /* a breadcrumb: None = the program */
     | ShowWhole(bool) /* park (true) or unpark the pins at this level */
     | OutlineCursor(option(OutlineTree.path))
+    | OutlineEdit(option(OutlineEdit.t))
+    | OutlineCommit(OutlineEdit.t, bool) /* true: then a new one */
     | OutlineFocused /* the outline took keyboard focus */
     | FocusOutline
     | RefreshStatics
@@ -222,6 +229,89 @@ module Update = {
       program,
       view,
     };
+  };
+
+  /* the program after an outline edit: statics seeded now (the outline
+     reads them, and the edit's one parse doubles as the next statics
+     frame), manual probes and the caret kept, cells re-cut */
+  let with_segment =
+      (~settings: Settings.t, code: Scratchpad.code, new_seg: Segment.t)
+      : Scratchpad.code => {
+    let program = code.program;
+    let root = Program.root(program);
+    let present = {
+      let ids = Segment.ids(new_seg);
+      List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty, ids);
+    };
+    let manuals =
+      List.filter(
+        ((id, _)) => Id.Map.mem(id, present),
+        Program.probes(program),
+      );
+    let statics =
+      settings.core.statics
+        ? Haz3lcore.CachedStatics.init_compositional_term(
+            ~settings=settings.core,
+            ~probe_ids=
+              List.fold_left(
+                (m, (id, _)) => Id.Map.add(id, (), m),
+                Id.Map.empty,
+                manuals,
+              ),
+            root == Haz3lcore.Sort.Mod
+              ? MakeTerm.Incr.term_of_mod(new_seg)
+              : MakeTerm.Incr.term_of(new_seg),
+          )
+        : Haz3lcore.CachedStatics.empty;
+    let z =
+      Zipper.unzip(~direction=Left, new_seg)
+      |> ZipperBase.update_refractors(_, r =>
+           Refractors.{
+             ...r,
+             manuals,
+           }
+         );
+    let z =
+      switch (program) {
+      | Whole(e) =>
+        switch (Divided.anchor_of(e.editor.editor.state.zipper)) {
+        | Some((side, id)) =>
+          Option.value(Move.jump_to_side_of_id(side, z, id), ~default=z)
+        | None => z
+        }
+      | Divided(_) => z
+      };
+    let fresh = CellEditor.Model.mk(Editor.Model.mk(z, ~root));
+    let editor: CellEditor.Model.t = {
+      editor: {
+        ...fresh.editor,
+        statics,
+      },
+      result: Program.result(program),
+    };
+    let program =
+      switch (program) {
+      | Whole(_) => Program.Whole(editor)
+      | Divided(d) =>
+        switch (
+          Divided.resplit(
+            ~info_map=statics.info_map,
+            ~term=statics.term,
+            editor,
+            d,
+          )
+        ) {
+        | Joined(e) => Program.Whole(e)
+        | Still(d) => Program.Divided(Divided.with_statics(statics, d))
+        }
+      };
+    resync(
+      {
+        ...code,
+        program,
+      },
+      program,
+    );
   };
 
   let export_scratch_slide = (model: Model.t): unit => {
@@ -549,63 +639,61 @@ module Update = {
       switch (current_code(model)) {
       | None => model |> Updated.return_quiet
       | Some({program, _} as code) =>
-        switch (Restructure.apply(op, fid, Program.document(program))) {
+        let seg = Program.document(program);
+        let mod_root = Program.root(program) == Haz3lcore.Sort.Mod;
+        let term = Program.statics(program).term;
+        let result =
+          switch (op) {
+          | MoveUp
+          | MoveDown =>
+            /* moves cross module edges (into expanded modules, out at a
+               module's first or last member) */
+            let prefix = is_documentation ? "doc" : "scratch";
+            let collapsed =
+              collapse_paths(
+                prefix,
+                List.nth(model.scratchpads, model.current).name,
+              );
+            let is_open = id =>
+              switch (OutlineTree.label_path(id, term)) {
+              | Some(path) => !List.mem(path, collapsed)
+              | None => true
+              };
+            let owner =
+              switch (Option.map(List.rev, OutlineTree.trail_of(fid, term))) {
+              | Some([_, parent, ..._])
+                  when
+                    OutlineTree.kind_of(parent, term)
+                    == Some(OutlineTree.KModule) =>
+                Some(parent)
+              | _ => None
+              };
+            Restructure.move(
+              ~mod_root,
+              ~is_open,
+              ~owner,
+              ~up=op == MoveUp,
+              fid,
+              seg,
+            );
+          | _ => Restructure.apply(~mod_root, op, fid, seg)
+          };
+        switch (result) {
         | None => model |> Updated.return_quiet
         | Some((new_seg, focus_target)) =>
-          let root = Program.root(program);
-          /* statics seeded synchronously: the outline reads them, and
-             the op's single parse doubles as the next statics frame */
-          let probe_ids = Program.probe_ids(program);
-          let statics =
-            settings.core.statics
-              ? Haz3lcore.CachedStatics.init_compositional_term(
-                  ~settings=settings.core,
-                  ~probe_ids,
-                  root == Haz3lcore.Sort.Mod
-                    ? MakeTerm.Incr.term_of_mod(new_seg)
-                    : MakeTerm.Incr.term_of(new_seg),
-                )
-              : Haz3lcore.CachedStatics.empty;
-          let fresh = Focus.cell_of_seg(~root, new_seg);
-          let editor: CellEditor.Model.t = {
-            editor: {
-              ...fresh.editor,
-              statics,
-            },
-            result: Program.result(program),
-          };
-          let program =
-            switch (program) {
-            | Whole(_) => Program.Whole(editor)
-            | Divided(d) =>
-              switch (
-                Divided.resplit(
-                  ~info_map=statics.info_map,
-                  ~term=statics.term,
-                  editor,
-                  d,
-                )
-              ) {
-              | Joined(e) => Program.Whole(e)
-              | Still(d) => Program.Divided(Divided.with_statics(statics, d))
-              }
-            };
-          let code =
-            resync(
-              {
-                ...code,
-                program,
-              },
-              program,
-            );
-          switch (focus_target, code.program) {
-          | (Some(id), Whole(_)) => schedule_action(FocusToggle(id))
-          | (Some(id), Divided(d)) when Divided.owner(id, d) == None =>
+          let code = with_segment(~settings, code, new_seg);
+          switch (op, focus_target, code.program) {
+          | (MoveUp | MoveDown, Some(id), _) =>
+            /* the cursor follows the moved item */
+            outline_cursor :=
+              OutlineTree.label_path(id, Program.statics(code.program).term)
+          | (_, Some(id), Whole(_)) => schedule_action(FocusToggle(id))
+          | (_, Some(id), Divided(d)) when Divided.owner(id, d) == None =>
             schedule_action(FocusEnsure(id))
           | _ => ()
           };
           with_code(model, code) |> Updated.return;
-        }
+        };
       };
     | UnfocusDef =>
       update_view(model, (term, _, v) => SlideView.discard(~term, v))
@@ -617,7 +705,127 @@ module Update = {
       update_view(model, (_, _, v) => SlideView.park(parked, v))
     | OutlineCursor(c) =>
       outline_cursor := c;
+      outline_created := None;
       model |> Updated.return_quiet;
+    | OutlineEdit(e) =>
+      outline_edit := e;
+      outline_created := None;
+      model |> Updated.return_quiet;
+    | OutlineCommit(ed, then_new) =>
+      /* nothing reaches the program until here: a rename is one
+         refactoring, a new definition one insertion */
+      let fresh_below = (id: Haz3lcore.Id.t): OutlineEdit.t => {
+        ed_row: None,
+        ed_anchor: Some(id),
+        ed_text: "",
+        ed_caret: 0,
+        ed_error: None,
+      };
+      let refuse = why => {
+        outline_edit :=
+          Some({
+            ...ed,
+            ed_error: Some(why),
+          });
+        model |> Updated.return_quiet;
+      };
+      switch (current_code(model)) {
+      | None => model |> Updated.return_quiet
+      | Some({program, _} as code) =>
+        let text = String.trim(ed.ed_text);
+        let seg = Program.document(program);
+        let root = Program.root(program);
+        let term =
+          root == Haz3lcore.Sort.Mod
+            ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
+        switch (ed.ed_row, ed.ed_anchor) {
+        | (Some(row), _) =>
+          let old =
+            Option.map(
+              (n: OutlineTree.node) => n.o_label,
+              OutlineTree.node_of(row, term),
+            );
+          if (old == Some(text)) {
+            outline_edit := then_new ? Some(fresh_below(row)) : None;
+            model |> Updated.return_quiet;
+          } else if (!settings.core.statics) {
+            refuse("renaming needs statics on");
+          } else {
+            let statics =
+              Haz3lcore.CachedStatics.init_compositional_term(
+                ~settings=settings.core,
+                ~probe_ids=Program.probe_ids(program),
+                term,
+              );
+            switch (
+              OutlineRename.rename(
+                ~info_map=statics.info_map,
+                ~term,
+                row,
+                text,
+                seg,
+              )
+            ) {
+            | Error(why) => refuse(why)
+            | Ok(new_seg) =>
+              let code = with_segment(~settings, code, new_seg);
+              let new_term = Program.statics(code.program).term;
+              outline_cursor := OutlineTree.label_path(row, new_term);
+              outline_edit := then_new ? Some(fresh_below(row)) : None;
+              with_code(model, code) |> Updated.return;
+            };
+          };
+        | (None, Some(anchor)) when text == "" =>
+          outline_edit := None;
+          outline_cursor := OutlineTree.label_path(anchor, term);
+          model |> Updated.return_quiet;
+        | (None, Some(anchor)) =>
+          let (kind, prefix) = OutlineSidebar.new_kind(text);
+          let name =
+            String.trim(
+              String.sub(
+                text,
+                String.length(prefix),
+                String.length(text) - String.length(prefix),
+              ),
+            );
+          let (rkind, op): (OutlineRename.kind, OutlineSidebar.def_op) =
+            switch (kind) {
+            | KType => (KType, NewTypeBelow)
+            | KModule => (KModule, NewModuleBelow)
+            | _ => (KValue, NewBelow)
+            };
+          switch (OutlineRename.check_name(rkind, name)) {
+          | Some(why) => refuse(why)
+          | None =>
+            switch (
+              Restructure.apply(
+                ~name,
+                ~mod_root=root == Haz3lcore.Sort.Mod,
+                op,
+                anchor,
+                seg,
+              )
+            ) {
+            | None => refuse("a definition can't go here")
+            | Some((new_seg, created)) =>
+              let code = with_segment(~settings, code, new_seg);
+              let new_term = Program.statics(code.program).term;
+              switch (created) {
+              | Some(id) =>
+                outline_cursor := OutlineTree.label_path(id, new_term);
+                outline_edit := then_new ? Some(fresh_below(id)) : None;
+                outline_created := prefix == "" ? None : Some((id, prefix));
+              | None => outline_edit := None
+              };
+              with_code(model, code) |> Updated.return;
+            }
+          };
+        | (None, None) =>
+          outline_edit := None;
+          model |> Updated.return_quiet;
+        };
+      };
     | OutlineFocused =>
       /* the outline starts at the row holding the caret */
       switch (current_code(model), OutlineFollow.mark^) {

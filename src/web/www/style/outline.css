@@ -475,3 +475,91 @@
   border-top: 0.6px solid var(--border-default, #b5a377);
   background: var(--surface-raised, #f1e9d2);
 }
+
+/* a name typed in place: no bar, a soft rounded tint behind the name
+   and the caret's own red caret */
+#outline-sidebar .outline-body:focus .outline-label.outline-editing,
+#outline-sidebar
+  .outline-body:focus:has(.outline-editing)
+  .outline-label.outline-cursor {
+  box-shadow: none;
+  background: transparent;
+}
+#outline-sidebar .outline-edit-text {
+  display: inline-block;
+  min-width: 3ch;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--caret-color, #d33) 10%, transparent);
+  white-space: pre;
+}
+#outline-sidebar .outline-edit-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.1em;
+  margin: 0 -0.75px;
+  vertical-align: -0.2em;
+  background: var(--caret-color, #d33);
+}
+@media (prefers-reduced-motion: no-preference) {
+  #outline-sidebar .outline-edit-caret {
+    animation: ol-blink 1.1s steps(1) infinite;
+  }
+}
+@keyframes ol-blink {
+  50% {
+    opacity: 0;
+  }
+}
+#outline-sidebar .outline-edit-kw {
+  font-weight: bold;
+  opacity: 0.7;
+}
+#outline-sidebar .outline-edit-hint {
+  margin-left: 22px;
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--text-error, #c33);
+  white-space: normal;
+}
+
+/* the keyword that made a new definition a type or module leaves */
+#outline-sidebar .outline-kw-leaving {
+  display: inline-block;
+  overflow: hidden;
+  white-space: pre;
+  vertical-align: bottom;
+  font-weight: bold;
+  opacity: 0;
+  max-width: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #outline-sidebar .outline-kw-leaving {
+    animation: ol-kw-leave 220ms ease-in;
+  }
+}
+@keyframes ol-kw-leave {
+  from {
+    max-width: 8ch;
+    opacity: 0.7;
+  }
+  to {
+    max-width: 0;
+    opacity: 0;
+  }
+}
+
+/* rows a change leaves in error turn red over a moment */
+#outline-sidebar .outline-label {
+  transition: color 0.4s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #outline-sidebar .outline-err-badge {
+    animation: ol-fade-in 0.4s ease-out;
+  }
+}
+@keyframes ol-fade-in {
+  from {
+    opacity: 0;
+  }
+}

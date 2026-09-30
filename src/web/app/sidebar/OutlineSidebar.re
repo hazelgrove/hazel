@@ -61,6 +61,86 @@ let kind_cls = (k: OutlineTree.kind): string =>
   | KTrail => "ol-trail"
   };
 
+type name_edit =
+  OutlineEdit.t = {
+    ed_row: option(Language.Id.t),
+    ed_anchor: option(Language.Id.t),
+    ed_text: string,
+    ed_caret: int,
+    ed_error: option(string),
+  };
+
+type edit_ctl = {
+  current: option(name_edit),
+  /* read at the keypress: keys can outrun renders */
+  get: unit => option(name_edit),
+  set: option(name_edit) => Effect.t(unit),
+  /* save; with [true], start a new definition below */
+  commit: (name_edit, bool) => Effect.t(unit),
+};
+
+/* a new definition's kind from its leading keyword */
+let new_kind = (text: string): (OutlineTree.kind, string) => {
+  let starts = p =>
+    String.length(text) >= String.length(p)
+    && String.sub(text, 0, String.length(p)) == p;
+  starts("type ")
+    ? (KType, "type ")
+    : starts("module ") ? (KModule, "module ") : (KConst, "");
+};
+
+/* the typed text with its caret; a new definition's keyword colored */
+let edit_text = (ed: name_edit): list(Node.t) => {
+  let t = ed.ed_text;
+  let n = String.length(t);
+  let c = max(0, min(ed.ed_caret, n));
+  let p = ed.ed_row == None ? String.length(snd(new_kind(t))) : 0;
+  let piece = (a, b) => text(String.sub(t, a, b - a));
+  let caret = span(~attrs=[clss(["outline-edit-caret"])], []);
+  (
+    p > 0
+      ? [
+        span(
+          ~attrs=[clss(["outline-edit-kw"])],
+          c <= p ? [piece(0, c), caret, piece(c, p)] : [piece(0, p)],
+        ),
+      ]
+      : []
+  )
+  @ (c > p || p == 0 ? [piece(p, c), caret, piece(c, n)] : [piece(p, n)]);
+};
+
+let edit_hint = (ed: name_edit): list(Node.t) =>
+  switch (ed.ed_error) {
+  | Some(why) => [div(~attrs=[clss(["outline-edit-hint"])], [text(why)])]
+  | None => []
+  };
+
+/* the row a new definition is typed into, below its anchor */
+let new_row_view = (ed: name_edit): Node.t => {
+  let (k, _) = new_kind(ed.ed_text);
+  div(
+    ~attrs=[clss(["outline-leaf"])],
+    [
+      div(
+        ~attrs=[
+          clss([
+            "outline-label",
+            "outline-editing",
+            "outline-new",
+            kind_cls(k),
+          ]),
+        ],
+        [
+          span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))]),
+          span(~attrs=[clss(["outline-edit-text"])], edit_text(ed)),
+        ],
+      ),
+    ]
+    @ edit_hint(ed),
+  );
+};
+
 /* live glyph + status class for test rows; the container joins its
    children's statuses (any fail => ✗) */
 let test_glyph =
@@ -168,9 +248,16 @@ let rec node_view =
           ~test_status: Language.Id.t => option(TestStatus.t),
           ~cursor: option(OutlineTree.path),
           ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
+          ~edit: edit_ctl,
+          ~created: option((Language.Id.t, string)),
           n: OutlineTree.node,
         )
         : Node.t => {
+  let editing =
+    switch (edit.current) {
+    | Some(ed) when ed.ed_row != None && ed.ed_row == n.o_id => Some(ed)
+    | _ => None
+    };
   let status = test_glyph(~test_status, n);
   let has_err =
     switch (n.o_id) {
@@ -222,6 +309,7 @@ let rec node_view =
           clss(
             ["outline-label", kind_cls(n.o_kind)]
             @ (cursor == Some(row_path) ? ["outline-cursor"] : [])
+            @ (editing != None ? ["outline-editing"] : [])
             @ (stacked ? ["outline-focused"] : [])
             @ (has_err ? ["outline-has-err"] : [])
             @ (
@@ -244,8 +332,18 @@ let rec node_view =
            focus; otherwise focus stays where it was (in the editor) */
         @ [
           Attr.on_mousedown(_ =>
-            Util.JsUtil.outline_has_focus()
-              ? set_cursor(Some(row_path)) : Effect.Prevent_default
+            switch (edit.get()) {
+            | Some(ed) when ed.ed_row == None || ed.ed_row != n.o_id =>
+              /* clicking away from a name saves it */
+              Effect.Many([
+                edit.commit(ed, false),
+                set_cursor(Some(row_path)),
+              ])
+            | Some(_) => Effect.Ignore
+            | None =>
+              Util.JsUtil.outline_has_focus()
+                ? set_cursor(Some(row_path)) : Effect.Prevent_default
+            }
           ),
         ]
         @ (
@@ -307,8 +405,20 @@ let rec node_view =
             ),
           ],
         ),
-        text(n.o_label),
       ]
+      @ (
+        switch (editing, created) {
+        | (Some(ed), _) => [
+            span(~attrs=[clss(["outline-edit-text"])], edit_text(ed)),
+          ]
+        | (None, Some((id, kw))) when n.o_id == Some(id) => [
+            /* the keyword typed to make it a type or module, leaving */
+            span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
+            text(n.o_label),
+          ]
+        | _ => [text(n.o_label)]
+        }
+      )
       @ (
         has_err
           ? [
@@ -409,8 +519,13 @@ let rec node_view =
         }
       ),
     );
+  let hint =
+    switch (editing) {
+    | Some(ed) => edit_hint(ed)
+    | None => []
+    };
   switch (n.o_children) {
-  | [] => div(~attrs=[clss(["outline-leaf"])], [label])
+  | [] => div(~attrs=[clss(["outline-leaf"])], [label, ...hint])
   | kids =>
     let my_path = row_path;
     create(
@@ -446,37 +561,53 @@ let rec node_view =
             ),
           [label],
         ),
+      ]
+      @ hint
+      @ [
         div(
           ~attrs=[clss(["outline-kids"])],
-          List.map(
-            ((kid, kocc)) =>
-              node_view(
-                ~stack_controls,
-                ~can_open,
-                ~jump,
-                ~focus,
-                ~toggle,
-                ~toggle_run,
-                ~is_collapsed,
-                ~toggle_collapse,
-                ~path=my_path,
-                ~occ=kocc,
-                ~menu_open,
-                ~error_subtree,
-                ~focused_entries,
-                ~error_items,
-                ~test_status,
-                ~cursor,
-                ~set_cursor,
-                kid,
-              ),
+          List.concat_map(
+            ((kid: OutlineTree.node, kocc)) =>
+              [
+                node_view(
+                  ~stack_controls,
+                  ~can_open,
+                  ~jump,
+                  ~focus,
+                  ~toggle,
+                  ~toggle_run,
+                  ~is_collapsed,
+                  ~toggle_collapse,
+                  ~path=my_path,
+                  ~occ=kocc,
+                  ~menu_open,
+                  ~error_subtree,
+                  ~focused_entries,
+                  ~error_items,
+                  ~test_status,
+                  ~cursor,
+                  ~set_cursor,
+                  ~edit,
+                  ~created,
+                  kid,
+                ),
+              ]
+              @ new_row_after(edit, kid),
             OutlineTree.with_occurrences(kids),
           ),
         ),
       ],
     );
   };
-};
+}
+/* a new definition typed below [n] */
+and new_row_after = (edit: edit_ctl, n: OutlineTree.node): list(Node.t) =>
+  switch (edit.current) {
+  | Some({ed_row: None, ed_anchor: Some(a), _} as ed) when n.o_id == Some(a) => [
+      new_row_view(ed),
+    ]
+  | _ => []
+  };
 
 let menu_view =
     (
@@ -603,6 +734,7 @@ let keys =
       ~show_whole: bool => Effect.t(unit),
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
       ~leave: Effect.t(unit),
+      ~edit: edit_ctl,
       evt,
     )
     : Effect.t(unit) => {
@@ -645,7 +777,7 @@ let keys =
     | _ => Effect.Ignore
     };
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
-  let act =
+  let nav_key = () =>
     switch (key, alt, meta, cur) {
     | ("Escape", _, _, _) => Some(leave)
     | _ when alt && code == "KeyO" => Some(leave)
@@ -698,6 +830,111 @@ let keys =
         id_of(r),
       )
     | _ => None
+    };
+  let nameable = (r: visible_row) =>
+    switch (r.r_node.o_kind) {
+    | KFn
+    | KConst
+    | KType
+    | KModule => r.r_node.o_id != None
+    | _ => false
+    };
+  let start_edit = (r: visible_row) =>
+    nameable(r)
+      ? edit.set(
+          Some({
+            ed_row: r.r_node.o_id,
+            ed_anchor: None,
+            ed_text: r.r_node.o_label,
+            ed_caret: String.length(r.r_node.o_label),
+            ed_error: None,
+          }),
+        )
+      : Effect.Ignore;
+  /* typing a name: Enter saves and starts a new definition below, ↑↓
+     save and move, Esc cancels */
+  let edit_key = (ed: name_edit) => {
+    let t = ed.ed_text;
+    let c = max(0, min(ed.ed_caret, String.length(t)));
+    let put = (t, c) =>
+      edit.set(
+        Some({
+          ...ed,
+          ed_text: t,
+          ed_caret: c,
+          ed_error: None,
+        }),
+      );
+    let back_to_anchor =
+      /* an unfinished new definition vanishes; the cursor returns */
+      switch (ed.ed_anchor) {
+      | Some(a) =>
+        let rec find = (i): option(OutlineTree.path) =>
+          i >= n
+            ? Option.none
+            : visible[i].r_node.o_id == Option.some(a)
+                ? Option.some(visible[i].r_path) : find(i + 1);
+        switch (find(0)) {
+        | Some(p) => set_cursor(Some(p))
+        | None => Effect.Ignore
+        };
+      | None => Effect.Ignore
+      };
+    switch (key) {
+    | "Enter" => Some(edit.commit(ed, true))
+    | "Escape" => Some(Effect.Many([edit.set(None), back_to_anchor]))
+    | "ArrowUp" when ed.ed_row != None =>
+      Some(Effect.Many([edit.commit(ed, false), go(idx - 1)]))
+    | "ArrowDown" when ed.ed_row != None =>
+      Some(Effect.Many([edit.commit(ed, false), go(idx + 1)]))
+    | "ArrowUp"
+    | "ArrowDown" =>
+      Some(Effect.Many([edit.commit(ed, false), back_to_anchor]))
+    | "ArrowLeft" => Some(put(t, max(0, c - 1)))
+    | "ArrowRight" => Some(put(t, min(String.length(t), c + 1)))
+    | "Home" => Some(put(t, 0))
+    | "End" => Some(put(t, String.length(t)))
+    | "Backspace" when t == "" && ed.ed_row == None =>
+      Some(Effect.Many([edit.set(None), back_to_anchor]))
+    | "Backspace" =>
+      Some(
+        c == 0
+          ? Effect.Ignore
+          : put(
+              String.sub(t, 0, c - 1)
+              ++ String.sub(t, c, String.length(t) - c),
+              c - 1,
+            ),
+      )
+    | "Delete" =>
+      Some(
+        c >= String.length(t)
+          ? Effect.Ignore
+          : put(
+              String.sub(t, 0, c)
+              ++ String.sub(t, c + 1, String.length(t) - c - 1),
+              c,
+            ),
+      )
+    | "Tab" => Some(Effect.Ignore)
+    | _ when String.length(key) == 1 && !meta =>
+      Some(
+        put(
+          String.sub(t, 0, c)
+          ++ key
+          ++ String.sub(t, c, String.length(t) - c),
+          c + 1,
+        ),
+      )
+    | _ => None
+    };
+  };
+  let act =
+    switch (edit.get(), key, meta, cur) {
+    | (Some(ed), _, _, _) => edit_key(ed)
+    | (None, "Enter", true, Some(r))
+    | (None, "F2", _, Some(r)) => Some(start_edit(r))
+    | (None, _, _, _) => nav_key()
     };
   switch (act) {
   | Some(eff) =>
@@ -830,6 +1067,8 @@ let view =
       ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
       ~focused: Effect.t(unit),
       ~leave: Effect.t(unit),
+      ~edit: edit_ctl,
+      ~created: option((Language.Id.t, string)),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
       ~error_subtree: list(Language.Id.t),
@@ -909,6 +1148,7 @@ let view =
       ~show_whole,
       ~def_op,
       ~leave,
+      ~edit,
     );
   create(
     "details",
@@ -937,7 +1177,17 @@ let view =
                 Attr.on_focus(_ =>
                   Effect.Many([Effect.Stop_propagation, focused])
                 ),
-                Attr.on_blur(_ => Effect.Stop_propagation),
+                /* leaving the outline saves a name being typed */
+                Attr.on_blur(_ =>
+                  switch (edit.get()) {
+                  | Some(ed) =>
+                    Effect.Many([
+                      Effect.Stop_propagation,
+                      edit.commit(ed, false),
+                    ])
+                  | None => Effect.Stop_propagation
+                  }
+                ),
               ]
               : []
           ),
@@ -948,28 +1198,33 @@ let view =
               [text("no definitions")],
             ),
           ]
-          : List.map(
-              ((root, rocc)) =>
-                node_view(
-                  ~stack_controls,
-                  ~can_open,
-                  ~jump,
-                  ~focus,
-                  ~toggle,
-                  ~toggle_run,
-                  ~is_collapsed,
-                  ~toggle_collapse,
-                  ~path=root_path,
-                  ~occ=rocc,
-                  ~menu_open,
-                  ~error_subtree,
-                  ~focused_entries,
-                  ~error_items,
-                  ~test_status,
-                  ~cursor,
-                  ~set_cursor,
-                  root,
-                ),
+          : List.concat_map(
+              ((root: OutlineTree.node, rocc)) =>
+                [
+                  node_view(
+                    ~stack_controls,
+                    ~can_open,
+                    ~jump,
+                    ~focus,
+                    ~toggle,
+                    ~toggle_run,
+                    ~is_collapsed,
+                    ~toggle_collapse,
+                    ~path=root_path,
+                    ~occ=rocc,
+                    ~menu_open,
+                    ~error_subtree,
+                    ~focused_entries,
+                    ~error_items,
+                    ~test_status,
+                    ~cursor,
+                    ~set_cursor,
+                    ~edit,
+                    ~created,
+                    root,
+                  ),
+                ]
+                @ new_row_after(edit, root),
               OutlineTree.with_occurrences(roots),
             ),
       ),
