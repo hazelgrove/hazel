@@ -114,19 +114,36 @@ let ensure_scroll_listener = (container: Js.t(Dom_html.element)): unit => {
   };
 };
 
-/* scroll delta keeping the caret's row out of the margin band, else 0 */
-let decide = (g: geom, row: int, rh: float): float => {
-  let y_top = g.editor_top +. float_of_int(row) *. rh -. g.scroll_top;
+/* scroll delta keeping row [row] out of the margin band of a viewport
+   [height] tall, else 0 */
+let band_delta =
+    (~editor_top: float, ~scroll_top: float, ~height: float, row: int, rh)
+    : float => {
+  let y_top = editor_top +. float_of_int(row) *. rh -. scroll_top;
   let y_bot = y_top +. rh;
-  let margin = g.height *. margin_ratio;
+  let margin = height *. margin_ratio;
   if (y_top < margin) {
     y_top -. margin;
-  } else if (y_bot > g.height -. margin) {
-    y_bot -. (g.height -. margin);
+  } else if (y_bot > height -. margin) {
+    y_bot -. (height -. margin);
   } else {
     0.;
   };
 };
+let decide = (g: geom, row: int, rh: float): float =>
+  band_delta(
+    ~editor_top=g.editor_top,
+    ~scroll_top=g.scroll_top,
+    ~height=g.height,
+    row,
+    rh,
+  );
+
+/* content-space y of the editor's row 0, read off the caret's rect */
+let anchor_of =
+    (~caret_top: float, ~cont_top: float, ~scroll_top: float, row: int, rh)
+    : float =>
+  caret_top -. cont_top +. scroll_top -. float_of_int(row) *. rh;
 
 let apply = (g: geom, delta: float): unit =>
   if (delta != 0.) {
@@ -154,12 +171,13 @@ let schedule_verify = (): unit =>
             g.height = Js.Optdef.get(cont_r##.height, _ => g.height);
             g.scroll_top = float_of_int(g.container##.scrollTop);
             let fresh =
-              caret_r##.top
-              -.
-              cont_r##.top
-              +. g.scroll_top
-              -. float_of_int(row)
-              *. rh;
+              anchor_of(
+                ~caret_top=caret_r##.top,
+                ~cont_top=cont_r##.top,
+                ~scroll_top=g.scroll_top,
+                row,
+                rh,
+              );
             if (abs_float(fresh -. g.editor_top) > heal_tolerance_px) {
               g.editor_top = fresh;
               apply(g, decide(g, row, rh));
@@ -220,12 +238,13 @@ let schedule_cold = (): unit =>
                   container,
                   caret_el: caret,
                   editor_top:
-                    caret_r##.top
-                    -.
-                    cont_r##.top
-                    +. scroll_pre
-                    -. float_of_int(row)
-                    *. rh,
+                    anchor_of(
+                      ~caret_top=caret_r##.top,
+                      ~cont_top=cont_r##.top,
+                      ~scroll_top=scroll_pre,
+                      row,
+                      rh,
+                    ),
                   height,
                   scroll_top: float_of_int(container##.scrollTop),
                 };
