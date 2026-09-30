@@ -218,6 +218,53 @@ let caret_travels = () => {
   };
 };
 
+/* closing every cell keeps the caret, whichever cell holds it */
+let close_keeps_caret = () => {
+  let rec find = (s: Segment.t): option(Id.t) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == ["+"] => Some(t.id)
+        | Tile(t) => List.find_map(find, t.children)
+        | _ => None
+        },
+      s,
+    );
+  let plus =
+    switch (find(seg)) {
+    | Some(id) => id
+    | None => failwith("no +")
+    };
+  let z =
+    switch (
+      Move.jump_to_side_of_id(Util.Direction.Left, Zipper.unzip(seg), plus)
+    ) {
+    | Some(z) => z
+    | None => failwith("no caret before +")
+    };
+  let p: Web.Program.t =
+    Whole(Web.CellEditor.Model.mk(Editor.Model.mk(z, ~root=Exp)));
+  /* the caret is in x, the first of the two cells */
+  let (v, p) =
+    V.realize(
+      ~info_map,
+      ~term,
+      V.pin(~term, row("y"), V.pin(~term, row("x"), V.init)),
+      p,
+    );
+  switch (V.realize(~info_map, ~term, V.discard(~term, v), p)) {
+  | (_, Divided(_)) => fail("still divided")
+  | (_, Whole(e)) =>
+    switch (
+      Siblings.neighbors(e.editor.editor.state.zipper.relatives.siblings)
+    ) {
+    | (_, Some(p)) =>
+      check(bool, "caret before +", true, Piece.id(p) == plus)
+    | _ => fail("nothing right of the caret")
+    }
+  };
+};
+
 let vanished = () => {
   let v = {
     ...V.init,
@@ -258,6 +305,7 @@ let tests = (
     test_case("pins inside the zoom", `Quick, pins_inside_zoom),
     test_case("park", `Quick, park),
     test_case("caret travels into its cell", `Quick, caret_travels),
+    test_case("closing all keeps the caret", `Quick, close_keeps_caret),
     test_case("vanished pins and zoom", `Quick, vanished),
     test_case("discard at a level", `Quick, discard),
   ],

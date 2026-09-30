@@ -167,6 +167,18 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     | Divided(_) => None
     };
   let (p, blocked) = open_all(p, to_open);
+  /* the active cell closes last, so the join keeps its caret */
+  let to_close =
+    switch (p) {
+    | Divided(d) =>
+      switch (Divided.active(d)) {
+      | Some((a, _)) =>
+        let (last, rest) = List.partition(c => slot_id(c) == a, to_close);
+        rest @ last;
+      | None => to_close
+      }
+    | Whole(_) => to_close
+    };
   let p =
     List.fold_left(
       (p: Program.t, c: slot) =>
