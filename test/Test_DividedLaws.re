@@ -417,6 +417,56 @@ let agent_edit = () => {
   };
 };
 
+/* a rename keeps its tokens' ids: open cells holding the binder or a use
+   still take the new name */
+let rename = () => {
+  let seg = parse(src);
+  let term = term_of(seg);
+  let d =
+    switch (
+      Divided.open_(
+        ~info_map=info_map_of(seg),
+        ~term,
+        row(term, "f"),
+        split(seg, row(term, "a")),
+      )
+    ) {
+    | Some(d) => d
+    | None => fail("second cell refused")
+    };
+  let joined = seg_of(Divided.join(d));
+  let renamed =
+    switch (
+      Web.OutlineRename.rename(
+        ~info_map=info_map_of(joined),
+        ~term=term_of(joined),
+        row(term_of(joined), "a"),
+        "b",
+        joined,
+      )
+    ) {
+    | Ok(seg) => seg
+    | Error(why) => fail("rename refused: " ++ why)
+    };
+  switch (
+    Divided.resplit(
+      ~info_map=info_map_of(renamed),
+      ~term=term_of(renamed),
+      editor_of(renamed),
+      d,
+    )
+  ) {
+  | Joined(_) => fail("the open cells closed")
+  | Still(d') =>
+    check(
+      string,
+      "the rename survives re-dividing",
+      text_of(renamed),
+      text_of(Divided.document(d')),
+    )
+  };
+};
+
 /* closing the last cell joins; a module-rooted program stays one */
 let close_all = () => {
   let seg = parse(~root=Mod, mod_src);
@@ -468,6 +518,7 @@ let tests = (
     test_case("cell edit", `Quick, cell_edit),
     test_case("resplit keeps an outside edit", `Quick, resplit),
     test_case("an agent edit re-cuts only its cell", `Quick, agent_edit),
+    test_case("a rename reaches open cells", `Quick, rename),
     test_case("close all", `Quick, close_all),
     test_case("no overlap", `Quick, no_overlap),
     test_case("mega-1k rows", `Slow, mega),

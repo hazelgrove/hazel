@@ -476,10 +476,19 @@ let toggle_run = (~info_map, ~term, fid: Id.t, d: t): after_close => {
 let resplit =
     (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
   let base = Focus.zip_of_cell(editor);
-  /* a cell the edit didn't touch keeps its editor (caret, selection):
-     edited tokens get fresh ids, so equal id sequences mean equal text */
-  let same = (a: Segment.t, b: Segment.t) =>
-    Segment.ids(Focus.core_ws(a)) == Segment.ids(b);
+  /* a cell the edit didn't touch keeps its editor (caret, selection); a
+     rename keeps its tokens' ids, so compare their labels too */
+  let rec labels = (s: Segment.t): list(string) =>
+    List.concat_map(
+      fun
+      | Piece.Tile(t) => Tile.label(t) @ List.concat_map(labels, t.children)
+      | _ => [],
+      s,
+    );
+  let same = (a: Segment.t, b: Segment.t) => {
+    let a = Focus.core_ws(a);
+    Segment.ids(a) == Segment.ids(b) && labels(a) == labels(b);
+  };
   let untouched = (e: Cell.t): bool =>
     switch (Focus.cell_content(e, base)) {
     | None => false
