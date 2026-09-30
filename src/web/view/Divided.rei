@@ -28,7 +28,8 @@ let split:
   option(t);
 let split_run:
   (~info_map: Language.Statics.Map.t, CellEditor.Model.t, Id.t) => option(t);
-let join: t => CellEditor.Model.t;
+/* with [prev], an earlier join: its parse and measure caches carry over */
+let join: (~prev: CellEditor.Model.t=?, t) => CellEditor.Model.t;
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);

@@ -54,8 +54,8 @@ let whole_memo = (p: t): CellEditor.Model.t =>
     let e =
       switch (joined^) {
       | Some((d', e)) when Divided.same_content(d', d) => e
-      | _ =>
-        let e = Divided.join(d);
+      | last =>
+        let e = Divided.join(~prev=?Option.map(snd, last), d);
         joined := Some((d, e));
         e;
       };

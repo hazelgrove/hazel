@@ -319,6 +319,42 @@ let cell_edit = () => {
   );
 };
 
+/* a join from an earlier join's caches matches a cold one after a cell
+   edit (each join mints some fresh ids, so rows compare by label) */
+let join_from_caches = () => {
+  let seg = parse(src);
+  let d = split(seg, row(term_of(seg), "g"));
+  let before = Divided.join(d);
+  let d = set_body(editor_of(parse("x * 30")), d);
+  let cold = Divided.join(d).editor.editor.syntax;
+  let warm = Divided.join(~prev=before, d).editor.editor.syntax;
+  let labels = (m: Measured.t) =>
+    List.map(
+      List.map((p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => String.concat("", Tile.label(t))
+        | Grout(_) => "_"
+        | Secondary(_) => " "
+        | Projector(_) => "P"
+        }
+      ),
+      Measured.piece_rows(m),
+    );
+  check(string, "same text", text_of(cold.segment), text_of(warm.segment));
+  check(
+    bool,
+    "same rows",
+    true,
+    labels(cold.measured) == labels(warm.measured),
+  );
+  check(
+    int,
+    "same term data",
+    Id.Map.cardinal(cold.term_data),
+    Id.Map.cardinal(warm.term_data),
+  );
+};
+
 /* an edit to the joined program survives re-dividing; the cell stays open */
 let resplit = () => {
   let seg = parse(src);
@@ -519,6 +555,7 @@ let tests = (
     test_case("resplit keeps an outside edit", `Quick, resplit),
     test_case("an agent edit re-cuts only its cell", `Quick, agent_edit),
     test_case("a rename reaches open cells", `Quick, rename),
+    test_case("a join from caches", `Quick, join_from_caches),
     test_case("close all", `Quick, close_all),
     test_case("no overlap", `Quick, no_overlap),
     test_case("mega-1k rows", `Slow, mega),

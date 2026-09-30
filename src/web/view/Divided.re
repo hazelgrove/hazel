@@ -287,7 +287,7 @@ let place_caret = ((side, id): (Direction.t, Id.t), d: t): t => {
 
 /* one editor again: root, probes and the result carry over, and the
    caret lands where it was in the active cell */
-let join = (d: t): CellEditor.Model.t => {
+let join = (~prev: option(CellEditor.Model.t)=?, d: t): CellEditor.Model.t => {
   let seg = document(d);
   let present = Segment.ids(seg);
   let manuals =
@@ -306,7 +306,29 @@ let join = (d: t): CellEditor.Model.t => {
       Option.value(Move.jump_to_side_of_id(side, z, id), ~default=z)
     | None => z
     };
-  let fresh = CellEditor.Model.mk(Editor.Model.mk(z, ~root=root(d)));
+  let editor =
+    switch (prev) {
+    | Some(pe) =>
+      let s = pe.editor.editor.syntax;
+      Editor.Model.{
+        root: root(d),
+        state: {
+          zipper: z,
+          col_target: None,
+        },
+        syntax:
+          CachedSyntax.mk(
+            ~root=root(d),
+            ~m_cache=s.m_cache,
+            ~t_cache=s.t_cache,
+            ~info_map=Id.Map.empty,
+            ~dyn_map=Id.Map.empty,
+            z,
+          ),
+      };
+    | None => Editor.Model.mk(z, ~root=root(d))
+    };
+  let fresh = CellEditor.Model.mk(editor);
   {
     editor: {
       ...fresh.editor,
