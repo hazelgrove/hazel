@@ -96,14 +96,14 @@ let read_probes =
    value could ride a hydration/mode-switch race onto the wrong
    editor. Every read_* call SETS its ref (None on missing/malformed)
    so a previous slide's leftovers can't survive a failed read. */
-let pending_caret: ref(option((string, Point.t))) = ref(None);
+let pending_caret: Hashtbl.t(string, Point.t) = Hashtbl.create(8);
 /* a slide's saved view, by outline label path */
 type saved_view = {
   sv_pins: list((OutlineTree.path, bool)),
   sv_zoom: option(OutlineTree.path),
   sv_parked: bool,
 };
-let pending_pins: ref(option((string, saved_view))) = ref(None);
+let pending_pins: Hashtbl.t(string, saved_view) = Hashtbl.create(8);
 
 /* pins/collapse store as sexps: outline labels are arbitrary program
    text, so the old space-/-newline-delimited lines silently dropped
@@ -166,17 +166,42 @@ let read_pins = (prefix: string, name: string): unit => {
     | None
     | exception _ => (None, false)
     };
-  pending_pins :=
-    pins == [] && zoom == None
-      ? None
-      : Some((
-          content_key(prefix, name),
-          {
-            sv_pins: pins,
-            sv_zoom: zoom,
-            sv_parked: parked,
-          },
-        ));
+  let ck = content_key(prefix, name);
+  pins == [] && zoom == None
+    ? Hashtbl.remove(pending_pins, ck)
+    : Hashtbl.replace(
+        pending_pins,
+        ck,
+        {
+          sv_pins: pins,
+          sv_zoom: zoom,
+          sv_parked: parked,
+        },
+      );
+};
+
+/* a deleted slide leaves nothing a later slide of the same name could
+   pick up: stored keys, collapse, pending restores, save caches */
+let forget_slide = (prefix: string, name: string): unit => {
+  let ck = content_key(prefix, name);
+  HazelDB.kv_remove_under(ck);
+  Hashtbl.remove(slide_collapse, ck);
+  Hashtbl.remove(pending_pins, ck);
+  Hashtbl.remove(pending_caret, ck);
+};
+
+/* a renamed slide's keys and collapse state move to the new name */
+let rename_slide = (prefix: string, old_name: string, new_name: string): unit => {
+  let (old_ck, new_ck) = (
+    content_key(prefix, old_name),
+    content_key(prefix, new_name),
+  );
+  HazelDB.kv_move_under(~from=old_ck, ~to_=new_ck);
+  switch (Hashtbl.find_opt(slide_collapse, old_ck)) {
+  | Some(paths) => Hashtbl.replace(slide_collapse, new_ck, paths)
+  | None => Hashtbl.remove(slide_collapse, new_ck)
+  };
+  Hashtbl.remove(slide_collapse, old_ck);
 };
 
 /* the saved view against the loaded program's outline */
@@ -271,29 +296,30 @@ let write_view =
   );
 };
 
-let read_caret = (prefix: string, name: string): unit =>
-  pending_caret :=
-    (
-      switch (HazelDB.kv_get(caret_key(prefix, name))) {
-      | Some(txt) =>
-        switch (String.split_on_char(' ', String.trim(txt))) {
-        | [r, c] =>
-          switch (int_of_string_opt(r), int_of_string_opt(c)) {
-          | (Some(row), Some(col)) =>
-            Some((
-              content_key(prefix, name),
-              Point.{
-                row,
-                col,
-              },
-            ))
-          | _ => None
-          }
-        | _ => None
-        }
-      | None => None
-      }
-    );
+let read_caret = (prefix: string, name: string): unit => {
+  let ck = content_key(prefix, name);
+  switch (
+    Option.map(
+      txt => String.split_on_char(' ', String.trim(txt)),
+      HazelDB.kv_get(caret_key(prefix, name)),
+    )
+  ) {
+  | Some([r, c]) =>
+    switch (int_of_string_opt(r), int_of_string_opt(c)) {
+    | (Some(row), Some(col)) =>
+      Hashtbl.replace(
+        pending_caret,
+        ck,
+        Point.{
+          row,
+          col,
+        },
+      )
+    | _ => Hashtbl.remove(pending_caret, ck)
+    }
+  | _ => Hashtbl.remove(pending_caret, ck)
+  };
+};
 
 let save_meta = (prefix: string, m: slide_meta): unit => {
   let key = meta_key(prefix);

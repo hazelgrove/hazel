@@ -559,34 +559,29 @@ module Update = {
         },
       )
     | RestorePins =>
-      switch (Persist.pending_pins^) {
-      | None => model |> Updated.return_quiet
-      | Some((ck, _))
+      /* each slide's saved view waits under its own key, so another
+         slide hydrating first can't drop it */
+      let ck =
+        Persist.content_key(
+          is_documentation ? "doc" : "scratch",
+          List.nth(model.scratchpads, model.current).name,
+        );
+      switch (
+        Hashtbl.find_opt(Persist.pending_pins, ck),
+        current_code(model),
+      ) {
+      | (Some(saved), Some({program: Whole(editor), _}))
           when
-            ck
-            != Persist.content_key(
-                 is_documentation ? "doc" : "scratch",
-                 List.nth(model.scratchpads, model.current).name,
-               ) =>
-        /* read for a different slide/mode: never resolve against
-           whatever document happens to be current now */
-        Persist.pending_pins := None;
-        model |> Updated.return_quiet;
-      | Some((_, saved)) =>
-        switch (current_code(model)) {
-        | Some({program: Whole(editor), _})
-            when
-              List.exists(
-                (n: OutlineTree.node) => n.o_label != "",
-                OutlineTree.of_term(editor.editor.statics.term),
-              ) =>
-          Persist.pending_pins := None;
-          update_view(model, (term, _, _) =>
-            Persist.resolve_view(saved, term)
-          );
-        | _ => model |> Updated.return_quiet /* statics not ready: retry */
-        }
-      }
+            List.exists(
+              (n: OutlineTree.node) => n.o_label != "",
+              OutlineTree.of_term(editor.editor.statics.term),
+            ) =>
+        Hashtbl.remove(Persist.pending_pins, ck);
+        update_view(model, (term, _, _) =>
+          Persist.resolve_view(saved, term)
+        );
+      | _ => model |> Updated.return_quiet /* statics not ready: retry */
+      };
     | FocusEnsure(fid) =>
       /* cross-cell jumps: show [fid] unless an open cell already holds
          it (only while divided) */
@@ -601,7 +596,13 @@ module Update = {
       /* clearing here (not at schedule time) makes delivery robust:
          the boot-time calculate runs with a no-op scheduler, so the
          ref keeps re-scheduling until a real action loop picks it up */
-      Persist.pending_caret := None;
+      Hashtbl.remove(
+        Persist.pending_caret,
+        Persist.content_key(
+          is_documentation ? "doc" : "scratch",
+          List.nth(model.scratchpads, model.current).name,
+        ),
+      );
       switch (current_code(model)) {
       | Some({program: Whole(editor), _} as code) =>
         let* new_ed =
@@ -1055,6 +1056,11 @@ module Update = {
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
+        Persist.rename_slide(
+          is_documentation ? "doc" : "scratch",
+          current.name,
+          new_name,
+        );
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -1076,6 +1082,10 @@ module Update = {
         );
       if (confirmed) {
         WorkerClient.cancel();
+        Persist.forget_slide(
+          is_documentation ? "doc" : "scratch",
+          List.nth(model.scratchpads, model.current).name,
+        );
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
@@ -1236,19 +1246,17 @@ module Update = {
     | Code({program, agent, view}) =>
       /* restore a loaded slide's saved caret: the Move runs as its own
          follow-up action, after this calculate builds measured */
-      switch (Persist.pending_caret^) {
-      | Some((ck, p)) when ck == cur_ck => schedule_action(RestoreCaret(p))
-      | Some(_) => Persist.pending_caret := None /* stale: drop */
+      switch (Hashtbl.find_opt(Persist.pending_caret, cur_ck)) {
+      | Some(p) => schedule_action(RestoreCaret(p))
       | None => ()
       };
-      switch (Persist.pending_pins^, program) {
-      | (Some((ck, _)), Whole(editor))
+      switch (Hashtbl.mem(Persist.pending_pins, cur_ck), program) {
+      | (true, Whole(editor))
           when
-            ck == cur_ck
-            && List.exists(
-                 (n: OutlineTree.node) => n.o_label != "",
-                 OutlineTree.of_term(editor.editor.statics.term),
-               ) =>
+            List.exists(
+              (n: OutlineTree.node) => n.o_label != "",
+              OutlineTree.of_term(editor.editor.statics.term),
+            ) =>
         /* only once statics carries a NAMED outline: hydration's
            first frames run against placeholder/hole programs (whose
            outline is a lone unnamed ⇒ row), and resolving there

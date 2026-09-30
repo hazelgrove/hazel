@@ -59,6 +59,38 @@ let kv_remove = (key: string): unit => {
   );
 };
 
+/* [base] and every side key under it (`base:…`) */
+let kv_remove_under = (base: string): unit => {
+  let under = k =>
+    k == base
+    || String.length(k) > String.length(base)
+    && String.sub(k, 0, String.length(base) + 1) == base
+    ++ ":";
+  Util.Maps.StringMap.iter(
+    (k, _) =>
+      if (under(k)) {
+        kv_remove(k);
+      },
+    cache^,
+  );
+};
+
+/* every key under [from] saved under [to_] instead */
+let kv_move_under = (~from: string, ~to_: string): unit => {
+  let n = String.length(from);
+  Util.Maps.StringMap.iter(
+    (k, v) =>
+      if (k == from
+          || String.length(k) > n
+          && String.sub(k, 0, n + 1) == from
+          ++ ":") {
+        kv_save(to_ ++ String.sub(k, n, String.length(k) - n), v);
+        kv_remove(k);
+      },
+    cache^,
+  );
+};
+
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
   let error = _ => print_endline("ERROR: HazelDB.kv_clear");

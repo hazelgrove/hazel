@@ -739,7 +739,6 @@ module Selection = {
    structurally where small. */
 type outline_memo_key = {
   ok_statics: Haz3lcore.CachedStatics.t,
-  ok_slot: option(Haz3lcore.DefStatics.t),
   ok_focused: list((Haz3lcore.Id.t, option(string))),
   ok_is_scratch: bool,
   ok_name: string,
@@ -755,13 +754,6 @@ let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
   ref(Option.none);
 let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
   a.ok_statics === b.ok_statics
-  && (
-    switch (a.ok_slot, b.ok_slot) {
-    | (Some(x), Some(y)) => x === y
-    | (None, None) => true
-    | _ => false
-    }
-  )
   && a.ok_focused == b.ok_focused
   && a.ok_is_scratch == b.ok_is_scratch
   && a.ok_name == b.ok_name
@@ -1204,7 +1196,6 @@ module View = {
         ok_created: ScratchMode.outline_created^,
         ok_view: slide_view,
         ok_statics: outline_statics,
-        ok_slot: Haz3lcore.DefStatics.current(),
         ok_focused: focused_entries,
         ok_is_scratch: is_scratch,
         ok_name: slide_name,
@@ -1220,33 +1211,30 @@ module View = {
              DEEPEST row containing it; ancestor rows get a roll-up badge
              that CSS shows only while collapsed (andrew: error goes on the
              deepest thing not hidden by a collapse) */
-          /* A whole program's statics can be EMPTY right after an undo
-             restores a compacted snapshot: the DefStatics slot stands in
-             until they recompute. Other modes read only the current
-             editor: the slot is not theirs. */
-          let slot =
-            is_scratch
-            && !
-                 List.exists(
-                   (n: OutlineTree.node) => n.o_label != "",
-                   OutlineTree.of_term(outline_statics.term),
-                 )
-              ? Haz3lcore.DefStatics.current() : None;
+          /* statics compacted by undo carry no term until they
+             recompute: the outline parses this slide's program instead
+             (never another document's) */
           let outline_term =
-            switch (slot) {
-            | Some(ds) => ds.Haz3lcore.DefStatics.term
-            | None => outline_statics.term
+            switch (program) {
+            | Some(p)
+                when
+                  !
+                    List.exists(
+                      (n: OutlineTree.node) => n.o_label != "",
+                      OutlineTree.of_term(outline_statics.term),
+                    ) =>
+              let seg = Program.document(p);
+              Program.root(p) == Haz3lcore.Sort.Mod
+                ? Haz3lcore.MakeTerm.Incr.term_of_mod(seg)
+                : Haz3lcore.MakeTerm.Incr.term_of(seg);
+            | _ => outline_statics.term
             };
           let (error_items, error_subtree) = {
             let term = outline_term;
-            let (info_map, error_ids) =
-              switch (slot) {
-              | Some(ds) => (
-                  ds.merged,
-                  Haz3lcore.DefStatics.all_error_ids(ds),
-                )
-              | None => (outline_statics.info_map, outline_statics.error_ids)
-              };
+            let (info_map, error_ids) = (
+              outline_statics.info_map,
+              outline_statics.error_ids,
+            );
             let outline_ids = {
               let rec go = (acc, ns: list(OutlineTree.node)) =>
                 List.fold_left(

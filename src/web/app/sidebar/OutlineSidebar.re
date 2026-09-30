@@ -240,7 +240,7 @@ let rec node_view =
           ~is_collapsed: OutlineTree.path => bool,
           ~toggle_collapse: OutlineTree.path => Effect.t(unit),
           ~path: OutlineTree.path,
-          ~occ: int, /* this node's occurrence among same-labeled siblings */
+          ~seg: OutlineTree.path_seg, /* this row's name among its siblings */
           ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
           ~error_subtree: list(Language.Id.t),
           ~focused_entries: list((Language.Id.t, option(string))),
@@ -295,14 +295,9 @@ let rec node_view =
       }
     | None => n
     };
-  let row_path =
-    path
-    @ [
-      OutlineTree.{
-        s_label: n.o_label,
-        s_occ: occ,
-      },
-    ];
+  /* paths name the row by its outline label, not the live header text
+     (`inc(x)` for `inc`): collapse state and the cursor survive pinning */
+  let row_path = path @ [seg];
   let label =
     div(
       ~attrs=
@@ -573,7 +568,7 @@ let rec node_view =
         div(
           ~attrs=[clss(["outline-kids"])],
           List.concat_map(
-            ((kid: OutlineTree.node, kocc)) =>
+            ((kid: OutlineTree.node, kseg)) =>
               [
                 node_view(
                   ~stack_controls,
@@ -585,7 +580,7 @@ let rec node_view =
                   ~is_collapsed,
                   ~toggle_collapse,
                   ~path=my_path,
-                  ~occ=kocc,
+                  ~seg=kseg,
                   ~menu_open,
                   ~error_subtree,
                   ~focused_entries,
@@ -600,7 +595,7 @@ let rec node_view =
                 ),
               ]
               @ new_row_after(edit, kid),
-            OutlineTree.with_occurrences(kids),
+            OutlineTree.segs(kids),
           ),
         ),
       ],
@@ -1112,16 +1107,9 @@ let view =
   let visible: array(visible_row) = {
     let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
       List.concat_map(
-        ((n: OutlineTree.node, occ)) => {
+        ((n: OutlineTree.node, seg)) => {
+          let path = prefix @ [seg];
           let n = live_label(n);
-          let path =
-            prefix
-            @ [
-              OutlineTree.{
-                s_label: n.o_label,
-                s_occ: occ,
-              },
-            ];
           let branch = n.o_children != [];
           let expanded = branch && !is_collapsed(path);
           [
@@ -1134,7 +1122,7 @@ let view =
           ]
           @ (expanded ? walk(Some(path), path, n.o_children) : []);
         },
-        OutlineTree.with_occurrences(ns),
+        OutlineTree.segs(ns),
       );
     Array.of_list(walk(None, root_path, roots));
   };
@@ -1208,7 +1196,7 @@ let view =
             ),
           ]
           : List.concat_map(
-              ((root: OutlineTree.node, rocc)) =>
+              ((root: OutlineTree.node, rseg)) =>
                 [
                   node_view(
                     ~stack_controls,
@@ -1220,7 +1208,7 @@ let view =
                     ~is_collapsed,
                     ~toggle_collapse,
                     ~path=root_path,
-                    ~occ=rocc,
+                    ~seg=rseg,
                     ~menu_open,
                     ~error_subtree,
                     ~focused_entries,
@@ -1235,7 +1223,7 @@ let view =
                   ),
                 ]
                 @ new_row_after(edit, root),
-              OutlineTree.with_occurrences(roots),
+              OutlineTree.segs(roots),
             ),
       ),
     ]

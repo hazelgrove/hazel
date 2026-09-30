@@ -355,47 +355,58 @@ type path = list(path_seg);
 /* pair each node with its occurrence index — the ONE counting
    discipline shared by label_path, resolve_path, and the sidebar's
    collapse paths (diverging counters would cross wires again) */
-let with_occurrences = (ns: list(node)): list((node, int)) => {
+/* each row's path segment: its label, and its place among the
+   siblings sharing that label. Tests and test groups have no names of
+   their own, so they go by the named row before them (`tests@b`):
+   adding a test elsewhere leaves them where they were */
+let segs = (ns: list(node)): list((node, path_seg)) => {
   let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
+  let prev = ref("");
   List.map(
     n => {
-      let k = Hashtbl.find_opt(seen, n.o_label) |> Option.value(~default=0);
-      Hashtbl.replace(seen, n.o_label, k + 1);
-      (n, k);
+      let l =
+        switch (n.o_kind) {
+        | KTest => "test@" ++ prev^
+        | KTests => "tests@" ++ prev^
+        | _ => n.o_label
+        };
+      let k = Hashtbl.find_opt(seen, l) |> Option.value(~default=0);
+      Hashtbl.replace(seen, l, k + 1);
+      if (n.o_label != "" && n.o_kind != KTest && n.o_kind != KTests) {
+        prev := n.o_label;
+      };
+      (
+        n,
+        {
+          s_label: l,
+          s_occ: k,
+        },
+      );
     },
     ns,
   );
 };
 
 let label_path = (fid: Id.t, e: Exp.t): option(path) => {
-  let rec go = (trail, ns: list((node, int))) =>
+  let rec go = (trail, ns: list((node, path_seg))) =>
     List.fold_left(
-      (acc, (n, occ)) => {
-        let seg = {
-          s_label: n.o_label,
-          s_occ: occ,
-        };
+      (acc, (n, seg)) =>
         switch (acc) {
         | Some(_) => acc
         | None =>
           n.o_id == Some(fid)
             ? Some(List.rev([seg, ...trail]))
-            : go([seg, ...trail], with_occurrences(n.o_children))
-        };
-      },
+            : go([seg, ...trail], segs(n.o_children))
+        },
       None,
       ns,
     );
-  go([], with_occurrences(of_term(e)));
+  go([], segs(of_term(e)));
 };
 
 let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   let find = (seg: path_seg, ns: list(node)): option(node) =>
-    with_occurrences(ns)
-    |> List.find_opt(((n, occ)) =>
-         n.o_label == seg.s_label && occ == seg.s_occ
-       )
-    |> Option.map(fst);
+    segs(ns) |> List.find_opt(((_, s)) => s == seg) |> Option.map(fst);
   let rec go = (path, ns: list(node)) =>
     switch (path) {
     | [] => None
@@ -516,12 +527,7 @@ let path_exists = (path: path, e: Exp.t): bool => {
     switch (path) {
     | [] => false
     | [seg, ...rest] =>
-      switch (
-        with_occurrences(ns)
-        |> List.find_opt(((n, occ)) =>
-             n.o_label == seg.s_label && occ == seg.s_occ
-           )
-      ) {
+      switch (segs(ns) |> List.find_opt(((_, s)) => s == seg)) {
       | Some((n, _)) => rest == [] || go(rest, n.o_children)
       | None => false
       }
