@@ -12,9 +12,10 @@ Printexc.register_printer(exn => {
    (Zipper.remold_regrout runs BOTH pipelines and compares) */
 Haz3lcore.Zipper.normalize_parity := true;
 
-/* and every whole-program statics computation matches a cold and a
-   monolithic analysis (DefStatics.divergences) */
-Haz3lcore.DefStatics.parity := true;
+/* and every whole-program statics computation matches a monolithic
+   analysis (DefStatics.divergences); benchmarks time the production
+   path */
+Haz3lcore.DefStatics.parity := !CorpusUtil.bench_enabled;
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
