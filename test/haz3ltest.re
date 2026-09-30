@@ -46,6 +46,7 @@ let (suite, exit_with_test_status) =
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
     @ [Test_ElabSize.tests]
+    @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
@@ -72,6 +73,7 @@ let (suite, exit_with_test_status) =
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
+    @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
@@ -104,6 +106,11 @@ let (suite, exit_with_test_status) =
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
+    @ Test_ShortcutConfiguration.tests
+    @ Test_ColorConfiguration.tests
+    @ Test_ConfigurationMode.tests
+    @ Test_ShortcutAction.tests
+    @ Test_Color.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
