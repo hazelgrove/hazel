@@ -1366,6 +1366,11 @@ module View = {
               },
             },
             ~created=ScratchMode.outline_created^,
+            ~pinned=
+              switch (slide_view) {
+              | Some(v) => List.map((p: SlideView.pin) => p.p_id, v.pins)
+              | None => []
+              },
             ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
             ~focused_entries,
             ~menu,

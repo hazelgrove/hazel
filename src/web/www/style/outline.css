@@ -202,19 +202,25 @@
   display: none;
 }
 
-/* taller chevrons, close to icon height (andrew, tentative) */
+/* one drawn chevron, turned: open and folded match exactly (a font's
+   arrow rotated off its own center did not) */
 #outline-sidebar summary.outline-summary::before {
-  content: "\276f";
+  content: "";
   display: inline-block;
-  width: 9px;
-  font-size: 10.5px;
+  box-sizing: border-box;
+  width: 5px;
+  height: 5px;
+  margin: 0 4px 1px 1px;
+  vertical-align: middle;
+  border-right: 1.3px solid currentColor;
+  border-bottom: 1.3px solid currentColor;
   opacity: 0.55;
-  transform-origin: 40% 55%;
+  transform: rotate(-45deg);
+  transition: transform 0.12s ease-out;
 }
 
 #outline-sidebar details[open] > summary.outline-summary::before {
-  content: "\276f";
-  transform: rotate(90deg);
+  transform: translateY(-1px) rotate(45deg);
 }
 
 #outline-sidebar .ol-module {
@@ -261,16 +267,30 @@
   padding: 6px;
 }
 
-/* focus affordances (phase 2) */
+/* the cell button: a tiny cell, empty to open (on hover), filled
+   while open, dashed while pinned but not shown (parked, or outside
+   the zoom) */
 #outline-sidebar .outline-focus-btn {
   display: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 8px;
   margin-left: 6px;
-  opacity: 0.55;
+  vertical-align: -1px;
+  border: 1.2px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.5;
   cursor: pointer;
 }
 
 #outline-sidebar .outline-label:hover .outline-focus-btn {
-  display: inline;
+  display: inline-block;
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-parked {
+  display: inline-block;
+  border-style: dashed;
+  opacity: 0.45;
 }
 
 #outline-sidebar .outline-focus-btn:hover {
@@ -283,8 +303,10 @@
   cursor: default;
 }
 
+/* open as a cell: a light tint from the entry itself, not the
+   column's edge */
 #outline-sidebar .outline-label.outline-focused {
-  background: var(--surface-shard, #d8c9a3);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 55%, transparent);
   font-weight: bold;
 }
 
@@ -362,8 +384,9 @@
 }
 
 #outline-sidebar .outline-focus-btn.outline-btn-on {
-  display: inline;
-  opacity: 0.9;
+  display: inline-block;
+  background: currentColor;
+  opacity: 0.6;
 }
 
 /* error badge on outline rows whose definition carries type errors */

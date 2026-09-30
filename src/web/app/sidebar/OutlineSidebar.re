@@ -2,12 +2,12 @@ open Virtual_dom.Vdom;
 open Node;
 
 /* OutlineSidebar — the collapsible module/definition outline.
-   Navigation: click = jump. Focus: the ⊙ button TOGGLES a definition
+   Navigation: click = jump. Focus: the cell button TOGGLES a definition
    in the focus STACK (stacked header/body cells replace the master
    editor); plain click while a stack is open ADDS that definition to
    the stack (or moves to it if present) — it never replaces the
    stack. The banner splices everything home. Modes without a focus
-   stack (~stack_controls=false) get navigation only: no ⊙ buttons, no
+   stack (~stack_controls=false) get navigation only: no cell buttons, no
    context menu, and collapse is the native <details> toggle. */
 
 let clss = cs => Attr.classes(cs);
@@ -250,6 +250,7 @@ let rec node_view =
           ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
           ~edit: edit_ctl,
           ~created: option((Language.Id.t, string)),
+          ~pinned: list(Language.Id.t),
           n: OutlineTree.node,
         )
         : Node.t => {
@@ -483,7 +484,7 @@ let rec node_view =
                   )
                 ),
               ],
-              [text(all_pinned ? {js|⊖|js} : {js|⊙|js})],
+              [],
             ),
           ];
         | Some(id) when !stacked && !can_open(id) => [
@@ -492,14 +493,19 @@ let rec node_view =
                 clss(["outline-focus-btn", "outline-btn-disabled"]),
                 Attr.title("finish the definition to open it"),
               ],
-              [text({js|⊙|js})],
+              [],
             ),
           ]
         | Some(id) => [
             span(
               ~attrs=[
                 clss(
-                  ["outline-focus-btn"] @ (stacked ? ["outline-btn-on"] : []),
+                  ["outline-focus-btn"]
+                  @ (
+                    stacked
+                      ? ["outline-btn-on"]
+                      : List.mem(id, pinned) ? ["outline-btn-parked"] : []
+                  ),
                 ),
                 Attr.title(
                   stacked ? "close this cell" : "open in the editor stack",
@@ -512,7 +518,7 @@ let rec node_view =
                   ])
                 ),
               ],
-              [text(stacked ? {js|⊖|js} : {js|⊙|js})],
+              [],
             ),
           ]
         | None => []
@@ -589,6 +595,7 @@ let rec node_view =
                   ~set_cursor,
                   ~edit,
                   ~created,
+                  ~pinned,
                   kid,
                 ),
               ]
@@ -1019,7 +1026,7 @@ let header_view =
             Attr.title("close these cells"),
             Attr.on_click(_ => stop(discard)),
           ],
-          [text({js|⊖|js})],
+          [text({js|×|js})],
         ),
       ]
       : header.h_parked > 0
@@ -1069,6 +1076,8 @@ let view =
       ~leave: Effect.t(unit),
       ~edit: edit_ctl,
       ~created: option((Language.Id.t, string)),
+      /* every pin, shown or not: a hidden one gets a quiet mark */
+      ~pinned: list(Language.Id.t),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
       ~error_subtree: list(Language.Id.t),
@@ -1221,6 +1230,7 @@ let view =
                     ~set_cursor,
                     ~edit,
                     ~created,
+                    ~pinned,
                     root,
                   ),
                 ]
