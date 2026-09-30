@@ -299,3 +299,13 @@
     min-width: 0;
     overflow-x: auto;
 }
+/* String mode: the body's Fumola text, wrapped to the column. */
+.fumola-wip-text {
+    width: 100%;
+    min-height: calc(6 * var(--line-height) * 1em);
+    font-family: var(--code-font);
+    font-size: inherit;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    resize: vertical;
+}

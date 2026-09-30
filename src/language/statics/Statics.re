@@ -6099,11 +6099,15 @@ let mk =
    here", and the answer decides where the cell is evaluated: a Fumola
    program runs against `window.fumola`, which exists on the main thread and
    not in the worker. */
+/* Fumola in the cell: tiles written in it, or an expression that elaborates
+   to a Fumola quote without any being written -- ^fumola_wip, whose
+   expansion is one. */
 let has_fumola = (m: Map.t): bool =>
   Id.Map.exists(
     (_, info: Info.t) =>
       switch (info) {
-      | InfoFumola(_) => true
+      | InfoFumola(_)
+      | InfoExp({elab_term: {term: FumolaQuote(_), _}, _}) => true
       | _ => false
       },
     m,

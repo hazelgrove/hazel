@@ -1140,10 +1140,10 @@ module FumolaWip: BuiltinLivelit = {
   type model_t = {
     instance: string,
     name: string,
-    /* The code as tiles, or as a string: only tiles, so far. */
+    /* The code as tiles -- a `fumola … end` splice -- or as a string
+       literal holding the body's Fumola text. */
     tiles: bool,
-    /* The two splices, held verbatim: a commit that dropped their Splice
-       nodes would be refused (LivelitProj.commit_model). */
+    /* Held verbatim, so that a commit keeps their Splice nodes. */
     input: TermBase.Exp.t,
     code: TermBase.Exp.t,
   };
@@ -1268,6 +1268,42 @@ module FumolaWip: BuiltinLivelit = {
       ),
   };
 
+  /* ---- the toggle ------------------------------------------------- */
+
+  /* String mode keeps only the body, so the mode slot does not survive a
+     round trip; code that comes back as tiles is `$graphical`, Fumola's
+     default and the mode that records what the watch pane shows. */
+  let graphical = () => f(FumolaGrammar.Variant("graphical", None));
+
+  let body_of_decs = (ds: list(FumolaTermBase.dec)): FumolaTermBase.t =>
+    switch (ds) {
+    | [{term: FumolaGrammar.DExp(e), _}] => e
+    | ds => f(FumolaGrammar.Block(ds))
+    };
+
+  let decs_of_body = (body: FumolaTermBase.t): list(FumolaTermBase.dec) =>
+    switch (Annotated.term_of(body)) {
+    | FumolaGrammar.Block(ds) => ds
+    | _ => [f(FumolaGrammar.DExp(body))]
+    };
+
+  /* The text a body's tiles print as. A body with a hole in it has no text,
+     and says why, rather than printing something that means less. */
+  let text_of_body = (body: FumolaTermBase.t): result(string, string) =>
+    Fumola.has_hole(body)
+      ? Error(
+          Option.value(
+            Fumola.why_unprintable(body),
+            ~default="the code is not finished",
+          ),
+        )
+      : Ok(
+          switch (Annotated.term_of(body)) {
+          | FumolaGrammar.Block(ds) => Fumola.program(ds)
+          | _ => Fumola.of_exp(body)
+          },
+        );
+
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
   let requires_annotation = false;
 
@@ -1284,16 +1320,33 @@ module FumolaWip: BuiltinLivelit = {
     | _ => None
     };
 
+  /* The mode and declarations the code stands for, in either form. A
+     string that does not parse is a program being typed, and expands to a
+     hole rather than to an error on every keystroke. */
+  let code_decs =
+      (m: model_t)
+      : result(
+          (FumolaTermBase.t, list(FumolaTermBase.dec)),
+          option(string),
+        ) =>
+    switch (m.tiles, unparen(m.code).term) {
+    | (false, Atom(String(text))) =>
+      switch (FumolaParse.program(text)) {
+      | Ok(ds) => Ok((graphical(), ds))
+      | Error(_) => Error(None)
+      }
+    | _ =>
+      switch (code_body(m.code)) {
+      | Some((mode, body)) => Ok((mode, decs_of_body(body)))
+      | None => Error(Some("the code field needs a fumola … end tile"))
+      }
+    };
+
   let expand = (~id as _, ~ana as _, ~tools as _, m: model_t): expansion_t =>
-    switch (code_body(m.code)) {
-    | None =>
-      DHExp.fresh(Invalid("the code field needs a fumola … end tile"))
-    | Some((mode, body)) =>
-      let decs =
-        switch (Annotated.term_of(body)) {
-        | FumolaGrammar.Block(ds) => ds
-        | _ => [f(FumolaGrammar.DExp(body))]
-        };
+    switch (code_decs(m)) {
+    | Error(None) => DHExp.fresh(EmptyHole)
+    | Error(Some(message)) => DHExp.fresh(Invalid(message))
+    | Ok((mode, decs)) =>
       /* thunk { let input = @(`name(`input)); <code> }: reading the cell,
          rather than taking the value, is what gives the computation an edge
          to the input the watch pane can show. */
@@ -1400,6 +1453,90 @@ module FumolaWip: BuiltinLivelit = {
       ],
     );
 
+  /* Flip the code between tiles and text. Each way converts what is there;
+     code that cannot be converted -- tiles with a hole, text that does not
+     parse -- stays as it is, and the toggle says why in its title. */
+  let flip = (m: model_t): result(model_t, string) =>
+    switch (m.tiles, unparen(m.code).term) {
+    | (true, _) =>
+      switch (code_body(m.code)) {
+      | None => Error("the code field holds no fumola … end tile")
+      | Some((_, body)) =>
+        Result.map(
+          text =>
+            {
+              ...m,
+              tiles: false,
+              code: DHExp.fresh(Atom(String(text))),
+            },
+          text_of_body(body),
+        )
+      }
+    | (false, Atom(String(text))) =>
+      switch (FumolaParse.program(text)) {
+      | Error({message, _}) => Error(message)
+      | Ok(ds) =>
+        Ok({
+          ...m,
+          tiles: true,
+          /* A Splice node, so the tiles come back as a splice with an
+             editor of their own. */
+          code:
+            DHExp.fresh(
+              Parens(
+                DHExp.fresh(
+                  Splice(
+                    DHExp.fresh(
+                      FumolaQuote(
+                        f(FumolaGrammar.Var(m.instance)),
+                        graphical(),
+                        body_of_decs(ds),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        })
+      }
+    | (false, _) => Error("the code field holds no string")
+    };
+
+  let toggle = (m: model_t, send_action) => {
+    let flipped = flip(m);
+    Node.label(
+      ~attrs=[
+        Attr.class_("fumola-wip-field"),
+        Attr.title(
+          switch (flipped) {
+          | Ok(_) =>
+            m.tiles ? "edit the code as text" : "edit the code as tiles"
+          | Error(why) => "cannot convert: " ++ why
+          },
+        ),
+      ],
+      [
+        Node.input(
+          ~attrs=
+            [
+              Attr.type_("checkbox"),
+              Attr.bool_property("checked", m.tiles),
+              Attr.on_keydown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+              Attr.on_change((_, _) =>
+                switch (flipped) {
+                | Ok(m) => send_action(SetModel(m))
+                | Error(_) => Virtual_dom.Vdom.Effect.Ignore
+                }
+              ),
+            ]
+            @ (Result.is_ok(flipped) ? [] : [Attr.disabled]),
+          (),
+        ),
+        Node.span([Node.text("tiles")]),
+      ],
+    );
+  };
+
   let view = (~id as _, m: model_t, send_action) =>
     Node.div(
       ~attrs=[Attr.class_("fumola-wip-head")],
@@ -1427,6 +1564,7 @@ module FumolaWip: BuiltinLivelit = {
             }),
           )
         ),
+        toggle(m, send_action),
       ],
     );
 
@@ -1437,7 +1575,7 @@ module FumolaWip: BuiltinLivelit = {
     | _ => None
     };
 
-  let view_below = (~id as _, ~splice, m: model_t, _send_action) => {
+  let view_below = (~id as _, ~splice, m: model_t, send_action) => {
     let editor = (e: TermBase.Exp.t) =>
       switch (Option.bind(splice_id(e), splice)) {
       | Some(node) => node
@@ -1472,7 +1610,31 @@ module FumolaWip: BuiltinLivelit = {
               wire(~dir="in", [editor(m.input)], [symbol("input")]),
               Node.div(
                 ~attrs=[Attr.class_("fumola-wip-code")],
-                [editor(m.code)],
+                [
+                  switch (m.tiles, unparen(m.code).term) {
+                  | (false, Atom(String(text))) =>
+                    Node.textarea(
+                      ~attrs=[
+                        Attr.class_("fumola-wip-text"),
+                        Attr.string_property("value", text),
+                        Attr.create("spellcheck", "false"),
+                        Attr.on_keydown(_ =>
+                          Virtual_dom.Vdom.Effect.Stop_propagation
+                        ),
+                        Attr.on_input((_, text) =>
+                          send_action(
+                            SetModel({
+                              ...m,
+                              code: DHExp.fresh(Atom(String(text))),
+                            }),
+                          )
+                        ),
+                      ],
+                      [],
+                    )
+                  | _ => editor(m.code)
+                  },
+                ],
               ),
               wire(
                 ~dir="out",
