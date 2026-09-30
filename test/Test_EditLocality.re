@@ -252,7 +252,7 @@ let tests = (
     case("delete", ~typing=true, delete),
     case("paste", paste),
     case("undo", undo),
-    case("restructure", ~analyzed=6, restructure),
+    case("restructure", ~analyzed=8, restructure),
     case("agent update", agent),
     case("mega-2k row 900", ~typing=true, mega_2k_insert(900)),
     case("mega-2k row 100", ~typing=true, mega_2k_insert(100)),

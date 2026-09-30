@@ -42,8 +42,7 @@ type t = {
 let rec strip = (e: Exp.t): Exp.t =>
   switch (e.term) {
   | Parens(e)
-  | Projector(_, e)
-  | Filter(_, e) => strip(e)
+  | Projector(_, e) => strip(e)
   | _ => e
   };
 
@@ -54,7 +53,8 @@ let rec chain = (e: Exp.t): list(Exp.t) => {
   | Let(_, _, body)
   | TyAlias(_, _, body)
   | ModuleExp(_, _, body) => [e, ...chain(body)]
-  | Seq(_, body) => [e, ...chain(body)]
+  | Seq(_, body)
+  | Filter(_, body) => [e, ...chain(body)]
   | _ => [e]
   };
 };
@@ -161,6 +161,7 @@ let head_equal = (a: Exp.t, b: Exp.t): bool =>
   | (ModuleExp(m1, d1, _), ModuleExp(m2, d2, _)) =>
     compare((m1, d1), (m2, d2)) == 0
   | (Seq(e1, _), Seq(e2, _)) => compare(e1, e2) == 0
+  | (Filter(f1, _), Filter(f2, _)) => compare(f1, f2) == 0
   | (t1, t2) => compare(t1, t2) == 0 /* trailing exp: whole term */
   };
 
@@ -345,6 +346,21 @@ let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) =>
 let depends = (free: list(string), dirty: list(string)): bool =>
   dirty != []
   && (List.mem("*", free) || List.exists(v => List.mem(v, free), dirty));
+
+/* whether [q] uses a dirty name. A capitalized name resolves to a
+   module or a constructor, whichever was bound last, so it counts on
+   both sides */
+let stale = (q: item, dirty_vars, dirty_tnames): bool => {
+  let caps =
+    List.filter(n => n != "" && Char.uppercase_ascii(n.[0]) == n.[0]);
+  depends(q.d_free, dirty_vars)
+  || depends(q.d_tfree, dirty_tnames)
+  || depends(q.d_tfree, caps(dirty_vars))
+  || depends(q.d_free, caps(dirty_tnames));
+};
+
+let names_of = (exports: list(Ctx.entry)): list(string) =>
+  List.sort_uniq(compare, List.map(entry_name, exports));
 
 let seed_delta = (delta: export_delta, dirty_vars, dirty_tnames) =>
   switch (delta) {
@@ -559,7 +575,8 @@ and calc_plain_item =
     | Let(_)
     | TyAlias(_)
     | ModuleExp(_)
-    | Seq(_) => false
+    | Seq(_)
+    | Filter(_) => false
     | _ => true
     };
   let hollow_term: Exp.term =
@@ -568,6 +585,7 @@ and calc_plain_item =
     | TyAlias(tp, ty, _) => TyAlias(tp, ty, hole)
     | ModuleExp(mp, d, _) => ModuleExp(mp, d, hole)
     | Seq(e, _) => Seq(e, hole)
+    | Filter(f, _) => Filter(f, hole)
     | t => t /* trailing expression: type as-is */
     };
   let hollow = {
@@ -589,8 +607,10 @@ and calc_plain_item =
       switch (node.term) {
       | Let(_, d, _)
       | ModuleExp(_, d, _) => Some(d)
-      | Seq(e, _) => Some(e)
-      | TyAlias(_) => None
+      | Seq(e, _)
+      | Filter(Filter({pat: e, _}), _) => Some(e)
+      | TyAlias(_)
+      | Filter(Residue(_), _) => None
       | _ => Some(node)
       };
     switch (src) {
@@ -782,16 +802,18 @@ and calc_module_item =
   let map =
     switch (module_value, Statics.Map.lookup_exp(Exp.rep_id(def), map)) {
     | (Some(v), Some(raw)) =>
-      Id.Map.add(
-        Exp.rep_id(def),
+      let info =
         Info.InfoExp({
           ...raw,
           elab_term: v,
           co_ctx: CoCtx.union([raw.co_ctx, top_co]),
           probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
-        }),
+        });
+      List.fold_left(
+        (m, id) => Id.Map.add(id, info, m),
         map,
-      )
+        IdTagged.ids(def),
+      );
     | _ => map
     };
   /* the item ROOT's info must look monolithic for the reuse gating:
@@ -868,6 +890,44 @@ and calc_members =
     (q: item) => Hashtbl.replace(prev_tbl, q.d_id, q),
     prev_members,
   );
+  /* a member that vanished or changed places changes what its names
+     resolve to for every member, so its names are dirty throughout;
+     a member whose surviving predecessor changed recomputes */
+  let ids = List.map(Exp.rep_id, nodes);
+  let kept = List.filter(id => Hashtbl.mem(prev_tbl, id), ids);
+  let kept_prev =
+    List.filter_map(
+      (q: item) => List.mem(q.d_id, ids) ? Some(q.d_id) : None,
+      prev_members,
+    );
+  let preds = xs =>
+    List.mapi(
+      (i, x) => (x, i == 0 ? None : Some(List.nth(xs, i - 1))),
+      xs,
+    );
+  let (now_pred, then_pred) = (preds(kept), preds(kept_prev));
+  let moved = id =>
+    List.assoc_opt(id, now_pred) != List.assoc_opt(id, then_pred);
+  let unsettled =
+    List.filter(
+      (q: item) => !List.mem(q.d_id, ids) || moved(q.d_id),
+      prev_members,
+    );
+  let dirty_vars =
+    List.sort_uniq(
+      compare,
+      List.concat_map((q: item) => names_of(q.d_exports), unsettled)
+      @ dirty_vars,
+    );
+  let dirty_tnames =
+    List.sort_uniq(
+      compare,
+      List.concat_map(
+        (q: item) => List.concat_map(tnames_of_entry, q.d_exports),
+        unsettled,
+      )
+      @ dirty_tnames,
+    );
   let rec go = (ns, ctx, dirty_vars, dirty_tnames, acc) =>
     switch (ns) {
     | [] => List.rev(acc)
@@ -878,8 +938,8 @@ and calc_members =
         switch (prev_it) {
         | Some(q) =>
           head_equal(q.d_node, n)
-          && !depends(q.d_free, dirty_vars)
-          && !depends(q.d_tfree, dirty_tnames)
+          && !moved(nid)
+          && !stale(q, dirty_vars, dirty_tnames)
           && !probe_dirty(q)
         | None => false
         };
@@ -944,10 +1004,13 @@ and calc_members =
 };
 
 /* engine-level unused-binding pass: a top-level export is used iff a
-   DOWNSTREAM item (up to a re-binding of the same name) mentions it.
-   Corrects the per-item maps' view, which sees a hole body and would
-   call every top-level binder unused. */
+   downstream item (up to a re-binding of the same name) mentions it,
+   or a hole below could. The per-item maps can't tell: each sees only
+   its own hole body. d_free holds only real holes, since the synthetic
+   body holes aren't in any def. */
 let unused_binders = (items: list(item)): list(Id.t) => {
+  let hole_below = rest =>
+    List.exists(it => List.mem("$hole", it.d_free), rest);
   let rec used_below = (name: string, rest: list(item)): bool =>
     switch (rest) {
     | [] => false
@@ -968,6 +1031,7 @@ let unused_binders = (items: list(item)): list(Id.t) => {
           switch (e) {
           | Ctx.VarEntry({name, id, _}) =>
             used_below(name, rest)
+            || hole_below(rest)
             || String.length(name) > 0
             && name.[0] == '_'
               ? None : Some(id)
@@ -994,9 +1058,6 @@ let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
    Structural edits (item added/removed/reordered) align BY ID and
    cost the changed item plus downstream mentioners of its export
    names. */
-
-let names_of = (exports: list(Ctx.entry)): list(string) =>
-  List.sort_uniq(compare, List.map(entry_name, exports));
 
 /* the top-level item chain of a whole-program term. A Module ROOT
    (mod-rooted editors) itemizes via the lowering; a Module literal
@@ -1212,8 +1273,7 @@ let calc =
             /* aligned head */
             let clean =
               head_equal(q.d_node, n)
-              && !depends(q.d_free, dirty_vars)
-              && !depends(q.d_tfree, dirty_tnames)
+              && !stale(q, dirty_vars, dirty_tnames)
               && !probe_dirty(q);
             if (clean) {
               let (it, ctx_out) =
@@ -1318,6 +1378,197 @@ let whole_elab = (t: t): option(Exp.t) => {
   };
 };
 
+/* whole-program views over the per-item results */
+let all_error_ids = (t: t): list(Id.t) =>
+  List.concat_map(it => it.d_error_ids, t.items);
+
+let all_warning_ids = (t: t): list(Id.t) => {
+  let binder_ids =
+    List.concat_map(
+      it =>
+        List.filter_map(
+          fun
+          | Ctx.VarEntry({id, _}) => Some(id)
+          | _ => None,
+          it.d_exports,
+        ),
+      t.items,
+    );
+  let engine_unused = unused_binders(t.items);
+  List.concat_map(
+    it => List.filter(id => !List.mem(id, binder_ids), it.d_warning_ids),
+    t.items,
+  )
+  @ engine_unused;
+};
+
+/* How [t] differs from a cold calc of its term and from monolithic
+   statics: error and warning ids, and at every id of the program the
+   type and what incremental evaluation compares (elaboration, runtime
+   free variables, probe targets). Spine roots, top-level and member,
+   keep their hollow item's type, so their types are compared only
+   against the cold calc. */
+let divergences = (~settings, ~cold=true, t: t): list(string) => {
+  let analyzed = last_analyzed^;
+  let cold =
+    cold ? Some(calc(~settings, ~probe_ids=t.probe_ids, t.term)) : None;
+  last_analyzed := analyzed;
+  let (mono, _) =
+    Statics.mk_unmemoized(~probe_ids=t.probe_ids, settings, ctx0, t.term);
+  /* monolithic lowering mints ids of its own each run, and a Mod
+     root's wrapper id has no tile */
+  let own = Hashtbl.create(1024);
+  let grab = (cont, x) => {
+    List.iter(id => Hashtbl.replace(own, id, ()), IdTagged.ids(x));
+    cont(x);
+  };
+  ignore(
+    Exp.map_term(
+      ~f_exp=grab,
+      ~f_pat=grab,
+      ~f_typ=grab,
+      ~f_tpat=grab,
+      ~f_rul=grab,
+      ~f_mod=grab,
+      ~f_sig=grab,
+      ~f_mpat=grab,
+      t.term,
+    ),
+  );
+  Hashtbl.remove(own, MakeTerm.mod_wrap_id);
+  let rec roots = items =>
+    List.concat_map(
+      it =>
+        Option.to_list(Option.map(_ => it.d_id, it.d_hole))
+        @ roots(it.d_members),
+      items,
+    );
+  let spine = Hashtbl.create(64);
+  List.iter(id => Hashtbl.replace(spine, id, ()), roots(t.items));
+  let sorted = xs => List.sort_uniq(compare, xs);
+  let runtime = co =>
+    sorted(List.filter(IncrEval.is_runtime_dependency, CoCtx.names(co)));
+  let differ = (~types, a: Info.t, b: Info.t): option(string) =>
+    switch (a, b) {
+    | (InfoExp(a), InfoExp(b)) =>
+      if (types && !Typ.fast_equal(a.ty, b.ty)) {
+        Some(
+          "type "
+          ++ Typ.pretty_print(a.ty)
+          ++ " / "
+          ++ Typ.pretty_print(b.ty),
+        );
+      } else if (!Exp.fast_equal(a.elab_term, b.elab_term)
+                 || Exp.lexeme_trace(a.elab_term)
+                 != Exp.lexeme_trace(b.elab_term)) {
+        Some("elaboration");
+      } else if (runtime(a.co_ctx) != runtime(b.co_ctx)) {
+        let names = co => String.concat(" ", runtime(co));
+        Some(
+          "free variables {"
+          ++ names(a.co_ctx)
+          ++ "} / {"
+          ++ names(b.co_ctx)
+          ++ "}",
+        );
+      } else if (!SubexpProbeTargets.equal(a.probe_targets, b.probe_targets)) {
+        Some("probe targets");
+      } else {
+        None;
+      }
+    | (InfoPat(a), InfoPat(b)) =>
+      !types || Typ.fast_equal(a.ty, b.ty)
+        ? None
+        : Some(
+            "pattern type "
+            ++ Typ.pretty_print(a.ty)
+            ++ " / "
+            ++ Typ.pretty_print(b.ty),
+          )
+    | _ => Info.sort_of(a) == Info.sort_of(b) ? None : Some("sort")
+    };
+  let out = ref([]);
+  let note = s => out := [s, ...out^];
+  let ids = (what, reference, got) => {
+    let (r, g) = (sorted(reference), sorted(got));
+    let only = (xs, ys) =>
+      List.filter(x => !List.mem(x, ys), xs)
+      |> List.map(id =>
+           switch (Id.Map.find_opt(id, mono)) {
+           | Some(i) => Cls.show(Info.cls_of(i))
+           | None => Id.show(id)
+           }
+         )
+      |> String.concat(", ");
+    if (r != g) {
+      note(
+        what
+        ++ ": missing ["
+        ++ only(r, g)
+        ++ "] extra ["
+        ++ only(g, r)
+        ++ "]",
+      );
+    };
+  };
+  Option.iter(
+    cold => {
+      ids("error ids vs cold", all_error_ids(cold), all_error_ids(t));
+      ids("warning ids vs cold", all_warning_ids(cold), all_warning_ids(t));
+    },
+    cold,
+  );
+  ids(
+    "error ids vs monolithic",
+    Statics.Map.error_ids(mono),
+    all_error_ids(t),
+  );
+  ids(
+    "warning ids vs monolithic",
+    Statics.Map.warning_ids(mono),
+    all_warning_ids(t),
+  );
+  Id.Map.iter(
+    (id, m) =>
+      if (Hashtbl.mem(own, id)) {
+        let at = what =>
+          note(
+            what ++ " at " ++ Cls.show(Info.cls_of(m)) ++ " " ++ Id.show(id),
+          );
+        switch (
+          Id.Map.find_opt(id, t.merged),
+          Option.map((c: t) => Id.Map.find_opt(id, c.merged), cold),
+        ) {
+        | (None, _) => at("no info")
+        | (Some(got), c) =>
+          Option.iter(
+            d => at(d ++ " vs monolithic"),
+            differ(~types=!Hashtbl.mem(spine, id), m, got),
+          );
+          switch (c) {
+          | None => ()
+          | Some(None) => at("no cold info")
+          | Some(Some(c)) =>
+            Option.iter(
+              d => at(d ++ " vs cold"),
+              differ(~types=true, c, got),
+            )
+          };
+        };
+      },
+    mono,
+  );
+  List.rev(out^);
+};
+
+/* the test runner sets this: every calc_auto on a program of up to
+   [parity_cap] infos also checks it against monolithic statics and
+   raises on any divergence */
+let parity: ref(bool) = ref(false);
+let parity_cap = 3000;
+
+exception Divergence(list(string));
+
 /* single-slot auto cache: the scratch/documentation master is the one
    whole-program editor; slide switches and structural edits fall back
    to a full recompute via calc's own alignment check */
@@ -1349,6 +1600,12 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   | _ => ()
   };
   slot := Some(t);
+  if (parity^ && Id.Map.cardinal(t.merged) <= parity_cap) {
+    switch (divergences(~settings, ~cold=false, t)) {
+    | [] => ()
+    | ds => raise(Divergence(ds))
+    };
+  };
   t;
 };
 
@@ -1365,27 +1622,3 @@ let error_item_ids = (): list(Id.t) =>
       t.items,
     )
   };
-
-/* whole-program views over the per-item results */
-let all_error_ids = (t: t): list(Id.t) =>
-  List.concat_map(it => it.d_error_ids, t.items);
-
-let all_warning_ids = (t: t): list(Id.t) => {
-  let binder_ids =
-    List.concat_map(
-      it =>
-        List.filter_map(
-          fun
-          | Ctx.VarEntry({id, _}) => Some(id)
-          | _ => None,
-          it.d_exports,
-        ),
-      t.items,
-    );
-  let engine_unused = unused_binders(t.items);
-  List.concat_map(
-    it => List.filter(id => !List.mem(id, binder_ids), it.d_warning_ids),
-    t.items,
-  )
-  @ engine_unused;
-};

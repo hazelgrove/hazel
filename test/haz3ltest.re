@@ -12,6 +12,10 @@ Printexc.register_printer(exn => {
    (Zipper.remold_regrout runs BOTH pipelines and compares) */
 Haz3lcore.Zipper.normalize_parity := true;
 
+/* and every whole-program statics computation matches a cold and a
+   monolithic analysis (DefStatics.divergences) */
+Haz3lcore.DefStatics.parity := true;
+
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
    function exit with the test status rather than raise Test_error. */
@@ -48,6 +52,7 @@ let (suite, exit_with_test_status) =
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
       Test_EditLocality.tests,
+      Test_DefStaticsParity.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_LabelBench.tests,
