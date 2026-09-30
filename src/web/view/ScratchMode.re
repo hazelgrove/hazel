@@ -25,87 +25,12 @@ let outline_cursor: ref(option(OutlineTree.path)) = ref(None);
 let outline_edit: ref(option(OutlineEdit.t)) = ref(None);
 let outline_created: ref(option((Haz3lcore.Id.t, string))) = ref(None);
 
-/* the header symbol a headerless cell for [fid] should show, from
-   the OUTLINE's view of the row (span kinds mis-read member-fn tails:
-   a member terminates with `;`, so its fn-body tail extracts from an
-   IStmt-shaped run — the row is still a ⇒) */
-let outline_sym = SlideView.sym_of;
-
-/* A stack cell's statics come from its DefStatics ITEM — the same ids, analyzed with
-   the program's real context (headers see the type the def gave their
-   binder; module headers get real MPat info; warnings appear) —
-   scoped to the ids the cell actually contains so id-keyed consumers
-   (Arms, occurrence highlight) never see foreign ids. The private
-   init_* wrappers remain only as the fallback when no item is found.
-   [engine_warnings]: unused-binder warnings are computed by the
-   ENGINE across items (an item alone can't see its downstream uses),
-   so headers take them from the whole-program list. */
-let project_cell_statics =
-    (
-      ~item: Haz3lcore.DefStatics.item,
-      ~engine_warnings: list(Haz3lcore.Id.t),
-      cell: CellEditor.Model.t,
-    )
-    : Haz3lcore.CachedStatics.t => {
-  let term_data = cell.editor.editor.syntax.term_data;
-  let in_cell = id => Haz3lcore.Id.Map.mem(id, term_data);
-  Haz3lcore.CachedStatics.{
-    term: item.d_node,
-    elaborated: item.d_elab,
-    info_map: Haz3lcore.Id.Map.filter((id, _) => in_cell(id), item.d_map),
-    error_ids: List.filter(in_cell, item.d_error_ids),
-    warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
-    targets: Haz3lcore.Id.Map.empty, /* with_targets refreshes */
-    completion: None,
-    probe_ids:
-      Haz3lcore.CachedStatics.probe_ids_of_zipper(
-        cell.editor.editor.state.zipper,
-      ),
-  };
-};
-/* incremental-parse cache for the stacked Force frame: go_incr with
-   a persistent cache replays the top frame exactly and re-parses only
-   the edited item */
-let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
-  ref(Haz3lcore.MakeTerm.Incr.mk_cache());
-
-let integrate_share =
-    (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
-  let share_name =
-    switch (JsUtil.QueryParams.get_param("name")) {
-    | None => "Unknown Share"
-    | Some(name) => name
-    };
-  switch (JsUtil.QueryParams.get_param("share")) {
-  | None => model
-  | Some(data) =>
-    let shared_text = data |> StringUtil.decompress;
-    /* zipper: "" = the intentional text path (share links carry only
-       text); a non-empty sentinel would take the sexp arm and print the
-       stale-serialization warning on every share-link load */
-    let shared: PersistentZipper.t = {
-      zipper: "",
-      backup_text: shared_text,
-    };
-    let shared: CellEditor.Model.persistent = {
-      editor: {
-        root: Exp,
-        zipper: shared,
-      },
-      result: EvalResult.Model.init |> EvalResult.Model.persist,
-    };
-    let new_sp =
-      Scratchpad.mk_code(
-        ~name=share_name,
-        ~editor=CellEditor.Model.unpersist(~settings, shared),
-        (),
-      );
-    Model.{
-      current: List.length(model.scratchpads),
-      scratchpads: model.scratchpads @ [new_sp],
-    };
-  };
-};
+/* the key the current slide's saved state waits under */
+let slide_key = (~is_documentation, model: Model.t): string =>
+  Persist.content_key(
+    is_documentation ? "doc" : "scratch",
+    List.nth(model.scratchpads, model.current).name,
+  );
 
 /* the current slide's open cells (none when it is whole) */
 let current_cells = (model: Model.t): list(ScratchCell.t) =>
@@ -120,31 +45,16 @@ module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | CellAction(CellEditor.Update.t)
-    | StackHeader(Haz3lcore.Id.t, CellEditor.Update.t)
-    | StackBody(Haz3lcore.Id.t, CellEditor.Update.t)
-    | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
-    | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
-    | FocusToggleRun(Haz3lcore.Id.t) /* one cell for a whole test run */
-    | RestorePins /* deferred per-slide pin restore after slide load */
+    | Workspace(Workspace.Action.t)
     | OutlineCollapse(OutlineTree.path) /* toggle a branch's collapse */
-    | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
-    | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, bool, float, float)))
     | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
-    | UnfocusDef /* drop the pins shown at this level */
-    | ZoomIn(Haz3lcore.Id.t)
-    | ZoomOut
-    | ZoomTo(option(Haz3lcore.Id.t)) /* a breadcrumb: None = the program */
-    | ShowWhole(bool) /* park (true) or unpark the pins at this level */
-    | RealizeView /* open and close cells to match the view (after undo) */
     | OutlineCursor(option(OutlineTree.path))
     | OutlineEdit(option(OutlineEdit.t))
     | OutlineCommit(OutlineEdit.t, bool) /* true: then a new one */
     | OutlineFocused /* the outline took keyboard focus */
     | FocusOutline
     | RefreshStatics
-    | AgentAction(Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
     | Deck(SlideDeck.Action.t);
 
@@ -170,167 +80,6 @@ module Update = {
     };
   };
 
-  /* change what the current slide shows, then open and close cells to
-     match; view changes are not undo steps */
-  let update_view =
-      (
-        model: Model.t,
-        f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t,
-      )
-      : Updated.t(Model.t) =>
-    switch (current_code(model)) {
-    | None => model |> Updated.return_quiet
-    | Some({program, view, _} as code) =>
-      let statics = Program.statics(program);
-      let (view, program) =
-        SlideView.realize(
-          ~info_map=statics.info_map,
-          ~term=statics.term,
-          f(statics.term, program, view),
-          program,
-        );
-      with_code(
-        model,
-        {
-          ...code,
-          program,
-          view,
-        },
-      )
-      |> Updated.return(~historic=false);
-    };
-
-  /* after an edit to the whole program (agent, outline menu): the same
-     view again, pins to vanished items dropped */
-  let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
-    let statics = Program.statics(program);
-    let (view, program) =
-      SlideView.realize(
-        ~info_map=statics.info_map,
-        ~term=statics.term,
-        code.view,
-        program,
-      );
-    {
-      ...code,
-      program,
-      view,
-    };
-  };
-
-  /* the program after an outline edit: statics seeded now (the outline
-     reads them, and the edit's one parse doubles as the next statics
-     frame), manual probes and the caret kept, cells re-cut */
-  let with_segment =
-      (~settings: Settings.t, code: Scratchpad.code, new_seg: Segment.t)
-      : Scratchpad.code => {
-    let program = code.program;
-    let root = Program.root(program);
-    let present = {
-      let ids = Segment.ids(new_seg);
-      List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty, ids);
-    };
-    let manuals =
-      List.filter(
-        ((id, _)) => Id.Map.mem(id, present),
-        Program.probes(program),
-      );
-    let statics =
-      settings.core.statics
-        ? Haz3lcore.CachedStatics.init_compositional_term(
-            ~settings=settings.core,
-            ~probe_ids=
-              List.fold_left(
-                (m, (id, _)) => Id.Map.add(id, (), m),
-                Id.Map.empty,
-                manuals,
-              ),
-            root == Haz3lcore.Sort.Mod
-              ? MakeTerm.Incr.term_of_mod(new_seg)
-              : MakeTerm.Incr.term_of(new_seg),
-          )
-        : Haz3lcore.CachedStatics.empty;
-    let z =
-      Zipper.unzip(~direction=Left, new_seg)
-      |> ZipperBase.update_refractors(_, r =>
-           Refractors.{
-             ...r,
-             manuals,
-           }
-         );
-    let z =
-      switch (program) {
-      | Whole(e) =>
-        switch (Divided.anchor_of(e.editor.editor.state.zipper)) {
-        | Some((side, id)) =>
-          Option.value(Move.jump_to_side_of_id(side, z, id), ~default=z)
-        | None => z
-        }
-      | Divided(_) => z
-      };
-    let fresh = CellEditor.Model.mk(Editor.Model.mk(z, ~root));
-    let editor: CellEditor.Model.t = {
-      editor: {
-        ...fresh.editor,
-        statics,
-      },
-      result: Program.result(program),
-    };
-    let program =
-      switch (program) {
-      | Whole(_) => Program.Whole(editor)
-      | Divided(d) =>
-        switch (
-          Divided.resplit(
-            ~info_map=statics.info_map,
-            ~term=statics.term,
-            editor,
-            d,
-          )
-        ) {
-        | Joined(e) => Program.Whole(e)
-        | Still(d) => Program.Divided(Divided.with_statics(statics, d))
-        }
-      };
-    resync(
-      {
-        ...code,
-        program,
-      },
-      program,
-    );
-  };
-
-  /* the program as an item edit sees it: the current document, whatever
-     the statics frames have caught up with */
-  let item_ctx =
-      (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
-    let seg = Program.document(program);
-    let mod_root = Program.root(program) == Haz3lcore.Sort.Mod;
-    let term =
-      mod_root ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
-    {
-      mod_root,
-      term,
-      info_map:
-        lazy(
-          settings.core.statics
-            ? Haz3lcore.CachedStatics.init_compositional_term(
-                ~settings=settings.core,
-                ~probe_ids=Program.probe_ids(program),
-                term,
-              ).
-                info_map
-            : Haz3lcore.Id.Map.empty
-        ),
-      is_open: id =>
-        switch (OutlineTree.label_path(id, term)) {
-        | Some(path) => !List.mem(path, collapsed)
-        | None => true
-        },
-    };
-  };
-
   let update =
       (
         ~schedule_action,
@@ -340,179 +89,20 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    | AgentAction(a) =>
+    | Workspace(a) =>
       switch (current_code(model)) {
       | None => model |> return_quiet
-      | Some({program, agent, _} as code) =>
-        let schedule_agent = (a: Agent.Update.Action.t) =>
-          schedule_action(AgentAction(a));
-        /* the agent reads and edits the whole program: a divided one is
-           joined for it, and re-divided with the same cells if it
-           changed anything */
-        let editor = Program.whole_memo(program);
-        let (new_agent, updated_editor) =
-          Agent.Update.update(a, agent, editor, settings, schedule_agent);
-        let* new_ed = updated_editor;
-        let code = {
-          ...code,
-          agent: new_agent,
-        };
-        switch (program) {
-        | Whole(_) =>
-          with_code(
-            model,
-            {
-              ...code,
-              program: Whole(new_ed),
-            },
-          )
-        | Divided(_) when new_ed === editor => with_code(model, code)
-        | Divided(d) =>
-          with_code(
-            model,
-            resync(
-              code,
-              Program.of_close(
-                Divided.resplit(
-                  ~info_map=new_ed.editor.statics.info_map,
-                  ~term=new_ed.editor.statics.term,
-                  new_ed,
-                  d,
-                ),
-              ),
-            ),
-          )
-        };
-      }
-    | FocusDef(fid) =>
-      /* show only [fid] at this level */
-      update_view(model, (term, _, v) =>
-        SlideView.pin(~term, fid, SlideView.discard(~term, v))
-      )
-    | FocusToggle(fid) =>
-      update_view(model, (term, program, v) =>
-        if (List.mem(
-              SlideView.{
-                p_id: fid,
-                p_run: false,
-              },
-              v.pins,
-            )) {
-          SlideView.unpin(fid, v);
-        } else {
-          /* inside an open run cell, the ⊖ closes the run */
-          switch (
-            switch (program) {
-            | Divided(d) =>
-              List.find_opt(
-                (e: ScratchCell.t) => e.e_run && List.mem(fid, e.e_members),
-                Divided.cells(d),
-              )
-            | Whole(_) => None
-            }
-          ) {
-          | Some(run) => SlideView.unpin(run.e_id, v)
-          | None => SlideView.pin(~term, fid, v)
-          };
-        }
-      )
-    | FocusToggleRun(fid) =>
-      /* the tests container: one cell for the run, or close it (or its
-         members open one by one) */
-      update_view(
-        model,
-        (term, program, v) => {
-          let members =
-            switch (Focus.test_run_deep(fid, Program.document(program))) {
-            | Some((_, ms)) => ms
-            | None => [fid]
-            };
-          switch (
-            List.find_opt(
-              (p: SlideView.pin) => p.p_run && List.mem(p.p_id, members),
-              v.pins,
-            )
-          ) {
-          | Some(run) => SlideView.unpin(run.p_id, v)
-          | None =>
-            let singles =
-              List.filter(
-                (p: SlideView.pin) => !p.p_run && List.mem(p.p_id, members),
-                v.pins,
-              );
-            let v =
-              List.fold_left(
-                (v, p: SlideView.pin) => SlideView.unpin(p.p_id, v),
-                v,
-                singles,
-              );
-            List.length(singles) == List.length(members)
-              ? v : SlideView.pin(~term, ~run=true, fid, v);
-          };
-        },
-      )
-    | RestorePins =>
-      /* each slide's saved view waits under its own key, so another
-         slide hydrating first can't drop it */
-      let ck =
-        Persist.content_key(
-          is_documentation ? "doc" : "scratch",
-          List.nth(model.scratchpads, model.current).name,
-        );
-      switch (
-        Hashtbl.find_opt(Persist.pending_pins, ck),
-        current_code(model),
-      ) {
-      | (Some(saved), Some({program: Whole(editor), _}))
-          when
-            List.exists(
-              (n: OutlineTree.node) => n.o_label != "",
-              OutlineTree.of_term(editor.editor.statics.term),
-            ) =>
-        Hashtbl.remove(Persist.pending_pins, ck);
-        update_view(model, (term, _, _) =>
-          Persist.resolve_view(saved, term)
-        );
-      | _ => model |> Updated.return_quiet /* statics not ready: retry */
-      };
-    | FocusEnsure(fid) =>
-      /* cross-cell jumps: show [fid] unless an open cell already holds
-         it (only while divided) */
-      update_view(model, (term, program, v) =>
-        switch (program) {
-        | Divided(d) when Divided.owner(fid, d) == None =>
-          SlideView.pin(~term, fid, v)
-        | _ => v
-        }
-      )
-    | RestoreCaret(p) =>
-      /* clearing here (not at schedule time) makes delivery robust:
-         the boot-time calculate runs with a no-op scheduler, so the
-         ref keeps re-scheduling until a real action loop picks it up */
-      Hashtbl.remove(
-        Persist.pending_caret,
-        Persist.content_key(
-          is_documentation ? "doc" : "scratch",
-          List.nth(model.scratchpads, model.current).name,
-        ),
-      );
-      switch (current_code(model)) {
-      | Some({program: Whole(editor), _} as code) =>
-        let* new_ed =
-          CellEditor.Update.update(
+      | Some(code) =>
+        let* code =
+          Workspace.update(
             ~settings,
-            MainEditor(Perform(Move(Point(p, None)))),
-            editor,
+            ~schedule_action=a => schedule_action(Workspace(a)),
+            ~slide_key=slide_key(~is_documentation, model),
+            a,
+            code,
           );
-        with_code(
-          model,
-          {
-            ...code,
-            program: Whole(new_ed),
-          },
-        );
-      | _ => model |> Updated.return_quiet
-      };
+        with_code(model, code);
+      }
     | OutlineMenu(m) =>
       outline_menu := m;
       model |> Updated.return_quiet;
@@ -541,66 +131,28 @@ module Update = {
           );
         switch (
           ItemEdit.edit(
-            item_ctx(~settings, ~collapsed, program),
+            Workspace.item_ctx(~settings, ~collapsed, program),
             Op(op, fid),
             Program.document(program),
           )
         ) {
         | Error(_) => model |> Updated.return_quiet
         | Ok((new_seg, focus_target)) =>
-          let code = with_segment(~settings, code, new_seg);
+          let code = Workspace.with_segment(~settings, code, new_seg);
           switch (op, focus_target, code.program) {
           | (MoveUp | MoveDown, Some(id), _) =>
             /* the cursor follows the moved item */
             outline_cursor :=
               OutlineTree.label_path(id, Program.statics(code.program).term)
-          | (_, Some(id), Whole(_)) => schedule_action(FocusToggle(id))
+          | (_, Some(id), Whole(_)) =>
+            schedule_action(Workspace(FocusToggle(id)))
           | (_, Some(id), Divided(d)) when Divided.owner(id, d) == None =>
-            schedule_action(FocusEnsure(id))
+            schedule_action(Workspace(FocusEnsure(id)))
           | _ => ()
           };
           with_code(model, code) |> Updated.return;
         };
       };
-    | UnfocusDef =>
-      update_view(model, (term, _, v) => SlideView.discard(~term, v))
-    | ZoomIn(fid) =>
-      update_view(model, (term, _, v) => SlideView.zoom_in(~term, fid, v))
-    | ZoomOut => update_view(model, (_, _, v) => SlideView.zoom_out(v))
-    | ZoomTo(m) => update_view(model, (_, _, v) => SlideView.zoom_to(m, v))
-    | ShowWhole(parked) =>
-      update_view(model, (_, _, v) => SlideView.park(parked, v))
-    | RealizeView =>
-      /* after undo: the restored program's statics may be compacted
-         away, so the view is realized against fresh ones */
-      switch (current_code(model)) {
-      | None => model |> Updated.return_quiet
-      | Some({program, view, _} as code) =>
-        let seg = Program.document(program);
-        let term =
-          Program.root(program) == Haz3lcore.Sort.Mod
-            ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
-        let info_map =
-          settings.core.statics
-            ? Haz3lcore.CachedStatics.init_compositional_term(
-                ~settings=settings.core,
-                ~probe_ids=Program.probe_ids(program),
-                term,
-              ).
-                info_map
-            : Haz3lcore.Id.Map.empty;
-        let (view, program) =
-          SlideView.realize(~info_map, ~term, view, program);
-        with_code(
-          model,
-          {
-            ...code,
-            program,
-            view,
-          },
-        )
-        |> Updated.return(~historic=false);
-      }
     | OutlineCursor(c) =>
       outline_cursor := c;
       outline_created := None;
@@ -631,7 +183,7 @@ module Update = {
       | None => model |> Updated.return_quiet
       | Some({program, _} as code) =>
         let text = String.trim(ed.ed_text);
-        let ctx = item_ctx(~settings, ~collapsed=[], program);
+        let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
         let term = ctx.term;
         let edit = e => ItemEdit.edit(ctx, e, Program.document(program));
         switch (ed.ed_row, ed.ed_anchor) {
@@ -650,7 +202,7 @@ module Update = {
             switch (edit(Rename(row, text))) {
             | Error(why) => refuse(why)
             | Ok((new_seg, _)) =>
-              let code = with_segment(~settings, code, new_seg);
+              let code = Workspace.with_segment(~settings, code, new_seg);
               let new_term = Program.statics(code.program).term;
               outline_cursor := OutlineTree.label_path(row, new_term);
               outline_edit := then_new ? Some(fresh_below(row)) : None;
@@ -665,7 +217,7 @@ module Update = {
           switch (edit(Insert(anchor, text))) {
           | Error(why) => refuse(why)
           | Ok((new_seg, created)) =>
-            let code = with_segment(~settings, code, new_seg);
+            let code = Workspace.with_segment(~settings, code, new_seg);
             let new_term = Program.statics(code.program).term;
             let prefix = snd(OutlineSidebar.new_kind(text));
             switch (created) {
@@ -694,98 +246,6 @@ module Update = {
     | FocusOutline =>
       JsUtil.focus_outline();
       model |> Updated.return_quiet;
-    | StackHeader(id, a) =>
-      switch (current_code(model)) {
-      | Some({program: Divided(d), _} as code) =>
-        switch (cell_by_id(model, id)) {
-        | None => model |> Updated.return_quiet
-        | Some(entry) =>
-          let* new_header =
-            CellEditor.Update.update(~settings, a, entry.e_header);
-          let d =
-            d
-            |> Divided.update_cell(id, e =>
-                 {
-                   ...e,
-                   e_header: new_header,
-                 }
-               )
-            |> Divided.set_active(id, Header);
-          with_code(
-            model,
-            {
-              ...code,
-              program: Divided(d),
-            },
-          );
-        }
-      | _ => model |> Updated.return_quiet
-      }
-    | StackBody(id, a) =>
-      switch (current_code(model)) {
-      | Some({program: Divided(d), _} as code) =>
-        switch (cell_by_id(model, id)) {
-        | None => model |> Updated.return_quiet
-        | Some(entry) =>
-          let* new_body =
-            CellEditor.Update.update(~settings, a, entry.e_body);
-          let d =
-            d
-            |> Divided.update_cell(id, e =>
-                 {
-                   ...e,
-                   e_body: new_body,
-                 }
-               )
-            |> Divided.set_active(id, Body);
-          with_code(
-            model,
-            {
-              ...code,
-              program: Divided(d),
-            },
-          );
-        }
-      | _ => model |> Updated.return_quiet
-      }
-    | CellAction(a) =>
-      switch (current_code(model)) {
-      | Some({program: Whole(editor), _} as code) =>
-        let* new_ed = CellEditor.Update.update(~settings, a, editor);
-        with_code(
-          model,
-          {
-            ...code,
-            program: Whole(new_ed),
-          },
-        );
-      | Some({program: Divided(d), _} as code) =>
-        /* while divided only the whole-program result takes actions */
-        switch (a) {
-        | ResultAction(ra) =>
-          let* result =
-            EvalResult.Update.update(
-              ~settings={
-                ...settings,
-                core: {
-                  ...settings.core,
-                  assist: false,
-                },
-              },
-              ra,
-              Divided.result(d),
-            );
-          with_code(
-            model,
-            {
-              ...code,
-              program: Divided(Divided.with_result(result, d)),
-            },
-          );
-        | MainEditor(_) => model |> Updated.return_quiet
-        }
-      | None => model |> return_quiet
-      }
     | DrvAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
@@ -827,20 +287,6 @@ module Update = {
     };
   };
 
-  /* per-entry calculate memo (see calc_entry): FIXPOINT check. An
-     entry that comes in physically identical to the last calculate's
-     OUTPUT is already calculated — update only replaces an entry's
-     record when it's edited, so unchanged entries hit this on every
-     recalculate (evaluator-streaming actions trigger them
-     constantly). Reuse also preserves the entry's physical identity,
-     which the stack view cache keys on. */
-  let calc_entry_memo:
-    Hashtbl.t(
-      Haz3lcore.Id.t,
-      (Language.CoreSettings.t, Language.Dynamics.Map.t, ScratchCell.t),
-    ) =
-    Hashtbl.create(8);
-
   let calculate =
       (
         ~settings,
@@ -857,300 +303,20 @@ module Update = {
       );
 
     let scratchpad = List.nth(model.scratchpads, model.current);
-    /* pending restore state applies only to the slide it was read
-       for: the tag check keeps a hydration/mode-switch race from
-       moving some OTHER current editor */
-    let cur_ck =
-      Persist.content_key(
-        is_documentation ? "doc" : "scratch",
-        scratchpad.name,
-      );
     switch (scratchpad.kind) {
-    | Code({program, agent, view}) =>
-      /* restore a loaded slide's saved caret: the Move runs as its own
-         follow-up action, after this calculate builds measured */
-      switch (Hashtbl.find_opt(Persist.pending_caret, cur_ck)) {
-      | Some(p) => schedule_action(RestoreCaret(p))
-      | None => ()
-      };
-      switch (Hashtbl.mem(Persist.pending_pins, cur_ck), program) {
-      | (true, Whole(editor))
-          when
-            List.exists(
-              (n: OutlineTree.node) => n.o_label != "",
-              OutlineTree.of_term(editor.editor.statics.term),
-            ) =>
-        /* only once statics carries a NAMED outline: hydration's
-           first frames run against placeholder/hole programs (whose
-           outline is a lone unnamed ⇒ row), and resolving there
-           would silently drop the pins */
-        schedule_action(RestorePins)
-      | _ => ()
-      };
-      let worker_request = ref([]);
-      let queue_worker =
-        Some(
-          (req_value: WorkerServer.Request.value) => {
-            worker_request := worker_request^ @ [("", req_value)]
-          },
-        );
-      let statics_off = (cs: Language.CoreSettings.t) =>
-        Language.CoreSettings.{
-          ...cs,
-          statics: false,
-          dynamics: false,
-        };
-      let program =
-        switch (program) {
-        | Whole(editor) =>
-          stacked_incr_cache := Haz3lcore.MakeTerm.Incr.mk_cache();
-          Program.Whole(
-            CellEditor.Update.calculate(
-              ~settings,
-              ~autoprobe_mode,
-              ~is_edited,
-              ~statics_mode,
-              ~compositional=true,
-              ~queue_worker,
-              ~stitch=x => x,
-              editor,
-            ),
-          );
-        | Divided(d) =>
-          /* on statics frames, compositional statics of the assembled
-             document: a rename in one cell errors its users in the
-             others, and cells whose item changed recapture their ctx.
-             Only dirty items re-analyze. */
-          let d =
-            if (statics_mode == StaticsMode.Force
-                || !Divided.has_fresh_statics(d)) {
-              let prev_items =
-                switch (Haz3lcore.DefStatics.current()) {
-                | Some(p) => p.items
-                | None => []
-                };
-              let spliced = Divided.document(d);
-              let term =
-                Haz3lcore.MakeTerm.Incr.go_incr(
-                  ~root=Divided.root(d),
-                  ~cache=stacked_incr_cache^,
-                  spliced,
-                ).
-                  term;
-              let probe_ids = Program.probe_ids(Divided(d));
-              let ds =
-                Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
-              let statics =
-                Haz3lcore.CachedStatics.{
-                  term,
-                  elaborated:
-                    switch (Haz3lcore.DefStatics.whole_elab(ds)) {
-                    | Some(elab) => elab
-                    | None =>
-                      Haz3lcore.CachedStatics.dh_err(
-                        "Compositional elaboration gap",
-                      )
-                    },
-                  info_map: ds.merged,
-                  error_ids: Haz3lcore.DefStatics.all_error_ids(ds),
-                  warning_ids: Haz3lcore.DefStatics.all_warning_ids(ds),
-                  targets:
-                    Haz3lcore.CachedStatics.compute_targets(
-                      ~settings,
-                      ~info_map=ds.merged,
-                      ~probe_ids,
-                    ),
-                  completion: None,
-                  probe_ids,
-                };
-              let fresh = it => !List.exists(p => p === it, prev_items);
-              d
-              |> Divided.with_statics(statics)
-              |> Divided.map_cells((e: ScratchCell.t) =>
-                   switch (
-                     /* the cell may be a MODULE MEMBER: its top-level
-                        item is the one whose map knows its id */
-                     List.find_opt(
-                       (it: Haz3lcore.DefStatics.item) =>
-                         it.d_id == e.e_id || Id.Map.mem(e.e_id, it.d_map),
-                       ds.items,
-                     )
-                   ) {
-                   | Some(it) when fresh(it) =>
-                     switch (Focus.cell_content(e, spliced)) {
-                     | Some(def_seg) =>
-                       switch (
-                         Focus.captured_ctx(
-                           ~info_map=it.d_map,
-                           e.e_id,
-                           def_seg,
-                         )
-                       ) {
-                       | Some(ctx) => {
-                           ...e,
-                           e_ctx: ctx,
-                         }
-                       | None => e
-                       }
-                     | None => e
-                     }
-                   | _ => e
-                   }
-                 );
-            } else {
-              d;
-            };
-          /* the whole program's result keeps evaluating the assembled
-             document; requests fire only when its elaboration changed */
-          let d =
-            Divided.with_result(
-              EvalResult.Update.calculate(
-                ~settings={
-                  ...settings,
-                  assist: false,
-                },
-                ~queue_worker,
-                ~compute_pending=false,
-                ~is_edited,
-                Divided.statics(d),
-                Divided.result(d),
-              ),
-              d,
-            );
-          /* whole-program samples flow into every cell (probes with
-             out-of-cell call sites); the memo gates on the dynamics
-             map's identity so cells re-render when new samples land */
-          let extra_dyn = EvalResult.Model.dynamics(Divided.result(d));
-          let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
-            let reuse =
-              statics_mode != StaticsMode.Force
-                ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
-                  | Some((s', d', prev))
-                      when prev === e && s' === settings && d' === extra_dyn =>
-                    Some(prev)
-                  | _ => None
-                  }
-                : None;
-            switch (reuse) {
-            | Some(prev) => prev
-            | None =>
-              /* a zoomed module's members are a Mod-rooted body */
-              let body_is_exp =
-                e.e_body.editor.editor.root == Haz3lcore.Sort.Exp
-                || e.e_body.editor.editor.root == Haz3lcore.Sort.Mod;
-              let body_is_typ =
-                e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
-              /* PROJECTION: on statics frames cells read their item's
-                 analysis instead of re-running a private one */
-              let (proj_header, proj_body) =
-                statics_mode == StaticsMode.Force
-                  ? {
-                    switch (Haz3lcore.DefStatics.current()) {
-                    | Some(ds) =>
-                      switch (
-                        List.find_opt(
-                          (it: Haz3lcore.DefStatics.item) =>
-                            it.d_id == e.e_id
-                            || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
-                          ds.items,
-                        )
-                      ) {
-                      | Some(it) =>
-                        let warns = Haz3lcore.DefStatics.all_warning_ids(ds);
-                        (
-                          Some(
-                            project_cell_statics(
-                              ~item=it,
-                              ~engine_warnings=warns,
-                              e.e_header,
-                            ),
-                          ),
-                          Some(
-                            project_cell_statics(
-                              ~item=it,
-                              ~engine_warnings=warns,
-                              e.e_body,
-                            ),
-                          ),
-                        );
-                      | None => (None, None)
-                      }
-                    | None => (None, None)
-                    };
-                  }
-                  : (None, None);
-              /* type bodies: STATICS on, dynamics off */
-              let body_settings =
-                body_is_exp
-                  ? settings
-                  : body_is_typ || proj_body != None
-                      ? Language.CoreSettings.{
-                          ...settings,
-                          dynamics: false,
-                        }
-                      : statics_off(settings);
-              let e' =
-                ScratchCell.{
-                  ...e,
-                  e_header:
-                    CellEditor.Update.calculate(
-                      ~settings=
-                        e.e_mod && proj_header == None
-                          ? statics_off(settings)
-                          : Language.CoreSettings.{
-                              ...settings,
-                              dynamics: false,
-                            },
-                      ~is_edited,
-                      ~statics_mode,
-                      ~ctx=e.e_ctx,
-                      ~projected=?proj_header,
-                      ~queue_worker=None,
-                      ~stitch=x => x,
-                      e.e_header,
-                    ),
-                  e_body:
-                    CellEditor.Update.calculate(
-                      ~settings=body_settings,
-                      ~is_edited,
-                      ~statics_mode,
-                      ~ctx=e.e_ctx,
-                      ~projected=?proj_body,
-                      ~extra_dynamics=extra_dyn,
-                      ~queue_worker=None,
-                      ~stitch=x => x,
-                      e.e_body,
-                    ),
-                };
-              Hashtbl.replace(
-                calc_entry_memo,
-                e.e_id,
-                (settings, extra_dyn, e'),
-              );
-              e';
-            };
-          };
-          Program.Divided(Divided.map_cells(calc_entry, d));
-        };
-      let dispatch = (_key, action) =>
-        schedule_action(CellAction(ResultAction(action)));
-      EvalRequest.request(
-        worker_request^,
-        ~pos_of_key=key => key,
-        ~dispatch,
-        ~on_timeout=
-          List.iter(((key, _)) =>
-            dispatch(key, UpdateResult(ResultFail(Timeout)))
-          ),
-      );
+    | Code(code) =>
       with_code(
         model,
-        {
-          program,
-          view,
-          agent,
-        },
-      );
+        Workspace.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~schedule_action=a => schedule_action(Workspace(a)),
+          ~is_edited,
+          ~statics_mode,
+          ~slide_key=slide_key(~is_documentation, model),
+          code,
+        ),
+      )
     | Drv(m) =>
       let new_m =
         DerivationExerciseMode.Update.calculate(
@@ -1197,21 +363,21 @@ module Selection = {
       | (Cell(selection), Code({program: Whole(editor), _})) =>
         let+ a =
           CellEditor.Selection.get_cursor_info(
-            ~inject=a => inject(CellAction(a)),
+            ~inject=a => inject(Workspace(CellAction(a))),
             ~selection,
             editor,
           );
-        Update.CellAction(a);
+        Update.Workspace(CellAction(a));
       | (StackH(i, selection), Code(_)) =>
         switch (cell_by_id(model, i)) {
         | Some(entry) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
-              ~inject=a => inject(StackHeader(i, a)),
+              ~inject=a => inject(Workspace(StackHeader(i, a))),
               ~selection,
               entry.e_header,
             );
-          Update.StackHeader(i, a);
+          Update.Workspace(StackHeader(i, a));
         | None => empty
         }
       | (StackB(i, selection), Code(_)) =>
@@ -1219,11 +385,11 @@ module Selection = {
         | Some(entry) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
-              ~inject=a => inject(StackBody(i, a)),
+              ~inject=a => inject(Workspace(StackBody(i, a))),
               ~selection,
               entry.e_body,
             );
-          Update.StackBody(i, a);
+          Update.Workspace(StackBody(i, a));
         | None => empty
         }
       | (Drv(selection), Drv(m)) =>
@@ -1280,7 +446,9 @@ module Selection = {
     switch (scratchpad.kind) {
     | Code({program: Whole(editor), _}) =>
       CellEditor.Selection.jump_to_tile(tile, editor)
-      |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)))
+      |> Option.map(((x, y)) =>
+           (Update.Workspace(CellAction(x)), Cell(y))
+         )
     | Code({program: Divided(d), _}) =>
       /* while divided, jump inside the open cell holding the tile */
       let caret: CellEditor.Update.t =
@@ -1291,12 +459,12 @@ module Selection = {
       |> List.find_map((e: ScratchCell.t) =>
            if (in_cell(e.e_body)) {
              Some((
-               Update.StackBody(e.e_id, caret),
+               Update.Workspace(StackBody(e.e_id, caret)),
                StackB(e.e_id, MainEditor),
              ));
            } else if (in_cell(e.e_header)) {
              Some((
-               Update.StackHeader(e.e_id, caret),
+               Update.Workspace(StackHeader(e.e_id, caret)),
                StackH(e.e_id, MainEditor),
              ));
            } else {
@@ -1364,10 +532,11 @@ module Selection = {
         let caret: CellEditor.Update.t =
           MainEditor(Perform(Move(Goal(TileId(target_id)))));
         Some((
-          Update.FocusEnsure(fid),
+          Update.Workspace(FocusEnsure(fid)),
           in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
           in_header
-            ? Update.StackHeader(j, caret) : Update.StackBody(j, caret),
+            ? Update.Workspace(StackHeader(j, caret))
+            : Update.Workspace(StackBody(j, caret)),
         ));
       }
     );
@@ -1389,19 +558,23 @@ module Selection = {
     Util.OptUtil.Syntax.(
       switch (action, Model.current_program(model)) {
       | (
-          StackBody(
-            i,
-            MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+          Workspace(
+            StackBody(
+              i,
+              MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+            ),
           ) |
-          StackHeader(
-            i,
-            MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+          Workspace(
+            StackHeader(
+              i,
+              MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+            ),
           ),
           Some(Divided(d)),
         ) =>
         let from_header =
           switch (action) {
-          | StackHeader(_) => true
+          | Workspace(StackHeader(_)) => true
           | _ => false
           };
         let* entry = cell_by_id(model, i);
@@ -1425,7 +598,7 @@ module Selection = {
      stays put. */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
     switch (action, Model.current_program(model)) {
-    | (FocusEnsure(fid), Some(Divided(d))) =>
+    | (Workspace(FocusEnsure(fid)), Some(Divided(d))) =>
       Some(
         StackB(
           switch (Divided.owner(fid, d)) {
@@ -1435,10 +608,11 @@ module Selection = {
           MainEditor,
         ),
       )
-    | (FocusToggle(fid), Some(Divided(d))) =>
+    | (Workspace(FocusToggle(fid)), Some(Divided(d))) =>
       List.exists((e: ScratchCell.t) => e.e_id == fid, Divided.cells(d))
         ? None : Some(StackB(fid, MainEditor))
-    | (FocusToggle(fid), Some(Whole(_))) => Some(StackB(fid, MainEditor))
+    | (Workspace(FocusToggle(fid)), Some(Whole(_))) =>
+      Some(StackB(fid, MainEditor))
     | _ => None
     };
 
@@ -1662,13 +836,17 @@ module View = {
                         ),
                         inject(
                           to_header
-                            ? StackHeader(
-                                id,
-                                MainEditor(Perform(Move(move))),
+                            ? Workspace(
+                                StackHeader(
+                                  id,
+                                  MainEditor(Perform(Move(move))),
+                                ),
                               )
-                            : StackBody(
-                                id,
-                                MainEditor(Perform(Move(move))),
+                            : Workspace(
+                                StackBody(
+                                  id,
+                                  MainEditor(Perform(Move(move))),
+                                ),
                               ),
                         ),
                       ]);
@@ -1729,13 +907,21 @@ module View = {
                   let same_pane = (to_header, v: Haz3lcore.Action.vertical) =>
                     inject(
                       to_header
-                        ? StackHeader(
-                            e.e_id,
-                            MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                        ? Workspace(
+                            StackHeader(
+                              e.e_id,
+                              MainEditor(
+                                Perform(Move(Vertical(v, ByChar))),
+                              ),
+                            ),
                           )
-                        : StackBody(
-                            e.e_id,
-                            MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                        : Workspace(
+                            StackBody(
+                              e.e_id,
+                              MainEditor(
+                                Perform(Move(Vertical(v, ByChar))),
+                              ),
+                            ),
                           ),
                     );
                   let header_escape_vertical =
@@ -1814,7 +1000,9 @@ module View = {
                               fun
                               | MakeActive(sel) =>
                                 signal(MakeActive(StackH(e.e_id, sel))),
-                            ~inject=a => inject(StackHeader(e.e_id, a)),
+                            ~inject=
+                              a =>
+                                inject(Workspace(StackHeader(e.e_id, a))),
                             ~selected=header_sel,
                             ~result_kind=`NoResults,
                             ~locked=false,
@@ -1843,7 +1031,8 @@ module View = {
                               fun
                               | MakeActive(sel) =>
                                 signal(MakeActive(StackB(e.e_id, sel))),
-                            ~inject=a => inject(StackBody(e.e_id, a)),
+                            ~inject=
+                              a => inject(Workspace(StackBody(e.e_id, a))),
                             ~selected=body_sel,
                             ~result_kind=`NoResults,
                             ~locked=false,
@@ -1902,13 +1091,15 @@ module View = {
                     Virtual_dom.Vdom.Effect.Many([
                       signal(MakeActive(Cell(MainEditor))),
                       inject(
-                        CellAction(
-                          MainEditor(Perform(Move(Goal(TileId(id))))),
+                        Workspace(
+                          CellAction(
+                            MainEditor(Perform(Move(Goal(TileId(id))))),
+                          ),
                         ),
                       ),
                     ])
                   },
-              ~inject=a => inject(CellAction(ResultAction(a))),
+              ~inject=a => inject(Workspace(CellAction(ResultAction(a)))),
               ~selected=
                 switch (selected) {
                 | Some(Selection.Cell(Result(a))) => Some(a)
@@ -1947,7 +1138,7 @@ module View = {
                 fun
                 | MakeActive(selection) =>
                   signal(MakeActive(Cell(selection))),
-              ~inject=a => inject(CellAction(a)),
+              ~inject=a => inject(Workspace(CellAction(a))),
               ~selected=
                 switch (selected) {
                 | Some(Selection.Cell(s)) => Some(s)
@@ -2041,7 +1232,7 @@ module View = {
     let reparse =
       Widgets.button_named(
         Icons.backpack,
-        _ => inject(CellAction(MainEditor(Perform(Reparse)))),
+        _ => inject(Workspace(CellAction(MainEditor(Perform(Reparse))))),
         ~tooltip="Reparse Editor",
       );
 

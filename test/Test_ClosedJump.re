@@ -65,7 +65,7 @@ let jump = () => {
     | None => fail("split")
     };
   switch (Web.ScratchMode.Selection.cross_cell_target(~target_id=bad, ~d)) {
-  | Some((FocusEnsure(fid), _, _)) =>
+  | Some((Workspace(FocusEnsure(fid)), _, _)) =>
     check(bool, "opens a", true, fid == row("a"));
     check(
       bool,

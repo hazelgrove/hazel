@@ -28,7 +28,9 @@ let view =
         let editor = Program.whole_memo(program);
         let agent_inject = (action: Agent.Update.Action.t) =>
           editors_inject(
-            Editors.Update.Scratch(ScratchMode.Update.AgentAction(action)),
+            Editors.Update.Scratch(
+              ScratchMode.Update.Workspace(AgentAction(action)),
+            ),
           );
         ChatView.view(
           ~globals,

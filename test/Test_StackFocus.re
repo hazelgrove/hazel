@@ -137,7 +137,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
       bool,
       label ++ ": outline sym",
       true,
-      Web.ScratchMode.outline_sym(fid, term) == Some(sym),
+      Web.SlideView.sym_of(fid, term) == Some(sym),
     );
   };
 };

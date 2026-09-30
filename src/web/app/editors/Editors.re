@@ -158,7 +158,7 @@ module Store = {
       ~default_names,
       ~default_current,
     )
-    |> ScratchMode.integrate_share(~settings);
+    |> SlideDeck.integrate_share(~settings);
   };
 
   let load_documentation = (~settings) => {

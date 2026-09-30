@@ -1289,9 +1289,13 @@ module View = {
             ~jump=id => globals.inject_global(JumpToTile(id)),
             /* plain click with a stack open adds (or moves to) that
                cell; it never replaces the stack */
-            ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
-            ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
-            ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
+            ~focus=
+              id => inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
+            ~toggle=
+              id => inject(Editors(Scratch(Workspace(FocusToggle(id))))),
+            ~toggle_run=
+              id =>
+                inject(Editors(Scratch(Workspace(FocusToggleRun(id))))),
             ~is_collapsed=path => List.mem(path, collapsed_paths),
             ~toggle_collapse=
               path => inject(Editors(Scratch(OutlineCollapse(path)))),
@@ -1323,11 +1327,13 @@ module View = {
               };
             },
             ~zoom_root=Option.bind(slide_view, SlideView.zoom_root),
-            ~zoom_to=m => inject(Editors(Scratch(ZoomTo(m)))),
-            ~zoom_in=id => inject(Editors(Scratch(ZoomIn(id)))),
-            ~show_whole=b => inject(Editors(Scratch(ShowWhole(b)))),
-            ~discard=inject(Editors(Scratch(UnfocusDef))),
-            ~zoom_out=inject(Editors(Scratch(ZoomOut))),
+            ~zoom_to=m => inject(Editors(Scratch(Workspace(ZoomTo(m))))),
+            ~zoom_in=
+              id => inject(Editors(Scratch(Workspace(ZoomIn(id))))),
+            ~show_whole=
+              b => inject(Editors(Scratch(Workspace(ShowWhole(b))))),
+            ~discard=inject(Editors(Scratch(Workspace(UnfocusDef)))),
+            ~zoom_out=inject(Editors(Scratch(Workspace(ZoomOut)))),
             ~cursor=ScratchMode.outline_cursor^,
             ~get_cursor=() => ScratchMode.outline_cursor^,
             /* the ref moves at the keypress; the action re-renders */

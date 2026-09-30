@@ -27,6 +27,44 @@ module Action = {
 
 open Action;
 
+let integrate_share =
+    (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
+  let share_name =
+    switch (JsUtil.QueryParams.get_param("name")) {
+    | None => "Unknown Share"
+    | Some(name) => name
+    };
+  switch (JsUtil.QueryParams.get_param("share")) {
+  | None => model
+  | Some(data) =>
+    let shared_text = data |> StringUtil.decompress;
+    /* zipper: "" = the intentional text path (share links carry only
+       text); a non-empty sentinel would take the sexp arm and print the
+       stale-serialization warning on every share-link load */
+    let shared: PersistentZipper.t = {
+      zipper: "",
+      backup_text: shared_text,
+    };
+    let shared: CellEditor.Model.persistent = {
+      editor: {
+        root: Exp,
+        zipper: shared,
+      },
+      result: EvalResult.Model.init |> EvalResult.Model.persist,
+    };
+    let new_sp =
+      Scratchpad.mk_code(
+        ~name=share_name,
+        ~editor=CellEditor.Model.unpersist(~settings, shared),
+        (),
+      );
+    Model.{
+      current: List.length(model.scratchpads),
+      scratchpads: model.scratchpads @ [new_sp],
+    };
+  };
+};
+
 let export_scratch_slide = (model: Model.t): unit => {
   let scratchpad = List.nth(model.scratchpads, model.current);
   switch (scratchpad.kind) {

@@ -127,7 +127,7 @@ module Update = {
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        schedule_action(Editors(Scratch(RealizeView)));
+        schedule_action(Editors(Scratch(Workspace(RealizeView))));
         {
           ...x,
           model: {
@@ -149,7 +149,7 @@ module Update = {
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        schedule_action(Editors(Scratch(RealizeView)));
+        schedule_action(Editors(Scratch(Workspace(RealizeView))));
         {
           ...x,
           model: {
