@@ -7,6 +7,8 @@ version=1 id=a0000020-0020-0020-0020-000000000020
 @prompt
 **Probes** let you inspect runtime values directly in the editor — no print statements needed. You place a **probe** on an expression or pattern, and the values that appear to the right are called **probe samples**.
 
+Take a look at the separate probes tutorial (switch **basics** to **probes** in the top bar) to learn a lot more about this system.
+
 ## How to Add a Probe
 
 1. **Right-click** any expression and select **"Add probe"**, or

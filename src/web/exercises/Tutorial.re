@@ -63,6 +63,15 @@ let id_of = p => {
    folder segment, and never let one title be a proper prefix of another. */
 let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
 
+/* The probes tutorial's folder. Its lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode) and their Task
+   Reference panel carries the probe strip. Named here rather than in the
+   probe modules because the view layer cannot reach those: ProbeSidebar
+   depends on Editors, which depends on TutorialMode. */
+let probes_folder = "Probes";
+let is_probes_lesson = (p: p('a)): bool =>
+  SlidePath.folders(path_of(p)) == [probes_folder];
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
   | YourImpl
