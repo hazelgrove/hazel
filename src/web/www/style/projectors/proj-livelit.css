@@ -235,6 +235,13 @@
        which let one long line of code widen the whole body and push the
        right-hand pane off centre. A long line scrolls in its column now. */
     width: var(--main-scroll-width, 100ch);
+    /* The notebook's width is measured with that variable set to
+       max-content for a moment (JsUtil.update_main_scroll_width), when this
+       pane took its content's unwrapped width: an events list on one line
+       came to 29,000px, which was then published as the notebook's width,
+       and the right column went with it. Contained, the content never
+       counts toward the pane's own width. */
+    contain: inline-size;
 }
 .livelit > .tab-extent:has(.fumola-wip-head) {
     align-items: flex-start;
@@ -243,7 +250,7 @@
 .fumola-wip-head {
     display: flex;
     align-items: center;
-    gap: 0.6em;
+    gap: 0.45em;
     width: 100%;
 }
 .fumola-wip-badge {
@@ -281,12 +288,14 @@
     line-height: 1.4;
 }
 .fumola-wip-name {
-    width: 12em;
+    width: 8em;
     font-family: var(--code-font);
     outline: none;
 }
-.fumola-wip-field input {
-    width: 9em;
+/* Text fields only: the rule used to size the tiles and input checkboxes
+   to 9em too, which spread the head row across 80-odd columns. */
+.fumola-wip-field input[type="text"] {
+    width: 7em;
     font-family: var(--code-font);
     outline: none;
 }

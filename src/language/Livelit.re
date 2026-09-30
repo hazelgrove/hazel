@@ -2210,9 +2210,11 @@ module FumolaWip: BuiltinLivelit = {
      rows; change both together. */
   let shape: Util.ProjectorShape.t = {
     vertical: Tab(14),
-    /* Room for the whole head row: badge, both fields, the toggle and the
-       run readout. At 44 the last two were clipped off. */
-    horizontal: 84,
+    /* Room for the whole head row: badge, instance, editor | archivist
+       with its name, tiles and the run readout. Measured at 57 columns once
+       the checkboxes stopped taking a text field's 9em; 84 pushed the line
+       far past the code around it, and the full-width pane with it. */
+    horizontal: 58,
   };
 };
 
