@@ -474,8 +474,8 @@ module Update = {
           quiver_flagpole: mode == CompletionDisplay.Flag,
         }
       | AutoprobeMode =>
-        /* The keyboard toggle deliberately skips Caret, cycling Off<->All
-         * only; Caret mode is opted into via the segmented control. */
+        /* User-facing controls cycle Off<->All; Caret remains an internal
+         * mode and is not exposed by the sidebar. */
         {
           ...settings,
           autoprobe_mode:
