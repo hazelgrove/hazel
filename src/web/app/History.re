@@ -1,6 +1,6 @@
 open Util;
 
-let capped_undo_stack_size = 250;
+let capped_undo_stack_size = 1000;
 
 /* Undo entries are whole page models. Restoring one rebuilds its syntax
    (marked stale) and statics (forced on undo/redo), so entries drop them.
@@ -39,6 +39,21 @@ let slim_cell =
   result: drop_results ? EvalResult.Model.init : c.result,
 };
 
+let slim_editor = (e: Haz3lcore.Editor.t): Haz3lcore.Editor.t => {
+  ...e,
+  syntax: Lazy.force(stale_syntax),
+};
+
+/* Tutorial stitching reads terms from the zippers, and calculate rebuilds
+   stale syntax in both the cells and the part editors. */
+let slim_tutorial =
+    (~drop_results: bool, m: TutorialMode.Model.t): TutorialMode.Model.t => {
+  ...m,
+  editors: Tutorial.map(m.editors, slim_editor, slim_editor),
+  cells:
+    Tutorial.map_stitched((_, c) => slim_cell(~drop_results, c), m.cells),
+};
+
 let slim_scratch =
     (~drop_results: bool, m: ScratchMode.Model.t): ScratchMode.Model.t => {
   ...m,
@@ -60,7 +75,7 @@ let slim_scratch =
     ),
 };
 
-/* Tutorial and exercise models sync and stitch their editors; left whole. */
+/* Exercise models are left whole. */
 let slim = (~drop_results=false, m: Page.Model.t): Page.Model.t => {
   ...m,
   editors:
@@ -76,7 +91,12 @@ let slim = (~drop_results=false, m: Page.Model.t): Page.Model.t => {
             cm.configs,
           ),
       })
-    | (Exercises(_) | Tutorial(_)) as e => e
+    | Tutorial(tm) =>
+      Tutorial({
+        ...tm,
+        exercises: List.map(slim_tutorial(~drop_results), tm.exercises),
+      })
+    | Exercises(_) as e => e
     },
 };
 
