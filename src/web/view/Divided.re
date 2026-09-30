@@ -125,13 +125,74 @@ let probes = (d: t): Refractors.RefractorList.t =>
     @ probes_of(d.shell),
   );
 
-let mk = (editor: CellEditor.Model.t, base: Segment.t, cell: Cell.t): t => {
-  shell: editor,
-  cells: [cell],
-  base,
-  active: Some((cell.e_id, Body)),
-  statics: None,
+/* manual probes live with their anchors: in the open cell whose text
+   holds them, the rest in the shell */
+let settle = (~pool: Refractors.RefractorList.t, d: t): t => {
+  let set = (c: CellEditor.Model.t, ms): CellEditor.Model.t =>
+    List.map(fst, probes_of(c)) == List.map(fst, ms)
+      ? c
+      : {
+        ...c,
+        editor: {
+          ...c.editor,
+          editor: {
+            ...c.editor.editor,
+            state: {
+              ...c.editor.editor.state,
+              zipper:
+                ZipperBase.update_refractors(c.editor.editor.state.zipper, r =>
+                  Refractors.{
+                    ...r,
+                    manuals: ms,
+                  }
+                ),
+            },
+          },
+        },
+      };
+  let placed = ref([]);
+  let take = (c: CellEditor.Model.t) => {
+    let ids = Segment.ids(Focus.zip_of_cell(c));
+    let ms = List.filter(((id, _)) => List.mem(id, ids), pool);
+    placed := List.map(fst, ms) @ placed^;
+    set(c, ms);
+  };
+  let cells =
+    Focus.map_sharing(
+      (e: Cell.t) => {
+        let (h, b) = (take(e.e_header), take(e.e_body));
+        h === e.e_header && b === e.e_body
+          ? e
+          : {
+            ...e,
+            e_header: h,
+            e_body: b,
+          };
+      },
+      d.cells,
+    );
+  {
+    ...d,
+    cells,
+    shell:
+      set(
+        d.shell,
+        List.filter(((id, _)) => !List.mem(id, placed^), pool),
+      ),
+  };
 };
+
+let mk = (editor: CellEditor.Model.t, base: Segment.t, cell: Cell.t): t =>
+  settle(
+    ~pool=probes_of(editor),
+    {
+      shell: editor,
+      cells: [cell],
+      base,
+      active: Some((cell.e_id, Body)),
+      statics: None,
+    },
+  );
 
 /* a cell for [id]: its header and body, or with [inner], a module's
    members alone */
@@ -327,16 +388,21 @@ let close = (id: Id.t, d: t): after_close =>
         }),
       )
     | _ =>
-      Still({
-        ...d,
-        cells: rest,
-        base,
-        active:
-          switch (d.active) {
-          | Some((a, _)) when a == id => None
-          | a => a
+      Still(
+        settle(
+          ~pool=probes(d),
+          {
+            ...d,
+            cells: rest,
+            base,
+            active:
+              switch (d.active) {
+              | Some((a, _)) when a == id => None
+              | a => a
+              },
           },
-      })
+        ),
+      )
     };
   };
 
@@ -359,12 +425,15 @@ let open_ =
       );
     entry(~info_map, ~sym?, ~inner, id, base)
     |> Option.map(entry =>
-         {
-           ...d,
-           base,
-           cells: insert(~term, entry, keeping),
-           active: Some((id, Body)),
-         }
+         settle(
+           ~pool=probes(d),
+           {
+             ...d,
+             base,
+             cells: insert(~term, entry, keeping),
+             active: Some((id, Body)),
+           },
+         )
        );
   };
 
@@ -398,12 +467,15 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
         );
       Focus.mk_run_entry(~info_map, fid, base)
       |> Option.map(entry =>
-           {
-             ...d,
-             base,
-             cells: insert(~term, entry, keeping),
-             active: Some((entry.e_id, Body)),
-           }
+           settle(
+             ~pool=probes(d),
+             {
+               ...d,
+               base,
+               cells: insert(~term, entry, keeping),
+               active: Some((entry.e_id, Body)),
+             },
+           )
          );
     };
 };
@@ -457,13 +529,19 @@ let resplit =
   switch (cells) {
   | [] => Joined(editor)
   | _ =>
-    Still({
-      shell: editor,
-      cells: List.fold_left((acc, e) => insert(~term, e, acc), [], cells),
-      base,
-      active: d.active,
-      statics: None,
-    })
+    Still(
+      settle(
+        ~pool=probes_of(editor),
+        {
+          shell: editor,
+          cells:
+            List.fold_left((acc, e) => insert(~term, e, acc), [], cells),
+          base,
+          active: d.active,
+          statics: None,
+        },
+      ),
+    )
   };
 };
 

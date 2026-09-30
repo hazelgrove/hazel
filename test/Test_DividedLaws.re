@@ -237,6 +237,73 @@ let probes = () => {
   );
 };
 
+/* a probe follows its text: into the cell that opens over it, back out
+   when that cell closes; removed in the cell, it stays removed */
+let probes_follow = () => {
+  let seg = parse(src);
+  let (one, three) = (tile("1", seg), tile("3", seg));
+  let term = term_of(seg);
+  let info_map = info_map_of(seg);
+  let editor = with_probe(one, with_probe(three, editor_of(seg)));
+  let d =
+    switch (Divided.split(~info_map, editor, row(term, "f"))) {
+    | Some(d) => d
+    | None => fail("split refused")
+    };
+  check(
+    bool,
+    "shown in the cell",
+    true,
+    List.mem(three, manuals(body_cell(d).e_body)),
+  );
+  let without = (id, e: Web.CellEditor.Model.t) => {
+    let z =
+      ZipperBase.update_refractors(e.editor.editor.state.zipper, r =>
+        Refractors.{
+          ...r,
+          manuals: List.filter(((i, _)) => i != id, r.manuals),
+        }
+      );
+    Web.CellEditor.Model.mk(Editor.Model.mk(z, ~root=e.editor.editor.root));
+  };
+  let joined =
+    Divided.join(set_body(without(three, body_cell(d).e_body), d));
+  check(
+    bool,
+    "removed stays removed",
+    false,
+    List.mem(three, manuals(joined)),
+  );
+  check(
+    bool,
+    "the one outside stays",
+    true,
+    List.mem(one, manuals(joined)),
+  );
+  let d2 =
+    switch (Divided.open_(~info_map, ~term, row(term, "a"), d)) {
+    | Some(d2) => d2
+    | None => fail("open refused")
+    };
+  switch (Divided.close(row(term, "f"), d2)) {
+  | Still(d3) =>
+    let joined = Divided.join(d3);
+    check(
+      bool,
+      "kept past its cell's close",
+      true,
+      List.mem(three, manuals(joined)),
+    );
+    check(
+      bool,
+      "and the other cell's",
+      true,
+      List.mem(one, manuals(joined)),
+    );
+  | Joined(_) => fail("a cell should still be open")
+  };
+};
+
 /* joining puts the caret where it was in the active cell */
 let caret = () => {
   let seg = parse(src);
@@ -549,6 +616,7 @@ let tests = (
     test_case("split then join", `Quick, roundtrip),
     test_case("split then join, module root", `Quick, roundtrip_mod),
     test_case("probes", `Quick, probes),
+    test_case("probes follow their text", `Quick, probes_follow),
     test_case("caret", `Quick, caret),
     test_case("caret beside a space", `Quick, caret_beside_space),
     test_case("cell edit", `Quick, cell_edit),
