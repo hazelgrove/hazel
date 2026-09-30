@@ -44,15 +44,10 @@ module Action = {
 
 open Action;
 
-/* A stack cell's statics come from its DefStatics ITEM — the same ids, analyzed with
-   the program's real context (headers see the type the def gave their
-   binder; module headers get real MPat info; warnings appear) —
-   scoped to the ids the cell actually contains so id-keyed consumers
-   (Arms, occurrence highlight) never see foreign ids. The private
-   init_* wrappers remain only as the fallback when no item is found.
-   [engine_warnings]: unused-binder warnings are computed by the
-   ENGINE across items (an item alone can't see its downstream uses),
-   so headers take them from the whole-program list. */
+/* A cell's statics come from its DefStatics item, analyzed in the
+   program's real context, scoped to the ids the cell contains so
+   id-keyed consumers (Arms, occurrence highlight) never see foreign
+   ids. Unused-binder warnings are the engine's, across items. */
 let project_cell_statics =
     (
       ~item: Haz3lcore.DefStatics.item,
@@ -121,9 +116,6 @@ let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
   };
 };
 
-/* the program after an outline edit: statics seeded now (the outline
-   reads them, and the edit's one parse doubles as the next statics
-   frame), manual probes and the caret kept, cells re-cut */
 /* the program after an outline edit: statics seeded now (the outline
    reads them, and the edit's one parse doubles as the next statics
    frame), manual probes and the caret kept, cells re-cut */
@@ -496,13 +488,10 @@ let update =
   };
 };
 
-/* per-entry calculate memo (see calc_entry): FIXPOINT check. An
-   entry that comes in physically identical to the last calculate's
-   OUTPUT is already calculated — update only replaces an entry's
-   record when it's edited, so unchanged entries hit this on every
-   recalculate (evaluator-streaming actions trigger them
-   constantly). Reuse also preserves the entry's physical identity,
-   which the stack view cache keys on. */
+/* per-cell calculate memo: a cell that comes in physically identical
+   to the last calculate's output is already calculated (update
+   replaces a cell only when it's edited). Reuse also keeps the cell's
+   identity, which the stack view cache keys on. */
 let calc_entry_memo:
   Hashtbl.t(
     Haz3lcore.Id.t,
@@ -622,7 +611,7 @@ let calculate =
             |> Divided.with_statics(statics)
             |> Divided.map_cells((e: ScratchCell.t) =>
                  switch (
-                   /* the cell may be a MODULE MEMBER: its top-level
+                   /* the cell may be a module member: its top-level
                       item is the one whose map knows its id */
                    List.find_opt(
                      (it: Haz3lcore.DefStatics.item) =>
@@ -691,7 +680,7 @@ let calculate =
             e.e_body.editor.editor.root == Haz3lcore.Sort.Exp
             || e.e_body.editor.editor.root == Haz3lcore.Sort.Mod;
           let body_is_typ = e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
-          /* PROJECTION: on statics frames cells read their item's
+          /* on statics frames cells read their item's
              analysis instead of re-running a private one */
           let (proj_header, proj_body) =
             statics_mode == StaticsMode.Force
@@ -730,7 +719,7 @@ let calculate =
                 };
               }
               : (None, None);
-          /* type bodies: STATICS on, dynamics off */
+          /* type bodies: statics on, dynamics off */
           let body_settings =
             body_is_exp
               ? settings
