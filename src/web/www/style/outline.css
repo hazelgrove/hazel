@@ -191,7 +191,6 @@
   display: inline-block;
   width: 13px;
   opacity: 0.7;
-  color: var(--text-accent, #6a5a3a);
 }
 
 #outline-sidebar .outline-kids {
@@ -237,16 +236,8 @@
   transform: translateY(-1px) rotate(45deg);
 }
 
-/* names in the editor's colors: values as binders, modules as module
-   names, types as types */
-#outline-sidebar .ol-fn,
-#outline-sidebar .ol-const {
-  color: var(--token-pat);
-}
-
 #outline-sidebar .ol-module {
   font-weight: bold;
-  color: var(--token-mod);
 }
 
 #outline-sidebar .ol-type {
@@ -294,7 +285,6 @@
    the zoom) */
 #outline-sidebar .outline-focus-btn {
   display: none;
-  color: var(--text-accent, #6a5a3a);
   box-sizing: border-box;
   width: 10px;
   height: 8px;
