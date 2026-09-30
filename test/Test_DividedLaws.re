@@ -351,6 +351,78 @@ let resplit = () => {
   };
 };
 
+/* an agent edit (a structural action on the joined program) re-cuts
+   only the cell it touched: the other open cell keeps its editor */
+let agent_edit = () => {
+  let seg = parse(src);
+  let term = term_of(seg);
+  let d =
+    switch (
+      Divided.open_(
+        ~info_map=info_map_of(seg),
+        ~term,
+        row(term, "f"),
+        split(seg, row(term, "a")),
+      )
+    ) {
+    | Some(d) => d
+    | None => fail("second cell refused")
+    };
+  let before = Divided.cells(d);
+  let z = Divided.join(d).editor.editor.state.zipper;
+  let edited =
+    switch (
+      Perform.go(
+        ~settings=CoreSettings.on,
+        ~statics=CachedStatics.empty,
+        ~syntax=CachedSyntax.init(z),
+        ~root=Exp,
+        Structural(Update(Definition, "a", "5")),
+        {
+          zipper: z,
+          col_target: None,
+        },
+      )
+    ) {
+    | Ok(z) => Zipper.unselect_and_zip(z)
+    | Error(e) => fail("agent edit failed: " ++ Action.Failure.show(e))
+    };
+  switch (
+    Divided.resplit(
+      ~info_map=info_map_of(edited),
+      ~term=term_of(edited),
+      editor_of(edited),
+      d,
+    )
+  ) {
+  | Joined(_) => fail("the open cells closed")
+  | Still(d') =>
+    let cell = (label, cells) =>
+      List.find(
+        (e: Web.ScratchCell.t) => e.e_id == row(term, label),
+        cells,
+      );
+    check(
+      bool,
+      "the untouched cell keeps its editor",
+      true,
+      cell("f", Divided.cells(d')) === cell("f", before),
+    );
+    check(
+      bool,
+      "the edited cell is re-cut",
+      false,
+      cell("a", Divided.cells(d')) === cell("a", before),
+    );
+    check(
+      string,
+      "edit kept",
+      text_of(edited),
+      text_of(Divided.document(d')),
+    );
+  };
+};
+
 /* closing the last cell joins; a module-rooted program stays one */
 let close_all = () => {
   let seg = parse(~root=Mod, mod_src);
@@ -402,6 +474,7 @@ let tests = (
     test_case("caret beside a space", `Quick, caret_beside_space),
     test_case("cell edit", `Quick, cell_edit),
     test_case("resplit keeps an outside edit", `Quick, resplit),
+    test_case("an agent edit re-cuts only its cell", `Quick, agent_edit),
     test_case("close all", `Quick, close_all),
     test_case("no overlap", `Quick, no_overlap),
     test_case("mega-1k rows", `Slow, mega),
