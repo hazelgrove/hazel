@@ -618,11 +618,6 @@ let find_pr_opt = (p: Base.projector, m: t): option(measurement) =>
     find_pr_opt_flat(p, ch.c_flat) |> Option.map(shift_m(ch.c_start))
   | None => None
   };
-let find_t = (t: Tile.t, m: t): measurement =>
-  switch (chunk_for_id(t.id, m)) {
-  | Some(ch) => shift_m(ch.c_start, find_t_flat(t, ch.c_flat))
-  | None => failwith("find_t")
-  };
 let find_p = (~msg="", p: Piece.t, m: t): measurement =>
   switch (chunk_for_id(Piece.id(p), m)) {
   | Some(ch) => shift_m(ch.c_start, find_p_flat(~msg, p, ch.c_flat))
@@ -697,8 +692,6 @@ let of_segment =
     );
   mk_chunked(~chunk_of_id, [(anchor, seg, f)]);
 };
-
-let empty: t = mk_chunked(~chunk_of_id=Id.Map.empty, []);
 
 /* test-only: the chunks as one flat measurement, for parity checks */
 let flatten = (m: t): flat =>

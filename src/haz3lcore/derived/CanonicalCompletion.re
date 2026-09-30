@@ -2630,22 +2630,6 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
   (result.completed_seg, result.shard_records);
 };
 
-let for_editor = (seg: Segment.t): completion_result => {
-  let result = complete_segment_deep(~sort=Sort.Exp, seg);
-  {
-    ...result,
-    insertions:
-      derive_insertions(
-        ~original=seg,
-        ~records=result.shard_records,
-        result.completed_seg,
-      ),
-  };
-};
-
-/* Whole-segment reading, kept for the parity gate (Test_CompletionItems) */
-let for_editor_whole = for_editor;
-
 /* per-item completion over Segment.top_items. a complete item comes back
  * physically unchanged, so pointer-keyed layers downstream (MakeTerm.Incr,
  * Measured.Incr) stay local to the edit. an item whose completion runs

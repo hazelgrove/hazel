@@ -9,10 +9,7 @@ type t = {
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
   completion: option(MakeTerm.completion_snapshot),
-  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
-  /* the probe ids info_map was analyzed with; with_targets leaves this
-     alone, so a mismatch with the zipper's probes means a stale map */
-  probe_ids: Id.Map.t(unit),
+  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
 
 let empty: t = {
@@ -29,7 +26,6 @@ let empty: t = {
   warning_ids: [],
   completion: None,
   targets: Sample.no_targets,
-  probe_ids: Id.Map.empty,
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -135,7 +131,6 @@ let init_from_term =
     warning_ids,
     completion: None,
     targets,
-    probe_ids,
   };
 };
 
@@ -268,7 +263,6 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
-      probe_ids: Id.Map.empty,
     };
   };
 
@@ -294,7 +288,6 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
-      probe_ids: Id.Map.empty,
     };
   };
 
@@ -326,7 +319,6 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
-      probe_ids: Id.Map.empty,
     };
   };
 
@@ -355,7 +347,6 @@ let init_compositional_term =
     warning_ids: DefStatics.all_warning_ids(ds),
     targets: compute_targets(~settings, ~info_map, ~probe_ids),
     completion: None,
-    probe_ids,
   };
 };
 

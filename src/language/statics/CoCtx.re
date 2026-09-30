@@ -42,7 +42,6 @@ type t = VarMap.t_(list(entry));
 let empty: t = VarMap.empty;
 
 let to_list = (co_ctx: t): list((Var.t, list(entry))) => co_ctx;
-let of_list = (l: list((Var.t, list(entry)))): t => l;
 
 let lookup = (co_ctx: t, name: Var.t): option(list(entry)) =>
   VarMap.lookup(co_ctx, name);

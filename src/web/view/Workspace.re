@@ -61,10 +61,6 @@ let project_cell_statics =
     warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
     targets: Haz3lcore.Id.Map.empty, /* with_targets refreshes */
     completion: None,
-    probe_ids:
-      Haz3lcore.CachedStatics.probe_ids_of_zipper(
-        cell.editor.editor.state.zipper,
-      ),
   };
 };
 /* incremental-parse cache for a divided program's statics frames:
@@ -585,7 +581,6 @@ let calculate =
                   ~probe_ids,
                 ),
               completion: None,
-              probe_ids,
             };
           let fresh = it => !List.exists(p => p === it, prev_items);
           (
