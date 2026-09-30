@@ -115,27 +115,9 @@ let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
     | (_, Some(piece)) when d == Left => Piece.id(piece) == id
     | (Some(piece), _) when d == Right => Piece.id(piece) == id
     | _ => false;
-  /* structural fast path (as jump_to_id_indicated): the walk below goes
-     to the buffer's extreme and back token by token — two whole-buffer
-     walks, ~0.7 s per selection on a 170-line program (the agent's
-     Update diff selected two of them) */
-  let structural =
-    switch (Zipper.unzip_to_id(~side=d, id, Zipper.unselect_and_zip(z))) {
-    | Some(zp) when at_piece(Zipper.generalized_neighbors(zp)) =>
-      Some({
-        ...zp,
-        refractors: z.refractors,
-      })
-    | _ => None
-    };
-  switch (structural) {
-  | Some(_) as r => r
-  | None =>
-    let z = do_to_extreme(local(ByToken, d), z);
-    at_piece(Zipper.generalized_neighbors(z))
-      ? Some(z)
-      : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
-  };
+  let z = do_to_extreme(local(ByToken, d), z);
+  at_piece(Zipper.generalized_neighbors(z))
+    ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
 };
 
 /* Where the walk above ends, found without walking. It goes to one end of
