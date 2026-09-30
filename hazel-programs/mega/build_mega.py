@@ -49,9 +49,8 @@ def defunlet(line):
     # param-ascribed fun style: `let f = fun (a: T, b: U) -> ...`.
     # NOT let-arrow-ascription — passing constructor values through an
     # arrow-ascribed member and capturing them in closures handed to
-    # builtins hits a dev dynamics bug (stuck Asc at match; see
-    # mega/BUG-asc-capture.hz). Param ascriptions keep the types and
-    # dodge it.
+    # builtins hits a dynamics bug (stuck Asc at match, #2466). Param
+    # ascriptions keep the types and dodge it.
     ps = []
     for n, t in zip(names, types):
         ps.append(f"{n}: {t}" if t else n)
