@@ -33,15 +33,23 @@ open Language;
 let is_engine_witness = (d: CanonicalCompletion.delimiter_info): bool =>
   d.typed_len != None && d.of_shard != None;
 
-/* A pure engine-witness run: a single real delimiter (in / => / -> /
-   then) the user began typing. In the reified artifact it is a REAL
-   completed shard standing where the user's partial token sits — the
-   display swaps the partial token for that full shard (sub-token
-   styled), so a witness is ONE real token, not a partial + comment. */
+/* An engine-witness run: its FIRST delimiter (in / => / -> / then) is
+   one the user began typing, and any rest are real completed shards
+   (`then … else`, `=> … end`). In the reified artifact the witness is
+   a REAL completed shard standing where the user's partial token sits
+   — the display swaps the partial token for the run's shards (the
+   witness sub-token styled, the rest ghost), so a witness is ONE real
+   token, not a partial + comment. */
 let is_witness_replace = (ins: CanonicalCompletion.insertion): bool =>
   switch (ins.delimiters) {
-  | [d] => is_engine_witness(d)
-  | _ => false
+  | [d, ...rest] =>
+    is_engine_witness(d)
+    && List.for_all(
+         (d': CanonicalCompletion.delimiter_info) =>
+           d'.of_shard != None && d'.typed_len == None,
+         rest,
+       )
+  | [] => false
   };
 
 /* an insertion projects wholly from the artifact iff every delimiter
@@ -56,7 +64,7 @@ let projectable = (ins: CanonicalCompletion.insertion): bool =>
        /* a WITNESS delimiter (typed_len set) can only be shown by
           REPLACING the user's partial token — projecting its full
           shard alongside the typed prefix duplicates it (`= ? =>`).
-          Single-witness insertions take the replace path before this
+          Witness-headed runs take the replace path before this
           predicate is consulted; anything else degrades to the
           remainder-ghost channel. */
        && d.typed_len == None
@@ -209,36 +217,41 @@ let project_pieces =
   build(ins.delimiters) |> Option.map(pieces => (pieces, typed_lens^));
 };
 
-/* a witness insertion's real reified shard, the id of the user's
-   partial token it replaces, its typed_len and a following hole (when
-   the delimiter owes one). None when the shard isn't in the artifact
-   or the record has no absorbed token (nothing to replace). */
+/* a witness run's real reified shards, the id of the user's partial
+   token they replace, and the witness's typed_len. None when a shard
+   isn't in the artifact or the record has no absorbed token (nothing
+   to replace). */
 let witness_shard =
     (art: PromiseArtifact.t, ins: CanonicalCompletion.insertion)
     : option(
         (Id.t, Segment.t, ((Id.t, int), int), (Id.t, (Id.t, int, int))),
       ) =>
   switch (ins.delimiters) {
-  | [{of_shard: Some((tid, i)), typed_len: Some(n), trailing_hole, _}] =>
+  | [{of_shard: Some((tid, i)), typed_len: Some(n), _}, ..._] =>
+    let shard = ((sid, k)) =>
+      PromiseArtifact.find_reified(art, sid)
+      |> Option.map(t => Piece.Tile(Tile.shard_of(t, k)));
+    /* just the shards: reassembly folds them into their tiles, and a
+       tile's OWN interior holes (the reified body hole) come with the
+       reassembled structure — attaching one here would double it
+       against the raw trailing hole */
     switch (
-      PromiseArtifact.find_reified(art, tid),
+      Util.OptUtil.traverse(
+        (d: CanonicalCompletion.delimiter_info) =>
+          Option.bind(d.of_shard, shard),
+        ins.delimiters,
+      ),
       PromiseArtifact.prefix_of(art, tid, i),
     ) {
-    | (Some(t), Some(sp)) =>
-      /* just the shard: reassembly folds it into its tile, and the
-         tile's OWN interior holes (the reified body hole) come with
-         the reassembled structure — attaching one here would double
-         it against the raw trailing hole */
-      ignore(trailing_hole);
-      let shard = Piece.Tile(Tile.shard_of(t, i));
+    | (Some(shards), Some(sp)) =>
       Some((
         sp.token_id,
-        [shard],
+        shards,
         ((tid, i), n),
         (sp.token_id, (tid, i, n)),
-      ));
+      ))
     | _ => None
-    }
+    };
   | _ => None
   };
 

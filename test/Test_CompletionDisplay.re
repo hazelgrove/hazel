@@ -1012,7 +1012,7 @@ case 1 |¦⟪ ⟫?⟪ => ? end⟫   CHIPS[]
 case 1 | ¦?⟪ => ? end⟫   CHIPS[]
 case 1 | 2¦⟪ => ? end⟫   CHIPS[]
 case 1 | 2 ¦⟪=> ? end⟫   CHIPS[]
-case 1 | 2 =¦⟪> ⟫?⟪ end⟫   CHIPS[]
+case 1 | 2 =¦⟪> ? end⟫   CHIPS[]
 case 1 | 2 =>¦⟪ ⟫?⟪ end⟫   CHIPS[]
 case 1 | 2 => ¦?⟪ end⟫   CHIPS[]
 case 1 | 2 => 3¦⟪ end⟫   CHIPS[]|},
@@ -1365,7 +1365,7 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
         check(
           string_testable,
           "p3",
-          {|if true t¦⟪hen ⟫?⟪ else ?⟫   CHIPS[]|},
+          {|if true t¦⟪hen ? else ?⟫   CHIPS[]|},
           trajectory_in(~ctx="if true ¦", "t"),
         )
       ),
@@ -2004,15 +2004,16 @@ NONE|},
       /* a keyword witness's TYPED prefix is the user's text: the outer
          token span is not faded but keeps the unfinished construct's
          color, and only the untyped remainder carries the ghost fade.
-         `then` and `=>` don't split here: their insertions carry more
-         delimiters (`else`, `end`), so they take the remainder-ghost
-         channel and the typed prefix stays the user's own token. */
+         `then` / `=>` split too, though their runs carry `else` /
+         `end`. */
       test_case("witness typed prefix renders at full strength", `Quick, () =>
         check(
           string_testable,
           "witness spans",
           {|i⟪n⟫ [token incomplete poly keyword] ⟪in-parsed-buffer⟫
--⟪>⟫ [token incomplete poly] ⟪in-parsed-buffer⟫|},
+t⟪hen⟫ [token incomplete poly keyword] ⟪in-parsed-buffer⟫
+-⟪>⟫ [token incomplete poly] ⟪in-parsed-buffer⟫
+=⟪>⟫ [token incomplete poly] ⟪in-parsed-buffer⟫|},
           ["let x = 4 i", "if true t", "fun x -", "case 1 | 2 ="]
           |> List.concat_map(t => split_tokens(view_of(t)))
           |> String.concat("\n"),
