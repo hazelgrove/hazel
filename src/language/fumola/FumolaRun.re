@@ -553,6 +553,49 @@ let outlines = (name: string): result(list(Yojson.Safe.t), string) =>
     }
   };
 
+/* The last run in each instance, for ^fumola_wip to show: the program
+   exactly as it was sent -- printed from the tiles, so its parentheses say
+   how the tiles grouped -- and what came back, a value or the runtime's
+   error. A run that fails part way leaves nothing in the store to show, so
+   without this the reader sees only the run before it. */
+type last_run = {
+  /* Empty when the code could not be printed, so nothing was sent. */
+  program: string,
+  outcome: result(string, string),
+};
+
+/* Kept per instance and per use: two uses sharing an instance would
+   otherwise each show whichever of them ran last. */
+let last_runs: Hashtbl.t((string, string), last_run) = Hashtbl.create(8);
+
+/* Which use a program came from. A ^fumola_wip program's first step writes
+   `name(`input), so the name is there without printing anything; any other
+   program belongs to no use. */
+let owner_of = (body: FumolaTermBase.t): string =>
+  switch (body.term) {
+  | FumolaGrammar.Block([first, ..._]) =>
+    switch (first.term) {
+    | FumolaGrammar.DExp(put) =>
+      switch (put.term) {
+      | FumolaGrammar.Put(cell, _) =>
+        switch (cell.term) {
+        | FumolaGrammar.Ap(head, _) =>
+          switch (head.term) {
+          | FumolaGrammar.QuotedId(name) => name
+          | _ => ""
+          }
+        | _ => ""
+        }
+      | _ => ""
+      }
+    | _ => ""
+    }
+  | _ => ""
+  };
+
+let last_run_of = (~instance: string, ~name: string): option(last_run) =>
+  Hashtbl.find_opt(last_runs, (instance, name));
+
 let run =
     (
       ~ana: TermBase.Typ.t,
@@ -579,10 +622,20 @@ let run =
     | Ok(mode) =>
       switch (unprintable(body)) {
       | Some(message) =>
+        /* Nothing is sent, but the reason still replaces the last outcome:
+           otherwise the use keeps showing a run of code it no longer has. */
+        Hashtbl.replace(
+          last_runs,
+          (instance_name, owner_of(body)),
+          {
+            program: "",
+            outcome: Error(message),
+          },
+        );
         Error({
           syntax: false,
           message,
-        })
+        });
       | None =>
         let program = Fumola.of_exp(body);
         let at = claim_moment(pass);
@@ -603,48 +656,62 @@ let run =
         note_run(instance_name);
         let reply = eval_at(instance_id, at_moment(at, program));
         note_printed(instance_name, reply);
-        switch (reply) {
-        | `Null =>
-          Error({
-            syntax: false,
-            message: "no Fumola runtime available",
-          })
-        | `Assoc(obj) as json =>
-          switch (List.assoc_opt("ok", obj)) {
-          | Some(`Bool(true)) =>
-            switch (
-              FumolaValue.exp_of_json(
-                ~instance_id,
-                ~eval=eval_in(instance_id),
-                ~ana,
-                ~tools,
-                json,
-              )
-            ) {
-            | Ok(exp) => Ok(exp)
-            | Error(message) =>
+        let outcome =
+          switch (reply) {
+          | `Null =>
+            Error({
+              syntax: false,
+              message: "no Fumola runtime available",
+            })
+          | `Assoc(obj) as json =>
+            switch (List.assoc_opt("ok", obj)) {
+            | Some(`Bool(true)) =>
+              switch (
+                FumolaValue.exp_of_json(
+                  ~instance_id,
+                  ~eval=eval_in(instance_id),
+                  ~ana,
+                  ~tools,
+                  json,
+                )
+              ) {
+              | Ok(exp) => Ok(exp)
+              | Error(message) =>
+                Error({
+                  syntax: false,
+                  message,
+                })
+              }
+            | _ =>
               Error({
-                syntax: false,
-                message,
+                syntax:
+                  List.assoc_opt("kind", obj) == Some(`String("syntax")),
+                message:
+                  switch (List.assoc_opt("error", obj)) {
+                  | Some(`String(message)) => message
+                  | _ => "the Fumola program did not produce a value"
+                  },
               })
             }
           | _ =>
             Error({
-              syntax:
-                List.assoc_opt("kind", obj) == Some(`String("syntax")),
-              message:
-                switch (List.assoc_opt("error", obj)) {
-                | Some(`String(message)) => message
-                | _ => "the Fumola program did not produce a value"
-                },
+              syntax: false,
+              message: "could not read the Fumola runtime's response",
             })
-          }
-        | _ =>
-          Error({
-            syntax: false,
-            message: "could not read the Fumola runtime's response",
-          })
-        };
+          };
+        Hashtbl.replace(
+          last_runs,
+          (instance_name, owner_of(body)),
+          {
+            program,
+            outcome:
+              switch (outcome) {
+              | Ok(e) => Ok(FumolaValue.describe_value(e))
+              | Error({message, _}) => Error(message)
+              },
+          },
+        );
+        outcome;
       }
     }
   };

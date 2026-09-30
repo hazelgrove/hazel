@@ -1625,7 +1625,86 @@ module FumolaWip: BuiltinLivelit = {
       ],
     );
 
-  let view_below = (~id as _, ~splice, m: model_t, send_action) => {
+  /* Where each use's divider sits, as the left column's share of the width.
+     Kept in the page, not the model: dragging it is a view of the program,
+     not an edit, so it never writes to the syntax. */
+  let splits: Hashtbl.t(string, float) = Hashtbl.create(4);
+
+  let columns = (split: float): string =>
+    Printf.sprintf(
+      "minmax(0, %gfr) 7px minmax(0, %gfr)",
+      split,
+      1.0 -. split,
+    );
+
+  /* Dragging moves the columns directly on the DOM, and records the share
+     for the next render; nothing is dispatched, so nothing re-renders. */
+  let drag_divider =
+      (key: string, evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+    module U = Js_of_ocaml.Js.Unsafe;
+    let str = s => U.inject(Js_of_ocaml.Js.string(s));
+    let num = v => Js_of_ocaml.Js.float_of_number(U.coerce(v));
+    let handle = U.get(evt, "target");
+    let body = U.meth_call(handle, "closest", [|str(".fumola-wip-body")|]);
+    /* Capture keeps the drag going when the pointer leaves the handle; a
+       pointer that is not active cannot be captured, and the drag still
+       works without it. */
+    switch (
+      U.meth_call(handle, "setPointerCapture", [|U.get(evt, "pointerId")|])
+    ) {
+    | exception _ => ()
+    | () => ()
+    };
+    let move =
+      Js_of_ocaml.Js.wrap_callback(e => {
+        let rect = U.meth_call(body, "getBoundingClientRect", [||]);
+        let left = num(U.get(rect, "left"));
+        let width = num(U.get(rect, "right")) -. left;
+        let x = num(U.get(e, "clientX")) -. left;
+        let split = Float.min(0.85, Float.max(0.15, x /. width));
+        Hashtbl.replace(splits, key, split);
+        U.set(
+          U.get(body, "style"),
+          "gridTemplateColumns",
+          Js_of_ocaml.Js.string(columns(split)),
+        );
+      });
+    let _ =
+      U.meth_call(
+        handle,
+        "addEventListener",
+        [|str("pointermove"), U.inject(move)|],
+      );
+    let rec up =
+      lazy(
+        Js_of_ocaml.Js.wrap_callback(_ => {
+          let _ =
+            U.meth_call(
+              handle,
+              "removeEventListener",
+              [|str("pointermove"), U.inject(move)|],
+            );
+          let _ =
+            U.meth_call(
+              handle,
+              "removeEventListener",
+              [|str("pointerup"), U.inject(Lazy.force(up))|],
+            );
+          ();
+        })
+      );
+    let _ =
+      U.meth_call(
+        handle,
+        "addEventListener",
+        [|str("pointerup"), U.inject(Lazy.force(up))|],
+      );
+    ();
+  };
+
+  let view_below = (~id, ~splice, m: model_t, send_action) => {
+    let key = Id.to_string(id);
+    let split = Option.value(Hashtbl.find_opt(splits, key), ~default=0.5);
     let editor = (e: TermBase.Exp.t) =>
       switch (Option.bind(splice_id(e), splice)) {
       | Some(node) => node
@@ -1652,7 +1731,13 @@ module FumolaWip: BuiltinLivelit = {
       );
     Some(
       Node.div(
-        ~attrs=[Attr.class_("fumola-wip-body")],
+        ~attrs=[
+          Attr.class_("fumola-wip-body"),
+          Attr.create(
+            "style",
+            "grid-template-columns: " ++ columns(split) ++ ";",
+          ),
+        ],
         [
           Node.div(
             ~attrs=[Attr.class_("fumola-wip-left")],
@@ -1685,6 +1770,24 @@ module FumolaWip: BuiltinLivelit = {
                         ],
                         [],
                       ),
+                      /* A string that does not parse expands to a hole, which
+                         says nothing; this says where and why. */
+                      switch (FumolaParse.program(text)) {
+                      | Error({at, message}) =>
+                        Node.div(
+                          ~attrs=[Attr.class_("fumola-wip-error")],
+                          [
+                            Node.text(
+                              Printf.sprintf(
+                                "does not parse, at character %d: %s",
+                                at,
+                                message,
+                              ),
+                            ),
+                          ],
+                        )
+                      | Ok(_) => Node.none
+                      },
                       Node.div(
                         ~attrs=[Attr.class_("fumola-wip-note")],
                         [
@@ -1700,14 +1803,86 @@ module FumolaWip: BuiltinLivelit = {
               ),
               wire(
                 ~dir="out",
-                [Node.text("the expansion")],
+                [
+                  /* The last run's value, or the runtime's error: a run
+                     that fails part way changes nothing else on screen.
+                     Code that makes no program has not run, so what is
+                     here is its own error, not the run before it. */
+                  switch (
+                    code_decs(m),
+                    FumolaRun.last_run_of(~instance=m.instance, ~name=m.name),
+                  ) {
+                  | (Error(None), _) =>
+                    Node.span(
+                      ~attrs=[Attr.class_("fumola-wip-note")],
+                      [Node.text("not run: the code does not parse")],
+                    )
+                  | (Error(Some(message)), _) =>
+                    Node.span(
+                      ~attrs=[Attr.class_("fumola-wip-error")],
+                      [Node.text(message)],
+                    )
+                  | (Ok(_), Some({outcome: Ok(value), _})) =>
+                    Node.span(
+                      ~attrs=[Attr.class_("fumola-wip-value")],
+                      [Node.text(value)],
+                    )
+                  | (Ok(_), Some({outcome: Error(message), _})) =>
+                    Node.span(
+                      ~attrs=[Attr.class_("fumola-wip-error")],
+                      [Node.text(message)],
+                    )
+                  | (Ok(_), None) => Node.text("the expansion")
+                  },
+                ],
                 [symbol("output")],
               ),
             ],
           ),
           Node.div(
+            ~attrs=[
+              Attr.class_("fumola-wip-divider"),
+              Attr.title("drag to move the divider"),
+              Attr.on_pointerdown(evt => {
+                drag_divider(key, evt);
+                Virtual_dom.Vdom.Effect.Many([
+                  Virtual_dom.Vdom.Effect.Prevent_default,
+                  Virtual_dom.Vdom.Effect.Stop_propagation,
+                ]);
+              }),
+            ],
+            [],
+          ),
+          Node.div(
             ~attrs=[Attr.class_("fumola-wip-right")],
             [
+              /* The program the last run sent, as printed from the code:
+                 where the tiles grouped differently from how they read,
+                 its parentheses show it. */
+              sub_panel(
+                "Program",
+                [
+                  switch (
+                    FumolaRun.last_run_of(~instance=m.instance, ~name=m.name)
+                  ) {
+                  | Some({program: "", _}) =>
+                    Node.div(
+                      ~attrs=[Attr.class_("fumola-wip-note")],
+                      [Node.text("not sent: the code could not be printed")],
+                    )
+                  | Some({program, _}) =>
+                    Node.pre(
+                      ~attrs=[Attr.class_("fumola-wip-program")],
+                      [Node.text(program)],
+                    )
+                  | None =>
+                    Node.div(
+                      ~attrs=[Attr.class_("fumola-wip-note")],
+                      [Node.text("this livelit has not run yet")],
+                    )
+                  },
+                ],
+              ),
               /* The outline of the runs, drawn as Fumola's web player
                  draws it (FumolaOutline). */
               sub_panel(

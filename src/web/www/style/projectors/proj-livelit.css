@@ -231,6 +231,10 @@
        the same reason. */
     height: calc(14 * var(--row-height-px));
     max-height: none;
+    /* The notebook's width exactly. The probe drawer's rule is max-content,
+       which let one long line of code widen the whole body and push the
+       right-hand pane off centre. A long line scrolls in its column now. */
+    width: var(--main-scroll-width, 100ch);
 }
 .livelit > .tab-extent:has(.fumola-wip-head) {
     align-items: flex-start;
@@ -266,8 +270,10 @@
 }
 .fumola-wip-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 1em;
+    /* The columns, and the divider between them, are set inline from the
+       use's split (Livelit.FumolaWip.columns). */
+    grid-template-columns: minmax(0, 1fr) 7px minmax(0, 1fr);
+    gap: 0.5em;
     padding-block: 0.4em;
 }
 .fumola-wip-left {
@@ -385,4 +391,30 @@
 .fumola-wip-note {
     font-size: 0.85em;
     opacity: 0.6;
+}
+/* The divider between the columns, dragged to move them. */
+.fumola-wip-divider {
+    cursor: col-resize;
+    touch-action: none;
+    border-inline: 1px solid color-mix(in oklch, var(--text-default) 15%, transparent);
+    background: color-mix(in oklch, var(--text-default) 6%, transparent);
+    border-radius: 3px;
+}
+.fumola-wip-divider:hover {
+    background: color-mix(in oklch, var(--text-default) 18%, transparent);
+}
+/* The last run's program as sent, and its outcome on the Out wire. */
+.fumola-wip-program {
+    margin: 0;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.fumola-wip-value {
+    font-family: var(--code-font);
+}
+.fumola-wip-error {
+    color: var(--text-warning);
+    font-size: 0.85em;
 }
