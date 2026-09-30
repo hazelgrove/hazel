@@ -51,11 +51,12 @@ let (suite, exit_with_test_status) =
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_LabelBench.tests,
-      Test_FlatBench.tests,
       Test_ModRoot.tests,
       Test_TypeDeps.tests,
+      Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
+      Test_TutorialReferencePanel.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -114,6 +115,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
+    @ [Test_Move.tests]
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ Test_Autoprobe.tests
@@ -128,6 +130,7 @@ let (suite, exit_with_test_status) =
     @ Test_SlidePath.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
+    @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
@@ -140,8 +143,8 @@ let (suite, exit_with_test_status) =
     @ [Test_ExplainThis.tests]
     @ [Test_CompletionItems.tests]
     /* last: the keystroke benchmark leaves the process with less stack
-       headroom for the depth probes registered above it (FlatBench) */
-    @ [Test_MegaBench.tests],
+       headroom for tests registered after it */
+    @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

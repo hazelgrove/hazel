@@ -6,7 +6,9 @@ open Node;
    in the focus STACK (stacked header/body cells replace the master
    editor); plain click while a stack is open ADDS that definition to
    the stack (or moves to it if present) — it never replaces the
-   stack. The banner splices everything home. */
+   stack. The banner splices everything home. Modes without a focus
+   stack (~stack_controls=false) get navigation only: no ⊙ buttons, no
+   context menu, and collapse is the native <details> toggle. */
 
 let clss = cs => Attr.classes(cs);
 
@@ -140,6 +142,7 @@ let resize_attrs: list(Attr.t) = {
 
 let rec node_view =
         (
+          ~stack_controls: bool,
           ~jump: Language.Id.t => Effect.t(unit),
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
@@ -240,7 +243,7 @@ let rec node_view =
              recurses to the owning block); trailing-expression rows
              stay menu-less at any depth */
           switch (n.o_id) {
-          | Some(id) when n.o_kind != OutlineTree.KTrail => [
+          | Some(id) when stack_controls && n.o_kind != OutlineTree.KTrail => [
               Attr.on_contextmenu(evt => {
                 let x =
                   float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX);
@@ -297,6 +300,7 @@ let rec node_view =
       )
       @ (
         switch (n.o_id) {
+        | _ when !stack_controls => []
         | None when n.o_kind == OutlineTree.KTests =>
           /* the tests container pins/unpins its whole run */
           let kid_ids =
@@ -384,15 +388,23 @@ let rec node_view =
       [
         create(
           "summary",
-          ~attrs=[
-            clss(["outline-summary"]),
-            /* collapse is MODEL state (per slide, persisted): the
-               native details toggle is suppressed everywhere and the
-               summary click dispatches the toggle action instead */
-            Attr.on_click(_ =>
-              Effect.Many([Effect.Prevent_default, toggle_collapse(my_path)])
+          ~attrs=
+            [clss(["outline-summary"])]
+            /* with stack controls collapse is MODEL state (per slide,
+               persisted): the summary click dispatches the toggle and
+               suppresses the native one */
+            @ (
+              stack_controls
+                ? [
+                  Attr.on_click(_ =>
+                    Effect.Many([
+                      Effect.Prevent_default,
+                      toggle_collapse(my_path),
+                    ])
+                  ),
+                ]
+                : []
             ),
-          ],
           [label],
         ),
         div(
@@ -400,6 +412,7 @@ let rec node_view =
           List.map(
             ((kid, kocc)) =>
               node_view(
+                ~stack_controls,
                 ~jump,
                 ~focus,
                 ~toggle,
@@ -506,6 +519,7 @@ let menu_view =
 
 let view =
     (
+      ~stack_controls: bool,
       ~jump: Language.Id.t => Effect.t(unit),
       ~focus: Language.Id.t => Effect.t(unit),
       ~toggle: Language.Id.t => Effect.t(unit),
@@ -563,6 +577,7 @@ let view =
             : List.map(
                 ((root, rocc)) =>
                   node_view(
+                    ~stack_controls,
                     ~jump,
                     ~focus,
                     ~toggle,
@@ -585,9 +600,9 @@ let view =
     ]
     @ (
       switch (menu) {
-      | Some((id, is_module, x, y)) =>
+      | Some((id, is_module, x, y)) when stack_controls =>
         menu_view(~menu_close, ~def_op, ~is_module, (id, x, y))
-      | None => []
+      | _ => []
       }
     ),
   );

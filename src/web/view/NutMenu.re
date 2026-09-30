@@ -329,12 +329,6 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable probes on all top-level definitions"),
       },
       {
-        name: "Cap Undo Stack",
-        active: globals.settings.cap_undo_stack,
-        setting: CapUndoStack,
-        tooltip: Some("Cap the undo history stack size"),
-      },
-      {
         name: "Ruled Lines",
         active: globals.settings.show_row_lines,
         setting: ShowRowLines,
@@ -342,7 +336,7 @@ let dev_group = (~globals: Globals.t) => {
       },
       {
         name: "Eval Progress",
-        active: globals.settings.show_pending_eval,
+        active: globals.settings.show_incremental_deco,
         setting: ShowPendingEval,
         tooltip: Some("Highlight code pending re-evaluation after edits"),
       },
