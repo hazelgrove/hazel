@@ -637,6 +637,8 @@ and new_row_after = (edit: edit_ctl, n: OutlineTree.node): list(Node.t) =>
   | _ => []
   };
 
+/* the right-click menu: the editor's context menu (its classes, flip,
+   dividers and key chips), fixed at the click */
 let menu_view =
     (
       ~menu_close: Effect.t(unit),
@@ -646,13 +648,58 @@ let menu_view =
       (id: Language.Id.t, x: float, y: float),
     )
     : list(Node.t) => {
-  let item = (op, label_txt) =>
+  let mac = Util.Os.is_mac^;
+  let row = (~keys=?, label, eff) =>
     div(
       ~attrs=[
-        clss(["outline-def-menu-item"]),
-        Attr.on_click(_ => Effect.Many([menu_close, def_op(op, id)])),
+        clss(["named-menu-item"]),
+        Attr.on_click(_ => Effect.Many([menu_close, eff])),
       ],
-      [text(label_txt)],
+      [text(label)]
+      @ (
+        switch (keys) {
+        | Some(k) => [span(~attrs=[clss(["menu-shortcut"])], [text(k)])]
+        | None => []
+        }
+      ),
+    );
+  let op = (~keys=?, o, label) => row(~keys?, label, def_op(o, id));
+  let divider = div(~attrs=[clss(["menu-divider"])], []);
+  let rows =
+    (
+      is_module
+        ? [
+          row(
+            ~keys=mac ? {js|⌥→|js} : {js|Alt+→|js},
+            "Zoom in",
+            zoom_in(id),
+          ),
+          op(NewInside, "New definition inside"),
+          divider,
+        ]
+        : []
+    )
+    @ [
+      op(NewBelow, "New definition below"),
+      op(NewTypeBelow, "New type below"),
+      op(NewModuleBelow, "New module below"),
+      divider,
+      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
+      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
+      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
+      divider,
+      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
+    ];
+  let dir =
+    Util.Menu.direction_of(
+      ~menu_height=is_module ? 230. : 176.,
+      ~menu_width=230.,
+      Util.Menu.space_from(
+        ~anchor_top=y,
+        ~anchor_bot=y,
+        ~anchor_left=x,
+        ~anchor_right=x,
+      ),
     );
   [
     div(
@@ -668,70 +715,26 @@ let menu_view =
       ],
       [],
     ),
-    {
-      /* flip away from viewport edges (same Menu helpers the editor
-         context menu uses); 7 items ≈ 190px tall, ~200px wide */
-      let dir =
-        Util.Menu.direction_of(
-          ~menu_height=190.,
-          ~menu_width=200.,
-          Util.Menu.space_from(
-            ~anchor_top=y,
-            ~anchor_bot=y,
-            ~anchor_left=x,
-            ~anchor_right=x,
-          ),
-        );
-      let vh: float = Js_of_ocaml.Js.Unsafe.global##.innerHeight;
-      let vw: float = Js_of_ocaml.Js.Unsafe.global##.innerWidth;
-      let v =
-        dir.vertical == `Down
-          ? Css_gen.create(~field="top", ~value=Printf.sprintf("%.0fpx", y))
-          : Css_gen.create(
-              ~field="bottom",
-              ~value=Printf.sprintf("%.0fpx", vh -. y),
-            );
-      let h =
-        dir.horizontal == `Right
-          ? Css_gen.create(
-              ~field="left",
-              ~value=Printf.sprintf("%.0fpx", x),
-            )
-          : Css_gen.create(
-              ~field="right",
-              ~value=Printf.sprintf("%.0fpx", vw -. x),
-            );
-      div(
-        ~attrs=[
-          clss(["outline-def-menu"]),
-          Attr.style(Css_gen.combine(h, v)),
-          Attr.on_mousedown(_ => Effect.Prevent_default),
-        ],
-        (
-          is_module
-            ? [
-              div(
-                ~attrs=[
-                  clss(["outline-def-menu-item"]),
-                  Attr.on_click(_ => Effect.Many([menu_close, zoom_in(id)])),
-                ],
-                [text("zoom in")],
-              ),
-              item(NewInside, "new definition inside"),
-            ]
-            : []
-        )
-        @ [
-          item(NewBelow, "new definition below"),
-          item(NewTypeBelow, "new type below"),
-          item(NewModuleBelow, "new module below"),
-          item(Duplicate, "duplicate"),
-          item(MoveUp, "move up"),
-          item(MoveDown, "move down"),
-          item(Delete, "delete"),
-        ],
-      );
-    },
+    div(
+      ~attrs=[
+        clss([
+          "context-menu",
+          "outline-menu",
+          ContextMenu.direction_class(dir),
+        ]),
+        Attr.create(
+          "style",
+          Printf.sprintf("position: fixed; left: %.0fpx; top: %.0fpx;", x, y),
+        ),
+        Attr.on_mousedown(_ => Effect.Prevent_default),
+      ],
+      [
+        div(
+          ~attrs=[clss(["group"])],
+          [div(~attrs=[clss(["contents"])], rows)],
+        ),
+      ],
+    ),
   ];
 };
 

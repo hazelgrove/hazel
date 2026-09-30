@@ -168,12 +168,18 @@
   padding: 6px 8px 12px 8px;
 }
 
+/* a row's tint starts at its entry and runs out through the body's
+   right padding to the panel edge */
 #outline-sidebar .outline-label {
   cursor: pointer;
   padding: 1px 4px;
-  border-radius: 3px;
+  margin-right: -8px;
+  border-radius: 3px 0 0 3px;
   white-space: nowrap;
-  display: inline-block;
+  display: block;
+  min-width: max-content;
+  /* the body's padding: the first and last rows scroll fully home */
+  scroll-margin-block: 6px 12px;
 }
 
 #outline-sidebar .outline-label:hover {
@@ -196,6 +202,12 @@
 #outline-sidebar summary.outline-summary {
   cursor: pointer;
   list-style: none;
+  display: flex;
+  align-items: center;
+}
+
+#outline-sidebar summary.outline-summary > .outline-label {
+  flex: 1 0 auto;
 }
 
 #outline-sidebar summary.outline-summary::-webkit-details-marker {
@@ -210,8 +222,8 @@
   box-sizing: border-box;
   width: 5px;
   height: 5px;
+  flex: none;
   margin: 0 4px 1px 1px;
-  vertical-align: middle;
   border-right: 1.3px solid currentColor;
   border-bottom: 1.3px solid currentColor;
   opacity: 0.55;
@@ -411,30 +423,18 @@
   display: inline;
 }
 
-/* right-click def menu: new-below / duplicate / move / delete */
+/* the right-click menu is the editor's .context-menu; it keeps the
+   editor menu's type, over the backdrop */
 .outline-menu-backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
 }
-.outline-def-menu {
-  position: fixed;
+#outline-sidebar .outline-menu {
   z-index: 41;
-  min-width: 12em;
-  background: var(--T0, #fff);
-  border: 1px solid var(--border-sunken, #ccc);
-  border-radius: 4px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
-  font-size: 12px;
-  padding: 3px 0;
-}
-.outline-def-menu-item {
-  padding: 4px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.outline-def-menu-item:hover {
-  background: var(--surface-raised, #eee);
+  font-family: var(--ui-font);
+  font-size: 1rem;
+  font-weight: normal;
 }
 
 /* slide-loading frame (SwitchSlide paints this before hydration) */
@@ -523,14 +523,10 @@
   vertical-align: -0.2em;
   background: var(--caret-color, #d33);
 }
+/* the editor caret's blink */
 @media (prefers-reduced-motion: no-preference) {
   #outline-sidebar .outline-edit-caret {
-    animation: ol-blink 1.1s steps(1) infinite;
-  }
-}
-@keyframes ol-blink {
-  50% {
-    opacity: 0;
+    animation: 1s blink step-end infinite;
   }
 }
 #outline-sidebar .outline-edit-kw {
