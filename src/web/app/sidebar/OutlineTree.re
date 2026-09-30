@@ -447,3 +447,41 @@ let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
   | None => []
   };
 };
+
+/* ids of the rows from the top level down to [fid], inclusive; rows
+   without ids (test containers) are skipped */
+let trail_of = (fid: Id.t, e: Exp.t): option(list(Id.t)) => {
+  let rec go = (trail, ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          let trail =
+            switch (n.o_id) {
+            | Some(id) => [id, ...trail]
+            | None => trail
+            };
+          n.o_id == Some(fid)
+            ? Some(List.rev(trail)) : go(trail, n.o_children);
+        },
+      None,
+      ns,
+    );
+  go([], of_term(e));
+};
+
+/* the row with id [fid] */
+let node_of = (fid: Id.t, e: Exp.t): option(node) => {
+  let rec go = (ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => n.o_id == Some(fid) ? Some(n) : go(n.o_children)
+        },
+      None,
+      ns,
+    );
+  go(of_term(e));
+};

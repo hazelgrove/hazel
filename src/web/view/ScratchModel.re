@@ -8,6 +8,8 @@ module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {
     program: Program.t,
+    /* what the slide shows of it: pins, zoom, parked */
+    view: SlideView.t,
     agent: Agent.Model.t,
   };
 
@@ -47,7 +49,7 @@ module Scratchpad = {
 
   let persist = (s: t): persistent => {
     switch (s.kind) {
-    | Code({program, agent}) =>
+    | Code({program, agent, _}) =>
       let editor = Program.whole(program);
       let current_zipper = editor.editor.editor.state.zipper;
       let current_segment = Zipper.zip(current_zipper);
@@ -99,6 +101,7 @@ module Scratchpad = {
     kind:
       Code({
         program: Whole(editor),
+        view: SlideView.init,
         agent: Agent.Utils.init(),
       }),
     dormant: false,
@@ -140,6 +143,12 @@ module Model = {
   let current_program = (model: t): option(Program.t) =>
     switch (List.nth_opt(model.scratchpads, model.current)) {
     | Some({kind: Code({program, _}), _}) => Some(program)
+    | _ => None
+    };
+
+  let current_view = (model: t): option(SlideView.t) =>
+    switch (List.nth_opt(model.scratchpads, model.current)) {
+    | Some({kind: Code({view, _}), _}) => Some(view)
     | _ => None
     };
 

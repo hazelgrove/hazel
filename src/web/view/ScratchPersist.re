@@ -97,8 +97,13 @@ let read_probes =
    editor. Every read_* call SETS its ref (None on missing/malformed)
    so a previous slide's leftovers can't survive a failed read. */
 let pending_caret: ref(option((string, Point.t))) = ref(None);
-let pending_pins: ref(option((string, list((OutlineTree.path, bool))))) =
-  ref(None);
+/* a slide's saved view, by outline label path */
+type saved_view = {
+  sv_pins: list((OutlineTree.path, bool)),
+  sv_zoom: option(OutlineTree.path),
+  sv_parked: bool,
+};
+let pending_pins: ref(option((string, saved_view))) = ref(None);
 
 /* pins/collapse store as sexps: outline labels are arbitrary program
    text, so the old space-/-newline-delimited lines silently dropped
@@ -114,6 +119,15 @@ type pin_rec = {
 type pins_file = list(pin_rec);
 [@deriving sexp]
 type collapse_file = list(OutlineTree.path);
+/* zoom and parked ride their own key beside the pins */
+[@deriving sexp]
+type view_file = {
+  vf_zoom: option(OutlineTree.path),
+  vf_parked: bool,
+};
+
+let view_key = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name ++ ":view";
 
 let legacy_path = (p: string): OutlineTree.path =>
   String.split_on_char('/', p)
@@ -138,17 +152,55 @@ let read_pins = (prefix: string, name: string): unit => {
            }
          )
     };
+  let pins =
+    switch (HazelDB.kv_get(pins_key(prefix, name))) {
+    | Some(txt) => decode(txt)
+    | None => []
+    };
+  let (zoom, parked) =
+    switch (
+      HazelDB.kv_get(view_key(prefix, name))
+      |> Option.map(txt => view_file_of_sexp(Sexplib.Sexp.of_string(txt)))
+    ) {
+    | Some(vf) => (vf.vf_zoom, vf.vf_parked)
+    | None
+    | exception _ => (None, false)
+    };
   pending_pins :=
-    (
-      switch (HazelDB.kv_get(pins_key(prefix, name))) {
-      | Some(txt) =>
-        switch (decode(txt)) {
-        | [] => None
-        | pins => Some((content_key(prefix, name), pins))
-        }
-      | None => None
-      }
-    );
+    pins == [] && zoom == None
+      ? None
+      : Some((
+          content_key(prefix, name),
+          {
+            sv_pins: pins,
+            sv_zoom: zoom,
+            sv_parked: parked,
+          },
+        ));
+};
+
+/* the saved view against the loaded program's outline */
+let resolve_view = (saved: saved_view, term: Language.Exp.t): SlideView.t => {
+  zoom:
+    switch (
+      Option.bind(saved.sv_zoom, path => OutlineTree.resolve_path(path, term))
+    ) {
+    | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
+    | None => []
+    },
+  pins:
+    List.filter_map(
+      ((path, run)) =>
+        OutlineTree.resolve_path(path, term)
+        |> Option.map(id =>
+             SlideView.{
+               p_id: id,
+               p_run: run,
+             }
+           ),
+      saved.sv_pins,
+    ),
+  parked: saved.sv_parked,
 };
 
 let read_collapse = (prefix: string, name: string): unit => {
@@ -178,21 +230,46 @@ let write_collapse = (prefix: string, name: string): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-let write_pins =
-    (prefix: string, name: string, pins: list((OutlineTree.path, bool)))
-    : unit =>
-  HazelDB.kv_save(
+/* the slide's view by outline label path: pins on their key, zoom and
+   parked on another */
+let last_saved_view: Hashtbl.t(string, string) = Hashtbl.create(8);
+let save_if_changed = (key: string, s: string): unit =>
+  if (Hashtbl.find_opt(last_saved_view, key) != Some(s)) {
+    Hashtbl.replace(last_saved_view, key, s);
+    HazelDB.kv_save(key, s);
+  };
+
+let write_view =
+    (prefix: string, name: string, view: SlideView.t, term: Language.Exp.t)
+    : unit => {
+  save_if_changed(
     pins_key(prefix, name),
-    pins
-    |> List.map(((pin_path, pin_run)) =>
-         {
-           pin_path,
-           pin_run,
-         }
+    view.pins
+    |> List.filter_map((p: SlideView.pin) =>
+         OutlineTree.label_path(p.p_id, term)
+         |> Option.map(pin_path =>
+              {
+                pin_path,
+                pin_run: p.p_run,
+              }
+            )
        )
     |> sexp_of_pins_file
     |> Sexplib.Sexp.to_string,
   );
+  save_if_changed(
+    view_key(prefix, name),
+    {
+      vf_zoom:
+        Option.bind(SlideView.zoom_root(view), m =>
+          OutlineTree.label_path(m, term)
+        ),
+      vf_parked: view.parked,
+    }
+    |> sexp_of_view_file
+    |> Sexplib.Sexp.to_string,
+  );
+};
 
 let read_caret = (prefix: string, name: string): unit =>
   pending_caret :=
@@ -377,7 +454,7 @@ let save_current = (prefix: string, model: Model.t): unit => {
   let sp = List.nth(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
-  | (false, Code({program, agent})) =>
+  | (false, Code({program, agent, view})) =>
     let stamp =
       switch (program) {
       | Divided(d) => Stacked(d)
@@ -410,20 +487,6 @@ let save_current = (prefix: string, model: Model.t): unit => {
           )
         };
       };
-      /* pins ride a side key, name-anchored via the outline */
-      let pins =
-        switch (program) {
-        | Whole(_) => []
-        | Divided(d) =>
-          let term = Divided.statics(d).term;
-          List.filter_map(
-            (e: ScratchCell.t) =>
-              OutlineTree.label_path(e.e_id, term)
-              |> Option.map(path => (path, e.e_run)),
-            Divided.cells(d),
-          );
-        };
-      write_pins(prefix, sp.name, pins);
       write_probes(prefix, sp.name, Program.probes(program));
       switch (program) {
       | Divided(d) =>
@@ -465,6 +528,8 @@ let save_current = (prefix: string, model: Model.t): unit => {
         }),
       );
     };
+    /* the view can change without the text (a parked pin dropped) */
+    write_view(prefix, sp.name, view, Program.statics(program).term);
     let agent_key_str = prefix ++ ":" ++ sp.name;
     /* the agent model changes on every streamed chunk, so a physical
        equality gate saved (and serialized, several MB) many times a
@@ -518,6 +583,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
       name,
       kind:
         Code({
+          view: SlideView.init,
           program:
             Whole(
               {
@@ -635,6 +701,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
                 Init.default_documentation_slide_name(name)
                 |> CellEditor.Model.unpersist(~settings),
               ),
+            view: SlideView.init,
             agent,
           }),
         dormant: false,

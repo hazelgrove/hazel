@@ -22,13 +22,7 @@ let outline_menu: ref(option((Haz3lcore.Id.t, bool, float, float))) =
    the OUTLINE's view of the row (span kinds mis-read member-fn tails:
    a member terminates with `;`, so its fn-body tail extracts from an
    IStmt-shaped run — the row is still a ⇒) */
-let outline_sym = (fid: Haz3lcore.Id.t, term: Language.Exp.t): option(string) =>
-  switch (OutlineTree.kind_of(fid, term)) {
-  | Some(OutlineTree.KTrail) => Some({js|⇒|js})
-  | Some(OutlineTree.KTest)
-  | Some(OutlineTree.KStmt) => Some({js|;|js})
-  | _ => None
-  };
+let outline_sym = SlideView.sym_of;
 
 /* PROJECTION (plan §9e / program-view-split step 3): a stack cell's
    statics come from its DefStatics ITEM — the same ids, analyzed with
@@ -133,7 +127,11 @@ module Update = {
     | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, bool, float, float)))
     | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
-    | UnfocusDef
+    | UnfocusDef /* drop the pins shown at this level */
+    | ZoomIn(Haz3lcore.Id.t)
+    | ZoomOut
+    | ZoomTo(option(Haz3lcore.Id.t)) /* a breadcrumb: None = the program */
+    | ShowWhole(bool) /* park (true) or unpark the pins at this level */
     | RefreshStatics
     | HydrateCurrent /* deferred slide hydration (SwitchSlide shows a
                         loading frame first) */
@@ -169,6 +167,54 @@ module Update = {
           },
           model.scratchpads,
         ),
+    };
+  };
+
+  /* change what the current slide shows, then open and close cells to
+     match; view changes are not undo steps */
+  let update_view =
+      (
+        model: Model.t,
+        f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t,
+      )
+      : Updated.t(Model.t) =>
+    switch (current_code(model)) {
+    | None => model |> Updated.return_quiet
+    | Some({program, view, _} as code) =>
+      let statics = Program.statics(program);
+      let (view, program) =
+        SlideView.realize(
+          ~info_map=statics.info_map,
+          ~term=statics.term,
+          f(statics.term, program, view),
+          program,
+        );
+      with_code(
+        model,
+        {
+          ...code,
+          program,
+          view,
+        },
+      )
+      |> Updated.return(~historic=false);
+    };
+
+  /* after an edit to the whole program (agent, outline menu): the same
+     view again, pins to vanished items dropped */
+  let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
+    let statics = Program.statics(program);
+    let (view, program) =
+      SlideView.realize(
+        ~info_map=statics.info_map,
+        ~term=statics.term,
+        code.view,
+        program,
+      );
+    {
+      ...code,
+      program,
+      view,
     };
   };
 
@@ -307,7 +353,7 @@ module Update = {
     | AgentAction(a) =>
       switch (current_code(model)) {
       | None => model |> return_quiet
-      | Some({program, agent}) =>
+      | Some({program, agent, _} as code) =>
         let schedule_agent = (a: Agent.Update.Action.t) =>
           schedule_action(AgentAction(a));
         /* the agent reads and edits the whole program: a divided one is
@@ -317,165 +363,104 @@ module Update = {
         let (new_agent, updated_editor) =
           Agent.Update.update(a, agent, editor, settings, schedule_agent);
         let* new_ed = updated_editor;
-        let program =
-          switch (program) {
-          | Whole(_) => Program.Whole(new_ed)
-          | Divided(d) when new_ed === editor => Program.Divided(d)
-          | Divided(d) =>
-            Program.of_close(
-              Divided.resplit(
-                ~info_map=new_ed.editor.statics.info_map,
-                ~term=new_ed.editor.statics.term,
-                new_ed,
-                d,
-              ),
-            )
-          };
-        with_code(
-          model,
-          {
-            program,
-            agent: new_agent,
-          },
-        );
-      }
-    | FocusDef(fid) =>
-      /* replace the open cells with this one definition */
-      switch (current_code(model)) {
-      | None => model |> Updated.return_quiet
-      | Some({program, _} as code) =>
-        let editor = Program.whole(program);
-        let statics = editor.editor.statics;
-        switch (
-          Divided.split(
-            ~info_map=statics.info_map,
-            ~sym=?outline_sym(fid, statics.term),
-            editor,
-            fid,
-          )
-        ) {
-        | None => model |> Updated.return_quiet
-        | Some(d) =>
-          with_code(
-            model,
-            {
-              ...code,
-              program: Divided(d),
-            },
-          )
-          |> Updated.return
+        let code = {
+          ...code,
+          agent: new_agent,
         };
-      }
-    | FocusToggle(fid) =>
-      switch (current_code(model)) {
-      | None => model |> Updated.return_quiet
-      | Some({program: Whole(editor), _} as code) =>
-        let statics = editor.editor.statics;
-        switch (
-          Divided.split(
-            ~info_map=statics.info_map,
-            ~sym=?outline_sym(fid, statics.term),
-            editor,
-            fid,
-          )
-        ) {
-        | None => model |> Updated.return_quiet
-        | Some(d) =>
+        switch (program) {
+        | Whole(_) =>
           with_code(
             model,
             {
               ...code,
-              program: Divided(d),
+              program: Whole(new_ed),
             },
           )
-          |> Updated.return
-        };
-      | Some({program: Divided(d), _} as code) =>
-        if (List.exists(
-              (e: ScratchCell.t) => e.e_id == fid,
-              Divided.cells(d),
-            )) {
+        | Divided(_) when new_ed === editor => with_code(model, code)
+        | Divided(d) =>
           with_code(
             model,
-            {
-              ...code,
-              program: Program.of_close(Divided.close(fid, d)),
-            },
-          )
-          |> Updated.return;
-        } else if (List.exists(
-                     (e: ScratchCell.t) =>
-                       e.e_run && List.mem(fid, e.e_members),
-                     Divided.cells(d),
-                   )) {
-          /* the id lives inside an open run cell: its ⊖ closes the run */
-          schedule_action(FocusToggleRun(fid));
-          model |> Updated.return_quiet;
-        } else {
-          let statics = Divided.statics(d);
-          switch (
-            Divided.open_(
-              ~info_map=statics.info_map,
-              ~term=statics.term,
-              ~sym=?outline_sym(fid, statics.term),
-              fid,
-              d,
-            )
-          ) {
-          | None => model |> Updated.return_quiet
-          | Some(d) =>
-            with_code(
-              model,
-              {
-                ...code,
-                program: Divided(d),
-              },
-            )
-            |> Updated.return
-          };
-        }
-      }
-    | FocusToggleRun(fid) =>
-      switch (current_code(model)) {
-      | None => model |> Updated.return_quiet
-      | Some({program: Whole(editor), _} as code) =>
-        switch (
-          Divided.split_run(
-            ~info_map=editor.editor.statics.info_map,
-            editor,
-            fid,
-          )
-        ) {
-        | None => model |> Updated.return_quiet
-        | Some(d) =>
-          with_code(
-            model,
-            {
-              ...code,
-              program: Divided(d),
-            },
-          )
-          |> Updated.return
-        }
-      | Some({program: Divided(d), _} as code) =>
-        let statics = Divided.statics(d);
-        with_code(
-          model,
-          {
-            ...code,
-            program:
+            resync(
+              code,
               Program.of_close(
-                Divided.toggle_run(
-                  ~info_map=statics.info_map,
-                  ~term=statics.term,
-                  fid,
+                Divided.resplit(
+                  ~info_map=new_ed.editor.statics.info_map,
+                  ~term=new_ed.editor.statics.term,
+                  new_ed,
                   d,
                 ),
               ),
-          },
-        )
-        |> Updated.return;
+            ),
+          )
+        };
       }
+    | FocusDef(fid) =>
+      /* show only [fid] at this level */
+      update_view(model, (term, _, v) =>
+        SlideView.pin(~term, fid, SlideView.discard(~term, v))
+      )
+    | FocusToggle(fid) =>
+      update_view(model, (term, program, v) =>
+        if (List.mem(
+              SlideView.{
+                p_id: fid,
+                p_run: false,
+              },
+              v.pins,
+            )) {
+          SlideView.unpin(fid, v);
+        } else {
+          /* inside an open run cell, the ⊖ closes the run */
+          switch (
+            switch (program) {
+            | Divided(d) =>
+              List.find_opt(
+                (e: ScratchCell.t) => e.e_run && List.mem(fid, e.e_members),
+                Divided.cells(d),
+              )
+            | Whole(_) => None
+            }
+          ) {
+          | Some(run) => SlideView.unpin(run.e_id, v)
+          | None => SlideView.pin(~term, fid, v)
+          };
+        }
+      )
+    | FocusToggleRun(fid) =>
+      /* the tests container: one cell for the run, or close it (or its
+         members open one by one) */
+      update_view(
+        model,
+        (term, program, v) => {
+          let members =
+            switch (Focus.test_run_deep(fid, Program.document(program))) {
+            | Some((_, ms)) => ms
+            | None => [fid]
+            };
+          switch (
+            List.find_opt(
+              (p: SlideView.pin) => p.p_run && List.mem(p.p_id, members),
+              v.pins,
+            )
+          ) {
+          | Some(run) => SlideView.unpin(run.p_id, v)
+          | None =>
+            let singles =
+              List.filter(
+                (p: SlideView.pin) => !p.p_run && List.mem(p.p_id, members),
+                v.pins,
+              );
+            let v =
+              List.fold_left(
+                (v, p: SlideView.pin) => SlideView.unpin(p.p_id, v),
+                v,
+                singles,
+              );
+            List.length(singles) == List.length(members)
+              ? v : SlideView.pin(~term, ~run=true, fid, v);
+          };
+        },
+      )
     | RestorePins =>
       switch (Persist.pending_pins^) {
       | None => model |> Updated.return_quiet
@@ -490,7 +475,7 @@ module Update = {
            whatever document happens to be current now */
         Persist.pending_pins := None;
         model |> Updated.return_quiet;
-      | Some((_, pins)) =>
+      | Some((_, saved)) =>
         switch (current_code(model)) {
         | Some({program: Whole(editor), _})
             when
@@ -499,49 +484,22 @@ module Update = {
                 OutlineTree.of_term(editor.editor.statics.term),
               ) =>
           Persist.pending_pins := None;
-          let term = editor.editor.statics.term;
-          List.iter(
-            ((path, run)) =>
-              switch (OutlineTree.resolve_path(path, term)) {
-              | Some(id) =>
-                schedule_action(run ? FocusToggleRun(id) : FocusToggle(id))
-              | None => ()
-              },
-            pins,
+          update_view(model, (term, _, _) =>
+            Persist.resolve_view(saved, term)
           );
-          model |> Updated.return_quiet;
         | _ => model |> Updated.return_quiet /* statics not ready: retry */
         }
       }
     | FocusEnsure(fid) =>
-      /* cross-cell jumps: open [fid] unless an open cell already holds
-         it (never closes; only while divided) */
-      switch (current_code(model)) {
-      | Some({program: Divided(d), _} as code)
-          when Divided.owner(fid, d) == None =>
-        let statics = Divided.statics(d);
-        switch (
-          Divided.open_(
-            ~info_map=statics.info_map,
-            ~term=statics.term,
-            ~sym=?outline_sym(fid, statics.term),
-            fid,
-            d,
-          )
-        ) {
-        | None => model |> Updated.return_quiet
-        | Some(d) =>
-          with_code(
-            model,
-            {
-              ...code,
-              program: Divided(d),
-            },
-          )
-          |> Updated.return
-        };
-      | _ => model |> Updated.return_quiet
-      }
+      /* cross-cell jumps: show [fid] unless an open cell already holds
+         it (only while divided) */
+      update_view(model, (term, program, v) =>
+        switch (program) {
+        | Divided(d) when Divided.owner(fid, d) == None =>
+          SlideView.pin(~term, fid, v)
+        | _ => v
+        }
+      )
     | RestoreCaret(p) =>
       /* clearing here (not at schedule time) makes delivery robust:
          the boot-time calculate runs with a no-op scheduler, so the
@@ -626,35 +584,31 @@ module Update = {
               | Still(d) => Program.Divided(Divided.with_statics(statics, d))
               }
             };
-          switch (focus_target, program) {
+          let code =
+            resync(
+              {
+                ...code,
+                program,
+              },
+              program,
+            );
+          switch (focus_target, code.program) {
           | (Some(id), Whole(_)) => schedule_action(FocusToggle(id))
           | (Some(id), Divided(d)) when Divided.owner(id, d) == None =>
             schedule_action(FocusEnsure(id))
           | _ => ()
           };
-          with_code(
-            model,
-            {
-              ...code,
-              program,
-            },
-          )
-          |> Updated.return;
+          with_code(model, code) |> Updated.return;
         }
       };
     | UnfocusDef =>
-      switch (current_code(model)) {
-      | Some({program: Divided(d), _} as code) =>
-        with_code(
-          model,
-          {
-            ...code,
-            program: Whole(Divided.join(d)),
-          },
-        )
-        |> Updated.return
-      | _ => model |> Updated.return_quiet
-      }
+      update_view(model, (term, _, v) => SlideView.discard(~term, v))
+    | ZoomIn(fid) =>
+      update_view(model, (term, _, v) => SlideView.zoom_in(~term, fid, v))
+    | ZoomOut => update_view(model, (_, _, v) => SlideView.zoom_out(v))
+    | ZoomTo(m) => update_view(model, (_, _, v) => SlideView.zoom_to(m, v))
+    | ShowWhole(parked) =>
+      update_view(model, (_, _, v) => SlideView.park(parked, v))
     | StackHeader(i, a) =>
       switch (current_code(model)) {
       | Some({program: Divided(d), _} as code) =>
@@ -911,6 +865,7 @@ module Update = {
                 kind:
                   Code({
                     program: Whole(data),
+                    view: SlideView.init,
                     agent,
                   }),
               },
@@ -955,6 +910,7 @@ module Update = {
                 kind:
                   Code({
                     program: Whole(new_data),
+                    view: SlideView.init,
                     agent,
                   }),
               },
@@ -1016,7 +972,7 @@ module Update = {
         scratchpad.name,
       );
     switch (scratchpad.kind) {
-    | Code({program, agent}) =>
+    | Code({program, agent, view}) =>
       /* restore a loaded slide's saved caret: the Move runs as its own
          follow-up action, after this calculate builds measured */
       switch (Persist.pending_caret^) {
@@ -1297,6 +1253,7 @@ module Update = {
         model,
         {
           program,
+          view,
           agent,
         },
       );

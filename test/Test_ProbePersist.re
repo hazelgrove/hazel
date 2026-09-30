@@ -47,7 +47,7 @@ let save_then_load = () => {
   let sp = List.nth(m.scratchpads, m.current);
   switch (sp.kind) {
   | Drv(_) => fail("expected a code slide")
-  | Code({program, agent}) =>
+  | Code({program, agent, _}) =>
     let editor = Web.Program.whole(program);
     let z = editor.editor.editor.state.zipper;
     let anchor = List.hd(Segment.ids(Zipper.unselect_and_zip(z)));
@@ -67,6 +67,7 @@ let save_then_load = () => {
       kind:
         Code({
           program: Whole(editor),
+          view: Web.SlideView.init,
           agent,
         }),
     };

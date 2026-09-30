@@ -53,7 +53,12 @@ let open_:
     t
   ) =>
   option(t);
+let open_run:
+  (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, Id.t, t) =>
+  option(t);
 let close: (Id.t, t) => after_close;
+let anchor_of: Zipper.t => option((Direction.t, Id.t));
+let place_caret: ((Direction.t, Id.t), t) => t;
 let toggle_run:
   (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, Id.t, t) =>
   after_close;

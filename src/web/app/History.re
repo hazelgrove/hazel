@@ -55,12 +55,12 @@ let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
     List.map(
       (sp: ScratchMode.Scratchpad.t) =>
         switch (sp.kind) {
-        | Code({program, agent}) => {
+        | Code({program, _} as code) => {
             ...sp,
             kind:
               Code({
+                ...code,
                 program: compact_program(program),
-                agent,
               }),
           }
         | Drv(_) => sp

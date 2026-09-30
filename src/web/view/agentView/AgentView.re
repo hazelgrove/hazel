@@ -24,7 +24,7 @@ let view =
     | Documentation(m) =>
       let scratchpad = List.nth(m.scratchpads, m.current);
       switch (scratchpad.kind) {
-      | ScratchMode.Scratchpad.Code({program, agent}) =>
+      | ScratchMode.Scratchpad.Code({program, agent, _}) =>
         let editor = Program.whole_memo(program);
         let agent_inject = (action: Agent.Update.Action.t) =>
           editors_inject(

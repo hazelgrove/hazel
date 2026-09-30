@@ -205,7 +205,16 @@ let active_editor = (d: t): CellEditor.Model.t =>
     }
   };
 
-/* where the active cell's caret sits, as a side of a piece id */
+/* a caret as a side of a piece id: before its right neighbour, else
+   after its left one */
+let anchor_of = (z: Zipper.t): option((Direction.t, Id.t)) =>
+  switch (Siblings.neighbors(z.relatives.siblings)) {
+  | (_, Some(p)) => Some((Direction.Left, Piece.id(p)))
+  | (Some(p), None) => Some((Direction.Right, Piece.id(p)))
+  | (None, None) => None
+  };
+
+/* where the active cell's caret sits */
 let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
   switch (d.active) {
   | None => None
@@ -215,13 +224,69 @@ let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
     | Some(e) =>
       let z =
         (side == Header ? e.e_header : e.e_body).editor.editor.state.zipper;
-      switch (Siblings.neighbors(z.relatives.siblings)) {
-      | (_, Some(p)) => Some((Direction.Left, Piece.id(p)))
-      | (Some(p), None) => Some((Direction.Right, Piece.id(p)))
-      | (None, None) => Some((Direction.Left, e.e_id))
+      switch (anchor_of(z)) {
+      | Some(a) => Some(a)
+      | None => Some((Direction.Left, e.e_id))
       };
     }
   };
+
+let with_zipper = (c: CellEditor.Model.t, z: Zipper.t): CellEditor.Model.t => {
+  ...c,
+  editor: {
+    ...c.editor,
+    editor: {
+      ...c.editor.editor,
+      state: {
+        ...c.editor.editor.state,
+        zipper: z,
+      },
+    },
+  },
+};
+
+/* the caret moves into the open cell holding [id]'s piece, which
+   becomes active; unchanged if no cell holds it */
+let place_caret = ((side, id): (Direction.t, Id.t), d: t): t => {
+  let moved = (c: CellEditor.Model.t) =>
+    List.mem(id, Segment.ids(Focus.zip_of_cell(c)))
+      ? Move.jump_to_side_of_id(side, c.editor.editor.state.zipper, id) : None;
+  let rec go = (before, cells: list(Cell.t)) =>
+    switch (cells) {
+    | [] => d
+    | [e, ...rest] =>
+      switch (moved(e.e_body), moved(e.e_header)) {
+      | (Some(z), _) => {
+          ...d,
+          cells:
+            List.rev(before)
+            @ [
+              {
+                ...e,
+                e_body: with_zipper(e.e_body, z),
+              },
+              ...rest,
+            ],
+          active: Some((e.e_id, Body)),
+        }
+      | (None, Some(z)) => {
+          ...d,
+          cells:
+            List.rev(before)
+            @ [
+              {
+                ...e,
+                e_header: with_zipper(e.e_header, z),
+              },
+              ...rest,
+            ],
+          active: Some((e.e_id, Header)),
+        }
+      | (None, None) => go([e, ...before], rest)
+      }
+    };
+  go([], d.cells);
+};
 
 /* one editor again: root, probes and the result carry over, and the
    caret lands where it was in the active cell */
@@ -309,6 +374,46 @@ let open_ =
          }
        );
   };
+
+/* [fid]'s test run as one cell, folding in members open alone; None if
+   another open cell holds it */
+let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
+  let members =
+    switch (Focus.test_run_deep(fid, d.base)) {
+    | Some((_, ms)) => ms
+    | None => [fid]
+    };
+  let (alone, keeping) =
+    List.partition(
+      (e: Cell.t) => !e.e_run && List.mem(e.e_id, members),
+      d.cells,
+    );
+  let held =
+    List.exists(
+      (e: Cell.t) =>
+        List.mem(fid, Cell.covers(e)) || List.mem(fid, cell_ids(e)),
+      keeping,
+    );
+  held
+    ? None
+    : {
+      let base =
+        List.fold_left(
+          (seg, e) => Focus.splice_entry(e, seg),
+          d.base,
+          alone,
+        );
+      Focus.mk_run_entry(~info_map, fid, base)
+      |> Option.map(entry =>
+           {
+             ...d,
+             base,
+             cells: insert(~term, entry, keeping),
+             active: Some((entry.e_id, Body)),
+           }
+         );
+    };
+};
 
 /* the tests container's toggle: one cell for the whole run, or close
    the run (or every member open individually) */
