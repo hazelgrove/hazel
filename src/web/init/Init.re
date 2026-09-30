@@ -41,12 +41,6 @@ let startup: Lazy.t(PersistentData.t) =
     ),
   });
 
-/* persisted blobs are repaired against this root sort on load */
-let documentation_slide_root = (name: string): option(Sort.t) =>
-  documentation_slides
-  |> List.find_opt(((n, _, _)) => n == name)
-  |> Option.map(((_, root, _)) => root);
-
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation
   |> snd

@@ -91,8 +91,7 @@ type saved_view = {
 };
 let pending_pins: Hashtbl.t(string, saved_view) = Hashtbl.create(8);
 
-/* pins and collapse store as sexps, as labels are arbitrary program text;
-   the old line format is a read fallback (bare labels at occurrence 0) */
+/* pins and collapse store as sexps, as labels are arbitrary program text */
 [@deriving sexp]
 type pin_rec = {
   pin_path: OutlineTree.path,
@@ -112,28 +111,11 @@ type view_file = {
 let view_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":view";
 
-let legacy_path = (p: string): OutlineTree.path =>
-  String.split_on_char('/', p)
-  |> List.map(l =>
-       OutlineTree.{
-         s_label: l,
-         s_occ: 0,
-       }
-     );
-
 let read_pins = (prefix: string, name: string): unit => {
   let decode = (txt: string): list((OutlineTree.path, bool)) =>
     switch (pins_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
     | pins => List.map(p => (p.pin_path, p.pin_run), pins)
-    | exception _ =>
-      String.split_on_char('\n', txt)
-      |> List.filter_map(line =>
-           switch (String.split_on_char(' ', String.trim(line))) {
-           | [flag, path] when path != "" =>
-             Some((legacy_path(path), flag == "1"))
-           | _ => None
-           }
-         )
+    | exception _ => []
     };
   let pins =
     switch (HazelDB.kv_get(pins_key(prefix, name))) {
@@ -215,12 +197,7 @@ let read_collapse = (prefix: string, name: string): unit => {
   let decode = (txt: string): list(OutlineTree.path) =>
     switch (collapse_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
     | paths => paths
-    | exception _ =>
-      String.split_on_char('\n', txt)
-      |> List.filter_map(line => {
-           let line = String.trim(line);
-           line == "" ? None : Some(legacy_path(line));
-         })
+    | exception _ => []
     };
   switch (HazelDB.kv_get(collapse_key(prefix, name)) |> Option.map(decode)) {
   | Some([]) => Hashtbl.remove(slide_collapse, ck)
@@ -582,36 +559,13 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
           program:
             Whole(
               {
-                /* the slide table's root wins for documentation slides,
-                   repairing blobs saved under the wrong one */
-                let (persisted, root_repaired) =
+                let persisted =
                   switch (e) {
-                  | Some(e) =>
-                    switch (Init.documentation_slide_root(name)) {
-                    | Some(root) when root != e.editor.root => (
-                        CellEditor.Model.{
-                          ...e,
-                          editor: {
-                            ...e.editor,
-                            root,
-                          },
-                        },
-                        true,
-                      )
-                    | _ => (e, false)
-                    }
-                  | None => (
-                      Init.default_documentation_slide_name(name),
-                      false,
-                    )
+                  | Some(e) => e
+                  | None => Init.default_documentation_slide_name(name)
                   };
-                /* per-item restore, skipped after a root repair (the
-                   items were stored under the old root) */
-                switch (
-                  root_repaired
-                    ? None
-                    : ItemPersist.load(~store=item_store(prefix, name))
-                ) {
+                /* per-item restore, else the whole-doc text */
+                switch (ItemPersist.load(~store=item_store(prefix, name))) {
                 | Some(seg) =>
                   let root = persisted.editor.root;
                   let z =
