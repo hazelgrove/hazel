@@ -789,3 +789,79 @@ let move =
       }
     };
   };
+
+/* An edit of a program's items, addressed by id: how the outline
+   changes a program */
+type t =
+  | Op(OutlineSidebar.def_op, Id.t)
+  | Rename(Id.t, string)
+  /* a new definition below the row: `name`, `type Name` or
+     `module Name` */
+  | Insert(Id.t, string);
+
+/* the program as an edit sees it */
+type ctx = {
+  mod_root: bool,
+  term: Language.Exp.t,
+  info_map: Lazy.t(Language.Statics.Map.t),
+  /* whether a module row is expanded: moves step over collapsed ones */
+  is_open: Id.t => bool,
+};
+
+/* the new program and the row the edit lands on, or why not */
+let edit =
+    (ctx: ctx, e: t, seg: Segment.t)
+    : result((Segment.t, option(Id.t)), string) =>
+  switch (e) {
+  | Op((MoveUp | MoveDown) as op, fid) =>
+    let owner =
+      switch (Option.map(List.rev, OutlineTree.trail_of(fid, ctx.term))) {
+      | Some([_, parent, ..._])
+          when OutlineTree.kind_of(parent, ctx.term) == Some(KModule) =>
+        Some(parent)
+      | _ => None
+      };
+    move(
+      ~mod_root=ctx.mod_root,
+      ~is_open=ctx.is_open,
+      ~owner,
+      ~up=op == MoveUp,
+      fid,
+      seg,
+    )
+    |> Option.to_result(~none="it can't move there");
+  | Op(op, fid) =>
+    apply(~mod_root=ctx.mod_root, op, fid, seg)
+    |> Option.to_result(~none="it can't go here")
+  | Rename(row, name) =>
+    OutlineRename.rename(
+      ~info_map=Lazy.force(ctx.info_map),
+      ~term=ctx.term,
+      row,
+      name,
+      seg,
+    )
+    |> Result.map(seg => (seg, Some(row)))
+  | Insert(anchor, text) =>
+    let (kind, prefix) = OutlineSidebar.new_kind(text);
+    let name =
+      String.trim(
+        String.sub(
+          text,
+          String.length(prefix),
+          String.length(text) - String.length(prefix),
+        ),
+      );
+    let (rkind, op): (OutlineRename.kind, OutlineSidebar.def_op) =
+      switch (kind) {
+      | KType => (KType, NewTypeBelow)
+      | KModule => (KModule, NewModuleBelow)
+      | _ => (KValue, NewBelow)
+      };
+    switch (OutlineRename.check_name(rkind, name)) {
+    | Some(why) => Error(why)
+    | None =>
+      apply(~name, ~mod_root=ctx.mod_root, op, anchor, seg)
+      |> Option.to_result(~none="a definition can't go here")
+    };
+  };

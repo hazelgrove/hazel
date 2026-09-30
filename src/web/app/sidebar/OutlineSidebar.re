@@ -370,7 +370,7 @@ let rec node_view =
           }
         )
         @ (
-          /* structural ops work at every block level (Restructure
+          /* structural ops work at every block level (ItemEdit
              recurses to the owning block); trailing-expression rows
              stay menu-less at any depth */
           switch (n.o_id) {

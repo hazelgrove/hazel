@@ -2,13 +2,13 @@ open Alcotest;
 open Haz3lcore;
 
 /* Outline restructure ops (OutlineSidebar.def_op via
-   ScratchMode.Restructure.apply): the full op matrix across block
+   ItemEdit.apply): the full op matrix across block
    kinds, asserted on the resulting program TEXT. Every op is
    id-preserving segment surgery; parses use the same FastParse entry
    the app uses. */
 
 module Focus = Web.ScratchMode.Focus;
-module R = Web.ScratchMode.Restructure;
+module R = Web.ItemEdit;
 
 let parse = (src: string): Segment.t =>
   switch (

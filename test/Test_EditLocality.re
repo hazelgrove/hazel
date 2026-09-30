@@ -181,11 +181,7 @@ let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
   let term = MakeTerm.Incr.term_of(seg);
   switch (
-    Web.ScratchRestructure.apply(
-      MoveDown,
-      row(term, ["MetaRunner", "init"]),
-      seg,
-    )
+    Web.ItemEdit.apply(MoveDown, row(term, ["MetaRunner", "init"]), seg)
   ) {
   | Some((after, _)) => {
       before: seg,

@@ -54,7 +54,7 @@ let token = (needle, repl): step =>
 let op = (op: Web.OutlineSidebar.def_op, path): step =>
   (~root, seg) =>
     switch (
-      Web.ScratchRestructure.apply(
+      Web.ItemEdit.apply(
         ~mod_root=root == Sort.Mod,
         op,
         row(term_of(~root, seg), path),

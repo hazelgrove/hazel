@@ -6,7 +6,7 @@ open Language;
    definitions inside function bodies, and — at TOP level only —
    semicolon statements (tests grouped into a container) plus the
    trailing expression (the symbolic ⇒ row). Every node carries a
-   jump id in the chain-item id domain (DefStatics/Restructure). */
+   jump id in the chain-item id domain (DefStatics/ItemEdit). */
 
 type kind =
   | KModule

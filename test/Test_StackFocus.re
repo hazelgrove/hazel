@@ -148,7 +148,7 @@ let check_restructure =
   let master = parse(src);
   let (term, _) = statics_of(master);
   let fid = outline_id(term, label);
-  switch (Web.ScratchMode.Restructure.apply(op, fid, master)) {
+  switch (Web.ItemEdit.apply(op, fid, master)) {
   | None => failwith("apply failed: " ++ desc)
   | Some((seg', _)) =>
     let txt = text_of(seg');
