@@ -1708,12 +1708,13 @@ module FumolaWip: BuiltinLivelit = {
           Node.div(
             ~attrs=[Attr.class_("fumola-wip-right")],
             [
-              /* The outline of the runs, in Adapton.IntoText's format. */
+              /* The outline of the runs, drawn as Fumola's web player
+                 draws it (FumolaOutline). */
               sub_panel(
                 "Outline",
                 [
-                  switch (FumolaRun.outline_text(m.instance)) {
-                  | Ok("") =>
+                  switch (FumolaRun.outlines(m.instance)) {
+                  | Ok([]) =>
                     Node.div(
                       ~attrs=[Attr.class_("fumola-wip-note")],
                       [
@@ -1722,11 +1723,7 @@ module FumolaWip: BuiltinLivelit = {
                         ),
                       ],
                     )
-                  | Ok(text) =>
-                    Node.pre(
-                      ~attrs=[Attr.class_("fumola-wip-outline")],
-                      [Node.text(text)],
-                    )
+                  | Ok(trees) => FumolaOutline.forest(trees)
                   | Error(message) =>
                     Node.div(
                       ~attrs=[Attr.class_("fumola-wip-note")],

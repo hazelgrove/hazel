@@ -508,22 +508,20 @@ let note_printed = (name: string, reply: Yojson.Safe.t): unit =>
 let printed_of = (name: string): list(string) =>
   Option.value(Hashtbl.find_opt(printed, name), ~default=[]);
 
-/* The outline of every top-level force in an instance, in the text format
-   Adapton.IntoText defines -- the one Fumola's web player draws as HTML.
-   Evaluated on a scratch branch, since computing an outline memoises into
-   the store. Empty text is no forces yet; a $simple instance keeps no graph,
-   so its outline is always empty. */
-let outline_text = (name: string): result(string, string) =>
+/* The outline of every top-level force in an instance: Adapton's Outline
+   value tree, one tree per force, for FumolaOutline to draw -- the forest
+   Adapton.IntoText would write as text and Fumola's web player draws as
+   HTML. Evaluated on a scratch branch, since computing an outline memoises
+   into the store; and at the latest moment, as every read is (see at_now):
+   at Now the runs' thunks are invisible and Outline's peekInfo finds null.
+   A $simple instance keeps no graph, so its forest is always empty. */
+let outlines = (name: string): result(list(Yojson.Safe.t), string) =>
   switch (
     shim(
       "evalScratch",
       [|
         js_int(instance_of_name(name)),
-        /* At the latest moment, as every read is (see at_now): at Now the
-           runs' thunks are invisible, and Outline's peekInfo finds null. */
-        js_string(
-          at_now("Adapton.IntoText.outlines(Adapton.Outline.outlines())"),
-        ),
+        js_string(at_now("Adapton.Outline.outlines()")),
       |],
     )
   ) {
@@ -536,14 +534,18 @@ let outline_text = (name: string): result(string, string) =>
     ) {
     | exception _ => Error("could not read the Fumola runtime's response")
     | `Assoc(obj) =>
-      switch (List.assoc_opt("ok", obj), List.assoc_opt("value", obj)) {
-      | (Some(`Bool(true)), Some(`String(text))) =>
-        Ok(unescape_newlines(text))
+      switch (
+        List.assoc_opt("ok", obj),
+        List.assoc_opt("tag", obj),
+        List.assoc_opt("value", obj),
+      ) {
+      | (Some(`Bool(true)), Some(`String("List")), Some(`List(trees))) =>
+        Ok(trees)
       | _ =>
         Error(
           switch (List.assoc_opt("error", obj)) {
           | Some(`String(message)) => message
-          | _ => "the outline did not come back as text"
+          | _ => "the outline did not come back as a list"
           },
         )
       }

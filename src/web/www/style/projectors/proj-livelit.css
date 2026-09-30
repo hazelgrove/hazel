@@ -339,12 +339,41 @@
     opacity: 0.8;
     margin-bottom: 0.2em;
 }
-.fumola-wip-outline {
-    margin: 0;
+/* The outline, as Fumola's web player draws it (FumolaOutline.re): each
+   level a step in and a rule down its left, so nesting reads as nesting. */
+.fumola-outline {
     font-family: var(--code-font);
     font-size: 0.85em;
     white-space: pre;
     overflow-x: auto;
+}
+.fumola-outline .outline-node {
+    margin-left: 8px;
+    padding-left: 2px;
+    border-left: 2px solid color-mix(in oklch, var(--text-default) 20%, transparent);
+}
+.fumola-outline .outline-edge,
+.fumola-outline .outline-internal-result {
+    margin-left: 8px;
+}
+.fumola-outline .outline-edge:hover {
+    background: color-mix(in oklch, var(--text-default) 7%, transparent);
+}
+.fumola-outline .outline-node-id { color: var(--token-pat); }
+.fumola-outline .outline-meta-time { opacity: 0.55; }
+.fumola-outline .outline-arrow { color: var(--token-typ); }
+.fumola-outline .outline-action-put,
+.fumola-outline .outline-action-putForce { color: var(--token-string-lit); }
+.fumola-outline .outline-action-get { color: var(--token-exp); }
+.fumola-outline .outline-result-arrow { color: var(--token-label); }
+/* Between the trees of a forest, so several read as several. */
+.fumola-outline .outline-forest-rule {
+    display: block;
+    margin: 0.5em 0 0.2em;
+    padding-top: 0.3em;
+    border-top: 1px solid color-mix(in oklch, var(--text-default) 20%, transparent);
+    font-size: 0.85em;
+    opacity: 0.6;
 }
 .fumola-wip-printed {
     margin: 0;
