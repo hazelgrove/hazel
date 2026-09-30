@@ -36,13 +36,14 @@ module VisibleRows = {
     };
   };
 
-  /* Re-render only once scrolled well into the buffer */
+  /* Re-render only once scrolled well into the buffer. [last] moves with
+     [first] (fixed span) except on resize, so both share the threshold. */
   let changed = (old: option(t), new_rows: t): bool =>
     switch (old) {
     | None => true
     | Some(old) =>
       abs(old.first - new_rows.first) > 16
-      || abs(old.last - new_rows.last) > 2
+      || abs(old.last - new_rows.last) > 16
     };
 };
 
