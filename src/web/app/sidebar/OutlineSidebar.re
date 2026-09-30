@@ -229,6 +229,16 @@ let resize_attrs: list(Attr.t) = {
   ];
 };
 
+/* the keyboard to the outline: a click anywhere in it takes focus */
+let take_focus =
+  Effect.of_sync_fun(
+    () =>
+      if (!Util.JsUtil.outline_has_focus()) {
+        Util.JsUtil.focus_outline();
+      },
+    (),
+  );
+
 let rec node_view =
         (
           ~stack_controls: bool,
@@ -324,8 +334,8 @@ let rec node_view =
           | None => []
           }
         )
-        /* a click moves the outline's cursor when the outline has
-           focus; otherwise focus stays where it was (in the editor) */
+        /* a click takes the keyboard to the outline, at this row: focus
+           first, so the focus event's cursor lands before this one */
         @ [
           Attr.on_mousedown(_ =>
             switch (edit.get()) {
@@ -337,8 +347,11 @@ let rec node_view =
               ])
             | Some(_) => Effect.Ignore
             | None =>
-              Util.JsUtil.outline_has_focus()
-                ? set_cursor(Some(row_path)) : Effect.Prevent_default
+              Effect.Many([
+                Effect.Prevent_default,
+                take_focus,
+                set_cursor(Some(row_path)),
+              ])
             }
           ),
         ]
@@ -557,6 +570,19 @@ let rec node_view =
                       toggle_collapse(my_path),
                     ])
                   ),
+                  /* the chevron too: the summary would take focus
+                     itself */
+                  Attr.on_mousedown(_ =>
+                    switch (edit.get()) {
+                    | Some(_) => Effect.Ignore
+                    | None =>
+                      Effect.Many([
+                        Effect.Prevent_default,
+                        take_focus,
+                        set_cursor(Some(my_path)),
+                      ])
+                    }
+                  ),
                 ]
                 : []
             ),
@@ -632,6 +658,8 @@ let menu_view =
     div(
       ~attrs=[
         clss(["outline-menu-backdrop"]),
+        /* the keys stay in the outline through the menu */
+        Attr.on_mousedown(_ => Effect.Prevent_default),
         Attr.on_click(_ => menu_close),
         Attr.on_wheel(_ => menu_close),
         Attr.on_contextmenu(_ =>
@@ -677,6 +705,7 @@ let menu_view =
         ~attrs=[
           clss(["outline-def-menu"]),
           Attr.style(Css_gen.combine(h, v)),
+          Attr.on_mousedown(_ => Effect.Prevent_default),
         ],
         (
           is_module
@@ -713,7 +742,7 @@ type visible_row = {
   r_expanded: bool,
 };
 
-/* the outline's keys: arrows move and fold,
+/* the outline's keys: arrows move and fold, Page keys move a screenful,
    Enter shows, Space opens as a cell; Alt with arrows moves rows and
    zooms; ⌘D duplicates, ⌘⌫ deletes; Esc (or Alt+O) returns */
 let keys =
@@ -737,6 +766,8 @@ let keys =
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
       ~leave: Effect.t(unit),
       ~edit: edit_ctl,
+      ~menu_shown: bool,
+      ~menu_close: Effect.t(unit),
       evt,
     )
     : Effect.t(unit) => {
@@ -789,6 +820,12 @@ let keys =
       Some(idx >= 0 ? go(idx - 1) : Effect.Ignore)
     | ("Home", false, false, _) => Some(go(-1))
     | ("End", false, false, _) => Some(go(n - 1))
+    | ("PageDown", false, false, _) =>
+      Some(go(min(n - 1, idx + Util.JsUtil.outline_page_rows())))
+    | ("PageUp", false, false, _) =>
+      Some(
+        go(idx > 0 ? max(0, idx - Util.JsUtil.outline_page_rows()) : (-1)),
+      )
     | ("ArrowRight", false, false, None) => Some(go(0))
     | ("ArrowRight", false, false, Some(r)) =>
       Some(
@@ -938,10 +975,16 @@ let keys =
     | (None, "F2", _, Some(r)) => Some(start_edit(r))
     | (None, _, _, _) => nav_key()
     };
-  switch (act) {
-  | Some(eff) =>
-    Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, eff])
-  | None => Effect.Ignore
+  let handled = eff =>
+    Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, eff]);
+  /* an open menu takes Esc; any other key closes it, then acts */
+  switch (menu_shown, key, act) {
+  | (true, "Escape", _) => handled(menu_close)
+  | (true, "Shift" | "Alt" | "Meta" | "Control", None) => Effect.Ignore
+  | (true, _, Some(eff)) => handled(Effect.Many([menu_close, eff]))
+  | (true, _, None) => menu_close
+  | (false, _, Some(eff)) => handled(eff)
+  | (false, _, None) => Effect.Ignore
   };
 };
 
@@ -1186,6 +1229,8 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
       ~def_op,
       ~leave,
       ~edit,
+      ~menu_shown=menu != None,
+      ~menu_close,
     );
   create(
     "details",
@@ -1193,11 +1238,25 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     [
       create(
         "summary",
-        ~attrs=[
-          clss(
-            ["outline-title"] @ (cursor == None ? ["outline-cursor"] : []),
+        ~attrs=
+          [
+            clss(
+              ["outline-title"] @ (cursor == None ? ["outline-cursor"] : []),
+            ),
+          ]
+          @ (
+            stack_controls
+              ? [
+                Attr.on_mousedown(_ =>
+                  Effect.Many([
+                    Effect.Prevent_default,
+                    take_focus,
+                    set_cursor(None),
+                  ])
+                ),
+              ]
+              : []
           ),
-        ],
         stack_controls
           ? header_view(~header, ~zoom_to, ~show_whole, ~discard)
           : [text({js|☰ outline|js})],

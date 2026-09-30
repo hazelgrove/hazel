@@ -46,7 +46,8 @@ let execute = (): bool =>
     true;
   | Some(Cell) =>
     scheduled := None;
-    JsUtil.focus_active_cell();
+    /* a jump from the outline keeps the keys there */
+    JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
   | Some(CellTop) =>
     scheduled := None;
     /* a cell opened from the outline's keys: keep the keys there */

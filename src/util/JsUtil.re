@@ -140,6 +140,25 @@ let focus_outline = (): unit =>
   | None => ()
   };
 
+/* how many outline rows one screenful holds, for PageUp/PageDown */
+let outline_page_rows = (): int =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-body"),
+      ),
+    ),
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-label"),
+      ),
+    ),
+  ) {
+  | (Some(body), Some(row)) when row##.offsetHeight > 0 =>
+    max(1, body##.clientHeight / row##.offsetHeight - 1)
+  | _ => 10
+  };
+
 let outline_has_focus = (): bool =>
   switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
   | Some(el) =>
