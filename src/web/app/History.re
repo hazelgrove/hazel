@@ -2,6 +2,91 @@ open Util;
 
 let capped_undo_stack_size = 250;
 
+/* Undo entries are whole page models. Restoring one rebuilds its syntax
+   (marked stale) and statics (forced on undo/redo), so entries drop them.
+   The newest few keep their evaluation results, so undoing recent edits
+   doesn't re-evaluate; older entries drop those too. */
+let entries_with_results = 8;
+
+let stale_syntax =
+  lazy(
+    Haz3lcore.CachedSyntax.mark_old(
+      Haz3lcore.CachedSyntax.init(
+        Haz3lcore.Zipper.unzip(
+          ~direction=Left,
+          [
+            Haz3lcore.Piece.Grout({
+              id: Haz3lcore.Id.mk(),
+              shape: Convex,
+            }),
+          ],
+        ),
+      ),
+    )
+  );
+
+let slim_cell =
+    (~drop_results: bool, c: CellEditor.Model.t): CellEditor.Model.t => {
+  editor: {
+    ...c.editor,
+    editor: {
+      ...c.editor.editor,
+      syntax: Lazy.force(stale_syntax),
+    },
+    statics: Haz3lcore.CachedStatics.empty,
+    dynamics: drop_results ? Language.Dynamics.Map.empty : c.editor.dynamics,
+  },
+  result: drop_results ? EvalResult.Model.init : c.result,
+};
+
+let slim_scratch =
+    (~drop_results: bool, m: ScratchMode.Model.t): ScratchMode.Model.t => {
+  ...m,
+  scratchpads:
+    List.map(
+      (sp: ScratchMode.Scratchpad.t) =>
+        switch (sp.kind) {
+        | Code(code) => {
+            ...sp,
+            kind:
+              Code({
+                ...code,
+                editor: slim_cell(~drop_results, code.editor),
+              }),
+          }
+        | Drv(_) => sp
+        },
+      m.scratchpads,
+    ),
+};
+
+/* Tutorial and exercise models sync and stitch their editors; left whole. */
+let slim = (~drop_results=false, m: Page.Model.t): Page.Model.t => {
+  ...m,
+  editors:
+    switch (m.editors) {
+    | Scratch(sm) => Scratch(slim_scratch(~drop_results, sm))
+    | Documentation(sm) => Documentation(slim_scratch(~drop_results, sm))
+    | Config(cm) =>
+      Config({
+        ...cm,
+        configs:
+          List.map(
+            ((ty, c)) => (ty, slim_cell(~drop_results, c)),
+            cm.configs,
+          ),
+      })
+    | (Exercises(_) | Tutorial(_)) as e => e
+    },
+};
+
+/* Restored entries have no statics: compute them now, not after the typing
+   debounce, so types and errors don't blink off. */
+let restore = (m: Page.Model.t): Page.Model.t => {
+  CodeWithStatics.StaticsDebounce.force_on_next := true;
+  m;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Page.Model.t;
@@ -53,12 +138,12 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: restore(x.model),
             undo_stack: rest,
             redo_stack: [
               {
                 ...x,
-                model: model.current,
+                model: slim(model.current),
               },
               ...model.redo_stack,
             ],
@@ -73,11 +158,11 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: restore(x.model),
             undo_stack: [
               {
                 ...x,
-                model: model.current,
+                model: slim(model.current),
               },
               ...model.undo_stack,
             ],
@@ -98,14 +183,23 @@ module Update = {
         let new_stack = [
           {
             ...current,
-            model: model.current,
+            model: slim(model.current),
           },
           ...model.undo_stack,
         ];
-        /* each entry holds a whole page model; uncapped, memory grows
-           with every edit */
+        /* the entry just past the newest few drops its results too; the
+           cap bounds the rest */
         let undo_stack =
-          List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
+          new_stack
+          |> List.filteri((i, _) => i < capped_undo_stack_size)
+          |> List.mapi((i, e: Updated.t(Page.Model.t)) =>
+               i == entries_with_results
+                 ? {
+                   ...e,
+                   model: slim(~drop_results=true, e.model),
+                 }
+                 : e
+             );
         {
           ...current,
           model: {

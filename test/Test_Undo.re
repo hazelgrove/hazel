@@ -60,6 +60,28 @@ let tests = (
   "Undo",
   [
     test_case(
+      "undo entries don't keep syntax; it is rebuilt on restore",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        let m1 = apply(m0, insert("1"));
+        let entry = List.hd(m1.undo_stack).model;
+        check(
+          bool,
+          "stored syntax is the shared stale placeholder",
+          true,
+          Page.Update.get_editor(entry).editor.syntax
+          === Lazy.force(History.stale_syntax),
+        );
+        check(
+          bool,
+          "which calculate rebuilds",
+          true,
+          Page.Update.get_editor(entry).editor.syntax.old,
+        );
+      },
+    ),
+    test_case(
       "the undo stack is capped, whatever the old setting says",
       `Quick,
       () => {
@@ -96,11 +118,14 @@ let tests = (
         check(int, "edit pushed one undo entry", 1, undo_len(m1));
         let m2 = apply(m1, undo);
         check(string, "undo restores original text", t0, text_of(m2));
+        /* entries drop derived state (see History.slim), so compare the
+           editor state that undo is responsible for */
         check(
           bool,
-          "undo restores the exact pre-edit model",
+          "undo restores the exact pre-edit editor state",
           true,
-          m2.current === m0.current,
+          Page.Update.get_editor(m2.current).editor.state
+          === Page.Update.get_editor(m0.current).editor.state,
         );
         check(int, "undo stack is empty again", 0, undo_len(m2));
         check(int, "undone edit moved to redo stack", 1, redo_len(m2));
@@ -159,9 +184,10 @@ let tests = (
         check(string, "redo restores the edited text", t1, text_of(m3));
         check(
           bool,
-          "redo restores the exact post-edit model",
+          "redo restores the exact post-edit editor state",
           true,
-          m3.current === m1.current,
+          Page.Update.get_editor(m3.current).editor.state
+          === Page.Update.get_editor(m1.current).editor.state,
         );
         check(int, "redo moved the entry back to undo", 1, undo_len(m3));
         check(int, "redo stack is empty again", 0, redo_len(m3));
