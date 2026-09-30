@@ -242,6 +242,86 @@ module Option = {
   ];
 };
 
+/* Adapton's own vocabulary, as Hazel types: what `Adapton.peekHistory()`
+   answers with, following `PeekInfo` in fumola/system/adapton.fumola. A
+   Fumola value that crosses into a program is built from these
+   constructors, so without them in scope every `AddNode` or `EdgeId` in it
+   read as an unbound constructor. The Fumola panel reads the same types
+   (FumolaAdapton), so a value means the same wherever it is shown.
+
+   The names are the runtime's, and the ones two slides already declared
+   by hand (Fumola Tiles / Inspect and Reference / Runtimes): a program that
+   declares its own shadows these, as with any builtin type. `Aligned` is
+   both a Status and a RepairOutcome, as it is in the runtime; the type a
+   value is read at says which. */
+module Adapton = {
+  let int = () => Typ.fresh(Atom(Int));
+  let unknown = () => Typ.fresh(Unknown(Internal));
+  let field = (name: string, ty: Typ.t): Typ.t =>
+    Typ.fresh(TupLabel(Typ.fresh(Label(name)), ty));
+  let record = (fields: list((string, Typ.t))): Typ.t =>
+    Typ.fresh(Prod(List.map(((name, ty)) => field(name, ty), fields)));
+  let tuple = (tys: list(Typ.t)): Typ.t => Typ.fresh(Prod(tys));
+
+  let edge_id: Typ.t = sum_type([("EdgeId", Some(int()))]);
+  let node_id: Typ.t = tuple([Space.t, Time.t, int()]);
+  let repair_outcome: Typ.t =
+    sum_type([("Aligned", None), ("Reevaluated", None)]);
+  let event: Typ.t =
+    sum_type([
+      ("AddNode", Some(node_id)),
+      ("AddEdge", Some(edge_id)),
+      ("UpdateEdge", Some(edge_id)),
+      ("RemoveEdge", Some(edge_id)),
+      ("ForceBegin", Some(tuple([edge_id, Option.t]))),
+      ("ForceEnd", Some(edge_id)),
+      ("SignalingBegin", Some(node_id)),
+      ("SignalingEnd", Some(node_id)),
+      ("EdgeSignaled", Some(edge_id)),
+      ("RepairBegin", Some(node_id)),
+      ("RepairEnd", Some(tuple([node_id, repair_outcome]))),
+      ("EdgeAligned", Some(edge_id)),
+    ]);
+  let event_row: Typ.t = record([("metaTime", int()), ("event", event)]);
+
+  /* An edge's status: aligned with the graph, or signaled that it may not
+     be (`align` before Adapton/fumola#133). */
+  let status: Typ.t = sum_type([("Aligned", None), ("Signaled", None)]);
+  /* Every payload is Any on the Fumola side: a put carries whatever was
+     put, a force the thunk and its result. */
+  let action: Typ.t =
+    sum_type([
+      ("ForceBegin", Some(unknown())),
+      ("Force_", Some(tuple([unknown(), unknown()]))),
+      ("Put", Some(unknown())),
+      ("Get", Some(unknown())),
+    ]);
+  let edge: Typ.t =
+    record([
+      ("source", node_id),
+      ("target", node_id),
+      ("action", action),
+      ("metaTimes", tuple([int(), int()])),
+      ("status", status),
+    ]);
+  let thunk_node: Typ.t =
+    record([
+      ("body", unknown()),
+      ("result", Option.t),
+      ("space", Space.t),
+      ("trace", Typ.fresh(List(edge_id))),
+    ]);
+  let node: Typ.t =
+    sum_type([
+      ("NonThunk", Some(unknown())),
+      ("Thunk_", Some(thunk_node)),
+    ]);
+  let node_row: Typ.t =
+    record([("metaTime", int()), ("node", node), ("nodeId", node_id)]);
+  let edge_row: Typ.t =
+    record([("edgeId", edge_id), ("edge", edge), ("metaTime", int())]);
+};
+
 // Event data types for keyboard and mouse events.
 // Labeled so handlers can use projection (e.key, e.ctrl) instead of
 // positional destructuring.
@@ -1885,6 +1965,17 @@ let type_aliases: list((string, Typ.t)) = [
   ("Symbol", Symbol.t),
   ("Space", Space.t),
   ("Time", Time.t),
+  ("EdgeId", Adapton.edge_id),
+  ("NodeId", Adapton.node_id),
+  ("RepairOutcome", Adapton.repair_outcome),
+  ("Event", Adapton.event),
+  ("EventRow", Adapton.event_row),
+  ("Status", Adapton.status),
+  ("Action", Adapton.action),
+  ("Edge", Adapton.edge),
+  ("Node", Adapton.node),
+  ("NodeRow", Adapton.node_row),
+  ("EdgeRow", Adapton.edge_row),
   ("Either", Either.t),
   ("JSON", JSON.t),
   ("KeyMod", Shortcut.key_mod_typ),

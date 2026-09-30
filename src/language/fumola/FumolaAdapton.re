@@ -18,101 +18,16 @@
    `peekInfo` and this is `peekHistory`: a node row and an edge row are the
    records those two lists are made of. */
 
-module Fresh = IdTagged.FreshGrammar;
-
-let unknown = () => Typ.fresh(Unknown(Internal));
-
-let sum = (variants: list((string, option(Typ.t)))): Typ.t =>
-  variants
-  |> List.map(((name, payload)) =>
-       ConstructorMap.Variant(
-         name,
-         ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
-         payload,
-       )
-     )
-  |> Fresh.Typ.sum;
-
-/* A labelled tuple, which is what a Fumola record becomes: see the Record
-   case of FumolaValue.typ_of_json. */
-let field = (name: string, ty: Typ.t): Typ.t =>
-  Typ.fresh(TupLabel(Typ.fresh(Label(name)), ty));
-
-let record = (fields: list((string, Typ.t))): Typ.t =>
-  Typ.fresh(Prod(List.map(((name, ty)) => field(name, ty), fields)));
-
-let tuple = (tys: list(Typ.t)): Typ.t => Typ.fresh(Prod(tys));
-
-let int = () => Typ.fresh(Atom(Int));
-
+/* The types themselves are builtins now (BuiltinsADT.Adapton), so the
+   panel and a program that writes `: EventRow` or `: EdgeRow` read a value
+   out of the same runtime at the same type. They were a private copy here,
+   and a program saw every constructor in them as unbound. */
 let symbol = BuiltinsADT.Symbol.t;
 
-/* The prelude's Space and Time, not a second pair that agrees by hand. The
-   panel and a program that writes `: Time` have to mean the same type, or a
-   value out of the same runtime reads as a value in one place and an error
-   in the other -- which is what happened while these were two definitions.
-
-   Both carried a String once, on the reading that a symbol arrives as its
-   text. That stopped being true when the runtime began putting structure in
-   these positions: a pass time is `hazel(52), whose text spelling loses that
-   it is an application of a name to a number, and cannot be compared with
-   the symbol in an event. */
-let space = () => BuiltinsADT.Space.t;
-
-let time = () => BuiltinsADT.Time.t;
-
-let node_id = () => tuple([space(), time(), int()]);
-
-let edge_id = () => sum([("EdgeId", Some(int()))]);
-
-let align = () => sum([("Aligned", None), ("Signaled", None)]);
-
-/* Every payload is Any on the Fumola side: a put carries whatever was put, a
-   force carries the thunk and its result. A closed type here would be a claim
-   about the runtime that is not true. */
-let action = () =>
-  sum([
-    ("ForceBegin", Some(unknown())),
-    ("Force_", Some(tuple([unknown(), unknown()]))),
-    ("Put", Some(unknown())),
-    ("Get", Some(unknown())),
-  ]);
-
-let edge = () =>
-  record([
-    ("source", node_id()),
-    ("target", node_id()),
-    ("action", action()),
-    ("metaTimes", tuple([int(), int()])),
-    /* `status` since Adapton/fumola#133; FumolaHistory renames the older
-       `align` on the way in, so either spelling reaches here as this one. */
-    ("status", align()),
-  ]);
-
-let thunk_node = () =>
-  record([
-    ("body", unknown()),
-    ("result", BuiltinsADT.Option.t),
-    ("space", space()),
-    ("trace", Typ.fresh(List(edge_id()))),
-  ]);
-
-let node = () =>
-  sum([("NonThunk", Some(unknown())), ("Thunk_", Some(thunk_node()))]);
-
-/* The rows peekHistory's two lists are made of. */
-let node_row = () =>
-  record([("metaTime", int()), ("node", node()), ("nodeId", node_id())]);
-
-/* Three fields, not two: an edge row carries the moment it was recorded at
-   as well, which the node row also does. Read off a live instance -- the
-   `Node info` slide never sees this record, since it is peekHistory's and not
-   peekInfo's. */
-let edge_row = () =>
-  record([("edgeId", edge_id()), ("edge", edge()), ("metaTime", int())]);
-
+/* The rows peekHistory's node and edge lists are made of. */
+let node_row = () => BuiltinsADT.Adapton.node_row;
+let edge_row = () => BuiltinsADT.Adapton.edge_row;
 let nodes = () => Typ.fresh(List(node_row()));
-
 let edges = () => Typ.fresh(List(edge_row()));
 
 /* What FumolaValue needs to push these types down through a value.
