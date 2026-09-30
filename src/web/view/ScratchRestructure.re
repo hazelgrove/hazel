@@ -336,7 +336,7 @@ let rec at_level =
       | [Piece.Secondary(_) as p, ...rest] =>
         try_children(~after_head, rest)
         |> Option.map(((rest', target)) => ([p, ...rest'], target))
-      | [Piece.Tile(t), ...rest] =>
+      | [Piece.Tile(t) as p, ...rest] =>
         let n_kids = List.length(t.children);
         let rec try_kids = (before, k, kids) =>
           switch (kids) {
@@ -374,9 +374,7 @@ let rec at_level =
             ~after_head=is_module_tile(t) && List.length(t.shards) == 2,
             rest,
           )
-          |> Option.map(((rest', target)) =>
-               ([Piece.Tile(t), ...rest'], target)
-             )
+          |> Option.map(((rest', target)) => ([p, ...rest'], target))
         };
       | [p, ...rest] =>
         try_children(rest)
