@@ -281,6 +281,12 @@
     flex-direction: column;
     gap: 0.5em;
     min-width: 0;
+    /* One horizontal scroller for the whole column, so the wires and the
+       code move together. Without it anything wider than the column --
+       a long code line, a cell name -- ran on under the right column,
+       which drew over it. */
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 .fumola-wip-body {
     height: 100%;
@@ -313,7 +319,6 @@
 }
 .fumola-wip-code {
     min-width: 0;
-    overflow-x: auto;
 }
 /* String mode: the body's Fumola text, wrapped to the column. */
 .fumola-wip-text {
