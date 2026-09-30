@@ -29,6 +29,17 @@
   --ol-mark: color-mix(in srgb, var(--caret-color, #d33) 45%, transparent);
 }
 
+/* keyboard focus: the cursor row gets the caret's full color (the
+   editor-caret mark hides meanwhile), no browser focus ring */
+#outline-sidebar .outline-body:focus {
+  outline: none;
+}
+#outline-sidebar .outline-body:focus .outline-label.outline-cursor,
+#outline-sidebar:has(.outline-body:focus) > summary.outline-cursor {
+  box-shadow: inset 2px 0 0 var(--caret-color, #d33);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 40%, transparent);
+}
+
 /* Chrome slots details content into an internal ::details-content
    box; without this the flex sizing never reaches .outline-body and
    the sidebar can't scroll */

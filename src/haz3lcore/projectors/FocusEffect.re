@@ -49,7 +49,9 @@ let execute = (): bool =>
     JsUtil.focus_active_cell();
   | Some(CellTop) =>
     scheduled := None;
-    let focused = JsUtil.focus_active_cell();
+    /* a cell opened from the outline's keys: keep the keys there */
+    let focused =
+      JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
     JsUtil.align_active_cell_top();
     focused;
   | Some(Probe(probe_id)) =>

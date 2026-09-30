@@ -166,6 +166,8 @@ let rec node_view =
           ~focused_entries: list((Language.Id.t, option(string))),
           ~error_items: list(Language.Id.t),
           ~test_status: Language.Id.t => option(TestStatus.t),
+          ~cursor: option(OutlineTree.path),
+          ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
           n: OutlineTree.node,
         )
         : Node.t => {
@@ -205,12 +207,21 @@ let rec node_view =
       }
     | None => n
     };
+  let row_path =
+    path
+    @ [
+      OutlineTree.{
+        s_label: n.o_label,
+        s_occ: occ,
+      },
+    ];
   let label =
     div(
       ~attrs=
         [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
+            @ (cursor == Some(row_path) ? ["outline-cursor"] : [])
             @ (stacked ? ["outline-focused"] : [])
             @ (has_err ? ["outline-has-err"] : [])
             @ (
@@ -229,6 +240,14 @@ let rec node_view =
           | None => []
           }
         )
+        /* a click moves the outline's cursor when the outline has
+           focus; otherwise focus stays where it was (in the editor) */
+        @ [
+          Attr.on_mousedown(_ =>
+            Util.JsUtil.outline_has_focus()
+              ? set_cursor(Some(row_path)) : Effect.Prevent_default
+          ),
+        ]
         @ (
           switch (n.o_id) {
           /* while a stack is open, a plain click ADDS/moves-to that
@@ -393,14 +412,7 @@ let rec node_view =
   switch (n.o_children) {
   | [] => div(~attrs=[clss(["outline-leaf"])], [label])
   | kids =>
-    let my_path =
-      path
-      @ [
-        OutlineTree.{
-          s_label: n.o_label,
-          s_occ: occ,
-        },
-      ];
+    let my_path = row_path;
     create(
       "details",
       ~attrs=
@@ -454,6 +466,8 @@ let rec node_view =
                 ~focused_entries,
                 ~error_items,
                 ~test_status,
+                ~cursor,
+                ~set_cursor,
                 kid,
               ),
             OutlineTree.with_occurrences(kids),
@@ -557,6 +571,139 @@ let menu_view =
       );
     },
   ];
+};
+
+type visible_row = {
+  r_path: OutlineTree.path,
+  r_node: OutlineTree.node,
+  r_parent: option(OutlineTree.path),
+  r_expanded: bool,
+};
+
+/* the outline's keys (plans/outline-ui.md): arrows move and fold,
+   Enter shows, Space opens as a cell; Alt with arrows moves rows and
+   zooms; ⌘D duplicates, ⌘⌫ deletes; Esc (or Alt+O) returns */
+let keys =
+    (
+      ~visible: array(visible_row),
+      ~header: header,
+      /* read at the keypress: keys can outrun renders */
+      ~get_cursor: unit => option(OutlineTree.path),
+      ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
+      ~any_focus: bool,
+      ~stacked: Language.Id.t => bool,
+      ~can_open: Language.Id.t => bool,
+      ~jump: Language.Id.t => Effect.t(unit),
+      ~focus: Language.Id.t => Effect.t(unit),
+      ~toggle: Language.Id.t => Effect.t(unit),
+      ~toggle_run: Language.Id.t => Effect.t(unit),
+      ~toggle_collapse: OutlineTree.path => Effect.t(unit),
+      ~zoom_in: Language.Id.t => Effect.t(unit),
+      ~zoom_out: Effect.t(unit),
+      ~show_whole: bool => Effect.t(unit),
+      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~leave: Effect.t(unit),
+      evt,
+    )
+    : Effect.t(unit) => {
+  let n = Array.length(visible);
+  let idx =
+    switch (get_cursor()) {
+    | None => (-1)
+    | Some(p) =>
+      let rec find = i =>
+        i >= n ? (-1) : visible[i].r_path == p ? i : find(i + 1);
+      find(0);
+    };
+  let go = i =>
+    i < 0 || n == 0
+      ? set_cursor(None) : set_cursor(Some(visible[min(i, n - 1)].r_path));
+  let cur = idx >= 0 ? Some(visible[idx]) : None;
+  let e = Js_of_ocaml.Js.Unsafe.coerce(evt);
+  let key: string = Js_of_ocaml.Js.to_string(e##.key);
+  let code: string = Js_of_ocaml.Js.to_string(e##.code);
+  let alt: bool = Js_of_ocaml.Js.to_bool(e##.altKey);
+  let meta: bool =
+    Js_of_ocaml.Js.to_bool(e##.metaKey)
+    || Js_of_ocaml.Js.to_bool(e##.ctrlKey);
+  let id_of = (r: visible_row) => r.r_node.o_id;
+  let show = (r: visible_row) =>
+    switch (id_of(r)) {
+    | Some(id) => any_focus ? focus(id) : jump(id)
+    | None => toggle_collapse(r.r_path)
+    };
+  let open_close = (r: visible_row) =>
+    switch (id_of(r), r.r_node.o_kind) {
+    | (Some(id), _) when stacked(id) || can_open(id) => toggle(id)
+    | (None, OutlineTree.KTests) =>
+      switch (
+        List.filter_map((c: OutlineTree.node) => c.o_id, r.r_node.o_children)
+      ) {
+      | [first, ..._] => toggle_run(first)
+      | [] => Effect.Ignore
+      }
+    | _ => Effect.Ignore
+    };
+  let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
+  let act =
+    switch (key, alt, meta, cur) {
+    | ("Escape", _, _, _) => Some(leave)
+    | _ when alt && code == "KeyO" => Some(leave)
+    | ("ArrowDown", false, false, _) =>
+      Some(idx + 1 < n ? go(idx + 1) : Effect.Ignore)
+    | ("ArrowUp", false, false, _) =>
+      Some(idx >= 0 ? go(idx - 1) : Effect.Ignore)
+    | ("Home", false, false, _) => Some(go(-1))
+    | ("End", false, false, _) => Some(go(n - 1))
+    | ("ArrowRight", false, false, None) => Some(go(0))
+    | ("ArrowRight", false, false, Some(r)) =>
+      Some(
+        r.r_node.o_children == []
+          ? Effect.Ignore
+          : r.r_expanded ? go(idx + 1) : toggle_collapse(r.r_path),
+      )
+    | ("ArrowLeft", false, false, Some(r)) =>
+      Some(
+        r.r_expanded ? toggle_collapse(r.r_path) : set_cursor(r.r_parent),
+      )
+    | ("Enter", false, false, None) =>
+      Some(
+        header.h_open > 0
+          ? show_whole(true)
+          : header.h_parked > 0 ? show_whole(false) : Effect.Ignore,
+      )
+    | ("Enter", false, false, Some(r)) => Some(show(r))
+    | (" ", false, false, Some(r)) => Some(open_close(r))
+    | ("ArrowUp", true, false, Some(r)) =>
+      Option.map(id => def_op(MoveUp, id), id_of(r))
+    | ("ArrowDown", true, false, Some(r)) =>
+      Option.map(id => def_op(MoveDown, id), id_of(r))
+    | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
+      Option.map(zoom_in, id_of(r))
+    | ("ArrowLeft", true, false, _) => Some(zoom_out)
+    | (_, false, true, Some(r)) when code == "KeyD" =>
+      Option.map(id => def_op(Duplicate, id), id_of(r))
+    | ("Backspace", false, true, Some(r))
+    | ("Delete", false, false, Some(r)) =>
+      Option.map(
+        id =>
+          Effect.Many([
+            set_cursor(
+              idx + 1 < n
+                ? Some(visible[idx + 1].r_path)
+                : idx > 0 ? Some(visible[idx - 1].r_path) : None,
+            ),
+            def_op(Delete, id),
+          ]),
+        id_of(r),
+      )
+    | _ => None
+    };
+  switch (act) {
+  | Some(eff) =>
+    Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, eff])
+  | None => Effect.Ignore
+  };
 };
 
 /* the breadcrumb: the program, then each zoomed module. An ancestor
@@ -677,6 +824,12 @@ let view =
       ~zoom_in: Language.Id.t => Effect.t(unit),
       ~show_whole: bool => Effect.t(unit),
       ~discard: Effect.t(unit),
+      ~zoom_out: Effect.t(unit),
+      ~cursor: option(OutlineTree.path),
+      ~get_cursor: unit => option(OutlineTree.path),
+      ~set_cursor: option(OutlineTree.path) => Effect.t(unit),
+      ~focused: Effect.t(unit),
+      ~leave: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
       ~error_subtree: list(Language.Id.t),
@@ -699,20 +852,95 @@ let view =
       }
     | None => (OutlineTree.of_term(term), [])
     };
+  let live_label = (n: OutlineTree.node): OutlineTree.node =>
+    switch (Option.bind(n.o_id, id => List.assoc_opt(id, focused_entries))) {
+    | Some(Some(live)) => {
+        ...n,
+        o_label: live,
+      }
+    | _ => n
+    };
+  /* the rows on screen, in order: the keyboard's list */
+  let visible: array(visible_row) = {
+    let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
+      List.concat_map(
+        ((n: OutlineTree.node, occ)) => {
+          let n = live_label(n);
+          let path =
+            prefix
+            @ [
+              OutlineTree.{
+                s_label: n.o_label,
+                s_occ: occ,
+              },
+            ];
+          let branch = n.o_children != [];
+          let expanded = branch && !is_collapsed(path);
+          [
+            {
+              r_path: path,
+              r_node: n,
+              r_parent: parent,
+              r_expanded: expanded,
+            },
+          ]
+          @ (expanded ? walk(Some(path), path, n.o_children) : []);
+        },
+        OutlineTree.with_occurrences(ns),
+      );
+    Array.of_list(walk(None, root_path, roots));
+  };
+  let key_handler =
+    keys(
+      ~visible,
+      ~header,
+      ~get_cursor,
+      ~set_cursor,
+      ~any_focus=focused_entries != [],
+      ~stacked=id => List.mem_assoc(id, focused_entries),
+      ~can_open,
+      ~jump,
+      ~focus,
+      ~toggle,
+      ~toggle_run,
+      ~toggle_collapse,
+      ~zoom_in,
+      ~zoom_out,
+      ~show_whole,
+      ~def_op,
+      ~leave,
+    );
   create(
     "details",
     ~attrs=[Attr.id("outline-sidebar"), Attr.create("open", "")],
     [
       create(
         "summary",
-        ~attrs=[clss(["outline-title"])],
+        ~attrs=[
+          clss(
+            ["outline-title"] @ (cursor == None ? ["outline-cursor"] : []),
+          ),
+        ],
         stack_controls
           ? header_view(~header, ~zoom_to, ~show_whole, ~discard)
           : [text({js|☰ outline|js})],
       ),
       div(~attrs=[clss(["outline-resize"]), ...resize_attrs], []),
       div(
-        ~attrs=[clss(["outline-body"])],
+        ~attrs=
+          [clss(["outline-body"])]
+          @ (
+            stack_controls
+              ? [
+                Attr.tabindex(0),
+                Attr.on_keydown(key_handler),
+                Attr.on_focus(_ =>
+                  Effect.Many([Effect.Stop_propagation, focused])
+                ),
+                Attr.on_blur(_ => Effect.Stop_propagation),
+              ]
+              : []
+          ),
         roots == []
           ? [
             div(
@@ -738,6 +966,8 @@ let view =
                   ~focused_entries,
                   ~error_items,
                   ~test_status,
+                  ~cursor,
+                  ~set_cursor,
                   root,
                 ),
               OutlineTree.with_occurrences(roots),

@@ -750,6 +750,7 @@ type outline_memo_key = {
   ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
   ok_results: option(Language.TestResults.t),
   ok_view: option(SlideView.t),
+  ok_cursor: option(OutlineTree.path),
 };
 let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
   ref(Option.none);
@@ -768,6 +769,7 @@ let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
   && a.ok_collapsed == b.ok_collapsed
   && a.ok_menu == b.ok_menu
   && a.ok_view == b.ok_view
+  && a.ok_cursor == b.ok_cursor
   && (
     switch (a.ok_results, b.ok_results) {
     | (Some(x), Some(y)) => x === y
@@ -1196,6 +1198,7 @@ module View = {
         | _ => None
         };
       let memo_key = {
+        ok_cursor: ScratchMode.outline_cursor^,
         ok_view: slide_view,
         ok_statics: outline_statics,
         ok_slot: Haz3lcore.DefStatics.current(),
@@ -1334,6 +1337,17 @@ module View = {
             ~zoom_in=id => inject(Editors(Scratch(ZoomIn(id)))),
             ~show_whole=b => inject(Editors(Scratch(ShowWhole(b)))),
             ~discard=inject(Editors(Scratch(UnfocusDef))),
+            ~zoom_out=inject(Editors(Scratch(ZoomOut))),
+            ~cursor=ScratchMode.outline_cursor^,
+            ~get_cursor=() => ScratchMode.outline_cursor^,
+            /* the ref moves at the keypress; the action re-renders */
+            ~set_cursor=
+              c => {
+                ScratchMode.outline_cursor := c;
+                inject(Editors(Scratch(OutlineCursor(c))));
+              },
+            ~focused=inject(Editors(Scratch(OutlineFocused))),
+            ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
             ~focused_entries,
             ~menu,
             ~menu_open=

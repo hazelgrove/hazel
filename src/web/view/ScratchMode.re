@@ -18,6 +18,9 @@ let collapse_paths = ScratchPersist.collapse_paths;
 let outline_menu: ref(option((Haz3lcore.Id.t, bool, float, float))) =
   ref(None);
 
+/* the outline's keyboard cursor: a row path, None for the header row */
+let outline_cursor: ref(option(OutlineTree.path)) = ref(None);
+
 /* the header symbol a headerless cell for [fid] should show, from
    the OUTLINE's view of the row (span kinds mis-read member-fn tails:
    a member terminates with `;`, so its fn-body tail extracts from an
@@ -132,6 +135,9 @@ module Update = {
     | ZoomOut
     | ZoomTo(option(Haz3lcore.Id.t)) /* a breadcrumb: None = the program */
     | ShowWhole(bool) /* park (true) or unpark the pins at this level */
+    | OutlineCursor(option(OutlineTree.path))
+    | OutlineFocused /* the outline took keyboard focus */
+    | FocusOutline
     | RefreshStatics
     | HydrateCurrent /* deferred slide hydration (SwitchSlide shows a
                         loading frame first) */
@@ -609,6 +615,21 @@ module Update = {
     | ZoomTo(m) => update_view(model, (_, _, v) => SlideView.zoom_to(m, v))
     | ShowWhole(parked) =>
       update_view(model, (_, _, v) => SlideView.park(parked, v))
+    | OutlineCursor(c) =>
+      outline_cursor := c;
+      model |> Updated.return_quiet;
+    | OutlineFocused =>
+      /* the outline starts at the row holding the caret */
+      switch (current_code(model), OutlineFollow.mark^) {
+      | (Some({program, _}), Some(id)) =>
+        outline_cursor :=
+          OutlineTree.label_path(id, Program.statics(program).term)
+      | _ => ()
+      };
+      model |> Updated.return_quiet;
+    | FocusOutline =>
+      JsUtil.focus_outline();
+      model |> Updated.return_quiet;
     | StackHeader(i, a) =>
       switch (current_code(model)) {
       | Some({program: Divided(d), _} as code) =>
@@ -1351,6 +1372,10 @@ module Selection = {
       };
     cursor
     |> Cursor.with_actions([
+         ContextualAction.of_shortcut(
+           ~action=inject(FocusOutline),
+           FocusOutline,
+         ),
          ContextualAction.of_shortcut(
            ~action=inject(Export),
            ExportCurrentScratchpad,

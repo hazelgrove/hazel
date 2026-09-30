@@ -127,6 +127,30 @@ let focus_active_editor = () =>
   | None => focus_clipboard_shim()
   };
 
+/* keyboard focus into the outline sidebar (its row list) */
+let focus_outline = (): unit =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-body"),
+      ),
+    )
+  ) {
+  | Some(el) => Js.Unsafe.coerce(el)##focus
+  | None => ()
+  };
+
+let outline_has_focus = (): bool =>
+  switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
+  | Some(el) =>
+    Js.to_bool(
+      Js.Unsafe.coerce(el)##matches(
+        Js.string("#outline-sidebar .outline-body"),
+      ),
+    )
+  | None => false
+  };
+
 /* The id carried by whichever code-editor cell is currently the active
    (model-selected) one. Used to move DOM focus to a cell after a sidebar
    jump, so the editor receives keystrokes and the caret (gated on :focus)
