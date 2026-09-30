@@ -49,6 +49,9 @@ let row = (label: string): Id.t => {
 
 let whole = (): Web.Program.t => Whole(Focus.cell_of_seg(seg));
 
+let pinned = (id: Id.t, v: V.t): bool =>
+  List.exists((p: V.pin) => p.p_id == id, v.pins);
+
 /* apply view changes in order, realizing after each; the program text
    never changes */
 let run = (steps: list(V.t => V.t)): (V.t, Web.Program.t) =>
@@ -139,7 +142,7 @@ let pins_outside_zoom = () => {
   let (a, m) = (row("a"), row("M"));
   let (v, p) = run([V.pin(~term, a), V.zoom_in(~term, m)]);
   check(bool, "a hidden inside M", true, open_ids(p) == [m]);
-  check(bool, "a still pinned", true, V.pinned(a, v));
+  check(bool, "a still pinned", true, pinned(a, v));
   let (_, p) = run([V.pin(~term, a), V.zoom_in(~term, m), V.zoom_out]);
   check(bool, "a back on zoom out", true, open_ids(p) == [a]);
 };
@@ -156,7 +159,7 @@ let park = () => {
   let a = row("a");
   let (v, p) = run([V.pin(~term, a), V.park(true)]);
   check(bool, "whole while parked", true, open_ids(p) == []);
-  check(bool, "pin kept", true, V.pinned(a, v));
+  check(bool, "pin kept", true, pinned(a, v));
   let (_, p) = run([V.pin(~term, a), V.park(true), V.park(false)]);
   check(bool, "cells again", true, open_ids(p) == [a]);
 };
@@ -244,8 +247,8 @@ let discard = () => {
       V.pin(~term, x),
       V.discard(~term),
     ]);
-  check(bool, "x dropped", false, V.pinned(x, v));
-  check(bool, "a kept", true, V.pinned(a, v));
+  check(bool, "x dropped", false, pinned(x, v));
+  check(bool, "a kept", true, pinned(a, v));
 };
 
 let tests = (

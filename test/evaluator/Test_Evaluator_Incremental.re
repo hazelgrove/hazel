@@ -140,9 +140,25 @@ let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
 let directly_reused = (id: Id.t, ack_incr: EvaluatorState.incr_eval): bool =>
   Id.Map.mem(id, ack_incr.entries);
 
+/* surface ids covered by cache entries: each entry short-circuits a
+   subtree, so expand via prev_elab rather than using only the map keys */
+let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
+  let acc = ref(Id.Set.empty);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    acc := Id.Set.add(Exp.rep_id(e), acc^);
+    continue(e);
+  };
+  Id.Map.iter(
+    (_, entry: IncrEval.entry(_)) =>
+      ignore(TermBase.Exp.map_term(~f_exp, entry.prev_elab)),
+    incr.entries,
+  );
+  Id.Set.elements(acc^);
+};
+
 let visible_ids_for =
     (~prev: EvaluatorState.incr_eval, exp: Exp.t): list(Id.t) =>
-  IncrEval.visible_ids(reuse_plan(~prev, exp));
+  visible_ids(reuse_plan(~prev, exp));
 
 /* Run eval_incr AND compute the reuse plan for the same (~prev, exp) pair in
  * one go, for tests that assert on both the result and the plan. */
