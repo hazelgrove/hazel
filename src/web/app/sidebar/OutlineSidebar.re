@@ -18,7 +18,6 @@ type def_op =
   | NewBelow
   | NewTypeBelow
   | NewModuleBelow
-  | NewInside /* module rows: append a member inside the body */
   | Duplicate
   | MoveUp
   | MoveDown

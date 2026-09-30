@@ -248,7 +248,6 @@ let apply_at =
         Some((take(at, seg) @ copy @ drop(at, seg), first_tile_id(copy)));
       };
     | Duplicate => None
-    | NewInside => None /* handled in [apply] via find_def */
     }
   );
 };
@@ -378,14 +377,15 @@ let rec at_level =
   };
 };
 
-let apply_deep =
+let apply =
     (
       ~name: option(string)=?,
-      ~mod_root: bool,
+      ~mod_root=false,
       op: OutlineSidebar.def_op,
       fid: Id.t,
       seg: Segment.t,
-    ) =>
+    )
+    : option((Segment.t, option(Id.t))) =>
   at_level(
     ~act=
       (~in_module, spans, j, seg) =>
@@ -397,9 +397,9 @@ let apply_deep =
     seg,
   );
 
-/* append a fresh member to module [fid]'s body, at any depth */
+/* append [member] to module [fid]'s body, at any depth */
 let new_inside =
-    (~member={js|let new_def = ¿|js}, fid: Id.t, seg: Segment.t)
+    (~member: string, fid: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) => {
   switch (Focus.find_def(fid, seg)) {
   | None => None
@@ -511,20 +511,6 @@ let new_inside =
        );
   };
 };
-
-let apply =
-    (
-      ~name: option(string)=?,
-      ~mod_root=false,
-      op: OutlineSidebar.def_op,
-      fid: Id.t,
-      seg: Segment.t,
-    )
-    : option((Segment.t, option(Id.t))) =>
-  switch (op) {
-  | NewInside => new_inside(fid, seg)
-  | _ => apply_deep(~name?, ~mod_root, op, fid, seg)
-  };
 
 let fresh_semi = (): option(Piece.t) =>
   Option.bind(member_chunk({js|let zz = 0|js}), chunk =>
