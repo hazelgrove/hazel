@@ -342,7 +342,7 @@ let dev_group = (~globals: Globals.t) => {
       },
       {
         name: "Eval Progress",
-        active: globals.settings.show_pending_eval,
+        active: globals.settings.show_incremental_deco,
         setting: ShowPendingEval,
         tooltip: Some("Highlight code pending re-evaluation after edits"),
       },

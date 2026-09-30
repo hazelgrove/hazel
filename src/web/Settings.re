@@ -31,8 +31,9 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
-    /* grey re-evaluation-progress backings after edits */
-    show_pending_eval: bool,
+    /* Grey re-evaluation-progress backings after edits ("Eval Progress"). */
+    [@sexp.default false]
+    show_incremental_deco: bool,
     /* Shortcut overrides derived from the Shortcuts config slide: a
        ContextualAction label to its resolved hotkey, or None for an action
        the config leaves Unbound. Applied when the command palette is built
@@ -109,7 +110,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
-    show_pending_eval: false,
+    show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
   };
@@ -515,10 +516,11 @@ module Update = {
           show_row_lines: !settings.show_row_lines,
         }
       | ShowPendingEval =>
-        Language.EvalWorklist.compute_enabled := !settings.show_pending_eval;
+        Language.EvalWorklist.compute_enabled :=
+          !settings.show_incremental_deco;
         {
           ...settings,
-          show_pending_eval: !settings.show_pending_eval,
+          show_incremental_deco: !settings.show_incremental_deco,
         };
       | SetShortcutOverrides(overrides) => {
           ...settings,
