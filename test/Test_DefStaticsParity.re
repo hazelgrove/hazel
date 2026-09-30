@@ -61,6 +61,29 @@ let op = (op: Web.OutlineSidebar.def_op, path): step =>
     | None => fail("op failed at " ++ String.concat("/", path))
     };
 
+/* an outline move (Alt↑↓), which can carry a member across a module edge */
+let move = (~up, path): step =>
+  (~root, seg) => {
+    let term = term_of(~root, seg);
+    let ctx: Web.ItemEdit.ctx = {
+      mod_root: root == Sort.Mod,
+      term,
+      info_map: lazy(Statics.Map.empty),
+      is_open: _ => true,
+    };
+    switch (
+      Web.ItemEdit.edit(
+        ctx,
+        Op(up ? MoveUp : MoveDown, row(term, path)),
+        seg,
+      )
+    ) {
+    | Ok((seg, _)) => seg
+    | Error(why) =>
+      fail("move failed at " ++ String.concat("/", path) ++ ": " ++ why)
+    };
+  };
+
 let evaluate = (~prev=IncrEval.empty, ds: DefStatics.t) =>
   switch (DefStatics.whole_elab(ds)) {
   | None => fail("whole_elab: shape gap")
@@ -200,6 +223,24 @@ let tests = (
       script(
         "type A = Foo + Bar in\nmodule Baz = {\n  let x = 1\n} in\nlet w = Foo in\nw",
         [token("Baz", "Foo"), token("Foo", "Qux")],
+      ),
+    ),
+    test_case(
+      "members moved across module edges",
+      `Quick,
+      script(
+        ~root=Mod,
+        "let a = 1;\nmodule M = {\n  let x = a + 1;\n  let y = x * 2;\n  let z = y + 1\n};\nlet b = M.y;\nb",
+        [move(~up=true, ["M", "x"]), move(~up=false, ["M", "z"])],
+      ),
+    ),
+    test_case(
+      "a module's last member moved out",
+      `Quick,
+      script(
+        ~root=Mod,
+        "let a = 1;\nmodule M = {\n  let x = a + 1\n};\nlet b = 4;\nb",
+        [move(~up=false, ["M", "x"])],
       ),
     ),
     test_case(

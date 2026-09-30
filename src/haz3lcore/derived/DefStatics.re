@@ -1063,6 +1063,16 @@ let calc =
           prev_items,
         );
       let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
+      /* keys written by items analyzed so far in this pass: a member moved
+         out of a module ahead of it keeps its ids, and removing the
+         module's old keys must not drop them */
+      let claimed: ref(Statics.Map.t) = ref(Id.Map.empty);
+      let remove_stale = (old: Statics.Map.t, m: Statics.Map.t) =>
+        Id.Map.fold(
+          (k, _, m) => Id.Map.mem(k, claimed^) ? m : Id.Map.remove(k, m),
+          old,
+          m,
+        );
       /* (re)compute one node; [prev_it] is its previous version if any */
       let run_dirty =
           (
@@ -1127,13 +1137,9 @@ let calc =
             compare,
             ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
           );
-        (
-          it,
-          ctx_out,
-          dirty_vars,
-          dirty_tnames,
-          map_union(map_remove_keys(p_map, merged), it.d_map),
-        );
+        let merged = remove_stale(p_map, merged);
+        claimed := map_union(claimed^, it.d_map);
+        (it, ctx_out, dirty_vars, dirty_tnames, map_union(merged, it.d_map));
       };
       let rec go = (ps, ns, acc, ctx, dirty_vars, dirty_tnames, merged) =>
         switch (ps, ns) {
@@ -1142,8 +1148,7 @@ let calc =
           let merged =
             List.fold_left(
               (m, q: item) =>
-                Id.Set.mem(q.d_id, node_ids)
-                  ? m : map_remove_keys(q.d_map, m),
+                Id.Set.mem(q.d_id, node_ids) ? m : remove_stale(q.d_map, m),
               merged,
               ps,
             );
@@ -1163,7 +1168,7 @@ let calc =
             ctx,
             dirty_vars,
             dirty_tnames,
-            map_remove_keys(q.d_map, merged),
+            remove_stale(q.d_map, merged),
           );
         | ([q, ...pt], [n, ..._])
             when

@@ -12,6 +12,22 @@ let parse = (~root=Sort.Exp, txt: string): option(Segment.t) =>
     txt,
   );
 
+/* a module body left with only whitespace: the parser's form for `{}` is
+   one nullary tile, not a brace with an empty child */
+let empty_body = (): option(Piece.t) => {
+  let rec find = (ps: Segment.t): option(Piece.t) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == ["{}"] => Some(p)
+        | Tile(t) => List.find_map(find, t.children)
+        | _ => None
+        },
+      ps,
+    );
+  Option.bind(parse("module Zz = {} in\n0"), find);
+};
+
 let first_tile_id = (seg: Segment.t): option(Id.t) =>
   List.find_map(
     (p: Piece.t) =>
@@ -338,16 +354,24 @@ let rec at_level =
           };
         switch (try_kids([], 0, t.children)) {
         | Some((children, target)) =>
-          Some((
-            [
+          let tile =
+            switch (children) {
+            | [kid] when is_body(t) && List.for_all(Focus.is_edge_ws, kid) =>
+              Option.value(
+                empty_body(),
+                ~default=
+                  Piece.Tile({
+                    ...t,
+                    children,
+                  }),
+              )
+            | _ =>
               Piece.Tile({
                 ...t,
                 children,
-              }),
-              ...rest,
-            ],
-            target,
-          ))
+              })
+            };
+          Some(([tile, ...rest], target));
         | None =>
           try_children(
             ~after_head=is_module_tile(t) && List.length(t.shards) == 2,

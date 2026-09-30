@@ -480,6 +480,10 @@ let across = (): unit => {
   mv(~root=Mod, ~up=false, md, "a", ["M{a,x,y}", "b"]);
   mv(~root=Mod, ~up=true, md, "x", ["a", "x", "M{y}", "b"]);
   mv(~root=Mod, ~up=false, md, "y", ["a", "M{x}", "y", "b"]);
+  /* the last member out leaves an empty module */
+  let md1 = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
+  mv(~root=Mod, ~up=false, md1, "x", ["a", "M", "x", "b"]);
+  mv(~root=Mod, ~up=true, md1, "x", ["a", "x", "M", "b"]);
 };
 
 /* in then out again restores the program, and every step parses */
