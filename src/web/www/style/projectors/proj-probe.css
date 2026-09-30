@@ -401,17 +401,21 @@
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition:
     box-shadow 0.1s ease-in-out,
-    opacity 0.35s ease-in-out;
+    opacity 0.35s ease-in-out,
+    filter 0.35s ease-in-out;
 }
 
 /* CHANGE HIGHLIGHTING (ProbeProj.Baseline / "Dim Unchanged" setting).
  * A sample whose value did not change under the most recent edit burst is
- * dimmed; changed ones keep full opacity. The opacity is animated (via the
- * transition on .value above) so flips fade rather than snapping — this is
- * the flicker mitigation for mid-typing churn. Applied to ALL samples,
- * compounding with any call-context dimming (off-focus/unrelated). */
+ * dimmed AND desaturated to grey, so it reads distinctly from the subdued
+ * GREEN off-focus samples (grayscale collapses focus/off-focus/unrelated
+ * hues to neutral grey regardless of call-context color). The opacity +
+ * filter are animated (via the transition on .value above) so flips fade
+ * rather than snapping — the flicker mitigation for mid-typing churn.
+ * Applied to ALL samples, compounding with any call-context dimming. */
 .live-offside .value.unchanged {
-  opacity: 0.4;
+  opacity: 0.55;
+  filter: grayscale(1);
 }
 
 /* .live-offside .sample .code {
