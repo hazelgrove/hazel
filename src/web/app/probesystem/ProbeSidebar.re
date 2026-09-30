@@ -132,30 +132,6 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
     ],
   );
 
-let kbd = (shortcut: string) =>
-  span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
-
-let arrow_icon =
-    (
-      direction: [
-        | `Left
-        | `Right
-        | `Up
-        | `Down
-      ],
-    ) => {
-  let dir_cls =
-    switch (direction) {
-    | `Left => "left"
-    | `Right => "right"
-    | `Up => "up"
-    | `Down => "down"
-    };
-  span(~attrs=[clss(["arrow-icon", dir_cls])], []);
-};
-
-let click_kbd = kbd;
-
 let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
   let mode = ProbeProj.Settings.s^.window;
   let color_scheme = ProbeProj.Settings.s^.sample_base;
@@ -382,53 +358,10 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
 };
 
 let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
-  let mode = ProbeProj.Settings.s^.window;
   div(
     ~attrs=[clss(["toggle-controls", "panel"])],
     [
-      {
-        /* Auto Probe toggle */
-
-        let mode_now = globals.settings.autoprobe_mode;
-        let segment = (label, mode: AutoProbe.t) =>
-          div(
-            ~attrs=[
-              clss(["segment"] @ (mode == mode_now ? ["active"] : [])),
-              Attr.on_pointerdown(_ =>
-                globals.inject_global(Set(SetAutoprobe(mode)))
-              ),
-            ],
-            [text(label)],
-          );
-        div(
-          ~attrs=[clss(["toggle-group"])],
-          [
-            div(
-              ~attrs=[clss(["toggle-label"])],
-              [
-                text("Auto Probe"),
-                kbd(Util.Os.is_mac^ ? {js|⌘P|js} : "Ctrl+P"),
-              ],
-            ),
-            div(
-              ~attrs=[clss(["segmented-control"])],
-              [
-                segment("Off", Off),
-                segment("Caret", Caret),
-                segment("All", All),
-              ],
-            ),
-            div(
-              ~attrs=[clss(["legend-tooltip"])],
-              [
-                text(
-                  "Off, follow the cursor's definition (Caret), or probe the whole program (All).",
-                ),
-              ],
-            ),
-          ],
-        );
-      },
+      ProbeControls.auto_probe_toggle(~globals, ~is_new=false),
       {
         /* Rich views toggle */
         let on = ProbeProj.Settings.s^.auto_rich_default;
@@ -464,45 +397,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
           ],
         );
       },
-      {
-        /* Samples toggle */
-
-        let is_single = mode == Single;
-        let segment = (label, active) =>
-          div(
-            ~attrs=[
-              clss(["segment"] @ (active ? ["active"] : [])),
-              Attr.on_pointerdown(_ => {
-                ProbeProj.Settings.go(ToggleWindow);
-                explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-              }),
-            ],
-            [text(label)],
-          );
-        div(
-          ~attrs=[clss(["toggle-group"])],
-          [
-            div(
-              ~attrs=[clss(["toggle-label"])],
-              [
-                text("Samples"),
-                span(
-                  ~attrs=[clss(["qr-when-focused", "kbd-badge"])],
-                  [text({js|␣|js})],
-                ),
-              ],
-            ),
-            div(
-              ~attrs=[clss(["segmented-control"])],
-              [segment("One", is_single), segment("Many", !is_single)],
-            ),
-            div(
-              ~attrs=[clss(["legend-tooltip"])],
-              [text("Show at most one sample per probe, or all at once.")],
-            ),
-          ],
-        );
-      },
+      ProbeControls.samples_toggle(~explain_this_inject, ~is_new=false),
     ],
   );
 };
@@ -693,7 +588,7 @@ let render_print_entry = (entry: print_entry): Node.t =>
     ],
   );
 
-let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
+let printarium_body = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let measured = editor.editor.syntax.measured;
   /* Determine what entries to display */
   let entries =
@@ -704,7 +599,6 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     | Manual => cached_print_entries^
     };
   [
-    div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
     div(
       ~attrs=[clss(["eval-controls"])],
       [
@@ -742,160 +636,9 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   ];
 };
 
-let quick_ref_row =
-    (
-      ~shortcut=?,
-      ~click_shortcut=?,
-      ~click_shortcut2=?,
-      ~badge_cls=?,
-      ~row_clss: list(string)=[],
-      action: string,
-      how: list(Node.t),
-    ) => {
-  let wrap_cls = (nodes: list(Node.t)) =>
-    switch (badge_cls) {
-    | Some(cls) => [span(~attrs=[clss([cls])], nodes)]
-    | None => nodes
-    };
-  let badge_nodes =
-    switch (shortcut, click_shortcut) {
-    | (Some(s), _) => wrap_cls([kbd(s)])
-    | (_, Some(s)) =>
-      wrap_cls(
-        [click_kbd(s)]
-        @ (
-          switch (click_shortcut2) {
-          | Some(s2) => [click_kbd(s2)]
-          | None => []
-          }
-        ),
-      )
-    | _ => []
-    };
-  Node.tr(
-    ~attrs=[clss(row_clss)],
-    [
-      Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
-      Node.td(
-        ~attrs=[clss(["qr-how"])],
-        [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
-      ),
-    ],
-  );
-};
-
-let quick_ref_divider =
-  Node.tr([
-    Node.td(
-      ~attrs=[Attr.create("colspan", "2"), clss(["qr-divider"])],
-      [],
-    ),
-  ]);
-
-let quick_ref_view =
-    (
-      ~indicated_can_probe: bool,
-      ~indicated_has_probe: bool,
-      ~indicated_has_manual: bool,
-    ) => {
-  let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
-  div(
-    ~attrs=[
-      clss(
-        ["quick-ref", "panel"]
-        @ (indicated_can_probe ? ["can-probe"] : [])
-        @ (indicated_has_probe ? ["has-probe"] : [])
-        @ (indicated_has_manual ? ["has-manual"] : []),
-      ),
-    ],
-    [
-      div(~attrs=[clss(["title"])], [text("Quick Reference")]),
-      Node.table(
-        ~attrs=[clss(["qr-table"])],
-        [
-          /* Group 1: Actions */
-          quick_ref_row(
-            ~shortcut=meta ++ "E",
-            ~badge_cls="qr-cmd-e",
-            "Add/remove probe",
-            [text("Right-click term")],
-          ),
-          quick_ref_row(
-            ~click_shortcut="/",
-            ~badge_cls="qr-when-focused",
-            "See env/args",
-            [text("Alt-click sample")],
-          ),
-          quick_ref_row(
-            ~click_shortcut="P",
-            ~badge_cls="qr-when-focused",
-            "Pin call",
-            [text({js|Right-click sample › Pin|js})],
-          ),
-          quick_ref_row(
-            ~click_shortcut={js|↩|js},
-            ~badge_cls="qr-when-focused",
-            "Step into call",
-            [text({js|Right-click sample › Step|js})],
-          ),
-          /* Group 2: Navigation */
-          quick_ref_divider,
-          quick_ref_row(
-            ~click_shortcut={js|←|js},
-            ~click_shortcut2={js|→|js},
-            ~badge_cls="qr-when-focused",
-            "Navigate samples",
-            [text("Click "), arrow_icon(`Left), arrow_icon(`Right)],
-          ),
-          quick_ref_row(
-            ~click_shortcut={js|↑|js},
-            ~click_shortcut2={js|↓|js},
-            ~badge_cls="qr-when-focused",
-            "Navigate probes",
-            [text("Click sample")],
-          ),
-          quick_ref_row(
-            ~click_shortcut={js|⇧←|js},
-            ~click_shortcut2={js|⇧→|js},
-            ~badge_cls="qr-when-focused",
-            "Resize sample",
-            [text("Drag sample")],
-          ),
-          /* Group 3: Focus */
-          quick_ref_divider,
-          quick_ref_row(
-            ~click_shortcut=meta ++ {js|↓|js},
-            ~click_shortcut2=meta ++ {js|↑|js},
-            ~badge_cls="qr-when-focused",
-            "Expand probe",
-            [text("Click "), arrow_icon(`Down)],
-          ),
-          quick_ref_row(
-            ~shortcut=meta ++ {js|↩|js},
-            ~badge_cls="qr-focus-probe",
-            "Focus probe",
-            [text("Click sample")],
-          ),
-          quick_ref_row(
-            ~click_shortcut=meta ++ {js|↩|js},
-            ~click_shortcut2="Esc",
-            ~badge_cls="qr-when-focused",
-            "Focus editor",
-            [text("Click editor")],
-          ),
-        ],
-      ),
-      div(
-        ~attrs=[clss(["qr-icons"])],
-        [
-          div([text({js|∅ = never evaluated|js})]),
-          div([text({js|⍟ = hidden by pin|js})]),
-          div([text({js|⊖ = outside focus|js})]),
-        ],
-      ),
-    ],
-  );
-};
+let printarium = (~explain_this_inject, ~editor) =>
+  [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
+  @ printarium_body(~explain_this_inject, ~editor);
 
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
@@ -923,15 +666,29 @@ let probearium =
     | None => false
     };
   [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
-  @ [
-    toggle_controls_view(~globals, ~explain_this_inject),
-    quick_ref_view(
-      ~indicated_can_probe,
-      ~indicated_has_probe,
-      ~indicated_has_manual,
-    ),
-    legend_view(~globals, ~explain_this_inject),
-  ];
+  @ [toggle_controls_view(~globals, ~explain_this_inject)]
+  @ ProbeControls.quick_ref_panel(
+      ~context_clss=
+        (indicated_can_probe ? ["can-probe"] : [])
+        @ (indicated_has_probe ? ["has-probe"] : [])
+        @ (indicated_has_manual ? ["has-manual"] : []),
+      [
+        AddProbe,
+        SeeVars,
+        Pin,
+        StepInto,
+        NavSamples,
+        NavProbes,
+        Resize,
+        ExpandProbe,
+        FocusProbe,
+        FocusEditor,
+        IconEmpty,
+        IconPinHidden,
+        IconOutsideFocus,
+      ],
+    )
+  @ [legend_view(~globals, ~explain_this_inject)];
 };
 
 let view =

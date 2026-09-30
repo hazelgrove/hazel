@@ -464,7 +464,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_model =
       (
         ~import_log,
         ~get_log_and,
@@ -587,6 +587,30 @@ module Update = {
       Store.save(model);
       model |> return_quiet;
     };
+  };
+
+  let update = (~import_log, ~get_log_and, ~schedule_action, action, model) => {
+    let* model =
+      update_model(
+        ~import_log,
+        ~get_log_and,
+        ~schedule_action,
+        action,
+        model,
+      );
+    /* Synchronize after every update, including startup and mode changes.
+       Only Probes lessons apply overrides; leaving restores user settings. */
+    let lesson =
+      switch (model.editors) {
+      | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
+      | _ => None
+      };
+    TutorialSlideInit.maybe_apply_on_change(
+      ~autoprobe=model.globals.settings.autoprobe_mode,
+      ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+      lesson,
+    );
+    model;
   };
 
   let calculate =
@@ -1261,10 +1285,12 @@ module View = {
       };
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
-    let task_reference: option(string) =
+    let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
-        TutorialsMode.Model.get_current(t).editors.task_reference
+        TutorialReferencePanel.of_lesson(
+          TutorialsMode.Model.get_current(t).editors,
+        )
       | _ => None
       };
     let sidebar =
@@ -1284,7 +1310,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
-        ~task_reference,
+        ~tutorial_reference,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
