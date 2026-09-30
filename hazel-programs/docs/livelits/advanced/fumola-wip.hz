@@ -59,6 +59,16 @@
 # Try: change 20 to 30, or * 2 in double to * 3, untick tiles, or #
 # click editor on the first livelit. #
 let n = 20 in
-let result = ^^livelit(^fumola_wip((instance = "myInstance", name = "myLivelit", editor = false, bind_input = true, tiles = true, input = (n * 2), code = (fumola $graphical as myInstance in let halve = `halve` := thunk { (@ input) / 2 }; let double = `double` := thunk { (force halve) * 2 }; force double end)))) in
-let events = ^^livelit(^fumola_wip((instance = "myInstance", name = "", editor = true, bind_input = false, tiles = true, input = (0), code = (fumola $graphical as myInstance in (prim "adaptonPeekHistory" ()).events end)))) in
+let result = ^^livelit(^fumola_wip((instance = "myInstance", name = "myLivelit", editor = false, bind_input = true, tiles = true, input = (n * 2), code = (fumola $graphical as myInstance in
+  let halve = `halve` := thunk {
+    (@ input) / 2
+  };
+  let double = `double` := thunk {
+    (force halve) * 2
+  };
+  force double
+end)))) in
+let events = ^^livelit(^fumola_wip((instance = "myInstance", name = "", editor = true, bind_input = false, tiles = true, input = (0), code = (fumola $graphical as myInstance in
+  (prim "adaptonPeekHistory" ()).events
+end)))) in
 (result, events)
