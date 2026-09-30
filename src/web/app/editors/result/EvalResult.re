@@ -291,6 +291,8 @@ module Update = {
             /* The worker keeps its own cache from this key's last run. */
             prev: IncrEval.empty,
             use_held_prev: true,
+            /* The mode's queue_worker says which document. */
+            doc: "",
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -301,6 +303,7 @@ module Update = {
               eval_info_map,
               prev: prev_incr,
               use_held_prev: false,
+              doc: "",
             })
           ) {
           | Ok((exp, state)) =>

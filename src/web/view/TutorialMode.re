@@ -235,7 +235,16 @@ module Update = {
     let worker_request = ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> Tutorial.key_for_statics, req_value)];
+        worker_request^
+        @ [
+          (
+            pos |> Tutorial.key_for_statics,
+            {
+              ...req_value,
+              doc: "tutorial:" ++ Id.to_string(model.editors.id),
+            },
+          ),
+        ];
     };
     let cells =
       Tutorial.map2_stitched(

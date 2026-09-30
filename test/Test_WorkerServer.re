@@ -170,6 +170,7 @@ let request_of = text => {
         ),
       prev: IncrEval.empty,
       use_held_prev: true,
+      doc: "",
     };
   };
 };
@@ -180,8 +181,9 @@ let program = n =>
   ++ "), xs)";
 
 /* One run as the worker does it: resolve the held cache, evaluate, keep. */
-let run = (key, v) =>
+let run = (key, v: WorkerServer.Request.value) =>
   WorkerServer.Held.keep(
+    ~doc=v.doc,
     key,
     WorkerServer.evaluate_sync(WorkerServer.Held.resolve(key, v)),
   );
@@ -240,6 +242,41 @@ let test_held_by_key = () =>
         ).
           prev
         === IncrEval.empty,
+      );
+    },
+  );
+
+/* Keys are positions within a document -- Scratch mode's is always "" --
+   so the cache is held per document too: moving from one slide to another
+   and back must find the first slide's cache still there. */
+let test_held_by_document = () =>
+  test_case(
+    "each document keeps its own cache under the same key",
+    `Quick,
+    () => {
+      WorkerServer.Held.clear();
+      let a = {
+        ...request_of(program(10)),
+        doc: "scratch:A",
+      };
+      let b = {
+        ...request_of(program(20)),
+        doc: "scratch:B",
+      };
+      let _ = run("", a);
+      let held_a = WorkerServer.Held.resolve("", a).prev;
+      check(
+        bool,
+        "slide B does not get slide A's cache",
+        true,
+        WorkerServer.Held.resolve("", b).prev === IncrEval.empty,
+      );
+      let _ = run("", b);
+      check(
+        bool,
+        "back on slide A, its own cache is still held",
+        true,
+        WorkerServer.Held.resolve("", a).prev === held_a,
       );
     },
   );
@@ -303,6 +340,7 @@ let tests = [
     "WorkerServer held cache",
     [
       test_held_by_key(),
+      test_held_by_document(),
       test_held_same_result(),
       test_held_dropped_on_failure(),
     ],

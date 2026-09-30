@@ -14,6 +14,13 @@ module Request = {
        run, in place of `prev` (see Held). The client of a worker sets it
        and sends `prev` empty; the main-thread path passes `prev` itself. */
     use_held_prev: bool,
+    /* Which document the request is for: a slide, a tutorial or an
+       exercise. Held keeps a cache per document and key, since keys are
+       positions within a document (Scratch mode's is always ""), and one
+       document's cache would otherwise be replaced by the next one's.
+       Empty for a caller that has only one document. */
+    [@sexp.default ""] [@yojson.default ""]
+    doc: string,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -256,7 +263,7 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
    keeps nothing, so its first run is a full one, which is correct. */
 module Held = {
   let max_keys = 32;
-  let table: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
+  let table: Hashtbl.t((string, key), Language.EvaluatorState.incr_eval) =
     Hashtbl.create(8);
 
   let clear = () => Hashtbl.reset(table);
@@ -266,7 +273,7 @@ module Held = {
       ? {
         ...v,
         prev:
-          Hashtbl.find_opt(table, key)
+          Hashtbl.find_opt(table, (v.doc, key))
           |> Option.value(~default=Language.IncrEval.empty),
         use_held_prev: false,
       }
@@ -274,13 +281,15 @@ module Held = {
 
   /* Keep a finished run's cache and answer without it; a failed run keeps
      nothing, as the client did (its next `prev` was empty). */
-  let keep = (key: key, response: Response.value): Response.value =>
+  let keep =
+      (~doc: string="", key: key, response: Response.value): Response.value =>
     switch (response) {
     | Ok((result, state)) =>
-      if (Hashtbl.length(table) >= max_keys && !Hashtbl.mem(table, key)) {
+      if (Hashtbl.length(table) >= max_keys
+          && !Hashtbl.mem(table, (doc, key))) {
         Hashtbl.reset(table);
       };
-      Hashtbl.replace(table, key, state.incr_eval);
+      Hashtbl.replace(table, (doc, key), state.incr_eval);
       Ok((
         result,
         {
@@ -289,7 +298,7 @@ module Held = {
         },
       ));
     | Error(_) =>
-      Hashtbl.remove(table, key);
+      Hashtbl.remove(table, (doc, key));
       response;
     };
 };
@@ -301,6 +310,8 @@ type evaluation_start =
 type running = {
   request_id: int,
   key,
+  /* The item's document, for Held.keep when it finishes. */
+  doc: string,
   remaining: Request.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
@@ -508,7 +519,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, Held.keep(key, response)), ...completed],
+        [(key, Held.keep(~doc=req_value.doc, key, response)), ...completed],
         remaining,
       )
     | Yielding(evaluation) =>
@@ -518,6 +529,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
           Running({
             request_id,
             key,
+            doc: req_value.doc,
             remaining,
             completed,
             evaluation,
@@ -539,7 +551,10 @@ and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, Held.keep(running.key, response)), ...running.completed],
+    [
+      (running.key, Held.keep(~doc=running.doc, running.key, response)),
+      ...running.completed,
+    ],
     running.remaining,
   )
 and plan_latest_batch = model =>
