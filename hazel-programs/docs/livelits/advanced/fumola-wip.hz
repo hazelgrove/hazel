@@ -1,8 +1,8 @@
 # Fumola, a Work in Progress #
 
-# ^fumola_wip runs a Fumola computation between two cells, one each way #
-# across the language boundary: a Hazel value goes in, the computation's #
-# result comes out, and the result is what the livelit expands to. #
+# ^fumola_wip runs a Fumola computation beside Hazel code: a Hazel value #
+# goes in, the computation's result comes out, and the result is what #
+# the livelit expands to. #
 
 # It is a prototype of a DSL inside Hazel, edited as tiles, inside a #
 # livelit. Its name says it is unfinished and slow: editing tiles inside #
@@ -12,31 +12,53 @@
 # editor's own implementation language, so it can draw the Fumola tiles #
 # and this instance's watch pane itself. #
 
-# The head row names the INSTANCE (myInstance) and the LIVELIT #
-# (myLivelit). Every cell the livelit owns is named under the livelit: #
+# The head row names the INSTANCE (myInstance), and picks which of #
+# Fumola's two roles the code runs in: editor | archivist. #
+
+# As the ARCHIVIST, the code runs inside a force, in a thunk the #
+# archivist's name names (myLivelit here), so what it reads and writes #
+# is recorded. Every cell it owns is named under that name: #
 #   `myLivelit(`input)    written from Hazel: the In wire #
 #   `myLivelit(`compute)  the thunk the code runs in, reused across edits #
 #   `myLivelit(`output)   the code's result, read back: the Out wire #
 # (`in and `thunk would read better, but both are Fumola keywords.) #
+# Left empty, the name defaults to hazel_ and the id of this use. #
 
-# Below the head, the full width of the notebook: on the left the In #
-# wire, the code, and the Out wire; on the right the watch pane for #
-# myInstance, its Events, Nodes and Edges. Each run adds the three cells #
-# and forces the computation, and the pane shows it happen. #
+# The archivist's input is the CELL, not what it holds: the code reads #
+# it with @ input, when and where it chooses. Below, the computation #
+# makes two sub-thunks. halve reads the input cell again, inside itself, #
+# and halves it. double is given halve unforced, forces it, and doubles #
+# the result. So the input is read in halve, not in the computation, #
+# and the Outline shows double forcing halve, and halve reading the #
+# input: 40, halved to 20, doubled to 40. #
+
+# As the EDITOR, the code runs at the top level of the instance, with no #
+# force around it, so it needs no name and owns no cells. Its input is #
+# optional: ticked, input is bound to the Hazel value; unticked, as in #
+# the second livelit below, input is not bound at all. #
+
+# The second livelit is the editor of the same instance. It asks the #
+# instance for its history and returns the events, which cross back as #
+# Hazel data: a list of (event = ..., metaTime = ...) records, the same #
+# events the Events tab shows. It runs after the archivist, so the #
+# archivist's run is in them. #
+
+# Below each head, the full width of the notebook: on the left the In #
+# wire, the code, and the Out wire; on the right the watch pane, whose #
+# tabs show the Program sent, the Outline of the runs, what they #
+# Printed, and the instance's Events, Nodes and Edges. #
 
 # The input is a splice, and it can name a variable bound outside the #
 # livelit: n below. It crosses into Fumola as a hazel ... end escape, #
 # evaluated when the program runs, where n is in scope. #
 
-# The code reads its input as a variable, input, which the livelit binds #
-# by reading the In cell: that read is the edge from the input to the #
-# computation in the watch pane. #
-
 # The tiles box switches the code between Fumola tiles and a string. #
 # Code that cannot be converted, tiles with a hole in them or text that #
 # does not parse, stays as it is. #
 
-# Try: change 10 to 20, or input + 1 to input * 3, or untick tiles. #
-let n = 10 in
-let result = ^^livelit(^fumola_wip((instance = "myInstance", name = "myLivelit", tiles = true, input = (n * 2), code = (fumola $graphical as myInstance in input + 1 end)))) in
-result
+# Try: change 20 to 30, or * 2 in double to * 3, untick tiles, or #
+# click editor on the first livelit. #
+let n = 20 in
+let result = ^^livelit(^fumola_wip((instance = "myInstance", name = "myLivelit", editor = false, bind_input = true, tiles = true, input = (n * 2), code = (fumola $graphical as myInstance in let halve = `halve` := thunk { (@ input) / 2 }; let double = `double` := thunk { (force halve) * 2 }; force double end)))) in
+let events = ^^livelit(^fumola_wip((instance = "myInstance", name = "", editor = true, bind_input = false, tiles = true, input = (0), code = (fumola $graphical as myInstance in (prim "adaptonPeekHistory" ()).events end)))) in
+(result, events)
