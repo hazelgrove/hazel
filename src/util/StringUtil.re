@@ -327,26 +327,3 @@ let subseq_search = (s: string, sub: string): bool => {
 
   search(0, 0);
 };
-
-/* the integer right after the first [marker] in [s], if any */
-let first_int_after = (~marker: string, s: string): option(int) => {
-  let mlen = String.length(marker);
-  let slen = String.length(s);
-  let rec find = i =>
-    if (i + mlen > slen) {
-      None;
-    } else if (String.sub(s, i, mlen) == marker) {
-      Some(i + mlen);
-    } else {
-      find(i + 1);
-    };
-  switch (find(0)) {
-  | None => None
-  | Some(start) =>
-    let rec take = (i, acc) =>
-      i < slen && s.[i] >= '0' && s.[i] <= '9'
-        ? take(i + 1, acc ++ String.make(1, s.[i])) : acc;
-    let digits = take(start, "");
-    digits == "" ? None : int_of_string_opt(digits);
-  };
-};
