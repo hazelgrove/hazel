@@ -264,6 +264,65 @@ let members = (): unit => {
   );
 };
 
+/* the name row's commit last inside a module: the typed keyword picks
+   the kind, and the new member is the row it lands on */
+let insert_inside = (): unit => {
+  let run = (src, label, text) => {
+    let seg = parse(src);
+    let term = statics_term(seg);
+    let ctx: R.ctx = {
+      mod_root: false,
+      term,
+      info_map: lazy(Language.Statics.Map.empty),
+      is_open: _ => true,
+    };
+    R.edit(ctx, InsertInside(outline_id(term, label), text), seg);
+  };
+  switch (run(m_src, "M", "c")) {
+  | Error(why) => fail("value inside: " ++ why)
+  | Ok((seg', target)) =>
+    let t = text_of(seg');
+    check(
+      bool,
+      "c is appended to M after b",
+      true,
+      contains("let b = 2;", t) && contains("let c", t),
+    );
+    check(
+      bool,
+      "the new member is the row it lands on",
+      true,
+      target == Some(outline_id(statics_term(seg'), "c")),
+    );
+  };
+  switch (run("module E = {} in 0", "E", "type T")) {
+  | Error(why) => fail("type inside an empty module: " ++ why)
+  | Ok((seg', _)) =>
+    check(
+      bool,
+      "an empty module gets the type",
+      true,
+      contains("type T", text_of(seg')),
+    )
+  };
+  switch (run(m_src, "M", "module N")) {
+  | Error(why) => fail("module inside: " ++ why)
+  | Ok((seg', _)) =>
+    check(
+      bool,
+      "a module inside a module",
+      true,
+      contains("module N", text_of(seg')),
+    )
+  };
+  check(
+    bool,
+    "a name that can't bind is refused",
+    true,
+    Result.is_error(run(m_src, "M", "1x")),
+  );
+};
+
 /* mega style: the last member of a module body has no `;`. Ops that
    put another member after it must give it one */
 let unterminated_tail = (): unit => {
@@ -507,6 +566,7 @@ let tests = (
     test_case("top-level ops", `Quick, top_level),
     test_case("statement ops", `Quick, statements),
     test_case("member ops", `Quick, members),
+    test_case("a named member inside a module", `Quick, insert_inside),
     test_case("flattened fn-body ops", `Quick, fn_body),
     test_case("unterminated last member", `Quick, unterminated_tail),
     test_case("moves across module edges", `Quick, across),

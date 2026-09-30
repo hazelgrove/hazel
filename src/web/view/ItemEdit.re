@@ -424,7 +424,8 @@ let apply_deep =
    depth: find_def/splice_def handle both 3-shard `module … in` and
    2-shard member modules) */
 let new_inside =
-    (fid: Id.t, seg: Segment.t): option((Segment.t, option(Id.t))) => {
+    (~member={js|let new_def = ¿|js}, fid: Id.t, seg: Segment.t)
+    : option((Segment.t, option(Id.t))) => {
   switch (Focus.find_def(fid, seg)) {
   | None => None
   | Some(def_seg) =>
@@ -435,8 +436,7 @@ let new_inside =
         /* an EMPTY module body parses as a nullary fused `{}` tile
            (no child slot): swap in a populated 2-shard brace from a
            scaffold parse */
-        switch (parse({js|module Zz = {let new_def = ¿} in
-0|js})) {
+        switch (parse("module Zz = {" ++ member ++ "} in\n0")) {
         | None => None
         | Some(scaffold) =>
           let rec find_brace = (qs: Segment.t): option(Piece.t) =>
@@ -466,7 +466,7 @@ let new_inside =
         }
       | [Piece.Tile(bt), ...rest]
           when Tile.label(bt) == ["{", "}"] && List.length(bt.children) == 1 =>
-        switch (member_chunk({js|let new_def = ¿|js})) {
+        switch (member_chunk(member)) {
         | None => None
         | Some(chunk) =>
           let inner = List.hd(bt.children);
@@ -797,7 +797,24 @@ type t =
   | Rename(Id.t, string)
   /* a new definition below the row: `name`, `type Name` or
      `module Name` */
-  | Insert(Id.t, string);
+  | Insert(Id.t, string)
+  /* the same, last inside a module */
+  | InsertInside(Id.t, string);
+
+/* a typed name and the kind its keyword picks */
+let typed_name = (text: string): (OutlineTree.kind, string) => {
+  let (kind, prefix) = OutlineSidebar.new_kind(text);
+  (
+    kind,
+    String.trim(
+      String.sub(
+        text,
+        String.length(prefix),
+        String.length(text) - String.length(prefix),
+      ),
+    ),
+  );
+};
 
 /* the program as an edit sees it */
 type ctx = {
@@ -843,15 +860,7 @@ let edit =
     )
     |> Result.map(seg => (seg, Some(row)))
   | Insert(anchor, text) =>
-    let (kind, prefix) = OutlineSidebar.new_kind(text);
-    let name =
-      String.trim(
-        String.sub(
-          text,
-          String.length(prefix),
-          String.length(text) - String.length(prefix),
-        ),
-      );
+    let (kind, name) = typed_name(text);
     let (rkind, op): (OutlineRename.kind, OutlineSidebar.def_op) =
       switch (kind) {
       | KType => (KType, NewTypeBelow)
@@ -862,6 +871,20 @@ let edit =
     | Some(why) => Error(why)
     | None =>
       apply(~name, ~mod_root=ctx.mod_root, op, anchor, seg)
+      |> Option.to_result(~none="a definition can't go here")
+    };
+  | InsertInside(m, text) =>
+    let (kind, name) = typed_name(text);
+    let (rkind, member): (OutlineRename.kind, string) =
+      switch (kind) {
+      | KType => (KType, "type " ++ name ++ {js| = ¿|js})
+      | KModule => (KModule, "module " ++ name ++ " = {}")
+      | _ => (KValue, "let " ++ name ++ {js| = ¿|js})
+      };
+    switch (OutlineRename.check_name(rkind, name)) {
+    | Some(why) => Error(why)
+    | None =>
+      new_inside(~member, m, seg)
       |> Option.to_result(~none="a definition can't go here")
     };
   };

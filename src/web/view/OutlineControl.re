@@ -133,6 +133,7 @@ let update =
     let fresh_below = (id: Id.t): OutlineEdit.t => {
       ed_row: None,
       ed_anchor: Some(id),
+      ed_inside: false,
       ed_text: "",
       ed_caret: 0,
       ed_error: None,
@@ -178,7 +179,11 @@ let update =
       cursor := OutlineTree.label_path(anchor, term);
       code |> Updated.return_quiet;
     | (None, Some(anchor)) =>
-      switch (apply(Insert(anchor, text))) {
+      switch (
+        apply(
+          ed.ed_inside ? InsertInside(anchor, text) : Insert(anchor, text),
+        )
+      ) {
       | Error(why) => refuse(why)
       | Ok((new_seg, target)) =>
         let code = Workspace.with_segment(~settings, code, new_seg);

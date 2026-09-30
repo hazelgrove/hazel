@@ -65,6 +65,7 @@ type name_edit =
   OutlineEdit.t = {
     ed_row: option(Language.Id.t),
     ed_anchor: option(Language.Id.t),
+    ed_inside: bool,
     ed_text: string,
     ed_caret: int,
     ed_error: option(string),
@@ -538,15 +539,27 @@ let rec node_view =
     | Some(ed) => edit_hint(ed)
     | None => []
     };
-  switch (n.o_children) {
-  | [] => div(~attrs=[clss(["outline-leaf"])], [label, ...hint])
-  | kids =>
+  /* a new member being named last inside this module: shown open, even
+     when collapsed or empty */
+  let inside_row =
+    switch (edit.current) {
+    | Some({ed_row: None, ed_anchor: Some(a), ed_inside: true, _} as ed)
+        when n.o_id == Some(a) =>
+      Some(new_row_view(ed))
+    | _ => None
+    };
+  switch (n.o_children, inside_row) {
+  | ([], None) => div(~attrs=[clss(["outline-leaf"])], [label, ...hint])
+  | (kids, _) =>
     let my_path = row_path;
     create(
       "details",
       ~attrs=
         [clss(["outline-branch"])]
-        @ (is_collapsed(my_path) ? [] : [Attr.create("open", "")])
+        @ (
+          is_collapsed(my_path) && Option.is_none(inside_row)
+            ? [] : [Attr.create("open", "")]
+        )
         @ (
           switch (n.o_id) {
           | Some(id) => [Attr.id("ol-b-" ++ Language.Id.to_string(id))]
@@ -622,7 +635,8 @@ let rec node_view =
               ]
               @ new_row_after(edit, kid),
             OutlineTree.segs(kids),
-          ),
+          )
+          @ Option.to_list(inside_row),
         ),
       ],
     );
@@ -631,7 +645,8 @@ let rec node_view =
 /* a new definition typed below [n] */
 and new_row_after = (edit: edit_ctl, n: OutlineTree.node): list(Node.t) =>
   switch (edit.current) {
-  | Some({ed_row: None, ed_anchor: Some(a), _} as ed) when n.o_id == Some(a) => [
+  | Some({ed_row: None, ed_anchor: Some(a), ed_inside: false, _} as ed)
+      when n.o_id == Some(a) => [
       new_row_view(ed),
     ]
   | _ => []
@@ -644,6 +659,7 @@ let menu_view =
       ~menu_close: Effect.t(unit),
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
       ~zoom_in: Language.Id.t => Effect.t(unit),
+      ~edit: edit_ctl,
       ~is_module: bool,
       (id: Language.Id.t, x: float, y: float),
     )
@@ -664,6 +680,24 @@ let menu_view =
       ),
     );
   let op = (~keys=?, o, label) => row(~keys?, label, def_op(o, id));
+  /* the name row the keyboard makes; [prefix] picks the kind */
+  let new_row = (~inside=false, label, prefix) =>
+    row(
+      label,
+      Effect.Many([
+        take_focus,
+        edit.set(
+          Some({
+            ed_row: None,
+            ed_anchor: Some(id),
+            ed_inside: inside,
+            ed_text: prefix,
+            ed_caret: String.length(prefix),
+            ed_error: None,
+          }),
+        ),
+      ]),
+    );
   let divider = div(~attrs=[clss(["menu-divider"])], []);
   let rows =
     (
@@ -674,15 +708,15 @@ let menu_view =
             "Zoom in",
             zoom_in(id),
           ),
-          op(NewInside, "New definition inside"),
+          new_row(~inside=true, "New definition inside", ""),
           divider,
         ]
         : []
     )
     @ [
-      op(NewBelow, "New definition below"),
-      op(NewTypeBelow, "New type below"),
-      op(NewModuleBelow, "New module below"),
+      new_row("New definition below", ""),
+      new_row("New type below", "type "),
+      new_row("New module below", "module "),
       divider,
       op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
       op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
@@ -887,6 +921,7 @@ let keys =
           Some({
             ed_row: r.r_node.o_id,
             ed_anchor: None,
+            ed_inside: false,
             ed_text: r.r_node.o_label,
             ed_caret: String.length(r.r_node.o_label),
             ed_error: None,
@@ -1332,7 +1367,14 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     @ (
       switch (menu) {
       | Some((id, is_module, x, y)) when stack_controls =>
-        menu_view(~menu_close, ~def_op, ~zoom_in, ~is_module, (id, x, y))
+        menu_view(
+          ~menu_close,
+          ~def_op,
+          ~zoom_in,
+          ~edit,
+          ~is_module,
+          (id, x, y),
+        )
       | _ => []
       }
     ),
