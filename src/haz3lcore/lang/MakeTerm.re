@@ -2057,7 +2057,9 @@ module Incr = {
      Module-level single slot: only the one whole-program master
      editor takes this path (view builds use the per-editor cache) */
   let memo: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
-  let last: ref(option((Segment.t, Exp.t))) = ref(None);
+  /* last whole-segment term and the root it was read at: shared by
+     term_of, term_of_mod and go_incr, so a hit needs both to match */
+  let last: ref(option((Sort.t, Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
 
   let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
@@ -2179,7 +2181,7 @@ module Incr = {
   let term_of = (seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
-    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
+    | Some((Sort.Exp, prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let items = slices(seg);
       let keyed =
@@ -2230,7 +2232,7 @@ module Incr = {
           };
         };
       let term = graft(entries);
-      last := Some((seg, term));
+      last := Some((Sort.Exp, seg, term));
       term;
     };
   };
@@ -2247,7 +2249,7 @@ module Incr = {
   let term_of_mod = (seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
-    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
+    | Some((Sort.Mod, prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let keyed =
         List.filter_map(
@@ -2284,7 +2286,7 @@ module Incr = {
         );
       let term =
         wrap_module(List.concat_map(((_, e)) => e.me_items, entries));
-      last := Some((seg, term));
+      last := Some((Sort.Mod, seg, term));
       term;
     };
   };
@@ -2604,7 +2606,7 @@ module Incr = {
           };
         graft(entries);
       };
-    last := Some((seg, term)); /* share with term_of (statics path) */
+    last := Some((root, seg, term)); /* share with term_of (statics path) */
     let terms =
       root == Sort.Mod
         ? TermMap.add_all(term.annotation.ids, Exp(term), m_map^)
