@@ -552,11 +552,14 @@ let save_current = (prefix: string, model: Model.t): unit => {
       Hashtbl.replace(last_saved_agent, agent_key_str, agent);
       Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
     };
-  | (false, Drv(_)) =>
-    switch (Scratchpad.persist(sp).kind) {
-    | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
-    | CodePersist(_) => ()
-    }
+  | (false, Drv(m)) =>
+    save_slide_kind(
+      prefix,
+      sp.name,
+      DrvPersist(
+        DerivationExerciseMode.Model.persist(m, ~instructor_mode=false),
+      ),
+    )
   };
 };
 
