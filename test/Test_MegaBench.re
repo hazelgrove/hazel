@@ -202,8 +202,8 @@ let explode = (s: string): list(string) =>
 
 let bench = (~root=Sort.Exp, file: string, ()) => {
   /* the runner turns the sparse/global parity check on; the editor doesn't */
-  let parity = Zipper.normalize_parity^;
-  Zipper.normalize_parity := false;
+  let norm_check = Zipper.normalize_check^;
+  Zipper.normalize_check := None;
   switch (CorpusUtil.corpus_seg(~root, file)) {
   | None => fail("corpus unreadable/unparseable: " ++ file)
   | Some(seg) =>
@@ -251,7 +251,7 @@ let bench = (~root=Sort.Exp, file: string, ()) => {
       }
     };
   };
-  Zipper.normalize_parity := parity;
+  Zipper.normalize_check := norm_check;
 };
 
 let tests = (

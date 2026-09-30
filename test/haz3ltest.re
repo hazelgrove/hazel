@@ -9,7 +9,7 @@ Printexc.register_printer(exn => {
 });
 
 /* every edit checks sparse normalization against the global pass */
-Haz3lcore.Zipper.normalize_parity := true;
+NormalizeCheck.install();
 
 /* and statics against a monolithic analysis, except when benchmarking */
 if (!CorpusUtil.bench_enabled) {
