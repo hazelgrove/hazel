@@ -52,6 +52,7 @@ let (suite, exit_with_test_status) =
       Test_AliasProbe.tests,
       Test_LabelBench.tests,
       Test_ModRoot.tests,
+      Test_ModuleEval.tests,
       Test_TypeDeps.tests,
       Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,

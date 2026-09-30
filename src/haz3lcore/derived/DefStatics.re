@@ -773,6 +773,30 @@ and calc_module_item =
       members,
       map_union(member_merged, map_sur),
     );
+  /* the module value: member elabs grafted, finished like monolithic
+     Module statics */
+  let module_value =
+    graft_elabs(items_m)
+    |> Option.map(g =>
+         ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(def), g)
+       );
+  /* the literal's info must look monolithic too: the evaluator reuses
+     the module value recorded at this id while its elab is unchanged */
+  let map =
+    switch (module_value, Statics.Map.lookup_exp(Exp.rep_id(def), map)) {
+    | (Some(v), Some(raw)) =>
+      Id.Map.add(
+        Exp.rep_id(def),
+        Info.InfoExp({
+          ...raw,
+          elab_term: v,
+          co_ctx: CoCtx.union([raw.co_ctx, top_co]),
+          probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
+        }),
+        map,
+      )
+    | _ => map
+    };
   /* the item ROOT's info must look monolithic for the reuse gating:
      union the members' co_ctx/witnesses into it (raw source = this
      freshly built map, so the patch stays idempotent across calcs) */
@@ -801,16 +825,9 @@ and calc_module_item =
     );
   let free = compose_free(~get=m => m.d_free, ~shadow=shadow_filter);
   let tfree = compose_free(~get=m => m.d_tfree, ~shadow=tshadow);
-  /* elab: graft the member elabs into the module value, finish like
-     monolithic Module statics, and splice into the wrapper's elab */
   let d_elab =
-    switch (graft_elabs(items_m)) {
-    | Some(g) =>
-      ModuleHelpers.moduleexp_elab(
-        ~def_elab_direct=
-          ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(def), g),
-        elab_sur,
-      )
+    switch (module_value) {
+    | Some(v) => ModuleHelpers.moduleexp_elab(~def_elab_direct=v, elab_sur)
     | None => elab_sur /* shape gap: keep the surrogate's */
     };
   {
