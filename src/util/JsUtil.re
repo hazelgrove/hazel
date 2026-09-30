@@ -140,6 +140,23 @@ let focus_outline = (): unit =>
   | None => ()
   };
 
+/* where a keyboard-opened outline menu anchors: under the cursor's row */
+let outline_cursor_anchor = (): option((float, float)) =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-label.outline-cursor"),
+      ),
+    )
+  ) {
+  | Some(el) =>
+    let rect = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
+    let left: float = Js.Unsafe.get(rect, "left");
+    let bottom: float = Js.Unsafe.get(rect, "bottom");
+    Some((left +. 16., bottom));
+  | None => None
+  };
+
 /* how many outline rows one screenful holds, for PageUp/PageDown */
 let outline_page_rows = (): int =>
   switch (

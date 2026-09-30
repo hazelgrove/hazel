@@ -10,6 +10,11 @@ module Persist = ScratchPersist;
 
 /* the context menu: (row id, whether a module, screen x, y) */
 let menu: ref(option((Id.t, bool, float, float))) = ref(None);
+/* its row the keys have selected */
+let menu_sel: ref(int) = ref(0);
+/* for handlers, where [menu] is shadowed */
+let set_menu = m => menu := m;
+let read_menu = () => menu^;
 
 /* the keyboard cursor: a row path, None for the header row */
 let cursor: ref(option(OutlineTree.path)) = ref(None);
@@ -28,6 +33,7 @@ module Action = {
     /* toggle a branch's collapse */
     | Collapse(OutlineTree.path)
     | Menu(option((Id.t, bool, float, float)))
+    | MenuSel(int)
     | DefOp(OutlineSidebar.def_op, Id.t)
     | Cursor(option(OutlineTree.path))
     | Edit(option(OutlineEdit.t))
@@ -79,6 +85,10 @@ let update =
   switch (action) {
   | Menu(m) =>
     menu := m;
+    menu_sel := 0;
+    code |> Updated.return_quiet;
+  | MenuSel(i) =>
+    menu_sel := i;
     code |> Updated.return_quiet;
   | Collapse(path) =>
     let ck = Persist.content_key(prefix, name);
@@ -282,6 +292,7 @@ type memo_key = {
   k_name: string,
   k_collapsed: list(OutlineTree.path),
   k_menu: option((Id.t, bool, float, float)),
+  k_menu_sel: int,
   k_results: option(Language.TestResults.t),
   k_view: option(SlideView.t),
   k_cursor: option(OutlineTree.path),
@@ -298,6 +309,7 @@ let same = (a: memo_key, b: memo_key): bool =>
   && a.k_name == b.k_name
   && a.k_collapsed == b.k_collapsed
   && a.k_menu == b.k_menu
+  && a.k_menu_sel == b.k_menu_sel
   && a.k_view == b.k_view
   && a.k_cursor == b.k_cursor
   && a.k_edit == b.k_edit
@@ -367,6 +379,7 @@ let view =
     k_name: name,
     k_collapsed: collapsed,
     k_menu: menu,
+    k_menu_sel: menu_sel^,
     k_results: results,
     k_view: slide_view,
     k_cursor: cursor^,
@@ -476,6 +489,7 @@ let view =
       error_items,
       error_subtree,
       menu,
+      menu_sel: menu_sel^,
       /* live ✓/✗ for test rows, from the whole program's result */
       test_status: id =>
         Option.bind(results, (tr: Language.TestResults.t) =>
@@ -528,9 +542,22 @@ let view =
           inject(Commit(ed, then_new));
         },
       },
+      /* like the cursor, the menu moves at the event */
       menu_open: (id, is_module, x, y) =>
-        is_deck ? inject(Menu(Some((id, is_module, x, y)))) : Effect.Ignore,
+        if (is_deck) {
+          set_menu(Some((id, is_module, x, y)));
+          menu_sel := 0;
+          inject(Menu(Some((id, is_module, x, y))));
+        } else {
+          Effect.Ignore;
+        },
       menu_close: inject(Menu(None)),
+      menu_select: i => {
+        menu_sel := i;
+        inject(MenuSel(i));
+      },
+      get_menu: () => is_deck ? read_menu() : None,
+      get_menu_sel: () => menu_sel^,
       def_op: (op, id) => inject(DefOp(op, id)),
     };
     let node = OutlineSidebar.view(~props, ~on, term);

@@ -638,78 +638,119 @@ and new_row_after = (edit: edit_ctl, n: OutlineTree.node): list(Node.t) =>
   | _ => []
   };
 
+/* the context menu's rows, as data: the menu draws them and the keys
+   walk them. An item's act is a thunk: [edit.set] takes effect when
+   called, so drawing the menu must not call it */
+type menu_row =
+  | Item(string, option(string), unit => Effect.t(unit)) /* label, shortcut, act */
+  | Divider;
+
+let menu_rows =
+    (
+      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~zoom_in: Language.Id.t => Effect.t(unit),
+      ~edit: edit_ctl,
+      ~is_module: bool,
+      id: Language.Id.t,
+    )
+    : list(menu_row) => {
+  let mac = Util.Os.is_mac^;
+  let op = (~keys=?, o, label) => Item(label, keys, () => def_op(o, id));
+  /* the name row the keyboard makes; [prefix] picks the kind */
+  let new_row = (~inside=false, label, prefix) =>
+    Item(
+      label,
+      None,
+      () =>
+        Effect.Many([
+          take_focus,
+          edit.set(
+            Some({
+              ed_row: None,
+              ed_anchor: Some(id),
+              ed_inside: inside,
+              ed_text: prefix,
+              ed_caret: String.length(prefix),
+              ed_error: None,
+            }),
+          ),
+        ]),
+    );
+  (
+    is_module
+      ? [
+        Item(
+          "Zoom in",
+          Some(mac ? {js|⌥→|js} : {js|Alt+→|js}),
+          () => zoom_in(id),
+        ),
+        new_row(~inside=true, "New definition inside", ""),
+        Divider,
+      ]
+      : []
+  )
+  @ [
+    new_row("New definition below", ""),
+    new_row("New type below", "type "),
+    new_row("New module below", "module "),
+    Divider,
+    op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
+    op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
+    op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
+    Divider,
+    op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
+  ];
+};
+
+/* the rows that act, in order: the keyboard's selection counts these */
+let menu_items = (rows: list(menu_row)) =>
+  List.filter_map(
+    fun
+    | Item(_, _, act) => Some(act)
+    | Divider => None,
+    rows,
+  );
+
 /* the right-click menu: the editor's context menu (its classes, flip,
    dividers and key chips), fixed at the click */
 let menu_view =
     (
       ~menu_close: Effect.t(unit),
-      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
-      ~zoom_in: Language.Id.t => Effect.t(unit),
-      ~edit: edit_ctl,
+      ~rows: list(menu_row),
+      ~selected: int,
       ~is_module: bool,
-      (id: Language.Id.t, x: float, y: float),
+      (x: float, y: float),
     )
     : list(Node.t) => {
-  let mac = Util.Os.is_mac^;
-  let row = (~keys=?, label, eff) =>
-    div(
-      ~attrs=[
-        clss(["named-menu-item"]),
-        Attr.on_click(_ => Effect.Many([menu_close, eff])),
-      ],
-      [text(label)]
-      @ (
-        switch (keys) {
-        | Some(k) => [span(~attrs=[clss(["menu-shortcut"])], [text(k)])]
-        | None => []
-        }
-      ),
+  let (_, rows) =
+    List.fold_left_map(
+      (i, r) =>
+        switch (r) {
+        | Item(label, keys, act) => (
+            i + 1,
+            div(
+              ~attrs=[
+                clss(
+                  ["named-menu-item"] @ (i == selected ? ["selected"] : []),
+                ),
+                Attr.on_click(_ => Effect.Many([menu_close, act()])),
+              ],
+              [text(label)]
+              @ (
+                switch (keys) {
+                | Some(k) => [
+                    span(~attrs=[clss(["menu-shortcut"])], [text(k)]),
+                  ]
+                | None => []
+                }
+              ),
+            ),
+          )
+        | Divider => (i, div(~attrs=[clss(["menu-divider"])], []))
+        },
+      0,
+      rows,
     );
-  let op = (~keys=?, o, label) => row(~keys?, label, def_op(o, id));
-  /* the name row the keyboard makes; [prefix] picks the kind */
-  let new_row = (~inside=false, label, prefix) =>
-    row(
-      label,
-      Effect.Many([
-        take_focus,
-        edit.set(
-          Some({
-            ed_row: None,
-            ed_anchor: Some(id),
-            ed_inside: inside,
-            ed_text: prefix,
-            ed_caret: String.length(prefix),
-            ed_error: None,
-          }),
-        ),
-      ]),
-    );
-  let divider = div(~attrs=[clss(["menu-divider"])], []);
-  let rows =
-    (
-      is_module
-        ? [
-          row(
-            ~keys=mac ? {js|⌥→|js} : {js|Alt+→|js},
-            "Zoom in",
-            zoom_in(id),
-          ),
-          new_row(~inside=true, "New definition inside", ""),
-          divider,
-        ]
-        : []
-    )
-    @ [
-      new_row("New definition below", ""),
-      new_row("New type below", "type "),
-      new_row("New module below", "module "),
-      divider,
-      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
-      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
-      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
-      divider,
-      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
-    ];
   let dir =
     Util.Menu.direction_of(
       ~menu_height=is_module ? 230. : 176.,
@@ -789,7 +830,11 @@ let keys =
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
       ~leave: Effect.t(unit),
       ~edit: edit_ctl,
-      ~menu_shown: bool,
+      /* read at the keypress, like the cursor */
+      ~get_menu: unit => option((Language.Id.t, bool, float, float)),
+      ~get_menu_sel: unit => int,
+      ~menu_select: int => Effect.t(unit),
+      ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
       ~menu_close: Effect.t(unit),
       evt,
     )
@@ -811,6 +856,7 @@ let keys =
   let key: string = Js_of_ocaml.Js.to_string(e##.key);
   let code: string = Js_of_ocaml.Js.to_string(e##.code);
   let alt: bool = Js_of_ocaml.Js.to_bool(e##.altKey);
+  let shift: bool = Js_of_ocaml.Js.to_bool(e##.shiftKey);
   let meta: bool =
     Js_of_ocaml.Js.to_bool(e##.metaKey)
     || Js_of_ocaml.Js.to_bool(e##.ctrlKey);
@@ -833,8 +879,23 @@ let keys =
     | _ => Effect.Ignore
     };
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
+  /* the context menu at the cursor's row, as the editor opens its own */
+  let open_menu = (r: visible_row) =>
+    Option.map(
+      id => {
+        let (x, y) =
+          Option.value(
+            Util.JsUtil.outline_cursor_anchor(),
+            ~default=(0., 0.),
+          );
+        menu_open(id, is_module(r), x, y);
+      },
+      id_of(r),
+    );
   let nav_key = () =>
     switch (key, alt, meta, cur) {
+    | (".", false, true, Some(r)) => open_menu(r)
+    | ("F10", false, false, Some(r)) when shift => open_menu(r)
     | ("Escape", _, _, _) => Some(leave)
     | _ when alt && code == "KeyO" => Some(leave)
     | ("ArrowDown", false, false, _) =>
@@ -992,7 +1053,9 @@ let keys =
     | _ => None
     };
   };
-  let act =
+  /* a thunk: building a key's effect can move the cursor at once, so
+     keys the menu takes must not build it */
+  let act = () =>
     switch (edit.get(), key, meta, cur) {
     | (Some(ed), _, _, _) => edit_key(ed)
     | (None, "Enter", true, Some(r))
@@ -1001,14 +1064,39 @@ let keys =
     };
   let handled = eff =>
     Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, eff]);
-  /* an open menu takes Esc; any other key closes it, then acts */
-  switch (menu_shown, key, act) {
-  | (true, "Escape", _) => handled(menu_close)
-  | (true, "Shift" | "Alt" | "Meta" | "Control", None) => Effect.Ignore
-  | (true, _, Some(eff)) => handled(Effect.Many([menu_close, eff]))
-  | (true, _, None) => menu_close
-  | (false, _, Some(eff)) => handled(eff)
-  | (false, _, None) => Effect.Ignore
+  /* an open menu takes ↑↓, Enter and Esc; any other key closes it, then
+     acts */
+  let menu = get_menu();
+  let menu_sel = get_menu_sel();
+  let items =
+    switch (menu) {
+    | Some((id, is_module, _, _)) =>
+      menu_items(menu_rows(~def_op, ~zoom_in, ~edit, ~is_module, id))
+    | None => []
+    };
+  let n_items = List.length(items);
+  switch (menu, key) {
+  | (Some(_), "Escape") => handled(menu_close)
+  | (Some(_), "ArrowDown") when n_items > 0 =>
+    handled(menu_select((menu_sel + 1) mod n_items))
+  | (Some(_), "ArrowUp") when n_items > 0 =>
+    handled(menu_select((menu_sel + n_items - 1) mod n_items))
+  | (Some(_), "Enter") =>
+    switch (List.nth_opt(items, menu_sel)) {
+    | Some(item) => handled(Effect.Many([menu_close, item()]))
+    | None => handled(menu_close)
+    }
+  | (Some(_), "Shift" | "Alt" | "Meta" | "Control") => Effect.Ignore
+  | (Some(_), _) =>
+    switch (act()) {
+    | Some(eff) => handled(Effect.Many([menu_close, eff]))
+    | None => menu_close
+    }
+  | (None, _) =>
+    switch (act()) {
+    | Some(eff) => handled(eff)
+    | None => Effect.Ignore
+    }
   };
 };
 
@@ -1130,6 +1218,8 @@ type props = {
   error_items: list(Language.Id.t),
   error_subtree: list(Language.Id.t),
   menu: option((Language.Id.t, bool, float, float)),
+  /* the menu row the keys have selected */
+  menu_sel: int,
   test_status: Language.Id.t => option(TestStatus.t),
 };
 
@@ -1152,6 +1242,9 @@ type handlers = {
   edit: edit_ctl,
   menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
   menu_close: Effect.t(unit),
+  menu_select: int => Effect.t(unit),
+  get_menu: unit => option((Language.Id.t, bool, float, float)),
+  get_menu_sel: unit => int,
   def_op: (def_op, Language.Id.t) => Effect.t(unit),
 };
 
@@ -1169,6 +1262,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     error_items,
     error_subtree,
     menu,
+    menu_sel,
     test_status,
   } = props;
   let {
@@ -1189,6 +1283,9 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     edit,
     menu_open,
     menu_close,
+    menu_select,
+    get_menu,
+    get_menu_sel,
     def_op,
   } = on;
   /* zoomed, the module's members are the top level; collapse paths
@@ -1253,7 +1350,10 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
       ~def_op,
       ~leave,
       ~edit,
-      ~menu_shown=menu != None,
+      ~get_menu,
+      ~get_menu_sel,
+      ~menu_select,
+      ~menu_open,
       ~menu_close,
     );
   create(
@@ -1355,11 +1455,10 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
       | Some((id, is_module, x, y)) when stack_controls =>
         menu_view(
           ~menu_close,
-          ~def_op,
-          ~zoom_in,
-          ~edit,
+          ~rows=menu_rows(~def_op, ~zoom_in, ~edit, ~is_module, id),
+          ~selected=menu_sel,
           ~is_module,
-          (id, x, y),
+          (x, y),
         )
       | _ => []
       }
