@@ -1041,7 +1041,8 @@ module View = {
         | _ => ("", "")
         };
       let collapsed_paths =
-        ScratchMode.collapse_paths(slide_prefix, slide_name);
+        is_scratch
+          ? ScratchMode.collapse_paths(slide_prefix, slide_name) : [];
       let menu = is_scratch ? ScratchMode.outline_menu^ : None;
       let test_results =
         switch (model.editors) {
@@ -1082,7 +1083,9 @@ module View = {
              it; without this the outline only refreshed on restructure
              ops. Unstacked, the master's own statics are live — but they
              can be EMPTY right after an undo restores a compacted
-             snapshot, so fall back to the slot then too. */
+             snapshot, so fall back to the slot then too. Other modes
+             read only the current editor: the slot is not theirs. */
+          let slot = is_scratch ? Haz3lcore.DefStatics.current() : None;
           let outline_term = {
             let term = current_editor.statics.term;
             let stacked = focused_entries != [];
@@ -1094,7 +1097,7 @@ module View = {
             if (!stacked && named()) {
               term;
             } else {
-              switch (Haz3lcore.DefStatics.current()) {
+              switch (slot) {
               | Some(ds) => ds.Haz3lcore.DefStatics.term
               | None => term
               };
@@ -1105,7 +1108,7 @@ module View = {
             /* prefer the DefStatics slot: it stays live during stacked
                editing (the master's own statics are frozen then) */
             let (info_map, error_ids) =
-              switch (Haz3lcore.DefStatics.current()) {
+              switch (slot) {
               | Some(ds) => (
                   ds.merged,
                   Haz3lcore.DefStatics.all_error_ids(ds),
@@ -1155,6 +1158,7 @@ module View = {
             );
           };
           OutlineSidebar.view(
+            ~stack_controls=is_scratch,
             ~jump=id => globals.inject_global(JumpToTile(id)),
             /* plain click with a stack open ADDS (or moves to) that cell —
                never replaces the stack (andrew: replacing was a footgun) */
