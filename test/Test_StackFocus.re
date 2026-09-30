@@ -297,6 +297,16 @@ let tests = (
         (),
       )
     ),
+    test_case("member fn-body trailing expression", `Quick, () =>
+      check_headless(
+        ~src=
+          "module M = {\n  let f = fun x -> let y = x + 1 in y * 2;\n  let g = 0\n} in M.f(1)",
+        ~label="",
+        ~sym="\xe2\x87\x92",
+        ~body="y * 2",
+        (),
+      )
+    ),
     test_case("member restructure", `Quick, member_restructure),
     test_case("unfinished let stays closed", `Quick, unfinished_let),
     test_case("type alias", `Quick, () =>

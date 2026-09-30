@@ -552,6 +552,112 @@ let fn_body = (): unit => {
   );
 };
 
+/* a member whose body opens with `let … in`: the member's ops take all
+   of it, the inner let's stay inside the body */
+let let_body = (): unit => {
+  let src = "module M = {\n  let x =\n    let y = 1 in\n    y + 1;\n  let z = 2\n} in M.x";
+  let rows = (t: string): list(string) =>
+    switch (
+      List.find_opt(
+        (n: Web.OutlineTree.node) => n.o_label == "M",
+        Web.OutlineTree.of_term(statics_term(parse(t))),
+      )
+    ) {
+    | Some(m) =>
+      List.map(
+        (n: Web.OutlineTree.node) =>
+          n.o_label
+          ++ String.concat(
+               "",
+               List.map(
+                 (c: Web.OutlineTree.node) => "." ++ c.o_label,
+                 n.o_children,
+               ),
+             ),
+        m.o_children,
+      )
+    | None => []
+    };
+  check(list(string), "before", ["x.y", "z"], rows(src));
+  let ok = (~label, ~op, ~desc, expected) => {
+    let t = apply_ok(~src, ~label, ~op, ~desc);
+    check(list(string), desc, expected, rows(t));
+    t;
+  };
+  let t =
+    ok(
+      ~label="x",
+      ~op=Web.OutlineSidebar.MoveDown,
+      ~desc="move down",
+      ["z", "x.y"],
+    );
+  check(bool, "x moves whole", true, contains("y + 1\n}", t));
+  ignore(
+    ok(
+      ~label="z",
+      ~op=Web.OutlineSidebar.MoveUp,
+      ~desc="move up",
+      ["z", "x.y"],
+    ),
+  );
+  ignore(
+    ok(
+      ~label="x",
+      ~op=Web.OutlineSidebar.Duplicate,
+      ~desc="duplicate",
+      ["x.y", "x.y", "z"],
+    ),
+  );
+  ignore(
+    ok(
+      ~label="x",
+      ~op=Web.OutlineSidebar.NewBelow,
+      ~desc="new below",
+      ["x.y", "new_def", "z"],
+    ),
+  );
+  let t =
+    ok(~label="x", ~op=Web.OutlineSidebar.Delete, ~desc="delete", ["z"]);
+  check(bool, "delete takes the body", false, contains("y + 1", t));
+  ignore(
+    ok(
+      ~label="y",
+      ~op=Web.OutlineSidebar.NewBelow,
+      ~desc="inner new below",
+      ["x.y.new_def", "z"],
+    ),
+  );
+  ignore(
+    ok(
+      ~label="y",
+      ~op=Web.OutlineSidebar.Delete,
+      ~desc="inner delete",
+      ["x", "z"],
+    ),
+  );
+  apply_none(
+    ~src,
+    ~label="y",
+    ~op=Web.OutlineSidebar.MoveUp,
+    ~desc="the inner let can't leave its member",
+  );
+  /* a function member's flattened body: the same */
+  let fsrc = "module N = {\n  let f = fun x ->\n    let y = x + 1 in\n    y * 2;\n  let g = 0\n} in N.f(1)";
+  let t =
+    apply_ok(
+      ~src=fsrc,
+      ~label="f",
+      ~op=Web.OutlineSidebar.MoveDown,
+      ~desc="fn member move down",
+    );
+  check(
+    bool,
+    "f moves whole",
+    true,
+    contains("let g = 0;", t) && contains("y * 2\n}", t),
+  );
+};
+
 let tests = (
   "Restructure",
   [
@@ -560,6 +666,7 @@ let tests = (
     test_case("member ops", `Quick, members),
     test_case("a named member inside a module", `Quick, insert_inside),
     test_case("flattened fn-body ops", `Quick, fn_body),
+    test_case("a member whose body opens with a let", `Quick, let_body),
     test_case("unterminated last member", `Quick, unterminated_tail),
     test_case("moves across module edges", `Quick, across),
     test_case("in and out again", `Quick, round_trip),

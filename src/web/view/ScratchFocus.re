@@ -92,7 +92,8 @@ let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
 
 /* top-level item spans by piece structure, without parsing: an `…in`
    tile (+ trailing ws) is a def item, the run through a top-level `;`
-   (+ ws) a statement, and what remains the trailing expression */
+   (+ ws) a statement, and what remains the trailing expression. A 2-shard
+   member's body is its sibling run, so an `…in` there stays in the member */
 type item_kind =
   | IDef /* let / type / module: header+body cells */
   | IStmt /* a `…;` statement: headerless cell */
@@ -174,7 +175,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
           ]
           : acc,
       );
-    } else if (is_in_tile(arr[i])) {
+    } else if (is_in_tile(arr[i]) && run_def_head(start, i) == None) {
       let stop = ws_end(i + 1);
       walk(
         stop,
@@ -213,6 +214,47 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
   walk(0, 0, []);
 };
 
+/* a member body opening with `…in` lies flat in the member's run: it
+   is a let-in block, from that first `…in` up to the member's `;` */
+let flat_body = (arr: array(Piece.t), sp: item_span): option((int, int)) => {
+  /* the first `…in` past the head; a span opening with one is a let-in */
+  let rec first_in = (~head, i) =>
+    i >= sp.sp_stop
+      ? None
+      : (
+        switch (arr[i]) {
+        | Tile(t) when ends_with_in(t) => head ? None : Some(i)
+        | Tile(_) => first_in(~head=false, i + 1)
+        | _ => first_in(~head, i + 1)
+        }
+      );
+  let rec back = i =>
+    i > sp.sp_start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+  let stop = back(sp.sp_stop);
+  let stop = stop > sp.sp_start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
+  sp.sp_kind == IDef
+    ? Option.map(b0 => (b0, stop), first_in(~head=true, sp.sp_start)) : None;
+};
+
+/* [fid] is one of the pieces [lo, hi) themselves */
+let piece_at = (fid: Id.t, lo: int, hi: int, arr: array(Piece.t)): bool => {
+  let rec go = i => i < hi && (Piece.id(arr[i]) == fid || go(i + 1));
+  go(lo);
+};
+
+/* the flat body of one of [spans] with [fid] among its own pieces */
+let flat_body_of =
+    (fid: Id.t, arr: array(Piece.t), spans: list(item_span))
+    : option((int, int)) =>
+  List.find_map(
+    sp =>
+      switch (flat_body(arr, sp)) {
+      | Some((b0, b1)) when piece_at(fid, b0, b1, arr) => Some((b0, b1))
+      | _ => None
+      },
+    spans,
+  );
+
 /* the span holding [fid]: by its id first, then containment (outline
    ids can be tiles inside an item: module binders, the tail's root) */
 let find_item_span =
@@ -230,9 +272,9 @@ let find_item_span =
 
 /* the sub-span a headerless item's cell holds (a statement's run before
    its `;`, or the whole tail) and its header symbol; None for defs */
-let headless_span =
-    (~divided_only_tail=false, fid: Id.t, seg: Segment.t)
-    : option((int, int, string)) =>
+let rec headless_span =
+        (~divided_only_tail=false, fid: Id.t, seg: Segment.t)
+        : option((int, int, string)) =>
   switch (find_item_span(~divided_only_tail, fid, seg)) {
   | Some({sp_kind: IStmt, sp_start, sp_stop, _}) =>
     let arr = Array.of_list(seg);
@@ -243,7 +285,15 @@ let headless_span =
     Some((sp_start, stop, {js|;|js}));
   | Some({sp_kind: ITail, sp_start, sp_stop, _}) =>
     Some((sp_start, sp_stop, {js|⇒|js}))
-  | _ => None
+  | Some(sp) =>
+    let arr = Array.of_list(seg);
+    switch (flat_body_of(fid, arr, [sp])) {
+    | Some((b0, b1)) =>
+      headless_span(~divided_only_tail=true, fid, slice(b0, b1, seg))
+      |> Option.map(((a, b, sym)) => (b0 + a, b0 + b, sym))
+    | None => None
+    };
+  | None => None
   };
 
 /* headerless content at any block depth: nested blocks share the

@@ -139,10 +139,9 @@ let apply_at =
   let start_of = j => spans[j].Focus.sp_start;
   let end_of = j => spans[j].Focus.sp_stop;
   let movable = j => spans[j].Focus.sp_kind != Focus.ITail;
-  /* a member fn's body flattens into the module-body level (siblings,
-     not a child), so a span there can be a let-in of a member's inner
-     chain: such spans take let-in forms, and moves never mix the two
-     families (that would cross block levels) */
+  /* a member block can still hold a let-in item (an expression's
+     chain): it takes let-in forms, and moves never mix the two families
+     (that would cross block levels) */
   let arr = Array.of_list(seg);
   let span_in_tile = j => {
     let rec first_tile = i =>
@@ -297,9 +296,33 @@ let rec at_level =
     go(0);
   };
   let in_module = bctx == BModBody || top && mod_root;
-  switch (find((sp: Focus.item_span) => sp.sp_id == Some(fid))) {
-  | Some(j) => act(~in_module, spans, j, seg)
-  | None =>
+  let found = find((sp: Focus.item_span) => sp.sp_id == Some(fid));
+  let flat =
+    found == None
+      ? Focus.flat_body_of(fid, Array.of_list(seg), Array.to_list(spans))
+      : None;
+  switch (found, flat) {
+  | (Some(j), _) => act(~in_module, spans, j, seg)
+  | (None, Some((b0, b1))) =>
+    /* a let or the tail of a member's flat body: acts in that body */
+    let body = Focus.slice(b0, b1, seg);
+    let bspans = Array.of_list(Focus.item_spans(body));
+    let barr = Array.of_list(body);
+    let rec holding = k =>
+      k >= Array.length(bspans)
+        ? None
+        : bspans[k].sp_id == Some(fid)
+          || Focus.piece_at(fid, bspans[k].sp_start, bspans[k].sp_stop, barr)
+            ? Some(k) : holding(k + 1);
+    switch (holding(0)) {
+    | Some(k) =>
+      act(~in_module=false, bspans, k, body)
+      |> Option.map(((body', target)) =>
+           (Focus.take(b0, seg) @ body' @ Focus.drop(b1, seg), target)
+         )
+    | None => None
+    };
+  | (None, None) =>
     /* descend into tile children first (the owning block may be a
        module or fn body) */
     let is_module_tile = (t: Base.tile) =>
