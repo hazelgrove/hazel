@@ -74,16 +74,17 @@ let add = (a, b) => {
 };
 
 let run_keys =
-    (~settings=settings, ~label: string, z0: Zipper.t, keys: list(string))
+    (
+      ~settings=settings,
+      ~root=Sort.Exp,
+      ~label: string,
+      z0: Zipper.t,
+      keys: list(string),
+    )
     : (Zipper.t, stage_ms) => {
-  let syntax0 = CachedSyntax.init(~root=Exp, z0);
+  let syntax0 = CachedSyntax.init(~root, z0);
   let statics0 =
-    CachedStatics.init_compositional(
-      ~settings,
-      ~stitch=Fun.id,
-      ~root=Exp,
-      z0,
-    );
+    CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root, z0);
   MakeTerm.Incr.fell_back := 0;
   MakeTerm.Incr.full_analyzed := 0;
   MakeTerm.Incr.analyzed := 0;
@@ -100,7 +101,7 @@ let run_keys =
               ~settings,
               ~statics,
               ~syntax,
-              ~root=Exp,
+              ~root,
               Action.Insert(key),
               {
                 zipper: z,
@@ -137,7 +138,7 @@ let run_keys =
           let (syntax', t_syntax) =
             ms(() =>
               CachedSyntax.mk(
-                ~root=Exp,
+                ~root,
                 ~m_cache=syntax.m_cache,
                 ~t_cache=syntax.t_cache,
                 ~info_map=Id.Map.empty,
@@ -150,7 +151,7 @@ let run_keys =
               CachedStatics.init_compositional(
                 ~settings,
                 ~stitch=Fun.id,
-                ~root=Exp,
+                ~root,
                 z',
               )
             );
@@ -204,12 +205,12 @@ let run_keys =
 let explode = (s: string): list(string) =>
   List.init(String.length(s), i => String.make(1, s.[i]));
 
-let bench = (file: string, ()) => {
+let bench = (~root=Sort.Exp, file: string, ()) => {
   /* the runner turns the sparse/global parity check on; the editor does
      not — off for the measurement, restored after */
   let parity = Zipper.normalize_parity^;
   Zipper.normalize_parity := false;
-  switch (CorpusUtil.corpus_seg(~root=Exp, file)) {
+  switch (CorpusUtil.corpus_seg(~root, file)) {
   | None => fail("corpus unreadable/unparseable: " ++ file)
   | Some(seg) =>
     let z0 = Zipper.unzip(seg);
@@ -222,7 +223,12 @@ let bench = (file: string, ()) => {
       | None => Printf.printf("MEGABENCH %s: jump failed\n", file)
       | Some(z) =>
         ignore(
-          run_keys(~label=file ++ " complete/literal", z, explode("12345")),
+          run_keys(
+            ~root,
+            ~label=file ++ " complete/literal",
+            z,
+            explode("12345"),
+          ),
         )
       }
     };
@@ -236,12 +242,18 @@ let bench = (file: string, ()) => {
       | Some(z) =>
         let (z, _) =
           run_keys(
+            ~root,
             ~label=file ++ " incomplete/new-let",
             z,
             explode("\nlet q = 1"),
           );
         ignore(
-          run_keys(~label=file ++ " incomplete/digits", z, explode("2345")),
+          run_keys(
+            ~root,
+            ~label=file ++ " incomplete/digits",
+            z,
+            explode("2345"),
+          ),
         );
       }
     };
@@ -254,5 +266,10 @@ let tests = (
   [
     test_case("mega-1k keystrokes", `Slow, bench("mega-1k.hz")),
     test_case("mega-2k keystrokes", `Slow, bench("mega-2k.hz")),
+    test_case(
+      "mega-mod-1k keystrokes",
+      `Slow,
+      bench(~root=Mod, "mega-mod-1k.hz"),
+    ),
   ],
 );
