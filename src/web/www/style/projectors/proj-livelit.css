@@ -224,6 +224,13 @@
     right: auto;
     bottom: auto;
     overflow: auto;
+    /* Exactly the 14 rows its Tab(14) shape reserves (Livelit.FumolaWip),
+       in the editor's measured rows, so it covers the livelit's backing
+       shard, which the Tab shape draws down through them. Shorter, and the
+       shard's foot shows beneath it; the probe drawer's cap is lifted for
+       the same reason. */
+    height: calc(14 * var(--row-height-px));
+    max-height: none;
 }
 .livelit > .tab-extent:has(.fumola-wip-head) {
     align-items: flex-start;
@@ -269,9 +276,12 @@
     gap: 0.5em;
     min-width: 0;
 }
+.fumola-wip-body {
+    height: 100%;
+}
 .fumola-wip-right {
     min-width: 0;
-    max-height: calc(13 * var(--line-height) * 1em);
+    max-height: calc(13 * var(--row-height-px));
     overflow: auto;
 }
 /* A wire: Hazel | arrow | Fumola. The dashed rule down the middle is the

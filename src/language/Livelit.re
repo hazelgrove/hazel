@@ -1657,6 +1657,8 @@ module FumolaWip: BuiltinLivelit = {
     );
   };
 
+  /* The 14 rows are the height proj-livelit.css gives the full-width
+     rows; change both together. */
   let shape: Util.ProjectorShape.t = {
     vertical: Tab(14),
     horizontal: 44,
