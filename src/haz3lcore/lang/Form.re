@@ -881,9 +881,12 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       Token.is_quoted_label,
       [op(Exp), op(Pat), op(Typ), op(Fumola(Exp))],
     )
+  /* A Fumola number is spelled as Hazel's. Without a Fumola mold it fell
+     back to an Any tile, which MakeTerm still read as Lit(Nat), but which
+     drew in the error colour. */
   | IntLit => (
       Token.is_int,
-      [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
+      [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ)), op(Fumola(Exp))],
     )
   | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
   | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])

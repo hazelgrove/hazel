@@ -13,6 +13,12 @@ let is_ref = (token: string, sort: Sort.t) =>
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
 
+let is_word_delim = (token: string) =>
+  Token.is_keyword(token)
+  || String.length(token) > 0
+  && Char.lowercase_ascii(token.[0]) != Char.uppercase_ascii(token.[0])
+  && List.mem(token, Form.delims);
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -40,13 +46,20 @@ let of_delim' =
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
       let var_class = is_ref(token, sort) ? ["ref"] : [];
       let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
+      /* A spelled delimiter of some form (`thunk`, `force`, `end`) and a
+         quoted name: sorts that colour these apart from operators and
+         variables, as Fumola's does, need to tell them apart. */
+      let word_class = is_word_delim(token) ? ["word"] : [];
+      let quoted_class = Token.is_quoted_label(token) ? ["quoted"] : [];
       span(
         ~attrs=[
           Attr.classes(
             ["token", base_cls, plurality]
             @ in_buffer
             @ var_class
-            @ keyword_class,
+            @ keyword_class
+            @ word_class
+            @ quoted_class,
           ),
         ],
         /* Wide clusters (emoji, CJK) need an explicit cell so the glyph

@@ -108,11 +108,18 @@
    invisible in dark. They are not roles in the slide on purpose: adding a
    role makes every saved Colors slide fail the contract and yield no theme
    at all (ColorConfiguration.css_vars_of_value), which silently drops a
-   dark-mode user back to light. */
+   dark-mode user back to light.
+   The hues follow the Fumola VS Code theme's blue keywords, green names and
+   violet types, and stay away from magenta, which Hazel's red error colour
+   (hue 30) makes read as an error: from the signature's purple (300 in the
+   default scheme), operators and variables turn a violet (280), keywords
+   blue (255), quoted symbols and instance names green (140), and the tile's
+   shard a violet (285) just bluer than a type's. */
 :root {
-  --token-fumola: oklch(from var(--token-sig) l c calc(h + 45));
-  --token-fumola-name: oklch(from var(--token-fumola) l calc(c / 2) h);
-  --shard-fumola: oklch(from var(--shard-sig) l c calc(h + 45));
+  --token-fumola: oklch(from var(--token-sig) l c calc(h - 20));
+  --token-fumola-word: oklch(from var(--token-sig) l c calc(h - 45));
+  --token-fumola-name: oklch(from var(--token-sig) l calc(c * 0.7) calc(h - 160));
+  --shard-fumola: oklch(from var(--shard-sig) l c calc(h - 15));
   --fumola-pass-rule: var(--CREASE);
   --fumola-missed-rule: var(--border-strong);
 }
@@ -120,6 +127,12 @@
   color: var(--token-fumola);
 }
 .code .token.FumolaName {
+  color: var(--token-fumola-name);
+}
+.code .token.Fumola.word {
+  color: var(--token-fumola-word);
+}
+.code .token.Fumola.quoted {
   color: var(--token-fumola-name);
 }
 .code .token.Rul {
