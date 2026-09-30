@@ -115,6 +115,26 @@ let edge_case = ((name, src), ()) =>
   | Some(seg) => ignore(check_parity(name, seg))
   };
 
+/* a parse's result doesn't depend on what the previous parse left:
+   the shard masks of a completed-program parse stay with that parse */
+let independent = () =>
+  switch (ParsedCorpus.to_segment(~root=Exp, "let x = 1 in\nx")) {
+  | Some([Tile(t), ..._] as seg) =>
+    let fresh = () => MakeTerm.Incr.go_incr(~cache=MakeTerm.Incr.mk_cache());
+    let before = fresh((), seg);
+    let masks =
+      Id.Map.singleton(
+        t.id,
+        IdTagged.IdTag.{
+          present: [0],
+          prefixes: [],
+        },
+      );
+    ignore(MakeTerm.go_impl(~masks, seg));
+    records_agree("after a masked parse", before, fresh((), seg));
+  | _ => fail("unparseable")
+  };
+
 let tests = (
   "MakeTermIncr",
   List.map(
@@ -125,5 +145,6 @@ let tests = (
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
     test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz")),
+    test_case("independent of the previous parse", `Quick, independent),
   ],
 );

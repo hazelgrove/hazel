@@ -255,11 +255,8 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
 
 /* Shard provenance from canonical completion: tile id -> shard mask
  * (physically present indices + partially-typed prefixes). Empty
- * unless parsing a canonically completed segment. OWNERSHIP: only
- * go_impl / from_zip_for_sem may write it (set before the descent,
- * reset after); everything else reads via get_incomplete. Not
- * exception-safe: a raise mid-descent leaks the mask into the next
- * parse, like the file's other accumulator refs. */
+ * unless parsing a canonically completed segment. Written only by
+ * [fresh]; read via get_incomplete. */
 let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
   ref(Id.Map.empty);
 
@@ -1891,12 +1888,17 @@ let consolidate_adopted = (): unit => {
      });
 };
 
-/* Unmemoized parse. ~masks carries shard provenance from canonical
- * completion (tile id -> originally-present shard indices); it cannot be
- * folded into a segment-keyed memo because the same completed segment can
- * arise from different visible segments with different masks. */
-let go_impl =
-    (~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty, seg) => {
+/* Every parse runs inside [fresh]: the accumulators start empty, the
+ * secondary map and shard masks are [seg]'s, and the masks and any
+ * stray lexeme are cleared afterwards, even on a raise, so the next
+ * parse can't see them. The accumulators stay readable after. */
+let fresh =
+    (
+      ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
+      seg: Segment.t,
+      parse: unit => 'a,
+    )
+    : 'a => {
   map := TermMap.empty;
   term_data := Id.Map.empty;
   projectors := Id.Map.empty;
@@ -1905,16 +1907,37 @@ let go_impl =
   secondary_map := Segment.SecondaryCollection.collect(seg);
   shard_masks := masks;
   pending_lexeme := None;
-  let term = exp(unsorted(Exp, Segment.skel(seg), seg));
-  consolidate_adopted();
-  {
-    term,
-    term_data: term_data^,
-    terms: map^,
-    projectors: projectors^,
-    projector_list: projector_list^,
-  };
+  Fun.protect(
+    ~finally=
+      () => {
+        shard_masks := Id.Map.empty;
+        pending_lexeme := None;
+      },
+    parse,
+  );
 };
+
+/* Unmemoized parse. ~masks carries shard provenance from canonical
+ * completion (tile id -> originally-present shard indices); it cannot be
+ * folded into a segment-keyed memo because the same completed segment can
+ * arise from different visible segments with different masks. */
+let go_impl =
+    (~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty, seg) =>
+  fresh(
+    ~masks,
+    seg,
+    () => {
+      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+      consolidate_adopted();
+      {
+        term,
+        term_data: term_data^,
+        terms: map^,
+        projectors: projectors^,
+        projector_list: projector_list^,
+      };
+    },
+  );
 
 let go =
   /* SMALL bound: each key pins a whole SEGMENT plus its full term/
@@ -1937,30 +1960,26 @@ let wrap_module = (items: list(Mod.t)): Exp.t =>
    misparse such a segment at Exp sort (every token sort-flagged).
    Term = the stable-id Module wrapper over the flattened items. */
 let go_mod_root =
-  Core.Memo.general(
-    ~cache_size_bound=8,
-    seg => {
-      map := TermMap.empty;
-      term_data := Id.Map.empty;
-      projectors := Id.Map.empty;
-      projector_list := [];
-      adopted_ids := [];
-      secondary_map := Segment.SecondaryCollection.collect(seg);
-      let items =
-        switch (go_s(Sort.Mod, Segment.skel(seg), seg)) {
-        | Mod(m) => flatten_mod(m)
-        | _ => []
+  Core.Memo.general(~cache_size_bound=8, seg =>
+    fresh(
+      seg,
+      () => {
+        let items =
+          switch (go_s(Sort.Mod, Segment.skel(seg), seg)) {
+          | Mod(m) => flatten_mod(m)
+          | _ => []
+          };
+        consolidate_adopted();
+        let term = wrap_module(items);
+        {
+          term,
+          term_data: term_data^,
+          terms: TermMap.add_all(term.annotation.ids, Exp(term), map^),
+          projectors: projectors^,
+          projector_list: projector_list^,
         };
-      consolidate_adopted();
-      let term = wrap_module(items);
-      {
-        term,
-        term_data: term_data^,
-        terms: TermMap.add_all(term.annotation.ids, Exp(term), map^),
-        projectors: projectors^,
-        projector_list: projector_list^,
-      };
-    },
+      },
+    )
   );
 
 let for_projection =
@@ -2057,25 +2076,19 @@ module Incr = {
   let last: ref(option((Sort.t, Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
 
-  let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
+  /* per-slice secondary collection is exact despite the cut: ownership
+     in collect_from_skel gives a Pre node only its before-run, so with
+     cuts right after `in`-tiles no secondary run crosses a slice
+     boundary (the boundary trivia is the next item's before-run,
+     inside the next slice). Parity with go's whole-segment collection
+     is test-gated. For nonconvex slices the collection runs on the
+     holed attempt, whose skel matches the whole-segment structure
+     restricted to the item. */
+  let parse_item =
+      (~masks=Id.Map.empty, pieces: Segment.t): (Exp.t, option(Id.t)) => {
     let attempt = (ps: Segment.t) =>
       switch (Segment.skel(ps)) {
-      | skel =>
-        map := TermMap.empty;
-        term_data := Id.Map.empty;
-        projectors := Id.Map.empty;
-        projector_list := [];
-        adopted_ids := [];
-        /* per-slice collection is EXACT despite the cut: ownership in
-           collect_from_skel gives a Pre node only its before-run, so
-           with cuts right after `in`-tiles no secondary run crosses a
-           slice boundary (the boundary trivia is the next item's
-           before-run, inside the next slice). Parity with go's
-           whole-segment collection is test-gated. Note the collection
-           runs on the HOLED attempt for nonconvex slices, whose skel
-           matches the whole-segment structure restricted to the item. */
-        secondary_map := Segment.SecondaryCollection.collect(ps);
-        Some(exp(unsorted(Exp, skel, ps)));
+      | skel => Some(fresh(~masks, ps, () => exp(unsorted(Exp, skel, ps))))
       | exception _ => None
       };
     switch (attempt(pieces)) {
@@ -2105,20 +2118,17 @@ module Incr = {
      here (its id is scrubbed from the captured maps by the caller).
      Composition is a plain list concat — mod items have no body
      continuation, so there is no graft. */
-  let parse_item_mod = (pieces: Segment.t): (list(Mod.t), option(Id.t)) => {
+  let parse_item_mod =
+      (~masks=Id.Map.empty, pieces: Segment.t): (list(Mod.t), option(Id.t)) => {
     let attempt = (ps: Segment.t): option(list(Mod.t)) =>
       switch (Segment.skel(ps)) {
       | skel =>
-        map := TermMap.empty;
-        term_data := Id.Map.empty;
-        projectors := Id.Map.empty;
-        projector_list := [];
-        adopted_ids := [];
-        secondary_map := Segment.SecondaryCollection.collect(ps);
-        switch (go_s(Sort.Mod, skel, ps)) {
-        | Mod(m) => Some(flatten_mod(m))
-        | _ => None
-        };
+        fresh(~masks, ps, () =>
+          switch (go_s(Sort.Mod, skel, ps)) {
+          | Mod(m) => Some(flatten_mod(m))
+          | _ => None
+          }
+        )
       | exception _ => None
       };
     switch (attempt(pieces)) {
@@ -2172,7 +2182,7 @@ module Incr = {
       };
     };
 
-  let term_of = (seg: Segment.t): Exp.t => {
+  let term_of = (~masks=Id.Map.empty, seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
     | Some((Sort.Exp, prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
@@ -2194,7 +2204,7 @@ module Incr = {
             | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
             | _ =>
               incr(analyzed);
-              let (term, hole) = parse_item(ps);
+              let (term, hole) = parse_item(~masks, ps);
               let e = {
                 e_pieces: ps,
                 e_term: term,
@@ -2240,7 +2250,7 @@ module Incr = {
   };
   let mod_memo: ref(Id.Map.t(mod_entry)) = ref(Id.Map.empty);
 
-  let term_of_mod = (seg: Segment.t): Exp.t => {
+  let term_of_mod = (~masks=Id.Map.empty, seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
     | Some((Sort.Mod, prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
@@ -2261,7 +2271,7 @@ module Incr = {
             | Some(e) when seg_eq(e.me_pieces, ps) => (key, e)
             | _ =>
               incr(analyzed);
-              let (items, _) = parse_item_mod(ps);
+              let (items, _) = parse_item_mod(~masks, ps);
               (
                 key,
                 {
@@ -2286,22 +2296,17 @@ module Incr = {
   };
 
   /* ~masks: shard provenance of the canonically completed [seg] (see
-     go_impl); consulted by the per-item parses through shard_masks.
-     A mask only concerns tiles of items whose completion changed, and
-     those items' pieces are new objects, so memoized entries never
-     carry a stale mask. */
+     go_impl), passed to the per-item parses. A mask only concerns tiles
+     of items whose completion changed, and those items' pieces are new
+     objects, so memoized entries never carry a stale mask. */
   let term_of_root =
       (
         ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
         ~root: Sort.t,
         seg: Segment.t,
       )
-      : Exp.t => {
-    shard_masks := masks;
-    let term = root == Sort.Mod ? term_of_mod(seg) : term_of(seg);
-    shard_masks := Id.Map.empty;
-    term;
-  };
+      : Exp.t =>
+    root == Sort.Mod ? term_of_mod(~masks, seg) : term_of(~masks, seg);
 
   /* ===== go_incr: the full go() record, composed per item =====
      Per-item parses capture the side maps go accumulates globally;
@@ -2690,13 +2695,12 @@ let from_zip_for_sem_with_completion =
    standalone pat statics entry is needed — just the term. */
 let from_zip_for_pat = (z: Zipper.t): Pat.t => {
   let (seg, _) = semantic_segment(~root=Sort.Pat, semantic_source(z));
-  /* the recorders are global refs: without this, term annotations
-     pick up whichever segment's secondaries were collected last */
-  secondary_map := Segment.SecondaryCollection.collect(seg);
-  switch (Segment.skel(seg)) {
-  | exception _ => Pat.fresh(EmptyHole)
-  | skel => pat(unsorted(Sort.Pat, skel, seg))
-  };
+  fresh(seg, () =>
+    switch (Segment.skel(seg)) {
+    | exception _ => Pat.fresh(EmptyHole)
+    | skel => pat(unsorted(Sort.Pat, skel, seg))
+    }
+  );
 };
 
 /* Semantic TYP for a Typ-rooted editor (modular-editors type-alias
@@ -2704,57 +2708,42 @@ let from_zip_for_pat = (z: Zipper.t): Pat.t => {
    cursor inspector has real type info. */
 let from_zip_for_typ = (z: Zipper.t): Typ.t => {
   let (seg, _) = semantic_segment(~root=Sort.Typ, semantic_source(z));
-  /* the recorders are global refs: without this, term annotations
-     pick up whichever segment's secondaries were collected last */
-  secondary_map := Segment.SecondaryCollection.collect(seg);
-  switch (Segment.skel(seg)) {
-  | exception _ => Typ.fresh(Unknown(Hole(EmptyHole)))
-  | skel => typ(unsorted(Sort.Typ, skel, seg))
-  };
+  fresh(seg, () =>
+    switch (Segment.skel(seg)) {
+    | exception _ => Typ.fresh(Unknown(Hole(EmptyHole)))
+    | skel => typ(unsorted(Sort.Typ, skel, seg))
+    }
+  );
 };
 
 /* Semantic TPAT for a TPat-rooted editor (type-alias header cells). */
 let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
   let (seg, _) = semantic_segment(~root=Sort.TPat, semantic_source(z));
-  /* the recorders are global refs: without this, term annotations
-     pick up whichever segment's secondaries were collected last */
-  secondary_map := Segment.SecondaryCollection.collect(seg);
-  switch (Segment.skel(seg)) {
-  | exception _ => TPat.fresh(EmptyHole)
-  | skel => tpat(unsorted(Sort.TPat, skel, seg))
-  };
+  fresh(seg, () =>
+    switch (Segment.skel(seg)) {
+    | exception _ => TPat.fresh(EmptyHole)
+    | skel => tpat(unsorted(Sort.TPat, skel, seg))
+    }
+  );
 };
 
-/* terms + term_data + projectors for a NON-Exp-rooted editor: the
-   sorted parse populates the same recorders the Exp path uses, so
-   sort-consistency highlighting and term selection (triple-click)
-   work in Pat/TPat/Typ (and Drv/Mod/Sig/MPat) cells. (The Exp-rooted
-   [go] misparses those segments — its term sorts flagged every token
-   as sort-inconsistent.) Mirrors [go]'s full prologue/epilogue: the
-   recorders are GLOBAL refs, so a partial reset (or skipping
-   consolidate_adopted / the secondary collection) leaks another
-   segment's data into this cell's annotations. go_s dispatches every
-   sort, so the top-level term's own ids always land in [map] —
-   the earlier Pat/Typ/TPat-only dispatch left them out for other
-   roots, crashing unguarded consumers (Arms) in derivation cells. */
+/* terms + term_data + projectors for a non-Exp-rooted editor: the
+   sorted parse fills the same recorders the Exp path uses, so
+   sort-consistency highlighting and term selection work in Pat/TPat/
+   Typ (and Drv/Mod/Sig/MPat) cells, where the Exp-rooted [go] would
+   flag every token as sort-inconsistent. go_s dispatches every sort,
+   so the top-level term's own ids always land in [map]. */
 let sorted_syntax_data_memo =
-  Core.Memo.general(
-    ~cache_size_bound=8,
-    ((root: Sort.t, seg: Segment.t)) => {
-      map := TermMap.empty;
-      term_data := Id.Map.empty;
-      projectors := Id.Map.empty;
-      projector_list := [];
-      adopted_ids := [];
-      secondary_map := Segment.SecondaryCollection.collect(seg);
+  Core.Memo.general(~cache_size_bound=8, ((root: Sort.t, seg: Segment.t)) =>
+    fresh(seg, () =>
       switch (Segment.skel(seg)) {
       | exception _ => (TermMap.empty, Id.Map.empty, Id.Map.empty, [])
       | skel =>
         ignore(go_s(root, skel, seg));
         consolidate_adopted();
         (map^, term_data^, projectors^, projector_list^);
-      };
-    },
+      }
+    )
   );
 
 let sorted_syntax_data = (~root: Sort.t, seg: Segment.t) =>
