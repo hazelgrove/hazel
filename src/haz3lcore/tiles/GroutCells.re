@@ -236,8 +236,10 @@ let drop_consumed_spaces = (seg: segment): segment => {
  * each hole with a space right after it, which classify hands to that
  * hole (NextSpace). Each hole gets one cell, every separator survives,
  * and the drawn width matches Printer.of_segment's (a hole per column).
- * RENDER-ONLY, like drop_consumed_spaces: never stored or placed. A
- * hole-free segment comes back physically unchanged. */
+ * RENDER-ONLY, like drop_consumed_spaces: never in a zipper, never
+ * placed (read-only value editors keep it in their display cache,
+ * CachedSyntax.back_holes). A hole-free segment comes back physically
+ * unchanged. */
 let back_holes = (seg: segment): segment => {
   let rec has_hole = (sg: segment): bool =>
     List.exists(

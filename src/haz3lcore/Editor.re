@@ -22,14 +22,15 @@ module Model = {
     syntax: CachedSyntax.t /* Calculated */
   };
 
-  let mk = (zipper: Zipper.t, ~root): t => {
+  let mk_with = (~back_holes: bool, zipper: Zipper.t, ~root): t => {
     root,
     state: {
       zipper,
       col_target: None,
     },
-    syntax: CachedSyntax.init(zipper),
+    syntax: CachedSyntax.init(~back_holes, zipper),
   };
+  let mk = mk_with(~back_holes=false);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {

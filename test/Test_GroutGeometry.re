@@ -261,9 +261,8 @@ let flat = (s: string): string =>
    conversion's segment straight through Measured + GroutCells, after
    GroutCells.back_holes gives each hole a space of its own. The pin is
    the measured grid, plus the column of any hole pinched to zero
-   width. Eval results are different: they render through a read-only
-   editor, so their holes follow editor placement (layout-invisible,
-   filling existing spaces) and are pinned as they stand. */
+   width. Eval results render through a read-only editor; mk_from_exp
+   turns on the same backing in its display (CachedSyntax.back_holes). */
 let value_render = (seg: Segment.t): string => {
   let m = measured_of(seg);
   let cells = GroutCells.classify(seg);
@@ -322,17 +321,13 @@ let inspector_type = (t: Language.Typ.t): Segment.t =>
 
 /* eval results: CodeSelectable.Model.mk_from_exp's display segment */
 let eval_result = (e: Language.Exp.t): Segment.t => {
-  let seg =
-    ExpToSegment.exp_to_segment(
-      ~settings=
-        ExpToSegment.Settings.of_core(
-          ~inline=false,
-          Language.CoreSettings.on,
-        ),
+  let model =
+    Web.CodeSelectable.Model.mk_from_exp(
+      ~settings=Language.CoreSettings.on,
+      ~root=Exp,
       e,
-    )
-    |> PrettySegment.prettify;
-  (seg |> Zipper.unzip |> Editor.Model.mk(~root=Exp)).syntax.segment;
+    );
+  model.editor.syntax.segment;
 };
 
 let value_display_table = (): string =>
@@ -405,13 +400,13 @@ sample ?        ?
 type   ? -> ?   ? -> ?
 type   (?, ?)   (?, ?)
 type   [?]      [?]
-result (?, ?)   (,?)  pinch@1
-result (1, ?)   (1,?)
-result ? + ?    ?+ ?
-result ? + 1    ?+ 1
+result (?, ?)   (?, ?)
+result (1, ?)   (1, ?)
+result ? + ?    ? + ?
+result ? + 1    ? + 1
 result 1 :: 1   1 :: 1
-result ? :: ?   ?:: ?
-result [?, ?]   [,?]  pinch@1
+result ? :: ?   ? :: ?
+result [?, ?]   [?, ?]
 result ?        ?|},
           value_display_table(),
         )

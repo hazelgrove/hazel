@@ -75,6 +75,11 @@ type t = {
   /* insertions actually ghosted this frame (physical members of
    * assist) — chip suppression matches exactly these */
   ghosted: list(CanonicalCompletion.insertion),
+  /* a read-only editor showing a converted value (eval result,
+   * stepper): its holes own a cell (GroutCells.back_holes), as in
+   * probe values and inspector types. Display-only: the zipper never
+   * sees the backing spaces. */
+  back_holes: bool,
 };
 
 // should not be serializing
@@ -155,6 +160,7 @@ let mk =
       ~inline_persist=Language.CoreSettings.Off,
       ~persist_state=([], []),
       ~persist_edit=false,
+      ~back_holes=false,
       z,
     )
     : t => {
@@ -188,6 +194,7 @@ let mk =
     parsed,
   } = fork;
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
+  let segment = back_holes ? GroutCells.back_holes(segment) : segment;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -227,11 +234,12 @@ let mk =
     persist_on: inline_persist,
     assist,
     ghosted,
+    back_holes,
   };
 };
 
-let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~back_holes=false, z: Zipper.t) =>
+  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty, ~back_holes);
 
 let mark_old: t => t =
   old => {
@@ -330,6 +338,7 @@ let calculate =
       ~inline_persist,
       ~persist_state=(old.persist_known, old.persist_held),
       ~persist_edit,
+      ~back_holes=old.back_holes,
     );
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
