@@ -43,9 +43,8 @@ type entry =
 /* An entry list ([entries] is newest-first) plus a SIZE field, so the
    per-binder-scope operations (added_bindings, subtract_prefix) are
    O(diff) instead of paying O(n) List.lengths. Serialization goes
-   through [repr]; the wire format carries no size. NOTE a name-keyed
-   map representation was tried and reverted — no measured benefit;
-   see plans/perf-ledger.md §5/§7 before re-proposing. */
+   through [repr]; the wire format carries no size. A name-keyed map
+   is no faster here. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type repr = {
   use_mode: option(Operators.mode), // None if elaboration has already occurred

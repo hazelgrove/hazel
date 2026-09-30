@@ -8,9 +8,7 @@ open Language;
    scope at the binder:
      type T = Int in let x : T = 1 in type T = Bool in x
    reports x : Bool at the use (raw type is the unresolved Var "T").
-   Verified empirically 2026-08-28 (andrew's shadowing question ahead
-   of ctx-as-map). The ctx-as-map swap must preserve this exactly; if
-   the SEMANTICS is ever deliberately changed to def-site resolution,
+   If the semantics is deliberately changed to def-site resolution,
    flip this test. */
 
 let case = () => {

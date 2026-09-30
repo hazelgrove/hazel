@@ -4,11 +4,9 @@ open Language;
 module OutlineTree = Web.OutlineTree;
 module Focus = Web.ScratchFocus;
 
-/* Tests-container pinning opens ONE run cell at every block depth
-   (andrew's report: module containers pinned each test individually
-   while top-level containers opened one cell). Gates: the run entry
-   spans all container members, top-level and module alike, and an
-   unedited run cell splices home exactly. */
+/* Pinning a tests container opens one run cell at every block depth:
+   the run entry spans all container members, top-level and module
+   alike, and an unedited run cell splices home exactly. */
 
 let settings = CoreSettings.on;
 

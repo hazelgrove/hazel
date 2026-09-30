@@ -475,8 +475,8 @@ let post_batch_result = (model, request_id, completed) =>
    reuse-cache payload — prev_elab (the region's whole elaborated
    subtree), prev_reuse_map, prev_probe_targets, the region's value,
    and the state's own nested incr_eval — stays worker-side
-   (store_resident keeps the full response); shipping it decoded to
-   ~90MB live on mega programs, most of the per-edit heap churn. */
+   (store_resident keeps the full response): decoded on the main
+   thread it dominates per-edit heap churn on large programs. */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
 let slim_state = (state: Language.EvaluatorState.t) =>
   Language.EvaluatorState.{
@@ -631,7 +631,7 @@ let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
    the next request's prev is WORKER-RESIDENT and reuse predictions
    arrive via ReusePlan. Strip it AFTER store_resident so the
    completion payload doesn't marshal the whole entry map back across
-   the boundary (it rivals the old request-side prev-cache in size). */
+   the boundary. */
 let slim_response = (response: Response.value): Response.value =>
   switch (response) {
   | Ok((exp, state)) =>

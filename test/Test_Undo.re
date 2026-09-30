@@ -70,9 +70,9 @@ let tests = (
         check(int, "edit pushed one undo entry", 1, undo_len(m1));
         let m2 = apply(m1, undo);
         check(string, "undo restores original text", t0, text_of(m2));
-        /* snapshots are COMPACTED (derived caches dropped, recomputed
-           on restore), so physical identity no longer holds — source
-           state (the text, checked above) is the restoration contract */
+        /* snapshots are compacted (derived caches dropped, recomputed
+           on restore), so the text, checked above, is the restoration
+           contract rather than physical identity */
         check(int, "undo stack is empty again", 0, undo_len(m2));
         check(int, "undone edit moved to redo stack", 1, redo_len(m2));
       },

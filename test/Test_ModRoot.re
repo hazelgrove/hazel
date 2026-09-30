@@ -2,9 +2,9 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Stage C (plans/mod-root.md): Mod-as-root incrementality.
-   Phase 1 gates: go_incr(~root=Mod) ≡ go_mod_root (term + maps), and
-   an identity-preserving one-item edit re-parses exactly one slice. */
+/* Mod-as-root incrementality: go_incr(~root=Mod) ≡ go_mod_root (term
+   + maps), and an identity-preserving one-item edit re-parses exactly
+   one slice. */
 
 let mod_src = "let x = 1;
 type T = Int;
@@ -156,7 +156,7 @@ let last_slot_keyed_by_root = () => {
   );
 };
 
-/* ---- Phase 2: DefStatics over a Module root ---- */
+/* ---- DefStatics over a Module root ---- */
 
 let settings = CoreSettings.on;
 let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
@@ -278,9 +278,9 @@ let corpus = () => {
   };
 };
 
-/* ---- Stage D: ONE BIG MODULE (the shape member granularity is for):
-   the whole corpus inside a single `module App = {...}` — a member
-   edit must cost ~one member, not the whole module ---- */
+/* ---- One big module: the whole corpus inside a single
+   `module App = {...}`; a member edit costs about one member, not the
+   whole module ---- */
 let big_module = () => {
   switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
   | None => fail("mega-mod-1k.hz unreadable")

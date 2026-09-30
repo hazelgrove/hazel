@@ -35,9 +35,8 @@ type entry = {
 
 /* Each co-context entry is a list of the uses of a variable within
    some scope, including their type demands. Consume the
-   representation only through the accessor API below. NOTE a
-   name-keyed map representation was tried and reverted — no measured
-   benefit; see plans/perf-ledger.md §5/§7 before re-proposing. */
+   representation only through the accessor API below. A name-keyed
+   map is no faster here. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(list(entry));
 

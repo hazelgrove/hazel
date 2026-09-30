@@ -21,9 +21,9 @@ module Focus = ScratchFocus;
 let content_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name;
 
-/* modeled outline collapse (andrew: DOM-owned <details> state bled
+/* modeled outline collapse (DOM-owned <details> state would bleed
    across slides positionally and reset whenever a structural edit
-   made the vdom recreate elements). Per-slide sets of occurrence-
+   makes the vdom recreate elements). Per-slide sets of occurrence-
    qualified label paths; the summary click dispatches
    OutlineCollapse; the open attr renders from this. Persisted per
    slide (a ":collapse" side key). */
@@ -105,10 +105,8 @@ type saved_view = {
 };
 let pending_pins: Hashtbl.t(string, saved_view) = Hashtbl.create(8);
 
-/* pins/collapse store as sexps: outline labels are arbitrary program
-   text, so the old space-/-newline-delimited lines silently dropped
-   any pin whose label contained a delimiter (e.g. a backticked name
-   with a space). The legacy decoder remains as a read fallback,
+/* pins/collapse store as sexps, since outline labels are arbitrary
+   program text. The legacy line format stays as a read fallback,
    mapping bare labels to occurrence 0. */
 [@deriving sexp]
 type pin_rec = {

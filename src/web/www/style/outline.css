@@ -1,4 +1,4 @@
-/* Outline sidebar (modular-editors phase 1): a REAL grid panel in
+/* Outline sidebar: a real grid panel in
    column 1, spanning the focus-bar + main rows — it takes space from
    the editor rather than hovering over it. Collapsed, it is just its
    thin vertical tab (fit-content column). */
@@ -341,8 +341,7 @@
 
 /* stacked body cells keep the master editor's lighter surface: the
    generic cell-background rule matches `#main > * > .code-editor`,
-   but stack cells sit one wrapper deeper (`.focus-body > .cell`).
-   (The frozen-tint deco used to paper over this; removed upstream.) */
+   but stack cells sit one wrapper deeper (`.focus-body > .cell`). */
 :is(#main.Scratch, #main.Documentation)
   > .focus-body
   > .cell
@@ -367,7 +366,7 @@
 }
 
 /* the standard cell inset is 16px all around; the header keeps only
-   the horizontal share (andrew: no vertical padding) */
+   the horizontal share */
 #main .focus-header .cell-item {
   padding: 0 16px;
 }
@@ -398,7 +397,7 @@
   opacity: 0.85;
 }
 
-/* erroring rows also tint the name itself (keep the dot; andrew) */
+/* erroring rows also tint the name itself (the dot stays) */
 #outline-sidebar .outline-label.outline-has-err {
   color: var(--text-error, #c33);
 }

@@ -206,7 +206,7 @@ let align_active_cell_top = (): unit =>
     | None => ()
     | Some(t) =>
       /* Scrolling a just-opened cell to the viewport top is jarring
-         when the cell landed in view anyway (andrew). Skip when the
+         when the cell landed in view anyway. Skip when the
          header is visible WITH some room below it for body context —
          a header peeking at the bottom edge still scrolls. Off-screen
          targets keep the align-to-top (jump-to-definition lands the

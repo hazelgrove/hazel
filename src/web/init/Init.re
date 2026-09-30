@@ -9,8 +9,8 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-/* each slide carries its editor ROOT sort: the mega-mod corpus is a
-   module body (root Mod, plans/mod-root.md); everything else is Exp */
+/* each slide carries its editor root sort: the mega-mod corpus is a
+   module body (root Mod); everything else is Exp */
 let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
   List.map(
     ((n, z)) => (n, Sort.Exp, z),

@@ -477,8 +477,7 @@ let of_segment_inner =
   go(~top_level=final, initial_acc, seg).map;
 };
 
-/* ===== CHUNKED MEASUREMENT (plans/subeditor-dataflow.md §5a) =====
-   The program is measured PER TOP-LEVEL CHUNK (item runs cut only
+/* The program is measured per top-level chunk (item runs cut only
    where a boundary is followed by a linebreak, so every chunk is a
    whole-lines block starting at column 0) and composed by row
    offsets. An edit re-measures one chunk; unchanged chunks are

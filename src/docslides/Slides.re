@@ -26,8 +26,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );
 
-/* MOD-ROOTED variants of the mega corpus (plans/mod-root.md): the top
-   level is a module body (`;`-separated items), editor root = Mod. */
+/* the mega corpus with a module-body top level (root Mod) */
 let mod_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     /* one Mod-rooted slide suffices to demonstrate the root flip;

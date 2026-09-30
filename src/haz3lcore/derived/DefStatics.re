@@ -1,9 +1,8 @@
 open Language;
 
-/* DefStatics — compositional whole-program statics
-   (plans/modular-editors.md §8d): statics computed PER TOP-LEVEL ITEM
-   (let / type alias / module / trailing expression) with chained
-   ctxs, so an edit recomputes only the dirty set:
+/* Whole-program statics computed per top-level item (let / type
+   alias / module / trailing expression) with chained ctxs, so an edit
+   recomputes only the dirty set:
      - the edited item always;
      - downstream items, only when an upstream item's EXPORTS changed
        (name/id/type of a binding) AND they mention a changed name —
@@ -28,9 +27,8 @@ type item = {
   d_ctx_out: Ctx.t,
   d_elab: Exp.t, /* elaboration of the hollow item */
   d_hole: option(Id.t), /* the body hole's id (None: trailing exp) */
-  /* member-granular items (plans/mod-root.md phase 5): when the def
-     is a module LITERAL, its members (+ exports tail) are analyzed as
-     a nested item chain, memoized per member across calcs */
+  /* when the def is a module literal, its members (+ exports tail)
+     are analyzed as a nested item chain, memoized per member */
   d_members: list(item),
 };
 
@@ -61,8 +59,7 @@ let rec chain = (e: Exp.t): list(Exp.t) => {
   };
 };
 
-/* ---- Mod-rooted programs (plans/mod-root.md phase 2) ----
-   A Module(items) ROOT itemizes exactly like the monolithic lowering
+/* A Module(items) root itemizes exactly like the monolithic lowering
    (ModuleHelpers.wrap_item): each mod item becomes a hollow-able
    Let/TyAlias wrapper feeding the SAME per-item machinery, plus a
    trailing labeled tuple of the exports (the module value). Wrapper
@@ -1338,7 +1335,7 @@ let slots_mru: ref(list(Id.t)) = ref([]);
 let slots_cap = 8;
 
 let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
-  /* probe changes no longer bust the slot: calc's probe-aware dirtying
+  /* probe changes keep the slot: calc's probe-aware dirtying
      re-analyzes exactly the items whose maps contain a toggled id */
   let key = Exp.rep_id(whole);
   let prev = Hashtbl.find_opt(slots, key);

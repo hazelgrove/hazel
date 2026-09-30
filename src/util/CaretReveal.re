@@ -1,6 +1,6 @@
-/* Caret reveal without forced layout on the typing path (perf-ledger
-   §17; modeled on Monaco's model-computed reveal and CodeMirror 6's
-   batched measure phase). The caret's position within its editor is
+/* Caret reveal without forced layout on the typing path (modeled on
+   Monaco's model-computed reveal and CodeMirror 6's batched measure
+   phase). The caret's position within its editor is
    MODEL data — CaretDec positions it from Zipper.Caret.point × font
    metrics, and publishes (row, row_height) here at render time. The
    only DOM-dependent quantities are the editor's origin inside its

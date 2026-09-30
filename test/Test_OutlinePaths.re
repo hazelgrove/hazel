@@ -4,13 +4,10 @@ open Language;
 module OutlineTree = Web.OutlineTree;
 module ScratchPersist = Web.ScratchPersist;
 
-/* Occurrence-qualified outline paths (codex review, PR #2469): label
-   paths alone are not unique — duplicate definition names and
-   separated `tests` groups both produce same-labeled rows — and the
-   old first-match resolution crossed wires between them. The gates:
-   every outline row's label_path resolves back to ITS OWN id, and
-   the pins/collapse sexp codecs round-trip labels containing the old
-   encoding's delimiter characters. */
+/* Outline paths are occurrence-qualified, since duplicate definition
+   names and separated `tests` groups produce same-labeled rows: every
+   row's label_path resolves back to its own id, and the pins/collapse
+   sexp codecs round-trip labels containing delimiter characters. */
 
 let term_of_text = (text: string): Exp.t => {
   let z =
@@ -171,8 +168,8 @@ let cases = [
     "pins codec round-trips delimiter-laden labels",
     `Quick,
     () => {
-      /* labels are arbitrary program text: the old line format used
-         space, '/', and '\n' as unescaped delimiters */
+      /* labels are arbitrary program text, including space, '/' and
+         '\n' */
       let gnarly =
         OutlineTree.[
           {

@@ -32,8 +32,7 @@ let outline_created: ref(option((Haz3lcore.Id.t, string))) = ref(None);
    IStmt-shaped run — the row is still a ⇒) */
 let outline_sym = SlideView.sym_of;
 
-/* PROJECTION (plan §9e / program-view-split step 3): a stack cell's
-   statics come from its DefStatics ITEM — the same ids, analyzed with
+/* A stack cell's statics come from its DefStatics ITEM — the same ids, analyzed with
    the program's real context (headers see the type the def gave their
    binder; module headers get real MPat info; warnings appear) —
    scoped to the ids the cell actually contains so id-keyed consumers
@@ -65,10 +64,9 @@ let project_cell_statics =
       ),
   };
 };
-/* incremental-parse cache for the stacked Force frame: the plain
-   memoized term_of cost ~312ms/edit at 4k (ledger §14) — the go_incr
-   path with a persistent cache replays the top frame exactly and
-   re-parses only the edited item */
+/* incremental-parse cache for the stacked Force frame: go_incr with
+   a persistent cache replays the top frame exactly and re-parses only
+   the edited item */
 let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
   ref(Haz3lcore.MakeTerm.Incr.mk_cache());
 
@@ -1691,7 +1689,7 @@ module Selection = {
   /* resolve a MASTER-domain id to a cross-cell jump while a stack is
      open: (open the containing item, focus the right pane, move its
      caret). Serves goto-definition from any pane AND result-strip /
-     test jumps (which used to move the hidden master's caret). */
+     test jumps. */
   let cross_cell_target =
       (~target_id: Haz3lcore.Id.t, ~d: Divided.t)
       : option((Update.t, t, Update.t)) => {
@@ -1901,8 +1899,8 @@ module View = {
      bind `stack_cache^` locally. jsoo closures share one context object
      per scope — with the previous generation bound in the view scope,
      every handler closure of render N retained render N-1's vdom
-     (whose handlers retained N-2's …): a linked list of generations,
-     measured at ~11MB leaked per edit on mega-1k. */
+     (whose handlers retained N-2's …): a linked list of generations
+     that leaks on every edit. */
   let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
     List.assoc_opt(id, stack_cache^);
 

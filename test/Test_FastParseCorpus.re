@@ -60,7 +60,7 @@ let tests = (
                 |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
-              /* mega-mod-* corpora are MOD-rooted (plans/mod-root.md) */
+              /* mega-mod-* corpora are Mod-rooted */
               let root =
                 String.starts_with(
                   ~prefix="mega-mod",

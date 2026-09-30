@@ -87,10 +87,9 @@ let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
         ),
     };
 
-/* ===== sparse normalization (plans/editing-cycle-streamline.md) =====
- * remold stays a global walk (measured cheap; remold_tile returns
- * ORIGINAL tiles on same-mold) and regrout runs only on a caret
- * WINDOW. The window's dirty set has two sources: the remold diff
+/* Sparse normalization: remold stays a global walk (cheap:
+ * remold_tile returns the original tiles on same-mold) and regrout
+ * runs only on a caret window. The window's dirty set has two sources: the remold diff
  * (restore_identity_dirty) and a read-only NORMAL-FORM scan
  * (Segment.stale_affix_ids) that finds junction work the diff can't
  * see — normalization is caret-relative, so caret movement and

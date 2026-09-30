@@ -1,8 +1,7 @@
-/* ---- definition-focus helpers (modular-editors phase 2) ----
-   Focus targets the definition's RHS child segment (between `=` and
-   `in`/`;`) — a complete, properly-grouted expression, per the adopted
-   cell design (plan §2). Slicing the whole `let…in` tile instead
-   leaves a prefix tile without its operand and crashes Skel. */
+/* Focus targets the definition's RHS child segment (between `=` and
+   `in`/`;`), a complete, properly-grouted expression. Slicing the
+   whole `let…in` tile instead leaves a prefix tile without its operand
+   and crashes Skel. */
 open Haz3lcore;
 
 let ends_with_in = (t: Base.tile): bool =>

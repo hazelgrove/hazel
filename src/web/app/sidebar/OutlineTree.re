@@ -1,7 +1,7 @@
 open Language;
 
-/* OutlineTree — the module/definition tree behind the outline sidebar
-   (plans/modular-editors.md §1). Walks the program term: top-level
+/* The module/definition tree behind the outline sidebar. Walks the
+   program term: top-level
    definitions, module members (recursively), let-in / type-in
    definitions inside function bodies, and — at TOP level only —
    semicolon statements (tests grouped into a container) plus the
@@ -112,8 +112,8 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
         ]
       };
     entry @ of_exp(~top, body);
-  /* a Module ROOT (mod-rooted editors, plans/mod-root.md): its items
-     ARE the program's top level — no wrapper row */
+  /* a Module root: its items are the program's top level, with no
+     wrapper row */
   | Module(items) when top => of_mod(items)
   | _ when top => [
       {

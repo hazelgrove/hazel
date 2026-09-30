@@ -1,8 +1,7 @@
 open Util;
 
 /* 50: even compacted snapshots cost ~5MB each on mega-scale programs
-   (zippers, frozen ctxs, master segments); a deep stack still OOMs.
-   Proper fix = zipper-level undo entries (docketed). */
+   (zippers, frozen ctxs, master segments); a deep stack still OOMs. */
 let capped_undo_stack_size = 50;
 
 /* Undo snapshots are COMPACTED: a raw Page.Model.t pins its
@@ -183,8 +182,7 @@ module Update = {
           },
           ...model.undo_stack,
         ];
-        /* ALWAYS capped: unbounded full-model history was the other
-           half of the mega-scale OOM (the setting used to gate this) */
+        /* always capped: full-model history is large at mega scale */
         let undo_stack =
           List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
         {

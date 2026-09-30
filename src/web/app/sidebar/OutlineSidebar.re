@@ -713,7 +713,7 @@ type visible_row = {
   r_expanded: bool,
 };
 
-/* the outline's keys (plans/outline-ui.md): arrows move and fold,
+/* the outline's keys: arrows move and fold,
    Enter shows, Space opens as a cell; Alt with arrows moves rows and
    zooms; ⌘D duplicates, ⌘⌫ deletes; Esc (or Alt+O) returns */
 let keys =

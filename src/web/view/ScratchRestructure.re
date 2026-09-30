@@ -717,7 +717,7 @@ let insert_near =
   )
   |> Option.map(fst);
 
-/* Alt↑↓ (plans/outline-ui.md): into an expanded module beside the item
+/* Alt↑↓: into an expanded module beside the item
    (at its end going up, its start going down); from a module's first
    or last member, out to just above or below it. Collapsed modules are
    stepped over and function bodies keep their items. [owner]: the

@@ -215,8 +215,8 @@ let refresh_shapes =
   /* Measured only exists to place projector boxes: when the recomputed
      shapes come out identical (the common case — statics/dynamics
      change every streamed chunk, projector shapes almost never do),
-     keep the old layout. Re-measuring the whole program here was an
-     O(program) cost on EVERY dynamics change. */
+     keep the old layout rather than re-measure the whole program on
+     every dynamics change. */
   let measured =
     compare(shape_map, old.shape_map) == 0
     && refractor_rows === old.refractor_rows
@@ -263,8 +263,8 @@ let calculate =
   if (old.old) {
     /* [old] is marked on every zipper change, but CARET/SELECTION
        moves don't change the content: measured/terms/term_data are
-       segment functions and can be reused wholesale (a full mk paid
-       ~350ms per caret move at 4k lines) */
+       segment functions and can be reused wholesale (a full mk per
+       caret move is slow on large programs) */
     let segment = Zipper.unselect_and_zip(z);
     if (Segment.ptr_eq(segment, old.segment)) {
       {

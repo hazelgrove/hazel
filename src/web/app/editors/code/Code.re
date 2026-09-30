@@ -227,8 +227,7 @@ let view =
   };
 };
 
-/* ===== PER-CHUNK CODE TEXT (plans/subeditor-dataflow.md paragraph 5a)
-   One inline span per measured chunk, memoized by anchor: unchanged
+/* One inline span per measured chunk, memoized by anchor: unchanged
    chunks return the SAME vdom node, so the virtual-dom diff skips
    them by reference and an edit re-renders one chunk's tokens.
    Inline spans in pre flow reproduce the flat render exactly (the

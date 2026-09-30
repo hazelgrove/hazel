@@ -732,8 +732,8 @@ module Selection = {
 };
 
 /* single-slot vdom memo for the outline sidebar: the roll-up walk,
-   row construction and diff are O(program) per render at 4k (ledger
-   §14); its inputs change on Force frames and outline interaction,
+   row construction and diff are O(program) per render; its inputs
+   change on Force frames and outline interaction,
    not per keystroke. Key parts compare physically where the value is
    rebuilt-on-change (statics, the DefStatics slot, test results) and
    structurally where small. */
@@ -1209,8 +1209,7 @@ module View = {
         let node = {
           /* error attribution at OUTLINE granularity: each error badges the
              DEEPEST row containing it; ancestor rows get a roll-up badge
-             that CSS shows only while collapsed (andrew: error goes on the
-             deepest thing not hidden by a collapse) */
+             that CSS shows only while collapsed */
           /* statics compacted by undo carry no term until they
              recompute: the outline parses this slide's program instead
              (never another document's) */
@@ -1288,8 +1287,8 @@ module View = {
               id => !List.mem(id, incomplete);
             },
             ~jump=id => globals.inject_global(JumpToTile(id)),
-            /* plain click with a stack open ADDS (or moves to) that cell —
-               never replaces the stack (andrew: replacing was a footgun) */
+            /* plain click with a stack open adds (or moves to) that
+               cell; it never replaces the stack */
             ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
             ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
             ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),

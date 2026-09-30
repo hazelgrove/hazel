@@ -121,8 +121,8 @@ let pending_ids_uncached = (info_map: StaticsBase.Map.t): list(Id.t) => {
   );
 };
 
-/* pending_ids is a pure O(info_map) walk (~90ms on mega-4k), run on
-   the main thread per eval request. Single-slot memo keyed by map
+/* pending_ids is a pure O(info_map) walk, run on the main thread per
+   eval request. Single-slot memo keyed by map
    identity: the slot pins one info_map generation, which the current
    statics retains anyway. */
 let pending_memo: ref(option((StaticsBase.Map.t, list(Id.t)))) =

@@ -2,10 +2,9 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Type-side dependency tracking in DefStatics (the "type co_ctx"):
-   type-alias/constructor export changes used to re-analyze the WHOLE
-   downstream suffix; now they dirty only items whose d_tfree mentions
-   the changed names (with shadowing and transitive alias chains).
+/* Type-side dependency tracking in DefStatics: type-alias/constructor
+   export changes dirty only items whose d_tfree mentions the changed
+   names (with shadowing and transitive alias chains).
    Each case asserts BOTH the analyzed count and error parity vs the
    monolithic analysis of the edited program. */
 

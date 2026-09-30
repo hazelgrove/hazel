@@ -2026,18 +2026,13 @@ let for_projection =
     }
   );
 
-/* ===== Incremental whole-program TERM (plans/modular-editors.md §9d)
-   =====
-   The stacked-editing Force frame and outline restructure ops re-ran
-   [go] over the whole spliced program (~165ms at 2k lines) even
-   though DefStatics then re-analyzes only the changed item. Their
-   only consumer is the TERM (statics/outline/elab) — display maps
-   (terms/term_data) are per-cell — so this parses each TOP-LEVEL
-   ITEM's piece span separately (memoized on piece identity: splices
-   rebuild the top-level list but reuse item pieces) and grafts the
-   chain, mirroring DefStatics' hollow-item composition. An item
-   sliced away from its continuation is nonconvex; a synthetic convex
-   grout stands in for the body and the graft replaces it. */
+/* The whole-program term, parsed per top-level item's piece span
+   (memoized on piece identity: splices rebuild the top-level list but
+   reuse item pieces) and grafted into a chain, mirroring DefStatics'
+   hollow-item composition. Only the term is built: display maps are
+   per cell. An item sliced away from its continuation is nonconvex; a
+   synthetic convex grout stands in for the body and the graft
+   replaces it. */
 module Incr = {
   /* top-level item slices, in order (boundaries: `…in`-tiles and
      top-level `;`s; the remainder is the tail) — shared with the
@@ -2104,8 +2099,7 @@ module Incr = {
     };
   };
 
-  /* ---- Mod-root slice parse (plans/mod-root.md phase 1) ----
-     A slice ending in its `;` is nonconvex on the right (the
+  /* A mod-item slice ending in its `;` is nonconvex on the right (the
      separator's right operand is the next item): the appended convex
      grout parses to a trailing EmptyHole mod item, which is dropped
      here (its id is scrubbed from the captured maps by the caller).
