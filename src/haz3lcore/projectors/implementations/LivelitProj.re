@@ -684,6 +684,66 @@ module M: Projector = {
     | _ => print_endline("Warning - LivelitProj.update: No action")
     };
 
+  /* The full-width rows cover the lines under the livelit's own, so a click
+     there used to land where every click on a projector lands: Focus, the
+     caret before the livelit. Then there was no way from the pane to the
+     code after it, and Enter pushed the whole livelit down a line. A click
+     on the pane's bare background now leaves the livelit the way Ctrl+Enter
+     leaves a probe, at the end of its line. A click on anything the pane
+     does something with -- a field, a button, a splice, a tab -- is its as
+     before. */
+  let below_interactive = "input, textarea, button, select, a, label, [tabindex], .splice-editor, .toggle-option, [class*=divider], [class*=reset]";
+
+  let is_background =
+      (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+    module U = Js_of_ocaml.Js.Unsafe;
+    switch (
+      Js_of_ocaml.Js.Opt.to_option(evt##.target),
+      Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget),
+    ) {
+    | (Some(target), Some(pane)) =>
+      /* Only a control inside the pane counts: the editor cell around
+         the whole program has a tabindex too, and would match every
+         click. */
+      switch (
+        Js_of_ocaml.Js.Opt.to_option(
+          U.meth_call(
+            target,
+            "closest",
+            [|U.inject(Js_of_ocaml.Js.string(below_interactive))|],
+          ),
+        )
+      ) {
+      | None => true
+      | Some(control) =>
+        !Js_of_ocaml.Js.to_bool(U.meth_call(pane, "contains", [|control|]))
+      }
+    | _ => false
+    };
+  };
+
+  let escape_below = (~parent, below: Node.t): Node.t =>
+    Node.div(
+      ~attrs=[
+        Attr.class_("livelit-below"),
+        Attr.on_pointerdown(evt =>
+          if (evt##.button == 0 && is_background(evt)) {
+            /* The wrapper's handler, stopped here, is what would have
+               focused the editor; without this the caret moves and the
+               keys go wherever focus last was. */
+            FocusEffect.schedule_editor();
+            Effect.Many([
+              Effect.Stop_propagation,
+              parent(EscapeToLineEnd(Livelit)),
+            ]);
+          } else {
+            Effect.Ignore;
+          }
+        ),
+      ],
+      [below],
+    );
+
   /* Absent when the projector isn't drawn at the code site (docked to the
      sidebar, or culled from the viewport) */
   /* Focus the container — but never steal focus from a control INSIDE
@@ -1345,7 +1405,9 @@ module M: Projector = {
           let splice = (id: Id.t) =>
             List.find_opt((s: Base.splice) => s.id == id, splices)
             |> Option.map((s: Base.splice) => splice_view(s.id));
-          below := ll.view_below(~id=info.id, ~splice, model, action_callback);
+          below :=
+            ll.view_below(~id=info.id, ~splice, model, action_callback)
+            |> Option.map(escape_below(~parent));
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
             [list_contents],
