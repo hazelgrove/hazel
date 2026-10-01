@@ -431,7 +431,11 @@ let across = (): unit => {
     let seg =
       switch (FastParse.of_text(~root, src)) {
       | Some(seg) => seg
-      | None => failwith("parse: " ++ src)
+      | None =>
+        switch (MarkerParse.of_text(~root, src)) {
+        | Some(z) => Zipper.unselect_and_zip(z)
+        | None => failwith("parse: " ++ src)
+        }
       };
     let term =
       root == Sort.Mod
@@ -483,6 +487,45 @@ let across = (): unit => {
   let md1 = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
   mv(~root=Mod, ~up=false, md1, "x", ["a", "M", "x", "b"]);
   mv(~root=Mod, ~up=true, md1, "x", ["a", "x", "M", "b"]);
+  /* an empty module takes an item in, or is stepped over when it can't */
+  let e = "let a = 1 in module E = {} in let b = 2 in b";
+  mv(~root=Exp, ~up=true, e, "b", ["a", "E{b}"]);
+  mv(~root=Exp, ~up=false, e, "a", ["E{a}", "b"]);
+  let c = "let a = 1 in\nmodule E = {\n  # todo #\n} in\nlet b = 2 in\nb";
+  mv(~root=Exp, ~up=true, c, "b", ["a", "b", "E"]);
+};
+
+/* a module's last member, moved out, moves back in where it was */
+let back_in = (): unit => {
+  let src = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
+  let parse_mod = t =>
+    switch (FastParse.of_text(~root=Mod, t)) {
+    | Some(seg) => seg
+    | None => failwith("parse: " ++ t)
+    };
+  let step = (seg, up) => {
+    let term = MakeTerm.Incr.term_of_mod(seg);
+    let id = outline_id(term, "x");
+    let owner =
+      switch (Option.map(List.rev, Web.OutlineTree.trail_of(id, term))) {
+      | Some([_, parent, ..._]) => Some(parent)
+      | _ => None
+      };
+    switch (R.move(~mod_root=true, ~is_open=_ => true, ~owner, ~up, id, seg)) {
+    | Some((seg', _)) => seg'
+    | None => fail((up ? "in" : "out") ++ " refused")
+    };
+  };
+  let out = step(parse_mod(src), false);
+  check(
+    string,
+    "out leaves {}",
+    text_of(
+      parse_mod("let a = 1;\nmodule M = {};\nlet x = 2;\nlet b = 4;\nb"),
+    ),
+    text_of(out),
+  );
+  check(string, "and back in", src, text_of(step(out, true)));
 };
 
 /* in then out again restores the program, and every step parses */
@@ -866,6 +909,7 @@ let tests = (
     test_case("a member whose body opens with a let", `Quick, let_body),
     test_case("unterminated last member", `Quick, unterminated_tail),
     test_case("moves across module edges", `Quick, across),
+    test_case("a last member out and back in", `Quick, back_in),
     test_case("in and out again", `Quick, round_trip),
   ],
 );

@@ -290,7 +290,8 @@ let block =
     let ce = content_end(sp);
     ce > sp.sp_start && Focus.is_semi(arr[ce - 1]);
   };
-  /* trailing spans without an item: comments only, or the hole */
+  /* trailing spans without an item: comments only, the hole, or the
+     hole of a member block with no members */
   let (count, merged) =
     if (n == 0) {
       (0, None);
@@ -302,6 +303,7 @@ let block =
           n - 1,
           Some(g),
         )
+      | Some(_) when n == 1 && in_module => (0, None)
       | _ => (n, None)
       };
     };
@@ -1064,28 +1066,42 @@ let move =
       | [p, ..._] => line_indent(Piece.id(p), seg)
       | [] => None
       };
+    let step = () =>
+      s.s_edge
+        ? None
+        : apply(~mod_root, up ? MoveUp : MoveDown, fid, seg)
+          |> Option.map(((seg, _)) => (seg, Some(fid)));
     switch (s.s_module) {
     | Some(k) when is_open(k) =>
-      /* in: the neighbour module's members gain the item */
-      switch (
-        removed(),
-        in_form(~member=true, ~was_member=s.s_member, s.s_item),
-      ) {
-      | (Some(seg1), Some(item)) =>
-        into_members(
-          ~first=!up,
-          ~src_indent?,
-          ~trail=s.s_trail,
-          k,
-          item,
-          seg1,
-        )
-        |> Option.map(seg2 => (seg2, first_tile_id(item)))
-      | _ => None
-      }
-    | _ when !s.s_edge =>
-      apply(~mod_root, up ? MoveUp : MoveDown, fid, seg)
-      |> Option.map(((seg, _)) => (seg, Some(fid)))
+      /* in: the neighbour module's members gain the item, or an empty
+         body takes it as its only member; else the module is stepped
+         over */
+      let into =
+        switch (
+          removed(),
+          in_form(~member=true, ~was_member=s.s_member, s.s_item),
+        ) {
+        | (Some(seg1), Some(item)) =>
+          (
+            switch (
+              into_members(
+                ~first=!up,
+                ~src_indent?,
+                ~trail=s.s_trail,
+                k,
+                item,
+                seg1,
+              )
+            ) {
+            | Some(_) as r => r
+            | None => into_empty(~src_indent?, k, item, seg1)
+            }
+          )
+          |> Option.map(seg2 => (seg2, first_tile_id(item)))
+        | _ => None
+        };
+      into == None ? step() : into;
+    | _ when !s.s_edge => step()
     | _ =>
       /* out: just above or below the owning module, in its block's form */
       switch (owner) {
