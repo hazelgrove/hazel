@@ -386,6 +386,27 @@ let cell_edit = () => {
   );
 };
 
+/* the problems panel's "elsewhere" editor carries the document's terms,
+   not the split's: it keeps only problems whose ids it holds */
+let outside_terms = () => {
+  let seg = parse(src);
+  let d = split(seg, row(term_of(seg), "g"));
+  let d = set_body(editor_of(parse("x * 30")), d);
+  let keys = m => Id.Map.bindings(m) |> List.map(fst);
+  let cold =
+    MakeTerm.Incr.go_incr(
+      ~cache=MakeTerm.Incr.mk_cache(),
+      Divided.document(d),
+    ).
+      term_data;
+  check(
+    bool,
+    "outside term ids are the document's",
+    true,
+    keys(Divided.outside_editor(d).editor.syntax.term_data) == keys(cold),
+  );
+};
+
 /* a join from an earlier join's caches matches a cold one after a cell
    edit (each join mints some fresh ids, so rows compare by label) */
 let join_from_caches = () => {
@@ -728,6 +749,11 @@ let tests = (
     test_case("an agent edit re-cuts only its cell", `Quick, agent_edit),
     test_case("a rename reaches open cells", `Quick, rename),
     test_case("a join from caches", `Quick, join_from_caches),
+    test_case(
+      "the outside editor has the document's terms",
+      `Quick,
+      outside_terms,
+    ),
     test_case("close all", `Quick, close_all),
     test_case("no overlap", `Quick, no_overlap),
     test_case("closing the last cell splices once", `Quick, close_once),

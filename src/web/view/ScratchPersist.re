@@ -639,7 +639,14 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
                     ~zipper=z,
                     persisted,
                   );
-                | None => CellEditor.Model.unpersist(~settings, persisted)
+                | None =>
+                  /* the text copy re-mints ids, so no stored item slice
+                     can be reused: drop them rather than leave them */
+                  let ns = items_ns(prefix, name);
+                  HazelDB.kv_remove_where(k =>
+                    String.starts_with(~prefix=ns, k)
+                  );
+                  CellEditor.Model.unpersist(~settings, persisted);
                 };
               },
             ),

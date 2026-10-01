@@ -587,27 +587,40 @@ let same_content = (a: t, b: t): bool => {
 /* the whole program for the problems panel, its segment the current
    document (the shell's is stale); memoized: the panel caches on identity */
 let outside_memo: Slot.t(t, CodeEditable.Model.t) = Slot.mk();
+/* the document's term data, incrementally: the panel keeps only problems
+   whose ids it holds, and the shell's are from the split */
+let outside_cache = MakeTerm.Incr.mk_cache();
 let outside_editor = (d: t): CodeEditable.Model.t =>
   Slot.get(
     ~same=
       (d', d) =>
         same_content(d', d)
         && d'.statics === d.statics
-        && d'.shell === d.shell,
+        /* not the shell itself: every calculate re-wraps it with a result */
+        && d'.shell.editor === d.shell.editor,
     outside_memo,
     d,
-    () =>
+    () => {
+      let segment = document(d);
       {
         ...d.shell.editor,
         editor: {
           ...d.shell.editor.editor,
           syntax: {
             ...d.shell.editor.editor.syntax,
-            segment: document(d),
+            segment,
+            term_data:
+              MakeTerm.Incr.go_incr(
+                ~root=root(d),
+                ~cache=outside_cache,
+                segment,
+              ).
+                term_data,
           },
         },
         statics: statics(d),
-      },
+      };
+    },
   );
 
 let map_cells = (f: Cell.t => Cell.t, d: t): t => {

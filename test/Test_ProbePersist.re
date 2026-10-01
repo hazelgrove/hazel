@@ -95,10 +95,40 @@ let save_then_load = () => {
   };
 };
 
+/* a bad roster falls back to the text copy, which re-mints ids: the
+   stored slices can never be read again, so the load drops them */
+let bad_roster_drops_items = () => {
+  let settings = Language.CoreSettings.on;
+  let names =
+    List.map(fst, snd(Lazy.force(Web.Init.startup).documentation));
+  let m =
+    Persist.load_all(
+      "rostertest",
+      ~settings,
+      ~default_names=names,
+      ~default_current=0,
+    );
+  Persist.save_current("rostertest", m);
+  let name = List.nth(m.scratchpads, m.current).name;
+  let ns = Persist.items_ns("rostertest", name);
+  let items = () =>
+    Util.Maps.StringMap.bindings(Web.HazelDB.cache^)
+    |> List.filter(((k, _)) => String.starts_with(~prefix=ns, k));
+  check(bool, "the save wrote items", true, items() != []);
+  Web.HazelDB.kv_save(ns ++ ItemPersist.roster_key, "(not a roster");
+  let _ = Persist.load_scratchpad(~settings, "rostertest", name);
+  check(int, "no item keys left", 0, List.length(items()));
+};
+
 let tests = (
   "ProbePersist",
   [
     test_case("probes key round trip", `Quick, key_roundtrip),
     test_case("save then load keeps probes", `Quick, save_then_load),
+    test_case(
+      "a bad roster drops the item keys",
+      `Quick,
+      bad_roster_drops_items,
+    ),
   ],
 );
