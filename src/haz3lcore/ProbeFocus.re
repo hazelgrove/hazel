@@ -238,8 +238,8 @@ let align_to_indicated_probe =
 /* Drop a pinned call stack once no sample matches it (call site deleted/
  * unreached) — a dead pin darkens every probe (⍟), since recovery is gated on
  * auto_focus. Checked against eval RESULTS, not statics: pinned stacks contain
- * builtin/worker-minted ids absent from UI statics, and samples+pins both come
- * from the worker (process-consistent). Skipped on empty dynamics. */
+ * library (builtin) frame ids absent from UI statics, and samples+pins both
+ * come from the worker. Skipped on empty dynamics. */
 let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
   SampleFocusPerform.update_pinned_call(z, p =>
     switch (p) {
