@@ -74,6 +74,10 @@ let project_cell_statics =
           ),
       ),
     completion: None,
+    pins:
+      Haz3lcore.CachedStatics.probe_ids_of_zipper(
+        cell.editor.editor.state.zipper,
+      ),
   };
 };
 /* incremental-parse cache for a divided program's statics frames:
@@ -596,6 +600,8 @@ let calculate =
                   ~probe_ids,
                 ),
               completion: None,
+              /* the cells' own pins (probe_ids adds the projectors') */
+              pins: Program.probe_ids(Divided(d)),
             };
           let fresh = it => !List.exists(p => p === it, prev_items);
           (

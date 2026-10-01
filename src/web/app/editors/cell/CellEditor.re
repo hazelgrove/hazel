@@ -174,10 +174,15 @@ module Update = {
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
+        /* and the first pass's statics choices: a refresh here must not fall
+           back to whole-program statics in a compositional editor */
         CodeEditable.Update.calculate(
           ~settings,
           ~autoprobe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
+          ~compositional,
+          ~ctx?,
+          ~projected?,
           ~stitch,
           ~ana?,
           ~dynamics=mk_dynamics(result),
