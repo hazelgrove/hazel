@@ -901,8 +901,9 @@ and calc_module_item =
   };
 }
 
-/* the member chain: the top chain's clean/dirty discipline without move
-   tracking (a reorder recomputes from the change point on) */
+/* the member chain, aligned with the previous one by id as the top chain
+   is: a deleted member's names go dirty where it was, and a moved one is
+   popped aside there and recomputed where it lands */
 and calc_members =
     (
       ~settings,
@@ -915,59 +916,44 @@ and calc_members =
       nodes: list(Exp.t),
     )
     : list(item) => {
-  let prev_tbl = Hashtbl.create(List.length(prev_members) + 1);
-  List.iter(
-    (q: item) => Hashtbl.replace(prev_tbl, q.d_id, q),
-    prev_members,
-  );
-  /* a member that vanished or moved (its surviving predecessor changed)
-     changes what names resolve to, so its names are dirty throughout */
-  let ids = List.map(Exp.rep_id, nodes);
-  let kept = List.filter(id => Hashtbl.mem(prev_tbl, id), ids);
-  let kept_prev =
-    List.filter_map(
-      (q: item) => List.mem(q.d_id, ids) ? Some(q.d_id) : None,
-      prev_members,
-    );
-  let preds = xs =>
-    List.mapi(
-      (i, x) => (x, i == 0 ? None : Some(List.nth(xs, i - 1))),
-      xs,
-    );
-  let (now_pred, then_pred) = (preds(kept), preds(kept_prev));
-  let moved = id =>
-    List.assoc_opt(id, now_pred) != List.assoc_opt(id, then_pred);
-  let unsettled =
-    List.filter(
-      (q: item) => !List.mem(q.d_id, ids) || moved(q.d_id),
-      prev_members,
-    );
-  let dirty_vars =
-    List.sort_uniq(
-      compare,
-      List.concat_map((q: item) => names_of(q.d_exports), unsettled)
-      @ dirty_vars,
-    );
-  let dirty_tnames =
-    List.sort_uniq(
-      compare,
-      List.concat_map(
-        (q: item) => List.concat_map(tnames_of_entry, q.d_exports),
-        unsettled,
-      )
-      @ dirty_tnames,
-    );
-  let rec go = (ns, ctx, dirty_vars, dirty_tnames, acc) =>
-    switch (ns) {
-    | [] => List.rev(acc)
-    | [n, ...nt] =>
+  let id_set = List.fold_left((s, id) => Id.Set.add(id, s), Id.Set.empty);
+  let node_ids = id_set(List.map(Exp.rep_id, nodes));
+  let prev_ids = id_set(List.map((q: item) => q.d_id, prev_members));
+  let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
+  /* q's exports leave the chain here */
+  let vacate = (q: item, dirty_vars, dirty_tnames) =>
+    seed_delta(export_delta(q.d_exports, []), dirty_vars, dirty_tnames);
+  let rec go = (ps, ns, ctx, dirty_vars, dirty_tnames, acc) =>
+    switch (ps, ns) {
+    | (_, []) => List.rev(acc)
+    | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
+      let (dirty_vars, dirty_tnames) = vacate(q, dirty_vars, dirty_tnames);
+      go(pt, ns, ctx, dirty_vars, dirty_tnames, acc);
+    | ([q, ...pt], [n, ..._])
+        when
+          q.d_id != Exp.rep_id(n)
+          && Id.Set.mem(Exp.rep_id(n), prev_ids)
+          && !Id.Map.mem(Exp.rep_id(n), moved^) =>
+      /* the node sits deeper in prev, so q moved later */
+      moved := Id.Map.add(q.d_id, q, moved^);
+      let (dirty_vars, dirty_tnames) = vacate(q, dirty_vars, dirty_tnames);
+      go(pt, ns, ctx, dirty_vars, dirty_tnames, acc);
+    | (ps, [n, ...nt]) =>
       let nid = Exp.rep_id(n);
-      let prev_it = Hashtbl.find_opt(prev_tbl, nid);
+      let (prev_it, moved_in, ps) =
+        switch (ps) {
+        | [q, ...pt] when q.d_id == nid => (Some(q), false, pt)
+        | _ =>
+          switch (Id.Map.find_opt(nid, moved^)) {
+          | Some(q) => (Some(q), true, ps)
+          | None => (None, false, ps) /* inserted */
+          }
+        };
       let clean =
         switch (prev_it) {
         | Some(q) =>
-          head_equal(q.d_node, n)
-          && !moved(nid)
+          !moved_in
+          && head_equal(q.d_node, n)
           && !stale(q, dirty_vars, dirty_tnames)
           && !probe_dirty(q)
         | None => false
@@ -990,6 +976,7 @@ and calc_members =
             };
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         go(
+          ps,
           nt,
           ctx_out,
           shadow_filter(it.d_exports, dirty_vars),
@@ -1021,15 +1008,26 @@ and calc_members =
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         let (dirty_vars, dirty_tnames) =
           seed_delta(delta, incoming, incoming_t);
+        /* landed after a move: its names may resolve to it anew below */
+        let (dirty_vars, dirty_tnames) =
+          moved_in
+            ? (
+              List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
+              List.sort_uniq(
+                compare,
+                List.concat_map(tnames_of_entry, it.d_exports) @ dirty_tnames,
+              ),
+            )
+            : (dirty_vars, dirty_tnames);
         let dirty_tnames =
           List.sort_uniq(
             compare,
             ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
           );
-        go(nt, it.d_ctx_out, dirty_vars, dirty_tnames, [it, ...acc]);
+        go(ps, nt, it.d_ctx_out, dirty_vars, dirty_tnames, [it, ...acc]);
       };
     };
-  go(nodes, ctx_in, dirty_vars, dirty_tnames, []);
+  go(prev_members, nodes, ctx_in, dirty_vars, dirty_tnames, []);
 };
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse

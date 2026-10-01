@@ -410,5 +410,21 @@ let tests = (
         [token("Int", "Bool")],
       ),
     ),
+    test_case(
+      "deleting a member a later one shadowed",
+      `Quick,
+      script(
+        "module M = {\n  let (y, x) = (1, 2);\n  let x = true;\n  let w = x\n} in\nM.w",
+        [op(Delete, ["M", "x"])],
+      ),
+    ),
+    test_case(
+      "moving a member past one of the same name",
+      `Quick,
+      script(
+        "module M = {\n  let (y, x) = (0, 0);\n  let x = 1;\n  let x = true;\n  let n = 5;\n  let u = x\n} in\nM.u",
+        [op(MoveDown, ["M", "x"])],
+      ),
+    ),
   ],
 );
