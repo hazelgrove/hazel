@@ -358,8 +358,8 @@ let init_compositional =
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
     /* semantics reads the caret-independent canonical completion */
-    let (seg, masks) =
-      MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+    let source = MakeTerm.semantic_source(z);
+    let (seg, masks) = MakeTerm.semantic_segment(~root, source);
     let term = MakeTerm.Incr.term_of_root(~masks, ~root, seg) |> stitch;
     /* stacked cells pass the union of their zippers' probes */
     let probe_ids =
@@ -367,5 +367,13 @@ let init_compositional =
       | Some(p) => p
       | None => probe_ids_of_zipper(z)
       };
-    init_compositional_term(~settings, ~probe_ids, term);
+    {
+      ...init_compositional_term(~settings, ~probe_ids, term),
+      /* what was typechecked, for the inspector's implied hole */
+      completion:
+        Some({
+          source,
+          completed: seg,
+        }),
+    };
   };
