@@ -419,9 +419,13 @@ let rec node_view =
             span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
             text(n.o_label),
           ]
-        /* the arrow alone reads as decoration: name what the row is */
+        /* rows with no name of their own get a word for what they are,
+           set apart from real names */
         | _ when n.o_kind == OutlineTree.KTrail && n.o_label == "" => [
-            span(~attrs=[clss(["outline-trail-word"])], [text("result")]),
+            span(~attrs=[clss(["outline-synthetic"])], [text("result")]),
+          ]
+        | _ when n.o_kind == OutlineTree.KTests => [
+            span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
           ]
         | _ => [text(n.o_label)]
         }

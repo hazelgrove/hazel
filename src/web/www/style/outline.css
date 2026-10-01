@@ -256,9 +256,14 @@
   font-weight: bold;
 }
 
-#outline-sidebar .ol-tests,
-#outline-sidebar .outline-trail-word {
+#outline-sidebar .ol-tests {
   font-style: italic;
+}
+
+/* words standing in for a name ("result", "tests"): lighter, italic */
+#outline-sidebar .outline-synthetic {
+  font-style: italic;
+  color: var(--text-muted, #a08f6a);
 }
 
 #main .focus-header.focus-header-sym .focus-sym-word {
