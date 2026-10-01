@@ -571,14 +571,17 @@ let resplit =
 /* same text, probes and carets: the base and every cell zipper are
    physically unchanged, and the same cell is active */
 let same_content = (a: t, b: t): bool => {
-  let zip = (c: CellEditor.Model.t) => c.editor.editor.state.zipper;
+  let same = (c: CellEditor.Model.t, c': CellEditor.Model.t) =>
+    Zipper.same_content(
+      c.editor.editor.state.zipper,
+      c'.editor.editor.state.zipper,
+    );
   a.base === b.base
   && a.active == b.active
   && List.length(a.cells) == List.length(b.cells)
   && List.for_all2(
        (x: Cell.t, y: Cell.t) =>
-         zip(x.e_header) === zip(y.e_header)
-         && zip(x.e_body) === zip(y.e_body),
+         same(x.e_header, y.e_header) && same(x.e_body, y.e_body),
        a.cells,
        b.cells,
      );

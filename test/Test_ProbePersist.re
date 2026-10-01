@@ -120,6 +120,77 @@ let bad_roster_drops_items = () => {
   check(int, "no item keys left", 0, List.length(items()));
 };
 
+/* probe passes rebuild the zipper on every calculate; an idle autosave
+   still writes nothing */
+let idle_save_writes_nothing = () => {
+  let settings = Language.CoreSettings.on;
+  let names =
+    List.map(fst, snd(Lazy.force(Web.Init.startup).documentation));
+  let m =
+    Persist.load_all(
+      "idletest",
+      ~settings,
+      ~default_names=names,
+      ~default_current=0,
+    );
+  let sp = List.nth(m.scratchpads, m.current);
+  switch (sp.kind) {
+  | Drv(_) => fail("expected a code slide")
+  | Code({program, agent, view}) =>
+    let recalc = (e: Web.CellEditor.Model.t) =>
+      Web.CellEditor.Update.calculate(
+        ~settings,
+        ~is_edited=false,
+        ~statics_mode=Force,
+        ~queue_worker=None,
+        ~stitch=x => x,
+        e,
+      );
+    let e1 = recalc(Web.Program.whole(program));
+    let e2 = recalc(e1);
+    let zip = (e: Web.CellEditor.Model.t) => e.editor.editor.state.zipper;
+    check(
+      bool,
+      "a recalculate keeps the content",
+      true,
+      Zipper.same_content(zip(e1), zip(e2)),
+    );
+    let with_editor = e => {
+      ...m,
+      scratchpads:
+        Util.ListUtil.put_nth(
+          m.current,
+          {
+            ...sp,
+            kind:
+              Code({
+                program: Whole(e),
+                view,
+                agent,
+              }),
+          },
+          m.scratchpads,
+        ),
+    };
+    let caret = Persist.caret_key("idletest", sp.name);
+    Persist.save_current("idletest", with_editor(e1));
+    check(
+      bool,
+      "the first save wrote the caret",
+      true,
+      Web.HazelDB.kv_get(caret) != None,
+    );
+    Web.HazelDB.kv_remove(caret);
+    Persist.save_current("idletest", with_editor(e2));
+    check(
+      bool,
+      "the idle save skipped",
+      true,
+      Web.HazelDB.kv_get(caret) == None,
+    );
+  };
+};
+
 let tests = (
   "ProbePersist",
   [
@@ -129,6 +200,11 @@ let tests = (
       "a bad roster drops the item keys",
       `Quick,
       bad_roster_drops_items,
+    ),
+    test_case(
+      "an idle save writes nothing",
+      `Quick,
+      idle_save_writes_nothing,
     ),
   ],
 );

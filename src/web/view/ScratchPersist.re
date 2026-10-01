@@ -327,8 +327,8 @@ let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
 let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
 /* the same gate for the editor blob, so an idle autosave serializes
-   nothing: identity of the zipper, or of a divided program's cells
-   (caret moves count, for the caret side key) */
+   nothing: the zipper's content, or a divided program's cells' (caret
+   moves count, for the caret side key) */
 type save_stamp =
   | Unstacked(Zipper.t)
   | Stacked(Divided.t);
@@ -436,7 +436,7 @@ let rename_slide = (prefix: string, old_name: string, new_name: string): unit =>
   };
 let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
   switch (a, b) {
-  | (Unstacked(x), Unstacked(y)) => x === y
+  | (Unstacked(x), Unstacked(y)) => Zipper.same_content(x, y)
   | (Stacked(x), Stacked(y)) => Divided.same_content(x, y)
   | _ => false
   };
