@@ -191,6 +191,27 @@ let idle_save_writes_nothing = () => {
   };
 };
 
+/* a save, and a rename, each land in one storage transaction */
+let one_transaction = () => {
+  let settings = Language.CoreSettings.on;
+  let names =
+    List.map(fst, snd(Lazy.force(Web.Init.startup).documentation));
+  let m =
+    Persist.load_all(
+      "txtest",
+      ~settings,
+      ~default_names=names,
+      ~default_current=0,
+    );
+  let before = Web.HazelDB.write_transactions^;
+  Persist.save_current("txtest", m);
+  check(int, "a save", 1, Web.HazelDB.write_transactions^ - before);
+  let name = List.nth(m.scratchpads, m.current).name;
+  let before = Web.HazelDB.write_transactions^;
+  Persist.rename_slide("txtest", name, name ++ " renamed");
+  check(int, "a rename", 1, Web.HazelDB.write_transactions^ - before);
+};
+
 let tests = (
   "ProbePersist",
   [
@@ -206,5 +227,6 @@ let tests = (
       `Quick,
       idle_save_writes_nothing,
     ),
+    test_case("a save is one transaction", `Quick, one_transaction),
   ],
 );

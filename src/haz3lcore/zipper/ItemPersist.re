@@ -7,8 +7,9 @@ open Util;
    text-blob fallback for when there's no roster.
 
    write order is items → roster → GC, so an interrupted save never
-   leaves a roster naming a missing key. slices partition the piece
-   list; an item is keyed by its first piece's id. */
+   leaves a roster naming a missing key (the web store also commits a
+   whole save in one transaction). slices partition the piece list; an
+   item is keyed by its first piece's id. */
 
 type store = {
   get: string => option(string),

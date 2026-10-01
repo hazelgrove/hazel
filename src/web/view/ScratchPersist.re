@@ -463,7 +463,7 @@ let persist_divided = (d: Divided.t): CellEditor.Model.persistent => {
   };
 };
 
-let save_current = (prefix: string, model: Model.t): unit => {
+let save_current' = (prefix: string, model: Model.t): unit => {
   let names = Model.scratchpad_names(model);
   save_meta(
     prefix,
@@ -587,6 +587,11 @@ let save_current = (prefix: string, model: Model.t): unit => {
     )
   };
 };
+
+/* a save lands whole or not at all: its items, roster, text and side
+   keys go to storage in one transaction */
+let save_current = (prefix: string, model: Model.t): unit =>
+  HazelDB.kv_batch(() => save_current'(prefix, model));
 
 let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t => {
   read_caret(prefix, name);
