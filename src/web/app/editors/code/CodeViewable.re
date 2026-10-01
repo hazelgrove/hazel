@@ -31,6 +31,34 @@ let view =
   div_c("code", [span_c("code-text", code)]);
 };
 
+/* one memoized span per measured chunk: an edit re-renders only its chunk */
+let view_chunked =
+    (
+      ~globals: Globals.t,
+      ~measured,
+      ~term_data,
+      ~buffer_ids,
+      ~shape_map,
+      ~refractor_rows,
+      ~refine_sort: (Id.t, Sort.t) => Sort.t,
+      ~statics_ident: Obj.t,
+    )
+    : Node.t => {
+  let chunks =
+    Code.view_chunked(
+      ~measured,
+      ~settings=globals.settings,
+      ~shape_map,
+      ~refractor_rows,
+      ~font_metrics=globals.font_metrics,
+      ~term_data,
+      ~refine_sort,
+      ~statics_ident,
+      ~buffer_ids,
+    );
+  div_c("code", [span_c("code-text", chunks)]);
+};
+
 let view_segment = (~globals: Globals.t, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   let refractor_rows = Id.Map.empty; //assume no refractors

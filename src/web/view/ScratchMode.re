@@ -3,698 +3,54 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-module Scratchpad = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type code = {
-    editor: CellEditor.Model.t,
-    agent: Agent.Model.t,
+module Scratchpad = ScratchModel.Scratchpad;
+module Model = ScratchModel.Model;
+module Focus = ScratchFocus;
+module Persist = ScratchPersist;
+
+let slide_key = (~is_documentation, model: Model.t): string =>
+  Persist.content_key(
+    is_documentation ? "doc" : "scratch",
+    List.nth(model.scratchpads, model.current).name,
+  );
+
+let current_cells = (model: Model.t): list(ScratchCell.t) =>
+  switch (Model.current_program(model)) {
+  | Some(Divided(d)) => Divided.cells(d)
+  | _ => []
   };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type kind =
-    | Code(code)
-    | Drv(DerivationExerciseMode.Model.t);
-
-  /* Lazy hydration: boot builds a full editor (parse + statics cache +
-     agent state) for the CURRENT slide only; every other slide is a
-     blank placeholder with [dormant] set, swapped for the real slide on
-     first switch (Persist.hydrate_current). save_current refuses to
-     write a dormant placeholder over the stored slide. */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    name: string,
-    kind,
-    dormant: bool,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type code_persistent = {
-    editor: option(CellEditor.Model.persistent),
-    agent: Agent.Persistent.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type kind_persistent =
-    | CodePersist(code_persistent)
-    | DrvPersist(DerivationExerciseMode.Model.persistent);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    name: string,
-    kind: kind_persistent,
-  };
-
-  let persist = (s: t): persistent => {
-    switch (s.kind) {
-    | Code({editor, agent}) =>
-      let current_zipper = editor.editor.editor.state.zipper;
-      let current_segment = Zipper.zip(current_zipper);
-      let original = Init.find_documentation_slide(s.name);
-      /* Originals are text-backed (committed .hz) and mint fresh ids on
-         every parse, so id-sensitive segment equality can never match;
-         compare by the text projection instead — FastParse loads the
-         text verbatim, so an unedited slide prints byte-identically
-         modulo the stored final newline (the writer's artifact, which
-         the print never carries). */
-      let unchanged =
-        switch (original) {
-        | None => false
-        | Some(pce) =>
-          MarkerParse.seg_to_text(
-            ~refractors=current_zipper.refractors.manuals,
-            current_segment,
-          )
-          == Util.StringUtil.strip_final_newline(
-               pce.editor.zipper.backup_text,
-             )
-        };
-      let editor_persist =
-        if (unchanged) {
-          None;
-        } else {
-          Some(CellEditor.Model.persist(editor));
-        };
-      {
-        name: s.name,
-        kind:
-          CodePersist({
-            editor: editor_persist,
-            agent: Agent.Persistent.persist(agent),
-          }),
-      };
-    | Drv(m) => {
-        name: s.name,
-        kind:
-          DrvPersist(
-            DerivationExerciseMode.Model.persist(m, ~instructor_mode=false),
-          ),
-      }
-    };
-  };
-
-  let mk_code = (~name, ~editor, ()): t => {
-    name,
-    kind:
-      Code({
-        editor,
-        agent: Agent.Utils.init(),
-      }),
-    dormant: false,
-  };
-
-  let blank_code = (name: string): t =>
-    mk_code(
-      ~name,
-      ~editor=CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
-      (),
-    );
-
-  let dormant_code = (name: string): t => {
-    ...blank_code(name),
-    dormant: true,
-  };
-
-  let blank_drv = (~settings, name: string): t => {
-    name,
-    kind:
-      Drv(
-        DerivationExerciseMode.Model.of_spec(
-          ~settings,
-          ~instructor_mode=false,
-          DerivationExercise.blank_spec(~title=name, ~module_name=name),
-        ),
-      ),
-    dormant: false,
-  };
-};
-
-module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    current: int,
-    scratchpads: list(Scratchpad.t),
-  };
-
-  /* The monolithic export/import format (per-slide keys are the live
-     storage; see Persist below). */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list(Scratchpad.persistent));
-
-  let scratchpad_names = (model: t): list(string) =>
-    List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-};
-
-/* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
-   data is stored as separate HazelDB KV keys, so autosave only writes
-   the current slide.
-
-   Key layout:
-     <prefix>:_meta         → slide_meta (current_index, names)
-     <prefix>:<name>        → CellEditor.Model.persistent
-     <prefix>:<name>:agent  → Agent.Persistent.t */
-module Persist = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type slide_meta = {
-    current: int,
-    names: list(string),
-  };
-
-  let meta_key = (prefix: string): string => prefix ++ ":_meta";
-  let slide_key = (prefix: string, name: string): string =>
-    prefix ++ ":" ++ name;
-  let agent_key = (prefix: string, name: string): string =>
-    prefix ++ ":" ++ name ++ ":agent";
-
-  let save_meta = (prefix: string, m: slide_meta): unit => {
-    let key = meta_key(prefix);
-    let serialized = m |> sexp_of_slide_meta |> Sexplib.Sexp.to_string;
-    HazelDB.kv_save(key, serialized);
-  };
-
-  let load_meta = (prefix: string): option(slide_meta) =>
-    switch (HazelDB.kv_get(meta_key(prefix))) {
-    | Some(data) =>
-      try(Some(data |> Sexplib.Sexp.of_string |> slide_meta_of_sexp)) {
-      | _ => None
-      }
-    | None => None
-    };
-
-  let save_slide_kind =
-      (prefix: string, name: string, kind: Scratchpad.kind_persistent): unit => {
-    let key = slide_key(prefix, name);
-    let serialized =
-      kind |> Scratchpad.sexp_of_kind_persistent |> Sexplib.Sexp.to_string;
-    HazelDB.kv_save(key, serialized);
-  };
-
-  /* Load a slide blob. Tries the new schema first; on parse failure,
-     falls back to legacy CellEditor-only blobs and wraps them as a Code kind. */
-  let load_slide_kind =
-      (prefix: string, name: string): option(Scratchpad.kind_persistent) =>
-    switch (HazelDB.kv_get(slide_key(prefix, name))) {
-    | None => None
-    | Some(data) =>
-      let sexp = Sexplib.Sexp.of_string(data);
-      switch (Scratchpad.kind_persistent_of_sexp(sexp)) {
-      | k => Some(k)
-      | exception _ =>
-        switch (CellEditor.Model.persistent_of_sexp(sexp)) {
-        | e =>
-          Some(
-            Scratchpad.CodePersist({
-              editor: Some(e),
-              agent: Agent.Persistent.persist(Agent.Utils.init()),
-            }),
-          )
-        | exception _ => None
-        }
-      };
-    };
-
-  let save_agent =
-      (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
-    let key = agent_key(prefix, name);
-    let serialized =
-      agent |> Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
-    HazelDB.kv_save(key, serialized);
-  };
-
-  let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
-    switch (HazelDB.kv_get(agent_key(prefix, name))) {
-    | Some(data) =>
-      try(Some(data |> Sexplib.Sexp.of_string |> Agent.Persistent.t_of_sexp)) {
-      | _ => None
-      }
-    | None => None
-    };
-
-  /* Change-gate for agent saves: serializing a long conversation on
-     every editor autosave is the expensive part, so skip when the agent
-     model is physically unchanged (edits rebuild the scratchpad record
-     but reuse the agent field). */
-  let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
-  let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
-
-  let save_current = (prefix: string, model: Model.t): unit => {
-    let names = Model.scratchpad_names(model);
-    save_meta(
-      prefix,
-      {
-        current: model.current,
-        names,
-      },
-    );
-    let sp = List.nth(model.scratchpads, model.current);
-    switch (sp.dormant, sp.kind) {
-    | (true, _) => () /* never write a placeholder over the stored slide */
-    | (false, Code({editor, agent})) =>
-      switch (CellEditor.Model.persist(editor)) {
-      | e =>
-        /* The slide blob carries the editor only; the conversation
-           lives solely under the :agent key (it used to be embedded
-           here TOO, doubling every write and boot deserialization). */
-        save_slide_kind(
-          prefix,
-          sp.name,
-          CodePersist({
-            editor: Some(e),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
-          }),
-        )
-      };
-      let agent_key_str = prefix ++ ":" ++ sp.name;
-      /* the agent model changes on every streamed chunk, so a physical
-         equality gate saved (and serialized, several MB) many times a
-         second while the model spoke; gate on the fields that persist */
-      let unchanged =
-        switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
-        | Some(prev) =>
-          let prev: Agent.Model.t = prev;
-          prev === agent
-          || prev.chat_system === agent.chat_system
-          && prev.prompting === agent.prompting
-          && prev.active_timeline_node == agent.active_timeline_node
-          && prev.awaiting_response == agent.awaiting_response;
-        | None => false
-        };
-      /* while the agent works (tools landing every few hundred ms) one save
-         per 10 s is enough; the final save comes when it goes idle */
-      let busy =
-        agent.awaiting_response != None || agent.pending_dispatch_send != None;
-      let now = JsUtil.timestamp();
-      let recently =
-        switch (Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
-        | Some(t) => now -. t < 10000.
-        | None => false
-        };
-      if (!unchanged && !(busy && recently)) {
-        save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
-        Hashtbl.replace(last_saved_agent, agent_key_str, agent);
-        Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
-      };
-    | (false, Drv(_)) =>
-      switch (Scratchpad.persist(sp).kind) {
-      | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
-      | CodePersist(_) => ()
-      }
-    };
-  };
-
-  let load_scratchpad =
-      (~settings, prefix: string, name: string): Scratchpad.t => {
-    switch (load_slide_kind(prefix, name)) {
-    | Some(CodePersist({editor: e, agent})) =>
-      let agent =
-        switch (load_agent(prefix, name)) {
-        | Some(p) => p
-        | None => agent
-        };
-      Scratchpad.{
-        name,
-        kind:
-          Code({
-            editor:
-              (
-                switch (e) {
-                | Some(e) => e
-                | None => Init.default_documentation_slide_name(name)
-                }
-              )
-              |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Persistent.unpersist(agent),
-          }),
-        dormant: false,
-      };
-    | Some(DrvPersist(p)) =>
-      Scratchpad.{
-        name,
-        kind:
-          Drv(
-            DerivationExerciseMode.Model.unpersist(
-              ~settings,
-              ~instructor_mode=false,
-              p,
-              DerivationExercise.blank_spec(~title=name, ~module_name=name),
-            ),
-          ),
-        dormant: false,
-      }
-    | None =>
-      /* No persisted data for this slide. If the name matches a Drv
-         documentation slide, seed it as a derivation scratchpad from the
-         registered spec. Otherwise fall back to a code slide (either the
-         named documentation slide, or an empty code scratchpad). */
-      switch (Init.find_documentation_drv_spec(name)) {
-      | Some(spec) =>
-        Scratchpad.{
-          name,
-          kind:
-            Drv(
-              DerivationExerciseMode.Model.of_spec(
-                ~settings,
-                ~instructor_mode=false,
-                spec,
-              ),
-            ),
-          dormant: false,
-        }
-      | None =>
-        let agent =
-          switch (load_agent(prefix, name)) {
-          | Some(p) => Agent.Persistent.unpersist(p)
-          | None => Agent.Utils.init()
-          };
-        Scratchpad.{
-          name,
-          kind:
-            Code({
-              editor:
-                Init.default_documentation_slide_name(name)
-                |> CellEditor.Model.unpersist(~settings),
-              agent,
-            }),
-          dormant: false,
-        };
-      }
-    };
-  };
-
-  let load_all =
-      (
-        prefix: string,
-        ~settings,
-        ~default_names: list(string),
-        ~default_current: int,
-      )
-      : Model.t => {
-    let (current, names) =
-      switch (load_meta(prefix)) {
-      | Some(meta) => (meta.current, meta.names)
-      | None => (default_current, default_names)
-      };
-    Model.{
-      current,
-      scratchpads:
-        List.mapi(
-          (i, name) =>
-            i == current
-              ? load_scratchpad(~settings, prefix, name)
-              : Scratchpad.dormant_code(name),
-          names,
-        ),
-    };
-  };
-
-  /* Swap the placeholder at [current] for the real slide, if dormant. */
-  let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
-    let sp = List.nth(model.scratchpads, model.current);
-    if (sp.dormant) {
-      {
-        ...model,
-        scratchpads:
-          Util.ListUtil.put_nth(
-            model.current,
-            load_scratchpad(~settings, prefix, sp.name),
-            model.scratchpads,
-          ),
-      };
-    } else {
-      model;
-    };
-  };
-
-  /* Serialize all slides into the monolithic export format. */
-  let export_all =
-      (prefix: string, ~default_names: list(string), ~default_current: int)
-      : string => {
-    let (current, names) =
-      switch (load_meta(prefix)) {
-      | Some(meta) => (meta.current, meta.names)
-      | None => (default_current, default_names)
-      };
-    let scratchpads: list(Scratchpad.persistent) =
-      List.map(
-        name =>
-          switch (load_slide_kind(prefix, name)) {
-          | Some(CodePersist({editor, agent})) =>
-            let agent =
-              switch (load_agent(prefix, name)) {
-              | Some(a) => a
-              | None => agent
-              };
-            Scratchpad.{
-              name,
-              kind:
-                CodePersist({
-                  editor,
-                  agent,
-                }),
-            };
-          | Some(DrvPersist(_) as k) =>
-            Scratchpad.{
-              name,
-              kind: k,
-            }
-          | None =>
-            let agent =
-              switch (load_agent(prefix, name)) {
-              | Some(a) => a
-              | None => Agent.Persistent.persist(Agent.Utils.init())
-              };
-            Scratchpad.{
-              name,
-              kind:
-                CodePersist({
-                  editor: None,
-                  agent,
-                }),
-            };
-          },
-        names,
-      );
-    let persistent: Model.persistent = (current, scratchpads);
-    persistent |> Model.sexp_of_persistent |> Sexplib.Sexp.to_string;
-  };
-
-  /* Deserialize monolithic export format and distribute to per-slide keys. */
-  let import_all = (prefix: string, data: string): unit =>
-    try({
-      let persistent: Model.persistent =
-        data |> Sexplib.Sexp.of_string |> Model.persistent_of_sexp;
-      let (current, scratchpads) = persistent;
-      let names =
-        List.map((sp: Scratchpad.persistent) => sp.name, scratchpads);
-      save_meta(
-        prefix,
-        {
-          current,
-          names,
-        },
-      );
-      List.iter(
-        (sp: Scratchpad.persistent) =>
-          switch (sp.kind) {
-          | CodePersist({editor, agent}) =>
-            switch (editor) {
-            | Some(_) =>
-              save_slide_kind(
-                prefix,
-                sp.name,
-                CodePersist({
-                  editor,
-                  agent,
-                }),
-              )
-            | None => ()
-            };
-            save_agent(prefix, sp.name, agent);
-          | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
-          },
-        scratchpads,
-      );
-    }) {
-    | _ => print_endline("ScratchMode.Persist.import_all: error")
-    };
-};
-
-let integrate_share =
-    (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
-  let share_name =
-    switch (JsUtil.QueryParams.get_param("name")) {
-    | None => "Unknown Share"
-    | Some(name) => name
-    };
-  switch (JsUtil.QueryParams.get_param("share")) {
-  | None => model
-  | Some(data) =>
-    let shared_text = data |> StringUtil.decompress;
-    /* zipper: "" = the intentional text path (share links carry only
-       text); a non-empty sentinel would take the sexp arm and print the
-       stale-serialization warning on every share-link load */
-    let shared: PersistentZipper.t = {
-      zipper: "",
-      backup_text: shared_text,
-    };
-    let shared: CellEditor.Model.persistent = {
-      editor: {
-        root: Exp,
-        zipper: shared,
-      },
-      result: EvalResult.Model.init |> EvalResult.Model.persist,
-    };
-    let new_sp =
-      Scratchpad.mk_code(
-        ~name=share_name,
-        ~editor=CellEditor.Model.unpersist(~settings, shared),
-        (),
-      );
-    Model.{
-      current: List.length(model.scratchpads),
-      scratchpads: model.scratchpads @ [new_sp],
-    };
-  };
-};
+let cell_by_id = (model: Model.t, id: Haz3lcore.Id.t): option(ScratchCell.t) =>
+  List.find_opt((e: ScratchCell.t) => e.e_id == id, current_cells(model));
 
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | CellAction(CellEditor.Update.t)
+    | Workspace(Workspace.Action.t)
+    | Outline(OutlineControl.Action.t)
     | RefreshStatics
-    | AgentAction(Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
-    | SwitchSlide(int)
-    | ResetCurrent
-    | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-    | FinishImportScratchpad(option(string))
-    | Export
-    | Encode
-    | AddSlide
-    | AddDrvSlide
-    | RenameSlide
-    | DeleteSlide;
+    | Deck(SlideDeck.Action.t);
 
-  let export_scratch_slide = (model: Model.t): unit => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
-    switch (scratchpad.kind) {
-    | Code({editor, _}) =>
-      let persistent = CellEditor.Model.persist(editor);
-      let data =
-        persistent
-        |> CellEditor.Model.sexp_of_persistent
-        |> Sexplib.Sexp.to_string;
-      let current_name = scratchpad.name;
-      let filename = current_name |> StringUtil.sanitize_filename;
-      JsUtil.download_string_file(
-        ~filename,
-        ~content_type="text/plain",
-        ~contents=data,
-      );
-    | Drv(_) => ()
+  let current_code = (model: Model.t): option(Scratchpad.code) =>
+    switch (List.nth(model.scratchpads, model.current).kind) {
+    | Code(c) => Some(c)
+    | Drv(_) => None
     };
-  };
 
-  let encode_scratch_slide = (model: Model.t): unit => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
-    JsUtil.QueryParams.set_param("name", scratchpad.name);
-    switch (scratchpad.kind) {
-    | Code({editor, _}) =>
-      let c = editor |> CellEditor.Model.to_string;
-      JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
-    | Drv(_) => ()
-    };
-  };
-  let rec prompt_slide_name =
-          (
-            ~error: option(string)=?,
-            ~existing_scratchpads: Seq.t(string),
-            default: string,
-          )
-          : Option.t(string) => {
-    let new_name =
-      JsUtil.prompt(
-        (
-          switch (error) {
-          | Some(e) => e ++ "\n"
-          | None => ""
-          }
-        )
-        ++ "Enter new slide name:",
-        default,
-      );
-
-    if (existing_scratchpads |> Seq.exists(name => Some(name) == new_name)) {
-      prompt_slide_name(
-        ~error="Slide name already exists. Please choose a different name.",
-        ~existing_scratchpads,
-        Option.value(~default, new_name),
-      );
-    } else {
-      new_name;
-    };
-  };
-
-  /* Kind of scratchpad to create. Code is the default ("Scratchpad N");
-     Drv creates a blank derivation slide with the same auto-naming scheme. */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type new_slide_kind =
-    | NewCode
-    | NewDrv;
-
-  let add_new_slide =
-      (
-        ~kind: new_slide_kind,
-        ~settings: Language.CoreSettings.t,
-        model: Model.t,
-        is_documentation: bool,
-      )
-      : Model.t => {
-    let blank = name =>
-      switch (kind) {
-      | NewCode => Scratchpad.blank_code(name)
-      | NewDrv => Scratchpad.blank_drv(~settings, name)
-      };
-    let add_empty_slide = (name): Model.t => {
-      current: List.length(model.scratchpads),
-      scratchpads: model.scratchpads @ [blank(name)],
-    };
-    switch (is_documentation) {
-    | false =>
-      let prefix =
-        switch (kind) {
-        | NewCode => "Scratchpad"
-        | NewDrv => "Derivation"
-        };
-      let used_numbers =
-        model.scratchpads
-        |> List.filter_map((s: Scratchpad.t) => {
-             switch (String.split_on_char(' ', s.name)) {
-             | [p, num] when p == prefix => int_of_string_opt(num)
-             | _ => None
-             }
-           });
-      let unused_ids =
-        Seq.filter(i => !List.mem(i, used_numbers), Seq.ints(1));
-      let new_number =
-        Seq.uncons(unused_ids)
-        |> Option.get  // This is safe because unused_ids is infinite
-        |> fst;
-
-      add_empty_slide(prefix ++ " " ++ string_of_int(new_number));
-    | true =>
-      let new_name =
-        prompt_slide_name(
-          ~existing_scratchpads=
-            model.scratchpads
-            |> List.to_seq
-            |> Seq.map((s: Scratchpad.t) => s.name),
-          "New Slide Name",
-        );
-      switch (new_name) {
-      | None => model // Prompt cancelled so no new scratchpad created
-      | Some(name) => add_empty_slide(name)
-      };
+  let with_code = (model: Model.t, code: Scratchpad.code): Model.t => {
+    let sp = List.nth(model.scratchpads, model.current);
+    {
+      ...model,
+      scratchpads:
+        ListUtil.put_nth(
+          model.current,
+          {
+            ...sp,
+            kind: Code(code),
+          },
+          model.scratchpads,
+        ),
     };
   };
 
@@ -707,59 +63,35 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    | AgentAction(a) =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
-      switch (scratchpad.kind) {
-      | Code({editor, agent}) =>
-        let schedule_agent = (a: Agent.Update.Action.t) =>
-          schedule_action(AgentAction(a));
-        let (new_agent, updated_editor) =
-          Agent.Update.update(a, agent, editor, settings, schedule_agent);
-        let* new_ed = updated_editor;
-        let new_sp =
-          ListUtil.put_nth(
-            model.current,
-            {
-              ...scratchpad,
-              kind:
-                Code({
-                  editor: new_ed,
-                  agent: new_agent,
-                }),
-            },
-            model.scratchpads,
+    | Workspace(a) =>
+      switch (current_code(model)) {
+      | None => model |> return_quiet
+      | Some(code) =>
+        let* code =
+          Workspace.update(
+            ~settings,
+            ~schedule_action=a => schedule_action(Workspace(a)),
+            ~slide_key=slide_key(~is_documentation, model),
+            a,
+            code,
           );
-        {
-          ...model,
-          scratchpads: new_sp,
-        };
-      | Drv(_) => model |> return_quiet
-      };
-    | CellAction(a) =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
-      switch (scratchpad.kind) {
-      | Code({editor, agent}) =>
-        let* new_ed = CellEditor.Update.update(~settings, a, editor);
-        let new_sp =
-          ListUtil.put_nth(
-            model.current,
-            {
-              ...scratchpad,
-              kind:
-                Code({
-                  editor: new_ed,
-                  agent,
-                }),
-            },
-            model.scratchpads,
+        with_code(model, code);
+      }
+    | Outline(a) =>
+      switch (current_code(model)) {
+      | None => model |> return_quiet
+      | Some(code) =>
+        let* code =
+          OutlineControl.update(
+            ~settings,
+            ~schedule_workspace=a => schedule_action(Workspace(a)),
+            ~prefix=is_documentation ? "doc" : "scratch",
+            ~name=List.nth(model.scratchpads, model.current).name,
+            a,
+            code,
           );
-        let new_model = {
-          ...model,
-          scratchpads: new_sp,
-        };
-        new_model;
-      | Drv(_) => model |> return_quiet
-      };
+        with_code(model, code);
+      }
     | DrvAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
@@ -790,188 +122,14 @@ module Update = {
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
-    | SwitchSlide(i) =>
-      WorkerClient.cancel();
-      let* current = i |> Updated.return(~historic=false);
-      Persist.hydrate_current(
-        ~settings=settings.core,
-        is_documentation ? "doc" : "scratch",
-        {
-          ...model,
-          current,
-        },
-      );
-    | AddSlide =>
-      WorkerClient.cancel();
-      Updated.return(
-        add_new_slide(
-          ~kind=NewCode,
-          ~settings=settings.core,
-          model,
-          is_documentation,
-        ),
-      );
-    | AddDrvSlide =>
-      WorkerClient.cancel();
-      Updated.return(
-        add_new_slide(
-          ~kind=NewDrv,
-          ~settings=settings.core,
-          model,
-          is_documentation,
-        ),
-      );
-    | RenameSlide =>
-      let current = List.nth(model.scratchpads, model.current);
-      let new_name =
-        prompt_slide_name(
-          ~existing_scratchpads=
-            model.scratchpads
-            |> List.to_seq
-            |> Seq.zip(Seq.ints(0))
-            |> Seq.filter(((idx, _)) => idx != model.current)
-            |> Seq.map(snd)
-            |> Seq.map((s: Scratchpad.t) => s.name),
-          current.name,
-        );
-
-      switch (new_name) {
-      | None => model |> return_quiet
-      | Some(new_name) =>
-        let new_sp =
-          ListUtil.put_nth(
-            model.current,
-            {
-              ...current,
-              name: new_name,
-            },
-            model.scratchpads,
-          );
-        Updated.return({
-          ...model,
-          scratchpads: new_sp,
-        });
-      };
-    | DeleteSlide =>
-      let confirmed =
-        JsUtil.confirm(
-          "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
-        );
-      if (confirmed) {
-        WorkerClient.cancel();
-        let new_sp =
-          ListUtil.remove_nth(model.current, model.scratchpads)
-          |> Option.value(~default=model.scratchpads);
-
-        let m: Model.t =
-          List.is_empty(new_sp)
-            ? add_new_slide(
-                ~kind=NewCode,
-                ~settings=settings.core,
-                {
-                  ...model,
-                  scratchpads: [],
-                },
-                is_documentation,
-              )
-            : Persist.hydrate_current(
-                ~settings=settings.core,
-                is_documentation ? "doc" : "scratch",
-                {
-                  scratchpads: new_sp,
-                  current: max(model.current - 1, 0),
-                },
-              );
-        Updated.return(m);
-      } else {
-        model |> return_quiet;
-      };
-
-    | ResetCurrent =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
-      switch (scratchpad.kind) {
-      | Code({agent, _}) =>
-        let source =
-          switch (is_documentation) {
-          | false =>
-            CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
-            |> CellEditor.Model.persist
-          | true => Init.default_documentation_slide_name(scratchpad.name)
-          };
-        let* data = source |> CellEditor.Model.unpersist |> Updated.return;
-        {
-          ...model,
-          scratchpads:
-            ListUtil.put_nth(
-              model.current,
-              {
-                ...scratchpad,
-                kind:
-                  Code({
-                    editor: data,
-                    agent,
-                  }),
-              },
-              model.scratchpads,
-            ),
-        };
-      | Drv(_) =>
-        let new_sp =
-          Scratchpad.blank_drv(~settings=settings.core, scratchpad.name);
-        {
-          ...model,
-          scratchpads:
-            ListUtil.put_nth(model.current, new_sp, model.scratchpads),
-        }
-        |> Updated.return;
-      };
-    | InitImportScratchpad(file) =>
-      JsUtil.read_file(file, data =>
-        schedule_action(FinishImportScratchpad(data))
-      );
-      model |> return_quiet;
-    | FinishImportScratchpad(data) =>
-      // reset file input so same file can be re-imported if desired
-      JsUtil.reset_file_input("import-scratchpad");
-      switch (data) {
-      | None => model |> return_quiet
-      | Some(data) =>
-        let scratchpad = List.nth(model.scratchpads, model.current);
-        switch (scratchpad.kind) {
-        | Code({agent, _}) =>
-          let new_data =
-            data
-            |> Sexplib.Sexp.of_string
-            |> CellEditor.Model.persistent_of_sexp
-            |> CellEditor.Model.unpersist(~settings=settings.core);
-
-          let scratchpads =
-            ListUtil.put_nth(
-              model.current,
-              {
-                ...scratchpad,
-                kind:
-                  Code({
-                    editor: new_data,
-                    agent,
-                  }),
-              },
-              model.scratchpads,
-            );
-          {
-            ...model,
-            scratchpads,
-          }
-          |> Updated.return;
-        | Drv(_) => model |> return_quiet
-        };
-      };
-    | Export =>
-      export_scratch_slide(model);
-      model |> Updated.return_quiet;
-    | Encode =>
-      encode_scratch_slide(model);
-      model |> Updated.return_quiet;
+    | Deck(a) =>
+      SlideDeck.update(
+        ~settings,
+        ~schedule_action=a => schedule_action(Deck(a)),
+        ~is_documentation,
+        a,
+        model,
+      )
     };
   };
 
@@ -981,6 +139,7 @@ module Update = {
         ~autoprobe_mode,
         ~schedule_action,
         ~is_edited,
+        ~is_documentation: bool,
         model: Model.t,
       )
       : Model.t => {
@@ -991,52 +150,19 @@ module Update = {
 
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
-    | Code({editor, agent}) =>
-      let worker_request = ref([]);
-      let queue_worker =
-        Some(
-          (req_value: WorkerServer.Request.value) => {
-            worker_request := worker_request^ @ [("", req_value)]
-          },
-        );
-      let new_ed =
-        CellEditor.Update.calculate(
+    | Code(code) =>
+      with_code(
+        model,
+        Workspace.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~schedule_action=a => schedule_action(Workspace(a)),
           ~is_edited,
           ~statics_mode,
-          ~queue_worker,
-          ~stitch=x => x,
-          editor,
-        );
-      let dispatch = (_key, action) =>
-        schedule_action(CellAction(ResultAction(action)));
-      EvalRequest.request(
-        worker_request^,
-        ~pos_of_key=key => key,
-        ~dispatch,
-        ~on_timeout=
-          List.iter(((key, _)) =>
-            dispatch(key, UpdateResult(ResultFail(Timeout)))
-          ),
-      );
-      let new_sp =
-        ListUtil.put_nth(
-          model.current,
-          {
-            ...scratchpad,
-            kind:
-              Code({
-                editor: new_ed,
-                agent,
-              }),
-          },
-          model.scratchpads,
-        );
-      {
-        ...model,
-        scratchpads: new_sp,
-      };
+          ~slide_key=slide_key(~is_documentation, model),
+          code,
+        ),
+      )
     | Drv(m) =>
       let new_m =
         DerivationExerciseMode.Update.calculate(
@@ -1069,6 +195,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
+    | StackH(Haz3lcore.Id.t, CellEditor.Selection.t)
+    | StackB(Haz3lcore.Id.t, CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -1078,14 +206,38 @@ module Selection = {
     let scratchpad = List.nth(model.scratchpads, model.current);
     let cursor =
       switch (selection, scratchpad.kind) {
-      | (Cell(selection), Code({editor, _})) =>
+      | (Cell(selection), Code({program: Whole(editor), _})) =>
         let+ a =
           CellEditor.Selection.get_cursor_info(
-            ~inject=a => inject(CellAction(a)),
+            ~inject=a => inject(Workspace(CellAction(a))),
             ~selection,
             editor,
           );
-        Update.CellAction(a);
+        Update.Workspace(CellAction(a));
+      | (StackH(i, selection), Code(_)) =>
+        switch (cell_by_id(model, i)) {
+        | Some(entry) =>
+          let+ a =
+            CellEditor.Selection.get_cursor_info(
+              ~inject=a => inject(Workspace(StackHeader(i, a))),
+              ~selection,
+              entry.e_header,
+            );
+          Update.Workspace(StackHeader(i, a));
+        | None => empty
+        }
+      | (StackB(i, selection), Code(_)) =>
+        switch (cell_by_id(model, i)) {
+        | Some(entry) =>
+          let+ a =
+            CellEditor.Selection.get_cursor_info(
+              ~inject=a => inject(Workspace(StackBody(i, a))),
+              ~selection,
+              entry.e_body,
+            );
+          Update.Workspace(StackBody(i, a));
+        | None => empty
+        }
       | (Drv(selection), Drv(m)) =>
         let+ a =
           DerivationExerciseMode.Selection.get_cursor_info(
@@ -1094,34 +246,41 @@ module Selection = {
             m,
           );
         Update.DrvAction(a);
+      | (Cell(_), Code({program: Divided(_), _}))
       | (Cell(_), Drv(_))
+      | (StackH(_), Drv(_))
+      | (StackB(_), Drv(_))
       | (Drv(_), Code(_))
       | (TextBox, _) => empty
       };
     cursor
     |> Cursor.with_actions([
          ContextualAction.of_shortcut(
-           ~action=inject(Export),
+           ~action=inject(Outline(Focus)),
+           FocusOutline,
+         ),
+         ContextualAction.of_shortcut(
+           ~action=inject(Deck(Export)),
            ExportCurrentScratchpad,
          ),
          ContextualAction.of_shortcut(
-           ~action=inject(Encode),
+           ~action=inject(Deck(Encode)),
            EncodeCurrentScratchpadInUrl,
          ),
          ContextualAction.of_shortcut(
-           ~action=inject(AddSlide),
+           ~action=inject(Deck(AddSlide)),
            AddNewCodeScratchpad,
          ),
          ContextualAction.of_shortcut(
-           ~action=inject(AddDrvSlide),
+           ~action=inject(Deck(AddDrvSlide)),
            AddNewDerivationScratchpad,
          ),
          ContextualAction.of_shortcut(
-           ~action=inject(RenameSlide),
+           ~action=inject(Deck(RenameSlide)),
            RenameCurrentScratchpad,
          ),
          ContextualAction.of_shortcut(
-           ~action=inject(DeleteSlide),
+           ~action=inject(Deck(DeleteSlide)),
            DeleteCurrentScratchpad,
          ),
        ]);
@@ -1131,12 +290,192 @@ module Selection = {
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
-    | Code({editor, _}) =>
+    | Code({program: Whole(editor), _}) =>
       CellEditor.Selection.jump_to_tile(tile, editor)
-      |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)))
+      |> Option.map(((x, y)) =>
+           (Update.Workspace(CellAction(x)), Cell(y))
+         )
+    | Code({program: Divided(d), _}) =>
+      let caret: CellEditor.Update.t =
+        MainEditor(Perform(Move(Goal(TileId(tile)))));
+      let in_cell = cell =>
+        Focus.seg_contains_id(tile, Focus.zip_of_cell(cell));
+      Divided.cells(d)
+      |> List.find_map((e: ScratchCell.t) =>
+           if (in_cell(e.e_body)) {
+             Some((
+               Update.Workspace(StackBody(e.e_id, caret)),
+               StackB(e.e_id, MainEditor),
+             ));
+           } else if (in_cell(e.e_header)) {
+             Some((
+               Update.Workspace(StackHeader(e.e_id, caret)),
+               StackH(e.e_id, MainEditor),
+             ));
+           } else {
+             None;
+           }
+         );
     | Drv(m) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
+    };
+  };
+
+  /* a jump to a whole-program id across open cells: (open the item
+     holding it, select the pane holding it, move that pane's caret) */
+  let cross_cell_target =
+      (~target_id: Haz3lcore.Id.t, ~d: Divided.t)
+      : option((Update.t, t, Update.t)) => {
+    Util.OptUtil.Syntax.(
+      {
+        let statics = Divided.statics(d);
+        let* info = Id.Map.find_opt(target_id, statics.info_map);
+        /* the nearest enclosing outline item is the def to focus */
+        let rec outline_ids = (acc, ns: list(OutlineTree.node)) =>
+          List.fold_left(
+            (acc, n: OutlineTree.node) =>
+              outline_ids(
+                switch (n.o_id) {
+                | Some(id) => [id, ...acc]
+                | None => acc
+                },
+                n.o_children,
+              ),
+            acc,
+            ns,
+          );
+        let items = outline_ids([], OutlineTree.of_term(statics.term));
+        let* fid =
+          List.find_opt(
+            id => List.mem(id, items),
+            [target_id, ...Language.Info.ancestors_of(info)],
+          );
+        /* the cell that holds [fid] once it's ensured */
+        let j =
+          switch (Divided.owner(fid, d)) {
+          | Some(e) => e.e_id
+          | None => fid
+          };
+        /* def binders live in the header cell, all else in the body;
+           statements, tails and test runs have no header */
+        let doc = Divided.document(d);
+        let headless =
+          Focus.headless_content_deep(fid, doc) != None
+          || Focus.test_run_deep(fid, doc) != None;
+        let in_header =
+          !headless
+          && Focus.seg_contains_id(
+               target_id,
+               Option.value(Focus.find_pat(fid, doc), ~default=[]),
+             );
+        let caret: CellEditor.Update.t =
+          MainEditor(Perform(Move(Goal(TileId(target_id)))));
+        Some((
+          Update.Workspace(FocusEnsure(fid)),
+          in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
+          in_header
+            ? Update.Workspace(StackHeader(j, caret))
+            : Update.Workspace(StackBody(j, caret)),
+        ));
+      }
+    );
+  };
+
+  /* a jump (problems, inspector, agent results) to a tile outside every
+     open cell: open the item holding it, then move there */
+  let closed_jump =
+      (tile: Haz3lcore.Id.t, model: Model.t)
+      : option((Update.t, t, Update.t)) =>
+    switch (Model.current_program(model)) {
+    | Some(Divided(d)) when Divided.owner(tile, d) == None =>
+      cross_cell_target(~target_id=tile, ~d)
+    | _ => None
+    };
+
+  let stack_jump_override =
+      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) => {
+    Util.OptUtil.Syntax.(
+      switch (action, Model.current_program(model)) {
+      | (
+          Workspace(
+            StackBody(
+              i,
+              MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+            ),
+          ) |
+          Workspace(
+            StackHeader(
+              i,
+              MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+            ),
+          ),
+          Some(Divided(d)),
+        ) =>
+        let from_header =
+          switch (action) {
+          | Workspace(StackHeader(_)) => true
+          | _ => false
+          };
+        let* entry = cell_by_id(model, i);
+        let cell =
+          from_header ? entry.ScratchCell.e_header : entry.ScratchCell.e_body;
+        let cell_map = cell.editor.statics.info_map;
+        let* ci = Indicated.ci_of(cell.editor.editor.state.zipper, cell_map);
+        let* binding_id = Language.Info.get_binding_site(ci);
+        if (Id.Map.mem(binding_id, cell_map)) {
+          None; /* binder is inside this cell: the cell's own jump works */
+        } else {
+          cross_cell_target(~target_id=binding_id, ~d);
+        };
+      | _ => None
+      }
+    );
+  };
+
+  /* where an outline open lands the selection: the body pane of the
+     cell that will hold [fid]; None when a toggle closes it */
+  let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
+    switch (action, Model.current_program(model)) {
+    | (Workspace(FocusEnsure(fid)), Some(Divided(d))) =>
+      Some(
+        StackB(
+          switch (Divided.owner(fid, d)) {
+          | Some(e) => e.e_id
+          | None => fid
+          },
+          MainEditor,
+        ),
+      )
+    /* an id already in an open cell (its own or an enclosing one) opens
+       no cell, so the selection stays put */
+    | (Workspace(FocusToggle(fid)), Some(Divided(d))) =>
+      Option.is_none(Divided.owner(fid, d))
+        ? Some(StackB(fid, MainEditor)) : None
+    | (Workspace(FocusToggle(fid)), Some(Whole(_))) =>
+      Some(StackB(fid, MainEditor))
+    | _ => None
+    };
+
+  /* after an update: a selected cell that closed falls back to the
+     active one, and a whole program selects its editor */
+  let follow = (selection: t, after: Model.t): t => {
+    let pane = ((id, side): (Haz3lcore.Id.t, Divided.side), s) =>
+      side == Divided.Header ? StackH(id, s) : StackB(id, s);
+    let active = (d: Divided.t) =>
+      switch (Divided.active(d), Divided.cells(d)) {
+      | (Some(a), _) => a
+      | (None, [e, ..._]) => (e.e_id, Divided.Body)
+      | (None, []) => (Haz3lcore.Id.invalid, Divided.Body)
+      };
+    let open_ = (id, d) =>
+      List.exists((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
+    switch (selection, Model.current_program(after)) {
+    | (StackH(_) | StackB(_), Some(Whole(_))) => Cell(MainEditor)
+    | (StackH(id, _) | StackB(id, _), Some(Divided(d))) =>
+      open_(id, d) ? selection : pane(active(d), MainEditor)
+    | (Cell(MainEditor), Some(Divided(d))) => pane(active(d), MainEditor)
+    | _ => selection
     };
   };
 
@@ -1154,6 +493,36 @@ module View = {
   type event =
     | MakeActive(Selection.t);
 
+  /* per-cell view cache, keyed on everything the cell view reads: a
+     keystroke in one cell must not rebuild the others */
+  type stack_cache_key = {
+    k_index: int,
+    k_stack_len: int, /* escape closures bound-check against it */
+    k_header_sel: option(CellEditor.Selection.t),
+    k_body_sel: option(CellEditor.Selection.t),
+    k_meta_down: bool,
+    k_visible_rows: option(Globals.VisibleRows.t),
+    k_zoom_cell: bool,
+  };
+  type cached_cell = {
+    c_key: stack_cache_key,
+    c_header: CellEditor.Model.t,
+    c_body: CellEditor.Model.t,
+    c_settings: Settings.t,
+    c_font_metrics: FontMetrics.t,
+    c_colors: option(ColorSteps.colorMap),
+    /* the whole program's test results, drawn as the cells' markers */
+    c_tests: option(Language.TestResults.t),
+    c_nodes: list(Virtual_dom.Vdom.Node.t),
+  };
+  let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
+
+  /* read the cache only through this helper, never bind `stack_cache^` in
+     the view: jsoo closures share one context per scope, so each render's
+     handlers would retain the last one's vdom, leaking every generation */
+  let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
+    List.assoc_opt(id, stack_cache^);
+
   let view =
       (
         ~globals,
@@ -1164,42 +533,482 @@ module View = {
         model: Model.t,
       ) => {
     let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code({editor, _}) =>
-      (SlideContent.get_content(current.name) |> Option.to_list)
-      @ [
-        CellEditor.View.view(
+    if (current.dormant) {
+      [
+        /* shown until hydration, which blocks on large slides; the same
+           spinner as the boot screen (index.html/loading.css) */
+        Virtual_dom.Vdom.Node.div(
+          ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading"])],
+          [
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["spinner"])],
+              [
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["loader"])],
+                  [],
+                ),
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["nut-container"])],
+                  [
+                    Virtual_dom.Vdom.Node.create(
+                      "img",
+                      ~attrs=[
+                        Virtual_dom.Vdom.Attr.classes(["spinner-nut"]),
+                        Virtual_dom.Vdom.Attr.create(
+                          "src",
+                          "img/hazelnut.svg",
+                        ),
+                      ],
+                      [],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Virtual_dom.Vdom.Node.text("loading "),
+            Virtual_dom.Vdom.Node.text(current.name),
+            Virtual_dom.Vdom.Node.text({js|…|js}),
+          ],
+        ),
+      ];
+    } else {
+      switch (current.kind) {
+      | Code({program, view, _}) =>
+        let stack_views = (d: Divided.t) => {
+          let cells = Divided.cells(d);
+          let term = Divided.statics(d).term;
+          /* the zoomed module as one cell: the breadcrumb names it */
+          let zoom_cell = SlideView.showing_zoom_cell(~term, view);
+          let tests = EvalResult.Model.test_results(Divided.result(d));
+          let same_tests = (a, b) =>
+            switch (a, b) {
+            | (Some(x), Some(y)) => x === y
+            | (None, None) => true
+            | _ => false
+            };
+          let rendered =
+            List.mapi(
+              (i, e: ScratchCell.t) => {
+                let header_sel =
+                  switch (selected) {
+                  | Some(Selection.StackH(j, sel)) when j == e.e_id =>
+                    Some(sel)
+                  | _ => None
+                  };
+                let body_sel =
+                  switch (selected) {
+                  | Some(Selection.StackB(j, sel)) when j == e.e_id =>
+                    Some(sel)
+                  | _ => None
+                  };
+                let key = {
+                  k_index: i,
+                  k_stack_len: List.length(cells),
+                  k_header_sel: header_sel,
+                  k_body_sel: body_sel,
+                  k_meta_down: globals.Globals.Model.meta_down,
+                  /* only the first body culls (below) */
+                  k_visible_rows:
+                    i == 0 ? globals.Globals.Model.visible_rows : None,
+                  k_zoom_cell: zoom_cell,
+                };
+                switch (stack_cache_lookup(e.e_id)) {
+                | Some(c)
+                    when
+                      c.c_key == key
+                      && c.c_header === e.e_header
+                      && c.c_body === e.e_body
+                      && c.c_settings === globals.Globals.Model.settings
+                      && c.c_font_metrics
+                      === globals.Globals.Model.font_metrics
+                      && c.c_colors === globals.Globals.Model.color_highlights
+                      && same_tests(c.c_tests, tests) => (
+                    e.e_id,
+                    c,
+                  )
+                | _ =>
+                  let qualifier =
+                    switch (OutlineTree.path_of(e.e_id, term)) {
+                    | [] => []
+                    | path => [
+                        Virtual_dom.Vdom.Node.span(
+                          ~attrs=[
+                            Virtual_dom.Vdom.Attr.classes([
+                              "focus-qualifier",
+                            ]),
+                          ],
+                          [
+                            Virtual_dom.Vdom.Node.text(
+                              String.concat(".", path) ++ ".",
+                            ),
+                          ],
+                        ),
+                      ]
+                    };
+                  /* arrow keys at a pane's edge walk the cells:
+                     ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
+                  /* no header pane: symbol cells, and every cell while a
+                     zoomed module shows as its members */
+                  let headerless = idx =>
+                    switch (List.nth_opt(cells, idx)) {
+                    | Some(e) => zoom_cell || e.ScratchCell.e_sym != None
+                    | None => false
+                    };
+                  let pane_focus =
+                      (idx, to_header, move: Haz3lcore.Action.move) =>
+                    if (idx < 0 || idx >= List.length(cells)) {
+                      Virtual_dom.Vdom.Effect.Ignore;
+                    } else {
+                      /* headerless entries have no header pane */
+                      let to_header = to_header && !headerless(idx);
+                      /* DOM focus must follow to the new pane after render,
+                         or the caret vanishes and arrows scroll the page */
+                      Haz3lcore.FocusEffect.schedule_cell();
+                      let id = List.nth(cells, idx).e_id;
+                      Virtual_dom.Vdom.Effect.Many([
+                        signal(
+                          MakeActive(
+                            to_header
+                              ? StackH(id, MainEditor)
+                              : StackB(id, MainEditor),
+                          ),
+                        ),
+                        inject(
+                          to_header
+                            ? Workspace(
+                                StackHeader(
+                                  id,
+                                  MainEditor(Perform(Move(move))),
+                                ),
+                              )
+                            : Workspace(
+                                StackBody(
+                                  id,
+                                  MainEditor(Perform(Move(move))),
+                                ),
+                              ),
+                        ),
+                      ]);
+                    };
+                  let header_escape = (d: Util.Direction.t) =>
+                    switch (d) {
+                    | Left => pane_focus(i - 1, false, End)
+                    | Right => pane_focus(i, false, Start)
+                    };
+                  let body_escape = (d: Util.Direction.t) =>
+                    switch (d) {
+                    | Left =>
+                      headerless(i)
+                        ? pane_focus(i - 1, false, End)
+                        : pane_focus(i, true, End)
+                    | Right => pane_focus(i + 1, true, Start)
+                    };
+                  /* Up/Down at a pane's edge keep the goal column in the
+                     adjacent pane, shifted by the qualifier chip's width
+                     across a header; at the ends the plain move is
+                     re-dispatched, keeping its line-start/end snap */
+                  let qual_cols = idx =>
+                    switch (List.nth_opt(cells, idx)) {
+                    | Some(e) =>
+                      switch (OutlineTree.path_of(e.ScratchCell.e_id, term)) {
+                      | [] => 0
+                      | path => String.length(String.concat(".", path)) + 1
+                      }
+                    | None => 0
+                    };
+                  let body_last_row = idx =>
+                    switch (List.nth_opt(cells, idx)) {
+                    | Some(e) =>
+                      max(
+                        0,
+                        e.ScratchCell.e_body.editor.editor.syntax.measured.
+                          total_rows
+                        - 1,
+                      )
+                    | None => 0
+                    };
+                  let pane_point = (idx, to_header, row, col) =>
+                    pane_focus(
+                      idx,
+                      to_header,
+                      Point(
+                        Util.Point.{
+                          row,
+                          col: max(0, col),
+                        },
+                        None,
+                      ),
+                    );
+                  let same_pane = (to_header, v: Haz3lcore.Action.vertical) =>
+                    inject(
+                      to_header
+                        ? Workspace(
+                            StackHeader(
+                              e.e_id,
+                              MainEditor(
+                                Perform(Move(Vertical(v, ByChar))),
+                              ),
+                            ),
+                          )
+                        : Workspace(
+                            StackBody(
+                              e.e_id,
+                              MainEditor(
+                                Perform(Move(Vertical(v, ByChar))),
+                              ),
+                            ),
+                          ),
+                    );
+                  let header_escape_vertical =
+                      (v: Haz3lcore.Action.vertical, col) =>
+                    switch (v) {
+                    | Down => pane_point(i, false, 0, col + qual_cols(i))
+                    | Up =>
+                      i == 0
+                        ? same_pane(true, Up)
+                        : pane_point(
+                            i - 1,
+                            false,
+                            body_last_row(i - 1),
+                            col + qual_cols(i),
+                          )
+                    };
+                  let body_escape_vertical =
+                      (v: Haz3lcore.Action.vertical, col) =>
+                    switch (v) {
+                    | Down =>
+                      i + 1 >= List.length(cells)
+                        ? same_pane(false, Down)
+                        : headerless(i + 1)
+                            ? pane_point(i + 1, false, 0, col)
+                            : pane_point(
+                                i + 1,
+                                true,
+                                0,
+                                col - qual_cols(i + 1),
+                              )
+                    | Up =>
+                      headerless(i)
+                        ? i == 0
+                            ? same_pane(false, Up)
+                            : pane_point(
+                                i - 1,
+                                false,
+                                body_last_row(i - 1),
+                                col,
+                              )
+                        : pane_point(i, true, 0, col - qual_cols(i))
+                    };
+                  let header_pane =
+                    switch (e.e_sym) {
+                    | Some(sym) =>
+                      Virtual_dom.Vdom.Node.div(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes([
+                            "focus-header",
+                            "focus-header-sym",
+                          ]),
+                        ],
+                        /* no qualifier chip: the symbol is the label */
+                        [
+                          Virtual_dom.Vdom.Node.span(
+                            ~attrs=[
+                              Virtual_dom.Vdom.Attr.classes(["focus-sym"]),
+                            ],
+                            [Virtual_dom.Vdom.Node.text(sym)]
+                            @ (
+                              sym == {js|⇒|js}
+                                ? [
+                                  Virtual_dom.Vdom.Node.span(
+                                    ~attrs=[
+                                      Virtual_dom.Vdom.Attr.classes([
+                                        "focus-sym-word",
+                                      ]),
+                                    ],
+                                    [Virtual_dom.Vdom.Node.text("result")],
+                                  ),
+                                ]
+                                : []
+                            ),
+                          ),
+                        ],
+                      )
+                    | None =>
+                      Virtual_dom.Vdom.Node.div(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes(["focus-header"]),
+                        ],
+                        qualifier
+                        @ [
+                          CellEditor.View.view(
+                            ~globals,
+                            ~signal=
+                              fun
+                              | MakeActive(sel) =>
+                                signal(MakeActive(StackH(e.e_id, sel))),
+                            ~inject=
+                              a =>
+                                inject(Workspace(StackHeader(e.e_id, a))),
+                            ~selected=header_sel,
+                            ~result_kind=`NoResults,
+                            ~locked=false,
+                            ~lines=false,
+                            ~escape=header_escape,
+                            ~escape_vertical=Some(header_escape_vertical),
+                            ~cull=false,
+                            e.e_header,
+                          ),
+                        ],
+                      )
+                    };
+                  let nodes =
+                    (zoom_cell ? [] : [header_pane])
+                    @ [
+                      Virtual_dom.Vdom.Node.div(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes(
+                            ["focus-body"] @ (zoom_cell ? ["zoom-body"] : []),
+                          ),
+                        ],
+                        [
+                          CellEditor.View.view(
+                            ~globals,
+                            ~signal=
+                              fun
+                              | MakeActive(sel) =>
+                                signal(MakeActive(StackB(e.e_id, sel))),
+                            ~inject=
+                              a => inject(Workspace(StackBody(e.e_id, a))),
+                            ~selected=body_sel,
+                            ~result_kind=`NoResults,
+                            ~locked=false,
+                            ~lines=true,
+                            ~master_result=Divided.result(d),
+                            ~escape=body_escape,
+                            ~escape_vertical=Some(body_escape_vertical),
+                            /* culling measures one `.cull-scope`: only
+                               the first body opts in; the rest render
+                               unculled, not against another's rows */
+                            ~cull={
+                              i == 0;
+                            },
+                            e.e_body,
+                          ),
+                        ],
+                      ),
+                    ];
+                  (
+                    e.e_id,
+                    {
+                      c_key: key,
+                      c_header: e.e_header,
+                      c_body: e.e_body,
+                      c_settings: globals.Globals.Model.settings,
+                      c_font_metrics: globals.Globals.Model.font_metrics,
+                      c_colors: globals.Globals.Model.color_highlights,
+                      c_tests: tests,
+                      c_nodes: nodes,
+                    },
+                  );
+                };
+              },
+              cells,
+            );
+          stack_cache := rendered;
+          /* the whole program's result, live below the cells */
+          let (result_footer, _overlays) =
+            EvalResult.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(a) => signal(MakeActive(Cell(Result(a))))
+                | JumpTo(id) =>
+                  /* the target may be in no open cell: open its item */
+                  switch (Selection.cross_cell_target(~target_id=id, ~d)) {
+                  | Some((ensure, sel, caret)) =>
+                    Virtual_dom.Vdom.Effect.Many([
+                      inject(ensure),
+                      signal(MakeActive(sel)),
+                      inject(caret),
+                    ])
+                  | None =>
+                    Virtual_dom.Vdom.Effect.Many([
+                      signal(MakeActive(Cell(MainEditor))),
+                      inject(
+                        Workspace(
+                          CellAction(
+                            MainEditor(Perform(Move(Goal(TileId(id))))),
+                          ),
+                        ),
+                      ),
+                    ])
+                  },
+              ~inject=a => inject(Workspace(CellAction(ResultAction(a)))),
+              ~selected=
+                switch (selected) {
+                | Some(Selection.Cell(Result(a))) => Some(a)
+                | _ => None
+                },
+              ~locked=false,
+              Divided.result(d),
+            );
+          List.concat_map(((_, c)) => c.c_nodes, rendered)
+          @ [
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
+              result_footer,
+            ),
+          ]
+          @ [
+            /* slack, so even the last cell can scroll to the viewport top */
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-slack"])],
+              [],
+            ),
+          ];
+        };
+        switch (program) {
+        | Divided(d) =>
+          (SlideContent.get_content(current.name) |> Option.to_list)
+          @ stack_views(d)
+        | Whole(editor) =>
+          (SlideContent.get_content(current.name) |> Option.to_list)
+          @ [
+            CellEditor.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(selection) =>
+                  signal(MakeActive(Cell(selection))),
+              ~inject=a => inject(Workspace(CellAction(a))),
+              ~selected=
+                switch (selected) {
+                | Some(Selection.Cell(s)) => Some(s)
+                | _ => None
+                },
+              ~locked=false,
+              ~lines=true,
+              editor,
+            ),
+          ]
+        };
+      | Drv(m) =>
+        DerivationExerciseMode.View.view(
           ~globals,
           ~signal=
             fun
-            | MakeActive(selection) => signal(MakeActive(Cell(selection))),
-          ~inject=a => inject(CellAction(a)),
-          ~selected=
+            | MakeActive(s) => signal(MakeActive(Drv(s))),
+          ~inject=a => inject(DrvAction(a)),
+          ~inject_explainthis,
+          ~selection=
             switch (selected) {
-            | Some(Selection.Cell(s)) => Some(s)
+            | Some(Selection.Drv(s)) => Some(s)
             | _ => None
             },
-          ~locked=false,
-          ~lines=true,
-          editor,
-        ),
-      ]
-    | Drv(m) =>
-      DerivationExerciseMode.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive(s) => signal(MakeActive(Drv(s))),
-        ~inject=a => inject(DrvAction(a)),
-        ~inject_explainthis,
-        ~selection=
-          switch (selected) {
-          | Some(Selection.Drv(s)) => Some(s)
-          | _ => None
-          },
-        ~scratch_mode=true,
-        m,
-      )
+          ~scratch_mode=true,
+          m,
+        )
+      };
     };
   };
 
@@ -1207,7 +1016,7 @@ module View = {
     let export_button =
       Widgets.button_named(
         Icons.export,
-        _ => inject(Export),
+        _ => inject(Deck(Export)),
         ~tooltip="Export Scratchpad",
       );
 
@@ -1221,7 +1030,7 @@ module View = {
     let encode_button =
       Widgets.button_named(
         Icons.export,
-        _ => inject(Encode),
+        _ => inject(Deck(Encode)),
         ~tooltip="Encode Scratchpad in URL",
       );
 
@@ -1232,7 +1041,7 @@ module View = {
         file => {
           switch (file) {
           | None => Virtual_dom.Vdom.Effect.Ignore
-          | Some(file) => inject(InitImportScratchpad(file))
+          | Some(file) => inject(Deck(InitImportScratchpad(file)))
           }
         },
         ~accept=[],
@@ -1254,7 +1063,7 @@ module View = {
               "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
             );
           if (confirmed) {
-            inject(ResetCurrent);
+            inject(Deck(ResetCurrent));
           } else {
             Virtual_dom.Vdom.Effect.Ignore;
           };
@@ -1265,7 +1074,7 @@ module View = {
     let reparse =
       Widgets.button_named(
         Icons.backpack,
-        _ => inject(CellAction(MainEditor(Perform(Reparse)))),
+        _ => inject(Workspace(CellAction(MainEditor(Perform(Reparse))))),
         ~tooltip="Reparse Editor",
       );
 
@@ -1298,7 +1107,7 @@ module View = {
         "Add New Derivation " ++ (is_documentation ? "Slide" : "Scratchpad"),
       Icons.entail,
       _ =>
-      inject(Update.AddDrvSlide)
+      inject(Deck(AddDrvSlide))
     );
 
   let top_bar =
@@ -1323,12 +1132,12 @@ module View = {
            reached through the breadcrumb dropdowns. */
         | Previous
         | Next => Virtual_dom.Vdom.Effect.Ignore
-        | Add => inject(AddSlide)
-        | Rename => inject(RenameSlide)
-        | Delete => inject(DeleteSlide),
+        | Add => inject(Deck(AddSlide))
+        | Rename => inject(Deck(RenameSlide))
+        | Delete => inject(Deck(DeleteSlide)),
       ~indicator=
         EditorModeView.indicator_select(
-          ~signal=i => inject(SwitchSlide(i)),
+          ~signal=i => inject(Deck(SwitchSlide(i))),
           model.current,
           List.map(
             (s: Scratchpad.t) => SlidePath.of_string(s.name),

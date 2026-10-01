@@ -11,9 +11,10 @@ module Model = CodeWithStatics.Model;
 module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
-    let num_rows = List.length(measured.piece_rows);
+    let num_rows = List.length(Measured.piece_rows(measured));
     let empty_row = row => {
-      let result = List.nth_opt(List.rev(measured.piece_rows), row);
+      let result =
+        List.nth_opt(List.rev(Measured.piece_rows(measured)), row);
       switch (result) {
       | Some(value) =>
         switch (value) {

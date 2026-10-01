@@ -88,6 +88,10 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  /* per-item persistence rebuilds the zipper directly (no text or
+     sexp parse); the persistent record still supplies the root */
+  let unpersist_with = (~zipper: Haz3lcore.Zipper.t, p: persistent) =>
+    Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
 };
 
 /* Debounce statics computation during rapid typing. Only one mode is
@@ -151,7 +155,11 @@ module Update = {
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode: StaticsMode.t=Normal,
+        ~compositional=false,
         ~ctx=?,
+        /* stack cells: the whole-program item analysis scoped to this
+           cell, used instead of a private init on recompute frames */
+        ~projected: option(CachedStatics.t)=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
@@ -159,9 +167,11 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate for full statics recompute. Bypass the debounce when probe
-     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
-     * reuse old probes and a new probe shows ∅ until the next refresh. */
+    /* Throttle gate for a full statics recompute. Reuse keeps the `statics`
+     * ref, so CachedSyntax.calculate skips the shape pass (phys-eq).
+     * Probe ids are an analysis input: deferring would send this frame's
+     * eval a stale map and leave the probe sampleless, so a probe change
+     * recomputes now. */
     let probes_differ = (z, statics: CachedStatics.t) =>
       !
         Language.Id.Map.equal(
@@ -173,12 +183,14 @@ module Update = {
      * not a stale captured one. A recompute first takes the statics the agent
      * tool path OFFERED for this very program (CachedStatics.offered_for),
      * computed there for its error check — one statics pass per tool call
-     * instead of several. */
+     * instead of several. The offer is a monolithic init, so compositional
+     * (per-item) editors compute their own. */
     let do_init = (editor: Editor.t) =>
       switch (
         ctx == None
         && ana == None
         && !is_dynamic_term
+        && !compositional
         && editor.root == Sort.Exp
           ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
       ) {
@@ -186,15 +198,41 @@ module Update = {
       | Some(_)
       | None =>
         PerfMetrics.time_statics(() =>
-          CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
+          editor.root == Sort.Typ
+            /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+               entries for the inspector) under the provided ctx */
+            ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+            : editor.root == Sort.Pat
+                ? CachedStatics.init_pat(
+                    ~settings,
+                    ~ctx?,
+                    editor.state.zipper,
+                  )
+                : editor.root == Sort.TPat
+                    ? CachedStatics.init_tpat(
+                        ~settings,
+                        ~ctx?,
+                        editor.state.zipper,
+                      )
+                    : compositional
+                        /* whole-program editors: per-item statics re-analyze
+                           only dirty items and skip the monolithic recursion
+                           (a stack overflow on large programs) */
+                        ? CachedStatics.init_compositional(
+                            ~settings,
+                            ~stitch,
+                            ~root=editor.root,
+                            editor.state.zipper,
+                          )
+                        : CachedStatics.init(
+                            ~settings,
+                            ~stitch,
+                            ~ctx?,
+                            ~ana?,
+                            ~is_dynamic_term,
+                            ~root=editor.root,
+                            editor.state.zipper,
+                          )
         )
       };
     let needs_refresh =
@@ -206,7 +244,10 @@ module Update = {
        editor's source is unchanged. Implied-hole info must wait for refresh. */
     let statics =
       needs_refresh
-        ? do_init(editor)
+        ? switch (projected) {
+          | Some(p) => p
+          | None => do_init(editor)
+          }
         : is_edited
             ? {
               ...statics,
@@ -256,8 +297,39 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
+  /* memo for the code text + error/warning arms, the costliest vdom in the
+     app: none of it depends on dynamics, but every streamed result chunk
+     re-renders the page. keyed on the physical identity of each input; a
+     hit also lets the vdom diff skip by reference. LRU so a stack's cells
+     and master all stay resident */
+  type memo_entry = {
+    m_key: array(Obj.t),
+    /* piece count of the keyed segment, for same-editor eviction */
+    m_seg_len: int,
+    m_nodes: list(Node.t),
+  };
+  let view_memo: ref(list(memo_entry)) = ref([]);
+  /* small cap, and same-length entries evict each other: each key pins a
+     whole generation of segment/measured/info_map. equal piece count is a
+     cheap "same editor, older generation" proxy; a misfire costs a
+     recompute */
+  let view_memo_max = 4;
+  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
+    let n = Array.length(a);
+    Array.length(b) == n
+    && {
+      let rec go = i => i >= n || a[i] === b[i] && go(i + 1);
+      go(0);
+    };
+  };
+
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
@@ -277,42 +349,87 @@ module View = {
       _,
     }: Model.t = model;
     let info_map = model.statics.info_map;
-    let refine_sort = (id, mold_out) =>
-      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
-    let code_text_view =
-      CodeViewable.view(
-        ~globals,
-        ~measured,
-        ~term_data,
-        ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~shape_map,
-        ~refractor_rows,
-        ~refine_sort,
-        segment,
-      );
-    /* shared by the error and warning arms */
-    let completion = Arms.lazy_completion(z);
-    let error_decos =
-      Arms.Errors.of_ids(
-        ~refine_sort,
-        ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        ~completion,
-        model.statics.error_ids,
-      );
+    let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
-    let warning_decos =
-      Arms.Errors.of_ids(
-        ~refine_sort,
-        ~is_warning=true,
-        ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        ~completion,
-        warning_ids,
-      );
+    let key = [|
+      Obj.repr(measured),
+      Obj.repr(refractor_rows),
+      Obj.repr(term_data),
+      Obj.repr(shape_map),
+      Obj.repr(segment),
+      Obj.repr(info_map),
+      Obj.repr(model.editor.syntax),
+      Obj.repr(model.statics.error_ids),
+      Obj.repr(warning_ids),
+      Obj.repr(buffer_ids),
+      Obj.repr(globals.font_metrics),
+      Obj.repr(globals.settings),
+    |];
+    let nodes =
+      switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
+      | Some(entry) =>
+        view_memo := [entry, ...List.filter(e => !(e === entry), view_memo^)];
+        entry.m_nodes;
+      | None =>
+        let refine_sort = (id, mold_out) =>
+          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
+        let code_text_view =
+          CodeViewable.view_chunked(
+            ~globals,
+            ~measured,
+            ~term_data,
+            ~buffer_ids,
+            ~shape_map,
+            ~refractor_rows,
+            ~refine_sort,
+            ~statics_ident=Obj.repr(info_map),
+          );
+        /* shared by the error and warning arms (canonical completion
+           depends on the segment, which the memo key covers) */
+        let completion = Arms.lazy_completion(z);
+        let error_decos =
+          Arms.Errors.of_ids(
+            ~refine_sort,
+            ~simple_indication=globals.settings.simple_indication,
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            ~completion,
+            model.statics.error_ids,
+          );
+        let warning_decos =
+          Arms.Errors.of_ids(
+            ~refine_sort,
+            ~is_warning=true,
+            ~simple_indication=globals.settings.simple_indication,
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            ~completion,
+            warning_ids,
+          );
+        // errors after warnings to prioritize errors over warnings
+        let nodes = [code_text_view, warning_decos, error_decos];
+        let rec take = (n, xs) =>
+          switch (n, xs) {
+          | (0, _)
+          | (_, []) => []
+          | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
+          };
+        let seg_len = List.length(segment);
+        view_memo :=
+          [
+            {
+              m_key: key,
+              m_seg_len: seg_len,
+              m_nodes: nodes,
+            },
+            ...take(
+                 view_memo_max - 1,
+                 List.filter(e => e.m_seg_len != seg_len, view_memo^),
+               ),
+          ];
+        nodes;
+      };
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
@@ -326,8 +443,7 @@ module View = {
         /* this editor's line ends, for the per-container offside stagger */
         ProbeStagger.row_ends_attr(measured),
       ],
-      // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
+      nodes @ overlays,
     );
   };
 };
