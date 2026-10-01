@@ -17,7 +17,28 @@ let size_within = (budget: int, e: Exp.t): option(int) => {
   };
 };
 
-let hole = (): Exp.t => Exp.fresh(EmptyHole);
+/* elision holes carry this id after their own: they print and type as
+   plain holes, but a value can be checked for elisions after the fact
+   (the worker's prune can leave a value well under the display's) */
+let elided: Id.t = Id.mk_str("TermPrune.elided");
+
+let hole = (): Exp.t => {
+  term: EmptyHole,
+  annotation: IdTagged.IdTag.mk_internal([Id.mk(), elided]),
+};
+
+exception Elided;
+let has_elision = (e: Exp.t): bool => {
+  let f = (cont, x: Exp.t) =>
+    switch (x.term) {
+    | EmptyHole when List.mem(elided, IdTagged.ids(x)) => raise(Elided)
+    | _ => cont(x)
+    };
+  switch (Exp.map_term(~f_exp=f, e)) {
+  | _ => false
+  | exception Elided => true
+  };
+};
 
 /* returns (pruned, truncated) */
 let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {

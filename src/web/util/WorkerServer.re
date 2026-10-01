@@ -585,9 +585,8 @@ let schedule_async = callback =>
   ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
 /* the main thread only displays a budget-pruned copy, so anything past
-   the budget is marshal/decode dead weight. slightly above
-   EvalResult.display_budget, so the main side's prune trips whenever
-   this one did */
+   the budget is marshal/decode dead weight. its elisions are marked, so
+   the display still notes them when what's left fits its own budget */
 let value_ship_budget = 6_000;
 let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
   let (pruned, truncated) =

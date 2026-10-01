@@ -135,9 +135,8 @@ module Model = {
 
 /* result values can be giant shared graphs (a module value embeds every
    member AST) that tree walks unshare. the pruned copy feeds both the
-   display and its statics; the model keeps the shipped value. the worker
-   prunes to a slightly larger budget, so the display prune trips exactly
-   when the value was truncated anywhere along the way */
+   display and its statics; the model keeps the shipped value, which the
+   worker may already have pruned */
 let display_budget = 5_000;
 
 let exceeds_display_budget = (e: Exp.t): bool =>
@@ -146,7 +145,9 @@ let exceeds_display_budget = (e: Exp.t): bool =>
 /* single-slot memo: the view asks per render, the value is stable */
 let exceeds_memo: Slot.t(Exp.t, bool) = Slot.mk();
 let value_truncated = (e: Exp.t): bool =>
-  Slot.get(exceeds_memo, e, () => exceeds_display_budget(e));
+  Slot.get(exceeds_memo, e, () =>
+    exceeds_display_budget(e) || TermPrune.has_elision(e)
+  );
 
 let prune_for_display = (e: Exp.t): Exp.t => {
   let (pruned, truncated) = TermPrune.prune(~budget=display_budget, e);
