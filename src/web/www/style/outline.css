@@ -50,6 +50,29 @@
   min-height: 0;
 }
 
+/* Browsers older than ::details-content (Chrome < 131, Firefox < 143)
+   lay the content out as a plain block, so .outline-body grows to its
+   full height, is clipped by the sidebar, and never scrolls. There the
+   body is pinned between the title row and the sidebar's bottom
+   instead; the title row gets a fixed height so the body knows where
+   to start */
+@supports not selector(::details-content) {
+  #outline-sidebar {
+    --outline-title-h: 25px;
+  }
+  #outline-sidebar[open] > summary.outline-title {
+    box-sizing: border-box;
+    height: var(--outline-title-h);
+  }
+  #outline-sidebar[open] .outline-body {
+    position: absolute;
+    top: var(--outline-title-h);
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+}
+
 /* the resize handle is an invisible grab strip with the resize
    cursor, straddling the border */
 #outline-sidebar .outline-resize {
