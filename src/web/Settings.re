@@ -29,8 +29,11 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    /* unused; kept so saved settings parse */
     cap_undo_stack: bool,
     show_row_lines: bool,
+    /* grey re-evaluation-progress backings after edits ("Eval Progress") */
+    [@sexp.default false]
     show_incremental_deco: bool,
     /* Shortcut overrides derived from the Shortcuts config slide: a
        ContextualAction label to its resolved hotkey, or None for an action
@@ -176,9 +179,8 @@ module Update = {
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco
+    | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication;
 
@@ -505,18 +507,17 @@ module Update = {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
         }
-      | CapUndoStack => {
-          ...settings,
-          cap_undo_stack: !settings.cap_undo_stack,
-        }
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
-      | ShowIncrementalDeco => {
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled :=
+          !settings.show_incremental_deco;
+        {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
-        }
+        };
       | SetShortcutOverrides(overrides) => {
           ...settings,
           shortcut_overrides: overrides,

@@ -55,6 +55,21 @@ let highlight_of_id =
   };
 };
 
+/* var_highlight_ids scans info_map, and this view reruns every frame with
+   unchanged inputs (eval-stream bursts, caret holds). the one slot pins
+   only the info_map generation current statics already holds */
+let caret_ids_memo:
+  Util.Slot.t((Language.Statics.Map.t, option(Id.t), bool), list(Id.t)) =
+  Util.Slot.mk();
+let compute_caret_ids_cached =
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(Id.t) =>
+  Util.Slot.get(
+    ~same=((m, i, se), (m', i', se')) => m === m' && i == i' && se == se',
+    caret_ids_memo,
+    (info_map, Indicated.index(z), Selection.is_empty(z.selection)),
+    () => compute_caret_ids(~info_map, z),
+  );
+
 /* Main view function: renders variable highlight overlays. */
 let view =
     (
@@ -64,7 +79,7 @@ let view =
       z: Zipper.t,
     )
     : Node.t => {
-  let ids = compute_caret_ids(~info_map, z);
+  let ids = compute_caret_ids_cached(~info_map, z);
   div_c(
     "var-highlights",
     List.concat_map(

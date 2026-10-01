@@ -118,6 +118,54 @@ let incomplete_tiles_to_missing_shards = seg =>
 let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
+/* per-top-level-piece memo for the above, whose deep walk is
+   O(program); a piece's result is context-free. tick-swept */
+module MissingShardsMemo = {
+  type entry = {
+    mutable m_piece: Obj.t,
+    mutable m_tiles: list(Tile.t),
+    mutable m_tick: int,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(256);
+  let tick = ref(0);
+};
+
+let global_missing_shards_incr = (seg: t): list(Tile.t) => {
+  open MissingShardsMemo;
+  incr(tick);
+  if (tick^ mod 128 == 0) {
+    let dead =
+      Hashtbl.fold(
+        (id, e, acc) => e.m_tick < tick^ - 32 ? [id, ...acc] : acc,
+        cache,
+        [],
+      );
+    List.iter(Hashtbl.remove(cache), dead);
+  };
+  seg
+  |> List.concat_map(p => {
+       let id = Piece.id(p);
+       switch (Hashtbl.find_opt(cache, id)) {
+       | Some(e) when e.m_piece === Obj.repr(p) =>
+         e.m_tick = tick^;
+         e.m_tiles;
+       | _ =>
+         let tiles =
+           incomplete_tiles_deep([p]) |> incomplete_tiles_to_missing_shards;
+         Hashtbl.replace(
+           cache,
+           id,
+           {
+             m_piece: Obj.repr(p),
+             m_tiles: tiles,
+             m_tick: tick^,
+           },
+         );
+         tiles;
+       };
+     });
+};
+
 let tiles =
   List.filter_map(
     fun
@@ -222,25 +270,32 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     };
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
-  let children =
-    List.fold_right(
-      ((l, child, r), children) => {
-        let child =
-          if (l
-              + 1 == r
-              && List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)) {
-            remold(child, List.nth(remolded_mold.in_, l));
-          } else {
-            child;
-          };
-        [child, ...children];
-      },
-      Aba.aba_triples(Aba.mk(remolded.shards, remolded.children)),
-      [],
-    );
-  {
-    ...remolded,
-    children,
+  if (remolded_mold == orig_mold) {
+    /* same mold ⟹ children untouched: return the original tile, whose
+       identity pointer-keyed layers and sparse regrout rely on */
+    t;
+  } else {
+    let children =
+      List.fold_right(
+        ((l, child, r), children) => {
+          let child =
+            if (l
+                + 1 == r
+                && List.nth(remolded_mold.in_, l)
+                != List.nth(orig_mold.in_, l)) {
+              remold(child, List.nth(remolded_mold.in_, l));
+            } else {
+              child;
+            };
+          [child, ...children];
+        },
+        Aba.aba_triples(Aba.mk(remolded.shards, remolded.children)),
+        [],
+      );
+    {
+      ...remolded,
+      children,
+    };
   };
 }
 and subsort_of = (sort: Sort.t): list(Sort.t) =>
@@ -1067,7 +1122,13 @@ let rec regrout = ((l, r), seg) => {
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
-    (d: Direction.t, affix: t, r: Nib.Shape.t): (Trim.t, Nib.Shape.t, t) => {
+    (
+      ~skip_clean: option(Piece.t => bool)=?,
+      d: Direction.t,
+      affix: t,
+      r: Nib.Shape.t,
+    )
+    : (Trim.t, Nib.Shape.t, t) => {
   let (trim, s, affix) =
     fold_right(
       (p: Piece.t, (trim, r, tl)) => {
@@ -1090,21 +1151,27 @@ and regrout_affix =
           let trim = Trim.regrout((Convex, r), trim);
           (Trim.empty, Convex, [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
-          let children =
-            List.fold_right(
-              (hd, tl) => {
-                let tl = tl;
-                let hd = regrout(convex_wrapper_inner_shapes, hd);
-                [hd, ...tl];
-              },
-              t.children,
-              [],
-            );
+          /* a tile the caller deems clean has unchanged innards: skip
+             the child descent */
           let p =
-            Piece.Tile({
-              ...t,
-              children,
-            });
+            switch (skip_clean) {
+            | Some(clean) when clean(p) => p
+            | _ =>
+              let children =
+                List.fold_right(
+                  (hd, tl) => {
+                    let tl = tl;
+                    let hd = regrout(convex_wrapper_inner_shapes, hd);
+                    [hd, ...tl];
+                  },
+                  t.children,
+                  [],
+                );
+              Piece.Tile({
+                ...t,
+                children,
+              });
+            };
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout((r', r), trim);
@@ -1115,6 +1182,108 @@ and regrout_affix =
       (Aba.mk([[]], []), r, empty),
     );
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
+};
+
+/* plain normal form of a trim run between shapes (l, r), mirroring
+   Trim.regrout: no grout if they fit, else exactly one (of any shape) */
+let run_normal = (l: Nib.Shape.t, r: Nib.Shape.t, n_grout: int): bool =>
+  Nib.Shape.fits(l, r) ? n_grout == 0 : n_grout == 1;
+
+/* a tile's deep staleness depends only on its record, which clean tiles
+   keep across actions: memo by id, validated by === (so id collisions
+   only miss). capped for long sessions */
+let stale_memo: Hashtbl.t(Id.t, (Tile.t, bool)) = Hashtbl.create(4096);
+let stale_memo_cap = 200_000;
+
+/* does any run in this child segment, or below it, break plain normal
+   form? child segments are concave-bounded on both sides */
+let rec stale_in_seg = (seg: t): bool => {
+  let conc = Nib.Shape.concave();
+  let rec go = (bound, n_grout, ps: list(Piece.t)) =>
+    switch (ps) {
+    | [] => !run_normal(bound, conc, n_grout)
+    | [Piece.Secondary(_), ...tl] => go(bound, n_grout, tl)
+    | [Grout(_), ...tl] => go(bound, n_grout + 1, tl)
+    | [Tile(t), ...tl] =>
+      let (l, r) = Tile.shapes(t);
+      !run_normal(bound, l, n_grout) || tile_deep_stale(t) || go(r, 0, tl);
+    | [Projector(pr), ...tl] =>
+      let (l, r) = ProjectorCore.shapes(pr);
+      !run_normal(bound, l, n_grout) || go(r, 0, tl);
+    };
+  go(conc, 0, seg);
+}
+and tile_deep_stale = (t: Tile.t): bool =>
+  switch (Hashtbl.find_opt(stale_memo, t.id)) {
+  | Some((t', v)) when t' === t => v
+  | _ =>
+    let v = List.exists(stale_in_seg, t.children);
+    if (Hashtbl.length(stale_memo) > stale_memo_cap) {
+      Hashtbl.reset(stale_memo);
+    };
+    Hashtbl.replace(stale_memo, t.id, (t, v));
+    v;
+  };
+
+/* ids seeding the sparse-regrout dirty set with junction work the
+   remold diff can't see: runs off plain normal form (where the caret
+   left, or at splice seams) flag their grout, or their flanking solids
+   if grout must be added; deep-stale tiles flag themselves. the
+   caret-side run is skipped (the regrout window covers it) unless
+   ~caret_shape bounds it, as for ancestor-level siblings */
+let stale_affix_ids =
+    (~caret_shape: option(Nib.Shape.t)=?, d: Direction.t, affix: t): Id.Set.t => {
+  let conc = Nib.Shape.concave();
+  let flag = (acc, ~gs, ~prev, ~next) =>
+    switch (gs) {
+    | [_, ..._] =>
+      List.fold_left((acc, id) => Id.Set.add(id, acc), acc, gs)
+    | [] =>
+      let add = (o, acc) =>
+        switch (o) {
+        | Some(id) => Id.Set.add(id, acc)
+        | None => acc
+        };
+      acc |> add(prev) |> add(next);
+    };
+  let close = (acc, bound, checking, gs, prev, ~l, ~next) =>
+    checking && !run_normal(bound, l, List.length(gs))
+      ? flag(acc, ~gs, ~prev, ~next) : acc;
+  /* checking: validate the run on close (not suf's caret-side run) */
+  let (checking0, bound0) =
+    switch (d, caret_shape) {
+    | (Direction.Left, _) => (true, conc)
+    | (Right, Some(s)) => (true, s)
+    | (Right, None) => (false, conc)
+    };
+  let rec go = (acc, bound, checking, gs, prev, ps: list(Piece.t)) =>
+    switch (ps) {
+    | [] =>
+      switch (d, caret_shape) {
+      | (Left, None) => acc /* caret-side run: the window handles it */
+      | (Left, Some(s)) =>
+        close(acc, bound, checking, gs, prev, ~l=s, ~next=None)
+      | (Right, _) =>
+        close(acc, bound, checking, gs, prev, ~l=conc, ~next=None)
+      }
+    | [p, ...tl] =>
+      switch (p) {
+      | Piece.Secondary(_) => go(acc, bound, checking, gs, prev, tl)
+      | Grout(g) => go(acc, bound, checking, [g.id, ...gs], prev, tl)
+      | Tile(t) =>
+        let (l, r) = Tile.shapes(t);
+        let acc =
+          close(acc, bound, checking, gs, prev, ~l, ~next=Some(t.id));
+        let acc = tile_deep_stale(t) ? Id.Set.add(t.id, acc) : acc;
+        go(acc, r, true, [], Some(t.id), tl);
+      | Projector(pr) =>
+        let (l, r) = ProjectorCore.shapes(pr);
+        let id = Piece.id(p);
+        let acc = close(acc, bound, checking, gs, prev, ~l, ~next=Some(id));
+        go(acc, r, true, [], Some(id), tl);
+      }
+    };
+  go(Id.Set.empty, bound0, checking0, [], None, affix);
 };
 
 let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
@@ -1196,11 +1365,14 @@ let presplit_orphans = (seg: t): t =>
        | p => [p],
      );
 
-/* Also says whether any piece came out different, so a caller can skip
-   comparing the whole segment. A conversion can hand back a piece equal
-   to the one it replaces (an orphan shard already carrying its
-   ancestor's id), so the flag compares that one piece. */
-let rescan_changed = (seg: t): (t, bool) => {
+/* One scan, two flags, for two kinds of caller:
+   - changed: whether any piece came out different, so a caller can skip
+     comparing the whole segment. A conversion can hand back a piece equal
+     to the one it replaces (an orphan shard already carrying its
+     ancestor's id), so the flag compares that one piece.
+   - converted: whether any token became a shard; if none did, callers
+     can skip reassembly/remold/regrout and keep piece identity. */
+let rescan_flags = (seg: t): (t, bool, bool) => {
   let changed = ref(false);
   let has_incomplete =
     List.exists(
@@ -1212,8 +1384,9 @@ let rescan_changed = (seg: t): (t, bool) => {
       seg,
     );
   if (!has_incomplete) {
-    (seg, false);
+    (seg, false, false);
   } else {
+    let any_converted = ref(false);
     /* Walk left-to-right with a STACK of expectation frames.
      * Each incomplete tile pushes a new frame with its missing shards.
      * Only the TOP frame is checked for matching.
@@ -1265,6 +1438,11 @@ let rescan_changed = (seg: t): (t, bool) => {
             switch (List.assoc_opt(tok, entries)) {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
+              /* a presplit orphan re-matching its own tile's shard is
+                 not a re-association: reassembly merges it straight back */
+              if (t.id != target_shard.id) {
+                any_converted := true;
+              };
               let converted = Piece.Tile(target_shard);
               if (converted != hd) {
                 changed := true;
@@ -1298,9 +1476,21 @@ let rescan_changed = (seg: t): (t, bool) => {
         }
       };
     let seg = go(seg);
-    (seg, changed^);
+    (seg, changed^, any_converted^);
   };
 };
+
+let rescan_changed = (seg: t): (t, bool) => {
+  let (seg, changed, _) = rescan_flags(seg);
+  (seg, changed);
+};
+
+let rescan_converting = (seg: t): (t, bool) => {
+  let (seg, _, converted) = rescan_flags(seg);
+  (seg, converted);
+};
+
+let rescan = (seg: t): t => fst(rescan_converting(seg));
 
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
@@ -1655,6 +1845,93 @@ module IDs = {
 
 let to_string = Base.segment_to_string;
 
+/* top-level item slices: each ends with an `…in` tile or top-level `;`
+   (the rest is the tail); the unit of the per-item incremental layers */
+let is_top_semi = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) => Tile.label(t) == [";"]
+  | _ => false
+  };
+/* only with its `in`: an unfinished `let x =` runs on into what follows */
+let is_in_tile = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    let label = Tile.label(t);
+    switch (List.rev(label)) {
+    | ["in", ..._] => List.mem(List.length(label) - 1, t.shards)
+    | _ => false
+    };
+  | _ => false
+  };
+let top_items = (seg: t): list(t) => {
+  let arr = Array.of_list(seg);
+  let len = Array.length(arr);
+  let slice = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
+  let rec walk = (i, start, acc) =>
+    if (i >= len) {
+      start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
+    } else if (is_in_tile(arr[i]) || is_top_semi(arr[i])) {
+      walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
+    } else {
+      walk(i + 1, start, acc);
+    };
+  walk(0, 0, []);
+};
+
+/* pointer-elementwise equality: caret moves rebuild the top-level list
+   but reuse its pieces, so this cheaply tells moved from edited */
+let ptr_eq = (a: t, b: t): bool => {
+  let rec go = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
+    | _ => false
+    };
+  a === b || go(a, b);
+};
+
+/* restore piece identity after a whole-segment rebuild: a rebuilt piece
+   equal to [old]'s same-id piece becomes that old object. remold/regrout
+   re-mint every piece, which would make pointer-keyed incremental layers
+   O(program). also returns the unrestored (new or changed) ids: the
+   dirty set for sparse regrout */
+let restore_identity_dirty = (old: t, neu: t): (t, Id.Set.t) =>
+  if (old === neu) {
+    (neu, Id.Set.empty);
+  } else {
+    let tbl = Hashtbl.create(List.length(old) + 1);
+    List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), old);
+    let dirty = ref(Id.Set.empty);
+    let restored =
+      List.map(
+        p =>
+          switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
+          | Some(o) when o === p || compare(o, p) == 0 => o
+          | _ =>
+            dirty := Id.Set.add(Piece.id(p), dirty^);
+            p;
+          },
+        neu,
+      );
+    (restored, dirty^);
+  };
+
+let restore_identity = (old: t, neu: t): t =>
+  if (old === neu) {
+    neu;
+  } else {
+    let tbl = Hashtbl.create(List.length(old) + 1);
+    List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), old);
+    List.map(
+      p =>
+        switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
+        | Some(o) when o === p || compare(o, p) == 0 => o
+        | _ => p
+        },
+      neu,
+    );
+  };
+
 /* Secondary collection for outer secondary model.
    Collects (before, after) secondary runs for each term based on skeleton structure. */
 module SecondaryCollection = {
@@ -1852,7 +2129,3 @@ module SecondaryCollection = {
     | Skel.Input_contains_secondary => Id.Map.empty
     };
 };
-
-/* Sharing check used by scoped structural cleanup. */
-let ptr_eq = (a: t, b: t): bool =>
-  a === b || List.length(a) == List.length(b) && List.for_all2((===), a, b);
