@@ -2618,7 +2618,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              and+ e = go(e);
              wrap_item(
                item,
-               [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e,
+               [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
+               @ e,
              );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;

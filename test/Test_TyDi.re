@@ -268,7 +268,9 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Prod([]))),
+  /* `{}` is the empty module on this branch (Modules II), so as a
+     constant it is the empty signature, not the empty product. */
+  ("{}", Typ.temp(Sig([]))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */

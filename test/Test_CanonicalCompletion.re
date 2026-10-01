@@ -13,8 +13,12 @@ let parse_segment = (s: string): option(Segment.t) => {
   /* Parser.to_segment (not bare to_zipper): the final rescan_reassemble
      is what gloms |/=> shards into rule tiles, and Zipper.init's
      trailing grout is stripped — matching what the editor's sem path
-     actually feeds completion. */
-  switch (Parser.to_segment(~root=Exp, s)) {
+     actually feeds completion. Character by character (~by_run=false),
+     as typing builds it: the whole-run load path regrouts once at the
+     end, and on incomplete text can seat a hole on the other side of a
+     space (`let x~ 1` for `let x ~1`), which moves where a junction drop
+     lands. These tests are about the drop, not that. */
+  switch (Parser.to_segment(~by_run=false, ~root=Exp, s)) {
   | exception _ => None
   | seg => seg
   };
@@ -1879,7 +1883,7 @@ let clippable_guard_tests = {
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
            clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+        "Exp 72/93 | Pat 12/93 | Typ 18/93 | TPat 7/93 | Rul 1/93",
         table,
       )
     ),
