@@ -373,5 +373,32 @@ let tests = (
         [],
       ),
     ),
+    test_case(
+      "a constructor doesn't shadow a dirty type",
+      `Quick,
+      /* statics only: seeded eval keeps a stale 9 under a retyped
+         annotation, a gap of its own (let r : Int = 9 fails alike) */
+      script(
+        ~eval=false,
+        "type Circle = Int in\ntype Shape = Circle(Circle) + Square(Bool) in\nlet r : Circle = 9 in\nr",
+        [token("Int", "Bool")],
+      ),
+    ),
+    test_case(
+      "an alias doesn't shadow a dirty constructor",
+      `Quick,
+      script(
+        "type S = Cc(Int) + Dd in\ntype S = Bool in\ntype Cc = Bool in\nlet v = Cc(1) in\nv",
+        [token("Int", "Float")],
+      ),
+    ),
+    test_case(
+      "an alias doesn't shadow a dirty module",
+      `Quick,
+      script(
+        "module Point = {\n  let origin = 9\n} in\ntype Point = (Bool, Bool) in\nlet p = Point.origin + 1 in\np",
+        [token("9", "true")],
+      ),
+    ),
   ],
 );

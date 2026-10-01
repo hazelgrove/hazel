@@ -187,12 +187,22 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
    down the chain) with transitive closure through alias definitions,
    since users of an alias never mention the names it expands to */
 
+/* constructors share the type side's name lists (d_tfree, dirty_tnames)
+   with types, tagged: each namespace shadows only its own names */
+let ctor_key = (c: string): string => "#" ++ c;
+let untag = (n: string): string =>
+  String.starts_with(~prefix="#", n)
+    ? String.sub(n, 1, String.length(n) - 1) : n;
+
 /* type-side names an export ENTRY involves (the ctor's typ mentions
    its sum name — case scrutinee infos mention the sum, not the ctor) */
 let tnames_of_entry = (e: Ctx.entry): list(string) =>
   switch (e) {
   | TVarEntry({name, _}) => [name]
-  | ConstructorEntry({name, typ, _}) => [name, ...Typ.free_vars(typ)]
+  | ConstructorEntry({name, typ, _}) => [
+      ctor_key(name),
+      ...Typ.free_vars(typ),
+    ]
   | VarEntry(_)
   | LivelitEntry(_) => []
   };
@@ -223,14 +233,14 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   };
   let f_exp = (cont, e: Exp.t) => {
     switch (e.term) {
-    | Constructor(c, _) => add([c])
+    | Constructor(c, _) => add([ctor_key(c)])
     | _ => ()
     };
     cont(e);
   };
   let f_pat = (cont, p: Pat.t) => {
     switch (p.term) {
-    | Constructor(c, _) => add([c])
+    | Constructor(c, _) => add([ctor_key(c)])
     | _ => ()
     };
     cont(p);
@@ -251,13 +261,19 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   List.sort_uniq(compare, acc^);
 };
 
-/* drop dirty type names this item's type-side exports rebind
-   (expression bindings never shadow the type namespace) */
-let tshadow = (exports: list(Ctx.entry), dirty: list(string)) =>
-  List.filter(
-    n => !List.exists(e => is_type_entry(e) && entry_name(e) == n, exports),
-    dirty,
-  );
+/* drop dirty type-side names this item's exports rebind in the same
+   namespace: an alias shadows a type, a constructor a constructor */
+let tshadow = (exports: list(Ctx.entry), dirty: list(string)) => {
+  let bound =
+    List.filter_map(
+      fun
+      | Ctx.TVarEntry({name, _}) => Some(name)
+      | ConstructorEntry({name, _}) => Some(ctor_key(name))
+      | _ => None,
+      exports,
+    );
+  List.filter(n => !List.mem(n, bound), dirty);
+};
 
 /* transitive closure step: aliases exported here whose DEFINITION
    mentions a dirty type name are dirty for everything downstream */
@@ -327,8 +343,11 @@ let export_delta =
   };
 };
 
-let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) =>
-  List.filter(v => !List.exists(e => entry_name(e) == v, exports), dirty);
+/* likewise for dirty value names: only a value binding shadows one */
+let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) => {
+  let bound = var_names(exports);
+  List.filter(v => !List.mem(v, bound), dirty);
+};
 
 /* "*" is the unknown-free-vars sentinel: depends on anything dirty */
 let depends = (free: list(string), dirty: list(string)): bool =>
@@ -342,8 +361,11 @@ let stale = (q: item, dirty_vars, dirty_tnames): bool => {
     List.filter(n => n != "" && Char.uppercase_ascii(n.[0]) == n.[0]);
   depends(q.d_free, dirty_vars)
   || depends(q.d_tfree, dirty_tnames)
-  || depends(q.d_tfree, caps(dirty_vars))
-  || depends(q.d_free, caps(dirty_tnames));
+  || depends(
+       q.d_tfree,
+       caps(dirty_vars) @ List.map(ctor_key, caps(dirty_vars)),
+     )
+  || depends(q.d_free, caps(List.map(untag, dirty_tnames)));
 };
 
 let names_of = (exports: list(Ctx.entry)): list(string) =>
