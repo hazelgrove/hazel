@@ -37,8 +37,8 @@ let ctx_entries =
       BuiltinsColorScheme.type_aliases,
     );
 
-/* built once: of_entries is O(n log n) and ctx_init runs per statics
-   run. one record per mode, so memos keyed on context identity
+/* built once: of_entries is O(n) (a List.length) and ctx_init runs per
+   statics run. one record per mode, so memos keyed on context identity
    (Statics.mk) can hit */
 let ctx_init_base: Ctx.t = Ctx.of_entries(~use_mode=None, ctx_entries);
 let ctx_init: option(Operators.mode) => Ctx.t = {

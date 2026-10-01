@@ -157,6 +157,17 @@ let entry_name = (e: Ctx.entry): string =>
   | LivelitEntry({name, _}) => name
   };
 
+/* the names an export binds as values, the namespace co_ctx tracks
+   (CoCtx.mk filters on VarEntry): an alias or constructor of the same
+   name leaves a value binding in scope */
+let var_names = (exports: list(Ctx.entry)): list(string) =>
+  List.filter_map(
+    fun
+    | Ctx.VarEntry({name, _}) => Some(name)
+    | _ => None,
+    exports,
+  );
+
 let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
   switch (a, b) {
   | (VarEntry(v1), VarEntry(v2))
@@ -166,7 +177,16 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
     && Typ.fast_equal(v1.typ, v2.typ)
     && v1.custom_statics == v2.custom_statics
   | (TVarEntry(t1), TVarEntry(t2)) =>
-    t1.name == t2.name && t1.id == t2.id && compare(t1.kind, t2.kind) == 0
+    t1.name == t2.name
+    && t1.id == t2.id
+    && (
+      switch (t1.kind, t2.kind) {
+      /* not ids: a recursive alias gets a fresh binder each analysis */
+      | (Ctx.Singleton(a), Ctx.Singleton(b)) => Typ.fast_equal(a, b)
+      | (Abstract, Abstract) => true
+      | _ => false
+      }
+    )
   | (LivelitEntry(l1), LivelitEntry(l2)) => l1 === l2 /* closures */
   | _ => false
   };
@@ -176,12 +196,22 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
    down the chain) with transitive closure through alias definitions,
    since users of an alias never mention the names it expands to */
 
+/* constructors share the type side's name lists (d_tfree, dirty_tnames)
+   with types, tagged: each namespace shadows only its own names */
+let ctor_key = (c: string): string => "#" ++ c;
+let untag = (n: string): string =>
+  String.starts_with(~prefix="#", n)
+    ? String.sub(n, 1, String.length(n) - 1) : n;
+
 /* type-side names an export ENTRY involves (the ctor's typ mentions
    its sum name — case scrutinee infos mention the sum, not the ctor) */
 let tnames_of_entry = (e: Ctx.entry): list(string) =>
   switch (e) {
   | TVarEntry({name, _}) => [name]
-  | ConstructorEntry({name, typ, _}) => [name, ...Typ.free_vars(typ)]
+  | ConstructorEntry({name, typ, _}) => [
+      ctor_key(name),
+      ...Typ.free_vars(typ),
+    ]
   | VarEntry(_)
   | LivelitEntry(_) => []
   };
@@ -212,14 +242,14 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   };
   let f_exp = (cont, e: Exp.t) => {
     switch (e.term) {
-    | Constructor(c, _) => add([c])
+    | Constructor(c, _) => add([ctor_key(c)])
     | _ => ()
     };
     cont(e);
   };
   let f_pat = (cont, p: Pat.t) => {
     switch (p.term) {
-    | Constructor(c, _) => add([c])
+    | Constructor(c, _) => add([ctor_key(c)])
     | _ => ()
     };
     cont(p);
@@ -240,13 +270,19 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   List.sort_uniq(compare, acc^);
 };
 
-/* drop dirty type names this item's type-side exports rebind
-   (expression bindings never shadow the type namespace) */
-let tshadow = (exports: list(Ctx.entry), dirty: list(string)) =>
-  List.filter(
-    n => !List.exists(e => is_type_entry(e) && entry_name(e) == n, exports),
-    dirty,
-  );
+/* drop dirty type-side names this item's exports rebind in the same
+   namespace: an alias shadows a type, a constructor a constructor */
+let tshadow = (exports: list(Ctx.entry), dirty: list(string)) => {
+  let bound =
+    List.filter_map(
+      fun
+      | Ctx.TVarEntry({name, _}) => Some(name)
+      | ConstructorEntry({name, _}) => Some(ctor_key(name))
+      | _ => None,
+      exports,
+    );
+  List.filter(n => !List.mem(n, bound), dirty);
+};
 
 /* transitive closure step: aliases exported here whose DEFINITION
    mentions a dirty type name are dirty for everything downstream */
@@ -316,24 +352,27 @@ let export_delta =
   };
 };
 
-let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) =>
-  List.filter(v => !List.exists(e => entry_name(e) == v, exports), dirty);
+/* likewise for dirty value names: only a value binding shadows one */
+let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) => {
+  let bound = var_names(exports);
+  List.filter(v => !List.mem(v, bound), dirty);
+};
 
 /* "*" is the unknown-free-vars sentinel: depends on anything dirty */
 let depends = (free: list(string), dirty: list(string)): bool =>
   dirty != []
   && (List.mem("*", free) || List.exists(v => List.mem(v, free), dirty));
 
-/* whether [q] uses a dirty name. a capitalized name may resolve to a
-   module or a constructor, so it counts on both sides */
-let stale = (q: item, dirty_vars, dirty_tnames): bool => {
-  let caps =
-    List.filter(n => n != "" && Char.uppercase_ascii(n.[0]) == n.[0]);
-  depends(q.d_free, dirty_vars)
-  || depends(q.d_tfree, dirty_tnames)
-  || depends(q.d_tfree, caps(dirty_vars))
-  || depends(q.d_free, caps(dirty_tnames));
-};
+/* whether [q] uses a dirty name, on either side: a capitalized name may
+   resolve to a module or a constructor, an annotation's module ref reads
+   the module's value, and `let n = m` copies m's type exports (module
+   names needn't be capitalized) */
+let stale = (q: item, dirty_vars, dirty_tnames): bool =>
+  depends(q.d_free, dirty_vars @ List.map(untag, dirty_tnames))
+  || depends(
+       q.d_tfree,
+       dirty_tnames @ dirty_vars @ List.map(ctor_key, dirty_vars),
+     );
 
 let names_of = (exports: list(Ctx.entry)): list(string) =>
   List.sort_uniq(compare, List.map(entry_name, exports));
@@ -376,7 +415,7 @@ let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
 /* item statics hollows the continuation, so a spine root's info misses
    later items. the evaluator's reuse gating reads a root's elab_term,
    probe_targets and co_ctx, so each non-tail root gets them extended
-   over the suffix (its co_ctx minus the root's bindings), or cached
+   over the suffix (its co_ctx minus the root's value bindings), or cached
    runs replay stale */
 let fix_spine_infos_full =
     (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
@@ -392,7 +431,7 @@ let fix_spine_infos_full =
   let (merged, top_wit, top_co, _) =
     List.fold_right(
       (it: item, (m, below_wit, below_co, below_elab)) => {
-        let bound = List.map(entry_name, it.d_exports);
+        let bound = var_names(it.d_exports);
         let below_co_scoped =
           CoCtx.filter_names(name => !List.mem(name, bound), below_co);
         /* the root's elab_term is the whole suffix: a hollow one reads
@@ -463,9 +502,6 @@ let fix_spine_infos =
 let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
   Id.Map.union((_, _x, y) => Some(y), a, b);
 
-let map_remove_keys = (keys: Statics.Map.t, m: Statics.Map.t): Statics.Map.t =>
-  Id.Map.fold((k, _, m) => Id.Map.remove(k, m), keys, m);
-
 let graft_elabs = (items: list(item)): option(Exp.t) => {
   let rec go = (items: list(item)): option(Exp.t) =>
     switch (items) {
@@ -485,8 +521,8 @@ let graft_elabs = (items: list(item)): option(Exp.t) => {
 };
 
 /* a top-level export is used iff a later item mentions it before a
-   rebinding, or a hole below could ("$hole" in d_free: real holes only,
-   since synthetic body holes aren't in any def) */
+   value rebinding, or a hole below could ("$hole" in d_free: real holes
+   only, since synthetic body holes aren't in any def) */
 let unused_binders = (items: list(item)): list(Id.t) => {
   let hole_below = rest =>
     List.exists(it => List.mem("$hole", it.d_free), rest);
@@ -496,7 +532,7 @@ let unused_binders = (items: list(item)): list(Id.t) => {
     | [it, ...rest] =>
       List.mem(name, it.d_free)
       || (
-        List.exists(e => entry_name(e) == name, it.d_exports)
+        List.mem(name, var_names(it.d_exports))
           ? false  /* shadowed from here on */
           : used_below(name, rest)
       )
@@ -613,6 +649,27 @@ and calc_plain_item =
       }
     };
   };
+  /* module refs in the item's own annotations are uses too, as in the
+     monolithic Let/TyAlias co_ctx */
+  let free =
+    free
+    @ CoCtx.names(
+        switch (node.term) {
+        | Let(p, _, _) => ModuleHelpers.collect_pat_type_refs(ctx_in, p)
+        | ModuleExp(mp, _, _) =>
+          ModuleHelpers.collect_pat_type_refs(
+            ctx_in,
+            ModuleHelpers.mpat_to_pat(mp),
+          )
+        | TyAlias(_, ty, _) =>
+          ModuleHelpers.collect_module_refs_in_typ(
+            ctx_in,
+            Typ.rep_id(ty),
+            ty,
+          )
+        | _ => CoCtx.empty
+        },
+      );
   /* the hole is scaffolding, not program: keep it out of the merged
      whole-program view (ctx_out was already read above) */
   let map = is_tail ? map : Id.Map.remove(Exp.rep_id(hole), map);
@@ -850,8 +907,9 @@ and calc_module_item =
   };
 }
 
-/* the member chain: the top chain's clean/dirty discipline without move
-   tracking (a reorder recomputes from the change point on) */
+/* the member chain, aligned with the previous one by id as the top chain
+   is: a deleted member's names go dirty where it was, and a moved one is
+   popped aside there and recomputed where it lands */
 and calc_members =
     (
       ~settings,
@@ -864,59 +922,44 @@ and calc_members =
       nodes: list(Exp.t),
     )
     : list(item) => {
-  let prev_tbl = Hashtbl.create(List.length(prev_members) + 1);
-  List.iter(
-    (q: item) => Hashtbl.replace(prev_tbl, q.d_id, q),
-    prev_members,
-  );
-  /* a member that vanished or moved (its surviving predecessor changed)
-     changes what names resolve to, so its names are dirty throughout */
-  let ids = List.map(Exp.rep_id, nodes);
-  let kept = List.filter(id => Hashtbl.mem(prev_tbl, id), ids);
-  let kept_prev =
-    List.filter_map(
-      (q: item) => List.mem(q.d_id, ids) ? Some(q.d_id) : None,
-      prev_members,
-    );
-  let preds = xs =>
-    List.mapi(
-      (i, x) => (x, i == 0 ? None : Some(List.nth(xs, i - 1))),
-      xs,
-    );
-  let (now_pred, then_pred) = (preds(kept), preds(kept_prev));
-  let moved = id =>
-    List.assoc_opt(id, now_pred) != List.assoc_opt(id, then_pred);
-  let unsettled =
-    List.filter(
-      (q: item) => !List.mem(q.d_id, ids) || moved(q.d_id),
-      prev_members,
-    );
-  let dirty_vars =
-    List.sort_uniq(
-      compare,
-      List.concat_map((q: item) => names_of(q.d_exports), unsettled)
-      @ dirty_vars,
-    );
-  let dirty_tnames =
-    List.sort_uniq(
-      compare,
-      List.concat_map(
-        (q: item) => List.concat_map(tnames_of_entry, q.d_exports),
-        unsettled,
-      )
-      @ dirty_tnames,
-    );
-  let rec go = (ns, ctx, dirty_vars, dirty_tnames, acc) =>
-    switch (ns) {
-    | [] => List.rev(acc)
-    | [n, ...nt] =>
+  let id_set = List.fold_left((s, id) => Id.Set.add(id, s), Id.Set.empty);
+  let node_ids = id_set(List.map(Exp.rep_id, nodes));
+  let prev_ids = id_set(List.map((q: item) => q.d_id, prev_members));
+  let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
+  /* q's exports leave the chain here */
+  let vacate = (q: item, dirty_vars, dirty_tnames) =>
+    seed_delta(export_delta(q.d_exports, []), dirty_vars, dirty_tnames);
+  let rec go = (ps, ns, ctx, dirty_vars, dirty_tnames, acc) =>
+    switch (ps, ns) {
+    | (_, []) => List.rev(acc)
+    | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
+      let (dirty_vars, dirty_tnames) = vacate(q, dirty_vars, dirty_tnames);
+      go(pt, ns, ctx, dirty_vars, dirty_tnames, acc);
+    | ([q, ...pt], [n, ..._])
+        when
+          q.d_id != Exp.rep_id(n)
+          && Id.Set.mem(Exp.rep_id(n), prev_ids)
+          && !Id.Map.mem(Exp.rep_id(n), moved^) =>
+      /* the node sits deeper in prev, so q moved later */
+      moved := Id.Map.add(q.d_id, q, moved^);
+      let (dirty_vars, dirty_tnames) = vacate(q, dirty_vars, dirty_tnames);
+      go(pt, ns, ctx, dirty_vars, dirty_tnames, acc);
+    | (ps, [n, ...nt]) =>
       let nid = Exp.rep_id(n);
-      let prev_it = Hashtbl.find_opt(prev_tbl, nid);
+      let (prev_it, moved_in, ps) =
+        switch (ps) {
+        | [q, ...pt] when q.d_id == nid => (Some(q), false, pt)
+        | _ =>
+          switch (Id.Map.find_opt(nid, moved^)) {
+          | Some(q) => (Some(q), true, ps)
+          | None => (None, false, ps) /* inserted */
+          }
+        };
       let clean =
         switch (prev_it) {
         | Some(q) =>
-          head_equal(q.d_node, n)
-          && !moved(nid)
+          !moved_in
+          && head_equal(q.d_node, n)
           && !stale(q, dirty_vars, dirty_tnames)
           && !probe_dirty(q)
         | None => false
@@ -939,6 +982,7 @@ and calc_members =
             };
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         go(
+          ps,
           nt,
           ctx_out,
           shadow_filter(it.d_exports, dirty_vars),
@@ -970,15 +1014,26 @@ and calc_members =
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         let (dirty_vars, dirty_tnames) =
           seed_delta(delta, incoming, incoming_t);
+        /* landed after a move: its names may resolve to it anew below */
+        let (dirty_vars, dirty_tnames) =
+          moved_in
+            ? (
+              List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
+              List.sort_uniq(
+                compare,
+                List.concat_map(tnames_of_entry, it.d_exports) @ dirty_tnames,
+              ),
+            )
+            : (dirty_vars, dirty_tnames);
         let dirty_tnames =
           List.sort_uniq(
             compare,
             ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
           );
-        go(nt, it.d_ctx_out, dirty_vars, dirty_tnames, [it, ...acc]);
+        go(ps, nt, it.d_ctx_out, dirty_vars, dirty_tnames, [it, ...acc]);
       };
     };
-  go(nodes, ctx_in, dirty_vars, dirty_tnames, []);
+  go(prev_members, nodes, ctx_in, dirty_vars, dirty_tnames, []);
 };
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse

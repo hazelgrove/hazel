@@ -254,7 +254,7 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
     let ty = MakeTerm.from_zip_for_typ(z);
     let term: Exp.t =
       Exp.fresh(TyAlias(TPat.fresh(EmptyHole), ty, Exp.fresh(Tuple([]))));
-    let (info_map, _) = Statics.mk(settings, ctx, term);
+    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
       elaborated: dh_err("Type cell: no dynamics"),
@@ -279,7 +279,7 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       );
     let p = MakeTerm.from_zip_for_pat(z);
     let term: Exp.t = Exp.fresh(Fun(p, Exp.fresh(EmptyHole), None, None));
-    let (info_map, _) = Statics.mk(settings, ctx, term);
+    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
       elaborated: dh_err("Header cell: no dynamics"),
@@ -310,7 +310,7 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
           Exp.fresh(Tuple([])),
         ),
       );
-    let (info_map, _) = Statics.mk(settings, ctx, term);
+    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
       elaborated: dh_err("Header cell: no dynamics"),

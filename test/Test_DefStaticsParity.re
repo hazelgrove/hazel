@@ -341,5 +341,90 @@ let tests = (
         [token("75", "\"x\""), op(Delete, ["WateringTimer", "format"])],
       ),
     ),
+    test_case(
+      "a module used in an alias's definition",
+      `Quick,
+      script(
+        "module M = {\n  type T = Int;\n  let x = 1\n} in\ntype U = M.T in\nlet y : U = 2 in\ny",
+        [],
+      ),
+    ),
+    test_case(
+      "a module used in an annotation",
+      `Quick,
+      script(
+        "module M = {\n  type T = Int;\n  let x = 1\n} in\nlet y : M.T = 2 in\ny",
+        [],
+      ),
+    ),
+    test_case(
+      "a module and an alias of one name",
+      `Quick,
+      script(
+        "module Point = {\n  let origin = 75\n} in\ntype Point = (Int, Int) in\nlet p : Int = Point.origin in\np",
+        [],
+      ),
+    ),
+    test_case(
+      "a module and a constructor of one name",
+      `Quick,
+      script(
+        "module Timer = {\n  type format = Float;\n  let w = 75\n} in\ntype T = Timer(Int) + Other in\nlet v : Timer.format = 1.0 in\nv",
+        [],
+      ),
+    ),
+    test_case(
+      "a constructor doesn't shadow a dirty type",
+      `Quick,
+      /* statics only: seeded eval keeps a stale 9 under a retyped
+         annotation, a gap of its own (let r : Int = 9 fails alike) */
+      script(
+        ~eval=false,
+        "type Circle = Int in\ntype Shape = Circle(Circle) + Square(Bool) in\nlet r : Circle = 9 in\nr",
+        [token("Int", "Bool")],
+      ),
+    ),
+    test_case(
+      "an alias doesn't shadow a dirty constructor",
+      `Quick,
+      script(
+        "type S = Cc(Int) + Dd in\ntype S = Bool in\ntype Cc = Bool in\nlet v = Cc(1) in\nv",
+        [token("Int", "Float")],
+      ),
+    ),
+    test_case(
+      "an alias doesn't shadow a dirty module",
+      `Quick,
+      script(
+        "module Point = {\n  let origin = 9\n} in\ntype Point = (Bool, Bool) in\nlet p = Point.origin + 1 in\np",
+        [token("9", "true")],
+      ),
+    ),
+    test_case(
+      "a lowercase module aliased by a let",
+      `Quick,
+      /* statics only, as above */
+      script(
+        ~eval=false,
+        "let m = {\n  type T = Int;\n  let x = 9\n} in\nlet n = m in\nlet y : n.T = 9 in\ny",
+        [token("Int", "Bool")],
+      ),
+    ),
+    test_case(
+      "deleting a member a later one shadowed",
+      `Quick,
+      script(
+        "module M = {\n  let (y, x) = (1, 2);\n  let x = true;\n  let w = x\n} in\nM.w",
+        [op(Delete, ["M", "x"])],
+      ),
+    ),
+    test_case(
+      "moving a member past one of the same name",
+      `Quick,
+      script(
+        "module M = {\n  let (y, x) = (0, 0);\n  let x = 1;\n  let x = true;\n  let n = 5;\n  let u = x\n} in\nM.u",
+        [op(MoveDown, ["M", "x"])],
+      ),
+    ),
   ],
 );

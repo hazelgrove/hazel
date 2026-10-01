@@ -235,6 +235,22 @@ let statics_incremental = () => {
   ignore(ds2);
 };
 
+/* a recursive type export gets a fresh Rec binder per analysis: a member
+   edit that keeps the exports must not re-analyze the module's users */
+let recursive_type_export = () => {
+  let seg =
+    parse_mod(
+      "module A = {\n  type L = Nil + Cons(Int, L);\n  let x = 180\n};\nlet u = A.x;\nu",
+    );
+  let ds0 = DefStatics.calc(~settings, MakeTerm.go_mod_root(seg).term);
+  let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
+  check(bool, "edit found the literal", true, edited);
+  ignore(
+    DefStatics.calc(~settings, ~prev=ds0, MakeTerm.go_mod_root(seg2).term),
+  );
+  check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
+};
+
 /* ---- corpus scale: mega-mod-1k (build_mega.py compose_mod_root) ---- */
 
 let corpus = () => {
@@ -407,5 +423,6 @@ let tests = (
     ),
     test_case("corpus mega-mod-1k", `Quick, corpus),
     test_case("big module (stage D)", `Quick, big_module),
+    test_case("recursive type export", `Quick, recursive_type_export),
   ],
 );
