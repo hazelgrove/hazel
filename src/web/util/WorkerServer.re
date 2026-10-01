@@ -468,28 +468,32 @@ let slim_state = (state: Language.EvaluatorState.t) =>
     ...state,
     incr_eval: Language.IncrEval.empty,
   };
+let slim_entries =
+    (incr: Language.IncrEval.t(Language.EvaluatorState.t))
+    : Language.IncrEval.t(Language.EvaluatorState.t) =>
+  Language.IncrEval.{
+    entries:
+      Id.Map.map(
+        (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
+          Language.IncrEval.{
+            prev_elab: Lazy.force(slim_hole),
+            prev_reuse_map: Language.IncrEval.empty_reuse_map,
+            prev_probe_targets:
+              Language.EvalInfo.ProbeTargets(
+                Language.SubexpProbeTargets.empty,
+              ),
+            value: Lazy.force(slim_hole),
+            state: slim_state(e.state),
+            seq: e.seq,
+          },
+        incr.entries,
+      ),
+  };
 let slim_stream_update =
     (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
     : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
   Language.IncrEval.{
-    completed: {
-      entries:
-        Id.Map.map(
-          (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
-            Language.IncrEval.{
-              prev_elab: Lazy.force(slim_hole),
-              prev_reuse_map: Language.IncrEval.empty_reuse_map,
-              prev_probe_targets:
-                Language.EvalInfo.ProbeTargets(
-                  Language.SubexpProbeTargets.empty,
-                ),
-              value: Lazy.force(slim_hole),
-              state: slim_state(e.state),
-              seq: e.seq,
-            },
-          u.completed.entries,
-        ),
-    },
+    completed: slim_entries(u.completed),
     current:
       Option.map(
         (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
@@ -574,7 +578,16 @@ let post_reuse_plan = (model, request: Request.t) =>
     post_message(
       ServerMessage.ReusePlan({
         request_id: request.request_id,
-        initial: List.map(predict_reuse_for_request, request.batch),
+        /* the evaluation keeps the full plan; the client gets what it
+           reads, as with streams */
+        initial:
+          List.map(
+            item => {
+              let (key, plan) = predict_reuse_for_request(item);
+              (key, slim_entries(plan));
+            },
+            request.batch,
+          ),
       }),
     );
   };
