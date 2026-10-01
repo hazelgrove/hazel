@@ -2,7 +2,7 @@ open Util;
 
 /* compacted snapshots still hold zippers, frozen ctxs and master
    segments: a deep stack runs out of memory on large programs */
-let capped_undo_stack_size = 50;
+let capped_undo_stack_size = 1000;
 
 /* snapshots drop derived caches (syntax, statics, eval states), which
    would pin memory per edit; restore rebuilds them from the zipper:
@@ -29,13 +29,21 @@ let compact_cell = (c: CellEditor.Model.t): CellEditor.Model.t => {
   editor: {
     editor: {
       ...c.editor.editor,
-      syntax: Lazy.force(dummy_syntax),
+      /* its own incremental caches: restored editors sharing the dummy's
+         would keep evicting each other's */
+      syntax: {
+        ...Lazy.force(dummy_syntax),
+        m_cache: Haz3lcore.Measured.Incr.mk_cache(),
+        t_cache: Haz3lcore.MakeTerm.Incr.mk_cache(),
+      },
     },
     statics: Haz3lcore.CachedStatics.empty,
     dynamics: Language.Dynamics.Map.empty,
     context_menu: c.editor.context_menu,
   },
-  result: EvalResult.Model.init,
+  /* what autosave keeps (stepper position, theorem progress) survives
+     undo; the value re-evaluates */
+  result: EvalResult.Model.unpersist(EvalResult.Model.persist(c.result)),
 };
 
 let compact_program = (p: Program.t): Program.t =>
@@ -106,6 +114,21 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
+  /* only slide decks have views to realize; a flag copied out of the
+     settings follows them back */
+  let realize_view = (~schedule_action: t => unit, m: Page.Model.t) => {
+    Language.EvalWorklist.compute_enabled :=
+      m.globals.settings.show_incremental_deco;
+    switch (m.editors) {
+    | Scratch(_)
+    | Documentation(_) =>
+      schedule_action(Editors(Scratch(Workspace(RealizeView))))
+    | Tutorial(_)
+    | Exercises(_)
+    | Config(_) => ()
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   let update =
       (
@@ -123,7 +146,7 @@ module Update = {
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        schedule_action(Editors(Scratch(Workspace(RealizeView))));
+        realize_view(~schedule_action, x.model);
         {
           ...x,
           model: {
@@ -145,7 +168,7 @@ module Update = {
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        schedule_action(Editors(Scratch(Workspace(RealizeView))));
+        realize_view(~schedule_action, x.model);
         {
           ...x,
           model: {

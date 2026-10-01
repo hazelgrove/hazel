@@ -357,15 +357,18 @@ module Selection = {
           | Some(e) => e.e_id
           | None => fid
           };
-        /* def binders live in the header cell, all else in the body */
+        /* def binders live in the header cell, all else in the body;
+           statements, tails and test runs have no header */
+        let doc = Divided.document(d);
+        let headless =
+          Focus.headless_content_deep(fid, doc) != None
+          || Focus.test_run_deep(fid, doc) != None;
         let in_header =
-          Focus.seg_contains_id(
-            target_id,
-            Option.value(
-              Focus.find_pat(fid, Divided.document(d)),
-              ~default=[],
-            ),
-          );
+          !headless
+          && Focus.seg_contains_id(
+               target_id,
+               Option.value(Focus.find_pat(fid, doc), ~default=[]),
+             );
         let caret: CellEditor.Update.t =
           MainEditor(Perform(Move(Goal(TileId(target_id)))));
         Some((
@@ -508,6 +511,8 @@ module View = {
     c_settings: Settings.t,
     c_font_metrics: FontMetrics.t,
     c_colors: option(ColorSteps.colorMap),
+    /* the whole program's test results, drawn as the cells' markers */
+    c_tests: option(Language.TestResults.t),
     c_nodes: list(Virtual_dom.Vdom.Node.t),
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
@@ -574,6 +579,13 @@ module View = {
           let term = Divided.statics(d).term;
           /* the zoomed module as one cell: the breadcrumb names it */
           let zoom_cell = SlideView.showing_zoom_cell(~term, view);
+          let tests = EvalResult.Model.test_results(Divided.result(d));
+          let same_tests = (a, b) =>
+            switch (a, b) {
+            | (Some(x), Some(y)) => x === y
+            | (None, None) => true
+            | _ => false
+            };
           let rendered =
             List.mapi(
               (i, e: ScratchCell.t) => {
@@ -595,7 +607,9 @@ module View = {
                   k_header_sel: header_sel,
                   k_body_sel: body_sel,
                   k_meta_down: globals.Globals.Model.meta_down,
-                  k_visible_rows: globals.Globals.Model.visible_rows,
+                  /* only the first body culls (below) */
+                  k_visible_rows:
+                    i == 0 ? globals.Globals.Model.visible_rows : None,
                   k_zoom_cell: zoom_cell,
                 };
                 switch (stack_cache_lookup(e.e_id)) {
@@ -607,7 +621,8 @@ module View = {
                       && c.c_settings === globals.Globals.Model.settings
                       && c.c_font_metrics
                       === globals.Globals.Model.font_metrics
-                      && c.c_colors === globals.Globals.Model.color_highlights => (
+                      && c.c_colors === globals.Globals.Model.color_highlights
+                      && same_tests(c.c_tests, tests) => (
                     e.e_id,
                     c,
                   )
@@ -632,9 +647,11 @@ module View = {
                     };
                   /* arrow keys at a pane's edge walk the cells:
                      ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
+                  /* no header pane: symbol cells, and every cell while a
+                     zoomed module shows as its members */
                   let headerless = idx =>
                     switch (List.nth_opt(cells, idx)) {
-                    | Some(e) => e.ScratchCell.e_sym != None
+                    | Some(e) => zoom_cell || e.ScratchCell.e_sym != None
                     | None => false
                     };
                   let pane_focus =
@@ -889,6 +906,7 @@ module View = {
                       c_settings: globals.Globals.Model.settings,
                       c_font_metrics: globals.Globals.Model.font_metrics,
                       c_colors: globals.Globals.Model.color_highlights,
+                      c_tests: tests,
                       c_nodes: nodes,
                     },
                   );

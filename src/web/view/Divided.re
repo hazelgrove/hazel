@@ -377,14 +377,13 @@ let close = (id: Id.t, d: t): after_close =>
   switch (List.partition((e: Cell.t) => e.e_id == id, d.cells)) {
   | ([], _) => Still(d)
   | ([closing, ..._], rest) =>
-    let base = Focus.splice_entry(closing, d.base);
     switch (rest) {
+    /* join's document splices it: splicing here too doubled its edge text */
     | [] =>
       Joined(
         join({
           ...d,
           cells: [closing],
-          base,
         }),
       )
     | _ =>
@@ -394,7 +393,7 @@ let close = (id: Id.t, d: t): after_close =>
           {
             ...d,
             cells: rest,
-            base,
+            base: Focus.splice_entry(closing, d.base),
             active:
               switch (d.active) {
               | Some((a, _)) when a == id => None
@@ -403,7 +402,7 @@ let close = (id: Id.t, d: t): after_close =>
           },
         ),
       )
-    };
+    }
   };
 
 /* opening a parent folds its open descendants back into it; an id inside
@@ -526,6 +525,23 @@ let resplit =
         },
       d.cells,
     );
+  /* an edit can carry one open item into another (a member into an open
+     module): the outer cell holds it now, so the inner one closes */
+  let cells =
+    List.filter(
+      (e: Cell.t) =>
+        !
+          List.exists(
+            (o: Cell.t) =>
+              o !== e
+              && List.exists(
+                   id => List.mem(id, cell_ids(o)),
+                   Cell.covers(e),
+                 ),
+            cells,
+          ),
+      cells,
+    );
   switch (cells) {
   | [] => Joined(editor)
   | _ =>
@@ -537,7 +553,14 @@ let resplit =
           cells:
             List.fold_left((acc, e) => insert(~term, e, acc), [], cells),
           base,
-          active: d.active,
+          /* a cell the edit removed is no longer where the caret is */
+          active:
+            switch (d.active) {
+            | Some((a, _))
+                when !List.exists((e: Cell.t) => e.e_id == a, cells) =>
+              None
+            | a => a
+            },
           statics: None,
         },
       ),

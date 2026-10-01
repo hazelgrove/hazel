@@ -46,6 +46,7 @@ open Action;
    foreign ones; unused-binder warnings come from across items */
 let project_cell_statics =
     (
+      ~settings: Language.CoreSettings.t,
       ~item: Haz3lcore.DefStatics.item,
       ~engine_warnings: list(Haz3lcore.Id.t),
       cell: CellEditor.Model.t,
@@ -53,13 +54,25 @@ let project_cell_statics =
     : Haz3lcore.CachedStatics.t => {
   let term_data = cell.editor.editor.syntax.term_data;
   let in_cell = id => Haz3lcore.Id.Map.mem(id, term_data);
+  let info_map =
+    Haz3lcore.Id.Map.filter((id, _) => in_cell(id), item.d_map);
   Haz3lcore.CachedStatics.{
     term: item.d_node,
     elaborated: item.d_elab,
-    info_map: Haz3lcore.Id.Map.filter((id, _) => in_cell(id), item.d_map),
+    info_map,
     error_ids: List.filter(in_cell, item.d_error_ids),
     warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
-    targets: Haz3lcore.Id.Map.empty, /* with_targets refreshes */
+    /* the cell's own probes: empty targets read as a probe change and
+       swapped in a private analysis */
+    targets:
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings,
+        ~info_map,
+        ~probe_ids=
+          Haz3lcore.CachedStatics.probe_ids_of_zipper(
+            cell.editor.editor.state.zipper,
+          ),
+      ),
     completion: None,
   };
 };
@@ -355,7 +368,8 @@ let update =
               v,
               singles,
             );
-          List.length(singles) == List.length(members)
+          Some(List.length(singles))
+          == Focus.test_run_size_deep(fid, Program.document(program))
             ? v : SlideView.pin(~term, ~run=true, fid, v);
         };
       },
@@ -640,6 +654,12 @@ let calculate =
          out-of-cell call sites); the memo gates on the dynamics
          map's identity so cells re-render when new samples land */
       let extra_dyn = EvalResult.Model.dynamics(Divided.result(d));
+      /* unused-binder warnings span items: once per frame, not per cell */
+      let frame_warns =
+        lazy(
+          Option.map(Haz3lcore.DefStatics.all_warning_ids, ds)
+          |> Option.value(~default=[])
+        );
       let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
         let reuse =
           statics_mode != StaticsMode.Force
@@ -674,10 +694,11 @@ let calculate =
                     )
                   ) {
                   | Some(it) =>
-                    let warns = Haz3lcore.DefStatics.all_warning_ids(ds);
+                    let warns = Lazy.force(frame_warns);
                     (
                       Some(
                         project_cell_statics(
+                          ~settings,
                           ~item=it,
                           ~engine_warnings=warns,
                           e.e_header,
@@ -685,6 +706,7 @@ let calculate =
                       ),
                       Some(
                         project_cell_statics(
+                          ~settings,
                           ~item=it,
                           ~engine_warnings=warns,
                           e.e_body,

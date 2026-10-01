@@ -601,6 +601,110 @@ let no_overlap = () => {
   };
 };
 
+/* closing the last cell splices its text in once: an edge space typed
+   in the cell isn't doubled, and no piece appears twice */
+let close_once = () => {
+  let seg = parse(src);
+  let d = split(seg, row(term_of(seg), "g"));
+  let space =
+    Piece.Secondary({
+      id: Id.mk(),
+      content: Whitespace(" "),
+    });
+  let d = set_body(editor_of(seg_of(body_cell(d).e_body) @ [space]), d);
+  let expected = text_of(Divided.document(d));
+  switch (Divided.close(body_cell(d).e_id, d)) {
+  | Still(_) => fail("still divided")
+  | Joined(e) =>
+    check(string, "spliced once", expected, text_of(seg_of(e)));
+    let ids = Segment.ids(seg_of(e));
+    check(
+      int,
+      "no piece twice",
+      List.length(ids),
+      List.length(List.sort_uniq(compare, ids)),
+    );
+  };
+};
+
+/* an outside edit carries an open member into an open module: the module's
+   cell holds it now, so the member's cell closes, and the caret's cell with
+   it */
+let resplit_folds = () => {
+  let src = "let y = 1;\nmodule B = {\n  let z = 2\n};\nB.z";
+  let seg = parse(~root=Mod, src);
+  let term = term_of(~root=Mod, seg);
+  let info_map = info_map_of(~root=Mod, seg);
+  let y = row(term, "y");
+  let d = split(~root=Mod, seg, y);
+  let d =
+    switch (Divided.open_(~info_map, ~term, row(term, "B"), d)) {
+    | Some(d) => d
+    | None => fail("module refused")
+    };
+  let d = Divided.set_active(y, Divided.Body, d);
+  let joined = seg_of(Divided.join(d));
+  let edited =
+    switch (
+      Web.ItemEdit.move(
+        ~mod_root=true,
+        ~is_open=_ => true,
+        ~owner=None,
+        ~up=false,
+        row(term_of(~root=Mod, joined), "y"),
+        joined,
+      )
+    ) {
+    | Some((seg, _)) => seg
+    | None => fail("move refused")
+    };
+  switch (
+    Divided.resplit(
+      ~info_map=info_map_of(~root=Mod, edited),
+      ~term=term_of(~root=Mod, edited),
+      editor_of(~root=Mod, edited),
+      d,
+    )
+  ) {
+  | Joined(_) => fail("the open cells closed")
+  | Still(d') =>
+    let cells = Divided.cells(d');
+    let overlaps =
+      List.exists(
+        (e: Web.ScratchCell.t) =>
+          List.exists(
+            (o: Web.ScratchCell.t) =>
+              o !== e
+              && List.exists(
+                   id =>
+                     List.mem(
+                       id,
+                       Segment.ids(seg_of(o.e_header))
+                       @ Segment.ids(seg_of(o.e_body)),
+                     ),
+                   Web.ScratchCell.covers(e),
+                 ),
+            cells,
+          ),
+        cells,
+      );
+    check(bool, "no cell inside another", false, overlaps);
+    check(int, "the module's cell alone", 1, List.length(cells));
+    check(
+      string,
+      "edit kept",
+      text_of(edited),
+      text_of(Divided.document(d')),
+    );
+    check(
+      bool,
+      "the closed cell isn't active",
+      false,
+      Divided.active(d') == Some((y, Divided.Body)),
+    );
+  };
+};
+
 /* every row of mega-1k: its modules and their members */
 let mega = () =>
   switch (CorpusUtil.corpus_seg("mega-1k.hz")) {
@@ -626,6 +730,8 @@ let tests = (
     test_case("a join from caches", `Quick, join_from_caches),
     test_case("close all", `Quick, close_all),
     test_case("no overlap", `Quick, no_overlap),
+    test_case("closing the last cell splices once", `Quick, close_once),
+    test_case("an edit into an open module folds", `Quick, resplit_folds),
     test_case("mega-1k rows", `Slow, mega),
   ],
 );

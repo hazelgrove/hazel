@@ -35,12 +35,29 @@ let rec header_name = (e: t): option(string) =>
 and header_name_of_cell = (e: t): option(string) => {
   let txt =
     Haz3lcore.MarkerParse.to_text(e.e_header.editor.editor.state.zipper);
+  let txt = String.trim(txt);
+  let ident = c =>
+    c >= 'a'
+    && c <= 'z'
+    || c >= 'A'
+    && c <= 'Z'
+    || c >= '0'
+    && c <= '9'
+    || c == '_'
+    || c == '\'';
+  let rec run = i =>
+    i < String.length(txt) && ident(txt.[i]) ? run(i + 1) : i;
+  /* `add(x: Int): Int` is add; a pattern header like `(p, q)` keeps its
+     text up to an annotation */
   let name =
-    switch (String.index_opt(txt, ':')) {
-    | Some(i) => String.sub(txt, 0, i)
-    | None => txt
+    switch (run(0)) {
+    | 0 =>
+      switch (String.index_opt(txt, ':')) {
+      | Some(i) => String.trim(String.sub(txt, 0, i))
+      | None => txt
+      }
+    | n => String.sub(txt, 0, n)
     };
-  let name = String.trim(name);
   name == "" ? None : Some(name);
 };
 

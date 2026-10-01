@@ -247,6 +247,56 @@ let unfinished_let = () => {
   check(bool, "finished let opens", true, open_at("let x = 1 in x"));
 };
 
+/* review fixes: a typed-function header is named by its function, a run
+   counts its tests, and a slide owns only its own keys */
+let names_and_keys = () => {
+  let master = parse("let add(x: Int, y: Int): Int = x + y in add(1, 2)");
+  let (term, info_map) = statics_of(master);
+  switch (Focus.mk_entry(~info_map, outline_id(term, "add"), master)) {
+  | None => fail("no cell for add")
+  | Some(e) =>
+    check(
+      option(string),
+      "named by its function",
+      Some("add"),
+      Web.ScratchCell.header_name(e),
+    )
+  };
+  let run = parse("test 1 == 1 end;\ntest 2 == 2 end;\ntest 3 == 3 end;\n0");
+  let (rterm, _) = statics_of(run);
+  check(
+    option(int),
+    "three tests",
+    Some(3),
+    Focus.test_run_size_deep(outline_id(rterm, "1"), run),
+  );
+  let own = Web.ScratchPersist.slide_suffix("scratch:Week 1");
+  check(
+    option(string),
+    "its side key",
+    Some(":agent"),
+    own("scratch:Week 1:agent"),
+  );
+  check(
+    option(string),
+    "its items",
+    Some(":items:roster"),
+    own("scratch:Week 1:items:roster"),
+  );
+  check(
+    option(string),
+    "another slide",
+    None,
+    own("scratch:Week 1: Lists"),
+  );
+  check(
+    option(string),
+    "another slide's key",
+    None,
+    own("scratch:Week 1: Lists:agent"),
+  );
+};
+
 let tests = (
   "StackFocus",
   [
@@ -308,6 +358,7 @@ let tests = (
       )
     ),
     test_case("member restructure", `Quick, member_restructure),
+    test_case("names, run sizes and slide keys", `Quick, names_and_keys),
     test_case("unfinished let stays closed", `Quick, unfinished_let),
     test_case("type alias", `Quick, () =>
       check_focus(

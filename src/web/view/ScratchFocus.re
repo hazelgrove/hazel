@@ -424,7 +424,7 @@ let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
    run; an expression block's tail is its value and never does. */
 let test_run =
     (~module_body=false, fid: Id.t, seg: Segment.t)
-    : option((int, int, list(Id.t))) => {
+    : option((int, int, list(Id.t), int)) => {
   let arr = Array.of_list(seg);
   let spans = Array.of_list(item_spans(seg));
   let n = Array.length(spans);
@@ -462,7 +462,7 @@ let test_run =
       i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
     let stop = back(spans[b].sp_stop);
     let stop = stop > start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
-    Some((start, stop, members));
+    Some((start, stop, members, b - a + 1));
   | _ => None
   };
 };
@@ -470,9 +470,10 @@ let test_run =
 /* test runs at any block depth, like headless_deep_go */
 let rec test_run_deep_go =
         (~module_body: bool, fid: Id.t, seg: Segment.t)
-        : option((Segment.t, list(Id.t))) =>
+        : option((Segment.t, list(Id.t), int)) =>
   switch (test_run(~module_body, fid, seg)) {
-  | Some((start, stop, members)) => Some((slice(start, stop, seg), members))
+  | Some((start, stop, members, n)) =>
+    Some((slice(start, stop, seg), members, n))
   | None =>
     List.find_map(
       (p: Piece.t) =>
@@ -492,12 +493,18 @@ let rec test_run_deep_go =
   };
 
 let test_run_deep = (fid: Id.t, seg: Segment.t) =>
-  test_run_deep_go(~module_body=false, fid, seg);
+  test_run_deep_go(~module_body=false, fid, seg)
+  |> Option.map(((run, members, _)) => (run, members));
+
+/* how many tests the run holding [fid] has (members carry two ids each) */
+let test_run_size_deep = (fid: Id.t, seg: Segment.t): option(int) =>
+  test_run_deep_go(~module_body=false, fid, seg)
+  |> Option.map(((_, _, n)) => n);
 
 let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
   let rec go = (~module_body: bool, seg: Segment.t): Segment.t =>
     switch (test_run(~module_body, fid, seg)) {
-    | Some((start, stop, _)) =>
+    | Some((start, stop, _, _)) =>
       let (pre, _, suf) = trim_ws(slice(start, stop, seg));
       take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
     | None =>
