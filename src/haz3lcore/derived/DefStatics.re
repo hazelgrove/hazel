@@ -502,9 +502,6 @@ let fix_spine_infos =
 let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
   Id.Map.union((_, _x, y) => Some(y), a, b);
 
-let map_remove_keys = (keys: Statics.Map.t, m: Statics.Map.t): Statics.Map.t =>
-  Id.Map.fold((k, _, m) => Id.Map.remove(k, m), keys, m);
-
 let graft_elabs = (items: list(item)): option(Exp.t) => {
   let rec go = (items: list(item)): option(Exp.t) =>
     switch (items) {
