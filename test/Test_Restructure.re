@@ -658,9 +658,77 @@ let let_body = (): unit => {
   );
 };
 
+/* an op a row's own block refuses does nothing: it never falls back to
+   the item around the row */
+let refused = (): unit => {
+  let fsrc = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
+  let seg = parse(fsrc);
+  let term = statics_term(seg);
+  let result_row =
+    switch (
+      List.find_opt(
+        (n: Web.OutlineTree.node) => n.o_label == "f",
+        Web.OutlineTree.of_term(term),
+      )
+    ) {
+    | Some(f) =>
+      switch (
+        List.find_opt(
+          (n: Web.OutlineTree.node) => n.o_kind == KTrail,
+          f.o_children,
+        )
+      ) {
+      | Some({o_id: Some(id), _}) => id
+      | _ => failwith("no result row in f")
+      }
+    | None => failwith("no row f")
+    };
+  List.iter(
+    op =>
+      check(
+        bool,
+        "result row: " ++ Web.OutlineSidebar.show_def_op(op),
+        true,
+        R.apply(op, result_row, seg) == None,
+      ),
+    Web.OutlineSidebar.[Delete, Duplicate, MoveUp, MoveDown],
+  );
+  /* a module's last test without its `;` */
+  let msrc = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
+  apply_none(
+    ~src=msrc,
+    ~label="1",
+    ~op=Web.OutlineSidebar.Delete,
+    ~desc="last test: delete",
+  );
+  apply_none(
+    ~src=msrc,
+    ~label="1",
+    ~op=Web.OutlineSidebar.Duplicate,
+    ~desc="last test: duplicate",
+  );
+  let seg = parse(msrc);
+  let term = statics_term(seg);
+  check(
+    bool,
+    "last test: Alt+Up leaves the module put",
+    true,
+    R.move(
+      ~mod_root=false,
+      ~is_open=_ => true,
+      ~owner=Some(outline_id(term, "M")),
+      ~up=true,
+      outline_id(term, "1"),
+      seg,
+    )
+    == None,
+  );
+};
+
 let tests = (
   "Restructure",
   [
+    test_case("a refused op does nothing", `Quick, refused),
     test_case("top-level ops", `Quick, top_level),
     test_case("statement ops", `Quick, statements),
     test_case("member ops", `Quick, members),

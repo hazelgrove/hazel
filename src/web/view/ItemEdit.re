@@ -274,10 +274,25 @@ type block_ctx =
   | BModDef /* the module tile's def child: the brace lives here */
   | BModBody; /* the brace's child: the member list */
 
+/* where [fid]'s item is, seen from a level: not at or below it, there
+   but the op refused, or the level rebuilt around the op's result */
+type found('a) =
+  | Absent
+  | Refused
+  | Done('a);
+
+let map_found = (f: 'a => 'b, r: found('a)): found('b) =>
+  switch (r) {
+  | Absent => Absent
+  | Refused => Refused
+  | Done(x) => Done(f(x))
+  };
+
 /* [act] at the block that owns [fid]'s item, the block rebuilt around
    its result. A module body, or the top level of a module-rooted
-   program, is a member block ([in_module]) */
-let rec at_level =
+   program, is a member block ([in_module]). An op its block refuses
+   stops there: the item around it is a different row */
+let rec at_level_found =
         (
           ~act:
              (~in_module: bool, array(Focus.item_span), int, Segment.t) =>
@@ -288,13 +303,18 @@ let rec at_level =
           ~top: bool,
           seg: Segment.t,
         )
-        : option((Segment.t, option(Id.t))) => {
+        : found((Segment.t, option(Id.t))) => {
   let spans = Array.of_list(Focus.item_spans(~divided_only_tail=!top, seg));
   let n = Array.length(spans);
   let find = pred => {
     let rec go = j => j >= n ? None : pred(spans[j]) ? Some(j) : go(j + 1);
     go(0);
   };
+  let acted = r =>
+    switch (r) {
+    | Some(x) => Done(x)
+    | None => Refused
+    };
   let in_module = bctx == BModBody || top && mod_root;
   let found = find((sp: Focus.item_span) => sp.sp_id == Some(fid));
   let flat =
@@ -302,7 +322,7 @@ let rec at_level =
       ? Focus.flat_body_of(fid, Array.of_list(seg), Array.to_list(spans))
       : None;
   switch (found, flat) {
-  | (Some(j), _) => act(~in_module, spans, j, seg)
+  | (Some(j), _) => acted(act(~in_module, spans, j, seg))
   | (None, Some((b0, b1))) =>
     /* a let or the tail of a member's flat body: acts in that body */
     let body = Focus.slice(b0, b1, seg);
@@ -320,7 +340,8 @@ let rec at_level =
       |> Option.map(((body', target)) =>
            (Focus.take(b0, seg) @ body' @ Focus.drop(b1, seg), target)
          )
-    | None => None
+      |> acted
+    | None => Refused
     };
   | (None, None) =>
     /* descend into tile children first (the owning block may be a
@@ -345,20 +366,20 @@ let rec at_level =
       };
     let rec try_children =
             (~after_head=false, ps: Segment.t)
-            : option((Segment.t, option(Id.t))) =>
+            : found((Segment.t, option(Id.t))) =>
       switch (ps) {
-      | [] => None
+      | [] => Absent
       | [Piece.Secondary(_) as p, ...rest] =>
         try_children(~after_head, rest)
-        |> Option.map(((rest', target)) => ([p, ...rest'], target))
+        |> map_found(((rest', target)) => ([p, ...rest'], target))
       | [Piece.Tile(t) as p, ...rest] =>
         let n_kids = List.length(t.children);
         let rec try_kids = (before, k, kids) =>
           switch (kids) {
-          | [] => None
+          | [] => Absent
           | [ch, ...more] =>
             switch (
-              at_level(
+              at_level_found(
                 ~act,
                 ~mod_root,
                 fid,
@@ -367,13 +388,14 @@ let rec at_level =
                 ch,
               )
             ) {
-            | Some((ch', target)) =>
-              Some((List.rev(before) @ [ch', ...more], target))
-            | None => try_kids([ch, ...before], k + 1, more)
+            | Done((ch', target)) =>
+              Done((List.rev(before) @ [ch', ...more], target))
+            | Refused => Refused
+            | Absent => try_kids([ch, ...before], k + 1, more)
             }
           };
         switch (try_kids([], 0, t.children)) {
-        | Some((children, target)) =>
+        | Done((children, target)) =>
           let tile =
             switch (children) {
             | [kid] when is_body(t) && List.for_all(Focus.is_edge_ws, kid) =>
@@ -391,21 +413,21 @@ let rec at_level =
                 children,
               })
             };
-          Some(([tile, ...rest], target));
-        | None =>
+          Done(([tile, ...rest], target));
+        | Refused => Refused
+        | Absent =>
           try_children(
             ~after_head=is_module_tile(t) && List.length(t.shards) == 2,
             rest,
           )
-          |> Option.map(((rest', target)) => ([p, ...rest'], target))
+          |> map_found(((rest', target)) => ([p, ...rest'], target))
         };
       | [p, ...rest] =>
         try_children(rest)
-        |> Option.map(((rest', target)) => ([p, ...rest'], target))
+        |> map_found(((rest', target)) => ([p, ...rest'], target))
       };
     switch (try_children(seg)) {
-    | Some(_) as r => r
-    | None =>
+    | Absent =>
       /* contained in one of this level's statement or tail spans (e.g.
          a ModExp test's row id is the inner test term): that span is
          the item */
@@ -417,12 +439,22 @@ let rec at_level =
           )
         )
       ) {
-      | Some(j) => act(~in_module, spans, j, seg)
-      | None => None
+      | Some(j) => acted(act(~in_module, spans, j, seg))
+      | None => Absent
       }
+    | r => r
     };
   };
 };
+
+let at_level =
+    (~act, ~mod_root, fid, ~bctx, ~top, seg)
+    : option((Segment.t, option(Id.t))) =>
+  switch (at_level_found(~act, ~mod_root, fid, ~bctx, ~top, seg)) {
+  | Done(r) => Some(r)
+  | Absent
+  | Refused => None
+  };
 
 let apply =
     (
