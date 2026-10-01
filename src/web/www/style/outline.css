@@ -256,7 +256,14 @@
   font-weight: bold;
 }
 
-#outline-sidebar .ol-tests {
+#outline-sidebar .ol-tests,
+#outline-sidebar .outline-trail-word {
+  font-style: italic;
+}
+
+#main .focus-header.focus-header-sym .focus-sym-word {
+  margin-left: 0.5em;
+  font-weight: normal;
   font-style: italic;
 }
 

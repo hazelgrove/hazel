@@ -419,6 +419,10 @@ let rec node_view =
             span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
             text(n.o_label),
           ]
+        /* the arrow alone reads as decoration: name what the row is */
+        | _ when n.o_kind == OutlineTree.KTrail && n.o_label == "" => [
+            span(~attrs=[clss(["outline-trail-word"])], [text("result")]),
+          ]
         | _ => [text(n.o_label)]
         }
       )

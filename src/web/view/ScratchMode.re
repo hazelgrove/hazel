@@ -798,7 +798,21 @@ module View = {
                             ~attrs=[
                               Virtual_dom.Vdom.Attr.classes(["focus-sym"]),
                             ],
-                            [Virtual_dom.Vdom.Node.text(sym)],
+                            [Virtual_dom.Vdom.Node.text(sym)]
+                            @ (
+                              sym == {js|⇒|js}
+                                ? [
+                                  Virtual_dom.Vdom.Node.span(
+                                    ~attrs=[
+                                      Virtual_dom.Vdom.Attr.classes([
+                                        "focus-sym-word",
+                                      ]),
+                                    ],
+                                    [Virtual_dom.Vdom.Node.text("result")],
+                                  ),
+                                ]
+                                : []
+                            ),
                           ),
                         ],
                       )
