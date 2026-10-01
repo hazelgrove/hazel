@@ -775,9 +775,19 @@ let value_view =
           switch (find(RichProbe.renderer_id_of_model(pm))) {
           | Some(r)
               when
-                r.can_handle(ctx.sort, sample.value)
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
                 && (
-                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  switch (
+                    r.drawer_rows(
+                      ~statics=Some(ctx.statics),
+                      ctx.sort,
+                      sample.value,
+                    )
+                  ) {
                   | Some(n) => n <= inline_rows_cap
                   | None => true
                   }
@@ -789,20 +799,39 @@ let value_view =
           switch (
             List.find_opt(
               (r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
                 /* a vacuous match (empty hand) still renders when a
                    SIBLING sample at this site is real evidence */
                 && (
-                  r.auto_applies(ctx.sort, sample.value)
+                  r.auto_applies(
+                    ~statics=Some(ctx.statics),
+                    ctx.sort,
+                    sample.value,
+                  )
                   || List.exists(
-                       (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
+                       (s: Sample.t) =>
+                         r.auto_applies(
+                           ~statics=Some(ctx.statics),
+                           ctx.sort,
+                           s.value,
+                         ),
                        ctx.dynamics.samples,
                      )
                 )
                 && (
                   ctx.auto_unbounded
                   || (
-                    switch (r.drawer_rows(ctx.sort, sample.value)) {
+                    switch (
+                      r.drawer_rows(
+                        ~statics=Some(ctx.statics),
+                        ctx.sort,
+                        sample.value,
+                      )
+                    ) {
                     | Some(n) => n <= inline_rows_cap
                     | None => true
                     }
@@ -812,7 +841,13 @@ let value_view =
             )
           ) {
           | Some(r) =>
-            switch (r.init_model(ctx.sort, sample.value)) {
+            switch (
+              r.init_model(
+                ~statics=Some(ctx.statics),
+                ctx.sort,
+                sample.value,
+              )
+            ) {
             | Some(pm) => render_rich(r, pm)
             | None => None
             }
@@ -837,12 +872,13 @@ let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
     List.find_opt(
-      (r: packed_renderer) => r.auto_applies(sort, value),
+      (r: packed_renderer) =>
+        r.auto_applies(~statics=info.statics, sort, value),
       renderers,
     );
   switch (pick) {
   | Some(r) =>
-    switch (r.init_model(sort, value)) {
+    switch (r.init_model(~statics=info.statics, sort, value)) {
     | Some(pm) =>
       r.render_model(
         pm,
@@ -1031,7 +1067,15 @@ let rich_probe_action =
         =>
           Effect.Many([
             Effect.Stop_propagation,
-            ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value))),
+            ctx.local(
+              ToggleModal(
+                r.init_model(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                ),
+              ),
+            ),
           ])
         ),
     ],
@@ -1045,7 +1089,7 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   | Some(indicated) =>
     renderers
     |> List.filter_map(r =>
-         r.can_handle(ctx.sort, indicated.value)
+         r.can_handle(~statics=Some(ctx.statics), ctx.sort, indicated.value)
            ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
   };
@@ -1353,7 +1397,12 @@ let sample_view =
         switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
         | Some(indicated) =>
           List.exists(
-            r => r.can_handle(ctx.sort, indicated.value),
+            r =>
+              r.can_handle(
+                ~statics=Some(ctx.statics),
+                ctx.sort,
+                indicated.value,
+              ),
             renderers,
           )
         | None => false
@@ -1862,7 +1911,8 @@ let prepare_offside =
       && List.exists(
            (sample: Sample.t) =>
              List.exists(
-               (r: packed_renderer) => r.auto_applies(sort, sample.value),
+               (r: packed_renderer) =>
+                 r.auto_applies(~statics=Some(statics), sort, sample.value),
                renderers,
              ),
            dynamics.samples,
@@ -2140,7 +2190,8 @@ let rich_content =
   switch (model.active_renderer, get_current(~settings, info)) {
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
-    | Some(renderer) when renderer.can_handle(sort, exp) =>
+    | Some(renderer)
+        when renderer.can_handle(~statics=info.statics, sort, exp) =>
       renderer.render_model(
         pm,
         ~info,
@@ -2203,17 +2254,20 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       find(RichProbe.renderer_id_of_model(pm)),
       get_current(~settings=Settings.s^, info),
     ) {
-    | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
+    | (Some(r), Some(exp)) => r.drawer_rows(~statics=info.statics, sort, exp)
     | _ => None
     }
   | None when model.auto_rich =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
       List.find_opt(
-        (r: packed_renderer) => r.auto_applies(sort, exp),
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
-      |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
+      |> Option.map((r: packed_renderer) =>
+           r.drawer_rows(~statics=info.statics, sort, exp)
+         )
       |> Option.join
     | None => None
     }
