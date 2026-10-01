@@ -2,10 +2,9 @@ open Alcotest;
 open Haz3lcore;
 open Action;
 
-let deep_reassociate_settings = {
-  ...Test_Editing.default_settings,
-  deep_reassociate: true,
-};
+/* reassociation is unconditional now; the binding survives only to
+   keep the many call sites unchanged */
+let deep_reassociate_settings = Test_Editing.default_settings;
 
 let deep_reassociate_tests = [
   test_case(
@@ -399,7 +398,7 @@ let deep_reassociate_tests = [
     () => {
       let z =
         Test_Editing.mk("let a = 1 in let b = 2 in¦ b")
-        @ [Destruct(Left), Destruct(Left)]
+        @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))]
         |> Test_Editing.perform(
              ~settings=deep_reassociate_settings,
              Zipper.init(),
@@ -605,24 +604,27 @@ let deep_reassociate_tests = [
     () => {
       /* User's exact code with selection from before outer "then"
        * through "plant". Selection crosses: outer if's then-delimiter,
-       * inner mapi(...), inner fun, inner if's then-delimiter. */
+       * inner mapi(...), inner fun, inner if's then-delimiter.
+       * Indentation is written explicitly (user-managed indentation:
+       * indent is ordinary buffer content) and the zipper is built via
+       * parse_zipper so the buffer matches the literal exactly. */
       let z =
-        Test_Editing.mk_zipper(
+        Test_Editing.parse_zipper(
           ~settings=deep_reassociate_settings,
           {|fun (grove, row, col, plant) ->
-mapi(grove, fun (i, r) ->
-if i == row
-§then
-mapi(r, fun (j, c) ->
-if i == col
-then plant¦
-else c)
-else r)|},
+    mapi(grove, fun (i, r) ->
+        if i == row
+        §then
+            mapi(r, fun (j, c) ->
+                if i == col
+                then plant¦
+                else c)
+        else r)|},
         );
       let sel_text =
         Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
       let z_cut =
-        [Action.Destruct(Right)]
+        [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
       let z_pasted =
         [Action.Paste(sel_text)]
@@ -644,7 +646,7 @@ else r)|},
       let sel_text =
         Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
       let z_cut =
-        [Action.Destruct(Right)]
+        [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
       let z_pasted =
         [Action.Paste(sel_text)]
@@ -682,7 +684,7 @@ else r)|},
       let sel_text =
         Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
       let z_cut =
-        [Action.Destruct(Right)]
+        [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
       let z_pasted =
         [Action.Paste(sel_text)]
@@ -711,7 +713,7 @@ else r)|},
       let sel_text =
         Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
       let z_cut =
-        [Action.Destruct(Right)]
+        [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
       let z_pasted =
         [Action.Paste(sel_text)]
@@ -740,7 +742,7 @@ else r)|},
       let sel_text =
         Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
       let z_cut =
-        [Action.Destruct(Right)]
+        [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
       let z_pasted =
         [Action.Paste(sel_text)]
@@ -887,7 +889,7 @@ let cut_and_paste = (z: Zipper.t): Zipper.t => {
     Test_Editing.perform(
       ~settings=deep_reassociate_settings,
       z,
-      [Destruct(Right)],
+      [Destruct(Local(Right, ByChar))],
     );
   Test_Editing.perform(
     ~settings=deep_reassociate_settings,

@@ -82,6 +82,23 @@ let apply =
       action,
       model,
     );
+  /* which actions count as edits (each one costs a statics/eval recompute):
+     the perf journal names them */
+  if (updated.is_edit) {
+    /* the action's constructor path, two levels deep, off its sexp */
+    let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
+      switch (sx) {
+      | Sexplib.Sexp.Atom(a) => a
+      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
+        a ++ "/" ++ head(depth - 1, inner)
+      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
+      | _ => "?"
+      };
+    Util.PerfTimer.record(
+      "edit-action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
+      0.,
+    );
+  };
   // ---------- CALCULATE PHASE ----------
   let model' =
     CrashHandling.Update.calculate(
@@ -228,8 +245,6 @@ let start = default_model => {
         ),
       );
     });
-    /* Setup scroll listener for floating elements (backpack) */
-    FloatingElement.setup_scroll_listener();
     /* A deep link's slide and panel are settled before Bonsai starts, but its
        caret is an action, and there is no editor to act on until the model is
        up. `scroll_to_caret` because a Point move does not ask for a scroll --
@@ -287,7 +302,8 @@ let start = default_model => {
         Haz3lcore.FocusEffect.keep_splice_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
-        /* Update floating elements (backpack) to viewport coordinates */
+        /* Update floating elements (probe menus) to viewport coordinates */
+        FloatingElement.setup_scroll_listener();
         FloatingElement.update_all();
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;

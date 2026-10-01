@@ -35,7 +35,6 @@ type ColorOverrides = ^^fold((
   # 0. keeps the shared placement, 1. is the ink itself #
   `probe-text-toward-ink` = Float,
   `hole-empty` = ColorValue,
-  `editor-backpack-outline` = ColorValue,
   `projector-textarea-text` = ColorValue,
   `inspector-badge` = ColorValue,
   `inspector-text` = ColorValue
@@ -114,7 +113,6 @@ let sort_plate(c) =
       `buffer` = role.`frame-mark`,
       `derivation` = wash(p.`success`, 0.82, 0.67),
       `locked-cell` = role.`frame-border`,
-      `backpack-outline` = role.`editor-backpack-outline`,
       # findable aliases; each defaults to its place in the ramp #
       `string` = p.`attention-4`,
       `comment` = p.`success-muted`,
@@ -207,6 +205,14 @@ let sort_plate(c) =
       `drawer-edge` = wash(p.`frame-1`, 0.2222, 0.5714),
       `drawer-fade` = Fade(wash(p.`frame-1`, 1., 0.8571), 40.)
     ),
+    # completion chips: the page knocked out of the chip, and the #
+    # faded segments still to come, off the chip and on the caret's #
+    completion = (
+      `chip-text` = role.`editor-cell`,
+      `later-text` = color_mix(role.`editor-cell`, p.`attention-4`, 0.22),
+      `later-text-at-caret` =
+        color_mix(p.`attention-4`, p.`attention-2`, 0.55)
+    ),
     # inline widgets: text areas, folds, the statics card #
     projector = (
       `textarea-text` = role.`projector-textarea-text`,
@@ -248,7 +254,6 @@ let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `step-next-level` = 85.,
   `probe-text-toward-ink` = 0.,
   `hole-empty` = p.`attention-1`,
-  `editor-backpack-outline` = p.`code-background`,
   `projector-textarea-text` = p.`frame-3`,
   `inspector-badge` = p.`frame-3`,
   `inspector-text` = p.`frame-4`
@@ -328,7 +333,6 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `step-next-level` = 31.,
   `probe-text-toward-ink` = 0.,
   `hole-empty` = p.`surface-2`,
-  `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
   `projector-textarea-text` = p.`ink`,
   `inspector-badge` = p.`frame-2`,
   `inspector-text` = p.`ink`
@@ -497,7 +501,6 @@ let contrast_dark = ^^fold(let p = palette_of(
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
     `step-next-level` = 27.,
-    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.),
     # light text on a dark fill needs more lightness than dark text on a #
     # light one to read as well, so the shared placement falls short here #
     `probe-text-toward-ink` = 0.55

@@ -150,8 +150,7 @@ let parse_sections = (content: string): sections => {
 };
 
 /* Filename -> module_name / title, matching the retired generator so the
-   per-slide config tables (TutorialProbeStrip, TutorialSlideInit) keep
-   their keys. */
+   per-slide config table (TutorialProbeConfig) keeps its keys. */
 let chop_lesson_ext = (rel: string): string =>
   Filename.check_suffix(rel, ".hzt")
     ? Filename.chop_suffix(rel, ".hzt") : Filename.chop_suffix(rel, ".hz");
@@ -237,10 +236,10 @@ let zipper_of =
 
 let spec_of = (i: int, (rel, raw): (string, string)): Tutorial.spec => {
   let s = parse_sections(raw);
-  /* Slide sources carry editor indentation; strip it (Hazel re-indents). */
-  let code = String.trim(Util.StringUtil.trim_leading(s.code));
-  let test =
-    s.test == "" ? "test true end" : Util.StringUtil.trim_leading(s.test);
+  /* Indentation is stored as whitespace in the editor, so preserve the
+     leading spaces authored in the lesson source. */
+  let code = String.trim(s.code);
+  let test = s.test == "" ? "test true end" : s.test;
   {
     id:
       Option.get(

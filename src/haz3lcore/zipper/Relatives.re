@@ -115,7 +115,8 @@ let rec find_splice_descent_when =
         | [i, ...rest_idx] =>
           let child = List.nth(t.children, i);
           let child_sort =
-            i < List.length(t.mold.in_) ? List.nth(t.mold.in_, i) : Sort.Any;
+            i < List.length(Tile.mold(t).in_)
+              ? List.nth(Tile.mold(t).in_, i) : Sort.Any;
           switch (find_splice_descent_when(~sort=child_sort, d, pred, child)) {
           | None => try_kids(rest_idx)
           | Some((sub_ancs, sub_sibs, sub_splice, child_l, child_r)) =>
@@ -129,8 +130,8 @@ let rec find_splice_descent_when =
               };
             let tile_anc: Ancestor.tile_anc = {
               id: t.id,
-              label: t.label,
-              mold: t.mold,
+              form: t.form,
+              sort: t.sort,
               shards: (shards_l, shards_r),
               children: (kids_l, kids_r),
             };
@@ -375,7 +376,7 @@ let sort = (~root, {siblings: (pre, _), ancestors}: t): Sort.t => {
 
 /* Remold the immediate parent ancestor tile based on its
  * sibling context. This handles cases where completing a
- * bidelimited form (e.g. putting down `(` from backpack to
+ * bidelimited form (e.g. putting down a pending `(` to
  * complete `(...)`) leaves the caret inside, and the parent
  * tile needs a different mold (e.g. `ap(...)` instead of
  * plain parens) to fit its neighbors. */
@@ -402,25 +403,27 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
         r.sort;
       };
     };
-    switch (Form.Molds.try_get(sort, a.label)) {
-    | None
-    | Some([_]) => [(Ancestor.Tile(a), sibs), ...rest]
-    | Some(molds) =>
+    switch (Form.remold_candidates(Ancestor.label(a), sort)) {
+    | []
+    | [_] => [(Ancestor.Tile(a), sibs), ...rest]
+    | forms =>
       let (pre, _) = sibs;
       let (_, left_shape, _) =
         Segment.shape_affix(Left, pre, Nib.Shape.concave());
       let l_idx = Ancestor.l_shard(a);
       let a =
         switch (
-          molds
-          |> List.filter(mold => {
-               let (l_nib, _) = Mold.nibs(~index=l_idx, mold);
+          forms
+          |> List.filter(((form, sort)) => {
+               let (l_nib, _) =
+                 Mold.nibs(~index=l_idx, Form.mold_of(form, sort));
                Nib.Shape.fits(left_shape, Nib.shape(l_nib));
              })
         ) {
-        | [mold, ..._] => {
+        | [(form, sort), ..._] => {
             ...a,
-            mold,
+            form,
+            sort,
           }
         | [] => a
         };

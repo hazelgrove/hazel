@@ -102,8 +102,18 @@ let take_run = (chars: list(string)): option((string, list(string))) => {
 let to_zipper =
     (~by_run=false, ~root, ~zipper_init=Zipper.init(), str: string)
     : option(Zipper.t) => {
+  /* auto_indent off, so the parser reproduces its input without adding
+     spaces. */
   let insert = (z: Zipper.t, c: string): option(Zipper.t) =>
-    try(Insert.go(~regrout=!by_run, line_ending(c), z, ~root)) {
+    try(
+      Insert.go(
+        ~auto_indent=false,
+        ~regrout=!by_run,
+        line_ending(c),
+        z,
+        ~root,
+      )
+    ) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
@@ -143,7 +153,7 @@ let is_split_point = (c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == [];
+  && Zipper.local_missing_shards(z) == [];
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -185,7 +195,15 @@ let to_segment_with_manuals =
      safe. Over all 117 hazel-programs, with and without it, the result is
      identical. */
   let insert = (z: Zipper.t, s: string): option(Zipper.t) =>
-    try(Insert.go(~regrout=!by_run, line_ending(s), z, ~root)) {
+    try(
+      Insert.go(
+        ~auto_indent=false,
+        ~regrout=!by_run,
+        line_ending(s),
+        z,
+        ~root,
+      )
+    ) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -294,8 +312,8 @@ let fast_paste_blocker =
     Some("empty clipboard");
   } else if (z.caret != Outer) {
     Some("caret is inside a token");
-  } else if (Zipper.local_backpack(z) != []) {
-    Some("backpack is nonempty");
+  } else if (Zipper.local_missing_shards(z) != []) {
+    Some("incomplete tiles (missing shards) at the caret");
   } else if (Relatives.sort(~root, z.relatives) != Sort.Exp) {
     Some("caret sort is not Exp");
   } else if (!has_balanced_delimiters(clipboard)) {
@@ -344,6 +362,45 @@ let fast_paste =
       )
     }
   };
+
+/* Typing-parser splice paste: parse the clipboard in isolation with the
+   segmented typing parser, then splice the segment and regrout. Slower
+   than fast_paste's Menhir path but handles INCOMPLETE forms (flush
+   let chains, dangling defs) that Menhir rejects, while producing the
+   splice-shaped grout layout the partition-aware auto-indent reads as
+   evidence (Test_Indentation flush pins). Sits between fast_paste and
+   the char-by-char to_zipper fallback. */
+let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
+  let len = String.length(clipboard);
+  len > 0
+  && z.caret == Outer
+  && z.relatives.ancestors == []
+  && Zipper.local_missing_shards(z) == []
+  && Relatives.sort(~root, z.relatives) == Sort.Exp
+  && has_balanced_delimiters(clipboard)
+  && {
+    let chars = Token.to_list(clipboard);
+    let first_char = List.hd(chars);
+    let last_char = Util.ListUtil.last(chars);
+    let no_left_merge =
+      switch (Zipper.neighbor_token(Left, z)) {
+      | None => true
+      | Some(t) => !Token.is_potential_token(Token.append(t, first_char))
+      };
+    let no_right_merge =
+      switch (Zipper.neighbor_token(Right, z)) {
+      | None => true
+      | Some(t) => !Token.is_potential_token(Token.append(last_char, t))
+      };
+    no_left_merge && no_right_merge;
+  };
+};
+
+let splice_paste = (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
+  let+ seg = to_segment(clipboard, ~root);
+  let z = Zipper.insert_segment(z, seg, ~root);
+  Zipper.rescan_reassemble(Left, z, ~root);
+};
 
 let to_term = (s: string, ~root): option(Language.Exp.t) => {
   let+ seg = to_segment(s, ~root);

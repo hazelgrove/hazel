@@ -17,7 +17,6 @@ let (suite, exit_with_test_status) =
     ~argv=Sys.argv,
     "HazelTests",
     [
-      Test_AgentPersist.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
@@ -33,12 +32,14 @@ let (suite, exit_with_test_status) =
       Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
+      Test_TutorialReferencePanel.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -46,6 +47,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
@@ -62,14 +64,24 @@ let (suite, exit_with_test_status) =
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
     @ Test_DynamicTypInfer.tests
+    @ Test_CanonicalCompletion.tests
+    @ Test_CompletionScoreboard.tests
+    @ Test_CompletionVisualization.tests
+    @ Test_QuiverDisplay.tests
+    @ Test_TabDispatch.tests
+    @ Test_ImpliedHole.tests
+    @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
+    @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
     @ [Test_LoadPath.tests]
     @ [Test_ParseSegmented.tests]
+    @ Test_RoundtripFuzz.tests
+    @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
@@ -79,7 +91,6 @@ let (suite, exit_with_test_status) =
       Test_RichProbeRegistry.tests,
     ]
     @ Test_UserLivelits.tests
-    @ Test_Dump.tests
     @ [Test_CtxIndex.tests]
     @ [Test_ExpansionErrors.tests]
     @ [Test_TreeCare.tests]
@@ -90,13 +101,13 @@ let (suite, exit_with_test_status) =
     @ [Test_Unproject.tests]
     @ [Test_ElabSize.tests]
     @ [Test_StaticsDepth.tests]
-    @ [Test_Move.tests]
     @ [Test_Quote.tests]
     @ [Test_Quote.macro_tests]
     @ [Test_Quote.unquote_tests]
     @ [Test_Quote.abs_tests]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
+    @ [Test_Move.tests]
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ Test_Autoprobe.tests
@@ -111,6 +122,7 @@ let (suite, exit_with_test_status) =
     @ Test_SlidePath.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
+    @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]

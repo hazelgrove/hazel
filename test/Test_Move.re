@@ -16,12 +16,13 @@ let read_file = path => {
   s;
 };
 
-let slides = dir => {
+let slides = (~limit=max_int, dir) => {
   let dir = resolve(dir);
   Sys.readdir(dir)
   |> Array.to_list
   |> List.filter(f => Filename.check_suffix(f, ".hz"))
   |> List.sort(compare)
+  |> List.filteri((i, _) => i < limit)
   |> List.map(f => (f, read_file(Filename.concat(dir, f))));
 };
 
@@ -93,10 +94,10 @@ let agree = (name, text) =>
     List.length(targets);
   };
 
-let slides_agree = (dir, ()) => {
+let slides_agree = (~limit=?, dir, ()) => {
   let before = Move.direct_jumps^;
   let checked =
-    slides(dir)
+    slides(~limit?, dir)
     |> List.fold_left((acc, (name, text)) => acc + agree(name, text), 0);
   check(bool, "some targets", true, checked > 0);
   /* The control: most jumps took the direct path, so the comparison is of
@@ -121,6 +122,11 @@ let tests = (
       "reference slides: direct jump is the walk",
       `Slow,
       slides_agree("hazel-programs/docs/reference"),
+    ),
+    test_case(
+      "B2T2 slides (first five): direct jump is the walk",
+      `Slow,
+      slides_agree(~limit=5, "hazel-programs/docs/b2t2"),
     ),
   ],
 );

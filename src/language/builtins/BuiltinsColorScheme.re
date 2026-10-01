@@ -147,7 +147,6 @@ let role_groups: list((string, list(string))) = [
       "buffer",
       "derivation",
       "locked-cell",
-      "backpack-outline",
       "string",
       "comment",
       "selection",
@@ -222,6 +221,7 @@ let role_groups: list((string, list(string))) = [
       "drawer-fade",
     ],
   ),
+  ("completion", ["chip-text", "later-text", "later-text-at-caret"]),
   ("projector", ["textarea-text", "fold-background", "statics-arm"]),
   ("agent", ["banner", "banner-edge"]),
 ];

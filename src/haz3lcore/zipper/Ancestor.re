@@ -10,8 +10,8 @@ type step = int;
 type tile_anc = {
   [@equal (_, _) => true]
   id: Id.t,
-  label: Label.t,
-  mold: Mold.t,
+  form: Form.t,
+  sort: Sort.t,
   shards: (list(int), list(int)),
   children: (list(Segment.t), list(Segment.t)),
 };
@@ -77,6 +77,10 @@ let is_splice: t => option(splice_anc) =
   | Splice(a) => Some(a)
   | _ => None;
 
+let label = (a: tile_anc): Label.t => Form.label_of(a.form);
+let mold = (a: tile_anc): Mold.t => Form.mold_of(a.form, a.sort);
+
+// TODO(d) revisit naming w.r.t. outer vs inner shards
 let l_shard = (a: tile_anc) =>
   ListUtil.hd_opt(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
 let r_shard = (a: tile_anc) =>
@@ -84,8 +88,8 @@ let r_shard = (a: tile_anc) =>
   |> OptUtil.get_or_raise(Empty_shard_affix);
 
 let tile_nibs = (a: tile_anc) => {
-  let (l, _) = Mold.nibs(~index=l_shard(a), a.mold);
-  let (_, r) = Mold.nibs(~index=r_shard(a), a.mold);
+  let (l, _) = Mold.nibs(~index=l_shard(a), mold(a));
+  let (_, r) = Mold.nibs(~index=r_shard(a), mold(a));
   (l, r);
 };
 
@@ -115,11 +119,11 @@ let nibs = (a: t): (Nib.t, Nib.t) =>
  *   zipped Splice segment; [before]/[after] surround it in projector syntax.) */
 let zip = (child: Segment.t, a: t): Base.piece =>
   switch (a) {
-  | Tile({id, label, mold, shards, children}) =>
+  | Tile({id, form, sort, shards, children}) =>
     Base.Tile({
       id,
-      label,
-      mold,
+      form,
+      sort,
       shards: fst(shards) @ snd(shards),
       children: fst(children) @ [child, ...snd(children)],
     })
@@ -140,12 +144,18 @@ let zip = (child: Segment.t, a: t): Base.piece =>
 let sort = (a: t): Sort.t =>
   switch (a) {
   | Tile(a) =>
-    let (pre, suf) = a.shards;
-    switch (ListUtil.split_last_opt(pre), suf) {
-    | (Some((_, i)), [_, ..._]) =>
-      let (_, l) = Mold.nibs(~index=i, a.mold);
+    let (pre, _suf) = a.shards;
+    switch (ListUtil.split_last_opt(pre)) {
+    | Some((_, i)) =>
+      let (_, l) = Mold.nibs(~index=i, mold(a));
+      /* Use the right nib of the last left shard: this is the
+       * sort of the child immediately after the caret's left
+       * boundary. Correct even when shards are missing between
+       * the left and right boundaries (e.g. partial let...in
+       * without =), where checking both nibs would disagree
+       * and previously fell back to Any. */
       l.sort;
-    | _ => raise(Empty_shard_affix)
+    | None => raise(Empty_shard_affix)
     };
   | Projector(_) => Sort.Any
   | Splice({sort, _}) => sort
@@ -158,10 +168,10 @@ let sort = (a: t): Sort.t =>
  * return empty siblings. */
 let disassemble = (a: t): Siblings.t =>
   switch (a) {
-  | Tile({id, label, mold, shards, children: (kids_l, kids_r)}) =>
+  | Tile({id, form, sort, shards, children: (kids_l, kids_r)}) =>
     let (shards_l, shards_r) =
       shards
-      |> TupleUtil.map2(Tile.split_shards(id, label, mold))
+      |> TupleUtil.map2(Tile.split_shards(id, form, sort))
       |> TupleUtil.map2(List.map(Tile.to_piece));
     let flatten = (shards, kids) =>
       Aba.mk(shards, kids) |> Aba.join(p => [p], Fun.id) |> List.flatten;
@@ -179,7 +189,7 @@ let missing_middle_shards = (a: t): list(Tile.t) =>
     let first_r =
       ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
     let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
-    Tile.split_shards(a.id, a.label, a.mold, ls);
+    Tile.split_shards(a.id, a.form, a.sort, ls);
   | Projector(_)
   | Splice(_) => []
   };
@@ -189,8 +199,8 @@ let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
   assert(t_l.id == t_r.id);
   Tile({
     id: t_l.id,
-    label: t_l.label,
-    mold: t_l.mold,
+    form: t_l.form,
+    sort: t_l.sort,
     shards: (t_l.shards, t_r.shards),
     children: (t_l.children, t_r.children),
   });

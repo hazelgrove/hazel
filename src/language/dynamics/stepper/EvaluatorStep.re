@@ -436,6 +436,8 @@ let take_step = (step: EvalObj.t) => {
       IdTagged.IdTag.{
         ids: step.d_loc |> IdTagged.ids,
         secondary: empty_secondary,
+        incomplete: [],
+        lexeme: None,
       },
   };
   let next_expr =

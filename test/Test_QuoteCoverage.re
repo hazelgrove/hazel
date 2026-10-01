@@ -33,7 +33,7 @@ type coverage =
   | Exempt(string);
 
 let int_ops = (op: Operators.op_bin_num) =>
-  Sample("%% " ++ Operators.int_op_to_string(op) ++ " 2");
+  Sample("%% " ++ FormId.bin_op_to_string(Int(op)) ++ " 2");
 
 let coverage: Exp.cls => coverage =
   fun
@@ -114,13 +114,13 @@ let coverage: Exp.cls => coverage =
   | BinOp(SInt(_))
   | BinOp(Nat(_)) => Exempt("made by elaboration from the Int operator")
   | BinOp(Float(op)) =>
-    Sample("%% " ++ Operators.float_op_to_string(op) ++ " 2.")
+    Sample("%% " ++ FormId.bin_op_to_string(Float(op)) ++ " 2.")
   | BinOp(Bool(op)) =>
-    Sample("%% " ++ Operators.bool_op_to_string(op) ++ " false")
+    Sample("%% " ++ FormId.bin_op_to_string(Bool(op)) ++ " false")
   | BinOp(String(op)) =>
-    Sample("%% " ++ Operators.string_op_to_string(op) ++ " \"b\"")
+    Sample("%% " ++ FormId.bin_op_to_string(String(op)) ++ " \"b\"")
   | BinOp(Poly(op)) =>
-    Sample("%% " ++ Operators.poly_op_to_string(op) ++ " 2")
+    Sample("%% " ++ FormId.bin_op_to_string(Poly(op)) ++ " 2")
   | BuiltinFun => Exempt("made by elaboration: a builtin's implementation")
   | Match => Sample("case %% | _ => 1 end")
   | Asc => Sample("(%% : Int)")

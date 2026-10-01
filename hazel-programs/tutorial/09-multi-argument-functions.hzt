@@ -33,7 +33,7 @@ fun (x, y) -> x + y
 ### Binding and Calling
 ```hazel
 let add : (Int, Int) -> Int =
-fun (x, y) -> x + y 
+  fun (x, y) -> x + y
 in
 add(3, 4)
 ```

@@ -16,16 +16,24 @@ let mk_measurement = (origin: Point.t, last: Point.t): measurement => {
 
 module Rows = {
   include IntMap;
+  /* content_start: column of first non-whitespace piece on row
+   * content_end: column after last non-whitespace piece on row
+   * max_col: absolute rightmost column (including whitespace)
+   * For all-whitespace rows: content_start = max_col, content_end = 0 */
   type shape = {
-    indent: col,
+    content_start: col,
+    content_end: col,
     max_col: col,
   };
   type t = IntMap.t(shape);
 
-  let min_col = (rs: list(row), map: t) =>
+  let min_content_start = (rs: list(row), map: t) =>
     rs
-    |> List.map(r => find(r, map).indent)
+    |> List.map(r => find(r, map).content_start)
     |> List.fold_left(min, Int.max_int);
+
+  let max_content_end = (rs: list(row), map: t) =>
+    rs |> List.map(r => find(r, map).content_end) |> List.fold_left(max, 0);
 };
 
 module Shards = {
@@ -133,19 +141,13 @@ let add_row = (row: int, shape: Rows.shape, map) => {
   rows: Rows.add(row, shape, map.rows),
 };
 
-let rec add_n_rows = (origin: Point.t, row_indent, n, map: t): t =>
+let rec add_n_rows = (origin: Point.t, shape: Rows.shape, n, map: t): t =>
   switch (n) {
   | 0 => map
   | _ =>
     map
-    |> add_n_rows(origin, row_indent, n - 1)
-    |> add_row(
-         origin.row + n - 1,
-         {
-           indent: row_indent,
-           max_col: origin.col,
-         },
-       )
+    |> add_n_rows(origin, shape, n - 1)
+    |> add_row(origin.row + n - 1, shape)
   };
 
 let add_piece_row = (_row: int, seg: list(Piece.t), map) => {
@@ -276,7 +278,48 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-type acc = (Segment.t, int, Point.t, t);
+/* Content bounds of the row currently being measured */
+type row_content_ = {
+  start_opt: option(int), /* column of first non-whitespace, None if none yet */
+  end_col: int /* column after last non-whitespace */
+};
+
+type measure_acc = {
+  seg: Segment.t, /* pieces accumulated on current row (reversed) */
+  pos: Point.t,
+  map: t,
+  row_content: row_content_,
+};
+
+let empty_row_content_: row_content_ = {
+  start_opt: None,
+  end_col: 0,
+};
+
+/* Extend content bounds; call only for non-whitespace pieces */
+let update_row_content_ =
+    (rc: row_content_, origin: Point.t, size: Point.t): row_content_ => {
+  let col = origin.col;
+  let end_col = col + size.col;
+  {
+    start_opt:
+      switch (rc.start_opt) {
+      | None => Some(col)
+      | Some(c) => Some(min(c, col))
+      },
+    end_col: max(rc.end_col, end_col),
+  };
+};
+
+let shape_of_row_content_ = (rc: row_content_, max_col: int): Rows.shape => {
+  content_start:
+    switch (rc.start_opt) {
+    | Some(c) => c
+    | None => max_col /* all whitespace row */
+    },
+  content_end: rc.end_col,
+  max_col,
+};
 
 module MkDeferredLinebreaks = () => {
   /* Tab projectors add linebreaks after the end of the line
@@ -316,47 +359,12 @@ module MkDeferredLinebreaks = () => {
 
 let of_segment_inner =
     (
-      indent_level: Id.Map.t(int),
-      is_single_line: bool,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_rows: Id.Map.t(int),
     )
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
-
-  let indent_level =
-    Id.Map.is_empty(indent_level) && !is_single_line
-      ? {
-        /* Indentation is per-frame: a splice's content renders in its
-         * own sub-editor starting at column 0, so each splice in the
-         * segment (including ones nested in projector syntax)
-         * contributes the level map of its own content — without
-         * this, [measure_splice] would treat interior linebreaks as
-         * plain-width secondaries and measure multi-line splice
-         * contents single-line. Ids are globally unique, so a plain
-         * union is safe. */
-        Segment.splices(seg)
-        |> List.fold_left(
-             (map, s: Base.splice) =>
-               Id.Map.union(
-                 (_, a, _) => Some(a),
-                 map,
-                 Indentation.level_map(s.content),
-               ),
-             Indentation.level_map(seg),
-           );
-      }
-      : indent_level;
-
-  let indent_of_linebreak = (w: Secondary.t): option(int) =>
-    Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
-
-  let calc = (indent: int, origin: Point.t, map: t, size: Point.t) => {
-    let last = Point.add(origin, size);
-    let map = add_n_rows(origin, indent, size.row, map);
-    (mk_measurement(origin, last), map);
-  };
 
   let shardify = (t: Tile.t, idx: int): Tile.t => {
     {
@@ -366,78 +374,121 @@ let of_segment_inner =
     };
   };
 
-  let add_shard = ((seg, indent, origin, map): acc, t: Tile.t, idx: int) => {
-    let size = Token.bounding_box(List.nth(t.label, idx));
-    let (measure, map) = calc(indent, origin, map, size);
-    (
-      [Piece.Tile(shardify(t, idx)), ...seg],
-      indent,
-      measure.last,
-      add_s(t.id, idx, measure, map),
-    );
+  /* Measure a piece, recording `shape` for each row it spans */
+  let calc_with_shape =
+      (shape: Rows.shape, origin: Point.t, map: t, size: Point.t) => {
+    let last = Point.add(origin, size);
+    let map = add_n_rows(origin, shape, size.row, map);
+    (mk_measurement(origin, last), map);
   };
 
-  let add_grout = ((seg, indent, origin, map): acc, g: Grout.t) => {
+  /* Measure a piece that stays on its row; records no row shapes */
+  let calc_inline = (origin: Point.t, map: t, size: Point.t) => {
+    let last = Point.add(origin, size);
+    (mk_measurement(origin, last), map);
+  };
+
+  let add_shard = (acc: measure_acc, t: Tile.t, idx: int): measure_acc => {
+    let size = Token.bounding_box(Tile.token(t, idx));
+    let (measure, map) = calc_inline(acc.pos, acc.map, size);
+    {
+      seg: [Piece.Tile(shardify(t, idx)), ...acc.seg],
+      pos: measure.last,
+      map: add_s(t.id, idx, measure, map),
+      row_content: update_row_content_(acc.row_content, acc.pos, size),
+    };
+  };
+
+  let add_grout = (acc: measure_acc, g: Grout.t): measure_acc => {
     let size = Point.mk(~row=0, ~col=1);
-    let (measure, map) = calc(indent, origin, map, size);
-    (
-      [Piece.Grout(g), ...seg],
-      indent,
-      measure.last,
-      add_g(g, measure, map),
-    );
+    let (measure, map) = calc_inline(acc.pos, acc.map, size);
+    {
+      seg: [Piece.Grout(g), ...acc.seg],
+      pos: measure.last,
+      map: add_g(g, measure, map),
+      row_content: update_row_content_(acc.row_content, acc.pos, size),
+    };
   };
 
-  let add_secondary = ((seg, prev_indent, origin, map): acc, w: Secondary.t) => {
-    let (seg, new_indent, size, map) =
-      switch (indent_of_linebreak(w)) {
-      | Some(new_indent) =>
-        let size =
-          Point.mk(
-            ~row=DeferredLinebreaks.of_secondary(),
-            ~col=new_indent - origin.col,
-          );
-        // add seg to map and reset seg
-        let map =
-          add_piece_row(
-            origin.row,
-            seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
-            map,
-          );
-        let map =
-          size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
-        ([], new_indent, size, map);
-      | None =>
-        let size = Point.mk(~row=0, ~col=Secondary.columns(w));
-        ([Piece.Secondary(w), ...seg], prev_indent, size, map);
+  let add_secondary = (acc: measure_acc, w: Secondary.t): measure_acc =>
+    if (Secondary.is_linebreak(w)) {
+      /* Linebreak: finish current row with its shape, start new row */
+      let num_rows = DeferredLinebreaks.of_secondary();
+      let row_shape = shape_of_row_content_(acc.row_content, acc.pos.col);
+      let size = Point.mk(~row=num_rows, ~col=0 - acc.pos.col);
+      let (measure, map) =
+        calc_with_shape(row_shape, acc.pos, acc.map, size);
+      let map =
+        add_piece_row(
+          acc.pos.row,
+          acc.seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))],
+          map,
+        ); /* NOTE: These linebreaks don't actually occur in the surface syntax */
+      let map =
+        num_rows == 0 ? map : add_n_empty_piece_rows(num_rows - 1, map);
+      {
+        seg: [],
+        pos: measure.last,
+        map: add_w(w, measure, map),
+        row_content: empty_row_content_,
       };
-    let (measure, map) = calc(prev_indent, origin, map, size);
-    (seg, new_indent, measure.last, add_w(w, measure, map));
-  };
+    } else if (Secondary.is_space(w)) {
+      /* Space: add to segment but don't update content bounds */
+      let size = Point.mk(~row=0, ~col=Secondary.columns(w));
+      let (measure, map) = calc_inline(acc.pos, acc.map, size);
+      {
+        seg: [Piece.Secondary(w), ...acc.seg],
+        pos: measure.last,
+        map: add_w(w, measure, map),
+        row_content: acc.row_content,
+      };
+    } else {
+      /* Comment or other secondary: counts as content */
+      let size = Point.mk(~row=0, ~col=Secondary.columns(w));
+      let (measure, map) = calc_inline(acc.pos, acc.map, size);
+      {
+        seg: [Piece.Secondary(w), ...acc.seg],
+        pos: measure.last,
+        map: add_w(w, measure, map),
+        row_content: update_row_content_(acc.row_content, acc.pos, size),
+      };
+    };
 
-  let add_top_level = ((seg, indent, origin, map): acc, ~top_level: bool) => {
+  let add_top_level = (acc: measure_acc, ~top_level: bool): measure_acc => {
     let map =
       top_level
         ? {
           let g = DeferredLinebreaks.of_secondary();
-          add_n_rows(origin, indent, g, map)
+          let row_shape = shape_of_row_content_(acc.row_content, acc.pos.col);
+          add_n_rows(acc.pos, row_shape, g, acc.map)
           |> add_piece_row(
-               origin.row,
-               seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
+               acc.pos.row,
+               acc.seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
                _,
              )
           |> add_n_empty_piece_rows(g - 1);
         }
-        : map;
-    (seg, indent, origin, map);
+        : acc.map;
+    {
+      ...acc,
+      map,
+    };
   };
 
-  let rec go = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
+  let initial_acc = {
+    seg: [],
+    pos: Point.zero,
+    map: empty,
+    row_content: empty_row_content_,
+  };
+
+  let rec go =
+          (~top_level: bool, acc: measure_acc, seg: Segment.t): measure_acc =>
     switch (seg) {
     | [] => add_top_level(~top_level, acc)
     | [hd, ...tl] => go(~top_level, of_piece(acc, hd), tl)
     }
-  and of_piece = (acc: acc, p: Piece.t): acc =>
+  and of_piece = (acc: measure_acc, p: Piece.t): measure_acc =>
     switch (p) {
     | Secondary(w) => add_secondary(acc, w)
     | Grout(g) => add_grout(acc, g)
@@ -447,9 +498,10 @@ let of_segment_inner =
        * projector) consumes zero width at its position. Its interior is
        * still measured for completeness so clicks inside the splice have
        * valid targets. */
-      let (seg, indent, origin, map) = acc;
-      let map = measure_splice(s, map);
-      (seg, indent, origin, map);
+      {
+        ...acc,
+        map: measure_splice(s, acc.map),
+      }
     | Tile(t) =>
       /* Fold before updating the counter: a refractor's deferred rows
        * belong at the linebreak after the tile's last shard, not at any
@@ -468,57 +520,73 @@ let of_segment_inner =
       };
       acc;
     }
-  and add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
+  and add_projector = (acc: measure_acc, pr: Base.projector): measure_acc => {
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
-    let shape = ProjectorCore.Shape.Map.lookup(pr.id, shape_map);
-    let indent =
-      switch (shape.vertical) {
-      | Inline
-      | Block(0)
-      | Tab(_) => indent
-      | Block(_) => origin.col
-      };
-    let (measure, map) = calc(indent, origin, map, size);
-    /* [calc] records the spanned rows' max_col as origin.col — right
-     * for linebreaks, whose origin is the line's end, but a block
-     * projector extends [size.col] further. Re-record its rows with
-     * the block's right edge so end-of-line consumers (offside
-     * probe/projector views, end-of-row arms) clear the block instead
-     * of anchoring at its left edge. */
-    let map =
-      List.init(size.row, i => i)
-      |> List.fold_left(
-           (map, i) =>
-             add_row(
-               origin.row + i,
-               {
-                 indent,
-                 max_col: origin.col + size.col,
-               },
-               map,
-             ),
-           map,
-         );
-    let map =
-      size.row == 0
-        ? map
-        : add_piece_row(origin.row, [Piece.Projector(pr), ...seg], map);
-    let map = size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
-    let seg = size.row == 0 ? [Piece.Projector(pr), ...seg] : [];
     /* Walk the projector's syntax looking for Splice children: measure
      * each splice's content in its own coordinate frame (origin = 0,0),
      * merge the resulting piece measurements back into the outer map,
      * and record the splice's intrinsic size. Non-splice pieces inside
      * the projector are not rendered inline, so they are left unmeasured. */
-    let map = measure_splices_in(pr.syntax, map);
-    (seg, indent, measure.last, add_pr(pr, measure, map));
+    let with_splices = map => measure_splices_in(pr.syntax, map);
+    if (size.row == 0) {
+      /* Inline projector - stays on current row */
+      let (measure, map) = calc_inline(acc.pos, acc.map, size);
+      {
+        seg: [Piece.Projector(pr), ...acc.seg],
+        pos: measure.last,
+        map: add_pr(pr, measure, map) |> with_splices,
+        row_content: update_row_content_(acc.row_content, acc.pos, size),
+      };
+    } else {
+      /* Multi-line projector - finishes current row, adds new rows */
+      let row_shape = shape_of_row_content_(acc.row_content, acc.pos.col);
+      let (measure, map) =
+        calc_with_shape(row_shape, acc.pos, acc.map, size);
+      /* [calc_with_shape] records the spanned rows' max_col as the
+       * projector's left edge -- right for linebreaks, whose origin is the
+       * line's end, but a block projector extends [size.col] further.
+       * Re-record its rows with the block's right edge so end-of-line
+       * consumers (offside probe/projector views, end-of-row arms) clear
+       * the block instead of anchoring at its left edge. */
+      let right = acc.pos.col + size.col;
+      let map =
+        List.init(size.row, i => i)
+        |> List.fold_left(
+             (map, i) =>
+               add_row(
+                 acc.pos.row + i,
+                 i == 0
+                   ? {
+                     ...row_shape,
+                     content_end: max(row_shape.content_end, right),
+                     max_col: right,
+                   }
+                   : {
+                     content_start: acc.pos.col,
+                     content_end: right,
+                     max_col: right,
+                   },
+                 map,
+               ),
+             map,
+           );
+      let map =
+        add_piece_row(acc.pos.row, [Piece.Projector(pr), ...acc.seg], map);
+      let map = add_n_empty_piece_rows(size.row - 1, map);
+      {
+        seg: [],
+        pos: measure.last,
+        map: add_pr(pr, measure, map) |> with_splices,
+        row_content: empty_row_content_,
+      };
+    };
   }
   /* Measure a splice's content in its own coordinate frame (origin 0,0).
    * Returns the outer map augmented with the splice's inner piece
    * measurements and the splice's intrinsic size. */
   and measure_splice = (s: Base.splice, outer: t): t => {
-    let (_, _, last, inner) =
-      go(~top_level=false, ([], 0, Point.zero, empty), s.content);
+    let {pos: last, map: inner, _} =
+      go(~top_level=false, initial_acc, s.content);
     let outer = merge_inner(inner, outer);
     /* The intrinsic size is the content's bounding box: [last] alone
      * would report the END POINT (the last line's width), understating
@@ -558,26 +626,25 @@ let of_segment_inner =
       map,
       syntax,
     );
-  let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
-  map;
+  go(~top_level=true, initial_acc, seg).map;
 };
+
+let of_segment_memo = Core.Memo.general(of_segment_inner);
 
 let of_segment =
     (
-      ~indent_level=Id.Map.empty,
-      ~is_single_line=false,
+      ~indent_level as _: Id.Map.t(int)=Id.Map.empty,
+      ~is_single_line as _: bool=false,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_rows: Id.Map.t(int),
     )
     : t =>
-  of_segment_inner(
-    indent_level,
-    is_single_line,
-    seg,
-    shape_map,
-    refractor_rows,
-  );
+  /* Note: ~indent_level and ~is_single_line are accepted for API
+   * compatibility with dev callers (ProjectorView, etc.) but are
+   * ignored here — canonical-completion manages indentation via
+   * real whitespace in the segment, not via an indent_level map. */
+  of_segment_memo(seg, shape_map, refractor_rows);
 
 /* Index of the last measured row (0 for empty/single-row content). */
 let last_row = (m: t): int =>
@@ -601,7 +668,7 @@ let start_row_width = (measurement: measurement, measured: t): int =>
  * segment; without it, nested projectors measure as if inline. */
 let segment_bbox =
     (~shape_map=ProjectorCore.Shape.Map.empty, seg: Segment.t): Point.t => {
-  let m = of_segment_inner(Id.Map.empty, false, seg, shape_map, Id.Map.empty);
+  let m = of_segment_inner(seg, shape_map, Id.Map.empty);
   let rows = m.rows |> Rows.bindings;
   switch (rows) {
   | [] => Point.zero

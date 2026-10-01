@@ -16,19 +16,10 @@ type t = {
    * (the `main_splice` switcheroo in CodeEditable.View.view). */
   splices: Id.Map.t(splice),
   selection_ids: list(Id.t),
-  /* The term-derived data structured below, may differ
-   * from the term used for semantics. These terms are identical when
-   * the backpack is empty. If the backpack is non-empty, then when we
-   * make the term for semantics, we attempt to empty the backpack
-   * according to some simple heuristics (~ try to empty it greedily
-   * while moving rightwards from the current caret position).
-   * this is currently necessary to have the cursorinfo/completion
-   * workwhen the backpack is nonempty.
-   *
-   * This is a brittle part of the current implementation. there are
-   * some other comments at some of the weakest joints; the biggest
-   * issue is that dropping the backpack can add/remove grout, causing
-   * certain ids to be present/non-present unexpectedly. */
+  /* May differ from the term used for semantics: with shards missing,
+   * that term is built from the canonically COMPLETED segment
+   * (CanonicalCompletion.for_make_term), so ids may be present/absent
+   * between the two views. */
   term_data: TermData.t,
   terms: TermMap.t,
   projector_list: list(Id.t),
@@ -58,7 +49,7 @@ type t = {
    * each projector's splice_rows; lets main-frame decorations find the
    * document row a splice's contents are laid out on. */
   splice_layout: Id.Map.t((Id.t, int)),
-  cached_backpack: list(Tile.t),
+  missing_shards: list(Tile.t),
   /* Inputs last used to compute shape_map/projector_errors/measured.
    * Kept so `calculate` can detect when statics changed and refresh
    * shapes automatically — callers don't need to plumb that signal. */
@@ -198,7 +189,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     cached_ephemerals: z.refractors.multis.ephemerals,
     projector_errors,
     splice_layout,
-    cached_backpack: Segment.global_missing_shards(segment),
+    missing_shards: Segment.global_missing_shards(segment),
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -290,10 +281,13 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
              || refractor_inputs_changed) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {
-    {
-      ...old,
-      selection_ids: Selection.selection_ids(z.selection),
-    };
+    let selection_ids = Selection.selection_ids(z.selection);
+    selection_ids == old.selection_ids
+      ? old
+      : {
+        ...old,
+        selection_ids,
+      };
   };
 };
 

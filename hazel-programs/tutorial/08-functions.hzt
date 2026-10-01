@@ -27,8 +27,8 @@ fun n -> n + 1 # Increments n by 1 #
 
 ### Binding and Calling a Function
 ```hazel
-let inc : Int -> Int = 
-fun n -> n + 1
+let inc : Int -> Int =
+  fun n -> n + 1
 in
 inc(1)
 ```

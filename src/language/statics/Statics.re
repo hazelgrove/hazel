@@ -432,27 +432,56 @@ and uexp_to_info_map =
         );
       };
       closure_case(env, e);
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
-      add(
-        ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([e1.probe_targets, e2.probe_targets]),
-        m,
-      );
     | MultiHole(tms) =>
       let multi_hole_case = tms => {
-        let (co_ctxs, tms_elab, m) =
-          multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+        /* Elaborate MultiHole as right-associative Seq through all Exp children;
+         * non-Exp children still get info-mapped but are dropped from elaboration. */
+        let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
+          List.fold_left(
+            ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+              switch (any) {
+              | Exp(e) =>
+                let (e_info, e_elab, m) = go(~ana=syn, e, m);
+                (
+                  co_ctxs @ [e_info.co_ctx],
+                  probe_targets @ [e_info.probe_targets],
+                  elabs @ [e_elab],
+                  m,
+                );
+              | _ =>
+                let (co_ctx, _any_elab, m) =
+                  any_to_info_map(
+                    ~ctx,
+                    ~ancestors=ancestors_inclusive,
+                    any,
+                    m,
+                  );
+                (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+              },
+            ([], [], [], m),
+            tms,
+          );
+        let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
+          switch (exps) {
+          | [] => EmptyHole |> rewrap
+          | [e] => e
+          | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+          };
+        /* An unknown-infix multihole (operator token recorded as the
+           lexeme, two exp kids) is a stuck application, not transient
+           juxtaposition: elaborate it to a MultiHole, which the dynamics
+           treats as Indet, instead of evaluating to the last kid. */
+        let elab_term =
+          switch (uexp.annotation.lexeme, exp_elabs) {
+          | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+          | _ => nest_seqs(exp_elabs)
+          };
         add(
-          ~elab_term=MultiHole(tms_elab) |> rewrap,
+          ~elab_term,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[IsMulti],
-          ~co_ctx=CoCtx.union(co_ctxs),
+          ~co_ctx=CoCtx.union(exp_co_ctxs),
+          ~probe_targets=SubexpProbeTargets.union_all(exp_probe_targets),
           m,
         );
       };
@@ -2051,8 +2080,21 @@ and uexp_to_info_map =
       let constructor_case = (ctr: string, ty: option(option(Typ.t))) => {
         let (syn_res, marks_res) =
           ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
-        switch (marks_res) {
-        | [FreeConstructor(name)] =>
+        /* A capitalized name is parsed as a constructor, but it may be a
+           VARIABLE binding (a module: `module M = … in M.x`). Constructors
+           and variables used to be consulted in a fixed order — constructor
+           first, variable only if no constructor of that name existed — so a
+           module named like ANY constructor in scope lost to it regardless of
+           which was bound later. Resolve like every other name: the most
+           recent binding of that name wins, whichever kind it is. */
+        let shadowing_var =
+          switch (ty, Ctx.newest_var_or_ctr(ctx, ctr)) {
+          | (None, Some(`Var(v))) => Some(v)
+          | _ => None
+          };
+        switch (marks_res, shadowing_var) {
+        | ([FreeConstructor(name)], _)
+        | (_, Some({name, _})) =>
           /* If not a known constructor, try looking up as a variable.
              This supports capitalized module names like M.x where M is
              parsed as Constructor but is actually a variable binding. */

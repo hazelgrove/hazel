@@ -264,7 +264,8 @@ module Update = {
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
-    let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
+    let elab =
+      Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
@@ -766,6 +767,7 @@ module View = {
         ~selected: option(Selection.t),
         ~result_kind: [
            | `NoResults
+           | `TestSigilsOnly
            | `TestResults
            | `EvalResults
            | `NoTheorems
@@ -834,10 +836,26 @@ module View = {
       ];
       (result, (_ => []));
 
+    // test forms keep pass/fail sigils but no result footer (tutorial mode)
+    | `TestSigilsOnly when globals.settings.core.dynamics =>
+      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+        switch (Model.test_results(model)) {
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
+              result,
+            ),
+          ]
+        | None => []
+        };
+      ([], test_overlay);
+
     // Not showing any results:
     | `EvalResults
     | `NoTheorems
     | `JustTheorems
+    | `TestSigilsOnly
     | `NoResults => ([], (_ => []))
 
     | `Custom(node) => (

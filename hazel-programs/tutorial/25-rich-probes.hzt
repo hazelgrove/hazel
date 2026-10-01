@@ -42,8 +42,8 @@ Access a column of a table with `.`, just like a single labeled tuple. The
 projection broadcasts over the list, giving one value per row:
 ```hazel
 let scores = [
-(name="A", score=90),
-(name="B", score=80)
+  (name="A", score=90),
+  (name="B", score=80)
 ] in
 scores.score
 ```
@@ -62,9 +62,9 @@ Make sure with_totals has a total column computed as price *. qty (convert qty t
 
 @code
 let products = ^^table([
-(name="Widget", price=9.99, qty=3),
-(name="Gadget", price=24.50, qty=1),
-(name="Gizmo", price=4.75, qty=10)
+  (name="Widget", price=9.99, qty=3),
+  (name="Gadget", price=24.50, qty=1),
+  (name="Gizmo", price=4.75, qty=10)
 ]) in
 let with_totals = products in
 with_totals

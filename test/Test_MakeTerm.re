@@ -447,5 +447,20 @@ let tests =
           {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
         )
       ),
+      /* Regression: parenthesizing a grout-rooted segment classifies the
+       * paren tile at Sort.Any, which used to derive an op(Any, []) mold
+       * (one child, empty in_) — List.nth raised in Segment.remold_tile
+       * and MakeTerm's tile kids. */
+      test_case(
+        "Parenthesize grout-rooted segment",
+        `Quick,
+        () => {
+          let seg = [Haz3lcore.Piece.mk_grout(Haz3lcore.Grout.Convex)];
+          let wrapped = [Haz3lcore.Segment.parenthesize(seg)];
+          let _ = Haz3lcore.Segment.remold(wrapped, Haz3lcore.Sort.Exp);
+          let _ = Haz3lcore.MakeTerm.go(wrapped);
+          ();
+        },
+      ),
     ],
   );

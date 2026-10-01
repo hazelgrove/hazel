@@ -21,8 +21,8 @@ If the types of the values are consistent, this will give the combined type of a
 The inverse of `to_lvs`. Takes a list of label/value pairs and returns a labeled tuple.
 
 ```hazel
-let dimensions : [(label=String, value=Int)] = 
-[(label="width", value=3), (label="depth", value=2), (label="time", value=9)]
+let dimensions : [(label=String, value=Int)] =
+  [(label="width", value=3), (label="depth", value=2), (label="time", value=9)]
 in
 from_lvs(dimensions)
 ```
@@ -61,8 +61,8 @@ Apply `update_fn` to every value whose label satisfies `label_predicate`.
 **Example:**
 ```hazelnostatics
 update_entry((apple=1, pear=2, avocado=3),
-             string_match("^a", _),
-             fun i -> i + 1)
+  string_match("^a", _),
+  fun i -> i + 1)
 == (apple=2, pear=2, avocado=4)
 ```
 where `string_match("^a", _)` is a predicate that matches any string starting with `a`.
@@ -74,7 +74,7 @@ Convert the tuple to a list, map over the list to update the relevant entries, t
 ### to_lvs
 ```hazelnostatics
 to_lvs : ? -> [
-(label=String, value=?)
+  (label=String, value=?)
 ]
 ```
 
@@ -90,7 +90,7 @@ to_lvs(
 ### from_lvs
 ```hazelnostatics
 from_lvs : [
-(label=String, value=?)
+  (label=String, value=?)
 ] -> ?
 ```
 
@@ -99,8 +99,8 @@ from_lvs : [
 Convert a list of label-value pairs back into a record:
 ```hazel
 from_lvs([
-(label="x", value=1),
-(label="y", value=2)
+  (label="x", value=1),
+  (label="y", value=2)
 ])
 ```
 
@@ -131,13 +131,13 @@ Updating specific entry
 Empty tuple
 
 @code
-let update_entry = 
-fun (t, label_predicate : (String -> Bool), fn : (? -> ?)) ->
-¿
+let update_entry =
+  fun (t, label_predicate : (String -> Bool), fn : (? -> ?)) ->
+    ¿
 in
-update_entry((apple=1, pear=2, avocado=3), 
-           string_match("^a",_), 
-           fun n -> n + 1)
+update_entry((apple=1, pear=2, avocado=3),
+  string_match("^a",_),
+  fun n -> n + 1)
 
 @test
 test update_entry((apple=1, pear=2, avocado=3), string_match("^a",_), int_plus(1,_)) == (apple=2, pear=2, avocado=4) end;

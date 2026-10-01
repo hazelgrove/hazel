@@ -63,6 +63,15 @@ let id_of = p => {
    folder segment, and never let one title be a proper prefix of another. */
 let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
 
+/* The probes tutorial's folder. Its lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode) and their Task
+   Reference panel carries the probe strip. Named here rather than in the
+   probe modules because the view layer cannot reach those: ProbeSidebar
+   depends on Editors, which depends on TutorialMode. */
+let probes_folder = "Probes";
+let is_probes_lesson = (p: p('a)): bool =>
+  SlidePath.folders(path_of(p)) == [probes_folder];
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
   | YourImpl
@@ -130,6 +139,30 @@ let editor_positions = [YourImpl, HiddenTests];
 
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
+
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
+
+/* Counterpart to [export_transitionary_module] below: rebuild a spec from
+ * a transitionary (string-based) module at load time. */
+let transition: transitionary_spec => spec =
+  p => map(p, zipper_of_code, zipper_of_code);
+
+/* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
+ * serialized zippers with plaintext fallback; the shipped format for
+ * example modules. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
 
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {

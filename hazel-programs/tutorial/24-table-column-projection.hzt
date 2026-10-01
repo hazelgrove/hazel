@@ -9,8 +9,8 @@ show_report version=1 id=b1000001-0001-0001-0001-000000000001
 
 ```hazel
 let fruits = [
-(fruit="Apple", color="Red", qty=5),
-(fruit="Banana", color="Yellow", qty=3)
+  (fruit="Apple", color="Red", qty=5),
+  (fruit="Banana", color="Yellow", qty=3)
 ] in
 fruits.color
 ```
@@ -34,8 +34,8 @@ that extracts the list of authors from a book collection.
 Example:
 ```hazelnostatics
 get_authors(^^table([(title="Dune", author="Herbert", year=1965),
-             (title="Neuromancer", author="Gibson", year=1984)]))
-  == ["Herbert", "Gibson"]
+  (title="Neuromancer", author="Gibson", year=1984)]))
+== ["Herbert", "Gibson"]
 ```
 
 @hint
@@ -52,8 +52,8 @@ Access a column of a table with `.`, just like a single labeled tuple. The
 projection broadcasts over the list, giving one value per row:
 ```hazel
 let scores = [
-(name="A", score=90),
-(name="B", score=80)
+  (name="A", score=90),
+  (name="B", score=80)
 ] in
 scores.score
 ```
@@ -63,8 +63,8 @@ scores.score
 A table is a list of labeled tuples — one tuple per row, one label per column:
 ```hazel
 [
-(name="A", score=90),
-(name="B", score=80)
+  (name="A", score=90),
+  (name="B", score=80)
 ]
 ```
 

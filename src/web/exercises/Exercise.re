@@ -22,6 +22,14 @@ let id_of = (e: t): Haz3lcore.Id.t =>
   | Theorem(s) => s.id
   };
 
+/* newly live on this branch: Migrate_exercises reports by title */
+let title_of = (e: t): string =>
+  switch (e) {
+  | Code(s) => s.title
+  | Derivation(s) => s.title
+  | Theorem(s) => s.title
+  };
+
 let max_points_of = (e: t): int =>
   switch (e) {
   | Code(s) =>
