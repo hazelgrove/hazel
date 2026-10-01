@@ -157,6 +157,17 @@ let entry_name = (e: Ctx.entry): string =>
   | LivelitEntry({name, _}) => name
   };
 
+/* the names an export binds as values, the namespace co_ctx tracks
+   (CoCtx.mk filters on VarEntry): an alias or constructor of the same
+   name leaves a value binding in scope */
+let var_names = (exports: list(Ctx.entry)): list(string) =>
+  List.filter_map(
+    fun
+    | Ctx.VarEntry({name, _}) => Some(name)
+    | _ => None,
+    exports,
+  );
+
 let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
   switch (a, b) {
   | (VarEntry(v1), VarEntry(v2))
@@ -376,7 +387,7 @@ let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
 /* item statics hollows the continuation, so a spine root's info misses
    later items. the evaluator's reuse gating reads a root's elab_term,
    probe_targets and co_ctx, so each non-tail root gets them extended
-   over the suffix (its co_ctx minus the root's bindings), or cached
+   over the suffix (its co_ctx minus the root's value bindings), or cached
    runs replay stale */
 let fix_spine_infos_full =
     (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
@@ -392,7 +403,7 @@ let fix_spine_infos_full =
   let (merged, top_wit, top_co, _) =
     List.fold_right(
       (it: item, (m, below_wit, below_co, below_elab)) => {
-        let bound = List.map(entry_name, it.d_exports);
+        let bound = var_names(it.d_exports);
         let below_co_scoped =
           CoCtx.filter_names(name => !List.mem(name, bound), below_co);
         /* the root's elab_term is the whole suffix: a hollow one reads
@@ -485,8 +496,8 @@ let graft_elabs = (items: list(item)): option(Exp.t) => {
 };
 
 /* a top-level export is used iff a later item mentions it before a
-   rebinding, or a hole below could ("$hole" in d_free: real holes only,
-   since synthetic body holes aren't in any def) */
+   value rebinding, or a hole below could ("$hole" in d_free: real holes
+   only, since synthetic body holes aren't in any def) */
 let unused_binders = (items: list(item)): list(Id.t) => {
   let hole_below = rest =>
     List.exists(it => List.mem("$hole", it.d_free), rest);
@@ -496,7 +507,7 @@ let unused_binders = (items: list(item)): list(Id.t) => {
     | [it, ...rest] =>
       List.mem(name, it.d_free)
       || (
-        List.exists(e => entry_name(e) == name, it.d_exports)
+        List.mem(name, var_names(it.d_exports))
           ? false  /* shadowed from here on */
           : used_below(name, rest)
       )
@@ -613,6 +624,27 @@ and calc_plain_item =
       }
     };
   };
+  /* module refs in the item's own annotations are uses too, as in the
+     monolithic Let/TyAlias co_ctx */
+  let free =
+    free
+    @ CoCtx.names(
+        switch (node.term) {
+        | Let(p, _, _) => ModuleHelpers.collect_pat_type_refs(ctx_in, p)
+        | ModuleExp(mp, _, _) =>
+          ModuleHelpers.collect_pat_type_refs(
+            ctx_in,
+            ModuleHelpers.mpat_to_pat(mp),
+          )
+        | TyAlias(_, ty, _) =>
+          ModuleHelpers.collect_module_refs_in_typ(
+            ctx_in,
+            Typ.rep_id(ty),
+            ty,
+          )
+        | _ => CoCtx.empty
+        },
+      );
   /* the hole is scaffolding, not program: keep it out of the merged
      whole-program view (ctx_out was already read above) */
   let map = is_tail ? map : Id.Map.remove(Exp.rep_id(hole), map);

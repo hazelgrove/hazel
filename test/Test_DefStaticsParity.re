@@ -341,5 +341,37 @@ let tests = (
         [token("75", "\"x\""), op(Delete, ["WateringTimer", "format"])],
       ),
     ),
+    test_case(
+      "a module used in an alias's definition",
+      `Quick,
+      script(
+        "module M = {\n  type T = Int;\n  let x = 1\n} in\ntype U = M.T in\nlet y : U = 2 in\ny",
+        [],
+      ),
+    ),
+    test_case(
+      "a module used in an annotation",
+      `Quick,
+      script(
+        "module M = {\n  type T = Int;\n  let x = 1\n} in\nlet y : M.T = 2 in\ny",
+        [],
+      ),
+    ),
+    test_case(
+      "a module and an alias of one name",
+      `Quick,
+      script(
+        "module Point = {\n  let origin = 75\n} in\ntype Point = (Int, Int) in\nlet p : Int = Point.origin in\np",
+        [],
+      ),
+    ),
+    test_case(
+      "a module and a constructor of one name",
+      `Quick,
+      script(
+        "module Timer = {\n  type format = Float;\n  let w = 75\n} in\ntype T = Timer(Int) + Other in\nlet v : Timer.format = 1.0 in\nv",
+        [],
+      ),
+    ),
   ],
 );
