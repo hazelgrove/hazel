@@ -108,6 +108,14 @@ let shows_aligned_sample =
   )
   != None;
 
+/* No focus at all: nothing has been selected or captured yet. Then no line
+ * shows ⊖, but each shows its own first sample, possibly from different
+ * calls, so an automatic request sets a focus rather than only filling
+ * gaps. */
+let has_focus = (z: Zipper.t): bool =>
+  z.refractors.sample_focus.anchor != None
+  || z.refractors.sample_focus.call_stack != [];
+
 let clear_pending_probe_cursor = (z: Zipper.t): Zipper.t =>
   Zipper.update_refractors(z, r =>
     {
@@ -119,8 +127,9 @@ let clear_pending_probe_cursor = (z: Zipper.t): Zipper.t =>
 /* Case 1: a pending request → its first probe with samples, caret-nearest
  * first. Automatic requests (Refractors.pending_probe_cursor) move the focus
  * only to fill a gap: when that probe already shows an aligned sample, nothing
- * moves. The caret-nearest probe is automatic even when injected into an
- * explicit request, which then falls through to its own probes. Case 2: no
+ * moves, unless there is no focus at all, which they then set. The
+ * caret-nearest probe is automatic even when injected into an explicit
+ * request, which then falls through to its own probes. Case 2: no
  * pending but the cursor went stale (structural edit) → caret-nearest probe.
  * A pin skips case 2 (preserve pinned context) and drops automatic requests,
  * but still resolves explicit ones. */
@@ -189,7 +198,9 @@ let resolve_pending_probe_cursor =
             | Some(statics) => Sample.Focus.cur_var_ap(statics)
             | None => None
             };
-          if (gap_only && shows_aligned_sample(~ap_id, z, samples)) {
+          if (gap_only
+              && has_focus(z)
+              && shows_aligned_sample(~ap_id, z, samples)) {
             only_if_not_aligned
               ? clear_pending_probe_cursor(z) : resolve(rest);
           } else {

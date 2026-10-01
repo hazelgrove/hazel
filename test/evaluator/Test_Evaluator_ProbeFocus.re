@@ -255,6 +255,47 @@ let tests = (
       },
     ),
     test_case(
+      "With no focus yet, an automatic request sets one",
+      `Quick,
+      () => {
+        /* Nothing selected: no line shows ⊖, but each would show its own
+           first sample, and those come from different calls. */
+        let ed = load(nested_map);
+        let z' = edit_on_row(ed, ed.z, 4);
+        check(
+          bool,
+          "focus set",
+          true,
+          z'.refractors.sample_focus.anchor != None,
+        );
+        /* the else line's first sample, n = 2, is now the focus */
+        shows(ed, z', 1, "2");
+        shows(ed, z', 3, "⊖");
+      },
+    ),
+    test_case(
+      "With a focus on the top level, an automatic request still only fills gaps",
+      `Quick,
+      () => {
+        let ed = load(nested_map);
+        /* the whole program's sample: a focus with an empty path */
+        let z = click(ed, ed.z, 6, 0);
+        check(
+          bool,
+          "a focus is set",
+          true,
+          z.refractors.sample_focus.anchor != None,
+        );
+        let z' = edit_on_row(ed, z, 4);
+        check(
+          focus_testable,
+          "focus unchanged",
+          z.refractors.sample_focus,
+          z'.refractors.sample_focus,
+        );
+      },
+    ),
+    test_case(
       "Return before a call's closing paren keeps a selected iteration",
       `Quick,
       () => {
