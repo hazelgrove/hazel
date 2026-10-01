@@ -1429,12 +1429,23 @@ let do_towards_point =
 
   let init = caret_point(z);
   let d_to_goal = direction_to_from(goal, init);
-  /* a backstop only (the guard below stops zero-progress steps): long
-     walks on big programs can outgrow any budget, so hitting the cap
-     just stops here, closer to the goal */
+  /* a backstop only (the guard below stops zero-progress steps): reaching
+     it is a runaway walk, so log it and stop here rather than fail the
+     action */
   let max_iter = 1_000_000;
   let rec go = (iter: int, prev: t, curr: t) =>
     if (iter > max_iter) {
+      print_endline(
+        "WARN: do_towards_point: exceeded "
+        ++ string_of_int(max_iter)
+        ++ " iterations (goal="
+        ++ Point.show(goal)
+        ++ ", init="
+        ++ Point.show(init)
+        ++ ", curr="
+        ++ Point.show(caret_point(curr))
+        ++ ")",
+      );
       curr;
     } else {
       go_body(iter, prev, curr);
