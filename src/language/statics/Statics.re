@@ -835,9 +835,9 @@ and uexp_to_info_map =
           switch (
             data.kind,
             Id.Map.mem(Exp.rep_id(uexp), probe_ids),
-            UserLivelit.use_parts(ctx, e.user_term),
+            UserLivelit.use_parts(~elab=e_elab, ctx, e.user_term),
           ) {
-          | (Livelit, true, Some((name, model))) =>
+          | (Livelit, true, Some((def, model))) =>
             /* the view gets the ELABORATED model (located inside the
                expansion by the surface model's id): only there are the
                model's splices decoded into refs (expose_splice_refs); in the
@@ -849,7 +849,7 @@ and uexp_to_info_map =
               );
             UserLivelit.instrument_view(
               ~projector_id=Exp.rep_id(uexp),
-              ~name,
+              ~def,
               ~model,
               e_elab,
             );
@@ -2109,7 +2109,351 @@ and uexp_to_info_map =
       constructor_case(ctr, ty);
     | Ap(dir, fn, arg) =>
       let ap_case = (dir: Operators.ap_direction, fn: Exp.t, arg: Exp.t) => {
+        /* A use of a livelit whose definition is `ll`, once `fn` -- the name,
+           or for a direct use with parameters `^a(args)` -- is analyzed. */
+        let livelit_use =
+            (ll: LivelitCtx.raw_livelit, fn: Info.exp, fn_elab: Exp.t, m) => {
+          let LivelitCtx.{expansion_t, model_t, expand, user_def, _} = ll;
+          /* A spliced model field carries its REF. The splice is the
+             client's code living inside the widget, and Figure 3 puts a
+             handle to it in the model (l.3-4) -- so a field the author
+             marked with parens, where Model says SpliceRef, reads as
+             `SpliceRef(("<id>", <the code>))`. The code still evaluates in
+             place, in the client's scope, and the value it had in this run
+             is what eval_splice reads. Where Model says the stopgap pair
+             (ref=SpliceRef, value=t), the field gets both.
+
+             Done as a rewrite of the argument before analysis, rather than
+             as a rule about splices, so splice transparency is untouched
+             everywhere else -- tables still see through theirs. */
+          let arg = UserLivelit.expose_splice_refs(~ctx, ~model_t, arg);
+          let arg_exposed = arg;
+          let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
+
+          /* A user-defined livelit's expansion embeds the model, so give it
+             the ELABORATED model — only there are its splices decoded into
+             refs. Builtins match on surface shapes and keep the user
+             term. */
+          let model_for_expand =
+            Option.is_some(user_def) ? arg_elab : arg.user_term;
+
+          /* Type the expansion — the paper's per-invocation-site validation
+             (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
+             the use synthesizes — clients reason against the livelit's
+             interface, not against whatever code came out of expand — so
+             this pass runs in syn mode and throws its map away; its one
+             product is the mark owed when the expansion's own type is
+             inconsistent with the declaration. Statics traverses surface
+             syntax only, so what gets typed is the expansion of the SURFACE
+             model even where the elaborated one is what gets evaluated.
+             That re-traverses the model, so a use costs twice its model
+             subtree — small in practice, since a model is a literal, or
+             one holding splices of the client's code. */
+          let expansion_marks = (expanded: Exp.t) => {
+            let to_check =
+              Option.is_some(user_def)
+                ? expand(arg.user_term) : Some(expanded);
+            switch (to_check) {
+            /* mk_expand_dot always expands, so None is unreachable for a
+               user livelit; skipping the check is the safe reading if
+               that ever changes. */
+            | None => []
+            | Some(to_check) =>
+              let (checked, _, _) = go(~ana=syn, to_check, m);
+              UserLivelit.expansion_mark(
+                ctx,
+                ~declared=expansion_t,
+                ~actual=checked.elab_syn_ty,
+              );
+            };
+          };
+
+          /* A Macro livelit (Sec. 3.2.5, Fig. 5): run its expand on this
+             model, and the use means the quoted function applied to the
+             code of the splices it lists.
+
+             - The body is elaborated in the BUILTIN context and closed
+               over the builtin environment, so it cannot capture a client
+               binding -- not even one shadowing a builtin -- and the
+               splices, passed as arguments, cannot be captured by it:
+               application substitutes without capture (Sec. 2.4.3).
+             - Premise 5: the body must be a function taking each listed
+               splice, at the type its code has, to the declared
+               Expansion. The body is analyzed against that arrow, and a
+               failure is BadMacroExpansion, at the use, saying which part
+               fails: a parameter, the result against Expansion, or an
+               error in the code itself (UserLivelit.macro_expansion_mark).
+             - The body is typed on a throwaway map, with fresh ids: its
+               ids belong to the quotation in the definition, whose cursor
+               info must not be overwritten by each use. */
+          let macro =
+            switch (user_def) {
+            | Some(def_elab) =>
+              switch (
+                UserLivelit.run_macro_expand(~def_elab, ~model=arg_elab)
+              ) {
+              | Some((body, ids)) =>
+                let codes =
+                  List.map(
+                    id =>
+                      switch (
+                        UserLivelit.splice_code(arg_exposed, id),
+                        UserLivelit.splice_code(arg_elab, id),
+                      ) {
+                      | (Some(surface), Some(_)) => Some((id, surface))
+                      | _ => None
+                      },
+                    ids,
+                  );
+                Util.OptUtil.sequence(codes)
+                |> Option.map(codes => (body, codes));
+              | None => None
+              }
+            | None => None
+            };
+          switch (macro) {
+          | Some((body, codes)) =>
+            let body = Exp.replace_all_ids(body);
+            /* Each splice's code, typed where it is: in the client's
+               scope, on a throwaway map (it was analyzed with the model
+               already; this asks only for its type). */
+            let code_tys =
+              List.map(
+                ((_, surface)) => {
+                  let (info, _, _) =
+                    go(~ana=Unknown(Internal) |> Typ.temp, surface, m);
+                  info.elab_syn_ty;
+                },
+                codes,
+              );
+            let expected =
+              List.fold_right(
+                (ty, acc) => Arrow(ty, acc) |> Typ.temp,
+                code_tys,
+                expansion_t,
+              );
+            /* Analyzed, not synthesized, against the arrow the splices
+               call for: an unannotated `fun x -> fun y -> (y, x)`
+               synthesizes ? -> ? -> (?, ?), consistent with anything, so
+               only analysis gives x and y the splices' types and finds a
+               mismatch in the body. Any mark in the body means the
+               expansion is not what the use calls for. */
+            /* The expected type is the USE's: Expansion and the splices'
+               types can name the client's type aliases (Color, on the
+               Color slide, is a `type ... in` of its own), which the builtin
+               context does not have. So it is normalized here, in the use's
+               context, before the body is analyzed against it there -- the
+               body stays closed, checked against a type with no free
+               names. */
+            let (body_info, body_elab, body_m) =
+              go(
+                ~ctx=Builtins.ctx_init(ctx.use_mode),
+                ~ana=Typ.normalize(ctx, expected),
+                body,
+                m,
+              );
+            /* Every id in the body, of every sort: a parameter annotated
+               with a type its splice cannot have is marked on the
+               PATTERN, and would be missed by looking at expressions. */
+            let body_ids = {
+              let ids = ref([]);
+              let f:
+                'a.
+                (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) =>
+                IdTagged.t('a)
+               = (
+                (continue, x) => {
+                  ids := IdTagged.ids(x) @ ids^;
+                  continue(x);
+                }
+              );
+              let _ =
+                Exp.map_term(
+                  ~f_exp=f,
+                  ~f_pat=f,
+                  ~f_typ=f,
+                  ~f_tpat=f,
+                  ~f_rul=f,
+                  body,
+                );
+              ids^;
+            };
+            let body_has_error =
+              List.exists(
+                id =>
+                  switch (Id.Map.find_opt(id, body_m)) {
+                  | Some(info) => Info.marks_of(info) != []
+                  | None => false
+                  },
+                body_ids,
+              );
+            /* The model is bound once and each argument is the value its
+               splice's ref carries in it -- what the model's evaluation, in
+               the client's scope, already computed, and what eval_splice
+               reads -- so a splice's code runs once, and a probe in it
+               fires once. A projected use finds the model here by id (the
+               Projector case) to run view on it, and binds it once more
+               for the view, which this binding then reads. */
+            let m_var = "%macro_model";
+            let m_ref = () => (Var(m_var): Exp.term) |> Exp.fresh;
+            let splice_arg = id =>
+              (
+                Ap(
+                  Forward,
+                  (BuiltinFun(BuiltinsADT.splice_value_name): Exp.term)
+                  |> Exp.fresh,
+                  (
+                    Tuple([
+                      m_ref(),
+                      (Atom(String(id)): Exp.term) |> Exp.fresh,
+                    ]): Exp.term
+                  )
+                  |> Exp.fresh,
+                ): Exp.term
+              )
+              |> Exp.fresh;
+            let app =
+              List.fold_left(
+                (f, (id, _)) =>
+                  (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
+                /* Closed over just the builtins the body needs, not all of
+                   env_init: the same meaning, a fraction of the bytes. */
+                (Closure(Builtins.env_for(body_elab), body_elab): Exp.term)
+                |> Exp.fresh,
+                codes,
+              );
+            let elab =
+              (Let(Pat.fresh(Var(m_var)), arg_elab, app): Exp.term)
+              |> Exp.fresh;
+            let (info, elab, m) =
+              add(
+                ~elab_term=elab,
+                ~elab_syn_ty=expansion_t,
+                ~marks=
+                  body_has_error
+                  || !
+                       Typ.is_consistent(
+                         ctx,
+                         body_info.elab_syn_ty,
+                         Typ.normalize(ctx, expected),
+                       )
+                    ? UserLivelit.macro_expansion_mark(
+                        ctx,
+                        ~expansion=Typ.normalize(ctx, expansion_t),
+                        ~splices=List.map(Typ.normalize(ctx), code_tys),
+                        /* The code's type as the author wrote it: analysis
+                           against the arrow fills each parameter in with
+                           its splice's type, which would hide an annotated
+                           parameter that cannot take its splice. Only
+                           computed when there is something to report. */
+                        ~code={
+                          let (syn, _, _) =
+                            go(
+                              ~ctx=Builtins.ctx_init(ctx.use_mode),
+                              body,
+                              m,
+                            );
+                          syn.elab_syn_ty;
+                        },
+                        ~code_has_error=body_has_error,
+                      )
+                    : [],
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                ~probe_targets=
+                  SubexpProbeTargets.union_all([
+                    fn.probe_targets,
+                    arg.probe_targets,
+                  ]),
+                m,
+              );
+            (
+              info,
+              elab,
+              IdTagged.ids(elab)
+              |> add_missing_info(_, Info.InfoExp(info), m),
+            );
+          | None =>
+            // try to expand
+            switch (expand(model_for_expand)) {
+            | Some(expanded) =>
+              let (info, elab, m) =
+                add(
+                  ~elab_term=expanded,
+                  ~elab_syn_ty=expansion_t,
+                  ~marks=expansion_marks(expanded),
+                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                  ~probe_targets=
+                    SubexpProbeTargets.union_all([
+                      fn.probe_targets,
+                      arg.probe_targets,
+                    ]),
+                  m,
+                );
+              (
+                info,
+                elab,
+                IdTagged.ids(expanded)
+                |> add_missing_info(_, Info.InfoExp(info), m),
+              );
+            | None =>
+              // if we can't expand, flag as improper model
+              add(
+                ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+                ~elab_syn_ty=expansion_t,
+                ~marks=[BadLivelitModel(expansion_t)],
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                ~probe_targets=
+                  SubexpProbeTargets.union_all([
+                    fn.probe_targets,
+                    arg.probe_targets,
+                  ]),
+                m,
+              )
+            }
+          };
+        };
         switch (fn.term) {
+        /* A direct use with parameters, `^a(args)(model)`: the paper's
+           `$slider 0 100`, beside the abbreviation `let ^b = ^a(args) in`.
+           `^a(args)` is analyzed as an abbreviation's definition is, its
+           arguments closed, and the use is then a use of `^a` applied to
+           them. At run time the applied livelit is `^a(args)` itself, as no
+           `let` names it (apply_args's `runtime`). */
+        | Ap(_, {term: LivelitName(s), _}, _)
+            when
+              switch (Ctx.lookup_livelit(ctx, s)) {
+              | Some({vparam: true, user_def: Some(_), _}) => true
+              | _ => false
+              } =>
+          let outer_abbrev_site = livelit_abbrev_site^;
+          livelit_abbrev_site := Some(Exp.rep_id(fn));
+          let (fn_info, fn_elab, m) =
+            go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+          livelit_abbrev_site := outer_abbrev_site;
+          switch (
+            Option.bind(Ctx.lookup_livelit(ctx, s), ll =>
+              Option.bind(UserLivelit.ap_arg(fn_elab), args =>
+                UserLivelit.apply_args(
+                  ~name=s,
+                  ~id=Exp.rep_id(fn),
+                  ~args,
+                  ~runtime=fn_elab,
+                  ll,
+                )
+              )
+            )
+          ) {
+          | Some(ll) => livelit_use(ll, fn_info, fn_elab, m)
+          | None =>
+            let (arg, arg_elab, m) =
+              go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+            add(
+              ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+              m,
+            );
+          };
         /* A type-parameterized livelit cannot be used until it has its
            type argument: the paper's "missing livelit parameter" (Sec.
            2.4.1). The argument is still checked, and the use means a hole. */
@@ -2165,305 +2509,9 @@ and uexp_to_info_map =
         | LivelitName(s) =>
           // refer to livelit context to find types
           switch (Ctx.lookup_livelit(ctx, s)) {
-          | Some({expansion_t, model_t, expand, user_def, _}) =>
-            let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
-            /* A spliced model field carries its REF. The splice is the
-               client's code living inside the widget, and Figure 3 puts a
-               handle to it in the model (l.3-4) -- so a field the author
-               marked with parens, where Model says SpliceRef, reads as
-               `SpliceRef(("<id>", <the code>))`. The code still evaluates in
-               place, in the client's scope, and the value it had in this run
-               is what eval_splice reads. Where Model says the stopgap pair
-               (ref=SpliceRef, value=t), the field gets both.
-
-               Done as a rewrite of the argument before analysis, rather than
-               as a rule about splices, so splice transparency is untouched
-               everywhere else -- tables still see through theirs. */
-            let arg = UserLivelit.expose_splice_refs(~ctx, ~model_t, arg);
-            let arg_exposed = arg;
-            let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
-
-            /* A user-defined livelit's expansion embeds the model, so give it
-               the ELABORATED model — only there are its splices decoded into
-               refs. Builtins match on surface shapes and keep the user
-               term. */
-            let model_for_expand =
-              Option.is_some(user_def) ? arg_elab : arg.user_term;
-
-            /* Type the expansion — the paper's per-invocation-site validation
-               (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
-               the use synthesizes — clients reason against the livelit's
-               interface, not against whatever code came out of expand — so
-               this pass runs in syn mode and throws its map away; its one
-               product is the mark owed when the expansion's own type is
-               inconsistent with the declaration. Statics traverses surface
-               syntax only, so what gets typed is the expansion of the SURFACE
-               model even where the elaborated one is what gets evaluated.
-               That re-traverses the model, so a use costs twice its model
-               subtree — small in practice, since a model is a literal, or
-               one holding splices of the client's code. */
-            let expansion_marks = (expanded: Exp.t) => {
-              let to_check =
-                Option.is_some(user_def)
-                  ? expand(arg.user_term) : Some(expanded);
-              switch (to_check) {
-              /* mk_expand_dot always expands, so None is unreachable for a
-                 user livelit; skipping the check is the safe reading if
-                 that ever changes. */
-              | None => []
-              | Some(to_check) =>
-                let (checked, _, _) = go(~ana=syn, to_check, m);
-                UserLivelit.expansion_mark(
-                  ctx,
-                  ~declared=expansion_t,
-                  ~actual=checked.elab_syn_ty,
-                );
-              };
-            };
-
-            /* A Macro livelit (Sec. 3.2.5, Fig. 5): run its expand on this
-               model, and the use means the quoted function applied to the
-               code of the splices it lists.
-
-               - The body is elaborated in the BUILTIN context and closed
-                 over the builtin environment, so it cannot capture a client
-                 binding -- not even one shadowing a builtin -- and the
-                 splices, passed as arguments, cannot be captured by it:
-                 application substitutes without capture (Sec. 2.4.3).
-               - Premise 5: the body must be a function taking each listed
-                 splice, at the type its code has, to the declared
-                 Expansion. The body is analyzed against that arrow, and a
-                 failure is BadMacroExpansion, at the use, saying which part
-                 fails: a parameter, the result against Expansion, or an
-                 error in the code itself (UserLivelit.macro_expansion_mark).
-               - The body is typed on a throwaway map, with fresh ids: its
-                 ids belong to the quotation in the definition, whose cursor
-                 info must not be overwritten by each use. */
-            let macro =
-              switch (user_def) {
-              | Some(def_elab) =>
-                switch (
-                  UserLivelit.run_macro_expand(~def_elab, ~model=arg_elab)
-                ) {
-                | Some((body, ids)) =>
-                  let codes =
-                    List.map(
-                      id =>
-                        switch (
-                          UserLivelit.splice_code(arg_exposed, id),
-                          UserLivelit.splice_code(arg_elab, id),
-                        ) {
-                        | (Some(surface), Some(_)) => Some((id, surface))
-                        | _ => None
-                        },
-                      ids,
-                    );
-                  Util.OptUtil.sequence(codes)
-                  |> Option.map(codes => (body, codes));
-                | None => None
-                }
-              | None => None
-              };
-            switch (macro) {
-            | Some((body, codes)) =>
-              let body = Exp.replace_all_ids(body);
-              /* Each splice's code, typed where it is: in the client's
-                 scope, on a throwaway map (it was analyzed with the model
-                 already; this asks only for its type). */
-              let code_tys =
-                List.map(
-                  ((_, surface)) => {
-                    let (info, _, _) =
-                      go(~ana=Unknown(Internal) |> Typ.temp, surface, m);
-                    info.elab_syn_ty;
-                  },
-                  codes,
-                );
-              let expected =
-                List.fold_right(
-                  (ty, acc) => Arrow(ty, acc) |> Typ.temp,
-                  code_tys,
-                  expansion_t,
-                );
-              /* Analyzed, not synthesized, against the arrow the splices
-                 call for: an unannotated `fun x -> fun y -> (y, x)`
-                 synthesizes ? -> ? -> (?, ?), consistent with anything, so
-                 only analysis gives x and y the splices' types and finds a
-                 mismatch in the body. Any mark in the body means the
-                 expansion is not what the use calls for. */
-              /* The expected type is the USE's: Expansion and the splices'
-                 types can name the client's type aliases (Color, on the
-                 Color slide, is a `type ... in` of its own), which the builtin
-                 context does not have. So it is normalized here, in the use's
-                 context, before the body is analyzed against it there -- the
-                 body stays closed, checked against a type with no free
-                 names. */
-              let (body_info, body_elab, body_m) =
-                go(
-                  ~ctx=Builtins.ctx_init(ctx.use_mode),
-                  ~ana=Typ.normalize(ctx, expected),
-                  body,
-                  m,
-                );
-              /* Every id in the body, of every sort: a parameter annotated
-                 with a type its splice cannot have is marked on the
-                 PATTERN, and would be missed by looking at expressions. */
-              let body_ids = {
-                let ids = ref([]);
-                let f:
-                  'a.
-                  (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) =>
-                  IdTagged.t('a)
-                 = (
-                  (continue, x) => {
-                    ids := IdTagged.ids(x) @ ids^;
-                    continue(x);
-                  }
-                );
-                let _ =
-                  Exp.map_term(
-                    ~f_exp=f,
-                    ~f_pat=f,
-                    ~f_typ=f,
-                    ~f_tpat=f,
-                    ~f_rul=f,
-                    body,
-                  );
-                ids^;
-              };
-              let body_has_error =
-                List.exists(
-                  id =>
-                    switch (Id.Map.find_opt(id, body_m)) {
-                    | Some(info) => Info.marks_of(info) != []
-                    | None => false
-                    },
-                  body_ids,
-                );
-              /* The model is bound once and each argument is the value its
-                 splice's ref carries in it -- what the model's evaluation, in
-                 the client's scope, already computed, and what eval_splice
-                 reads -- so a splice's code runs once, and a probe in it
-                 fires once. A projected use finds the model here by id (the
-                 Projector case) to run view on it, and binds it once more
-                 for the view, which this binding then reads. */
-              let m_var = "%macro_model";
-              let m_ref = () => (Var(m_var): Exp.term) |> Exp.fresh;
-              let splice_arg = id =>
-                (
-                  Ap(
-                    Forward,
-                    (BuiltinFun(BuiltinsADT.splice_value_name): Exp.term)
-                    |> Exp.fresh,
-                    (
-                      Tuple([
-                        m_ref(),
-                        (Atom(String(id)): Exp.term) |> Exp.fresh,
-                      ]): Exp.term
-                    )
-                    |> Exp.fresh,
-                  ): Exp.term
-                )
-                |> Exp.fresh;
-              let app =
-                List.fold_left(
-                  (f, (id, _)) =>
-                    (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
-                  /* Closed over just the builtins the body needs, not all of
-                     env_init: the same meaning, a fraction of the bytes. */
-                  (Closure(Builtins.env_for(body_elab), body_elab): Exp.term)
-                  |> Exp.fresh,
-                  codes,
-                );
-              let elab =
-                (Let(Pat.fresh(Var(m_var)), arg_elab, app): Exp.term)
-                |> Exp.fresh;
-              let (info, elab, m) =
-                add(
-                  ~elab_term=elab,
-                  ~elab_syn_ty=expansion_t,
-                  ~marks=
-                    body_has_error
-                    || !
-                         Typ.is_consistent(
-                           ctx,
-                           body_info.elab_syn_ty,
-                           Typ.normalize(ctx, expected),
-                         )
-                      ? UserLivelit.macro_expansion_mark(
-                          ctx,
-                          ~expansion=Typ.normalize(ctx, expansion_t),
-                          ~splices=List.map(Typ.normalize(ctx), code_tys),
-                          /* The code's type as the author wrote it: analysis
-                             against the arrow fills each parameter in with
-                             its splice's type, which would hide an annotated
-                             parameter that cannot take its splice. Only
-                             computed when there is something to report. */
-                          ~code={
-                            let (syn, _, _) =
-                              go(
-                                ~ctx=Builtins.ctx_init(ctx.use_mode),
-                                body,
-                                m,
-                              );
-                            syn.elab_syn_ty;
-                          },
-                          ~code_has_error=body_has_error,
-                        )
-                      : [],
-                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-                  ~probe_targets=
-                    SubexpProbeTargets.union_all([
-                      fn.probe_targets,
-                      arg.probe_targets,
-                    ]),
-                  m,
-                );
-              (
-                info,
-                elab,
-                IdTagged.ids(elab)
-                |> add_missing_info(_, Info.InfoExp(info), m),
-              );
-            | None =>
-              // try to expand
-              switch (expand(model_for_expand)) {
-              | Some(expanded) =>
-                let (info, elab, m) =
-                  add(
-                    ~elab_term=expanded,
-                    ~elab_syn_ty=expansion_t,
-                    ~marks=expansion_marks(expanded),
-                    ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-                    ~probe_targets=
-                      SubexpProbeTargets.union_all([
-                        fn.probe_targets,
-                        arg.probe_targets,
-                      ]),
-                    m,
-                  );
-                (
-                  info,
-                  elab,
-                  IdTagged.ids(expanded)
-                  |> add_missing_info(_, Info.InfoExp(info), m),
-                );
-              | None =>
-                // if we can't expand, flag as improper model
-                add(
-                  ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-                  ~elab_syn_ty=expansion_t,
-                  ~marks=[BadLivelitModel(expansion_t)],
-                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-                  ~probe_targets=
-                    SubexpProbeTargets.union_all([
-                      fn.probe_targets,
-                      arg.probe_targets,
-                    ]),
-                  m,
-                )
-              }
-            };
+          | Some(ll) =>
+            let (fn, fn_elab, m) = go(~ana=ll.expansion_t, fn, m);
+            livelit_use(ll, fn, fn_elab, m);
 
           | None =>
             let (fn, fn_elab, m) =

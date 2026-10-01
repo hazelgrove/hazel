@@ -35,6 +35,7 @@ let init =
     (
       kind: ProjectorCore.Kind.t,
       ~placement=ProjectorCore.Placement.Inline,
+      ~show_syntax=false,
       seg: Base.segment,
       ~elaborated: Language.Exp.t,
     )
@@ -45,7 +46,10 @@ let init =
   /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
      elaborated form keyed by the term's id. */
   switch (
-    Option.bind(any, ProjectorInit.init(kind, seg, ~placement, _)),
+    Option.bind(
+      any,
+      ProjectorInit.init(kind, seg, ~placement, ~show_syntax, _),
+    ),
     any,
   ) {
   | (Some(_) as result, _) => result
@@ -330,6 +334,34 @@ let go =
   | TogglePlacement =>
     switch (toggle_placement(z)) {
     | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    }
+  /* Show or hide a projector's own syntax: shown, it is held as one splice
+     (ProjectorInit.spliced), which is how its sub-editor can edit it;
+     hidden, the splice comes off and the syntax is as it was. */
+  | ToggleSyntax(idx) =>
+    switch (projector_idx_to_id(idx)) {
+    | Some(id) =>
+      let f = pr => {
+        let pr = ProjectorCore.toggle_show_syntax(pr);
+        {
+          ...pr,
+          syntax:
+            pr.show_syntax
+              ? ProjectorInit.spliced(pr.syntax)
+              : ProjectorInit.unspliced(pr.syntax),
+        };
+      };
+      /* With the caret in the syntax being hidden, update cannot find the
+         projector among the caret's siblings, and a walk out of it is
+         confined to the splice. As for SetSyntax: rebuild from the root,
+         which resets the caret, and park it at the projector's right. */
+      if (inside_projector(id, z)) {
+        let z = update_from_root(f, id, z);
+        Ok(Option.value(~default=z, Move.jump_to_side_of_id(Right, z, id)));
+      } else {
+        Ok(update(f, id, z));
+      };
     | None => Error(Cant_project)
     }
   | SetIndicated(Specific(kind)) =>

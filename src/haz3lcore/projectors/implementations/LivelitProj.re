@@ -318,26 +318,72 @@ module M: Projector = {
   let rec strip_wrappers = (term: TermBase.Exp.term): TermBase.Exp.term =>
     switch (term) {
     | Parens({term, _})
+    /* A use showing its syntax holds it as one splice (show_syntax). */
+    | Splice({term, _})
     | Projector(_, {term, _}) => strip_wrappers(term)
     | term => term
     };
 
-  let get_model = (info: info) =>
+  /* A use's livelit name, its parameters if it is a direct use with them
+     (`^a(args)(model)`), and its model. */
+  let get_use = (info: info) =>
     switch (info.statics) {
     | Some(InfoExp({user_term, _})) =>
       switch (strip_wrappers(user_term.term)) {
       | Ap(_dir, {term: LivelitName(llname), _}, model) =>
-        Some((llname, model))
+        Some((llname, None, model))
+      | Ap(_dir, fn, model) =>
+        switch (strip_wrappers(fn.term)) {
+        | Ap(_, {term: LivelitName(llname), _}, args) =>
+          Some((llname, Some(args), model))
+        | _ => None
+        }
       | _ => None
       }
     | _ => None
     };
 
+  /* The livelit a use is of: the one its name finds, applied to the use's
+     parameters when it gives them. The arguments are the use's own terms;
+     they are closed, as statics requires, so they mean here what they
+     mean there. */
+  let lookup_use = (ctx: Ctx.t, llname: string, args) =>
+    switch (Ctx.lookup_livelit(ctx, llname), args) {
+    | (Some(ll), None) => Some(ll)
+    | (Some(ll), Some(args)) =>
+      UserLivelit.apply_args(
+        ~name=llname,
+        ~id=ll.id,
+        ~args,
+        ~runtime=
+          IdTagged.FreshGrammar.Exp.ap(
+            Operators.Forward,
+            IdTagged.FreshGrammar.Exp.var("^" ++ llname),
+            args,
+          ),
+        ll,
+      )
+    | (None, _) => None
+    };
+
   let init = (any: Language.Any.t, seg: Base.segment) =>
     switch (any) {
-    | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
+    | Exp({term: Ap(_, {term: LivelitName(_), _}, _), _})
     | Exp({
-        term: Parens({term: Ap(_dir, {term: LivelitName(_), _}, _), _}),
+        term: Parens({term: Ap(_, {term: LivelitName(_), _}, _), _}),
+        _,
+      })
+    /* A direct use with parameters, `^a(args)(model)`. */
+    | Exp({
+        term: Ap(_, {term: Ap(_, {term: LivelitName(_), _}, _), _}, _),
+        _,
+      })
+    | Exp({
+        term:
+          Parens({
+            term: Ap(_, {term: Ap(_, {term: LivelitName(_), _}, _), _}, _),
+            _,
+          }),
         _,
       }) =>
       Some(((), splice_marked_fields(seg) |> Option.map(s => Syntax(s))))
@@ -370,8 +416,37 @@ module M: Projector = {
      is why this was left out at first. That was the wrong call: reflowing
      is a visible, recoverable consequence of what you typed, and clipping
      the widget out of existence is neither. */
+  /* A use showing its own syntax holds it as one splice (show_syntax, the
+     `_syntax` invoke suffix); its model's splices are inside that one. */
+  let syntax_splice = (syntax: Base.segment): option(Base.splice) =>
+    switch (syntax) {
+    | [Splice(s)] => Some(s)
+    | _ => None
+    };
+
+  /* The rows the syntax pane takes below the GUI: one per line of the
+     syntax, at least as wide as its longest line. */
+  let with_syntax_pane =
+      (size: Util.Point.t, shape: ProjectorCore.Shape.t)
+      : ProjectorCore.Shape.t => {
+    let rows = size.row + 1;
+    {
+      horizontal: max(shape.horizontal, size.col + 1),
+      vertical:
+        switch (shape.vertical) {
+        | Inline => Block(rows)
+        | Block(n) => Block(n + rows)
+        | Tab(n) => Tab(n + rows)
+        },
+    };
+  };
+
   let widen_for_splices =
-      (info, splice_size: View.splice_size, shape: ProjectorCore.Shape.t) => {
+      (
+        syntax: Base.segment,
+        splice_size: View.splice_size,
+        shape: ProjectorCore.Shape.t,
+      ) => {
     let (extra_cols, extra_rows) =
       List.fold_left(
         ((cols, rows), s: Base.splice) => {
@@ -382,7 +457,7 @@ module M: Projector = {
           (cols + size.col, max(rows, size.row));
         },
         (0, 0),
-        Segment.direct_splices(info.syntax),
+        Segment.direct_splices(syntax),
       );
     let vertical: ProjectorCore.Shape.vertical =
       extra_rows <= 0
@@ -467,9 +542,9 @@ module M: Projector = {
 
   let placeholder = (_model, info, splice_size) => {
     let looked_up =
-      switch (get_model(info), info.statics) {
-      | (Some((llname, model)), Some(InfoExp(exp))) =>
-        switch (Ctx.lookup_livelit(exp.ctx, llname)) {
+      switch (get_use(info), info.statics) {
+      | (Some((llname, args, model)), Some(InfoExp(exp))) =>
+        switch (lookup_use(exp.ctx, llname, args)) {
         | Some(ll) =>
           let dynamic =
             switch (ll.user_def) {
@@ -492,33 +567,65 @@ module M: Projector = {
         | None => ProjectorCore.Shape.inline(32)
         }
       };
-    widen_for_splices(info, splice_size, shape);
+    switch (syntax_splice(info.syntax)) {
+    | None => widen_for_splices(info.syntax, splice_size, shape)
+    /* Widened for the model's splices as before, which are inside the
+       syntax splice, and then given the pane's rows. */
+    | Some(s) =>
+      with_syntax_pane(
+        splice_size(s.id),
+        widen_for_splices(s.content, splice_size, shape),
+      )
+    };
   };
 
   let replace_model_term =
       (updated_model_term: TermBase.Exp.t, start_term: TermBase.Any.t)
-      : TermBase.Any.t =>
+      : TermBase.Any.t => {
+    /* The model is the argument of the outermost application, under any
+       parens and, while the use shows its syntax, its splice. For a
+       direct use with parameters, `^a(args)(model)`, that outer
+       application is the one holding the model. */
+    let rec replace = (e: TermBase.Exp.t): option(TermBase.Exp.t) =>
+      switch (e.term) {
+      | Ap(dir, name, _model) =>
+        Some({
+          ...e,
+          term: Ap(dir, name, updated_model_term),
+        })
+      | Parens(inner) =>
+        Option.map(
+          inner =>
+            {
+              ...e,
+              term: (Parens(inner): TermBase.Exp.term),
+            },
+          replace(inner),
+        )
+      | Splice(inner) =>
+        Option.map(
+          inner =>
+            {
+              ...e,
+              term: (Splice(inner): TermBase.Exp.term),
+            },
+          replace(inner),
+        )
+      | _ => None
+      };
     switch (start_term) {
-    | Exp({term: Ap(dir, name, _model), _} as rest) =>
-      Exp({
-        ...rest,
-        term: Ap(dir, name, updated_model_term),
-      })
-    | Exp(
-        {term: Parens({term: Ap(dir, name, _model), _} as inner), _} as rest,
-      ) =>
-      Exp({
-        ...rest,
-        term:
-          Parens({
-            ...inner,
-            term: Ap(dir, name, updated_model_term),
-          }),
-      })
+    | Exp(e) =>
+      switch (replace(e)) {
+      | Some(e) => Exp(e)
+      | None =>
+        print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
+        start_term;
+      }
     | _ =>
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
       start_term;
     };
+  };
   let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _info, action) =>
     switch (action) {
@@ -1029,7 +1136,16 @@ module M: Projector = {
 
   let view =
       (
-        {info, parent, local_quiet, view_seg, splices, splice_view, _}:
+        {
+          info,
+          parent,
+          local_quiet,
+          view_seg,
+          splices,
+          splice_view,
+          splice_size,
+          _,
+        }:
           View.args(model, action),
       ) => {
     let ctx =
@@ -1039,9 +1155,9 @@ module M: Projector = {
       };
 
     let node =
-      switch (get_model(info)) {
-      | Some((ll_name, model)) =>
-        let ll = Ctx.lookup_livelit(ctx, ll_name);
+      switch (get_use(info)) {
+      | Some((ll_name, args, model)) =>
+        let ll = lookup_use(ctx, ll_name, args);
 
         /* Write an updated model back into the Ap's argument position,
            with its splices: SpliceStore.write_model turns each SpliceRef
@@ -1173,6 +1289,62 @@ module M: Projector = {
         Node.text("No livelit found");
       };
 
-    View.mk(node);
+    /* The syntax toggle, at the livelit's top left, and while the use shows
+       its syntax, that syntax as an editor in the rows below the GUI (see
+       placeholder). An overlay, so the livelit's own markup, which CSS
+       reaches as `.livelit > ...`, is left as it was. */
+    let shown = syntax_splice(info.syntax);
+    let toggle =
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["livelit-syntax-toggle"]
+            @ (Option.is_some(shown) ? ["on"] : []),
+          ),
+          Attr.title(
+            Option.is_some(shown)
+              ? "hide this use's syntax" : "show this use's syntax, to edit",
+          ),
+          Attr.on_pointerdown(_ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              Effect.Prevent_default,
+              parent(ToggleSyntax),
+            ])
+          ),
+        ],
+        [Node.text("</>")],
+      );
+    let pane =
+      switch (shown) {
+      | Some(s) =>
+        let size: Util.Point.t = splice_size(s.id);
+        [
+          Node.div(
+            ~attrs=[
+              Attr.class_("livelit-syntax"),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "height: calc(%d * var(--row-height-px));",
+                  size.row + 1,
+                ),
+              ),
+            ],
+            [splice_view(s.id)],
+          ),
+        ];
+      | None => []
+      };
+    View.mk(
+      ~overlay=
+        Some(
+          Node.div(
+            ~attrs=[Attr.class_("livelit-syntax-layer")],
+            [toggle, ...pane],
+          ),
+        ),
+      node,
+    );
   };
 };

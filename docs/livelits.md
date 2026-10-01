@@ -156,8 +156,16 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
   `let ^b = ^a@<T> in` puts `T` in place of `A` in each member type.
   `typfun A -> fun p -> { ... }` is accepted, a value parameter inside a
   type parameter, but no test or slide instantiates one yet.
-- **A parameterized livelit is not used directly.** `^slider(50)` is
-  `LivelitNeedsArguments`, and a use of a type-parameterized one is
+- **A direct use gives the parameters at the use**, the paper's
+  `$slider 0 100`: `^slider(0, 100)(50)` is `^slider` applied to `(0, 100)`,
+  used with the model `50`, with no abbreviation. The arguments are closed,
+  as an abbreviation's are. At run time the applied livelit is
+  `^slider(0, 100)` itself, since no `let` names it: its `expand` and, for a
+  projected use, its `view` are reached through that expression
+  (`UserLivelit.apply_args`'s `runtime`, `use_parts`), and the projector
+  applies the same arguments to run it (`LivelitProj.lookup_use`).
+- **A parameterized livelit with no arguments is not a use.** `^slider(50)`
+  is `LivelitNeedsArguments`, and a use of a type-parameterized one is
   `LivelitNeedsTypeArgument`, the paper's "missing livelit parameter".
   Either use synthesizes the unknown type.
 - **Arguments are closed.** They are analyzed in the builtin context, as a
@@ -166,9 +174,7 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
 
 Not yet: partial application (the paper's `let $uslider = $slider 0`),
 since a definition takes one parameter, possibly a tuple, not a curried
-sequence; a direct use with parameters, `$slider 0 100`, which would need a
-second application slot beside the model's; and arguments that depend on
-the client's scope.
+sequence; and arguments that depend on the client's scope.
 
 The code: `UserLivelit.detect` reads `Fun` and `TypFun` around the module;
 `UserLivelit.apply_args` and `UserLivelit.instantiate` build an

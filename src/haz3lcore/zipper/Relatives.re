@@ -76,6 +76,21 @@ let rec find_splice_descent_when =
     | [Base.Splice(s) as p, ...rest_pieces] =>
       if (pred(s)) {
         let (before, after) = split_at_current(acc, rest_pieces);
+        /* A splice reached through a tile has that tile's child sort. One
+           directly in a projector's syntax has none from outside -- a
+           livelit use showing its syntax holds all of it as one such
+           splice -- so it takes its content's: as Any, `^a()` then a
+           digit remolded `(` as a new operand and grouted it apart from
+           `^a`, which no longer named a use (#2631). */
+        let sort =
+          switch (sort) {
+          | Sort.Any =>
+            switch (Segment.sort_of(Segment.skel(s.content), s.content)) {
+            | sort => sort
+            | exception _ => Sort.Any
+            }
+          | sort => sort
+          };
         let splice_anc: Ancestor.splice_anc = {
           id: s.id,
           sort,
@@ -183,6 +198,8 @@ let enter_projector =
       id: pr.id,
       kind: pr.kind,
       model: pr.model,
+      placement: pr.placement,
+      show_syntax: pr.show_syntax,
       before: outer_left,
       after: outer_right,
     };

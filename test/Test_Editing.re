@@ -5593,6 +5593,65 @@ let splice_tests = [
       check_in_splice(~name="caret in third splice", id, z);
     },
   ),
+  /* #2631: a splice that is a projector's whole syntax, as a livelit use
+     showing its syntax holds it, has no tile to give it a sort. Remolded as
+     Any, `f()` then a digit grouted `(` apart from `f`. */
+  test_case(
+    "A splice that is a projector's whole syntax keeps an application whole",
+    `Quick,
+    () => {
+      let splice = Piece.mk_splice(parse_segment_exn("f(25)"));
+      let id =
+        switch (splice) {
+        | Base.Splice(s) => s.id
+        | _ => Id.invalid
+        };
+      let model =
+        FoldProj.sexp_of_t({
+          text: "test",
+          expanded: false,
+          always_render: true,
+        })
+        |> Sexplib.Sexp.to_string;
+      let z =
+        Zipper.unzip([
+          Piece.Projector(
+            ProjectorCore.mk(
+              ~id=Id.mk(),
+              ProjectorCore.Kind.Fold,
+              [splice],
+              model,
+            ),
+          ),
+        ]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 4,
+                },
+              ),
+            ),
+            Destruct(Left),
+            Destruct(Left),
+            Insert("4"),
+            Insert("0"),
+          ],
+        );
+      check_in_splice(~name="caret still in the splice", id, z);
+      Alcotest.check(
+        Alcotest.string,
+        "the application is whole",
+        "f(40)",
+        splice_text(z, 0),
+      );
+    },
+  ),
   test_case(
     "SplicePoint 3 -> 33 edit inside splice",
     `Quick,

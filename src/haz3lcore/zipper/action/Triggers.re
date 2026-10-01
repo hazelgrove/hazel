@@ -81,6 +81,7 @@ let exp_to_seg =
   );
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
+  let show_syntax = Token.of_projector_invoke_show_syntax(name);
   let* (name, placement) = Token.of_projector_invoke_parts(name);
   let kind = ProjectorCore.Kind.of_name(name);
   /* Statics haven't run yet at trigger time, so we pass the empty
@@ -91,6 +92,7 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
     kind,
     syntax,
     ~placement,
+    ~show_syntax,
     ~elaborated=CachedStatics.empty.elaborated,
   );
 };
@@ -161,6 +163,7 @@ let refractor_to_invoke =
     (
       ~model: option(string)=?,
       ~placement=ProjectorCore.Placement.Inline,
+      ~show_syntax=false,
       kind: ProjectorCore.Kind.t,
       seg: Segment.t,
     )
@@ -170,7 +173,7 @@ let refractor_to_invoke =
     Piece.mk_tile(
       Form.mk_atom_op(
         Exp,
-        Token.mk_projector_invoke(~opt?, ~placement, kind),
+        Token.mk_projector_invoke(~opt?, ~placement, ~show_syntax, kind),
       ),
       [],
     ),
@@ -195,7 +198,12 @@ let refractor_to_invoke_text =
    eat the author's own parens instead of one we added. `^^fold((Int,
    String))` came back as `^^fold(Int, String)`. */
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(~placement=pr.placement, pr.kind, pr.syntax);
+  refractor_to_invoke(
+    ~placement=pr.placement,
+    ~show_syntax=pr.show_syntax,
+    pr.kind,
+    pr.syntax,
+  );
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
