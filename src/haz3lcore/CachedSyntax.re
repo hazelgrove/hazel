@@ -56,6 +56,10 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* incremental measure/parse memos; carried via {...old}, so each
+     editor keeps its own */
+  m_cache: Measured.Incr.cache,
+  t_cache: MakeTerm.Incr.cache,
 };
 
 // should not be serializing
@@ -149,10 +153,38 @@ let mk_refractor_rows =
   );
 };
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
+let mk =
+    (
+      ~root=Sort.Exp,
+      ~m_cache=?,
+      ~t_cache=?,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated=None,
+      z,
+    )
+    : t => {
+  let m_cache =
+    switch (m_cache) {
+    | Some(c) => c
+    | None => Measured.Incr.mk_cache()
+    };
+  let t_cache =
+    switch (t_cache) {
+    | Some(c) => c
+    | None => MakeTerm.Incr.mk_cache()
+    };
   let segment = Zipper.unselect_and_zip(z);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-    MakeTerm.go(segment);
+  /* only Exp/Mod roots parse incrementally; other (small) roots parse
+     once at their own sort, which the Exp-rooted [go] would misparse */
+  let (terms, term_data, projectors, projector_list) =
+    if (root == Sort.Exp || root == Sort.Mod) {
+      let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
+        MakeTerm.Incr.go_incr(~root, ~cache=t_cache, segment);
+      (terms, term_data, projectors, projector_list);
+    } else {
+      MakeTerm.sorted_syntax_data(~root, segment);
+    };
   let (projector_shapes, splice_layout, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -164,7 +196,12 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let refractor_rows =
     mk_refractor_rows(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_rows);
+    Measured.Incr.of_segment(
+      ~cache=m_cache,
+      segment,
+      projector_shapes,
+      refractor_rows,
+    );
   {
     old: false,
     main_splice: {
@@ -189,15 +226,17 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     cached_ephemerals: z.refractors.multis.ephemerals,
     projector_errors,
     splice_layout,
-    missing_shards: Segment.global_missing_shards(segment),
+    missing_shards: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    m_cache,
+    t_cache,
   };
 };
 
-let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~root=Sort.Exp, z: Zipper.t) =>
+  mk(~root, z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
 
 let mark_old: t => t =
   old => {
@@ -224,8 +263,9 @@ let refresh_shapes =
       ? old.refractor_rows : refractor_rows;
   /* Measured depends only on the segment, shapes and refractor rows; when
    * new dynamics leave every projector shape unchanged (the common case for
-   * a sample refresh), the whole-program re-measure is pure waste. Keep the
-   * old shape_map ref too so downstream phys-eq caches stay warm. */
+   * a sample refresh, as statics/dynamics change every streamed chunk), the
+   * re-measure is pure waste. Keep the old shape_map ref too so downstream
+   * phys-eq caches stay warm. */
   let shapes_equal =
     Id.Map.equal((a, b) => a == b, shape_map, old.shape_map)
     && refractor_rows === old.refractor_rows;
@@ -234,7 +274,8 @@ let refresh_shapes =
       ? (old.shape_map, old.main_splice.measured)
       : (
         shape_map,
-        Measured.of_segment(
+        Measured.Incr.of_segment(
+          ~cache=old.m_cache,
           old.main_splice.segment,
           shape_map,
           refractor_rows,
@@ -269,12 +310,34 @@ let elaborated_phys_eq =
   | _ => false
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+/* cost follows the change: new segment → full `mk`; new statics,
+ * dynamics or refractor inputs → refresh_shapes; else just selection_ids */
+let calculate =
+    (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals;
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated);
+    /* [old] marks caret moves too; an unchanged segment keeps its
+       measured/terms/term_data */
+    let segment = Zipper.unselect_and_zip(z);
+    if (Segment.ptr_eq(segment, old.segment)) {
+      {
+        ...refresh_shapes(z, info_map, dyn_map, ~elaborated, old),
+        old: false,
+        selection_ids: Selection.selection_ids(z.selection),
+      };
+    } else {
+      mk(
+        ~root,
+        ~m_cache=old.m_cache,
+        ~t_cache=old.t_cache,
+        z,
+        ~info_map,
+        ~dyn_map,
+        ~elaborated,
+      );
+    };
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)

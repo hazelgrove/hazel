@@ -127,6 +127,66 @@ let focus_active_editor = () =>
   | None => focus_clipboard_shim()
   };
 
+/* keyboard focus into the outline sidebar (its row list) */
+let focus_outline = (): unit =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-body"),
+      ),
+    )
+  ) {
+  | Some(el) => Js.Unsafe.coerce(el)##focus
+  | None => ()
+  };
+
+/* where a keyboard-opened outline menu anchors: under the cursor's row */
+let outline_cursor_anchor = (): option((float, float)) =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-label.outline-cursor"),
+      ),
+    )
+  ) {
+  | Some(el) =>
+    let rect = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
+    let left: float = Js.Unsafe.get(rect, "left");
+    let bottom: float = Js.Unsafe.get(rect, "bottom");
+    Some((left +. 16., bottom));
+  | None => None
+  };
+
+/* how many outline rows one screenful holds, for PageUp/PageDown */
+let outline_page_rows = (): int =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-body"),
+      ),
+    ),
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(
+        Js.string("#outline-sidebar .outline-label"),
+      ),
+    ),
+  ) {
+  | (Some(body), Some(row)) when row##.offsetHeight > 0 =>
+    max(1, body##.clientHeight / row##.offsetHeight - 1)
+  | _ => 10
+  };
+
+let outline_has_focus = (): bool =>
+  switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
+  | Some(el) =>
+    Js.to_bool(
+      Js.Unsafe.coerce(el)##matches(
+        Js.string("#outline-sidebar .outline-body"),
+      ),
+    )
+  | None => false
+  };
+
 /* The id carried by whichever code-editor cell is currently the active
    (model-selected) one. Used to move DOM focus to a cell after a sidebar
    jump, so the editor receives keystrokes and the caret (gated on :focus)
@@ -149,6 +209,58 @@ let focus_active_cell = (): bool =>
       );
     true;
   | None => false
+  };
+
+/* scroll the active cell's stack entry to the viewport top (trailing
+   slack makes this reachable for the last entry too), targeting the
+   entry's header band for a stack body so its name stays visible */
+let align_active_cell_top = (): unit =>
+  switch (get_elem_by_id_opt(active_cell_id)) {
+  | None => ()
+  | Some(elem) =>
+    let target = {
+      let closest = sel =>
+        Js.Opt.to_option(
+          Js.Unsafe.meth_call(
+            elem,
+            "closest",
+            [|Js.Unsafe.inject(Js.string(sel))|],
+          ),
+        );
+      switch (closest(".focus-body")) {
+      | Some(body) =>
+        switch (Js.Opt.to_option(body##.previousElementSibling)) {
+        | Some(prev) => Some(prev)
+        | None => Some(body)
+        }
+      | None => closest(".focus-header")
+      };
+    };
+    switch (target) {
+    | None => ()
+    | Some(t) =>
+      /* skip when the header is already in view with some body room
+         below it: aligning a visible cell to the top is jarring */
+      let rect = Js.Unsafe.meth_call(t, "getBoundingClientRect", [||]);
+      let top: float = Js.Unsafe.get(rect, "top");
+      let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
+      let top_chrome = 48.; /* fixed top bar */
+      let body_context = 140.; /* ~4 rows of body visible below */
+      let visible_enough = top >= top_chrome && top <= vh -. body_context;
+      if (!visible_enough) {
+        let _: unit =
+          Js.Unsafe.meth_call(
+            t,
+            "scrollIntoView",
+            [|
+              Js.Unsafe.obj([|
+                ("block", Js.Unsafe.inject(Js.string("start"))),
+              |]),
+            |],
+          );
+        ();
+      };
+    };
   };
 
 let clipboard_shim = {
@@ -411,6 +523,26 @@ let find_ancestor_with_class =
   loop(element_to_node(el));
 };
 
+/* clientHeight forces layout on a dirty tree and scroll handlers run
+   every scrolled frame; a container's height changes only on resize,
+   which clears this one-element cache */
+let client_height_cache: Slot.t(Js.t(Dom_html.element), float) = Slot.mk();
+let client_height_listener = ref(false);
+let cached_client_height = (el: Js.t(Dom_html.element)): float => {
+  if (! client_height_listener^) {
+    client_height_listener := true;
+    let clear = Js.wrap_callback(_ => client_height_cache := None);
+    let _ =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "addEventListener",
+        [|Js.Unsafe.inject(Js.string("resize")), Js.Unsafe.inject(clear)|],
+      );
+    ();
+  };
+  Slot.get(client_height_cache, el, () => float_of_int(el##.clientHeight));
+};
+
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
   if (delta != 0.) {
     let current = float_of_int(container##.scrollTop);
@@ -455,10 +587,32 @@ let scroll_vertically_into_view_ancestors =
   go(element_to_node(el));
 };
 
+/* find_scroll_container reads scrollHeight/clientHeight up the parent
+   chain, forcing layout on dirty frames after every action; reuse the
+   found container while it is connected and still an ancestor */
+let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
+  ref(None);
+let find_scroll_container_cached =
+    (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) => {
+  let valid = (el: Js.t(Dom_html.element)): bool =>
+    Js.to_bool(Js.Unsafe.get(el, "isConnected"))
+    /* the caret may move to an editor in another scroll container */
+    && Js.to_bool(
+         Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
+       );
+  switch (scroll_container_cache^) {
+  | Some(el) when valid(el) => Some(el)
+  | _ =>
+    let found = find_scroll_container(element);
+    scroll_container_cache := found;
+    found;
+  };
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
-    switch (find_scroll_container(caret_elem)) {
+    switch (find_scroll_container_cached(caret_elem)) {
     | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
       caret_elem##scrollIntoView(
@@ -467,6 +621,44 @@ let scroll_cursor_into_view_if_needed = () =>
           ("inline", Js.Unsafe.inject(Js.string("nearest"))),
         |]),
       )
+    };
+  }) {
+  | Assert_failure(_) => ()
+  };
+
+/* the nearest ancestor that really scrolls: overflow auto or scroll, with
+   content past its height (a box overflowing by a pixel doesn't count) */
+let rec scrolling_ancestor =
+        (el: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
+  switch (Js.Opt.to_option(Js.Unsafe.get(el, "parentElement"))) {
+  | None => None
+  | Some(p: Js.t(Dom_html.element)) =>
+    let style =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "getComputedStyle",
+        [|Js.Unsafe.inject(p)|],
+      );
+    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
+    (oy == "auto" || oy == "scroll") && p##.scrollHeight - p##.clientHeight > 1
+      ? Some(p) : scrolling_ancestor(p);
+  };
+
+/* after a jump: a caret out of comfortable view comes to a fifth of the
+   way down its scroll container, with the lines above it in sight */
+let align_caret_near_top = (): unit =>
+  try({
+    let caret = get_elem_by_id("caret");
+    switch (scrolling_ancestor(caret)) {
+    | Some(container) =>
+      let c = caret##getBoundingClientRect;
+      let r = container##getBoundingClientRect;
+      let h = Js.Optdef.get(r##.height, _ => 0.);
+      let top = c##.top -. r##.top;
+      if (top < h *. 0.1 || top > h *. 0.75) {
+        adjust_scroll(container, top -. h *. 0.2);
+      };
+    | None => ()
     };
   }) {
   | Assert_failure(_) => ()

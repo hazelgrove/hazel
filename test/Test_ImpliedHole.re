@@ -30,13 +30,17 @@ let expected_type = info =>
   | _ => "none"
   };
 
-let example = (input, expected) =>
+/* per-item statics, as Scratch and documentation slides run them */
+let checked_compositional = z =>
+  CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root=Exp, z);
+
+let example = (~compositional=false, input, expected) =>
   test_case(
-    String.escaped(input),
+    (compositional ? "compositional: " : "") ++ String.escaped(input),
     `Quick,
     () => {
       let z = zipper(input);
-      let statics = checked(z);
+      let statics = compositional ? checked_compositional(z) : checked(z);
       check(
         string,
         "expected type of implied hole",
@@ -53,6 +57,17 @@ let tests = [
     "ImpliedHole",
     [
       example(let_input, "Int"),
+      example(~compositional=true, let_input, "Int"),
+      example(
+        ~compositional=true,
+        "let f(x : Int) : Bool = ¦\nlet y = 2 in y",
+        "Bool",
+      ),
+      example(
+        ~compositional=true,
+        "let x : Int = 1¦\nlet y = 2 in y",
+        "none",
+      ),
       example("let x = ¦\nlet y = 2 in y", "?"),
       example("let f(x : Int) : Bool = ¦\nlet y = 2 in y", "Bool"),
       example("let f : Int -> Bool = fun x ->¦", "Bool"),

@@ -478,7 +478,7 @@ let splice_at_point =
       | None =>
         /* A splice's bounding box is recorded in [measured.splices].
          * Check if [goal] falls within [offset, offset + size]. */
-        switch (Id.Map.find_opt(id, measured.splices)) {
+        switch (Measured.find_splice_info_by_id(id, measured)) {
         | None => None
         | Some(info) =>
           let contains =
@@ -504,15 +504,86 @@ let splice_at_point =
   );
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
-  /* If [goal] is inside a splice's on-screen box, translate to splice-
-   * local coords and resolve there. Otherwise resolve against the top-
-   * level measured grid. */
-  let _ = splice_at_point(~measured, goal);
+/* a ByToken walk to a row beside the goal, then a ByChar walk (ByChar
+   alone is O(chars)). the coarse goal is on the start's side of the
+   goal, so the approach side and inaccessible-goal tie-breaks hold */
+let to_point_walk = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > 1) {
+      let coarse =
+        Point.{
+          row: init.row < goal.row ? goal.row : goal.row + 1,
+          col: 0,
+        };
+      switch (do_towards_point(~measured, local(ByToken), coarse, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    } else {
+      z;
+    };
   switch (do_towards_point(~measured, local(ByChar), goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
+};
+
+/* long jumps teleport: an unselected zipper with an Outer caret at a
+   top-level boundary is just a split of the zipped segment, so rebuild
+   it at the boundary nearest the goal, on the start's side (keeping the
+   walk's approach side), and walk from there */
+let teleport_row_threshold = 50;
+
+let teleport_to_boundary =
+    (~measured: Measured.t, ~goal: Point.t, ~from_above: bool, z: t): t => {
+  let z = unselect(z);
+  let seg = Zipper.unselect_and_zip(z);
+  /* from above: caret before the first piece reaching goal.row; from
+     below: after the last piece starting by goal.row */
+  let k =
+    List.fold_left(
+      (k, p) =>
+        switch (Measured.find_by_id(Piece.id(p), measured)) {
+        | Some(m) =>
+          let above =
+            from_above ? m.last.row < goal.row : m.origin.row <= goal.row;
+          above ? k + 1 : k;
+        | None => k
+        },
+      0,
+      seg,
+    );
+  let (pre, suf) = Util.ListUtil.split_n(k, seg);
+  {
+    ...z,
+    selection: Selection.mk([]),
+    caret: Outer,
+    relatives: {
+      siblings: (pre, suf),
+      ancestors: [],
+    },
+  };
+};
+
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    /* not inside a splice: the rebuild is from the whole document, which
+       the splice's own (splice-local) measured map does not describe */
+    if (abs(init.row - goal.row) > teleport_row_threshold
+        && Selection.is_empty(z.selection)
+        && Zipper.splice_context(z) == None) {
+      teleport_to_boundary(
+        ~measured,
+        ~goal,
+        ~from_above=init.row < goal.row,
+        z,
+      );
+    } else {
+      z;
+    };
+  to_point_walk(~measured, ~goal, z);
 };
 
 /* Rebuild the zipper with the caret at the far left of the fully-zipped

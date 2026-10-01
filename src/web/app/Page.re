@@ -63,6 +63,20 @@ module Store = {
   };
 };
 
+/* undo and redo restore programs; what each slide shows stays */
+let carry_views = (~from: Model.t, m: Model.t): Model.t =>
+  switch (from.editors, m.editors) {
+  | (Scratch(a), Scratch(b)) => {
+      ...m,
+      editors: Scratch(ScratchMode.Model.with_views_of(~from=a, b)),
+    }
+  | (Documentation(a), Documentation(b)) => {
+      ...m,
+      editors: Documentation(ScratchMode.Model.with_views_of(~from=a, b)),
+    }
+  | _ => m
+  };
+
 module Update = {
   open Updated;
 
@@ -70,7 +84,9 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => editor.editor
+      | Code({program: Whole(editor), _}) => editor.editor
+      /* divided: the cell with the caret */
+      | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
       /* For Drv scratch slides, expose the Setup editor so the sidebar's
          problem panel reflects errors from Setup only and ignores problems
          inside the derivation trees themselves. */
@@ -95,7 +111,25 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [(None, [editor.editor])]
+      | Code({program: Whole(editor), _}) => [(None, [editor.editor])]
+      | Code({program: Divided(d), _}) =>
+        /* open cells report their own problems */
+        let cells = Divided.cells(d);
+        let stack: list((option(string), list(CodeEditable.Model.t))) =
+          List.map(
+            (e: ScratchCell.t) =>
+              (
+                Some(
+                  Option.value(ScratchCell.header_name(e), ~default="cell"),
+                ),
+                /* header too: binder and signature errors live there */
+                [e.e_header.editor, e.e_body.editor],
+              ),
+            cells,
+          );
+        /* cells first: the panel dedups by id, so a problem shows in its
+           cell and "elsewhere" gets the rest */
+        stack @ [(Some("elsewhere"), [Divided.outside_editor(d)])];
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -183,6 +217,9 @@ module Update = {
         globals: {
           ...model.globals,
           settings,
+          visible_rows:
+            Globals.VisibleRows.tracked(settings)
+              ? model.globals.visible_rows : None,
         },
       };
     | SetAgentGlobals(agent_globals_action) =>
@@ -203,34 +240,54 @@ module Update = {
       }
       |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
-      let jump =
-        Editors.Selection.jump_to_tile(
-          ~settings=model.globals.settings,
-          id,
-          model.editors,
-        );
-      switch (jump) {
-      | None => model |> Updated.raise_invalid_action
-      | Some((action, selection)) =>
+      switch (Editors.Selection.closed_jump(id, model.editors)) {
+      | Some((ensure, selection, caret)) =>
+        /* outside every open cell: open its item, then move there */
+        schedule_action(Editors(caret));
+        Haz3lcore.FocusEffect.schedule_cell_top();
         let* editors =
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~schedule_global=a => schedule_action(Globals(a)),
-            action,
+            ensure,
             model.editors,
           );
-        /* The jump moves the model selection to the target cell but not DOM
-           focus (which stays on the clicked sidebar row). Schedule a focus
-           of the now-active cell after render so the editor receives
-           keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
           selection,
         };
-      };
+      | None =>
+        let jump =
+          Editors.Selection.jump_to_tile(
+            ~settings=model.globals.settings,
+            id,
+            model.editors,
+          );
+        switch (jump) {
+        | None => model |> Updated.raise_invalid_action
+        | Some((action, selection)) =>
+          let* editors =
+            Editors.Update.update(
+              ~globals,
+              ~schedule_action=a => schedule_action(Editors(a)),
+              ~schedule_global=a => schedule_action(Globals(a)),
+              action,
+              model.editors,
+            );
+          /* the jump moves the selection, not DOM focus: focus the cell
+             after render so it takes keys and shows the caret (gated on
+             :focus), unless the jump came from the outline; a target out
+             of view comes near the top */
+          Haz3lcore.FocusEffect.schedule_cell_caret_top();
+          {
+            ...model,
+            editors,
+            selection,
+          };
+        };
+      }
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
         schedule_action(Globals(FinishImportAll(data)))
@@ -319,13 +376,13 @@ module Update = {
           let current = List.nth(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
-            | Code({editor, _}) =>
+            | Code({program, _}) =>
               /* Slides are text-backed: export the committed-.hz form
                  (marker-printed content + one final newline). */
               (
                 ".hz",
                 Haz3lcore.PersistentZipper.persist(
-                  editor.editor.editor.state.zipper,
+                  Program.whole(program).editor.editor.state.zipper,
                 ).
                   backup_text,
               )
@@ -410,6 +467,38 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
+      /* a stack cell's jump to a binder in another definition becomes:
+         stack the target, select it, then jump the caret (as JumpToTile) */
+      let (action, selection, followup) =
+        switch (Editors.Selection.stack_jump_override(action, model.editors)) {
+        | Some((action', selection, followup)) => (
+            action',
+            selection,
+            Some(followup),
+          )
+        | None => (action, model.selection, None)
+        };
+      switch (followup) {
+      | Some(k) =>
+        schedule_action(Editors(k));
+        Haz3lcore.FocusEffect.schedule_cell_top();
+      | None => ()
+      };
+      /* an outline add selects and focuses the new cell (focus also
+         scrolls it into view) */
+      let selection =
+        switch (followup) {
+        | Some(_) => selection
+        | None =>
+          switch (
+            Editors.Selection.stack_add_selection(action, model.editors)
+          ) {
+          | Some(s) =>
+            Haz3lcore.FocusEffect.schedule_cell_top();
+            s;
+          | None => selection
+          }
+        };
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -429,10 +518,21 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
+      /* an unchanged selection whose cell closed falls back to an open
+         one; a fresh one already names its target */
+      let selection =
+        selection === model.selection
+          ? Editors.Selection.follow(
+              ~before=model.editors,
+              selection,
+              editors,
+            )
+          : selection;
       {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -963,6 +1063,33 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    let deck: option(OutlineControl.deck) =
+      switch (model.editors) {
+      | Scratch(m) => Some(("scratch", m))
+      | Documentation(m) => Some(("doc", m))
+      | _ => None
+      };
+    let outline_mark =
+      OutlineControl.mark(~deck, ~zipper=current_editor.editor.state.zipper);
+    OutlineFollow.mark := outline_mark;
+    let outline_marks =
+      create(
+        "style",
+        switch (outline_mark) {
+        | Some(id) => [text(OutlineFollow.css(id))]
+        | None => []
+        },
+      );
+    let outline =
+      OutlineControl.view(
+        ~deck,
+        ~statics=current_editor.statics,
+        ~segment=current_editor.editor.syntax.segment,
+        ~inject=a => inject(Editors(Scratch(Outline(a)))),
+        ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+        ~jump=id => globals.inject_global(JumpToTile(id)),
+        ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+      );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
@@ -973,13 +1100,13 @@ module View = {
         ~indicated_id,
       );
 
-    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+    /* Track the range only while something culls by it and only for
      * single-code-editor modes. Measured against the editor's own container so
      * it's correct whether the editor fills #main or sits below prompt cells. */
     let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
         Editors.Model.supports_viewport_culling(editors)
-        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
+        && Globals.VisibleRows.tracked(globals.settings);
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
@@ -1015,6 +1142,8 @@ module View = {
         editors_view,
       ),
       sidebar,
+      outline,
+      outline_marks,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),

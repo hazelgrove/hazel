@@ -38,7 +38,7 @@ let seed_visible_rows =
   let page = model.model.current.current;
   let needed =
     Editors.Model.supports_viewport_culling(page.editors)
-    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Globals.VisibleRows.tracked(page.globals.settings)
     && Option.is_none(page.globals.visible_rows);
   if (needed) {
     switch (JsUtil.code_viewport_geometry()) {
@@ -283,7 +283,7 @@ let start = default_model => {
       () => {
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
+          CaretReveal.reveal();
         } else {
           ();
         };
@@ -328,6 +328,7 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        OutlineFollow.update();
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle

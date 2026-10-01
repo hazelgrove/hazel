@@ -75,6 +75,11 @@ let view =
     | Some(origin) => origin
     | None => Zipper.Caret.point(measured, z)
     };
+  /* CaretReveal reads this instead of the caret's DOM rect (only the
+     selected editor renders a caret). The row is in the frame this caret
+     is drawn in (splice-local for a sub-editor); CaretReveal anchors
+     published rows against this same caret node, so that is consistent */
+  CaretReveal.publish(~row=origin.row, ~row_height=font_metrics.row_height);
   main(
     ~font_metrics,
     ~profile={
