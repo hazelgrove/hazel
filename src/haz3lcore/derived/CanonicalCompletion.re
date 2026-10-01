@@ -2634,7 +2634,9 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
  * physically unchanged, so pointer-keyed layers downstream (MakeTerm.Incr,
  * Measured.Incr) stay local to the edit. an item whose completion runs
  * off its end may depend on what follows, so it is widened by its
- * successor and redone. parity with complete_segment_deep is test-gated */
+ * successor and redone; one after a tile left open on the right is
+ * re-molded (see [remolded]). parity with complete_segment_deep is
+ * test-gated */
 type item_entry = {
   it_pieces: Segment.t,
   it_result: completion_result,
@@ -2724,6 +2726,50 @@ let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
 
 let items_widened: ref(int) = ref(0); /* observability for tests */
 
+/* an open tile molds everything after it into its slot (`let foo` reads
+   the rest as patterns), and whole completion re-molds the lot at the
+   root sort. [item] so re-molded and regrouted, when that changes it */
+let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
+  let r = Segment.remold(item, sort);
+  /* remold keeps an unchanged tile's record */
+  let same = (p: Piece.t, q: Piece.t) =>
+    switch (p, q) {
+    | (Tile(t), Tile(u)) => t === u
+    | _ => true
+    };
+  List.length(r) == List.length(item) && List.for_all2(same, item, r)
+    ? None
+    : Some(Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), r));
+};
+
+/* [remolded], memoized like items (only items after an open tile ask) */
+let remold_cache: Hashtbl.t((Sort.t, Id.t), (Segment.t, option(Segment.t))) =
+  Hashtbl.create(64);
+let remolded_item = (~sort: Sort.t, item: Segment.t): option(Segment.t) =>
+  switch (item) {
+  | [] => None
+  | [p, ..._] =>
+    let key = (sort, Piece.id(p));
+    switch (Hashtbl.find_opt(remold_cache, key)) {
+    | Some((ps, r)) when Segment.ptr_eq(ps, item) => r
+    | _ =>
+      let r = remolded(~sort, item);
+      if (Hashtbl.length(remold_cache) >= item_cache_bound) {
+        Hashtbl.reset(remold_cache);
+      };
+      Hashtbl.replace(remold_cache, key, (item, r));
+      r;
+    };
+  };
+
+let leaves_open = (block: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) => !Tile.has_end(Direction.Right, t)
+    | _ => false,
+    block,
+  );
+
 /* the cache entry at [item] may be a widened block: when the next items
    match it piece for piece, take the block, so a stable one hits the memo */
 let cached_block =
@@ -2758,14 +2804,27 @@ let cached_block =
 
 let complete_items = (~sort, seg: Segment.t): completion_result => {
   /* edge grout is cut debris only at a cut: the segment's own ends
-     keep theirs (a missing body at the end of the program is real) */
+     keep theirs (a missing body at the end of the program is real).
+     [opened]: an earlier block left a tile open on the right */
   let rec go =
-          (~first: bool, items: list(Segment.t)): list(completion_result) =>
+          (~first: bool, ~opened: bool, items: list(Segment.t))
+          : list(completion_result) =>
     switch (items) {
     | [] => []
     | [item, ...rest] =>
       let (block, rest) = cached_block(~sort, item, rest);
       let r = complete_item(~sort, block);
+      /* only a complete item comes back without records */
+      let r =
+        switch (
+          opened && r.shard_records == [] ? remolded_item(~sort, block) : None
+        ) {
+        | Some(completed_seg) => {
+            ...r,
+            completed_seg,
+          }
+        | None => r
+        };
       let last = rest == [];
       let completed_seg =
         strip_edge_grout(
@@ -2783,13 +2842,14 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
       | [next, ...more] =>
         if (ran_off_end(block, completed_seg)) {
           incr(items_widened);
-          go(~first, [block @ next, ...more]);
+          go(~first, ~opened, [block @ next, ...more]);
         } else {
-          [r, ...go(~first=false, rest)];
+          let opened = opened || r.shard_records != [] && leaves_open(block);
+          [r, ...go(~first=false, ~opened, rest)];
         }
       };
     };
-  let results = go(~first=true, Segment.top_items(seg));
+  let results = go(~first=true, ~opened=false, Segment.top_items(seg));
   {
     completed_seg: List.concat_map(r => r.completed_seg, results),
     shard_records: List.concat_map(r => r.shard_records, results),

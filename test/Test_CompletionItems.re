@@ -50,10 +50,14 @@ let check_parity = (name: string, seg: Segment.t): unit => {
     == records_sorted(items.shard_records),
   );
   /* items without incomplete tiles keep their pieces, except the ones a
-     widening merged into an incomplete predecessor's block */
+     widening merged into an incomplete predecessor's block, or that an
+     open tile above molded into its slot */
   let complete_items =
     Segment.top_items(seg)
-    |> List.filter(item => Segment.incomplete_tiles_deep(item) == []);
+    |> List.filter(item =>
+         Segment.incomplete_tiles_deep(item) == []
+         && Option.is_none(CanonicalCompletion.remolded(~sort=Exp, item))
+       );
   let kept =
     complete_items
     |> List.filter(item =>
@@ -180,6 +184,28 @@ let edge_case = ((name, src), ()) =>
     };
   };
 
+/* an unfinished form typed above complete items molds them into its
+   open slot (a pattern, a type); whole completion re-molds them */
+let open_slot_tails = [
+  ("cons tail", "let a = 1 in\nlet b = 2 in\nb + 1 :: [b]"),
+  ("var tail", "let a = 1 in\nlet b = 2 in\nzz"),
+];
+let open_slot_keys = ["let", "let foo", "type t ="];
+
+let open_slot_case = ((tag, src), keys, ()) =>
+  switch (ParsedCorpus.to_segment(~root=Exp, src)) {
+  | None => fail("unparseable: " ++ src)
+  | Some(seg) =>
+    switch (type_after_item(0, keys, seg)) {
+    | None => fail("could not type " ++ keys)
+    | Some(z) =>
+      check_parity(
+        Printf.sprintf("%S above a %s", keys, tag),
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+      )
+    }
+  };
+
 /* the memo serves both the Exp (decorations) and editor-root (semantics)
    readings: each sort gets its own completion, in either order */
 let sort_keyed_case = () =>
@@ -217,6 +243,19 @@ let tests = (
     ((name, _) as e) => test_case(name, `Quick, edge_case(e)),
     edge_programs,
   )
+  @ List.concat_map(
+      ((tag, _) as tail) =>
+        List.map(
+          keys =>
+            test_case(
+              Printf.sprintf("open slot: %S above a %s", keys, tag),
+              `Quick,
+              open_slot_case(tail, keys),
+            ),
+          open_slot_keys,
+        ),
+      open_slot_tails,
+    )
   @ [
     test_case("memo keyed by sort", `Quick, sort_keyed_case),
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),

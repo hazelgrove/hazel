@@ -87,6 +87,13 @@ let incomplete_programs = [
   ("unfinished member", "module M = {\n  let x = 1;\n  let y =\n} in M.x"),
   ("if without else", "let a = 1 in\nif a == 1 then 2"),
   ("def without body", "let a = 1 in\nlet b = 2"),
+  /* body holes under use/theorem, or off the binding-form spine */
+  ("use", "use X in\nzz"),
+  ("theorem", "theorem t = 1 in\nzz"),
+  ("operand above a let", "let a = 1 in\nx\nlet b = 2 in\nzz"),
+  ("let under fun", "fun x ->\nlet y = x in\nzz"),
+  ("let under else", "if true then 1 else\nlet y = 2 in\ny"),
+  ("let under operator", "1 +\nlet y = 2 in\ny"),
 ];
 
 /* as if typed: the text parser keeps unfinished forms and grout */
