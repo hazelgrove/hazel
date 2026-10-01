@@ -343,9 +343,6 @@ module M: Projector = {
     | _ => None
     };
 
-  let get_model = (info: info) =>
-    Option.map(((llname, _, model)) => (llname, model), get_use(info));
-
   /* The livelit a use is of: the one its name finds, applied to the use's
      parameters when it gives them. The arguments are the use's own terms;
      they are closed, as statics requires, so they mean here what they
