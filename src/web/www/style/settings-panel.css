@@ -101,13 +101,6 @@
   transform: none;
 }
 
-#settings-panel .settings-count {
-  margin-left: auto;
-  font-weight: normal;
-  font-size: 0.85em;
-  color: var(--text-muted);
-}
-
 #settings-panel .settings-rows {
   padding-bottom: 0.45em;
 }
@@ -165,7 +158,13 @@
   margin-right: 1px;
 }
 
-/* multi-way settings: a compact segmented control where a toggle sits */
+/* multi-way settings: the control spans the row under the name, with
+   the description beneath */
+#settings-panel .settings-choice {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0.3em;
+}
+
 #settings-panel .segmented-control {
   display: flex;
   gap: 2px;
@@ -175,6 +174,8 @@
 }
 
 #settings-panel .segment {
+  flex: 1;
+  text-align: center;
   margin: 0;
   border: 0;
   border-radius: 4px;

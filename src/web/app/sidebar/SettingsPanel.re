@@ -28,10 +28,10 @@ let colors_and_keys =
 
 let sections = (~globals, ~editors_inject): list(NutMenu.section) =>
   NutMenu.[
-    semantics(~globals),
     colors_and_keys(~editors_inject),
     code_display(~globals),
     editing(~globals),
+    semantics(~globals),
     value_display(~globals),
     stepper(~globals),
     developer(~globals),
@@ -145,16 +145,6 @@ let section_view =
          sec.s_name,
          globals.settings.sidebar,
        );
-  let toggles =
-    List.filter_map(
-      (r: NutMenu.row) =>
-        switch (r) {
-        | Toggle({active, _}) => Some(active)
-        | _ => None
-        },
-      sec.s_rows,
-    );
-  let on = List.length(List.filter(a => a, toggles));
   rows == []
     ? None
     : Some(
@@ -181,25 +171,7 @@ let section_view =
                   ~attrs=[clss(["settings-section-name"])],
                   [Node.text(sec.s_name)],
                 ),
-              ]
-              @ (
-                toggles == []
-                  ? []
-                  : [
-                    span(
-                      ~attrs=[clss(["settings-count"])],
-                      [
-                        Node.text(
-                          Printf.sprintf(
-                            "%d of %d on",
-                            on,
-                            List.length(toggles),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ]
-              ),
+              ],
             ),
           ]
           @ (
