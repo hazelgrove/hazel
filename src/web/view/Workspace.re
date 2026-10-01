@@ -560,19 +560,28 @@ let calculate =
       let (d, ds) =
         if (statics_mode == StaticsMode.Force || !Divided.has_fresh_statics(d)) {
           let spliced = Divided.document(d);
-          let term =
+          let made =
             Haz3lcore.MakeTerm.Incr.go_incr(
               ~root=Divided.root(d),
               ~cache=stacked_incr_cache^,
               spliced,
-            ).
-              term;
+            );
+          let term = made.term;
           let prev_items =
             switch (Haz3lcore.DefStatics.cached(term)) {
             | Some(p) => p.items
             | None => []
             };
-          let probe_ids = Program.probe_ids(Divided(d));
+          /* the cells' own probes, plus the projectors that ask for dynamics
+             (a user livelit's view is drawn from its samples): cells are
+             drawn from this whole-program run's samples, so a projector it
+             does not target never redraws */
+          let probe_ids =
+            Haz3lcore.Id.Map.union(
+              (_, (), ()) => Some(),
+              Program.probe_ids(Divided(d)),
+              Haz3lcore.CachedStatics.projector_probe_ids(made.projectors),
+            );
           let ds =
             Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
           let statics =
