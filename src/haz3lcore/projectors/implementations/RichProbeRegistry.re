@@ -12,6 +12,9 @@ module Sexp = Sexplib.Sexp;
 
 let renderers: list(packed_renderer) = [
   pack_renderer((module TableRenderer), "table"),
+  /* type-directed: a user-defined livelit for the value's type wins over
+     the generic shape renderers below */
+  pack_renderer((module LivelitRenderer), "livelit"),
   pack_renderer((module HtmlRenderer), "html"),
   pack_renderer((module CardRenderer), "card"),
 ];
