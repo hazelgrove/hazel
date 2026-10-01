@@ -917,11 +917,11 @@ let incr_eval =
              active_ids,
            )
        );
-  /* None: no scroll yet (or no culling), so the view is at the top: cull
-     to a generous top window rather than render the whole pending set */
+  /* None: no range (this editor doesn't cull, or nothing tracks one):
+     draw every row */
   let visible_bounds =
     switch (visible) {
-    | None => (0, 300)
+    | None => (0, max_int)
     | Some({first, last}) => (first, last)
     };
   let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
