@@ -431,7 +431,11 @@ let across = (): unit => {
     let seg =
       switch (FastParse.of_text(~root, src)) {
       | Some(seg) => seg
-      | None => failwith("parse: " ++ src)
+      | None =>
+        switch (MarkerParse.of_text(~root, src)) {
+        | Some(z) => Zipper.unselect_and_zip(z)
+        | None => failwith("parse: " ++ src)
+        }
       };
     let term =
       root == Sort.Mod
@@ -483,6 +487,45 @@ let across = (): unit => {
   let md1 = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
   mv(~root=Mod, ~up=false, md1, "x", ["a", "M", "x", "b"]);
   mv(~root=Mod, ~up=true, md1, "x", ["a", "x", "M", "b"]);
+  /* an empty module takes an item in, or is stepped over when it can't */
+  let e = "let a = 1 in module E = {} in let b = 2 in b";
+  mv(~root=Exp, ~up=true, e, "b", ["a", "E{b}"]);
+  mv(~root=Exp, ~up=false, e, "a", ["E{a}", "b"]);
+  let c = "let a = 1 in\nmodule E = {\n  # todo #\n} in\nlet b = 2 in\nb";
+  mv(~root=Exp, ~up=true, c, "b", ["a", "b", "E"]);
+};
+
+/* a module's last member, moved out, moves back in where it was */
+let back_in = (): unit => {
+  let src = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
+  let parse_mod = t =>
+    switch (FastParse.of_text(~root=Mod, t)) {
+    | Some(seg) => seg
+    | None => failwith("parse: " ++ t)
+    };
+  let step = (seg, up) => {
+    let term = MakeTerm.Incr.term_of_mod(seg);
+    let id = outline_id(term, "x");
+    let owner =
+      switch (Option.map(List.rev, Web.OutlineTree.trail_of(id, term))) {
+      | Some([_, parent, ..._]) => Some(parent)
+      | _ => None
+      };
+    switch (R.move(~mod_root=true, ~is_open=_ => true, ~owner, ~up, id, seg)) {
+    | Some((seg', _)) => seg'
+    | None => fail((up ? "in" : "out") ++ " refused")
+    };
+  };
+  let out = step(parse_mod(src), false);
+  check(
+    string,
+    "out leaves {}",
+    text_of(
+      parse_mod("let a = 1;\nmodule M = {};\nlet x = 2;\nlet b = 4;\nb"),
+    ),
+    text_of(out),
+  );
+  check(string, "and back in", src, text_of(step(out, true)));
 };
 
 /* in then out again restores the program, and every step parses */
@@ -658,9 +701,206 @@ let let_body = (): unit => {
   );
 };
 
+/* an op a row's own block refuses does nothing: it never falls back to
+   the item around the row */
+let refused = (): unit => {
+  let fsrc = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
+  let seg = parse(fsrc);
+  let term = statics_term(seg);
+  let result_row =
+    switch (
+      List.find_opt(
+        (n: Web.OutlineTree.node) => n.o_label == "f",
+        Web.OutlineTree.of_term(term),
+      )
+    ) {
+    | Some(f) =>
+      switch (
+        List.find_opt(
+          (n: Web.OutlineTree.node) => n.o_kind == KTrail,
+          f.o_children,
+        )
+      ) {
+      | Some({o_id: Some(id), _}) => id
+      | _ => failwith("no result row in f")
+      }
+    | None => failwith("no row f")
+    };
+  List.iter(
+    op =>
+      check(
+        bool,
+        "result row: " ++ Web.OutlineSidebar.show_def_op(op),
+        true,
+        R.apply(op, result_row, seg) == None,
+      ),
+    Web.OutlineSidebar.[Delete, Duplicate, MoveUp, MoveDown],
+  );
+  /* a module's last test without its `;` */
+  let msrc = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
+  apply_none(
+    ~src=msrc,
+    ~label="1",
+    ~op=Web.OutlineSidebar.Delete,
+    ~desc="last test: delete",
+  );
+  apply_none(
+    ~src=msrc,
+    ~label="1",
+    ~op=Web.OutlineSidebar.Duplicate,
+    ~desc="last test: duplicate",
+  );
+  let seg = parse(msrc);
+  let term = statics_term(seg);
+  check(
+    bool,
+    "last test: Alt+Up leaves the module put",
+    true,
+    R.move(
+      ~mod_root=false,
+      ~is_open=_ => true,
+      ~owner=Some(outline_id(term, "M")),
+      ~up=true,
+      outline_id(term, "1"),
+      seg,
+    )
+    == None,
+  );
+};
+
+/* ops keep the layout: items keep their lines, new ones take their
+   neighbours' indentation, and comment lines directly above an item go
+   with it */
+let layout = (): unit => {
+  let same = (desc, expected, got) =>
+    check(string, desc, text_of(parse(expected)), got);
+  let op = (src, label, op) =>
+    apply_ok(~src, ~label, ~op, ~desc=label ++ " " ++ src);
+  let c = "# about a #\nlet a = 1 in\n# about b #\nlet b = 2 in\nb";
+  same(
+    "comments move with their items",
+    "# about b #\nlet b = 2 in\n# about a #\nlet a = 1 in\nb",
+    op(c, "b", MoveUp),
+  );
+  same(
+    "and go when they do",
+    "# about b #\nlet b = 2 in\nb",
+    op(c, "a", Delete),
+  );
+  let d = "let a = 1 in\n\n# section #\n\nlet b = 2 in\nb";
+  same(
+    "a comment set apart stays",
+    "let b = 2 in\n\n# section #\n\nlet a = 1 in\nb",
+    op(d, "b", MoveUp),
+  );
+  let m = "module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a";
+  same(
+    "member down",
+    "module M = {\n  let b = 2;\n  let a = 1\n} in\nM.a",
+    op(m, "a", MoveDown),
+  );
+  same(
+    "first member deleted",
+    "module M = {\n  let b = 2\n} in\nM.a",
+    op(m, "a", Delete),
+  );
+  same(
+    "last member deleted",
+    "module M = {\n  let a = 1\n} in\nM.a",
+    op(m, "b", Delete),
+  );
+  same(
+    "member duplicated",
+    "module M = {\n  let a = 1;\n  let a = 1;\n  let b = 2\n} in\nM.a",
+    op(m, "a", Duplicate),
+  );
+  same(
+    "new member below the last",
+    {js|module M = {
+  let a = 1;
+  let b = 2;
+  let new_def = ¿
+} in
+M.a|js},
+    op(m, "b", NewBelow),
+  );
+  let t = "module M = {\n  let a = 1;\n  let b = 2;\n} in\nM.a";
+  switch (run_inside(t, "M", "c")) {
+  | Ok((seg', _)) =>
+    same(
+      "new member inside after a last `;`",
+      {js|module M = {
+  let a = 1;
+  let b = 2;
+  let c = ¿;
+} in
+M.a|js},
+      text_of(seg'),
+    )
+  | Error(why) => fail("inside: " ++ why)
+  };
+  same(
+    "a last `;` moves with the last place",
+    "module M = {\n  let b = 2;\n  let a = 1;\n} in\nM.a",
+    op(t, "b", MoveUp),
+  );
+  let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
+  same(
+    "a function body's new let",
+    {js|let f = fun x ->
+  let y = x + 1 in
+  let new_def = ¿ in
+  y * 2
+in
+f(1)|js},
+    op(f, "y", NewBelow),
+  );
+  /* across module edges an item is reindented to where it lands */
+  let x = "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  let mv = (~up, src, label) => {
+    let seg = parse(src);
+    let term = statics_term(seg);
+    switch (
+      R.move(
+        ~mod_root=false,
+        ~is_open=_ => true,
+        ~owner=
+          label == "b" || label == "f" ? None : Some(outline_id(term, "M")),
+        ~up,
+        outline_id(term, label),
+        seg,
+      )
+    ) {
+    | Some((seg', _)) => text_of(seg')
+    | None => fail("move refused: " ++ label)
+    };
+  };
+  same(
+    "into a module",
+    "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb",
+    mv(~up=true, x, "b"),
+  );
+  same(
+    "out of a module",
+    "let a = 1 in\nlet x = 2 in\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+    mv(~up=true, x, "x"),
+  );
+  same(
+    "a function into a module",
+    "module M = {\n  let f = fun x ->\n    x + 1;\n  let y = 3\n} in\nM.y",
+    mv(
+      ~up=false,
+      "let f = fun x ->\n  x + 1\nin\nmodule M = {\n  let y = 3\n} in\nM.y",
+      "f",
+    ),
+  );
+};
+
 let tests = (
   "Restructure",
   [
+    test_case("a refused op does nothing", `Quick, refused),
+    test_case("ops keep the layout", `Quick, layout),
     test_case("top-level ops", `Quick, top_level),
     test_case("statement ops", `Quick, statements),
     test_case("member ops", `Quick, members),
@@ -669,6 +909,7 @@ let tests = (
     test_case("a member whose body opens with a let", `Quick, let_body),
     test_case("unterminated last member", `Quick, unterminated_tail),
     test_case("moves across module edges", `Quick, across),
+    test_case("a last member out and back in", `Quick, back_in),
     test_case("in and out again", `Quick, round_trip),
   ],
 );
