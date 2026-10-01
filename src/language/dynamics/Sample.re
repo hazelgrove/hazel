@@ -290,11 +290,12 @@ module Window = {
 type span_ref = {
   probe_id: Id.t,
   stack: CallStack.t,
-  /* Start step of the referenced span. (probe_id, stack) alone is NOT
-   * unique within a run: iterated calls (map/fold bodies) sample the
-   * same site at indistinguishable stacks — only recursion differs by
-   * depth. `opened` pins the exact instance. None only for legacy pin
-   * paths that lack the sample (degrades to first-at-stack). */
+  /* Start step of the referenced span. Within a run (probe_id, stack)
+   * practically names one span: iterations of map/fold bodies differ in
+   * stack depth, since both are recursive. `opened` pins the exact
+   * instance anyway, and lets by_ref recover it by step when stack ids
+   * change across runs. None for call pins, which name the call by its
+   * stack (resolves to the first span at that stack). */
   opened: option(int),
 };
 
