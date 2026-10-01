@@ -354,19 +354,16 @@ let depends = (free: list(string), dirty: list(string)): bool =>
   dirty != []
   && (List.mem("*", free) || List.exists(v => List.mem(v, free), dirty));
 
-/* whether [q] uses a dirty name. a capitalized name may resolve to a
-   module or a constructor, so it counts on both sides */
-let stale = (q: item, dirty_vars, dirty_tnames): bool => {
-  let caps =
-    List.filter(n => n != "" && Char.uppercase_ascii(n.[0]) == n.[0]);
-  depends(q.d_free, dirty_vars)
-  || depends(q.d_tfree, dirty_tnames)
+/* whether [q] uses a dirty name, on either side: a capitalized name may
+   resolve to a module or a constructor, an annotation's module ref reads
+   the module's value, and `let n = m` copies m's type exports (module
+   names needn't be capitalized) */
+let stale = (q: item, dirty_vars, dirty_tnames): bool =>
+  depends(q.d_free, dirty_vars @ List.map(untag, dirty_tnames))
   || depends(
        q.d_tfree,
-       caps(dirty_vars) @ List.map(ctor_key, caps(dirty_vars)),
-     )
-  || depends(q.d_free, caps(List.map(untag, dirty_tnames)));
-};
+       dirty_tnames @ dirty_vars @ List.map(ctor_key, dirty_vars),
+     );
 
 let names_of = (exports: list(Ctx.entry)): list(string) =>
   List.sort_uniq(compare, List.map(entry_name, exports));

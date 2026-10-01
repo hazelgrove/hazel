@@ -400,5 +400,15 @@ let tests = (
         [token("9", "true")],
       ),
     ),
+    test_case(
+      "a lowercase module aliased by a let",
+      `Quick,
+      /* statics only, as above */
+      script(
+        ~eval=false,
+        "let m = {\n  type T = Int;\n  let x = 9\n} in\nlet n = m in\nlet y : n.T = 9 in\ny",
+        [token("Int", "Bool")],
+      ),
+    ),
   ],
 );
