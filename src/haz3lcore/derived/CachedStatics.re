@@ -9,7 +9,13 @@ type t = {
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
   completion: option(MakeTerm.completion_snapshot),
-  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
+  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
+  /* The zipper's own probe pins these statics were computed for: what a
+     probe change is judged against. Not [targets]' keys, which also hold
+     ids a pin never names (dynamics-requesting projectors, a livelit use's
+     model argument), so comparing pins to them read as a change on every
+     frame and re-ran whole-program statics each time a result streamed. */
+  pins: Id.Map.t(unit),
 };
 
 let empty: t = {
@@ -26,6 +32,7 @@ let empty: t = {
   warning_ids: [],
   completion: None,
   targets: Sample.no_targets,
+  pins: Id.Map.empty,
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -175,6 +182,7 @@ let init_from_term =
     warning_ids,
     completion: None,
     targets,
+    pins: Id.Map.empty,
   };
 };
 
@@ -190,6 +198,8 @@ let with_targets =
   {
     ...s,
     targets,
+    /* the targets now follow the zipper's current pins */
+    pins: probe_ids_of_zipper(z),
   };
 };
 
@@ -259,6 +269,7 @@ let init =
         term,
       ),
     completion: Some(completion),
+    pins: probe_ids_of_zipper(z),
   };
   /* The agent's handoff is only valid for the ordinary, unstitched Exp
      editor. Contextual/analysis editors compute their own statics. */
@@ -310,6 +321,7 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
+      pins: Id.Map.empty,
     };
   };
 
@@ -335,6 +347,7 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
+      pins: Id.Map.empty,
     };
   };
 
@@ -366,6 +379,7 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
+      pins: Id.Map.empty,
     };
   };
 
@@ -394,6 +408,8 @@ let init_compositional_term =
     warning_ids: DefStatics.all_warning_ids(ds),
     targets: compute_targets(~settings, ~info_map, ~probe_ids),
     completion: None,
+    /* set by init_compositional, which has the zipper */
+    pins: Id.Map.empty,
   };
 };
 
@@ -416,6 +432,7 @@ let init_compositional =
       };
     {
       ...init_compositional_term(~settings, ~probe_ids, term),
+      pins: probe_ids_of_zipper(z),
       /* what was typechecked, for the inspector's implied hole */
       completion:
         Some({
