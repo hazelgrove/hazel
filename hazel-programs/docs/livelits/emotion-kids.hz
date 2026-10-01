@@ -12,6 +12,10 @@
 #                head is exploded, like a pinata #
 #   star eyes,   two toggles, for stars or hearts in the eyes, or #
 #   heart eyes   both: hearts with a star on #
+#   x eyes       a toggle for X eyes, like someone sick; it wins over #
+#                stars and hearts #
+#   unibrow      a toggle: on, one brow across both eyes; off, a brow #
+#                over each eye #
 #   eye size     how big the eyes are #
 #   side lines   lines out of both sides of the face, longer, #
 #                thicker and darker as the slider goes up #
@@ -19,6 +23,12 @@
 #                open lets them be #
 #   teeth        up to five pointed teeth along the mouth, #
 #                alternately up and down #
+#   mouth open   closed is a line; open, a flat mouth is an oval, #
+#                and a smile or a frown a half-oval, flat on top #
+#                for a smile and on the bottom for a frown #
+#   sickness     green and yellow drips out of the mouth, then a pile #
+#                below the face; at 100 the pile is a giant heap with #
+#                an unhappy face of its own #
 
 # The sliders are one parameterized livelit, ^slider, given a label, #
 # a range and a track, and abbreviated once per slider (Parameters); #
@@ -74,6 +84,8 @@ let ^eye_dial = ^slider("eye size", 0, 100, "none") in
 let ^side_dial = ^slider("side lines", 0, 100, "none") in
 let ^ray_dial = ^slider("head rays", 0, 100, "none") in
 let ^teeth_dial = ^slider("teeth", 0, 5, "none") in
+let ^open_dial = ^slider("mouth open", 0, 100, "none") in
+let ^sick_dial = ^slider("sickness", 0, 100, "none") in
 
 # TOGGLES #
 
@@ -101,6 +113,8 @@ let ^toggle = fun label : String -> {
 
 let ^star_toggle = ^toggle("star eyes") in
 let ^heart_toggle = ^toggle("heart eyes") in
+let ^x_toggle = ^toggle("x eyes") in
+let ^unibrow_toggle = ^toggle("unibrow") in
 
 # THE FACE #
 
@@ -109,7 +123,9 @@ let ^kid_face = {
     (smile = Int, brow = Int, drag = Drag,
      color = SpliceRef, burst = SpliceRef, candy = SpliceRef,
      stars = SpliceRef, hearts = SpliceRef, eyes = SpliceRef,
-     sides = SpliceRef, rays = SpliceRef, teeth = SpliceRef);
+     sides = SpliceRef, rays = SpliceRef, teeth = SpliceRef,
+     opening = SpliceRef, x_eyes = SpliceRef, sickness = SpliceRef,
+     unibrow = SpliceRef);
 
   # As in Emotion: Down grabs, MoveTo moves only while held, Up lets #
   # go and commits. Where the grab lands picks the feature: above the #
@@ -124,7 +140,8 @@ let ^kid_face = {
   type Expansion =
     (feeling = String, smile = Int, brow = Int, exploded = Int,
      candy = Int, eyes = String, eye_size = Int, side_lines = Int,
-     rays = Int, teeth = Int);
+     rays = Int, teeth = Int, mouth_open = Int, sickness = Int,
+     unibrow = Bool);
 
   let init =
     do c <- new_splice((IntT, Some(IntLit(85)))) in
@@ -136,26 +153,33 @@ let ^kid_face = {
     do sd <- new_splice((IntT, Some(IntLit(0)))) in
     do r <- new_splice((IntT, Some(IntLit(0)))) in
     do t <- new_splice((IntT, Some(IntLit(0)))) in
+    do o <- new_splice((IntT, Some(IntLit(0)))) in
+    do xe <- new_splice((BoolT, Some(BoolLit(false)))) in
+    do sk <- new_splice((IntT, Some(IntLit(0)))) in
+    do ub <- new_splice((BoolT, Some(BoolLit(true)))) in
     Pure((smile = 50, brow = 40, drag = Idle, color = c, burst = b,
           candy = k, stars = st, hearts = ht, eyes = e, sides = sd,
-          rays = r, teeth = t));
+          rays = r, teeth = t, opening = o, x_eyes = xe, sickness = sk,
+          unibrow = ub));
 
   let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
-  # The face is drawn at 220 x 330 pixels, in drawing units running #
-  # 0 to 200 across and -80 to 220 down (the room above is for the lid #
-  # and the candy, below for the mood's name). A pointer's y arrives #
-  # in pixels from the top, so a grab is placed by converting it. #
+  # The face is drawn at 220 x 473 pixels, in drawing units running #
+  # 0 to 200 across and -80 to 350 down (the room above is for the lid #
+  # and the candy, below for the sickness pile and the mood's name). A #
+  # pointer's y arrives in pixels from the top, so a grab is placed by #
+  # converting it. #
   let width_px = 220;
-  let height_px = 330;
-  let drawing_y = fun py : Int -> py * 300 / height_px - 80;
+  let height_px = 473;
+  let drawing_y = fun py : Int -> py * 430 / height_px - 80;
 
   let update = fun m : Model -> fun a : Action ->
     let with_drag = fun (smile, brow, drag) : (Int, Int, Drag) ->
       (smile = smile, brow = brow, drag = drag, color = m.color,
        burst = m.burst, candy = m.candy, stars = m.stars,
        hearts = m.hearts, eyes = m.eyes, sides = m.sides,
-       rays = m.rays, teeth = m.teeth) in
+       rays = m.rays, teeth = m.teeth, opening = m.opening,
+       x_eyes = m.x_eyes, sickness = m.sickness, unibrow = m.unibrow) in
     Pure(
       case a
       | Down(y) =>
@@ -203,8 +227,36 @@ let ^kid_face = {
   # Emotion. Dragging the brow DOWN lowers its middle: a glower. #
   let mouth = fun v : Int ->
     "M60 150 Q100 " ++ string_of_int(110 + 4 * v / 5) ++ " 140 150";
+
+  # An open mouth is the space between two curves through the mouth's #
+  # ends. Closed, both are the mouth's own curve, drawn as a line. #
+  # Opening a flat mouth parts them evenly, into an oval. The more the #
+  # mouth smiles or frowns, the more the curve on its far side stays #
+  # the mouth's own, and the one on its near side flattens to the #
+  # straight line between the ends: a half-oval. o runs 0 to 100. #
+  let open_mouth = fun (v, o) : (Int, Int) ->
+    if o == 0 then mouth(v)
+    else
+      let q = 110 + 4 * v / 5 in
+      let bend = q - 150 in
+      let dir = if bend < 0 then 0 - 1 else 1 in
+      let extreme = if bend < 0 then 0 - bend else bend in
+      let even = 36 * o * (40 - extreme) / 4000 in
+      let far = q + dir * even in
+      let near = q + (150 - q) * o / 100 - dir * even in
+      "M60 150 Q100 " ++ string_of_int(far) ++ " 140 150 Q100 "
+      ++ string_of_int(near) ++ " 60 150 Z";
   let brow = fun v : Int ->
     "M55 78 Q100 " ++ string_of_int(50 + 2 * v / 5) ++ " 145 78";
+  # Without the unibrow, a brow over each eye. Its outer end stays put #
+  # and its inner end follows the value as the unibrow's middle does: #
+  # down for a glower, up for a worry. Each arches a little above its #
+  # higher end. #
+  let brow_pair = fun v : Int ->
+    let inner = 66 + v * 24 / 100 in
+    let top = (if inner < 80 then inner else 80) - 8 in
+    "M48 80 Q68 " ++ string_of_int(top) ++ " 88 " ++ string_of_int(inner)
+    ++ " M152 80 Q132 " ++ string_of_int(top) ++ " 112 " ++ string_of_int(inner);
 
   # The head, split along a jagged crack at y = 60 into a lid and the #
   # rest. Unexploded, the two meet and it is one round head. #
@@ -250,8 +302,8 @@ let ^kid_face = {
     else piece((i, shown, burst)) :: pieces((i + 1, shown, burst));
 
   # Eyes, at (x, 100): a dot sized by the eye slider, or a star, a #
-  # heart, or a heart with a star on it. #
-  let eye = fun (x, size, stars, hearts) : (Int, Int, Bool, Bool) ->
+  # heart, a heart with a star on it, or an X. #
+  let eye = fun (x, size, stars, hearts, xs) : (Int, Int, Bool, Bool, Bool) ->
     let r = 6 + size / 7 in
     let glyph = fun (g, gx, gy, gs) : (String, Int, Int, Int) ->
       Html.node("text",
@@ -260,7 +312,17 @@ let ^kid_face = {
          Attr.create("text-anchor", "middle"),
          Attr.create("dominant-baseline", "central")],
         [Html.text(g)]) in
-    if hearts then
+    if xs then
+      Html.node("path",
+        [Attr.create("d",
+           "M" ++ string_of_int(x - r) ++ " " ++ string_of_int(100 - r)
+           ++ " L" ++ string_of_int(x + r) ++ " " ++ string_of_int(100 + r)
+           ++ " M" ++ string_of_int(x - r) ++ " " ++ string_of_int(100 + r)
+           ++ " L" ++ string_of_int(x + r) ++ " " ++ string_of_int(100 - r)),
+         Attr.create("stroke", "black"),
+         Attr.create("stroke-width", string_of_int(3 + r / 6)),
+         Attr.create("stroke-linecap", "round")], [])
+    else if hearts then
       Html.node("g", [],
         [glyph(("❤️", x, 100, r * 3))]
         @ (if stars then [glyph(("⭐", x + r, 100 - r, r * 3 / 2))] else []))
@@ -334,6 +396,71 @@ let ^kid_face = {
   let teeth_of = fun (j, n, q, big) : (Int, Int, Int, Int) ->
     if j > 5 then [] else tooth((j, n, q, big)) :: teeth_of((j + 1, n, q, big));
 
+  # Sickness: drips fall out of the mouth, then a pile grows on the #
+  # ground at y = 325 below the face, a dome with bumps on it. Up to #
+  # 40 the drips reach further down; from 30 the pile grows, to its #
+  # full size at 100, where it gets an unhappy face of its own. Shapes #
+  # not yet shown are there but hidden, so the lists keep their length. #
+  let sick_colors = ["yellowgreen", "#c8c84a", "olivedrab", "#b5c22e"];
+  let shown_if = fun on : Bool -> Attr.create("visibility", if on then "visible" else "hidden");
+  let blob = fun (x, y, r, i, on) : (Int, Int, Int, Int, Bool) ->
+    Html.node("circle",
+      [Attr.create("cx", string_of_int(x)), Attr.create("cy", string_of_int(y)),
+       Attr.create("r", string_of_int(r)),
+       Attr.create("fill", nth((sick_colors, modulo((i, 4))))),
+       Attr.create("stroke", "#6b7a1f"), Attr.create("stroke-width", "1"),
+       shown_if(on)], []);
+  # The drips: six along the stream, out of 100 of its length. #
+  let drips = fun (j, from, to, size, on) : (Int, Int, Int, Int, Bool) ->
+    if j >= 6 then []
+    else
+      blob((100 + (if modulo((j, 2)) == 0 then 0 - 4 else 4),
+            from + (to - from) * (j + 1) / 6, size - modulo((j, 3)), j, on))
+      :: drips((j + 1, from, to, size, on));
+  # The pile's bumps: (x, height) on the dome out of 100, and a size. #
+  # Each sits inside the dome's outline, and none where its face goes. #
+  let bumps_at =
+    [(8, 15, 7), (20, 40, 8), (30, 62, 8), (40, 88, 9), (50, 96, 8),
+     (60, 88, 9), (70, 62, 8), (80, 40, 8), (92, 15, 7), (25, 12, 6)];
+  let bumps = fun (i, bs, rx, ry, p) : (Int, [(Int, Int, Int)], Int, Int, Int) ->
+    case bs
+    | [] => []
+    | (bx, by, br) :: rest =>
+      blob((100 + (bx - 50) * 2 * rx / 100, 325 - by * ry / 100,
+            1 + br * p / 100, i, p > 0))
+      :: bumps((i + 1, rest, rx, ry, p))
+    end;
+  let sick_pile = fun (s, mouth_y) : (Int, Int) ->
+    let p = if s > 30 then (s - 30) * 100 / 70 else 0 in
+    let rx = 6 + p * 84 / 100 in
+    let ry = 3 + p * 42 / 100 in
+    let top = 325 - ry in
+    let reach = mouth_y + (top - mouth_y) * (if s < 40 then s else 40) / 40 in
+    let size = 3 + s / 12 in
+    [Html.node("path",
+       [Attr.create("d",
+          "M100 " ++ string_of_int(mouth_y) ++ " Q93 "
+          ++ string_of_int((mouth_y + reach) / 2) ++ " 100 " ++ string_of_int(reach)),
+        Attr.create("fill", "none"), Attr.create("stroke", "yellowgreen"),
+        Attr.create("stroke-width", string_of_int(4 + s / 10)),
+        Attr.create("stroke-linecap", "round"), shown_if(s > 0)], []),
+     Html.node("path",
+       [Attr.create("d",
+          "M" ++ string_of_int(100 - rx) ++ " 325 A" ++ string_of_int(rx) ++ " "
+          ++ string_of_int(ry) ++ " 0 0 1 " ++ string_of_int(100 + rx) ++ " 325 Z"),
+        Attr.create("fill", "#a8b83a"), Attr.create("stroke", "#6b7a1f"),
+        Attr.create("stroke-width", "2"), shown_if(p > 0)], [])]
+    @ bumps((0, bumps_at, rx, ry, p))
+    @ drips((0, mouth_y, reach, size, s > 0))
+    # At 100, the pile looks back: two eyes and a frown. #
+    @ [Html.node("g", [shown_if(s == 100)],
+         [Html.node("circle", [Attr.create("cx", "84"), Attr.create("cy", "301"), Attr.create("r", "5")], []),
+          Html.node("circle", [Attr.create("cx", "116"), Attr.create("cy", "301"), Attr.create("r", "5")], []),
+          Html.node("path",
+            [Attr.create("d", "M84 318 Q100 306 116 318"), Attr.create("fill", "none"),
+             Attr.create("stroke", "black"), Attr.create("stroke-width", "3"),
+             Attr.create("stroke-linecap", "round")], [])])];
+
   # The face's own sliders, for smile and brow. #
   let own_slider = fun (label, v, act) : (String, Int, Int -> Action) ->
     Html.div(
@@ -359,6 +486,10 @@ let ^kid_face = {
     do sd_res <- eval_splice(m.sides) in
     do r_res <- eval_splice(m.rays) in
     do t_res <- eval_splice(m.teeth) in
+    do o_res <- eval_splice(m.opening) in
+    do xe_res <- eval_splice(m.x_eyes) in
+    do sk_res <- eval_splice(m.sickness) in
+    do ub_res <- eval_splice(m.unibrow) in
     # Each cell's value, or a default while it has none. #
     let c = case c_res | Some(Val(n)) => clamp(n) | _ => 85 end in
     let b = case b_res | Some(Val(n)) => clamp(n) | _ => 0 end in
@@ -369,6 +500,10 @@ let ^kid_face = {
     let sd = case sd_res | Some(Val(n)) => clamp(n) | _ => 0 end in
     let r = case r_res | Some(Val(n)) => clamp(n) | _ => 0 end in
     let t = case t_res | Some(Val(n)) => (if n < 0 then 0 else if n > 5 then 5 else n) | _ => 0 end in
+    let o = case o_res | Some(Val(n)) => clamp(n) | _ => 0 end in
+    let xe = case xe_res | Some(Val(v)) => v | _ => false end in
+    let sk = case sk_res | Some(Val(n)) => clamp(n) | _ => 0 end in
+    let ub = case ub_res | Some(Val(v)) => v | _ => true end in
     let ray_len = if r == 0 then 0 else (15 + r * 6 / 10) * b / 100 in
     let shown = if k * b >= 2500 then pieces_n else k * b * pieces_n / 2500 in
     let lift = b * 7 / 10 in
@@ -383,7 +518,7 @@ let ^kid_face = {
         [Attr.create("data-hint", "drag the brow or the mouth up/down"),
          Attr.style([("cursor", "ns-resize")])],
         [Html.node("svg",
-          [Attr.create("viewBox", "0 -80 200 300"),
+          [Attr.create("viewBox", "0 -80 200 430"),
            Attr.width(string_of_int(width_px)),
            Attr.height(string_of_int(height_px)),
            Attr.on_mouse_down_at(fun (_x, y) -> Down(y)),
@@ -402,19 +537,22 @@ let ^kid_face = {
                [Attr.create("d", crack), Attr.create("fill", "none"),
                 Attr.create("stroke", if b > 0 then "black" else "none"),
                 Attr.create("stroke-width", "2")], []),
-             eye((68, e, st, ht)), eye((132, e, st, ht)),
+             eye((68, e, st, ht, xe)), eye((132, e, st, ht, xe)),
              Html.node("path",
-               [Attr.create("d", brow(m.brow)), Attr.create("stroke", "black"),
+               [Attr.create("d", if ub then brow(m.brow) else brow_pair(m.brow)),
+                Attr.create("stroke", "black"),
                 Attr.create("fill", "transparent"),
-                Attr.create("stroke-width", "7"),
+                Attr.create("stroke-width", if ub then "7" else "6"),
                 Attr.create("stroke-linecap", "round")], []),
              Html.node("path",
-               [Attr.create("d", mouth(m.smile)), Attr.create("stroke", "black"),
-                Attr.create("fill", "transparent"),
-                Attr.create("stroke-width", "5")], [])]
+               [Attr.create("d", open_mouth((m.smile, o))), Attr.create("stroke", "black"),
+                Attr.create("fill", if o == 0 then "transparent" else "#5c1a1a"),
+                Attr.create("stroke-width", "5"),
+                Attr.create("stroke-linejoin", "round")], [])]
            @ teeth_of((1, t, 110 + 4 * m.smile / 5, 10))
+           @ sick_pile((sk, 150 + (110 + 4 * m.smile / 5 - 150) / 2))
            @ [Html.node("text",
-               [Attr.create("x", "100"), Attr.create("y", "212"),
+               [Attr.create("x", "100"), Attr.create("y", "344"),
                 Attr.create("text-anchor", "middle"),
                 Attr.create("font-size", "18"),
                 Attr.create("font-family", "var(--code-font)"), Attr.style([("fill", "var(--text-default)")])],
@@ -432,7 +570,7 @@ let ^kid_face = {
   # head rays. #
   let expand = Macro(fun m : Model ->
     (quote fun c -> fun b -> fun k -> fun st -> fun ht -> fun e ->
-       fun sd -> fun r -> fun t ->
+       fun sd -> fun r -> fun t -> fun mo -> fun xe -> fun sk -> fun ub ->
        (feeling =
           if c < 34 then unquote StringLit(mood((0, m.brow, m.smile))) end
           else if c < 67 then unquote StringLit(mood((50, m.brow, m.smile))) end
@@ -442,17 +580,21 @@ let ^kid_face = {
         exploded = b,
         candy = k * b / 100,
         eyes =
-          if st then (if ht then "starry hearts" else "stars")
+          if xe then "x"
+          else if st then (if ht then "starry hearts" else "stars")
           else (if ht then "hearts" else "plain"),
         eye_size = e,
         side_lines = sd,
         rays = r * b / 100,
-        teeth = t)
+        teeth = t,
+        mouth_open = mo,
+        sickness = sk,
+        unibrow = ub)
      end,
      [m.color, m.burst, m.candy, m.stars, m.hearts, m.eyes, m.sides,
-      m.rays, m.teeth]));
+      m.rays, m.teeth, m.opening, m.x_eyes, m.sickness, m.unibrow]));
 
-  let shape = Block(30, 19)
+  let shape = Block(30, 26)
 } in
 
 let head = ^^livelit(^color_dial(100)) in
@@ -460,14 +602,20 @@ let boom = ^^livelit(^boom_dial(0)) in
 let sweets = ^^livelit(^candy_dial(0)) in
 let stars = ^^livelit(^star_toggle(false)) in
 let hearts = ^^livelit(^heart_toggle(false)) in
+let crosses = ^^livelit(^x_toggle(false)) in
+let unibrow = ^^livelit(^unibrow_toggle(true)) in
 let eyes = ^^livelit(^eye_dial(50)) in
 let sides = ^^livelit(^side_dial(0)) in
 let rays = ^^livelit(^ray_dial(0)) in
 let teeth = ^^livelit(^teeth_dial(0)) in
+let mouth = ^^livelit(^open_dial(0)) in
+let sick = ^^livelit(^sick_dial(0)) in
 let ^^probe(face) = ^^livelit(^kid_face((smile = 85, brow = 30, drag = Idle,
   color = (head : Int), burst = (boom : Int), candy = (sweets : Int),
   stars = (stars : Bool), hearts = (hearts : Bool), eyes = (eyes : Int),
-  sides = (sides : Int), rays = (rays : Int), teeth = (teeth : Int)))) in
+  sides = (sides : Int), rays = (rays : Int), teeth = (teeth : Int),
+  opening = (mouth : Int), x_eyes = (crosses : Bool),
+  sickness = (sick : Int), unibrow = (unibrow : Bool)))) in
 
 face
 

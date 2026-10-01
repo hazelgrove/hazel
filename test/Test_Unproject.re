@@ -186,7 +186,8 @@ let kids_emotion = () => {
     "means how the face reads",
     Test_UserLivelits.run(
       "(feeling = \"happy\", smile = 85, brow = 30, exploded = 0, candy = 0, "
-      ++ "eyes = \"plain\", eye_size = 50, side_lines = 0, rays = 0, teeth = 0)",
+      ++ "eyes = \"plain\", eye_size = 50, side_lines = 0, rays = 0, teeth = 0, "
+      ++ "mouth_open = 0, sickness = 0, unibrow = true)",
     ),
     Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
   );
@@ -210,7 +211,9 @@ let kids_emotion = () => {
       ++ ")), rays = SpliceRef((\"r\", "
       ++ string_of_int(r)
       ++ ")), "
-      ++ "teeth = SpliceRef((\"t\", 0))))";
+      ++ "teeth = SpliceRef((\"t\", 0)), opening = SpliceRef((\"o\", 0)), "
+      ++ "x_eyes = SpliceRef((\"xe\", false)), sickness = SpliceRef((\"sk\", 0)), "
+      ++ "unibrow = SpliceRef((\"ub\", true))))";
     /* Loaded as the editor loads a slide: Test_UserLivelits.run parses
        another way, which takes ~45 s on a program this size. */
     let (_, elab) = load(~source="emotion-kids-view", program);
