@@ -26,6 +26,9 @@ let ^name = {
 - `expand: Model => Expansion` — what a use means to the program
 - optional member `shape`: `Inline(width)`, `Block(width, height)`, or
   `Tab(width, height)` — the widget's footprint in character cells
+- optional member `wrap: Expansion => Model`: lets probes show any sampled
+  value of the expansion type through `view` (see docs/livelits.md,
+  "Livelits as Rich Probes")
 
 Type members are accepted but not yet load-bearing; helpers (like the color
 picker's `css` and `pick`) are ordinary members. A positional

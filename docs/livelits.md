@@ -60,6 +60,50 @@ doc slides, embedded at compile time — an edit there ships on the next
 build). The adapter is `src/language/statics/UserLivelit.re`; rendering is
 the `user_def` branch of `LivelitProj.re`.
 
+### Livelits as Rich Probes
+
+A user-defined livelit also renders probe samples of the type it expands
+to, with no livelit syntax at the probed site. An optional member
+`wrap : Expansion -> Model` rebuilds a display model from a sampled value,
+which is then shown as `view(wrap(value))`. Without `wrap`, the value
+itself is the model, which only works when `Model` and the expansion type
+are the same type.
+
+```
+type Trace = + Trace([Int], Int, Int) in
+let ^trace = {
+  type Model = Trace;
+  type Action = + Nothing;
+  let init : Model = Trace([1, 2, 3], 0, 5);
+  let update(m: Model, _: Action): Model = m;
+  let view(tr: Model): HTML = Text("trace");
+  let expand(m: Model): Trace = m;
+  let wrap(v: Trace): Model = v;
+  let shape : LivelitShape = Inline(6)
+} in
+^^probe(Trace([4, 5, 9], 2, 8))
+```
+
+- **By type name.** A livelit that expands to `Point` takes sites typed
+  `Point`, not every `(Int, Int)`. A structural site matches only when the
+  expansion type is an alias whose body itself names a type or
+  constructor (`Plan = (Mode, Temp)`). Pattern probes match through the
+  pattern's type.
+- **Innermost first.** The livelits in the probed site's context are tried
+  innermost binding first, and the first whose `view` renders the value
+  wins, so a nearer definition shadows an outer one. `wrap` is not
+  type-checked; if it (or `view`) fails on a value, that livelit passes.
+- **Lists.** A list of a viewed type (`[Point]`) renders as a row of
+  element views.
+- **Display.** Views are inert: their handlers dispatch nothing. With Rich
+  Views on (the probe sidebar toggle, on by default), a view whose `shape`
+  is at most 4 lines tall (`Inline` is 1) is embedded in each sample, and
+  a taller one fills the probe's drawer when it is open. The sample menu's
+  "View as livelit" picks it explicitly.
+
+The renderer is `LivelitRenderer.re`, registered in
+`RichProbeRegistry.re` ahead of the generic HTML and card renderers.
+
 ## Creating a Built-in Livelit
 
 A built-in livelit is created by implementing the `BuiltinLivelit` module type. The current structure uses OCaml modules to define livelits, which are converted into raw livelits (which use Hazel language encodings in preparation for future work on user-defined livelits) at compile time.
