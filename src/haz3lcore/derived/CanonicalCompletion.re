@@ -2641,11 +2641,50 @@ type item_entry = {
   it_pieces: Segment.t,
   it_result: completion_result,
 };
+/* a bounded table for per-item results: at the bound, entries no recent
+   pass touched go (superseded versions of edited items), and a table
+   still half full doubles its bound, so a live set past it (a huge
+   program, many editors) can't empty the table every pass */
+module Swept = {
+  type t('k, 'v) = {
+    tbl: Hashtbl.t('k, ('v, ref(int))),
+    mutable bound: int,
+    mutable pass: int,
+  };
+  let mk = (~bound=4096, ()): t(_) => {
+    tbl: Hashtbl.create(256),
+    bound,
+    pass: 0,
+  };
+  /* one pass over an editor's items; several editors take turns */
+  let recent = 64;
+  let next_pass = (t: t(_)): unit => t.pass = t.pass + 1;
+  let find_opt = (t: t('k, 'v), k: 'k): option('v) =>
+    switch (Hashtbl.find_opt(t.tbl, k)) {
+    | Some((v, seen)) =>
+      seen := t.pass;
+      Some(v);
+    | None => None
+    };
+  let replace = (t: t('k, 'v), k: 'k, v: 'v): unit => {
+    if (Hashtbl.length(t.tbl) >= t.bound) {
+      Hashtbl.filter_map_inplace(
+        (_, (_, seen) as e) => seen^ > t.pass - recent ? Some(e) : None,
+        t.tbl,
+      );
+      if (2 * Hashtbl.length(t.tbl) >= t.bound) {
+        t.bound = 2 * t.bound;
+      };
+    };
+    Hashtbl.replace(t.tbl, k, (v, ref(t.pass)));
+  };
+  let length = (t: t(_)): int => Hashtbl.length(t.tbl);
+};
+
 /* (sort, first piece id) -> last completion, validated by piece
    identity. keyed by sort since items are read at Exp for decorations
-   and at the root for semantics; shared by all editors, bounded by reset */
-let item_cache: Hashtbl.t((Sort.t, Id.t), item_entry) = Hashtbl.create(256);
-let item_cache_bound = 4096;
+   and at the root for semantics; shared by all editors */
+let item_cache: Swept.t((Sort.t, Id.t), item_entry) = Swept.mk();
 let items_completed: ref(int) = ref(0); /* observability for tests */
 
 /* completing an item alone grouts an edge whose operand a neighbour
@@ -2696,14 +2735,11 @@ let complete_item = (~sort, item: Segment.t): completion_result =>
   | [] => complete_item_uncached(~sort, item)
   | [p, ..._] =>
     let key = (sort, Piece.id(p));
-    switch (Hashtbl.find_opt(item_cache, key)) {
+    switch (Swept.find_opt(item_cache, key)) {
     | Some(e) when Segment.ptr_eq(e.it_pieces, item) => e.it_result
     | _ =>
       let r = complete_item_uncached(~sort, item);
-      if (Hashtbl.length(item_cache) >= item_cache_bound) {
-        Hashtbl.reset(item_cache);
-      };
-      Hashtbl.replace(
+      Swept.replace(
         item_cache,
         key,
         {
@@ -2743,21 +2779,18 @@ let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
 };
 
 /* [remolded], memoized like items (only items after an open tile ask) */
-let remold_cache: Hashtbl.t((Sort.t, Id.t), (Segment.t, option(Segment.t))) =
-  Hashtbl.create(64);
+let remold_cache: Swept.t((Sort.t, Id.t), (Segment.t, option(Segment.t))) =
+  Swept.mk();
 let remolded_item = (~sort: Sort.t, item: Segment.t): option(Segment.t) =>
   switch (item) {
   | [] => None
   | [p, ..._] =>
     let key = (sort, Piece.id(p));
-    switch (Hashtbl.find_opt(remold_cache, key)) {
+    switch (Swept.find_opt(remold_cache, key)) {
     | Some((ps, r)) when Segment.ptr_eq(ps, item) => r
     | _ =>
       let r = remolded(~sort, item);
-      if (Hashtbl.length(remold_cache) >= item_cache_bound) {
-        Hashtbl.reset(remold_cache);
-      };
-      Hashtbl.replace(remold_cache, key, (item, r));
+      Swept.replace(remold_cache, key, (item, r));
       r;
     };
   };
@@ -2778,7 +2811,7 @@ let cached_block =
   switch (item) {
   | [] => (item, rest)
   | [p, ..._] =>
-    switch (Hashtbl.find_opt(item_cache, (sort, Piece.id(p)))) {
+    switch (Swept.find_opt(item_cache, (sort, Piece.id(p)))) {
     | Some(e) when List.length(e.it_pieces) > List.length(item) =>
       let n = List.length(e.it_pieces);
       let rec take = (acc, len, items) =>
@@ -2803,6 +2836,8 @@ let cached_block =
   };
 
 let complete_items = (~sort, seg: Segment.t): completion_result => {
+  Swept.next_pass(item_cache);
+  Swept.next_pass(remold_cache);
   /* edge grout is cut debris only at a cut: the segment's own ends
      keep theirs (a missing body at the end of the program is real).
      [opened]: an earlier block left a tile open on the right */

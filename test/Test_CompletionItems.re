@@ -237,6 +237,48 @@ let sort_keyed_case = () =>
     same("Pat reading again", pat, Pat);
   };
 
+/* the per-item caches: a live set past the bound stays cached, and
+   superseded versions don't grow the bound */
+let swept_live = () => {
+  module Swept = CanonicalCompletion.Swept;
+  let t: Swept.t(int, int) = Swept.mk(~bound=8, ());
+  let pass = () => {
+    Swept.next_pass(t);
+    List.fold_left(
+      (misses, k) =>
+        switch (Swept.find_opt(t, k)) {
+        | Some(_) => misses
+        | None =>
+          Swept.replace(t, k, k);
+          misses + 1;
+        },
+      0,
+      List.init(20, k => k),
+    );
+  };
+  check(int, "first pass fills", 20, pass());
+  check(int, "second pass hits", 0, pass());
+};
+
+let swept_stale = () => {
+  module Swept = CanonicalCompletion.Swept;
+  let t: Swept.t(int, int) = Swept.mk(~bound=512, ());
+  for (i in 1 to 1000) {
+    Swept.next_pass(t);
+    List.iter(
+      k =>
+        if (Swept.find_opt(t, k) == None) {
+          Swept.replace(t, k, k);
+        },
+      [0, 1],
+    );
+    /* an edit: a new version of some item */
+    Swept.replace(t, 100 + i, i);
+  };
+  check(int, "bound kept", 512, t.bound);
+  check(bool, "live kept", true, Swept.find_opt(t, 0) == Some(0));
+};
+
 let tests = (
   "CompletionItems",
   List.map(
@@ -258,6 +300,8 @@ let tests = (
     )
   @ [
     test_case("memo keyed by sort", `Quick, sort_keyed_case),
+    test_case("a live set past the bound stays cached", `Quick, swept_live),
+    test_case("edits don't grow the bound", `Quick, swept_stale),
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
   ],
