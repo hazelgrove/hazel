@@ -2,13 +2,15 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
-/* Automatic sample-focus moves (ProbeFocus.editor_effects): the edited or
- * newly placed autoprobe line moves the focus only when it would otherwise
- * show ⊖, i.e. to fill a gap. A program is loaded under a multi probe on
- * its root (autoprobe's All mode) and evaluated once. An edit is simulated
- * by putting the caret on a line and running editor_effects with
- * is_edited=true against those dynamics, which is what happens when the
- * edited line's probe survives the edit. */
+/* Sample focus upkeep against real evaluations. A program is loaded under
+ * a multi probe on its root (autoprobe's All mode) and evaluated once.
+ *
+ * Automatic focus moves (ProbeFocus.editor_effects): the edited or newly
+ * placed autoprobe line moves the focus only when it would otherwise show
+ * ⊖, i.e. to fill a gap. An edit is simulated by putting the caret on a
+ * line and running editor_effects with is_edited=true against those
+ * dynamics, which is what happens when the edited line's probe survives
+ * the edit. */
 
 type editor = {
   z: Haz3lcore.Zipper.t,
@@ -17,7 +19,38 @@ type editor = {
   dynamics: Dynamics.Map.t,
 };
 
-let load = (code: string): editor => {
+/* The autoprobe line on a (0-based) row. */
+let ephemeral_on_row =
+    (z: Haz3lcore.Zipper.t, syntax: Haz3lcore.CachedSyntax.t, row: int): Id.t =>
+  switch (
+    Id.Map.bindings(z.refractors.multis.ephemerals)
+    |> List.map(fst)
+    |> List.filter(id =>
+         switch (
+           Haz3lcore.TermData.extreme_measures(
+             id,
+             syntax.term_data,
+             syntax.measured,
+           )
+         ) {
+         | Some((_, end_pt)) => end_pt.row == row
+         | None => false
+         }
+       )
+  ) {
+  | [id] => id
+  | ids =>
+    fail(
+      Printf.sprintf(
+        "expected one probe on row %d, found %d",
+        row,
+        List.length(ids),
+      ),
+    )
+  };
+
+/* ~unprobed_rows: lines whose probe is suppressed before evaluating. */
+let load = (~unprobed_rows: list(int)=[], code: string): editor => {
   let z =
     switch (Haz3lcore.Parser.to_zipper(~root=Exp, code)) {
     | Some(z) => z
@@ -37,10 +70,16 @@ let load = (code: string): editor => {
       ~syntax,
       ~info_map,
       z,
-    )
-    /* start each test from a settled editor: no request in flight */
-    |> Haz3lcore.ProbeFocus.clear_pending_probe_cursor;
+    );
   let syntax = Haz3lcore.CachedSyntax.mk(z, ~info_map, ~dyn_map=Id.Map.empty);
+  let z =
+    z
+    |> Haz3lcore.ProbePerform.add_suppression(
+         List.map(ephemeral_on_row(z, syntax), unprobed_rows),
+       )
+    |> Haz3lcore.ProbePerform.add_ids_from_multi_term(~syntax, ~info_map)
+    /* start from a settled editor: no request in flight */
+    |> Haz3lcore.ProbeFocus.clear_pending_probe_cursor;
   let (_, state) =
     Evaluator.evaluate(
       ~eval_info=EvalInfo.of_targets(targets_of_zipper(z, info_map)),
@@ -55,34 +94,8 @@ let load = (code: string): editor => {
   };
 };
 
-/* The autoprobe line on a (0-based) row. */
 let probe_on_row = (ed: editor, row: int): Id.t =>
-  switch (
-    Id.Map.bindings(ed.z.refractors.multis.ephemerals)
-    |> List.map(fst)
-    |> List.filter(id =>
-         switch (
-           Haz3lcore.TermData.extreme_measures(
-             id,
-             ed.syntax.term_data,
-             ed.syntax.measured,
-           )
-         ) {
-         | Some((_, end_pt)) => end_pt.row == row
-         | None => false
-         }
-       )
-  ) {
-  | [id] => id
-  | ids =>
-    fail(
-      Printf.sprintf(
-        "expected one probe on row %d, found %d",
-        row,
-        List.length(ids),
-      ),
-    )
-  };
+  ephemeral_on_row(ed.z, ed.syntax, row);
 
 let samples_of = (ed: editor, id: Id.t): list(Sample.t) =>
   Dynamics.Map.lookup(id, ed.dynamics) |> Option.value(~default=[]);
@@ -92,22 +105,24 @@ let ap_id_of = (ed: editor, id: Id.t): option(Id.t) =>
   |> Option.map(Sample.Focus.cur_var_ap)
   |> Option.join;
 
-/* What a row shows in One mode: its aligned sample's value, or ⊖. */
+/* What a row shows in One mode (as ProbeProj selects it): its aligned
+ * sample's value, ⍟ when a pin hides every sample, or ⊖. */
 let shown = (ed: editor, z: Haz3lcore.Zipper.t, row: int): string => {
   let id = probe_on_row(ed, row);
   let ap_id = ap_id_of(ed, id);
+  let sample_focus = z.refractors.sample_focus;
   let samples =
-    Sample.Selection.filter_by_pin(~ap_id, ~pinned=None, samples_of(ed, id));
-  switch (
-    Sample.Selection.most_aligned_index(
+    Sample.Selection.filter_by_pin(
       ~ap_id,
-      z.refractors.sample_focus,
-      samples,
-    )
-  ) {
+      ~pinned=sample_focus.pinned_stack,
+      ~pinned_interval=
+        Haz3lcore.ProjectorInfo.pinned_interval(~sample_focus, ed.dynamics),
+      samples_of(ed, id),
+    );
+  switch (Sample.Selection.most_aligned_index(~ap_id, sample_focus, samples)) {
   | Some(i) =>
     Test_Evaluator_Probes.format_sample_value(List.nth(samples, i).value)
-  | None => "⊖"
+  | None => samples == [] ? "⍟" : "⊖"
   };
 };
 
@@ -181,6 +196,18 @@ let schedule(times: [Int]): [String] =
   )
 in
 schedule([20, 60, 100])|};
+
+/* rows: 0 x, 1 x > 100, 2 100, 3 x < 0, 4 0, 5 x, 7 to 9 the calls */
+let clamp = {|let clamp(x: Int): Int =
+  if x > 100
+  then 100
+  else if x < 0
+  then 0
+  else x
+in
+clamp(150);
+clamp(-45);
+clamp(92)|};
 
 let tests = (
   "Evaluator.ProbeFocus",
@@ -376,5 +403,33 @@ let tests = (
         shows(ed, z', 4, "⊖");
       },
     ),
+    test_case(
+      "Pin enclosing call pins the whole call, probed or not", `Quick, () => {
+      /* With the calls probed, the pin's span is clamp(150)'s own sample;
+         without, it filters by stack. */
+      List.iter(
+        unprobed_rows => {
+          let ed = load(~unprobed_rows, clamp);
+          /* P on the x > 100 sample of clamp(150) */
+          let z = click(ed, ed.z, 1, 0);
+          let pin =
+            switch (
+              Haz3lcore.ProbeProj.enclosing_call_pin(
+                List.hd(samples_of(ed, probe_on_row(ed, 1))),
+              )
+            ) {
+            | Some(pin) => pin
+            | None => fail("no enclosing call")
+            };
+          let z = Haz3lcore.SampleFocusPerform.go(z, pin);
+          shows(ed, z, 1, "true");
+          shows(ed, z, 2, "100");
+          /* lines only the other calls reach are hidden by the pin */
+          shows(ed, z, 3, "⍟");
+          shows(ed, z, 5, "⍟");
+        },
+        [[], [7, 8, 9]],
+      )
+    }),
   ],
 );
