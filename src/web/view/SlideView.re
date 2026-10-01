@@ -116,7 +116,41 @@ let slot_id =
    the last cell doesn't join; one blocked by an open cell retries after
    the closes. Pins that can't open drop; from one editor, the caret
    moves into the cell holding it. */
+/* headerless cells follow an edited expression to its new root, and
+   their pins with them, so normalize doesn't drop them */
+let follow_headless = (~term, v: t, p: Program.t): (t, Program.t) =>
+  switch (p) {
+  | Whole(_) => (v, p)
+  | Divided(d) =>
+    let (rows, headless) = (
+      OutlineTree.row_ids(term),
+      OutlineTree.headless_row_ids(term),
+    );
+    switch (Divided.follow_headless(~rows, ~headless, d)) {
+    | (_, []) => (v, p)
+    | (d, moves) => (
+        {
+          ...v,
+          pins:
+            List.map(
+              (pin: pin) =>
+                switch (List.assoc_opt(pin.p_id, moves)) {
+                | Some(id) => {
+                    ...pin,
+                    p_id: id,
+                  }
+                | None => pin
+                },
+              v.pins,
+            ),
+        },
+        Divided(d),
+      )
+    };
+  };
+
 let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
+  let (v, p) = follow_headless(~term, v, p);
   let v = normalize(~term, v);
   let want = shown(~term, v);
   let current =

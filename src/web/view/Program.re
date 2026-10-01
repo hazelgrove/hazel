@@ -58,16 +58,30 @@ let whole_memo = (p: t): CellEditor.Model.t =>
     };
   };
 
-/* (id, live header name) per open cell; runs answer for their members */
+/* (id, live header name) per open cell; runs answer for their members,
+   and a headerless cell's top-level tiles for it (an edit can replace
+   its root, the row's id, before the view follows) */
 let focused_names = (p: t): list((Id.t, option(string))) =>
   switch (p) {
   | Whole(_) => []
   | Divided(d) =>
     List.concat_map(
       (e: ScratchCell.t) =>
-        e.e_run
-          ? List.map(id => (id, None), e.e_members)
-          : [(e.e_id, e.e_sym == None ? ScratchCell.header_name(e) : None)],
+        if (e.e_run) {
+          List.map(id => (id, None), e.e_members);
+        } else if (e.e_sym == None) {
+          [(e.e_id, ScratchCell.header_name(e))];
+        } else {
+          [
+            (e.e_id, None),
+            ...List.filter_map(
+                 fun
+                 | Piece.Tile(t) when t.id != e.e_id => Some((t.id, None))
+                 | _ => None,
+                 ScratchFocus.zip_of_cell(e.e_body),
+               ),
+          ];
+        },
       Divided.cells(d),
     )
   };

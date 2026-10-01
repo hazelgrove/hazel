@@ -399,6 +399,25 @@ let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   go(path, of_term(e));
 };
 
+/* the headerless rows' ids (⇒ and `;`) */
+let headless_row_ids = (e: Exp.t): Id.Map.t(unit) => {
+  let rec go = (acc, ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        go(
+          switch (n.o_id) {
+          | Some(id) when n.o_kind == KTrail || n.o_kind == KStmt =>
+            Id.Map.add(id, (), acc)
+          | _ => acc
+          },
+          n.o_children,
+        ),
+      acc,
+      ns,
+    );
+  go(Id.Map.empty, of_term(e));
+};
+
 let kind_of = (fid: Id.t, e: Exp.t): option(kind) => {
   let rec go = (ns: list(node)) =>
     List.fold_left(

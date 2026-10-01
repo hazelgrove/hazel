@@ -631,6 +631,57 @@ let map_cells = (f: Cell.t => Cell.t, d: t): t => {
   cells: List.map(f, d.cells),
 };
 
+/* a headerless cell (⇒, `;`) is keyed by its expression's root, which an
+   edit can replace (`f(x)` to `f(x) + 1`): it takes the id of the
+   headerless row now in its text. returns the (old, new) ids */
+let follow_headless =
+    (~rows: Id.Map.t(unit), ~headless: Id.Map.t(unit), d: t)
+    : (t, list((Id.t, Id.t))) => {
+  let moves = ref([]);
+  let cells =
+    List.map(
+      (e: Cell.t) =>
+        switch (e.e_sym) {
+        | Some(_) when !e.e_run && !Id.Map.mem(e.e_id, rows) =>
+          let body = Focus.zip_of_cell(e.e_body);
+          let top =
+            List.filter_map(
+              fun
+              | Piece.Tile(t) => Some(t.id)
+              | _ => None,
+              body,
+            );
+          let find = ids =>
+            List.find_opt(id => Id.Map.mem(id, headless), ids);
+          switch (
+            switch (find(top)) {
+            | Some(_) as found => found
+            | None => find(Segment.ids(body))
+            }
+          ) {
+          | Some(id) =>
+            moves := [(e.e_id, id), ...moves^];
+            {
+              ...e,
+              e_id: id,
+            };
+          | None => e
+          };
+        | _ => e
+        },
+      d.cells,
+    );
+  let moved = id => Option.value(List.assoc_opt(id, moves^), ~default=id);
+  (
+    {
+      ...d,
+      cells,
+      active: Option.map(((id, side)) => (moved(id), side), d.active),
+    },
+    moves^,
+  );
+};
+
 let update_cell = (id: Id.t, f: Cell.t => Cell.t, d: t): t => {
   ...d,
   cells: List.map((e: Cell.t) => e.e_id == id ? f(e) : e, d.cells),

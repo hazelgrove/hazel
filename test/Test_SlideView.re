@@ -298,6 +298,81 @@ let discard = () => {
   check(bool, "a kept", true, pinned(a, v));
 };
 
+/* a ⇒ cell whose expression gets a new root (`f(1)` to `f(1) + 1`)
+   follows it: it stays open, and pinned, when another row opens */
+let tail_follows = () => {
+  let src = "let f = fun x -> x in\nf(1)";
+  let seg = parse(src);
+  let rows_of = (term, keep: Web.OutlineTree.node => bool) => {
+    let rec find = (ns: list(Web.OutlineTree.node)) =>
+      List.find_map(
+        (n: Web.OutlineTree.node) => keep(n) ? n.o_id : find(n.o_children),
+        ns,
+      );
+    switch (find(Web.OutlineTree.of_term(term))) {
+    | Some(id) => id
+    | None => failwith("no such row")
+    };
+  };
+  let trail = term => rows_of(term, n => n.o_kind == Web.OutlineTree.KTrail);
+  let term = MakeTerm.Incr.term_of(seg);
+  let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
+  let t0 = trail(term);
+  let (v, p) =
+    V.realize(
+      ~info_map,
+      ~term,
+      V.pin(~term, t0, V.init),
+      Whole(Focus.cell_of_seg(seg)),
+    );
+  let d =
+    switch (p) {
+    | Divided(d) => d
+    | Whole(_) => fail("the ⇒ cell didn't open")
+    };
+  /* type ` + 1` at the end of the cell, keeping its pieces */
+  let cell =
+    List.find((c: Web.ScratchCell.t) => c.e_id == t0, Divided.cells(d));
+  let body = Focus.zip_of_cell(cell.e_body);
+  let last =
+    switch (List.find_map(Piece.is_tile, List.rev(body))) {
+    | Some(t) => t.id
+    | None => failwith("empty cell")
+    };
+  let z =
+    switch (
+      Move.jump_to_side_of_id(Util.Direction.Right, Zipper.unzip(body), last)
+    ) {
+    | Some(z) => z
+    | None => failwith("no caret at the end")
+    };
+  let z =
+    Test_Editing.perform(
+      z,
+      [Insert(" "), Insert("+"), Insert(" "), Insert("1")],
+    );
+  let d =
+    Divided.update_cell(
+      t0,
+      c =>
+        {
+          ...c,
+          e_body: Web.CellEditor.Model.mk(Editor.Model.mk(z, ~root=Exp)),
+        },
+      d,
+    );
+  let seg = Divided.document(d);
+  let term = MakeTerm.Incr.term_of(seg);
+  let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
+  let t1 = trail(term);
+  check(bool, "the ⇒ row has a new root", true, t1 != t0);
+  let f = rows_of(term, n => n.o_label == "f");
+  let (v, p) = V.realize(~info_map, ~term, V.pin(~term, f, v), Divided(d));
+  check(bool, "the ⇒ pin follows", true, pinned(t1, v));
+  check(bool, "the ⇒ cell stays open", true, List.mem(t1, open_ids(p)));
+  check(bool, "f opens beside it", true, List.mem(f, open_ids(p)));
+};
+
 let tests = (
   "SlideView",
   [
@@ -311,5 +386,10 @@ let tests = (
     test_case("closing all keeps the caret", `Quick, close_keeps_caret),
     test_case("vanished pins and zoom", `Quick, vanished),
     test_case("discard at a level", `Quick, discard),
+    test_case(
+      "a ⇒ cell follows its expression's new root",
+      `Quick,
+      tail_follows,
+    ),
   ],
 );

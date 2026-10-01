@@ -73,6 +73,12 @@ let resplit:
 let same_content: (t, t) => bool;
 
 let map_cells: (ScratchCell.t => ScratchCell.t, t) => t;
+/* headerless cells take the headerless row id now in their text (an
+   edit can replace an expression's root); the (old, new) ids */
+let follow_headless:
+  (~rows: Id.Map.t(unit), ~headless: Id.Map.t(unit), t) =>
+  (t, list((Id.t, Id.t)));
+
 let update_cell: (Id.t, ScratchCell.t => ScratchCell.t, t) => t;
 let set_active: (Id.t, side, t) => t;
 let map_editors: (CellEditor.Model.t => CellEditor.Model.t, t) => t;
