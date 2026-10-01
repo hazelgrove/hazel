@@ -611,7 +611,10 @@ let outside_editor = (d: t): CodeEditable.Model.t =>
           ...d.shell.editor.editor,
           syntax: {
             ...d.shell.editor.editor.syntax,
-            segment,
+            main_splice: {
+              ...d.shell.editor.editor.syntax.main_splice,
+              segment,
+            },
             term_data:
               MakeTerm.Incr.go_incr(
                 ~root=root(d),

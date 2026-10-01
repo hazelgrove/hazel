@@ -248,7 +248,10 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
        neighbours (a caret in a comment or between items) */
     let candidates =
       Option.to_list(Indicated.index(zipper))
-      @ List.map(((a: Ancestor.t, _)) => a.id, zipper.relatives.ancestors)
+      @ List.map(
+          ((a: Ancestor.t, _)) => Ancestor.id(a),
+          zipper.relatives.ancestors,
+        )
       @ (
         switch (Siblings.neighbors(zipper.relatives.siblings)) {
         | (l, r) => List.filter_map(x => Option.map(Piece.id, x), [r, l])

@@ -61,6 +61,11 @@ let copy_piece = (p: Piece.t): Piece.t =>
       ...pr,
       id: pr.id,
     })
+  | Splice(s) =>
+    Splice({
+      ...s,
+      id: s.id,
+    })
   };
 
 let corpus_case = (file: string, ()) =>

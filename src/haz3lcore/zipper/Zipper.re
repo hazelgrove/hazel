@@ -160,7 +160,8 @@ let restore_relatives_dirty =
 let is_solid: Piece.t => bool =
   fun
   | Tile(_)
-  | Projector(_) => true
+  | Projector(_)
+  | Splice(_) => true
   | Secondary(_)
   | Grout(_) => false;
 
@@ -183,6 +184,8 @@ let window_bound =
   | Some(Projector(pr)) =>
     let (l, r) = ProjectorCore.shapes(pr);
     Some(shape_complement(outer == Direction.Left ? l : r));
+  /* a splice is convex on both faces */
+  | Some(Splice(_)) => Some(shape_complement(Convex))
   | Some(Secondary(_) | Grout(_))
   | None => None
   };

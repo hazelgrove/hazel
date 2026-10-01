@@ -243,7 +243,9 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
             Haz3lcore.CachedSyntax.measured(syntax).chunks,
           ),
         rows:
-          Haz3lcore.Measured.num_rows(Haz3lcore.CachedSyntax.measured(syntax)),
+          Haz3lcore.Measured.num_rows(
+            Haz3lcore.CachedSyntax.measured(syntax),
+          ),
         projectors: List.length(syntax.projector_list),
       };
     live :=

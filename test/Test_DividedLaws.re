@@ -424,16 +424,23 @@ let join_from_caches = () => {
         | Grout(_) => "_"
         | Secondary(_) => " "
         | Projector(_) => "P"
+        | Splice(_) => "S"
         }
       ),
       Measured.piece_rows(m),
     );
-  check(string, "same text", text_of(cold.segment), text_of(warm.segment));
+  check(
+    string,
+    "same text",
+    text_of(CachedSyntax.segment(cold)),
+    text_of(CachedSyntax.segment(warm)),
+  );
   check(
     bool,
     "same rows",
     true,
-    labels(cold.measured) == labels(warm.measured),
+    labels(CachedSyntax.measured(cold))
+    == labels(CachedSyntax.measured(warm)),
   );
   check(
     int,

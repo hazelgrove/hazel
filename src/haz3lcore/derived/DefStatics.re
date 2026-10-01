@@ -51,89 +51,10 @@ let rec chain = (e: Exp.t): list(Exp.t) =>
   | _ => [e]
   };
 
-/* a Module root itemizes like the monolithic lowering: each mod item
-   becomes a Let/TyAlias wrapper, plus a tail tuple of the exports.
-   head_equal gates cleanliness on wrapper and tail ids, so they must be
-   stable: wrappers that can't reuse the item's rep id get derived ids */
+/* stable ids for synthesized wrappers: head_equal gates cleanliness on
+   their ids */
 let derived_id = (tag: string, rep: Id.t): Id.t =>
   Id.mk_str(tag ++ Id.to_string(rep));
-
-let lower_mod_item = (item: Mod.t): Exp.t => {
-  let hole = Exp.fresh(EmptyHole);
-  let rep = Mod.rep_id(item);
-  let stable_wild_let = (tag: string, e: Exp.t): Exp.t =>
-    IdTagged.fast_copy(
-      derived_id(tag ++ "let:", rep),
-      Exp.fresh(
-        Let(
-          IdTagged.fast_copy(
-            derived_id(tag ++ "pat:", rep),
-            Pat.fresh(Wild),
-          ),
-          e,
-          hole,
-        ),
-      ),
-    );
-  switch (item.term) {
-  | ModLet(pat, def) =>
-    IdTagged.fast_copy(rep, Exp.fresh(Let(pat, def, hole)))
-  | ModType(tpat, typ) =>
-    IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, hole)))
-  | ModuleMod(mp, def) =>
-    IdTagged.fast_copy(
-      rep,
-      Exp.fresh(Let(ModuleHelpers.mpat_to_pat(mp), def, hole)),
-    )
-  | ModExp(e) => stable_wild_let("modexp-", e)
-  | EmptyHole =>
-    stable_wild_let(
-      "modhole-",
-      IdTagged.fast_copy(rep, Exp.fresh(EmptyHole)),
-    )
-  | Invalid(s) =>
-    stable_wild_let(
-      "modinv-",
-      IdTagged.fast_copy(rep, Exp.fresh(Invalid(s))),
-    )
-  | MultiHole(es) =>
-    stable_wild_let(
-      "modmh-",
-      IdTagged.fast_copy(rep, Exp.fresh(MultiHole(es))),
-    )
-  };
-};
-
-/* the module-value tail, with ids derived from the root's rep and export
-   names so it stays clean unless the export name set changes; it
-   mentions every export, so any export delta re-analyzes it */
-let exports_tail = (root_rep: Id.t, items: list(Mod.t)): Exp.t => {
-  let sid = (tag: string, name: string) =>
-    derived_id(tag ++ name ++ ":", root_rep);
-  let fields =
-    ModuleHelpers.value_exports(items)
-    |> List.map(({name, _}: ModuleHelpers.value_export) =>
-         IdTagged.fast_copy(
-           sid("modtail-f-", name),
-           Exp.fresh(
-             TupLabel(
-               IdTagged.fast_copy(
-                 sid("modtail-l-", name),
-                 Exp.fresh(Label(name)),
-               ),
-               IdTagged.fast_copy(
-                 sid("modtail-v-", name),
-                 Exp.fresh(Var(name)),
-               ),
-             ),
-           ),
-         )
-       );
-  IdTagged.fast_copy(
-    derived_id("modtail:", root_rep),
-    Exp.fresh(Tuple(fields)),
-  );
-};
 
 /* item equality across versions: the head only, ids included (an
    id-preserving rebuild compares equal) */
@@ -595,24 +516,15 @@ let rec calc_item =
           ~ctx_in: Ctx.t,
           node: Exp.t,
         )
-        : item =>
-  switch (module_literal_members(node)) {
-  | Some((bind_pat, def, members)) =>
-    calc_module_item(
-      ~settings,
-      ~probe_ids,
-      ~probe_dirty,
-      ~prev,
-      ~dirty_vars,
-      ~dirty_tnames,
-      ~ctx_in,
-      ~bind_pat,
-      ~def,
-      ~members,
-      node,
-    )
-  | None => calc_plain_item(~settings, ~probe_ids, ~ctx_in, node)
-  }
+        : item => {
+  /* Module literals are analyzed whole on this branch: per-member
+     granularity was built on dev's module statics, and Modules II's
+     (signatures, sealing, abstract members) is not replicated member by
+     member yet. The member chain's inputs go unused. */
+
+  ignore((probe_dirty, prev, dirty_vars, dirty_tnames));
+  calc_plain_item(~settings, ~probe_ids, ~ctx_in, node);
+}
 
 and calc_plain_item =
     (~settings, ~probe_ids=Id.Map.empty, ~ctx_in: Ctx.t, node: Exp.t): item => {
@@ -710,355 +622,6 @@ and calc_plain_item =
     d_hole: is_tail ? None : Some(Exp.rep_id(hole)),
     d_members: [],
   };
-}
-
-/* member granularity only for simple bindings of a module literal:
-   ascribed signatures push ana_labels the member path doesn't replicate */
-and module_literal_members =
-    (node: Exp.t): option((Pat.t, Exp.t, list(Mod.t))) => {
-  let simple = (p: Pat.t): bool =>
-    switch (p.term) {
-    | Var(_)
-    | Wild => true
-    | _ => false
-    };
-  switch (node.term) {
-  | Let(p, def, _) when simple(p) =>
-    switch (def.term) {
-    | Module(members) => Some((p, def, members))
-    | _ => None
-    }
-  | ModuleExp(mp, def, _) =>
-    let p = ModuleHelpers.mpat_to_pat(mp);
-    switch (def.term, simple(p)) {
-    | (Module(members), true) => Some((p, def, members))
-    | _ => None
-    };
-  | _ => None
-  };
-}
-
-/* members (+ exports tail) run as a nested memoized chain; the wrapper
-   runs on a surrogate def (hole : actual_ty), which skips two effects
-   replicated here: the M.T type-export alias and the def's co_ctx/probe
-   view of its members */
-and calc_module_item =
-    (
-      ~settings,
-      ~probe_ids,
-      ~probe_dirty: item => bool,
-      ~prev: option(item),
-      ~dirty_vars: list(string),
-      ~dirty_tnames: list(string),
-      ~ctx_in: Ctx.t,
-      ~bind_pat: Pat.t,
-      ~def: Exp.t,
-      ~members: list(Mod.t),
-      node: Exp.t,
-    )
-    : item => {
-  incr(last_analyzed);
-  let prev_members =
-    switch (prev) {
-    | Some(q) when q.d_id == Exp.rep_id(node) => q.d_members
-    | _ => []
-    };
-  let member_nodes =
-    List.map(lower_mod_item, members)
-    @ [exports_tail(Exp.rep_id(def), members)];
-  let items_m =
-    calc_members(
-      ~settings,
-      ~probe_ids,
-      ~probe_dirty,
-      ~prev_members,
-      ~dirty_vars,
-      ~dirty_tnames,
-      ~ctx_in,
-      member_nodes,
-    );
-  let member_merged =
-    List.fold_left(
-      (m, it) => map_union(m, it.d_map),
-      Id.Map.empty,
-      items_m,
-    );
-  /* member roots need the top spine's suffix patch too */
-  let (member_merged, top_wit, top_co) =
-    fix_spine_infos_full(~probe_ids, items_m, member_merged);
-  let value_exports = ModuleHelpers.value_exports(members);
-  let type_exports = ModuleHelpers.collect_type_exports(ctx_in, members);
-  let actual_ty =
-    ModuleHelpers.module_actual_type(
-      ~local_names=List.map(fst, type_exports),
-      value_exports,
-      member_merged,
-    );
-  let sur_hole = Exp.fresh(EmptyHole);
-  let sur_def =
-    IdTagged.fast_copy(
-      Exp.rep_id(def),
-      Exp.fresh(Asc(sur_hole, actual_ty)),
-    );
-  let body_hole = Exp.fresh(EmptyHole);
-  let hollow_term: Exp.term =
-    switch (node.term) {
-    | ModuleExp(mp, _, _) => ModuleExp(mp, sur_def, body_hole)
-    | _ => Let(bind_pat, sur_def, body_hole)
-    };
-  let hollow = {
-    ...node,
-    term: hollow_term,
-  };
-  let (map_sur, elab_sur) =
-    Statics.mk_unmemoized(~probe_ids, settings, ctx_in, hollow);
-  /* surrogate scaffolding ids (inner hole, synthesized annotation), minus
-     the def's rep id, whose entry stands in for the module node */
-  let sur_ids = {
-    let acc = ref([]);
-    let grab = (cont, x) => {
-      acc := IdTagged.ids(x) @ acc^;
-      cont(x);
-    };
-    ignore(
-      Exp.map_term(~f_exp=grab, ~f_typ=(cont, x) => grab(cont, x), sur_def),
-    );
-    List.filter(id => id != Exp.rep_id(def), acc^);
-  };
-  let ctx_out = {
-    let base =
-      switch (Statics.Map.lookup_exp(Exp.rep_id(body_hole), map_sur)) {
-      | Some(info) => info.ctx
-      | None => ctx_in
-      };
-    /* the M.T type-export alias the surrogate skips */
-    switch (
-      ModuleHelpers.single_bound_var(bind_pat),
-      ModuleHelpers.type_exports_alias_type(type_exports),
-    ) {
-    | (Some(name), Some(exports_ty)) =>
-      Ctx.extend_alias(base, name, Pat.rep_id(bind_pat), exports_ty)
-    | _ => base
-    };
-  };
-  let map_sur =
-    List.fold_left((m, id) => Id.Map.remove(id, m), map_sur, sur_ids);
-  let map_sur = Id.Map.remove(Exp.rep_id(body_hole), map_sur);
-  let map =
-    ModuleHelpers.reclassify_expanded_module_items(
-      members,
-      map_union(member_merged, map_sur),
-    );
-  /* member elabs grafted, finished like monolithic Module statics */
-  let module_value =
-    graft_elabs(items_m)
-    |> Option.map(g =>
-         ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(def), g)
-       );
-  /* the literal's info must look monolithic too: the evaluator reuses
-     the module value recorded at this id while its elab is unchanged */
-  let map =
-    switch (module_value, Statics.Map.lookup_exp(Exp.rep_id(def), map)) {
-    | (Some(v), Some(raw)) =>
-      let info =
-        Info.InfoExp({
-          ...raw,
-          /* the surrogate's are an ascription's */
-          user_term: def,
-          cls: Cls.Exp(Exp.cls_of_term(def.term)),
-          elab_term: v,
-          co_ctx: CoCtx.union([raw.co_ctx, top_co]),
-          probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
-        });
-      List.fold_left(
-        (m, id) => Id.Map.add(id, info, m),
-        map,
-        IdTagged.ids(def),
-      );
-    | _ => map
-    };
-  /* the item root likewise takes its members' co_ctx/witnesses (from
-     this fresh map, so the patch stays idempotent) */
-  let map =
-    switch (Statics.Map.lookup_exp(Exp.rep_id(node), map)) {
-    | Some(raw) =>
-      Id.Map.add(
-        Exp.rep_id(node),
-        Info.InfoExp({
-          ...raw,
-          co_ctx: CoCtx.union([raw.co_ctx, top_co]),
-          probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
-        }),
-        map,
-      )
-    | None => map
-    };
-  /* the item's free names = the members' frees minus module-internal
-     bindings (the surrogate def's co_ctx is empty, so compose) */
-  let compose_free = (~get, ~shadow) =>
-    List.fold_right(
-      (m: item, below) =>
-        List.sort_uniq(compare, get(m) @ shadow(m.d_exports, below)),
-      items_m,
-      [],
-    );
-  let free = compose_free(~get=m => m.d_free, ~shadow=shadow_filter);
-  let tfree = compose_free(~get=m => m.d_tfree, ~shadow=tshadow);
-  let d_elab =
-    switch (module_value) {
-    | Some(v) => ModuleHelpers.moduleexp_elab(~def_elab_direct=v, elab_sur)
-    | None => elab_sur /* shape gap: keep the surrogate's */
-    };
-  {
-    d_id: Exp.rep_id(node),
-    d_node: node,
-    d_ctx_in: ctx_in,
-    d_map: map,
-    d_error_ids:
-      List.concat_map((m: item) => m.d_error_ids, items_m)
-      @ Statics.Map.error_ids(map_sur),
-    /* members' unused bindings (a shadowed one), as the top chain's */
-    d_warning_ids:
-      List.concat_map((m: item) => m.d_warning_ids, items_m)
-      @ unused_binders(items_m)
-      @ Statics.Map.warning_ids(map_sur),
-    d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
-    d_free: free,
-    d_tfree: tfree,
-    d_ctx_out: ctx_out,
-    d_elab,
-    d_hole: Some(Exp.rep_id(body_hole)),
-    d_members: items_m,
-  };
-}
-
-/* the member chain, aligned with the previous one by id as the top chain
-   is: a deleted member's names go dirty where it was, and a moved one is
-   popped aside there and recomputed where it lands */
-and calc_members =
-    (
-      ~settings,
-      ~probe_ids,
-      ~probe_dirty: item => bool,
-      ~prev_members: list(item),
-      ~dirty_vars: list(string),
-      ~dirty_tnames: list(string),
-      ~ctx_in: Ctx.t,
-      nodes: list(Exp.t),
-    )
-    : list(item) => {
-  let id_set = List.fold_left((s, id) => Id.Set.add(id, s), Id.Set.empty);
-  let node_ids = id_set(List.map(Exp.rep_id, nodes));
-  let prev_ids = id_set(List.map((q: item) => q.d_id, prev_members));
-  let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
-  /* q's exports leave the chain here */
-  let vacate = (q: item, dirty_vars, dirty_tnames) =>
-    seed_delta(export_delta(q.d_exports, []), dirty_vars, dirty_tnames);
-  let rec go = (ps, ns, ctx, dirty_vars, dirty_tnames, acc) =>
-    switch (ps, ns) {
-    | (_, []) => List.rev(acc)
-    | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
-      let (dirty_vars, dirty_tnames) = vacate(q, dirty_vars, dirty_tnames);
-      go(pt, ns, ctx, dirty_vars, dirty_tnames, acc);
-    | ([q, ...pt], [n, ..._])
-        when
-          q.d_id != Exp.rep_id(n)
-          && Id.Set.mem(Exp.rep_id(n), prev_ids)
-          && !Id.Map.mem(Exp.rep_id(n), moved^) =>
-      /* the node sits deeper in prev, so q moved later */
-      moved := Id.Map.add(q.d_id, q, moved^);
-      let (dirty_vars, dirty_tnames) = vacate(q, dirty_vars, dirty_tnames);
-      go(pt, ns, ctx, dirty_vars, dirty_tnames, acc);
-    | (ps, [n, ...nt]) =>
-      let nid = Exp.rep_id(n);
-      let (prev_it, moved_in, ps) =
-        switch (ps) {
-        | [q, ...pt] when q.d_id == nid => (Some(q), false, pt)
-        | _ =>
-          switch (Id.Map.find_opt(nid, moved^)) {
-          | Some(q) => (Some(q), true, ps)
-          | None => (None, false, ps) /* inserted */
-          }
-        };
-      let clean =
-        switch (prev_it) {
-        | Some(q) =>
-          !moved_in
-          && head_equal(q.d_node, n)
-          && !stale(q, dirty_vars, dirty_tnames)
-          && !probe_dirty(q)
-        | None => false
-        };
-      switch (clean, prev_it) {
-      | (true, Some(q)) =>
-        let (it, ctx_out) =
-          ctx === q.d_ctx_in
-            ? (q, q.d_ctx_out)
-            : {
-              let ctx_out = Ctx.prepend_entries(ctx, q.d_exports);
-              (
-                {
-                  ...q,
-                  d_ctx_in: ctx,
-                  d_ctx_out: ctx_out,
-                },
-                ctx_out,
-              );
-            };
-        let incoming_t = tshadow(it.d_exports, dirty_tnames);
-        go(
-          ps,
-          nt,
-          ctx_out,
-          shadow_filter(it.d_exports, dirty_vars),
-          List.sort_uniq(
-            compare,
-            ttransit(it.d_exports, incoming_t) @ incoming_t,
-          ),
-          [it, ...acc],
-        );
-      | _ =>
-        let it =
-          calc_item(
-            ~settings,
-            ~probe_ids,
-            ~probe_dirty,
-            ~prev=?prev_it,
-            ~dirty_vars,
-            ~dirty_tnames,
-            ~ctx_in=ctx,
-            n,
-          );
-        let p_exports =
-          switch (prev_it) {
-          | Some(q) => q.d_exports
-          | None => []
-          };
-        let delta = export_delta(p_exports, it.d_exports);
-        let incoming = shadow_filter(it.d_exports, dirty_vars);
-        let incoming_t = tshadow(it.d_exports, dirty_tnames);
-        let (dirty_vars, dirty_tnames) =
-          seed_delta(delta, incoming, incoming_t);
-        /* landed after a move: its names may resolve to it anew below */
-        let (dirty_vars, dirty_tnames) =
-          moved_in
-            ? (
-              List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
-              List.sort_uniq(
-                compare,
-                List.concat_map(tnames_of_entry, it.d_exports) @ dirty_tnames,
-              ),
-            )
-            : (dirty_vars, dirty_tnames);
-        let dirty_tnames =
-          List.sort_uniq(
-            compare,
-            ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
-          );
-        go(ps, nt, it.d_ctx_out, dirty_vars, dirty_tnames, [it, ...acc]);
-      };
-    };
-  go(prev_members, nodes, ctx_in, dirty_vars, dirty_tnames, []);
 };
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse
@@ -1067,14 +630,13 @@ let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
 
 /* [chain], except a Module root itemizes via the lowering (chain never
    descends into defs, so only a root Module is seen here) */
-let chain_root = (e: Exp.t): list(Exp.t) => {
-  let s = strip(e);
-  switch (s.term) {
-  | Module(items) =>
-    List.map(lower_mod_item, items) @ [exports_tail(Exp.rep_id(s), items)]
+let chain_root = (e: Exp.t): list(Exp.t) =>
+  switch (strip(e).term) {
+  /* a Module root is one item, analyzed by the monolithic Module statics
+     (see calc_item) */
+  | Module(_) => [e]
   | _ => chain(e)
   };
-};
 
 /* INVARIANT down the fold: [ctx] differs from the previous run's only at
    dirty names. a clean item (same head, d_free/d_tfree avoid the dirty
@@ -1350,13 +912,6 @@ let calc =
       go(prev_items, nodes, [], ctx0, [], [], prev_merged);
     };
   let merged = fix_spine_infos(~probe_ids, items, merged);
-  /* a Module root's items read as module items, as monolithically */
-  let merged =
-    switch (strip(whole).term) {
-    | Module(mod_items) =>
-      ModuleHelpers.reclassify_expanded_module_items(mod_items, merged)
-    | _ => merged
-    };
   {
     items,
     term: whole,
@@ -1369,19 +924,7 @@ let calc =
    predecessor's body hole; None on an unexpected elab shape. recursion
    depth is per item, so it fits the browser stack where a monolithic
    elaboration doesn't */
-let whole_elab = (t: t): option(Exp.t) => {
-  let grafted = graft_elabs(t.items);
-  switch (strip(t.term).term) {
-  | Module(_) =>
-    /* mod root: the graft is the lowered expansion's elab; finish it
-       the way monolithic Module statics does (marks the module value) */
-    Option.map(
-      ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(strip(t.term))),
-      grafted,
-    )
-  | _ => grafted
-  };
-};
+let whole_elab = (t: t): option(Exp.t) => graft_elabs(t.items);
 
 /* whole-program views over the per-item results */
 let all_error_ids = (t: t): list(Id.t) =>

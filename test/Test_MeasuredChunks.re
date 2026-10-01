@@ -53,6 +53,8 @@ let flatten = (m: Measured.t): Measured.flat =>
             acc.projectors,
             Id.Map.map(Measured.shift_m(s), f.projectors),
           ),
+        /* sizes, not positions: nothing to shift */
+        splices: Id.Map.union((_, _, y) => Some(y), acc.splices, f.splices),
         rows:
           Measured.Rows.union(
             (_, _, y) => Some(y),
@@ -230,6 +232,11 @@ let corpus_case = (file: string, min_chunks: int, ()) =>
                 Piece.Projector({
                   ...pr,
                   id: pr.id,
+                })
+              | Splice(s) =>
+                Piece.Splice({
+                  ...s,
+                  id: s.id,
                 })
               }
             : p,

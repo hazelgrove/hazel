@@ -1084,7 +1084,7 @@ module View = {
       OutlineControl.view(
         ~deck,
         ~statics=current_editor.statics,
-        ~segment=current_editor.editor.syntax.segment,
+        ~segment=Haz3lcore.CachedSyntax.segment(current_editor.editor.syntax),
         ~inject=a => inject(Editors(Scratch(Outline(a)))),
         ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
         ~jump=id => globals.inject_global(JumpToTile(id)),

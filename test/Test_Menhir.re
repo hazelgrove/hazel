@@ -305,7 +305,7 @@ let concave_marker_equivalent_test = (name: string, actual: string) =>
       "Menhir parse matches MakeTerm parse (marker load path)",
       marker_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )

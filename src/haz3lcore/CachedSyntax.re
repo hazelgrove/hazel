@@ -321,7 +321,7 @@ let calculate =
     /* [old] marks caret moves too; an unchanged segment keeps its
        measured/terms/term_data */
     let segment = Zipper.unselect_and_zip(z);
-    if (Segment.ptr_eq(segment, old.segment)) {
+    if (Segment.ptr_eq(segment, old.main_splice.segment)) {
       {
         ...refresh_shapes(z, info_map, dyn_map, ~elaborated, old),
         old: false,

@@ -514,7 +514,12 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       | Divided(_) => ()
       | Whole(editor) =>
         let z = editor.editor.editor.state.zipper;
-        switch (Zipper.Caret.point(editor.editor.editor.syntax.measured, z)) {
+        switch (
+          Zipper.Caret.point(
+            CachedSyntax.measured(editor.editor.editor.syntax),
+            z,
+          )
+        ) {
         | exception _ => ()
         | Point.{row, col} =>
           HazelDB.kv_save(
@@ -810,12 +815,13 @@ let reconcile_names =
 };
 
 let load_all =
+    /* doc reconciles; scratch (a seed, not shipped content) does not */
     (
+      ~reconcile: bool=false,
       prefix: string,
       ~settings,
       ~default_names: list(string),
       ~default_current: int,
-      ~reconcile: bool,
     )
     : Model.t => {
   let (current, names) =

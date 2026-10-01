@@ -316,7 +316,10 @@ module View = {
               | Some(results) => [
                   EvalResult.View.test_result_layer(
                     ~font_metrics=globals.font_metrics,
-                    ~measured=model.editor.editor.syntax.measured,
+                    ~measured=
+                      Haz3lcore.CachedSyntax.measured(
+                        model.editor.editor.syntax,
+                      ),
                     results,
                   ),
                 ]

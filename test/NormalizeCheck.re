@@ -33,6 +33,7 @@ let rec scrub_grout_ids = (seg: Segment.t): Segment.t =>
           ...t,
           children: List.map(scrub_grout_ids, t.children),
         })
+      | Splice(s) => Piece.mk_splice(~id=s.id, scrub_grout_ids(s.content))
       | Projector(_) => p
       },
     seg,
@@ -108,6 +109,7 @@ let check = (d: Direction.t, z: Zipper.t, root: Sort.t): Zipper.t => {
         )
       | Secondary(w) => Secondary.is_linebreak(w) ? "LB" : "ws"
       | Projector(_) => "Proj"
+      | Splice(_) => "Splice"
       };
     let dump = (tag, seg: Segment.t) =>
       print_endline(

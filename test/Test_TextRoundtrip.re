@@ -340,6 +340,7 @@ let debug_pieces = (tag, text) =>
                    | Grout({shape: Concave, _}) => "Gccv"
                    | Secondary(_) => "_"
                    | Projector(_) => "P"
+                   | Splice(_) => "S"
                    },
                  seg,
                ),
@@ -363,6 +364,7 @@ let debug_pieces = (tag, text) =>
                    | Grout({shape: Concave, _}) => "Gccv"
                    | Secondary(_) => "_"
                    | Projector(_) => "P"
+                   | Splice(_) => "S"
                    },
                  segment,
                ),

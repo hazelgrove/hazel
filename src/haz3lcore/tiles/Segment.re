@@ -1210,6 +1210,12 @@ let rec stale_in_seg = (seg: t): bool => {
     | [Projector(pr), ...tl] =>
       let (l, r) = ProjectorCore.shapes(pr);
       !run_normal(bound, l, n_grout) || go(r, 0, tl);
+    /* convex from outside; its content is concave-bounded inside, as a
+       child segment is (convex_wrapper_inner_shapes) */
+    | [Splice(sp), ...tl] =>
+      !run_normal(bound, Convex, n_grout)
+      || stale_in_seg(sp.content)
+      || go(Convex, 0, tl)
     };
   go(conc, 0, seg);
 }
@@ -1281,6 +1287,20 @@ let stale_affix_ids =
         let id = Piece.id(p);
         let acc = close(acc, bound, checking, gs, prev, ~l, ~next=Some(id));
         go(acc, r, true, [], Some(id), tl);
+      /* convex both sides, as a projector; regrout_affix always regrouts
+         a splice's content, so it needs no entry here */
+      | Splice(sp) =>
+        let acc =
+          close(
+            acc,
+            bound,
+            checking,
+            gs,
+            prev,
+            ~l=Convex,
+            ~next=Some(sp.id),
+          );
+        go(acc, Convex, true, [], Some(sp.id), tl);
       }
     };
   go(Id.Set.empty, bound0, checking0, [], None, affix);

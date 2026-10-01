@@ -857,10 +857,7 @@ let of_segment =
 };
 
 /* Index of the last measured row (0 for empty/single-row content). */
-let last_row = (m: t): int =>
-  m.rows
-  |> Rows.bindings
-  |> List.fold_left((acc, (r, _)) => max(acc, r), 0);
+let last_row = (m: t): int => max(0, num_rows(m) - 1);
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

@@ -233,7 +233,9 @@ and of_mod = (items: list(Language.Mod.t)): list(node) =>
         };
       | Invalid(_)
       | EmptyHole
-      | MultiHole(_) => []
+      | MultiHole(_)
+      /* an evaluated binding (dynamics only): never in the source */
+      | ModVal(_) => []
       },
     items,
   );
