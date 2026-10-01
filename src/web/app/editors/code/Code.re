@@ -238,10 +238,13 @@ module ChunkViews = {
     mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
     mutable cv_sorts: array((Sort.t, option(Sort.t))),
     /* info_map and term_data identities at the last sort probe; a match
-       skips the probe (top-level sorts depend on context, so a term_data
-       rebuilt for an edit elsewhere can move them) */
+       skips the probe. under the same info_map, only top-level sorts can
+       move (record_top_frame reads context), so a new term_data probes
+       just the chunk's top-level tiles */
     mutable cv_info: Obj.t,
     mutable cv_td: Obj.t,
+    mutable cv_top: list(Tile.t),
+    mutable cv_top_sorts: array((Sort.t, option(Sort.t))),
     /* whether the chunk held buffer pieces: only then can buffer_ids
        change it (new buffer text is new pieces, so a new c_flat) */
     mutable cv_buffered: bool,
@@ -343,16 +346,28 @@ let view_chunked =
            when
              stable(e)
              && e.cv_info === statics_ident
-             && e.cv_td === Obj.repr(term_data) =>
+             && (
+               e.cv_td === Obj.repr(term_data)
+               || e.cv_top_sorts == sorts_of(e.cv_top)
+             ) =>
+         e.cv_td = Obj.repr(term_data);
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
          e.cv_info = statics_ident;
          e.cv_td = Obj.repr(term_data);
+         e.cv_top_sorts = sorts_of(e.cv_top);
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
          let tiles = chunk_tiles(ch.c_pieces, []);
+         let top =
+           List.filter_map(
+             fun
+             | Piece.Tile(t) => Some(t)
+             | _ => None,
+             ch.c_pieces,
+           );
          let node = render(ch, final);
          let e = {
            ChunkViews.cv_flat: Obj.repr(ch.c_flat),
@@ -361,6 +376,8 @@ let view_chunked =
            cv_sorts: sorts_of(tiles),
            cv_info: statics_ident,
            cv_td: Obj.repr(term_data),
+           cv_top: top,
+           cv_top_sorts: sorts_of(top),
            cv_buffered:
              buffer_ids != []
              && List.exists(
