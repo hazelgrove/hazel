@@ -237,10 +237,15 @@ module ChunkViews = {
     mutable cv_final: bool,
     mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
     mutable cv_sorts: array((Sort.t, option(Sort.t))),
-    /* info_map identity at the last sort probe; a match skips the probe
-       (unchanged pieces share term_data, so only new statics move sorts) */
+    /* info_map and term_data identities at the last sort probe; a match
+       skips the probe (top-level sorts depend on context, so a term_data
+       rebuilt for an edit elsewhere can move them) */
     mutable cv_info: Obj.t,
-    mutable cv_buffer: Obj.t, /* buffer_ids identity (usually []) */
+    mutable cv_td: Obj.t,
+    /* whether the chunk held buffer pieces: only then can buffer_ids
+       change it (new buffer text is new pieces, so a new c_flat) */
+    mutable cv_buffered: bool,
+    mutable cv_buffer: Obj.t, /* buffer_ids identity */
     mutable cv_fm: Obj.t,
     mutable cv_settings: Obj.t,
     mutable cv_node: Node.t,
@@ -330,15 +335,20 @@ let view_chunked =
        let stable = (e: ChunkViews.entry) =>
          e.cv_flat === Obj.repr(ch.c_flat)
          && e.cv_final == final
-         && e.cv_buffer === Obj.repr(buffer_ids)
+         && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
          && e.cv_fm === Obj.repr(font_metrics)
          && e.cv_settings === Obj.repr(settings);
        switch (Hashtbl.find_opt(ChunkViews.cache, ch.c_anchor)) {
-       | Some(e) when stable(e) && e.cv_info === statics_ident =>
+       | Some(e)
+           when
+             stable(e)
+             && e.cv_info === statics_ident
+             && e.cv_td === Obj.repr(term_data) =>
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
          e.cv_info = statics_ident;
+         e.cv_td = Obj.repr(term_data);
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
@@ -350,6 +360,13 @@ let view_chunked =
            cv_tiles: tiles,
            cv_sorts: sorts_of(tiles),
            cv_info: statics_ident,
+           cv_td: Obj.repr(term_data),
+           cv_buffered:
+             buffer_ids != []
+             && List.exists(
+                  id => List.mem(id, buffer_ids),
+                  Segment.ids(ch.c_pieces),
+                ),
            cv_buffer: Obj.repr(buffer_ids),
            cv_fm: Obj.repr(font_metrics),
            cv_settings: Obj.repr(settings),
