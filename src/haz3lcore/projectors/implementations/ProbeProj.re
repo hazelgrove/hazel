@@ -2204,6 +2204,36 @@ let rich_content =
       )
     | _ => None
     }
+  /* no renderer chosen by hand: under auto-rich (the probe's own flag or
+     the global default) the first applicable renderer shows the value,
+     so a widget too tall for the inline chip still appears in the
+     drawer without a menu trip */
+  | (None, Some(exp))
+      when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
+    switch (
+      List.find_opt(
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, exp),
+        renderers,
+      )
+    ) {
+    | Some(r) =>
+      switch (r.init_model(~statics=info.statics, sort, exp)) {
+      | Some(pm) =>
+        r.render_model(
+          pm,
+          ~info,
+          ~exp,
+          ~view_seg,
+          ~local=pa => local(RendererAction(pa)),
+          ~parent,
+          ~sort,
+          (),
+        )
+      | None => None
+      }
+    | None => None
+    }
   | _ => None
   };
 
@@ -2257,7 +2287,9 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
     | (Some(r), Some(exp)) => r.drawer_rows(~statics=info.statics, sort, exp)
     | _ => None
     }
-  | None when model.auto_rich =>
+  | None
+      when
+        (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
       List.find_opt(
