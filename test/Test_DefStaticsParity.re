@@ -342,6 +342,11 @@ let tests = (
       ),
     ),
     test_case(
+      "an unused function definition",
+      `Quick,
+      script("let f(x : Int) : Bool = x > 0 in\nlet g(y) = y in\n1", []),
+    ),
+    test_case(
       "a module used in an alias's definition",
       `Quick,
       script(

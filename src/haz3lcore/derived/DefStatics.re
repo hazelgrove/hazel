@@ -523,6 +523,28 @@ let graft_elabs = (items: list(item)): option(Exp.t) => {
 /* a top-level export is used iff a later item mentions it before a
    value rebinding, or a hole below could ("$hole" in d_free: real holes
    only, since synthetic body holes aren't in any def) */
+/* the `f(x)` and `f(x) : T` wrappers of a function definition carry its
+   name's info, unused warning included (FunctionSugar.add_binder_infos) */
+let fun_wrapper_ids = (node: Exp.t, name_id: Id.t): list(Id.t) => {
+  let names_it = (p: Pat.t) =>
+    switch (p.term) {
+    | Ap(fn, _) => Pat.rep_id(fn) == name_id
+    | _ => false
+    };
+  switch (node.term) {
+  | Let(p, _, _) =>
+    switch (p.term) {
+    | Asc(inner, _) when names_it(inner) => [
+        Pat.rep_id(p),
+        Pat.rep_id(inner),
+      ]
+    | _ when names_it(p) => [Pat.rep_id(p)]
+    | _ => []
+    }
+  | _ => []
+  };
+};
+
 let unused_binders = (items: list(item)): list(Id.t) => {
   let hole_below = rest =>
     List.exists(it => List.mem("$hole", it.d_free), rest);
@@ -541,7 +563,7 @@ let unused_binders = (items: list(item)): list(Id.t) => {
     switch (items) {
     | [] => []
     | [it, ...rest] =>
-      List.filter_map(
+      List.concat_map(
         e =>
           switch (e) {
           | Ctx.VarEntry({name, id, _}) =>
@@ -549,8 +571,8 @@ let unused_binders = (items: list(item)): list(Id.t) => {
             || hole_below(rest)
             || String.length(name) > 0
             && name.[0] == '_'
-              ? None : Some(id)
-          | _ => None
+              ? [] : [id, ...fun_wrapper_ids(it.d_node, id)]
+          | _ => []
           },
         it.d_exports,
       )
@@ -841,6 +863,9 @@ and calc_module_item =
       let info =
         Info.InfoExp({
           ...raw,
+          /* the surrogate's are an ascription's */
+          user_term: def,
+          cls: Cls.Exp(Exp.cls_of_term(def.term)),
           elab_term: v,
           co_ctx: CoCtx.union([raw.co_ctx, top_co]),
           probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
@@ -1325,6 +1350,13 @@ let calc =
       go(prev_items, nodes, [], ctx0, [], [], prev_merged);
     };
   let merged = fix_spine_infos(~probe_ids, items, merged);
+  /* a Module root's items read as module items, as monolithically */
+  let merged =
+    switch (strip(whole).term) {
+    | Module(mod_items) =>
+      ModuleHelpers.reclassify_expanded_module_items(mod_items, merged)
+    | _ => merged
+    };
   {
     items,
     term: whole,
@@ -1356,13 +1388,14 @@ let all_error_ids = (t: t): list(Id.t) =>
   List.concat_map(it => it.d_error_ids, t.items);
 
 let all_warning_ids = (t: t): list(Id.t) => {
+  /* unused top-level binders are the engine's call, wrappers included */
   let binder_ids =
     List.concat_map(
       it =>
-        List.filter_map(
+        List.concat_map(
           fun
-          | Ctx.VarEntry({id, _}) => Some(id)
-          | _ => None,
+          | Ctx.VarEntry({id, _}) => [id, ...fun_wrapper_ids(it.d_node, id)]
+          | _ => [],
           it.d_exports,
         ),
       t.items,

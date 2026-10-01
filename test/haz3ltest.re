@@ -4,6 +4,8 @@ Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
+  | DefStaticsCheck.Divergence(ds) =>
+    Some("DefStatics diverges: " ++ String.concat("; ", ds))
   | _ => None
   }
 });

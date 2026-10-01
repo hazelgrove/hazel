@@ -69,6 +69,11 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
                  || Exp.lexeme_trace(a.elab_term)
                  != Exp.lexeme_trace(b.elab_term)) {
         Some("elaboration");
+      } else if (a.cls != b.cls) {
+        /* the inspector and ExplainThis read it */
+        Some(
+          "class " ++ Cls.show(a.cls) ++ " / " ++ Cls.show(b.cls),
+        );
       } else if (runtime(a.co_ctx) != runtime(b.co_ctx)) {
         let names = co => String.concat(" ", runtime(co));
         Some(
