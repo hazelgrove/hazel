@@ -88,8 +88,36 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
           budget := budget^ - 1;
           re(Parens(go(x)));
         | _ =>
-          /* non-structural over-budget subtree: one clean hole */
-          hole()
+          /* any other form keeps its head and spends the rest inside,
+             smallest parts first (so the constructor survives its big
+             argument): `Left(([1, 2, ?], ?))`, not `?` */
+          budget := budget^ - 1;
+          let parts = ref([]);
+          let collect = (cont, x: Exp.t) =>
+            if (x === e) {
+              cont(x);
+            } else {
+              parts := [x, ...parts^];
+              x;
+            };
+          ignore(Exp.map_term(~f_exp=collect, e));
+          let size = x =>
+            Option.value(size_within(max(budget^, 0), x), ~default=max_int);
+          let pruned =
+            parts^
+            |> List.map(x => (x, size(x)))
+            |> List.stable_sort(((_, a), (_, b)) => compare(a, b))
+            |> List.map(((x, _)) => (x, go(x)));
+          let replace = (cont, x: Exp.t) =>
+            if (x === e) {
+              cont(x);
+            } else {
+              switch (List.find_opt(((y, _)) => y === x, pruned)) {
+              | Some((_, p)) => p
+              | None => x
+              };
+            };
+          Exp.map_term(~f_exp=replace, e);
         };
       };
     };

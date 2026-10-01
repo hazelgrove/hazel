@@ -31,6 +31,10 @@ let constructor_value = () => {
     true,
     Web.EvalResult.value_truncated(pruned),
   );
+  switch (pruned.term) {
+  | Ap(_, {term: Constructor("Some", _), _}, _) => ()
+  | _ => fail("the outer constructor was lost")
+  };
 };
 
 let list_tail = () => {
