@@ -177,7 +177,16 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
     && Typ.fast_equal(v1.typ, v2.typ)
     && v1.custom_statics == v2.custom_statics
   | (TVarEntry(t1), TVarEntry(t2)) =>
-    t1.name == t2.name && t1.id == t2.id && compare(t1.kind, t2.kind) == 0
+    t1.name == t2.name
+    && t1.id == t2.id
+    && (
+      switch (t1.kind, t2.kind) {
+      /* not ids: a recursive alias gets a fresh binder each analysis */
+      | (Ctx.Singleton(a), Ctx.Singleton(b)) => Typ.fast_equal(a, b)
+      | (Abstract, Abstract) => true
+      | _ => false
+      }
+    )
   | (LivelitEntry(l1), LivelitEntry(l2)) => l1 === l2 /* closures */
   | _ => false
   };
