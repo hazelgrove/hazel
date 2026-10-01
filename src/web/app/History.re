@@ -2,7 +2,7 @@ open Util;
 
 /* compacted snapshots still hold zippers, frozen ctxs and master
    segments: a deep stack runs out of memory on large programs */
-let capped_undo_stack_size = 1000;
+let capped_undo_stack_size = 250;
 
 /* snapshots drop derived caches (syntax, statics, eval states), which
    would pin memory per edit; restore rebuilds them from the zipper:
