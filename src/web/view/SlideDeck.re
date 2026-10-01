@@ -258,6 +258,7 @@ let update =
 
       switch (new_name) {
       | None => model |> return_quiet
+      | Some(new_name) when new_name == current.name => model |> return_quiet
       | Some(new_name) =>
         Persist.rename_slide(
           is_documentation ? "doc" : "scratch",

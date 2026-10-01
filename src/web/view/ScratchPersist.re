@@ -145,29 +145,6 @@ let read_pins = (prefix: string, name: string): unit => {
       );
 };
 
-/* a deleted slide leaves nothing a later slide of the same name could
-   pick up: stored keys, collapse, pending restores */
-let forget_slide = (prefix: string, name: string): unit => {
-  let ck = content_key(prefix, name);
-  HazelDB.kv_remove_under(ck);
-  Hashtbl.remove(slide_collapse, ck);
-  Hashtbl.remove(pending_pins, ck);
-  Hashtbl.remove(pending_caret, ck);
-};
-
-let rename_slide = (prefix: string, old_name: string, new_name: string): unit => {
-  let (old_ck, new_ck) = (
-    content_key(prefix, old_name),
-    content_key(prefix, new_name),
-  );
-  HazelDB.kv_move_under(~from=old_ck, ~to_=new_ck);
-  switch (Hashtbl.find_opt(slide_collapse, old_ck)) {
-  | Some(paths) => Hashtbl.replace(slide_collapse, new_ck, paths)
-  | None => Hashtbl.remove(slide_collapse, new_ck)
-  };
-  Hashtbl.remove(slide_collapse, old_ck);
-};
-
 /* the saved view against the loaded program's outline */
 let resolve_view = (saved: saved_view, term: Language.Exp.t): SlideView.t => {
   zoom:
@@ -386,6 +363,77 @@ let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
   let saved = ItemPersist.save(~store=item_store(prefix, name), ~prev, seg);
   Hashtbl.replace(last_item_saves, content_key, saved);
 };
+
+/* the keys a slide owns, exactly: its content key, its side keys, its item
+   store. a name may itself contain `:`, so no prefix match */
+let side_suffixes = [
+  ":agent",
+  ":caret",
+  ":pins",
+  ":view",
+  ":collapse",
+  ":probes",
+];
+let slide_suffix = (ck: string, k: string): option(string) => {
+  let n = String.length(ck);
+  if (k == ck) {
+    Some("");
+  } else if (String.length(k) > n && String.sub(k, 0, n) == ck) {
+    let rest = String.sub(k, n, String.length(k) - n);
+    List.mem(rest, side_suffixes)
+    || String.starts_with(~prefix=":items:", rest)
+      ? Some(rest) : None;
+  } else {
+    None;
+  };
+};
+
+/* the save gates under a slide's keys: once its keys move or go, the next
+   autosave (or an undo bringing the slide back) must write everything */
+let forget_gates = (ck: string): unit => {
+  let drop = tbl =>
+    Hashtbl.fold(
+      (k, _, ks) => slide_suffix(ck, k) == None ? ks : [k, ...ks],
+      tbl,
+      [],
+    )
+    |> List.iter(Hashtbl.remove(tbl));
+  drop(last_saved_probes);
+  drop(last_saved_view);
+  drop(last_saved_agent);
+  drop(last_agent_save_ts);
+  drop(last_saved_content);
+  drop(last_item_saves);
+};
+
+/* a deleted slide leaves nothing a later slide of the same name could
+   pick up: stored keys, collapse, pending restores, save gates */
+let forget_slide = (prefix: string, name: string): unit => {
+  let ck = content_key(prefix, name);
+  HazelDB.kv_remove_where(k => slide_suffix(ck, k) != None);
+  Hashtbl.remove(slide_collapse, ck);
+  Hashtbl.remove(pending_pins, ck);
+  Hashtbl.remove(pending_caret, ck);
+  forget_gates(ck);
+};
+
+let rename_slide = (prefix: string, old_name: string, new_name: string): unit =>
+  if (old_name != new_name) {
+    let (old_ck, new_ck) = (
+      content_key(prefix, old_name),
+      content_key(prefix, new_name),
+    );
+    HazelDB.kv_rekey(k =>
+      Option.map(rest => new_ck ++ rest, slide_suffix(old_ck, k))
+    );
+    switch (Hashtbl.find_opt(slide_collapse, old_ck)) {
+    | Some(paths) => Hashtbl.replace(slide_collapse, new_ck, paths)
+    | None => Hashtbl.remove(slide_collapse, new_ck)
+    };
+    Hashtbl.remove(slide_collapse, old_ck);
+    forget_gates(old_ck);
+    forget_gates(new_ck);
+  };
 let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
   switch (a, b) {
   | (Unstacked(x), Unstacked(y)) => x === y

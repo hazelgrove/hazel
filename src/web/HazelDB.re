@@ -59,37 +59,28 @@ let kv_remove = (key: string): unit => {
   );
 };
 
-/* [base] and every side key under it (`base:…`) */
-let kv_remove_under = (base: string): unit => {
-  let under = k =>
-    k == base
-    || String.length(k) > String.length(base)
-    && String.sub(k, 0, String.length(base) + 1) == base
-    ++ ":";
+/* every stored key [owned] claims */
+let kv_remove_where = (owned: string => bool): unit =>
   Util.Maps.StringMap.iter(
     (k, _) =>
-      if (under(k)) {
+      if (owned(k)) {
         kv_remove(k);
       },
     cache^,
   );
-};
 
-/* every key under [from] saved under [to_] instead */
-let kv_move_under = (~from: string, ~to_: string): unit => {
-  let n = String.length(from);
+/* every stored key [rekey] maps to a different key, saved there instead */
+let kv_rekey = (rekey: string => option(string)): unit =>
   Util.Maps.StringMap.iter(
     (k, v) =>
-      if (k == from
-          || String.length(k) > n
-          && String.sub(k, 0, n + 1) == from
-          ++ ":") {
-        kv_save(to_ ++ String.sub(k, n, String.length(k) - n), v);
+      switch (rekey(k)) {
+      | Some(k') when k' != k =>
+        kv_save(k', v);
         kv_remove(k);
+      | _ => ()
       },
     cache^,
   );
-};
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
