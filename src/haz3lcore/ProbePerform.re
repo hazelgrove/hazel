@@ -3,14 +3,26 @@ open OptUtil.Syntax;
 open Language;
 open ProbeTargets;
 
-let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
-  Zipper.update_refractors(z, r =>
-    {
-      ...r,
-      pending_probe_cursor: Some(ids),
-    }
-  );
-};
+/* ~only_if_not_aligned marks an automatic request (see
+ * Refractors.pending_probe_cursor); it never replaces a pending explicit
+ * one, which would make that request conditional. */
+let set_pending_probe =
+    (~only_if_not_aligned: bool=false, ids: list(Id.t), z: Zipper.t)
+    : Zipper.t =>
+  switch (z.refractors.pending_probe_cursor) {
+  | Some({only_if_not_aligned: false, _}) when only_if_not_aligned => z
+  | _ =>
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        pending_probe_cursor:
+          Some({
+            ids,
+            only_if_not_aligned,
+          }),
+      }
+    )
+  };
 
 /* Automatic focus paths (ephemeral capture, post-edit alignment, stale-cursor
  * fallback) are honored only in auto mode; pinning switches to manual and
@@ -223,6 +235,12 @@ let rm_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
     z,
   );
 
+/* Showing a hidden autoprobe line again is adding a probe: request the focus
+ * explicitly, as add_manual does (its reappearance alone would only fill a
+ * gap). */
+let show_suppressed = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
+  rm_suppression(ids, z) |> set_pending_probe(ids);
+
 let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids = Id.Map.bindings(z.refractors.multis.ids) |> List.map(fst);
@@ -286,22 +304,26 @@ let add_ids_from_multi_term =
     } else {
       Zipper.update_ephemerals(_ => new_ephemeral_map, z);
     };
-  /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
+  /* Gated on auto_focus: in manual focus mode, don't auto-capture new
+   * ephemerals. Automatic: a new line moves the focus only if it shows ⊖. */
   let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
   | _ when !auto_focus(z) => z
   | _ =>
     let sorted = sort_ids_lexically(~syntax, new_ids);
-    set_pending_probe(sorted, z);
+    set_pending_probe(~only_if_not_aligned=true, sorted, z);
   };
 };
 
+/* ~only_if_not_aligned makes the pending cursor request automatic (the
+ * autoprobe re-anchoring); explicit probe toggles leave it off. */
 let add_multi =
     (
       id: Id.t,
       ~drill: bool=true,
       ~set_pending_cursor: bool=true,
+      ~only_if_not_aligned: bool=false,
       ~syntax: CachedSyntax.t,
       ~info_map: Statics.Map.t,
       z: Zipper.t,
@@ -331,7 +353,7 @@ let add_multi =
     let ephemeral_ids =
       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
-    set_pending_probe(sorted_ids, z);
+    set_pending_probe(~only_if_not_aligned, sorted_ids, z);
   } else {
     z;
   };
@@ -378,7 +400,7 @@ let toggle_probe =
     | Manual(ids) => rm_manual(ids, z)
     | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
     | Ephemeral(ids) => add_suppression(ids, z)
-    | Suppressed(ids) => rm_suppression(ids, z)
+    | Suppressed(ids) => show_suppressed(ids, z)
     | Non =>
       switch (target_subterm_ids(id, info_map)) {
       | [] => z
@@ -392,7 +414,7 @@ let toggle_probe =
     | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
     | Ephemeral(ids) => add_suppression(ids, z)
-    | Suppressed(ids) => rm_suppression(ids, z)
+    | Suppressed(ids) => show_suppressed(ids, z)
     | Non => add_manual(~syntax, id, info_map, z)
     };
   };

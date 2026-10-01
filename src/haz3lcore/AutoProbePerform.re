@@ -228,6 +228,7 @@ let update_autoprobe =
                 root_id,
                 ~drill=false,
                 ~set_pending_cursor=ProbePerform.auto_focus(z),
+                ~only_if_not_aligned=true,
                 ~syntax,
                 ~info_map,
                 z,
@@ -246,7 +247,7 @@ let update_autoprobe =
         };
       let anchors =
         Option.to_list(current_def) @ Option.to_list(current_param);
-      /* def body carries cursor following (gated on auto_focus); the param anchor is added without it, keeping focus on the body's first sample. */
+      /* def body carries cursor following (gated on auto_focus, and only into a ⊖: re-anchoring is automatic); the param anchor is added without it, keeping focus on the body's first sample. */
       let add = z =>
         switch (current_def) {
         | None => z
@@ -256,6 +257,7 @@ let update_autoprobe =
               def_id,
               ~drill=false,
               ~set_pending_cursor=ProbePerform.auto_focus(z),
+              ~only_if_not_aligned=true,
               ~syntax,
               ~info_map,
               z,
