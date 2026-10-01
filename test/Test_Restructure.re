@@ -725,10 +725,139 @@ let refused = (): unit => {
   );
 };
 
+/* ops keep the layout: items keep their lines, new ones take their
+   neighbours' indentation, and comment lines directly above an item go
+   with it */
+let layout = (): unit => {
+  let same = (desc, expected, got) =>
+    check(string, desc, text_of(parse(expected)), got);
+  let op = (src, label, op) =>
+    apply_ok(~src, ~label, ~op, ~desc=label ++ " " ++ src);
+  let c = "# about a #\nlet a = 1 in\n# about b #\nlet b = 2 in\nb";
+  same(
+    "comments move with their items",
+    "# about b #\nlet b = 2 in\n# about a #\nlet a = 1 in\nb",
+    op(c, "b", MoveUp),
+  );
+  same(
+    "and go when they do",
+    "# about b #\nlet b = 2 in\nb",
+    op(c, "a", Delete),
+  );
+  let d = "let a = 1 in\n\n# section #\n\nlet b = 2 in\nb";
+  same(
+    "a comment set apart stays",
+    "let b = 2 in\n\n# section #\n\nlet a = 1 in\nb",
+    op(d, "b", MoveUp),
+  );
+  let m = "module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a";
+  same(
+    "member down",
+    "module M = {\n  let b = 2;\n  let a = 1\n} in\nM.a",
+    op(m, "a", MoveDown),
+  );
+  same(
+    "first member deleted",
+    "module M = {\n  let b = 2\n} in\nM.a",
+    op(m, "a", Delete),
+  );
+  same(
+    "last member deleted",
+    "module M = {\n  let a = 1\n} in\nM.a",
+    op(m, "b", Delete),
+  );
+  same(
+    "member duplicated",
+    "module M = {\n  let a = 1;\n  let a = 1;\n  let b = 2\n} in\nM.a",
+    op(m, "a", Duplicate),
+  );
+  same(
+    "new member below the last",
+    {js|module M = {
+  let a = 1;
+  let b = 2;
+  let new_def = ¿
+} in
+M.a|js},
+    op(m, "b", NewBelow),
+  );
+  let t = "module M = {\n  let a = 1;\n  let b = 2;\n} in\nM.a";
+  switch (run_inside(t, "M", "c")) {
+  | Ok((seg', _)) =>
+    same(
+      "new member inside after a last `;`",
+      {js|module M = {
+  let a = 1;
+  let b = 2;
+  let c = ¿;
+} in
+M.a|js},
+      text_of(seg'),
+    )
+  | Error(why) => fail("inside: " ++ why)
+  };
+  same(
+    "a last `;` moves with the last place",
+    "module M = {\n  let b = 2;\n  let a = 1;\n} in\nM.a",
+    op(t, "b", MoveUp),
+  );
+  let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
+  same(
+    "a function body's new let",
+    {js|let f = fun x ->
+  let y = x + 1 in
+  let new_def = ¿ in
+  y * 2
+in
+f(1)|js},
+    op(f, "y", NewBelow),
+  );
+  /* across module edges an item is reindented to where it lands */
+  let x = "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  let mv = (~up, src, label) => {
+    let seg = parse(src);
+    let term = statics_term(seg);
+    switch (
+      R.move(
+        ~mod_root=false,
+        ~is_open=_ => true,
+        ~owner=
+          label == "b" || label == "f" ? None : Some(outline_id(term, "M")),
+        ~up,
+        outline_id(term, label),
+        seg,
+      )
+    ) {
+    | Some((seg', _)) => text_of(seg')
+    | None => fail("move refused: " ++ label)
+    };
+  };
+  same(
+    "into a module",
+    "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb",
+    mv(~up=true, x, "b"),
+  );
+  same(
+    "out of a module",
+    "let a = 1 in\nlet x = 2 in\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+    mv(~up=true, x, "x"),
+  );
+  same(
+    "a function into a module",
+    "module M = {\n  let f = fun x ->\n    x + 1;\n  let y = 3\n} in\nM.y",
+    mv(
+      ~up=false,
+      "let f = fun x ->\n  x + 1\nin\nmodule M = {\n  let y = 3\n} in\nM.y",
+      "f",
+    ),
+  );
+};
+
 let tests = (
   "Restructure",
   [
     test_case("a refused op does nothing", `Quick, refused),
+    test_case("ops keep the layout", `Quick, layout),
     test_case("top-level ops", `Quick, top_level),
     test_case("statement ops", `Quick, statements),
     test_case("member ops", `Quick, members),
