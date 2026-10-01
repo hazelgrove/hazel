@@ -101,18 +101,37 @@ let edge_programs = [
   ("single expr", "1 + 2 * 3"),
   ("trailing lb", "let a = 1 in\na\n"),
   ("tuple top", "let t = (1, 2) in\nt"),
+  ("use", "use X in\nzz"),
+  ("theorem", "theorem t = 1 in\nzz"),
+  ("let under fun", "fun x ->\nlet y = x in\ny"),
+  ("let under else", "if true then 1 else\nlet y = 2 in\ny"),
+  ("let under operator", "1 +\nlet y = 2 in\ny"),
+  ("let under fun under let", "let a = 1 in\nfun x ->\nlet y = x in\na"),
 ];
+
+/* the statics path (term_of) grafts the same item parses */
+let check_term_of = (name: string, seg: Segment.t): unit => {
+  MakeTerm.Incr.last := None;
+  let fb = MakeTerm.Incr.fell_back^;
+  let term = MakeTerm.Incr.term_of(seg);
+  check(int, name ++ ":term_of no fallback", fb, MakeTerm.Incr.fell_back^);
+  check(bool, name ++ ":term_of", true, term == MakeTerm.go(seg).term);
+};
 
 let edge_case = ((name, src), ()) =>
   switch (ParsedCorpus.to_segment(~root=Exp, src)) {
   | None => fail("unparseable edge program: " ++ name)
-  | Some(seg) => ignore(check_parity(name, seg))
+  | Some(seg) =>
+    ignore(check_parity(name, seg));
+    check_term_of(name, seg);
   };
 
 let incomplete_case = ((name, src), ()) =>
   switch (CorpusUtil.typed_seg(src)) {
   | None => fail("untypeable program: " ++ name)
-  | Some(seg) => ignore(check_parity(name, seg))
+  | Some(seg) =>
+    ignore(check_parity(name, seg));
+    check_term_of(name, seg);
   };
 
 /* shard masks from one parse don't leak into the next */

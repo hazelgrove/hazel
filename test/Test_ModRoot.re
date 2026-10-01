@@ -98,8 +98,9 @@ let check_parity = (~allow_semi_diff=true, seg: Segment.t, incr: MakeTerm.t) => 
 let full_parity = () => {
   let seg = parse_mod(mod_src);
   let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
   let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
-  check(int, "no fallback", 0, MakeTerm.Incr.fell_back^);
+  check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg, incr);
 };
 
@@ -113,9 +114,10 @@ let incremental_edit = () => {
   let (seg2, edited) = edit_seg(seg);
   check(bool, "edit found the literal", true, edited);
   MakeTerm.Incr.full_analyzed := 0;
+  let fb = MakeTerm.Incr.fell_back^;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
   check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
-  check(int, "no fallback", 0, MakeTerm.Incr.fell_back^);
+  check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
 
@@ -124,6 +126,30 @@ let term_of_mod_matches = () => {
   let t = MakeTerm.Incr.term_of_root(~root=Mod, seg);
   let mono = MakeTerm.go_mod_root(seg);
   check(bool, "term_of_mod ≡ mono term", true, compare(t, mono.term) == 0);
+};
+
+/* a stray line typed above a member: that slice's `;` parses inside the
+   member's definition, so slices can't simply concatenate */
+let stray_line = () => {
+  let src = "let x = 1;\nfoo\nlet y = 2;\nx";
+  switch (CorpusUtil.typed_seg(~root=Mod, src)) {
+  | None => fail("untypeable mod program")
+  | Some(seg) =>
+    let incr =
+      MakeTerm.Incr.go_incr(~root=Mod, ~cache=MakeTerm.Incr.mk_cache(), seg);
+    check_parity(seg, incr);
+    MakeTerm.Incr.last := None;
+    check(
+      bool,
+      "term_of_mod ≡ mono term",
+      true,
+      compare(
+        MakeTerm.Incr.term_of_root(~root=Mod, seg),
+        MakeTerm.go_mod_root(seg).term,
+      )
+      == 0,
+    );
+  };
 };
 
 /* Incr's last-result slot serves both roots: each gets its own reading */
@@ -217,8 +243,9 @@ let corpus = () => {
   | Some(src) =>
     let seg = parse_mod(src);
     let cache = MakeTerm.Incr.mk_cache();
+    let fb = MakeTerm.Incr.fell_back^;
     let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
-    check(int, "no fallback", 0, MakeTerm.Incr.fell_back^);
+    check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
     check_parity(seg, incr);
     let term = incr.term;
     let n_items =
@@ -369,6 +396,7 @@ let tests = (
     test_case("full parity", `Quick, full_parity),
     test_case("incremental edit", `Quick, incremental_edit),
     test_case("term_of_mod", `Quick, term_of_mod_matches),
+    test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
     test_case("statics parity", `Quick, statics_parity),
     test_case("statics incremental", `Quick, statics_incremental),

@@ -1958,27 +1958,33 @@ let wrap_module = (items: list(Mod.t)): Exp.t => {
 
 /* monolithic parse of a Mod-rooted segment, which [go] would misparse at
    Exp: the parity reference and go_incr's fallback */
-let go_mod_root =
-  Core.Memo.general(~cache_size_bound=8, seg =>
-    fresh(
-      seg,
-      () => {
-        let items =
-          switch (go_s(Sort.Mod, Segment.skel(seg), seg)) {
-          | Mod(m) => flatten_mod(m)
-          | _ => []
-          };
-        consolidate_adopted();
-        let term = wrap_module(items);
-        {
-          term,
-          term_data: term_data^,
-          terms: TermMap.add_all(term.annotation.ids, Exp(term), map^),
-          projectors: projectors^,
-          projector_list: projector_list^,
+let go_mod_root_impl =
+    (~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty, seg) =>
+  fresh(
+    ~masks,
+    seg,
+    () => {
+      let items =
+        switch (go_s(Sort.Mod, Segment.skel(seg), seg)) {
+        | Mod(m) => flatten_mod(m)
+        | _ => []
         };
-      },
-    )
+      consolidate_adopted();
+      let term = wrap_module(items);
+      {
+        term,
+        term_data: term_data^,
+        terms: TermMap.add_all(term.annotation.ids, Exp(term), map^),
+        projectors: projectors^,
+        projector_list: projector_list^,
+      };
+    },
+  );
+
+let go_mod_root =
+  Core.Memo.general(
+    ~cache_size_bound=8,
+    go_mod_root_impl(~masks=Id.Map.empty),
   );
 
 let for_projection =
@@ -2066,6 +2072,8 @@ module Incr = {
      term_of, term_of_mod and go_incr, so a hit needs both to match */
   let last: ref(option((Sort.t, Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
+  /* per-item parses that gave up for a whole parse; parity tests assert 0 */
+  let fell_back = ref(0);
 
   /* collecting secondaries per slice matches the whole-segment
      collection (test-gated): a Pre node owns only its before-run, so no
@@ -2100,7 +2108,8 @@ module Incr = {
 
   /* a mod-item slice ending in `;` is nonconvex: the appended grout
      parses to a trailing EmptyHole item, dropped here (the caller scrubs
-     its id). mod items have no body, so composition is a plain concat */
+     its id). mod items have no body, so composition is a plain concat,
+     which a `;` parsed inside an item (a stray line above a member) breaks */
   let parse_item_mod =
       (~masks=Id.Map.empty, pieces: Segment.t): (list(Mod.t), option(Id.t)) => {
     let attempt = (ps: Segment.t): option(list(Mod.t)) =>
@@ -2126,99 +2135,156 @@ module Incr = {
             shape: Convex,
           }),
         ];
+      let is_hole = (m: Mod.t) => List.mem(hole_id, m.annotation.ids);
       switch (attempt(ps)) {
       | Some(items) =>
-        let items =
-          List.filter(
-            (m: Mod.t) => !List.mem(hole_id, m.annotation.ids),
-            items,
-          );
-        (items, Some(hole_id));
+        switch (ListUtil.split_last_opt(items)) {
+        | Some((items, hole)) when is_hole(hole) => (items, Some(hole_id))
+        | _ => failwith("MakeTerm.Incr: mod item absorbed its `;`")
+        }
       | None => ([], None)
       };
     };
   };
 
-  let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
-    if (List.mem(hole_id, e.annotation.ids)) {
-      Some(acc);
-    } else {
-      let re = (term: Exp.term) => {
-        ...e,
-        term,
+  /* [e] with [acc] in its synthetic body hole, plus the hole's rebuilt
+     ancestors, outermost first (the term map must hold them grafted).
+     the binding-form spine first, cheaply; then any Exp position (an
+     operand typed above a let, a let under a fun, `if` or operator). a
+     lost hole raises: callers parse whole rather than drop what follows */
+  let graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): (Exp.t, list(Exp.t)) => {
+    let is_hole = (e: Exp.t) => List.mem(hole_id, e.annotation.ids);
+    let path = ref([]);
+    let rebuilt = (e: Exp.t): Exp.t => {
+      path := [e, ...path^];
+      e;
+    };
+    let rec spine = (e: Exp.t): option(Exp.t) =>
+      if (is_hole(e)) {
+        Some(acc);
+      } else {
+        let re = (term: Exp.term) =>
+          rebuilt({
+            ...e,
+            term,
+          });
+        switch (e.term) {
+        | Let(p, d, b) => spine(b) |> Option.map(b => re(Let(p, d, b)))
+        | Theorem(p, d, b) =>
+          spine(b) |> Option.map(b => re(Theorem(p, d, b)))
+        | Use(t, b) => spine(b) |> Option.map(b => re(Use(t, b)))
+        | Seq(a, b) => spine(b) |> Option.map(b => re(Seq(a, b)))
+        | TyAlias(tp, ty, b) =>
+          spine(b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+        | ModuleExp(mp, d, b) =>
+          spine(b) |> Option.map(b => re(ModuleExp(mp, d, b)))
+        | Filter(f, b) => spine(b) |> Option.map(b => re(Filter(f, b)))
+        | Parens(b) => spine(b) |> Option.map(b => re(Parens(b)))
+        | _ => None
+        };
       };
-      switch (e.term) {
-      | Let(p, d, b) =>
-        graft_at(hole_id, acc, b) |> Option.map(b => re(Let(p, d, b)))
-      | Seq(a, b) =>
-        graft_at(hole_id, acc, b) |> Option.map(b => re(Seq(a, b)))
-      | TyAlias(tp, ty, b) =>
-        graft_at(hole_id, acc, b) |> Option.map(b => re(TyAlias(tp, ty, b)))
-      | ModuleExp(mp, d, b) =>
-        graft_at(hole_id, acc, b)
-        |> Option.map(b => re(ModuleExp(mp, d, b)))
-      | Filter(f, b) =>
-        graft_at(hole_id, acc, b) |> Option.map(b => re(Filter(f, b)))
-      | Parens(b) =>
-        graft_at(hole_id, acc, b) |> Option.map(b => re(Parens(b)))
-      | _ => None
+    let anywhere = (e: Exp.t): Exp.t => {
+      let found = ref(false);
+      let keep = (_, x) => x;
+      /* off the hole's path, the original node */
+      let f_exp = (descend, e: Exp.t) =>
+        if (found^) {
+          e;
+        } else if (is_hole(e)) {
+          found := true;
+          acc;
+        } else {
+          let e' = descend(e);
+          found^ ? rebuilt(e') : e;
+        };
+      let e =
+        Exp.map_term(
+          ~f_exp,
+          ~f_pat=keep,
+          ~f_typ=keep,
+          ~f_tpat=keep,
+          ~f_mod=keep,
+          ~f_sig=keep,
+          ~f_mpat=keep,
+          e,
+        );
+      found^ ? e : failwith("MakeTerm.Incr: body hole not found");
+    };
+    let e =
+      switch (spine(e)) {
+      | Some(e) => e
+      | None => anywhere(e)
+      };
+    (e, path^);
+  };
+
+  /* grafts each item into its predecessor's body hole; [on_path] sees
+     each graft's rebuilt ancestors. a non-last item always has a hole */
+  let rec graft_items =
+          (~on_path=_ => (), items: list((Exp.t, option(Id.t)))): Exp.t =>
+    switch (items) {
+    | [] => Exp.fresh(EmptyHole)
+    | [(term, _)] => term
+    | [(term, hole), ...rest] =>
+      let below = graft_items(~on_path, rest);
+      switch (hole) {
+      | Some(h) =>
+        let (term, path) = graft_at(h, below, term);
+        on_path(path);
+        term;
+      | None => failwith("MakeTerm.Incr: inner item without a body hole")
       };
     };
+
+  let term_of' = (~masks, seg: Segment.t): Exp.t => {
+    let items = slices(seg);
+    let keyed =
+      List.filter_map(
+        ps =>
+          switch (ps) {
+          | [] => None
+          | [p, ..._] => Some((Piece.id(p), ps))
+          },
+        items,
+      );
+    let entries =
+      List.map(
+        ((key, ps)) =>
+          switch (Id.Map.find_opt(key, memo^)) {
+          | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
+          | _ =>
+            incr(analyzed);
+            let (term, hole) = parse_item(~masks, ps);
+            let e = {
+              e_pieces: ps,
+              e_term: term,
+              e_hole: hole,
+            };
+            (key, e);
+          },
+        keyed,
+      );
+    memo :=
+      List.fold_left(
+        (m, (key, e)) => Id.Map.add(key, e, m),
+        Id.Map.empty,
+        entries,
+      );
+    graft_items(List.map(((_, e)) => (e.e_term, e.e_hole), entries));
+  };
 
   let term_of = (~masks=Id.Map.empty, seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
     | Some((Sort.Exp, prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
-      let items = slices(seg);
-      let keyed =
-        List.filter_map(
-          ps =>
-            switch (ps) {
-            | [] => None
-            | [p, ..._] => Some((Piece.id(p), ps))
-            },
-          items,
-        );
-      let entries =
-        List.map(
-          ((key, ps)) =>
-            switch (Id.Map.find_opt(key, memo^)) {
-            | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
-            | _ =>
-              incr(analyzed);
-              let (term, hole) = parse_item(~masks, ps);
-              let e = {
-                e_pieces: ps,
-                e_term: term,
-                e_hole: hole,
-              };
-              (key, e);
-            },
-          keyed,
-        );
-      memo :=
-        List.fold_left(
-          (m, (key, e)) => Id.Map.add(key, e, m),
-          Id.Map.empty,
-          entries,
-        );
-      let rec graft = (es: list((Id.t, entry))): Exp.t =>
-        switch (es) {
-        | [] => Exp.fresh(EmptyHole)
-        | [(_, e)] => e.e_term
-        | [(_, e), ...rest] =>
-          let below = graft(rest);
-          switch (e.e_hole) {
-          | Some(h) =>
-            switch (graft_at(h, below, e.e_term)) {
-            | Some(t) => t
-            | None => e.e_term /* shape gap: keep the hollow item */
-            }
-          | None => e.e_term /* unreachable: non-last items parse holed */
-          };
+      let term =
+        switch (term_of'(~masks, seg)) {
+        | term => term
+        | exception _ =>
+          incr(fell_back);
+          (Id.Map.is_empty(masks) ? go(seg) : go_impl(~masks, seg)).term;
         };
-      let term = graft(entries);
       last := Some((Sort.Exp, seg, term));
       term;
     };
@@ -2231,46 +2297,59 @@ module Incr = {
   };
   let mod_memo: ref(Id.Map.t(mod_entry)) = ref(Id.Map.empty);
 
+  let term_of_mod' = (~masks, seg: Segment.t): Exp.t => {
+    let keyed =
+      List.filter_map(
+        ps =>
+          switch (ps) {
+          | [] => None
+          | [p, ..._] => Some((Piece.id(p), ps))
+          },
+        slices(seg),
+      );
+    let entries =
+      List.map(
+        ((key, ps)) =>
+          switch (Id.Map.find_opt(key, mod_memo^)) {
+          | Some(e) when seg_eq(e.me_pieces, ps) => (key, e)
+          | _ =>
+            incr(analyzed);
+            let (items, _) = parse_item_mod(~masks, ps);
+            (
+              key,
+              {
+                me_pieces: ps,
+                me_items: items,
+              },
+            );
+          },
+        keyed,
+      );
+    mod_memo :=
+      List.fold_left(
+        (m, (key, e)) => Id.Map.add(key, e, m),
+        Id.Map.empty,
+        entries,
+      );
+    wrap_module(List.concat_map(((_, e)) => e.me_items, entries));
+  };
+
   let term_of_mod = (~masks=Id.Map.empty, seg: Segment.t): Exp.t => {
     analyzed := 0;
     switch (last^) {
     | Some((Sort.Mod, prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
-      let keyed =
-        List.filter_map(
-          ps =>
-            switch (ps) {
-            | [] => None
-            | [p, ..._] => Some((Piece.id(p), ps))
-            },
-          slices(seg),
-        );
-      let entries =
-        List.map(
-          ((key, ps)) =>
-            switch (Id.Map.find_opt(key, mod_memo^)) {
-            | Some(e) when seg_eq(e.me_pieces, ps) => (key, e)
-            | _ =>
-              incr(analyzed);
-              let (items, _) = parse_item_mod(~masks, ps);
-              (
-                key,
-                {
-                  me_pieces: ps,
-                  me_items: items,
-                },
-              );
-            },
-          keyed,
-        );
-      mod_memo :=
-        List.fold_left(
-          (m, (key, e)) => Id.Map.add(key, e, m),
-          Id.Map.empty,
-          entries,
-        );
       let term =
-        wrap_module(List.concat_map(((_, e)) => e.me_items, entries));
+        switch (term_of_mod'(~masks, seg)) {
+        | term => term
+        | exception _ =>
+          incr(fell_back);
+          (
+            Id.Map.is_empty(masks)
+              ? go_mod_root(seg) : go_mod_root_impl(~masks, seg)
+          ).
+            term;
+        };
       last := Some((Sort.Mod, seg, term));
       term;
     };
@@ -2411,20 +2490,14 @@ module Incr = {
     td^;
   };
 
-  /* re-add the graft spine's nodes so the term map holds grafted terms,
-     not holed bodies (descends like [graft_at]) */
-  let rec fix_spine = (m: TermMap.t, e: Exp.t): TermMap.t => {
-    let m = TermMap.add_all(e.annotation.ids, Exp(e), m);
-    switch (e.term) {
-    | Let(_, _, b)
-    | Seq(_, b)
-    | TyAlias(_, _, b)
-    | ModuleExp(_, _, b)
-    | Filter(_, b)
-    | Parens(b) => fix_spine(m, b)
-    | _ => m
-    };
-  };
+  /* re-add the grafts' rebuilt nodes so the term map holds grafted terms,
+     not holed bodies; inner first, as go adds them */
+  let fix_spine = (m: TermMap.t, outer_first: list(Exp.t)): TermMap.t =>
+    List.fold_left(
+      (m, e: Exp.t) => TermMap.add_all(e.annotation.ids, Exp(e), m),
+      m,
+      List.rev(outer_first),
+    );
 
   /* consolidate_adopted against explicit maps (go runs it once at the
      end; per-item runs used pre-fixup rep data, so replay here) */
@@ -2534,32 +2607,23 @@ module Incr = {
       entries,
     );
     cache.c_prev = Some((entries, m_map^, m_td^, m_proj^));
+    /* every graft's rebuilt nodes, outermost first */
+    let rebuilt = ref([]);
     let term =
       if (root == Sort.Mod) {
         wrap_module(List.concat_map(((_, e)) => e.f_mods, entries));
       } else {
-        let rec graft = (es: list((Id.t, entry_full))): Exp.t =>
-          switch (es) {
-          | [] => Exp.fresh(EmptyHole)
-          | [(_, e)] => e.f_term
-          | [(_, e), ...rest] =>
-            let below = graft(rest);
-            switch (e.f_hole) {
-            | Some(h) =>
-              switch (graft_at(h, below, e.f_term)) {
-              | Some(t) => t
-              | None => e.f_term
-              }
-            | None => e.f_term
-            };
-          };
-        graft(entries);
+        graft_items(
+          ~on_path=path => rebuilt := path @ rebuilt^,
+          List.map(((_, e)) => (e.f_term, e.f_hole), entries),
+        );
       };
     last := Some((root, seg, term)); /* share with term_of (statics path) */
     let terms =
-      root == Sort.Mod
-        ? TermMap.add_all(term.annotation.ids, Exp(term), m_map^)
-        : fix_spine(m_map^, term);
+      fix_spine(
+        TermMap.add_all(term.annotation.ids, Exp(term), m_map^),
+        rebuilt^,
+      );
     let term_data = record_top_frame(~root, m_td^, seg);
     let adopted = List.concat_map(((_, e)) => e.f_adopted, entries);
     let term_data = reconsolidate(adopted, terms, term_data);
@@ -2575,7 +2639,6 @@ module Incr = {
     };
   };
 
-  let fell_back = ref(0); /* observability: parity tests assert 0 */
   let go_incr = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t =>
     switch (go_incr'(~root, ~cache, seg)) {
     | r => r
