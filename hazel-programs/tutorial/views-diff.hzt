@@ -34,7 +34,7 @@ let ^diff = {
     | Diff(es) =>
       Span([Style([("font-family", "var(--code-font)"), ("font-size", "var(--base-font-size)"),
                    ("white-space", "pre"), ("padding", "0 2px")])],
-        tail(fold_left(es, fun (acc: [HTML], e: Edit) -> acc @ [Text(" "), word(e)], [])))
+        intersperse(map(es, word), Text(" ")))
     end;
   let init : Model = Diff([Keep("a"), Del("b"), Ins("c")]);
   let update(m: Model, _: Action): Model = m;
