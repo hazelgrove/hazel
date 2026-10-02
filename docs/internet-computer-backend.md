@@ -22,12 +22,25 @@ S-expressions, stored as `#atom("text")` and `#list([...])` and printed back
 on a read, byte for byte as Hazel wrote them. A value that is not one
 S-expression stays text (a slide's caret, saved as `0 0`).
 
+For `SETTINGS`, whose type the canister knows (`crates/fumola_canister/src/
+schema.rs`, mirroring `Settings.Model.t` and the types it holds), the value is
+Hazel's own record: an object with its field names, variants as `#Ctor`,
+options as `null` / `?x`. A value is stored typed only when encoding it again
+gives back exactly what Hazel saved, so a schema that drifts from Hazel's
+source falls back to the generic form instead of corrupting anything.
+
 `POST /eval` runs Fumola programs in that state. Each cell is bound as
 `hazelCell<N>`; `GET /index` maps Hazel's keys to the numbers. For example,
 with `MODE` in cell 1:
 
 ```
 switch (@ hazelCell1) { case (#atom(t)) { t }; case _ { "?" } }
+```
+
+and, with `SETTINGS` in cell 2:
+
+```
+let s = @ hazelCell2; (s.core.format_shortcut, s.sidebar.panel)
 ```
 
 ## Running it
@@ -64,5 +77,5 @@ but every query parameter is lost.
 - A write that fails is logged to the console and not retried.
 - Two tabs writing at once: the last write wins.
 - The cells' histories do not survive a canister upgrade; the values do.
-- Values are generic S-expressions, not yet Hazel's own datatypes: a record's
-  fields are lists of two atoms, not named fields.
+- Only `SETTINGS` is stored as Hazel's own datatype so far; every other value
+  is a generic S-expression, a record's fields being lists of two atoms.
