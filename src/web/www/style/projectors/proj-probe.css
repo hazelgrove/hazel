@@ -627,6 +627,51 @@
   color: var(--text-pat);
 }
 
+/* A livelit view in a chip draws in the sample's ink: these mirror the token
+ * rules above, state for state, so `currentColor` marks recede exactly as
+ * text does. The 0.7 fade goes into the ink's alpha rather than the
+ * element's opacity: colors a view picks itself (a swatch, a red exception
+ * mark) are data and keep their strength. */
+.live-offside .value .rich-livelit-view {
+  color: var(--sample-neutral-text);
+}
+.indicated .live-offside .value.focus .rich-livelit-view {
+  color: var(--sample-focus-text);
+}
+.live-offside .value.focus .rich-livelit-view {
+  color: var(--exp-indicated);
+}
+.live-offside.Many .value.unrelated .rich-livelit-view,
+.live-offside.Many .value.off-focus .rich-livelit-view {
+  color: color-mix(in srgb, var(--sample-off-text) 70%, transparent);
+}
+.live-offside.Many .value.tangent-before .rich-livelit-view {
+  color: color-mix(in srgb, var(--sample-above-text) 70%, transparent);
+}
+.live-offside.Many .value.tangent-after .rich-livelit-view {
+  color: color-mix(in srgb, var(--sample-below-text) 70%, transparent);
+}
+.live-offside.Single .value.unrelated .rich-livelit-view {
+  color: var(--sample-neutral-text);
+}
+.live-offside.Single .value.tangent-before .rich-livelit-view {
+  color: var(--sample-above-text);
+}
+.live-offside.Single .value.tangent-after .rich-livelit-view {
+  color: var(--sample-below-text);
+}
+.live-offside.Single .value.off-focus .rich-livelit-view {
+  color: var(--sample-off-text);
+}
+.live-offside.Many .value.related-before .rich-livelit-view,
+.live-offside.Single .value.related-before .rich-livelit-view {
+  color: var(--sample-above-related-text);
+}
+.live-offside.Many .value.related-after .rich-livelit-view,
+.live-offside.Single .value.related-after .rich-livelit-view {
+  color: var(--text-pat);
+}
+
 /* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
   color: white;
 } */
@@ -1049,6 +1094,22 @@
 .value .value-rich .projector {
   position: static;
   display: inline-block;
+}
+
+/* A livelit view in a chip draws straight onto the chip: no backdrop of its
+   own and nothing clipped, and the chip keeps a text chip's height (the
+   sample code's 1.41 line), so a one-line view centers where text would sit
+   and a view drawn to that height fills the chip. Its ink is set with the
+   token colors above. The drawer keeps the neutral .rich-html-view surface. */
+.live-offside .value .value-rich:has(> .rich-livelit-view) {
+  padding: 0;
+  min-height: calc(var(--base-font-size) * 1.41);
+}
+.live-offside .value .rich-livelit-view {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  overflow: visible;
 }
 
 /* a list of a type with a view: the elements' views in a row */
