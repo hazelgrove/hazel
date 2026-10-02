@@ -21,18 +21,15 @@ let ^color = {
   let s : Int -> String = string_of_int;
   let css(c: Color): String =
     case c | RGB(r, g, b) => "rgb(" ++ s(r) ++ " " ++ s(g) ++ " " ++ s(b) ++ ")" end;
-  # OKLCH(75% 0.125 h) in sRGB, for h = 0, 10, ..., 350 #
-  let hues : [Color] = [
-    RGB(238, 139, 171), RGB(241, 139, 156), RGB(243, 140, 141), RGB(243, 142, 126),
-    RGB(241, 145, 112), RGB(237, 149, 98), RGB(231, 154, 87), RGB(224, 159, 77),
-    RGB(215, 164, 71), RGB(205, 170, 69), RGB(192, 175, 72), RGB(179, 181, 79),
-    RGB(164, 185, 89), RGB(148, 190, 102), RGB(130, 193, 116), RGB(111, 196, 131),
-    RGB(92, 198, 146), RGB(71, 199, 162), RGB(51, 199, 177), RGB(31, 199, 191),
-    RGB(21, 197, 205), RGB(32, 195, 217), RGB(51, 192, 228), RGB(71, 188, 238),
-    RGB(90, 184, 245), RGB(109, 179, 250), RGB(127, 174, 253), RGB(143, 169, 253),
-    RGB(159, 164, 252), RGB(173, 160, 247), RGB(186, 155, 241), RGB(198, 151, 233),
-    RGB(209, 147, 223), RGB(218, 144, 212), RGB(226, 142, 199), RGB(233, 140, 185)
-  ];
+  # OKLCH(75% 0.125 h) as sRGB hex, for h = 0, 10, ..., 350 #
+  let hues : String =
+    "ee8bab f18b9c f38c8d f38e7e f19170 ed9562 e79a57 e09f4d d7a447 "
+    ++ "cdaa45 c0af48 b3b54f a4b959 94be66 82c174 6fc483 5cc692 47c7a2 "
+    ++ "33c7b1 1fc7bf 15c5cd 20c3d9 33c0e4 47bcee 5ab8f5 6db3fa 7faefd "
+    ++ "8fa9fd 9fa4fc ada0f7 ba9bf1 c697e9 d193df da90d4 e28ec7 e98cb9";
+  let hue(i: Int): Color =
+    let hx(k: Int): Int = int_of_string("0x" ++ string_sub(hues, 7 * i + k, 2)) in
+    RGB(hx(0), hx(2), hx(4));
   let mix(a: Color, b: Color, k: Int, n: Int): Color =
     case (a, b)
     | (RGB(r1, g1, b1), RGB(r2, g2, b2)) =>
@@ -41,7 +38,7 @@ let ^color = {
   # The strip's color at hue h (0 to 359), between its two nearest samples #
   let base(h: Int): Color =
     let i = h / 10 in
-    mix(nth(hues, i), nth(hues, if i == 35 then 0 else i + 1), h - 10 * i, 10);
+    mix(hue(i), hue(if i == 35 then 0 else i + 1), h - 10 * i, 10);
   # The square: x runs from white (0) to the base (100), y darkens to black #
   let paint(h: Int, x: Int, y: Int): Color =
     case base(h)
@@ -82,8 +79,9 @@ let ^color = {
            Style([("position", "relative"), ("width", "160px"), ("height", "10px"),
                   ("border-radius", "2px"), ("cursor", "pointer"),
                   ("outline", "1px solid var(--border-soft)"),
-                  ("background", "linear-gradient(to right, "
-                     ++ string_join(", ", map(hues @ [nth(hues, 0)], css)) ++ ")")])],
+                  ("background", "linear-gradient(to right, " ++ string_join(", ",
+                     map(range(0, 36), fun i -> "#" ++ string_sub(hues, 7 * (i - i / 36 * 36), 6)))
+                     ++ ")")])],
         [marker(m.hue * 160 / 360, 5)])
     ]);
   let view(m: Model): HTML =
@@ -106,18 +104,13 @@ let ^color = {
 # A sunset, as four color literals: click one to open its picker. #
 let sunset : [Color] = [^^livelit(^color((color=RGB(219, 184, 107), hue=85, x=80, y=0, open=false))), ^^livelit(^color((color=RGB(232, 137, 114), hue=35, x=100, y=4, open=false))), ^^livelit(^color((color=RGB(128, 94, 135), hue=320, x=90, y=40, open=false))), ^^livelit(^color((color=RGB(36, 40, 55), hue=270, x=80, y=78, open=false)))] in
 
-# The color k/n of the way along the stops, mixing the nearest two #
+# The color k/n of the way along the stops, mixing the nearest two with #
+# the livelit's own mix: its members are ordinary values #
 let along(stops: [Color], k: Int, n: Int): Color =
-  let mix(a: Color, b: Color, j: Int, m: Int): Color =
-    case (a, b)
-    | (RGB(r1, g1, b1), RGB(r2, g2, b2)) =>
-      RGB(r1 + (r2 - r1) * j / m, g1 + (g2 - g1) * j / m, b1 + (b2 - b1) * j / m)
-    end
-  in
   let segs = length(stops) - 1 in
   let seg = k * segs / n in
   if seg >= segs then nth(stops, segs)
-  else mix(nth(stops, seg), nth(stops, seg + 1), k * segs - seg * n, n)
+  else ^color.mix(nth(stops, seg), nth(stops, seg + 1), k * segs - seg * n, n)
 in
 
 let shade(k: Int): Color = ^^probe(along(sunset, k, 15)) in
