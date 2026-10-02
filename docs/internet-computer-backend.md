@@ -22,10 +22,12 @@ S-expressions, stored as `#atom("text")` and `#list([...])` and printed back
 on a read, byte for byte as Hazel wrote them. A value that is not one
 S-expression stays text (a slide's caret, saved as `0 0`).
 
-For `SETTINGS`, whose type the canister knows (`crates/fumola_canister/src/
-schema.rs`, mirroring `Settings.Model.t` and the types it holds), the value is
-Hazel's own record: an object with its field names, variants as `#Ctor`,
-options as `null` / `?x`. A value is stored typed only when encoding it again
+For values whose type the canister knows (`crates/fumola_canister/src/
+schema.rs`), the value is shaped like Hazel's own type: records as objects
+with their field names, variants as `#Ctor`, options as `null` / `?x`. That is
+`SETTINGS` (`Settings.Model.t` and the types it holds) and a document's
+program text: each item a `Base.segment` of `#Tile` / `#Grout` / `#Secondary`
+/ `#Projector` / `#Splice` pieces, and the roster that orders them. A value is stored typed only when encoding it again
 gives back exactly what Hazel saved, so a schema that drifts from Hazel's
 source falls back to the generic form instead of corrupting anything.
 
@@ -77,5 +79,6 @@ but every query parameter is lost.
 - A write that fails is logged to the console and not retried.
 - Two tabs writing at once: the last write wins.
 - The cells' histories do not survive a canister upgrade; the values do.
-- Only `SETTINGS` is stored as Hazel's own datatype so far; every other value
-  is a generic S-expression, a record's fields being lists of two atoms.
+- Typed so far: `SETTINGS`, documents' items and rosters. Every other value
+  (a document's editor state, probes, pins, agent chat) is a generic
+  S-expression, a record's fields being lists of two atoms.
