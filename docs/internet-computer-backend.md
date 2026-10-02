@@ -13,6 +13,7 @@ https://claude.ai/code/artifact/68cbf43f-3a8e-4d39-83f0-a2789589af8c
 | Storage switch | `src/web/HazelDB.re` (`Backend`), `src/web/www/ic-backend.js` |
 | Backend address | `src/web/www/config.js`: `null` here, so a normal build uses IndexedDB; the deploy writes the canister's address |
 | icp-cli project | `ic/icp.yaml`, with its build and presync steps in `ic/*.sh` |
+| Response headers | `src/web/www/_headers`, the ic-canister branch's CSP; the deploy adds the inline script's hash and the backend's origin |
 
 The backend keeps each `kv` value in a cell of an Adapton DCG, inside one
 Fumola interpreter state: a save is the put `` `hazel(N) := value ``, a read
