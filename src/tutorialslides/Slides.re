@@ -97,4 +97,5 @@ let all: list((string, string)) = [
   /* The Views folder, the probes tutorial's sequel: one lesson per
      user-defined view. Unnumbered too, so this list orders it. */
   ("views-sparkline.hzt", [%blob "views-sparkline.hzt"]),
+  ("views-color.hzt", [%blob "views-color.hzt"]),
 ];

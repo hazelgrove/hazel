@@ -116,7 +116,8 @@ let of_slide = (module_name: string): t =>
   | "TuGen_TaskWateringTimer" => lesson(~flags=printing, ())
   /* Views: each lesson's livelit draws one probe's samples, side by side in
    * Many mode, with the explicit probes alone (auto-probe Off). */
-  | "TuGen_ViewsSparkline" => lesson(~flags=bigger_values, ~samples=Many, ())
+  | "TuGen_ViewsSparkline"
+  | "TuGen_ViewsColor" => lesson(~flags=bigger_values, ~samples=Many, ())
   /* Intro and text-only transitions inherit auto-probe, reset samples and
    * colors, and show no controls. Caret is never preset or exposed here. */
   | _ => lesson(~flags=[], ~autoprobe=None, ())

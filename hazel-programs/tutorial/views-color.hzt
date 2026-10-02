@@ -1,0 +1,126 @@
+@title
+Views / Color
+
+@flags
+version=1 id=b3000002-0002-0002-0002-000000000002
+
+@prompt
+A `Color` is an sRGB triple, and `^color` is a color literal: in code it is a swatch, and clicking it opens a picker below it (click the swatch again to close it). Its `wrap` member turns any `Color` into a closed swatch, so every probe of type `Color` in scope draws its samples as swatches: here, the sixteen steps from gold to navy through the four colors of `sunset`. Pick a new color for one of them and the probed ramp follows.
+
+@code
+# A Color is an sRGB triple, 0 to 255 per channel. #
+type Color = + RGB(Int, Int, Int) in
+
+# Color literals. In code, ^color is a swatch: click it to open a picker #
+# below it, and again to close. The picker is the ^hwb livelit's (see the #
+# Livelits docs) with perceptually even hues: OKLCH (Ottosson 2020) at #
+# lightness 75% and chroma 0.125, every 10 degrees. #
+let ^color = {
+  type Model = (color=Color, hue=Int, x=Int, y=Int, open=Bool);
+  type Action = + Toggle + Hue(Int) + Spot(Int, Int);
+  let s : Int -> String = string_of_int;
+  let css(c: Color): String =
+    case c | RGB(r, g, b) => "rgb(" ++ s(r) ++ " " ++ s(g) ++ " " ++ s(b) ++ ")" end;
+  # OKLCH(75% 0.125 h) in sRGB, for h = 0, 10, ..., 350 #
+  let hues : [Color] = [
+    RGB(238, 139, 171), RGB(241, 139, 156), RGB(243, 140, 141), RGB(243, 142, 126),
+    RGB(241, 145, 112), RGB(237, 149, 98), RGB(231, 154, 87), RGB(224, 159, 77),
+    RGB(215, 164, 71), RGB(205, 170, 69), RGB(192, 175, 72), RGB(179, 181, 79),
+    RGB(164, 185, 89), RGB(148, 190, 102), RGB(130, 193, 116), RGB(111, 196, 131),
+    RGB(92, 198, 146), RGB(71, 199, 162), RGB(51, 199, 177), RGB(31, 199, 191),
+    RGB(21, 197, 205), RGB(32, 195, 217), RGB(51, 192, 228), RGB(71, 188, 238),
+    RGB(90, 184, 245), RGB(109, 179, 250), RGB(127, 174, 253), RGB(143, 169, 253),
+    RGB(159, 164, 252), RGB(173, 160, 247), RGB(186, 155, 241), RGB(198, 151, 233),
+    RGB(209, 147, 223), RGB(218, 144, 212), RGB(226, 142, 199), RGB(233, 140, 185)
+  ];
+  let mix(a: Color, b: Color, k: Int, n: Int): Color =
+    case (a, b)
+    | (RGB(r1, g1, b1), RGB(r2, g2, b2)) =>
+      RGB(r1 + (r2 - r1) * k / n, g1 + (g2 - g1) * k / n, b1 + (b2 - b1) * k / n)
+    end;
+  # The strip's color at hue h (0 to 359), between its two nearest samples #
+  let base(h: Int): Color =
+    let i = h / 10 in
+    mix(nth(hues, i), nth(hues, if i == 35 then 0 else i + 1), h - 10 * i, 10);
+  # The square: x runs from white (0) to the base (100), y darkens to black #
+  let paint(h: Int, x: Int, y: Int): Color =
+    case base(h)
+    | RGB(r, g, b) =>
+      let ch(v: Int): Int = (100 - y) * (255 * (100 - x) + v * x) / 10000 in
+      RGB(ch(r), ch(g), ch(b))
+    end;
+  let pct(v: Int, size: Int): Int =
+    let p = v * 100 / size in if p < 0 then 0 else if p > 100 then 100 else p;
+  let marker(left: Int, top: Int): HTML =
+    Div([Style([("position", "absolute"), ("left", s(left - 5) ++ "px"),
+                ("top", s(top - 5) ++ "px"), ("width", "6px"), ("height", "6px"),
+                ("border-radius", "50%"), ("border", "2px solid var(--surface-default)"),
+                ("box-shadow", "0 0 0 1px var(--CREASE)"), ("pointer-events", "none")])], []);
+  let swatch(c: Color): HTML =
+    Div([Style([("width", "21px"), ("height", "24px"), ("display", "flex"),
+                ("align-items", "center"), ("justify-content", "center")])],
+      [Div([Style([("width", "15px"), ("height", "15px"), ("border-radius", "50%"),
+                   ("background", css(c)),
+                   ("box-shadow", "inset 0 0 0 0.5px color-mix(in srgb, var(--CREASE) 40%, transparent)")])],
+         [])]);
+  let picker(m: Model): HTML =
+    Div([Class("livelit-popover"),
+         Style([("position", "absolute"), ("top", "calc(100% + 5px)"), ("left", "-5px"),
+                ("display", "flex"), ("flex-direction", "column"), ("gap", "8px"),
+                ("padding", "8px"), ("background", "var(--menu-bkg)"),
+                ("border-radius", "0 0.5em 0.5em 0.5em"),
+                ("outline", "0.6px solid var(--menu-outline)"),
+                ("box-shadow", "0 10px 20px var(--menu-shadow)")])], [
+      Div([OnClickAt(fun (px, py) -> Spot(pct(px, 160), pct(py, 100))),
+           Style([("position", "relative"), ("width", "160px"), ("height", "100px"),
+                  ("border-radius", "2px"), ("cursor", "crosshair"),
+                  ("outline", "1px solid var(--border-soft)"),
+                  ("background", "linear-gradient(to top, black, transparent), "
+                     ++ "linear-gradient(to right, white, " ++ css(base(m.hue)) ++ ")")])],
+        [marker(m.x * 160 / 100, m.y)]),
+      Div([OnClickAt(fun (px, _) -> Hue(pct(px, 160) * 359 / 100)),
+           Style([("position", "relative"), ("width", "160px"), ("height", "10px"),
+                  ("border-radius", "2px"), ("cursor", "pointer"),
+                  ("outline", "1px solid var(--border-soft)"),
+                  ("background", "linear-gradient(to right, "
+                     ++ string_join(", ", map(hues @ [nth(hues, 0)], css)) ++ ")")])],
+        [marker(m.hue * 160 / 360, 5)])
+    ]);
+  let view(m: Model): HTML =
+    Div([Style([("position", "relative")])],
+      Div([OnClick(Toggle), Style([("cursor", "pointer")])], [swatch(m.color)])
+      :: (if m.open then [picker(m)] else []));
+  let init : Model = (color=RGB(237, 149, 98), hue=50, x=100, y=0, open=false);
+  let update(m: Model, a: Action): Model =
+    case a
+    | Toggle => (color=m.color, hue=m.hue, x=m.x, y=m.y, open=!m.open)
+    | Hue(h) => (color=paint(h, m.x, m.y), hue=h, x=m.x, y=m.y, open=m.open)
+    | Spot(x, y) => (color=paint(m.hue, x, y), hue=m.hue, x=x, y=y, open=m.open)
+    end;
+  let expand(m: Model): Color = m.color;
+  # A probed Color: its swatch, closed #
+  let wrap(c: Color): Model = (color=c, hue=0, x=0, y=0, open=false);
+  let shape : LivelitShape = Inline(3)
+} in
+
+# A sunset, as four color literals: click one to open its picker. #
+let sunset : [Color] = [^^livelit(^color((color=RGB(219, 184, 107), hue=85, x=80, y=0, open=false))), ^^livelit(^color((color=RGB(232, 137, 114), hue=35, x=100, y=4, open=false))), ^^livelit(^color((color=RGB(128, 94, 135), hue=320, x=90, y=40, open=false))), ^^livelit(^color((color=RGB(36, 40, 55), hue=270, x=80, y=78, open=false)))] in
+
+# The color k/n of the way along the stops, mixing the nearest two #
+let along(stops: [Color], k: Int, n: Int): Color =
+  let mix(a: Color, b: Color, j: Int, m: Int): Color =
+    case (a, b)
+    | (RGB(r1, g1, b1), RGB(r2, g2, b2)) =>
+      RGB(r1 + (r2 - r1) * j / m, g1 + (g2 - g1) * j / m, b1 + (b2 - b1) * j / m)
+    end
+  in
+  let segs = length(stops) - 1 in
+  let seg = k * segs / n in
+  if seg >= segs then nth(stops, segs)
+  else mix(nth(stops, seg), nth(stops, seg + 1), k * segs - seg * n, n)
+in
+
+let shade(k: Int): Color = ^^probe(along(sunset, k, 15)) in
+
+[shade(0), shade(1), shade(2), shade(3), shade(4), shade(5), shade(6), shade(7),
+ shade(8), shade(9), shade(10), shade(11), shade(12), shade(13), shade(14), shade(15)]
