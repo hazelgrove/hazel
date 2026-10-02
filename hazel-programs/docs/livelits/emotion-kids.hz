@@ -3,8 +3,11 @@
 # Emotion's face, with more to it: drag the MOUTH to smile or frown #
 # and the BROW, a unibrow, to worry or glower, both on the face #
 # itself -- or move the face's own smile and brow sliders, which the #
-# drag moves too. Three more controls live OUTSIDE the face, as #
-# sliders: #
+# drag moves too. The face's third slider, sickness, makes it sick: #
+# green and yellow drips out of the mouth, then a pile below the face; #
+# at 100 the pile is a giant heap with an unhappy face of its own, and #
+# the drawing grows to make room only while sickness is above 0. #
+# More controls live OUTSIDE the face, as sliders and toggles: #
 
 #   head color   red is angry, green is sick, yellow is normal #
 #   explode      how far the top of the head has blown off #
@@ -26,9 +29,6 @@
 #   mouth open   closed is a line; open, a flat mouth is an oval, #
 #                and a smile or a frown a half-oval, flat on top #
 #                for a smile and on the bottom for a frown #
-#   sickness     green and yellow drips out of the mouth, then a pile #
-#                below the face; at 100 the pile is a giant heap with #
-#                an unhappy face of its own #
 
 # The sliders are one parameterized livelit, ^slider, given a label, #
 # a range and a track, and abbreviated once per slider (Parameters); #
@@ -85,7 +85,6 @@ let ^side_dial = ^slider("side lines", 0, 100, "none") in
 let ^ray_dial = ^slider("head rays", 0, 100, "none") in
 let ^teeth_dial = ^slider("teeth", 0, 5, "none") in
 let ^open_dial = ^slider("mouth open", 0, 100, "none") in
-let ^sick_dial = ^slider("sickness", 0, 100, "none") in
 
 # TOGGLES #
 
@@ -124,17 +123,19 @@ let ^kid_face = {
      color = SpliceRef, burst = SpliceRef, candy = SpliceRef,
      stars = SpliceRef, hearts = SpliceRef, eyes = SpliceRef,
      sides = SpliceRef, rays = SpliceRef, teeth = SpliceRef,
-     opening = SpliceRef, x_eyes = SpliceRef, sickness = SpliceRef,
+     opening = SpliceRef, x_eyes = SpliceRef, sickness = Int,
      unibrow = SpliceRef);
 
   # As in Emotion: Down grabs, MoveTo moves only while held, Up lets #
   # go and commits. Where the grab lands picks the feature: above the #
   # eyes is the brow, below them the mouth. SetSmile and SetBrow come #
-  # from the face's own sliders. Both ways write the same two fields #
+  # from the face's own sliders, as does SetSick. Both ways write the same two fields #
   # of the model, so a drag moves the slider and a slide moves the #
   # face. (A slider OUTSIDE the face could not do this: a livelit #
   # writes only its own model.) #
-  type Action = + Down(Int) + MoveTo(Int) + Up + SetSmile(Int) + SetBrow(Int);
+  type Action =
+    + Down(Int) + MoveTo(Int) + Up + SetSmile(Int) + SetBrow(Int)
+    + SetSick(Int);
 
   # What a use means: how the face reads, as data. #
   type Expansion =
@@ -155,47 +156,48 @@ let ^kid_face = {
     do t <- new_splice((IntT, Some(IntLit(0)))) in
     do o <- new_splice((IntT, Some(IntLit(0)))) in
     do xe <- new_splice((BoolT, Some(BoolLit(false)))) in
-    do sk <- new_splice((IntT, Some(IntLit(0)))) in
     do ub <- new_splice((BoolT, Some(BoolLit(true)))) in
     Pure((smile = 50, brow = 40, drag = Idle, color = c, burst = b,
           candy = k, stars = st, hearts = ht, eyes = e, sides = sd,
-          rays = r, teeth = t, opening = o, x_eyes = xe, sickness = sk,
+          rays = r, teeth = t, opening = o, x_eyes = xe, sickness = 0,
           unibrow = ub));
 
   let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
-  # The face is drawn at 220 x 473 pixels, in drawing units running #
-  # 0 to 200 across and -80 to 350 down (the room above is for the lid #
-  # and the candy, below for the sickness pile and the mood's name). A #
-  # pointer's y arrives in pixels from the top, so a grab is placed by #
-  # converting it. #
+  # The face is drawn 220 pixels wide, in drawing units running 0 to #
+  # 200 across, so 11 pixels for every 10 units, and from -80 down: to #
+  # 220 while it is well (the room above is for the lid and the candy, #
+  # below for the mood's name), to 350 while it is sick, for the pile. #
+  # A pointer's y arrives in pixels from the top, so a grab is placed #
+  # by converting it, the same at either height. #
   let width_px = 220;
-  let height_px = 473;
-  let drawing_y = fun py : Int -> py * 430 / height_px - 80;
+  let drawing_h = fun sick : Int -> if sick > 0 then 430 else 300;
+  let drawing_y = fun py : Int -> py * 10 / 11 - 80;
 
   let update = fun m : Model -> fun a : Action ->
-    let with_drag = fun (smile, brow, drag) : (Int, Int, Drag) ->
+    let with_drag = fun (smile, brow, drag, sick) : (Int, Int, Drag, Int) ->
       (smile = smile, brow = brow, drag = drag, color = m.color,
        burst = m.burst, candy = m.candy, stars = m.stars,
        hearts = m.hearts, eyes = m.eyes, sides = m.sides,
        rays = m.rays, teeth = m.teeth, opening = m.opening,
-       x_eyes = m.x_eyes, sickness = m.sickness, unibrow = m.unibrow) in
+       x_eyes = m.x_eyes, sickness = sick, unibrow = m.unibrow) in
     Pure(
       case a
       | Down(y) =>
-        if drawing_y(y) < 88 then with_drag((m.smile, m.brow, Held(Brow, m.brow, y)))
-        else with_drag((m.smile, m.brow, Held(Mouth, m.smile, y)))
+        if drawing_y(y) < 88 then with_drag((m.smile, m.brow, Held(Brow, m.brow, y), m.sickness))
+        else with_drag((m.smile, m.brow, Held(Mouth, m.smile, y), m.sickness))
       | MoveTo(y) =>
         case m.drag
         | Idle => m
         | Held(Mouth, v0, y0) =>
-          with_drag((clamp(v0 + 2 * (y - y0)), m.brow, m.drag))
+          with_drag((clamp(v0 + 2 * (y - y0)), m.brow, m.drag, m.sickness))
         | Held(Brow, v0, y0) =>
-          with_drag((m.smile, clamp(v0 + 2 * (y - y0)), m.drag))
+          with_drag((m.smile, clamp(v0 + 2 * (y - y0)), m.drag, m.sickness))
         end
-      | Up => with_drag((m.smile, m.brow, Idle))
-      | SetSmile(v) => with_drag((clamp(v), m.brow, Idle))
-      | SetBrow(v) => with_drag((m.smile, clamp(v), Idle))
+      | Up => with_drag((m.smile, m.brow, Idle, m.sickness))
+      | SetSmile(v) => with_drag((clamp(v), m.brow, Idle, m.sickness))
+      | SetBrow(v) => with_drag((m.smile, clamp(v), Idle, m.sickness))
+      | SetSick(v) => with_drag((m.smile, m.brow, Idle, clamp(v)))
       end);
 
   # The mood a face reads as: its color's region, whether the brow is #
@@ -488,7 +490,6 @@ let ^kid_face = {
     do t_res <- eval_splice(m.teeth) in
     do o_res <- eval_splice(m.opening) in
     do xe_res <- eval_splice(m.x_eyes) in
-    do sk_res <- eval_splice(m.sickness) in
     do ub_res <- eval_splice(m.unibrow) in
     # Each cell's value, or a default while it has none. #
     let c = case c_res | Some(Val(n)) => clamp(n) | _ => 85 end in
@@ -502,7 +503,8 @@ let ^kid_face = {
     let t = case t_res | Some(Val(n)) => (if n < 0 then 0 else if n > 5 then 5 else n) | _ => 0 end in
     let o = case o_res | Some(Val(n)) => clamp(n) | _ => 0 end in
     let xe = case xe_res | Some(Val(v)) => v | _ => false end in
-    let sk = case sk_res | Some(Val(n)) => clamp(n) | _ => 0 end in
+    let sk = m.sickness in
+    let view_h = drawing_h(sk) in
     let ub = case ub_res | Some(Val(v)) => v | _ => true end in
     let ray_len = if r == 0 then 0 else (15 + r * 6 / 10) * b / 100 in
     let shown = if k * b >= 2500 then pieces_n else k * b * pieces_n / 2500 in
@@ -518,9 +520,9 @@ let ^kid_face = {
         [Attr.create("data-hint", "drag the brow or the mouth up/down"),
          Attr.style([("cursor", "ns-resize")])],
         [Html.node("svg",
-          [Attr.create("viewBox", "0 -80 200 430"),
+          [Attr.create("viewBox", "0 -80 200 " ++ string_of_int(view_h)),
            Attr.width(string_of_int(width_px)),
-           Attr.height(string_of_int(height_px)),
+           Attr.height(string_of_int(view_h * 11 / 10)),
            Attr.on_mouse_down_at(fun (_x, y) -> Down(y)),
            Attr.on_mouse_move_at(fun (_x, y) -> MoveTo(y)),
            Attr.on_mouse_up_at(fun _p -> Up)],
@@ -552,13 +554,14 @@ let ^kid_face = {
            @ teeth_of((1, t, 110 + 4 * m.smile / 5, 10))
            @ sick_pile((sk, 150 + (110 + 4 * m.smile / 5 - 150) / 2))
            @ [Html.node("text",
-               [Attr.create("x", "100"), Attr.create("y", "344"),
+               [Attr.create("x", "100"), Attr.create("y", string_of_int(view_h - 86)),
                 Attr.create("text-anchor", "middle"),
                 Attr.create("font-size", "18"),
                 Attr.create("font-family", "var(--code-font)"), Attr.style([("fill", "var(--text-default)")])],
                [Html.text(mood((c, m.brow, m.smile)))])]),
          own_slider(("smile", m.smile, fun v -> SetSmile(v))),
-         own_slider(("brow", m.brow, fun v -> SetBrow(v)))]));
+         own_slider(("brow", m.brow, fun v -> SetBrow(v))),
+         own_slider(("sickness", m.sickness, fun v -> SetSick(v)))]));
 
   # A Macro: the cells are the client's code, so a use means a #
   # function of them, applied to them (Fig. 5). What the face alone #
@@ -570,7 +573,7 @@ let ^kid_face = {
   # head rays. #
   let expand = Macro(fun m : Model ->
     (quote fun c -> fun b -> fun k -> fun st -> fun ht -> fun e ->
-       fun sd -> fun r -> fun t -> fun mo -> fun xe -> fun sk -> fun ub ->
+       fun sd -> fun r -> fun t -> fun mo -> fun xe -> fun ub ->
        (feeling =
           if c < 34 then unquote StringLit(mood((0, m.brow, m.smile))) end
           else if c < 67 then unquote StringLit(mood((50, m.brow, m.smile))) end
@@ -588,13 +591,15 @@ let ^kid_face = {
         rays = r * b / 100,
         teeth = t,
         mouth_open = mo,
-        sickness = sk,
+        sickness = unquote IntLit(m.sickness) end,
         unibrow = ub)
      end,
      [m.color, m.burst, m.candy, m.stars, m.hearts, m.eyes, m.sides,
-      m.rays, m.teeth, m.opening, m.x_eyes, m.sickness, m.unibrow]));
+      m.rays, m.teeth, m.opening, m.x_eyes, m.unibrow]));
 
-  let shape = Block(30, 26)
+  # Taller while sick, for the pile: the drawing grows by 143 pixels. #
+  let shape = fun m : Model ->
+    if m.sickness > 0 then Block(30, 23) else Block(30, 18)
 } in
 
 let head = ^^livelit(^color_dial(100)) in
@@ -609,13 +614,12 @@ let sides = ^^livelit(^side_dial(0)) in
 let rays = ^^livelit(^ray_dial(0)) in
 let teeth = ^^livelit(^teeth_dial(0)) in
 let mouth = ^^livelit(^open_dial(0)) in
-let sick = ^^livelit(^sick_dial(0)) in
 let ^^probe(face) = ^^livelit(^kid_face((smile = 85, brow = 30, drag = Idle,
   color = (head : Int), burst = (boom : Int), candy = (sweets : Int),
   stars = (stars : Bool), hearts = (hearts : Bool), eyes = (eyes : Int),
   sides = (sides : Int), rays = (rays : Int), teeth = (teeth : Int),
   opening = (mouth : Int), x_eyes = (crosses : Bool),
-  sickness = (sick : Int), unibrow = (unibrow : Bool)))) in
+  sickness = 0, unibrow = (unibrow : Bool)))) in
 
 face
 
