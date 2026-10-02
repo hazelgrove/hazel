@@ -1,0 +1,32 @@
+# The canister demo of Hazel's state, on a LOCAL network only:
+#   hazel   Hazel's release web build, as certified static assets
+#   fumola  fumola_canister: Hazel's kv table and log, each value a cell of
+#           an Adapton DCG (Adapton/fumola, branch ic-canister)
+#
+# The names have no underscore: a canister's local address is
+# <name>.local.localhost, and js_of_ocaml's URL parser, which Hazel reads
+# its ?slide= links through, refuses an underscore in a host name -- the
+# page loads, but every query parameter is lost.
+#
+#   icp network start -d && icp deploy
+#
+# docs/internet-computer-backend.md has the rest.
+canisters:
+  - name: fumola
+    build:
+      steps:
+        - type: script
+          commands:
+            # FUMOLA_DIR: a checkout of Adapton/fumola's ic-canister branch.
+            - bash build-backend.sh
+  - name: hazel
+    recipe:
+      # Pinned: a recipe upgrade changes which headers reach the browser.
+      type: "@dfinity/static-site@v0.4.0"
+      configuration:
+        dir: dist
+        build:
+          - bash assemble-frontend.sh
+        presync:
+          # Runs once the canisters exist: points Hazel at the backend.
+          - bash write-config.sh
