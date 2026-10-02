@@ -37,6 +37,46 @@ let with_db = (f): unit => {
   openDB(~upgrade, ~error, ~version=1, db_name, db => f(db));
 };
 
+/* === Backend canister (optional) ===
+
+   When the page sets window.hazelBackend (config.js; a canister deploy
+   writes it), the tables live in that canister instead of IndexedDB, and
+   these operations reach it over HTTP through ic-backend.js. The cache and
+   every caller stay as they are: reads come from the cache, filled at
+   startup from GET /kv, and writes go through without waiting. Stage 1 of
+   the canister demo: a failed write is logged, not retried, and two tabs
+   writing at once means the last write wins. */
+module Backend = {
+  open Js_of_ocaml;
+
+  /* A string, or null when config.js is missing or leaves it unset. */
+  let address: option(string) = {
+    let a: Js.opt(Js.t(Js.js_string)) =
+      Js.Unsafe.js_expr(
+        "(typeof window !== 'undefined' && typeof window.hazelBackend === 'string') ? window.hazelBackend : null",
+      );
+    Js.Opt.to_option(a) |> Option.map(Js.to_string);
+  };
+
+  let on = Option.is_some(address);
+
+  let call =
+      (method: string, path: string, body: option(string), k: string => unit)
+      : unit =>
+    Js.Unsafe.fun_call(
+      Js.Unsafe.get(Js.Unsafe.global, "hazelBackendCall"),
+      [|
+        Js.Unsafe.inject(Js.string(method)),
+        Js.Unsafe.inject(Js.string(path)),
+        switch (body) {
+        | Some(b) => Js.Unsafe.inject(Js.string(b))
+        | None => Js.Unsafe.inject(Js.null)
+        },
+        Js.Unsafe.inject(Js.wrap_callback(t => k(Js.to_string(t)))),
+      |],
+    );
+};
+
 /* === In-memory cache (private) === */
 
 let cache: ref(Util.Maps.StringMap.t(string)) =
@@ -53,8 +93,29 @@ let batched: ref(option(list(write))) = ref(None);
 let write_transactions = ref(0); /* observability for tests */
 
 /* one transaction for all of [writes]: it commits whole or not at all */
+let writes_json = (writes: list(write)): string =>
+  Yojson.Safe.to_string(
+    `List(
+      List.map(
+        fun
+        | Put(key, value) =>
+          `Assoc([
+            ("op", `String("put")),
+            ("key", `String(key)),
+            ("value", `String(value)),
+          ])
+        | Delete(key) =>
+          `Assoc([("op", `String("remove")), ("key", `String(key))]),
+        writes,
+      ),
+    ),
+  );
+
 let commit = (writes: list(write)): unit =>
-  if (writes != []) {
+  if (writes != [] && Backend.on) {
+    incr(write_transactions);
+    Backend.call("POST", "/kv", Some(writes_json(writes)), _ => ());
+  } else if (writes != []) {
     incr(write_transactions);
     with_db(db => {
       let store = kv_store(db);
@@ -136,13 +197,53 @@ let kv_rekey = (rekey: string => option(string)): unit =>
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
-  let error = _ => print_endline("ERROR: HazelDB.kv_clear");
-  with_db(db => IDBStore.clear(~error, ~callback, kv_store(db)));
+  if (Backend.on) {
+    Backend.call("POST", "/kv/clear", None, _ => callback());
+  } else {
+    let error = _ => print_endline("ERROR: HazelDB.kv_clear");
+    with_db(db => IDBStore.clear(~error, ~callback, kv_store(db)));
+  };
 };
 
 /* Load all KV entries at once via cursor fold. Populates the cache
    and returns the pairs to the callback. Called once at startup. */
-let kv_load_all = (callback: list((string, string)) => unit): unit =>
+let fill_cache = (pairs: list((string, string))): unit =>
+  cache :=
+    List.fold_left(
+      (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
+      Util.Maps.StringMap.empty,
+      pairs,
+    );
+
+let rec kv_load_all = (callback: list((string, string)) => unit): unit =>
+  if (Backend.on) {
+    Backend.call(
+      "GET",
+      "/kv",
+      None,
+      text => {
+        let pairs =
+          switch (Yojson.Safe.from_string(text)) {
+          | `Assoc(fields) =>
+            List.filter_map(
+              fun
+              | (k, `String(v)) => Some((k, v))
+              | _ => None,
+              fields,
+            )
+          | _ => []
+          | exception _ =>
+            print_endline("ERROR: HazelDB.kv_load_all: backend sent no JSON");
+            [];
+          };
+        fill_cache(pairs);
+        callback(pairs);
+      },
+    );
+  } else {
+    kv_load_all_idb(callback);
+  }
+and kv_load_all_idb = (callback: list((string, string)) => unit): unit =>
   with_db(db => {
     let error = _ => print_endline("ERROR: HazelDB.kv_load_all");
     IDBStore.fold(
@@ -165,17 +266,53 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
 /* === Log operations === */
 
 let log_add = (key: string, value: string): unit =>
-  with_db(db => IDBStore.add(~key, ~callback=_ => (), log_store(db), value));
+  if (Backend.on) {
+    Backend.call(
+      "POST",
+      "/log",
+      Some(
+        Yojson.Safe.to_string(
+          `Assoc([("key", `String(key)), ("value", `String(value))]),
+        ),
+      ),
+      _ =>
+      ()
+    );
+  } else {
+    with_db(db =>
+      IDBStore.add(~key, ~callback=_ => (), log_store(db), value)
+    );
+  };
 
-let log_get_all = (f: list(string) => unit): unit => {
-  let error = _ => print_endline("ERROR: HazelDB.log_get_all");
-  with_db(db => IDBStore.get_all(~error, log_store(db), f));
-};
+let log_get_all = (f: list(string) => unit): unit =>
+  if (Backend.on) {
+    Backend.call("GET", "/log", None, text =>
+      f(
+        switch (Yojson.Safe.from_string(text)) {
+        | `List(items) =>
+          List.filter_map(
+            fun
+            | `String(v) => Some(v)
+            | _ => None,
+            items,
+          )
+        | _ => []
+        | exception _ => []
+        },
+      )
+    );
+  } else {
+    let error = _ => print_endline("ERROR: HazelDB.log_get_all");
+    with_db(db => IDBStore.get_all(~error, log_store(db), f));
+  };
 
-let log_clear = (~callback=() => (), ()): unit => {
-  let error = _ => print_endline("ERROR: HazelDB.log_clear");
-  with_db(db => IDBStore.clear(~error, ~callback, log_store(db)));
-};
+let log_clear = (~callback=() => (), ()): unit =>
+  if (Backend.on) {
+    Backend.call("POST", "/log/clear", None, _ => callback());
+  } else {
+    let error = _ => print_endline("ERROR: HazelDB.log_clear");
+    with_db(db => IDBStore.clear(~error, ~callback, log_store(db)));
+  };
 
 /* === Database-level operations === */
 

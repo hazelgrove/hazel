@@ -1,0 +1,16 @@
+// Copied into dist/ as .ic-assets.json5 by deploy-local.sh.
+[
+  {
+    "match": "**/*",
+    // Hazel needs 'unsafe-eval' (hazel.js and bundled.js evaluate strings)
+    // and fetches from the backend canister, which the standard policy
+    // forbids. A local demo, so no policy rather than a tuned one; the
+    // ic-canister branch's src/web/www/_headers has the tuned one.
+    "security_policy": "disabled",
+    "disable_security_policy_warning": true,
+    "headers": {
+      // Filenames carry no content hash, so always revalidate.
+      "Cache-Control": "max-age=0, must-revalidate"
+    }
+  }
+]
