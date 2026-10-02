@@ -1330,7 +1330,9 @@ module M: Projector = {
             ])
           ),
         ],
-        [Node.text("</>")],
+        /* An eye, hanging in the margin to the GUI's left like a hanging
+           indent: it shows the use's syntax, which is its model. */
+        [Node.text("\xF0\x9F\x91\x81\xEF\xB8\x8F")],
       );
     let pane =
       switch (shown) {
