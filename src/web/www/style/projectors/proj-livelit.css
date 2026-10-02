@@ -12,6 +12,18 @@
     overflow: hidden;
 }
 
+/* Popovers: a user-defined livelit's view may mark an element with the
+   class livelit-popover (a picker that opens below a swatch, say). While
+   one is shown, the content box stops clipping and the projector rises to
+   the overlay level, so the popover floats above the code beneath it, as
+   a menu would, instead of taking rows from it. */
+.projector.livelit:has(> .user-livelit .livelit-popover) {
+    z-index: var(--projector-overlay-z);
+}
+.livelit > .user-livelit:has(.livelit-popover) {
+    overflow: visible;
+}
+
 .livelit > .slider > input {
   margin: 0;
   filter: sepia(1);

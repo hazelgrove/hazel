@@ -1,0 +1,86 @@
+@title
+Views / Diff
+
+@flags
+version=1 id=b3000005-0005-0005-0005-000000000005
+
+@prompt
+An `Edit` keeps, deletes, or inserts one word, and a `Diff` is a revision as a list of them. `^diff` draws a `Diff` as an inline diff: deleted words struck through in red, inserted words bold and underlined in the sample's own ink, so they read on the pale chips and on the focused one alike. Every probe of type `Diff` in scope draws this way; here, each call revises one item of a garden task list.
+
+@code
+# One word of a revision, kept, deleted, or inserted #
+type Edit = + Keep(String) + Del(String) + Ins(String) in
+
+# A revision, word by word #
+type Diff = + Diff([Edit]) in
+
+# An inline diff: deletions struck in red, insertions bold and underlined #
+let ^diff = {
+  type Model = Diff;
+
+  type Action = + Nothing;
+
+  let word(e: Edit): HTML =
+    case e
+    | Keep(w) => Span([], [Text(w)])
+    | Del(w)  =>
+      Span([Style([("color", "var(--text-error)"),
+                   ("text-decoration", "line-through"),
+                   ("text-decoration-thickness", "1.5px"),
+                   ("opacity", "var(--sample-fade, 1)")])],
+        [Text(w)])
+    | Ins(w)  =>
+      Span([Style([("font-weight", "700"),
+                   ("text-decoration", "underline"),
+                   ("text-decoration-thickness", "2px"),
+                   ("text-underline-offset", "3px")])],
+        [Text(w)])
+    end;
+
+  let view(d: Model): HTML =
+    case d
+    | Diff(es) =>
+      Span([Style([("font-family", "var(--code-font)"),
+                    ("font-size", "var(--base-font-size)"),
+                    ("white-space", "pre"),
+                    ("padding", "0 2px")])],
+        intersperse(map(es, word), Text(" ")))
+    end;
+
+  let init : Model = Diff([Keep("a"), Del("b"), Ins("c")]);
+
+  let update(m: Model, _: Action): Model = m;
+
+  let expand(m: Model): Diff = m;
+
+  let wrap(v: Diff): Model = v;
+
+  let shape : LivelitShape = Inline(24)
+} in
+
+# A greedy word diff: keep a match, insert a word if the old one comes #
+# later, and otherwise delete the old word #
+let edits(a: [String], b: [String]): [Edit] =
+  case (a, b)
+  | ([], _)            => map(b, fun w -> Ins(w))
+  | (_, [])            => map(a, fun w -> Del(w))
+  | (x :: xs, y :: ys) =>
+    if x == y then Keep(x) :: edits(xs, ys)
+    else if mem(ys, x) then Ins(y) :: edits(a, ys)
+    else Del(x) :: edits(xs, b)
+  end
+in
+
+# The diff between two sentences #
+let revise(old: String, new: String): Diff =
+  let d = Diff(edits(string_split(" ", old), string_split(" ", new))) in
+  ^^probe(d)
+in
+
+[
+  revise("water the ferns", "water the young ferns"),
+  revise("prune roses hard", "prune roses lightly"),
+  revise("feed the koi daily", "feed the koi"),
+  revise("pick ripe plums", "pick ripe plums today"),
+  revise("move cactus inside", "move the cactus inside")
+]

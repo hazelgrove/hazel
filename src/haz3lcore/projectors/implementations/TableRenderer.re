@@ -36,7 +36,7 @@ type value = v;
 type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 
 /* Parse an expression into table structure */
-let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
+let parse = (~statics as _, _sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
 /* Initialize table model from parsed value */
 let empty = {menu_state: None};
@@ -48,7 +48,13 @@ let auto_applies = (_: value): bool => false;
 
 /* Header + data rows; each table row is one line-height tall (proj-table.css
  * zeroes cell padding and cells hold single-line abbreviated values). */
-let drawer_rows = ((_, rows): v): int => List.length(rows) + 1;
+let drawer_rows = (_: model, (_, rows): v): int => List.length(rows) + 1;
+
+let views = (v: value): list(model) => [init(v)];
+let label = (_: model, _: value): RichProbe.view_label => {
+  name: "Table",
+  code: false,
+};
 
 /* Local builders that wrap Menu.item constructors with the column menu's
  * conventions: hover updates selection, tooltips on every leaf row. */
@@ -342,6 +348,7 @@ let render =
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
+      ~place as _: RichProbe.place,
       _: unit,
     )
     : Node.t => {
@@ -535,10 +542,4 @@ let table_icon =
     ],
   );
 let badge =
-  Node.span(
-    ~attrs=[
-      Attr.classes(["table-badge"]),
-      Attr.title("Click to view as table"),
-    ],
-    [table_icon],
-  );
+  Node.span(~attrs=[Attr.classes(["table-badge"])], [table_icon]);

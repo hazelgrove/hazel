@@ -646,6 +646,351 @@ let untyped_ctor_ascription = () => {
   };
 };
 
+/* A livelit renders VALUES of the type it expands to (rich probes, via
+   LivelitRenderer): a sampled constructor-with-payload value must go
+   through wrap and view like a nullary one. */
+let renders_payload_ctor = () => {
+  let text = "type Point = + P(Int, Int) in
+let ^point = {
+  type Model = Point;
+  type Action = + Nothing;
+  let init : Model = P(50, 50);
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    case p
+    | P(x, y) => Node(\"svg\", [Create(\"cx\", string_of_int(x + y))], [])
+    end;
+  let expand(p: Model): Point = p;
+  let wrap(p: Point): Model = p;
+  let shape : LivelitShape = Tab(6, 4)
+} in
+let shift(p: Point): Point = case p | P(x, y) => P(x + 10, y + 10) end in
+let p0 : Point = P(30, 40) in
+shift(p0)";
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, text)) {
+  | None => fail("parse")
+  | Some(z) =>
+    let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let settings = {
+      ...CoreSettings.on,
+      probe_all: true,
+    };
+    let (info_map, elaborated) =
+      Statics.mk(settings, Builtins.ctx_init(Some(Int)), mtr.term);
+    let probe_ids = Haz3lcore.CachedStatics.all_probeable_ids(info_map);
+    let targets =
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings,
+        ~info_map,
+        ~probe_ids,
+      );
+    let (_, state) =
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
+    let probes = EvaluatorState.get_probes(state);
+    /* a site typed Point whose sample is a P(..) application */
+    let site =
+      Id.Map.fold(
+        (id, samples, acc) =>
+          switch (acc, Id.Map.find_opt(id, info_map)) {
+          /* a site OUTSIDE the livelit (its ctx binds ^point): the view's
+             own parameter is Point-typed too, but ^point is not in scope
+             there — and Id.Map order depends on the ids the suite has
+             minted so far */
+          | (None, Some(Info.InfoExp({ty, ctx, _}) as info))
+              when Ctx.lookup_livelit(ctx, "point") != None =>
+            switch (Typ.term_of(ty)) {
+            | Var("Point") =>
+              switch (samples) {
+              | [s, ..._] =>
+                let s: Sample.t = s;
+                switch (Exp.term_of(s.value)) {
+                | Ap(_, {term: Constructor("P", _), _}, _) =>
+                  Some((info, s.value))
+                | _ => acc
+                };
+              | [] => acc
+              }
+            | _ => acc
+            }
+          | _ => acc
+          },
+        probes,
+        None,
+      );
+    switch (site) {
+    | None => fail("no Point-typed site with a P(..) sample")
+    | Some((info, value)) =>
+      let cands = Haz3lcore.LivelitRenderer.candidates(Some(info));
+      check(bool, "^point is a candidate", true, cands != []);
+      let (ctx, _) =
+        Option.get(Haz3lcore.LivelitRenderer.site(Some(info)));
+      let html =
+        Haz3lcore.LivelitRenderer.html_of(~ctx, List.hd(cands), value);
+      check(
+        bool,
+        "P(..) renders through wrap and view: " ++ Exp.show(value),
+        true,
+        html != None,
+      );
+    };
+  };
+};
+
+/* Probe samples drawn through a livelit: a Point livelit with a given
+   view, and a Point-typed site outside it with a P(..) sample */
+let point_def = (view: string) =>
+  "type Point = + P(Int, Int) in
+let ^point = {
+  type Model = Point;
+  type Action = + Nothing;
+  let init : Model = P(50, 50);
+  let update(m: Model, _: Action): Model = m;
+  "
+  ++ view
+  ++ ";
+  let expand(p: Model): Point = p;
+  let wrap(p: Point): Model = p;
+  let shape : LivelitShape = Inline(6)
+} in
+";
+
+let point_program = view =>
+  point_def(view)
+  ++ "let shift(p: Point): Point = case p | P(x, y) => P(x + 10, y + 10) end in
+let p0 : Point = P(30, 40) in
+shift(p0)";
+
+let text_of_html = (html: Exp.t): option(string) =>
+  switch (Haz3lcore.MvuShape.of_constructor(html)) {
+  | Some(("Text", body)) => Haz3lcore.MvuShape.of_string(body)
+  | _ => None
+  };
+
+/* The site's ctx, the livelit that views it, and its sample:
+   renders_payload_ctor's pipeline */
+let point_sample =
+    (text: string): (Ctx.t, LivelitCtx.raw_livelit, Exp.t, Info.t) =>
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, text)) {
+  | None => fail("parse")
+  | Some(z) =>
+    let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let settings = {
+      ...CoreSettings.on,
+      probe_all: true,
+    };
+    let (info_map, elaborated) =
+      Statics.mk(settings, Builtins.ctx_init(Some(Int)), mtr.term);
+    let probe_ids = Haz3lcore.CachedStatics.all_probeable_ids(info_map);
+    let targets =
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings,
+        ~info_map,
+        ~probe_ids,
+      );
+    let (_, state) =
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
+    let site =
+      Id.Map.fold(
+        (id, samples, acc) =>
+          switch (acc, Id.Map.find_opt(id, info_map)) {
+          | (None, Some(Info.InfoExp({ty, ctx, _}) as info))
+              when Ctx.lookup_livelit(ctx, "point") != None =>
+            switch (Typ.term_of(ty), samples) {
+            | (Var("Point"), [s, ..._]) =>
+              let s: Sample.t = s;
+              switch (Exp.term_of(s.value)) {
+              | Ap(_, {term: Constructor("P", _), _}, _) =>
+                Some((info, s.value))
+              | _ => acc
+              };
+            | _ => acc
+            }
+          | _ => acc
+          },
+        EvaluatorState.get_probes(state),
+        None,
+      );
+    switch (site) {
+    | None => fail("no Point-typed site with a P(..) sample")
+    | Some((info, value)) =>
+      let (ctx, _) =
+        Option.get(Haz3lcore.LivelitRenderer.site(Some(info)));
+      switch (Haz3lcore.LivelitRenderer.candidates(Some(info))) {
+      | [ll, ..._] => (ctx, ll, value, info)
+      | [] => fail("^point is not a candidate")
+      };
+    };
+  };
+
+/* The render memo is keyed on the livelit's definition too: an edit to
+   its view redraws samples whose values did not change */
+let edited_view_redraws = () => {
+  let drawn = view => {
+    let (ctx, ll, value, _) = point_sample(point_program(view));
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value),
+      text_of_html,
+    );
+  };
+  check(
+    option(string),
+    "the view",
+    Some("one"),
+    drawn("let view(p: Model): HTML = Text(\"one\")"),
+  );
+  check(
+    option(string),
+    "the edited view",
+    Some("two"),
+    drawn("let view(p: Model): HTML = Text(\"two\")"),
+  );
+};
+
+/* A view may take a second argument, a ViewContext: where it is drawn
+   (at its Literal, Offside as a probe sample, in a probe's Drawer) and
+   whether it is editable. Hazel tells the two forms apart by the view's
+   type. The two-argument view below prints the context it is given, so
+   each place's context shows in its HTML. */
+let ctx_view = "let view(p: Model, ctx: ViewContext): HTML =
+    Text((case ctx.at | Literal => \"L\" | Offside => \"O\" | Drawer => \"D\" end)
+         ++ (if ctx.editable then \"+\" else \"-\"))";
+
+let plain_view = "let view(p: Model): HTML = Text(\"plain\")";
+
+/* the written-out context type selects the two-argument form too */
+let structural_ctx_view = "let view = fun (p, ctx) : (Model, (at=Place, editable=Bool)) ->
+    Text(if ctx.editable then \"+\" else \"-\")";
+
+/* The livelit bound by a program's ^point, from the context at its use */
+let lookup_point = (text: string): LivelitCtx.raw_livelit => {
+  let (m, _) = statics(text);
+  let found =
+    Id.Map.fold(
+      (_, info: Info.t, acc) =>
+        switch (acc, info) {
+        | (Some(_), _) => acc
+        | (None, InfoExp({ctx, _})) => Ctx.lookup_livelit(ctx, "point")
+        | (None, _) => None
+        },
+      m,
+      None,
+    );
+  switch (found) {
+  | Some(ll) => ll
+  | None => fail("^point is not in any context")
+  };
+};
+
+let view_form_by_type = () => {
+  let takes = view => lookup_point(point_def(view) ++ "1").view_takes_ctx;
+  check(
+    bool,
+    "(Model, ViewContext) -> HTML takes it",
+    true,
+    takes(ctx_view),
+  );
+  check(bool, "Model -> HTML does not", false, takes(plain_view));
+  check(
+    bool,
+    "(Model, (at=Place, editable=Bool)) -> HTML takes it",
+    true,
+    takes(structural_ctx_view),
+  );
+  /* a one-argument view whose Model is itself a pair keeps one argument */
+  let pair = "let ^point = {
+  type Model = (Int, Int);
+  type Action = + Nothing;
+  let init : Model = (1, 2);
+  let update(m: Model, _: Action): Model = m;
+  let view(m: Model): HTML = Text(\"pair\");
+  let expand(m: Model): (Int, Int) = m
+} in 1";
+  check(
+    bool,
+    "a pair Model is not a context",
+    false,
+    lookup_point(pair).view_takes_ctx,
+  );
+};
+
+/* Offside and Drawer: a probe sample's view is told where it is drawn,
+   and that it is not editable (no literal to rewrite) */
+let view_context_in_probes = () => {
+  let (ctx, ll, value, _) = point_sample(point_program(ctx_view));
+  let at = place =>
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~place, ll, value),
+      text_of_html,
+    );
+  check(option(string), "offside sample", Some("O-"), at(Offside));
+  check(option(string), "drawer sample", Some("D-"), at(Drawer));
+  /* the render memo keeps the places apart */
+  check(option(string), "offside again", Some("O-"), at(Offside));
+};
+
+/* the HTML texts the projectors' sample streams carry */
+let projector_texts = (projectors: Id.Map.t(_), probes): list(string) =>
+  Id.Map.fold(
+    (id, _, acc) =>
+      acc
+      @ (
+        switch (Sample.Map.lookup(id, probes)) {
+        | Some(samples) =>
+          List.filter_map(
+            (s: Sample.t) => {
+              let v = Haz3lcore.MvuShape.close_value(s.value);
+              Haz3lcore.MvuShape.is_html(v) ? text_of_html(v) : None;
+            },
+            samples,
+          )
+        | None => []
+        }
+      ),
+    projectors,
+    [],
+  );
+
+/* Literal: a projected use's view (run in the main evaluation) is told it
+   draws at its literal, which is editable */
+let view_context_at_literal = () => {
+  let (mtr, _, probes) =
+    probe_run(point_def(ctx_view) ++ "^^livelit(^point(P(1, 2)))");
+  check(
+    list(string),
+    "literal",
+    ["L+"],
+    projector_texts(mtr.projectors, probes),
+  );
+};
+
+/* A one-argument view keeps working at every place */
+let one_arg_view_everywhere = () => {
+  let (ctx, ll, value, _) = point_sample(point_program(plain_view));
+  let at = place =>
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~place, ll, value),
+      text_of_html,
+    );
+  check(option(string), "offside", Some("plain"), at(Offside));
+  check(option(string), "drawer", Some("plain"), at(Drawer));
+  let (mtr, _, probes) =
+    probe_run(point_def(plain_view) ++ "^^livelit(^point(P(1, 2)))");
+  check(
+    list(string),
+    "literal",
+    ["plain"],
+    projector_texts(mtr.projectors, probes),
+  );
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -666,6 +1011,32 @@ let tests = [
       test_case("bad arity marked", `Quick, bad_arity_marked),
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
+      test_case(
+        "livelit renders a payload constructor value",
+        `Quick,
+        renders_payload_ctor,
+      ),
+      test_case(
+        "an edited view redraws its samples",
+        `Quick,
+        edited_view_redraws,
+      ),
+      test_case("view form told apart by type", `Quick, view_form_by_type),
+      test_case(
+        "view context offside and in the drawer",
+        `Quick,
+        view_context_in_probes,
+      ),
+      test_case(
+        "view context at the literal",
+        `Quick,
+        view_context_at_literal,
+      ),
+      test_case(
+        "one-argument view at every place",
+        `Quick,
+        one_arg_view_everywhere,
+      ),
       test_case(
         "untyped constructor takes its sum type under ascription",
         `Quick,
