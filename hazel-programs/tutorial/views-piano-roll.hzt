@@ -1,0 +1,72 @@
+@title
+Views / Piano Roll
+
+@flags
+version=1 id=b3000007-0007-0007-0007-000000000007
+
+@prompt
+A `Tune` is a list of notes, each a MIDI pitch, a start, and a length in eighth notes. `^roll` draws one as a piano roll three lines tall: time across, pitch up, on one fixed range with a faint line at each C. Every `Tune` probe in scope draws this way, so a motif and three classic transformations of it sit side by side: moved up a fourth, turned upside down, and played backward.
+
+@code
+# A Tune is a list of notes: (pitch, start, length), the pitch as a MIDI #
+# number (60 is middle C) and times in eighth notes #
+type Tune = + Tune([(Int, Int, Int)]) in
+
+# A piano roll: time across, pitch up, on one fixed range for every tune #
+# (MIDI 51 to 75), with a faint line at each C #
+let ^roll = {
+  type Model = Tune;
+  type Action = + Nothing;
+  let s : Int -> String = string_of_int;
+  let gutter : Int = 18;
+  let top : Int = 75;
+  let y(p: Int): Int = 3 * (top - p);
+  let view(t: Model): HTML =
+    case t
+    | Tune(ns) =>
+      let c(p: Int, name: String): HTML =
+        Node("g", [], [
+          Node("line", [Create("x1", s(gutter)), Create("x2", s(gutter + 128)),
+                        Create("y1", s(y(p)) ++ ".5"), Create("y2", s(y(p)) ++ ".5"),
+                        Style([("stroke", "currentColor"), ("stroke-opacity", "0.2")])], []),
+          Node("text", [Create("x", "0"), Create("y", s(y(p) + 4)),
+                        Style([("font-family", "var(--code-font)"), ("font-size", "9px"),
+                               ("fill", "currentColor"), ("fill-opacity", "0.6")])], [Text(name)])]) in
+      Node("svg", [Create("viewBox", "0 0 " ++ s(gutter + 130) ++ " 75"),
+                   Width(s(gutter + 130)), Height("75")],
+        [c(72, "C5"), c(60, "C4")]
+        @ map(ns, fun ((p, at, len): (Int, Int, Int)) ->
+            Node("rect", [Create("x", s(gutter + 8 * at)), Create("y", s(y(p) - 2)),
+                          Create("width", s(8 * len - 2)), Create("height", "4"),
+                          Create("rx", "1"), Style([("fill", "currentColor")])], [])))
+    end;
+  let init : Model = Tune([(60, 0, 2), (64, 2, 2), (67, 4, 4)]);
+  let update(m: Model, _: Action): Model = m;
+  let expand(m: Model): Tune = m;
+  let wrap(v: Tune): Model = v;
+  let shape : LivelitShape = Block(15, 3)
+} in
+
+let transpose(k: Int, t: Tune): Tune =
+  case t | Tune(ns) => Tune(map(ns, fun ((p, at, len): (Int, Int, Int)) -> (p + k, at, len))) end
+in
+# Upside down, around its first note (middle C) #
+let invert(t: Tune): Tune =
+  case t | Tune(ns) => Tune(map(ns, fun ((p, at, len): (Int, Int, Int)) -> (120 - p, at, len))) end
+in
+# Back to front, in a 16-eighth bar #
+let retrograde(t: Tune): Tune =
+  case t | Tune(ns) => Tune(map(ns, fun ((p, at, len): (Int, Int, Int)) -> (p, 16 - at - len, len))) end
+in
+
+let play(t: Tune): Int =
+  case ^^probe(t)
+
+
+
+  | Tune(ns) => length(ns)
+  end
+in
+
+let motif = Tune([(60, 0, 2), (62, 2, 1), (64, 3, 1), (67, 4, 4), (69, 8, 2), (67, 10, 2), (64, 12, 4)]) in
+[play(motif), play(transpose(5, motif)), play(invert(motif)), play(retrograde(motif))]
