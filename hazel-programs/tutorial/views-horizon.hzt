@@ -1,0 +1,63 @@
+@title
+Views / Horizon Chart
+
+@flags
+version=1 id=b3000003-0003-0003-0003-000000000003
+
+@prompt
+A `Drift` is a thermostat's hourly deviation from its setpoint over two days, in tenths of a degree. `^drift` draws one as a horizon chart: green for warm hours and red for cold ones, each folded into two bands (the darker band is the second four tenths), so all 48 hours fit in one line. Every probe of type `Drift` in scope draws its samples this way, and the six rooms below compare at a glance: which room's heating oscillates, and which one's heater failed overnight?
+
+@code
+# A Drift is a thermostat's hourly deviation from its setpoint over two #
+# days, in tenths of a degree, from -8 (too cold) to 8 (too warm). #
+type Drift = + Drift([Int]) in
+
+# Horizon charts: Heer, Kong & Agrawala, "Sizing the Horizon", CHI 2009. #
+# Two bands of 4 tenths fold an area chart into one line, the second band #
+# overlaid darker; cold hours are mirrored up from the same base, in red. #
+let ^drift = {
+  type Model = Drift;
+  type Action = + Nothing;
+  let s : Int -> String = string_of_int;
+  let clamp(v: Int): Int = if v < 0 then 0 else if v > 4 then 4 else v;
+  # One band: the part of each reading between from and from + 4, as an area #
+  let band(vs: [Int], from: Int, fill: String, opacity: String): HTML =
+    let pts = mapi(vs, fun (i: Int, v: Int) -> s(2 * i) ++ "," ++ s(24 - 6 * clamp(v - from))) in
+    Node("polygon", [Create("points", "0,24 " ++ string_join(" ", pts) ++ " "
+                                      ++ s(2 * (length(vs) - 1)) ++ ",24"),
+                     Style([("fill", fill), ("fill-opacity", opacity)])], []);
+  let view(d: Model): HTML =
+    case d
+    | Drift(vs) =>
+      let cold = map(vs, fun v -> 0 - v) in
+      Node("svg", [Create("viewBox", "0 0 " ++ s(2 * length(vs) - 2) ++ " 24"),
+                   Width(s(2 * length(vs) - 2)), Height("24")],
+        [band(vs, 0, "currentColor", "0.38"), band(vs, 4, "currentColor", "0.85"),
+         # The red half fades with the sample's ink when out of focus #
+         Node("g", [Style([("opacity", "var(--sample-fade, 1)")])],
+           [band(cold, 0, "color-mix(in oklch, var(--text-error) 38%, white)", "1"),
+            band(cold, 4, "var(--text-error)", "0.8")])])
+    end;
+  let init : Model = Drift([0, 2, 5, 3, -2, -6, -3, 1]);
+  let update(m: Model, _: Action): Model = m;
+  let expand(m: Model): Drift = m;
+  let wrap(v: Drift): Model = v;
+  let shape : LivelitShape = Inline(10)
+} in
+
+# The largest swing either way, in tenths #
+let swing(d: Drift): Int =
+  case ^^probe(d)
+  | Drift(vs) =>
+    fold_left(vs, fun (a: Int, v: Int) -> if v > a then v else if 0 - v > a then 0 - v else a, 0)
+  end
+in
+
+let kitchen = Drift([-4, -5, -5, -6, -5, -5, -5, -3, -2, -1, 0, 1, 3, 4, 4, 4, 5, 8, 7, 6, 2, 0, -1, -3, -4, -5, -6, -5, -5, -5, -3, -3, -1, -1, 0, 1, 3, 4, 4, 5, 5, 7, 7, 6, 1, 0, -1, -2]) in
+let bedroom = Drift([-4, -6, -6, -7, -6, -5, -5, -4, -3, -1, 1, 2, 4, 4, 5, 5, 5, 4, 3, 3, 1, 0, -3, -4, -5, -5, -5, -6, -6, -5, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 4, 3, 3, 2, 1, 0, -2, -4]) in
+let study = Drift([0, 2, 5, 5, 5, 5, 5, 4, 3, 1, -1, -3, -4, -5, -5, -5, -5, -5, -3, -2, 0, 2, 4, 6, 6, 6, 5, 5, 3, 1, -1, -3, -4, -6, -7, -8, -7, -6, -5, -2, 0, 1, 2, 4, 5, 5, 6, 6]) in
+let hall = Drift([0, 0, 0, -1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, -1, -1, -1, -1, 0, -1, -1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, -1, 0, 0, 0, 1, 1, 2, 2, 2, 1, 0, 0]) in
+let nursery = Drift([1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 2, 1, 2, 1, 1, 2, 2, -6, -6, -6, -7, -8, -8, -7, -6, -7, -7, 2, 2, 2, 2, 1, 0, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1]) in
+let attic = Drift([-6, -8, -8, -8, -8, -8, -8, -7, -5, -2, 0, 2, 4, 5, 6, 7, 7, 7, 6, 5, 4, 1, -1, -3, -5, -7, -8, -8, -8, -8, -8, -7, -5, -3, 0, 2, 4, 6, 7, 8, 8, 8, 7, 6, 4, 2, 0, -3]) in
+
+[swing(kitchen), swing(bedroom), swing(study), swing(hall), swing(nursery), swing(attic)]

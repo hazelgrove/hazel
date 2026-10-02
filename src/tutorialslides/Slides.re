@@ -98,4 +98,5 @@ let all: list((string, string)) = [
      user-defined view. Unnumbered too, so this list orders it. */
   ("views-sparkline.hzt", [%blob "views-sparkline.hzt"]),
   ("views-color.hzt", [%blob "views-color.hzt"]),
+  ("views-horizon.hzt", [%blob "views-horizon.hzt"]),
 ];
