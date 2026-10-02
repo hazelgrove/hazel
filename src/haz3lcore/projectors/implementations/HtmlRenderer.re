@@ -35,7 +35,13 @@ let init = (_: value) => ();
    evidence for the html view. */
 let auto_applies = (_: value): bool => true;
 
-let drawer_rows = (_: value): int => 8;
+let drawer_rows = (_: model, _: value): int => 8;
+
+let views = (v: value): list(model) => [init(v)];
+let label = (_: model, _: value): RichProbe.view_label => {
+  name: "HTML",
+  code: false,
+};
 
 let render =
     (
@@ -47,6 +53,7 @@ let render =
       ~local as _: action => Ui_effect.t(unit),
       ~parent as _: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
+      ~place as _: RichProbe.place,
       _: unit,
     )
     : Node.t => {
@@ -68,10 +75,4 @@ let render =
 };
 
 let badge =
-  Node.span(
-    ~attrs=[
-      Attr.classes(["html-badge"]),
-      Attr.title("Click to view as rendered HTML"),
-    ],
-    [Node.text("</>")],
-  );
+  Node.span(~attrs=[Attr.classes(["html-badge"])], [Node.text("</>")]);

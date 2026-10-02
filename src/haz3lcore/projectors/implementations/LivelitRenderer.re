@@ -9,15 +9,19 @@ open Language;
    makes every probed `Curve` render as the curve widget, no syntax at the
    use site. The livelit rebuilds a display model from the value through
    its `wrap : Expansion -> Model` member (or, when Model IS the expansion
-   type, the value itself). Inert: handlers in the view dispatch nothing.
+   type, the value itself). Inert: handlers in the view dispatch nothing,
+   and a view that takes a ViewContext is told it is not editable and
+   whether it draws offside or in the drawer.
 
    Resolution: the livelits in the probed site's ctx, innermost binding
    first; the first whose expansion type equals the site's type (up to
    aliases) AND whose view renders the value wins, so a nearer definition
-   shadows an outer one. */
+   shadows an outer one. The others that render it are offered in the
+   sample menu's "View as" list; the model records the one chosen there. */
 
+/* the livelit chosen in the "View as" list; None: the first that renders */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = unit;
+type model = option(string);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -29,11 +33,15 @@ type value = {
      livelit, in a row (Garden = [Plant] shows a row of plants) */
   [@default false]
   as_list: bool,
+  /* the other livelits whose views render the value, in the same order
+     (innermost first), with their rows */
+  [@default []]
+  alts: list((string, int)),
 };
 
 let update = (m: model, _: action) => m;
-let empty = ();
-let init = (_: value) => ();
+let empty = None;
+let init = (_: value) => None;
 
 let is_unknown = (ty: Typ.t): bool =>
   switch (Typ.term_of(ty)) {
@@ -155,35 +163,54 @@ let model_of =
     Typ.equal_up_to_aliases(ctx, ll.model_t, ll.expansion_t) ? Some(v) : None
   };
 
-/* (sample identity, livelit) -> rendered html. Keyed on the RAW sample
-   term (a stable object across renders); parse and render both go
-   through here, so a value is admitted only if its view really renders.
-   A livelit use's own stream mixes its HTML view samples with its
-   values — HTML is never wrapped, and a view that comes back stuck (a
-   wrap on the wrong shape) is rejected. */
-let html_memo: ref(list(((Exp.t, string), option(Exp.t)))) = ref([]);
-let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
-  switch (
-    List.find_opt(
-      ((k, _)) =>
-        snd(k) == ll.name
-        /* by identity, else by value: a re-evaluation hands out fresh
-           sample objects for unchanged values, and re-running the
-           view for each of them on every keystroke is the cost */
-        && (fst(k) === raw || Exp.fast_equal(fst(k), raw)),
-      html_memo^,
+/* (sample, livelit definition, place) -> rendered html. Keyed on the RAW
+   sample term (a stable object across renders); parse and render both go
+   through here, so a value is admitted only if its view really renders
+   (offside, the place parse checks). The definition is in the key, so an
+   edit to the livelit redraws its samples. A livelit use's own stream
+   mixes its HTML view samples with its values — HTML is never wrapped,
+   and a view that comes back stuck (a wrap on the wrong shape) is
+   rejected. */
+type html_key = {
+  raw: Exp.t,
+  def: Exp.t,
+  name: string,
+  place: UserLivelit.place,
+};
+let html_memo: ref(list((html_key, option(Exp.t)))) = ref([]);
+/* by identity, else by value: a re-evaluation hands out fresh sample
+   objects for unchanged values (and a fresh elaboration of an unchanged
+   definition), and re-running the view for each of them on every
+   keystroke is the cost */
+let same = (a: Exp.t, b: Exp.t): bool => a === b || Exp.fast_equal(a, b);
+let html_of =
+    (
+      ~ctx,
+      ~place: UserLivelit.place=Offside,
+      ll: LivelitCtx.raw_livelit,
+      raw: Exp.t,
     )
-  ) {
-  | Some((_, h)) => h
-  | None =>
-    let v = MvuShape.close_value(raw);
-    let h =
-      if (MvuShape.is_html(v)) {
-        None;
-      } else {
-        switch (ll.user_def) {
-        | None => None
-        | Some(def_elab) =>
+    : option(Exp.t) =>
+  switch (ll.user_def) {
+  | None => None
+  | Some(def_elab) =>
+    switch (
+      List.find_opt(
+        ((k, _)) =>
+          k.name == ll.name
+          && k.place == place
+          && same(k.raw, raw)
+          && same(k.def, def_elab),
+        html_memo^,
+      )
+    ) {
+    | Some((_, h)) => h
+    | None =>
+      let v = MvuShape.close_value(raw);
+      let h =
+        if (MvuShape.is_html(v)) {
+          None;
+        } else {
           switch (record_of(def_elab)) {
           | None => None
           | Some(record) =>
@@ -197,7 +224,15 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
             | (Some(view), Some(m)) =>
               switch (
                 MvuShape.safe_evaluate(
-                  IdTagged.FreshGrammar.Exp.ap(Forward, view, m),
+                  IdTagged.FreshGrammar.Exp.ap(
+                    Forward,
+                    view,
+                    UserLivelit.view_arg(
+                      ~takes_ctx=ll.view_takes_ctx,
+                      ~place,
+                      m,
+                    ),
+                  ),
                 )
               ) {
               | Ok(html) when MvuShape.is_html(html) => Some(html)
@@ -212,11 +247,23 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
                 None;
               }
             }
-          }
+          };
         };
-      };
-    html_memo := [((raw, ll.name), h), ...ListUtil.take(63, html_memo^)];
-    h;
+      html_memo :=
+        [
+          (
+            {
+              raw,
+              def: def_elab,
+              name: ll.name,
+              place,
+            },
+            h,
+          ),
+          ...ListUtil.take(95, html_memo^),
+        ];
+      h;
+    }
   };
 
 let rows_of = (ll: LivelitCtx.raw_livelit): int =>
@@ -233,45 +280,53 @@ let list_elems = (exp: Exp.t): option(list(Exp.t)) =>
   | _ => None
   };
 
+/* a shadowed livelit cannot be named, so only the innermost of a name */
+let innermost =
+    (lls: list(LivelitCtx.raw_livelit)): list(LivelitCtx.raw_livelit) =>
+  List.fold_left(
+    (acc, ll: LivelitCtx.raw_livelit) =>
+      List.exists((l: LivelitCtx.raw_livelit) => l.name == ll.name, acc)
+        ? acc : acc @ [ll],
+    [],
+    lls,
+  );
+
 let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort, site(statics)) {
   | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
+    let found = (~as_list, lls: list(LivelitCtx.raw_livelit)) =>
+      switch (lls) {
+      | [ll, ...others] =>
+        Some({
+          ll_name: ll.name,
+          rows: rows_of(ll),
+          raw: exp,
+          as_list,
+          alts:
+            List.map(
+              (ll: LivelitCtx.raw_livelit) => (ll.name, rows_of(ll)),
+              others,
+            ),
+        })
+      | [] => None
+      };
     let direct =
-      List.find_map(
-        (ll: LivelitCtx.raw_livelit) =>
-          switch (html_of(~ctx, ll, exp)) {
-          | Some(_) =>
-            Some({
-              ll_name: ll.name,
-              rows: rows_of(ll),
-              raw: exp,
-              as_list: false,
-            })
-          | None => None
-          },
-        candidates(statics),
-      );
+      innermost(candidates(statics))
+      |> List.filter(ll => html_of(~ctx, ll, exp) != None);
     switch (direct) {
-    | Some(_) => direct
-    | None =>
+    | [_, ..._] => found(~as_list=false, direct)
+    | [] =>
       /* a list of a type with a view: every element must render */
       switch (
         Typ.term_of(Typ.weak_head_normalize(ctx, ty)),
         list_elems(exp),
       ) {
       | (List(elem), Some(items)) =>
-        List.find_map(
-          (ll: LivelitCtx.raw_livelit) =>
-            List.for_all(it => html_of(~ctx, ll, it) != None, items)
-              ? Some({
-                  ll_name: ll.name,
-                  rows: rows_of(ll),
-                  raw: exp,
-                  as_list: true,
-                })
-              : None,
-          candidates_for(ctx, elem),
-        )
+        innermost(candidates_for(ctx, elem))
+        |> List.filter(ll =>
+             List.for_all(it => html_of(~ctx, ll, it) != None, items)
+           )
+        |> found(~as_list=true)
       | _ => None
       }
     };
@@ -283,7 +338,30 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
    one), so a match is always real evidence for an automatic pick. */
 let auto_applies = (_: value): bool => true;
 
-let drawer_rows = (v: value): int => v.rows;
+/* The livelit a model draws a value with, and its rows: the chosen one
+   while it still renders the value, else the first */
+let chosen = (m: model, v: value): (string, int) =>
+  switch (m) {
+  | Some(name) when name != v.ll_name =>
+    switch (List.assoc_opt(name, v.alts)) {
+    | Some(rows) => (name, rows)
+    | None => (v.ll_name, v.rows)
+    }
+  | _ => (v.ll_name, v.rows)
+  };
+
+let drawer_rows = (m: model, v: value): int => snd(chosen(m, v));
+
+let views = (v: value): list(model) => [
+  Some(v.ll_name),
+  ...List.map(((name, _)) => Some(name), v.alts),
+];
+
+/* named as written, in the code font */
+let label = (m: model, v: value): RichProbe.view_label => {
+  name: "^" ++ fst(chosen(m, v)),
+  code: true,
+};
 
 let render =
     (
@@ -291,13 +369,15 @@ let render =
       ~exp as _: Exp.t,
       ~value: value,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~model as _: model,
+      ~model: model,
       ~local as _: action => Ui_effect.t(unit),
       ~parent as _: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
+      ~place: RichProbe.place,
       _: unit,
     )
     : Node.t => {
+  let (ll_name, _) = chosen(model, value);
   let view_term = term =>
     Exp(term) |> info.utility.term_to_seg(~inline=true) |> view_seg(Exp);
   let seed: HazelDOM.t = {
@@ -308,12 +388,12 @@ let render =
   let htmls: option(list(Exp.t)) =
     switch (site(info.statics)) {
     | Some((ctx, _)) =>
-      switch (Ctx.lookup_livelit(ctx, value.ll_name)) {
+      switch (Ctx.lookup_livelit(ctx, ll_name)) {
       | Some(ll) when value.as_list =>
         Option.bind(list_elems(value.raw), items =>
           List.fold_right(
             (it, acc) =>
-              switch (acc, html_of(~ctx, ll, it)) {
+              switch (acc, html_of(~ctx, ~place, ll, it)) {
               | (Some(hs), Some(h)) => Some([h, ...hs])
               | _ => None
               },
@@ -321,7 +401,8 @@ let render =
             Some([]),
           )
         )
-      | Some(ll) => Option.map(h => [h], html_of(~ctx, ll, value.raw))
+      | Some(ll) =>
+        Option.map(h => [h], html_of(~ctx, ~place, ll, value.raw))
       | None => None
       }
     | _ => None
@@ -334,23 +415,17 @@ let render =
           ["rich-html-view", "rich-livelit-view"]
           @ (value.as_list ? ["rich-livelit-list"] : []),
         ),
-        Attr.title("^" ++ value.ll_name ++ " view of this value"),
+        Attr.title("^" ++ ll_name ++ " view of this value"),
       ],
       List.map(HazelDOM.go(seed), htmls),
     )
   | None =>
     Node.div(
       ~attrs=[Attr.classes(["rich-livelit-view", "rich-livelit-failed"])],
-      [Node.text("^" ++ value.ll_name ++ ": view failed")],
+      [Node.text("^" ++ ll_name ++ ": view failed")],
     )
   };
 };
 
 let badge =
-  Node.span(
-    ~attrs=[
-      Attr.classes(["html-badge", "livelit-badge"]),
-      Attr.title("View through the livelit defined for this type"),
-    ],
-    [Node.text("^")],
-  );
+  Node.span(~attrs=[Attr.classes(["livelit-badge"])], [Node.text("^")]);
