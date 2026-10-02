@@ -21,13 +21,15 @@ means updating that list too — one `[%blob]` line per file.
 Two lesson sets share this directory, told apart by the folder in each
 lesson's `@title` (see below) rather than by where the file sits: the
 numbered `NN-name.hzt` onboarding lessons (`Basics`, `Tuple Structural
-Operations`, `Tables`), and the unnumbered probes tutorial (`Probes`),
-whose filenames carry no order of their own — the `Slides.re` list is it.
-Keep a folder's lessons adjacent in that list; prev/next walks one folder.
+Operations`, `Tables`), and the unnumbered probes tutorial (`Probes`, and
+its sequel `Views`: one user-defined livelit view of probed values per
+lesson, in `views-*.hzt`), whose filenames carry no order of their own —
+the `Slides.re` list is it. Keep a folder's lessons adjacent in that list;
+prev/next walks one folder.
 
-Renaming a probes lesson also changes its `module_name`, which keys the
-per-slide config table (`TutorialProbeConfig`) — update
-that key in the same pass.
+Renaming a probes or views lesson also changes its `module_name`, which
+keys the per-slide config table (`TutorialProbeConfig`) — update that key
+in the same pass.
 
 ## File format
 
