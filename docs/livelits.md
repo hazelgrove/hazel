@@ -55,6 +55,14 @@ previous transition to its value first. Actions must therefore be
 first-order data. `update` alone still evaluates in the builtin environment
 (at event time, as a fallback), so helpers belong among the members.
 
+The view is clipped to the footprint `shape` gives it, which is fixed per
+livelit. A view can let one element out: an element with the class
+`livelit-popover` (`Class("livelit-popover")`) may extend past the
+footprint, and while one is shown the projector rises above the code, so the
+element floats over the lines below like a menu instead of taking rows from
+them. The `^color` lesson (Tutorial, Views / Color) opens its picker this
+way: a swatch whose model carries an open flag that a click toggles.
+
 Example programs: `hazel-programs/docs/livelits/` (shipped as the "Livelits"
 doc slides, embedded at compile time — an edit there ships on the next
 build). The adapter is `src/language/statics/UserLivelit.re`; rendering is
@@ -100,6 +108,14 @@ let ^trace = {
   is at most 4 lines tall (`Inline` is 1) is embedded in each sample, and
   a taller one fills the probe's drawer when it is open. The sample menu's
   "View as livelit" picks it explicitly.
+- **On the chip.** An embedded view draws directly on the sample chip, with
+  no backdrop, in a chip a text sample's height (24.4px at the default
+  size), so a view drawn 24px tall fills it. Its `currentColor` is the
+  sample's ink in every focus state, so marks drawn in it recede as
+  unfocused text does; colors the view picks itself (a swatch, a red mark
+  for an exception) are left as they are. A view taller than one line hangs
+  over the lines below, as card fans do. The Views tutorial lessons
+  (`hazel-programs/tutorial/views-*.hzt`) each define one such view.
 
 The renderer is `LivelitRenderer.re`, registered in
 `RichProbeRegistry.re` ahead of the generic HTML and card renderers.

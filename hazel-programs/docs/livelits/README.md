@@ -30,6 +30,10 @@ let ^name = {
   value of the expansion type through `view` (see docs/livelits.md,
   "Livelits as Rich Probes")
 
+The view is clipped to its footprint, except an element with the class
+`livelit-popover`, which floats over the code below while it is shown (a
+picker opening under a swatch; see the Views / Color tutorial lesson).
+
 Type members are accepted but not yet load-bearing; helpers (like the color
 picker's `css` and `pick`) are ordinary members. A positional
 `(init, update, view, expand[, shape])` tuple is the desugared equivalent.
