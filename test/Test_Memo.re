@@ -16,6 +16,19 @@ let same = (name: string, f: unit => 'a): unit =>
 let tests = (
   "Memo",
   [
+    test_case("Measured per segment, shapes and rows", `Quick, () =>
+      switch (Parser.to_segment(~root=Exp, "let x = 1 in x + 2")) {
+      | None => Alcotest.fail("failed to parse")
+      | Some(seg) =>
+        same("Measured.of_segment", () =>
+          Measured.of_segment(
+            seg,
+            ProjectorCore.Shape.Map.empty,
+            Id.Map.empty,
+          )
+        )
+      }
+    ),
     test_case("Code token per token and styling", `Quick, () =>
       same("Code.of_delim'", () =>
         Code.of_delim'((
