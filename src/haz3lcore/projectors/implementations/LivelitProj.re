@@ -1197,9 +1197,15 @@ module M: Projector = {
   /* The params panel, shown with the model panel while a use shows its
      syntax: EXPERIMENTAL, not in the paper. A livelit that defines
      params_from_model (Model -> Params) and init_from_params
-     (Params -> UpdateCmd(Model)) gets a line holding its params as code;
+     ((Params, Model) -> Model) gets a line holding its params as code;
      editing them re-runs init_from_params, and the model it makes
-     replaces the current one. Params are never stored: the text holds
+     replaces the current one. init_from_params is handed the old model
+     too, so a livelit holding splices keeps them: a params edit rebuilds
+     the livelit's own data and leaves the client's code in its cells
+     alone. So it makes no splices, and is a plain function, not a
+     command -- which also lets its body be checked: an optional member
+     has no type from the signature, so a bare Pure in it would not know
+     which command it built. Params are never stored: the text holds
      only the model, and the panel recomputes them from it. A livelit
      that defines neither has nothing here, its params being its model. */
   let params_panel =
@@ -1233,13 +1239,18 @@ module M: Projector = {
             print_endline("LivelitProj: params do not parse: " ++ typed);
             Ui_effect.Ignore;
           | Some(params) =>
+            /* A plain function: it keeps the old model's splices rather
+               than making new ones, so it needs no command. */
             switch (
-              switch (MvuShape.safe_evaluate(ap(Forward, init_from, params))) {
-              | Error(_) as err => err
-              | Ok(cmd) => UpdateCmdRunner.run(cmd)
-              }
+              MvuShape.safe_evaluate(
+                ap(
+                  Forward,
+                  init_from,
+                  IdTagged.FreshGrammar.Exp.tuple([params, base]),
+                ),
+              )
             ) {
-            | Ok((new_model, effects)) => commit_model(~effects, new_model)
+            | Ok(new_model) => commit_model(~effects=[], new_model)
             | Error(e) =>
               print_endline("LivelitProj: init_from_params error: " ++ e);
               Ui_effect.Ignore;

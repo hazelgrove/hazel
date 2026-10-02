@@ -233,6 +233,25 @@ let ^kid_face = {
 
   let clamp = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
 
+  # EXPERIMENTAL, not in the paper: the params panel. Open the eye at #
+  # the face's left and the pane shows its params above its model. The #
+  # params are what the face itself holds -- smile, brow, sickness -- #
+  # and not the drag in progress, which is passing state, nor the cells, #
+  # which are the client's code. Editing the params re-runs #
+  # init_from_params, handed the old model too: it keeps every cell as #
+  # it was and starts the drag over, Idle. Making no cells, it is a #
+  # plain function, not a command. #
+  type Params = (smile = Int, brow = Int, sickness = Int);
+  let params_from_model = fun m : Model ->
+    (smile = m.smile, brow = m.brow, sickness = m.sickness);
+  let init_from_params = fun (p, old) : (Params, Model) ->
+    ((smile = clamp(p.smile), brow = clamp(p.brow), drag = Idle,
+          color = old.color, burst = old.burst, candy = old.candy,
+          stars = old.stars, hearts = old.hearts, eyes = old.eyes,
+          sides = old.sides, rays = old.rays, teeth = old.teeth,
+          opening = old.opening, x_eyes = old.x_eyes,
+          sickness = clamp(p.sickness), unibrow = old.unibrow));
+
   # The face is drawn 220 pixels wide, in drawing units running 0 to #
   # 200 across, so 11 pixels for every 10 units, and from -80 down: to #
   # 220 while it is well (the room above is for the lid and the candy, #

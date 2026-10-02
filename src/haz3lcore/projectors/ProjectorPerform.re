@@ -481,11 +481,42 @@ let go =
     switch (projector_idx_to_id(idx)) {
     | None => Error(Cant_project)
     | Some(id) =>
-      let f = (p: Base.projector) => {
-        ...p,
-        syntax:
-          term_to_segment(~original_syntax=p.syntax, ~preserve_splices, term),
-      };
+      /* While a projector shows its syntax, that syntax is one splice
+         around the use. Regenerating through it re-attached that splice
+         by id, with the OLD use inside, so a commit to a livelit with
+         cells came back unchanged. Regenerate the use against the
+         unspliced syntax instead -- what a commit with the syntax hidden
+         does, re-attaching only the cells -- and splice the result again,
+         as showing the syntax does. */
+      let f = (p: Base.projector) =>
+        if (p.show_syntax) {
+          let term: Language.Any.t =
+            switch (term) {
+            | Exp({term: Splice(inner), _}) => Exp(inner)
+            | other => other
+            };
+          {
+            ...p,
+            syntax:
+              ProjectorInit.spliced(
+                term_to_segment(
+                  ~original_syntax=ProjectorInit.unspliced(p.syntax),
+                  ~preserve_splices,
+                  term,
+                ),
+              ),
+          };
+        } else {
+          {
+            ...p,
+            syntax:
+              term_to_segment(
+                ~original_syntax=p.syntax,
+                ~preserve_splices,
+                term,
+              ),
+          };
+        };
       Ok(
         inside_projector(id, z)
           ? update_from_root(f, id, z) : update(f, id, z),
