@@ -87,6 +87,14 @@
   padding-top: 0;
   padding-bottom: 0;
 }
+/* The same for the model panel's editor, which is a row per line of the
+   use's syntax: its padding and border made it 6px taller and 12px wider
+   than the pane, which then scrolled, and the scroll bar covered the
+   model. */
+.livelit-syntax > .splice-editor.inline-editor-wrapper {
+  padding: 0;
+  border: none;
+}
 
 /* A splice's error arm draws BELOW the row its term sits on -- see
    Arms.simple_arm, which flips the path under the term and adds a hook
@@ -112,8 +120,8 @@
   overflow-y: visible;
 }
 
-/* The syntax toggle and pane (LivelitProj: show_syntax). The layer covers
-   the livelit and lets clicks through, except on its two parts. */
+/* The syntax toggle (LivelitProj: show_syntax). The layer covers the
+   livelit and lets clicks through, except on the eye. */
 .livelit-syntax-layer {
     position: absolute;
     inset: 0;
@@ -121,7 +129,7 @@
 }
 /* `.livelit > *` clips each child of the livelit, which would hide the
    eye: it hangs outside the GUI's left edge. The layer holds only the
-   eye and the pane, so it need not clip. */
+   eye, so it need not clip. */
 .livelit > .livelit-syntax-layer,
 .livelit:has(.livelit-splice) > .livelit-syntax-layer {
     overflow: visible;
@@ -159,13 +167,71 @@
     opacity: 1;
     filter: none;
 }
+/* With the syntax shown, the livelit's box is a column: the GUI takes
+   what the pane leaves, centered as it was, and the pane its rows at the
+   bottom. */
+.livelit-with-syntax {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
+}
+.livelit-gui {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 .livelit-syntax {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow: auto;
+    position: relative;
+    flex: none;
+    box-sizing: border-box;
+    width: 100%;
+    /* rows are sized exactly; a pixel of rounding must not scroll */
+    overflow-x: auto;
+    overflow-y: hidden;
     border-top: 1px dashed var(--border-soft, var(--BR3));
     background: var(--ui-bkg, var(--BR1));
     pointer-events: auto;
+}
+/* The pane's two panels: a params line (experimental, only for a livelit
+   defining params_from_model and init_from_params), then the model, the
+   use's syntax. Each is labelled at its row's right edge. */
+.livelit-panel-label {
+    font-family: var(--code-font);
+    font-size: 0.6em;
+    color: var(--text-muted);
+    opacity: 0.8;
+    pointer-events: none;
+}
+.livelit-model-label {
+    position: absolute;
+    top: 0;
+    right: 4px;
+    z-index: 1;
+}
+.livelit-syntax.with-params > .livelit-model-label {
+    top: var(--row-height-px);
+}
+.livelit-params {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    height: var(--row-height-px);
+    padding-right: 4px;
+    border-bottom: 1px dotted var(--border-soft);
+}
+.livelit-params-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    box-sizing: border-box;
+    border: none;
+    padding: 0 0.3em;
+    font-family: var(--code-font);
+    font-size: inherit;
+    background: transparent;
+    color: var(--text-default);
 }

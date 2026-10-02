@@ -55,6 +55,15 @@ let utility: ProjectorBase.utility = {
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
+  let string_to_exp = (text: string): option(Exp.t) =>
+    switch (FastParse.of_text(~root=Exp, String.trim(text))) {
+    | None => None
+    | Some(seg) =>
+      switch (seg_to_term(seg)) {
+      | Some(Exp(e)) => Some(e)
+      | _ => None
+      }
+    };
   {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
     typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>
@@ -63,6 +72,7 @@ let utility: ProjectorBase.utility = {
     lift_syntax: (~inline) => lift_syntax(inline),
     lift_term,
     seg_to_string,
+    string_to_exp,
   };
 };
 

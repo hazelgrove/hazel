@@ -31,6 +31,16 @@ let ^mood = {
 
   let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
 
+  # EXPERIMENTAL, not in the paper: the params panel. Open the eye at #
+  # the face's left and the pane shows its params as well as its model. #
+  # The params are just the mood, 0 to 100: the drag in progress is #
+  # passing state, which params_from_model drops and init_from_params #
+  # starts over, Idle. Editing the params re-runs init_from_params; #
+  # editing the model does not run init at all. #
+  type Params = Int;
+  let params_from_model = fun (v, _drag) : Model -> v;
+  let init_from_params = fun p : Params -> Pure((clamp(p), Idle));
+
   # Held remembers the mood and the y where the grab began, so a #
   # move is just the distance dragged: DOWN smiles, 2 mood per px. #
   let update = fun (v, drag) : Model -> fun a : Action -> Pure(

@@ -54,6 +54,10 @@ type utility = {
     (~inline: bool, Any.t => Any.t, Base.segment) => option(Base.segment),
   /* Lifts term->term functions over the projector's syntax term. */
   lift_term: (Any.t => Any.t, Base.segment) => option(Any.t),
+  /* Parse text as an expression, with the fast parser; None when it does
+     not parse cleanly. For a projector that takes code typed into one of
+     its own inputs (a livelit's params panel). */
+  string_to_exp: string => option(Exp.t),
 };
 
 module Focusable = {
