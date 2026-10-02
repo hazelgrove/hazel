@@ -122,7 +122,8 @@ let of_slide = (module_name: string): t =>
   | "TuGen_ViewsToggle"
   | "TuGen_ViewsDiff"
   | "TuGen_ViewsGantt"
-  | "TuGen_ViewsPianoRoll" => lesson(~flags=bigger_values, ~samples=Many, ())
+  | "TuGen_ViewsPianoRoll"
+  | "TuGen_ViewsMap" => lesson(~flags=bigger_values, ~samples=Many, ())
   /* Intro and text-only transitions inherit auto-probe, reset samples and
    * colors, and show no controls. Caret is never preset or exposed here. */
   | _ => lesson(~flags=[], ~autoprobe=None, ())

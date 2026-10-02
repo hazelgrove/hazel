@@ -103,4 +103,5 @@ let all: list((string, string)) = [
   ("views-diff.hzt", [%blob "views-diff.hzt"]),
   ("views-gantt.hzt", [%blob "views-gantt.hzt"]),
   ("views-piano-roll.hzt", [%blob "views-piano-roll.hzt"]),
+  ("views-map.hzt", [%blob "views-map.hzt"]),
 ];
