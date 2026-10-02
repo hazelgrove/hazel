@@ -1060,3 +1060,9 @@
   align-items: flex-end;
   justify-content: center;
 }
+/* ...on one line in a sample chip: the chip sizes to its content, which
+   makes a wrapping row one view wide, stacking the views into a column
+   over the code below (the probe reserves one view's rows) */
+.value .rich-livelit-view.rich-livelit-list {
+  flex-wrap: nowrap;
+}
