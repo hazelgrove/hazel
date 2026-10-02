@@ -631,9 +631,12 @@
  * rules above, state for state, so `currentColor` marks recede exactly as
  * text does. The 0.7 fade goes into the ink's alpha rather than the
  * element's opacity: colors a view picks itself (a swatch, a red exception
- * mark) are data and keep their strength. */
+ * mark) are data and keep their strength. A view whose own colors should
+ * recede with the ink (say, one half of a chart) can take the fade from
+ * --sample-fade, e.g. `opacity: var(--sample-fade, 1)`. */
 .live-offside .value .rich-livelit-view {
   color: var(--sample-neutral-text);
+  --sample-fade: 1;
 }
 .indicated .live-offside .value.focus .rich-livelit-view {
   color: var(--sample-focus-text);
@@ -644,12 +647,15 @@
 .live-offside.Many .value.unrelated .rich-livelit-view,
 .live-offside.Many .value.off-focus .rich-livelit-view {
   color: color-mix(in srgb, var(--sample-off-text) 70%, transparent);
+  --sample-fade: 0.7;
 }
 .live-offside.Many .value.tangent-before .rich-livelit-view {
   color: color-mix(in srgb, var(--sample-above-text) 70%, transparent);
+  --sample-fade: 0.7;
 }
 .live-offside.Many .value.tangent-after .rich-livelit-view {
   color: color-mix(in srgb, var(--sample-below-text) 70%, transparent);
+  --sample-fade: 0.7;
 }
 .live-offside.Single .value.unrelated .rich-livelit-view {
   color: var(--sample-neutral-text);
@@ -1110,6 +1116,12 @@
   padding: 0;
   border-radius: 0;
   overflow: visible;
+}
+/* The view's root as a flex item: an inline root (a bare svg or span) would
+   otherwise sit on a text baseline, with a descender gap under it. */
+.live-offside .value .rich-livelit-view .MVU-render {
+  display: flex;
+  align-items: center;
 }
 
 /* a list of a type with a view: the elements' views in a row */
