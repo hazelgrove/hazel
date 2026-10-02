@@ -1146,8 +1146,16 @@
 /* a chip holding rich content centers it as a flex box — as an inline
    box the content rode the text BASELINE, leaving the descender gap
    under the card (0-1px above, ~3px below) */
+/* The chip is a block box, as a text chip is, so .sample is exactly the
+   chip. As an inline-flex box it sat on a line whose strut reached ~3px
+   below the baseline: under a chip with its baseline at its bottom edge
+   (a view whose first box is an svg, a card sprite) .sample was ~3px
+   taller than the chip, and the sample menu, placed after that line,
+   hung that much lower than under text. fit-content keeps the width
+   the inline box had. */
 .value:has(.value-rich) {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   justify-content: center;
 }
