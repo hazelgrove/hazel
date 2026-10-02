@@ -35,11 +35,13 @@ let ^mood = {
   # the face's left and the pane shows its params as well as its model. #
   # The params are just the mood, 0 to 100: the drag in progress is #
   # passing state, which params_from_model drops and init_from_params #
-  # starts over, Idle. Editing the params re-runs init_from_params; #
-  # editing the model does not run init at all. #
+  # starts over, Idle. Editing the params re-runs init_from_params, #
+  # which is also handed the old model (unused here: there is nothing #
+  # to keep) and returns the new one; editing the model does not run #
+  # init at all. #
   type Params = Int;
   let params_from_model = fun (v, _drag) : Model -> v;
-  let init_from_params = fun p : Params -> Pure((clamp(p), Idle));
+  let init_from_params = fun (p, _old) : (Params, Model) -> (clamp(p), Idle);
 
   # Held remembers the mood and the y where the grab began, so a #
   # move is just the distance dragged: DOWN smiles, 2 mood per px. #
