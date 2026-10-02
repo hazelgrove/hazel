@@ -1115,9 +1115,17 @@ module M: Projector = {
         | None => err("livelit definition is missing view")
         | Some(view_fn) =>
           /* The run's model value when there is one: in the surface term
-             a marked field is only its code, not the ref it becomes. */
-          let model = Option.value(model_value, ~default=model);
-          switch (eval_view(ap(Forward, view_fn, model))) {
+             a marked field is only its code, not the ref it becomes. The
+             view is drawn from that value, but the handlers are seeded
+             with the SYNTAX model, as on the live path: a transient
+             event records the seed's print as the syntax state that is
+             "ours", and the evaluated value prints its splices as
+             SpliceRef(id, value) where the syntax prints their code. Seeded
+             with the value, that record never matched, so every preview
+             was dropped as an external edit -- and a drag, whose release
+             is a no-op on the pre-drag model, was lost entirely. */
+          let view_model = Option.value(model_value, ~default=model);
+          switch (eval_view(ap(Forward, view_fn, view_model))) {
           | Error(e) => err("livelit view error: " ++ e)
           | Ok(html) when MvuShape.is_html(html) =>
             ok(
