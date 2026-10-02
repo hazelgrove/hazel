@@ -820,11 +820,11 @@
  * edged in the drawer's color, rounded, barely lifted. Separate borders,
  * because collapsed ones ignore border-radius. ProbeProj reserves one code
  * line per table row (TableRenderer.drawer_rows), so body rows stay one
- * line tall and the card's top edge overlaps the drawer's (the -1px): that
- * fits the header and both card borders into the header's line instead of
- * spilling over the code below. */
+ * line tall. The card's top edge lies on the drawer's edge, the inset line
+ * under the stripe's clear 2px top border, so it leaves the probed term's
+ * underline whole; the card then ends about 3px past its rows, within the
+ * next line's leading. */
 .below-wrapper .rich-drawer table.table {
-  margin-top: -1px;
   border: 1px solid var(--probe-drawer-edge);
   border-radius: 6px;
   border-collapse: separate;
@@ -1254,14 +1254,16 @@
    the drawer's table: the cream fill, a 1px border in the drawer's edge
    color, rounded corners, barely lifted. The chip gives way to it: no
    padding or backing of its own, its corners and focus ring rounded to
-   the card's. Its top edge overlaps the drawer's, as the table's does, so
-   a view as tall as the rows its shape reserves less one card border
-   (five lines: 5 x 25.13px - 1px) fills them. No padding inside either:
-   the view draws to the card's edges and keeps its own margins, and the
-   card clips it to its corners. The ink is the code's, far stronger on
-   the cream than the drawer's tan or a faded sample's green. */
+   the card's. Its top edge lies on the drawer's edge, as the table's does:
+   the inset line under the stripe's clear 2px top border, which keeps the
+   probed term's underline whole (the drawer clips anything drawn higher,
+   a card border included). So a view 2px less than its lines' height
+   (five lines: 124px) fills the rows its shape reserves but for those
+   2px, which it overhangs. No padding inside either: the view draws to
+   the card's edges and keeps its own margins, and the card clips it to
+   its corners. The ink is the code's, far stronger on the cream than the
+   drawer's tan or a faded sample's green. */
 .below-wrapper .live-offside .value:has(.rich-livelit-view) {
-  margin-top: -1px;
   padding: 0;
   border-radius: 6px;
   background-color: transparent !important;
