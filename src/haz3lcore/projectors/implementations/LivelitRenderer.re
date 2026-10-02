@@ -155,35 +155,42 @@ let model_of =
     Typ.equal_up_to_aliases(ctx, ll.model_t, ll.expansion_t) ? Some(v) : None
   };
 
-/* (sample identity, livelit) -> rendered html. Keyed on the RAW sample
+/* (sample, livelit definition) -> rendered html. Keyed on the RAW sample
    term (a stable object across renders); parse and render both go
    through here, so a value is admitted only if its view really renders.
-   A livelit use's own stream mixes its HTML view samples with its
-   values — HTML is never wrapped, and a view that comes back stuck (a
-   wrap on the wrong shape) is rejected. */
-let html_memo: ref(list(((Exp.t, string), option(Exp.t)))) = ref([]);
+   The definition is in the key, so an edit to the livelit redraws its
+   samples. A livelit use's own stream mixes its HTML view samples with
+   its values — HTML is never wrapped, and a view that comes back stuck
+   (a wrap on the wrong shape) is rejected. */
+type html_key = {
+  raw: Exp.t,
+  def: Exp.t,
+  name: string,
+};
+let html_memo: ref(list((html_key, option(Exp.t)))) = ref([]);
+/* by identity, else by value: a re-evaluation hands out fresh sample
+   objects for unchanged values (and a fresh elaboration of an unchanged
+   definition), and re-running the view for each of them on every
+   keystroke is the cost */
+let same = (a: Exp.t, b: Exp.t): bool => a === b || Exp.fast_equal(a, b);
 let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
-  switch (
-    List.find_opt(
-      ((k, _)) =>
-        snd(k) == ll.name
-        /* by identity, else by value: a re-evaluation hands out fresh
-           sample objects for unchanged values, and re-running the
-           view for each of them on every keystroke is the cost */
-        && (fst(k) === raw || Exp.fast_equal(fst(k), raw)),
-      html_memo^,
-    )
-  ) {
-  | Some((_, h)) => h
-  | None =>
-    let v = MvuShape.close_value(raw);
-    let h =
-      if (MvuShape.is_html(v)) {
-        None;
-      } else {
-        switch (ll.user_def) {
-        | None => None
-        | Some(def_elab) =>
+  switch (ll.user_def) {
+  | None => None
+  | Some(def_elab) =>
+    switch (
+      List.find_opt(
+        ((k, _)) =>
+          k.name == ll.name && same(k.raw, raw) && same(k.def, def_elab),
+        html_memo^,
+      )
+    ) {
+    | Some((_, h)) => h
+    | None =>
+      let v = MvuShape.close_value(raw);
+      let h =
+        if (MvuShape.is_html(v)) {
+          None;
+        } else {
           switch (record_of(def_elab)) {
           | None => None
           | Some(record) =>
@@ -212,11 +219,22 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
                 None;
               }
             }
-          }
+          };
         };
-      };
-    html_memo := [((raw, ll.name), h), ...ListUtil.take(63, html_memo^)];
-    h;
+      html_memo :=
+        [
+          (
+            {
+              raw,
+              def: def_elab,
+              name: ll.name,
+            },
+            h,
+          ),
+          ...ListUtil.take(63, html_memo^),
+        ];
+      h;
+    }
   };
 
 let rows_of = (ll: LivelitCtx.raw_livelit): int =>
