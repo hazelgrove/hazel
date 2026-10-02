@@ -789,11 +789,11 @@
  * edged in the drawer's color, rounded, barely lifted. Separate borders,
  * because collapsed ones ignore border-radius. ProbeProj reserves one code
  * line per table row (TableRenderer.drawer_rows), so body rows stay one
- * line tall and the card's top edge overlaps the drawer's (the -1px): that
- * fits the header and both card borders into the header's line instead of
- * spilling over the code below. */
+ * line tall. The card's top edge lies on the drawer's edge, the inset line
+ * under the stripe's clear 2px top border, so it leaves the probed term's
+ * underline whole; the card then ends about 3px past its rows, within the
+ * next line's leading. */
 .below-wrapper .rich-drawer table.table {
-  margin-top: -1px;
   border: 1px solid var(--probe-drawer-edge);
   border-radius: 6px;
   border-collapse: separate;
