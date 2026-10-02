@@ -99,4 +99,5 @@ let all: list((string, string)) = [
   ("views-sparkline.hzt", [%blob "views-sparkline.hzt"]),
   ("views-color.hzt", [%blob "views-color.hzt"]),
   ("views-horizon.hzt", [%blob "views-horizon.hzt"]),
+  ("views-toggle.hzt", [%blob "views-toggle.hzt"]),
 ];
