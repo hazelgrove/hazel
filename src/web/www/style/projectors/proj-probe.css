@@ -722,8 +722,13 @@
   margin-left: -1em;
   padding-left: 1em;
   padding-right: 1em;
-  border: 1px solid var(--probe-drawer-edge);
-  border-width: 1px 0 0px 0;
+  /* The probed term's hooked underline dips about a pixel below its line, so
+   * the stripe starts one pixel lower: a transparent top border keeps the
+   * hooks visible, and an inset shadow draws the edge just below them. */
+  border: 0 solid transparent;
+  border-top-width: 2px;
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 0 var(--probe-drawer-edge);
   /* cap at 15 lines (matches DrawerHeight.max_rows) */
   max-height: calc(15 * var(--line-height) * 1em);
   overflow: hidden auto;
