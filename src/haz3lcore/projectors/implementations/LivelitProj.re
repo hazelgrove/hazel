@@ -1058,9 +1058,21 @@ module M: Projector = {
            text it is None, and an event in that gap composes from the
            SYNTAX model, whose splices are code rather than refs. A slow
            browser lands events in the gap. */
+        /* Converged means the run has caught up with the optimistic
+           MODEL, not only its picture: a transient step that changes
+           nothing visible (a drag's Down, which only records that the
+           pointer is held) draws the same HTML as the stale sample, and
+           yielding to it then threw the step away -- the next MoveTo
+           composed from the pre-drag model, and the drag did nothing. */
         let converged =
           !entry.opt_ephemeral
-          && Option.is_some(model_value)
+          && (
+            switch (model_value) {
+            | Some(mv) =>
+              squish(print_term(mv)) == squish(print_term(entry.opt_model))
+            | None => false
+            }
+          )
           && (
             switch (live) {
             | Some(l) => Exp.fast_equal(l, entry.opt_html)
