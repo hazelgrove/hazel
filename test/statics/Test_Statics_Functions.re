@@ -124,5 +124,73 @@ let tests = (
         ),
       )
     ),
+    /* A body that already reports its mismatch with the expected return type
+       is not repeated on the function (#2507), as for a tuple component. */
+    test_case(
+      "A body mismatch is reported once, on the body",
+      `Quick,
+      () => {
+        let marks =
+          statics(
+            parse_exp({|let f : Int -> Bool = fun x -> x + 1 in f(1)|}),
+          )
+          |> errors
+          |> List.concat_map(snd);
+        check(Alcotest.int, "one error", 1, List.length(marks));
+        check(
+          Alcotest.bool,
+          "on the body",
+          true,
+          switch (marks) {
+          | [ExpectationMismatch({ana, syn})] =>
+            switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+            | (Atom(Bool), Atom(Int)) => true
+            | _ => false
+            }
+          | _ => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "A body mismatch is reported once in an argument function",
+      `Quick,
+      () => {
+        let marks =
+          statics(
+            parse_exp(
+              {|let g = fun (f : Int -> Bool) -> f(1) in g(fun x -> x + 1)|},
+            ),
+          )
+          |> errors
+          |> List.concat_map(snd);
+        check(Alcotest.int, "one error", 1, List.length(marks));
+      },
+    ),
+    /* A mismatch of the definition's own shape is still reported on it. */
+    test_case(
+      "A non-function against an arrow type is reported on itself",
+      `Quick,
+      () => {
+        let marks =
+          statics(parse_exp({|let f : Int -> Bool = 3 in f|}))
+          |> errors
+          |> List.concat_map(snd);
+        check(Alcotest.int, "one error", 1, List.length(marks));
+        check(
+          Alcotest.bool,
+          "on the definition",
+          true,
+          switch (marks) {
+          | [ExpectationMismatch({ana, syn})] =>
+            switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+            | (Arrow(_), Atom(Int)) => true
+            | _ => false
+            }
+          | _ => false
+          },
+        );
+      },
+    ),
   ],
 );
