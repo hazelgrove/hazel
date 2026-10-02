@@ -431,7 +431,11 @@ module M: Projector = {
       : ProjectorCore.Shape.t => {
     let rows = size.row + 1;
     {
-      horizontal: max(shape.horizontal, size.col + 1),
+      /* Seven columns past the longest line: the box's padding and border
+         take about one (sized to the line alone, the pane scrolled and the
+         scroll bar hid the model), and the panel labels at the right edge
+         take about four, which would otherwise sit on the code. */
+      horizontal: max(shape.horizontal, size.col + 7),
       vertical:
         switch (shape.vertical) {
         | Inline => Block(rows)
@@ -540,7 +544,29 @@ module M: Projector = {
     };
   };
 
-  let placeholder = (_model, info, splice_size) => {
+  /* Whether the use's livelit defines both params members, so the pane
+     has a params line (params_panel, below). */
+  let has_params_panel = (info: ProjectorBase.info): bool =>
+    switch (get_use(info), info.statics) {
+    | (Some((llname, args, _)), Some(InfoExp(exp))) =>
+      switch (lookup_use(exp.ctx, llname, args)) {
+      | Some({user_def: Some(def_elab), _}) =>
+        switch (MvuShape.safe_evaluate(def_elab)) {
+        | Ok(record) =>
+          Option.is_some(MvuShape.record_field(record, "params_from_model"))
+          && Option.is_some(
+               MvuShape.record_field(record, "init_from_params"),
+             )
+        | Error(_) => false
+        }
+      | _ => false
+      }
+    | _ => false
+    };
+
+  /* The GUI's own footprint: the definition's shape, widened for its
+     splices, before any syntax pane is added. */
+  let gui_shape = (info, splice_size): ProjectorCore.Shape.t => {
     let looked_up =
       switch (get_use(info), info.statics) {
       | (Some((llname, args, model)), Some(InfoExp(exp))) =>
@@ -570,12 +596,26 @@ module M: Projector = {
     switch (syntax_splice(info.syntax)) {
     | None => widen_for_splices(info.syntax, splice_size, shape)
     /* Widened for the model's splices as before, which are inside the
-       syntax splice, and then given the pane's rows. */
+       syntax splice. */
+    | Some(s) => widen_for_splices(s.content, splice_size, shape)
+    };
+  };
+
+  let placeholder = (_model, info, splice_size) => {
+    let shape = gui_shape(info, splice_size);
+    switch (syntax_splice(info.syntax)) {
+    | None => shape
+    /* Given the pane's rows, and one more for a params line. */
     | Some(s) =>
-      with_syntax_pane(
-        splice_size(s.id),
-        widen_for_splices(s.content, splice_size, shape),
-      )
+      let size: Util.Point.t = splice_size(s.id);
+      let size =
+        has_params_panel(info)
+          ? {
+            ...size,
+            row: size.row + 1,
+          }
+          : size;
+      with_syntax_pane(size, shape);
     };
   };
 
@@ -1154,6 +1194,91 @@ module M: Projector = {
     };
   };
 
+  /* The params panel, shown with the model panel while a use shows its
+     syntax: EXPERIMENTAL, not in the paper. A livelit that defines
+     params_from_model (Model -> Params) and init_from_params
+     (Params -> UpdateCmd(Model)) gets a line holding its params as code;
+     editing them re-runs init_from_params, and the model it makes
+     replaces the current one. Params are never stored: the text holds
+     only the model, and the panel recomputes them from it. A livelit
+     that defines neither has nothing here, its params being its model. */
+  let params_panel =
+      (
+        ~def_elab: TermBase.Exp.t,
+        ~base: TermBase.Exp.t,
+        ~print_term: TermBase.Exp.t => string,
+        ~parse: string => option(TermBase.Exp.t),
+        ~commit_model:
+           (~effects: list(SpliceStore.effect), TermBase.Exp.t) =>
+           Ui_effect.t(unit),
+      )
+      : option(Node.t) => {
+    let ap = IdTagged.FreshGrammar.Exp.ap;
+    switch (MvuShape.safe_evaluate(def_elab)) {
+    | Error(_) => None
+    | Ok(record) =>
+      switch (
+        record_field(record, "params_from_model"),
+        record_field(record, "init_from_params"),
+      ) {
+      | (Some(from_model), Some(init_from)) =>
+        let text =
+          switch (MvuShape.safe_evaluate(ap(Forward, from_model, base))) {
+          | Ok(params) => print_term(params)
+          | Error(e) => "params_from_model error: " ++ e
+          };
+        let reinit = (typed: string) =>
+          switch (parse(typed)) {
+          | None =>
+            print_endline("LivelitProj: params do not parse: " ++ typed);
+            Ui_effect.Ignore;
+          | Some(params) =>
+            switch (
+              switch (MvuShape.safe_evaluate(ap(Forward, init_from, params))) {
+              | Error(_) as err => err
+              | Ok(cmd) => UpdateCmdRunner.run(cmd)
+              }
+            ) {
+            | Ok((new_model, effects)) => commit_model(~effects, new_model)
+            | Error(e) =>
+              print_endline("LivelitProj: init_from_params error: " ++ e);
+              Ui_effect.Ignore;
+            }
+          };
+        Some(
+          Node.div(
+            ~attrs=[Attr.class_("livelit-params")],
+            [
+              Node.input(
+                ~attrs=[
+                  Attr.class_("livelit-params-input"),
+                  Attr.value(text),
+                  Attr.on_keydown(_ => Effect.Stop_propagation),
+                  Attr.on_keyup(_ => Effect.Stop_propagation),
+                  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+                  Attr.on_change((_, typed) =>
+                    typed == text ? Ui_effect.Ignore : reinit(typed)
+                  ),
+                ],
+                (),
+              ),
+              Node.span(
+                ~attrs=[
+                  Attr.class_("livelit-panel-label"),
+                  Attr.title(
+                    "experimental: params_from_model of the model; an edit re-runs init_from_params",
+                  ),
+                ],
+                [Node.text("params")],
+              ),
+            ],
+          ),
+        );
+      | _ => None
+      }
+    };
+  };
+
   let view =
       (
         {
@@ -1174,6 +1299,8 @@ module M: Projector = {
       | _ => Ctx.empty
       };
 
+    /* Set while drawing a user livelit's GUI, for the pane below. */
+    let params = ref(None);
     let node =
       switch (get_use(info)) {
       | Some((ll_name, args, model)) =>
@@ -1249,6 +1376,25 @@ module M: Projector = {
             |> view_seg(~background=false, Exp);
           let model_value =
             Option.bind(info.dynamics_at(Exp.rep_id(model)), latest_value);
+          /* Model terms contain no projectors or refractors, so trivial
+             handlers suffice (the real ones live above this module in the
+             dependency order). */
+          let print_term = term =>
+            Segment.to_string(
+              ~refractor_seg_to_seg=(rs, seg) => (rs, seg),
+              ~projector_to_segment=_ => [],
+              info.utility.term_to_seg(~inline=true, Exp(term)),
+            );
+          if (Option.is_some(syntax_splice(info.syntax))) {
+            params :=
+              params_panel(
+                ~def_elab,
+                ~base=Option.value(model_value, ~default=model),
+                ~print_term,
+                ~parse=info.utility.string_to_exp,
+                ~commit_model,
+              );
+          };
           Node.div(
             ~attrs=[
               Attr.classes([ll_name, "user-livelit"]),
@@ -1258,16 +1404,7 @@ module M: Projector = {
               user_view(
                 ~id=info.id,
                 ~ll_name,
-                ~print_term=
-                  term =>
-                    /* Model terms contain no projectors or refractors, so
-                       trivial handlers suffice (the real ones live above
-                       this module in the dependency order). */
-                    Segment.to_string(
-                      ~refractor_seg_to_seg=(rs, seg) => (rs, seg),
-                      ~projector_to_segment=_ => [],
-                      info.utility.term_to_seg(~inline=true, Exp(term)),
-                    ),
+                ~print_term,
                 ~def_elab,
                 ~model,
                 ~model_value,
@@ -1341,30 +1478,59 @@ module M: Projector = {
       switch (shown) {
       | Some(s) =>
         let size: Util.Point.t = splice_size(s.id);
-        [
+        let rows = size.row + 1 + (Option.is_some(params^) ? 1 : 0);
+        Some(
           Node.div(
             ~attrs=[
-              Attr.class_("livelit-syntax"),
+              Attr.classes(
+                ["livelit-syntax"]
+                @ (Option.is_some(params^) ? ["with-params"] : []),
+              ),
               Attr.create(
                 "style",
                 Printf.sprintf(
                   "height: calc(%d * var(--row-height-px));",
-                  size.row + 1,
+                  rows,
                 ),
               ),
             ],
-            [splice_view(s.id)],
+            Option.to_list(params^)
+            @ [
+              Node.span(
+                ~attrs=[
+                  Attr.classes([
+                    "livelit-panel-label",
+                    "livelit-model-label",
+                  ]),
+                  Attr.title("this use's syntax: an edit changes the model"),
+                ],
+                [Node.text("model")],
+              ),
+              splice_view(s.id),
+            ],
           ),
-        ];
-      | None => []
+        );
+      | None => None
+      };
+    /* With the syntax shown, the GUI and the pane share the livelit's
+       box, which the placeholder grew by the pane's rows: a column whose
+       GUI part takes what is left, centered as before, and whose pane
+       sits at the bottom. In flow rather than overlaid, because a Tab
+       GUI hangs below the use's row in its own box, the tab extent, and
+       centers in all of it: an overlay at a computed offset covered it. */
+    let node =
+      switch (pane) {
+      | Some(pane) =>
+        Node.div(
+          ~attrs=[Attr.class_("livelit-with-syntax")],
+          [Node.div(~attrs=[Attr.class_("livelit-gui")], [node]), pane],
+        )
+      | None => node
       };
     View.mk(
       ~overlay=
         Some(
-          Node.div(
-            ~attrs=[Attr.class_("livelit-syntax-layer")],
-            [toggle, ...pane],
-          ),
+          Node.div(~attrs=[Attr.class_("livelit-syntax-layer")], [toggle]),
         ),
       node,
     );
