@@ -1,0 +1,66 @@
+@title
+Views / Wiring
+
+@flags
+version=1 id=b3000009-0009-0009-0009-000000000009
+
+@prompt
+A `Perm` says where each position's element belongs in sorted order. `^wires` draws one as wiring two lines tall: a wire from each position on top to its place below, drawn faint once it is already in place. Every `Perm` probe in scope draws this way, so the passes of a bubble sort, one sample each, read left to right as a tangle that straightens out.
+
+@code
+# A Perm says where each position's element belongs: Perm([2, 0, 1]) #
+# sends the first element to place 2, the second to place 0, and so on. #
+type Perm = + Perm([Int]) in
+
+# Wiring: a wire from each position (top) to where its element belongs #
+# (bottom). Wires already in place are faint, so a sort straightens out. #
+let ^wires = {
+  type Model = Perm;
+  type Action = + Nothing;
+  let s : Int -> String = string_of_int;
+  let x(i: Int): Int = 5 + 12 * i;
+  let view(p: Model): HTML =
+    case p
+    | Perm(dest) =>
+      let wire(i: Int, j: Int): HTML =
+        Node("path", [Create("d", "M" ++ s(x(i)) ++ " 5 C" ++ s(x(i)) ++ " 24 " ++ s(x(j))
+                                  ++ " 24 " ++ s(x(j)) ++ " 43"),
+                      Style([("fill", "none"), ("stroke", "currentColor"), ("stroke-width", "1.3"),
+                             ("stroke-opacity", if i == j then "0.3" else "1")])], []) in
+      let dot(i: Int, y: String): HTML =
+        Node("circle", [Create("cx", s(x(i))), Create("cy", y), Create("r", "1.8"),
+                        Style([("fill", "currentColor")])], []) in
+      Node("svg", [Create("viewBox", "0 0 " ++ s(x(length(dest)) - 2) ++ " 48"),
+                   Width(s(x(length(dest)) - 2)), Height("48")],
+        mapi(dest, wire) @ mapi(dest, fun (i: Int, _: Int) -> dot(i, "5"))
+        @ mapi(dest, fun (i: Int, _: Int) -> dot(i, "43")))
+    end;
+  let init : Model = Perm([1, 2, 0]);
+  let update(m: Model, _: Action): Model = m;
+  let expand(m: Model): Perm = m;
+  let wrap(v: Perm): Model = v;
+  let shape : LivelitShape = Block(9, 2)
+} in
+
+# Where each element belongs: how many elements are smaller #
+let places(xs: [Int]): Perm =
+  let p = Perm(map(xs, fun x -> length(filter(xs, fun y -> y < x)))) in
+  ^^probe(p)
+
+in
+
+# One pass of bubble sort: swap each neighboring pair that is out of order #
+let pass(xs: [Int]): [Int] =
+  case xs
+  | a :: b :: rest => if a > b then b :: pass(a :: rest) else a :: pass(b :: rest)
+  | _ => xs
+  end
+in
+
+let start = [4, 6, 1, 7, 0, 3, 5, 2] in
+let one = pass(start) in
+let two = pass(one) in
+let three = pass(two) in
+let four = pass(three) in
+let five = pass(four) in
+[places(start), places(one), places(two), places(three), places(four), places(five)]
