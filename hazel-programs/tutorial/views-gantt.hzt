@@ -8,56 +8,88 @@ version=1 id=b3000006-0006-0006-0006-000000000006
 A `Run` is a CPU schedule: which job holds the processor, from when to when. `^gantt` draws one as a Gantt strip, a track per job on one fixed time axis. It is three lines tall, so each sample hangs over the blank lines left below the probe. Every `Run` probe in scope draws this way, and the four calls compare scheduling policies: first come first served, shortest job first, and round robin with two quanta.
 
 @code
-# A Run is a schedule: which job holds the CPU, from when to when #
+# A CPU schedule: which job runs, from when to when #
 type Run = + Run([(String, Int, Int)]) in
 
-# A Gantt strip: one track per job, on one time axis (0 to 10) #
+# A Gantt strip: a track per job, on one time axis (0 to 10) #
 let ^gantt = {
   type Model = Run;
+
   type Action = + Nothing;
+
   let s : Int -> String = string_of_int;
+
+  # Px a tick, and the labels' width #
   let unit : Int = 14;
+
   let left : Int = 46;
+
+  # The jobs in order of first appearance #
   let jobs(slots: [(String, Int, Int)]): [String] =
     fold_left(slots, fun (seen: [String], (j, _, _): (String, Int, Int)) ->
       if mem(seen, j) then seen else seen @ [j], []);
+
   let track(js: [String], j: String): Int =
-    case js | [] => 0 | k :: rest => if k == j then 0 else 1 + track(rest, j) end;
+    case js
+    | []        => 0
+    | k :: rest => if k == j then 0 else 1 + track(rest, j)
+    end;
+
   let text(x: Int, y: Int, anchor: String, size: String, op: String, str: String): HTML =
-    Node("text", [Create("x", s(x)), Create("y", s(y)), Create("text-anchor", anchor),
-                  Style([("font-family", "var(--code-font)"), ("font-size", size),
-                         ("fill", "currentColor"), ("fill-opacity", op)])], [Text(str)]);
+    Node("text",
+      [Create("x", s(x)), Create("y", s(y)), Create("text-anchor", anchor),
+       Style([("font-family", "var(--code-font)"),
+              ("font-size", size),
+              ("fill", "currentColor"),
+              ("fill-opacity", op)])],
+      [Text(str)]);
+
+  let rule(x1: Int, x2: Int, y1: Int, y2: Int): HTML =
+    Node("line",
+      [Create("x1", s(x1)), Create("x2", s(x2)),
+       Create("y1", s(y1)), Create("y2", s(y2)),
+       Style([("stroke", "currentColor"), ("stroke-opacity", "0.45")])],
+      []);
+
   let view(r: Model): HTML =
     case r
     | Run(slots) =>
       let js = jobs(slots) in
       let axis = 16 * length(js) + 2 in
       let x(t: Int): Int = left + unit * t in
-      Node("svg", [Create("viewBox", "0 0 " ++ s(x(10) + 10) ++ " " ++ s(axis + 16)),
-                   Width(s(x(10) + 10)), Height(s(axis + 16))],
-        mapi(js, fun (i: Int, j: String) -> text(left - 6, 16 * i + 12, "end", "11px", "0.75", j))
-        @ map(slots, fun ((j, a, b): (String, Int, Int)) ->
-            Node("rect", [Create("x", s(x(a))), Create("width", s(unit * (b - a) - 1)),
-                          Create("y", s(16 * track(js, j) + 5)), Create("height", "7"),
-                          Create("rx", "1.5"), Style([("fill", "currentColor")])], []))
-        @ [Node("line", [Create("x1", s(x(0))), Create("x2", s(x(10))),
-                         Create("y1", s(axis)), Create("y2", s(axis)),
-                         Style([("stroke", "currentColor"), ("stroke-opacity", "0.45")])], [])]
-        @ map([0, 5, 10], fun t ->
-            Node("g", [], [
-              Node("line", [Create("x1", s(x(t))), Create("x2", s(x(t))),
-                            Create("y1", s(axis)), Create("y2", s(axis + 3)),
-                            Style([("stroke", "currentColor"), ("stroke-opacity", "0.45")])], []),
-              text(x(t), axis + 13, "middle", "10px", "0.6", s(t))])))
+      let labels =
+        mapi(js, fun (i: Int, j: String) ->
+          text(left - 6, 16 * i + 12, "end", "11px", "0.75", j)) in
+      let bars =
+        map(slots, fun ((j, a, b): (String, Int, Int)) ->
+          Node("rect",
+            [Create("x", s(x(a))), Create("width", s(unit * (b - a) - 1)),
+             Create("y", s(16 * track(js, j) + 5)), Create("height", "7"),
+             Create("rx", "1.5"), Style([("fill", "currentColor")])],
+            [])) in
+      let ticks =
+        map([0, 5, 10], fun t ->
+          Node("g", [],
+            [rule(x(t), x(t), axis, axis + 3),
+             text(x(t), axis + 13, "middle", "10px", "0.6", s(t))])) in
+      Node("svg",
+        [Create("viewBox", "0 0 " ++ s(x(10) + 10) ++ " " ++ s(axis + 16)),
+         Width(s(x(10) + 10)), Height(s(axis + 16))],
+        labels @ bars @ [rule(x(0), x(10), axis, axis)] @ ticks)
     end;
+
   let init : Model = Run([("a", 0, 2), ("b", 2, 5)]);
+
   let update(m: Model, _: Action): Model = m;
+
   let expand(m: Model): Run = m;
+
   let wrap(v: Run): Model = v;
+
   let shape : LivelitShape = Block(20, 3)
 } in
 
-# Round robin: run the job at the head for up to q, then requeue the rest #
+# Round robin: run the head job for up to q ticks, then requeue the rest #
 let rr(q: Int, queue: [(String, Int)], t: Int): [(String, Int, Int)] =
   case queue
   | [] => []
@@ -68,6 +100,7 @@ let rr(q: Int, queue: [(String, Int)], t: Int): [(String, Int, Int)] =
   end
 in
 
+# A queue's schedule, probed #
 let schedule(q: Int, queue: [(String, Int)]): Run =
   let run = Run(rr(q, queue, 0)) in
   ^^probe(run)
