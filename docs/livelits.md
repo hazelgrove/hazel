@@ -68,6 +68,44 @@ doc slides, embedded at compile time — an edit there ships on the next
 build). The adapter is `src/language/statics/UserLivelit.re`; rendering is
 the `user_def` branch of `LivelitProj.re`.
 
+### The View Context
+
+A view may take a second argument. A view of type
+`(Model, ViewContext) -> HTML` is told where it is drawn (at its literal,
+offside as a probe sample, or in a probe's drawer) and whether it is
+editable, that is, whether its actions rewrite the program:
+
+```
+type Place = + Literal + Offside + Drawer        # built in
+type ViewContext = (at=Place, editable=Bool)     # built in
+
+let view(m: Model, ctx: ViewContext): HTML =
+  case ctx.at
+  | Drawer => chart(m)                 # room for axes, labels, every reading
+  | _ => spark(m, ctx.editable)        # drag handles only where edits land
+  end
+```
+
+- `Literal`: the livelit used as an expression in the program, the
+  projector at its use. Editable: its actions update the model, which is
+  stored in the literal's syntax.
+- `Offside`: a probe sample at the end of a line. Not editable.
+- `Drawer`: a probe's drawer, below the line. Not editable.
+
+Only literals are editable today; a sample's value has no literal for an
+action to rewrite. Editability is still its own field, so a read-only
+literal (a locked slide, a past version) can be told apart later.
+
+Hazel tells the two forms apart by the view's type, not its arity (a
+one-argument view's `Model` may itself be a pair): the context's type must
+be written, as `ViewContext` or as `(at=Place, editable=Bool)`. A
+one-argument view keeps working everywhere and is drawn the same in every
+place. `Place` and `ViewContext` are ordinary built-in types (like
+`LivelitShape`), and a program's own `Literal`, `Offside` or `Drawer`
+constructors shadow theirs as usual. The place does not change the room a
+view gets: the literal and the drawer are as tall as `shape` says, and a
+sample chip is one line tall.
+
 ### Livelits as Rich Probes
 
 A user-defined livelit also renders probe samples of the type it expands
@@ -103,10 +141,12 @@ let ^trace = {
   type-checked; if it (or `view`) fails on a value, that livelit passes.
 - **Lists.** A list of a viewed type (`[Point]`) renders as a row of
   element views.
-- **Display.** Views are inert: their handlers dispatch nothing. With Rich
-  Views on (the probe sidebar toggle, on by default), a view whose `shape`
-  is at most 4 lines tall (`Inline` is 1) is embedded in each sample, and
-  a taller one fills the probe's drawer when it is open. The sample menu's
+- **Display.** Views are inert: their handlers dispatch nothing, and a view
+  that takes a `ViewContext` is told `at=Offside` in a sample chip and
+  `at=Drawer` in the drawer, both with `editable=false`. With Rich Views
+  on (the probe sidebar toggle, on by default), a view whose `shape` is at
+  most 4 lines tall (`Inline` is 1) is embedded in each sample, and a
+  taller one fills the probe's drawer when it is open. The sample menu's
   "View as livelit" picks it explicitly.
 - **On the chip.** An embedded view draws directly on the sample chip, with
   no backdrop, in a chip a text sample's height (24.4px at the default

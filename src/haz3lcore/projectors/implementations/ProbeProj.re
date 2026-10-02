@@ -758,6 +758,12 @@ let value_view =
          capture, dbl-click toggles. Explicit renderers embed when they
          fit inline_rows_cap (taller ones live in the drawer); auto-rich
          (wells) embeds unconditionally. */
+      /* a view is told whether it draws offside or in the drawer */
+      let place: RichProbe.place =
+        switch (display) {
+        | Inline => Offside
+        | Block => Drawer
+        };
       let render_rich = (r: packed_renderer, pm: packed_model) =>
         r.render_model(
           pm,
@@ -767,6 +773,7 @@ let value_view =
           ~local=pa => local(RendererAction(pa)),
           ~parent=ctx.parent,
           ~sort=ctx.sort,
+          ~place,
           (),
         );
       let rich_node =
@@ -888,6 +895,7 @@ let standalone_rich =
         ~local=_ => Ui_effect.Ignore,
         ~parent=_ => Ui_effect.Ignore,
         ~sort,
+        ~place=Offside,
         (),
       )
     | None => None
@@ -2200,6 +2208,7 @@ let rich_content =
         ~local=pa => local(RendererAction(pa)),
         ~parent,
         ~sort,
+        ~place=Drawer,
         (),
       )
     | _ => None
@@ -2228,6 +2237,7 @@ let rich_content =
           ~local=pa => local(RendererAction(pa)),
           ~parent,
           ~sort,
+          ~place=Drawer,
           (),
         )
       | None => None

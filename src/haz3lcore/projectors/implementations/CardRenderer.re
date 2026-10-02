@@ -199,6 +199,7 @@ let render =
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
+      ~place as _: RichProbe.place,
       (),
     )
     : Node.t =>

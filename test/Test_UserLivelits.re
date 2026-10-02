@@ -854,6 +854,143 @@ let edited_view_redraws = () => {
   );
 };
 
+/* A view may take a second argument, a ViewContext: where it is drawn
+   (at its Literal, Offside as a probe sample, in a probe's Drawer) and
+   whether it is editable. Hazel tells the two forms apart by the view's
+   type. The two-argument view below prints the context it is given, so
+   each place's context shows in its HTML. */
+let ctx_view = "let view(p: Model, ctx: ViewContext): HTML =
+    Text((case ctx.at | Literal => \"L\" | Offside => \"O\" | Drawer => \"D\" end)
+         ++ (if ctx.editable then \"+\" else \"-\"))";
+
+let plain_view = "let view(p: Model): HTML = Text(\"plain\")";
+
+/* the written-out context type selects the two-argument form too */
+let structural_ctx_view = "let view = fun (p, ctx) : (Model, (at=Place, editable=Bool)) ->
+    Text(if ctx.editable then \"+\" else \"-\")";
+
+/* The livelit bound by a program's ^point, from the context at its use */
+let lookup_point = (text: string): LivelitCtx.raw_livelit => {
+  let (m, _) = statics(text);
+  let found =
+    Id.Map.fold(
+      (_, info: Info.t, acc) =>
+        switch (acc, info) {
+        | (Some(_), _) => acc
+        | (None, InfoExp({ctx, _})) => Ctx.lookup_livelit(ctx, "point")
+        | (None, _) => None
+        },
+      m,
+      None,
+    );
+  switch (found) {
+  | Some(ll) => ll
+  | None => fail("^point is not in any context")
+  };
+};
+
+let view_form_by_type = () => {
+  let takes = view => lookup_point(point_def(view) ++ "1").view_takes_ctx;
+  check(
+    bool,
+    "(Model, ViewContext) -> HTML takes it",
+    true,
+    takes(ctx_view),
+  );
+  check(bool, "Model -> HTML does not", false, takes(plain_view));
+  check(
+    bool,
+    "(Model, (at=Place, editable=Bool)) -> HTML takes it",
+    true,
+    takes(structural_ctx_view),
+  );
+  /* a one-argument view whose Model is itself a pair keeps one argument */
+  let pair = "let ^point = {
+  type Model = (Int, Int);
+  type Action = + Nothing;
+  let init : Model = (1, 2);
+  let update(m: Model, _: Action): Model = m;
+  let view(m: Model): HTML = Text(\"pair\");
+  let expand(m: Model): (Int, Int) = m
+} in 1";
+  check(
+    bool,
+    "a pair Model is not a context",
+    false,
+    lookup_point(pair).view_takes_ctx,
+  );
+};
+
+/* Offside and Drawer: a probe sample's view is told where it is drawn,
+   and that it is not editable (no literal to rewrite) */
+let view_context_in_probes = () => {
+  let (ctx, ll, value, _) = point_sample(point_program(ctx_view));
+  let at = place =>
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~place, ll, value),
+      text_of_html,
+    );
+  check(option(string), "offside sample", Some("O-"), at(Offside));
+  check(option(string), "drawer sample", Some("D-"), at(Drawer));
+  /* the render memo keeps the places apart */
+  check(option(string), "offside again", Some("O-"), at(Offside));
+};
+
+/* the HTML texts the projectors' sample streams carry */
+let projector_texts = (projectors: Id.Map.t(_), probes): list(string) =>
+  Id.Map.fold(
+    (id, _, acc) =>
+      acc
+      @ (
+        switch (Sample.Map.lookup(id, probes)) {
+        | Some(samples) =>
+          List.filter_map(
+            (s: Sample.t) => {
+              let v = Haz3lcore.MvuShape.close_value(s.value);
+              Haz3lcore.MvuShape.is_html(v) ? text_of_html(v) : None;
+            },
+            samples,
+          )
+        | None => []
+        }
+      ),
+    projectors,
+    [],
+  );
+
+/* Literal: a projected use's view (run in the main evaluation) is told it
+   draws at its literal, which is editable */
+let view_context_at_literal = () => {
+  let (mtr, _, probes) =
+    probe_run(point_def(ctx_view) ++ "^^livelit(^point(P(1, 2)))");
+  check(
+    list(string),
+    "literal",
+    ["L+"],
+    projector_texts(mtr.projectors, probes),
+  );
+};
+
+/* A one-argument view keeps working at every place */
+let one_arg_view_everywhere = () => {
+  let (ctx, ll, value, _) = point_sample(point_program(plain_view));
+  let at = place =>
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~place, ll, value),
+      text_of_html,
+    );
+  check(option(string), "offside", Some("plain"), at(Offside));
+  check(option(string), "drawer", Some("plain"), at(Drawer));
+  let (mtr, _, probes) =
+    probe_run(point_def(plain_view) ++ "^^livelit(^point(P(1, 2)))");
+  check(
+    list(string),
+    "literal",
+    ["plain"],
+    projector_texts(mtr.projectors, probes),
+  );
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -883,6 +1020,22 @@ let tests = [
         "an edited view redraws its samples",
         `Quick,
         edited_view_redraws,
+      ),
+      test_case("view form told apart by type", `Quick, view_form_by_type),
+      test_case(
+        "view context offside and in the drawer",
+        `Quick,
+        view_context_in_probes,
+      ),
+      test_case(
+        "view context at the literal",
+        `Quick,
+        view_context_at_literal,
+      ),
+      test_case(
+        "one-argument view at every place",
+        `Quick,
+        one_arg_view_everywhere,
       ),
       test_case(
         "untyped constructor takes its sum type under ascription",

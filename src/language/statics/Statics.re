@@ -748,6 +748,7 @@ and uexp_to_info_map =
           UserLivelit.instrument_view(
             ~projector_id=Exp.rep_id(uexp),
             ~name,
+            ~takes_ctx=UserLivelit.view_takes_ctx(ctx, name),
             ~model,
             e_elab,
           );

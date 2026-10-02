@@ -9,7 +9,9 @@ open Language;
    makes every probed `Curve` render as the curve widget, no syntax at the
    use site. The livelit rebuilds a display model from the value through
    its `wrap : Expansion -> Model` member (or, when Model IS the expansion
-   type, the value itself). Inert: handlers in the view dispatch nothing.
+   type, the value itself). Inert: handlers in the view dispatch nothing,
+   and a view that takes a ViewContext is told it is not editable and
+   whether it draws offside or in the drawer.
 
    Resolution: the livelits in the probed site's ctx, innermost binding
    first; the first whose expansion type equals the site's type (up to
@@ -155,17 +157,19 @@ let model_of =
     Typ.equal_up_to_aliases(ctx, ll.model_t, ll.expansion_t) ? Some(v) : None
   };
 
-/* (sample, livelit definition) -> rendered html. Keyed on the RAW sample
-   term (a stable object across renders); parse and render both go
-   through here, so a value is admitted only if its view really renders.
-   The definition is in the key, so an edit to the livelit redraws its
-   samples. A livelit use's own stream mixes its HTML view samples with
-   its values — HTML is never wrapped, and a view that comes back stuck
-   (a wrap on the wrong shape) is rejected. */
+/* (sample, livelit definition, place) -> rendered html. Keyed on the RAW
+   sample term (a stable object across renders); parse and render both go
+   through here, so a value is admitted only if its view really renders
+   (offside, the place parse checks). The definition is in the key, so an
+   edit to the livelit redraws its samples. A livelit use's own stream
+   mixes its HTML view samples with its values — HTML is never wrapped,
+   and a view that comes back stuck (a wrap on the wrong shape) is
+   rejected. */
 type html_key = {
   raw: Exp.t,
   def: Exp.t,
   name: string,
+  place: UserLivelit.place,
 };
 let html_memo: ref(list((html_key, option(Exp.t)))) = ref([]);
 /* by identity, else by value: a re-evaluation hands out fresh sample
@@ -173,14 +177,24 @@ let html_memo: ref(list((html_key, option(Exp.t)))) = ref([]);
    definition), and re-running the view for each of them on every
    keystroke is the cost */
 let same = (a: Exp.t, b: Exp.t): bool => a === b || Exp.fast_equal(a, b);
-let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
+let html_of =
+    (
+      ~ctx,
+      ~place: UserLivelit.place=Offside,
+      ll: LivelitCtx.raw_livelit,
+      raw: Exp.t,
+    )
+    : option(Exp.t) =>
   switch (ll.user_def) {
   | None => None
   | Some(def_elab) =>
     switch (
       List.find_opt(
         ((k, _)) =>
-          k.name == ll.name && same(k.raw, raw) && same(k.def, def_elab),
+          k.name == ll.name
+          && k.place == place
+          && same(k.raw, raw)
+          && same(k.def, def_elab),
         html_memo^,
       )
     ) {
@@ -204,7 +218,15 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
             | (Some(view), Some(m)) =>
               switch (
                 MvuShape.safe_evaluate(
-                  IdTagged.FreshGrammar.Exp.ap(Forward, view, m),
+                  IdTagged.FreshGrammar.Exp.ap(
+                    Forward,
+                    view,
+                    UserLivelit.view_arg(
+                      ~takes_ctx=ll.view_takes_ctx,
+                      ~place,
+                      m,
+                    ),
+                  ),
                 )
               ) {
               | Ok(html) when MvuShape.is_html(html) => Some(html)
@@ -228,10 +250,11 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
               raw,
               def: def_elab,
               name: ll.name,
+              place,
             },
             h,
           ),
-          ...ListUtil.take(63, html_memo^),
+          ...ListUtil.take(95, html_memo^),
         ];
       h;
     }
@@ -313,6 +336,7 @@ let render =
       ~local as _: action => Ui_effect.t(unit),
       ~parent as _: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
+      ~place: RichProbe.place,
       _: unit,
     )
     : Node.t => {
@@ -331,7 +355,7 @@ let render =
         Option.bind(list_elems(value.raw), items =>
           List.fold_right(
             (it, acc) =>
-              switch (acc, html_of(~ctx, ll, it)) {
+              switch (acc, html_of(~ctx, ~place, ll, it)) {
               | (Some(hs), Some(h)) => Some([h, ...hs])
               | _ => None
               },
@@ -339,7 +363,8 @@ let render =
             Some([]),
           )
         )
-      | Some(ll) => Option.map(h => [h], html_of(~ctx, ll, value.raw))
+      | Some(ll) =>
+        Option.map(h => [h], html_of(~ctx, ~place, ll, value.raw))
       | None => None
       }
     | _ => None

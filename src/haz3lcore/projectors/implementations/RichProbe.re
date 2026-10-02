@@ -4,6 +4,12 @@ open Language;
 
 module Sexp = Sexplib.Sexp;
 
+/* Where a rendering is drawn: offside (a sample chip at the end of the
+   line) or in the probe's drawer. Livelit views are told (see
+   UserLivelit.place). */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type place = UserLivelit.place;
+
 /* A rich probe renderer: a domain-specific view of probed values.
    - value: the parsed representation; `parse` succeeding means the
      renderer can show the expression.
@@ -52,6 +58,7 @@ module type RichProbe = {
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
+      ~place: place,
       unit
     ) =>
     Node.t;
@@ -94,6 +101,7 @@ type packed_renderer = {
       ~local: packed_action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
+      ~place: place,
       unit
     ) =>
     option(Node.t),
@@ -168,7 +176,8 @@ let pack_renderer =
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))
       | _ => pm
       },
-    render_model: (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) =>
+    render_model:
+      (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ~place, ()) =>
       switch (cast_model(pm), R.parse(~statics=info.statics, sort, exp)) {
       | (Some(m), Some(value)) =>
         Some(
@@ -181,6 +190,7 @@ let pack_renderer =
             ~local=a => local(PAction(id, action_id, a)),
             ~parent,
             ~sort,
+            ~place,
             (),
           ),
         )
