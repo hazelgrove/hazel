@@ -303,6 +303,19 @@
   scale: 1.4;
 }
 
+/* In the inline row the ⋯ sits on the samples' baseline (.live-offside
+ * aligns its items' baselines, and the count badge leads the samples)
+ * but takes no height of its own. Its glyph isn't in Helvetica Neue,
+ * and the fallback (PingFang SC on macOS) has a tall ascent: at a normal
+ * line height the ⋯'s baseline lay 17px below its top, while beside a
+ * one-row chip the badge's lies 15.7px below the chip's top, so the ⋯
+ * set the row's baseline and pushed the chips 1.3px down whenever it
+ * showed (One mode, or Many past 30 samples). The drawer top-aligns its
+ * items, so there the ⋯ keeps its line box. */
+.offside-wrapper .live-offside .ellipsis {
+  line-height: 0;
+}
+
 .live-offside .sample-groups {
   display: flex;
   flex-direction: row;
