@@ -257,6 +257,19 @@
   fill: var(--exp-indicated);
 }
 
+/* An open drawer keeps its chevron when the probe isn't indicated (see
+ * "Nav-bar" below), in a quieter brown: the muted color of the table
+ * drawer's close button. Hovered, it reddens as the indicated chevron
+ * does; :not(:hover) leaves that to the rule below, which this rule
+ * would otherwise outrank. */
+.projector.probe:not(.indicated)
+  .live-offside.drawer-mode
+  .nav-bar
+  .drawer-mode-toggle:not(:hover)
+  .visual {
+  fill: var(--text-muted);
+}
+
 /* target classes, not g:hover, so a wrapping <g> won't redden the whole control */
 .live-offside .nav-bar .nav-left:hover .visual,
 .live-offside .nav-bar .nav-right:hover .visual,
@@ -288,6 +301,19 @@
 .live-offside .ellipsis:hover {
   /* filter: brightness(1.2) saturate(2); */
   scale: 1.4;
+}
+
+/* In the inline row the ⋯ sits on the samples' baseline (.live-offside
+ * aligns its items' baselines, and the count badge leads the samples)
+ * but takes no height of its own. Its glyph isn't in Helvetica Neue,
+ * and the fallback (PingFang SC on macOS) has a tall ascent: at a normal
+ * line height the ⋯'s baseline lay 17px below its top, while beside a
+ * one-row chip the badge's lies 15.7px below the chip's top, so the ⋯
+ * set the row's baseline and pushed the chips 1.3px down whenever it
+ * showed (One mode, or Many past 30 samples). The drawer top-aligns its
+ * items, so there the ⋯ keeps its line box. */
+.offside-wrapper .live-offside .ellipsis {
+  line-height: 0;
 }
 
 .live-offside .sample-groups {

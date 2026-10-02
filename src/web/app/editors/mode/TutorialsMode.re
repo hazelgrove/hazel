@@ -44,12 +44,9 @@ module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
-    /* A fresh user starts on the probes tutorial's first lesson (lesson 0
-       if there is none); a saved current lesson wins. */
+    /* Lesson 0, so keep "Basics / Holes" first in Slides.re. */
     let default = () =>
-      List.find_opt(Tutorial.is_probes_lesson, TutorialSettings.lessons)
-      |> Option.value(~default=List.nth(TutorialSettings.lessons, 0))
-      |> Tutorial.id_of;
+      List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {
