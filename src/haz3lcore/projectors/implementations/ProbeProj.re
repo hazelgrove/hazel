@@ -252,6 +252,8 @@ type probe_ctx = {
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
+  /* the parent editor's caret is on this probe's term */
+  indicated: bool,
   p_info: info,
 };
 
@@ -1579,9 +1581,23 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
       "g",
       ~attrs=[
         Attr.classes(["drawer-mode-toggle"]),
-        Attr.on_pointerdown(_ =>
-          Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
-        ),
+        Attr.on_pointerdown(_ => {
+          /* Toggling moves the focusable .live-offside between DOM slots,
+           * which drops focus; schedule a restore via after_display. An
+           * open drawer keeps its chevron when the probe isn't indicated;
+           * closing it from there returns focus to the active editor, so
+           * typing goes on at the caret (the click alone would focus this
+           * probe's editor, which needn't be the active one). */
+          if (ctx.indicated) {
+            FocusEffect.schedule(ctx.id);
+          } else {
+            FocusEffect.schedule_editor();
+          };
+          Effect.Many([
+            Effect.Stop_propagation,
+            ctx.local(ToggleDrawerMode),
+          ]);
+        }),
       ],
       [
         title(
@@ -1850,6 +1866,7 @@ let prepare_offside =
       ~settings: settings,
       ~sort: Sort.t,
       ~model: probe_model,
+      ~indicated: bool,
     )
     : option(offside_data) =>
   switch (info.dynamics, info.statics) {
@@ -1885,6 +1902,7 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
+      indicated,
       p_info: info,
     };
     let filtered_samples =
@@ -2313,9 +2331,7 @@ module M: Projector = {
       }
     | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
-      /* Toggling moves the focusable .live-offside between DOM slots, which
-       * drops focus; schedule a restore via after_display. */
-      FocusEffect.schedule(info.id);
+      /* the chevron's handler schedules the focus restore (nav_bar_view) */
       set_drawer_mode(model, info, !model.drawer_mode);
     | SetDrawerMode(b) =>
       Settings.version := Settings.version^ + 1;
@@ -2448,7 +2464,15 @@ module M: Projector = {
      * Drawer mode: offside = nav-bar wrapper, below = .live-offside (samples).
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
-      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
+      prepare_offside(
+        info,
+        local,
+        parent,
+        ~settings,
+        ~sort,
+        ~model,
+        ~indicated=status.indication != None,
+      );
     let drawer = model.drawer_mode;
     let offside_main =
       switch (data_opt, drawer) {
