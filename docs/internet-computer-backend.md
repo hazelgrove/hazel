@@ -12,7 +12,7 @@ https://claude.ai/code/artifact/68cbf43f-3a8e-4d39-83f0-a2789589af8c
 | Backend canister, `fumola_canister` | `Adapton/fumola`, branch `ic-canister`, `crates/fumola_canister` |
 | Storage switch | `src/web/HazelDB.re` (`Backend`), `src/web/www/ic-backend.js` |
 | Backend address | `src/web/www/config.js`: `null` here, so a normal build uses IndexedDB; the deploy writes the canister's address |
-| dfx project and deploy | `ic/dfx.json`, `ic/deploy-local.sh` |
+| icp-cli project | `ic/icp.yaml`, with its build and presync steps in `ic/*.sh` |
 
 The backend keeps each `kv` value in a cell of an Adapton DCG, inside one
 Fumola interpreter state: a save is the put `` `hazel(N) := value ``, a read
@@ -20,20 +20,32 @@ forces the cell. `POST /eval` runs Fumola programs in that state.
 
 ## Running it
 
-Needs `dfx` (`~/.local/share/dfx/bin`) and a checkout of the fumola branch at
-`~/fumola-canister` (or set `FUMOLA_DIR`).
+Needs `icp-cli` and `ic-wasm` (`npm install -g @icp-sdk/icp-cli
+@icp-sdk/ic-wasm`, Node >= 22), the `wasm32-unknown-unknown` Rust target, and a
+checkout of the fumola branch at `~/fumola-canister` (or set `FUMOLA_DIR`).
 
 ```
-ic/deploy-local.sh                     # builds both, starts a replica, deploys
-SKIP_HAZEL_BUILD=1 ic/deploy-local.sh  # reuse the Hazel release build
+cd ic
+icp network start -d
+icp deploy                      # builds both; SKIP_HAZEL_BUILD=1 reuses Hazel's release build
+icp network stop
 ```
 
-It prints Hazel's address, `http://<frontend id>.localhost:4943/`, and the
-backend's, which the front end reaches at `<backend id>.raw.localhost:4943`
-because the backend's HTTP answers are not certified.
+`ic/deploy-local.sh` does the first two. Two canisters:
 
-`dfx stop` stops the replica. Its state is ephemeral: `dfx start --clean`,
-which the script uses when no replica is running, starts empty.
+| Canister | Address | Is |
+| --- | --- | --- |
+| `hazel` | `http://hazel.local.localhost:8000/` | Hazel, via the `@dfinity/static-site` recipe |
+| `fumola` | `http://<id>.raw.localhost:8000/` | `fumola_canister`, built by `build-backend.sh` |
+
+The front end reaches the backend at its `raw` address, because the backend's
+HTTP answers are not certified. `write-config.sh` runs at sync, once the ids
+exist, and writes that address into `dist/config.js`.
+
+The canister names have no underscore on purpose. A canister's local address
+is `<name>.local.localhost`, and `js_of_ocaml`'s URL parser, which Hazel reads
+`?slide=` links through, refuses an underscore in a host name: the page loads,
+but every query parameter is lost.
 
 ## Not handled yet
 
