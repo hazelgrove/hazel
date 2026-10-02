@@ -4,6 +4,14 @@ open Language;
 
 module Sexp = Sexplib.Sexp;
 
+/* How the sample menu's "View as" list names a view: as it is written
+   (a livelit's `^name`, set in the code font) or as prose (Table). */
+[@deriving show({with_path: false})]
+type view_label = {
+  name: string,
+  code: bool,
+};
+
 /* Where a rendering is drawn: offside (a sample chip at the end of the
    line) or in the probe's drawer. Livelit views are told (see
    UserLivelit.place). */
@@ -44,7 +52,15 @@ module type RichProbe = {
 
   /* Height in editor rows when the rendering replaces the sample view in
      the drawer, so the framework can reserve the right number of lines. */
-  let drawer_rows: value => int;
+  let drawer_rows: (model, value) => int;
+
+  /* The views this renderer offers for a value, as the models that select
+     them, in the order an automatic pick prefers them (its pick is the
+     first). Most renderers offer one; the livelit renderer offers every
+     livelit whose view renders the value. */
+  let views: value => list(model);
+  /* The name of the view a model selects for a value */
+  let label: (model, value) => view_label;
 
   let badge: Node.t;
 
@@ -91,7 +107,23 @@ type packed_renderer = {
     (~statics: option(Info.t), Sort.t, Exp.t) => option(packed_model),
   empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
-  drawer_rows: (~statics: option(Info.t), Sort.t, Exp.t) => option(int),
+  /* ~model: the view chosen for the probe; None for an automatic pick */
+  drawer_rows:
+    (
+      ~statics: option(Info.t),
+      ~model: option(packed_model),
+      Sort.t,
+      Exp.t
+    ) =>
+    option(int),
+  /* the views offered for a value, each named and with its model */
+  views:
+    (~statics: option(Info.t), Sort.t, Exp.t) =>
+    list((view_label, packed_model)),
+  /* the name of the view a model selects for a value */
+  label:
+    (packed_model, ~statics: option(Info.t), Sort.t, Exp.t) =>
+    option(view_label),
   render_model:
     (
       packed_model,
@@ -169,8 +201,31 @@ let pack_renderer =
       R.parse(~statics, sort, exp)
       |> Option.map(v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
-    drawer_rows: (~statics, sort, exp) =>
-      R.parse(~statics, sort, exp) |> Option.map(R.drawer_rows),
+    drawer_rows: (~statics, ~model, sort, exp) =>
+      R.parse(~statics, sort, exp)
+      |> Option.map(v =>
+           R.drawer_rows(
+             switch (Option.bind(model, cast_model)) {
+             | Some(m) => m
+             | None => R.init(v)
+             },
+             v,
+           )
+         ),
+    views: (~statics, sort, exp) =>
+      switch (R.parse(~statics, sort, exp)) {
+      | Some(v) =>
+        List.map(
+          m => (R.label(m, v), PModel(id, model_id, m)),
+          R.views(v),
+        )
+      | None => []
+      },
+    label: (pm, ~statics, sort, exp) =>
+      switch (cast_model(pm), R.parse(~statics, sort, exp)) {
+      | (Some(m), Some(v)) => Some(R.label(m, v))
+      | _ => None
+      },
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))

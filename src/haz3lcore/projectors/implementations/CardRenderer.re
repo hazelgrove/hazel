@@ -49,7 +49,13 @@ let auto_applies = (v: value): bool =>
 
 /* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
    of cards regardless of count. */
-let drawer_rows = (_: value): int => 4;
+let drawer_rows = (_: model, _: value): int => 4;
+
+let views = (v: value): list(model) => [init(v)];
+let label = (_: model, _: value): RichProbe.view_label => {
+  name: "Cards",
+  code: false,
+};
 
 let update: (m, a) => m =
   (_, action) =>
@@ -209,11 +215,9 @@ let render =
   | Hand(hand) => Hand.view(model.mode, local, Sort.Exp, hand)
   };
 
+/* a spade in its text presentation (U+FE0E), so it takes the ink */
 let badge =
   Node.span(
-    ~attrs=[
-      Attr.classes(["card-badge"]),
-      Attr.title("Click to view cards visually"),
-    ],
-    [Node.text({js|♠️|js})],
+    ~attrs=[Attr.classes(["card-badge"])],
+    [Node.text({js|♠︎|js})],
   );

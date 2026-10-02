@@ -137,8 +137,10 @@ let ^trace = {
   pattern's type.
 - **Innermost first.** The livelits in the probed site's context are tried
   innermost binding first, and the first whose `view` renders the value
-  wins, so a nearer definition shadows an outer one. `wrap` is not
-  type-checked; if it (or `view`) fails on a value, that livelit passes.
+  is the automatic view, so a nearer definition shadows an outer one. The
+  others whose views render it are offered in the sample menu's "View as"
+  list. `wrap` is not type-checked; if it (or `view`) fails on a value,
+  that livelit passes.
 - **Lists.** A list of a viewed type (`[Point]`) renders as a row of
   element views.
 - **Display.** Views are inert: their handlers dispatch nothing, and a view
@@ -146,8 +148,18 @@ let ^trace = {
   `at=Drawer` in the drawer, both with `editable=false`. With Rich Views
   on (the probe sidebar toggle, on by default), a view whose `shape` is at
   most 4 lines tall (`Inline` is 1) is embedded in each sample, and a
-  taller one fills the probe's drawer when it is open. The sample menu's
-  "View as livelit" picks it explicitly.
+  taller one fills the probe's drawer when it is open.
+- **View as.** The sample menu's action bar names the view the sample is
+  drawn with (its badge and name; a livelit as written, `^name`) and opens
+  a list of the views that apply: Text, then the views in the order Hazel
+  ranks them for its automatic pick (livelits innermost first, HTML,
+  Cards; then Table, which is never picked automatically). Choosing one
+  sets it for every sample of the probe, overriding the Rich Views setting
+  for that probe only; it is probe state, so it survives edits. A view
+  too tall for the chip opens the drawer. In the keyboard menu (`/`), V
+  opens the list, the arrows move, Enter chooses and Esc closes just the
+  list. Double-clicking a sample toggles it between text and the chosen
+  view.
 - **On the chip.** An embedded view draws directly on the sample chip, with
   no backdrop, in a chip a text sample's height (24.4px at the default
   size), so a view drawn 24px tall fills it. Its `currentColor` is the
@@ -160,7 +172,8 @@ let ^trace = {
   (`hazel-programs/tutorial/views-*.hzt`) each define one such view.
 
 The renderer is `LivelitRenderer.re`, registered in
-`RichProbeRegistry.re` ahead of the generic HTML and card renderers.
+`RichProbeRegistry.re` ahead of the generic HTML and card renderers; the
+"View as" control is `view_picker` in `ProbeProj.re`.
 
 ## Creating a Built-in Livelit
 

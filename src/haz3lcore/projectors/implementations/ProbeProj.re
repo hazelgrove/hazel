@@ -20,10 +20,16 @@ type probe_model = {
    * one automatically (canvas value wells). Off for editor probes. */
   [@default false]
   auto_rich: bool,
-  /* dbl-click toggles the auto rendering back to the text view */
+  /* Text: no view draws the samples, whatever the global Rich Views
+     setting says. The "View as" list's Text sets it; dbl-click toggles it,
+     so the chosen view (active_renderer, kept) comes back. */
   [@default false]
   rich_off: bool,
 };
+
+/* The view chosen in the "View as" list, unless Text is showing */
+let chosen_renderer = (model: probe_model): option(packed_model) =>
+  model.rich_off ? None : model.active_renderer;
 
 let init_probe_model: probe_model = {
   active_renderer: None,
@@ -95,6 +101,12 @@ type action =
   | SetDrawerMode(bool)
   | ToggleDropdown(string)
   | SetDropdown(option(string))
+  /* the "View as" list: the view for every sample of the probe (None is
+     Text). The menu stays open. */
+  | SetView(option(packed_model))
+  /* open the list in a sample's menu (by dropdown id) with an optional
+     keyboard-highlighted row, or close it (None) */
+  | SetViewList(option(string), option(int))
   | ResetSettings;
 
 type sample_display =
@@ -193,6 +205,21 @@ module Settings = {
   let s = ref(init);
   let version = ref(0);
 
+  /* The "View as" list: the dropdown id of the menu it is open in, and
+   * its keyboard-highlighted row (None until an arrow key moves it, so a
+   * list opened by the mouse shows only the hover). */
+  let view_list: ref(option(string)) = ref(None);
+  let view_list_row: ref(option(int)) = ref(None);
+  let set_view_list = (o: option(string), row: option(int)) => {
+    view_list := o;
+    view_list_row := row;
+    version := version^ + 1;
+  };
+  let close_view_list = () =>
+    if (view_list^ != None) {
+      set_view_list(None, None);
+    };
+
   /* '/' keyboard mode (orthogonal to open_dropdown): the focused sample's
    * dropdown stays open and follows arrow-nav. CSS-driven, transient. */
   let sticky = ref(false);
@@ -204,6 +231,8 @@ module Settings = {
 
   let set_sticky = (b: bool) => {
     sticky := b;
+    view_list := None;
+    view_list_row := None;
     version := version^ + 1;
   };
 
@@ -211,6 +240,8 @@ module Settings = {
   let open_dropdown: ref(option(string)) = ref(None);
   let set_open_dropdown = (o: option(string)) => {
     open_dropdown := o;
+    view_list := None;
+    view_list_row := None;
     version := version^ + 1;
   };
 
@@ -218,6 +249,8 @@ module Settings = {
     Hashtbl.clear(offset);
     s := init;
     open_dropdown := None;
+    view_list := None;
+    view_list_row := None;
     sticky := false;
     version := version^ + 1;
   };
@@ -240,12 +273,15 @@ type probe_ctx = {
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
   local: action => Ui_effect.t(unit),
+  /* local without an undo entry, for menu state */
+  local_quiet: action => Ui_effect.t(unit),
   sort: Sort.t,
-  active_renderer_id: option(string),
-  /* auto-rich applies here: value dbl-click toggles rich <-> text
-     (instead of ToggleWindowMode) */
+  /* a view other than text applies here (the chosen one, or under
+     auto-rich the automatic one): value dbl-click toggles that view <->
+     text (instead of ToggleWindowMode) */
   auto_rich_ready: bool,
-  /* the explicitly chosen renderer's model, for in-value rendering */
+  /* the explicitly chosen renderer's model, for in-value rendering;
+     None while Text shows (rich_off) */
   rich_model: option(packed_model),
   /* auto-rich is on and not toggled off */
   auto_rich_on: bool,
@@ -620,6 +656,70 @@ module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 };
 
+/* Evidence that a renderer should be picked automatically for a value:
+   the value's own, or a SIBLING sample's at this site (so a vacuous match,
+   an empty hand, still renders beside real ones) */
+let auto_evidence = (ctx: probe_ctx, value: Exp.t, r: packed_renderer): bool =>
+  r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
+  || List.exists(
+       (s: Sample.t) =>
+         r.auto_applies(~statics=Some(ctx.statics), ctx.sort, s.value),
+       ctx.dynamics.samples,
+     );
+
+/* The renderer an automatic pick shows a value with: the first that
+   handles it, has evidence, and `fits` */
+let auto_renderer =
+    (ctx: probe_ctx, ~fits: packed_renderer => bool, value: Exp.t)
+    : option(packed_renderer) =>
+  List.find_opt(
+    (r: packed_renderer) =>
+      r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+      && auto_evidence(ctx, value, r)
+      && fits(r),
+    renderers,
+  );
+
+/* Rich content at most inline_rows_cap rows tall embeds in the chip */
+let fits_inline =
+    (ctx: probe_ctx, ~model, value: Exp.t, r: packed_renderer): bool =>
+  switch (r.drawer_rows(~statics=Some(ctx.statics), ~model, ctx.sort, value)) {
+  | Some(n) => n <= inline_rows_cap
+  | None => true
+  };
+
+/* What a sample chip draws a value with (None: text): the chosen view
+   when it handles the value and fits, or under auto-rich the automatic
+   pick that fits (any size, for canvas wells) */
+let chip_view =
+    (ctx: probe_ctx, value: Exp.t): option((packed_renderer, packed_model)) =>
+  switch (ctx.rich_model) {
+  | Some(pm) =>
+    switch (find(RichProbe.renderer_id_of_model(pm))) {
+    | Some(r)
+        when
+          r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+          && fits_inline(ctx, ~model=Some(pm), value, r) =>
+      Some((r, pm))
+    | _ => None
+    }
+  | None when ctx.auto_rich_on =>
+    switch (
+      auto_renderer(
+        ctx,
+        ~fits=
+          r => ctx.auto_unbounded || fits_inline(ctx, ~model=None, value, r),
+        value,
+      )
+    ) {
+    | Some(r) =>
+      r.init_model(~statics=Some(ctx.statics), ctx.sort, value)
+      |> Option.map(pm => (r, pm))
+    | None => None
+    }
+  | None => None
+  };
+
 let value_view =
     (
       ~display: sample_display,
@@ -634,6 +734,8 @@ let value_view =
     ) => {
   let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
+    /* an open "View as" list belongs to the menu being left */
+    Settings.close_view_list();
     if (Js.to_bool(e##.shiftKey)) {
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
@@ -777,89 +879,8 @@ let value_view =
           (),
         );
       let rich_node =
-        switch (ctx.rich_model) {
-        | Some(pm) =>
-          switch (find(RichProbe.renderer_id_of_model(pm))) {
-          | Some(r)
-              when
-                r.can_handle(
-                  ~statics=Some(ctx.statics),
-                  ctx.sort,
-                  sample.value,
-                )
-                && (
-                  switch (
-                    r.drawer_rows(
-                      ~statics=Some(ctx.statics),
-                      ctx.sort,
-                      sample.value,
-                    )
-                  ) {
-                  | Some(n) => n <= inline_rows_cap
-                  | None => true
-                  }
-                ) =>
-            render_rich(r, pm)
-          | _ => None
-          }
-        | None when ctx.auto_rich_on =>
-          switch (
-            List.find_opt(
-              (r: packed_renderer) =>
-                r.can_handle(
-                  ~statics=Some(ctx.statics),
-                  ctx.sort,
-                  sample.value,
-                )
-                /* a vacuous match (empty hand) still renders when a
-                   SIBLING sample at this site is real evidence */
-                && (
-                  r.auto_applies(
-                    ~statics=Some(ctx.statics),
-                    ctx.sort,
-                    sample.value,
-                  )
-                  || List.exists(
-                       (s: Sample.t) =>
-                         r.auto_applies(
-                           ~statics=Some(ctx.statics),
-                           ctx.sort,
-                           s.value,
-                         ),
-                       ctx.dynamics.samples,
-                     )
-                )
-                && (
-                  ctx.auto_unbounded
-                  || (
-                    switch (
-                      r.drawer_rows(
-                        ~statics=Some(ctx.statics),
-                        ctx.sort,
-                        sample.value,
-                      )
-                    ) {
-                    | Some(n) => n <= inline_rows_cap
-                    | None => true
-                    }
-                  )
-                ),
-              renderers,
-            )
-          ) {
-          | Some(r) =>
-            switch (
-              r.init_model(
-                ~statics=Some(ctx.statics),
-                ctx.sort,
-                sample.value,
-              )
-            ) {
-            | Some(pm) => render_rich(r, pm)
-            | None => None
-            }
-          | None => None
-          }
+        switch (chip_view(ctx, sample.value)) {
+        | Some((r, pm)) => render_rich(r, pm)
         | None => None
         };
       switch (rich_node) {
@@ -1063,43 +1084,307 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
-let rich_probe_action =
-    (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
-  let is_active = ctx.active_renderer_id == Some(r.id);
-  let label = (is_active ? "Hide " : "View as ") ++ r.id;
-  div(
-    ~attrs=[
-      Attr.classes(["action-item", "rich-probe-action"]),
-      Attr.on_pointerdown(_
-        /* Stop propagation so the wrapper's Focus doesn't also fire. */
-        =>
-          Effect.Many([
-            Effect.Stop_propagation,
-            ctx.local(
-              ToggleModal(
-                r.init_model(
-                  ~statics=Some(ctx.statics),
-                  ctx.sort,
-                  sample.value,
-                ),
-              ),
-            ),
-          ])
-        ),
-    ],
-    [r.badge, text(label)],
+/* ---- "View as": the probe's view, chosen from a list in the sample menu ----
+
+   The control sits in the menu's action bar and names the view the probe
+   shows the indicated sample with; the list hangs from it: Text, then the
+   views that apply, in Hazel's default order. Choosing sets the view for
+   every sample of the probe (active_renderer, or rich_off for Text). */
+
+/* A view the list offers for a value */
+type view_choice = {
+  rid: string,
+  label: RichProbe.view_label,
+  pm: packed_model,
+  badge: Node.t,
+};
+
+/* The views that apply to a value, in the order the automatic pick ranks
+   them: the views it could show (registry order, a renderer's own views
+   in its order), then the views it never picks (tables). */
+let view_choices = (ctx: probe_ctx, value: Exp.t): list(view_choice) => {
+  let statics = Some(ctx.statics);
+  let applicable =
+    List.filter(
+      (r: packed_renderer) => r.can_handle(~statics, ctx.sort, value),
+      renderers,
+    );
+  let (auto, never) = List.partition(auto_evidence(ctx, value), applicable);
+  List.concat_map(
+    (r: packed_renderer) =>
+      List.map(
+        ((label, pm)) =>
+          {
+            rid: r.id,
+            label,
+            pm,
+            badge: r.badge,
+          },
+        r.views(~statics, ctx.sort, value),
+      ),
+    auto @ never,
   );
 };
 
-let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
+/* The view a sample shows a value with, as (renderer id, name); None is
+   Text, as on a chip too small for the probe's view */
+let current_view =
+    (ctx: probe_ctx, value: Exp.t): option((string, RichProbe.view_label)) =>
+  switch (chip_view(ctx, value)) {
+  | Some((r, pm)) =>
+    r.label(pm, ~statics=Some(ctx.statics), ctx.sort, value)
+    |> Option.map(l => (r.id, l))
+  | None => None
+  };
+
+/* The list's rows, Text (None) first, and the row of the current view.
+   Just [Text] when no view applies: then there is no control. */
+let view_rows =
+    (ctx: probe_ctx, value: Exp.t): (list(option(view_choice)), int) => {
+  let rows: list(option(view_choice)) = [
+    Option.None,
+    ...List.map(c => Some(c), view_choices(ctx, value)),
+  ];
+  let current =
+    switch (current_view(ctx, value)) {
+    | Some((rid, label)) =>
+      switch (
+        ListUtil.findi_opt(
+          fun
+          | Some(c) => c.rid == rid && c.label.name == label.name
+          | None => false,
+          rows,
+        )
+      ) {
+      | Some((i, _)) => i
+      | None => 0
+      }
+    | None => 0
+    };
+  (rows, current);
+};
+
+let view_icon = (row: option(view_choice)): Node.t =>
+  switch (row) {
+  | None =>
+    span(
+      ~attrs=[Attr.classes(["view-icon", "view-icon-text"])],
+      [text("Aa")],
+    )
+  | Some(c) =>
+    span(
+      ~attrs=[Attr.classes(["view-icon", "view-icon-" ++ c.rid])],
+      [c.badge],
+    )
+  };
+
+let view_name = (row: option(view_choice)): Node.t =>
+  switch (row) {
+  | None => span(~attrs=[Attr.classes(["view-name"])], [text("Text")])
+  | Some(c) =>
+    span(
+      ~attrs=[
+        Attr.classes(["view-name"] @ (c.label.code ? ["code"] : [])),
+      ],
+      [text(c.label.name)],
+    )
+  };
+
+let chevron = (~up: bool): Node.t =>
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      Attr.classes(["view-chevron"]),
+      Attr.create("width", "8"),
+      Attr.create("height", "5"),
+      Attr.create("viewBox", "0 0 8 5"),
+    ],
+    [
+      Node.create_svg(
+        "path",
+        ~attrs=[
+          Attr.create(
+            "d",
+            up ? "M0.5 4.5 L4 1 L7.5 4.5" : "M0.5 0.5 L4 4 L7.5 0.5",
+          ),
+        ],
+        [],
+      ),
+    ],
+  );
+
+let check_mark: Node.t =
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      Attr.create("width", "11"),
+      Attr.create("height", "9"),
+      Attr.create("viewBox", "0 0 11 9"),
+    ],
+    [
+      Node.create_svg(
+        "path",
+        ~attrs=[Attr.create("d", "M1.5 4.6 L4.2 7.3 L9.5 1.5")],
+        [],
+      ),
+    ],
+  );
+
+/* The control and, while open, its list, in the menu of `sample` */
+let view_picker = (ctx: probe_ctx, sample: Sample.t): list(Node.t) =>
   switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
   | None => []
   | Some(indicated) =>
-    renderers
-    |> List.filter_map(r =>
-         r.can_handle(~statics=Some(ctx.statics), ctx.sort, indicated.value)
-           ? Some(rich_probe_action(ctx, indicated, r)) : None
-       )
+    switch (view_rows(ctx, indicated.value)) {
+    | ([_], _)
+    | ([], _) => []
+    | (rows, current) =>
+      let did = dropdown_id(sample);
+      let is_open = Settings.view_list^ == Some(did);
+      /* `action` is a thunk: local(_) runs its update eagerly, so it must
+         run on the press, not at render. Stop propagation so the
+         wrapper's Focus doesn't also fire. */
+      let press = (~local=ctx.local, action: unit => action) =>
+        Attr.on_pointerdown(_ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            Effect.Prevent_default,
+            local(action()),
+          ])
+        );
+      let trigger =
+        div(
+          ~attrs=[
+            Attr.classes(["view-trigger"]),
+            Attr.title("Choose how this probe shows its samples (V)"),
+            Attr.create("role", "button"),
+            Attr.create("aria-haspopup", "listbox"),
+            Attr.create("aria-expanded", is_open ? "true" : "false"),
+            press(~local=ctx.local_quiet, () =>
+              SetViewList(is_open ? None : Some(did), None)
+            ),
+          ],
+          [
+            view_icon(List.nth(rows, current)),
+            view_name(List.nth(rows, current)),
+            chevron(~up=is_open),
+          ],
+        );
+      let row_view = (i: int, row: option(view_choice)): Node.t =>
+        div(
+          ~attrs=[
+            Attr.classes(
+              ["view-row"]
+              @ (i == current ? ["current"] : [])
+              @ (Settings.view_list_row^ == Some(i) ? ["highlighted"] : []),
+            ),
+            Attr.create("role", "option"),
+            Attr.create("aria-selected", i == current ? "true" : "false"),
+            press(() => SetView(Option.map(c => c.pm, row))),
+          ],
+          [
+            span(
+              ~attrs=[Attr.classes(["view-check"])],
+              i == current ? [check_mark] : [],
+            ),
+            view_icon(row),
+            view_name(row),
+          ],
+        );
+      let list =
+        switch (List.mapi(row_view, rows)) {
+        | [text_row, ...views] =>
+          div(
+            ~attrs=[
+              Attr.classes(["view-list"]),
+              Attr.create("role", "listbox"),
+            ],
+            [text_row, div(~attrs=[Attr.classes(["view-list-rule"])], [])]
+            @ views,
+          )
+        | [] => div([])
+        };
+      [
+        div(
+          ~attrs=[Attr.classes(["view-as"] @ (is_open ? ["open"] : []))],
+          [
+            span(
+              ~attrs=[Attr.classes(["view-as-label"])],
+              [text("View as")],
+            ),
+            div(
+              ~attrs=[Attr.classes(["view-picker"])],
+              [trigger] @ (is_open ? [list] : []),
+            ),
+          ],
+        ),
+      ];
+    }
+  };
+
+/* Keys for the list in the sample menu shown for the indicated sample
+   (the '/' keyboard menu, or a menu opened by right-click): V opens and
+   closes it; while it is open, the arrows move, Enter chooses, Esc closes
+   just the list, and other unmodified keys are held so the menu stays
+   put. None: not the list's key. */
+let view_list_key = (ctx: probe_ctx, key: Key.t): option(Ui_effect.t(unit)) =>
+  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+  | None => None
+  | Some(sample) =>
+    let did = dropdown_id(sample);
+    let menu_shown = Settings.sticky^ || Settings.open_dropdown^ == Some(did);
+    let is_open = Settings.view_list^ == Some(did);
+    let modified = key.meta == Down || key.ctrl == Down || key.alt == Down;
+    if (!menu_shown || modified) {
+      None;
+    } else {
+      switch (view_rows(ctx, sample.value)) {
+      | ([_], _)
+      | ([], _) => None
+      | (rows, current) =>
+        let n = List.length(rows);
+        let row = Option.value(Settings.view_list_row^, ~default=current);
+        let held = effect =>
+          Some(
+            Effect.Many([
+              effect,
+              Effect.Stop_propagation,
+              Effect.Prevent_default,
+            ]),
+          );
+        let highlight = i =>
+          ctx.local_quiet(SetViewList(Some(did), Some(i)));
+        switch (key.key) {
+        | D("v" | "V") =>
+          held(
+            ctx.local_quiet(
+              is_open
+                ? SetViewList(None, None)
+                : SetViewList(Some(did), Some(current)),
+            ),
+          )
+        | D("ArrowDown") when is_open =>
+          held(highlight(min(n - 1, row + 1)))
+        | D("ArrowUp") when is_open => held(highlight(max(0, row - 1)))
+        | D("Home") when is_open => held(highlight(0))
+        | D("End") when is_open => held(highlight(n - 1))
+        | D("Enter") when is_open =>
+          held(
+            ctx.local(
+              SetView(
+                Option.map(c => c.pm, Option.join(List.nth_opt(rows, row))),
+              ),
+            ),
+          )
+        | D("Escape") when is_open =>
+          held(ctx.local_quiet(SetViewList(None, None)))
+        /* '/' still leaves the keyboard menu, list and all */
+        | D("/") => None
+        | D(_) when is_open => held(Effect.Ignore)
+        | _ => None
+        };
+      };
+    };
   };
 
 let sample_primary_actions =
@@ -1110,16 +1395,24 @@ let sample_primary_actions =
       sample: Sample.t,
     )
     : list(Node.t) => {
-  let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
-  switch (ctx.ap_id) {
-  | Some(ap_id) =>
-    [pin_action(ctx, sample)]
-    @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
-    @ rich_items
-  | None when sample.call_stack != [] =>
-    [focus_action(ctx, sample)] @ rich_items
-  | None => rich_items
-  };
+  let actions =
+    switch (ctx.ap_id) {
+    | Some(ap_id) =>
+      [pin_action(ctx, sample)]
+      @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+    | None when sample.call_stack != [] => [focus_action(ctx, sample)]
+    | None => []
+    };
+  let picker = include_rich ? view_picker(ctx, sample) : [];
+  /* a hairline sets the control apart from the actions */
+  let separator =
+    switch (actions, picker) {
+    | ([_, ..._], [_, ..._]) => [
+        div(~attrs=[Attr.classes(["action-separator"])], []),
+      ]
+    | _ => []
+    };
+  actions @ separator @ picker;
 };
 
 let get_fn_name_from_statics =
@@ -1553,6 +1846,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth(samples, next_idx_maybe);
+      Settings.close_view_list();
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
       SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
@@ -1748,7 +2042,10 @@ let key_handler =
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     FocusEffect.schedule_editor();
   };
+  /* the "View as" list's keys come first, while it is open */
+  let list_key = view_list_key(ctx, key);
   switch (key.key) {
+  | _ when Option.is_some(list_key) => Option.get(list_key)
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when Settings.open_dropdown^ != None =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
@@ -1901,6 +2198,7 @@ let prepare_offside =
     (
       info: info,
       local,
+      ~local_quiet,
       parent,
       ~settings: settings,
       ~sort: Sort.t,
@@ -1911,20 +2209,34 @@ let prepare_offside =
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
-    let active_renderer_id =
-      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
-      (model.auto_rich || settings.auto_rich_default)
-      && model.active_renderer == None
-      && List.exists(
-           (sample: Sample.t) =>
-             List.exists(
-               (r: packed_renderer) =>
-                 r.auto_applies(~statics=Some(statics), sort, sample.value),
-               renderers,
-             ),
-           dynamics.samples,
-         );
+      switch (model.active_renderer) {
+      | Some(pm) =>
+        switch (find(RichProbe.renderer_id_of_model(pm))) {
+        | Some(r) =>
+          List.exists(
+            (sample: Sample.t) =>
+              r.can_handle(~statics=Some(statics), sort, sample.value),
+            dynamics.samples,
+          )
+        | None => false
+        }
+      | None =>
+        (model.auto_rich || settings.auto_rich_default)
+        && List.exists(
+             (sample: Sample.t) =>
+               List.exists(
+                 (r: packed_renderer) =>
+                   r.auto_applies(
+                     ~statics=Some(statics),
+                     sort,
+                     sample.value,
+                   ),
+                 renderers,
+               ),
+             dynamics.samples,
+           )
+      };
     let ctx = {
       id,
       ap_id,
@@ -1934,10 +2246,10 @@ let prepare_offside =
       utility: info.utility,
       parent,
       local,
+      local_quiet,
       sort,
-      active_renderer_id,
       auto_rich_ready,
-      rich_model: model.active_renderer,
+      rich_model: chosen_renderer(model),
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
@@ -2195,7 +2507,7 @@ let rich_content =
       ~sort,
     )
     : option(Node.t) =>
-  switch (model.active_renderer, get_current(~settings, info)) {
+  switch (chosen_renderer(model), get_current(~settings, info)) {
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
     | Some(renderer)
@@ -2288,13 +2600,14 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
     | Some(statics) => Language.Statics.Info.sort_of(statics)
     | None => Sort.Exp
     };
-  switch (model.active_renderer) {
+  switch (chosen_renderer(model)) {
   | Some(pm) =>
     switch (
       find(RichProbe.renderer_id_of_model(pm)),
       get_current(~settings=Settings.s^, info),
     ) {
-    | (Some(r), Some(exp)) => r.drawer_rows(~statics=info.statics, sort, exp)
+    | (Some(r), Some(exp)) =>
+      r.drawer_rows(~statics=info.statics, ~model=Some(pm), sort, exp)
     | _ => None
     }
   | None
@@ -2308,7 +2621,7 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
         renderers,
       )
       |> Option.map((r: packed_renderer) =>
-           r.drawer_rows(~statics=info.statics, sort, exp)
+           r.drawer_rows(~statics=info.statics, ~model=None, sort, exp)
          )
       |> Option.join
     | None => None
@@ -2434,6 +2747,43 @@ module M: Projector = {
       Settings.reset_mode();
       SampleLength.reset();
       model;
+    | SetViewList(o, row) =>
+      Settings.set_view_list(o, row);
+      {
+        ...model,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
+    | SetView(None) =>
+      Settings.set_view_list(None, None);
+      {
+        ...model,
+        rich_off: true,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
+    | SetView(Some(pm)) =>
+      Settings.set_view_list(None, None);
+      let chosen = {
+        ...model,
+        active_renderer: Some(pm),
+        rich_off: false,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
+      /* content taller than the inline cap shows in the drawer */
+      let wants_drawer =
+        switch (rich_drawer_rows(chosen, info)) {
+        | Some(n) => n > inline_rows_cap
+        | None => false
+        };
+      if (wants_drawer && !model.drawer_mode) {
+        /* the focusable .live-offside moves to the drawer slot */
+        FocusEffect.schedule(
+          info.id,
+        );
+      };
+      {
+        ...chosen,
+        drawer_mode: model.drawer_mode || wants_drawer,
+      };
     | ToggleModal(pm) =>
       /* activation: content taller than the inline cap opens the
          drawer (chevron / Cmd+ArrowUp toggles back) */
@@ -2534,7 +2884,7 @@ module M: Projector = {
 
   let view =
       (
-        {info, local, parent, view_seg, model, status, _}:
+        {info, local, local_quiet, parent, view_seg, model, status, _}:
           View.args(model, action),
       ) => {
     let settings = Settings.s^;
@@ -2543,7 +2893,15 @@ module M: Projector = {
      * Drawer mode: offside = nav-bar wrapper, below = .live-offside (samples).
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
-      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
+      prepare_offside(
+        info,
+        local,
+        ~local_quiet,
+        parent,
+        ~settings,
+        ~sort,
+        ~model,
+      );
     let drawer = model.drawer_mode;
     let offside_main =
       switch (data_opt, drawer) {
