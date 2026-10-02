@@ -18,7 +18,7 @@ let ^trace = {
   type Action = + Nothing;
   let s : Int -> String = string_of_int;
   # Half-pixel units, on one fixed scale (0 to 12 °C) for every trace #
-  let x(i: Int): Int = 3 + 10 * i;
+  let x(i: Int): Int = 3 + 14 * i;
   let y(t: Int): Int = 42 - 3 * (if t > 12 then 12 else if t < 0 then 0 else t);
   let dot(i: Int, t: Int, r: String, fill: String): HTML =
     Node("circle", [Create("cx", s(x(i))), Create("cy", s(y(t))),
@@ -54,7 +54,7 @@ let ^trace = {
   let update(m: Model, _: Action): Model = m;
   let expand(m: Model): Trace = m;
   let wrap(v: Trace): Model = v;
-  let shape : LivelitShape = Inline(8)
+  let shape : LivelitShape = Inline(10)
 } in
 
 # How many readings left the safe range? #
