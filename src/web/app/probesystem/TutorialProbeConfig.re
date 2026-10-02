@@ -119,7 +119,8 @@ let of_slide = (module_name: string): t =>
   | "TuGen_ViewsSparkline"
   | "TuGen_ViewsColor"
   | "TuGen_ViewsHorizon"
-  | "TuGen_ViewsToggle" => lesson(~flags=bigger_values, ~samples=Many, ())
+  | "TuGen_ViewsToggle"
+  | "TuGen_ViewsDiff" => lesson(~flags=bigger_values, ~samples=Many, ())
   /* Intro and text-only transitions inherit auto-probe, reset samples and
    * colors, and show no controls. Caret is never preset or exposed here. */
   | _ => lesson(~flags=[], ~autoprobe=None, ())
