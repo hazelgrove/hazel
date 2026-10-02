@@ -2012,8 +2012,17 @@ let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   );
 };
 
-let from_zip_for_sem_with_completion =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem_with_completion);
+/* Keyed on the (zipper, root) pair. Memoizing the curried function on the
+   zipper alone cached only its partial application, so every call reran
+   completion and MakeTerm (Tutorial's stitch does, on every calculate).
+   Results are whole-program terms and maps, hence the small bound. */
+let from_zip_for_sem_with_completion = {
+  let memo =
+    Core.Memo.general(~cache_size_bound=16, ((z, root)) =>
+      from_zip_for_sem_with_completion(z, ~root)
+    );
+  (z, ~root) => memo((z, root));
+};
 
 let from_zip_for_sem = (z, ~root) =>
   fst(from_zip_for_sem_with_completion(z, ~root));

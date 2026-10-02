@@ -406,5 +406,21 @@ let tests =
           ();
         },
       ),
+      /* Regression: the memo was keyed on the zipper alone, so it cached
+       * a partial application and every call reran completion and
+       * MakeTerm (Tutorial stitches the program on every calculate). */
+      test_case("Semantic term memoized per zipper", `Quick, () =>
+        switch (Haz3lcore.Parser.to_zipper(~root=Exp, "let x = 1 in x + ")) {
+        | None => Alcotest.fail("failed to parse")
+        | Some(z) =>
+          check(
+            Alcotest.bool,
+            "a repeat call returns the same term",
+            true,
+            Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp)
+            === Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp),
+          )
+        }
+      ),
     ],
   );
