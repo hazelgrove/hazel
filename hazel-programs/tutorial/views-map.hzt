@@ -8,60 +8,94 @@ version=1 id=b3000008-0008-0008-0008-000000000008
 A `Route` is a delivery round on a town map 100 blocks wide: the depot, then the stops in the order the driver visits them. `^route` draws one as a tiny map three lines tall: the town's frame, the depot as a square, each stop as a dot, and the round as a dashed loop. Every `Route` probe in scope draws this way, so four days of rounds, each planned greedily (always the nearest stop next), sit side by side; look for the long legs that greedy routing leaves.
 
 @code
-# A Route is a delivery round: the depot, then the stops in driving order. #
-# Places are (x, y) on a town map 100 blocks wide and 60 tall. #
+# A delivery round: the depot, then its stops in order, on a 100 x 60 map #
 type Route = + Route((Int, Int), [(Int, Int)]) in
 
-# A tiny map: the town's frame, the round as a dashed loop from the depot #
-# (the square) through each stop (a dot) and back. #
+# A tiny map: the town, the depot (a square), the stops (dots), the loop #
 let ^route = {
   type Model = Route;
+
   type Action = + Nothing;
+
   let s : Int -> String = string_of_int;
+
+  # A place on the map, in px #
   let px((x, _): (Int, Int)): Int = 4 + x * 11 / 10;
+
   let py((_, y): (Int, Int)): Int = 4 + y * 11 / 10;
+
   let at(p: (Int, Int)): String = s(px(p)) ++ "," ++ s(py(p));
+
   let view(r: Model): HTML =
     case r
     | Route(depot, stops) =>
-      Node("svg", [Create("viewBox", "0 0 118 74"), Width("118"), Height("74")],
-        [Node("rect", [Create("x", "0.5"), Create("y", "0.5"), Create("width", "117"),
-                       Create("height", "73"), Create("rx", "3"),
-                       Style([("fill", "currentColor"), ("fill-opacity", "0.06"),
-                              ("stroke", "currentColor"), ("stroke-opacity", "0.2")])], []),
-         Node("polygon", [Create("points", string_join(" ", map(depot :: stops, at))),
-                          Style([("fill", "none"), ("stroke", "currentColor"),
-                                 ("stroke-opacity", "0.6"), ("stroke-dasharray", "3 2"),
-                                 ("stroke-linejoin", "round")])], [])]
-        @ map(stops, fun p ->
-            Node("circle", [Create("cx", s(px(p))), Create("cy", s(py(p))), Create("r", "2.5"),
-                            Style([("fill", "currentColor")])], []))
-        @ [Node("rect", [Create("x", s(px(depot) - 3)), Create("y", s(py(depot) - 3)),
-                         Create("width", "6"), Create("height", "6"),
-                         Style([("fill", "var(--sample-neutral-bg)"), ("stroke", "currentColor"),
-                                ("stroke-width", "1.5")])], [])])
+      let town =
+        Node("rect",
+          [Create("x", "0.5"), Create("y", "0.5"),
+           Create("width", "117"), Create("height", "73"), Create("rx", "3"),
+           Style([("fill", "currentColor"), ("fill-opacity", "0.06"),
+                  ("stroke", "currentColor"), ("stroke-opacity", "0.2")])],
+          []) in
+      let loop =
+        Node("polygon",
+          [Create("points", string_join(" ", map(depot :: stops, at))),
+           Style([("fill", "none"),
+                  ("stroke", "currentColor"),
+                  ("stroke-opacity", "0.6"),
+                  ("stroke-dasharray", "3 2"),
+                  ("stroke-linejoin", "round")])],
+          []) in
+      let dots =
+        map(stops, fun p ->
+          Node("circle",
+            [Create("cx", s(px(p))), Create("cy", s(py(p))), Create("r", "2.5"),
+             Style([("fill", "currentColor")])],
+            [])) in
+      let square =
+        Node("rect",
+          [Create("x", s(px(depot) - 3)), Create("y", s(py(depot) - 3)),
+           Create("width", "6"), Create("height", "6"),
+           Style([("fill", "var(--sample-neutral-bg)"),
+                  ("stroke", "currentColor"),
+                  ("stroke-width", "1.5")])],
+          []) in
+      Node("svg",
+        [Create("viewBox", "0 0 118 74"), Width("118"), Height("74")],
+        [town, loop] @ dots @ [square])
     end;
+
   let init : Model = Route((50, 30), [(20, 10), (80, 50)]);
+
   let update(m: Model, _: Action): Model = m;
+
   let expand(m: Model): Route = m;
+
   let wrap(v: Route): Model = v;
+
   let shape : LivelitShape = Block(12, 3)
 } in
 
-let dist((x1, y1): (Int, Int), (x2, y2): (Int, Int)): Int = abs(x1 - x2) + abs(y1 - y2) in
+# Blocks driven between two places #
+let dist((x1, y1): (Int, Int), (x2, y2): (Int, Int)): Int =
+  abs(x1 - x2) + abs(y1 - y2)
+in
 
-# Greedy routing: always drive to the nearest stop not yet visited #
+# Greedy routing: always the nearest stop not yet visited #
 let order(here: (Int, Int), left: [(Int, Int)]): [(Int, Int)] =
   case left
   | [] => []
   | first :: _ =>
-    let next = fold_left(left, fun (best: (Int, Int), p: (Int, Int)) ->
-                 if dist(here, p) < dist(here, best) then p else best, first) in
+    let next =
+      fold_left(left, fun (best: (Int, Int), p: (Int, Int)) ->
+        if dist(here, p) < dist(here, best) then p else best, first) in
     next :: order(next, filter(left, fun p -> p != next))
   end
 in
 
+# Where every round starts #
 let depot = (50, 30) in
+
+# A day's round, probed #
 let plan(stops: [(Int, Int)]): Route =
   let r = Route(depot, order(depot, stops)) in
   ^^probe(r)
