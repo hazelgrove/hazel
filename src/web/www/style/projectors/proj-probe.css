@@ -1147,3 +1147,37 @@
 .below-wrapper .live-offside .value:has(.rich-livelit-view) {
   vertical-align: top;
 }
+
+/* In the drawer, a livelit view sits in its chip as a card, a sibling of
+   the drawer's table: the cream fill, a 1px border in the drawer's edge
+   color, rounded corners, barely lifted. The chip gives way to it: no
+   padding or backing of its own, its corners and focus ring rounded to
+   the card's. Its top edge overlaps the drawer's, as the table's does, so
+   a view as tall as the rows its shape reserves less one card border
+   (five lines: 5 x 25.13px - 1px) fills them. No padding inside either:
+   the view draws to the card's edges and keeps its own margins, and the
+   card clips it to its corners. The ink is the code's, far stronger on
+   the cream than the drawer's tan or a faded sample's green. */
+.below-wrapper .live-offside .value:has(.rich-livelit-view) {
+  margin-top: -1px;
+  padding: 0;
+  border-radius: 6px;
+  background-color: transparent !important;
+}
+.below-wrapper .live-offside .value .value-rich > .rich-livelit-view {
+  background: var(--df-bg);
+  border: 1px solid var(--probe-drawer-edge);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--SHADOW) 25%, transparent);
+  overflow: hidden;
+  color: var(--code-text);
+}
+.below-wrapper .live-offside .sample-group:has(.rich-livelit-view) {
+  gap: 8px;
+}
+/* ...and the row stays top-aligned beside it: the inline baseline rule
+   (.projector.probe .live-offside) outranks the drawer's flex-start, and
+   on a baseline a One-mode ⋯ pushed the card 2px down, past its rows. */
+.projector.probe .below-wrapper .live-offside:has(.rich-livelit-view) {
+  align-items: flex-start;
+}

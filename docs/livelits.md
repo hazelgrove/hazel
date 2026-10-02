@@ -120,6 +120,12 @@ let ^trace = {
   `("opacity", "var(--sample-fade, 1)")`. A view taller than one line hangs
   over the lines below, as card fans do. The Views tutorial lessons
   (`hazel-programs/tutorial/views-*.hzt`) each define one such view.
+- **In the drawer.** A view in a drawer chip sits in a card like the
+  drawer's table (cream fill, a 1px border, rounded corners), in the code's
+  ink rather than the sample's. It draws to the card's edges, and a view
+  2px less than its lines' height (25.13px a line: 124px for five) fills the
+  rows the drawer reserves for it. Views of `Tune` in Views / Piano Roll
+  are drawn for it.
 
 The renderer is `LivelitRenderer.re`, registered in
 `RichProbeRegistry.re` ahead of the generic HTML and card renderers.
