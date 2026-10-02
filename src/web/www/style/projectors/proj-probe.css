@@ -1139,3 +1139,11 @@
 .value .rich-livelit-view.rich-livelit-list {
   flex-wrap: nowrap;
 }
+
+/* A livelit view in a drawer chip: the chip sits at the top of its line
+   box, so it is as tall as the view (on the text baseline, the line box
+   added a descender gap under it, and a view as tall as the rows its
+   shape reserves overflowed the drawer by that much). */
+.below-wrapper .live-offside .value:has(.rich-livelit-view) {
+  vertical-align: top;
+}

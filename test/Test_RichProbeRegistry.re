@@ -179,6 +179,58 @@ let registry_tests = [
       );
     },
   ),
+  /* Where a view goes (ProbeProj.fits_chip): a view taller than the
+     inline cap waits for the drawer, whose chips hold it at any height,
+     so the drawer keeps its badge and its one or many samples; the table
+     instead fills the drawer, replacing the samples. */
+  test_case(
+    "a tall view fits a drawer chip, not a chip on the line",
+    `Quick,
+    () => {
+      let livelit =
+        switch (RichProbeRegistry.find("livelit")) {
+        | Some(r) => r
+        | None => failwith("livelit renderer not registered")
+        };
+      check(
+        bool,
+        "4 rows on the line",
+        true,
+        ProbeProj.fits_chip(~display=Inline, livelit, 4),
+      );
+      check(
+        bool,
+        "5 rows on the line",
+        false,
+        ProbeProj.fits_chip(~display=Inline, livelit, 5),
+      );
+      check(
+        bool,
+        "5 rows in the drawer",
+        true,
+        ProbeProj.fits_chip(~display=Block, livelit, 5),
+      );
+    },
+  ),
+  test_case(
+    "a tall table fills the drawer instead of a chip",
+    `Quick,
+    () => {
+      check(bool, "fills", true, ProbeProj.fills_drawer(live_renderer));
+      check(
+        bool,
+        "5 rows in the drawer",
+        false,
+        ProbeProj.fits_chip(~display=Block, live_renderer, 5),
+      );
+      check(
+        bool,
+        "3 rows on the line",
+        true,
+        ProbeProj.fits_chip(~display=Inline, live_renderer, 3),
+      );
+    },
+  ),
 ];
 
 let tests = ("RichProbeRegistry", registry_tests);

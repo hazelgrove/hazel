@@ -106,8 +106,10 @@ let ^trace = {
 - **Display.** Views are inert: their handlers dispatch nothing. With Rich
   Views on (the probe sidebar toggle, on by default), a view whose `shape`
   is at most 4 lines tall (`Inline` is 1) is embedded in each sample, and
-  a taller one fills the probe's drawer when it is open. The sample menu's
-  "View as livelit" picks it explicitly.
+  a taller one in each sample the probe's drawer shows when it is open
+  (the drawer keeps its layout: the count badge, then one sample or all of
+  them, by the samples toggle). The sample menu's "View as livelit" picks
+  it explicitly, opening the drawer for a taller one.
 - **On the chip.** An embedded view draws directly on the sample chip, with
   no backdrop, in a chip a text sample's height (24.4px at the default
   size), so a view drawn 24px tall fills it. Its `currentColor` is the

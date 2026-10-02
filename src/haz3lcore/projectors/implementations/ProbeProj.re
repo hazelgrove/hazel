@@ -360,6 +360,20 @@ let pretty_seg_of_value =
    auto-opens it) */
 let inline_rows_cap = 4;
 
+/* The table replaces the drawer's samples with one table, the indicated
+   sample's: its column menus act on that one value. Every other view
+   draws each sample in the sample's own chip, in the drawer as on the
+   line, so the drawer keeps its layout: the count badge, then one sample
+   (One) or all of them (Many). */
+let fills_drawer = (r: packed_renderer): bool => r.id == "table";
+
+/* Whether a view `rows` rows tall goes in a sample chip: on the line, if
+   it fits inline_rows_cap; in the drawer, which reserves the view's rows,
+   at any height, unless the view fills the drawer instead. */
+let fits_chip =
+    (~display: sample_display, r: packed_renderer, rows: int): bool =>
+  rows <= inline_rows_cap || display == Block && !fills_drawer(r);
+
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
   let max_rows = 15;
@@ -756,8 +770,8 @@ let value_view =
          (pointer-events: none), so the chip keeps every sample
          interaction: right/alt-click dropdown (with Hide), click to
          capture, dbl-click toggles. Explicit renderers embed when they
-         fit inline_rows_cap (taller ones live in the drawer); auto-rich
-         (wells) embeds unconditionally. */
+         fit the chip (fits_chip: taller views wait for the drawer, whose
+         chips hold them); auto-rich (wells) embeds unconditionally. */
       let render_rich = (r: packed_renderer, pm: packed_model) =>
         r.render_model(
           pm,
@@ -788,7 +802,7 @@ let value_view =
                       sample.value,
                     )
                   ) {
-                  | Some(n) => n <= inline_rows_cap
+                  | Some(n) => fits_chip(~display, r, n)
                   | None => true
                   }
                 ) =>
@@ -832,7 +846,7 @@ let value_view =
                         sample.value,
                       )
                     ) {
-                    | Some(n) => n <= inline_rows_cap
+                    | Some(n) => fits_chip(~display, r, n)
                     | None => true
                     }
                   )
@@ -2204,36 +2218,6 @@ let rich_content =
       )
     | _ => None
     }
-  /* no renderer chosen by hand: under auto-rich (the probe's own flag or
-     the global default) the first applicable renderer shows the value,
-     so a widget too tall for the inline chip still appears in the
-     drawer without a menu trip */
-  | (None, Some(exp))
-      when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
-    switch (
-      List.find_opt(
-        (r: packed_renderer) =>
-          r.auto_applies(~statics=info.statics, sort, exp),
-        renderers,
-      )
-    ) {
-    | Some(r) =>
-      switch (r.init_model(~statics=info.statics, sort, exp)) {
-      | Some(pm) =>
-        r.render_model(
-          pm,
-          ~info,
-          ~exp,
-          ~view_seg,
-          ~local=pa => local(RendererAction(pa)),
-          ~parent,
-          ~sort,
-          (),
-        )
-      | None => None
-      }
-    | None => None
-    }
   | _ => None
   };
 
@@ -2562,11 +2546,23 @@ module M: Projector = {
         | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
         }
       );
-    /* In drawer mode an active rich renderer replaces the sample view in
-     * the drawer itself; the anchored modal overlay is inline-mode only
-     * (anchored to the nav-bar stub, it renders detached/clipped). */
+    /* In drawer mode an active renderer that fills the drawer (the table)
+     * replaces the sample view in the drawer itself; other views draw in
+     * the drawer's sample chips (fits_chip). The anchored modal overlay is
+     * inline-mode only (anchored to the nav-bar stub, it renders
+     * detached/clipped). */
+    let fills =
+      switch (model.active_renderer) {
+      | Some(pm) =>
+        switch (find(RichProbe.renderer_id_of_model(pm))) {
+        | Some(r) => fills_drawer(r)
+        | None => false
+        }
+      | None => false
+      };
     let rich_drawer =
       drawer
+      && fills
       && (
         switch (rich_drawer_rows(model, info)) {
         | Some(n) => n > inline_rows_cap
