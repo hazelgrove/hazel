@@ -17,7 +17,18 @@ https://claude.ai/code/artifact/68cbf43f-3a8e-4d39-83f0-a2789589af8c
 
 The backend keeps each `kv` value in a cell of an Adapton DCG, inside one
 Fumola interpreter state: a save is the put `` `hazel(N) := value ``, a read
-forces the cell. `POST /eval` runs Fumola programs in that state.
+forces the cell. The value is a Fumola value, not Hazel's text: Hazel saves
+S-expressions, stored as `#atom("text")` and `#list([...])` and printed back
+on a read, byte for byte as Hazel wrote them. A value that is not one
+S-expression stays text (a slide's caret, saved as `0 0`).
+
+`POST /eval` runs Fumola programs in that state. Each cell is bound as
+`hazelCell<N>`; `GET /index` maps Hazel's keys to the numbers. For example,
+with `MODE` in cell 1:
+
+```
+switch (@ hazelCell1) { case (#atom(t)) { t }; case _ { "?" } }
+```
 
 ## Running it
 
@@ -52,4 +63,6 @@ but every query parameter is lost.
 
 - A write that fails is logged to the console and not retried.
 - Two tabs writing at once: the last write wins.
-- The cells' histories do not survive a canister upgrade; the text does.
+- The cells' histories do not survive a canister upgrade; the values do.
+- Values are generic S-expressions, not yet Hazel's own datatypes: a record's
+  fields are lists of two atoms, not named fields.
