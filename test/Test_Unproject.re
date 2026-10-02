@@ -212,7 +212,7 @@ let kids_emotion = () => {
       ++ string_of_int(r)
       ++ ")), "
       ++ "teeth = SpliceRef((\"t\", 0)), opening = SpliceRef((\"o\", 0)), "
-      ++ "x_eyes = SpliceRef((\"xe\", false)), sickness = SpliceRef((\"sk\", 0)), "
+      ++ "x_eyes = SpliceRef((\"xe\", false)), sickness = 0, "
       ++ "unibrow = SpliceRef((\"ub\", true))))";
     /* Loaded as the editor loads a slide: Test_UserLivelits.run parses
        another way, which takes ~45 s on a program this size. */
