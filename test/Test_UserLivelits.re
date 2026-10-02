@@ -646,6 +646,69 @@ let untyped_ctor_ascription = () => {
   };
 };
 
+/* A literal's projector requests dynamics, so its id and its model
+   argument's id land in statics.targets. The statics gate compared the
+   zipper's probe pins against targets' keys, saw a probe change on
+   every calculate, and reran statics twice per frame (Views / Color took
+   6s to open). A calculate that changes nothing must rerun no statics. */
+let literal_statics_reused = () =>
+  switch (
+    Haz3lcore.Parser.to_zipper(
+      ~root=Exp,
+      view_probe_def ++ "^^probe(^^livelit(^dbl(21)) + 1)",
+    )
+  ) {
+  | None => fail("failed to parse")
+  | Some(z) =>
+    Haz3lcore.CachedStatics.offered := [];
+    let calculate = (~statics_mode=?, m) =>
+      Web.CodeWithStatics.Update.calculate(
+        ~settings=CoreSettings.on,
+        ~is_edited=false,
+        ~statics_mode?,
+        ~stitch=x => x,
+        ~dynamics=Dynamics.Map.empty,
+        ~is_dynamic_term=false,
+        m,
+      );
+    let m =
+      Web.CodeWithStatics.Model.mk(Haz3lcore.Editor.Model.mk(~root=Exp, z))
+      |> calculate(~statics_mode=Force);
+    let pins = Haz3lcore.CachedStatics.probe_ids_of_zipper(z);
+    check(
+      bool,
+      "targets reach past the probe pins",
+      true,
+      Id.Map.cardinal(m.statics.targets) > Id.Map.cardinal(pins),
+    );
+    /* every init of this (unstitched) editor is remembered here */
+    Haz3lcore.CachedStatics.last_inits := [];
+    let m' = calculate(m);
+    check(
+      int,
+      "an unchanged program reruns no statics",
+      0,
+      List.length(Haz3lcore.CachedStatics.last_inits^),
+    );
+    /* and the gate still sees a real change: the same statics, with the
+       probe removed, are recomputed */
+    let unprobed =
+      Web.CodeWithStatics.Model.mk(
+        ~statics=m'.statics,
+        Haz3lcore.Editor.Model.mk(
+          ~root=Exp,
+          Haz3lcore.Zipper.update_manuals(_ => [], z),
+        ),
+      );
+    ignore(calculate(unprobed));
+    check(
+      bool,
+      "removing the probe is a change",
+      true,
+      List.length(Haz3lcore.CachedStatics.last_inits^) > 0,
+    );
+  };
+
 let tests = [
   (
     "UserLivelits",
@@ -693,6 +756,11 @@ let tests = [
         "sampled handlers are closed",
         `Quick,
         sampled_handlers_are_closed,
+      ),
+      test_case(
+        "a literal's statics survive a quiet calculate",
+        `Quick,
+        literal_statics_reused,
       ),
     ],
   ),
