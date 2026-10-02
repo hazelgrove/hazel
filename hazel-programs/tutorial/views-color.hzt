@@ -56,7 +56,7 @@ let ^color = {
   let swatch(c: Color): HTML =
     Div([Style([("width", "21px"), ("height", "24px"), ("display", "flex"),
                 ("align-items", "center"), ("justify-content", "center")])],
-      [Div([Style([("width", "15px"), ("height", "15px"), ("border-radius", "50%"),
+      [Div([Style([("width", "18px"), ("height", "18px"), ("border-radius", "50%"),
                    ("background", css(c)),
                    ("box-shadow", "inset 0 0 0 0.5px color-mix(in srgb, var(--CREASE) 40%, transparent)")])],
          [])]);
