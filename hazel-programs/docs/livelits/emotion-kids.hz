@@ -236,18 +236,23 @@ let ^kid_face = {
   # mouth smiles or frowns, the more the curve on its far side stays #
   # the mouth's own, and the one on its near side flattens to the #
   # straight line between the ends: a half-oval. o runs 0 to 100. #
+  # The lips are the two curves, as their middle control points: the #
+  # upper one first. #
+  let lips = fun (v, o) : (Int, Int) ->
+    let q = 110 + 4 * v / 5 in
+    let bend = q - 150 in
+    let dir = if bend < 0 then 0 - 1 else 1 in
+    let extreme = if bend < 0 then 0 - bend else bend in
+    let even = 36 * o * (40 - extreme) / 4000 in
+    let far = q + dir * even in
+    let near = q + (150 - q) * o / 100 - dir * even in
+    if far < near then (far, near) else (near, far);
   let open_mouth = fun (v, o) : (Int, Int) ->
     if o == 0 then mouth(v)
     else
-      let q = 110 + 4 * v / 5 in
-      let bend = q - 150 in
-      let dir = if bend < 0 then 0 - 1 else 1 in
-      let extreme = if bend < 0 then 0 - bend else bend in
-      let even = 36 * o * (40 - extreme) / 4000 in
-      let far = q + dir * even in
-      let near = q + (150 - q) * o / 100 - dir * even in
-      "M60 150 Q100 " ++ string_of_int(far) ++ " 140 150 Q100 "
-      ++ string_of_int(near) ++ " 60 150 Z";
+      let (upper, lower) = lips((v, o)) in
+      "M60 150 Q100 " ++ string_of_int(lower) ++ " 140 150 Q100 "
+      ++ string_of_int(upper) ++ " 60 150 Z";
   let brow = fun v : Int ->
     "M55 78 Q100 " ++ string_of_int(50 + 2 * v / 5) ++ " 145 78";
   # Without the unibrow, a brow over each eye. Its outer end stays put #
@@ -261,7 +266,9 @@ let ^kid_face = {
     ++ " M152 80 Q132 " ++ string_of_int(top) ++ " 112 " ++ string_of_int(inner);
 
   # The head, split along a jagged crack at y = 60 into a lid and the #
-  # rest. Unexploded, the two meet and it is one round head. #
+  # rest. Unexploded it is drawn as one round head, with no line #
+  # where the two will part. #
+  let whole_head = "M38 60 A80 80 0 1 0 162 60 A80 80 0 0 0 38 60 Z";
   let lower_head = "M38 60 A80 80 0 1 0 162 60 Z";
   let lid = "M38 60 A80 80 0 0 1 162 60 Z";
   let crack = "M38 60 L52 52 L66 63 L80 51 L94 63 L108 51 L122 63 L136 51 L150 62 L162 60";
@@ -378,15 +385,19 @@ let ^kid_face = {
       :: rays_up((len, width, rest))
     end;
 
-  # Teeth: up to five triangles along the mouth's curve, spread evenly #
-  # however many there are, alternately sticking up and down. The #
-  # mouth is M60 150 Q100 q 140 150, so at t = j/(n+1) it passes x = 60 #
-  # + 80t, y = 150 + 2t(1-t)(q - 150). #
-  let tooth = fun (j, n, q, big) : (Int, Int, Int, Int) ->
+  # Teeth: up to five triangles along the mouth, spread evenly however #
+  # many there are, alternately sticking up and down: up from the lower #
+  # lip, down from the upper one, so open they line the mouth's border #
+  # and closed they sit on its line, where both lips are. A lip is #
+  # M60 150 Q100 q 140 150, so at t = j/(n+1) it passes x = 60 + 80t, #
+  # y = 150 + 2t(1-t)(q - 150). #
+  let tooth = fun (j, n, upper, lower, big) : (Int, Int, Int, Int, Int) ->
     let d = n + 1 in
     let x = 60 + 80 * j / d in
+    let up = j - (j / 2) * 2 == 1 in
+    let q = if up then lower else upper in
     let y = 150 + 2 * j * (d - j) * (q - 150) / (d * d) in
-    let tip = if j - (j / 2) * 2 == 1 then y - big else y + big in
+    let tip = if up then y - big else y + big in
     Html.node("polygon",
       [Attr.create("points",
          string_of_int(x - 6) ++ "," ++ string_of_int(y) ++ " "
@@ -395,8 +406,9 @@ let ^kid_face = {
        Attr.create("fill", "white"), Attr.create("stroke", "black"),
        Attr.create("stroke-width", "2"),
        Attr.create("visibility", if j <= n then "visible" else "hidden")], []);
-  let teeth_of = fun (j, n, q, big) : (Int, Int, Int, Int) ->
-    if j > 5 then [] else tooth((j, n, q, big)) :: teeth_of((j + 1, n, q, big));
+  let teeth_of = fun (j, n, upper, lower, big) : (Int, Int, Int, Int, Int) ->
+    if j > 5 then []
+    else tooth((j, n, upper, lower, big)) :: teeth_of((j + 1, n, upper, lower, big));
 
   # Sickness: drips fall out of the mouth, then a pile grows on the #
   # ground at y = 325 below the face, a dome with bumps on it. Up to #
@@ -511,15 +523,20 @@ let ^kid_face = {
     let lift = b * 7 / 10 in
     let tilt = b / 4 in
     let head_fill = fill(c) in
+    let (upper_lip, lower_lip) = lips((m.smile, o)) in
     let part = fun d : String ->
       Html.node("path",
         [Attr.create("d", d), Attr.create("fill", head_fill),
          Attr.create("stroke", "black"), Attr.create("stroke-width", "3")], []) in
+    # The hint and the drag cursor are on the drawing only, which has #
+    # room below it for the hint: a hint shows at the bottom of what it #
+    # is on, and on the whole widget it covered the face's sliders. #
     Pure(
-      Html.div(
-        [Attr.create("data-hint", "drag the brow or the mouth up/down"),
-         Attr.style([("cursor", "ns-resize")])],
-        [Html.node("svg",
+      Html.div([],
+        [Html.div(
+          [Attr.create("data-hint", "drag the brow or the mouth up/down"),
+           Attr.style([("cursor", "ns-resize"), ("padding-bottom", "16px")])],
+          [Html.node("svg",
           [Attr.create("viewBox", "0 -80 200 " ++ string_of_int(view_h)),
            Attr.width(string_of_int(width_px)),
            Attr.height(string_of_int(view_h * 11 / 10)),
@@ -527,12 +544,13 @@ let ^kid_face = {
            Attr.on_mouse_move_at(fun (_x, y) -> MoveTo(y)),
            Attr.on_mouse_up_at(fun _p -> Up)],
           sides_of((0, sd, fan))
-          @ [part(lower_head)]
+          @ [part(if b > 0 then lower_head else whole_head)]
           @ rays_up((ray_len, 3 + r / 25, up_fan))
           @ [Html.node("g",
                [Attr.create("transform",
                   "translate(0 " ++ string_of_int(0 - lift) ++ ") rotate("
-                  ++ string_of_int(0 - tilt) ++ " 100 60)")],
+                  ++ string_of_int(0 - tilt) ++ " 100 60)"),
+                Attr.create("visibility", if b > 0 then "visible" else "hidden")],
                [part(lid)])]
            @ pieces((0, shown, b))
            @ [Html.node("path",
@@ -551,14 +569,14 @@ let ^kid_face = {
                 Attr.create("fill", if o == 0 then "transparent" else "#5c1a1a"),
                 Attr.create("stroke-width", "5"),
                 Attr.create("stroke-linejoin", "round")], [])]
-           @ teeth_of((1, t, 110 + 4 * m.smile / 5, 10))
-           @ sick_pile((sk, 150 + (110 + 4 * m.smile / 5 - 150) / 2))
+           @ teeth_of((1, t, upper_lip, lower_lip, 10))
+           @ sick_pile((sk, 150 + (lower_lip - 150) / 2))
            @ [Html.node("text",
                [Attr.create("x", "100"), Attr.create("y", string_of_int(view_h - 86)),
                 Attr.create("text-anchor", "middle"),
                 Attr.create("font-size", "18"),
                 Attr.create("font-family", "var(--code-font)"), Attr.style([("fill", "var(--text-default)")])],
-               [Html.text(mood((c, m.brow, m.smile)))])]),
+               [Html.text(mood((c, m.brow, m.smile)))])])]),
          own_slider(("smile", m.smile, fun v -> SetSmile(v))),
          own_slider(("brow", m.brow, fun v -> SetBrow(v))),
          own_slider(("sickness", m.sickness, fun v -> SetSick(v)))]));
