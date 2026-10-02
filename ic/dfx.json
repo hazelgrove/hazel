@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "canisters": {
+    "hazel_backend": {
+      "type": "custom",
+      "wasm": "build/fumola_canister.wasm",
+      "candid": "build/fumola_canister.did"
+    },
+    "hazel_frontend": {
+      "type": "assets",
+      "source": ["dist"]
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    }
+  }
+}
