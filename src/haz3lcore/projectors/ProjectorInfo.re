@@ -61,6 +61,19 @@ let utility: ProjectorBase.utility = {
   };
 };
 
+/* The pinned span's step interval, when a sample resolves it. */
+let pinned_interval =
+    (~sample_focus: Sample.Focus.t, dynamics: Dynamics.Map.t)
+    : option((int, int)) =>
+  switch (sample_focus.pinned_span) {
+  | None => None
+  | Some(r) =>
+    Dynamics.Map.lookup(r.probe_id, dynamics)
+    |> Option.value(~default=[])
+    |> List.find_opt(s => Sample.ref_matches(r, s))
+    |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
+  };
+
 let mk_info =
     (
       p: Piece.projector,
@@ -76,20 +89,11 @@ let mk_info =
   dynamics:
     switch (Dynamics.Map.lookup(p.id, dynamics)) {
     | Some(samples) =>
-      let pinned_interval =
-        switch (sample_focus.pinned_span) {
-        | None => None
-        | Some(r) =>
-          Dynamics.Map.lookup(r.probe_id, dynamics)
-          |> Option.value(~default=[])
-          |> List.find_opt(s => Sample.ref_matches(r, s))
-          |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
-        };
       Some({
         samples,
         sample_focus,
-        pinned_interval,
-      });
+        pinned_interval: pinned_interval(~sample_focus, dynamics),
+      })
     | None => None
     },
   dynamics_at: id => Dynamics.Map.lookup(id, dynamics),

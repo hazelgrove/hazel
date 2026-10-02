@@ -354,6 +354,7 @@ let render =
     : Node.t => {
   let is_readonly = sort != Sort.Exp;
   let (headers, rows) = value;
+  let numeric = numeric_columns(rows);
   let menu_button_id = i => "column-menu-button-" ++ string_of_int(i);
   let make_menu_button = i =>
     Node.div(
@@ -443,7 +444,9 @@ let render =
           | None => false
           };
         Node.th(
-          ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
+          ~attrs=
+            (is_menu_open ? [Attr.classes(["menu-open"])] : [])
+            @ numeric_attrs(numeric, i),
           full_content,
         );
       },
@@ -497,7 +500,7 @@ let render =
     ~rows=
       List.map(
         row => {
-          let cells = row_cells(info.utility, view_seg, row);
+          let cells = row_cells(~numeric, info.utility, view_seg, row);
           is_readonly ? cells : cells @ [Node.td([])];
         },
         rows,

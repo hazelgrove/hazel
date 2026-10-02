@@ -630,18 +630,20 @@ let pin_call = (ctx: probe_ctx) =>
   | _ => Effect.Ignore
   };
 
+/* Pin enclosing call: pin the call that produced the sample, the head of
+ * its stack. toggle_pin_call takes the pin's span from that call; giving
+ * it the sample's own span would pin just the sample's evaluation and hide
+ * (⍟) the rest of the call. */
+let enclosing_call_pin = (sample: Sample.t): option(Action.sample_focus) =>
+  switch (sample.call_stack) {
+  | [] => None
+  | call_stack => Some(TogglePin(call_stack, None))
+  };
+
 let focus_call = (ctx: probe_ctx) =>
-  switch (Dynamics.Info.is_in(ctx.dynamics)) {
-  | Some(sample) when sample.call_stack != [] =>
-    ctx.parent(
-      SampleFocus(
-        TogglePin(
-          sample.call_stack,
-          Some(Sample.capture_of_sample(sample)),
-        ),
-      ),
-    )
-  | _ => Effect.Ignore
+  switch (Option.bind(Dynamics.Info.is_in(ctx.dynamics), enclosing_call_pin)) {
+  | Some(pin) => ctx.parent(SampleFocus(pin))
+  | None => Effect.Ignore
   };
 
 let find_best_budget = (width_at: int => int, target_width: int): int => {
