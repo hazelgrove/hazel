@@ -8,21 +8,29 @@ version=1 id=b3000001-0001-0001-0001-000000000001
 A `Trace` is one shipment's hourly temperatures, with the safe range they must stay within. The livelit `^trace` expands to a `Trace`, and its `wrap` member lets it draw any `Trace` value: here as a sparkline, where the band is the safe range, red dots are readings outside it, and the number is the last reading. Every probe of type `Trace` in the livelit's scope draws its samples this way, so the eight calls below line up as eight sparklines on one scale. Double-click a sample to see it as text.
 
 @code
-# Cold-chain monitoring. A Trace is a shipment's hourly temperatures #
-# in °C, with the safe range they must stay within (low, high). #
+# A shipment's hourly temperatures (°C) and its safe range (low, high) #
 type Trace = + Trace([Int], Int, Int) in
 
-# Sparklines: Tufte, Beautiful Evidence (2006). #
+# Sparklines: Tufte, Beautiful Evidence (2006) #
 let ^trace = {
   type Model = Trace;
+
   type Action = + Nothing;
+
   let s : Int -> String = string_of_int;
-  # Half-pixel units, on one fixed scale (0 to 12 °C) for every trace #
+
+  # In half pixels: 7px a reading, one scale (0 to 12 °C) for all #
   let x(i: Int): Int = 3 + 14 * i;
-  let y(t: Int): Int = 42 - 3 * (if t > 12 then 12 else if t < 0 then 0 else t);
+
+  let y(t: Int): Int =
+    42 - 3 * (if t > 12 then 12 else if t < 0 then 0 else t);
+
   let dot(i: Int, t: Int, r: String, fill: String): HTML =
-    Node("circle", [Create("cx", s(x(i))), Create("cy", s(y(t))),
-                    Create("r", r), Style([("fill", fill)])], []);
+    Node("circle",
+      [Create("cx", s(x(i))), Create("cy", s(y(t))),
+       Create("r", r), Style([("fill", fill)])],
+      []);
+
   let view(tr: Model): HTML =
     case tr
     | Trace(temps, lo, hi) =>
@@ -30,34 +38,45 @@ let ^trace = {
       let w = x(n - 1) + 3 in
       let last = nth(temps, n - 1) in
       let band =
-        Node("rect", [Create("width", s(w)), Create("y", s(y(hi))),
-                      Create("height", s(y(lo) - y(hi))),
-                      Style([("fill", "currentColor"), ("fill-opacity", "0.13")])], []) in
+        Node("rect",
+          [Create("width", s(w)),
+           Create("y", s(y(hi))), Create("height", s(y(lo) - y(hi))),
+           Style([("fill", "currentColor"), ("fill-opacity", "0.13")])],
+          []) in
+      let points =
+        mapi(temps, fun (i: Int, t: Int) -> s(x(i)) ++ "," ++ s(y(t))) in
       let line =
-        Node("polyline", [Create("points", string_join(" ",
-                            mapi(temps, fun (i: Int, t: Int) -> s(x(i)) ++ "," ++ s(y(t))))),
-                          Style([("fill", "none"), ("stroke", "currentColor"),
-                                 ("stroke-width", "2"), ("stroke-linejoin", "round")])], []) in
+        Node("polyline",
+          [Create("points", string_join(" ", points)),
+           Style([("fill", "none"), ("stroke", "currentColor"),
+                  ("stroke-width", "2"), ("stroke-linejoin", "round")])],
+          []) in
       let alarms =
         mapi(temps, fun (i: Int, t: Int) ->
           if t < lo || t > hi then dot(i, t, "3.2", "var(--text-error)")
           else Node("g", [], [])) in
-      Div([Style([("display", "flex"), ("align-items", "center"), ("gap", "3px")])], [
-        Node("svg", [Create("viewBox", "0 0 " ++ s(w) ++ " 48"),
-                     Width(s(w / 2)), Height("24"), Style([("overflow", "visible")])],
-          [band, line, dot(n - 1, last, "2.5", "currentColor")] @ alarms),
-        Span([Style([("font-family", "var(--code-font)"), ("font-size", "13px")])],
-          [Text(s(last))])
-      ])
+      Div([Style([("display", "flex"), ("align-items", "center"), ("gap", "3px")])],
+        [Node("svg",
+           [Create("viewBox", "0 0 " ++ s(w) ++ " 48"),
+            Width(s(w / 2)), Height("24"),
+            Style([("overflow", "visible")])],
+           [band, line, dot(n - 1, last, "2.5", "currentColor")] @ alarms),
+         Span([Style([("font-family", "var(--code-font)"), ("font-size", "13px")])],
+           [Text(s(last))])])
     end;
+
   let init : Model = Trace([4, 6, 9, 7, 5], 2, 8);
+
   let update(m: Model, _: Action): Model = m;
+
   let expand(m: Model): Trace = m;
+
   let wrap(v: Trace): Model = v;
+
   let shape : LivelitShape = Inline(10)
 } in
 
-# How many readings left the safe range? #
+# How many readings left the safe range #
 let breaches(tr: Trace): Int =
   case ^^probe(tr)
   | Trace(temps, lo, hi) => length(filter(temps, fun t -> t < lo || t > hi))
