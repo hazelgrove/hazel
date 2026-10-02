@@ -391,6 +391,34 @@ let tests =
       test_case("Module with bare expression", `Quick, () =>
         exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
+      /* Regression: the semantic term was keyed on the whole zipper, caret
+       * included, so Tutorial mode, which restitches its program on every
+       * calculate, reparsed it on every caret move. */
+      test_case("Semantic term survives a caret move", `Quick, () =>
+        switch (Haz3lcore.Parser.to_zipper(~root=Exp, "let x = 1 in x + 2")) {
+        | None => Alcotest.fail("failed to parse")
+        | Some(z) =>
+          let moved =
+            switch (Haz3lcore.Zipper.move(Util.Direction.Left, z)) {
+            | Some(z) => z
+            | None =>
+              Option.get(Haz3lcore.Zipper.move(Util.Direction.Right, z))
+            };
+          check(
+            Alcotest.bool,
+            "the caret moved",
+            false,
+            Haz3lcore.Zipper.equal(moved, z),
+          );
+          check(
+            Alcotest.bool,
+            "the moved zipper reuses the term",
+            true,
+            Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp)
+            === Haz3lcore.MakeTerm.from_zip_for_sem(moved, ~root=Exp),
+          );
+        }
+      ),
       /* Regression: parenthesizing a grout-rooted segment classifies the
        * paren tile at Sort.Any, which used to derive an op(Any, []) mold
        * (one child, empty in_) — List.nth raised in Segment.remold_tile
