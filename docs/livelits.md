@@ -113,7 +113,9 @@ let ^trace = {
   size), so a view drawn 24px tall fills it. Its `currentColor` is the
   sample's ink in every focus state, so marks drawn in it recede as
   unfocused text does; colors the view picks itself (a swatch, a red mark
-  for an exception) are left as they are. A view taller than one line hangs
+  for an exception) are left as they are, unless the view applies the
+  fade itself from `--sample-fade` (1, or 0.7 where text fades), e.g.
+  `("opacity", "var(--sample-fade, 1)")`. A view taller than one line hangs
   over the lines below, as card fans do. The Views tutorial lessons
   (`hazel-programs/tutorial/views-*.hzt`) each define one such view.
 
