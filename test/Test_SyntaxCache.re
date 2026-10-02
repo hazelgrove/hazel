@@ -168,12 +168,18 @@ let projector_model = () => {
   );
 };
 
-/* Inputs outside the segment, which calculate checks itself */
+/* Inputs outside the segment, which calculate checks itself: each one
+   alone refreshes (a new record), equal inputs keep the old one */
 let shape_inputs = () => {
   let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk("1 + 2¦"));
   let dyn_map = Language.Dynamics.Map.empty;
   let syntax = CachedSyntax.mk(~info_map=Id.Map.empty, ~dyn_map, z);
-  let calc = z => CachedSyntax.calculate(z, Id.Map.empty, dyn_map, syntax);
+  let calc = (~info_map=Id.Map.empty, ~dyn_map=dyn_map, ~elaborated=None, z) =>
+    CachedSyntax.calculate(z, info_map, dyn_map, ~elaborated, syntax);
+  let kept = (name, s: CachedSyntax.t) =>
+    check(bool, name, true, s === syntax);
+  let refreshed = (name, s: CachedSyntax.t) =>
+    check(bool, name, true, s !== syntax);
   let with_focus = f =>
     Zipper.update_refractors(z, r =>
       {
@@ -181,12 +187,11 @@ let shape_inputs = () => {
         sample_focus: f(r.sample_focus),
       }
     );
-  check(bool, "unchanged", true, calc(z) === syntax);
+  let statics = statics_of(z);
+  kept("unchanged", calc(z));
   /* ProbeFocus rebuilds the focus record on every Editor.calculate */
-  check(
-    bool,
+  kept(
     "equal focus",
-    true,
     calc(
       with_focus(f =>
         {
@@ -194,36 +199,46 @@ let shape_inputs = () => {
           seq: f.seq,
         }
       ),
-    )
-    === syntax,
+    ),
   );
-  let moved =
-    with_focus(f =>
-      {
-        ...f,
-        seq: f.seq + 1,
-      }
-    );
-  check(
-    bool,
-    "new focus",
-    true,
-    Language.Sample.Focus.equal(
-      calc(moved).shape_sample_focus,
-      moved.refractors.sample_focus,
+  refreshed("statics", calc(~info_map=statics.info_map, z));
+  refreshed("dynamics", calc(~dyn_map=Id.Map.singleton(Id.mk(), []), z));
+  refreshed("elaboration", calc(~elaborated=Some(statics.elaborated), z));
+  refreshed(
+    "manual refractors",
+    calc(Zipper.add_manual(Id.mk(), Probe, z)),
+  );
+  refreshed(
+    "ephemeral refractors",
+    calc(
+      Zipper.update_ephemerals(
+        Id.Map.add(Id.mk(), Refractors.mk_entry(Probe)),
+        z,
+      ),
+    ),
+  );
+  refreshed(
+    "sample focus",
+    calc(
+      with_focus(f =>
+        {
+          ...f,
+          seq: f.seq + 1,
+        }
+      ),
     ),
   );
   ProbeProj.Settings.version := ProbeProj.Settings.version^ + 1;
+  refreshed("probe settings", calc(z));
   let z_sel =
     Test_Editing.perform(z, [Select(Resize(Local(Left, ByChar)))]);
-  let refreshed = calc(z_sel);
-  check(bool, "probe settings", true, refreshed.measured !== syntax.measured);
+  let s = calc(z_sel);
   check(
     bool,
     "refresh keeps the selection current",
     true,
-    refreshed.selection_ids != []
-    && refreshed.selection_ids == Selection.selection_ids(z_sel.selection),
+    s.selection_ids != []
+    && s.selection_ids == Selection.selection_ids(z_sel.selection),
   );
 };
 
