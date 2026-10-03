@@ -96,9 +96,43 @@ let caret_nearest_ephemeral =
   };
 };
 
-/* Case 1: a pending cursor → first pending id with samples. Case 2: no pending
- * but the cursor went stale (structural edit) → caret-nearest probe. A pin skips
- * case 2 (preserve pinned context) but still resolves case 1. */
+/* Whether the probe already shows a sample under the current focus, rather
+ * than ⊖: the Single-mode test of ProbeProj.select_samples. Only asked while
+ * unpinned, so the pin filter just drops print samples. */
+let shows_aligned_sample =
+    (~ap_id: option(Id.t), z: Zipper.t, samples: list(Sample.t)): bool =>
+  Sample.Selection.most_aligned_index(
+    ~ap_id,
+    z.refractors.sample_focus,
+    Sample.Selection.filter_by_pin(~ap_id, ~pinned=None, samples),
+  )
+  != None;
+
+/* No focus at all: nothing has been selected or captured yet. Then no line
+ * shows ⊖, but each shows its own first sample, possibly from different
+ * calls, so an automatic request sets a focus rather than only filling
+ * gaps. */
+let has_focus = (z: Zipper.t): bool =>
+  z.refractors.sample_focus.anchor != None
+  || z.refractors.sample_focus.call_stack != [];
+
+let clear_pending_probe_cursor = (z: Zipper.t): Zipper.t =>
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      pending_probe_cursor: None,
+    }
+  );
+
+/* Case 1: a pending request → its first probe with samples, caret-nearest
+ * first. Automatic requests (Refractors.pending_probe_cursor) move the focus
+ * only to fill a gap: when that probe already shows an aligned sample, nothing
+ * moves, unless there is no focus at all, which they then set. The
+ * caret-nearest probe is automatic even when injected into an explicit
+ * request, which then falls through to its own probes. Case 2: no
+ * pending but the cursor went stale (structural edit) → caret-nearest probe.
+ * A pin skips case 2 (preserve pinned context) and drops automatic requests,
+ * but still resolves explicit ones. */
 let resolve_pending_probe_cursor =
     (
       ~dynamics: Dynamics.Map.t,
@@ -110,100 +144,94 @@ let resolve_pending_probe_cursor =
   /* A pending cursor whose ids no longer name a live probe can never resolve; clear it, else it wedges (suppresses alignment, forces the double-calculate pass every action). */
   let z =
     switch (z.refractors.pending_probe_cursor) {
-    | Some(ids) when !List.exists(id => ProbePerform.has_probe(id, z), ids) =>
-      Zipper.update_refractors(z, r =>
-        {
-          ...r,
-          pending_probe_cursor: None,
-        }
-      )
+    | Some({ids, _})
+        when !List.exists(id => ProbePerform.has_probe(id, z), ids) =>
+      clear_pending_probe_cursor(z)
+    | Some({only_if_not_aligned: true, _}) when !ProbePerform.auto_focus(z) =>
+      clear_pending_probe_cursor(z)
     | _ => z
     };
-  let (target_ids, is_pending) =
+  let request =
     switch (z.refractors.pending_probe_cursor) {
-    | Some(ids) => (Some(ids), true)
+    | Some({ids, only_if_not_aligned}) => Some((ids, only_if_not_aligned))
     | None =>
       if (cursor_is_aligned(~dynamics, z) || !ProbePerform.auto_focus(z)) {
-        (None, false);
+        None;
       } else {
+        /* Nothing is aligned, so there is always a gap to fill. */
         let all_ids =
           List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
           @ List.map(fst, z.refractors.manuals);
         switch (all_ids) {
-        | [] => (None, false)
-        | _ => (Some(all_ids), false)
+        | [] => None
+        | _ => Some((all_ids, false))
         };
       }
     };
 
-  switch (target_ids) {
+  switch (request) {
   | None => z
-  | Some(ids) =>
-    /* Prioritize caret-nearest probe */
-    let ids =
+  | Some((ids, only_if_not_aligned)) =>
+    /* Prioritize caret-nearest probe; each candidate carries whether it
+     * moves the focus only into a gap. */
+    let tag = id => (id, only_if_not_aligned);
+    let candidates =
       switch (caret_nearest_ephemeral(~syntax, z)) {
       | Some(nearest) when List.mem(nearest, ids) => [
-          nearest,
-          ...List.filter(i => i != nearest, ids),
+          tag(nearest),
+          ...List.map(tag, List.filter(i => i != nearest, ids)),
         ]
-      | Some(nearest) => [nearest, ...ids]
-      | None => ids
+      | Some(nearest) => [(nearest, true), ...List.map(tag, ids)]
+      | None => List.map(tag, ids)
       };
 
-    let first_with_samples =
-      List.find_map(
-        id =>
-          switch (Dynamics.Map.lookup(id, dynamics)) {
-          | Some([_, ..._] as s) => Some((id, s))
-          | Some([]) => None
-          | None => None
-          },
-        ids,
-      );
-    switch (first_with_samples) {
-    | Some((probe_id, samples)) =>
-      let ap_id =
-        switch (Statics.Map.lookup(probe_id, info_map)) {
-        | Some(statics) => Sample.Focus.cur_var_ap(statics)
-        | None => None
-        };
-      let selected =
-        Sample.Selection.most_aligned_sample(
-          ~ap_id,
-          ~cursor=z.refractors.sample_focus,
-          samples,
-        );
-      switch (selected) {
-      | Some(sample) =>
-        let z =
-          SampleFocusPerform.capture(
-            z,
-            Sample.capture_of_sample(sample),
-            ap_id,
-          );
-        Zipper.update_refractors(z, r =>
-          {
-            ...r,
-            pending_probe_cursor: None,
-          }
-        );
-      | None =>
-        Zipper.update_refractors(z, r =>
-          {
-            ...r,
-            pending_probe_cursor: None,
-          }
-        )
+    let rec resolve = candidates =>
+      switch (candidates) {
+      | [] => z /* nothing has samples yet; stay pending */
+      | [(probe_id, gap_only), ...rest] =>
+        switch (Dynamics.Map.lookup(probe_id, dynamics)) {
+        | None
+        | Some([]) => resolve(rest)
+        | Some(samples) =>
+          let ap_id =
+            switch (Statics.Map.lookup(probe_id, info_map)) {
+            | Some(statics) => Sample.Focus.cur_var_ap(statics)
+            | None => None
+            };
+          if (gap_only
+              && has_focus(z)
+              && shows_aligned_sample(~ap_id, z, samples)) {
+            only_if_not_aligned
+              ? clear_pending_probe_cursor(z) : resolve(rest);
+          } else {
+            switch (
+              Sample.Selection.most_aligned_sample(
+                ~ap_id,
+                ~cursor=z.refractors.sample_focus,
+                samples,
+              )
+            ) {
+            | Some(sample) =>
+              SampleFocusPerform.capture(
+                z,
+                Sample.capture_of_sample(sample),
+                ap_id,
+              )
+              |> clear_pending_probe_cursor
+            | None => clear_pending_probe_cursor(z)
+            };
+          };
+        }
       };
-    | None => if (is_pending) {z} else {z}
-    };
+    resolve(candidates);
   };
 };
 
 /* When grout ID preservation keeps the same id across a structural edit,
  * add_ids_from_multi_term won't set pending_probe_cursor; align to the
  * caret-nearest ephemeral instead. Indicated.index gives a piece id, ephemerals
- * key on term ids — try a direct match, then fall back to spatial proximity. */
+ * key on term ids — try a direct match, then fall back to spatial proximity.
+ * Automatic: the edited line moves the focus only if it shows ⊖. */
 let align_to_indicated_probe =
     (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
   if (!is_edited
@@ -212,7 +240,8 @@ let align_to_indicated_probe =
     z;
   } else {
     switch (caret_nearest_ephemeral(~syntax, z)) {
-    | Some(id) => ProbePerform.set_pending_probe([id], z)
+    | Some(id) =>
+      ProbePerform.set_pending_probe(~only_if_not_aligned=true, [id], z)
     | None => z
     };
   };
@@ -220,8 +249,8 @@ let align_to_indicated_probe =
 /* Drop a pinned call stack once no sample matches it (call site deleted/
  * unreached) — a dead pin darkens every probe (⍟), since recovery is gated on
  * auto_focus. Checked against eval RESULTS, not statics: pinned stacks contain
- * builtin/worker-minted ids absent from UI statics, and samples+pins both come
- * from the worker (process-consistent). Skipped on empty dynamics. */
+ * library (builtin) frame ids absent from UI statics, and samples+pins both
+ * come from the worker. Skipped on empty dynamics. */
 let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
   SampleFocusPerform.update_pinned_call(z, p =>
     switch (p) {

@@ -851,7 +851,7 @@ run(0, [1, 2, 3])|};
 
 /* Repro: pin liveness must be checked against the samples, not the statics
  * map — stacks through builtin frames (fold_left) carry ap ids absent from
- * user statics (and worker-minted), so the old statics check dropped them. */
+ * user statics, so the old statics check dropped them. */
 
 let dead_pin_tests = [
   test_case(
@@ -1061,14 +1061,15 @@ in fold_left([10, 20, 30], go, 0)|},
         );
       let last = List.nth(by_step, 2);
       let first = List.hd(by_step);
-      /* Reality check (empirical): fold iterations carry FRESH
-       * worker-minted frame ids, so stacks are distinguishable within
-       * a run — but those ids regenerate on re-execution, so they are
-       * NOT stable across runs. That is why the ref also carries
+      /* Iteration stacks are distinguishable within a run because
+       * fold_left is recursive: each iteration is one frame deeper. The
+       * frame ids are the library's own, the same in every run (see
+       * Test_Evaluator_ProbeCallStack), but an edit that rebuilds a call
+       * site changes stack ids. That is why the ref also carries
        * `opened` and why by_ref has a step fallback. */
       check(
         bool,
-        "iteration stacks are distinguishable within a run (fresh ids)",
+        "iteration stacks are distinguishable within a run (by depth)",
         false,
         CallStack.ids_of_stack(first.call_stack)
         == CallStack.ids_of_stack(last.call_stack),
@@ -1089,9 +1090,9 @@ in fold_left([10, 20, 30], go, 0)|},
         )
       | None => fail("anchored cursor found no sample")
       };
-      /* Cross-run shape: same program re-executed → same step timeline,
-       * regenerated frame ids. A ref whose stack ids match nothing must
-       * still recover the exact iteration via its start step. */
+      /* Cross-run shape: same step timeline, frame ids that match
+       * nothing. A ref whose stack ids match nothing must still recover
+       * the exact iteration via its start step. */
       let stale_stack: CallStack.t =
         List.map(
           (f: CallStack.frame) =>

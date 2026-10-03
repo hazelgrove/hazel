@@ -326,7 +326,11 @@ let go =
           Zipper.update_refractors(z, r =>
             {
               ...r,
-              pending_probe_cursor: Some([id]),
+              pending_probe_cursor:
+                Some({
+                  ids: [id],
+                  only_if_not_aligned: false,
+                }),
             }
           );
         Ok(z);

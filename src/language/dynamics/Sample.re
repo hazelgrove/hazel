@@ -290,11 +290,12 @@ module Window = {
 type span_ref = {
   probe_id: Id.t,
   stack: CallStack.t,
-  /* Start step of the referenced span. (probe_id, stack) alone is NOT
-   * unique within a run: iterated calls (map/fold bodies) sample the
-   * same site at indistinguishable stacks — only recursion differs by
-   * depth. `opened` pins the exact instance. None only for legacy pin
-   * paths that lack the sample (degrades to first-at-stack). */
+  /* Start step of the referenced span. Within a run (probe_id, stack)
+   * practically names one span: iterations of map/fold bodies differ in
+   * stack depth, since both are recursive. `opened` pins the exact
+   * instance anyway, and lets by_ref recover it by step when stack ids
+   * change across runs. None for call pins, which name the call by its
+   * stack (resolves to the first span at that stack). */
   opened: option(int),
 };
 
@@ -664,12 +665,12 @@ module Selection = {
         switch (List.find_index(s => ref_matches(r, s), samples)) {
         | Some(_) as hit => hit
         | None =>
-          /* Stack ids can be worker-minted (builtin/HOF frames) and
-           * regenerate on re-execution, killing the exact match even
-           * when the run is semantically identical. The step timeline
-           * is identical for semantics-preserving edits, so fall back
-           * to the span's start step (unique per probe within a run).
-           * Semantic edits shift steps → this also misses → tiers. */
+          /* Stack ids can change between semantically identical runs
+           * (a call site rebuilt by an edit), killing the exact match.
+           * The step timeline is identical for semantics-preserving
+           * edits, so fall back to the span's start step (unique per
+           * probe within a run). Semantic edits shift steps → this also
+           * misses → tiers. */
           switch (r.opened) {
           | None => None
           | Some(o) =>
