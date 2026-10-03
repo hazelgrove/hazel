@@ -3291,6 +3291,33 @@ and uexp_to_info_map =
                     )
                   )
                 )
+              /* Both: `let ^b = ^a@<T>(args) in`, where ^a takes a type
+                 and then values (`typfun A -> fun x -> {...}`): ^a at T,
+                 applied to them. */
+              | TypAp(tfn, ty) =>
+                switch (UserLivelit.strip_parens(tfn).term) {
+                | LivelitName(a) =>
+                  Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
+                    Option.bind(
+                      UserLivelit.instantiate(
+                        ~name=ll_name,
+                        ~id=Pat.rep_id(p),
+                        ~ty=Typ.normalize(ctx, ty),
+                        ll,
+                      ),
+                      ll =>
+                      Option.bind(UserLivelit.ap_arg(def_elab), args =>
+                        UserLivelit.apply_args(
+                          ~name=ll_name,
+                          ~id=Pat.rep_id(p),
+                          ~args,
+                          ll,
+                        )
+                      )
+                    )
+                  )
+                | _ => None
+                }
               | _ => None
               }
             | (Some(ll_name), TypAp(fn, ty)) =>

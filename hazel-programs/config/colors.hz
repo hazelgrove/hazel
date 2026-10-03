@@ -5,10 +5,42 @@
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
 
-# How a livelit shows that its syntax can be opened beneath it: "eye", #
-# struck through while hidden, or "triangle", pointing right while #
-# hidden and down while shown. #
-let livelit_reveal = "eye" in
+# How a livelit shows that its syntax can be opened beneath it: the #
+# Eye, struck through while hidden, or a Triangle, pointing right #
+# while hidden and down while shown. Press one. #
+type LivelitReveal = + Eye + Triangle in
+
+# ^choice: one of several values, pressed like an old car radio's #
+# buttons. It is Either, Two Versions' ^either for any number of #
+# cases: the type parameter is the values' type, and the parameter #
+# lists the cases, each a label and its value. The model IS the value #
+# chosen, so a use reads as the choice itself: ^reveal(Triangle). #
+let ^choice = typfun A -> fun cases : [(String, A)] -> {
+  type Model = A;
+  type Action = A;
+  type Expansion = A;
+  # A new use starts on the first case. #
+  let init = let (_, v) = head(cases) in Pure(v);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  # The pressed button is disabled: pressing it again would change #
+  # nothing. proj-livelit.css draws it inverted, so the view needs no #
+  # branch of its own. #
+  let button = fun (label, v, pressed) : (String, A, Bool) ->
+    Html.button(
+      [Attr.class("choice-button"), Attr.disabled(pressed),
+       Attr.on_click(v)],
+      [Html.text(label)]);
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.class("choice")],
+      map((cases, fun (label, v) : (String, A) ->
+        button((label, v, v == m))))));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(15)
+} in
+
+let ^reveal = ^choice@<LivelitReveal>([("eye", Eye), ("triangle", Triangle)]) in
+let livelit_reveal = ^^livelit(^reveal(Eye)) in
 
 # How far up the lightness scale each ramp step sits. Given per scheme #
 # because a light scheme's steps run darker and a dark scheme's lighter. #

@@ -264,3 +264,29 @@
     background: transparent;
     color: var(--text-default);
 }
+
+/* ^choice, the Colors slide's selector (hazel-programs/config/colors.hz):
+   one button per case, like an old car radio's. The pressed one is the
+   disabled one -- pressing it again would change nothing -- and is drawn
+   inverted, so the livelit's view needs no branch. */
+.livelit .choice {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.8em;
+}
+.livelit .choice-button {
+    font-family: var(--code-font);
+    font-size: 0.9em;
+    border: 1px solid var(--border-soft);
+    border-radius: 3px;
+    background: var(--ui-bkg);
+    color: var(--text-default);
+    cursor: pointer;
+}
+.livelit .choice-button:disabled {
+    font-weight: bold;
+    background: var(--text-default);
+    color: var(--ui-bkg);
+    cursor: default;
+}

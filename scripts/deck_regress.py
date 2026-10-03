@@ -781,6 +781,58 @@ def c_eye_alignment(d, log):
     assert abs(after[1] - before[1]) <= 2, f"the second flag moved: {before} -> {after}"
     return {"tops": [before, after]}
 
+
+@case("eye: the Colors slide's ^reveal turns the eyes into triangles")
+def c_reveal_choice(d, log):
+    # The Colors slide (Configuration mode) chooses the toggle's look with
+    # its own livelit, ^reveal: one button per case. Pressing "triangle"
+    # must reach every livelit's toggle. Pressed back to "eye" at the end,
+    # since /fresh keeps the colour configuration for the cases after.
+    setsel = """
+      const [want, idx] = arguments;
+      const s = [...document.querySelectorAll('select')][idx];
+      if (!s || ![...s.options].some(o => o.value === want)) return 'no';
+      s.value = want;
+      s.dispatchEvent(new Event('input', {bubbles: true}));
+      s.dispatchEvent(new Event('change', {bubbles: true}));
+      return 'ok';
+    """
+    glyph = ("return getComputedStyle(document.documentElement)"
+             ".getPropertyValue('--hazel-livelit-reveal').trim();")
+    press = """
+      const b = [...document.querySelectorAll('.choice button')]
+        .find(b => b.innerText.trim() === arguments[0]);
+      if (!b) return null;
+      b.scrollIntoView({block: 'center'});
+      const r = b.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """
+    d.goto(KIDS_FRESH)
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 3", 120)
+    assert d.js(setsel, ["Configuration", 0]) == "ok", "no Configuration mode"
+    assert wait_for(d, "return !!document.querySelector('.choice')", 60), "no ^reveal on the Colors slide"
+    time.sleep(1)
+    d.js(press, ["triangle"]); time.sleep(1)
+    click_at(d, *d.js(press, ["triangle"]))
+    time.sleep(5)
+    assert d.js(glyph) == "triangle", f"the choice did not reach the page: {d.js(glyph)!r}"
+    d.goto("/?slide=livelits-emotion-kids-choice&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 3", 120)
+    time.sleep(2)
+    drawn = d.js("return [...document.querySelectorAll('.livelit-eye-glyph')]"
+                 ".slice(0, 3).map(g => getComputedStyle(g, '::before').content);")
+    log({"glyphs": drawn})
+    assert drawn and all(g == '"\u25b8"' for g in drawn), f"toggles not triangles: {drawn}"
+    # back to the eye
+    assert d.js(setsel, ["Configuration", 0]) == "ok"
+    assert wait_for(d, "return !!document.querySelector('.choice')", 60)
+    time.sleep(1)
+    d.js(press, ["eye"]); time.sleep(1)
+    click_at(d, *d.js(press, ["eye"]))
+    time.sleep(5)
+    assert d.js(glyph) == "eye", "could not press the eye back"
+    return {"glyphs": drawn}
+
 @case("every deck slide renders its livelits")
 def c_deck(d, log):
     setsel = """
