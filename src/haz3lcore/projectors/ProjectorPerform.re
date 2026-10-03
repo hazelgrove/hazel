@@ -239,6 +239,12 @@ let laid_out_for_pane = (syntax: Base.segment): Base.segment => {
   widest > pane_widest ? PrettySegment.prettify(syntax) : syntax;
 };
 
+/* The syntax as the pane's editor holds it. Its cells stay splices --
+   a livelit finds its model's splices by id when it commits -- and
+   Measured measures a splice nested in the pane inline, as it is drawn. */
+let pane_syntax = (syntax: Base.segment): Base.segment =>
+  laid_out_for_pane(syntax);
+
 let go =
     (
       term_data: TermData.t,
@@ -360,7 +366,7 @@ let go =
     }
   /* Show or hide a projector's own syntax: shown, it is held as one splice
      (ProjectorInit.spliced), which is how its sub-editor can edit it,
-     laid out to fit the pane (laid_out_for_pane); hidden, the splice comes
+     as the pane holds it (pane_syntax); hidden, the splice comes
      off, and the syntax keeps whatever layout it had in the pane. */
   | ToggleSyntax(idx) =>
     switch (projector_idx_to_id(idx)) {
@@ -371,7 +377,7 @@ let go =
           ...pr,
           syntax:
             pr.show_syntax
-              ? ProjectorInit.spliced(laid_out_for_pane(pr.syntax))
+              ? ProjectorInit.spliced(pane_syntax(pr.syntax))
               : ProjectorInit.unspliced(pr.syntax),
         };
       };
@@ -510,7 +516,8 @@ let go =
          cells came back unchanged. Regenerate the use against the
          unspliced syntax instead -- what a commit with the syntax hidden
          does, re-attaching only the cells -- and splice the result again,
-         as showing the syntax does. */
+         as showing the syntax does (pane_syntax: the regenerated use is
+         one line, with its cells as splices). */
       let f = (p: Base.projector) =>
         if (p.show_syntax) {
           let term: Language.Any.t =
@@ -522,10 +529,12 @@ let go =
             ...p,
             syntax:
               ProjectorInit.spliced(
-                term_to_segment(
-                  ~original_syntax=ProjectorInit.unspliced(p.syntax),
-                  ~preserve_splices,
-                  term,
+                pane_syntax(
+                  term_to_segment(
+                    ~original_syntax=ProjectorInit.unspliced(p.syntax),
+                    ~preserve_splices,
+                    term,
+                  ),
                 ),
               ),
           };
