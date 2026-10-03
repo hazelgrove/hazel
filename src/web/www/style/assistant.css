@@ -134,7 +134,7 @@
   flex-direction: column;
   overflow-y: auto;
   padding: 10px;
-  background-color: var(--UI-Background);
+  background-color: var(--ui-bkg);
   gap: 10px;
   flex-grow: 1;
   scroll-behavior: smooth;
@@ -361,7 +361,7 @@
 
 #assistant .message-container.example .cell-editor {
   width: 100%;
-  background-color: var(--UI-Background);
+  background-color: var(--ui-bkg);
   border-radius: 8px;
   padding: 8px;
 }
@@ -418,7 +418,7 @@
 }
 
 .llm-dropdown option {
-  background-color: var(--UI-Background);
+  background-color: var(--ui-bkg);
   color: var(--text-default);
   padding: 8px;
 }
@@ -547,7 +547,7 @@
 }
 
 #assistant .history-menu-list::-webkit-scrollbar-track {
-  background: var(--UI-Background);
+  background: var(--ui-bkg);
 }
 
 #assistant .history-menu-list::-webkit-scrollbar-thumb {
