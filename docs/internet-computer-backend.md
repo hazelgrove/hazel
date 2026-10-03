@@ -31,8 +31,9 @@ program text, each item a `Base.segment` of `#Tile` / `#Grout` / `#Secondary`
 editor state (`doc:<slide name>`, a `#CodePersist` with the editor's root,
 zipper and result); the deck index (`doc:_meta`: the current slide and
 the slide names); and each slide's probes, pins, view and collapsed outline
-rows. Parts with no schema yet, such as the agent chat inside a
-slide's state, stay generic inside the typed record. A value is stored typed only when encoding it again
+rows; and the agent chat, alone and inside each slide's state. Deep unions
+with no schema yet (tool results, usage reports, tool calls, workbench tasks)
+stay generic inside the typed records. A value is stored typed only when encoding it again
 gives back exactly what Hazel saved, so a schema that drifts from Hazel's
 source falls back to the generic form instead of corrupting anything.
 
@@ -84,7 +85,5 @@ but every query parameter is lost.
 - A write that fails is logged to the console and not retried.
 - Two tabs writing at once: the last write wins.
 - The cells' histories do not survive a canister upgrade; the values do.
-- Typed so far: `SETTINGS`, the deck index, and each slide's editor state,
-  items, roster, probes, pins, view and collapsed rows. The rest (the agent
-  chat, `MODE`, the ExplainThis model) is generic S-expressions, a record's
-  fields being lists of two atoms.
+- Typed so far: everything but `MODE` and the ExplainThis model, which are
+  generic S-expressions, and a slide's caret, which is text.
