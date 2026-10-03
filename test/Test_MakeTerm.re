@@ -19,6 +19,21 @@ let parse_exp = (s: string) => {
 let exp_check = (expected, actual) =>
   check(exp_typ, actual, expected, parse_exp(actual));
 
+/* A `|`…`=>` tile asked for at Mod: Rule has rows only at Rul and
+   Drv(Exp), so classify_label stamps (Compound(Rule), Sort.Any). */
+let rule_at_mod = () =>
+  Haz3lcore.Piece.mk_tile(
+    Haz3lcore.Form.classify_label(Haz3lcore.Sort.Mod, ["|", "=>"]),
+    [[Haz3lcore.Piece.mk_grout(Haz3lcore.Grout.Convex)]],
+  );
+
+/* That rule tile flanked by operands, as a case's Rul child is. */
+let rule_seg = () => [
+  Haz3lcore.Piece.mk_grout(Haz3lcore.Grout.Convex),
+  rule_at_mod(),
+  Haz3lcore.Piece.mk_grout(Haz3lcore.Grout.Convex),
+];
+
 let tests =
   Fresh.(
     "MakeTerm",
@@ -403,6 +418,37 @@ let tests =
           let wrapped = [Haz3lcore.Segment.parenthesize(seg)];
           let _ = Haz3lcore.Segment.remold(wrapped, Haz3lcore.Sort.Exp);
           let _ = Haz3lcore.MakeTerm.go(wrapped);
+          ();
+        },
+      ),
+      /* Regression: a `case`…`end` or `|`…`=>` asked for at a sort with
+       * no row of its own (Mod — an agent-inserted module member parsed
+       * at Mod root) classifies as (Compound(fam), Sort.Any). Both
+       * tiles have children, so deriving a childless operand mold for
+       * them ran Skel.split_kids and MakeTerm's tile kids past the
+       * mold's `in_`, and made Segment.remold_tile raise Failure "nth". */
+      test_case(
+        "Case rule tile at a sort with no rule row",
+        `Quick,
+        () => {
+          let case_ =
+            Haz3lcore.Piece.mk_tile(
+              Haz3lcore.Form.classify_label(
+                Haz3lcore.Sort.Mod,
+                ["case", "end"],
+              ),
+              [rule_seg()],
+            );
+          let _ = Haz3lcore.MakeTerm.go([case_]);
+          ();
+        },
+      ),
+      test_case(
+        "Remold a rule tile at a sort with no rule row",
+        `Quick,
+        () => {
+          let _ =
+            Haz3lcore.Segment.remold([rule_at_mod()], Haz3lcore.Sort.Rul);
           ();
         },
       ),
