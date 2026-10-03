@@ -92,6 +92,11 @@ type write =
 let batched: ref(option(list(write))) = ref(None);
 let write_transactions = ref(0); /* observability for tests */
 
+/* set once Reset Hazel starts clearing: until the page reloads, a save
+   would put back what the clear removed (Hazel saves on events), so
+   writes are dropped */
+let resetting = ref(false);
+
 /* one transaction for all of [writes]: it commits whole or not at all */
 let writes_json = (writes: list(write)): string =>
   Yojson.Safe.to_string(
@@ -112,7 +117,9 @@ let writes_json = (writes: list(write)): string =>
   );
 
 let commit = (writes: list(write)): unit =>
-  if (writes != [] && Backend.on) {
+  if (resetting^) {
+    ();
+  } else if (writes != [] && Backend.on) {
     incr(write_transactions);
     Backend.call("POST", "/kv", Some(writes_json(writes)), _ => ());
   } else if (writes != []) {
@@ -319,6 +326,7 @@ let log_clear = (~callback=() => (), ()): unit =>
 /* Clear all data from all tables and legacy localStorage.
    Used by "Reset Hazel". */
 let clear_all = (~callback=() => (), ()): unit => {
+  resetting := true;
   /* Clear legacy localStorage (safe to remove once all users upgraded) */
   try({
     let local_store =
@@ -339,3 +347,12 @@ let clear_all = (~callback=() => (), ()): unit => {
   kv_clear(~callback=on_done, ());
   log_clear(~callback=on_done, ());
 };
+
+/* Reset Hazel: clear everything, then reload once both clears are done.
+   Reloading sooner can cancel them: a canister clear is an update call,
+   a second or two, and a reload drops requests still in flight. */
+let clear_all_and_reload = (): unit =>
+  clear_all(
+    ~callback=() => Js_of_ocaml.Dom_html.window##.location##reload,
+    (),
+  );
