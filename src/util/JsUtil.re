@@ -516,6 +516,25 @@ let update_main_scroll_width = () =>
     },
   );
 
+/* Scroll #main by dy to cancel a layout shift. scrollTop lands on whole px
+ * and x.5 rounds up, so the remainder carries into the next call; dropping
+ * it left code a pixel low under the focus bar and crept the page across
+ * drawer round trips. */
+let main_scroll_carry = ref(0.);
+let scroll_main_by = (dy: float): unit =>
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("main")),
+    main => {
+      let st: float = Js.Unsafe.get(main, Js.string("scrollTop"));
+      let target = st +. dy +. main_scroll_carry^;
+      Js.Unsafe.set(main, Js.string("scrollTop"), target);
+      let landed: float = Js.Unsafe.get(main, Js.string("scrollTop"));
+      /* rounding only; a clamp at either scroll end isn't carried */
+      main_scroll_carry :=
+        Float.abs(target -. landed) < 1. ? target -. landed : 0.;
+    },
+  );
+
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
  * scrollTop so visible code doesn't shift. Only compensates when scrolled
@@ -554,7 +573,7 @@ let setup_focus_bar_scroll_compensation = () =>
           let scroll_top: float =
             Js.Unsafe.get(main, Js.string("scrollTop"));
           if (delta != 0.0 && scroll_top > 0.0) {
-            Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
+            scroll_main_by(delta);
           };
         });
       let observer =
@@ -562,7 +581,20 @@ let setup_focus_bar_scroll_compensation = () =>
           Js.Unsafe.global##._ResizeObserver,
           [|Js.Unsafe.inject(callback)|],
         );
-      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(bar)|]);
+      /* border-box: the bar's border appears before its height starts to
+         animate, and get_height measures the border box */
+      Js.Unsafe.meth_call(
+        observer,
+        "observe",
+        [|
+          Js.Unsafe.inject(bar),
+          Js.Unsafe.inject(
+            Js.Unsafe.obj([|
+              ("box", Js.Unsafe.inject(Js.string("border-box"))),
+            |]),
+          ),
+        |],
+      );
     | _ => ()
     };
   };
