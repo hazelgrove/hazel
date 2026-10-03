@@ -217,7 +217,7 @@ let reindent_zipper = (z: Zipper.t): Zipper.t => {
   );
 };
 
-let rec go =
+let rec go_unguarded =
         (
           ~settings: Language.CoreSettings.t,
           ~statics: CachedStatics.t,
@@ -324,7 +324,7 @@ let rec go =
     switch (settings.format_shortcut) {
     | Language.CoreSettings.FormatShortcut.Nothing => Ok(z)
     | Language.CoreSettings.FormatShortcut.Indent =>
-      go(
+      go_unguarded(
         ~settings,
         ~statics,
         ~syntax,
@@ -336,7 +336,7 @@ let rec go =
         },
       )
     | Language.CoreSettings.FormatShortcut.Spaces =>
-      go(
+      go_unguarded(
         ~settings,
         ~statics,
         ~syntax,
@@ -348,7 +348,7 @@ let rec go =
         },
       )
     | Language.CoreSettings.FormatShortcut.Breaks =>
-      go(
+      go_unguarded(
         ~settings,
         ~statics,
         ~syntax,
@@ -496,7 +496,7 @@ let rec go =
     if (gate == Action.AtBoundary && !at_line_leading_whitespace(z)) {
       /* a held shift during ordinary corrections must not dedent:
          fall through to plain backspace */
-      go(
+      go_unguarded(
         ~settings,
         ~statics,
         ~syntax,
@@ -842,3 +842,51 @@ let rec go =
     };
   };
 };
+
+/* A livelit's model, revealed as syntax under its GUI (the eye), is
+   read-only: it is selected and navigated as any code, but changed only
+   through the GUI, whose commits rewrite it (ProjectorPerform.SetTerm).
+   Text edits to a model -- its splice refs especially -- can only break or
+   re-point what the livelit's own update keeps consistent. The caret is in
+   the model when the innermost splice around it is the revealed syntax
+   itself, the splice directly under a livelit showing its syntax; a cell
+   of the GUI is a splice nested deeper, and stays editable. */
+let in_revealed_model = (z: Zipper.t): bool => {
+  let rec innermost_splice = (ancestors: Ancestors.t) =>
+    switch (ancestors) {
+    | [] => false
+    | [(Ancestor.Splice(_), _), (Ancestor.Projector(pa), _), ..._] =>
+      pa.show_syntax && pa.kind == Language.ProjectorKind.Livelit
+    | [(Ancestor.Splice(_), _), ..._] => false
+    | [_, ...rest] => innermost_splice(rest)
+    };
+  innermost_splice(z.relatives.ancestors);
+};
+
+/* The edits refused there: everything Action.is_edit counts but projector
+   actions (the GUI's own commits, the eye) and probes, which change no
+   text. */
+let changes_text = (a: Action.t): bool =>
+  switch (a) {
+  | Project(_)
+  | Probe(_) => false
+  | a => Action.is_edit(a)
+  };
+
+let go =
+    (
+      ~settings: Language.CoreSettings.t,
+      ~statics: CachedStatics.t,
+      ~syntax: CachedSyntax.t,
+      ~root,
+      a: Action.t,
+      state: state,
+    )
+    : Action.Result.t(Zipper.t) =>
+  changes_text(a) && in_revealed_model(state.zipper)
+    ? Error(
+        Composition_action_failure(
+          "a livelit's model is read-only while its syntax is shown: change it with the livelit",
+        ),
+      )
+    : go_unguarded(~settings, ~statics, ~syntax, ~root, a, state);

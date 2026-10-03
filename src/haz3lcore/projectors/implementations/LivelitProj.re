@@ -693,11 +693,31 @@ module M: Projector = {
   /* Absent when the projector isn't drawn at the code site (docked to the
      sidebar, or culled from the viewport) */
   /* Focus the container — but never steal focus from a control INSIDE
-     the livelit's own GUI (a text input keeps focus across the click). */
+     the livelit: its own GUI (a text input keeps focus across the click),
+     or the pane under it while its syntax shows, whose params line commits
+     on every keystroke and would otherwise lose focus after the first. */
   let focus_pointer = (id: Id.t) =>
     switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
     | None => ()
     | Some(el) =>
+      /* the whole livelit: the GUI and, while its syntax shows, the pane */
+      let root: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) =
+        switch (
+          Js_of_ocaml.Js.Opt.to_option(
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              el,
+              "closest",
+              [|
+                Js_of_ocaml.Js.Unsafe.inject(
+                  Js_of_ocaml.Js.string(".livelit-with-syntax"),
+                ),
+              |],
+            ),
+          )
+        ) {
+        | Some(r) => r
+        | None => el
+        };
       let inside =
         switch (
           Js_of_ocaml.Js.Opt.to_option(
@@ -707,7 +727,7 @@ module M: Projector = {
         | Some(active) =>
           Js_of_ocaml.Js.to_bool(
             Js_of_ocaml.Js.Unsafe.meth_call(
-              el,
+              root,
               "contains",
               [|Js_of_ocaml.Js.Unsafe.inject(active)|],
             ),
@@ -1226,8 +1246,41 @@ module M: Projector = {
      which command it built. Params are never stored: the text holds
      only the model, and the panel recomputes them from it. A livelit
      that defines neither has nothing here, its params being its model. */
+  /* A commit re-renders the livelit and its pane, and the params input is
+     made anew: the one being typed in is gone, and focus with it. After a
+     live commit, give focus back to the input under [id], with the caret
+     where it was. */
+  let refocus_params = (id: string, caret: int) =>
+    Js_of_ocaml.Js.Unsafe.eval_string(
+      Printf.sprintf(
+        /* One commit re-renders more than once (statics, then the run's
+           result), each time with a new input. For a moment after it,
+           whenever focus has fallen to the page, put it back on whichever
+           input is current; stop as soon as focus is anywhere else, so a
+           click away is never fought. */
+        {|(function () {
+          var n = 0;
+          function go() {
+            var el = document.getElementById(%S), a = document.activeElement;
+            if (a && a !== document.body && a !== el) return;
+            if (el && a !== el) {
+              el.focus();
+              try { el.setSelectionRange(%d, %d); } catch (e) {}
+            }
+            if (n++ < 60) setTimeout(go, 25);
+          }
+          setTimeout(go, 0);
+        })()|},
+        id,
+        caret,
+        caret,
+      ),
+    )
+    |> ignore;
+
   let params_panel =
       (
+        ~input_id: string,
         ~def_elab: TermBase.Exp.t,
         ~base: TermBase.Exp.t,
         ~print_term: TermBase.Exp.t => string,
@@ -1251,10 +1304,39 @@ module M: Projector = {
           | Ok(params) => print_term(params)
           | Error(e) => "params_from_model error: " ++ e
           };
-        let reinit = (typed: string) =>
+        /* [~quiet]: on each keystroke, text that does not parse yet is
+           half-typed, not an error -- it commits nothing and is left as
+           the reader is typing it. */
+        let params_ok = typed =>
+          switch (parse(typed)) {
+          | Some(params) =>
+            switch (MvuShape.safe_evaluate(params)) {
+            | Ok(v) => Language.ValueChecker.is_value(v)
+            | Error(_) => false
+            }
+          | None => false
+          };
+        let reinit = (~quiet=false, typed: string) =>
           switch (parse(typed)) {
           | None =>
-            print_endline("LivelitProj: params do not parse: " ++ typed);
+            if (!quiet) {
+              print_endline("LivelitProj: params do not parse: " ++ typed);
+            };
+            Ui_effect.Ignore;
+          /* Params must be a value: text that parses but names something
+             unbound, `x`, would otherwise run init_from_params around it
+             and write the stuck code into the model. */
+          | Some(params)
+              when
+                !(
+                  switch (MvuShape.safe_evaluate(params)) {
+                  | Ok(v) => Language.ValueChecker.is_value(v)
+                  | Error(_) => false
+                  }
+                ) =>
+            if (!quiet) {
+              print_endline("LivelitProj: params are not a value: " ++ typed);
+            };
             Ui_effect.Ignore;
           | Some(params) =>
             /* A plain function: it keeps the old model's splices rather
@@ -1281,12 +1363,58 @@ module M: Projector = {
               Node.input(
                 ~attrs=[
                   Attr.class_("livelit-params-input"),
-                  Attr.value(text),
+                  Attr.id(input_id),
+                  /* the property, so a commit shows its params even in an
+                     input that has been typed in */
+                  Attr.string_property("value", text),
                   Attr.on_keydown(_ => Effect.Stop_propagation),
                   Attr.on_keyup(_ => Effect.Stop_propagation),
                   Attr.on_pointerdown(_ => Effect.Stop_propagation),
-                  Attr.on_change((_, typed) =>
-                    typed == text ? Ui_effect.Ignore : reinit(typed)
+                  /* Live: each edit that parses re-runs init_from_params
+                     and the GUI follows as the params are typed (Cyrus,
+                     docs/livelits.md, "Revealing a use's syntax"). */
+                  /* Live, debounced: a pause in typing commits what
+                     parses, and the GUI follows (Cyrus, docs/livelits.md,
+                     "Revealing a use's syntax"). Each keystroke restarts
+                     a short timer that fires this input's own change
+                     event, so typing stays in one element -- a commit per
+                     keystroke re-rendered the input mid-word, and keys
+                     typed meanwhile were lost. */
+                  Attr.on_input((ev, _) => {
+                    let target = Js_of_ocaml.Js.Unsafe.get(ev, "target");
+                    Js_of_ocaml.Js.Unsafe.fun_call(
+                      Js_of_ocaml.Js.Unsafe.js_expr(
+                        {|(function (el) {
+                            clearTimeout(el.__llParams);
+                            el.__llParams = setTimeout(function () {
+                              if (el.isConnected)
+                                el.dispatchEvent(new Event('change', {bubbles: true}));
+                            }, 250);
+                          })|},
+                      ),
+                      [|Js_of_ocaml.Js.Unsafe.inject(target)|],
+                    )
+                    |> ignore;
+                    Ui_effect.Ignore;
+                  }),
+                  Attr.on_change((ev, typed) =>
+                    if (typed == text) {
+                      Ui_effect.Ignore;
+                    } else {
+                      let target = Js_of_ocaml.Js.Unsafe.get(ev, "target");
+                      let focused: bool =
+                        Js_of_ocaml.Js.Unsafe.js_expr(
+                          "document.activeElement",
+                        )
+                        == target;
+                      if (focused && params_ok(typed)) {
+                        refocus_params(
+                          input_id,
+                          Js_of_ocaml.Js.Unsafe.get(target, "selectionStart"),
+                        );
+                      };
+                      reinit(~quiet=focused, typed);
+                    }
                   ),
                 ],
                 (),
@@ -1295,7 +1423,7 @@ module M: Projector = {
                 ~attrs=[
                   Attr.class_("livelit-panel-label"),
                   Attr.title(
-                    "experimental: params_from_model of the model; an edit re-runs init_from_params",
+                    "params_from_model of the model; each edit that parses re-runs init_from_params, live",
                   ),
                 ],
                 [Node.text("params")],
@@ -1417,6 +1545,7 @@ module M: Projector = {
           if (Option.is_some(syntax_splice(info.syntax))) {
             params :=
               params_panel(
+                ~input_id="livelit-params-" ++ Id.to_string(info.id),
                 ~def_elab,
                 ~base=Option.value(model_value, ~default=model),
                 ~print_term,

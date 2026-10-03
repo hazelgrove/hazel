@@ -633,69 +633,152 @@ def pane_token(d, word, off):
     """, [word, off])
 
 
-@case("eye: retyping a cell in the open syntax hands the face to another slider")
-def c_eye_swap(d, log):
+def open_eye_of(d, target_js):
+    """Click the syntax toggle of the livelit whose element [target_js] finds."""
+    d.js("(%s).scrollIntoView({block: 'center'}); return 1;" % target_js)
+    time.sleep(1)
+    eye = d.js("""
+      const g = (%s).closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.left - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % target_js)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    time.sleep(1)
+
+
+PANE_TEXT = ("const p = document.querySelector('.livelit-syntax'); return p && "
+             "p.innerText.replace(/\\s+/g, ' ').replace('params', '').replace('model', '').trim();")
+
+
+@case("eye: the revealed model is read-only, and the face's GUI still drives it")
+def c_eye_read_only(d, log):
+    # Cyrus, docs/livelits.md "Revealing a use's syntax": the model shown
+    # under an open eye is selectable but read-only; the GUI changes it.
     d.goto(KIDS_FRESH)
     assert wait_for(d, "return !!" + FACE_SVG, 120), "the face never drew"
     time.sleep(4)
-    errors = "return [...document.querySelectorAll('.livelit-user-error')].length"
-
-    # Control: before the swap, eye size does not touch the head color.
-    before = d.js(FACE_FILL)
-    drag_labelled(d, "eye size", 0.9)
-    assert d.js(FACE_FILL) == before, "eye size moved the head color before any edit"
-
-    # Open the face's eye, the toggle hanging at its top left.
-    d.js("const s = %s; s.scrollIntoView({block: 'center'}); return 1;" % FACE_SVG)
-    time.sleep(1)
-    eye = d.js("""
-      const s = %s, g = s.getBoundingClientRect(); let best = null, bd = 1e9;
-      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
-        const r = t.getBoundingClientRect();
-        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
-        if (r.top <= g.top + 5 && dd < bd) { bd = dd; best = t; } }
-      if (!best) return null;
-      const r = best.getBoundingClientRect();
-      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
-    """ % FACE_SVG)
-    assert eye, "no eye beside the face"
-    click_at(d, *eye)
-    line = wait_for(d, PANE_LINE, 20, ["color"])
-    log({"pane": line})
-    assert line and "(head : Int)" in line, f"the pane does not show the color cell: {line}"
-
-    # Retype the cell: caret at the end of `head`, one Backspace takes the
-    # word, then name the eye-size slider instead.
+    open_eye_of(d, FACE_SVG)
+    before = d.js(PANE_TEXT)
     d.js("document.querySelector('.livelit-syntax').scrollIntoView({block: 'center'}); return 1;")
     time.sleep(1)
-    at = pane_token(d, "head", 4)
-    assert at, "no `head` in the pane"
+    at = pane_token(d, "85", 1)
+    assert at, "no `85` in the pane"
     click_at(d, *at)
-    time.sleep(1.5)
-    d.keys(["\ue003"])
-    time.sleep(1.5)
-    d.keys(list("eyes"))
-    line = wait_for(d, PANE_LINE, 20, ["(eyes : Int)"])
-    log({"pane": line})
-    assert line, f"the cell did not become (eyes : Int): {d.js(PANE_LINE, ['color'])}"
+    time.sleep(1)
+    # each key checked on its own: a Backspace after a typed 7 would undo
+    # it, and an editable model would pass
+    for key in ["7", "\ue003"]:
+        d.keys([key])
+        time.sleep(1.5)
+        after = d.js(PANE_TEXT)
+        log({"key": repr(key), "after": after[:60]})
+        assert after == before, f"the revealed model took {key!r}: {after[:80]!r}"
+    # the face's own smile slider, in its GUI, still commits
+    smile = d.js("""
+      const i = [...(%s).closest('.projector').querySelectorAll('input[type=range]')][0];
+      i.scrollIntoView({block: 'center'});
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.left), Math.round(r.top + r.height / 2), Math.round(r.width)];
+    """ % FACE_SVG)
+    time.sleep(1)
+    smile = d.js("""
+      const i = [...(%s).closest('.projector').querySelectorAll('input[type=range]')][0];
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.left), Math.round(r.top + r.height / 2), Math.round(r.width)];
+    """ % FACE_SVG)
+    x, y, w = smile
+    d.pointer([{"type": "pointerMove", "x": x + int(w * 0.85), "y": y},
+               {"type": "pointerDown", "button": 0},
+               {"type": "pointerMove", "x": x + int(w * 0.3), "y": y, "duration": 250},
+               {"type": "pointerUp", "button": 0}])
+    time.sleep(6)
+    moved = d.js(PANE_TEXT)
+    log({"moved": moved[:60]})
+    assert "smile = 85" not in moved and "smile = " in moved, \
+        f"the face's slider did not reach the revealed model: {moved[:80]!r}"
+    return {}
+
+
+@case("eye: a GUI cell takes typing while the syntax is revealed")
+def c_eye_gui_cell(d, log):
+    # Found on Color (Figure 3): with the syntax shown the use is one
+    # splice, its cells nested in it, and a click in a GUI cell found no
+    # way in -- the GUI looked unresponsive.
+    color = ("[...document.querySelectorAll('.user-livelit')].find(w => "
+             "/teal/.test(w.innerText) && w.querySelector('.livelit-splice'))")
+    d.goto("/fresh?slide=livelits-color-figure-3&panel=none")
+    assert wait_for(d, "return !!(" + color + ")", 120), "no ^color"
     time.sleep(3)
+    open_eye_of(d, color)
+    at = d.js("""
+      const c = (%s).querySelectorAll('.livelit-splice')[0];
+      c.scrollIntoView({block: 'center'});
+      const t = [...c.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent === 'red');
+      const r = (t || c).getBoundingClientRect();
+      return [Math.round(r.right - 1), Math.round(r.top + r.height / 2)];
+    """ % color)
+    time.sleep(1)
+    at = d.js("""
+      const c = (%s).querySelectorAll('.livelit-splice')[0];
+      const t = [...c.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent === 'red');
+      const r = (t || c).getBoundingClientRect();
+      return [Math.round(r.right - 1), Math.round(r.top + r.height / 2)];
+    """ % color)
+    click_at(d, *at)
+    time.sleep(1)
+    d.keys(list(" / 2"))
+    time.sleep(6)
+    pane = d.js(PANE_TEXT)
+    log({"pane": pane})
+    assert "(red / 2)" in pane, f"typing in the GUI cell did not land: {pane!r}"
+    return {}
 
-    # Now eye size drives the head color, both ways, and head color does not.
-    f0 = d.js(FACE_FILL)
-    drag_labelled(d, "eye size", 0.95)
-    f1 = d.js(FACE_FILL)
-    drag_labelled(d, "eye size", 0.1)
-    f2 = d.js(FACE_FILL)
-    log({"fills": [before, f0, f1, f2]})
-    assert f1 != f0 and f2 != f1, f"eye size does not drive the face: {[f0, f1, f2]}"
-    # "head color" is the first slider whose widget mentions "head" (head
-    # rays comes later); its label does not match as one string.
-    drag_labelled(d, "head", 0.9)
-    assert d.js(FACE_FILL) == f2, "the replaced head-color slider still drives the face"
-    assert d.js(errors) == 0, "livelit errors after the swap"
-    return {"fills": [before, f0, f1, f2]}
 
-
+@case("eye: the params line edits live, and refuses what is not a value")
+def c_eye_live_params(d, log):
+    # Cyrus: params, where a livelit has them, are edited live. Emotion's
+    # ^mood: its params are the mood. A pause in typing commits; text that
+    # parses but is no value (a free `x`) commits nothing.
+    d.goto("/fresh?slide=livelits-emotion&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 0", 120)
+    time.sleep(3)
+    last = "[...document.querySelectorAll('.livelit-syntax-toggle')].slice(-1)[0]"
+    open_eye_of(d, last)
+    state = """
+      const i = document.querySelector('.livelit-params-input');
+      const p = document.querySelector('.livelit-syntax');
+      return [i && i.value, document.activeElement === i,
+              p && p.innerText.replace(/\\s+/g, ' ')];
+    """
+    at = d.js("""
+      const i = document.querySelector('.livelit-params-input');
+      i.scrollIntoView({block: 'center'});
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.right - 6), Math.round(r.top + r.height / 2)];
+    """)
+    time.sleep(1)
+    at = d.js("""
+      const r = document.querySelector('.livelit-params-input').getBoundingClientRect();
+      return [Math.round(r.right - 6), Math.round(r.top + r.height / 2)];
+    """)
+    click_at(d, *at)
+    time.sleep(0.5)
+    d.keys(["\ue010", "\ue003", "\ue003", "4", "0"])
+    time.sleep(3)
+    v, focused, pane = d.js(state)
+    log({"after 40": [v, focused, pane[:60]]})
+    assert v == "40" and focused and "^mood(40" in pane, f"params 40 did not commit: {[v, focused, pane[:60]]}"
+    d.keys(["\ue003", "\ue003", "x"])
+    time.sleep(3)
+    v, focused, pane = d.js(state)
+    log({"after x": [v, focused, pane[:60]]})
+    assert "^mood(40" in pane, f"a free x was committed: {pane[:80]!r}"
+    return {}
 
 @case("eye: a right-click menu in the open syntax is not clipped")
 def c_eye_menu(d, log):
