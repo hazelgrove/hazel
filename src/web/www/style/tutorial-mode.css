@@ -11,6 +11,7 @@
   font-weight: bold;
   color: var(--text-inverse);
   cursor: pointer;
+  user-select: none;
   border: 1px solid var(--border-default);
 }
 
@@ -33,6 +34,7 @@
   font-weight: bold;
   color: var(--text-inverse);
   cursor: pointer;
+  user-select: none;
   border: 1px solid var(--border-default);
 }
 
