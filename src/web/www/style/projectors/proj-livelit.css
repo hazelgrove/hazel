@@ -146,29 +146,40 @@
        cut in half in dark. */
     inset: 0;
 }
-/* The toggle is an eye hanging in the margin just left of the GUI's top
-   row, like a hanging indent, so it covers none of the GUI. It sits on a
-   tab of the livelit's own backing (the projector's shape, proj-base.css),
-   one row tall and flush with the body, so it reads as part of the
-   livelit rather than as a speck in the margin. */
+/* The toggle is drawn in the projector's OVERLAY, a second element in
+   .projectors .overlays at the livelit's place, and the livelit itself is
+   raised to --projector-hover-z while hovered, which put its backing over
+   the toggle as soon as the mouse came inside it. The overlay is raised as
+   far; coming later in the document, it stays on top. Only the toggle in
+   it takes the pointer (.livelit-syntax-layer), so nothing else changes. */
+.projectors .overlays .projector.livelit {
+    z-index: var(--projector-hover-z);
+}
+
+/* The toggle sits in the livelit's first columns (LivelitProj.toggle_cols,
+   two), on the livelit's own backing, at its top row; the GUI starts after
+   them (below). It used to hang in the margin left of the GUI, which
+   covered whatever code stood there -- the `=` of `let x = ...`, a tuple's
+   `(` -- by as much as the glyph was wide. */
 .livelit-syntax-toggle {
     position: absolute;
     top: 0;
-    right: 100%;
+    left: 0;
+    width: calc(2 * var(--col-width-px, 1ch));
     height: var(--row-height-px);
     display: flex;
     align-items: center;
-    padding: 0 2px 0 4px;
-    border-radius: 5px 0 0 5px;
-    background: var(--shard_projector);
+    justify-content: center;
     font-size: 1em;
     line-height: 1;
     cursor: pointer;
     pointer-events: auto;
     z-index: 2;
 }
-.projector.indicated .livelit-syntax-toggle {
-    background: var(--shard-caret-exp);
+/* The GUI, and the pane under an open eye, begin after the toggle's
+   columns: the content box's own 0.4ch inset, plus two columns. */
+.livelit > *:not(svg):not(.livelit-syntax-layer) {
+    left: calc(0.4ch + 2 * var(--col-width-px, 1ch));
 }
 .livelit-eye-glyph {
     position: relative;

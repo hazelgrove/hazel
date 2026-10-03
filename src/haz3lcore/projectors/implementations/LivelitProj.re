@@ -607,8 +607,19 @@ module M: Projector = {
 
   let params_min_cols = 37; /* + with_syntax_pane's 7: 44 */
 
+  /* Columns at the livelit's left for its syntax toggle (the eye, or the
+     Colors slide's other looks), inside the livelit rather than hanging in
+     the margin to its left, where it covered the code there: the `=` of
+     `let x = ^^livelit(...)`, or a tuple's `(`. proj-livelit.css puts the
+     toggle in them and moves the GUI right by as much. */
+  let toggle_cols = 2;
+
   let placeholder = (_model, info, splice_size) => {
     let shape = gui_shape(info, splice_size);
+    let shape = {
+      ...shape,
+      horizontal: shape.horizontal + toggle_cols,
+    };
     switch (syntax_splice(info.syntax)) {
     | None => shape
     /* Given the pane's rows, and one more for a params line. */

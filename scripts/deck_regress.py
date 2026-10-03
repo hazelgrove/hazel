@@ -815,6 +815,73 @@ def c_eye_no_parens(d, log):
     assert pane == "^flag(false)", f"the use came back as {pane!r}"
     return {"pane": pane}
 
+
+TOGGLE_SPACING = """
+  const out = [];
+  for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+    t.scrollIntoView({block: 'center'});
+    const T = t.getBoundingClientRect();
+    if (T.width === 0) continue;
+    // the livelit itself: the projector under the toggle's overlay
+    const P = [...document.elementsFromPoint(T.left + 1, T.top + 1)]
+      .find(e => e.classList && e.classList.contains('projector') && !e.contains(t));
+    if (!P) { out.push('no livelit under a toggle'); continue; }
+    const R = P.getBoundingClientRect();
+    const gui = [...P.children].find(c => c.tagName !== 'svg');
+    const G = gui && gui.getBoundingClientRect();
+    const left = document.elementFromPoint(R.left - 3, T.top + T.height / 2);
+    if (T.left < R.left - 0.5) out.push('hangs out of its livelit by ' + (R.left - T.left).toFixed(1));
+    if (G && T.right > G.left + 0.5) out.push('overlaps the GUI by ' + (T.right - G.left).toFixed(1));
+    if (left && left.closest('.livelit-syntax-toggle')) out.push('covers the code to its left');
+  }
+  return out;
+"""
+
+
+@case("eye: every toggle sits inside its livelit, clear of the code")
+def c_eye_spacing(d, log):
+    # Found by hand: hanging in the margin, the toggle covered the `=` of
+    # `let x = ...` (and Overview's tuple `(`) by its own width.
+    problems = []
+    for slide in ["livelits-overview", "livelits-emotion-kids-choice"]:
+        d.goto(f"/fresh?slide={slide}&panel=none")
+        assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
+        time.sleep(3)
+        problems += [f"{slide}: {p}" for p in d.js(TOGGLE_SPACING)]
+    log({"problems": problems[:5]})
+    assert not problems, problems[:5]
+    return {}
+
+
+@case("eye: the toggle stays visible while the mouse is in the livelit")
+def c_eye_hover(d, log):
+    # Found by hand: hovering raises the livelit above the overlay that
+    # holds its toggle, and its backing hid the glyph.
+    d.goto("/fresh?slide=livelits-parameters&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
+    time.sleep(3)
+    d.js("document.querySelector('.livelit-syntax-toggle').scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    on_top = """
+      const g = document.querySelector('.livelit-syntax-toggle .livelit-eye-glyph');
+      const r = g.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!(top && top.closest('.livelit-syntax-toggle'));
+    """
+    assert d.js(on_top), "the toggle is covered even with the mouse away"
+    inside = d.js("""
+      const g = document.querySelector('.livelit-syntax-toggle').getBoundingClientRect();
+      const P = [...document.elementsFromPoint(g.left + 1, g.top + 1)]
+        .find(e => e.classList && e.classList.contains('projector')
+                   && !e.querySelector('.livelit-syntax-toggle'));
+      const r = P.getBoundingClientRect();
+      return [Math.round(r.left + r.width * 0.6), Math.round(r.top + r.height / 2)];
+    """)
+    d.pointer([{"type": "pointerMove", "x": inside[0], "y": inside[1]}])
+    time.sleep(1)
+    assert d.js(on_top), "the toggle vanished with the mouse inside the livelit"
+    return {}
+
 @case("eye: the Colors slide's ^reveal turns the eyes into triangles")
 def c_reveal_choice(d, log):
     # The Colors slide (Configuration mode) chooses the toggle's look with
