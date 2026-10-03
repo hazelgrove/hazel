@@ -303,8 +303,8 @@ compose. No ports and no HTTP: commands cover DOM operations and scheduling only
 | `src/haz3lcore/projectors/implementations/HTMLProj.re` | the projector: state or syntax commit, resize |
 | `src/language/builtins/BuiltinsADT.re` | `Html`, `Attr`, `Cmd`, `Sub`, `KeyEvent`, `MouseEvent` |
 | `src/CLI/Cli.re`, `src/CLI/Run.re` | the `test` command, `evaluate_with_tests` |
-| `hazel-programs/mvu/` | the ten example apps — the slide sources themselves |
-| `src/mvu/` | embeds those .hz files as documentation slides, grouped under `MVU / ...` |
+| `hazel-programs/docs/mvu/` | the ten example apps, embedded at compile time into `src/mvu` |
+| `src/mvu/` | those apps as documentation slides, grouped under `MVU / ...` |
 
 Sources: [The Elm Architecture](https://guide.elm-lang.org/architecture/),
 [Beginning Elm — Commands](https://elmprogramming.com/commands.html).

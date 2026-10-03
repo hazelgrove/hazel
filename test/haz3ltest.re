@@ -87,6 +87,7 @@ let (suite, exit_with_test_status) =
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
+    @ Test_UserLivelits.tests
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_Move.tests]

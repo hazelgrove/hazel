@@ -313,6 +313,7 @@ nonAscriptingPat:
     | BOOL_TYPE { ConstructorPat("Bool", None) }
     | STRING_TYPE { ConstructorPat("String", None) }
     | p = IDENT { VarPat(p) }
+    | l = LIVELIT_IDENT { VarPat(l) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
