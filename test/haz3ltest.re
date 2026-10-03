@@ -137,6 +137,7 @@ let (suite, exit_with_test_status) =
     @ [Test_ResultView.tests]
     @ [Test_QuoteCoverage.tests]
     @ [Test_Unproject.tests]
+    @ [Test_PaneLayout.tests]
     @ [Test_ElabSize.tests]
     @ [Test_StaticsDepth.tests]
     @ [Test_Quote.tests]
