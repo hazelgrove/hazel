@@ -8,7 +8,8 @@
 
 #main.Exercises .context-entry {
   max-width: fit-content;
-  /* Correct implementation type sigs */
+  /* Correct implementation type sigs; a click jumps to the binding */
+  user-select: none;
 }
 
 /* DERIVATION */
@@ -128,6 +129,7 @@
 .add-abbr-btn {
   display: inline;
   width: auto;
+  user-select: none;
 }
 
 .add-abbr-btn .code .token {

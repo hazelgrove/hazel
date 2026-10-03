@@ -540,11 +540,10 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -846,9 +845,22 @@ module View = {
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
+           location as a plain click would before opening the menu.
+           Prevent_default also skips the browser's focus-on-press, so
+           focus the editor here: keys after the menu belong to it. */
         Effect.Many(
-          [Effect.Prevent_default]
+          [
+            Effect.Prevent_default,
+            signal(MakeActive),
+            Effect.of_sync_fun(
+              () =>
+                Js.Opt.iter(
+                  mouse.current_target,
+                  Haz3lcore.FocusEffect.focus_no_scroll,
+                ),
+              (),
+            ),
+          ]
           @ (
             click_in_selection(loc(mouse))
               ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
@@ -983,9 +995,7 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,

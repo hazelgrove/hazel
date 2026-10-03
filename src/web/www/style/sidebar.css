@@ -2,36 +2,15 @@
   text-transform: none;
 }
 
-/* Make all text in the sidebar selectable */
-#side-bar {
-  user-select: text;
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-}
-
-#side-bar * {
-  user-select: text;
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-}
-
-/* But allow buttons and interactive elements to remain non-selectable for better UX */
-#side-bar button,
-#side-bar .chat-action-button,
-#side-bar .branch-nav-button,
-#side-bar .history-menu-item,
-#side-bar .chat-view-button,
-#side-bar .chat-view-header-button,
-#side-bar .chat-view-header-icon-button,
-#side-bar input,
-#side-bar textarea,
-#side-bar .resize-handle {
-  user-select: none;
+/* Agent chat controls (div buttons) */
+.chat-action-button,
+.branch-nav-button,
+.history-menu-item,
+.chat-view-button,
+.chat-view-header-button,
+.chat-view-header-icon-button {
   -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+  user-select: none;
 }
 
 /* Persistent Sidebar */
@@ -213,6 +192,7 @@
   border-left: 3px solid color-mix(in srgb, var(--border-error) 40%, transparent);
   background-color: color-mix(in srgb, var(--surface-error-soft) 50%, transparent);
   cursor: pointer;
+  user-select: none;
   transition: background-color 0.15s ease;
   color: var(--text-default);
 }
@@ -344,6 +324,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.3em;
+  user-select: none;
 }
 
 .legend-swatch {
