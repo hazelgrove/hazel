@@ -395,7 +395,7 @@ let polarity_target = "hazel-color-scheme";
 let contrast_target = "hazel-contrast";
 
 /* Not a color: the livelit syntax toggle's look (BuiltinsColorScheme's
-   reveal_field). Published as the glyphs themselves, so a stylesheet draws
+   reveal_field, + Eye + Triangle). Published as the glyphs themselves, so a stylesheet draws
    them with `content: var(...)`; [reveal_style] names the choice, for
    anything that wants to branch on it. An unknown name is the eye. */
 let reveal_style_target = "hazel-livelit-reveal";
@@ -487,9 +487,15 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
           | _ => []
           }
         | Label(l) when l == CS.reveal_field =>
-          switch (Unboxing.unbox(Atom(String), body)) {
-          | Matches(style) => reveal_vars(style)
-          | _ => []
+          switch (body.term) {
+          /* + Eye + Triangle (CS.reveal_type) */
+          | Constructor(c, _) => reveal_vars(String.lowercase_ascii(c))
+          | _ =>
+            /* a slide saved while the choice was a string, "triangle" */
+            switch (Unboxing.unbox(Atom(String), body)) {
+            | Matches(style) => reveal_vars(style)
+            | _ => []
+            }
           }
         /* roles nest one level deeper: group -> entries */
         | Label("roles") =>

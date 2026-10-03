@@ -571,19 +571,15 @@ let theme_css_is_current = () => {
   };
 };
 
-/* The livelit toggle's look: "triangle" publishes the disclosure glyphs,
-   right then down, and no strike. */
-let reveal_literal = "let livelit_reveal = \"eye\" in";
+/* The livelit toggle's look, chosen with the slide's ^reveal livelit:
+   Triangle publishes the disclosure glyphs, right then down, and no
+   strike. [binding] replaces the whole `let livelit_reveal = ... in`. */
+let reveal_literal = "let livelit_reveal = ^^livelit(^reveal(Eye)) in";
 
-let source_with_reveal = (style: string) =>
+let source_with_binding = (binding: string) =>
   switch (split_on_string(~needle=reveal_literal, CC.source.backup_text)) {
   | [before, after] =>
-    before
-    ++ "let livelit_reveal = \""
-    ++ style
-    ++ "\" in"
-    ++ after
-    |> Haz3lcore.PersistentZipper.of_slide_text
+    before ++ binding ++ after |> Haz3lcore.PersistentZipper.of_slide_text
   | parts =>
     failf(
       "colors.hz: expected one %s, found %d",
@@ -592,12 +588,17 @@ let source_with_reveal = (style: string) =>
     )
   };
 
+let source_with_reveal = (ctor: string) =>
+  source_with_binding(
+    "let livelit_reveal = ^^livelit(^reveal(" ++ ctor ++ ")) in",
+  );
+
 let reveal_of = vars =>
   List.filter(((n, _)) => List.mem(n, CC.reveal_targets), vars)
   |> List.sort(compare);
 
 let triangle_reveals = () => {
-  let vars = CC.vars_of_source(source_with_reveal("triangle"));
+  let vars = CC.vars_of_source(source_with_reveal("Triangle"));
   check(
     int,
     "the whole theme, still",
@@ -662,6 +663,28 @@ let a_slide_saved_before_the_toggle_keeps_its_colors = () => {
   );
 };
 
+/* A slide saved in the hour the choice was a string,
+   `let livelit_reveal = "triangle" in`: still its colors, and still the
+   triangle. */
+let a_slide_saved_with_the_string_keeps_its_choice = () => {
+  let vars =
+    CC.vars_of_source(
+      source_with_binding("let livelit_reveal = \"triangle\" in"),
+    );
+  check(
+    int,
+    "the whole theme",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the triangle's glyphs",
+    List.sort(compare, CC.reveal_vars("triangle")),
+    reveal_of(vars),
+  );
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -711,6 +734,11 @@ let tests = [
         schemes_are_pairwise_distinct,
       ),
       test_case("triangle reveals", `Quick, triangle_reveals),
+      test_case(
+        "a slide saved with the string keeps its choice",
+        `Quick,
+        a_slide_saved_with_the_string_keeps_its_choice,
+      ),
       test_case(
         "a slide saved before the toggle keeps its colors",
         `Quick,

@@ -115,6 +115,49 @@ let tests = (
         );
       },
     ),
+    /* A livelit taking a type and then values, `typfun A -> fun x ->`,
+       abbreviated with both at once: `let ^b = ^a@<T>(args) in`. The
+       Colors slide's ^choice is one. */
+    test_case(
+      "^a@<T>(args) abbreviates a livelit taking a type, then values",
+      `Quick,
+      () => {
+        let text = {|type Pick = + One + Two in
+let ^choose = typfun A -> fun cases : [(String, A)] -> {
+  type Model = A;
+  type Action = A;
+  type Expansion = A;
+  let init = let (_, v) = head(cases) in Pure(v);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let view = fun m : Model -> Pure(Html.text("pick"));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(4)
+} in
+let ^pick = ^choose@<Pick>([("one", One), ("two", Two)]) in
+^^livelit(^pick(Two))|};
+        let (m, elab) = load(~source="type-then-values", text);
+        check(list(string), "no errors", [], messages(m));
+        let value = Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst;
+        check(
+          string,
+          "the use means its model",
+          "Two",
+          switch (value.term) {
+          | Constructor(c, _) => c
+          | _ => "not a constructor"
+          },
+        );
+        check(
+          string,
+          "a new ^pick starts on the first case",
+          "One",
+          switch (init_of(m, "pick").term) {
+          | Constructor(c, _) => c
+          | _ => "not a constructor"
+          },
+        );
+      },
+    ),
     test_case("^slider used directly is an error", `Quick, () =>
       check(
         bool,
