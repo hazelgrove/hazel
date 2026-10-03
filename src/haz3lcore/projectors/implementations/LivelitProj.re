@@ -435,7 +435,11 @@ module M: Projector = {
       horizontal: max(shape.horizontal, size.col + 7),
       vertical:
         switch (shape.vertical) {
-        | Inline => Block(rows)
+        /* An inline use hangs its pane below its row, as a Tab: the rest
+           of the row stays on it, so two uses on one line keep their
+           alignment with an eye open. As a Block, everything after the
+           use on its line dropped to the pane's last row. */
+        | Inline => Tab(rows)
         | Block(n) => Block(n + rows)
         | Tab(n) => Tab(n + rows)
         },
