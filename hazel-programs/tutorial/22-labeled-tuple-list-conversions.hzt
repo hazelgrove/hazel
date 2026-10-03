@@ -141,5 +141,5 @@ update_entry((apple=1, pear=2, avocado=3),
 
 @test
 test update_entry((apple=1, pear=2, avocado=3), string_match("^a",_), int_plus(1,_)) == (apple=2, pear=2, avocado=4) end;
-test update_entry((x=10, y=20, z=30), string_eq("y",_), fun i -> i * 2) == (x=10, y=40, z=30) end;
-test update_entry((), string_eq("", _), fun i -> i + 1) == () end
+test update_entry((x=10, y=20, z=30), fun l -> l == "y", fun i -> i * 2) == (x=10, y=40, z=30) end;
+test update_entry((), fun l -> l == "", fun i -> i + 1) == () end
