@@ -31,5 +31,14 @@ let weekly_water(daily: Int, topup: Int): Int = daily * 7 + topup in
 weekly_water(2 * 125, 50);
 weekly == 1800
 
+@solution
+let base = 250 in
+let days = 7 in
+let bonus = 50 in
+let weekly = base * days + bonus in
+let weekly_water(daily: Int, topup: Int): Int = daily * 7 + topup in
+weekly_water(2 * 125, 50);
+weekly == 1800
+
 @test
 test weekly == 1800 end
