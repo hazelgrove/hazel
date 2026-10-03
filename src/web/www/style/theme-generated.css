@@ -93,7 +93,9 @@
   --live-env-bkg: oklch(91% 0.025 90);
   --livelit-reveal-closed: "👁️";
   --livelit-reveal-open: "👁️";
+  --livelit-reveal-size: 1em;
   --livelit-reveal-strike: 1.5px;
+  --livelit-reveal-turn: 0deg;
   --llm-waiting-1: oklch(52% 0.2 265);
   --llm-waiting-2: oklch(52% 0.2 300);
   --llm-waiting-3: oklch(52% 0.2 355);

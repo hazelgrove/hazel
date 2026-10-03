@@ -614,7 +614,7 @@ let triangle_reveals = () => {
   check(
     string,
     "right while hidden, down while shown",
-    "triangle \"\xE2\x96\xB8\" \"\xE2\x96\xBE\" 0px",
+    "triangle \"\xE2\x96\xB8\" \"\xE2\x96\xBE\" 0px 0deg 1.3em",
     String.concat(" ", List.map(snd, CC.reveal_vars("triangle"))),
   );
 };
@@ -660,6 +660,28 @@ let a_slide_saved_before_the_toggle_keeps_its_colors = () => {
     "the same colors as with the field",
     List.sort(compare, committed),
     List.sort(compare, vars),
+  );
+};
+
+let chevron_reveals = () => {
+  let vars = CC.vars_of_source(source_with_reveal("Chevron"));
+  check(
+    int,
+    "the whole theme, still",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the chevron's glyphs",
+    List.sort(compare, CC.reveal_vars("chevron")),
+    reveal_of(vars),
+  );
+  check(
+    string,
+    "one angle, turned down while shown",
+    "chevron \"\xE2\x9D\xAF\" \"\xE2\x9D\xAF\" 0px 90deg 0.9em",
+    String.concat(" ", List.map(snd, CC.reveal_vars("chevron"))),
   );
 };
 
@@ -734,6 +756,7 @@ let tests = [
         schemes_are_pairwise_distinct,
       ),
       test_case("triangle reveals", `Quick, triangle_reveals),
+      test_case("chevron reveals", `Quick, chevron_reveals),
       test_case(
         "a slide saved with the string keeps its choice",
         `Quick,
