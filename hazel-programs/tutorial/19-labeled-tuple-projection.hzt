@@ -39,7 +39,7 @@ fun n -> n + 1 # Increments n by 1 #
 ### Binding and Calling a Function
 ```hazel
 let inc : Int -> Int =
-fun n -> n + 1
+  fun n -> n + 1
 in
 inc(1)
 ```
@@ -48,9 +48,9 @@ inc(1)
 Access a field of a labeled tuple with `.`:
 ```hazel
 let pet =
-(name="Fido", 
-age=4, 
-species="dog") in
+  (name="Fido",
+    age=4,
+    species="dog") in
 pet.name
 ```
 

@@ -78,7 +78,7 @@ let split_at_label_sep =
   let rec go = (prefix, ps: Base.segment) =>
     switch (ps) {
     | [] => None
-    | [Base.Tile({label: ["="], _}) as eq, ...rest] =>
+    | [Base.Tile(t) as eq, ...rest] when Tile.label(t) == ["="] =>
       Some((List.rev([eq, ...prefix]), rest))
     | [p, ...rest] => go([p, ...prefix], rest)
     };
@@ -115,7 +115,8 @@ let map_comma_groups =
 let wrap_row_cells = (row: Base.segment): option(Base.segment) => {
   let (lead, core, trail) = split_outer_secondary(row);
   switch (core) {
-  | [Tile({label: ["(", ")"], children: [tuple_child], _} as t)] =>
+  | [Tile({children: [tuple_child], _} as t)]
+      when Tile.label(t) == ["(", ")"] =>
     let tuple_child = map_comma_groups(wrap_cell_value, tuple_child);
     Some(
       lead
@@ -138,7 +139,7 @@ let rec splice_table_cells = (seg: Base.segment): option(Base.segment) => {
   open Util.OptUtil.Syntax;
   let (lead, core, trail) = split_outer_secondary(seg);
   switch (core) {
-  | [Tile({label: ["(", ")"], children: [child], _} as t)] =>
+  | [Tile({children: [child], _} as t)] when Tile.label(t) == ["(", ")"] =>
     let+ child = splice_table_cells(child);
     lead
     @ [
@@ -148,7 +149,7 @@ let rec splice_table_cells = (seg: Base.segment): option(Base.segment) => {
       }),
     ]
     @ trail;
-  | [Tile({label: ["[", "]"], children: [items], _} as t)] =>
+  | [Tile({children: [items], _} as t)] when Tile.label(t) == ["[", "]"] =>
     let (rows, commas) = Segment.split_at_commas(items);
     let+ rows = Util.OptUtil.traverse(wrap_row_cells, rows);
     let items =
@@ -185,10 +186,12 @@ let remove_nth = (n: int, xs: list('a)): list('a) => {
   };
 };
 
-let comma_tile = (): Base.piece => Piece.mk_tile(Form.get(CommaExp), []);
-let eq_tile = (): Base.piece => Piece.mk_tile(Form.get(TupleLabeledExp), []);
+let comma_tile = (): Base.piece =>
+  Piece.mk_tile((Form.Compound(Comma), Exp), []);
+let eq_tile = (): Base.piece =>
+  Piece.mk_tile((Form.Compound(TupleLabeled), Exp), []);
 let label_tile = (tok: string): Base.piece =>
-  Piece.mk_tile(Form.mk_atom(tok, Mold.mk_op(Exp)), []);
+  Piece.mk_tile(Form.classify_label(Exp, [tok]), []);
 let space_piece = (): Base.piece =>
   Base.Secondary(
     Language.Secondary.{
@@ -224,8 +227,10 @@ let fresh_lead_secondary = (group: Base.segment): Base.segment => {
 let rec list_items = (seg: Base.segment): option(Base.segment) => {
   let (_, core, _) = split_outer_secondary(seg);
   switch (core) {
-  | [Tile({label: ["(", ")"], children: [child], _})] => list_items(child)
-  | [Tile({label: ["[", "]"], children: [items], _})] => Some(items)
+  | [Tile({children: [child], _} as t)] when Tile.label(t) == ["(", ")"] =>
+    list_items(child)
+  | [Tile({children: [items], _} as t)] when Tile.label(t) == ["[", "]"] =>
+    Some(items)
   | _ => None
   };
 };
@@ -237,7 +242,7 @@ let rec map_list_items =
   open Util.OptUtil.Syntax;
   let (lead, core, trail) = split_outer_secondary(seg);
   switch (core) {
-  | [Tile({label: ["(", ")"], children: [child], _} as t)] =>
+  | [Tile({children: [child], _} as t)] when Tile.label(t) == ["(", ")"] =>
     let+ child = map_list_items(f, child);
     lead
     @ [
@@ -247,7 +252,7 @@ let rec map_list_items =
       }),
     ]
     @ trail;
-  | [Tile({label: ["[", "]"], children: [items], _} as t)] =>
+  | [Tile({children: [items], _} as t)] when Tile.label(t) == ["[", "]"] =>
     let+ items = f(items);
     lead
     @ [
@@ -265,7 +270,8 @@ let rec map_list_items =
  * each cell's surrounding secondary. */
 let row_cell_segs = (row: Base.segment): option(list(Base.segment)) =>
   switch (split_outer_secondary(row)) {
-  | (_, [Tile({label: ["(", ")"], children: [tuple_child], _})], _) =>
+  | (_, [Tile({children: [tuple_child], _} as t)], _)
+      when Tile.label(t) == ["(", ")"] =>
     Some(Segment.split_at_commas(tuple_child) |> Aba.get_as)
   | _ => None
   };
@@ -274,7 +280,8 @@ let row_cell_segs = (row: Base.segment): option(list(Base.segment)) =>
 let rebuild_row =
     (row: Base.segment, cells: list(Base.segment)): option(Base.segment) =>
   switch (split_outer_secondary(row)) {
-  | (lead, [Tile({label: ["(", ")"], children: [_], _} as t)], trail) =>
+  | (lead, [Tile({children: [_], _} as t)], trail)
+      when Tile.label(t) == ["(", ")"] =>
     let (_, commas) = Segment.split_at_commas(t.children |> List.hd);
     let n_commas = List.length(cells) - 1;
     let commas = {
@@ -303,7 +310,9 @@ let cell_label = (cell: Base.segment): option(string) => {
   List.find_map(
     (p: Base.piece) =>
       switch (p) {
-      | Tile({label: [tok], children: [], _}) when tok != "=" => Some(tok)
+      | Tile({children: [], _} as t)
+          when Tile.arity(t) == 1 && Tile.token(t, 0) != "=" =>
+        Some(Tile.token(t, 0))
       | _ => None
       },
     prefix,
@@ -405,7 +414,13 @@ let insert_row =
           c @ [comma_tile(), space_piece()] @ join_cells(rest)
         };
       let new_row =
-        lead @ [Piece.mk_tile(Form.get(ParensExp), [join_cells(cells)])];
+        lead
+        @ [
+          Piece.mk_tile(
+            (Form.Compound(Parens), Exp),
+            [join_cells(cells)],
+          ),
+        ];
       let rows = insert_nth(at, new_row, rows);
       let commas = commas @ [comma_tile()];
       Some(
@@ -563,11 +578,12 @@ let rename_label =
               prefix
               |> List.map((p: Base.piece) =>
                    switch (p) {
-                   | Tile({label: [tok], children: [], _} as t)
-                       when tok == from =>
+                   | Tile({children: [], _} as t)
+                       when Tile.arity(t) == 1 && Tile.token(t, 0) == from =>
+                     /* a token tile's text is its form */
                      Base.Tile({
                        ...t,
-                       label: [to_],
+                       form: Form.Tok(to_),
                      })
                    | p => p
                    }

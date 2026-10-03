@@ -17,7 +17,7 @@ let list_exp = (~n: int): form => {
   {
     id: ListExp,
     syntactic_form: [
-      mk_list_exp([[exp("e1"), comma_exp(), space(), exp("...")]]),
+      mk_list_exp([[exp("e1"), comma_exp(), space(), exp("…")]]),
     ],
     colorings: [],
     expandable_id: None,

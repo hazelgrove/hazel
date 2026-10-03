@@ -141,7 +141,7 @@ let tests = (
           };
         let is_hole_tile = (p: Piece.t) =>
           switch (p) {
-          | Tile({label: ["?"], _}) => true
+          | Tile(t) => Tile.is_explicit_hole(t)
           | _ => false
           };
         let explicit =
@@ -404,8 +404,8 @@ let tests = (
           text,
           PersistentZipper.persist(z).backup_text,
         );
-        /* the doc-slide unchanged-check compares this print against the
-           stored text minus its final newline (ScratchMode.persist) */
+        /* the config-slide unchanged-check compares this print against
+           the stored text minus its final newline (ConfigurationMode) */
         let seg = Zipper.unselect_and_zip(z);
         check(
           string,

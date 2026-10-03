@@ -83,8 +83,214 @@ let remold = (z: t, ~root): t => {
   };
 };
 
+/* keep the old objects for pieces remold/regrout rebuilt unchanged, so
+   pointer-keyed layers downstream see only the actual change */
+let restore_sibs = (o: Siblings.t, n: Siblings.t): Siblings.t => (
+  Segment.restore_identity(fst(o), fst(n)),
+  Segment.restore_identity(snd(o), snd(n)),
+);
+
+let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
+  List.length(o.ancestors) != List.length(n.ancestors)
+    ? n
+    : {
+      siblings: restore_sibs(o.siblings, n.siblings),
+      ancestors:
+        List.map2(
+          ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
+            let a = oa === na || compare(oa, na) == 0 ? oa : na;
+            (a, restore_sibs(osibs, nsibs));
+          },
+          o.ancestors,
+          n.ancestors,
+        ),
+    };
+
+/* sparse normalization: remold stays global (same-mold tiles come back
+   as-is) but regrout runs only on a caret window spanning the remold
+   diff and any stale runs, falling back to the global pass when
+   ancestors changed or are stale */
+let sparse_hits: ref(int) = ref(0);
+let sparse_fallbacks: ref(int) = ref(0);
+
+let restore_sibs_dirty =
+    (o: Siblings.t, n: Siblings.t): (Siblings.t, Id.Set.t) => {
+  let (pre, d1) = Segment.restore_identity_dirty(fst(o), fst(n));
+  let (suf, d2) = Segment.restore_identity_dirty(snd(o), snd(n));
+  ((pre, suf), Id.Set.union(d1, d2));
+};
+
+/* (restored relatives, current-level dirty ids, ancestors touched) */
+let restore_relatives_dirty =
+    (o: Relatives.t, n: Relatives.t): (Relatives.t, Id.Set.t, bool) =>
+  if (List.length(o.ancestors) != List.length(n.ancestors)) {
+    (n, Id.Set.empty, true);
+  } else {
+    let (siblings, dirty) = restore_sibs_dirty(o.siblings, n.siblings);
+    let anc_dirty = ref(false);
+    let ancestors =
+      List.map2(
+        ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
+          let a =
+            if (oa === na || compare(oa, na) == 0) {
+              oa;
+            } else {
+              anc_dirty := true;
+              na;
+            };
+          let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
+          if (!Id.Set.is_empty(d)) {
+            anc_dirty := true;
+          };
+          (a, sibs);
+        },
+        o.ancestors,
+        n.ancestors,
+      );
+    (
+      {
+        Relatives.siblings,
+        ancestors,
+      },
+      dirty,
+      anc_dirty^,
+    );
+  };
+
+let is_solid: Piece.t => bool =
+  fun
+  | Tile(_)
+  | Projector(_)
+  | Splice(_) => true
+  | Secondary(_)
+  | Grout(_) => false;
+
+let shape_complement: Nib.Shape.t => Nib.Shape.t =
+  fun
+  | Convex => Nib.Shape.concave()
+  | Concave(_) => Convex;
+
+/* the regrout bound at a window's outer edge: a shape fitting the
+   boundary solid's outer face, so the (normal) run beyond is left
+   alone; the far solid's true shape would re-decide that run without
+   its trim, duplicating grout. [mini] is caret-nearest-first, ending at
+   the boundary solid; [outer] is the side facing away from the caret */
+let window_bound =
+    (outer: Direction.t, mini: list(Piece.t)): option(Nib.Shape.t) =>
+  switch (ListUtil.last_opt(mini)) {
+  | Some(Piece.Tile(t)) =>
+    let (l, r) = Tile.shapes(t);
+    Some(shape_complement(outer == Direction.Left ? l : r));
+  | Some(Projector(pr)) =>
+    let (l, r) = ProjectorCore.shapes(pr);
+    Some(shape_complement(outer == Direction.Left ? l : r));
+  /* a splice is convex on both faces */
+  | Some(Splice(_)) => Some(shape_complement(Convex))
+  | Some(Secondary(_) | Grout(_))
+  | None => None
+  };
+
+/* split a caret-nearest-first affix into the regrout window (through
+   the last dirty piece, then on to the next clean solid) and the
+   untouched rest. with dirt at the affix end the window is the whole
+   affix, bounded by the level-edge concave as in the global pass */
+let split_window =
+    (~dirty: Id.Set.t, ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
+  let in_dirty = p => Id.Set.mem(Piece.id(p), dirty);
+  let (_, last_dirty) =
+    List.fold_left(
+      ((i, last), p) => (i + 1, in_dirty(p) ? i : last),
+      (0, (-1)),
+      ps,
+    );
+  let rec take = (i, mini, rest) =>
+    switch (rest) {
+    | [] => (List.rev(mini), [])
+    | [p, ...tl] =>
+      i <= last_dirty || !is_solid(p)
+        ? take(i + 1, [p, ...mini], tl) : (List.rev([p, ...mini]), tl)
+    };
+  take(0, [], ps);
+};
+
+/* the sparse pass reuses ancestors verbatim while the global pass
+   renormalizes them, so any stale ancestor run (e.g. after the caret
+   descends past a caret-relative junction) forces the global pass */
+let ancestors_stale = (ancs: Ancestors.t): bool =>
+  List.exists(
+    ((a, (pre, suf)): Ancestors.generation) => {
+      let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
+      !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
+      || !
+           Id.Set.is_empty(
+             Segment.stale_affix_ids(~caret_shape=r', Right, suf),
+           );
+    },
+    ancs,
+  );
+
+let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
+  let z1 = remold(z, ~root);
+  let (relatives, dirty, anc_dirty) =
+    restore_relatives_dirty(z.relatives, z1.relatives);
+  if (anc_dirty || ancestors_stale(relatives.ancestors)) {
+    incr(sparse_fallbacks);
+    let z' =
+      regrout(
+        d,
+        {
+          ...z1,
+          relatives,
+        },
+      );
+    {
+      ...z',
+      relatives: restore_relatives(z.relatives, z'.relatives),
+    };
+  } else {
+    incr(sparse_hits);
+    let (pre, suf) = relatives.siblings;
+    /* stale runs the remold diff can't see join the window */
+    let dirty =
+      dirty
+      |> Id.Set.union(Segment.stale_affix_ids(Left, pre))
+      |> Id.Set.union(Segment.stale_affix_ids(Right, suf));
+    let clean = p => !Id.Set.mem(Piece.id(p), dirty);
+    /* pre is in document order: the caret side is its end */
+    let (mini_pre_rev, far_pre_rev) = split_window(~dirty, List.rev(pre));
+    let (mini_suf, far_suf) = split_window(~dirty, suf);
+    let l_shape = far_pre_rev == [] ? None : window_bound(Left, mini_pre_rev);
+    let r_shape = far_suf == [] ? None : window_bound(Right, mini_suf);
+    let (mini_pre', mini_suf') =
+      Relatives.regrout_siblings(
+        d,
+        ~l_shape?,
+        ~r_shape?,
+        ~skip_clean=clean,
+        (List.rev(mini_pre_rev), mini_suf),
+      );
+    {
+      ...z,
+      relatives: {
+        siblings: (
+          List.rev_append(far_pre_rev, mini_pre'),
+          mini_suf' @ far_suf,
+        ),
+        ancestors: relatives.ancestors,
+      },
+    };
+  };
+};
+
+/* the test runner swaps in a check that also runs the global pass and
+   asserts they agree */
+let normalize_check: ref(option((Direction.t, t, Sort.t) => t)) = ref(None);
+
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
-  z |> remold(~root) |> regrout(d);
+  switch (normalize_check^) {
+  | Some(check) => check(d, z, root)
+  | None => remold_regrout_sparse(d, z, ~root)
+  };
 
 /* ~regrout=false skips the regrout: Parser.to_zipper ~by_run regrouts
    once at the end instead of after every insertion. */
@@ -103,9 +309,9 @@ let rescan_parent_shards = (z: t): t => {
     | None => []
     | Some(a) =>
       let all_shards = fst(a.shards) @ snd(a.shards);
-      List.init(List.length(a.label), Fun.id)
+      List.init(List.length(Ancestor.label(a)), Fun.id)
       |> List.filter(i => !List.mem(i, all_shards))
-      |> List.map(i => (List.nth(a.label, i), i));
+      |> List.map(i => (List.nth(Ancestor.label(a), i), i));
     };
   };
 
@@ -121,8 +327,8 @@ let rescan_parent_shards = (z: t): t => {
           Tile({
             ...t,
             id: a.id,
-            label: a.label,
-            mold: a.mold,
+            form: a.form,
+            sort: a.sort,
             shards: [idx],
           })
         | None => p
@@ -251,14 +457,10 @@ let rescan_parent_shards = (z: t): t => {
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
-  let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    /* Siblings.rescan hands back its argument exactly when nothing changed,
-       so identity is the whole test: a structural == would walk every
-       sibling and could never be the one to say "unchanged". */
-    if (siblings === z.relatives.siblings) {
-      z;
-    } else {
+    switch (Siblings.rescan_opt(z.relatives.siblings)) {
+    | None => z
+    | Some(siblings) =>
       let relatives =
         {
           ...z.relatives,
@@ -269,7 +471,8 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         |> Relatives.regrout(d);
       {
         ...z,
-        relatives,
+        /* unchanged pieces keep their pre-rescan objects (see restore_sibs) */
+        relatives: restore_relatives(z.relatives, relatives),
       };
     };
   /* After normal rescan+reassemble, try matching shard tiles in
@@ -289,7 +492,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
       {
         ...z',
-        relatives,
+        relatives: restore_relatives(z'.relatives, relatives),
       };
     } else {
       z;
@@ -336,8 +539,8 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
   } else {
     Tile({
       id: Id.mk(),
-      label: [tok],
-      mold: Mold.mk_op(Sort.Any, []),
+      form: Form.Tok(tok),
+      sort: Sort.Any,
       shards: [0],
       children: [],
     });
@@ -393,11 +596,13 @@ let splittable_token = (p: Piece.t): option(Token.t) =>
  * have no mold to reuse and fall back to the generic monotile. */
 let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
   switch (p) {
-  | Tile({label: [_], shards: [0], _} as t) =>
+  | Tile({shards: [0], _} as t) when Tile.arity(t) == 1 =>
+    /* Tok at the source tile's stored sort, so mold_of lands on that
+     * sort's mold rather than the Any fallback mk_remainder_piece gives */
     Tile({
       ...t,
       id: Id.mk(),
-      label: [tok],
+      form: Form.Tok(tok),
     })
   | _ => mk_remainder_piece(tok)
   };
@@ -896,25 +1101,25 @@ let do_until_linebreak =
   linebreak_on(d, generalized_neighbors(z))
     ? Some(z) : do_until(f, linebreak_on(d), z);
 
-let local_backpack = (z: t): list(Tile.t) =>
+let local_missing_shards = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let backpack_hd = (z: t): option(Tile.t) =>
-  z |> local_backpack |> ListUtil.hd_opt;
+let missing_shards_hd = (z: t): option(Tile.t) =>
+  z |> local_missing_shards |> ListUtil.hd_opt;
 
-let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
+let find_missing_shard = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
     /* Special case for ambiguous polymorphs. These tokens
        occur both on their own as infix ops and as delimiters of
        multi-delimiter forms. To give the singleton form a chance, we
        only match these to incomplete tiles to form their multi forms
        when they're on the top of the stack */
-    backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
-      ? backpack_hd(z) : None;
+    missing_shards_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+      ? missing_shards_hd(z) : None;
   } else {
     List.find_map(
       t => Tile.effective_label(t) == [tok] ? Some(t) : None,
-      local_backpack(z),
+      local_missing_shards(z),
     );
   };
 
@@ -972,7 +1177,7 @@ let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
 let can_put_down = z =>
-  switch (local_backpack(z)) {
+  switch (local_missing_shards(z)) {
   | [] => false
   | _ => z.caret == Outer
   };
@@ -987,7 +1192,7 @@ let put_down_target =
 let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
-      let+ target = backpack_hd(z);
+      let+ target = missing_shards_hd(z);
       put_down_target(Left, target, z, ~root);
     }
     : None;
@@ -997,8 +1202,10 @@ let delete = (d: Direction.t, z: t): option(t) =>
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
-  | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)
-  | (_, Some(Tile({id, label: [_], _}))) when d == Right => Some(id)
+  | (Some(Tile({id, _} as t)), _) when d == Left && Tile.arity(t) == 1 =>
+    Some(id)
+  | (_, Some(Tile({id, _} as t))) when d == Right && Tile.arity(t) == 1 =>
+    Some(id)
   | _ => None
   };
 
@@ -1261,11 +1468,14 @@ let do_towards_point =
 
   let init = caret_point(z);
   let d_to_goal = direction_to_from(goal, init);
-  let max_iter = 100_000;
-  let rec go = (iter: int, prev: t, curr: t) => {
+  /* a backstop only (the guard below stops zero-progress steps): reaching
+     it is a runaway walk, so log it and stop here rather than fail the
+     action */
+  let max_iter = 1_000_000;
+  let rec go = (iter: int, prev: t, curr: t) =>
     if (iter > max_iter) {
-      failwith(
-        "do_towards_point: exceeded "
+      print_endline(
+        "WARN: do_towards_point: exceeded "
         ++ string_of_int(max_iter)
         ++ " iterations (goal="
         ++ Point.show(goal)
@@ -1275,7 +1485,11 @@ let do_towards_point =
         ++ Point.show(caret_point(curr))
         ++ ")",
       );
-    };
+      curr;
+    } else {
+      go_body(iter, prev, curr);
+    }
+  and go_body = (iter: int, prev: t, curr: t) => {
     let curr_p = caret_point(curr);
     let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
     let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);

@@ -77,6 +77,7 @@ type typ_provenance =
 type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
+  | BinHoleTPat(tpat, tpat) /* concave grout (the `⧖` marker) */
   | VarTPat(string);
 
 [@deriving (show({with_path: false}), sexp, eq)]
@@ -94,6 +95,7 @@ type typ =
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
+  | BinHoleTyp(typ, typ) /* concave grout (the `⧖` marker) */
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
@@ -115,6 +117,7 @@ and pat =
   | ParenPat(pat)
   | AscPat(pat, typ)
   | EmptyHolePat
+  | BinHolePat(pat, pat) /* concave grout (the `⧖` marker) */
   | WildPat
   | AtomPat(Language.Atom.t)
   | VarPat(string)
@@ -155,6 +158,7 @@ and exp =
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
+  | BinHole(exp, exp) /* concave grout: an operator hole (the `⧖` marker) */
   | Filter(filter_action, exp, exp)
   | BuiltinFun(string)
   | Undefined
@@ -246,23 +250,10 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let+ suffix = nonascii_name_suffix;
         let ident = String.make(1, leading) ++ tail ++ suffix;
-        /* Every capitalized word Lexer.mll reserves: generated as a
-           constructor, `Nat` or `Void` lexes as a type keyword and the
-           program fails to parse. */
-        if (List.mem(
-              ident,
-              [
-                "SInt",
-                "Nat",
-                "Int",
-                "Float",
-                "Bool",
-                "String",
-                "Void",
-                "Unknown",
-                "Internal",
-              ],
-            )) {
+        /* every capitalized token Lexer.mll reserves; a collision lexes
+           as a type keyword and fails the parse (seed-dependent flake) */
+        let reserved = Language.Token.base_typs @ ["Unknown", "Internal"];
+        if (List.mem(ident, reserved)) {
           "Keyword";
         } else if (!avoids_builtin(ident)) {
           ident ++ "z";
@@ -1095,6 +1086,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e2);
             return(Filter(fa, e1, shrunk));
           }
+        | BinHole(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(BinHole(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(BinHole(e1, shrunk));
+          }
         | Seq(e1, e2) =>
           {
             of_list([e1, e2]);
@@ -1327,6 +1330,18 @@ and shrink_pat: QCheck.Shrink.t(pat) =
             let* shrunk = shrink_pat(p2);
             return(ConsPat(p1, shrunk));
           }
+        | BinHolePat(p1, p2) =>
+          {
+            of_list([p1, p2]);
+          }
+          <+> {
+            let* shrunk = shrink_pat(p1);
+            return(BinHolePat(shrunk, p2));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p2);
+            return(BinHolePat(p1, shrunk));
+          }
         | TupLabelPat(p1, p2) =>
           {
             return(
@@ -1409,6 +1424,16 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk2 = shrink_typ(t2);
             return(ArrowType(t1, shrunk2));
+          }
+        | BinHoleTyp(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(BinHoleTyp(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(BinHoleTyp(t1, shrunk2));
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>

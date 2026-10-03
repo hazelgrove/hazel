@@ -41,8 +41,9 @@ module Update = {
         Project(_) |
         Structural(_) |
         Probe(_) |
-        PrettyPrint |
-        Dump |
+        Format(_) |
+        AdjustIndent(_, _) |
+        ApplyCompletion(_) |
         Introduce |
         ToggleLineComment,
       )
@@ -86,7 +87,7 @@ module View = {
       : EditMode.t(CodeEditable.Update.t, unit) =>
     switch (edit_mode) {
     | ReadOnly => ReadOnly
-    | Editable({inject, escape, take_focus, focus}) =>
+    | Editable({inject, escape, escape_vertical, take_focus, focus}) =>
       Editable({
         inject: a =>
           switch (Update.convert_action(a)) {
@@ -94,6 +95,7 @@ module View = {
           | None => Ui_effect.Ignore
           },
         escape,
+        escape_vertical,
         take_focus,
         focus,
       })

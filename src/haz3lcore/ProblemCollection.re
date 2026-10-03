@@ -63,7 +63,7 @@ let make_problem_context =
   let measured = syntax.main_splice.measured;
   /* Build row→display-line mapping: skip empty rows added by projectors */
   let row_to_line = {
-    let reversed = List.rev(measured.piece_rows);
+    let reversed = List.rev(Measured.piece_rows(measured));
     let (line_numbers_rev, _) =
       List.fold_left(
         ((acc, line_count), row) =>
@@ -231,10 +231,10 @@ let collect_category =
       Segment.incomplete_tiles_deep(ctx.segment)
       |> List.to_seq
       |> Seq.map((t: Tile.t) => {
-           let all_indices = List.init(List.length(t.label), Fun.id);
+           let all_indices = List.init(Tile.arity(t), Fun.id);
            let missing_labels =
              List.filter(i => !List.mem(i, t.shards), all_indices)
-             |> List.map(i => List.nth(t.label, i));
+             |> List.map(i => Tile.token(t, i));
            let description =
              "Incomplete: missing " ++ String.concat(", ", missing_labels);
            {
@@ -349,6 +349,35 @@ type problem_collection = {
   counts: list((problem_category, int)),
 };
 
+/* single-slot memo: the sidebar rebuilds this every render (the tab
+   badge reads counts even when collapsed) at O(program) per source;
+   sources are pointer-stable between edits, so repeats are identity
+   compares */
+let memo: Slot.t((bool, list(editor_group_input)), problem_collection) =
+  Slot.mk();
+
+let same_inputs =
+    (a: list(editor_group_input), b: list(editor_group_input)): bool => {
+  let same_source = (x: editor_source, y: editor_source) =>
+    x.statics === y.statics && x.syntax === y.syntax;
+  let rec same_sources = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) =>
+      same_source(x, y) && same_sources(xs, ys)
+    | _ => false
+    };
+  let same_group = (x: editor_group_input, y: editor_group_input) =>
+    x.label == y.label && same_sources(x.sources, y.sources);
+  let rec go = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) => same_group(x, y) && go(xs, ys)
+    | _ => false
+    };
+  go(a, b);
+};
+
 /* Collect problems across several sidebar groups into a single coherent
    payload. De-duplicates by `(id, category)` in caller-provided order
    (groups in order, sources within each group in order) — the first
@@ -358,7 +387,7 @@ type problem_collection = {
    coincide): shared structural problems land in exactly one group while
    any context-specific static error still surfaces in the group where it
    actually occurs. */
-let make =
+let make_uncached =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
   let seen: Hashtbl.t((Id.t, problem_category), unit) = Hashtbl.create(64);
@@ -457,3 +486,15 @@ let make =
     counts,
   };
 };
+
+let make =
+    (~display_warnings: bool, inputs: list(editor_group_input))
+    : problem_collection =>
+  Slot.get(
+    ~same=
+      ((dw, prev), (dw', inputs')) =>
+        dw == dw' && same_inputs(prev, inputs'),
+    memo,
+    (display_warnings, inputs),
+    () => make_uncached(~display_warnings, inputs),
+  );

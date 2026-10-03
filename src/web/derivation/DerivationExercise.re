@@ -591,3 +591,9 @@ let blank_spec = (~title, ~module_name): spec => {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = p(PersistentZipper.t);
+
+/* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
+ * serialized zippers with plaintext fallback; the shipped format for
+ * example modules. Same shape as the save-state above, so reuse it. */
+let of_persistent: persistent_state => spec =
+  mapi(_, pos => PersistentZipper.unpersist(_, ~root=root_of_pos(pos)));

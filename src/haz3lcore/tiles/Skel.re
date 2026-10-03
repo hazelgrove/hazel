@@ -21,45 +21,31 @@ exception Nonconvex_segment;
 [@deriving show({with_path: false})]
 type ip = (int, Piece.t);
 
-// Chainable label constants (TODO: unhardcode)
-let comma_label = [","];
-let case_label = ["case", "end"];
-let rule_label = ["|", "=>"];
-let plus_label = ["+"];
-let semi_label = [";"];
-
-// Determines if two pieces can be chained together in the skeleton.
-// Only returns true for operators that should form a single chain node.
+// Determines if two adjacent pieces (p1 left of p2) can be chained
+// together in the skeleton. Only returns true for operators that
+// should form a single chain node.
 let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
   switch (p1, p2) {
   | (Grout({shape: Concave, _}), Grout({shape: Concave, _})) => true
   | (Tile(t1), Tile(t2)) =>
-    let lbl1 = (==)(t1.label);
-    let lbl2 = (==)(t2.label);
-    lbl1(case_label)
-    && lbl2(rule_label)
-    || lbl1(rule_label)
-    && lbl2(rule_label)
-    || lbl1(comma_label)
-    && lbl2(comma_label)
-    && Mold.is_infix_op(t1.mold)
-    && Mold.is_infix_op(t2.mold)
-    || lbl1(plus_label)
-    && lbl2(plus_label)
-    && Mold.is_infix_op(t1.mold)
-    && Mold.is_infix_op(t2.mold)
-    || lbl1(semi_label)
-    && lbl2(semi_label)
-    && Mold.is_infix_op(t1.mold)
-    && Mold.is_infix_op(t2.mold)
-    && t1.mold.out == Sort.Mod
-    && t2.mold.out == Sort.Mod
-    || lbl1(semi_label)
-    && lbl2(semi_label)
-    && Mold.is_infix_op(t1.mold)
-    && Mold.is_infix_op(t2.mold)
-    && t1.mold.out == Sort.Sig
-    && t2.mold.out == Sort.Sig;
+    let both_infix = () =>
+      Mold.is_infix_op(Tile.mold(t1)) && Mold.is_infix_op(Tile.mold(t2));
+    switch (t1.form, t2.form) {
+    /* case rules chain with each other and their case header */
+    | (Form.Compound(Case | Rule), Form.Compound(Rule)) => true
+    | (Form.Compound(Comma), Form.Compound(Comma)) => both_infix()
+    /* semicolons chain within a module or signature body */
+    | (Form.Compound(CellJoin), Form.Compound(CellJoin)) =>
+      both_infix()
+      && Tile.mold(t1).out == Tile.mold(t2).out
+      && (Tile.mold(t1).out == Sort.Mod || Tile.mold(t1).out == Sort.Sig)
+    /* sum-type + chains; label-based on purpose: unmolded + tokens
+       get an infix Any-fallback mold and must chain too */
+    | _ =>
+      Tile.has_label_of(t1, Plus)
+      && Tile.has_label_of(t2, Plus)
+      && both_infix()
+    };
   | _ => false
   };
 

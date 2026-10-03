@@ -20,10 +20,6 @@
   --SHADOW: color-mix(in oklch, oklch(50% 0.1 90) 33%, transparent);
   --agent-banner: color-mix(in oklch, oklch(55.0015% 0.08 225) 12%, transparent);
   --agent-banner-edge: color-mix(in oklch, oklch(55.0015% 0.08 225) 35%, transparent);
-  --backpack-genie: oklch(91% 0.11 95);
-  --backpack-joiner: oklch(91% 0.11 95);
-  --backpack-selection: oklch(91% 0.11 95);
-  --backpack-selection-outline: oklch(99% 0.012 90);
   --border-black: oklch(0% 0 0);
   --border-default: oklch(70% 0.07 90);
   --border-error: oklch(60% 0.3 30);
@@ -47,7 +43,7 @@
   --cell-active: oklch(99% 0.012 90);
   --cell-exercises-border: oklch(70% 0.07 90);
   --cell-idle-accent: oklch(85% 0.07 90);
-  --cell-result: oklch(91% 0.025 90);
+  --cell-result: oklch(94% 0.025 90);
   --cell-result-border: oklch(85% 0.07 90);
   --cell-result-hidden: oklch(85% 0.07 90);
   --cell-result-text: oklch(50% 0.07 90);
@@ -124,6 +120,9 @@
   --primary-accent: oklch(70% 0.15 150);
   --probe-drawer-edge: oklch(87.001% 0.04 90);
   --probe-drawer-fade: color-mix(in oklch, oklch(52% 0.06 90) 40%, transparent);
+  --quiver-chip-text: oklch(99% 0.012 90);
+  --quiver-chip-text-faded: oklch(92.84% 0.05336 91.1);
+  --quiver-chip-text-faded-atcaret: oklch(82% 0.1505 95);
   --sample-above-bg: oklch(92.95% 0.0602 0);
   --sample-above-related-text: oklch(57.9985% 0.21 0);
   --sample-above-shadow: oklch(84.85% 0.0798 0);

@@ -116,7 +116,7 @@ module Target = {
 
   let matches_selector = (sel: selector, p: Piece.t): bool =>
     switch (sel, p) {
-    | (NthTile(label, _), Tile(tile)) => tile.label == label
+    | (NthTile(label, _), Tile(tile)) => Tile.label(tile) == label
     | (NthTile(_, _), _) => false
     };
 
@@ -556,9 +556,9 @@ let confine_pre =
      * deletion at the splice's edges must not eat the host syntax. */
     let edge_delete =
       switch (action) {
-      | Destruct(Left) =>
+      | Destruct(Local(Left, _) | Line(Left)) =>
         caret_at_left(sub, z) && Selection.is_empty(z.selection)
-      | Destruct(Right) =>
+      | Destruct(Local(Right, _) | Line(Right)) =>
         caret_at_right(sub, z) && Selection.is_empty(z.selection)
       | _ => false
       };

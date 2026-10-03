@@ -332,3 +332,69 @@
 #top-bar #editor-mode select:hover {
   background-color: var(--surface-code);
 }
+
+/* Multi-way settings place the label above a full-width row of choices. */
+#top-bar .nut-menu .submenu:has(.segmented-setting) {
+  max-height: calc(100dvh - 2em);
+  overflow-y: auto;
+  justify-content: flex-start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--menu-scroll-thumb) var(--menu-bkg);
+}
+#top-bar .submenu:has(.segmented-setting) .group {
+  flex-shrink: 0;
+}
+#top-bar .submenu .group .contents .segmented-setting {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.2em;
+  padding: 0.15em 0.7em;
+  color: var(--menu-item-text);
+}
+#top-bar .submenu .segmented-setting .segmented-name {
+  font-size: 0.8em;
+  color: var(--menu-group-name);
+  white-space: nowrap;
+}
+#top-bar .submenu .segmented-setting .segmented-control {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
+}
+#top-bar .submenu .segmented-setting .segment {
+  appearance: none;
+  flex: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2em 0.55em;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8em;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+#top-bar .submenu .segmented-setting .segment.active {
+  background-color: var(--primary-accent);
+  color: var(--cell-active);
+}
+#top-bar .submenu .segmented-setting .segment:hover:not(.active) {
+  background-color: color-mix(in srgb, var(--menu-item-hover-bkg) 65%, transparent);
+}
+#top-bar .submenu .segmented-setting .segment:focus-visible {
+  outline: 2px solid var(--nut-menu);
+  outline-offset: 1px;
+}
+/* Preserve the hover menu while its choices are being used with a keyboard. */
+#top-bar .nut-menu:has(:focus-visible) {
+  transform: scaleY(1);
+}
+#top-bar .nut-menu .top-menu-item:has(:focus-visible) > .submenu {
+  display: flex;
+}

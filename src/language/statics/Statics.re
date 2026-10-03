@@ -66,16 +66,19 @@ let rec any_to_info_map =
   }
 and multi =
     (~ctx, ~ancestors, ~probe_ids: Id.Map.t(unit)=Id.Map.empty, m, tms)
-    : (list(CoCtx.t), list(Any.t), Map.t) =>
-  List.fold_left(
-    ((co_ctxs, tms_elab, m), any) => {
-      let (co_ctx, any_elab, m) =
-        any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
-      (co_ctxs @ [co_ctx], tms_elab @ [any_elab], m);
-    },
-    ([], [], m),
-    tms,
-  )
+    : (list(CoCtx.t), list(Any.t), Map.t) => {
+  let (co_ctxs, tms_elab, m) =
+    List.fold_left(
+      ((co_ctxs, tms_elab, m), any) => {
+        let (co_ctx, any_elab, m) =
+          any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
+        ([co_ctx, ...co_ctxs], [any_elab, ...tms_elab], m);
+      },
+      ([], [], m),
+      tms,
+    );
+  (List.rev(co_ctxs), List.rev(tms_elab), m);
+}
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -432,27 +435,56 @@ and uexp_to_info_map =
         );
       };
       closure_case(env, e);
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
-      add(
-        ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([e1.probe_targets, e2.probe_targets]),
-        m,
-      );
     | MultiHole(tms) =>
       let multi_hole_case = tms => {
-        let (co_ctxs, tms_elab, m) =
-          multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+        /* Elaborate MultiHole as right-associative Seq through all Exp children;
+         * non-Exp children still get info-mapped but are dropped from elaboration. */
+        let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
+          List.fold_left(
+            ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+              switch (any) {
+              | Exp(e) =>
+                let (e_info, e_elab, m) = go(~ana=syn, e, m);
+                (
+                  co_ctxs @ [e_info.co_ctx],
+                  probe_targets @ [e_info.probe_targets],
+                  elabs @ [e_elab],
+                  m,
+                );
+              | _ =>
+                let (co_ctx, _any_elab, m) =
+                  any_to_info_map(
+                    ~ctx,
+                    ~ancestors=ancestors_inclusive,
+                    any,
+                    m,
+                  );
+                (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+              },
+            ([], [], [], m),
+            tms,
+          );
+        let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
+          switch (exps) {
+          | [] => EmptyHole |> rewrap
+          | [e] => e
+          | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+          };
+        /* An unknown-infix multihole (operator token recorded as the
+           lexeme, two exp kids) is a stuck application, not transient
+           juxtaposition: elaborate it to a MultiHole, which the dynamics
+           treats as Indet, instead of evaluating to the last kid. */
+        let elab_term =
+          switch (uexp.annotation.lexeme, exp_elabs) {
+          | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+          | _ => nest_seqs(exp_elabs)
+          };
         add(
-          ~elab_term=MultiHole(tms_elab) |> rewrap,
+          ~elab_term,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[IsMulti],
-          ~co_ctx=CoCtx.union(co_ctxs),
+          ~co_ctx=CoCtx.union(exp_co_ctxs),
+          ~probe_targets=SubexpProbeTargets.union_all(exp_probe_targets),
           m,
         );
       };
@@ -1146,7 +1178,7 @@ and uexp_to_info_map =
                     e_info,
                     m,
                   );
-                (es @ [e_info], es_elab @ [elab], m);
+                ([e_info, ...es], [elab, ...es_elab], m);
               | TupLabel(label, value) =>
                 let (labmode, val_mode) =
                   LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
@@ -1243,7 +1275,7 @@ and uexp_to_info_map =
                     ~warnings=[],
                     m,
                   );
-                (es @ [e_info], es_elab @ [elab], m);
+                ([e_info, ...es], [elab, ...es_elab], m);
               | _ =>
                 let (e_info, elab, m) = go(~ana, ~coercible, e, m);
                 let (e_info, m) =
@@ -1252,12 +1284,13 @@ and uexp_to_info_map =
                     e_info,
                     m,
                   );
-                (es @ [e_info], es_elab @ [elab], m);
+                ([e_info, ...es], [elab, ...es_elab], m);
               },
             ([], [], m),
             ana_tys,
             List.combine(inferred, es),
           );
+        let (es', es_elab) = (List.rev(es'), List.rev(es_elab));
 
         let ty_list = List.map((e: Info.exp) => e.elab_syn_ty, es');
 
@@ -2051,6 +2084,11 @@ and uexp_to_info_map =
       let constructor_case = (ctr: string, ty: option(option(Typ.t))) => {
         let (syn_res, marks_res) =
           ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
+        /* A capitalized name parses as a constructor, but it may be a
+           module binding. In dot position a module wins over a constructor
+           of the same name (see the Dot case); here, in application or
+           value position, the constructor still applies, and a free
+           constructor falls back to a variable of that name. */
         switch (marks_res) {
         | [FreeConstructor(name)] =>
           /* If not a known constructor, try looking up as a variable.
@@ -3661,11 +3699,12 @@ and uexp_to_info_map =
           List.fold_left2(
             ((es, elabs, m), e, ctx) =>
               go(~ctx, ~ana, e, m)
-              |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
+              |> (((e, elab, m)) => ([e, ...es], [elab, ...elabs], m)),
             ([], [], m),
             es,
             p_ctxs,
           );
+        let (es, es_elabs) = (List.rev(es), List.rev(es_elabs));
 
         let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
         let e_co_ctxs = List.map(Info.exp_co_ctx, es);
@@ -3689,11 +3728,12 @@ and uexp_to_info_map =
                 go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
 
               let p_constraint = Info.pat_constraint(info);
-              ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
+              ([p_constraint, ...constraints], [p_elab, ...ps_elabs], m);
             },
             ([], [], m),
             List.combine(ps, e_co_ctxs),
           );
+        let ps_elabs = List.rev(ps_elabs);
 
         let constraints = List.rev(constraints);
 
@@ -4655,11 +4695,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
@@ -4780,11 +4820,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab_tl],
+                [info, ...info_all],
+                [elab_tl, ...elabs],
               );
             | _ =>
               let (info, elab, m) =
@@ -4804,17 +4844,23 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             },
           (ctx, [], [], m, [], []),
           List.combine(inferred, ps),
           modes,
         );
+      let (tys, cons, info_pats, ps_elabs) = (
+        List.rev(tys),
+        List.rev(cons),
+        List.rev(info_pats),
+        List.rev(ps_elabs),
+      );
       let constraint_ = Coverage.Constraint.Tuple(cons);
 
       let malformed_labels =
@@ -5795,38 +5841,76 @@ and mpat_to_info_map =
   };
 };
 
-let mk =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
-      let (_, elab, m) =
-        uexp_to_info_map(
-          ~ana,
-          ~ctx,
-          ~ancestors=[],
-          ~probe_ids,
-          e,
-          Id.Map.empty,
+let mk_impl = ((ana, ctx, e, probe_ids)) => {
+  let (_, elab, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], ~probe_ids, e, Id.Map.empty);
+  /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
+     Ensure they all resolve to the same info entry for cursor features. */
+  let m_ref = ref(m);
+  let _ =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        let info_opt = List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
+        switch (info_opt) {
+        | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+        | None => ()
+        };
+        ();
+      },
+      e,
+    );
+  (m_ref^, elab);
+};
+
+/* small LRU keyed on term and ctx identity: real hits are physically
+   identical terms (MakeTerm keeps them pointer-stable), and a large
+   structural memo would retain whole programs and their info maps.
+   ana and probe_ids are rebuilt per call, so compare structurally */
+let mk_cache:
+  ref(list(((Typ.t, Ctx.t, Exp.t, Id.Map.t(unit)), (Map.t, Exp.t)))) =
+  ref([]);
+let mk_cache_max = 16;
+
+let mk = ((ana, ctx, e, probe_ids) as key) => {
+  let key_eq = ((ana', ctx', e', probe_ids')) =>
+    e' === e
+    && ctx' === ctx
+    && compare(ana', ana) == 0
+    && compare(probe_ids', probe_ids) == 0;
+  switch (List.find_opt(((k, _)) => key_eq(k), mk_cache^)) {
+  | Some((k, r)) =>
+    mk_cache :=
+      [(k, r), ...List.filter(((k', _)) => !(k' === k), mk_cache^)];
+    r;
+  | None =>
+    let rec take = (n, l) =>
+      n <= 0
+        ? []
+        : (
+          switch (l) {
+          | [] => []
+          | [x, ...xs] => [x, ...take(n - 1, xs)]
+          }
         );
-      /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
-         Ensure they all resolve to the same info entry for cursor features. */
-      let m_ref = ref(m);
-      let _ =
-        Grammar.map_exp_annotation(
-          ({ids, _}: IdTagged.IdTag.t) => {
-            let info_opt =
-              List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
-            switch (info_opt) {
-            | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
-            | None => ()
-            };
-            ();
-          },
-          e,
-        );
-      (m_ref^, elab);
-    },
-  );
+    let r = mk_impl(key);
+    mk_cache := [(key, r), ...take(mk_cache_max - 1, mk_cache^)];
+    r;
+  };
+};
+
+/* bypasses the memo, for callers that cache for themselves: per-item
+   calls would churn its small LRU */
+let mk_unmemoized =
+    (
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~probe_ids=Id.Map.empty,
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) =>
+  core.statics
+    ? mk_impl((ana, ctx, exp, probe_ids))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));
 
 let mk =
     (

@@ -61,7 +61,7 @@ let split_at_label_sep =
   let rec go = (prefix, ps: Base.segment) =>
     switch (ps) {
     | [] => None
-    | [Base.Tile({label: ["="], _}) as eq, ...rest] =>
+    | [Base.Tile(t) as eq, ...rest] when Tile.label(t) == ["="] =>
       Some((List.rev([eq, ...prefix]), rest))
     | [p, ...rest] => go([p, ...prefix], rest)
     };
@@ -80,14 +80,9 @@ let map_comma_groups =
  * mold, so the nibs are what tell them apart. */
 let as_parens = (p: Base.piece): option((Base.tile, Base.segment)) =>
   switch (p) {
-  | Tile(
-      {
-        label: ["(", ")"],
-        mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-        children: [inner],
-        _,
-      } as t,
-    ) =>
+  /* The Parens family is op-shaped (convex both sides) by construction;
+     the application family that shares its label is a distinct family. */
+  | Tile({form: Form.Compound(Parens), children: [inner], _} as t) =>
     Some((t, inner))
   | _ => None
   };
@@ -113,7 +108,8 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
      written `((x * 10) : Int)` (SpliceStore.mk_typed_splice). */
   let looser_than_asc = (p: Base.piece) =>
     switch (p) {
-    | Tile({mold: {nibs: (l, r), _}, _}) =>
+    | Tile(t) =>
+      let (l, r) = Tile.mold(t).nibs;
       List.exists(
         (n: Nib.t) =>
           switch (n.shape) {
@@ -121,13 +117,13 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
           | Convex => false
           },
         [l, r],
-      )
+      );
     | _ => false
     };
   let rec last_colon = (i, found, ps: Base.segment) =>
     switch (ps) {
     | [] => found
-    | [Base.Tile({label: [":"], _}), ...rest] =>
+    | [Base.Tile(t), ...rest] when Tile.label(t) == [":"] =>
       last_colon(i + 1, Some(i), rest)
     | [_, ...rest] => last_colon(i + 1, found, rest)
     };
@@ -162,7 +158,7 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
 
 let as_list_lit = (p: Base.piece): option((Base.tile, Base.segment)) =>
   switch (p) {
-  | Tile({label: ["[", "]"], children: [inner], _} as t) =>
+  | Tile({children: [inner], _} as t) when Tile.label(t) == ["[", "]"] =>
     Some((t, inner))
   | _ => None
   };
@@ -220,11 +216,11 @@ let wrap_ctor_args = (arg: Base.segment): option(Base.segment) => {
     && Char.uppercase_ascii(c.[0]) == c.[0]
     && Char.lowercase_ascii(c.[0]) != c.[0];
   switch (core) {
-  | [
-      Base.Tile({label: [c], _}) as ctor,
-      Base.Tile({label: ["(", ")"], children: [inner], _} as ap),
-    ]
-      when is_ctor(c) =>
+  | [Base.Tile(c_t) as ctor, Base.Tile({children: [inner], _} as ap)]
+      when
+        Tile.arity(c_t) == 1
+        && is_ctor(Tile.token(c_t, 0))
+        && Tile.label(ap) == ["(", ")"] =>
     let wrapped = ref(false);
     let inner' =
       map_comma_groups(
@@ -293,8 +289,9 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
     List.map(
       (p: Base.piece) =>
         switch (p) {
-        | Tile({label: ["(", ")"], children: [arg], _} as t)
-            when Option.is_none(as_parens(p)) =>
+        | Tile({children: [arg], _} as t)
+            when
+              Tile.label(t) == ["(", ")"] && Option.is_none(as_parens(p)) =>
           Base.Tile({
             ...t,
             children: [rewrite_arg(arg)],

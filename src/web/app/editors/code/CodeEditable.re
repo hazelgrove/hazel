@@ -51,19 +51,11 @@ module Update = {
       )
       |> Updated.return(
            ~historic=Action.is_historic(action),
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+           /* With probe_all on, a placed probe's samples already exist
+            * (they show instantly), but ambient samples carry no env
+            * (CachedStatics.compute_targets), so re-evaluate to give the
+            * new probe its bindings. */
+           ~is_edit=Action.is_edit(action),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
@@ -81,9 +73,10 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | PrettyPrint
              | Probe(StepInto(_))
-             | Dump
+             | Format(_)
+             | AdjustIndent(_, _)
+             | ApplyCompletion(_)
              | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
@@ -94,7 +87,11 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
+      /* rapid input snaps: under key repeat a glide per key leaves the
+         caret trailing the text */
+      settings.core.flip_animations
+      && Action.should_animate(action)
+      && Animation.caret_glide_available()
         ? Animation.request([Animation.Actions.move("caret")]) : ();
 
       perform(action, model);
@@ -127,7 +124,7 @@ module Update = {
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
-       * of simply moving to next hole, if the backpack is non-empty
+       * of simply moving to next hole, if shards are missing
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
@@ -135,8 +132,19 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(NextProblem(Right)));
+          : (
+            /* caret pinned to a quiver chip: Tab dispatches that
+               obligation (CompletionQuery.tab_action — the same list
+               the quiver draws at the caret), whether or not an inline
+               buffer is showing (buffers only appear on edits; the
+               chip is always live) */
+            switch (CompletionQuery.tab_action(z)) {
+            | Some(a) => a
+            | None =>
+              Zipper.can_put_down(z)
+                ? Put_down : Move(Goal(NextProblem(Right)))
+            }
+          );
       perform(action, model);
     };
   };
@@ -182,6 +190,13 @@ module Selection = {
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
+      implied_hole:
+        Lazy.from_fun(() =>
+          ImpliedHole.at_caret(
+            ~statics=model.statics,
+            model.editor.state.zipper,
+          )
+        ),
     }
     |> Cursor.with_actions([
          /* Navigation */
@@ -241,7 +256,9 @@ module Selection = {
            ReparseCurrentEditor,
          ),
          of_shortcut(~action=action(Introduce), Introduce),
-         of_shortcut(~action=action(PrettyPrint), PrettyPrint),
+         of_shortcut(~action=action(Format(Indent)), ReIndent),
+         of_shortcut(~action=action(Format(Spacing)), NormalizeSpacing),
+         of_shortcut(~action=action(Format(Pretty)), PrettyPrint),
        ]);
   };
 
@@ -435,50 +452,100 @@ module View = {
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
+        ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
-      ) => [
-    CaretDec.view(
-      ~measured=CachedSyntax.measured(syntax),
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(
-      ~refine_sort=
-        (id, mold_out) =>
-          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
-      ~simple_indication=globals.settings.simple_indication,
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      z,
-    ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=CachedSyntax.measured(syntax),
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=CachedSyntax.measured(syntax),
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-    VarHighlight.view(
-      ~measured=CachedSyntax.measured(syntax),
-      ~font_metrics=globals.font_metrics,
-      ~info_map,
-      z,
-    ),
-  ];
+      ) => {
+    /* one flatten + one completion shared by every completion-aware
+       decoration; lazy so healthy-code renders with quiver off never
+       pay them */
+    let engine_seg =
+      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+    let completion =
+      Lazy.from_fun(() =>
+        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+      );
+    [
+      CaretDec.view(
+        ~measured=CachedSyntax.measured(syntax),
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Arms.Indicated.term(
+        ~refine_sort=
+          (id, mold_out) =>
+            Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+        ~simple_indication=globals.settings.simple_indication,
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        ~completion,
+        z,
+      ),
+      (
+        expand_selection
+          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          : Highlight.selection
+      )(
+        ~measured=CachedSyntax.measured(syntax),
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+      VarHighlight.view(
+        ~measured=CachedSyntax.measured(syntax),
+        ~font_metrics=globals.font_metrics,
+        ~info_map,
+        z,
+      ),
+    ]
+    @ (
+      globals.settings.quiver
+        ? [
+          QuiverDec.view(
+            ~flagpole=globals.settings.quiver_flagpole,
+            ~head_padding=
+              CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
+              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
+                   List.nth_opt(i.delimiters, 0)
+                 )
+              |> Option.bind(_, (d: CanonicalCompletion.delimiter_info) =>
+                   d.typed_len == None
+                     ? Some(CompletionQuery.padding(z, d)) : None
+                 ),
+            ~measured=CachedSyntax.measured(syntax),
+            ~font_metrics=globals.font_metrics,
+            ~caret_pos={
+              let p = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
+              Some((p.row, p.col));
+            },
+            ~caret_form=
+              Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
+            ~on_apply,
+            ~droppable=
+              z.caret == Outer
+                ? Zipper.missing_shards_hd(z)
+                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                       (t.id, Haz3lcore.Tile.l_shard(t))
+                     )
+                : None,
+            /* the caret's chips — the same query Tab dispatches */
+            ~owned=
+              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
+            Lazy.force(engine_seg),
+          ),
+        ]
+        /* quiver off: clear stale claims so probes don't stack
+           against phantom boxes (QuiverDec.view resets on entry) */
+        : {
+          RowOffsets.reset();
+          [];
+        }
+    );
+  };
 
   /* Recursive: a splice inside this editor renders as another instance
    * of this same view (see `render_splice` below). */
@@ -491,7 +558,6 @@ module View = {
             ~lines: bool=false,
             ~cull: bool=false,
             ~dynamics: Language.Dynamics.Map.t,
-            ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
             ~pending_eval_ids: list(Id.t)=[],
             ~show_active_eval: bool=false,
             ~expand_selection=?,
@@ -537,7 +603,6 @@ module View = {
         syntax,
       },
     };
-
     let selected = EditMode.is_active(edit_mode);
     /* Caret ownership: the one zipper's caret belongs to exactly one
      * editor surface — the sub-editor whose region the caret is inside,
@@ -571,6 +636,15 @@ module View = {
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
+      };
+    /* Stack-pane vertical escape belongs to the host cell: a sub-editor
+     * shares the host's edit_mode, but its rows are splice-local and its
+     * vertical moves are confined (below), so it never escapes. */
+    let escape_vertical =
+      switch (edit_mode) {
+      | _ when is_sub => None
+      | ReadOnly => None
+      | Editable({escape_vertical, _}) => escape_vertical
       };
     /* Editor-level clipboard helpers. Bypass the page-level
        on_copy/on_paste path because Firefox refuses to dispatch
@@ -781,6 +855,8 @@ module View = {
               ~syntax=model.editor.syntax,
               ~info_map=model.statics.info_map,
               ~globals,
+              ~on_apply=
+                Some(id => inject(Perform(ApplyCompletion(One(id))))),
               model.editor.state.zipper,
             )
             @ [
@@ -788,6 +864,7 @@ module View = {
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
                 ~frame,
+                ~completion=Arms.lazy_completion(model.editor.state.zipper),
                 model.editor.state.zipper,
               ),
             ]
@@ -928,7 +1005,6 @@ module View = {
               ~signal,
               ~edit_mode,
               ~dynamics,
-              ~predicted_reuse?,
               ~pending_eval_ids,
               ~show_active_eval,
               ~sub_editor=Some(sub),
@@ -951,7 +1027,9 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~core_settings=globals.settings.core,
-        ~visible=?is_sub ? None : visible,
+        /* no ~visible: projectors render unculled (stale bounds hid them,
+           #2702); the visible range feeds the refractors and the
+           pending-eval highlight only */
         ~open_panel,
         ~render_splice,
         ProjectorView.Model.mk(
@@ -972,31 +1050,27 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
-     * evaluation highlights are transient progress feedback, so keep them on
-     * while the worker is running. */
     let incr_eval_overlay =
-      switch (
-        predicted_reuse,
-        globals.settings.show_incremental_deco || pending_eval_ids != [],
-      ) {
-      | (Some(predicted_reuse), true) => [
+      if (globals.settings.show_incremental_deco && pending_eval_ids != []) {
+        [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
+                /* not gated on auto-probe: the range is tracked
+                   whenever this highlight shows */
+                ~visible=?cull ? globals.visible_rows : None,
                 ~pending_eval_ids,
                 ~show_active_eval,
-                ~show_frozen=globals.settings.show_incremental_deco,
-                predicted_reuse,
+                (),
               ),
             ],
           ),
-        ]
-      | (None, _)
-      | (Some(_), false) => []
+        ];
+      } else {
+        [];
       };
     let overlays =
       incr_eval_overlay
@@ -1230,6 +1304,23 @@ module View = {
             && z.relatives.ancestors == []
             && snd(Siblings.neighbors(z.relatives.siblings)) == None
           };
+        /* escape_vertical fires on Up at the first row / Down at the last,
+           before the core move snaps the caret to line start/end */
+        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+          switch (escape_vertical) {
+          | None => None
+          | Some(_) when z.selection.content != [] => None
+          | Some(_) =>
+            let measured = CachedSyntax.measured(model.editor.syntax);
+            let Util.Point.{row, col} =
+              Haz3lcore.Zipper.Caret.point(measured, z);
+            let last_row = max(0, measured.total_rows - 1);
+            switch (v) {
+            | Up when row == 0 => Some(col)
+            | Down when row == last_row => Some(col)
+            | _ => None
+            };
+          };
         /* Key.listener (not Key.handler): handler adds its own tabindex(0),
            duplicating this div's tabindex — vdom warns every render */
         Key.listener(~f=key => {
@@ -1241,6 +1332,30 @@ module View = {
            *    keystroke bursts. Enforcement happens at update time
            *    (Update.PerformConfined). */
           switch (key) {
+          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Up)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Up,
+                Option.get(caret_row_edge(Up)),
+              ),
+            ])
+          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Down)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Down,
+                Option.get(caret_row_edge(Down)),
+              ),
+            ])
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,
@@ -1325,7 +1440,7 @@ module View = {
               copy_selection(),
               Effect.Prevent_default,
               Effect.Stop_propagation,
-              inject(Perform(Destruct(Right))),
+              inject(Perform(Destruct(Local(Right, ByChar)))),
             ])
           | {
               key: D("v" | "V"),

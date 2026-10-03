@@ -46,9 +46,9 @@ omit_labels(coordinate, `x`)
 Drop multiple fields by passing extra label arguments:
 ```hazel
 omit_labels(
-(a=1, b=2, c=3, d=4),
-`a`,
-`c`)
+  (a=1, b=2, c=3, d=4),
+  `a`,
+  `c`)
 ```
 
 @hints
@@ -56,8 +56,8 @@ Example input
 Don't specialize on the example but use omit_labels
 
 @code
-let drop_secrets = fun t -> 
-¿
+let drop_secrets = fun t ->
+  ¿
 in
 drop_secrets((not_secret="public information", secret="to redact"))
 

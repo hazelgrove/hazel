@@ -28,7 +28,6 @@ type t = {
   smart_rounded: bool,
 };
 
-/* NOTE: backpack no longer uses selection focus */
 let mk =
     (
       ~mode=Normal,

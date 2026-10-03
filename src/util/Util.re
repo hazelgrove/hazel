@@ -14,11 +14,14 @@ module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
+module PerfTimer = PerfTimer;
+module AgentPulse = AgentPulse;
 module Tree = Tree;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module FloatingElement = FloatingElement;
 module SampleAnchor = SampleAnchor;
 module Menu = Menu;
 module MenuListener = MenuListener;
@@ -41,8 +44,9 @@ module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
-module FloatingElement = FloatingElement;
+module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
+module Slot = Slot;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

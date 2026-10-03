@@ -40,21 +40,54 @@ type entry =
   | TVarEntry(tvar_entry)
   | LivelitEntry(LivelitCtx.raw_livelit);
 
+/* newest-first entries plus a size, so added_bindings/subtract_prefix
+   are O(diff) rather than paying List.length */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
+type repr = {
   use_mode: option(Operators.mode), // None if elaboration has already occurred
   entries: list(entry),
 };
 
-let empty: t = {
-  use_mode: None,
-  entries: [],
+type t = {
+  use_mode: option(Operators.mode),
+  entries: list(entry),
+  size: int,
 };
 
 let extend = (ctx: t, entry): t => {
   ...ctx,
-  entries: List.cons(entry, ctx.entries),
+  entries: [entry, ...ctx.entries],
+  size: ctx.size + 1,
 };
+
+let of_entries =
+    (~use_mode: option(Operators.mode), entries: list(entry)): t => {
+  use_mode,
+  entries,
+  size: List.length(entries),
+};
+
+/* prepend a newest-first run of entries */
+let prepend_entries = (ctx: t, new_entries: list(entry)): t => {
+  ...ctx,
+  entries: new_entries @ ctx.entries,
+  size: ctx.size + List.length(new_entries),
+};
+
+/* serialization goes through [repr], the plain record without size */
+let repr_of = (ctx: t): repr => {
+  use_mode: ctx.use_mode,
+  entries: ctx.entries,
+};
+let of_repr = (r: repr): t => of_entries(~use_mode=r.use_mode, r.entries);
+let sexp_of_t = (ctx: t) => sexp_of_repr(repr_of(ctx));
+let t_of_sexp = s => of_repr(repr_of_sexp(s));
+let yojson_of_t = (ctx: t) => yojson_of_repr(repr_of(ctx));
+let t_of_yojson = j => of_repr(repr_of_yojson(j));
+let pp = (fmt, ctx: t) => pp_repr(fmt, repr_of(ctx));
+let show = (ctx: t) => show_repr(repr_of(ctx));
+
+let empty: t = of_entries(~use_mode=None, []);
 
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
@@ -275,6 +308,25 @@ let lookup_var = (ctx: t, name: string): option(var_entry) => {
   };
 };
 
+/* the NEWEST binding of a capitalized name, whichever kind: a module (or
+   any variable) bound after a constructor of the same name shadows it
+   lexically, as any later binding shadows an earlier one */
+let newest_var_or_ctr =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `Var(var_entry)
+          | `Ctr(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(`Var(v))
+    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
+    | _ => None,
+    ctx.entries,
+  );
+
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   switch (tail_index^) {
   | None =>
@@ -323,9 +375,9 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
-  ...ctx,
-  entries:
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
+  prepend_entries(
+    ctx,
     List.filter_map(
       fun
       | ConstructorMap.Variant(ctr, ann, typ) => {
@@ -353,9 +405,8 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
         }
       | ConstructorMap.BadEntry(_) => None,
       ctrs,
-    )
-    @ ctx.entries,
-};
+    ),
+  );
 
 let set_use_mode = (ctx: t, use_mode: option(Operators.mode)): t => {
   ...ctx,
@@ -364,118 +415,70 @@ let set_use_mode = (ctx: t, use_mode: option(Operators.mode)): t => {
 
 let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   // NOTE: does not check that the prefix is an actual prefix
-  let prefix_length = List.length(prefix_ctx.entries);
-  let ctx_length = List.length(ctx.entries);
-  if (prefix_length > ctx_length) {
+  let n = ctx.size - prefix_ctx.size;
+  if (n < 0) {
     None;
   } else {
-    Some({
-      ...ctx,
-      entries:
-        List.rev(
-          ListUtil.sublist(
-            (prefix_length, ctx_length),
-            List.rev(ctx.entries),
-          ),
-        ),
-    });
+    switch (ListUtil.split_n_opt(n, ctx.entries)) {
+    | Some((added, _)) => Some(of_entries(~use_mode=ctx.use_mode, added))
+    | None => None
+    };
   };
 };
 
 let added_bindings = (ctx_after: t, ctx_before: t): t => {
   /* Precondition: new_ctx is old_ctx plus some new bindings */
-  let new_count =
-    List.length(ctx_after.entries) - List.length(ctx_before.entries);
+  let new_count = ctx_after.size - ctx_before.size;
   switch (ListUtil.split_n_opt(new_count, ctx_after.entries)) {
-  | Some((ctx, _)) => {
-      ...ctx_after,
-      entries: ctx,
-    }
-  | _ => {
-      ...ctx_after,
-      entries: [],
-    }
+  | Some((added, _)) => of_entries(~use_mode=ctx_after.use_mode, added)
+  | _ => of_entries(~use_mode=ctx_after.use_mode, [])
   };
 };
 
 module VarSet = Set.Make(Var);
 
 /* Removes shadowed variables from the context */
-let filter_shadowed = (ctx: t): t => {
-  ...ctx,
-  entries:
-    ctx.entries
-    |> List.fold_left(
-         ((ctx, term_set, typ_set), entry) => {
-           switch (entry) {
-           | VarEntry({name, _})
-           | ConstructorEntry({name, _}) =>
-             VarSet.mem(name, term_set)
-               ? (ctx, term_set, typ_set)
-               : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
-           | TVarEntry({name, _}) =>
-             VarSet.mem(name, typ_set)
-               ? (ctx, term_set, typ_set)
-               : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
-           | LivelitEntry({name, _}) =>
-             VarSet.mem(name, term_set)
-               ? (ctx, term_set, typ_set)
-               : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
-           }
-         },
-         ([], VarSet.empty, VarSet.empty),
-       )
-    |> (((ctx, _, _)) => List.rev(ctx)),
-};
+let filter_shadowed = (ctx: t): t =>
+  ctx.entries
+  |> List.fold_left(
+       ((kept, term_set, typ_set), entry) => {
+         switch (entry) {
+         | VarEntry({name, _})
+         | ConstructorEntry({name, _}) =>
+           VarSet.mem(name, term_set)
+             ? (kept, term_set, typ_set)
+             : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
+         | TVarEntry({name, _}) =>
+           VarSet.mem(name, typ_set)
+             ? (kept, term_set, typ_set)
+             : ([entry, ...kept], term_set, VarSet.add(name, typ_set))
+         | LivelitEntry({name, _}) =>
+           VarSet.mem(name, term_set)
+             ? (kept, term_set, typ_set)
+             : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
+         }
+       },
+       ([], VarSet.empty, VarSet.empty),
+     )
+  |> (((kept, _, _)) => of_entries(~use_mode=ctx.use_mode, List.rev(kept)));
 
-let filter_stepper_filter_variables = (ctx: t): t => {
-  ...ctx,
-  entries:
-    ctx.entries
-    |> List.fold_left(
-         (ctx, entry) => {
-           switch (entry) {
-           | VarEntry({name, _})
-           | ConstructorEntry({name, _})
-           | LivelitEntry({name, _})
-           | TVarEntry({name, _}) =>
-             if (String.starts_with(~prefix="$", name)) {
-               ctx;
-             } else {
-               [entry, ...ctx];
-             }
-           }
-         },
-         [],
-       )
-    |> List.rev,
-};
+let filter_stepper_filter_variables = (ctx: t): t =>
+  ctx.entries
+  |> List.filter(entry =>
+       switch (entry) {
+       | VarEntry({name, _})
+       | ConstructorEntry({name, _})
+       | LivelitEntry({name, _})
+       | TVarEntry({name, _}) => !String.starts_with(~prefix="$", name)
+       }
+     )
+  |> of_entries(~use_mode=ctx.use_mode);
 
-/* Keep in sync with Token.base_typs */
-let is_base_typ = (name: string): bool =>
-  name == "Bool"
-  || name == "Float"
-  || name == "Int"
-  || name == "Nat"
-  || name == "SInt"
-  || name == "String"
-  || name == "Void"
-  || name == "DrvJdmt"
-  || name == "DrvCtx"
-  || name == "DrvProp"
-  || name == "ALFAExp"
-  || name == "DrvPat"
-  || name == "ALFATyp"
-  || name == "DrvTPat";
+let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
 
-let empty_pre_elaboration = {
-  use_mode: Some(Operators.default_mode),
-  entries: [],
-};
-let empty_post_elaboration = {
-  use_mode: None,
-  entries: [],
-};
+let empty_pre_elaboration =
+  of_entries(~use_mode=Some(Operators.default_mode), []);
+let empty_post_elaboration = of_entries(~use_mode=None, []);
 
 /* The binding (binding site id and name) of `name` in `ctx` */
 let binding_of = (ctx: t, name: Var.t): Binding.t =>

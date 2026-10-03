@@ -38,7 +38,7 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
     "("
     ++ print_exp_for_algebrite(~name_other, exp_left)
     ++ " "
-    ++ Operators.bin_op_to_string(op)
+    ++ FormId.bin_op_to_string(op)
     ++ " "
     ++ print_exp_for_algebrite(~name_other, exp_right)
     ++ ")"

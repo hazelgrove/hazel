@@ -115,7 +115,8 @@ let rec find_splice_descent_when =
         | [i, ...rest_idx] =>
           let child = List.nth(t.children, i);
           let child_sort =
-            i < List.length(t.mold.in_) ? List.nth(t.mold.in_, i) : Sort.Any;
+            i < List.length(Tile.mold(t).in_)
+              ? List.nth(Tile.mold(t).in_, i) : Sort.Any;
           switch (find_splice_descent_when(~sort=child_sort, d, pred, child)) {
           | None => try_kids(rest_idx)
           | Some((sub_ancs, sub_sibs, sub_splice, child_l, child_r)) =>
@@ -129,8 +130,8 @@ let rec find_splice_descent_when =
               };
             let tile_anc: Ancestor.tile_anc = {
               id: t.id,
-              label: t.label,
-              mold: t.mold,
+              form: t.form,
+              sort: t.sort,
               shards: (shards_l, shards_r),
               children: (kids_l, kids_r),
             };
@@ -375,7 +376,7 @@ let sort = (~root, {siblings: (pre, _), ancestors}: t): Sort.t => {
 
 /* Remold the immediate parent ancestor tile based on its
  * sibling context. This handles cases where completing a
- * bidelimited form (e.g. putting down `(` from backpack to
+ * bidelimited form (e.g. putting down a pending `(` to
  * complete `(...)`) leaves the caret inside, and the parent
  * tile needs a different mold (e.g. `ap(...)` instead of
  * plain parens) to fit its neighbors. */
@@ -402,25 +403,27 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
         r.sort;
       };
     };
-    switch (Form.Molds.try_get(sort, a.label)) {
-    | None
-    | Some([_]) => [(Ancestor.Tile(a), sibs), ...rest]
-    | Some(molds) =>
+    switch (Form.remold_candidates(Ancestor.label(a), sort)) {
+    | []
+    | [_] => [(Ancestor.Tile(a), sibs), ...rest]
+    | forms =>
       let (pre, _) = sibs;
       let (_, left_shape, _) =
         Segment.shape_affix(Left, pre, Nib.Shape.concave());
       let l_idx = Ancestor.l_shard(a);
       let a =
         switch (
-          molds
-          |> List.filter(mold => {
-               let (l_nib, _) = Mold.nibs(~index=l_idx, mold);
+          forms
+          |> List.filter(((form, sort)) => {
+               let (l_nib, _) =
+                 Mold.nibs(~index=l_idx, Form.mold_of(form, sort));
                Nib.Shape.fits(left_shape, Nib.shape(l_nib));
              })
         ) {
-        | [mold, ..._] => {
+        | [(form, sort), ..._] => {
             ...a,
-            mold,
+            form,
+            sort,
           }
         | [] => a
         };
@@ -439,59 +442,69 @@ let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
   };
 };
 
-let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
-  /* Direction is side of grout caret will end up on */
-
-  let ancestors = Ancestors.regrout(ancestors);
-  let siblings = {
-    let ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
-      Siblings.regrout(siblings);
-    let (trim_l, trim_r) = {
-      open Segment.Trim;
-      let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
-      let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
-      /* Same junction principle as Trim.regrout, straddling the caret:
-       * if the neighboring shapes fit each other no grout belongs here,
-       * else exactly one grout of the complementary shape does. Judging
-       * kept grout against BOTH shapes matters because remold can change
-       * a neighbor out from under a previously-fitting grout (#2446:
-       * completing `use _ in` remolds a following infix `-` to prefix,
-       * whose convex nib no longer admits the convex grout). */
-      if (Nib.Shape.fits(s_l, s_r)) {
-        switch (gs_l, gs_r) {
-        | ([], []) => (seg_l, seg_r)
-        | _ => (ws(trim_l), ws(trim_r))
-        };
-      } else {
-        /* s_l and s_r are same-class here, so a grout fitting one fits
-         * both, and at most one shape of grout fits. */
-        let fits = g => Grout.fits_shape(g, s_l);
-        let g_l = Option.map(snd, ListUtil.split_last_opt(gs_l));
-        let g_r = ListUtil.hd_opt(gs_r);
-        switch (g_l, g_r) {
-        | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>
-          // note: assumes single grout invariant in un-caret-interrupted trim
-          switch (d) {
-          | Left => (ws(trim_l), seg_r)
-          | Right => (seg_l, ws(trim_r))
-          }
-        | (Some(gl), _) when fits(gl) => (seg_l, ws(trim_r))
-        | (_, Some(gr)) when fits(gr) => (ws(trim_l), seg_r)
-        | _ =>
-          // no fitting grout present: mint one on the caret's side
-          switch (d) {
-          | Left =>
-            let trim = add_grout(s_r, strip_grout(trim_r));
-            (ws(trim_l), to_seg(trim));
-          | Right =>
-            let trim = add_grout(s_l, strip_grout(trim_l));
-            (to_seg(trim), ws(trim_r));
-          }
-        };
+/* regrout's sibling half, which the sparse path runs on a caret window
+   with true boundary shapes; d is the caret's side of the grout */
+let regrout_siblings =
+    (
+      d: Direction.t,
+      ~l_shape: option(Nib.Shape.t)=?,
+      ~r_shape: option(Nib.Shape.t)=?,
+      ~skip_clean: option(Piece.t => bool)=?,
+      siblings: Siblings.t,
+    )
+    : Siblings.t => {
+  let ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
+    Siblings.regrout(~l_shape?, ~r_shape?, ~skip_clean?, siblings);
+  let (trim_l, trim_r) = {
+    open Segment.Trim;
+    let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
+    let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
+    /* Same junction principle as Trim.regrout, straddling the caret:
+     * if the neighboring shapes fit each other no grout belongs here,
+     * else exactly one grout of the complementary shape does. Judging
+     * kept grout against BOTH shapes matters because remold can change
+     * a neighbor out from under a previously-fitting grout (#2446:
+     * completing `use _ in` remolds a following infix `-` to prefix,
+     * whose convex nib no longer admits the convex grout). */
+    if (Nib.Shape.fits(s_l, s_r)) {
+      switch (gs_l, gs_r) {
+      | ([], []) => (seg_l, seg_r)
+      | _ => (ws(trim_l), ws(trim_r))
+      };
+    } else {
+      /* s_l and s_r are same-class here, so a grout fitting one fits
+       * both, and at most one shape of grout fits. */
+      let fits = g => Grout.fits_shape(g, s_l);
+      let g_l = Option.map(snd, ListUtil.split_last_opt(gs_l));
+      let g_r = ListUtil.hd_opt(gs_r);
+      switch (g_l, g_r) {
+      | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>
+        // note: assumes single grout invariant in un-caret-interrupted trim
+        switch (d) {
+        | Left => (ws(trim_l), seg_r)
+        | Right => (seg_l, ws(trim_r))
+        }
+      | (Some(gl), _) when fits(gl) => (seg_l, ws(trim_r))
+      | (_, Some(gr)) when fits(gr) => (ws(trim_l), seg_r)
+      | _ =>
+        // no fitting grout present: mint one on the caret's side
+        switch (d) {
+        | Left =>
+          let trim = add_grout(s_r, strip_grout(trim_r));
+          (ws(trim_l), to_seg(trim));
+        | Right =>
+          let trim = add_grout(s_l, strip_grout(trim_l));
+          (to_seg(trim), ws(trim_r));
+        }
       };
     };
-    (pre @ trim_l, trim_r @ suf);
   };
+  (pre @ trim_l, trim_r @ suf);
+};
+
+let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
+  let ancestors = Ancestors.regrout(ancestors);
+  let siblings = regrout_siblings(d, siblings);
   let siblings =
     switch (ancestors) {
     | [(Ancestor.Splice(_), _), ..._] =>
@@ -504,7 +517,7 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
       let pre_len = List.length(fst(siblings));
       siblings
       |> Siblings.zip
-      |> Segment.regrout(Nib.Shape.(concave(), concave()))
+      |> Segment.regrout(Segment.convex_wrapper_inner_shapes)
       |> Siblings.unzip(pre_len);
     | _ => siblings
     };
