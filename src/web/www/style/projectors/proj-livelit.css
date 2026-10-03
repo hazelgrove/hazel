@@ -21,6 +21,12 @@
 .livelit:has(.context-menu) > *:not(svg) {
     overflow: visible;
 }
+/* The same for the pane under an open eye, a level deeper: it scrolls
+   sideways and clips below, so a right-click menu on the use's syntax
+   was cut to the pane's one or two rows and could not be clicked. */
+.livelit-syntax:has(.context-menu) {
+    overflow: visible;
+}
 
 .livelit > .slider > input {
   margin: 0;
