@@ -62,7 +62,7 @@ let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
    a term dump. */
 let typ_to_string = (ty: Typ.t): string =>
   TypToSegment.typ_to_segment(
-    ~settings=ProjectorInfo.seg_settings(~inline=true),
+    ~settings=ProjectorInfo.seg_settings(~inline=Inline.Inline),
     ty,
   )
   |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true);

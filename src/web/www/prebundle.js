@@ -1,9 +1,12 @@
-
 // This file is bundled into bundle.js as part of the build process.
-import {NinjaKeys} from 'ninja-keys';
-import hotkeys from 'hotkeys-js'
-import Algebrite from 'algebrite';
+import { NinjaKeys } from "ninja-keys";
+import Worker from 'web-worker';
+import hotkeys from "hotkeys-js";
+import Algebrite from "algebrite";
+import * as Plot from "@observablehq/plot";
+
 window.Algebrite = Algebrite;
+window.Plot = Plot;
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the
 // clipboard-shim and the ninja-keys command palette (which lives inside a shadow DOM).
@@ -15,7 +18,7 @@ hotkeys.filter = event => {
   const { tagName, id } = target;
 
   // Override happening here
-  if(id == "clipboard-shim") {
+  if (id == "clipboard-shim") {
     return true;
   }
 
@@ -30,13 +33,25 @@ hotkeys.filter = event => {
   }
 
   let flag = true;
-  const isInput = tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'button', 'file', 'reset', 'submit', 'color'].includes(target.type);
+  const isInput =
+    tagName === "INPUT" &&
+    ![
+      "checkbox",
+      "radio",
+      "range",
+      "button",
+      "file",
+      "reset",
+      "submit",
+      "color",
+    ].includes(target.type);
   // ignore: isContentEditable === 'true', <input> and <textarea> when readOnly state is false, <select>
   if (
-    target.isContentEditable
-    || ((isInput || tagName === 'TEXTAREA' || tagName === 'SELECT') && !target.readOnly)
+    target.isContentEditable ||
+    ((isInput || tagName === "TEXTAREA" || tagName === "SELECT") &&
+      !target.readOnly)
   ) {
     flag = false;
   }
   return flag;
-  };
+};

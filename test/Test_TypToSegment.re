@@ -14,7 +14,7 @@ open Language;
 
 /* The settings the projector prints with. Testing any other configuration
    would test something the projector never runs. */
-let settings = ProjectorInfo.seg_settings(~inline=true);
+let settings = ProjectorInfo.seg_settings(~inline=Inline.Inline);
 
 /* The ids of the tiles alone. Code.re classes tiles and ignores Grout and
    Secondary, so this is the set of ids a decoration can actually colour. */
