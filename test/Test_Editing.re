@@ -1762,6 +1762,38 @@ else f|});
   45678,
   ¦56789)|},
   ),
+  /* A line of only spaces has no content for Home/End to skip to */
+  test_from_parse(
+    ~name="End on a whitespace-only line goes to its end",
+    ~init="x +\n  ¦  \n  y",
+    ~acts=[Action.Move(Line(Right))],
+    ~goal="x +\n    ¦\n  y",
+  ),
+  test_from_parse(
+    ~name="Home on a whitespace-only line goes to its start",
+    ~init="x +\n  ¦  \n  y",
+    ~acts=[Action.Move(Line(Left))],
+    ~goal="x +\n¦    \n  y",
+  ),
+  test_case(
+    "End on a whitespace-only line goes to its end (indentation UX)",
+    `Quick,
+    () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "End",
+      "x +\n    ¦\n  y",
+      perform(
+        ~settings={
+          ...default_settings,
+          indentation_ux: true,
+        },
+        parse_with_caret("x +\n  ¦  \n  y"),
+        [Action.Move(Line(Right))],
+      )
+      |> printer,
+    )
+  ),
   test(
     ~name="Extend selection left by token",
     ~acts=
