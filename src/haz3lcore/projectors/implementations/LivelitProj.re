@@ -306,23 +306,6 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   wrapped^ > 0 ? Some(seg') : None;
 };
 
-/* The code inside the parens whose id is [id], anywhere in [seg]: a
-   cell written as plain parens rather than as a splice. */
-let rec cell_parens = (id: string, seg: Base.segment): option(Base.segment) =>
-  List.find_map(
-    (p: Base.piece) =>
-      switch (p) {
-      | Tile({id: tid, children: [inner], _} as t)
-          when
-            Id.to_string(tid) == id && Option.is_some(as_parens(Tile(t))) =>
-        Some(inner)
-      | Tile(t) => List.find_map(cell_parens(id), t.children)
-      | Splice(s) => cell_parens(id, s.content)
-      | _ => None
-      },
-    seg,
-  );
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -1468,33 +1451,11 @@ module M: Projector = {
                    renders as an error rather than another widget's hole. */
                 ~splice_view_at=
                   id =>
-                    switch (
-                      List.find_opt(
-                        (s: Base.splice) => Id.to_string(s.id) == id,
-                        splices,
-                      )
-                    ) {
-                    | Some(s) => Some(splice_view(s.id))
-                    /* A cell retyped in the open pane is plain parens,
-                       `g = (0)`, whose SpliceRef names the parens. There
-                       is no splice to open as an editor -- the pane is
-                       the editor until the eye closes and splices it
-                       again (ProjectorPerform.closed_syntax) -- so show
-                       its code, rather than a hole. */
-                    | None =>
-                      cell_parens(id, info.syntax)
-                      |> Option.map(code =>
-                           Node.span(
-                             ~attrs=[
-                               Attr.class_("livelit-cell-code"),
-                               Attr.title(
-                                 "edit in the syntax below; editable here once the syntax is hidden",
-                               ),
-                             ],
-                             [Node.text(info.utility.seg_to_string(code))],
-                           )
-                         )
-                    },
+                    List.find_opt(
+                      (s: Base.splice) => Id.to_string(s.id) == id,
+                      splices,
+                    )
+                    |> Option.map((s: Base.splice) => splice_view(s.id)),
                 ~live=live_html(info),
               ),
             ],

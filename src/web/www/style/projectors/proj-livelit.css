@@ -318,11 +318,3 @@
     color: var(--ui-bkg);
     cursor: default;
 }
-
-/* A cell retyped in a livelit's open pane is plain parens until the eye
-   closes: the GUI shows its code, read-only (LivelitProj.cell_parens). */
-.livelit .livelit-cell-code {
-    font-family: var(--code-font);
-    color: var(--text-muted);
-    cursor: default;
-}
