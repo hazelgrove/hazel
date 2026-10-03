@@ -740,6 +740,68 @@ let transport_across_env =
     reuse_map,
   );
 
+/* The re-use map a closure captured, keyed by the id of the environment node
+ * it closed over.
+ *
+ * The formalism does not need this: its closures carry the map beside the
+ * environment — `closure (env : ...) (reuse : ReuseMap) x body` — and the App
+ * rule evaluates the body under that captured map, never the caller's. Hazel's
+ * runtime closures carry the environment only, so transport_across_env above
+ * reconstructs an approximation of it from the caller's map, paying a value
+ * comparison per binding and dropping whatever it cannot justify. Recording
+ * the map at closure creation and looking it up at the call carries the same
+ * information by a different route: no comparison, and nothing dropped. */
+type closure_reuse = Id.Map.t(reuse_map);
+
+let no_closure_reuse: closure_reuse = Id.Map.empty;
+
+let record_closure_reuse =
+    (~env: Environment.t(Exp.t), reuse_map: reuse_map, table: closure_reuse)
+    : closure_reuse =>
+  switch (env) {
+  /* The empty environment has no node to key on, and closes over no
+   * bindings, so there is nothing a map over it could say. */
+  | Empty => table
+  /* First write wins, and must: a map's flags say whether each binding's
+   * value survived the previous run, and update_reuse_map_after_effects
+   * recomputes them against a reused-id set that grows as evaluation
+   * proceeds. So one environment node is described by maps with different
+   * flags at different moments, and only the write taken as the node was
+   * created describes the moment a closure over it captures. Overwriting
+   * hands a closure flags from a later moment and marks bindings clean that
+   * it has no right to treat as clean, which produces wrong values. */
+  | E(e) when Id.Map.mem(e.id, table) => table
+  | E(e) => Id.Map.add(e.id, reuse_map, table)
+  };
+
+/* An application extends the closure's environment with the parameter
+ * bindings, so the environment the closure captured sits exactly `added`
+ * nodes down the spine of the body's: `added` is how many variables the
+ * application's pattern bound, and Environment.extend adds one node each.
+ *
+ * The lookup is exact, and must not fall back to a search outward. An
+ * enclosing node's map looks like a conservative answer and is sound, but it
+ * was recorded before the closure's own bindings existed, so it omits them
+ * and reuse_map_for_co_ctx then refuses re-use for any body expression
+ * mentioning one -- losing more re-use than transport, which at least
+ * justifies those bindings against the body's environment. None, leaving the
+ * caller to transport, is the honest miss. */
+let reuse_map_of_closure_env =
+    (~table: closure_reuse, ~added: int, env: Environment.t(Exp.t))
+    : option(reuse_map) => {
+  let rec drop = (n: int, env: Environment.t(Exp.t)) =>
+    switch (n, env) {
+    | (0, _) => Some(env)
+    | (_, Empty) => None
+    | (_, E(e)) => drop(n - 1, e.prev_env)
+    };
+  switch (drop(added, env)) {
+  | None
+  | Some(Empty) => None
+  | Some(E(e)) => Id.Map.find_opt(e.id, table)
+  };
+};
+
 let reuse_check =
     (
       ~call_stack_ids: option(list(Id.t)),

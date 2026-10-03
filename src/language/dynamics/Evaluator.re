@@ -107,6 +107,10 @@ let rec evaluate =
           ~delegations: list(delegation),
           // Inputs
           ~reuse_map: IncrEval.reuse_map,
+          /* Re-use maps captured at closure creation, so a call can read the
+           * closure's own map instead of reconstructing one from the
+           * caller's. Shared for the whole evaluation, like `outbox`. */
+          ~closure_reuse: ref(IncrEval.closure_reuse),
           env,
           exp: DHExp.t,
           // Outputs
@@ -128,6 +132,7 @@ let rec evaluate =
       ~reused_ids,
       ~eval_info,
       ~outbox,
+      ~closure_reuse,
     );
   let expr_id = DHExp.rep_id(exp);
   /* A node evaluated as the DIRECT CHILD of a Closure reports back, through
@@ -275,8 +280,9 @@ let rec evaluate =
      * fire inside a call. Skip entirely when nothing downstream can consume
      * the map — beyond the guard's depth nothing is recorded or re-used, and
      * depth only grows from here. */
+    let maintaining_reuse_map = track_reuse && cacheable(call_stack);
     let body_reuse_map =
-      if (!track_reuse || !cacheable(call_stack)) {
+      if (!maintaining_reuse_map) {
         reuse_map;
       } else {
         /* A call replaces the environment with the closure's rather than
@@ -302,11 +308,38 @@ let rec evaluate =
         let base =
           switch (body_env) {
           | Some(body_env) =>
-            IncrEval.transport_across_env(
-              ~from_env=env,
-              ~to_env=body_env,
-              reuse_map,
-            )
+            /* The formalism's App rule reads rho straight off the closure, so
+             * when we have the captured map, use it. The lookup is exact: it
+             * will not substitute an enclosing environment's map, because such
+             * a map predates the closure's own bindings and would lose more
+             * re-use than transport does. Falling back keeps the old behaviour
+             * for closures we never recorded — created beyond the guard's
+             * depth, or before the map was being maintained. */
+            switch (
+              IncrEval.reuse_map_of_closure_env(
+                ~table=closure_reuse^,
+                ~added=
+                  List.fold_left(
+                    (n, effect) =>
+                      switch (effect) {
+                      | EvaluatorState.RecordPatMatch({pat, _}) =>
+                        n + List.length(Pat.bound_vars(pat))
+                      | _ => n
+                      },
+                    0,
+                    effects,
+                  ),
+                body_env,
+              )
+            ) {
+            | Some(captured) => captured
+            | None =>
+              IncrEval.transport_across_env(
+                ~from_env=env,
+                ~to_env=body_env,
+                reuse_map,
+              )
+            }
           | None => reuse_map
           };
         ReusePass.update_reuse_map_after_effects(
@@ -320,6 +353,31 @@ let rec evaluate =
           effects,
         );
       };
+
+    /* Record the environment this step produced together with the map that
+     * describes it. A binding step extends the environment and extends the
+     * map in the same breath -- the formalism's `sigma_c.set x v` beside its
+     * `rho_c.set x (...)` -- so pairing the two here is what later lets an
+     * application read rho off the closure instead of rebuilding it. Keyed on
+     * the new environment's own node, which is what a closure capturing it
+     * will present at the call.
+     *
+     * Only when the map is being maintained: otherwise `body_reuse_map` is
+     * just the incoming map, which does not describe the extended
+     * environment, and recording it would hand out a map missing the very
+     * binding the step introduced. */
+    if (maintaining_reuse_map) {
+      switch (next.term) {
+      | Closure(produced_env, _) =>
+        closure_reuse :=
+          IncrEval.record_closure_reuse(
+            ~env=produced_env,
+            body_reuse_map,
+            closure_reuse^,
+          )
+      | _ => ()
+      };
+    };
 
     Trampoline.return((is_finished, call_stack, body_reuse_map, kind, next));
   };
@@ -726,6 +784,7 @@ let prepare_evaluation =
       ~reused_ids,
       ~parent_state=state,
       ~outbox,
+      ~closure_reuse=ref(IncrEval.no_closure_reuse),
       ~current_top_id=None,
       env,
       d,
