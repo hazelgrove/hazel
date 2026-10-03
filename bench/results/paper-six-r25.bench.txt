@@ -1,0 +1,1068 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+reshape-source: 4 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 25 reps) = 130 passes
+[  1/130] warmup  a0/default incr 403ms        elapsed    757ms  eta    1m37s
+[  2/130] warmup  aPL/default incr 425ms       elapsed     1.5s  eta    1m37s
+[  3/130] warmup  aM/default incr 447ms        elapsed     2.3s  eta    1m36s
+[  4/130] warmup  a2/default incr 424ms        elapsed     3.1s  eta    1m37s
+[  5/130] warmup  aStar/default incr 392ms     elapsed     3.8s  eta    1m34s
+[  6/130] rep 1   a0/default incr 406ms        elapsed     4.5s  eta    1m32s
+[  7/130] rep 1   aPL/default incr 425ms       elapsed     5.2s  eta    1m31s
+[  8/130] rep 1   aM/default incr 389ms        elapsed     5.9s  eta    1m29s
+[  9/130] rep 1   a2/default incr 425ms        elapsed     6.6s  eta    1m28s
+[ 10/130] rep 1   aStar/default incr 524ms     elapsed     7.5s  eta    1m29s
+[ 11/130] rep 2   aPL/default incr 541ms       elapsed     8.3s  eta    1m30s
+[ 12/130] rep 2   aM/default incr 378ms        elapsed     9.0s  eta    1m28s
+[ 13/130] rep 2   a2/default incr 426ms        elapsed     9.7s  eta    1m27s
+[ 14/130] rep 2   aStar/default incr 419ms     elapsed    10.5s  eta    1m26s
+[ 15/130] rep 2   a0/default incr 428ms        elapsed    11.2s  eta    1m25s
+[ 16/130] rep 3   aM/default incr 376ms        elapsed    11.9s  eta    1m24s
+[ 17/130] rep 3   a2/default incr 451ms        elapsed    12.7s  eta    1m24s
+[ 18/130] rep 3   aStar/default incr 453ms     elapsed    13.4s  eta    1m23s
+[ 19/130] rep 3   a0/default incr 383ms        elapsed    14.1s  eta    1m22s
+[ 20/130] rep 3   aPL/default incr 361ms       elapsed    14.8s  eta    1m21s
+[ 21/130] rep 4   a2/default incr 412ms        elapsed    15.5s  eta    1m20s
+[ 22/130] rep 4   aStar/default incr 483ms     elapsed    16.3s  eta    1m20s
+[ 23/130] rep 4   a0/default incr 394ms        elapsed    17.0s  eta    1m19s
+[ 24/130] rep 4   aPL/default incr 587ms       elapsed    17.9s  eta    1m19s
+[ 25/130] rep 4   aM/default incr 369ms        elapsed    18.6s  eta    1m17s
+[ 26/130] rep 5   aStar/default incr 420ms     elapsed    19.3s  eta    1m17s
+[ 27/130] rep 5   a0/default incr 368ms        elapsed    19.9s  eta    1m15s
+[ 28/130] rep 5   aPL/default incr 357ms       elapsed    20.6s  eta    1m14s
+[ 29/130] rep 5   aM/default incr 375ms        elapsed    21.2s  eta    1m13s
+[ 30/130] rep 5   a2/default incr 411ms        elapsed    21.9s  eta    1m12s
+[ 31/130] rep 6   a0/default incr 384ms        elapsed    22.6s  eta    1m12s
+[ 32/130] rep 6   aPL/default incr 416ms       elapsed    23.5s  eta    1m11s
+[ 33/130] rep 6   aM/default incr 363ms        elapsed    24.1s  eta    1m10s
+[ 34/130] rep 6   a2/default incr 665ms        elapsed    25.1s  eta    1m10s
+[ 35/130] rep 6   aStar/default incr 412ms     elapsed    25.8s  eta    1m10s
+[ 36/130] rep 7   aPL/default incr 410ms       elapsed    26.5s  eta    1m09s
+[ 37/130] rep 7   aM/default incr 384ms        elapsed    27.2s  eta    1m08s
+[ 38/130] rep 7   a2/default incr 407ms        elapsed    28.0s  eta    1m07s
+[ 39/130] rep 7   aStar/default incr 390ms     elapsed    28.6s  eta    1m06s
+[ 40/130] rep 7   a0/default incr 403ms        elapsed    29.3s  eta    1m05s
+[ 41/130] rep 8   aM/default incr 638ms        elapsed    30.2s  eta    1m05s
+[ 42/130] rep 8   a2/default incr 422ms        elapsed    30.9s  eta    1m04s
+[ 43/130] rep 8   aStar/default incr 392ms     elapsed    31.6s  eta    1m04s
+[ 44/130] rep 8   a0/default incr 455ms        elapsed    32.4s  eta    1m03s
+[ 45/130] rep 8   aPL/default incr 446ms       elapsed    33.2s  eta    1m02s
+[ 46/130] rep 9   a2/default incr 458ms        elapsed    34.1s  eta    1m02s
+[ 47/130] rep 9   aStar/default incr 437ms     elapsed    34.8s  eta    1m01s
+[ 48/130] rep 9   a0/default incr 374ms        elapsed    35.5s  eta    1m00s
+[ 49/130] rep 9   aPL/default incr 397ms       elapsed    36.2s  eta    59.8s
+[ 50/130] rep 9   aM/default incr 409ms        elapsed    36.9s  eta    59.0s
+[ 51/130] rep 10  aStar/default incr 670ms     elapsed    38.0s  eta    58.8s
+[ 52/130] rep 10  a0/default incr 432ms        elapsed    38.7s  eta    58.0s
+[ 53/130] rep 10  aPL/default incr 385ms       elapsed    39.4s  eta    57.2s
+[ 54/130] rep 10  aM/default incr 400ms        elapsed    40.2s  eta    56.5s
+[ 55/130] rep 10  a2/default incr 466ms        elapsed    40.9s  eta    55.8s
+[ 56/130] rep 11  a0/default incr 425ms        elapsed    41.7s  eta    55.1s
+[ 57/130] rep 11  aPL/default incr 459ms       elapsed    42.5s  eta    54.4s
+[ 58/130] rep 11  aM/default incr 423ms        elapsed    43.2s  eta    53.6s
+[ 59/130] rep 11  a2/default incr 422ms        elapsed    43.9s  eta    52.9s
+[ 60/130] rep 11  aStar/default incr 424ms     elapsed    44.7s  eta    52.1s
+[ 61/130] rep 12  aPL/default incr 381ms       elapsed    45.3s  eta    51.3s
+[ 62/130] rep 12  aM/default incr 380ms        elapsed    46.0s  eta    50.4s
+[ 63/130] rep 12  a2/default incr 402ms        elapsed    46.7s  eta    49.6s
+[ 64/130] rep 12  aStar/default incr 421ms     elapsed    47.8s  eta    49.3s
+[ 65/130] rep 12  a0/default incr 377ms        elapsed    48.4s  eta    48.4s
+[ 66/130] rep 13  aM/default incr 371ms        elapsed    49.1s  eta    47.6s
+[ 67/130] rep 13  a2/default incr 443ms        elapsed    49.9s  eta    46.9s
+[ 68/130] rep 13  aStar/default incr 413ms     elapsed    50.6s  eta    46.1s
+[ 69/130] rep 13  a0/default incr 388ms        elapsed    51.3s  eta    45.3s
+[ 70/130] rep 13  aPL/default incr 427ms       elapsed    52.0s  eta    44.6s
+[ 71/130] rep 14  a2/default incr 502ms        elapsed    52.9s  eta    43.9s
+[ 72/130] rep 14  aStar/default incr 441ms     elapsed    53.6s  eta    43.2s
+[ 73/130] rep 14  a0/default incr 363ms        elapsed    54.3s  eta    42.4s
+[ 74/130] rep 14  aPL/default incr 406ms       elapsed    55.0s  eta    41.6s
+[ 75/130] rep 14  aM/default incr 524ms        elapsed    55.9s  eta    41.0s
+[ 76/130] rep 15  aStar/default incr 415ms     elapsed    56.6s  eta    40.2s
+[ 77/130] rep 15  a0/default incr 401ms        elapsed    57.3s  eta    39.5s
+[ 78/130] rep 15  aPL/default incr 1.1s        elapsed    58.7s  eta    39.1s
+[ 79/130] rep 15  aM/default incr 376ms        elapsed    59.4s  eta    38.3s
+[ 80/130] rep 15  a2/default incr 403ms        elapsed    1m00s  eta    37.6s
+[ 81/130] rep 16  a0/default incr 441ms        elapsed    1m00s  eta    36.8s
+[ 82/130] rep 16  aPL/default incr 706ms       elapsed    1m01s  eta    36.2s
+[ 83/130] rep 16  aM/default incr 522ms        elapsed    1m02s  eta    35.5s
+[ 84/130] rep 16  a2/default incr 1.1s         elapsed    1m04s  eta    35.1s
+[ 85/130] rep 16  aStar/default incr 433ms     elapsed    1m04s  eta    34.4s
+[ 86/130] rep 17  aPL/default incr 417ms       elapsed    1m05s  eta    33.6s
+[ 87/130] rep 17  aM/default incr 466ms        elapsed    1m06s  eta    32.8s
+[ 88/130] rep 17  a2/default incr 448ms        elapsed    1m07s  eta    32.1s
+[ 89/130] rep 17  aStar/default incr 432ms     elapsed    1m07s  eta    31.3s
+[ 90/130] rep 17  a0/default incr 408ms        elapsed    1m08s  eta    30.5s
+[ 91/130] rep 18  aM/default incr 548ms        elapsed    1m09s  eta    29.9s
+[ 92/130] rep 18  a2/default incr 443ms        elapsed    1m10s  eta    29.1s
+[ 93/130] rep 18  aStar/default incr 439ms     elapsed    1m11s  eta    28.3s
+[ 94/130] rep 18  a0/default incr 408ms        elapsed    1m11s  eta    27.5s
+[ 95/130] rep 18  aPL/default incr 478ms       elapsed    1m12s  eta    26.8s
+[ 96/130] rep 19  a2/default incr 420ms        elapsed    1m13s  eta    26.0s
+[ 97/130] rep 19  aStar/default incr 413ms     elapsed    1m14s  eta    25.2s
+[ 98/130] rep 19  a0/default incr 394ms        elapsed    1m14s  eta    24.4s
+[ 99/130] rep 19  aPL/default incr 354ms       elapsed    1m15s  eta    23.6s
+[100/130] rep 19  aM/default incr 410ms        elapsed    1m16s  eta    22.9s
+[101/130] rep 20  aStar/default incr 431ms     elapsed    1m16s  eta    22.1s
+[102/130] rep 20  a0/default incr 1.1s         elapsed    1m18s  eta    21.5s
+[103/130] rep 20  aPL/default incr 538ms       elapsed    1m19s  eta    20.8s
+[104/130] rep 20  aM/default incr 425ms        elapsed    1m20s  eta    20.0s
+[105/130] rep 20  a2/default incr 415ms        elapsed    1m20s  eta    19.2s
+[106/130] rep 21  a0/default incr 391ms        elapsed    1m21s  eta    18.4s
+[107/130] rep 21  aPL/default incr 501ms       elapsed    1m22s  eta    17.7s
+[108/130] rep 21  aM/default incr 404ms        elapsed    1m23s  eta    17.1s
+[109/130] rep 21  a2/default incr 438ms        elapsed    1m24s  eta    16.3s
+[110/130] rep 21  aStar/default incr 465ms     elapsed    1m25s  eta    15.5s
+[111/130] rep 22  aPL/default incr 424ms       elapsed    1m26s  eta    14.7s
+[112/130] rep 22  aM/default incr 397ms        elapsed    1m26s  eta    14.0s
+[113/130] rep 22  a2/default incr 474ms        elapsed    1m27s  eta    13.2s
+[114/130] rep 22  aStar/default incr 594ms     elapsed    1m28s  eta    12.4s
+[115/130] rep 22  a0/default incr 626ms        elapsed    1m29s  eta    11.7s
+[116/130] rep 23  aM/default incr 1.0s         elapsed    1m31s  eta    11.0s
+[117/130] rep 23  a2/default incr 476ms        elapsed    1m32s  eta    10.2s
+[118/130] rep 23  aStar/default incr 459ms     elapsed    1m32s  eta     9.5s
+[119/130] rep 23  a0/default incr 467ms        elapsed    1m33s  eta     8.7s
+[120/130] rep 23  aPL/default incr 422ms       elapsed    1m34s  eta     7.9s
+[121/130] rep 24  a2/default incr 446ms        elapsed    1m35s  eta     7.1s
+[122/130] rep 24  aStar/default incr 521ms     elapsed    1m36s  eta     6.3s
+[123/130] rep 24  a0/default incr 574ms        elapsed    1m37s  eta     5.5s
+[124/130] rep 24  aPL/default incr 457ms       elapsed    1m37s  eta     4.7s
+[125/130] rep 24  aM/default incr 438ms        elapsed    1m38s  eta     3.9s
+[126/130] rep 25  aStar/default incr 465ms     elapsed    1m39s  eta     3.2s
+[127/130] rep 25  a0/default incr 418ms        elapsed    1m40s  eta     2.4s
+[128/130] rep 25  aPL/default incr 398ms       elapsed    1m40s  eta     1.6s
+[129/130] rep 25  aM/default incr 399ms        elapsed    1m41s  eta    788ms
+[130/130] rep 25  a2/default incr 475ms        elapsed    1m42s  eta      0ms
+
+trace: reshape-source (4 steps, 25 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       10.47    119.68 116.93-125.45 110.17-390.48       0
+a0           1  update_definition           7.56    118.98 114.30-140.04 106.84-204.53       0
+a0           2  update_definition           6.58    125.46 118.09-148.56 108.56-839.07       0
+a0           3  update_definition           7.22    150.53 142.42-160.71 130.93-222.71       0
+aPL          0  cold                       10.89    122.95 117.61-131.00 109.09-277.11      31
+aPL          1  update_definition           7.52    134.31 118.56-144.53 111.28-316.25      31
+aPL          2  update_definition           7.03    127.37 118.71-140.09 107.15-762.44      31
+aPL          3  update_definition           7.10    157.25 147.94-171.56 132.77-441.40      31
+aM           0  cold                       11.03    121.37 118.95-135.21 108.44-956.08      31
+aM           1  update_definition           7.38    122.16 117.75-129.07 106.38-215.16      31
+aM           2  update_definition           6.74    123.56 117.88-130.66 111.28-390.10      31
+aM           3  update_definition           7.54    147.02 142.13-163.11 130.93-748.43      31
+a2           0  cold                       11.14    138.57 126.54-156.80 121.95-182.55      31
+a2           1  update_definition           7.36    136.83 134.01-146.89 123.43-350.26      31
+a2           2  update_definition           6.55    134.07 129.25-142.74 118.73-172.53      31
+a2           3  update_definition           6.76    161.68 152.59-172.17 144.32-745.38      31
+aStar        0  cold                       10.50    135.55 131.28-144.25 115.74-504.30      31
+aStar        1  update_definition           7.42    133.55 130.77-146.44 119.12-158.72      31
+aStar        2  update_definition           7.02    133.40 126.49-140.82 117.23-223.82      31
+aStar        3  update_definition           6.74    159.92 153.61-169.26 144.70-417.99      31
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           119.68       405.50    388.01-431.70    1.000
+aPL      default           122.95       424.32    397.77-478.29    1.046
+aM       default           121.37       400.29    377.64-438.06    0.987
+a2       default           138.57       442.87    419.78-465.63    1.092
+aStar    default           135.55       432.67    419.06-464.61    1.067
+
+add-metrics: 5 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 25 reps) = 130 passes
+[  1/130] warmup  a0/default incr 696ms        elapsed     1.2s  eta    2m29s
+[  2/130] warmup  aPL/default incr 100ms       elapsed     2.5s  eta    2m39s
+[  3/130] warmup  aM/default incr 55ms         elapsed     3.0s  eta    2m06s
+[  4/130] warmup  a2/default incr 72ms         elapsed     3.5s  eta    1m51s
+[  5/130] warmup  aStar/default incr 68ms      elapsed     4.0s  eta    1m40s
+[  6/130] rep 1   a0/default incr 578ms        elapsed     5.0s  eta    1m43s
+[  7/130] rep 1   aPL/default incr 58ms        elapsed     5.5s  eta    1m36s
+[  8/130] rep 1   aM/default incr 54ms         elapsed     5.9s  eta    1m30s
+[  9/130] rep 1   a2/default incr 68ms         elapsed     6.4s  eta    1m26s
+[ 10/130] rep 1   aStar/default incr 77ms      elapsed     6.9s  eta    1m23s
+[ 11/130] rep 2   aPL/default incr 58ms        elapsed     7.4s  eta    1m19s
+[ 12/130] rep 2   aM/default incr 63ms         elapsed     7.9s  eta    1m17s
+[ 13/130] rep 2   a2/default incr 142ms        elapsed     8.7s  eta    1m18s
+[ 14/130] rep 2   aStar/default incr 100ms     elapsed     9.4s  eta    1m17s
+[ 15/130] rep 2   a0/default incr 677ms        elapsed    10.6s  eta    1m21s
+[ 16/130] rep 3   aM/default incr 55ms         elapsed    11.1s  eta    1m19s
+[ 17/130] rep 3   a2/default incr 75ms         elapsed    11.6s  eta    1m17s
+[ 18/130] rep 3   aStar/default incr 75ms      elapsed    12.1s  eta    1m15s
+[ 19/130] rep 3   a0/default incr 583ms        elapsed    13.1s  eta    1m16s
+[ 20/130] rep 3   aPL/default incr 50ms        elapsed    13.5s  eta    1m14s
+[ 21/130] rep 4   a2/default incr 66ms         elapsed    13.9s  eta    1m12s
+[ 22/130] rep 4   aStar/default incr 69ms      elapsed    14.4s  eta    1m10s
+[ 23/130] rep 4   a0/default incr 805ms        elapsed    16.5s  eta    1m16s
+[ 24/130] rep 4   aPL/default incr 71ms        elapsed    17.1s  eta    1m15s
+[ 25/130] rep 4   aM/default incr 91ms         elapsed    17.8s  eta    1m14s
+[ 26/130] rep 5   aStar/default incr 165ms     elapsed    18.6s  eta    1m14s
+[ 27/130] rep 5   a0/default incr 1.9s         elapsed    21.1s  eta    1m20s
+[ 28/130] rep 5   aPL/default incr 71ms        elapsed    21.7s  eta    1m19s
+[ 29/130] rep 5   aM/default incr 68ms         elapsed    22.3s  eta    1m17s
+[ 30/130] rep 5   a2/default incr 108ms        elapsed    23.5s  eta    1m18s
+[ 31/130] rep 6   a0/default incr 845ms        elapsed    24.9s  eta    1m19s
+[ 32/130] rep 6   aPL/default incr 66ms        elapsed    25.4s  eta    1m17s
+[ 33/130] rep 6   aM/default incr 62ms         elapsed    26.0s  eta    1m16s
+[ 34/130] rep 6   a2/default incr 70ms         elapsed    26.5s  eta    1m14s
+[ 35/130] rep 6   aStar/default incr 79ms      elapsed    27.1s  eta    1m13s
+[ 36/130] rep 7   aPL/default incr 61ms        elapsed    27.6s  eta    1m11s
+[ 37/130] rep 7   aM/default incr 59ms         elapsed    28.1s  eta    1m10s
+[ 38/130] rep 7   a2/default incr 82ms         elapsed    28.7s  eta    1m09s
+[ 39/130] rep 7   aStar/default incr 99ms      elapsed    29.3s  eta    1m08s
+[ 40/130] rep 7   a0/default incr 1.1s         elapsed    31.0s  eta    1m09s
+[ 41/130] rep 8   aM/default incr 105ms        elapsed    31.7s  eta    1m08s
+[ 42/130] rep 8   a2/default incr 96ms         elapsed    32.4s  eta    1m07s
+[ 43/130] rep 8   aStar/default incr 92ms      elapsed    33.0s  eta    1m06s
+[ 44/130] rep 8   a0/default incr 830ms        elapsed    34.3s  eta    1m07s
+[ 45/130] rep 8   aPL/default incr 69ms        elapsed    34.9s  eta    1m05s
+[ 46/130] rep 9   a2/default incr 69ms         elapsed    35.4s  eta    1m04s
+[ 47/130] rep 9   aStar/default incr 67ms      elapsed    35.9s  eta    1m03s
+[ 48/130] rep 9   a0/default incr 632ms        elapsed    37.0s  eta    1m03s
+[ 49/130] rep 9   aPL/default incr 52ms        elapsed    37.5s  eta    1m01s
+[ 50/130] rep 9   aM/default incr 82ms         elapsed    39.0s  eta    1m02s
+[ 51/130] rep 10  aStar/default incr 85ms      elapsed    39.6s  eta    1m01s
+[ 52/130] rep 10  a0/default incr 812ms        elapsed    41.0s  eta    1m01s
+[ 53/130] rep 10  aPL/default incr 70ms        elapsed    41.6s  eta    1m00s
+[ 54/130] rep 10  aM/default incr 65ms         elapsed    42.1s  eta    59.3s
+[ 55/130] rep 10  a2/default incr 82ms         elapsed    42.7s  eta    58.3s
+[ 56/130] rep 11  a0/default incr 727ms        elapsed    43.9s  eta    58.0s
+[ 57/130] rep 11  aPL/default incr 58ms        elapsed    44.4s  eta    56.9s
+[ 58/130] rep 11  aM/default incr 79ms         elapsed    45.1s  eta    55.9s
+[ 59/130] rep 11  a2/default incr 74ms         elapsed    45.6s  eta    54.9s
+[ 60/130] rep 11  aStar/default incr 79ms      elapsed    46.1s  eta    53.8s
+[ 61/130] rep 12  aPL/default incr 63ms        elapsed    47.7s  eta    54.0s
+[ 62/130] rep 12  aM/default incr 77ms         elapsed    48.3s  eta    53.0s
+[ 63/130] rep 12  a2/default incr 77ms         elapsed    48.9s  eta    52.0s
+[ 64/130] rep 12  aStar/default incr 111ms     elapsed    49.7s  eta    51.3s
+[ 65/130] rep 12  a0/default incr 957ms        elapsed    51.2s  eta    51.2s
+[ 66/130] rep 13  aM/default incr 59ms         elapsed    51.8s  eta    50.3s
+[ 67/130] rep 13  a2/default incr 92ms         elapsed    52.5s  eta    49.3s
+[ 68/130] rep 13  aStar/default incr 74ms      elapsed    53.0s  eta    48.3s
+[ 69/130] rep 13  a0/default incr 794ms        elapsed    54.3s  eta    48.0s
+[ 70/130] rep 13  aPL/default incr 56ms        elapsed    54.8s  eta    47.0s
+[ 71/130] rep 14  a2/default incr 140ms        elapsed    55.6s  eta    46.2s
+[ 72/130] rep 14  aStar/default incr 143ms     elapsed    56.4s  eta    45.4s
+[ 73/130] rep 14  a0/default incr 1.0s         elapsed    58.0s  eta    45.3s
+[ 74/130] rep 14  aPL/default incr 79ms        elapsed    58.7s  eta    44.4s
+[ 75/130] rep 14  aM/default incr 80ms         elapsed    59.3s  eta    43.5s
+[ 76/130] rep 15  aStar/default incr 98ms      elapsed    60.0s  eta    42.6s
+[ 77/130] rep 15  a0/default incr 743ms        elapsed    1m01s  eta    42.1s
+[ 78/130] rep 15  aPL/default incr 59ms        elapsed    1m01s  eta    41.2s
+[ 79/130] rep 15  aM/default incr 66ms         elapsed    1m02s  eta    40.2s
+[ 80/130] rep 15  a2/default incr 132ms        elapsed    1m04s  eta    40.4s
+[ 81/130] rep 16  a0/default incr 822ms        elapsed    1m05s  eta    39.9s
+[ 82/130] rep 16  aPL/default incr 67ms        elapsed    1m06s  eta    38.9s
+[ 83/130] rep 16  aM/default incr 65ms         elapsed    1m07s  eta    38.0s
+[ 84/130] rep 16  a2/default incr 1.4s         elapsed    1m09s  eta    37.9s
+[ 85/130] rep 16  aStar/default incr 94ms      elapsed    1m09s  eta    37.0s
+[ 86/130] rep 17  aPL/default incr 75ms        elapsed    1m10s  eta    36.1s
+[ 87/130] rep 17  aM/default incr 76ms         elapsed    1m11s  eta    35.2s
+[ 88/130] rep 17  a2/default incr 113ms        elapsed    1m11s  eta    34.3s
+[ 89/130] rep 17  aStar/default incr 1.1s      elapsed    1m13s  eta    33.9s
+[ 90/130] rep 17  a0/default incr 675ms        elapsed    1m14s  eta    33.2s
+[ 91/130] rep 18  aM/default incr 59ms         elapsed    1m15s  eta    32.3s
+[ 92/130] rep 18  a2/default incr 75ms         elapsed    1m15s  eta    31.3s
+[ 93/130] rep 18  aStar/default incr 78ms      elapsed    1m16s  eta    30.4s
+[ 94/130] rep 18  a0/default incr 1.8s         elapsed    1m18s  eta    30.2s
+[ 95/130] rep 18  aPL/default incr 91ms        elapsed    1m19s  eta    29.3s
+[ 96/130] rep 19  a2/default incr 87ms         elapsed    1m20s  eta    28.4s
+[ 97/130] rep 19  aStar/default incr 78ms      elapsed    1m20s  eta    27.5s
+[ 98/130] rep 19  a0/default incr 709ms        elapsed    1m21s  eta    26.8s
+[ 99/130] rep 19  aPL/default incr 66ms        elapsed    1m22s  eta    25.8s
+[100/130] rep 19  aM/default incr 63ms         elapsed    1m23s  eta    24.9s
+[101/130] rep 20  aStar/default incr 948ms     elapsed    1m24s  eta    24.3s
+[102/130] rep 20  a0/default incr 696ms        elapsed    1m25s  eta    23.6s
+[103/130] rep 20  aPL/default incr 55ms        elapsed    1m26s  eta    22.6s
+[104/130] rep 20  aM/default incr 70ms         elapsed    1m26s  eta    21.7s
+[105/130] rep 20  a2/default incr 74ms         elapsed    1m27s  eta    20.8s
+[106/130] rep 21  a0/default incr 658ms        elapsed    1m28s  eta    20.0s
+[107/130] rep 21  aPL/default incr 56ms        elapsed    1m29s  eta    19.1s
+[108/130] rep 21  aM/default incr 112ms        elapsed    1m29s  eta    18.3s
+[109/130] rep 21  a2/default incr 86ms         elapsed    1m31s  eta    17.5s
+[110/130] rep 21  aStar/default incr 81ms      elapsed    1m31s  eta    16.7s
+[111/130] rep 22  aPL/default incr 60ms        elapsed    1m32s  eta    15.8s
+[112/130] rep 22  aM/default incr 77ms         elapsed    1m32s  eta    14.9s
+[113/130] rep 22  a2/default incr 113ms        elapsed    1m33s  eta    14.1s
+[114/130] rep 22  aStar/default incr 77ms      elapsed    1m34s  eta    13.2s
+[115/130] rep 22  a0/default incr 690ms        elapsed    1m35s  eta    12.4s
+[116/130] rep 23  aM/default incr 108ms        elapsed    1m36s  eta    11.6s
+[117/130] rep 23  a2/default incr 139ms        elapsed    1m36s  eta    10.8s
+[118/130] rep 23  aStar/default incr 140ms     elapsed    1m37s  eta     9.9s
+[119/130] rep 23  a0/default incr 674ms        elapsed    1m38s  eta     9.1s
+[120/130] rep 23  aPL/default incr 64ms        elapsed    1m39s  eta     8.3s
+[121/130] rep 24  a2/default incr 83ms         elapsed    1m39s  eta     7.4s
+[122/130] rep 24  aStar/default incr 79ms      elapsed    1m40s  eta     6.6s
+[123/130] rep 24  a0/default incr 680ms        elapsed    1m41s  eta     5.8s
+[124/130] rep 24  aPL/default incr 63ms        elapsed    1m42s  eta     4.9s
+[125/130] rep 24  aM/default incr 56ms         elapsed    1m42s  eta     4.1s
+[126/130] rep 25  aStar/default incr 576ms     elapsed    1m43s  eta     3.3s
+[127/130] rep 25  a0/default incr 700ms        elapsed    1m45s  eta     2.5s
+[128/130] rep 25  aPL/default incr 57ms        elapsed    1m45s  eta     1.7s
+[129/130] rep 25  aM/default incr 75ms         elapsed    1m46s  eta    824ms
+[130/130] rep 25  a2/default incr 88ms         elapsed    1m46s  eta      0ms
+
+trace: add-metrics (5 steps, 25 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       15.34    154.40 141.53-171.02 119.64-294.86       0
+a0           1  insert_before               9.74    163.35 151.98-180.84 129.16-1178.13       0
+a0           2  insert_before              10.93    170.32 159.26-188.53 135.73-1317.53       0
+a0           3  insert_before              13.94    189.37 171.30-209.23 148.09-312.92       0
+a0           4  update_body                13.24    188.41 174.21-213.93 156.85-262.22       0
+aPL          0  cold                       14.51    141.48 135.02-152.27 122.73-216.66      31
+aPL          1  insert_before               9.94     21.67 19.62-23.46 17.11-29.99      40
+aPL          2  insert_before              10.09     14.13 13.19-15.29 11.06-19.69      48
+aPL          3  insert_before              11.92     21.71 19.01-24.97 17.34-38.76      65
+aPL          4  update_body                13.84      4.38 3.55-5.76 3.08-8.88      70
+aM           0  cold                       14.64    155.31 139.72-163.37 124.63-221.71      31
+aM           1  insert_before              10.63     23.64 22.15-27.31 17.54-40.98      40
+aM           2  insert_before              12.11     14.78 12.97-17.34 12.19-30.31      48
+aM           3  insert_before              13.91     22.00 20.05-28.35 18.09-45.93      65
+aM           4  update_body                15.28      4.66 3.54-7.59 3.27-13.52      70
+a2           0  cold                       14.76    171.20 152.04-200.79 127.44-1703.35      31
+a2           1  insert_before              11.03     29.80 26.11-36.08 22.38-63.02      40
+a2           2  insert_before              11.28     20.15 18.22-24.37 14.81-36.35      48
+a2           3  insert_before              12.76     30.54 27.07-33.10 22.50-1325.18      65
+a2           4  update_body                13.32      4.01 3.63-6.33 3.17-19.19      70
+aStar        0  cold                       15.26    161.41 152.98-181.47 128.06-283.41      31
+aStar        1  insert_before              10.83     28.32 26.25-30.18 23.60-58.36      40
+aStar        2  insert_before              10.95     19.81 18.30-22.89 16.10-87.19      48
+aStar        3  insert_before              11.51     28.91 26.13-33.58 23.56-1026.22      65
+aStar        4  update_body                13.59      4.57 4.15-7.22 2.92-509.68      70
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           154.40       726.65    676.88-830.10    1.000
+aPL      default           141.48        63.23      57.72-68.51    0.087
+aM       default           155.31        68.07      61.86-79.18    0.094
+a2       default           171.20        86.00     74.57-113.13    0.118
+aStar    default           161.41        85.01     78.16-110.70    0.117
+
+fix-middle: 3 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 25 reps) = 130 passes
+[  1/130] warmup  a0/default incr 273ms        elapsed    553ms  eta    1m11s
+[  2/130] warmup  aPL/default incr 47ms        elapsed    884ms  eta    56.6s
+[  3/130] warmup  aM/default incr 38ms         elapsed     1.2s  eta    51.7s
+[  4/130] warmup  a2/default incr 51ms         elapsed     1.6s  eta    49.1s
+[  5/130] warmup  aStar/default incr 87ms      elapsed     2.0s  eta    49.1s
+[  6/130] rep 1   a0/default incr 412ms        elapsed     2.8s  eta    57.8s
+[  7/130] rep 1   aPL/default incr 89ms        elapsed     3.3s  eta    58.4s
+[  8/130] rep 1   aM/default incr 74ms         elapsed     3.8s  eta    58.7s
+[  9/130] rep 1   a2/default incr 94ms         elapsed     4.4s  eta    59.3s
+[ 10/130] rep 1   aStar/default incr 63ms      elapsed     4.8s  eta    58.0s
+[ 11/130] rep 2   aPL/default incr 45ms        elapsed     5.2s  eta    56.0s
+[ 12/130] rep 2   aM/default incr 41ms         elapsed     5.5s  eta    54.1s
+[ 13/130] rep 2   a2/default incr 58ms         elapsed     5.9s  eta    52.7s
+[ 14/130] rep 2   aStar/default incr 60ms      elapsed     6.2s  eta    51.6s
+[ 15/130] rep 2   a0/default incr 295ms        elapsed     6.8s  eta    52.4s
+[ 16/130] rep 3   aM/default incr 112ms        elapsed     7.5s  eta    53.7s
+[ 17/130] rep 3   a2/default incr 79ms         elapsed     8.0s  eta    53.2s
+[ 18/130] rep 3   aStar/default incr 61ms      elapsed     8.5s  eta    52.7s
+[ 19/130] rep 3   a0/default incr 319ms        elapsed     9.1s  eta    53.3s
+[ 20/130] rep 3   aPL/default incr 43ms        elapsed     9.5s  eta    52.1s
+[ 21/130] rep 4   a2/default incr 54ms         elapsed     9.8s  eta    50.9s
+[ 22/130] rep 4   aStar/default incr 56ms      elapsed    10.1s  eta    49.8s
+[ 23/130] rep 4   a0/default incr 259ms        elapsed    10.7s  eta    49.8s
+[ 24/130] rep 4   aPL/default incr 38ms        elapsed    11.0s  eta    48.6s
+[ 25/130] rep 4   aM/default incr 71ms         elapsed    12.3s  eta    51.7s
+[ 26/130] rep 5   aStar/default incr 55ms      elapsed    12.7s  eta    50.7s
+[ 27/130] rep 5   a0/default incr 299ms        elapsed    13.3s  eta    50.5s
+[ 28/130] rep 5   aPL/default incr 46ms        elapsed    13.6s  eta    49.6s
+[ 29/130] rep 5   aM/default incr 54ms         elapsed    15.2s  eta    53.1s
+[ 30/130] rep 5   a2/default incr 56ms         elapsed    15.7s  eta    52.4s
+[ 31/130] rep 6   a0/default incr 404ms        elapsed    16.5s  eta    52.5s
+[ 32/130] rep 6   aPL/default incr 51ms        elapsed    16.8s  eta    51.6s
+[ 33/130] rep 6   aM/default incr 52ms         elapsed    17.2s  eta    50.6s
+[ 34/130] rep 6   a2/default incr 91ms         elapsed    17.6s  eta    49.8s
+[ 35/130] rep 6   aStar/default incr 65ms      elapsed    18.0s  eta    49.0s
+[ 36/130] rep 7   aPL/default incr 45ms        elapsed    18.4s  eta    48.0s
+[ 37/130] rep 7   aM/default incr 75ms         elapsed    19.7s  eta    49.4s
+[ 38/130] rep 7   a2/default incr 52ms         elapsed    20.0s  eta    48.5s
+[ 39/130] rep 7   aStar/default incr 56ms      elapsed    20.4s  eta    47.6s
+[ 40/130] rep 7   a0/default incr 291ms        elapsed    21.0s  eta    47.2s
+[ 41/130] rep 8   aM/default incr 41ms         elapsed    21.3s  eta    46.3s
+[ 42/130] rep 8   a2/default incr 432ms        elapsed    22.4s  eta    47.0s
+[ 43/130] rep 8   aStar/default incr 57ms      elapsed    22.8s  eta    46.2s
+[ 44/130] rep 8   a0/default incr 286ms        elapsed    23.4s  eta    45.7s
+[ 45/130] rep 8   aPL/default incr 55ms        elapsed    23.7s  eta    44.8s
+[ 46/130] rep 9   a2/default incr 61ms         elapsed    24.1s  eta    44.0s
+[ 47/130] rep 9   aStar/default incr 57ms      elapsed    24.5s  eta    43.2s
+[ 48/130] rep 9   a0/default incr 263ms        elapsed    25.0s  eta    42.7s
+[ 49/130] rep 9   aPL/default incr 42ms        elapsed    25.3s  eta    41.9s
+[ 50/130] rep 9   aM/default incr 43ms         elapsed    25.6s  eta    41.0s
+[ 51/130] rep 10  aStar/default incr 69ms      elapsed    26.0s  eta    40.3s
+[ 52/130] rep 10  a0/default incr 277ms        elapsed    26.6s  eta    39.9s
+[ 53/130] rep 10  aPL/default incr 37ms        elapsed    26.9s  eta    39.1s
+[ 54/130] rep 10  aM/default incr 62ms         elapsed    27.3s  eta    38.4s
+[ 55/130] rep 10  a2/default incr 124ms        elapsed    27.9s  eta    38.0s
+[ 56/130] rep 11  a0/default incr 381ms        elapsed    28.6s  eta    37.8s
+[ 57/130] rep 11  aPL/default incr 60ms        elapsed    29.1s  eta    37.3s
+[ 58/130] rep 11  aM/default incr 48ms         elapsed    29.5s  eta    36.6s
+[ 59/130] rep 11  a2/default incr 77ms         elapsed    30.6s  eta    36.8s
+[ 60/130] rep 11  aStar/default incr 58ms      elapsed    31.0s  eta    36.1s
+[ 61/130] rep 12  aPL/default incr 42ms        elapsed    31.3s  eta    35.4s
+[ 62/130] rep 12  aM/default incr 44ms         elapsed    31.7s  eta    34.7s
+[ 63/130] rep 12  a2/default incr 54ms         elapsed    32.0s  eta    34.1s
+[ 64/130] rep 12  aStar/default incr 101ms     elapsed    32.6s  eta    33.6s
+[ 65/130] rep 12  a0/default incr 314ms        elapsed    33.3s  eta    33.3s
+[ 66/130] rep 13  aM/default incr 52ms         elapsed    33.6s  eta    32.6s
+[ 67/130] rep 13  a2/default incr 61ms         elapsed    34.0s  eta    32.0s
+[ 68/130] rep 13  aStar/default incr 166ms     elapsed    34.6s  eta    31.5s
+[ 69/130] rep 13  a0/default incr 465ms        elapsed    36.4s  eta    32.2s
+[ 70/130] rep 13  aPL/default incr 56ms        elapsed    36.9s  eta    31.6s
+[ 71/130] rep 14  a2/default incr 95ms         elapsed    38.3s  eta    31.9s
+[ 72/130] rep 14  aStar/default incr 54ms      elapsed    38.7s  eta    31.2s
+[ 73/130] rep 14  a0/default incr 290ms        elapsed    39.3s  eta    30.7s
+[ 74/130] rep 14  aPL/default incr 42ms        elapsed    39.6s  eta    30.0s
+[ 75/130] rep 14  aM/default incr 42ms         elapsed    40.0s  eta    29.4s
+[ 76/130] rep 15  aStar/default incr 52ms      elapsed    40.4s  eta    28.7s
+[ 77/130] rep 15  a0/default incr 264ms        elapsed    40.9s  eta    28.2s
+[ 78/130] rep 15  aPL/default incr 52ms        elapsed    42.0s  eta    28.0s
+[ 79/130] rep 15  aM/default incr 54ms         elapsed    42.4s  eta    27.4s
+[ 80/130] rep 15  a2/default incr 58ms         elapsed    42.8s  eta    26.7s
+[ 81/130] rep 16  a0/default incr 273ms        elapsed    43.3s  eta    26.2s
+[ 82/130] rep 16  aPL/default incr 38ms        elapsed    43.6s  eta    25.5s
+[ 83/130] rep 16  aM/default incr 44ms         elapsed    43.9s  eta    24.9s
+[ 84/130] rep 16  a2/default incr 68ms         elapsed    44.4s  eta    24.3s
+[ 85/130] rep 16  aStar/default incr 57ms      elapsed    44.8s  eta    23.7s
+[ 86/130] rep 17  aPL/default incr 37ms        elapsed    45.1s  eta    23.1s
+[ 87/130] rep 17  aM/default incr 43ms         elapsed    45.4s  eta    22.4s
+[ 88/130] rep 17  a2/default incr 75ms         elapsed    45.8s  eta    21.9s
+[ 89/130] rep 17  aStar/default incr 105ms     elapsed    46.3s  eta    21.3s
+[ 90/130] rep 17  a0/default incr 379ms        elapsed    47.1s  eta    21.0s
+[ 91/130] rep 18  aM/default incr 956ms        elapsed    48.5s  eta    20.8s
+[ 92/130] rep 18  a2/default incr 57ms         elapsed    48.9s  eta    20.2s
+[ 93/130] rep 18  aStar/default incr 55ms      elapsed    49.3s  eta    19.6s
+[ 94/130] rep 18  a0/default incr 273ms        elapsed    49.8s  eta    19.1s
+[ 95/130] rep 18  aPL/default incr 41ms        elapsed    50.2s  eta    18.5s
+[ 96/130] rep 19  a2/default incr 68ms         elapsed    50.6s  eta    17.9s
+[ 97/130] rep 19  aStar/default incr 55ms      elapsed    50.9s  eta    17.3s
+[ 98/130] rep 19  a0/default incr 283ms        elapsed    51.5s  eta    16.8s
+[ 99/130] rep 19  aPL/default incr 40ms        elapsed    51.8s  eta    16.2s
+[100/130] rep 19  aM/default incr 63ms         elapsed    53.2s  eta    16.0s
+[101/130] rep 20  aStar/default incr 80ms      elapsed    53.6s  eta    15.4s
+[102/130] rep 20  a0/default incr 262ms        elapsed    54.1s  eta    14.8s
+[103/130] rep 20  aPL/default incr 43ms        elapsed    54.4s  eta    14.3s
+[104/130] rep 20  aM/default incr 60ms         elapsed    55.0s  eta    13.8s
+[105/130] rep 20  a2/default incr 75ms         elapsed    55.5s  eta    13.2s
+[106/130] rep 21  a0/default incr 375ms        elapsed    56.3s  eta    12.8s
+[107/130] rep 21  aPL/default incr 57ms        elapsed    56.8s  eta    12.2s
+[108/130] rep 21  aM/default incr 50ms         elapsed    57.2s  eta    11.7s
+[109/130] rep 21  a2/default incr 121ms        elapsed    58.0s  eta    11.2s
+[110/130] rep 21  aStar/default incr 165ms     elapsed    59.9s  eta    10.9s
+[111/130] rep 22  aPL/default incr 60ms        elapsed    1m00s  eta    10.3s
+[112/130] rep 22  aM/default incr 64ms         elapsed    1m00s  eta     9.8s
+[113/130] rep 22  a2/default incr 76ms         elapsed    1m01s  eta     9.2s
+[114/130] rep 22  aStar/default incr 70ms      elapsed    1m01s  eta     8.7s
+[115/130] rep 22  a0/default incr 385ms        elapsed    1m02s  eta     8.2s
+[116/130] rep 23  aM/default incr 53ms         elapsed    1m03s  eta     7.6s
+[117/130] rep 23  a2/default incr 65ms         elapsed    1m03s  eta     7.1s
+[118/130] rep 23  aStar/default incr 61ms      elapsed    1m03s  eta     6.5s
+[119/130] rep 23  a0/default incr 404ms        elapsed    1m04s  eta     6.0s
+[120/130] rep 23  aPL/default incr 48ms        elapsed    1m05s  eta     5.5s
+[121/130] rep 24  a2/default incr 67ms         elapsed    1m06s  eta     4.9s
+[122/130] rep 24  aStar/default incr 73ms      elapsed    1m06s  eta     4.4s
+[123/130] rep 24  a0/default incr 347ms        elapsed    1m07s  eta     3.8s
+[124/130] rep 24  aPL/default incr 48ms        elapsed    1m08s  eta     3.3s
+[125/130] rep 24  aM/default incr 48ms         elapsed    1m08s  eta     2.7s
+[126/130] rep 25  aStar/default incr 55ms      elapsed    1m08s  eta     2.2s
+[127/130] rep 25  a0/default incr 318ms        elapsed    1m09s  eta     1.6s
+[128/130] rep 25  aPL/default incr 54ms        elapsed    1m09s  eta     1.1s
+[129/130] rep 25  aM/default incr 75ms         elapsed    1m10s  eta    546ms
+[130/130] rep 25  a2/default incr 85ms         elapsed    1m10s  eta      0ms
+
+trace: fix-middle (3 steps, 25 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       17.05    151.30 138.58-197.40 133.58-1218.58       0
+a0           1  update_definition          11.39    143.50 135.23-171.02 131.34-207.33       0
+a0           2  update_definition          10.95    153.39 140.35-189.09 126.71-309.40       0
+aPL          0  cold                       15.10    153.91 139.83-176.91 130.92-930.76      35
+aPL          1  update_definition          10.24     25.89 24.79-29.69 22.87-58.87      35
+aPL          2  update_definition          11.11     17.64 16.33-23.74 14.07-30.20      35
+aM           0  cold                       15.88    160.48 147.53-204.86 130.37-341.88      35
+aM           1  update_definition          12.06     32.58 27.00-42.51 24.96-932.76      35
+aM           2  update_definition          12.32     20.16 17.84-22.98 15.10-32.37      35
+a2           0  cold                       16.98    184.20 159.14-205.37 151.03-343.60      35
+a2           1  update_definition          10.99     42.12 36.20-52.60 33.28-396.84      35
+a2           2  update_definition          11.24     25.70 22.59-33.73 18.04-45.16      35
+aStar        0  cold                       16.10    179.01 159.90-193.14 142.17-274.44      35
+aStar        1  update_definition          10.66     35.47 34.30-37.25 32.78-82.48      35
+aStar        2  update_definition          11.84     22.02 20.71-31.33 18.85-131.36      35
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           151.30       299.27    276.87-379.11    1.000
+aPL      default           153.91        45.24      42.03-53.54    0.151
+aM       default           160.48        52.97      44.19-63.50    0.177
+a2       default           184.20        67.82      58.14-85.45    0.227
+aStar    default           179.01        60.10      55.63-70.46    0.201
+
+tune-threshold: 10 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 25 reps) = 130 passes
+[  1/130] warmup  a0/default incr 2.1s         elapsed     3.0s  eta    6m26s
+[  2/130] warmup  aPL/default incr 408ms       elapsed     4.2s  eta    4m29s
+[  3/130] warmup  aM/default incr 348ms        elapsed     5.2s  eta    3m42s
+[  4/130] warmup  a2/default incr 469ms        elapsed     7.3s  eta    3m48s
+[  5/130] warmup  aStar/default incr 393ms     elapsed     8.4s  eta    3m29s
+[  6/130] rep 1   a0/default incr 1.5s         elapsed    10.5s  eta    3m37s
+[  7/130] rep 1   aPL/default incr 341ms       elapsed    11.5s  eta    3m22s
+[  8/130] rep 1   aM/default incr 693ms        elapsed    14.2s  eta    3m36s
+[  9/130] rep 1   a2/default incr 470ms        elapsed    15.4s  eta    3m27s
+[ 10/130] rep 1   aStar/default incr 460ms     elapsed    16.7s  eta    3m20s
+[ 11/130] rep 2   aPL/default incr 367ms       elapsed    18.0s  eta    3m15s
+[ 12/130] rep 2   aM/default incr 383ms        elapsed    19.1s  eta    3m07s
+[ 13/130] rep 2   a2/default incr 633ms        elapsed    21.7s  eta    3m15s
+[ 14/130] rep 2   aStar/default incr 484ms     elapsed    22.9s  eta    3m09s
+[ 15/130] rep 2   a0/default incr 2.4s         elapsed    26.1s  eta    3m20s
+[ 16/130] rep 3   aM/default incr 368ms        elapsed    27.2s  eta    3m14s
+[ 17/130] rep 3   a2/default incr 1.6s         elapsed    29.6s  eta    3m16s
+[ 18/130] rep 3   aStar/default incr 422ms     elapsed    30.8s  eta    3m11s
+[ 19/130] rep 3   a0/default incr 1.6s         elapsed    33.2s  eta    3m14s
+[ 20/130] rep 3   aPL/default incr 388ms       elapsed    34.5s  eta    3m09s
+[ 21/130] rep 4   a2/default incr 664ms        elapsed    36.9s  eta    3m11s
+[ 22/130] rep 4   aStar/default incr 397ms     elapsed    38.0s  eta    3m06s
+[ 23/130] rep 4   a0/default incr 1.5s         elapsed    40.3s  eta    3m07s
+[ 24/130] rep 4   aPL/default incr 360ms       elapsed    41.4s  eta    3m02s
+[ 25/130] rep 4   aM/default incr 383ms        elapsed    43.5s  eta    3m02s
+[ 26/130] rep 5   aStar/default incr 465ms     elapsed    44.8s  eta    2m59s
+[ 27/130] rep 5   a0/default incr 2.6s         elapsed    48.2s  eta    3m03s
+[ 28/130] rep 5   aPL/default incr 362ms       elapsed    49.3s  eta    2m59s
+[ 29/130] rep 5   aM/default incr 484ms        elapsed    50.7s  eta    2m56s
+[ 30/130] rep 5   a2/default incr 533ms        elapsed    52.1s  eta    2m53s
+[ 31/130] rep 6   a0/default incr 2.2s         elapsed    55.3s  eta    2m56s
+[ 32/130] rep 6   aPL/default incr 343ms       elapsed    56.4s  eta    2m52s
+[ 33/130] rep 6   aM/default incr 433ms        elapsed    58.3s  eta    2m51s
+[ 34/130] rep 6   a2/default incr 392ms        elapsed    59.4s  eta    2m47s
+[ 35/130] rep 6   aStar/default incr 557ms     elapsed    1m00s  eta    2m45s
+[ 36/130] rep 7   aPL/default incr 434ms       elapsed    1m02s  eta    2m42s
+[ 37/130] rep 7   aM/default incr 355ms        elapsed    1m03s  eta    2m39s
+[ 38/130] rep 7   a2/default incr 602ms        elapsed    1m05s  eta    2m37s
+[ 39/130] rep 7   aStar/default incr 592ms     elapsed    1m06s  eta    2m35s
+[ 40/130] rep 7   a0/default incr 1.9s         elapsed    1m09s  eta    2m36s
+[ 41/130] rep 8   aM/default incr 341ms        elapsed    1m10s  eta    2m32s
+[ 42/130] rep 8   a2/default incr 370ms        elapsed    1m11s  eta    2m29s
+[ 43/130] rep 8   aStar/default incr 346ms     elapsed    1m12s  eta    2m26s
+[ 44/130] rep 8   a0/default incr 2.4s         elapsed    1m15s  eta    2m27s
+[ 45/130] rep 8   aPL/default incr 444ms       elapsed    1m17s  eta    2m25s
+[ 46/130] rep 9   a2/default incr 464ms        elapsed    1m18s  eta    2m23s
+[ 47/130] rep 9   aStar/default incr 437ms     elapsed    1m19s  eta    2m20s
+[ 48/130] rep 9   a0/default incr 1.9s         elapsed    1m22s  eta    2m20s
+[ 49/130] rep 9   aPL/default incr 388ms       elapsed    1m24s  eta    2m19s
+[ 50/130] rep 9   aM/default incr 399ms        elapsed    1m25s  eta    2m16s
+[ 51/130] rep 10  aStar/default incr 514ms     elapsed    1m26s  eta    2m14s
+[ 52/130] rep 10  a0/default incr 1.6s         elapsed    1m29s  eta    2m13s
+[ 53/130] rep 10  aPL/default incr 403ms       elapsed    1m30s  eta    2m11s
+[ 54/130] rep 10  aM/default incr 521ms        elapsed    1m32s  eta    2m09s
+[ 55/130] rep 10  a2/default incr 776ms        elapsed    1m34s  eta    2m08s
+[ 56/130] rep 11  a0/default incr 2.0s         elapsed    1m38s  eta    2m10s
+[ 57/130] rep 11  aPL/default incr 464ms       elapsed    1m40s  eta    2m08s
+[ 58/130] rep 11  aM/default incr 496ms        elapsed    1m41s  eta    2m06s
+[ 59/130] rep 11  a2/default incr 445ms        elapsed    1m43s  eta    2m03s
+[ 60/130] rep 11  aStar/default incr 499ms     elapsed    1m44s  eta    2m01s
+[ 61/130] rep 12  aPL/default incr 413ms       elapsed    1m45s  eta    1m59s
+[ 62/130] rep 12  aM/default incr 604ms        elapsed    1m47s  eta    1m57s
+[ 63/130] rep 12  a2/default incr 465ms        elapsed    1m48s  eta    1m55s
+[ 64/130] rep 12  aStar/default incr 528ms     elapsed    1m50s  eta    1m53s
+[ 65/130] rep 12  a0/default incr 1.6s         elapsed    1m52s  eta    1m52s
+[ 66/130] rep 13  aM/default incr 568ms        elapsed    1m55s  eta    1m51s
+[ 67/130] rep 13  a2/default incr 495ms        elapsed    1m56s  eta    1m49s
+[ 68/130] rep 13  aStar/default incr 490ms     elapsed    1m58s  eta    1m47s
+[ 69/130] rep 13  a0/default incr 3.1s         elapsed    2m02s  eta    1m48s
+[ 70/130] rep 13  aPL/default incr 407ms       elapsed    2m03s  eta    1m45s
+[ 71/130] rep 14  a2/default incr 1.1s         elapsed    2m06s  eta    1m44s
+[ 72/130] rep 14  aStar/default incr 460ms     elapsed    2m07s  eta    1m42s
+[ 73/130] rep 14  a0/default incr 1.9s         elapsed    2m10s  eta    1m41s
+[ 74/130] rep 14  aPL/default incr 414ms       elapsed    2m11s  eta    1m39s
+[ 75/130] rep 14  aM/default incr 378ms        elapsed    2m12s  eta    1m37s
+[ 76/130] rep 15  aStar/default incr 717ms     elapsed    2m14s  eta    1m35s
+[ 77/130] rep 15  a0/default incr 2.0s         elapsed    2m17s  eta    1m34s
+[ 78/130] rep 15  aPL/default incr 369ms       elapsed    2m18s  eta    1m32s
+[ 79/130] rep 15  aM/default incr 313ms        elapsed    2m19s  eta    1m30s
+[ 80/130] rep 15  a2/default incr 370ms        elapsed    2m20s  eta    1m27s
+[ 81/130] rep 16  a0/default incr 3.2s         elapsed    2m24s  eta    1m27s
+[ 82/130] rep 16  aPL/default incr 493ms       elapsed    2m26s  eta    1m25s
+[ 83/130] rep 16  aM/default incr 508ms        elapsed    2m27s  eta    1m23s
+[ 84/130] rep 16  a2/default incr 522ms        elapsed    2m29s  eta    1m21s
+[ 85/130] rep 16  aStar/default incr 592ms     elapsed    2m30s  eta    1m19s
+[ 86/130] rep 17  aPL/default incr 1.2s        elapsed    2m32s  eta    1m18s
+[ 87/130] rep 17  aM/default incr 333ms        elapsed    2m33s  eta    1m16s
+[ 88/130] rep 17  a2/default incr 515ms        elapsed    2m35s  eta    1m13s
+[ 89/130] rep 17  aStar/default incr 422ms     elapsed    2m36s  eta    1m11s
+[ 90/130] rep 17  a0/default incr 1.6s         elapsed    2m38s  eta    1m10s
+[ 91/130] rep 18  aM/default incr 388ms        elapsed    2m39s  eta    1m08s
+[ 92/130] rep 18  a2/default incr 781ms        elapsed    2m41s  eta    1m06s
+[ 93/130] rep 18  aStar/default incr 572ms     elapsed    2m43s  eta    1m04s
+[ 94/130] rep 18  a0/default incr 2.0s         elapsed    2m46s  eta    1m03s
+[ 95/130] rep 18  aPL/default incr 330ms       elapsed    2m47s  eta    1m01s
+[ 96/130] rep 19  a2/default incr 544ms        elapsed    2m49s  eta    59.9s
+[ 97/130] rep 19  aStar/default incr 644ms     elapsed    2m50s  eta    58.0s
+[ 98/130] rep 19  a0/default incr 1.8s         elapsed    2m53s  eta    56.6s
+[ 99/130] rep 19  aPL/default incr 513ms       elapsed    2m54s  eta    54.7s
+[100/130] rep 19  aM/default incr 396ms        elapsed    2m55s  eta    52.8s
+[101/130] rep 20  aStar/default incr 446ms     elapsed    2m57s  eta    50.9s
+[102/130] rep 20  a0/default incr 1.8s         elapsed    2m59s  eta    49.3s
+[103/130] rep 20  aPL/default incr 450ms       elapsed    3m01s  eta    47.5s
+[104/130] rep 20  aM/default incr 371ms        elapsed    3m02s  eta    45.5s
+[105/130] rep 20  a2/default incr 429ms        elapsed    3m03s  eta    43.7s
+[106/130] rep 21  a0/default incr 1.7s         elapsed    3m06s  eta    42.3s
+[107/130] rep 21  aPL/default incr 384ms       elapsed    3m08s  eta    40.4s
+[108/130] rep 21  aM/default incr 385ms        elapsed    3m09s  eta    38.6s
+[109/130] rep 21  a2/default incr 601ms        elapsed    3m10s  eta    36.8s
+[110/130] rep 21  aStar/default incr 505ms     elapsed    3m12s  eta    34.9s
+[111/130] rep 22  aPL/default incr 348ms       elapsed    3m13s  eta    33.1s
+[112/130] rep 22  aM/default incr 371ms        elapsed    3m14s  eta    31.2s
+[113/130] rep 22  a2/default incr 537ms        elapsed    3m15s  eta    29.5s
+[114/130] rep 22  aStar/default incr 582ms     elapsed    3m17s  eta    27.7s
+[115/130] rep 22  a0/default incr 3.3s         elapsed    3m21s  eta    26.3s
+[116/130] rep 23  aM/default incr 368ms        elapsed    3m22s  eta    24.4s
+[117/130] rep 23  a2/default incr 450ms        elapsed    3m23s  eta    22.6s
+[118/130] rep 23  aStar/default incr 424ms     elapsed    3m26s  eta    21.0s
+[119/130] rep 23  a0/default incr 1.6s         elapsed    3m29s  eta    19.3s
+[120/130] rep 23  aPL/default incr 1.8s        elapsed    3m32s  eta    17.7s
+[121/130] rep 24  a2/default incr 419ms        elapsed    3m33s  eta    15.9s
+[122/130] rep 24  aStar/default incr 416ms     elapsed    3m34s  eta    14.1s
+[123/130] rep 24  a0/default incr 1.5s         elapsed    3m36s  eta    12.3s
+[124/130] rep 24  aPL/default incr 344ms       elapsed    3m37s  eta    10.5s
+[125/130] rep 24  aM/default incr 355ms        elapsed    3m38s  eta     8.8s
+[126/130] rep 25  aStar/default incr 544ms     elapsed    3m40s  eta     7.0s
+[127/130] rep 25  a0/default incr 2.3s         elapsed    3m44s  eta     5.3s
+[128/130] rep 25  aPL/default incr 383ms       elapsed    3m45s  eta     3.5s
+[129/130] rep 25  aM/default incr 375ms        elapsed    3m46s  eta     1.8s
+[130/130] rep 25  a2/default incr 461ms        elapsed    3m47s  eta      0ms
+
+trace: tune-threshold (10 steps, 25 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       14.40    209.76 192.00-264.12 166.06-1083.01       0
+a0           1  update_definition          11.59    195.43 170.10-230.23 142.55-1476.85       0
+a0           2  update_binding_clause      10.32    192.86 180.33-293.84 165.62-1008.23       0
+a0           3  update_binding_clause      11.49    184.37 174.73-207.73 155.33-1441.19       0
+a0           4  update_binding_clause      11.23    192.43 178.00-205.71 150.68-257.64       0
+a0           5  update_binding_clause      10.31    183.28 173.54-209.21 153.21-265.46       0
+a0           6  update_binding_clause      10.88    184.95 170.95-212.75 150.20-1037.73       0
+a0           7  update_binding_clause      11.30    185.42 174.47-197.54 164.81-262.29       0
+a0           8  update_binding_clause      12.18    190.66 171.28-203.76 161.74-285.63       0
+a0           9  update_binding_clause      13.48    182.35 167.57-198.97 160.55-1080.42       0
+aPL          0  cold                       15.83    229.48 197.35-265.81 184.37-359.15      35
+aPL          1  update_definition          12.70     39.30 36.00-49.27 31.31-85.24      35
+aPL          2  update_binding_clause      12.17     50.59 45.55-54.56 37.85-80.81      35
+aPL          3  update_binding_clause      10.98     42.99 39.93-56.22 35.72-841.66      35
+aPL          4  update_binding_clause      10.70     42.06 39.23-46.58 36.32-113.57      35
+aPL          5  update_binding_clause       9.85     40.05 36.96-43.74 35.07-99.77      35
+aPL          6  update_binding_clause      10.94     39.64 36.82-42.62 28.62-59.77      35
+aPL          7  update_binding_clause      11.83     39.42 36.56-44.31 32.16-1292.66      35
+aPL          8  update_binding_clause      10.22     39.10 36.63-44.94 34.95-123.02      35
+aPL          9  update_binding_clause      11.12     41.07 37.44-44.91 35.26-57.11      35
+aM           0  cold                       13.75    208.59 194.79-229.01 173.31-1201.44      35
+aM           1  update_definition          10.18     36.43 34.45-39.56 29.95-73.67      35
+aM           2  update_binding_clause       9.82     46.23 44.38-54.13 41.57-136.56      35
+aM           3  update_binding_clause      10.29     42.97 39.35-47.50 36.46-122.61      35
+aM           4  update_binding_clause       9.95     41.54 37.39-47.30 35.82-72.29      35
+aM           5  update_binding_clause      10.23     39.54 37.91-43.45 31.92-81.02      35
+aM           6  update_binding_clause       9.26     40.96 36.09-44.62 30.74-88.57      35
+aM           7  update_binding_clause      12.90     40.67 36.65-50.39 32.87-162.99      35
+aM           8  update_binding_clause      11.09     41.48 37.73-57.75 31.62-170.30      35
+aM           9  update_binding_clause       9.95     43.13 38.65-47.38 30.71-87.45      35
+a2           0  cold                       13.35    224.69 203.36-239.16 175.49-764.11      35
+a2           1  update_definition          10.00     49.92 45.13-55.04 39.90-137.94      35
+a2           2  update_binding_clause      11.79     57.48 53.74-77.12 47.89-113.90      35
+a2           3  update_binding_clause      12.19     50.92 47.71-68.06 39.72-701.12      35
+a2           4  update_binding_clause      10.54     48.39 44.13-62.75 35.83-137.91      35
+a2           5  update_binding_clause      11.04     48.30 44.94-58.24 37.42-174.28      35
+a2           6  update_binding_clause      11.94     48.48 44.87-58.48 38.46-97.90      35
+a2           7  update_binding_clause      13.93     48.54 44.66-63.42 35.99-130.50      35
+a2           8  update_binding_clause      12.15     51.17 45.98-62.35 38.64-132.21      35
+a2           9  update_binding_clause      11.92     53.02 46.35-64.55 37.90-1144.89      35
+aStar        0  cold                       14.28    229.68 206.18-277.30 174.85-2103.45      35
+aStar        1  update_definition          10.21     48.90 43.03-57.08 40.31-93.95      35
+aStar        2  update_binding_clause      11.69     56.81 51.19-67.26 46.62-147.62      35
+aStar        3  update_binding_clause      10.31     52.00 46.37-66.01 38.10-103.27      35
+aStar        4  update_binding_clause      11.50     50.69 45.21-61.18 36.02-116.47      35
+aStar        5  update_binding_clause      10.75     48.84 45.85-54.64 36.03-70.54      35
+aStar        6  update_binding_clause      13.48     50.03 45.92-52.44 38.19-132.20      35
+aStar        7  update_binding_clause      15.15     50.70 47.79-63.38 38.50-106.79      35
+aStar        8  update_binding_clause      12.44     51.17 46.73-56.71 35.09-137.46      35
+aStar        9  update_binding_clause      16.11     50.19 46.38-67.66 34.71-108.67      35
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           209.76      1916.27  1634.96-2340.14    1.000
+aPL      default           229.48       388.33    362.29-444.02    0.203
+aM       default           208.59       383.47    368.36-483.82    0.200
+a2       default           224.69       515.18    449.81-602.21    0.269
+aStar    default           229.68       489.54    437.08-556.60    0.255
+
+tariff-tune: 11 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 25 reps) = 130 passes
+[  1/130] warmup  a0/default incr 1.7s         elapsed     2.9s  eta    6m14s
+[  2/130] warmup  aPL/default incr 988ms       elapsed     5.1s  eta    5m25s
+[  3/130] warmup  aM/default incr 695ms        elapsed     6.7s  eta    4m42s
+[  4/130] warmup  a2/default incr 243ms        elapsed     8.2s  eta    4m18s
+[  5/130] warmup  aStar/default incr 196ms     elapsed     9.4s  eta    3m53s
+[  6/130] rep 1   a0/default incr 3.0s         elapsed    13.4s  eta    4m36s
+[  7/130] rep 1   aPL/default incr 1.2s        elapsed    15.5s  eta    4m33s
+[  8/130] rep 1   aM/default incr 568ms        elapsed    16.9s  eta    4m18s
+[  9/130] rep 1   a2/default incr 182ms        elapsed    18.0s  eta    4m01s
+[ 10/130] rep 1   aStar/default incr 166ms     elapsed    18.9s  eta    3m47s
+[ 11/130] rep 2   aPL/default incr 634ms       elapsed    20.4s  eta    3m40s
+[ 12/130] rep 2   aM/default incr 546ms        elapsed    21.7s  eta    3m33s
+[ 13/130] rep 2   a2/default incr 277ms        elapsed    23.0s  eta    3m26s
+[ 14/130] rep 2   aStar/default incr 207ms     elapsed    24.3s  eta    3m21s
+[ 15/130] rep 2   a0/default incr 1.6s         elapsed    26.8s  eta    3m25s
+[ 16/130] rep 3   aM/default incr 554ms        elapsed    28.1s  eta    3m20s
+[ 17/130] rep 3   a2/default incr 135ms        elapsed    29.0s  eta    3m12s
+[ 18/130] rep 3   aStar/default incr 813ms     elapsed    30.6s  eta    3m10s
+[ 19/130] rep 3   a0/default incr 1.5s         elapsed    32.9s  eta    3m12s
+[ 20/130] rep 3   aPL/default incr 689ms       elapsed    34.6s  eta    3m10s
+[ 21/130] rep 4   a2/default incr 162ms        elapsed    35.6s  eta    3m04s
+[ 22/130] rep 4   aStar/default incr 174ms     elapsed    36.6s  eta    2m59s
+[ 23/130] rep 4   a0/default incr 1.5s         elapsed    38.8s  eta    3m00s
+[ 24/130] rep 4   aPL/default incr 858ms       elapsed    40.7s  eta    2m59s
+[ 25/130] rep 4   aM/default incr 606ms        elapsed    42.1s  eta    2m56s
+[ 26/130] rep 5   aStar/default incr 189ms     elapsed    43.2s  eta    2m52s
+[ 27/130] rep 5   a0/default incr 2.3s         elapsed    46.3s  eta    2m56s
+[ 28/130] rep 5   aPL/default incr 602ms       elapsed    47.7s  eta    2m53s
+[ 29/130] rep 5   aM/default incr 583ms        elapsed    49.8s  eta    2m53s
+[ 30/130] rep 5   a2/default incr 165ms        elapsed    50.8s  eta    2m49s
+[ 31/130] rep 6   a0/default incr 1.6s         elapsed    53.2s  eta    2m50s
+[ 32/130] rep 6   aPL/default incr 640ms       elapsed    55.4s  eta    2m49s
+[ 33/130] rep 6   aM/default incr 650ms        elapsed    57.1s  eta    2m47s
+[ 34/130] rep 6   a2/default incr 192ms        elapsed    58.2s  eta    2m44s
+[ 35/130] rep 6   aStar/default incr 171ms     elapsed    59.3s  eta    2m40s
+[ 36/130] rep 7   aPL/default incr 626ms       elapsed    1m00s  eta    2m38s
+[ 37/130] rep 7   aM/default incr 1.0s         elapsed    1m04s  eta    2m43s
+[ 38/130] rep 7   a2/default incr 348ms        elapsed    1m07s  eta    2m42s
+[ 39/130] rep 7   aStar/default incr 222ms     elapsed    1m08s  eta    2m39s
+[ 40/130] rep 7   a0/default incr 2.7s         elapsed    3m48s  eta    8m34s
+[ 41/130] rep 8   aM/default incr 2.5s         elapsed    3m58s  eta    8m36s
+[ 42/130] rep 8   a2/default incr 258ms        elapsed    3m59s  eta    8m22s
+[ 43/130] rep 8   aStar/default incr 236ms     elapsed    4m01s  eta    8m07s
+[ 44/130] rep 8   a0/default incr 2.0s         elapsed    4m04s  eta    7m57s
+[ 45/130] rep 8   aPL/default incr 1.2s        elapsed    4m06s  eta    7m45s
+[ 46/130] rep 9   a2/default incr 452ms        elapsed    4m11s  eta    7m38s
+[ 47/130] rep 9   aStar/default incr 244ms     elapsed    4m12s  eta    7m25s
+[ 48/130] rep 9   a0/default incr 2.0s         elapsed    4m18s  eta    7m20s
+[ 49/130] rep 9   aPL/default incr 847ms       elapsed    4m20s  eta    7m09s
+[ 50/130] rep 9   aM/default incr 756ms        elapsed    4m21s  eta    6m59s
+[ 51/130] rep 10  aStar/default incr 276ms     elapsed    4m23s  eta    6m48s
+[ 52/130] rep 10  a0/default incr 2.6s         elapsed    4m27s  eta    6m41s
+[ 53/130] rep 10  aPL/default incr 875ms       elapsed    4m29s  eta    6m32s
+[ 54/130] rep 10  aM/default incr 774ms        elapsed    4m31s  eta    6m22s
+[ 55/130] rep 10  a2/default incr 246ms        elapsed    4m33s  eta    6m12s
+[ 56/130] rep 11  a0/default incr 4m59s        elapsed    9m33s  eta   12m37s
+[ 57/130] rep 11  aPL/default incr 2.3s        elapsed    9m37s  eta   12m19s
+[ 58/130] rep 11  aM/default incr 735ms        elapsed    9m39s  eta   11m59s
+[ 59/130] rep 11  a2/default incr 902ms        elapsed    9m41s  eta   11m40s
+[ 60/130] rep 11  aStar/default incr 244ms     elapsed    9m43s  eta   11m20s
+[ 61/130] rep 12  aPL/default incr 962ms       elapsed    9m45s  eta   11m02s
+[ 62/130] rep 12  aM/default incr 763ms        elapsed    9m47s  eta   10m44s
+[ 63/130] rep 12  a2/default incr 248ms        elapsed    9m49s  eta   10m26s
+[ 64/130] rep 12  aStar/default incr 299ms     elapsed    9m50s  eta   10m09s
+[ 65/130] rep 12  a0/default incr 2.3s         elapsed    9m54s  eta    9m54s
+[ 66/130] rep 13  aM/default incr 892ms        elapsed    9m56s  eta    9m38s
+[ 67/130] rep 13  a2/default incr 227ms        elapsed    9m58s  eta    9m22s
+[ 68/130] rep 13  aStar/default incr 191ms     elapsed    9m59s  eta    9m06s
+[ 69/130] rep 13  a0/default incr 3.3s         elapsed   10m03s  eta    8m53s
+[ 70/130] rep 13  aPL/default incr 864ms       elapsed   10m07s  eta    8m40s
+[ 71/130] rep 14  a2/default incr 210ms        elapsed   10m08s  eta    8m25s
+[ 72/130] rep 14  aStar/default incr 225ms     elapsed   10m09s  eta    8m11s
+[ 73/130] rep 14  a0/default incr 2.6s         elapsed   10m13s  eta    7m58s
+[ 74/130] rep 14  aPL/default incr 728ms       elapsed   10m15s  eta    7m45s
+[ 75/130] rep 14  aM/default incr 1.8s         elapsed   10m18s  eta    7m33s
+[ 76/130] rep 15  aStar/default incr 277ms     elapsed   10m20s  eta    7m20s
+[ 77/130] rep 15  a0/default incr 1.8s         elapsed   10m23s  eta    7m08s
+[ 78/130] rep 15  aPL/default incr 2.2s        elapsed   10m26s  eta    6m57s
+[ 79/130] rep 15  aM/default incr 881ms        elapsed   10m28s  eta    6m45s
+[ 80/130] rep 15  a2/default incr 223ms        elapsed   10m29s  eta    6m33s
+[ 81/130] rep 16  a0/default incr 2.0s         elapsed   10m32s  eta    6m22s
+[ 82/130] rep 16  aPL/default incr 1.3s        elapsed   10m35s  eta    6m12s
+[ 83/130] rep 16  aM/default incr 908ms        elapsed   10m37s  eta    6m01s
+[ 84/130] rep 16  a2/default incr 212ms        elapsed   10m39s  eta    5m50s
+[ 85/130] rep 16  aStar/default incr 211ms     elapsed   10m40s  eta    5m38s
+[ 86/130] rep 17  aPL/default incr 761ms       elapsed   10m42s  eta    5m28s
+[ 87/130] rep 17  aM/default incr 594ms        elapsed   10m43s  eta    5m18s
+[ 88/130] rep 17  a2/default incr 1.4s         elapsed   10m46s  eta    5m08s
+[ 89/130] rep 17  aStar/default incr 229ms     elapsed   10m47s  eta    4m58s
+[ 90/130] rep 17  a0/default incr 1.8s         elapsed   10m50s  eta    4m48s
+[ 91/130] rep 18  aM/default incr 783ms        elapsed   10m52s  eta    4m39s
+[ 92/130] rep 18  a2/default incr 211ms        elapsed   10m53s  eta    4m29s
+[ 93/130] rep 18  aStar/default incr 238ms     elapsed   10m54s  eta    4m20s
+[ 94/130] rep 18  a0/default incr 3.8s         elapsed   10m59s  eta    4m12s
+[ 95/130] rep 18  aPL/default incr 1.3s        elapsed   11m02s  eta    4m04s
+[ 96/130] rep 19  a2/default incr 230ms        elapsed   11m04s  eta    3m55s
+[ 97/130] rep 19  aStar/default incr 220ms     elapsed   11m05s  eta    3m46s
+[ 98/130] rep 19  a0/default incr 1.8s         elapsed   11m08s  eta    3m38s
+[ 99/130] rep 19  aPL/default incr 2.0s        elapsed   11m11s  eta    3m30s
+[100/130] rep 19  aM/default incr 750ms        elapsed   11m13s  eta    3m21s
+[101/130] rep 20  aStar/default incr 212ms     elapsed   11m14s  eta    3m13s
+[102/130] rep 20  a0/default incr 1.8s         elapsed   11m17s  eta    3m05s
+[103/130] rep 20  aPL/default incr 1.8s        elapsed   11m20s  eta    2m58s
+[104/130] rep 20  aM/default incr 676ms        elapsed   11m21s  eta    2m50s
+[105/130] rep 20  a2/default incr 208ms        elapsed   11m22s  eta    2m42s
+[106/130] rep 21  a0/default incr 1.7s         elapsed   11m25s  eta    2m35s
+[107/130] rep 21  aPL/default incr 981ms       elapsed   11m28s  eta    2m28s
+[108/130] rep 21  aM/default incr 870ms        elapsed   11m30s  eta    2m20s
+[109/130] rep 21  a2/default incr 288ms        elapsed   11m32s  eta    2m13s
+[110/130] rep 21  aStar/default incr 248ms     elapsed   11m33s  eta    2m06s
+[111/130] rep 22  aPL/default incr 1.3s        elapsed   11m36s  eta    1m59s
+[112/130] rep 22  aM/default incr 924ms        elapsed   11m38s  eta    1m52s
+[113/130] rep 22  a2/default incr 228ms        elapsed   11m40s  eta    1m45s
+[114/130] rep 22  aStar/default incr 247ms     elapsed   11m42s  eta    1m38s
+[115/130] rep 22  a0/default incr 1.9s         elapsed   11m45s  eta    1m31s
+[116/130] rep 23  aM/default incr 1.9s         elapsed   11m48s  eta    1m25s
+[117/130] rep 23  a2/default incr 199ms        elapsed   11m49s  eta    1m18s
+[118/130] rep 23  aStar/default incr 200ms     elapsed   11m50s  eta    1m12s
+[119/130] rep 23  a0/default incr 2.4s         elapsed   11m53s  eta    1m05s
+[120/130] rep 23  aPL/default incr 625ms       elapsed   11m55s  eta    59.6s
+[121/130] rep 24  a2/default incr 190ms        elapsed   11m56s  eta    53.3s
+[122/130] rep 24  aStar/default incr 188ms     elapsed   11m57s  eta    47.1s
+[123/130] rep 24  a0/default incr 2.0s         elapsed   12m00s  eta    41.0s
+[124/130] rep 24  aPL/default incr 996ms       elapsed   12m04s  eta    35.0s
+[125/130] rep 24  aM/default incr 1.7s         elapsed   12m07s  eta    29.1s
+[126/130] rep 25  aStar/default incr 203ms     elapsed   12m08s  eta    23.1s
+[127/130] rep 25  a0/default incr 1.9s         elapsed   12m11s  eta    17.3s
+[128/130] rep 25  aPL/default incr 927ms       elapsed   12m13s  eta    11.5s
+[129/130] rep 25  aM/default incr 1.1s         elapsed   12m15s  eta     5.7s
+[130/130] rep 25  a2/default incr 215ms        elapsed   12m16s  eta      0ms
+
+trace: tariff-tune (11 steps, 25 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       19.32    185.94 165.73-221.81 142.66-1817.80       0
+a0           1  update_definition          13.94    176.99 157.21-216.25 135.06-298295.44       0
+a0           2  update_binding_clause      13.61    175.83 158.61-207.79 139.30-1166.26       0
+a0           3  update_binding_clause      16.12    177.63 168.22-210.78 137.14-675.77       0
+a0           4  update_binding_clause      14.90    174.35 159.32-202.54 95.52-269.22       0
+a0           5  update_binding_clause      12.82    178.71 166.54-191.19 79.96-986.68       0
+a0           6  update_binding_clause      14.46    174.61 152.62-193.12 71.15-278.72       0
+a0           7  update_binding_clause      12.79    182.85 162.44-228.33 68.86-1671.12       0
+a0           8  update_binding_clause      12.62    179.13 166.85-219.89 64.72-319.95       0
+a0           9  update_binding_clause      13.32    179.94 167.75-192.81 70.13-884.02       0
+a0          10  update_binding_clause      13.74    171.92 165.49-197.81 67.40-279.49       0
+aPL          0  cold                       20.80    189.90 175.79-205.82 101.37-279.79      27
+aPL          1  update_definition          13.63     76.50 63.45-90.64 29.31-159.15      27
+aPL          2  update_binding_clause      16.32     79.85 71.18-91.59 53.31-1199.34      27
+aPL          3  update_binding_clause      18.17     72.49 65.46-85.22 57.20-137.09      27
+aPL          4  update_binding_clause      14.44     74.08 65.24-84.33 49.80-152.50      27
+aPL          5  update_binding_clause      14.64     69.78 62.01-100.73 53.38-197.36      27
+aPL          6  update_binding_clause      13.31     74.20 61.27-90.45 58.24-286.63      27
+aPL          7  update_binding_clause      13.47     77.09 66.70-97.66 56.84-1553.32      27
+aPL          8  update_binding_clause      15.74     80.45 68.70-127.47 56.53-682.43      27
+aPL          9  update_binding_clause      16.32     81.26 71.81-105.06 56.80-1289.64      27
+aPL         10  update_binding_clause      14.40     71.42 61.20-84.62 53.76-246.72      27
+aM           0  cold                       20.58    195.13 182.81-229.29 150.52-5544.70      27
+aM           1  update_definition          14.20     74.48 66.04-90.34 54.52-134.30      27
+aM           2  update_binding_clause      16.22     76.06 68.94-95.38 55.34-1236.09      27
+aM           3  update_binding_clause      18.55     77.64 65.36-90.23 52.02-166.81      27
+aM           4  update_binding_clause      15.36     72.15 64.28-91.93 52.90-1105.68      27
+aM           5  update_binding_clause      15.63     75.87 63.93-92.52 53.62-1020.04      27
+aM           6  update_binding_clause      17.23     74.04 61.05-92.54 51.91-107.23      27
+aM           7  update_binding_clause      15.51     74.47 63.02-80.59 53.14-113.11      27
+aM           8  update_binding_clause      13.18     70.22 59.25-87.99 51.04-154.26      27
+aM           9  update_binding_clause      13.70     68.35 64.18-81.48 48.13-136.98      27
+aM          10  update_binding_clause      13.89     69.99 61.47-78.31 52.95-1670.54      27
+a2           0  cold                       19.91    206.81 178.79-230.91 156.22-473.04      27
+a2           1  update_definition          13.71     21.86 18.36-24.87 14.28-1192.49      27
+a2           2  update_binding_clause      14.42     19.95 18.01-23.06 13.71-80.59      27
+a2           3  update_binding_clause      16.23     19.68 18.26-22.00 14.06-42.45      27
+a2           4  update_binding_clause      15.38     20.20 18.37-25.21 10.79-44.09      27
+a2           5  update_binding_clause      15.23     23.13 19.17-25.96 12.63-77.05      27
+a2           6  update_binding_clause      14.68     22.46 19.84-24.54 13.08-52.80      27
+a2           7  update_binding_clause      14.63     20.86 19.05-23.26 13.28-666.82      27
+a2           8  update_binding_clause      14.32     20.63 18.46-23.59 14.12-47.06      27
+a2           9  update_binding_clause      14.19     21.28 18.52-24.13 13.98-34.79      27
+a2          10  update_binding_clause      14.19     21.13 18.31-25.37 13.60-33.75      27
+aStar        0  cold                       20.98    213.20 190.05-241.20 150.81-275.62      27
+aStar        1  update_definition          13.04     19.61 19.05-22.62 16.86-666.13      27
+aStar        2  update_binding_clause      13.26     19.76 18.43-20.63 13.32-22.89      27
+aStar        3  update_binding_clause      18.35     21.57 19.36-23.54 15.39-31.95      27
+aStar        4  update_binding_clause      16.02     19.85 18.09-20.47 14.42-32.50      27
+aStar        5  update_binding_clause      14.44     20.71 19.57-23.93 14.93-37.06      27
+aStar        6  update_binding_clause      15.94     20.66 19.06-24.73 15.02-43.57      27
+aStar        7  update_binding_clause      14.80     20.53 18.69-24.26 15.08-60.03      27
+aStar        8  update_binding_clause      15.54     21.70 19.40-24.28 14.70-40.82      27
+aStar        9  update_binding_clause      13.26     20.04 18.62-22.41 14.70-43.74      27
+aStar       10  update_binding_clause      12.41     21.82 18.64-28.88 14.91-52.66      27
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           185.94      1979.85  1800.87-2620.81    1.000
+aPL      default           189.90       927.28   728.12-1261.03    0.468
+aM       default           195.13       773.95    650.36-924.40    0.391
+a2       default           206.81       222.58    198.88-257.53    0.112
+aStar    default           213.20       221.72    199.92-244.27    0.112
+
+split-summary: 5 step(s) x 5 calculi x 1 polic(ies) x (1 warmup + 25 reps) = 130 passes
+[  1/130] warmup  a0/default incr 3.2s         elapsed     4.8s  eta   10m17s
+[  2/130] warmup  aPL/default incr 1.8s        elapsed     9.5s  eta   10m06s
+[  3/130] warmup  aM/default incr 2.2s         elapsed    13.1s  eta    9m15s
+[  4/130] warmup  a2/default incr 2.2s         elapsed    47.4s  eta   24m51s
+[  5/130] warmup  aStar/default incr 1.2s      elapsed    49.9s  eta   20m46s
+[  6/130] rep 1   a0/default incr 4.3s         elapsed    55.3s  eta   19m03s
+[  7/130] rep 1   aPL/default incr 1.9s        elapsed    58.9s  eta   17m14s
+[  8/130] rep 1   aM/default incr 736ms        elapsed    1m00s  eta   15m27s
+[  9/130] rep 1   a2/default incr 2.5s         elapsed    1m04s  eta   14m26s
+[ 10/130] rep 1   aStar/default incr 1.7s      elapsed    1m07s  eta   13m31s
+[ 11/130] rep 2   aPL/default incr 1.6s        elapsed    1m10s  eta   12m43s
+[ 12/130] rep 2   aM/default incr 733ms        elapsed    1m12s  eta   11m54s
+[ 13/130] rep 2   a2/default incr 2.3s         elapsed    1m16s  eta   11m30s
+[ 14/130] rep 2   aStar/default incr 807ms     elapsed    1m18s  eta   10m54s
+[ 15/130] rep 2   a0/default incr 4.8s         elapsed    1m26s  eta   11m03s
+[ 16/130] rep 3   aM/default incr 1.7s         elapsed    1m29s  eta   10m39s
+[ 17/130] rep 3   a2/default incr 1.8s         elapsed    1m33s  eta   10m18s
+[ 18/130] rep 3   aStar/default incr 847ms     elapsed   13m24s  eta   83m23s
+[ 19/130] rep 3   a0/default incr 6.1s         elapsed   13m32s  eta   79m03s
+[ 20/130] rep 3   aPL/default incr 3.8s        elapsed   13m37s  eta   74m57s
+[ 21/130] rep 4   a2/default incr 1.8s         elapsed   13m41s  eta   71m01s
+[ 22/130] rep 4   aStar/default incr 1.2s      elapsed   13m43s  eta   67m23s
+[ 23/130] rep 4   a0/default incr 4.0s         elapsed   13m49s  eta   64m19s
+[ 24/130] rep 4   aPL/default incr 1.6s        elapsed   13m52s  eta   61m17s
+[ 25/130] rep 4   aM/default incr 2.0s         elapsed   13m57s  eta   58m35s
+[ 26/130] rep 5   aStar/default incr 876ms     elapsed   13m59s  eta   55m58s
+[ 27/130] rep 5   a0/default incr 4.8s         elapsed   14m05s  eta   53m46s
+[ 28/130] rep 5   aPL/default incr 1.7s        elapsed   14m08s  eta   51m32s
+[ 29/130] rep 5   aM/default incr 1.2s         elapsed   14m11s  eta   49m25s
+[ 30/130] rep 5   a2/default incr 1.7s         elapsed   14m14s  eta   47m29s
+[ 31/130] rep 6   a0/default incr 4.0s         elapsed   14m20s  eta   45m47s
+[ 32/130] rep 6   aPL/default incr 1.9s        elapsed   14m23s  eta   44m05s
+[ 33/130] rep 6   aM/default incr 765ms        elapsed   14m25s  eta   42m25s
+[ 34/130] rep 6   a2/default incr 2.5s         elapsed   14m31s  eta   40m59s
+[ 35/130] rep 6   aStar/default incr 940ms     elapsed   14m33s  eta   39m31s
+[ 36/130] rep 7   aPL/default incr 2.5s        elapsed   14m37s  eta   38m11s
+[ 37/130] rep 7   aM/default incr 772ms        elapsed   14m39s  eta   36m51s
+[ 38/130] rep 7   a2/default incr 1.5s         elapsed   14m42s  eta   35m37s
+[ 39/130] rep 7   aStar/default incr 2.4s      elapsed   14m46s  eta   34m28s
+[ 40/130] rep 7   a0/default incr 5.1s         elapsed   14m52s  eta   33m29s
+[ 41/130] rep 8   aM/default incr 777ms        elapsed   14m55s  eta   32m23s
+[ 42/130] rep 8   a2/default incr 1.6s         elapsed   14m59s  eta   31m24s
+[ 43/130] rep 8   aStar/default incr 1.9s      elapsed   15m02s  eta   30m26s
+[ 44/130] rep 8   a0/default incr 4.4s         elapsed   15m08s  eta   29m36s
+[ 45/130] rep 8   aPL/default incr 2.6s        elapsed   15m12s  eta   28m44s
+[ 46/130] rep 9   a2/default incr 2.2s         elapsed   15m16s  eta   27m53s
+[ 47/130] rep 9   aStar/default incr 1.8s      elapsed   15m21s  eta   27m07s
+[ 48/130] rep 9   a0/default incr 5.4s         elapsed   15m28s  eta   26m26s
+[ 49/130] rep 9   aPL/default incr 1.6s        elapsed   15m31s  eta   25m39s
+[ 50/130] rep 9   aM/default incr 1.0s         elapsed   15m34s  eta   24m54s
+[ 51/130] rep 10  aStar/default incr 927ms     elapsed   15m36s  eta   24m10s
+[ 52/130] rep 10  a0/default incr 3.2s         elapsed   15m41s  eta   23m31s
+[ 53/130] rep 10  aPL/default incr 2.5s        elapsed   15m46s  eta   22m55s
+[ 54/130] rep 10  aM/default incr 874ms        elapsed   15m48s  eta   22m15s
+[ 55/130] rep 10  a2/default incr 2.4s         elapsed   15m52s  eta   21m39s
+[ 56/130] rep 11  a0/default incr 3.3s         elapsed   15m58s  eta   21m06s
+[ 57/130] rep 11  aPL/default incr 1.5s        elapsed   16m00s  eta   20m30s
+[ 58/130] rep 11  aM/default incr 747ms        elapsed   16m02s  eta   19m55s
+[ 59/130] rep 11  a2/default incr 1.4s         elapsed   16m05s  eta   19m21s
+[ 60/130] rep 11  aStar/default incr 772ms     elapsed   16m09s  eta   18m50s
+[ 61/130] rep 12  aPL/default incr 1.7s        elapsed   16m13s  eta   18m21s
+[ 62/130] rep 12  aM/default incr 2.1s         elapsed   16m17s  eta   17m51s
+[ 63/130] rep 12  a2/default incr 1.5s         elapsed   16m20s  eta   17m22s
+[ 64/130] rep 12  aStar/default incr 1.2s      elapsed   16m22s  eta   16m53s
+[ 65/130] rep 12  a0/default incr 3.1s         elapsed   16m27s  eta   16m27s
+[ 66/130] rep 13  aM/default incr 643ms        elapsed   16m29s  eta   15m59s
+[ 67/130] rep 13  a2/default incr 1.9s         elapsed   16m34s  eta   15m35s
+[ 68/130] rep 13  aStar/default incr 836ms     elapsed   16m37s  eta   15m09s
+[ 69/130] rep 13  a0/default incr 6.2s         elapsed   16m45s  eta   14m48s
+[ 70/130] rep 13  aPL/default incr 1.6s        elapsed   16m48s  eta   14m24s
+[ 71/130] rep 14  a2/default incr 2.8s         elapsed   16m52s  eta   14m01s
+[ 72/130] rep 14  aStar/default incr 737ms     elapsed   16m54s  eta   13m37s
+[ 73/130] rep 14  a0/default incr 3.8s         elapsed   16m59s  eta   13m16s
+[ 74/130] rep 14  aPL/default incr 1.3s        elapsed   17m02s  eta   12m53s
+[ 75/130] rep 14  aM/default incr 629ms        elapsed   17m03s  eta   12m30s
+[ 76/130] rep 15  aStar/default incr 869ms     elapsed   17m07s  eta   12m10s
+[ 77/130] rep 15  a0/default incr 5.1s         elapsed   17m14s  eta   11m51s
+[ 78/130] rep 15  aPL/default incr 1.5s        elapsed   17m18s  eta   11m32s
+[ 79/130] rep 15  aM/default incr 712ms        elapsed   17m20s  eta   11m11s
+[ 80/130] rep 15  a2/default incr 2.9s         elapsed   17m24s  eta   10m52s
+[ 81/130] rep 16  a0/default incr 4.3s         elapsed   17m30s  eta   10m35s
+[ 82/130] rep 16  aPL/default incr 1.5s        elapsed   17m33s  eta   10m16s
+[ 83/130] rep 16  aM/default incr 630ms        elapsed   17m35s  eta    9m57s
+[ 84/130] rep 16  a2/default incr 2.9s         elapsed   17m39s  eta    9m40s
+[ 85/130] rep 16  aStar/default incr 819ms     elapsed   17m41s  eta    9m22s
+[ 86/130] rep 17  aPL/default incr 1.6s        elapsed   17m44s  eta    9m04s
+[ 87/130] rep 17  aM/default incr 1.2s         elapsed   17m47s  eta    8m47s
+[ 88/130] rep 17  a2/default incr 1.6s         elapsed   17m50s  eta    8m30s
+[ 89/130] rep 17  aStar/default incr 2.1s      elapsed   17m53s  eta    8m14s
+[ 90/130] rep 17  a0/default incr 3.5s         elapsed   17m58s  eta    7m59s
+[ 91/130] rep 18  aM/default incr 731ms        elapsed   18m00s  eta    7m43s
+[ 92/130] rep 18  a2/default incr 2.0s         elapsed   18m04s  eta    7m28s
+[ 93/130] rep 18  aStar/default incr 719ms     elapsed   18m06s  eta    7m12s
+[ 94/130] rep 18  a0/default incr 3.3s         elapsed   18m12s  eta    6m58s
+[ 95/130] rep 18  aPL/default incr 1.6s        elapsed   18m16s  eta    6m43s
+[ 96/130] rep 19  a2/default incr 1.8s         elapsed   18m19s  eta    6m29s
+[ 97/130] rep 19  aStar/default incr 2.0s      elapsed   18m23s  eta    6m15s
+[ 98/130] rep 19  a0/default incr 3.4s         elapsed   18m28s  eta    6m01s
+[ 99/130] rep 19  aPL/default incr 1.8s        elapsed   18m31s  eta    5m48s
+[100/130] rep 19  aM/default incr 700ms        elapsed   18m33s  eta    5m34s
+[101/130] rep 20  aStar/default incr 671ms     elapsed   18m35s  eta    5m20s
+[102/130] rep 20  a0/default incr 4.3s         elapsed   18m44s  eta    5m08s
+[103/130] rep 20  aPL/default incr 1.7s        elapsed   18m47s  eta    4m55s
+[104/130] rep 20  aM/default incr 707ms        elapsed   18m50s  eta    4m42s
+[105/130] rep 20  a2/default incr 2.8s         elapsed   18m54s  eta    4m30s
+[106/130] rep 21  a0/default incr 4.9s         elapsed   19m01s  eta    4m18s
+[107/130] rep 21  aPL/default incr 1.6s        elapsed   19m04s  eta    4m05s
+[108/130] rep 21  aM/default incr 1.2s         elapsed   19m06s  eta    3m53s
+[109/130] rep 21  a2/default incr 1.8s         elapsed   19m10s  eta    3m41s
+[110/130] rep 21  aStar/default incr 773ms     elapsed   19m12s  eta    3m29s
+[111/130] rep 22  aPL/default incr 3.3s        elapsed   19m17s  eta    3m18s
+[112/130] rep 22  aM/default incr 1.8s         elapsed   19m20s  eta    3m06s
+[113/130] rep 22  a2/default incr 2.0s         elapsed   19m24s  eta    2m55s
+[114/130] rep 22  aStar/default incr 1.5s      elapsed   19m27s  eta    2m43s
+[115/130] rep 22  a0/default incr 3.4s         elapsed   19m32s  eta    2m32s
+[116/130] rep 23  aM/default incr 641ms        elapsed   19m34s  eta    2m21s
+[117/130] rep 23  a2/default incr 1.9s         elapsed   19m38s  eta    2m10s
+[118/130] rep 23  aStar/default incr 847ms     elapsed   19m42s  eta    2m00s
+[119/130] rep 23  a0/default incr 4.5s         elapsed   19m48s  eta    1m49s
+[120/130] rep 23  aPL/default incr 2.5s        elapsed   19m51s  eta    1m39s
+[121/130] rep 24  a2/default incr 1.6s         elapsed   19m54s  eta    1m28s
+[122/130] rep 24  aStar/default incr 718ms     elapsed   19m57s  eta    1m18s
+[123/130] rep 24  a0/default incr 3.8s         elapsed   20m02s  eta    1m08s
+[124/130] rep 24  aPL/default incr 1.9s        elapsed   20m07s  eta    58.4s
+[125/130] rep 24  aM/default incr 680ms        elapsed   20m09s  eta    48.4s
+[126/130] rep 25  aStar/default incr 1.5s      elapsed   20m12s  eta    38.5s
+[127/130] rep 25  a0/default incr 3.5s         elapsed   20m17s  eta    28.8s
+[128/130] rep 25  aPL/default incr 2.7s        elapsed   20m21s  eta    19.1s
+[129/130] rep 25  aM/default incr 2.3s         elapsed   20m25s  eta     9.5s
+[130/130] rep 25  a2/default incr 2.7s         elapsed   20m29s  eta      0ms
+
+trace: split-summary (5 steps, 25 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       18.93    827.87 725.33-915.97 589.51-2383.17       0
+a0           1  update_definition          14.23    833.54 765.93-902.34 643.63-1714.38       0
+a0           2  insert_before              18.11    830.68 774.97-896.12 638.81-2175.99       0
+a0           3  update_definition          16.82    927.53 817.37-1156.17 758.19-2626.37       0
+a0           4  update_definition          18.00   1048.29 897.71-1553.76 769.11-2015.79       0
+aPL          0  cold                       21.29    837.80 787.20-964.52 689.88-2346.54      60
+aPL          1  update_definition          13.24    532.26 486.13-576.03 413.45-1587.20      64
+aPL          2  insert_before              15.39      5.51 4.74-8.52 4.05-16.58      66
+aPL          3  update_definition          16.68    580.11 531.76-650.61 447.05-1794.47      66
+aPL          4  update_definition          18.72    509.29 472.99-570.81 408.02-2539.08      70
+aM           0  cold                       23.51    834.29 752.93-922.57 661.10-1945.31      60
+aM           1  update_definition          13.56    238.84 220.49-275.49 192.32-353.63      64
+aM           2  insert_before              16.46      5.89 5.01-8.87 3.78-25.73      66
+aM           3  update_definition          16.40    287.68 266.08-589.99 222.65-1742.03      66
+aM           4  update_definition          16.45    214.63 195.56-240.04 181.69-1377.18      70
+a2           0  cold                       19.99    871.03 846.82-1067.27 674.72-2205.65      60
+a2           1  update_definition          12.24    576.88 524.42-668.38 450.77-1729.05      64
+a2           2  insert_before              16.01      6.41 5.07-11.50 3.57-38.54      66
+a2           3  update_definition          15.89    653.66 570.14-872.44 489.11-1889.05      66
+a2           4  update_definition          18.01    537.14 504.70-588.45 434.41-1496.33      70
+aStar        0  cold                       21.21    871.93 818.28-1202.52 691.33-709662.90      60
+aStar        1  update_definition          14.32    266.41 253.91-288.10 218.07-1259.10      64
+aStar        2  insert_before              17.89      5.53 4.53-7.28 3.34-10.59      66
+aStar        3  update_definition          15.27    335.24 265.81-379.73 212.64-1403.30      66
+aStar        4  update_definition          17.59    246.73 225.03-284.77 188.63-1913.83      70
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           827.87      4270.26  3504.79-4832.06    1.000
+aPL      default           837.80      1711.69  1573.94-2499.46    0.401
+aM       default           834.29       765.48   707.09-1233.89    0.179
+a2       default           871.03      1858.62  1692.17-2475.06    0.435
+aStar    default           871.93       875.86   807.49-1528.17    0.205
+
+wrote bench/results/paper-six-r25.bench.json
