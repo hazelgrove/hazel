@@ -556,6 +556,57 @@ and `Projector`, which is transparent to semantics, so a quotation of
 labeled item or a partial application's `_`, have samples that contain
 them.
 
+## Revealing a use's syntax
+
+Each use of a user-defined livelit has a toggle at its top left (an eye by
+default; the Colors slide offers a triangle, a chevron or a nut). Opening it
+shows the use's own syntax, `^name(model)`, in a pane under the GUI, and, for a
+livelit that defines `params_from_model` and `init_from_params`, a line with
+the parameters that would make the current model.
+
+### The design (Cyrus, 2026-10-03)
+
+- **The model is shown as syntax**, as it is now, with an editor interface for
+  selecting sub-terms (Select term, navigation), as it is now.
+- **The model is read-only while revealed.** Editing the model as text, and in
+  particular its splice refs, does not make sense: a `SpliceRef` names a
+  splice, and text edits can only break or re-point that naming. The model is
+  changed by the GUI, which is what the GUI is for.
+- **The params, where a livelit has them, are edited, live.** Editing them
+  re-runs `init_from_params` and the GUI follows as you type.
+- **The GUI keeps working while the syntax is revealed**: dragging, clicking
+  and typing into its cells behave as with the syntax hidden, and the revealed
+  model follows each change.
+
+### Backing out of editing the model
+
+On 2026-10-03 the pane was a full editor over the model, and a run of fixes
+went into making that work. The direction above ends that exploration. What
+each piece becomes:
+
+| Piece (commit on `integration/livelits-splicerefs-full`) | With a read-only model |
+| --- | --- |
+| Long model lines reflowed for the pane (`55fcf8abbb`, `ProjectorPerform.laid_out_for_pane`) | Keep: a revealed model must still be readable |
+| Cells nested in the pane measured inline (`8d5d0806c6`, `81a0094acd`: `Measured`'s `splice_depth`, `~in_splice`) | Keep: selection and outlines still need a correct layout |
+| Right-click menu not clipped in the pane (`8bbe3b0270`) | Keep: Select term is part of the design |
+| An open use hangs as a `Tab` (`7c93006c01`), toggle columns and hover (`94644969d1`) | Keep: layout of the reveal, not of editing |
+| The toggle's looks on the Colors slide (`61c94a8170` ... `db118a14a4`) | Keep |
+| Commits while revealed regenerate the pane (`4a9d1c3f39`, `pane_syntax` in `SetTerm`) | Keep: this is how the revealed model follows the GUI |
+| A cell retyped in the pane shown read-only in the GUI, re-spliced when the eye closes (`9d961e4446`: `LivelitProj.cell_parens`, `ProjectorPerform.closed_syntax`) | Back out: a read-only model cannot be retyped |
+| deck_regress "retyping a cell in the open syntax hands the face to another slider", and "a cell retyped in the open syntax shows in the GUI" | Replace: with the same edit refused, and with the GUI driving the face while revealed |
+
+To be built: the pane's model editor in a read-only mode (caret, selection and
+menus kept; insertions, deletions and pastes refused), and the params line as
+an editor that commits on each edit rather than on Enter.
+
+### The GUI while revealed
+
+In checks on 2026-10-03 the GUI did respond with the syntax revealed: Color
+(Figure 3)'s buttons, Kids' Choice's own sliders and its face's drags all
+committed and the revealed model followed. Cyrus saw it unresponsive, so
+there is a case those checks miss; the regression suite should cover the GUI
+with the syntax revealed on every deck slide.
+
 ## Design decisions
 
 Decisions taken on the way here, kept because the alternatives looked
