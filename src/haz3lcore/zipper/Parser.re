@@ -57,20 +57,90 @@ let try_segment_paste =
   };
 };
 
+/* Line endings as the editor keeps them. Token.to_list segments by
+   grapheme, and "\r\n" is ONE grapheme, so text with Windows line endings
+   arrives as "\r\n" characters, never as a lone "\r": each was inserted as
+   an unknown token, leaving a `¿` hole at the start of every line. A lone
+   "\r" (old Mac endings, or a stray one) is a line break too: skipping it,
+   as this used to, would glue `in\rx` into `inx`. */
+let line_ending = (c: string): string =>
+  switch (c) {
+  | "\r\n"
+  | "\r" => "\n"
+  | c => c
+  };
+
+/* The longest prefix of [chars] that stays one operand, or one operator,
+   at every step: exactly the characters typing would keep appending to
+   the token they start. Brackets, quotes, comment delimiters and
+   whitespace are in neither class, so they always come one at a time. */
+let take_run = (chars: list(string)): option((string, list(string))) => {
+  let same_class =
+    switch (chars) {
+    | [c, ..._] when Token.is_potential_operand(c) =>
+      Some(Token.is_potential_operand)
+    | [c, ..._] when Token.is_potential_operator(c) =>
+      Some(Token.is_potential_operator)
+    | _ => None
+    };
+  let+ same_class = same_class;
+  let fits = t => Token.is_potential_token(t) && same_class(t);
+  let rec go = (acc, rest) =>
+    switch (rest) {
+    | [c, ...rest'] when fits(acc ++ c) => go(acc ++ c, rest')
+    | _ => (acc, rest)
+    };
+  go(List.hd(chars), List.tl(chars));
+};
+
 /* Insert characters one-by-one into a zipper. Used for paste and
-   other operations that start from an existing zipper state. */
+   other operations that start from an existing zipper state.
+   With ~by_run, a run from take_run goes in as one insertion whenever
+   the caret is between tokens, and insertions skip their regrout, which
+   is done once at the end: regrouting walks the whole sibling run, so
+   doing it per insertion made loading quadratic in the run's length. */
 let to_zipper =
-    (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
-  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
-    let* z = z;
+    (~by_run=false, ~root, ~zipper_init=Zipper.init(), str: string)
+    : option(Zipper.t) => {
+  let insert = (z: Zipper.t, c: string): option(Zipper.t) =>
     /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
-    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
+    try(
+      Insert.go(
+        ~auto_indent=false,
+        ~regrout=!by_run,
+        line_ending(c),
+        z,
+        ~root,
+      )
+    ) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
     };
-  };
-  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
+  let rec go = (z: Zipper.t, chars: list(string)): option(Zipper.t) =>
+    switch (chars) {
+    | [] => Some(z)
+    | [c, ...rest] =>
+      let (s, rest) =
+        switch (
+          by_run && z.caret == Outer && z.selection.content == []
+            ? take_run(chars) : None
+        ) {
+        | Some(run) => run
+        | None => (c, rest)
+        };
+      /* A direct self call, which js_of_ocaml compiles to a loop. Through
+         `let*` it was a call inside Option.bind's closure: a stack frame per
+         run of characters, each holding the zipper it started from, so a
+         20 KB slide overflowed the stack or ran out of memory. */
+      switch (insert(z, s)) {
+      | None => None
+      | Some(z) => go(z, rest)
+      };
+    };
+  let+ z = go(zipper_init, Token.to_list(str));
+  /* ~by_run skipped every per-insertion regrout; do it once here. */
+  let z = by_run ? Zipper.remold_regrout(Left, z, ~root) : z;
   Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
@@ -117,7 +187,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
     let* z = z;
     /* Disable auto_indent so Parser faithfully reproduces input without
      * adding spaces. Matches to_zipper's behavior. */
-    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
+    try(Insert.go(~auto_indent=false, line_ending(c), z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -131,7 +201,8 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
       switch (current_z^) {
       | None => ()
       | Some(z) =>
-        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+        if (chars_since_split^ >= min_segment_size
+            && is_split_point(line_ending(c), z)) {
           let z = Zipper.remold_regrout(Left, z, ~root);
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
           segments := [strip_trailing_grout(seg), ...segments^];
