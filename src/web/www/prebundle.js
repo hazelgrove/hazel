@@ -5,6 +5,23 @@ import hotkeys from 'hotkeys-js'
 import Algebrite from 'algebrite';
 window.Algebrite = Algebrite;
 
+// ninja-keys leaves focus nowhere when it closes: hand it back to whatever
+// had it when the palette opened, unless the chosen action moved it.
+const ninjaOpen = NinjaKeys.prototype.open;
+const ninjaClose = NinjaKeys.prototype.close;
+NinjaKeys.prototype.open = function (...args) {
+  if (!this.visible) this._returnFocus = document.activeElement;
+  return ninjaOpen.apply(this, args);
+};
+NinjaKeys.prototype.close = function (...args) {
+  const prev = this._returnFocus;
+  this._returnFocus = null;
+  const result = ninjaClose.apply(this, args);
+  if (prev && prev.isConnected && document.activeElement === this)
+    prev.focus({ preventScroll: true });
+  return result;
+};
+
 // This is the default behavior for the hotkeys module but I'm overriding it for the
 // ninja-keys command palette (which lives inside a shadow DOM).
 hotkeys.filter = event => {
