@@ -9,32 +9,44 @@ let name_other = (): (Exp.t => string) => {
       switch (ListUtil.assoc_opt_by(Equality.semantic.exp, exp, names^)) {
       | Some(name) => name
       | None =>
-        let new_name =
-          "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000);
+        let new_name = "unknown_" ++ string_of_int(List.length(names^));
         names := [(exp, new_name)] @ names^;
         new_name;
       };
     }: string
-    // If we don't know how to print the expression, we can use a hash to create a unique string
-    // Modulo keeps it short
+    // If we don't know how to print the expression, give it a fresh symbol
+    // (shared with any semantically equal expression)
   );
 };
 
+exception Incomplete;
+
 let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   switch (exp.term) {
+  // Holes are not equal to anything, not even other holes
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_) => raise(Incomplete)
   | Atom(Int(value)) => Bigint.to_string(value)
   | Atom(Nat(value)) => Bigint.to_string(value)
   | Atom(Float(value)) => string_of_float(value)
   | Atom(Bool(value)) => string_of_bool(value)
   // We have to manually map ** (power) to ^ in Algebrite.
-  | BinOp(Int(Power), exp_left, exp_right) =>
+  | BinOp(Int(Power) | Nat(Power), exp_left, exp_right) =>
     "("
     ++ print_exp_for_algebrite(~name_other, exp_left)
     ++ " ^ "
     ++ print_exp_for_algebrite(~name_other, exp_right)
     ++ ")"
-  // The other operators should work fine as-is.
-  | BinOp(op, exp_left, exp_right) =>
+  // Only send operators whose meaning agrees with Algebrite's. Integer
+  // division truncates, natural subtraction saturates, and comparisons,
+  // booleans, floats etc. aren't polynomial arithmetic, so those subterms
+  // are treated as opaque atoms below instead.
+  | BinOp(
+      (Int(Plus | Minus | Times) | Nat(Plus | Times)) as op,
+      exp_left,
+      exp_right,
+    ) =>
     "("
     ++ print_exp_for_algebrite(~name_other, exp_left)
     ++ " "
@@ -45,9 +57,10 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   | UnOp(Int(Minus), exp) =>
     "(" ++ "-" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
   | Parens(exp) => "(" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
-  | Var(value) => value
   // TODO: think harder about weird corner cases where we'd want to ensure the types in Cast are valid
   | Asc(exp, _) => print_exp_for_algebrite(~name_other, exp)
+  // Variables get fresh symbols too, so that Hazel names can't clash with
+  // Algebrite built-ins (e.g. i, e, pi) or fail to parse (e.g. x')
   | _ => name_other(exp)
   };
 
@@ -72,16 +85,11 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   let name_other = name_other();
   let from_ = DHExp.strip_ascriptions(from_);
   let to_ = DHExp.strip_ascriptions(to_);
-  let left_str = print_exp_for_algebrite(~name_other, from_);
-  let right_str = print_exp_for_algebrite(~name_other, to_);
-  print_endline("Checking rewrite:");
-  print_endline("From: " ++ left_str);
-  print_endline("To:   " ++ right_str);
-  print_endline("e1: " ++ Exp.show(from_));
-  print_endline("e2: " ++ Exp.show(to_));
-  if (left_str == "Unknown" || right_str == "Unknown") {
-    false;
-  } else {
-    checkEquality(left_str, right_str);
+  switch (
+    print_exp_for_algebrite(~name_other, from_),
+    print_exp_for_algebrite(~name_other, to_),
+  ) {
+  | (left_str, right_str) => checkEquality(left_str, right_str)
+  | exception Incomplete => false
   };
 };

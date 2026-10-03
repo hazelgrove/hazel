@@ -961,8 +961,14 @@ and Stepper: {
               },
             ~selected_id=selected_exp |> Option.map(Exp.rep_id),
             ~overlays=
-              switch (model.step_kind) {
-              | MissingStep(m)
+              switch (model.step_kind, focus) {
+              /* Only the focused step shows its proof overlay, so stale
+                 selections in other steps don't leave their buttons and
+                 boxes lying around. */
+              | (
+                  MissingStep(m),
+                  Some(Here(_) | StepKindFocus(MissingStep(_))),
+                )
                   when globals.settings.core.evaluation.enable_proof =>
                 MissingStep.View.view_overlay(
                   ~globals,

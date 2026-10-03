@@ -149,19 +149,57 @@ module Update = {
       // hacky way to get a currently-selected id
       {
         let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
-        try(
-          {
-            open OptUtil.Syntax;
-            let zipper = editor.editor.state.zipper;
-            let* id =
-              TermData.get_root_id_using_ranges(
-                zipper.selection.content,
-                editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
-              );
-            Some(id);
-          }
-        ) {
+        try({
+          let zipper = editor.editor.state.zipper;
+          let root_id = seg =>
+            TermData.get_root_id_using_ranges(
+              seg,
+              editor.editor.syntax.term_data,
+              editor.editor.syntax.measured,
+            );
+          /* Grouping parentheses in the stepper are inserted by
+             ExpToSegment with fresh ids that don't occur in the
+             expression, so if the selection's root is one of those,
+             retry ignoring them (i.e. treat "(e)" as "e"). Drag
+             selections contain the bare "(" and ")" shards. */
+          let rec strip_parens = (seg: Segment.t): Segment.t =>
+            seg
+            |> List.concat_map((p: Piece.t) =>
+                 switch (p) {
+                 | Tile({form: Form.Compound(Parens), children, _}) =>
+                   List.concat_map(strip_parens, children)
+                 | _ => [p]
+                 }
+               );
+          /* Folded function bodies are projectors wrapping fresh
+             parentheses, and their contents aren't measured, so recover
+             the folded term's id from the projector's syntax instead. */
+          let rec unparen_exp = (e: Exp.t) =>
+            switch (Exp.term_of(e)) {
+            | Parens(e') => unparen_exp(e')
+            | _ => e
+            };
+          let projector_id = (seg: Segment.t) =>
+            switch (List.filter(p => !Piece.is_secondary(p), seg)) {
+            | [Projector(pr)] =>
+              switch (MakeTerm.for_projection([pr.syntax])) {
+              | Some(Exp(e)) => Some(e |> unparen_exp |> Exp.rep_id)
+              | _ => None
+              }
+            | _ => None
+            };
+          let full_exp = Calc.get_value(exp);
+          let in_exp = id => ProofHacks.find_exp_id(id, full_exp) != None;
+          let content = zipper.selection.content;
+          switch (root_id(content)) {
+          | Some(id) when in_exp(id) => Some(id)
+          | _ =>
+            switch (projector_id(strip_parens(content))) {
+            | Some(id) when in_exp(id) => Some(id)
+            | _ => root_id(strip_parens(content))
+            }
+          };
+        }) {
         | _ => None
         };
       }
@@ -518,7 +556,22 @@ module View = {
             Node.div(
               ~attrs=[
                 Attr.class_("proof-context-box"),
+                /* This box is rendered inside the stepper's code editor,
+                   whose pointer handlers would otherwise treat clicks and
+                   drags in the box (e.g. in the rewrite editor) as
+                   selection gestures and clobber the selected expression.
+                   Pointer state is shared between editors, so all of
+                   down/move/up must be stopped, not just pointerdown. */
                 Attr.on_pointerdown(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+                Attr.on_pointerup(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+                Attr.on_mousemove(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+                Attr.on_contextmenu(_ =>
                   Virtual_dom.Vdom.Effect.Stop_propagation
                 ),
               ],
@@ -561,6 +614,21 @@ module View = {
                       ~print="cached exp not calculated",
                       cached_exp,
                     );
+                  let env =
+                    model.cached_env
+                    |> Calc.get_saved_exc(~print="env not cached");
+                  /* Names in the rewrite refer to the functions shown in
+                     this step (whose let-bindings may already have been
+                     substituted away), falling back to the environment. */
+                  let resolve = exp =>
+                    exp
+                    |> Substitution.in_exp(
+                         ProofHacks.named_fns(
+                           model.full_exp
+                           |> Calc.get_saved_exc(~print="full_exp"),
+                         ),
+                       )
+                    |> Substitution.in_exp(env);
                   let unboxed_selected_exp =
                     Option.value(
                       ~default=EmptyHole |> Exp.fresh,
@@ -633,13 +701,7 @@ module View = {
                                     |> Calc.get_saved_exc(~print="full_exp"),
                                   ),
                                   unboxed_selected_exp,
-                                  unboxed_cached_exp
-                                  |> Substitution.in_exp(
-                                       model.cached_env
-                                       |> Calc.get_saved_exc(
-                                            ~print="env not cached",
-                                          ),
-                                     ),
+                                  resolve(unboxed_cached_exp),
                                 ),
                               )
                             ),
@@ -654,19 +716,8 @@ module View = {
                                   UpdateResult(
                                     RewriteChecker.check_rewrite(
                                       unboxed_selected_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
-                                      unboxed_cached_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
+                                      |> Substitution.in_exp(env),
+                                      resolve(unboxed_cached_exp),
                                     ),
                                   ),
                                 ),

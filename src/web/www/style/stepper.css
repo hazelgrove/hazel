@@ -126,6 +126,15 @@
   position: absolute;
 }
 
+/* .cell-result isolates stacking, so the proof box's z-index only applies
+ * within its own stepper. Lift any stepper containing an open box above
+ * its sibling steppers (e.g. the "..." placeholder and target in an
+ * induction case) so the box isn't drawn underneath them. */
+.stepper.cell-result:has(.proof-context-box) {
+  position: relative;
+  z-index: 1;
+}
+
 .proof-context-box {
   position: absolute;
   top: calc(100% + 0.5em);

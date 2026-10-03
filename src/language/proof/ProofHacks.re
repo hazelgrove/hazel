@@ -6,6 +6,34 @@ exception Found(Exp.t);
 // Find a subexpression by id (delegates to Exp.find_by_id)
 let find_exp_id = Exp.find_by_id;
 
+// Collect the named function values (closures of let-bound functions)
+// occurring in e, keyed by their source names. Once the stepper substitutes
+// a let-bound function away, its name is no longer in scope, so this lets
+// e.g. user-written rewrites refer to it by that name again.
+let named_fns = (e: Exp.t): Environment.t(Exp.t) => {
+  let env = ref(Environment.empty);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) => {
+          switch (Exp.term_of(exp), Exp.get_fn_name(exp)) {
+          | (Fun(_) | FixF(_), Some(name)) =>
+            // Recursive functions are named with a trailing "+"
+            let name =
+              String.ends_with(~suffix="+", name)
+                ? String.sub(name, 0, String.length(name) - 1) : name;
+            if (Environment.lookup(env^, name) == None) {
+              env := Environment.extend(env^, (name, exp));
+            };
+          | _ => ()
+          };
+          cont(exp);
+        },
+      e,
+    );
+  env^;
+};
+
 // Given an expression e1 that appears in e2, count how many
 // times e1 appears with a different id before e1 in e2.
 let exp_idx = (e1: Exp.t, e2: Exp.t) => {
