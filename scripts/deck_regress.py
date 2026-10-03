@@ -742,6 +742,45 @@ def c_eye_menu(d, log):
         "the menu stayed open after Select term"
     return {"select_term": item}
 
+
+@case("eye: an open eye keeps the rest of its line on the line")
+def c_eye_alignment(d, log):
+    # Found by hand on Overview's `(^flag(true), ^flag(false))`: opening
+    # the first flag's eye made it a Block, and the second flag dropped to
+    # the pane's last row. An inline use now hangs its pane as a Tab.
+    d.goto("/fresh?slide=livelits-overview&panel=none")
+    flags = """
+      return [...document.querySelectorAll('.livelit button')]
+        .filter(b => /^(yes|no)$/.test(b.innerText.trim()))
+        .map(b => Math.round(b.getBoundingClientRect().top));
+    """
+    assert wait_for(d, "const f = (() => {%s})(); return f.length == 2 ? f : null;" % flags, 120), \
+        "Overview's two flags never drew"
+    time.sleep(3)
+    d.js("const b = [...document.querySelectorAll('.livelit button')]"
+         ".find(b => b.innerText.trim() === 'yes'); b.scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    before = d.js(flags)
+    eye = d.js("""
+      const b = [...document.querySelectorAll('.livelit button')]
+        .find(b => b.innerText.trim() === 'yes');
+      const g = b.closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    time.sleep(1)
+    after = d.js(flags)
+    log({"tops": [before, after]})
+    assert abs(after[0] - after[1]) <= 2, f"the flags are no longer on one row: {after}"
+    assert abs(after[1] - before[1]) <= 2, f"the second flag moved: {before} -> {after}"
+    return {"tops": [before, after]}
+
 @case("every deck slide renders its livelits")
 def c_deck(d, log):
     setsel = """
