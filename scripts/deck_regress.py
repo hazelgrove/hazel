@@ -799,9 +799,23 @@ def c_deck(d, log):
     d.js(setsel, ["Livelits", 1]); time.sleep(4)
     problems = []
     for name in DECK:
-        if d.js(setsel, [name, 2]) != "ok":
-            problems.append(f"{name}: could not select"); continue
+        # A slide in a folder, "Advanced / JavaScript", is a path: the
+        # folder in the third picker, then the slide in the one it opens.
+        parts = name.split(" / ")
+        result = "ok"
+        for i, part in enumerate(parts):
+            result = d.js(setsel, [part, 2 + i])
+            if result != "ok":
+                break
+            if i < len(parts) - 1:
+                time.sleep(4)
+        if result != "ok":
+            problems.append(f"{name}: could not select ({result})"); continue
         time.sleep(7)
+        shown = d.js("const s = [...document.querySelectorAll('select')][arguments[0]];"
+                     " return s ? s.value : null;", [2 + len(parts) - 1])
+        if shown != parts[-1]:
+            problems.append(f"{name}: the picker shows {shown!r}"); continue
         st = probe(d)
         log({name: st})
         if st["errors"]:
