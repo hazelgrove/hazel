@@ -169,6 +169,15 @@
     opacity: 0.45;
     filter: grayscale(1);
 }
+/* The glyph is the Colors slide's choice (livelit-reveal): an eye, the
+   same open and shut and struck through while shut, or a disclosure
+   triangle, right while shut and down while open, never struck. */
+.livelit-eye-glyph::before {
+    content: var(--livelit-reveal-closed, "\1F441\FE0F");
+}
+.livelit-syntax-toggle.on .livelit-eye-glyph::before {
+    content: var(--livelit-reveal-open, "\1F441\FE0F");
+}
 .projector:hover .livelit-eye-glyph {
     opacity: 0.9;
 }
@@ -180,7 +189,7 @@
     left: 0;
     right: 0;
     top: 50%;
-    border-top: 1.5px solid currentColor;
+    border-top: var(--livelit-reveal-strike, 1.5px) solid currentColor;
     transform: rotate(-40deg);
 }
 .livelit-syntax-toggle.on .livelit-eye-glyph {
@@ -212,8 +221,8 @@
     /* rows are sized exactly; a pixel of rounding must not scroll */
     overflow-x: auto;
     overflow-y: hidden;
-    border-top: 1px dashed var(--border-soft, var(--BR3));
-    background: var(--ui-bkg, var(--BR1));
+    border-top: 1px dashed var(--border-soft);
+    background: var(--ui-bkg);
     pointer-events: auto;
 }
 /* The pane's two panels: a params line (experimental, only for a livelit

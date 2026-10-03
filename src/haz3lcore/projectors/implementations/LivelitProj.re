@@ -1484,15 +1484,15 @@ module M: Projector = {
             ])
           ),
         ],
-        /* An eye, hanging in the margin to the GUI's left like a hanging
-           indent: it shows the use's syntax, which is its model. */
+        /* An eye (or a triangle: the Colors slide's livelit-reveal),
+           hanging in the margin to the GUI's left like a hanging indent:
+           it shows the use's syntax, which is its model. */
         [
           /* In its own span, so it can be dimmed and struck through
-             without the tab behind it (proj-livelit.css). */
-          Node.span(
-            ~attrs=[Attr.class_("livelit-eye-glyph")],
-            [Node.text("\xF0\x9F\x91\x81\xEF\xB8\x8F")],
-          ),
+             without the tab behind it. The glyph itself is the Colors
+             slide's choice, an eye or a disclosure triangle, drawn by
+             proj-livelit.css from --livelit-reveal-closed/-open. */
+          Node.span(~attrs=[Attr.class_("livelit-eye-glyph")], []),
         ],
       );
     let pane =
