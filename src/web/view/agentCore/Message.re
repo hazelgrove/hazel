@@ -233,6 +233,14 @@ module Utils = {
     };
   };
 
+  let is_read_action = (name: string): bool =>
+    switch (name) {
+    | "get_syntax"
+    | "get_statics"
+    | "get_context" => true
+    | _ => false
+    };
+
   let mk_tool_result_message =
       (tool_result: AgentToolResult.tool_result): Model.t => {
     let sanitized_content = String.trim(tool_result.content);
@@ -241,6 +249,8 @@ module Utils = {
       switch (tool_result.success, tool_result.content_is_payload) {
       /* the content IS the result (e.g. a read_docs guide) — deliver it */
       | (true, true) => sanitized_content
+      /* Read actions return their content directly to the LLM */
+      | (true, false) when is_read_action(tool_result.tool_call.name) => sanitized_content
       | (true, false) =>
         "The "
         ++ tool_result.tool_call.name
@@ -288,6 +298,7 @@ module Utils = {
   let context_snapshot_body_for_llm =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
+        ~cursor_context_content: string="",
         agent_editor_content: string,
         static_errors_content: string,
         test_results_content: string,
@@ -331,6 +342,15 @@ module Utils = {
       ++ sanitized_workbench_content
       ++ workbench_content_suffix;
 
+    /* TODO: cursor context is sent on every message but the agent operates
+       path-based, not cursor-based. This may be unnecessary noise.
+       Consider gating on relevance or removing for path-based agents. */
+    let cursor_context_block =
+      switch (String.trim(cursor_context_content)) {
+      | "" => ""
+      | s => "\n<cursorContext>\n" ++ s ++ "\n</cursorContext>\n"
+      };
+
     let context_prefix = "\n<context>\n";
     let context_suffix = "\n</context>\n";
     let context_content =
@@ -339,6 +359,7 @@ module Utils = {
       ++ agent_editor_block
       ++ static_errors_block
       ++ test_results_block
+      ++ cursor_context_block
       ++ workbench_block
       ++ context_suffix;
     context_content
@@ -364,6 +385,7 @@ module Utils = {
   let mk_context_message =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
+        ~cursor_context_content: string="",
         agent_editor_content: string,
         static_errors_content: string,
         test_results_content: string,
@@ -373,6 +395,7 @@ module Utils = {
     mk_context_system_message(
       context_snapshot_body_for_llm(
         ~session_mode,
+        ~cursor_context_content,
         agent_editor_content,
         static_errors_content,
         test_results_content,
