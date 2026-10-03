@@ -7,9 +7,9 @@ let high_contrast = ^^check(false) in
 
 # How a livelit shows that its syntax can be opened beneath it: the #
 # Eye, struck through while hidden; a Triangle, pointing right while #
-# hidden and down while shown; or a Chevron, the same but lighter. #
-# Press one. #
-type LivelitReveal = + Eye + Triangle + Chevron in
+# hidden and down while shown; a Chevron, the same but lighter; or #
+# the Nut, whose cap lifts off while shown. Press one. #
+type LivelitReveal = + Eye + Triangle + Chevron + Nut in
 
 # ^choice: one of several values, pressed like an old car radio's #
 # buttons. It is Either, Two Versions' ^either for any number of #
@@ -37,11 +37,12 @@ let ^choice = typfun A -> fun cases : [(String, A)] -> {
       map((cases, fun (label, v) : (String, A) ->
         button((label, v, v == m))))));
   let expand = Functional(fun m : Model -> m);
-  let shape = Inline(22)
+  let shape = Inline(27)
 } in
 
 let ^reveal = ^choice@<LivelitReveal>(
-  [("eye", Eye), ("triangle", Triangle), ("chevron", Chevron)]) in
+  [("eye", Eye), ("triangle", Triangle), ("chevron", Chevron),
+   ("nut", Nut)]) in
 let livelit_reveal = ^^livelit(^reveal(Eye)) in
 
 # How far up the lightness scale each ramp step sits. Given per scheme #
