@@ -1,0 +1,98 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+
+trace: tariff-tune (11 steps, 5 reps, 1 warmup pass(es))
+
+[id-policy: default]
+calculus  step  label                   stat~med  eval~med  eval~IQR  eval~rng entries
+----------------------------------------------------------------------------------------
+a0           0  cold                       10.44    117.71 109.86-157.94 87.89-189.47       0
+a0           1  update_definition           6.01    101.82 93.34-118.46 90.81-157.82       0
+a0           2  update_binding_clause       6.23    103.90 96.30-157.49 86.24-232.63       0
+a0           3  update_binding_clause       8.07    155.86 124.39-157.20 114.65-251.85       0
+a0           4  update_binding_clause       9.52    114.63 104.65-121.54 101.48-156.04       0
+a0           5  update_binding_clause       7.74    127.70 108.20-189.31 101.72-287.37       0
+a0           6  update_binding_clause       7.16    122.53 95.88-129.44 79.34-129.48       0
+a0           7  update_binding_clause       8.38    101.80 101.73-111.83 92.03-122.03       0
+a0           8  update_binding_clause       7.43    104.07 102.36-106.89 90.95-123.63       0
+a0           9  update_binding_clause       6.28    101.30 91.22-118.63 89.59-135.00       0
+a0          10  update_binding_clause       7.46    100.26 96.58-110.51 86.84-142.88       0
+aPL          0  cold                        9.52     99.32 93.72-100.79 88.57-177.94      27
+aPL          1  update_definition           5.47     36.68 33.89-40.68 30.70-41.91      27
+aPL          2  update_binding_clause       6.41     36.77 32.79-38.25 32.20-43.66      27
+aPL          3  update_binding_clause       5.71     41.85 39.37-56.35 32.96-63.74      27
+aPL          4  update_binding_clause       8.03     40.02 36.10-40.21 35.54-58.51      27
+aPL          5  update_binding_clause       7.82     39.55 39.43-39.61 36.11-43.43      27
+aPL          6  update_binding_clause       6.61     42.12 39.41-42.50 38.54-49.92      27
+aPL          7  update_binding_clause       6.78     43.09 38.48-45.03 38.26-55.20      27
+aPL          8  update_binding_clause       9.68     37.98 35.71-45.00 32.64-54.80      27
+aPL          9  update_binding_clause       5.95     40.73 37.42-49.83 31.90-52.03      27
+aPL         10  update_binding_clause       9.31     38.32 36.20-53.01 35.19-75.16      27
+aM           0  cold                       12.43    122.09 109.60-129.82 104.41-221.41      27
+aM           1  update_definition           6.00     47.21 40.34-52.50 37.16-71.18      27
+aM           2  update_binding_clause       9.32     43.59 36.51-64.62 34.65-79.39      27
+aM           3  update_binding_clause      10.57     43.88 41.09-73.14 35.69-121.78      27
+aM           4  update_binding_clause       6.80     39.52 39.28-62.86 30.43-63.28      27
+aM           5  update_binding_clause       8.75     41.90 40.77-51.20 32.63-57.36      27
+aM           6  update_binding_clause       8.17     44.34 43.15-62.99 29.31-69.40      27
+aM           7  update_binding_clause       5.71     40.60 35.85-43.40 35.70-44.59      27
+aM           8  update_binding_clause       7.91     41.33 40.92-42.98 38.41-51.79      27
+aM           9  update_binding_clause       7.86     46.84 41.49-49.17 30.27-49.37      27
+aM          10  update_binding_clause       7.05     41.43 39.19-45.30 32.38-53.06      27
+a2           0  cold                       10.33    144.90 115.43-168.30 92.35-188.71      27
+a2           1  update_definition           8.27     13.12 10.19-13.49 8.89-24.18      27
+a2           2  update_binding_clause       8.43     12.66 11.59-14.24 9.92-27.76      27
+a2           3  update_binding_clause       7.76     11.82 10.27-14.20 9.62-18.76      27
+a2           4  update_binding_clause       6.01     12.04 11.12-12.50 10.66-14.05      27
+a2           5  update_binding_clause       7.72     12.79 10.69-14.90 10.61-22.95      27
+a2           6  update_binding_clause      12.93     15.33 12.49-19.43 11.93-26.01      27
+a2           7  update_binding_clause       9.83     13.20 11.22-13.42 9.49-24.75      27
+a2           8  update_binding_clause       8.64     12.01 10.22-13.28 9.07-27.04      27
+a2           9  update_binding_clause       8.61     16.51 13.26-17.64 11.39-34.90      27
+a2          10  update_binding_clause      10.22     12.39 10.44-19.51 10.20-25.05      27
+aStar        0  cold                       10.19    131.29 121.63-154.38 118.63-285.01      27
+aStar        1  update_definition          16.12     18.98 14.07-34.56 14.06-102.65      27
+aStar        2  update_binding_clause       7.67     12.86 11.39-16.81 10.20-25.91      27
+aStar        3  update_binding_clause       7.82     11.87 10.27-14.76 10.10-24.10      27
+aStar        4  update_binding_clause       8.62     13.86 11.77-19.79 10.51-21.91      27
+aStar        5  update_binding_clause      10.19     16.30 10.75-16.40 9.81-23.31      27
+aStar        6  update_binding_clause       8.41     12.08 11.16-13.02 9.48-34.69      27
+aStar        7  update_binding_clause       6.88     13.82 11.92-14.17 11.77-27.94      27
+aStar        8  update_binding_clause       8.85     13.61 12.00-16.69 10.90-22.67      27
+aStar        9  update_binding_clause       7.47     11.21 10.25-14.10 10.21-16.06      27
+aStar       10  update_binding_clause       8.07     13.45 13.11-15.32 10.15-18.42      27
+
+calculus id-policy       cold~med     incr~med         incr~IQR    vs-a0
+--------------------------------------------------------------------------
+a0       default           117.71      1172.43  1126.21-1359.24    1.000
+aPL      default            99.32       403.32    396.75-434.61    0.344
+aM       default           122.09       496.27    473.05-499.16    0.423
+a2       default           144.90       127.90    123.54-137.02    0.109
+aStar    default           131.29       165.00    125.58-196.09    0.141
+
+wrote /Users/matt/git/hazel/bench-record-traces/bench/results/tariff-tune.bench.json
+
+expected of this task:
+  Built to separate a2 from aPL, which no other task in this set does.
+  
+  The search itself is the same shape as tune-threshold, but the program is 
+  organised differently: the expensive per-station work (`from_station` then 
+  `map`) is reached through a CALL to `billed_amounts` inside `large_total`'s 
+  body, rather than sitting in a top-level let. That matters because aPL's 
+  cache admits only expressions evaluated at the empty callstack 
+  (Calculus.callstack_depth_limit is 0 for aPL, 4 for a2), so under aPL 
+  nothing inside a function call is ever cached and the aggregation is redone 
+  on every guess. a2 keys entries by (callstack, id) and re-uses it.
+  
+  On a synthetic trace of six cutoff changes over this program the gap was 
+  large: a0 568ms, aPL 218ms (0.384), a2 15ms (0.027) -- a2 roughly 14x 
+  faster than aPL. The pre-existing hand-written bench/traces/callstack.json 
+  shows the same effect more starkly still (aPL 0.914, a2 0.395), because 
+  there even the base data sits under a call.
+  
+  This is also the honest qualifier on yesterday's five tasks: they all put 
+  the expensive work in top-level bindings, which is precisely the case aPL 
+  already handles, so a2 looked unremarkable. Which calculus wins depends on 
+  how the program under test is organised, not only on what the edit does.
+  
+  NOTE: `goal` is an oracle the agent never sees. Expected answer is cutoff 
+  434, at which large_total(2) is 20699.

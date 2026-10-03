@@ -1,0 +1,74 @@
+SLOW PARSE (@code of 02-the-tylr-parser-and-backpack.hzt, 10 chars): menhir: Failure("Exception MenhirParser.Parser.MenhirBasics.Error at: line 1, column 10") | head: let x = ¿
+[feedback round 1] value=13170
+[feedback round 2] value=2159
+[feedback round 3] value=7894
+[feedback round 4] value=4712
+[feedback round 5] value=7138
+[feedback round 6] value=7138
+[feedback round 7] value=7138
+[feedback round 8] value=7138
+[feedback round 9] value=7138
+[feedback round 10] value=7138
+[agent said DONE; stopping]
+--- final program ---
+# Billing model.                                                           #
+# The expensive per-station aggregation lives INSIDE `billed_amounts`,     #
+# reached through a call, rather than in a top-level binding.              #
+let noise : Int -> Int =
+  fun i -> int_mod(i * 7919 + 104729, 10007)
+in
+
+let readings : [(Int, Int, Int)] =
+  init(300, fun i ->
+    (int_mod(noise(i), 4),
+     int_mod(noise(i + 1), 50) + 1,
+     int_mod(noise(i + 2), 20) + 5))
+in
+
+let station : (Int, Int, Int) -> Int =
+  fun (s, _, _) -> s
+in
+
+let volume : (Int, Int, Int) -> Int =
+  fun (_, v, _) -> v
+in
+
+let unit_cost : (Int, Int, Int) -> Int =
+  fun (_, _, c) -> c
+in
+
+let sum : [Int] -> Int =
+  fun xs -> fold_left(xs, fun (acc, n) -> acc + n, 0)
+in
+
+let from_station : Int -> [(Int, Int, Int)] =
+  fun s -> filter(readings, fun r -> station(r) == s)
+in
+# Called, not bound: this is the expensive step, and it is the same for #
+# every value of `cutoff`.                                              #
+let billed_amounts : Int -> [Int] =
+  fun s -> map(from_station(s), fun r -> volume(r) * unit_cost(r))
+in
+
+let cutoff = 773 in
+
+let large_total : Int -> Int =
+  fun s -> sum(filter(billed_amounts(s), fun n -> n > cutoff))
+in
+large_total(2)
+--- final value ---
+7138
+--- goal: NOT met (expected 20699) ---
+--- feedback rounds used: 11 ---
+--- editor actions (10) ---
+  update_definition: (Structural(Update Definition cutoff 600))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 900 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 750 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 825 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 787 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 768 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 777 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 772 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 774 in"))
+  update_binding_clause: (Structural(Update BindingClause cutoff"let cutoff = 773 in"))
+wrote trace: /Users/matt/git/hazel/bench-record-traces/bench/traces/tariff-tune.json
