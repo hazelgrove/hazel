@@ -239,6 +239,21 @@ let laid_out_for_pane = (syntax: Base.segment): Base.segment => {
   widest > pane_widest ? PrettySegment.prettify(syntax) : syntax;
 };
 
+/* The syntax a livelit takes back when its eye closes. A cell retyped in
+   the pane is plain parens there, `g = (0)`: its SpliceRef then names the
+   parens, which the GUI cannot open as an editor, so it drew a hole. Closing
+   the eye splices such cells again, as projecting the use did at load
+   (LivelitProj.splice_marked_fields, the livelit's init override); cells
+   that are splices already are left as they are. */
+let closed_syntax = (pr: Base.projector): Base.segment => {
+  let seg = ProjectorInit.unspliced(pr.syntax);
+  switch (pr.kind) {
+  | Language.ProjectorKind.Livelit =>
+    Option.value(~default=seg, LivelitProj.splice_marked_fields(seg))
+  | _ => seg
+  };
+};
+
 /* The syntax as the pane's editor holds it. Its cells stay splices --
    a livelit finds its model's splices by id when it commits -- and
    Measured measures a splice nested in the pane inline, as it is drawn. */
@@ -378,7 +393,7 @@ let go =
           syntax:
             pr.show_syntax
               ? ProjectorInit.spliced(pane_syntax(pr.syntax))
-              : ProjectorInit.unspliced(pr.syntax),
+              : closed_syntax(pr),
         };
       };
       /* With the caret in the syntax being hidden, update cannot find the
