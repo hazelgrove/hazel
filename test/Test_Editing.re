@@ -2810,6 +2810,46 @@ let module_tests = [
     ~acts=mk({|let m = ¦|}) @ [Insert("{"), Put_down],
     ~goal={|let m = {?}¦|},
   ),
+  /* #2575: typing `+A(` before `Int` in a module-body type alias. `A`
+     first merges into `AInt`; `(` then splits that token, inserting
+     three shards before any remold, so `(` has to find its form from
+     the local (Typ) sort rather than the module body's. */
+  test(
+    ~name="Module: #2575 wrap alias body in a constructor",
+    ~acts=
+      mk({|module M = { type T = ¦Int } in 1|})
+      @ string_to_ltr_actions("+A("),
+    ~goal={|module M = { type T = +A(¦Int } in 1|},
+  ),
+  test(
+    ~name="Module: #2575 close the constructor's paren",
+    ~acts=
+      mk({|module M = { type T = ¦Int } in 1|})
+      @ string_to_ltr_actions("+A(")
+      @ mv_r(3)
+      @ [Insert(")")],
+    ~goal={|module M = { type T = +A(Int)¦ } in 1|},
+  ),
+  test(
+    ~name="Module: #2575 same in a let-bound module",
+    ~acts=
+      mk({|let M = { type T = ¦Int } in 1|}) @ string_to_ltr_actions("+A("),
+    ~goal={|let M = { type T = +A(¦Int } in 1|},
+  ),
+  /* Multi-line: mk's auto-indent puts real spaces in the segment, so the
+     plain printer already shows the layout (printer_indented would add
+     Measured's indent columns on top of them and shift the caret). */
+  test_case("Module: #2575 multi-line layout", `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "multi-line",
+      "module M = {\n  type T = +A(¦Int\n} in 1",
+      mk("module M = {\ntype T = ¦Int\n} in 1")
+      @ string_to_ltr_actions("+A(")
+      |> perform(Zipper.init())
+      |> printer,
+    )
+  ),
   /* --- Module Cmd+D selection tests --- */
   test(
     ~name="Module Cmd+D: step 1 value to ModLet",
