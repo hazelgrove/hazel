@@ -233,7 +233,7 @@ let polarity_field = "is-dark";
 let contrast_field = "is-high-contrast";
 
 /* Not part of a scheme: how a livelit's syntax toggle is drawn, Eye,
-   Triangle or Chevron (Web.ColorConfiguration turns it into the glyphs). The slide
+   Triangle, Chevron or Nut (Web.ColorConfiguration turns it into the glyphs). The slide
    adds it to its scheme at the end, `scheme ... (`livelit-reveal` = ..)`,
    since this slide is the one place a reader configures the editor's look.
    Kept out of ColorScheme itself so a slide saved before it existed, whose
@@ -274,16 +274,17 @@ let typ: Typ.t = var("ColorScheme");
 /* What the slide as a whole yields: its scheme plus the toggle's look.
    Spelled out rather than registered as a fifth name (see type_aliases);
    its parts are still the named types, so a mismatch names them. */
-/* The toggle's look is a sum, + Eye + Triangle + Chevron, left structural rather
+/* The toggle's look is a sum, + Eye + Triangle + Chevron + Nut, left structural rather
    than registered under a name, for the same reason as above: its
    constructors would otherwise be in scope in every program. The Colors
-   slide declares its own `type LivelitReveal = + Eye + Triangle + Chevron`, which
+   slide declares its own `type LivelitReveal = + Eye + Triangle + Chevron + Nut`, which
    is consistent with this. */
 let reveal_type: Typ.t =
   BuiltinsADT.sum_type([
     ("Eye", None),
     ("Triangle", None),
     ("Chevron", None),
+    ("Nut", None),
   ]);
 
 let typ_with_reveal: Typ.t = record(scheme @ [(reveal_field, reveal_type)]);

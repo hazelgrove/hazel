@@ -398,7 +398,7 @@ let polarity_target = "hazel-color-scheme";
 let contrast_target = "hazel-contrast";
 
 /* Not a color: the livelit syntax toggle's look (BuiltinsColorScheme's
-   reveal_field, + Eye + Triangle + Chevron). Published as the glyphs themselves, so a stylesheet draws
+   reveal_field, + Eye + Triangle + Chevron + Nut). Published as the glyphs themselves, so a stylesheet draws
    them with `content: var(...)`; [reveal_style] names the choice, for
    anything that wants to branch on it. An unknown name is the eye. */
 let reveal_style_target = "hazel-livelit-reveal";
@@ -439,6 +439,8 @@ let reveal_vars = (style: string): list((string, string)) => {
         "90deg",
         "0.9em",
       )
+    /* the hazelnut: shut, then its cap lifted off (RevealNut) */
+    | "nut" => ("nut", RevealNut.shut, RevealNut.open_, "0px", "0deg", "1em")
     | _ => ("eye", eye, eye, "1.5px", "0deg", "1em")
     };
   [

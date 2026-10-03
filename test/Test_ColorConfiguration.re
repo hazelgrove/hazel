@@ -685,6 +685,60 @@ let chevron_reveals = () => {
   );
 };
 
+/* The hazelnut: two images, shut and with its cap off, as data URIs. */
+let nut_reveals = () => {
+  let vars = CC.vars_of_source(source_with_reveal("Nut"));
+  check(
+    int,
+    "the whole theme, still",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the nut's glyphs",
+    List.sort(compare, CC.reveal_vars("nut")),
+    reveal_of(vars),
+  );
+  let get = n => List.assoc(n, vars);
+  let prefix = "url(\"data:image/svg+xml,";
+  let is_image = v =>
+    String.length(v) > String.length(prefix)
+    && String.sub(v, 0, String.length(prefix)) == prefix;
+  check(
+    bool,
+    "shut is an image",
+    true,
+    is_image(get(CC.reveal_closed_target)),
+  );
+  check(
+    bool,
+    "open is an image",
+    true,
+    is_image(get(CC.reveal_open_target)),
+  );
+  check(
+    bool,
+    "and a different one",
+    true,
+    get(CC.reveal_closed_target) != get(CC.reveal_open_target),
+  );
+  check(
+    bool,
+    "nothing a url(\"...\") cannot carry",
+    false,
+    List.exists(
+      c =>
+        String.contains(
+          get(CC.reveal_open_target)
+          |> (v => String.sub(v, 5, String.length(v) - 7)),
+          c,
+        ),
+      ['"', '#', '<', '>', '\n'],
+    ),
+  );
+};
+
 /* A slide saved in the hour the choice was a string,
    `let livelit_reveal = "triangle" in`: still its colors, and still the
    triangle. */
@@ -757,6 +811,7 @@ let tests = [
       ),
       test_case("triangle reveals", `Quick, triangle_reveals),
       test_case("chevron reveals", `Quick, chevron_reveals),
+      test_case("nut reveals", `Quick, nut_reveals),
       test_case(
         "a slide saved with the string keeps its choice",
         `Quick,
