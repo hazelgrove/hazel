@@ -320,7 +320,6 @@ module Selection = {
 
 module View = {
   open Widgets;
-  open Js_of_ocaml;
 
   let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
     let current = List.nth(model.exercises, model.current);
@@ -393,8 +392,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            HazelDB.clear_all();
-            Dom_html.window##.location##reload;
+            HazelDB.clear_all_and_reload();
           };
           Virtual_dom.Vdom.Effect.Ignore;
         },
