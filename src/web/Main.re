@@ -229,7 +229,9 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    JsUtil.focus_clipboard_shim();
+    JsUtil.focus_page();
+    JsUtil.install_text_selection_handoff();
+    Haz3lcore.FocusEffect.install_press_tracking();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to

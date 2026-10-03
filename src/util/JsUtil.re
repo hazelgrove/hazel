@@ -100,20 +100,39 @@ let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
 
-let clipboard_shim_id = "clipboard-shim";
+/* Where keyboard focus rests when nothing more specific holds it: incr_dom
+   makes the app root focusable, so page-level key handlers still see keys. */
+let focus_page = () =>
+  switch (get_elem_by_id_opt("page")) {
+  | Some(el) =>
+    Js.Unsafe.coerce(el)##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    )
+  | None => ()
+  };
 
-let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+/* A press in code hands selection over to the editor, so drop any page text
+   selection: the browser keeps it when the press lands on unselectable
+   content. Capture phase, since projectors stop pointerdown propagation. */
+let install_text_selection_handoff = (): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(){
+        document.addEventListener('pointerdown', function(e){
+          var t = e.target;
+          if (!(t instanceof Element) || !t.closest('.code-editor')
+              || t.closest('input, textarea, [contenteditable]')) return;
+          var s = window.getSelection();
+          if (s && !s.isCollapsed) s.removeAllRanges();
+        }, true);
+      })|},
+    ),
+    [||],
+  );
 
-/* Set while an interactive projector owns DOM focus (the keybinding
-   recorder). The page pulls focus back to the clipboard shim on any bubbled
-   focus/blur, and the shim's focusout fires BEFORE the projector's focusin —
-   so a guard that inspects the event is always too late. The projector
-   raises this on pointerdown, before focus moves at all, and lowers it on
-   blur. */
-let projector_holds_focus = ref(false);
 /* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
-   itself must hold DOM focus (not the clipboard shim). preventScroll: don't
-   fight an in-progress jump/scroll. */
+   itself must hold DOM focus. preventScroll: don't fight an in-progress
+   jump/scroll. */
 let focus_active_editor = () =>
   switch (
     Js.Opt.to_option(
@@ -124,7 +143,7 @@ let focus_active_editor = () =>
     Js.Unsafe.coerce(el)##focus(
       Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     )
-  | None => focus_clipboard_shim()
+  | None => focus_page()
   };
 
 /* The id carried by whichever code-editor cell is currently the active
@@ -151,48 +170,31 @@ let focus_active_cell = (): bool =>
   | None => false
   };
 
-let clipboard_shim = {
-  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
-};
-
-let copy = (str: string) => {
-  focus_clipboard_shim();
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
+/* Without the async Clipboard API (insecure contexts), copy through a
+   throwaway textarea and hand focus back. */
+let copy_text = (str: string): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(s){
+        if (typeof navigator.clipboard !== 'undefined') {
+          navigator.clipboard.writeText(s);
+          return;
+        }
+        var prev = document.activeElement;
+        var ta = document.createElement('textarea');
+        ta.value = s;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:-100px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus({preventScroll: true});
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        if (prev && prev.focus) prev.focus({preventScroll: true});
+      })|},
+    ),
+    [|Js.Unsafe.inject(Js.string(str))|],
   );
-  Dom_html.document##execCommand(
-    Js.string("insertText"),
-    Js.bool(false),
-    Js.Opt.option(Some(Js.string(str))),
-  );
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
-  );
-};
-
-/** Copy [str] using the hidden textarea shim + [document.execCommand("copy")]. */
-let copy_via_shim = (str: string): unit => {
-  focus_clipboard_shim();
-  Js.Opt.iter(
-    Dom_html.document##getElementById(Js.string(clipboard_shim_id)),
-    clipboard_shim_el => {
-      let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
-      clipboard_shim##.value := Js.string(str);
-      ignore(clipboard_shim##select);
-      ignore(
-        Dom_html.document##execCommand(
-          Js.string("copy"),
-          Js.bool(false),
-          Js.Opt.empty,
-        ),
-      );
-    },
-  );
-};
 
 let show_copy_toast = (): unit => {
   Js.Opt.iter(
@@ -247,18 +249,7 @@ module ClipboardHandler = {
         [|Js.Unsafe.inject(cb)|],
       );
     | Write_text(str) =>
-      /* Older browsers with no Clipboard API fall through to the
-         execCommand shim. */
-      if (has_clipboard_api()) {
-        Js.Unsafe.fun_call(
-          Js.Unsafe.pure_js_expr(
-            "(function(s){navigator.clipboard.writeText(s);})",
-          ),
-          [|Js.Unsafe.inject(Js.string(str))|],
-        );
-      } else {
-        copy(str);
-      };
+      copy_text(str);
       on_response();
     };
 };

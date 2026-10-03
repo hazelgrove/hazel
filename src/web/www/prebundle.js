@@ -6,18 +6,13 @@ import Algebrite from 'algebrite';
 window.Algebrite = Algebrite;
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the
-// clipboard-shim and the ninja-keys command palette (which lives inside a shadow DOM).
+// ninja-keys command palette (which lives inside a shadow DOM).
 hotkeys.filter = event => {
   // composedPath() lets us see the original target even when the event has been
   // retargeted across a shadow DOM boundary (e.g. the <input> inside ninja-keys).
   const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
   const target = event.target || event.srcElement;
-  const { tagName, id } = target;
-
-  // Override happening here
-  if(id == "clipboard-shim") {
-    return true;
-  }
+  const { tagName } = target;
 
   // When the event originates inside the ninja-keys command palette, only let
   // its own navigation/close keys through. This stops globally-registered action
