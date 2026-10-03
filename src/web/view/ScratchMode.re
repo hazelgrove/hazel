@@ -996,7 +996,17 @@ module Update = {
       let queue_worker =
         Some(
           (req_value: WorkerServer.Request.value) => {
-            worker_request := worker_request^ @ [("", req_value)]
+            worker_request :=
+              worker_request^
+              @ [
+                (
+                  "",
+                  {
+                    ...req_value,
+                    doc: "scratch:" ++ scratchpad.name,
+                  },
+                ),
+              ]
           },
         );
       let new_ed =

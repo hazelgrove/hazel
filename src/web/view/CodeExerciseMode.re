@@ -447,7 +447,16 @@ module Update = {
     let worker_request = ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> CodeExercise.key_for_statics, req_value)];
+        worker_request^
+        @ [
+          (
+            pos |> CodeExercise.key_for_statics,
+            {
+              ...req_value,
+              doc: "exercise:" ++ Id.to_string(model.editors.id),
+            },
+          ),
+        ];
     };
     let cells =
       CodeExercise.map2_stitched(
