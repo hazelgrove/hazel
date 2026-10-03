@@ -217,6 +217,28 @@ let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
   });
 };
 
+/* The syntax a projector shows when its eye opens, as the editor in its
+   pane. Written on one long line -- a model of many fields, say -- it
+   would run past the pane's right edge, so a line wider than this is laid
+   out again by the pretty printer, which only moves whitespace: ids, and
+   so the model's splices, are kept. A layout that already fits, as written
+   by hand, is left alone. */
+let pane_widest = 80;
+let laid_out_for_pane = (syntax: Base.segment): Base.segment => {
+  let widest =
+    /* Base's printer, not Printer's, which reaches this module through
+       Triggers. A nested projector counts as its syntax: near enough. */
+    Base.segment_to_string(
+      ~holes="?",
+      ~refractor_seg_to_seg=(r, seg) => (r, seg),
+      ~projector_to_segment=(pr: Base.projector) => pr.syntax,
+      syntax,
+    )
+    |> String.split_on_char('\n')
+    |> List.fold_left((w, line) => max(w, String.length(line)), 0);
+  widest > pane_widest ? PrettySegment.prettify(syntax) : syntax;
+};
+
 let go =
     (
       term_data: TermData.t,
@@ -337,8 +359,9 @@ let go =
     | None => Error(Cant_project)
     }
   /* Show or hide a projector's own syntax: shown, it is held as one splice
-     (ProjectorInit.spliced), which is how its sub-editor can edit it;
-     hidden, the splice comes off and the syntax is as it was. */
+     (ProjectorInit.spliced), which is how its sub-editor can edit it,
+     laid out to fit the pane (laid_out_for_pane); hidden, the splice comes
+     off, and the syntax keeps whatever layout it had in the pane. */
   | ToggleSyntax(idx) =>
     switch (projector_idx_to_id(idx)) {
     | Some(id) =>
@@ -348,7 +371,7 @@ let go =
           ...pr,
           syntax:
             pr.show_syntax
-              ? ProjectorInit.spliced(pr.syntax)
+              ? ProjectorInit.spliced(laid_out_for_pane(pr.syntax))
               : ProjectorInit.unspliced(pr.syntax),
         };
       };
