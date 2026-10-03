@@ -598,6 +598,8 @@ module M: Projector = {
     };
   };
 
+  let params_min_cols = 37; /* + with_syntax_pane's 7: 44 */
+
   let placeholder = (_model, info, splice_size) => {
     let shape = gui_shape(info, splice_size);
     switch (syntax_splice(info.syntax)) {
@@ -605,12 +607,16 @@ module M: Projector = {
     /* Given the pane's rows, and one more for a params line. */
     | Some(s) =>
       let size: Util.Point.t = splice_size(s.id);
+      /* The params line is an input whose text is only known once the
+         view evaluates params_from_model; 44 columns hold a few labelled
+         fields (Kids' Choice's face: `(smile=85, brow=92, sickness=0)`)
+         and the panel's label, and a longer one scrolls in its input. */
       let size =
         has_params_panel(info)
-          ? {
-            ...size,
-            row: size.row + 1,
-          }
+          ? Util.Point.{
+              row: size.row + 1,
+              col: max(size.col, params_min_cols),
+            }
           : size;
       with_syntax_pane(size, shape);
     };

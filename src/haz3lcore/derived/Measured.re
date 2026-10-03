@@ -459,6 +459,9 @@ let of_segment_inner =
     row_content: empty_row_content_,
   };
 
+  /* How many splices' content [go] is inside: see the Splice case. */
+  let splice_depth = ref(0);
+
   let rec go =
           (~top_level: bool, acc: measure_acc, seg: Segment.t): measure_acc =>
     switch (seg) {
@@ -470,6 +473,27 @@ let of_segment_inner =
     | Secondary(w) => add_secondary(acc, w)
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
+    | Splice(s) when splice_depth^ > 0 =>
+      /* A splice inside another splice's content: a livelit's cell, in
+       * the pane that shows the livelit's own syntax under its GUI
+       * (ProjectorPerform.ToggleSyntax), where the whole use is one
+       * splice. Nothing draws it elsewhere -- the pane's editor prints
+       * it inline, as its text -- so it is measured inline too. Measured
+       * as zero width, every caret, click and outline after it on its
+       * row landed that many columns short. Its size is still recorded,
+       * for the GUI's splice_size. */
+      let start = acc.pos;
+      let acc = go(~top_level=false, acc, s.content);
+      let last = acc.pos;
+      let size =
+        Point.{
+          row: last.row - start.row,
+          col: last.row == start.row ? last.col - start.col : last.col,
+        };
+      {
+        ...acc,
+        map: add_splice_info(s, {size: size}, acc.map),
+      };
     | Splice(s) =>
       /* A Splice appearing directly in the outer segment (not inside a
        * projector) consumes zero width at its position. Its interior is
@@ -562,8 +586,10 @@ let of_segment_inner =
    * Returns the outer map augmented with the splice's inner piece
    * measurements and the splice's intrinsic size. */
   and measure_splice = (s: Base.splice, outer: flat): flat => {
+    incr(splice_depth);
     let {pos: last, map: inner, _} =
       go(~top_level=false, initial_acc, s.content);
+    decr(splice_depth);
     let outer = merge_inner(inner, outer);
     /* The intrinsic size is the content's bounding box: [last] alone
      * would report the END POINT (the last line's width), understating

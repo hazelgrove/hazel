@@ -76,6 +76,46 @@ let tests = (
       },
     ),
     test_case(
+      "A cell nested in the pane is measured as wide as its text",
+      `Quick,
+      () => {
+        /* f((head), x), with (head) a splice, as a regenerated use holds a
+           cell, and the whole use one more, as the open eye holds it. */
+        let use =
+          switch (parse("f((head), x)")) {
+          | [f, Tile({children: [[Tile(_) as cell, ...rest]], _} as args)] => [
+              f,
+              Tile({
+                ...args,
+                children: [[Piece.mk_splice([cell]), ...rest]],
+              }),
+            ]
+          | _ => fail("unexpected shape for f((head), x)")
+          };
+        let pane = [Piece.mk_splice(use)];
+        let rec find_x = (seg: Segment.t): option(Tile.t) =>
+          List.find_map(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) when Tile.label(t) == ["x"] => Some(t)
+              | Tile(t) => List.find_map(find_x, t.children)
+              | Splice(s) => find_x(s.content)
+              | _ => None
+              },
+            seg,
+          );
+        let x =
+          switch (find_x(use)) {
+          | Some(t) => t
+          | None => fail("no x")
+          };
+        let m = Measured.of_segment(pane, Id.Map.empty, Id.Map.empty);
+        let col = Measured.find_p(Tile(x), m).origin.col;
+        check(int, "x sits where the text puts it", 10, col);
+        check(string, "the text", "f((head), x)", text(use));
+      },
+    ),
+    test_case(
       "A short model is left alone",
       `Quick,
       () => {
