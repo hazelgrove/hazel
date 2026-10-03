@@ -882,6 +882,56 @@ def c_eye_hover(d, log):
     assert d.js(on_top), "the toggle vanished with the mouse inside the livelit"
     return {}
 
+
+@case("eye: a cell retyped in the open syntax shows in the GUI, and is a cell again")
+def c_eye_retyped_cell(d, log):
+    # Found by hand on Color (Figure 3): a cell retyped in the pane is plain
+    # parens, `g = (0)`; its SpliceRef names the parens, which the GUI could
+    # not open, so the GUI drew a hole though the expansion was right.
+    color = ("[...document.querySelectorAll('.user-livelit')].find(w => "
+             "/teal/.test(w.innerText) && w.querySelector('.livelit-splice'))")
+    cells = ("const w = %s; return w ? [...w.querySelectorAll('.livelit-splice')]"
+             ".map(s => [s.innerText.trim(), !!s.querySelector('.code-editor')]) : null;" % color)
+    d.goto("/fresh?slide=livelits-color-figure-3&panel=none")
+    assert wait_for(d, "return !!(" + color + ")", 120), "no ^color"
+    time.sleep(3)
+    d.js("(%s).scrollIntoView({block: 'center'}); return 1;" % color)
+    time.sleep(1)
+    eye = """
+      const g = (%s).closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.left - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % color
+    click_at(d, *d.js(eye))
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    time.sleep(1)
+    d.js("document.querySelector('.livelit-syntax').scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    at = pane_token(d, "green", 5)
+    assert at, "no `green` in the pane"
+    click_at(d, *at)
+    time.sleep(1)
+    d.keys(["\ue003"])
+    time.sleep(1)
+    d.keys(["0"])
+    time.sleep(5)
+    gui = d.js("const w = %s; return w.innerText.replace(/\\s+/g, ' ');" % color)
+    log({"gui": gui, "cells": d.js(cells)})
+    assert " g 0 " in gui, f"the retyped cell does not show in the GUI: {gui!r}"
+    d.js("(%s).scrollIntoView({block: 'center'}); return 1;" % color)
+    time.sleep(1)
+    click_at(d, *d.js(eye))
+    time.sleep(4)
+    shut = d.js(cells)
+    log({"closed": shut})
+    assert shut and len(shut) == 4 and all(ed for _, ed in shut), \
+        f"closing the eye did not make four cells again: {shut}"
+    return {"closed": shut}
+
 @case("eye: the Colors slide's ^reveal turns the eyes into triangles")
 def c_reveal_choice(d, log):
     # The Colors slide (Configuration mode) chooses the toggle's look with
