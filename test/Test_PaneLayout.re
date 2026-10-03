@@ -113,6 +113,19 @@ let tests = (
         let col = Measured.find_p(Tile(x), m).origin.col;
         check(int, "x sits where the text puts it", 10, col);
         check(string, "the text", "f((head), x)", text(use));
+        /* The cell's own extent, which places a caret beside it. */
+        let cell =
+          switch (use) {
+          | [_, Tile({children: [[Splice(_) as cell, ..._]], _})] => cell
+          | _ => fail("no cell")
+          };
+        let cm = Measured.find_p(cell, m);
+        check(
+          pair(int, int),
+          "the cell spans (head)",
+          (2, 8),
+          (cm.origin.col, cm.last.col),
+        );
       },
     ),
     test_case(
