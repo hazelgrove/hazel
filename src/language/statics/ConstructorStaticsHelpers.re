@@ -65,3 +65,86 @@ let syn_marks_ctr =
       }
     }
   };
+
+/* Replace Rec("name", ...) with Var("name") for unshadowed builtin type
+   aliases (HTML, Attr, Cmd, Sub). Builtin aliases use Var references in
+   Ctx.add_ctrs so constructor type annotations stay compact. Compactness
+   enables the Var-Var fast path in Typ.meet during post-eval statics —
+   without it, statics on full HTML apps takes ~2s instead of ~4ms.
+   Ascriptions.re resolves the Var lazily via weak_head_normalize. */
+let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  let is_builtin_alias = (name: string): bool =>
+    List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
+    && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid);
+  switch (Typ.term_of(ty)) {
+  | Rec(tp, _) =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(name) when is_builtin_alias(name) => Var(name) |> Typ.temp
+    | _ => ty
+    }
+  | Arrow(t1, t2) =>
+    let t1' = compact_builtin_recs(ctx, t1);
+    let t2' = compact_builtin_recs(ctx, t2);
+    if (t1' === t1 && t2' === t2) {
+      ty;
+    } else {
+      Arrow(t1', t2') |> Typ.temp;
+    };
+  | List(t) =>
+    let t' = compact_builtin_recs(ctx, t);
+    if (t' === t) {
+      ty;
+    } else {
+      List(t') |> Typ.temp;
+    };
+  | Prod(ts) =>
+    let ts' = List.map(compact_builtin_recs(ctx), ts);
+    if (List.for_all2((===), ts, ts')) {
+      ty;
+    } else {
+      Prod(ts') |> Typ.temp;
+    };
+  | TupLabel(l, t) =>
+    let t' = compact_builtin_recs(ctx, t);
+    if (t' === t) {
+      ty;
+    } else {
+      TupLabel(l, t') |> Typ.temp;
+    };
+  | Parens(t) =>
+    let t' = compact_builtin_recs(ctx, t);
+    if (t' === t) {
+      ty;
+    } else {
+      Parens(t') |> Typ.temp;
+    };
+  | _ => ty
+  };
+};
+
+/* Normalize a constructor's type annotation, but keep it compact when the
+   constructor's return type is a builtin alias. If the type already has a
+   compact builtin Var return, leave it alone. Otherwise compact any
+   expanded builtin Rec types back to Var; if no compaction happened, fall
+   back to plain normalize. */
+let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  let return_type_name =
+    switch (Typ.term_of(ty)) {
+    | Var(name) => Some(name)
+    | Arrow(_, {term: Var(name), _}) => Some(name)
+    | _ => None
+    };
+  switch (return_type_name) {
+  | Some(name)
+      when
+        List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
+        && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid) => ty
+  | _ =>
+    let compacted = compact_builtin_recs(ctx, ty);
+    if (compacted !== ty) {
+      compacted;
+    } else {
+      Typ.normalize(ctx, ty);
+    };
+  };
+};

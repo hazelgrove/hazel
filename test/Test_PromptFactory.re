@@ -213,6 +213,60 @@ let fn_sugar_evaluates = () => {
   );
 };
 
+/* The drag idiom documented in the mvu pack: MoveTo moves only while held. */
+let drag_idiom_evaluates = () => {
+  let drag = (result: string) =>
+    "type DragAction = Press + MoveTo(Int, Int) + Release in\n"
+    ++ "let update = fun (m, a) ->\n"
+    ++ "let (x, y, held) = m in\n"
+    ++ "case a\n"
+    ++ "| Press => (x, y, true)\n"
+    ++ "| MoveTo(nx, ny) => if held then (nx, ny, true) else m\n"
+    ++ "| Release => (x, y, false)\n"
+    ++ "end in\n"
+    ++ result;
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "100",
+    drag("let (x, y, held) = update(((100, 50, false), MoveTo(7, 7))) in x"),
+  );
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "8",
+    drag(
+      "let (x, y, held) = update((update(((100, 50, false), Press)), MoveTo(3, 8))) in y",
+    ),
+  );
+};
+
+/* The creative pack's documented idioms: the LCG PRNG is deterministic,
+   and the sequencer update advances/gates on the running flag. */
+let creative_idioms_evaluate = () => {
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "1250496027",
+    "let next = fun s -> int_mod(s * 1103515245 + 12345, 2147483648) in next(42)",
+  );
+  let seq = (result: string) =>
+    "type SeqAction = Tick + Toggle in\n"
+    ++ "let notes = [262., 330., 392., 523.] in\n"
+    ++ "let update = fun (m, a) ->\n"
+    ++ "let (i, on) = m in\n"
+    ++ "case a\n"
+    ++ "| Toggle => ((i, if on then false else true), CmdNone)\n"
+    ++ "| Tick =>\n"
+    ++ "if on\n"
+    ++ "then ((int_mod(i + 1, 4), on), PlayTone(nth(notes, i), 120.))\n"
+    ++ "else (m, CmdNone)\n"
+    ++ "end in\n"
+    ++ result;
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "1",
+    seq("let ((i, on), c) = update(((0, true), Tick)) in i"),
+  );
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "true",
+    seq("let ((i, on), c) = update(((0, false), Toggle)) in on"),
+  );
+};
+
 /* Parse + statics only (big samples may deliberately end in a hole). */
 let assert_parses_clean = (prog: string): unit => {
   let head = String.sub(prog, 0, min(60, String.length(prog)));
@@ -286,6 +340,16 @@ let tests = [
         fn_sugar_clean,
       ),
       test_case("fn-definition sugar evaluates", `Quick, fn_sugar_evaluates),
+      test_case(
+        "documented drag idiom evaluates",
+        `Quick,
+        drag_idiom_evaluates,
+      ),
+      test_case(
+        "documented creative idioms evaluate",
+        `Quick,
+        creative_idioms_evaluate,
+      ),
       test_case(
         "documented examples are statics-clean",
         `Quick,
