@@ -487,9 +487,18 @@ let go =
           };
         };
       } else {
+        /* A projector keeps its own paren layer, or its absence. A
+           livelit's use, `^flag(true)`, is two pieces, so the
+           parenthesizing above wrapped its first commit, and from then on
+           its syntax read `(^flag(false))` where the author wrote none.
+           Syntax that stood bare in its place may stand bare again; one
+           that came in parens keeps them. */
         let f = (p: Base.projector) => {
-          ...p,
-          syntax: [parenthesized_piece],
+          let bare = Segment.unparenthesize(p.syntax) == p.syntax;
+          {
+            ...p,
+            syntax: bare ? trimmed_seg : [parenthesized_piece],
+          };
         };
         if (inside_projector(id, z)) {
           /* The caret is inside the projector (e.g. in one of its
