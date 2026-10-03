@@ -782,6 +782,39 @@ def c_eye_alignment(d, log):
     return {"tops": [before, after]}
 
 
+
+@case("eye: a click with the eye shut adds no parens to the use")
+def c_eye_no_parens(d, log):
+    # Found by hand on Overview: a flag clicked while its eye was shut
+    # came back as `(^flag(false))` -- SetSyntax wrapped every multi-piece
+    # syntax in parens -- seen as soon as the eye opened.
+    d.goto("/fresh?slide=livelits-overview&panel=none")
+    flag = ("[...document.querySelectorAll('.livelit button')]"
+            ".filter(b => /^(yes|no)$/.test(b.innerText.trim()))[0]")
+    assert wait_for(d, "return !!" + flag, 120), "Overview's flags never drew"
+    time.sleep(3)
+    d.js("const b = %s; b.scrollIntoView({block: 'center'}); return 1;" % flag)
+    time.sleep(1)
+    at = d.js("const r = %s.getBoundingClientRect();"
+              " return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];" % flag)
+    click_at(d, *at)
+    time.sleep(4)
+    eye = d.js("""
+      const g = %s.closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % flag)
+    click_at(d, *eye)
+    pane = wait_for(d, "const p = document.querySelector('.livelit-syntax');"
+                       " return p && p.innerText.replace(/\\s+/g, ' ').replace('model', '').trim();", 20)
+    log({"pane": pane})
+    assert pane == "^flag(false)", f"the use came back as {pane!r}"
+    return {"pane": pane}
+
 @case("eye: the Colors slide's ^reveal turns the eyes into triangles")
 def c_reveal_choice(d, log):
     # The Colors slide (Configuration mode) chooses the toggle's look with
