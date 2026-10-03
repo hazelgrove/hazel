@@ -89,7 +89,12 @@ let mk_splice_map =
            {
              segment: s.content,
              measured:
-               Measured.of_segment(s.content, shape_map, Id.Map.empty),
+               Measured.of_segment(
+                 ~in_splice=true,
+                 s.content,
+                 shape_map,
+                 Id.Map.empty,
+               ),
              projector_list: splice_projector_list(s.content),
            },
            acc,
