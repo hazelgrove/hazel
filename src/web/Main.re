@@ -211,6 +211,13 @@ let start = default_model => {
                "--row-height-px",
                Printf.sprintf("%fpx", rect.height),
              );
+             /* one code column, for a stylesheet that must line up with
+                the text grid (proj-livelit.css: the syntax toggle's
+                columns) */
+             JsUtil.set_css_custom_property(
+               "--col-width-px",
+               Printf.sprintf("%fpx", rect.width),
+             );
              i(
                Page.Update.Globals(
                  SetFontMetrics({
