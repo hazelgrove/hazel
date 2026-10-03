@@ -398,22 +398,28 @@ let polarity_target = "hazel-color-scheme";
 let contrast_target = "hazel-contrast";
 
 /* Not a color: the livelit syntax toggle's look (BuiltinsColorScheme's
-   reveal_field, + Eye + Triangle). Published as the glyphs themselves, so a stylesheet draws
+   reveal_field, + Eye + Triangle + Chevron). Published as the glyphs themselves, so a stylesheet draws
    them with `content: var(...)`; [reveal_style] names the choice, for
    anything that wants to branch on it. An unknown name is the eye. */
 let reveal_style_target = "hazel-livelit-reveal";
 let reveal_closed_target = "livelit-reveal-closed";
 let reveal_open_target = "livelit-reveal-open";
 let reveal_strike_target = "livelit-reveal-strike";
+/* How far the open glyph is turned, and how large the glyph is drawn:
+   a text glyph is smaller than the eye's emoji. */
+let reveal_turn_target = "livelit-reveal-turn";
+let reveal_size_target = "livelit-reveal-size";
 let reveal_targets = [
   reveal_style_target,
   reveal_closed_target,
   reveal_open_target,
   reveal_strike_target,
+  reveal_turn_target,
+  reveal_size_target,
 ];
 let reveal_vars = (style: string): list((string, string)) => {
   let eye = "\"\xF0\x9F\x91\x81\xEF\xB8\x8F\"";
-  let (style, closed, opened, strike) =
+  let (style, closed, opened, strike, turn, size) =
     switch (style) {
     /* right while hidden, down while shown: the disclosure triangle */
     | "triangle" => (
@@ -421,14 +427,27 @@ let reveal_vars = (style: string): list((string, string)) => {
         "\"\xE2\x96\xB8\"",
         "\"\xE2\x96\xBE\"",
         "0px",
+        "0deg",
+        "1.3em",
       )
-    | _ => ("eye", eye, eye, "1.5px")
+    /* the same, lighter: one angle, turned down while shown */
+    | "chevron" => (
+        "chevron",
+        "\"\xE2\x9D\xAF\"",
+        "\"\xE2\x9D\xAF\"",
+        "0px",
+        "90deg",
+        "0.9em",
+      )
+    | _ => ("eye", eye, eye, "1.5px", "0deg", "1em")
     };
   [
     (reveal_style_target, style),
     (reveal_closed_target, closed),
     (reveal_open_target, opened),
     (reveal_strike_target, strike),
+    (reveal_turn_target, turn),
+    (reveal_size_target, size),
   ];
 };
 

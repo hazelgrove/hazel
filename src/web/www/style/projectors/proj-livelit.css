@@ -178,6 +178,17 @@
 .livelit-syntax-toggle.on .livelit-eye-glyph::before {
     content: var(--livelit-reveal-open, "\1F441\FE0F");
 }
+/* A text glyph (triangle, chevron) is drawn larger than the emoji, and
+   the chevron opens by turning, not by being swapped for another glyph,
+   which would sit at another height. */
+.livelit-eye-glyph {
+    display: inline-block;
+    font-size: var(--livelit-reveal-size, 1em);
+    line-height: 1;
+}
+.livelit-syntax-toggle.on .livelit-eye-glyph {
+    transform: rotate(var(--livelit-reveal-turn, 0deg));
+}
 .projector:hover .livelit-eye-glyph {
     opacity: 0.9;
 }

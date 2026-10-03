@@ -80,7 +80,9 @@ light	light-page-color	oklch(99% 0.012 90)
 light	live-env-bkg	oklch(91% 0.025 90)
 light	livelit-reveal-closed	"👁️"
 light	livelit-reveal-open	"👁️"
+light	livelit-reveal-size	1em
 light	livelit-reveal-strike	1.5px
+light	livelit-reveal-turn	0deg
 light	llm-waiting-1	oklch(52% 0.2 265)
 light	llm-waiting-2	oklch(52% 0.2 300)
 light	llm-waiting-3	oklch(52% 0.2 355)
@@ -341,7 +343,9 @@ contrast_light	light-page-color	oklch(100% 0 90)
 contrast_light	live-env-bkg	oklch(94% 0 90)
 contrast_light	livelit-reveal-closed	"👁️"
 contrast_light	livelit-reveal-open	"👁️"
+contrast_light	livelit-reveal-size	1em
 contrast_light	livelit-reveal-strike	1.5px
+contrast_light	livelit-reveal-turn	0deg
 contrast_light	llm-waiting-1	oklch(0% 0.2 265)
 contrast_light	llm-waiting-2	oklch(0% 0.2 300)
 contrast_light	llm-waiting-3	oklch(0% 0.2 355)
@@ -602,7 +606,9 @@ dark	light-page-color	oklch(95% 0.015 240)
 dark	live-env-bkg	oklch(22% 0.02 250)
 dark	livelit-reveal-closed	"👁️"
 dark	livelit-reveal-open	"👁️"
+dark	livelit-reveal-size	1em
 dark	livelit-reveal-strike	1.5px
+dark	livelit-reveal-turn	0deg
 dark	llm-waiting-1	oklch(75% 0.2 265)
 dark	llm-waiting-2	oklch(75% 0.2 300)
 dark	llm-waiting-3	oklch(75% 0.2 355)
@@ -863,7 +869,9 @@ contrast_dark	light-page-color	oklch(22% 0 240)
 contrast_dark	live-env-bkg	oklch(8% 0 250)
 contrast_dark	livelit-reveal-closed	"👁️"
 contrast_dark	livelit-reveal-open	"👁️"
+contrast_dark	livelit-reveal-size	1em
 contrast_dark	livelit-reveal-strike	1.5px
+contrast_dark	livelit-reveal-turn	0deg
 contrast_dark	llm-waiting-1	oklch(100% 0.2 265)
 contrast_dark	llm-waiting-2	oklch(100% 0.2 300)
 contrast_dark	llm-waiting-3	oklch(100% 0.2 355)
