@@ -592,20 +592,32 @@ each piece becomes:
 | An open use hangs as a `Tab` (`7c93006c01`), toggle columns and hover (`94644969d1`) | Keep: layout of the reveal, not of editing |
 | The toggle's looks on the Colors slide (`61c94a8170` ... `db118a14a4`) | Keep |
 | Commits while revealed regenerate the pane (`4a9d1c3f39`, `pane_syntax` in `SetTerm`) | Keep: this is how the revealed model follows the GUI |
-| A cell retyped in the pane shown read-only in the GUI, re-spliced when the eye closes (`9d961e4446`: `LivelitProj.cell_parens`, `ProjectorPerform.closed_syntax`) | Back out: a read-only model cannot be retyped |
-| deck_regress "retyping a cell in the open syntax hands the face to another slider", and "a cell retyped in the open syntax shows in the GUI" | Replace: with the same edit refused, and with the GUI driving the face while revealed |
+| A cell retyped in the pane shown read-only in the GUI, re-spliced when the eye closes (`9d961e4446`: `LivelitProj.cell_parens`, `ProjectorPerform.closed_syntax`) | Backed out (`980a1753f4`): a read-only model cannot be retyped |
+| deck_regress "retyping a cell in the open syntax hands the face to another slider", and "a cell retyped in the open syntax shows in the GUI" | Replaced (`7f2103c6e0`): the revealed model refuses each key while the face's slider drives it; a GUI cell takes typing while revealed; the params line edits live |
 
-To be built: the pane's model editor in a read-only mode (caret, selection and
-menus kept; insertions, deletions and pastes refused), and the params line as
-an editor that commits on each edit rather than on Enter.
+Built in `7f2103c6e0`:
+
+- **Read-only model.** `Perform.go` refuses text edits (insert, delete, paste,
+  cut, completion, structural edits) while the caret is in the revealed syntax:
+  the innermost splice around it is the syntax splice directly under a livelit
+  showing its syntax. Moving, selecting, copying, probes and projector actions
+  (the GUI's commits, the eye) are unaffected, and so is a GUI cell, a splice
+  nested deeper.
+- **Live params.** The params line commits when typing pauses (250 ms), and
+  only params that evaluate to a value: text that parses but names something
+  unbound would otherwise run `init_from_params` around it. Focus stays in the
+  line across the re-renders a commit causes.
 
 ### The GUI while revealed
 
-In checks on 2026-10-03 the GUI did respond with the syntax revealed: Color
-(Figure 3)'s buttons, Kids' Choice's own sliders and its face's drags all
-committed and the revealed model followed. Cyrus saw it unresponsive, so
-there is a case those checks miss; the regression suite should cover the GUI
-with the syntax revealed on every deck slide.
+Buttons, sliders and drags in the GUI worked with the syntax revealed, but its
+cells did not take the keyboard: with the syntax shown the use is one splice
+and the cells are nested in it, and entering a splice by id never looked inside
+another splice, so a click in a cell found no way in. That is the likely case
+Cyrus saw. `Relatives.find_splice_descent_when` now descends into a splice to
+reach one nested in it, and `exit_splice` closes it again on the way out
+(`7f2103c6e0`). Still to do: cover the GUI with the syntax revealed on every
+deck slide, not only Kids' Choice and Color.
 
 ## Design decisions
 
