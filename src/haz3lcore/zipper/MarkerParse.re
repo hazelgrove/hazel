@@ -27,16 +27,12 @@ let default_implicit_hole = Token.implicit_hole_marker;
 /* The PRINT half: parseable Hazel source with Grout rendered as the
    marker. Projectors are unfolded to trigger syntax (`^^fold(body)`)
    by `Triggers.projector_to_invoke`, which `Printer.of_segment` uses
-   by default; the parsers reconstruct the wrapper from that syntax.
-   `~indent=""` keeps the output minimal: Printer would otherwise
-   prepend each row's indent level, and those chars come back as
-   Secondary whitespace pieces, breaking structural round-trip. */
+   by default; the parsers reconstruct the wrapper from that syntax. */
 let seg_to_text =
     (~implicit_hole=default_implicit_hole, ~refractors=[], segment): string =>
   Printer.of_segment(
     ~holes=implicit_hole,
     ~concave_holes=implicit_hole,
-    ~indent="",
     ~refractors,
     segment,
   );
