@@ -696,6 +696,52 @@ def c_eye_swap(d, log):
     return {"fills": [before, f0, f1, f2]}
 
 
+
+@case("eye: a right-click menu in the open syntax is not clipped")
+def c_eye_menu(d, log):
+    # Found by hand: the pane under an open eye clipped the menu to its own
+    # one row, so `Select term` showed cut off and could not be clicked.
+    d.goto(KIDS_FRESH)
+    star = "[...document.querySelectorAll('button')].find(b => b.innerText.includes('star eyes'))"
+    assert wait_for(d, "return !!" + star, 120), "the star-eyes toggle never drew"
+    time.sleep(4)
+    d.js("const b = %s; b.scrollIntoView({block: 'center'}); return 1;" % star)
+    time.sleep(1)
+    eye = d.js("""
+      const g = %s.closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % star)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    at = pane_token(d, "false", 2)
+    assert at, "no `false` in the star toggle's pane"
+    d.pointer([{"type": "pointerMove", "x": at[0], "y": at[1]},
+               {"type": "pointerDown", "button": 2},
+               {"type": "pointerUp", "button": 2}])
+    time.sleep(1.5)
+    item = d.js("""
+      const m = document.querySelector('.context-menu'); if (!m) return null;
+      const it = [...m.querySelectorAll('*')].find(e => /Select term/.test(e.textContent)
+        && ![...e.children].some(c => /Select term/.test(c.textContent)));
+      if (!it) return null;
+      const r = it.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const top = document.elementFromPoint(x, y);
+      return [Math.round(x), Math.round(y), !!(top && m.contains(top))];
+    """)
+    log({"select_term": item})
+    assert item, "no context menu, or no Select term in it"
+    assert item[2], "Select term is covered or clipped: a click there would miss it"
+    click_at(d, item[0], item[1])
+    time.sleep(1.5)
+    assert not d.js("return !!document.querySelector('.context-menu')"), \
+        "the menu stayed open after Select term"
+    return {"select_term": item}
+
 @case("every deck slide renders its livelits")
 def c_deck(d, log):
     setsel = """
