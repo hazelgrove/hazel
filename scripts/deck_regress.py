@@ -566,6 +566,136 @@ def c_splice_cell_does_not_clip(d, log):
     return geo
 
 
+
+# --- the eye: a livelit's own syntax, edited in place --------------------
+# Kids' Choice's face reads its head color from a let-bound slider through
+# a cell, `color = (head : Int)`. Opening the eye shows the use's syntax in
+# a pane under the face; retyping that cell to name another slider must
+# hand the face to that slider. The pane is an editor nested in the
+# projector, so only real clicks and keys reach it.
+
+KIDS_FRESH = "/fresh?slide=livelits-emotion-kids-choice&panel=none"
+FACE_SVG = ("[...document.querySelectorAll('svg')].find(s => "
+            "(s.getAttribute('viewBox') || '').startsWith('0 -80 200 '))")
+FACE_FILL = ("const s = %s; if (!s) return null; const p = [...s.querySelectorAll('path')]"
+             ".find(x => (x.getAttribute('d') || '').startsWith('M38 60'));"
+             " return p && p.getAttribute('fill');" % FACE_SVG)
+PANE_LINE = ("const p = document.querySelector('.livelit-syntax'); if (!p) return null;"
+             " return p.innerText.split('\\n').filter(l => l.includes(arguments[0])).join(' / ');")
+
+
+def wait_for(d, script, secs, args=None):
+    t = time.time()
+    while time.time() - t < secs:
+        v = d.js(script, args)
+        if v:
+            return v
+        time.sleep(0.5)
+    return None
+
+
+def slider_box(d, label):
+    """The range input of the let-bound slider whose widget reads [label]."""
+    return d.js("""
+      const ins = [...document.querySelectorAll('.user-livelit input[type=range]')]
+        .filter(i => (i.closest('.user-livelit').innerText || '').includes(arguments[0]));
+      const i = ins[0]; if (!i) return null;
+      i.scrollIntoView({block: 'center'});
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.x), Math.round(r.y + r.height / 2), Math.round(r.width), i.value];
+    """, [label])
+
+
+def drag_labelled(d, label, frac):
+    slider_box(d, label); time.sleep(0.5)   # scroll first, then measure
+    b = slider_box(d, label)
+    assert b, f"no slider labelled {label!r}"
+    x, y, w = b[0], b[1], b[2]
+    d.pointer([{"type": "pointerMove", "x": x + w // 2, "y": y},
+               {"type": "pointerDown", "button": 0},
+               {"type": "pointerMove", "x": x + int(w * frac), "y": y, "duration": 200},
+               {"type": "pointerUp", "button": 0}])
+    time.sleep(4)
+
+
+def pane_token(d, word, off):
+    """A point in the pane at character [off] of its first [word] token."""
+    return d.js("""
+      const [word, off] = arguments;
+      const p = document.querySelector('.livelit-syntax'); if (!p) return null;
+      const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT); let n;
+      while (n = w.nextNode()) if (n.textContent === word) {
+        const rg = document.createRange(); rg.setStart(n, off); rg.setEnd(n, off);
+        const r = rg.getBoundingClientRect();
+        return [Math.round(r.left), Math.round(r.top + r.height / 2)];
+      }
+      return null;
+    """, [word, off])
+
+
+@case("eye: retyping a cell in the open syntax hands the face to another slider")
+def c_eye_swap(d, log):
+    d.goto(KIDS_FRESH)
+    assert wait_for(d, "return !!" + FACE_SVG, 120), "the face never drew"
+    time.sleep(4)
+    errors = "return [...document.querySelectorAll('.livelit-user-error')].length"
+
+    # Control: before the swap, eye size does not touch the head color.
+    before = d.js(FACE_FILL)
+    drag_labelled(d, "eye size", 0.9)
+    assert d.js(FACE_FILL) == before, "eye size moved the head color before any edit"
+
+    # Open the face's eye, the toggle hanging at its top left.
+    d.js("const s = %s; s.scrollIntoView({block: 'center'}); return 1;" % FACE_SVG)
+    time.sleep(1)
+    eye = d.js("""
+      const s = %s, g = s.getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (r.top <= g.top + 5 && dd < bd) { bd = dd; best = t; } }
+      if (!best) return null;
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % FACE_SVG)
+    assert eye, "no eye beside the face"
+    click_at(d, *eye)
+    line = wait_for(d, PANE_LINE, 20, ["color"])
+    log({"pane": line})
+    assert line and "(head : Int)" in line, f"the pane does not show the color cell: {line}"
+
+    # Retype the cell: caret at the end of `head`, one Backspace takes the
+    # word, then name the eye-size slider instead.
+    d.js("document.querySelector('.livelit-syntax').scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    at = pane_token(d, "head", 4)
+    assert at, "no `head` in the pane"
+    click_at(d, *at)
+    time.sleep(1.5)
+    d.keys(["\ue003"])
+    time.sleep(1.5)
+    d.keys(list("eyes"))
+    line = wait_for(d, PANE_LINE, 20, ["(eyes : Int)"])
+    log({"pane": line})
+    assert line, f"the cell did not become (eyes : Int): {d.js(PANE_LINE, ['color'])}"
+    time.sleep(3)
+
+    # Now eye size drives the head color, both ways, and head color does not.
+    f0 = d.js(FACE_FILL)
+    drag_labelled(d, "eye size", 0.95)
+    f1 = d.js(FACE_FILL)
+    drag_labelled(d, "eye size", 0.1)
+    f2 = d.js(FACE_FILL)
+    log({"fills": [before, f0, f1, f2]})
+    assert f1 != f0 and f2 != f1, f"eye size does not drive the face: {[f0, f1, f2]}"
+    # "head color" is the first slider whose widget mentions "head" (head
+    # rays comes later); its label does not match as one string.
+    drag_labelled(d, "head", 0.9)
+    assert d.js(FACE_FILL) == f2, "the replaced head-color slider still drives the face"
+    assert d.js(errors) == 0, "livelit errors after the swap"
+    return {"fills": [before, f0, f1, f2]}
+
+
 @case("every deck slide renders its livelits")
 def c_deck(d, log):
     setsel = """
