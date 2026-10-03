@@ -62,6 +62,10 @@ join(["hello"]) should be "hello"
 let join : [String] -> String = ¿ in
 join(["a", "b", "c"])
 
+@solution
+let join : [String] -> String = fun strings -> fold_left(strings, fun (acc, s) -> acc ++ s, "") in
+join(["a", "b", "c"])
+
 @test
 test join(["a", "b", "c"]) == "abc" end;
 test join([]) == "" end;

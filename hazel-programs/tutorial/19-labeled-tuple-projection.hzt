@@ -69,6 +69,11 @@ type Person = (first_name=String, last_name=String, age=Int) in
 let greeting : (Person -> String) = ¿ in
 greeting((first_name="George", last_name="Garcia", age=12))
 
+@solution
+type Person = (first_name=String, last_name=String, age=Int) in
+let greeting : (Person -> String) = fun p -> "Hello " ++ p.first_name ++ " " ++ p.last_name ++ "!" in
+greeting((first_name="George", last_name="Garcia", age=12))
+
 @test
 test greeting((first_name="Jane", last_name="Smith",age=20)) == "Hello Jane Smith!" end;
 test greeting((first_name="John", last_name="Baker", age=25)) == "Hello John Baker!" end

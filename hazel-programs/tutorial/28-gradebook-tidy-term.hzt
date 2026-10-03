@@ -127,6 +127,31 @@ in
 
 tidy_term(gradebook)
 
+@solution
+type Semester = +Spring +Fall in
+type GradebookEntry = (student_id=Int, term=String, quiz1=Float, quiz2=Float, midterm=Float, final=Float) in
+let gradebook : [GradebookEntry]  =
+  ^^table([(student_id=1, term="2025SP", quiz1=7., quiz2=5., midterm=85., final=88.0),
+    (student_id=2, term="2025FA", quiz1=5., quiz2=8., midterm=90., final=82.),
+    (student_id=3, term="2024FA", quiz1=8., quiz2=7., midterm=78., final=80.),
+    (student_id=4, term="2025SP", quiz1=9., quiz2=10.,  midterm=95., final=98.),
+    (student_id=5, term="2024FA", quiz1=4., quiz2=3., midterm=60., final=65.)])
+in
+
+let tidy_term = fun (gradebook: [GradebookEntry]) ->
+  gradebook
+  |> map(_, fun r ->
+    let semester =
+      case string_sub(r.term, 4, 2)
+      | "FA" => Fall
+      | _ => Spring
+      end
+    in
+    omit_labels(r, `term`) ... (year=int_of_string(string_sub(r.term, 0, 4)), semester=semester))
+in
+
+tidy_term(gradebook)
+
 @test
 let test_data : [GradebookEntry] =
   [

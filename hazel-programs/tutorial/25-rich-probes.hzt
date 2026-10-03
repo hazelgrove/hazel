@@ -69,5 +69,16 @@ let products = ^^table([
 let with_totals = products in
 with_totals
 
+@solution
+let products = ^^table([
+  (name="Widget", price=9.99, qty=3),
+  (name="Gadget", price=24.50, qty=1),
+  (name="Gizmo", price=4.75, qty=10)
+]) in
+let with_totals = ^^probe(products
+|> map(_, fun r -> r ... (qty=float_of_int(r.qty)))
+|> map(_, fun r -> r ... (total=r.price *. r.qty))) in
+with_totals
+
 @test
 test nth(with_totals, 1).total ==. 24.5 end
