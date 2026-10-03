@@ -139,6 +139,20 @@ update_entry((apple=1, pear=2, avocado=3),
   string_match("^a",_),
   fun n -> n + 1)
 
+@solution
+let update_entry =
+  fun (t, label_predicate : (String -> Bool), fn : (? -> ?)) ->
+    t |> to_lvs
+    |> map(_, fun e ->
+      if label_predicate(e.label)
+      then e ... (value = fn(e.value))
+      else e)
+    |> from_lvs
+in
+update_entry((apple=1, pear=2, avocado=3),
+  string_match("^a",_),
+  fun n -> n + 1)
+
 @test
 test update_entry((apple=1, pear=2, avocado=3), string_match("^a",_), int_plus(1,_)) == (apple=2, pear=2, avocado=4) end;
 test update_entry((x=10, y=20, z=30), fun l -> l == "y", fun i -> i * 2) == (x=10, y=40, z=30) end;
