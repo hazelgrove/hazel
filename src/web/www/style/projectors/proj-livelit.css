@@ -139,6 +139,12 @@
 .livelit > .livelit-syntax-layer,
 .livelit:has(.livelit-splice) > .livelit-syntax-layer {
     overflow: visible;
+    /* ...and covers the whole livelit, as the layer means to: the content
+       box's inset (0.4ch inside each end cap) put the eye's tab 0.4ch over
+       the livelit, where the GUI painted over the glyph's right edge --
+       invisible in light mode, where the two share a color, but a chevron
+       cut in half in dark. */
+    inset: 0;
 }
 /* The toggle is an eye hanging in the margin just left of the GUI's top
    row, like a hanging indent, so it covers none of the GUI. It sits on a
