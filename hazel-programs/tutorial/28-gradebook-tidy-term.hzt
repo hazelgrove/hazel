@@ -19,7 +19,7 @@ The result should be:
 
 The `year` should be extracted from the first 4 characters of the `term` string (converted to `Int`), and the `semester` from the last 2 characters: `"FA"` → `Fall`, `"SP"` → `Spring`.
 
-`Semester` is a sum type defined in the prelude: `type Semester = Fall + Spring`. Use the constructors `Fall` and `Spring` directly (not as strings).
+`Semester` is a sum type defined at the top of the program: `type Semester = +Spring +Fall`. Use the constructors `Fall` and `Spring` directly (not as strings).
 
 The output table should contain all original columns **except** `term`, plus the new `year` and `semester` columns. The order of columns does not matter.
 
@@ -30,7 +30,7 @@ Think about how to transform each row independently. What string operations coul
 ## Quick Reference
 
 ### Semester Type
-`Semester` is a sum type defined in the prelude:
+`Semester` is a sum type defined at the top of the program:
 - `Fall` — represents fall semester (term code `"FA"`)
 - `Spring` — represents spring semester (term code `"SP"`)
 
