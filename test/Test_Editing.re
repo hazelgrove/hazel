@@ -386,6 +386,17 @@ let basic_tests = [
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
     ~goal="let a = 1 in\nlet b = 2 in¦?",
   ),
+  /* A linebreak at either edge of the clipboard is pasted too */
+  test(
+    ~name="Paste ending in a linebreak keeps it",
+    ~acts=mk("¦x") @ [Paste("let a = 1 in\n")],
+    ~goal="let a = 1 in\n¦x",
+  ),
+  test(
+    ~name="Paste starting with a linebreak keeps it",
+    ~acts=mk("let a = 1 in¦") @ [Paste("\na")],
+    ~goal="let a = 1 in\na¦",
+  ),
   test(
     ~name="Paste plaintext into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("abc")],
