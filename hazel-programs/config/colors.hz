@@ -5,6 +5,11 @@
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
 
+# How a livelit shows that its syntax can be opened beneath it: "eye", #
+# struck through while hidden, or "triangle", pointing right while #
+# hidden and down while shown. #
+let livelit_reveal = "eye" in
+
 # How far up the lightness scale each ramp step sits. Given per scheme #
 # because a light scheme's steps run darker and a dark scheme's lighter. #
 type ColorRamp = ^^fold((
@@ -503,9 +508,12 @@ let contrast_dark = ^^fold(let p = palette_of(
     `probe-text-toward-ink` = 0.55
   ))) in
 
-case (dark_mode, high_contrast)
+(case (dark_mode, high_contrast)
 | (false, false) => light
 | (false, true) => contrast_light
 | (true, false) => dark
 | (true, true) => contrast_dark
-end
+end) ... (
+  # not a color: the livelit syntax toggle's look, chosen at the top #
+  `livelit-reveal` = livelit_reveal
+)

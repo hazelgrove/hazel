@@ -232,6 +232,14 @@ let role_groups: list((string, list(string))) = [
 let polarity_field = "is-dark";
 let contrast_field = "is-high-contrast";
 
+/* Not part of a scheme: how a livelit's syntax toggle is drawn, "eye" or
+   "triangle" (Web.ColorConfiguration turns it into the glyphs). The slide
+   adds it to its scheme at the end, `scheme ... (`livelit-reveal` = ..)`,
+   since this slide is the one place a reader configures the editor's look.
+   Kept out of ColorScheme itself so a slide saved before it existed, whose
+   own `theme_of` is annotated ColorScheme, still type-checks. */
+let reveal_field = "livelit-reveal";
+
 let scheme: list((string, Typ.t)) = [
   ("palette", var("ColorPalette")),
   ("roles", var("ColorRoles")),
@@ -262,3 +270,8 @@ let type_aliases: list((string, Typ.t)) = [
 /* What the Colors slide is analyzed against. The alias rather than its
    expansion, so the buffer's error message names the type. */
 let typ: Typ.t = var("ColorScheme");
+
+/* What the slide as a whole yields: its scheme plus the toggle's look.
+   Spelled out rather than registered as a fifth name (see type_aliases);
+   its parts are still the named types, so a mismatch names them. */
+let typ_with_reveal: Typ.t = record(scheme @ [(reveal_field, string())]);

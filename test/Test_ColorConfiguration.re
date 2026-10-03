@@ -95,9 +95,10 @@ let plausible = s =>
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
-/* Two emitted properties carry flags rather than colors, and are the only
+/* Two emitted properties carry flags rather than colors, and four the
+   livelit toggle's look (glyphs and a stroke width); they are the only
    ones this check does not apply to. */
-let flags = [CC.polarity_target, CC.contrast_target];
+let flags = [CC.polarity_target, CC.contrast_target, ...CC.reveal_targets];
 
 let unparseable = vars =>
   vars
@@ -570,6 +571,97 @@ let theme_css_is_current = () => {
   };
 };
 
+/* The livelit toggle's look: "triangle" publishes the disclosure glyphs,
+   right then down, and no strike. */
+let reveal_literal = "let livelit_reveal = \"eye\" in";
+
+let source_with_reveal = (style: string) =>
+  switch (split_on_string(~needle=reveal_literal, CC.source.backup_text)) {
+  | [before, after] =>
+    before
+    ++ "let livelit_reveal = \""
+    ++ style
+    ++ "\" in"
+    ++ after
+    |> Haz3lcore.PersistentZipper.of_slide_text
+  | parts =>
+    failf(
+      "colors.hz: expected one %s, found %d",
+      reveal_literal,
+      List.length(parts) - 1,
+    )
+  };
+
+let reveal_of = vars =>
+  List.filter(((n, _)) => List.mem(n, CC.reveal_targets), vars)
+  |> List.sort(compare);
+
+let triangle_reveals = () => {
+  let vars = CC.vars_of_source(source_with_reveal("triangle"));
+  check(
+    int,
+    "the whole theme, still",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the triangle's glyphs",
+    List.sort(compare, CC.reveal_vars("triangle")),
+    reveal_of(vars),
+  );
+  check(
+    string,
+    "right while hidden, down while shown",
+    "triangle \"\xE2\x96\xB8\" \"\xE2\x96\xBE\" 0px",
+    String.concat(" ", List.map(snd, CC.reveal_vars("triangle"))),
+  );
+};
+
+/* A Colors slide saved before livelit-reveal was a field: it must still
+   yield its whole theme -- the user's colors -- with the eye, not nothing.
+   Rebuilt from today's slide by taking the field back out. */
+let a_slide_saved_before_the_toggle_keeps_its_colors = () => {
+  let text = CC.source.backup_text;
+  let drop = (needle, s) =>
+    switch (split_on_string(~needle, s)) {
+    | [a, b] => a ++ b
+    | parts =>
+      failf(
+        "colors.hz: expected one %S, found %d",
+        needle,
+        List.length(parts) - 1,
+      )
+    };
+  let old =
+    text
+    |> drop(reveal_literal)
+    |> (
+      s =>
+        /* the scheme, no longer extended with the toggle's look */
+        switch (split_on_string(~needle="end) ... (", s)) {
+        | [a, _] => a ++ "end)"
+        | _ =>
+          failf("colors.hz: expected the scheme extended once at the end")
+        }
+    );
+  let vars =
+    CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(old));
+  let committed = CC.vars_of_source(CC.source);
+  check(
+    int,
+    "every property, the toggle's defaulted",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the same colors as with the field",
+    List.sort(compare, committed),
+    List.sort(compare, vars),
+  );
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -617,6 +709,12 @@ let tests = [
         "schemes are pairwise distinct",
         `Quick,
         schemes_are_pairwise_distinct,
+      ),
+      test_case("triangle reveals", `Quick, triangle_reveals),
+      test_case(
+        "a slide saved before the toggle keeps its colors",
+        `Quick,
+        a_slide_saved_before_the_toggle_keeps_its_colors,
       ),
     ],
   ),

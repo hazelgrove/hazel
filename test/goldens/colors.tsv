@@ -66,6 +66,7 @@ light	fold-accent	oklch(70% 0.15 150)
 light	fold-bkg	oklch(32.2% 0.034 225)
 light	hazel-color-scheme	light
 light	hazel-contrast	normal
+light	hazel-livelit-reveal	eye
 light	hole-active	oklch(50.2% 0.2 225)
 light	hole-fill	oklch(92.05% 0.04 225)
 light	hole-stroke	oklch(60.1% 0.15 225)
@@ -77,6 +78,9 @@ light	incremental-pending	color-mix(in oklch, oklch(52% 0.03 220) 11%, transpare
 light	incremental-pending-edge	color-mix(in oklch, oklch(52% 0.03 220) 16%, transparent)
 light	light-page-color	oklch(99% 0.012 90)
 light	live-env-bkg	oklch(91% 0.025 90)
+light	livelit-reveal-closed	"👁️"
+light	livelit-reveal-open	"👁️"
+light	livelit-reveal-strike	1.5px
 light	llm-waiting-1	oklch(52% 0.2 265)
 light	llm-waiting-2	oklch(52% 0.2 300)
 light	llm-waiting-3	oklch(52% 0.2 355)
@@ -323,6 +327,7 @@ contrast_light	fold-accent	oklch(38% 0.2 150)
 contrast_light	fold-bkg	oklch(0% 0.0425 225)
 contrast_light	hazel-color-scheme	light
 contrast_light	hazel-contrast	high
+contrast_light	hazel-livelit-reveal	eye
 contrast_light	hole-active	oklch(0% 0.25 225)
 contrast_light	hole-fill	oklch(89% 0.05 225)
 contrast_light	hole-stroke	oklch(18% 0.1875 225)
@@ -334,6 +339,9 @@ contrast_light	incremental-pending	color-mix(in oklch, oklch(0% 0 220) 11%, tran
 contrast_light	incremental-pending-edge	color-mix(in oklch, oklch(0% 0 220) 16%, transparent)
 contrast_light	light-page-color	oklch(100% 0 90)
 contrast_light	live-env-bkg	oklch(94% 0 90)
+contrast_light	livelit-reveal-closed	"👁️"
+contrast_light	livelit-reveal-open	"👁️"
+contrast_light	livelit-reveal-strike	1.5px
 contrast_light	llm-waiting-1	oklch(0% 0.2 265)
 contrast_light	llm-waiting-2	oklch(0% 0.2 300)
 contrast_light	llm-waiting-3	oklch(0% 0.2 355)
@@ -580,6 +588,7 @@ dark	fold-accent	oklch(65% 0.15 150)
 dark	fold-bkg	oklch(100% 0.0306 225)
 dark	hazel-color-scheme	dark
 dark	hazel-contrast	normal
+dark	hazel-livelit-reveal	eye
 dark	hole-active	oklch(77.4% 0.18 225)
 dark	hole-fill	oklch(21.6% 0.036 225)
 dark	hole-stroke	oklch(64.2% 0.135 225)
@@ -591,6 +600,9 @@ dark	incremental-pending	color-mix(in oklch, oklch(75% 0.03 250) 11%, transparen
 dark	incremental-pending-edge	color-mix(in oklch, oklch(75% 0.03 250) 16%, transparent)
 dark	light-page-color	oklch(95% 0.015 240)
 dark	live-env-bkg	oklch(22% 0.02 250)
+dark	livelit-reveal-closed	"👁️"
+dark	livelit-reveal-open	"👁️"
+dark	livelit-reveal-strike	1.5px
 dark	llm-waiting-1	oklch(75% 0.2 265)
 dark	llm-waiting-2	oklch(75% 0.2 300)
 dark	llm-waiting-3	oklch(75% 0.2 355)
@@ -837,6 +849,7 @@ contrast_dark	fold-accent	oklch(82% 0.17 150)
 contrast_dark	fold-bkg	oklch(100% 0.0272 225)
 contrast_dark	hazel-color-scheme	dark
 contrast_dark	hazel-contrast	high
+contrast_dark	hazel-livelit-reveal	eye
 contrast_dark	hole-active	oklch(100% 0.16 225)
 contrast_dark	hole-fill	oklch(11% 0.032 225)
 contrast_dark	hole-stroke	oklch(82% 0.12 225)
@@ -848,6 +861,9 @@ contrast_dark	incremental-pending	color-mix(in oklch, oklch(100% 0 250) 11%, tra
 contrast_dark	incremental-pending-edge	color-mix(in oklch, oklch(100% 0 250) 16%, transparent)
 contrast_dark	light-page-color	oklch(22% 0 240)
 contrast_dark	live-env-bkg	oklch(8% 0 250)
+contrast_dark	livelit-reveal-closed	"👁️"
+contrast_dark	livelit-reveal-open	"👁️"
+contrast_dark	livelit-reveal-strike	1.5px
 contrast_dark	llm-waiting-1	oklch(100% 0.2 265)
 contrast_dark	llm-waiting-2	oklch(100% 0.2 300)
 contrast_dark	llm-waiting-3	oklch(100% 0.2 355)
