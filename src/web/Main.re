@@ -251,6 +251,9 @@ let start = default_model => {
     /* A remote instance's reply is the same news: a program that ran before
        it arrived said so, and runs again to show it. */
     JsUtil.on_fumola_remote_reply(rerun_fumola);
+    /* A side query's answer (a watch pane's history, a stats readout)
+       changes no program: redraw, and nothing more. */
+    JsUtil.on_fumola_remote_query(() => schedule_action(Page.Update.Refresh));
     /* Shared decks, kept live: every few seconds, take in what others
        added, changed or removed (HazelDB.poll_shared). Only with a
        canister; the deck applies it only in Documentation mode. */

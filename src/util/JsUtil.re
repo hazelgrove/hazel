@@ -686,6 +686,11 @@ let on_fumola_ready = (callback: unit => unit): unit =>
 let on_fumola_remote_reply = (callback: unit => unit): unit =>
   on_window_event("fumola-remote-reply", callback);
 
+/* A side query of a canister instance answered (FumolaRun.remote_query,
+   ic-backend.js): only a redraw is wanted. */
+let on_fumola_remote_query = (callback: unit => unit): unit =>
+  on_window_event("fumola-remote-query", callback);
+
 /* Listen for devicePixelRatio changes (triggered by browser zoom).
  * Uses matchMedia to detect when the current DPR no longer matches,
  * then re-registers for the next change. */

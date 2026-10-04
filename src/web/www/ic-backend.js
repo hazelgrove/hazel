@@ -72,3 +72,54 @@ window.hazelFumolaRemote = function (instance, mode, program, onText) {
       answer(JSON.stringify({ ok: false, error: "the canister did not answer: " + e.message }));
     });
 };
+
+// Asked of a canister instance on the side, not as its program
+// (FumolaRun.remote_query): a watch pane reading the instance's history, a
+// stats readout. Any op of POST /i/<instance>/<op>. The answer is announced
+// as fumola-remote-query, which only redraws: nothing in the page's programs
+// changed, so nothing is run again.
+window.hazelFumolaRemoteQuery = function (instance, op, body, onText) {
+  var answer = function (text) {
+    onText(text);
+    window.dispatchEvent(new Event("fumola-remote-query"));
+  };
+  if (!window.hazelBackend) {
+    answer(JSON.stringify({ ok: false, error: "no canister is configured for this page" }));
+    return;
+  }
+  fetch(window.hazelBackend + "/i/" + encodeURIComponent(instance) + "/" + op, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: body,
+  })
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status + " " + r.statusText);
+      return r.text();
+    })
+    .then(answer)
+    .catch(function (e) {
+      answer(JSON.stringify({ ok: false, error: "the canister did not answer: " + e.message }));
+    });
+};
+
+// GET /stats: the canister's heap, its store's DCG and each instance,
+// counted from tallies the DCG keeps. A query, so it is quick and free.
+window.hazelBackendStats = function (onText) {
+  var answer = function (text) {
+    onText(text);
+    window.dispatchEvent(new Event("fumola-remote-query"));
+  };
+  if (!window.hazelBackend) {
+    answer(JSON.stringify({ ok: false, error: "no canister is configured for this page" }));
+    return;
+  }
+  fetch(window.hazelBackend + "/stats")
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status + " " + r.statusText);
+      return r.text();
+    })
+    .then(answer)
+    .catch(function (e) {
+      answer(JSON.stringify({ ok: false, error: "the canister did not answer: " + e.message }));
+    });
+};
