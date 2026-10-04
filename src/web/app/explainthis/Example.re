@@ -63,6 +63,7 @@ let mk_fix = mk_tile(Form.get(Fix));
 let mk_ap_exp = mk_tile(Form.get(ApExp));
 let mk_ap_pat = mk_tile(Form.get(ApPat));
 let mk_let = mk_tile(Form.get(Let));
+let mk_bind = mk_tile(Form.get(Bind));
 let mk_use = mk_tile(Form.get(Use));
 let mk_tyalias = mk_tile(Form.get(TypeAlias));
 let mk_if = mk_tile(Form.get(If));

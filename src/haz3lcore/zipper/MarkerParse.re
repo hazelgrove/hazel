@@ -77,7 +77,11 @@ let strip_implicit_holes = (~implicit_hole: string, z: Zipper.t): Zipper.t =>
 let of_text =
     (~implicit_hole=default_implicit_hole, ~root, text: string)
     : option(Zipper.t) =>
-  switch (Parser.to_zipper(~root, text)) {
+  /* The segmented parser (hazelgrove/hazel#2610), which splits at safe
+     top-level points and, by default, inserts a token at a time with one
+     regrout per segment: over hazel-programs the same zipper as to_zipper,
+     in about a third of the time. */
+  switch (Parser.to_zipper_segmented(~root, text)) {
   | None => None
   | Some(z) => Some(strip_implicit_holes(~implicit_hole, z))
   };

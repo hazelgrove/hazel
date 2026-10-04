@@ -35,6 +35,7 @@ let init =
     (
       kind: ProjectorCore.Kind.t,
       ~placement=ProjectorCore.Placement.Inline,
+      ~show_syntax=false,
       seg: Base.segment,
       ~elaborated: Language.Exp.t,
     )
@@ -45,7 +46,10 @@ let init =
   /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
      elaborated form keyed by the term's id. */
   switch (
-    Option.bind(any, ProjectorInit.init(kind, seg, ~placement, _)),
+    Option.bind(
+      any,
+      ProjectorInit.init(kind, seg, ~placement, ~show_syntax, _),
+    ),
     any,
   ) {
   | (Some(_) as result, _) => result
@@ -192,7 +196,11 @@ let rec find_projector =
     seg,
   );
 
-let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+/* [~replacement], when given, takes the projector's place instead of its
+   own syntax (Unproject). */
+let remove_from_root =
+    (~replacement: option(Base.segment)=?, id: Id.t, z: Zipper.t)
+    : option(Zipper.t) => {
   let segment = Zipper.unselect_and_zip(z);
   let* pr = find_projector(id, segment);
   let z =
@@ -203,7 +211,11 @@ let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
   let segment =
     ZipperBase.MapPiece.of_segment(
       fun
-      | Projector(pr') when pr'.id == id => unsplice_segment(pr'.syntax)
+      | Projector(pr') when pr'.id == id =>
+        switch (replacement) {
+        | Some(seg) => seg
+        | None => unsplice_segment(pr'.syntax)
+        }
       | p => [p],
       segment,
     );
@@ -212,6 +224,34 @@ let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     refractors: z.refractors,
   });
 };
+
+/* The syntax a projector shows when its eye opens, as the editor in its
+   pane. Written on one long line -- a model of many fields, say -- it
+   would run past the pane's right edge, so a line wider than this is laid
+   out again by the pretty printer, which only moves whitespace: ids, and
+   so the model's splices, are kept. A layout that already fits, as written
+   by hand, is left alone. */
+let pane_widest = 80;
+let laid_out_for_pane = (syntax: Base.segment): Base.segment => {
+  let widest =
+    /* Base's printer, not Printer's, which reaches this module through
+       Triggers. A nested projector counts as its syntax: near enough. */
+    Base.segment_to_string(
+      ~holes="?",
+      ~refractor_seg_to_seg=(r, seg) => (r, seg),
+      ~projector_to_segment=(pr: Base.projector) => pr.syntax,
+      syntax,
+    )
+    |> String.split_on_char('\n')
+    |> List.fold_left((w, line) => max(w, String.length(line)), 0);
+  widest > pane_widest ? PrettySegment.prettify(syntax) : syntax;
+};
+
+/* The syntax as the pane's editor holds it. Its cells stay splices --
+   a livelit finds its model's splices by id when it commits -- and
+   Measured measures a splice nested in the pane inline, as it is drawn. */
+let pane_syntax = (syntax: Base.segment): Base.segment =>
+  laid_out_for_pane(syntax);
 
 let go =
     (
@@ -332,6 +372,35 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
+  /* Show or hide a projector's own syntax: shown, it is held as one splice
+     (ProjectorInit.spliced), which is how its sub-editor can edit it,
+     as the pane holds it (pane_syntax); hidden, the splice comes
+     off, and the syntax keeps whatever layout it had in the pane. */
+  | ToggleSyntax(idx) =>
+    switch (projector_idx_to_id(idx)) {
+    | Some(id) =>
+      let f = pr => {
+        let pr = ProjectorCore.toggle_show_syntax(pr);
+        {
+          ...pr,
+          syntax:
+            pr.show_syntax
+              ? ProjectorInit.spliced(pane_syntax(pr.syntax))
+              : ProjectorInit.unspliced(pr.syntax),
+        };
+      };
+      /* With the caret in the syntax being hidden, update cannot find the
+         projector among the caret's siblings, and a walk out of it is
+         confined to the splice. As for SetSyntax: rebuild from the root,
+         which resets the caret, and park it at the projector's right. */
+      if (inside_projector(id, z)) {
+        let z = update_from_root(f, id, z);
+        Ok(Option.value(~default=z, Move.jump_to_side_of_id(Right, z, id)));
+      } else {
+        Ok(update(f, id, z));
+      };
+    | None => Error(Cant_project)
+    }
   | SetIndicated(Specific(kind)) =>
     switch (set_indicated(z, kind)) {
     | Some(z) => Ok(z)
@@ -346,6 +415,17 @@ let go =
     ) {
     | [hd, ..._] => Ok(hd)
     | [] => Error(Cant_project)
+    }
+  /* A livelit turned back into code from its own head line: by index, as
+     the caret may be anywhere while the line is typed in. */
+  | Unproject(idx, seg) =>
+    switch (projector_idx_to_id(idx)) {
+    | Some(id) =>
+      switch (remove_from_root(~replacement=seg, id, z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      }
+    | None => Error(Cant_project)
     }
   | RemoveIndicated =>
     let removed_from_root = {
@@ -426,9 +506,18 @@ let go =
           };
         };
       } else {
+        /* A projector keeps its own paren layer, or its absence. A
+           livelit's use, `^flag(true)`, is two pieces, so the
+           parenthesizing above wrapped its first commit, and from then on
+           its syntax read `(^flag(false))` where the author wrote none.
+           Syntax that stood bare in its place may stand bare again; one
+           that came in parens keeps them. */
         let f = (p: Base.projector) => {
-          ...p,
-          syntax: [parenthesized_piece],
+          let bare = Segment.unparenthesize(p.syntax) == p.syntax;
+          {
+            ...p,
+            syntax: bare ? trimmed_seg : [parenthesized_piece],
+          };
         };
         if (inside_projector(id, z)) {
           /* The caret is inside the projector (e.g. in one of its
@@ -449,11 +538,45 @@ let go =
     switch (projector_idx_to_id(idx)) {
     | None => Error(Cant_project)
     | Some(id) =>
-      let f = (p: Base.projector) => {
-        ...p,
-        syntax:
-          term_to_segment(~original_syntax=p.syntax, ~preserve_splices, term),
-      };
+      /* While a projector shows its syntax, that syntax is one splice
+         around the use. Regenerating through it re-attached that splice
+         by id, with the OLD use inside, so a commit to a livelit with
+         cells came back unchanged. Regenerate the use against the
+         unspliced syntax instead -- what a commit with the syntax hidden
+         does, re-attaching only the cells -- and splice the result again,
+         as showing the syntax does (pane_syntax: the regenerated use is
+         one line, with its cells as splices). */
+      let f = (p: Base.projector) =>
+        if (p.show_syntax) {
+          let term: Language.Any.t =
+            switch (term) {
+            | Exp({term: Splice(inner), _}) => Exp(inner)
+            | other => other
+            };
+          {
+            ...p,
+            syntax:
+              ProjectorInit.spliced(
+                pane_syntax(
+                  term_to_segment(
+                    ~original_syntax=ProjectorInit.unspliced(p.syntax),
+                    ~preserve_splices,
+                    term,
+                  ),
+                ),
+              ),
+          };
+        } else {
+          {
+            ...p,
+            syntax:
+              term_to_segment(
+                ~original_syntax=p.syntax,
+                ~preserve_splices,
+                term,
+              ),
+          };
+        };
       Ok(
         inside_projector(id, z)
           ? update_from_root(f, id, z) : update(f, id, z),

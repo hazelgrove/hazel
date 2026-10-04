@@ -2,6 +2,14 @@
 
 (copy_files ../../hazel-programs/docs/livelits/*.hz)
 
+(copy_files ../../hazel-programs/docs/livelits/hygiene/*.hz)
+
+(copy_files ../../hazel-programs/docs/livelits/expansion-errors/*.hz)
+
+(copy_files ../../hazel-programs/docs/livelits/either/*.hz)
+
+(copy_files ../../hazel-programs/docs/livelits/advanced/*.hz)
+
 (library
  (name livelitdemos)
  (libraries haz3lcore)

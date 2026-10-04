@@ -45,9 +45,9 @@ let choreForm(pending: String): Html.T =
   Html.form(
     [Attr.on_submit(AddTodo),
      Attr.style([("display", "flex"), ("gap", "0.4em"), ("padding", "0.7em 1em"),
-            ("background", "var(--T2)"),
-            ("border-top", "1px solid var(--BR1)"),
-            ("border-bottom", "1px solid var(--BR1)")])],
+            ("background", "var(--surface-raised)"),
+            ("border-top", "1px solid var(--border-soft)"),
+            ("border-bottom", "1px solid var(--border-soft)")])],
     [
       Html.input([
         Attr.type_("text"),
@@ -57,15 +57,15 @@ let choreForm(pending: String): Html.T =
         Attr.on_input(fun value -> UpdateInput(value)),
         Attr.style([("flex", "1"), ("min-width", "0"), ("padding", "0.35em 0.5em"),
                ("font-family", "inherit"), ("font-size", "0.85em"),
-               ("color", "var(--STONE)"), ("background", "var(--SAND)"),
-               ("border", "1px solid var(--BR1)"), ("border-radius", "3px")])
+               ("color", "var(--text-default)"), ("background", "var(--surface-code)"),
+               ("border", "1px solid var(--border-soft)"), ("border-radius", "3px")])
       ]),
       Html.button(
         [
           Attr.type_("submit"),
           Attr.disabled(pending == ""),
-          Attr.style([("padding", "0.35em 0.8em"), ("background", "var(--G0)"),
-                 ("color", "var(--SAND)"), ("border", "1px solid var(--G0)"),
+          Attr.style([("padding", "0.35em 0.8em"), ("background", "var(--surface-success)"),
+                 ("color", "var(--surface-code)"), ("border", "1px solid var(--border-success)"),
                  ("border-radius", "3px"), ("cursor", "pointer"),
                  ("font-family", "inherit"), ("font-size", "0.85em")])
         ],
@@ -85,8 +85,8 @@ let choreItem(index: Int, chore: Todo): Html.T =
       Html.button(
         [
           Attr.on_click(RemoveTodo(index)),
-          Attr.style([("padding", "0.1em 0.4em"), ("background", "var(--T1)"),
-                 ("color", "var(--BR3)"), ("border", "1px solid var(--BR1)"),
+          Attr.style([("padding", "0.1em 0.4em"), ("background", "var(--surface-default)"),
+                 ("color", "var(--text-muted)"), ("border", "1px solid var(--border-soft)"),
                  ("border-radius", "3px"), ("cursor", "pointer"),
                  ("font-family", "inherit"), ("font-size", "0.75em")])
         ],
@@ -102,7 +102,7 @@ let choreList(chores: [Todo]): Html.T =
     if length(chores) == 0
     then [
       Html.li([Attr.style([("padding", "1.2em 1em"), ("text-align", "center"),
-                 ("color", "var(--BR3)")])],
+                 ("color", "var(--text-muted)")])],
          [Html.text("Nothing planted yet")])
     ]
     else mapi(chores, choreItem)
@@ -114,21 +114,21 @@ let view(model: Model): Html.T =
     [Attr.class("todo-app"),
      Attr.style([("max-width", "340px"), ("margin", "0 auto"),
             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
-            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
-            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("background", "var(--surface-code)"), ("color", "var(--text-default)"),
+            ("border", "1px solid var(--border-soft)"), ("border-radius", "0.4em"),
             ("overflow", "hidden")])],
     [
       Html.div(
         [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
-                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--text-strong)")])],
         [Html.text("🌙 Planting List")]
       ),
       choreForm(model.input_value),
       choreList(model.todos),
       Html.div(
         [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
-                ("font-size", "0.75em"), ("color", "var(--BR3)"),
-                ("border-top", "1px solid var(--BR1)")])],
+                ("font-size", "0.75em"), ("color", "var(--text-muted)"),
+                ("border-top", "1px solid var(--border-soft)")])],
         [Html.text("🌱 " ++ string_of_int(length(model.todos)) ++ " chores tonight")]
       )
     ]

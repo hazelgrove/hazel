@@ -27,6 +27,15 @@ type proj_anc = {
   id: Id.t,
   kind: ProjectorCore.Kind.t,
   model: string,
+  /* Carried so that zipping back out of the splice rebuilds the projector
+     as it was: without them, a caret in a splice reset a docked projector
+     to inline and hid a livelit's shown syntax. */
+  [@sexp.default ProjectorCore.Placement.Inline] [@yojson.default
+                                                   ProjectorCore.Placement.Inline
+                                                 ]
+  placement: ProjectorCore.Placement.t,
+  [@sexp.default false] [@yojson.default false]
+  show_syntax: bool,
   before: Segment.t,
   after: Segment.t,
 };
@@ -115,9 +124,16 @@ let zip = (child: Segment.t, a: t): Base.piece =>
       children: fst(children) @ [child, ...snd(children)],
     })
   | Splice({id, _}) => Piece.mk_splice(~id, child)
-  | Projector({id, kind, model, before, after}) =>
+  | Projector({id, kind, model, placement, show_syntax, before, after}) =>
     Base.Projector(
-      ProjectorCore.mk(~id, kind, before @ child @ after, model),
+      ProjectorCore.mk(
+        ~id,
+        ~placement,
+        ~show_syntax,
+        kind,
+        before @ child @ after,
+        model,
+      ),
     )
   };
 

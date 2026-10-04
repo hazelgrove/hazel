@@ -1,0 +1,235 @@
+# 1990s Face #
+
+# After the "Have a Day" poster: one yellow smiley, and a day for #
+# everything -- a sunny day, a profitable day, a submerged day. Each #
+# day here is the same face with a STAMP on it, an emoji placed where #
+# the poster put its prop, and a slider picks the stamp. #
+
+# A stamp is one short text node per emoji, so the whole poster is a #
+# table of names and positions, not a drawing per face. #
+
+# Two more sliders place the face in a space of moods: FEAR vs LOVE #
+# across, WHIMSY vs HORROR down. Each axis splits in three, so the #
+# space is a 3 x 3 grid -- spooked, silly, smitten; nervous, plain, #
+# cozy; terrified, haunted, lovesick -- and the grid cell recolors #
+# the face, reshapes its eyes and mouth, and names the mood in the #
+# caption. The further from the middle, the more of the mood's aura #
+# rings the face. #
+
+# SLIDER #
+
+let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+  let init = Pure(lo);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.5em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
+       Html.input([
+         Attr.type_("range"), Attr.style([("flex", "1"), ("min-width", "0")]),
+         Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+         Attr.value(string_of_int(m)),
+         Attr.on_input(fun s -> int_of_string(s))
+       ]),
+       Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])], [Html.text(string_of_int(m))])]));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(30)
+} in
+
+let ^stamp_dial = ^slider("stamp", 0, 13) in
+let ^love_dial = ^slider("fear / love", 0, 100) in
+let ^dread_dial = ^slider("whimsy / horror", 0, 100) in
+
+# THE FACE #
+
+let ^smiley = {
+  type Model = (stamp = SpliceRef, love = SpliceRef, dread = SpliceRef);
+  type Action = ();
+  # What a use means: the poster's caption for its day. #
+  type Expansion = String;
+
+  let init =
+    do s <- new_splice((IntT, Some(IntLit(0)))) in
+    do l <- new_splice((IntT, Some(IntLit(50)))) in
+    do h <- new_splice((IntT, Some(IntLit(50)))) in
+    Pure((stamp = s, love = l, dread = h));
+
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+
+  # The poster's days, in slider order: a name, and the emoji that #
+  # make its stamp, each at (x, y) in the face's drawing units with a #
+  # font size. 0 is the plain face. #
+  let names =
+    ["nice", "sunny", "rainy", "incognito", "profitable", "submerged",
+     "magnified", "airheaded", "secure", "sleepy", "prized",
+     "bird watching", "peaceful", "evil clown"];
+  let pieces = fun s : Int ->
+    if s == 1 then [("☀️", 168, 20, 50)]
+    else if s == 2 then [("☂️", 100, 0, 90)]
+    else if s == 3 then [("🕶️", 100, 98, 80)]
+    else if s == 4 then [("💲", 68, 104, 40), ("💲", 132, 104, 40)]
+    else if s == 5 then [("🤿", 100, 100, 95)]
+    else if s == 6 then [("🔍", 140, 104, 70)]
+    else if s == 7 then [("🎈", 100, -10, 70)]
+    else if s == 8 then [("🔒", 100, 30, 60)]
+    else if s == 9 then [("💤", 168, 40, 45)]
+    else if s == 10 then [("🎀", 100, 26, 55)]
+    else if s == 11 then [("🐦", 72, 28, 45)]
+    else if s == 12 then [("☮️", 100, 160, 36)]
+    else if s == 13 then [("🔴", 100, 128, 26)]
+    else [];
+
+  let clamp = fun n : Int -> if n < 0 then 0 else if n > 13 then 13 else n;
+  let clamp100 = fun n : Int -> if n < 0 then 0 else if n > 100 then 100 else n;
+  let third = fun n : Int -> if n < 34 then 0 else if n < 67 then 1 else 2;
+  let dist = fun n : Int -> if n < 50 then 50 - n else n - 50;
+
+  # The mood space. A row is how whimsical or horrible, a column how #
+  # afraid or in love; each cell has the words it adds to the caption, #
+  # the two emoji of its aura, and the row a face color. #
+  #              fear         -            love #
+  #   whimsy     spooked      silly        smitten #
+  #   -          nervous      (plain)      cozy #
+  #   horror     terrified    haunted      lovesick #
+  let moods =
+    [["spooked, ", "silly, ", "smitten, "],
+     ["nervous, ", "", "cozy, "],
+     ["terrified, ", "haunted, ", "lovesick, "]];
+  let auras =
+    [[("👻", "🎃"), ("🎉", "🤪"), ("💕", "🦄")],
+     [("💦", "😰"), ("✨", "✨"), ("💛", "☕")],
+     [("💀", "🕷️"), ("🦇", "🕸️"), ("🧟", "💘")]];
+  let skins = ["gold", "#f2c94c", "#a8c69f"];
+  # Ten places around the face for the aura, a ring of radius 90. #
+  let ring =
+    [(190, 110), (173, 163), (128, 196), (72, 196), (27, 163),
+     (10, 110), (27, 57), (72, 24), (128, 24), (173, 57)];
+
+  let stamp_node = fun (glyph, x, y, size) : (String, Int, Int, Int) ->
+    Html.node("text",
+      [Attr.create("x", string_of_int(x)), Attr.create("y", string_of_int(y)),
+       Attr.create("font-size", string_of_int(size)),
+       Attr.create("text-anchor", "middle"),
+       Attr.create("dominant-baseline", "middle")],
+      [Html.text(glyph)]);
+  let stamp_nodes = fun ps ->
+    case ps
+    | [] => []
+    | p :: rest => stamp_node(p) :: stamp_nodes(rest)
+    end;
+
+  # The aura: every place on the ring gets a stamp, alternating the #
+  # cell's two emoji, and the first `shown` are visible. #
+  let aura_nodes = fun (i, places, pair, shown) ->
+    case places
+    | [] => []
+    | (x, y) :: rest =>
+      let (a, b) = pair in
+      Html.node("text",
+        [Attr.create("x", string_of_int(x)), Attr.create("y", string_of_int(y)),
+         Attr.create("font-size", "26"),
+         Attr.create("text-anchor", "middle"),
+         Attr.create("dominant-baseline", "middle"),
+         Attr.create("opacity", if i < shown then "1" else "0")],
+        [Html.text(if i - (i / 2) * 2 == 0 then a else b)])
+      :: aura_nodes((i + 1, rest, pair, shown))
+    end;
+
+  # Eyes: wide in fear, hearts in love. #
+  let eye = fun (x, col, fear) : (Int, Int, Int) ->
+    if col == 2 then stamp_node(("❤️", x, 95, 34))
+    else
+      Html.node("ellipse",
+        [Attr.create("cx", string_of_int(x)), Attr.create("cy", "95"),
+         Attr.create("rx", string_of_int(7 + fear / 8)),
+         Attr.create("ry", string_of_int(12 + fear / 5))], []);
+
+  let view = fun m : Model ->
+    do s_res <- eval_splice(m.stamp) in
+    do l_res <- eval_splice(m.love) in
+    do h_res <- eval_splice(m.dread) in
+    let s = case s_res | Some(Val(n)) => clamp(n) | _ => 0 end in
+    let l = case l_res | Some(Val(n)) => clamp100(n) | _ => 50 end in
+    let h = case h_res | Some(Val(n)) => clamp100(n) | _ => 50 end in
+    let row = third(h) in
+    let col = third(l) in
+    let fear = if l < 50 then 50 - l else 0 in
+    let shown = (dist(l) + dist(h)) / 10 in
+    let smile_y = 110 + l * 62 / 100 in
+    Pure(
+      Html.node("svg",
+        [Attr.create("viewBox", "0 -40 200 290"),
+         Attr.width("200"), Attr.height("290")],
+        [Html.node("circle",
+           [Attr.create("cx", "100"), Attr.create("cy", "110"),
+            Attr.create("r", "80"), Attr.create("fill", nth((skins, row))),
+            Attr.create("stroke", "black"), Attr.create("stroke-width", "3")],
+           []),
+         eye((72, col, fear)), eye((128, col, fear)),
+         Html.node("path",
+           [Attr.create("d",
+              "M58 132 Q100 " ++ string_of_int(smile_y) ++ " 142 132"),
+            Attr.create("stroke", if row == 2 then "darkred" else "black"),
+            Attr.create("fill", "none"),
+            Attr.create("stroke-width", "5"),
+            Attr.create("stroke-linecap", "round")], [])]
+        @ stamp_nodes(pieces(s))
+        @ aura_nodes((0, ring, nth((nth((auras, row)), col)), shown))
+        @ [Html.node("text",
+             [Attr.create("x", "100"), Attr.create("y", "232"),
+              Attr.create("text-anchor", "middle"),
+              Attr.create("font-size", "18"),
+              Attr.create("font-family", "var(--code-font)")],
+             [Html.text("Have a " ++ nth((nth((moods, row)), col))
+                        ++ nth((names, s)) ++ " day")])]));
+
+  # A Macro: the three cells are the client's code, so a use means a #
+  # function of them, applied to them (Fig. 5). The captions and the #
+  # moods are written into that code with antiquotes, as lists of #
+  # lifted strings, and nth picks from them. #
+  let names_code = fun ns ->
+    case ns
+    | [] => quote [] end
+    | n :: rest => quote unquote StringLit(n) end :: unquote names_code(rest) end end
+    end;
+  let rows_code = fun rs ->
+    case rs
+    | [] => quote [] end
+    | r :: rest => quote unquote names_code(r) end :: unquote rows_code(rest) end end
+    end;
+  let expand = Macro(fun m : Model ->
+    (quote fun s -> fun l -> fun h ->
+       "Have a "
+       ++ nth((nth((unquote rows_code(moods) end,
+                    if h < 34 then 0 else if h < 67 then 1 else 2)),
+               if l < 34 then 0 else if l < 67 then 1 else 2))
+       ++ nth((unquote names_code(names) end,
+               if s < 0 then 0 else if s > 13 then 13 else s))
+       ++ " day"
+     end,
+     [m.stamp, m.love, m.dread]));
+
+  let shape = Block(26, 15)
+} in
+
+let stamp = ^^livelit(^stamp_dial(4)) in
+let love = ^^livelit(^love_dial(50)) in
+let dread = ^^livelit(^dread_dial(50)) in
+let ^^probe(day) = ^^livelit(^smiley((stamp = (stamp : Int),
+  love = (love : Int), dread = (dread : Int)))) in
+
+day
+
+# Slide the stamp and the face changes day: 0 is a nice day, 4 a #
+# profitable one. The probe shows the caption the use means. #
+
+# Try: fear / love all the way down and whimsy / horror all the way #
+# up, for a terrified, profitable day, ringed in skulls and spiders. #
+# Then slide love up for a lovesick one, with heart eyes and zombies. #
+# In the middle of both, the face is the poster's own. #

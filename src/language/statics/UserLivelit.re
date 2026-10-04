@@ -8,9 +8,9 @@ open Util;
        type Action = ...;               what the GUI emits
        type Expansion = ...;            what a use MEANS to the program
        let init : Model = ...;          initial model, inserted on ^name<space>
-       let update = fun (m, a) -> ...;  (Model, Action) => Model
-       let view = fun m -> ...;         Model => HTML, handlers emit Actions
-       let expand_fun = fun m -> ...    Model => Expansion
+       let update = fun m -> fun a -> ...;   Model -> Action -> UpdateCmd(Model)
+       let view = fun m -> ...;         Model -> ViewCmd(Html.T)
+       let expand = Functional(fun m -> ...)   or Macro(...)
      } in ...
 
    The three type members are the livelit's interface, and all three are
@@ -24,11 +24,12 @@ open Util;
    strategy (PLDI 2021, S3.2.5), not an approximation of it: the expansion
    is validated at each invocation site, with errors reported to the client.
 
-   Splices are the part of the paper still absent. When they arrive as a
-   SpliceRef type with operations over it, `expand` extends to return a
-   pair whose second component is the list of SpliceRefs, and the check
-   here becomes a check of that pair's parameterized first component. With
-   the splice list empty it degenerates to what this file does.
+   update and view answer with commands (Sec. 3.2.3-3.2.4), performed by
+   UpdateCmdRunner and ViewCmdRunner. A model holds SpliceRefs, made by
+   new_splice (Sec. 3.2.1) and kept in the program text as the splices
+   themselves, at the refs' positions in the use's model argument:
+   expose_splice_refs decodes them. The Macro arm returns quoted code and
+   the splice list (Sec. 3.2.5); it cannot return yet, as Exp is empty.
 
    Optional member `shape = Inline(w) | Block(w, h) | Tab(w, h)` (a
    LivelitShape) sets the projector's footprint in character cells. Helpers
@@ -60,6 +61,15 @@ let rec strip_parens = (e: TermBase.Exp.t): TermBase.Exp.t =>
   | _ => e
   };
 
+/* The argument of an elaborated application, `^a(args)` elaborated,
+   looking through parens. */
+let rec ap_arg = (e: TermBase.Exp.t): option(TermBase.Exp.t) =>
+  switch (e.term) {
+  | Ap(_, _, arg) => Some(arg)
+  | Parens(e) => ap_arg(e)
+  | _ => None
+  };
+
 let rec pat_name = (p: TermBase.Pat.t): option(string) =>
   switch (p.term) {
   | Parens(p)
@@ -75,14 +85,17 @@ let rec pat_name = (p: TermBase.Pat.t): option(string) =>
    the optional `shape`) and the three declared interface types. */
 [@deriving show({with_path: false})]
 type def = {
-  mismatch: option(Mark.livelit_def_error),
   members: list((string, TermBase.Exp.t)), /* member -> bound syntax */
   model_t: TermBase.Typ.t,
   action_t: TermBase.Typ.t,
   expansion_t: TermBase.Typ.t,
+  /* The type parameter of a `typfun A -> { ... }` definition. */
+  tparam: option(string),
+  /* Whether it is a `fun p -> { ... }` definition, taking values. */
+  vparam: bool,
 };
 
-let required_members = ["init", "update", "view", "expand_fun"];
+let required_members = ["init", "update", "view", "expand"];
 let required_types = ["Model", "Action", "Expansion"];
 
 /* Module members, in order; a repeated name keeps the LAST binding, matching
@@ -107,9 +120,10 @@ let missing = (required: list(string), have: list((string, 'a))) =>
   List.filter(r => !List.mem_assoc(r, have), required);
 
 /* Check the definition's members against the builtin `Livelit` signature
-   (BuiltinsADT.livelit_fun, in scope as the type alias `LivelitFun`; the
-   macro counterpart is `LivelitMac`, not yet inhabitable), which is
-   the one place the livelit interface is written down.
+   (BuiltinsADT.livelit, in scope as the type alias `Livelit`), which is the
+   one place the livelit interface is written down. There is ONE signature:
+   whether a livelit is functional or macro is carried by which arm of the
+   `expand` sum it inhabits, not by which signature it answers to.
 
    The signature declares Model, Action and Expansion abstract; here they are
    REALIZED by this definition's own manifest types, and each required value
@@ -121,139 +135,153 @@ let missing = (required: list(string), have: list((string, 'a))) =>
 
    Consistency, not equality: a member may be more precise than declared, and
    a member still containing holes must not be reported as wrong. */
-/* `init` supplies VALUES; the use site supplies REFS.
+/* The two shapes a spliced model field can have.
 
-   A spliced model field has type (ref=SpliceRef, value=t), but `init` is
-   written before any splice exists -- there is nothing for it to name, and
-   making it a command so it could is precisely what Figure 3 does and we
-   have not. So when checking `init` against Model, a spliced field is
-   compared at its value type alone. Every other member (update, view,
-   expand_fun) sees the pair, because by then the use site has made it. */
-let rec strip_splice_refs = (ty: Typ.t): Typ.t => {
-  let is_ref = (t: Typ.t) =>
-    switch (Typ.term_of(t)) {
-    | Var("SpliceRef") => true
-    | _ => false
-    };
-  /* (ref=SpliceRef, value=t)  ~>  t */
-  let value_of = (t: Typ.t): option(Typ.t) =>
-    switch (Typ.term_of(t)) {
-    | Prod(fields) =>
-      let named = n =>
-        List.find_map(
-          (f: Typ.t) =>
-            switch (Typ.term_of(f)) {
-            | TupLabel(l, v) =>
-              switch (Typ.term_of(l)) {
-              | Label(x) when x == n => Some(v)
-              | _ => None
-              }
-            | _ => None
-            },
-          fields,
-        );
-      switch (named("ref"), named("value")) {
-      | (Some(r), Some(v)) when is_ref(r) => Some(v)
-      | _ => None
-      };
-    | _ => None
-    };
-  switch (Typ.term_of(ty)) {
-  | Prod(fields) =>
-    Typ.fresh(
-      Prod(
-        List.map(
-          (f: Typ.t) =>
-            switch (Typ.term_of(f)) {
-            | TupLabel(l, v) =>
-              switch (value_of(v)) {
-              | Some(inner) => Typ.fresh(TupLabel(l, inner))
-              | None => f
-              }
-            | _ => f
-            },
-          fields,
-        ),
-      ),
-    )
-  | Parens(inner) => Typ.fresh(Parens(strip_splice_refs(inner)))
-  | _ => ty
+   A bare SpliceRef is Figure 3's: the model holds only a handle (l.3-4),
+   and the view reads the code behind it with eval_splice. The pair
+   (ref=SpliceRef, value=t) is an older stopgap: the value rode beside the
+   ref, from before a Macro could return quoted code, since a Functional
+   expand cannot eval_splice. No shipped slide uses it now; it is kept so
+   programs written that way still load. */
+let rec is_splice_ref_ty = (t: Typ.t): bool =>
+  switch (Typ.term_of(t)) {
+  | Var("SpliceRef") => true
+  | Parens(t) => is_splice_ref_ty(t)
+  | _ => false
   };
-};
 
-let check_against_livelit_sig =
-    (
-      ~ctx: Ctx.t,
-      ~types: list((string, Typ.t)),
-      ~vals: list((string, Typ.t)),
-    )
-    : option(Mark.livelit_def_error) => {
-  let realize = (ty: Typ.t): Typ.t =>
-    List.fold_left(
-      (ty, name) =>
-        switch (List.assoc_opt(name, types)) {
-        | Some(def) =>
-          Typ.subst(def, IdTagged.FreshGrammar.TPat.var(name), ty)
-        | None => ty
-        },
-      ty,
-      required_types,
-    );
-  let declared =
-    switch (Ctx.lookup_alias(ctx, "LivelitFun")) {
-    | Some(ty) =>
-      switch (Typ.term_of(ty)) {
-      | Sig(items) =>
-        Sig.members(items)
-        |> List.filter_map((mem: Sig.member) =>
-             switch (mem) {
-             | Val(n, ty) => Some((n, ty))
-             | _ => None
-             }
-           )
-      | _ => []
-      }
-    | None => []
-    };
-  List.fold_left(
-    (acc, (name, want)) =>
-      switch (acc) {
-      | Some(_) => acc
-      | None =>
-        let expected =
-          name == "init" ? strip_splice_refs(realize(want)) : realize(want);
-        switch (List.assoc_opt(name, vals)) {
-        | None => None /* absence is DefMissingMembers' to report */
-        | Some(actual) =>
-          /* Realize the member's OWN type too. It is stated in terms of
-             Model, Action and Expansion, which name nothing in the ctx
-             outside the module: left alone they degrade to ? and the
-             comparison passes whatever expand returns. */
-          let actual = realize(actual);
-          Typ.is_consistent(ctx, expected, actual)
-            ? None
-            : Some(
-                Mark.DefMemberMismatch({
-                  name,
-                  expected,
-                  actual,
-                }),
-              );
-        };
+let labeled_ty = (fields: list(Typ.t), n: string): option(Typ.t) =>
+  List.find_map(
+    (f: Typ.t) =>
+      switch (Typ.term_of(f)) {
+      | TupLabel(l, v) =>
+        switch (Typ.term_of(l)) {
+        | Label(x) when x == n => Some(v)
+        | _ => None
+        }
+      | _ => None
       },
-    None,
-    declared,
+    fields,
   );
-};
+
+/* (ref=SpliceRef, value=t)  ~>  Some(t) */
+let rec pair_value_ty = (t: Typ.t): option(Typ.t) =>
+  switch (Typ.term_of(t)) {
+  | Parens(t) => pair_value_ty(t)
+  | Prod(fields) =>
+    switch (labeled_ty(fields, "ref"), labeled_ty(fields, "value")) {
+    | (Some(r), Some(v)) when is_splice_ref_ty(r) => Some(v)
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The `Livelit` signature with THIS definition's Model, Action and
+   Expansion made MANIFEST rather than abstract.
+
+   Analyzing a livelit definition against the signature as written would
+   SEAL those three, and a use of ^name must keep synthesizing Expansion
+   concretely or clients cannot reason about what a use means. Realizing
+   them first keeps the concrete types visible while still putting every
+   member in ANALYTIC position, which is the whole point: a member is then
+   checked where it is written, by the ordinary type machinery, rather
+   than synthesized and compared afterwards by a hand-rolled check.
+
+   Two things fall out of the analytic position that were awkward without
+   it. Constructors resolve -- `let expand = Functional(f)` needs
+   `Functional` in scope, and analysis against the sum supplies it, so a
+   livelit needs no `type Expand` member of its own. And a mismatched
+   member reports as an ordinary inconsistency at the offending
+   expression rather than as a livelit-specific mark on the whole
+   definition. */
+let realized_livelit_sig =
+    (~ctx: Ctx.t, ~types: list((string, Typ.t))): option(Typ.t) =>
+  switch (Ctx.lookup_alias(ctx, "Livelit")) {
+  | Some(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Sig(items) =>
+      let realize = (t: Typ.t): Typ.t =>
+        List.fold_left(
+          (t, name) =>
+            switch (List.assoc_opt(name, types)) {
+            | Some(d) =>
+              Typ.subst(d, IdTagged.FreshGrammar.TPat.var(name), t)
+            | None => t
+            },
+          t,
+          required_types,
+        );
+      let members =
+        Sig.members(items)
+        |> List.map((mem: Sig.member) =>
+             switch (mem) {
+             | TypeAbstract(n) =>
+               switch (List.assoc_opt(n, types)) {
+               | Some(d) => Sig.TypeManifest(n, d)
+               | None => mem
+               }
+             | Val(n, t) => Sig.Val(n, realize(t))
+             | _ => mem
+             }
+           );
+      Some(
+        IdTagged.FreshGrammar.Typ.sig_(
+          List.map(Sig.item_of_member, members),
+        ),
+      );
+    | _ => None
+    }
+  | None => None
+  };
 
 /* The definition is the trailing module, looking through helper bindings:
    `let helper = ... in {...}`. A helper type alias is brought into scope on
    the way down, so a member type may be stated in terms of it. */
 let rec detect =
         (~ctx: Ctx.t, ~m: StaticsBase.Map.t, def: TermBase.Exp.t)
-        : result(def, Mark.livelit_def_error) =>
+        : result(def, Mark.t) =>
   switch (strip_parens(def).term) {
   | Let(_, _, body) => detect(~ctx, ~m, body)
+  /* A type-parameterized definition: the module is the type function's
+     body, read with A in scope as an abstract type, so member types may
+     mention it (`type Expansion = A`). One parameter, at the top. */
+  | TypFun(tp, body, _) =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(a) =>
+      let ctx =
+        Ctx.extend_tvar(
+          ctx,
+          {
+            name: a,
+            id: TPat.rep_id(tp),
+            kind: Abstract,
+          },
+        );
+      switch (detect(~ctx, ~m, body)) {
+      | Ok(d) =>
+        Ok({
+          ...d,
+          tparam: Some(a),
+        })
+      | Error(_) as e => e
+      };
+    | None => Error(Mark.InvalidLivelitDef(DefNotModule))
+    }
+  /* A definition taking value parameters (Sec. 2.4.1): the module is the
+     function's body. Member types cannot mention a value, so they are
+     read as for a plain module; the members' own types come from the
+     statics map, where the parameter is bound. One parameter, possibly a
+     tuple, inside any type parameter and not around one. */
+  | Fun(_, body, _, _) =>
+    switch (detect(~ctx, ~m, body)) {
+    | Ok({tparam: None, vparam: false, _} as d) =>
+      Ok({
+        ...d,
+        vparam: true,
+      })
+    | Ok(_) => Error(Mark.InvalidLivelitDef(DefNotModule))
+    | Error(_) as e => e
+    }
   | TyAlias(tp, ty, body) =>
     let ctx =
       switch (tp.term) {
@@ -282,34 +310,72 @@ let rec detect =
            | _ => None
            }
          );
-    let vals =
-      sig_members
-      |> List.filter_map((mem: Sig.member) =>
-           switch (mem) {
-           | Val(n, ty) => Some((n, ty))
-           | _ => None
-           }
-         );
     switch (
       missing(required_members, members),
       missing(required_types, types),
     ) {
-    | ([_, ..._] as ms, _) => Error(DefMissingMembers(ms))
-    | ([], [_, ..._] as ts) => Error(DefMissingTypes(ts))
+    /* The module system already says this, and says it for value and type
+       members alike -- ModuleHelpers.member_names is value_names @
+       type_names. A livelit that lacks `update` is a module missing a
+       member, and should read like one rather than like a livelit-specific
+       diagnostic. Value members are named first so the message reads in
+       the order an author would fix them. */
+    | ([_, ..._] as ms, ts) => Error(Mark.ModuleMissingMembers(ms @ ts))
+    | ([], [_, ..._] as ts) => Error(Mark.ModuleMissingMembers(ts))
     | ([], []) =>
       Ok({
         members,
         model_t: List.assoc("Model", types),
         action_t: List.assoc("Action", types),
         expansion_t: List.assoc("Expansion", types),
-        /* A member whose type is wrong is reported, but does NOT stop the
-           livelit being bound: its uses should keep resolving, and keep
-           being checked themselves. Only a definition we cannot read at
-           all -- not a module, missing members or types -- is fatal. */
-        mismatch: check_against_livelit_sig(~ctx, ~types, ~vals),
+        tparam: None,
+        vparam: false,
       })
     };
-  | _ => Error(DefNotModule)
+  | _ => Error(Mark.InvalidLivelitDef(DefNotModule))
+  };
+
+/* The type a livelit definition should be ANALYZED against, if it is
+   well-formed enough to say. Statics uses this for the second pass over a
+   `let ^name = ...` definition: the first pass synthesizes, which is what
+   tells us the definition's own Model, Action and Expansion, and this
+   turns those into the realized signature the second pass analyzes
+   against. Returns None when the definition is too broken to realize --
+   not a module, or missing a type member -- in which case the first
+   pass's own marks are what the author gets. */
+let livelit_ana_ty =
+    (~ctx: Ctx.t, ~m: StaticsBase.Map.t, def: TermBase.Exp.t)
+    : option(TermBase.Typ.t) =>
+  switch (detect(~ctx, ~m, def)) {
+  | Error(_) => None
+  | Ok({model_t, action_t, expansion_t, tparam, vparam, _}) =>
+    realized_livelit_sig(
+      ~ctx,
+      ~types=[
+        ("Model", model_t),
+        ("Action", action_t),
+        ("Expansion", expansion_t),
+      ],
+    )
+    /* fun p -> { ... } is analyzed against ? -> <signature>: the
+       parameter's type is whatever its pattern says. */
+    |> Option.map(sig_ =>
+         vparam
+           ? (
+               Arrow(IdTagged.FreshGrammar.Typ.unknown(Internal), sig_): Typ.term
+             )
+             |> Typ.temp
+           : sig_
+       )
+    /* typfun A -> { ... } is analyzed against forall A. <signature>. */
+    |> Option.map(sig_ =>
+         switch (tparam) {
+         | Some(a) =>
+           (Poly(IdTagged.FreshGrammar.TPat.var(a), sig_): Typ.term)
+           |> Typ.temp
+         | None => sig_
+         }
+       )
   };
 
 let unknown = () => IdTagged.FreshGrammar.Typ.unknown(Internal);
@@ -377,89 +443,344 @@ let default_shape: ProjectorShape.t = {
    form, so typing it consults the definition's ACTUAL expand member rather
    than the interface `member_ty` advertises — which is what makes the
    use-site expansion check below non-vacuous. */
-/* A spliced model field carries its REF as well as its value.
+/* The refs a use's model argument holds.
 
-   A field the author marked with parens holds a splice: the client's own
-   code, living inside the widget. Figure 3 puts a HANDLE to that code in
-   the model, so a marked field reads as
+   new_splice is the only thing that makes a splice (Sec. 3.2.1). What
+   it makes is kept in the program text: the commit writes each ref in
+   the model as the splice itself, in parens, at the ref's position, so
+   the client's code lives in the client's program. This rewrite DECODES
+   that, on every pass. Figure 3's model holds a HANDLE (l.3-4), so where
+   Model says SpliceRef a parenthesized splice reads as
 
-     (ref = SpliceRef("<id>"), value = <the code>)
+     SpliceRef(("<id>", <the code>))
 
-   rather than just the code. A view can then place the splice by naming
-   it -- `Html.splice(m.lo.ref)` -- instead of counting positions, and
-   still read what it evaluates to as `m.lo.value`.
+   The id is what editor and Html.splice resolve to this projector's own
+   splice. The code evaluates in place, in the client's scope, so the ref
+   carries the value it had in this run, and that is what eval_splice
+   reads (Sec. 3.2.3): the "selected closure" is the run the view sample
+   came from.
+
+   Where Model says the stopgap pair (ref=SpliceRef, value=t), the field
+   reads as (ref=SpliceRef(...), value=<the code>), for a Functional
+   expand, which cannot eval_splice. It goes when Macro can return quoted
+   code.
 
    This is a rewrite of the model ARGUMENT, applied before analysis, not a
    rule about splices. Splice transparency is load-bearing elsewhere (a
-   table infers its headers through it) and is left alone. The value
-   component keeps the splice, so the client's code is still typed in the
-   client's scope and still evaluates in place.
-
-   What this is NOT: the paper reads a splice with
-   `eval_splice : SpliceRef -> ViewCmd(Maybe(Result))`, which can answer
-   Indet for a bound that does not reduce. Here the value simply rides
-   along, eagerly, and there is no way to say "this one has no value" --
-   which is why an unreducible bound renders as a hole rather than as
-   something the widget chose to show. */
-let expose_splice_refs = (arg: TermBase.Exp.t): TermBase.Exp.t => {
-  open IdTagged.FreshGrammar;
-  let mk_ref = (id: Id.t): TermBase.Exp.t =>
-    Exp.ap(
+   table infers its headers through it) and is left alone. */
+let expose_splice_refs =
+    (~ctx: Ctx.t, ~model_t: Typ.t, arg: TermBase.Exp.t): TermBase.Exp.t => {
+  module F = IdTagged.FreshGrammar;
+  /* SpliceRef((id, code)): the code evaluates in place, in the client's
+     scope, and its value is what eval_splice reads. */
+  let mk_ref = (id: Id.t, code: TermBase.Exp.t): TermBase.Exp.t =>
+    F.Exp.ap(
       Forward,
-      Exp.constructor("SpliceRef", None),
-      Exp.string(Id.to_string(id)),
+      F.Exp.constructor("SpliceRef", None),
+      F.Exp.tuple([F.Exp.string(Id.to_string(id)), code]),
     );
+  let is_parens = (e: TermBase.Exp.t) =>
+    switch (e.term) {
+    | Parens(_) => true
+    | _ => false
+    };
   /* The splice under any parens the author wrote, with its id. */
   let rec find_splice = (e: TermBase.Exp.t): option(Id.t) =>
     switch (e.term) {
     | Splice(_) => Some(IdTagged.rep_id(e))
-    | Parens(inner) => find_splice(inner)
+    | Parens(inner)
+    /* `(<splice> : T)`, a splice with its declared type: the ascription
+       checks the code against T, and is what the code then synthesizes. */
+    | Asc(inner, _) => find_splice(inner)
     | _ => None
     };
-  let expose_field = (x: TermBase.Exp.t): TermBase.Exp.t =>
-    switch (x.term) {
-    | TupLabel(l, v) =>
-      switch (find_splice(v)) {
-      | None => x
-      | Some(id) => {
-          ...x,
-          term:
-            TupLabel(
-              l,
-              Exp.tuple([
-                Exp.tup_label(Exp.label("ref"), mk_ref(id)),
-                Exp.tup_label(Exp.label("value"), v),
-              ]),
-            ),
+  /* A value, rewritten for the type its position asks for, looking
+     through tuples and lists to every position the Model gives a type.
+     A splice where Model says SpliceRef becomes a ref; where it says the
+     stopgap pair, the pair, naming the code once through a let so it
+     runs once. A splice anywhere else is left alone: a splice is
+     transparent, and is then simply the client's code in that place. */
+  let rec expose = (ty: Typ.t, v: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (find_splice(v)) {
+    | Some(id) when is_splice_ref_ty(ty) => mk_ref(id, v)
+    | Some(id) when Option.is_some(pair_value_ty(ty)) =>
+      let x = "$splice_value";
+      F.Exp.let_(
+        F.Pat.var(x),
+        v,
+        F.Exp.tuple([
+          F.Exp.tup_label(F.Exp.label("ref"), mk_ref(id, F.Exp.var(x))),
+          F.Exp.tup_label(F.Exp.label("value"), F.Exp.var(x)),
+        ]),
+      );
+    | Some(_) => v
+    /* Parens with no splice inside, where Model says SpliceRef: the text
+       form of a splice. Parens are how a splice is written in program
+       text -- a projected use is saved that way, and reloads that way --
+       and the editor's Splice piece exists only inside a projector.
+       Removing the projector unwraps each Splice back into its parens,
+       so without this the unprojected use `^sheet((a = (price), ...))`
+       would type its fields as Int against SpliceRef. The parens' own id
+       names the splice. */
+    | None when is_splice_ref_ty(ty) && is_parens(v) =>
+      mk_ref(IdTagged.rep_id(v), v)
+    | None =>
+      switch (v.term, Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
+      | (Parens(inner), _) => {
+          ...v,
+          term: (Parens(expose(ty, inner)): TermBase.Exp.term),
         }
+      | (Tuple(xs), Prod(tys)) =>
+        let labeled =
+          List.exists(
+            (x: TermBase.Exp.t) =>
+              switch (x.term) {
+              | TupLabel(_) => true
+              | _ => false
+              },
+            xs,
+          );
+        let field = (i, x: TermBase.Exp.t) =>
+          switch (x.term) {
+          | TupLabel({term: Label(name), _} as l, xv) =>
+            switch (labeled_ty(tys, name)) {
+            | Some(t) => {
+                ...x,
+                term: (TupLabel(l, expose(t, xv)): TermBase.Exp.term),
+              }
+            | None => x
+            }
+          | _ when !labeled && List.length(xs) == List.length(tys) =>
+            expose(List.nth(tys, i), x)
+          | _ => x
+          };
+        {
+          ...v,
+          term: (Tuple(List.mapi(field, xs)): TermBase.Exp.term),
+        };
+      | (ListLit(xs), List(t)) => {
+          ...v,
+          term: (ListLit(List.map(expose(t), xs)): TermBase.Exp.term),
+        }
+      /* A constructor's argument, at the type its variant gives: a Model
+         like `+ Frozen(Int, SpliceRef) + Live(SpliceRef)` holds its
+         splices inside constructors. */
+      | (Ap(Forward, {term: Constructor(name, _), _} as c, x), Sum(m)) =>
+        switch (ConstructorMap.get_entry(name, m)) {
+        | Some(Some(arg_ty)) => {
+            ...v,
+            term: (Ap(Forward, c, expose(arg_ty, x)): TermBase.Exp.term),
+          }
+        | _ => v
+        }
+      | _ => v
       }
-    | _ => x
     };
-  let rec go = (e: TermBase.Exp.t): TermBase.Exp.t =>
-    switch (e.term) {
-    | Parens(inner) => {
-        ...e,
-        term: Parens(go(inner)),
-      }
-    | Tuple(xs) => {
-        ...e,
-        term: Tuple(List.map(expose_field, xs)),
-      }
-    | _ => e
-    };
-  go(arg);
+  expose(model_t, arg);
 };
 
-let mk_expand_dot = (~name: string, model: TermBase.Exp.t) => {
+/* The elaboration of a use: discriminate on which arm of `expand` this
+   livelit committed to, then apply it.
+
+   `expand` is a SUM now, not a function, so the use site cannot just
+   apply it -- it has to ask which kind of livelit this is. That question
+   used to be answered by which SIGNATURE the definition satisfied; it is
+   now answered by the value, here.
+
+   This is the elaboration, not program text (Statics.re threads it as
+   ~elab_term), so the `case` is invisible to the author.
+
+   The Macro arm elaborates to a hole ASCRIBED to Expansion. A Macro
+   expansion cannot produce a value while `Exp` is an uninhabited
+   placeholder, and a hole is the honest rendering of "committed to a kind
+   that does not work yet" -- incomplete rather than ill-typed.
+
+   The ascription is load-bearing, not decoration. A bare hole types as ?,
+   the case's type is the join of its arms, and ? joins to ? -- so the
+   whole elaboration became consistent with EVERY type and the use-site
+   BadLivelitExpansion check silently stopped firing. Two tests caught
+   that. Ascribing the hole keeps both arms at Expansion, which is what
+   the use site is entitled to assume whichever arm ran. */
+/* `def.expand`, matched: a Functional livelit's use means its function
+   applied to the model; a Macro's means a hole here, filled in by the use's
+   check. `def` is what the livelit is at run time: `^name`, bound by its
+   `let`, or for a direct use with parameters, `^a(args)` itself. */
+let mk_expand_dot_def =
+    (
+      ~def: TermBase.Exp.t,
+      ~expansion_t: TermBase.Typ.t,
+      model: TermBase.Exp.t,
+    ) => {
   IdTagged.FreshGrammar.(
     Some(
-      Exp.ap(
-        Operators.Forward,
-        Exp.dot(Exp.var("^" ++ name), Exp.label("expand_fun")),
-        model,
+      Exp.match(
+        Exp.dot(def, Exp.label("expand")),
+        [
+          (
+            Pat.ap(Pat.constructor("Functional", None), Pat.var("f")),
+            Exp.ap(Operators.Forward, Exp.var("f"), model),
+          ),
+          (
+            Pat.ap(Pat.constructor("Macro", None), Pat.var("_g")),
+            Exp.asc(Exp.empty_hole(), expansion_t),
+          ),
+        ],
       ),
     )
   );
+};
+
+let mk_expand_dot =
+    (~name: string, ~expansion_t: TermBase.Typ.t, model: TermBase.Exp.t) =>
+  mk_expand_dot_def(
+    ~def=IdTagged.FreshGrammar.Exp.var("^" ++ name),
+    ~expansion_t,
+    model,
+  );
+
+/* ==================== Macro expansion (Sec. 3.2.5) ====================
+   A Macro livelit's use means its quoted function applied to the code of
+   the splices it lists (Fig. 5). Finding that out means RUNNING expand on
+   the model -- the paper's premise 3 -- which is done here, while the use
+   is checked, from the definition's closed elaboration (the one init runs
+   from too), in the builtin environment. */
+
+/* Looking through what an evaluated value may be wrapped in. */
+let rec strip_value = (d: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => strip_value(inner)
+  | _ => d
+  };
+
+/* C(payload) ~> (C, payload) */
+let of_ctr = (d: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>
+  switch (strip_value(d).term) {
+  | Ap(Forward, fn, body) =>
+    switch (strip_value(fn).term) {
+    | Constructor(name, _) => Some((name, strip_value(body)))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The id a SpliceRef term or value names: SpliceRef(("<id>", _)). */
+let ref_id = (d: TermBase.Exp.t): option(string) =>
+  switch (of_ctr(d)) {
+  | Some(("SpliceRef", body)) =>
+    switch (strip_value(body).term) {
+    | Tuple([id, _]) =>
+      switch (strip_value(id).term) {
+      | Atom(String(s)) => Some(s)
+      | _ => None
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* The model with every ref's code replaced by a hole. expand must treat
+   splices parametrically -- it gets their identities, not their code --
+   and the code is the client's, open in the client's scope, so it could
+   not be evaluated here anyway. */
+let rec blank_refs = (e: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (ref_id(e)) {
+  | Some(id) =>
+    IdTagged.FreshGrammar.(
+      Exp.ap(
+        Forward,
+        Exp.constructor("SpliceRef", None),
+        Exp.tuple([Exp.string(id), Exp.empty_hole()]),
+      )
+    )
+  | None =>
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (ref_id(e)) {
+          | Some(_) => blank_refs(e)
+          | None => continue(e)
+          },
+      e,
+    )
+  };
+
+/* The code at the position of the ref naming [id] in a model: the second
+   component of SpliceRef(("<id>", code)), as expose_splice_refs left it. */
+let splice_code = (model: TermBase.Exp.t, id: string): option(TermBase.Exp.t) => {
+  let found = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (of_ctr(e), found^) {
+          | (Some(("SpliceRef", body)), None) when ref_id(e) == Some(id) =>
+            switch (body.term) {
+            | Tuple([_, code]) =>
+              found := Some(code);
+              e;
+            | _ => continue(e)
+            }
+          | _ => continue(e)
+          },
+      model,
+    );
+  found^;
+};
+
+/* What a Macro livelit's expand answers for this model: the body of its
+   quotation, and the ids of the refs it lists, in order. None when the
+   livelit is not a Macro one, or its expand does not answer
+   (quote body end, [refs]) -- the use then keeps the ordinary path. */
+let run_macro_expand =
+    (~def_elab: TermBase.Exp.t, ~model: TermBase.Exp.t)
+    : option((TermBase.Exp.t, list(string))) => {
+  let eval = d =>
+    switch (Evaluator.evaluate(~env=Builtins.env_init, d)) {
+    | (v, _) => Some(v)
+    | exception _ => None
+    };
+  let field = (record: TermBase.Exp.t, label: string) =>
+    switch (strip_value(record).term) {
+    | Module(items) =>
+      List.fold_left(
+        (acc, item: TermBase.Mod.t) =>
+          switch (item.term) {
+          | ModVal(x, v) when x == label => Some(v)
+          | _ => acc
+          },
+        None,
+        items,
+      )
+    | _ => None
+    };
+  open Util.OptUtil.Syntax;
+  let* def = eval(def_elab);
+  let* expand = field(def, "expand");
+  let* g =
+    switch (of_ctr(expand)) {
+    | Some(("Macro", g)) => Some(g)
+    | _ => None
+    };
+  let* answer =
+    eval(IdTagged.FreshGrammar.Exp.ap(Forward, g, blank_refs(model)));
+  switch (strip_value(answer).term) {
+  | Tuple([code, refs]) =>
+    /* A quotation (its antiquotes already filled when it was evaluated),
+       or code spelled with Exp's constructors: Lambda, Ident, IntLit. */
+    /* An Abs's function is run here, on a fresh variable, in the builtin
+       environment: the decoding is what names its binder. */
+    let apply = (f, x) => eval(IdTagged.FreshGrammar.Exp.ap(Forward, f, x));
+    let* body = BuiltinsADT.code_of_exp_value(~apply, code);
+    let* refs =
+      switch (strip_value(refs).term) {
+      | ListLit(items) => Util.OptUtil.sequence(List.map(ref_id, items))
+      | _ => None
+      };
+    Some((body, refs));
+  | _ => None
+  };
 };
 
 let is_user_livelit = (ctx: Ctx.t, name: string): bool =>
@@ -476,40 +797,77 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
   | Some({model_t, action_t, expansion_t, _}) =>
     IdTagged.FreshGrammar.(
       switch (member) {
-      | "update" => Typ.arrow(Typ.prod([model_t, action_t]), model_t)
-      | "expand_fun" => Typ.arrow(model_t, expansion_t)
-      | "init" => model_t
+      /* Figure 3, and the same builders the signature uses, so the two
+         cannot drift: update and view are commands now, not functions
+         returning values. `view` is absent from this switch on purpose --
+         it was never listed, and the fallthrough gave it `unknown`, which
+         is why a wrong view went unreported. Listing it is the fix. */
+      | "update" =>
+        Typ.arrow(
+          model_t,
+          Typ.arrow(action_t, BuiltinsADT.update_cmd(model_t)),
+        )
+      | "view" =>
+        Typ.arrow(
+          model_t,
+          BuiltinsADT.view_cmd(BuiltinsADT.HtmlModules.path("Html", "T")),
+        )
+      /* The sum itself, not one arm of it: ^name.expand is the value the
+         definition committed with, and a client reading it sees which
+         kind of livelit this is. Same builder as the signature, with this
+         livelit's concrete types substituted for the abstract ones. */
+      | "expand" =>
+        BuiltinsADT.livelit_expand_typ(~model=model_t, ~expansion=expansion_t)
+      | "init" => BuiltinsADT.update_cmd(model_t)
       | _ => unknown()
       }
     )
   | None => unknown()
   };
 
-/* The transition an interaction commits as the new model argument:
-   ^name.update(prev_model, action). Living in the text, the last
-   transition stays where probes and the stepper can reach it; the next
-   commit collapses it to its value first, so depth stays constant. */
-let mk_update_redex =
-    (~name: string, ~model_value: TermBase.Exp.t, ~action: TermBase.Exp.t)
-    : TermBase.Exp.t => {
-  let model_value = Exp.replace_all_ids(model_value);
-  let action = Exp.replace_all_ids(action);
-  IdTagged.FreshGrammar.(
-    Exp.ap(
-      Operators.Forward,
-      Exp.dot(Exp.var("^" ++ name), Exp.label("update")),
-      Exp.tuple([model_value, action]),
-    )
-  );
-};
-
 /* A projected use of a user-defined livelit: (bare name, model term) */
+/* A use of a user livelit: what the livelit is at run time, and the model.
+   For `^name(model)` the livelit is `^name`; for a direct use with
+   parameters, `^a(args)(model)`, it is `^a(args)`, found in `elab` by the
+   application's id so it is the elaborated form, falling back to `^a`
+   applied to the arguments as written. */
+let rec strip_use = (e: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (e.term) {
+  | Parens(e)
+  /* A use showing its syntax holds it as one splice. */
+  | Splice(e) => strip_use(e)
+  | _ => e
+  };
+
 let use_parts =
-    (ctx: Ctx.t, use: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>
-  switch (strip_parens(use).term) {
+    (~elab: option(TermBase.Exp.t)=?, ctx: Ctx.t, use: TermBase.Exp.t)
+    : option((TermBase.Exp.t, TermBase.Exp.t)) =>
+  switch (strip_use(use).term) {
   | Ap(_, {term: LivelitName(name), _}, model) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
-    | Some({user_def: Some(_), _}) => Some((name, model))
+    | Some({user_def: Some(_), vparam: false, _}) =>
+      Some((IdTagged.FreshGrammar.Exp.var("^" ++ name), model))
+    | _ => None
+    }
+  | Ap(_, fn, model) =>
+    switch (strip_parens(fn).term) {
+    | Ap(_, {term: LivelitName(name), _}, args) =>
+      switch (Ctx.lookup_livelit(ctx, name)) {
+      | Some({user_def: Some(_), vparam: true, _}) =>
+        let written =
+          IdTagged.FreshGrammar.Exp.ap(
+            Operators.Forward,
+            IdTagged.FreshGrammar.Exp.var("^" ++ name),
+            args,
+          );
+        let def =
+          switch (Option.bind(elab, e => Exp.find_by_id(Exp.rep_id(fn), e))) {
+          | Some(d) => d
+          | None => written
+          };
+        Some((def, model));
+      | _ => None
+      }
     | _ => None
     }
   | _ => None
@@ -520,13 +878,13 @@ let use_parts =
    the projector's dynamics probe watches — so the projector can render the
    live HTML without evaluating anything itself. The model is bound once
    (`%model`, not a lexable token) and shared between the view call and the
-   expansion, so a committed ^name.update(m, a) transition runs — and its
-   probes fire — exactly once. The model keeps its surface ids as the
+   expansion, so the model's code, the splices it holds included, runs —
+   and its probes fire — exactly once. The model keeps its surface ids as the
    binding's definition, so its value samples at the model's own id. */
 let instrument_view =
     (
       ~projector_id: Id.t,
-      ~name: string,
+      ~def: TermBase.Exp.t,
       ~model: TermBase.Exp.t,
       body: TermBase.Exp.t,
     )
@@ -547,7 +905,7 @@ let instrument_view =
           [projector_id],
           Grammar.Ap(
             Operators.Forward,
-            Exp.dot(Exp.var("^" ++ name), Exp.label("view")),
+            Exp.dot(def, Exp.label("view")),
             m_ref(),
           ): TermBase.Exp.term,
         );
@@ -567,15 +925,15 @@ let mk =
     )
     : (option(LivelitCtx.raw_livelit), list(Mark.t)) =>
   switch (detect(~ctx, ~m, def_user)) {
-  | Error(e) => (None, [Mark.InvalidLivelitDef(e)])
-  | Ok({mismatch, members, model_t, action_t, expansion_t}) => (
+  | Error(mark) => (None, [mark])
+  | Ok({members, model_t, action_t, expansion_t, tparam, vparam}) => (
       Some({
         LivelitCtx.name,
         id,
         model_t,
         model_default: Exp.replace_all_ids(List.assoc("init", members)),
         expansion_t,
-        expand: mk_expand_dot(~name),
+        expand: mk_expand_dot(~name, ~expansion_t),
         action_t,
         update: (_action, model) => model,
         view: (_model, _send) =>
@@ -586,10 +944,139 @@ let mk =
           | None => default_shape
           },
         user_def: Some(def_elab),
+        tparam,
+        vparam,
       }),
-      Option.to_list(Option.map(e => Mark.InvalidLivelitDef(e), mismatch)),
+      /* A member whose type is wrong is reported by the second analytic
+         pass, as an ordinary inconsistency where it is written, and does
+         NOT stop the livelit being bound: its uses keep resolving and keep
+         being checked themselves. */
+      [],
     )
   };
+
+/* An abbreviation, `let ^b = ^a@<T> in`, of a type-parameterized livelit
+   ^a: the same livelit with T in place of its parameter, in each member
+   type, under the new name. Its definition is ^a's applied to T, which
+   stays closed, so the projector can still run it at event time. */
+let instantiate =
+    (
+      ~name: string,
+      ~id: Id.t,
+      ~ty: TermBase.Typ.t,
+      ll: LivelitCtx.raw_livelit,
+    )
+    : option(LivelitCtx.raw_livelit) =>
+  switch (ll.tparam, ll.user_def) {
+  | (Some(a), Some(def)) =>
+    let sub = t => Typ.subst(ty, IdTagged.FreshGrammar.TPat.var(a), t);
+    let expansion_t = sub(ll.expansion_t);
+    Some({
+      ...ll,
+      name,
+      id,
+      model_t: sub(ll.model_t),
+      action_t: sub(ll.action_t),
+      expansion_t,
+      expand: mk_expand_dot(~name, ~expansion_t),
+      user_def: Some((TypAp(def, ty): TermBase.Exp.term) |> Exp.fresh),
+      tparam: None,
+    });
+  | _ => None
+  };
+
+/* An abbreviation, `let ^b = ^a(args) in`, of a livelit ^a that takes
+   value parameters: the same livelit under the new name, whose definition
+   is ^a's applied to the arguments. The arguments were analyzed in the
+   builtin context, so the application stays closed and the projector can
+   still run it at event time. Member types cannot mention a value, so
+   they carry over unchanged. */
+let apply_args =
+    (
+      ~name: string,
+      ~id: Id.t,
+      ~args: TermBase.Exp.t,
+      /* What the applied livelit is at run time, for a direct use with
+         parameters: `^a(args)` itself, since no `let` names it. Absent for
+         an abbreviation, whose `let ^b` binds it. */
+      ~runtime: option(TermBase.Exp.t)=?,
+      ll: LivelitCtx.raw_livelit,
+    )
+    : option(LivelitCtx.raw_livelit) =>
+  switch (ll.vparam, ll.user_def) {
+  | (true, Some(def)) =>
+    Some({
+      ...ll,
+      name,
+      id,
+      expand:
+        switch (runtime) {
+        | Some(def) => mk_expand_dot_def(~def, ~expansion_t=ll.expansion_t)
+        | None => mk_expand_dot(~name, ~expansion_t=ll.expansion_t)
+        },
+      user_def:
+        Some((Ap(Forward, def, args): TermBase.Exp.term) |> Exp.fresh),
+      vparam: false,
+    })
+  | _ => None
+  };
+
+/* A Macro use's expansion obligation (Fig. 5 premise 5), said in terms of
+   Expansion. The code expand returned, of type `code`, must take each
+   listed splice, at the type its code has (`splices`, in order), to the
+   declared `expansion`. Rather than one consistency check against the
+   arrow -- whose failure would name the arrow as if it were Expansion --
+   walk the code's parameters against the splices and report the first
+   thing that fails: too few parameters, a parameter that cannot take its
+   splice, or a result that is not Expansion. When all of that fits but the
+   code still has an error of its own (`code_has_error`), say so. An
+   Unknown along the way stays gradual, as everywhere else. */
+let macro_expansion_mark =
+    (
+      ctx: Ctx.t,
+      ~expansion: TermBase.Typ.t,
+      ~splices: list(TermBase.Typ.t),
+      ~code: TermBase.Typ.t,
+      ~code_has_error: bool,
+    )
+    : list(Mark.t) => {
+  let rec walk = (i, splices, code): option(Mark.macro_expansion_problem) =>
+    switch (splices) {
+    | [] =>
+      if (!Typ.is_consistent(ctx, code, expansion)) {
+        Some(Result(code));
+      } else if (code_has_error) {
+        Some(ErrorInCode);
+      } else {
+        None;
+      }
+    | [splice, ...rest] =>
+      switch (Typ.term_of(Typ.weak_head_normalize(ctx, code))) {
+      | Arrow(param, result) =>
+        Typ.is_consistent(ctx, param, splice)
+          ? walk(i + 1, rest, result)
+          : Some(
+              SpliceParameter({
+                index: i,
+                param,
+              }),
+            )
+      | Unknown(_) => code_has_error ? Some(ErrorInCode) : None
+      | _ => Some(TooFewParameters)
+      }
+    };
+  switch (walk(0, splices, code)) {
+  | None => []
+  | Some(problem) => [
+      Mark.BadMacroExpansion({
+        expansion,
+        splices,
+        code,
+        problem,
+      }),
+    ]
+  };
+};
 
 /* The use-site expansion obligation: a use of ^name synthesizes the DECLARED
    expansion type, so statics owes a check that the expansion actually has

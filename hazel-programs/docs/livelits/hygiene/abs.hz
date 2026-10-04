@@ -1,0 +1,41 @@
+# Hygiene 4: Abs #
+
+# ...AND WITH Abs, THEY CANNOT. #
+
+# The helper from 3. Generated Binders, but each binder is made with #
+# Abs. Abs(fun v -> c) is a function whose binder the SYSTEM names -- #
+# a name no program can write -- and v is its variable, as code. gen #
+# never picks a name, so no binder can capture another's variable, #
+# and the use means [1, 2]. #
+# The client's code in the splices is safe from these binders for the #
+# reason in 1. Capture Avoidance: it arrives as an argument. #
+
+let ^two_abs = {
+  type Model = (a = SpliceRef, b = SpliceRef);
+  type Action = Int;
+  type Expansion = [Int];
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(1)))) in
+    do b <- new_splice((IntT, Some(IntLit(2)))) in
+    Pure((a = a, b = b));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do a <- editor((m.a, FixedWidth(4))) in
+    do b <- editor((m.b, FixedWidth(4))) in
+    Pure(Html.div([], [Html.text("["), a, Html.text(", "), b, Html.text("]")]));
+  let list_of = fun vars : [Exp] ->
+    case vars
+    | [] => quote [] end
+    | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+    end;
+  let gen = fun vars : [Exp] -> fun i : Int ->
+    if i == 2 then list_of(vars)
+    else Abs(fun v -> gen(vars @ [v])(i + 1));
+  let expand = Macro(fun m : Model -> (gen([])(0), [m.a, m.b]));
+  let shape = Inline(16)
+} in
+
+let hygienic = ^^livelit(^two_abs((a = (1), b = (2)))) in
+
+# The use means [1, 2]. #
+hygienic

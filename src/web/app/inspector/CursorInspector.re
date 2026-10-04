@@ -275,6 +275,9 @@ let core_mark_err_view =
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadLivelitExpansion(_)
+    | BadMacroExpansion(_)
+    | LivelitNeedsTypeArgument(_)
+    | LivelitNeedsArguments(_)
     | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
@@ -864,6 +867,68 @@ let exp_mark_err_view =
       text(" = "),
       view_type(declared),
     ])
+  | BadMacroExpansion({expansion, splices, code: code_ty, problem}) =>
+    let n = List.length(splices);
+    let of_splices =
+      n == 1 ? "its splice" : Printf.sprintf("its %d splices", n);
+    let expansion_is = [
+      code("Expansion"),
+      text(" = "),
+      view_type(expansion),
+    ];
+    div_err(
+      switch (problem) {
+      | TooFewParameters =>
+        [
+          text("The expansion's code has type "),
+          view_type(code_ty),
+          text(", but must be a function of " ++ of_splices ++ ", to "),
+        ]
+        @ expansion_is
+      | SpliceParameter({index, param}) => [
+          text("The expansion's code takes "),
+          view_type(param),
+          text(
+            Printf.sprintf(" for splice %d, whose code has type ", index + 1),
+          ),
+          view_type(List.nth(splices, index)),
+        ]
+      | Result(result) =>
+        [
+          text(
+            n == 0
+              ? "The expansion's code has type "
+              : "Applied to "
+                ++ of_splices
+                ++ ", the expansion's code has type ",
+          ),
+          view_type(result),
+          text(", but the livelit declares "),
+        ]
+        @ expansion_is
+      | ErrorInCode => [
+          text(
+            n == 0
+              ? "The expansion's code has a type error"
+              : "The expansion's code has a type error, given " ++ of_splices,
+          ),
+        ]
+      },
+    );
+  | LivelitNeedsTypeArgument(name) =>
+    div_err([
+      code("^" ++ name),
+      text(" takes a type argument: give it one with "),
+      code("let ^name = ^" ++ name ++ "@<Type> in"),
+    ])
+  | LivelitNeedsArguments(name) =>
+    div_err([
+      code("^" ++ name),
+      text(" takes parameters: give them with "),
+      code("let ^name = ^" ++ name ++ "(args) in"),
+      text(", then use "),
+      code("^name"),
+    ])
   | InvalidLivelitDef(DefNotModule) =>
     div_err([
       text("Livelit definition should be a module declaring "),
@@ -871,26 +936,6 @@ let exp_mark_err_view =
       text(" and members "),
       code("init, update, view, expand"),
     ])
-  | InvalidLivelitDef(DefMissingMembers(missing)) =>
-    div_err([
-      text("Livelit definition is missing members: "),
-      ...List.map(code, missing),
-    ])
-  | InvalidLivelitDef(DefMissingTypes(missing)) =>
-    div_err([
-      text("Livelit definition is missing type members: "),
-      ...List.map(code, missing),
-    ])
-  | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
-    div_err(
-      member_mismatch_view(
-        ~view_type,
-        ~what="Member ",
-        name,
-        ~expected,
-        ~actual,
-      ),
-    )
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),

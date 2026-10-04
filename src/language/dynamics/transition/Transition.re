@@ -620,6 +620,20 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;
+    /* A bind does not step. `do p <- c in body` IS a node of the command
+       tree, not something that reduces to one, so it is a value the way a
+       function is -- and for the same reason: `body` sits under a binder
+       and cannot run until `p` has an answer.
+
+       Who does run it is the livelit machinery, which walks the tree and
+       performs each command against the editor's own state. That is the
+       paper's division: creating a splice changes the editor, which is
+       not something Hazel's evaluator can do, so the evaluator's job ends
+       at building the tree. */
+    | Bind(_, _, _) =>
+      let. _ = otherwise(env, d);
+      let.wrap_closure _ = (env, d);
+      Value;
     | FixF(dp, d1, None) when mode == `Environment =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
@@ -898,11 +912,18 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* Elaborated away inside a quotation (Statics); outside one it is an
+       error, and stuck. */
+    | Unquote(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | Atom(_)
     | LivelitName(_)
     | Label(_)
     | ExplicitNonlabel
     | Constructor(_)
+    /* A quotation is final as it stands: its body is code, not evaluated. */
+    | Quote(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;

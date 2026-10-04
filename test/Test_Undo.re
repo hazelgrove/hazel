@@ -16,6 +16,7 @@ let mk_model = (): History.Model.t => {
       ~settings=globals.settings.core,
       ~default_names,
       ~default_current,
+      ~reconcile=false,
     );
   let editors: Editors.Model.t = Scratch(scratch);
   let page: Page.Model.t = {

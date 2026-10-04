@@ -119,6 +119,9 @@ rule token =
     | "false" { FALSE }
     | "module" { MODULE }
     | "let" { LET }
+    | "do" { DO }
+    | "quote" { QUOTE }
+    | "unquote" { UNQUOTE }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }
@@ -135,6 +138,7 @@ rule token =
     | "{" { push_delim '{'; OPEN_CURLY }
     | "}" { pop_delim (); CLOSE_CURLY }
     | "->" { DASH_ARROW }
+    | "<-" { LEFT_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
     | "..." { TUPLE_EXTENSION }

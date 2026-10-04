@@ -5593,6 +5593,65 @@ let splice_tests = [
       check_in_splice(~name="caret in third splice", id, z);
     },
   ),
+  /* #2631: a splice that is a projector's whole syntax, as a livelit use
+     showing its syntax holds it, has no tile to give it a sort. Remolded as
+     Any, `f()` then a digit grouted `(` apart from `f`. */
+  test_case(
+    "A splice that is a projector's whole syntax keeps an application whole",
+    `Quick,
+    () => {
+      let splice = Piece.mk_splice(parse_segment_exn("f(25)"));
+      let id =
+        switch (splice) {
+        | Base.Splice(s) => s.id
+        | _ => Id.invalid
+        };
+      let model =
+        FoldProj.sexp_of_t({
+          text: "test",
+          expanded: false,
+          always_render: true,
+        })
+        |> Sexplib.Sexp.to_string;
+      let z =
+        Zipper.unzip([
+          Piece.Projector(
+            ProjectorCore.mk(
+              ~id=Id.mk(),
+              ProjectorCore.Kind.Fold,
+              [splice],
+              model,
+            ),
+          ),
+        ]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 4,
+                },
+              ),
+            ),
+            Destruct(Left),
+            Destruct(Left),
+            Insert("4"),
+            Insert("0"),
+          ],
+        );
+      check_in_splice(~name="caret still in the splice", id, z);
+      Alcotest.check(
+        Alcotest.string,
+        "the application is whole",
+        "f(40)",
+        splice_text(z, 0),
+      );
+    },
+  ),
   test_case(
     "SplicePoint 3 -> 33 edit inside splice",
     `Quick,
@@ -6174,6 +6233,35 @@ let table_splice_tests = [
         "unprojected table",
         "[(a=1, b=2), (a=3, b=4)]¦",
         printer(z),
+      );
+    },
+  ),
+  /* A livelit's head line turns its use back into code by index
+   * (Project(Unproject)), wherever the caret is: the projector is
+   * replaced by exactly the segment given. */
+  test_case(
+    "Unproject replaces a projector, by index, with the segment given",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let seg =
+        switch (Parser.to_segment("7", ~root=Exp)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("7 did not parse")
+        };
+      let z = perform(z, [Project(Unproject(0, seg))]);
+      Alcotest.check(
+        Alcotest.int,
+        "no projector's splices remain",
+        0,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "the projector is now 7",
+        "7",
+        Str.global_replace(Str.regexp_string("\xC2\xA6"), "", printer(z)),
       );
     },
   ),
