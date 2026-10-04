@@ -1387,6 +1387,27 @@ module FumolaWip: BuiltinLivelit = {
     | _ => None
     };
 
+  /* The code with its `fumola … as <name> in` naming [name]. The model's
+     instance is what runs, and the tile's name is otherwise only shown;
+     renaming the instance renames it too, so the two cannot disagree.
+     A string-form code has no name to rename. */
+  let rec rename_code = (name: string, e: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (e.term) {
+    | Parens(inner) => {
+        ...e,
+        term: Parens(rename_code(name, inner)),
+      }
+    /* A fresh Splice node, as flip makes: a splice's editor keeps its own
+       text by its id, so the same id would come back with the old name.
+       The code's editor starts over -- caret and undo -- on a rename. */
+    | Splice(inner) => DHExp.fresh(Splice(rename_code(name, inner)))
+    | FumolaQuote(_, mode, body) => {
+        ...e,
+        term: FumolaQuote(f(FumolaGrammar.Var(name)), mode, body),
+      }
+    | _ => e
+    };
+
   /* The mode and declarations the code stands for, in either form. A
      string that does not parse is a program being typed, and expands to a
      hole rather than to an error on every keystroke. */
@@ -1853,6 +1874,7 @@ module FumolaWip: BuiltinLivelit = {
             SetModel({
               ...m,
               instance,
+              code: rename_code(instance, m.code),
             }),
           )
         ),
