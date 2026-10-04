@@ -196,7 +196,11 @@ let rec find_projector =
     seg,
   );
 
-let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+/* [~replacement], when given, takes the projector's place instead of its
+   own syntax (Unproject). */
+let remove_from_root =
+    (~replacement: option(Base.segment)=?, id: Id.t, z: Zipper.t)
+    : option(Zipper.t) => {
   let segment = Zipper.unselect_and_zip(z);
   let* pr = find_projector(id, segment);
   let z =
@@ -207,7 +211,11 @@ let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
   let segment =
     ZipperBase.MapPiece.of_segment(
       fun
-      | Projector(pr') when pr'.id == id => unsplice_segment(pr'.syntax)
+      | Projector(pr') when pr'.id == id =>
+        switch (replacement) {
+        | Some(seg) => seg
+        | None => unsplice_segment(pr'.syntax)
+        }
       | p => [p],
       segment,
     );
@@ -407,6 +415,17 @@ let go =
     ) {
     | [hd, ..._] => Ok(hd)
     | [] => Error(Cant_project)
+    }
+  /* A livelit turned back into code from its own head line: by index, as
+     the caret may be anywhere while the line is typed in. */
+  | Unproject(idx, seg) =>
+    switch (projector_idx_to_id(idx)) {
+    | Some(id) =>
+      switch (remove_from_root(~replacement=seg, id, z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      }
+    | None => Error(Cant_project)
     }
   | RemoveIndicated =>
     let removed_from_root = {

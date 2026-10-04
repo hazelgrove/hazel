@@ -608,6 +608,23 @@ Built in `7f2103c6e0`:
   unbound would otherwise run `init_from_params` around it. Focus stays in the
   line across the re-renders a commit causes.
 
+### The head line
+
+Above the read-only model and any params line, the reveal shows the use's
+**head**: the livelit as applied, without its model, as `^percent`, `^flag`,
+or `^slider(1, 12)` for a direct use with parameters. It is editable:
+
+- the same livelit with other arguments keeps the model (the cells' splices
+  re-attached by id);
+- another livelit's name swaps the use for a new one, started from that
+  livelit's `init` with its cells spliced, as typing `^name` and a space would;
+- anything else, on Enter, turns the use back into code: the model is left in
+  its place (`Project(Unproject(index, segment))`, by index, since the caret
+  may be anywhere).
+
+A pause in typing, or leaving the line, only ever swaps or re-parameterizes;
+only Enter unprojects, so a half-typed name never does.
+
 ### The GUI while revealed
 
 Buttons, sliders and drags in the GUI worked with the syntax revealed, but its

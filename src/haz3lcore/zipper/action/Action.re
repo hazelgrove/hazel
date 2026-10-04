@@ -81,6 +81,7 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetTerm(int, Language.Any.t, bool) /* Set underlying term, optionally preserving original splices */
+  | Unproject(int, Base.segment) /* Replace a projector with this segment, by index: a livelit turned back into code */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | SetModelQuiet(int, ProjectorCore.Kind.t, string) /* SetModel minus undo entry: for streaming
    * drag ticks (e.g. HTML projector resize). The first tick of a gesture
@@ -214,6 +215,7 @@ let is_edit: t => bool =
     | SetModel(_)
     | SetModelQuiet(_)
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetIndicated(_)
     | TogglePlacement
@@ -271,6 +273,7 @@ let is_historic: t => bool =
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
@@ -317,6 +320,7 @@ let should_animate: t => bool =
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)

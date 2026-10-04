@@ -411,6 +411,7 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | SetTerm(term, preserve_splices) =>
     Project(SetTerm(idx, term, preserve_splices))
+  | Unproject(seg) => Project(Unproject(idx, seg))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };

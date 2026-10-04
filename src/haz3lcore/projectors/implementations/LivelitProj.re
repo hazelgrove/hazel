@@ -606,6 +606,7 @@ module M: Projector = {
   };
 
   let params_min_cols = 37; /* + with_syntax_pane's 7: 44 */
+  let head_min_cols = 17; /* `^slider(1, 12)` and the line's label */
 
   /* Columns at the livelit's left for its syntax toggle (the eye, or the
      Colors slide's other looks), inside the livelit rather than hanging in
@@ -636,6 +637,13 @@ module M: Projector = {
               col: max(size.col, params_min_cols),
             }
           : size;
+      /* and one more row for the head line, `^name(args)`, which every
+         user livelit has (use_head_panel) */
+      let size =
+        Util.Point.{
+          row: size.row + 1,
+          col: max(size.col, head_min_cols),
+        };
       with_syntax_pane(size, shape);
     };
   };
@@ -1281,6 +1289,194 @@ module M: Projector = {
     )
     |> ignore;
 
+  /* The use's HEAD, the livelit applied minus its model: `^flag`,
+     `^percent`, `^slider(1, 12)`. While the syntax shows, it is the
+     editable line above the read-only model (docs/livelits.md, "Revealing
+     a use's syntax"). A pause in typing, or leaving the line, fires [live]
+     -- which acts only on text that names a livelit -- and Enter fires
+     [enter], which may also turn the use back into code: a half-typed
+     name must never do that. */
+  let head_panel =
+      (
+        ~input_id: string,
+        ~text: string,
+        ~live: string => Ui_effect.t(unit),
+        ~enter: string => Ui_effect.t(unit),
+      )
+      : Node.t => {
+    let value_of = ev =>
+      Js_of_ocaml.Js.to_string(
+        Js_of_ocaml.Js.Unsafe.get(
+          Js_of_ocaml.Js.Unsafe.get(ev, "target"),
+          "value",
+        ),
+      );
+    Node.div(
+      ~attrs=[Attr.classes(["livelit-params", "livelit-head"])],
+      [
+        Node.input(
+          ~attrs=[
+            Attr.class_("livelit-head-input"),
+            Attr.id(input_id),
+            Attr.string_property("value", text),
+            Attr.on_keyup(_ => Effect.Stop_propagation),
+            Attr.on_pointerdown(_ => Effect.Stop_propagation),
+            Attr.on_keydown(ev => {
+              let key =
+                Js_of_ocaml.Js.to_string(
+                  Js_of_ocaml.Js.Unsafe.get(ev, "key"),
+                );
+              let typed = value_of(ev);
+              Effect.Many([
+                Effect.Stop_propagation,
+                key == "Enter" && typed != text
+                  ? enter(typed) : Ui_effect.Ignore,
+              ]);
+            }),
+            Attr.on_input((ev, _) => {
+              Js_of_ocaml.Js.Unsafe.fun_call(
+                Js_of_ocaml.Js.Unsafe.js_expr(
+                  {|(function (el) {
+                      clearTimeout(el.__llHead);
+                      el.__llHead = setTimeout(function () {
+                        if (el.isConnected)
+                          el.dispatchEvent(new Event('change', {bubbles: true}));
+                      }, 250);
+                    })|},
+                ),
+                [|Js_of_ocaml.Js.Unsafe.get(ev, "target")|],
+              )
+              |> ignore;
+              Ui_effect.Ignore;
+            }),
+            /* fired by the pause timer, and by the browser on blur:
+               either way only a swap, never back to code */
+            Attr.on_change((ev, typed) =>
+              if (typed == text) {
+                Ui_effect.Ignore;
+              } else {
+                /* a swap re-renders the line: keep typing in it */
+                let target = Js_of_ocaml.Js.Unsafe.get(ev, "target");
+                if (Js_of_ocaml.Js.Unsafe.js_expr("document.activeElement")
+                    == target) {
+                  refocus_params(
+                    input_id,
+                    Js_of_ocaml.Js.Unsafe.get(target, "selectionStart"),
+                  );
+                };
+                live(typed);
+              }
+            ),
+          ],
+          (),
+        ),
+        Node.span(
+          ~attrs=[
+            Attr.class_("livelit-panel-label"),
+            Attr.title(
+              "this use's livelit: name another to swap it, change its arguments, or, with Enter, anything else turns the use back into code",
+            ),
+          ],
+          [Node.text("livelit")],
+        ),
+      ],
+    );
+  };
+
+  /* The head line for one use: its text, and what an edit to it does.
+     - A livelit's name, with the same livelit: its arguments changed, the
+       model kept (SetTerm, which re-attaches the model's splices by id).
+     - Another livelit: the use becomes a new use of it, starting from its
+       init and with its marked fields spliced, as typing ^name and a space
+       makes one.
+     - On Enter, anything else: the use is turned back into code, its model
+       left in its place (Unproject), as removing the projector would leave
+       the whole use. */
+  let use_head_panel =
+      (
+        ~info: ProjectorBase.info,
+        ~ctx: Ctx.t,
+        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+        ~print_term: TermBase.Exp.t => string,
+        ~ll_name: string,
+        ~args: option(TermBase.Exp.t),
+        ~model: TermBase.Exp.t,
+      )
+      : Node.t => {
+    module F = IdTagged.FreshGrammar;
+    let head_term = (name, args) =>
+      switch (args) {
+      | None => F.Exp.livelit_name(name)
+      | Some(a) => F.Exp.ap(Operators.Forward, F.Exp.livelit_name(name), a)
+      };
+    let text =
+      "^"
+      ++ ll_name
+      ++ (
+        switch (args) {
+        | None => ""
+        | Some(a) =>
+          let p = print_term(a);
+          String.length(p) > 0 && p.[0] == '(' ? p : "(" ++ p ++ ")";
+        }
+      );
+    let parse = (typed: string) =>
+      switch (info.utility.string_to_exp(String.trim(typed))) {
+      | Some({term: LivelitName(n), _}) => Some((n, None))
+      | Some({term: Ap(_, {term: LivelitName(n), _}, a), _}) =>
+        Some((n, Some(a)))
+      | _ => None
+      };
+    let revealed = seg => [Piece.mk_splice(seg)];
+    let swap = (typed: string): option(Ui_effect.t(unit)) => {
+      open OptUtil.Syntax;
+      let* (name, args') = parse(typed);
+      let* ll = lookup_use(ctx, name, args');
+      if (name == ll_name) {
+        Some(
+          parent(
+            SetTerm(
+              Exp(
+                F.Exp.ap(Operators.Forward, head_term(name, args'), model),
+              ),
+              true,
+            ),
+          ),
+        );
+      } else {
+        let* def = ll.user_def;
+        let* model' =
+          switch (UpdateCmdRunner.init_model(def)) {
+          | Ok(m) => Some(m)
+          | Error(_) => None
+          };
+        let seg =
+          info.utility.term_to_seg(
+            ~inline=true,
+            Exp(
+              F.Exp.ap(Operators.Forward, head_term(name, args'), model'),
+            ),
+          );
+        let seg = Option.value(~default=seg, splice_marked_fields(seg));
+        Some(parent(SetSyntax(revealed(seg))));
+      };
+    };
+    head_panel(
+      ~input_id="livelit-head-" ++ Id.to_string(info.id),
+      ~text,
+      ~live=typed => Option.value(~default=Ui_effect.Ignore, swap(typed)),
+      ~enter=
+        typed =>
+          switch (swap(typed)) {
+          | Some(e) => e
+          | None =>
+            parent(
+              Unproject(info.utility.term_to_seg(~inline=true, Exp(model))),
+            )
+          },
+    );
+  };
+
   let params_panel =
       (
         ~input_id: string,
@@ -1461,6 +1657,7 @@ module M: Projector = {
 
     /* Set while drawing a user livelit's GUI, for the pane below. */
     let params = ref(None);
+    let head = ref(None);
     let node =
       switch (get_use(info)) {
       | Some((ll_name, args, model)) =>
@@ -1546,6 +1743,18 @@ module M: Projector = {
               info.utility.term_to_seg(~inline=true, Exp(term)),
             );
           if (Option.is_some(syntax_splice(info.syntax))) {
+            head :=
+              Some(
+                use_head_panel(
+                  ~info,
+                  ~ctx,
+                  ~parent,
+                  ~print_term,
+                  ~ll_name,
+                  ~args,
+                  ~model,
+                ),
+              );
             params :=
               params_panel(
                 ~input_id="livelit-params-" ++ Id.to_string(info.id),
@@ -1646,7 +1855,9 @@ module M: Projector = {
       switch (shown) {
       | Some(s) =>
         let size: Util.Point.t = splice_size(s.id);
-        let rows = size.row + 1 + (Option.is_some(params^) ? 1 : 0);
+        let lines =
+          (Option.is_some(head^) ? 1 : 0) + (Option.is_some(params^) ? 1 : 0);
+        let rows = size.row + 1 + lines;
         Some(
           Node.div(
             ~attrs=[
@@ -1662,7 +1873,8 @@ module M: Projector = {
                 ),
               ),
             ],
-            Option.to_list(params^)
+            Option.to_list(head^)
+            @ Option.to_list(params^)
             @ [
               Node.span(
                 ~attrs=[
@@ -1670,7 +1882,16 @@ module M: Projector = {
                     "livelit-panel-label",
                     "livelit-model-label",
                   ]),
-                  Attr.title("this use's syntax: an edit changes the model"),
+                  Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "top: calc(%d * var(--row-height-px));",
+                      lines,
+                    ),
+                  ),
+                  Attr.title(
+                    "this use's model, read-only: change it with the livelit",
+                  ),
                 ],
                 [Node.text("model")],
               ),

@@ -6236,6 +6236,35 @@ let table_splice_tests = [
       );
     },
   ),
+  /* A livelit's head line turns its use back into code by index
+   * (Project(Unproject)), wherever the caret is: the projector is
+   * replaced by exactly the segment given. */
+  test_case(
+    "Unproject replaces a projector, by index, with the segment given",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let seg =
+        switch (Parser.to_segment("7", ~root=Exp)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("7 did not parse")
+        };
+      let z = perform(z, [Project(Unproject(0, seg))]);
+      Alcotest.check(
+        Alcotest.int,
+        "no projector's splices remain",
+        0,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "the projector is now 7",
+        "7",
+        Str.global_replace(Str.regexp_string("\xC2\xA6"), "", printer(z)),
+      );
+    },
+  ),
   /* In-splice probes render their offside sample view in the root
    * editor, on the document row the cell's contents are laid out on:
    * the projector's origin row, plus one for the table header, plus

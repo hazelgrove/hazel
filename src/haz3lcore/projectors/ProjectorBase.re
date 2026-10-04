@@ -28,6 +28,7 @@ type external_action =
   | ToggleSyntax /* Show/hide this projector's own syntax below its UI */
   | SetSyntax(Base.segment) /* Set underlying syntax */
   | SetTerm(Any.t, bool) /* Set underlying term, optionally preserving original splices */
+  | Unproject(Base.segment) /* Replace this projector with a segment: a livelit turned back into code */
   | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
