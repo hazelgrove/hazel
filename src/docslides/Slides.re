@@ -48,6 +48,15 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Fumola (Tiles) / The library", [%blob "fumola-tiles-library.hz"]),
     ("Fumola (Tiles) / Self-inspection", [%blob "fumola-tiles-inspect.hz"]),
     ("Fumola (Tiles) / Node info", [%blob "fumola-tiles-nodeinfo.hz"]),
+    /* Fumola, Local and Remote: one runtime in the page and on the
+       Internet Computer, and storage shared through the canister's spaces
+       (hazel-programs/docs/fumola-local-remote). */
+    ("Fumola, Local and Remote / About", [%blob "0-about.hz"]),
+    ("Fumola, Local and Remote / 1. Local", [%blob "1-local.hz"]),
+    ("Fumola, Local and Remote / 2. Remote", [%blob "2-remote.hz"]),
+    ("Fumola, Local and Remote / 3. Side by side", [%blob "3-side-by-side.hz"]),
+    ("Fumola, Local and Remote / 4. Shared spaces", [%blob "4-shared-spaces.hz"]),
+    ("Fumola, Local and Remote / 5. Mainnet", [%blob "5-mainnet.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

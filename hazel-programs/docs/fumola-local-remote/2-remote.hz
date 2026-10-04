@@ -1,0 +1,27 @@
+# 2. Remote #
+
+# The same code, with the switch on canister. remoteInstance lives #
+# on the Internet Computer, in the backend canister that also holds #
+# Hazel's state (docs/internet-computer-backend.md). #
+
+# What happens on an edit: #
+#   - the page prints the program, with n already evaluated into it #
+#     (the In wire crosses as a Hazel escape, resolved before sending), #
+#   - POSTs it to /i/remoteInstance/eval_top on the canister, #
+#   - shows "running on the canister..." until the reply arrives, #
+#   - and runs again when it does: the reply is the same JSON the #
+#     page's own runtime answers, so it becomes the same Hazel value. #
+
+# A reply is kept by its program, so an edit that comes back to an #
+# earlier program does not ask again. #
+
+# Pointers are the one difference: what a remote value points at is #
+# on the canister, and the read here is synchronous, so a pointer #
+# arrives as its name, unread. #
+
+# Opened outside the canister build, this slide says there is no #
+# canister to run on. #
+let n = 20 in
+^^livelit(^fumola_wip((instance = "remoteInstance", name = "", editor = true, bind_input = true, remote = true, tiles = true, input = (n), code = (fumola $graphical as remoteInstance in
+  (input * 2, input + 1)
+end))))

@@ -1,0 +1,26 @@
+# Fumola, Local and Remote #
+
+# Three ideas, one per slide after this one. #
+
+# 1. LOCAL. A Fumola instance lives in the page. ^fumola_wip sends #
+#    it a program; Fumola's runtime, compiled to WebAssembly, runs it #
+#    in the browser; the result comes back as a Hazel value. #
+
+# 2. REMOTE. The same instance can live on the Internet Computer #
+#    instead. The program is sent to a canister as mobile code, run #
+#    there by the same runtime (one Rust crate, fumola_wasm_common, #
+#    linked into both), and the result is sent back in the same JSON, #
+#    so it becomes a Hazel value in exactly the same way. #
+
+# 3. SHARED. The canister also keeps Hazel's state, in named spaces. #
+#    A page opts some of its keys into a space; every page that names #
+#    the same space reads and writes the same keys. That is the start #
+#    of slides anyone can add and everyone can see. #
+
+# What stays the same across all three is the point: one language, #
+# one runtime, one value boundary. Only where the computation and #
+# the storage live changes. #
+
+# Local first: everything here runs against a local replica. The #
+# last slide is the plan for mainnet. #
+()

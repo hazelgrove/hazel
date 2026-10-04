@@ -1,0 +1,22 @@
+# 4. Shared Spaces #
+
+# The canister keeps Hazel's key-value state in named SPACES. Hazel's #
+# own space is hazel; any other name is another space, made on first #
+# write. A page chooses one, and which of its keys go there, with two #
+# settings, window.hazelSpace and window.hazelSpaceKeys, or the URL: #
+
+#   ?space=demo&spaceKeys=scratch: #
+
+# keeps that page's scratch slides in the space demo, on the canister, #
+# and everything else in the browser as before. Two browsers that open #
+# the same URL edit the same scratch slides. #
+
+# Routes, for a page or a tool: #
+#   POST /s/<space>/kv          writes, a batch at a time #
+#   GET  /s/<space>/kv          every key, for loading #
+#   GET  /spaces                every space and its key count #
+
+# The next step is a deck of its own, Shared Spaces, whose slides #
+# live in one space: anyone can add a slide, and everyone sees #
+# everyone else's. For the demo, writes are open to anyone. #
+()
