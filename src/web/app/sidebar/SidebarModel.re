@@ -231,6 +231,13 @@ module Settings = {
        disappearing before the reader knows it was ever there. */
     [@sexp.default Dim] [@yojson.default Dim]
     fumola_editor,
+    /* The instance the Fumola panel shows instead of the cursor's, chosen
+       from its list of instances; None follows the cursor. Persisted, so a
+       reload shows the same one: a name is all a pin holds, and a page's
+       program claims the same name again when it runs, as the canister's
+       instance outlives the page. Defaulted for settings saved before it. */
+    [@sexp.default None] [@yojson.default None]
+    fumola_pinned: option((string, Language.FumolaRun.place)),
   };
 
   let is_debug_expanded = (key: string, settings: t) =>
@@ -274,5 +281,6 @@ module Settings = {
     | ToggleDebugExpanded(string)
     | SwitchFumolaTab(fumola_tab)
     | SwitchFumolaEditor(fumola_editor)
+    | PinFumola(option((string, Language.FumolaRun.place)))
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

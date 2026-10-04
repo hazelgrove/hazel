@@ -1384,8 +1384,8 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
     | Instance(instance, panes) => instance_body(instance, panes)
     | AtCursor(cursor) =>
       switch (cursor.editor) {
-      | _ when globals.fumola_pinned != None =>
-        switch (globals.fumola_pinned) {
+      | _ when globals.settings.sidebar.fumola_pinned != None =>
+        switch (globals.settings.sidebar.fumola_pinned) {
         | Some((name, place)) =>
           /* Chosen from the list: shown until the reader goes back to the
              cursor. A canister instance nothing here runs has no reply to

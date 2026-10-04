@@ -257,16 +257,22 @@ module Update = {
       Language.FumolaRun.reset_remote(~mode, instance);
       model |> Updated.return_quiet;
     | FumolaPin(pinned) =>
+      /* The pin is a setting, so it is saved and a reload keeps it; the open
+         rows are not, and belong to the instance shown before. */
+      let* settings =
+        Settings.Update.update(
+          ~action=Sidebar(PinFumola(pinned)),
+          ~settings=model.globals.settings,
+        );
       {
         ...model,
         globals: {
           ...model.globals,
-          fumola_pinned: pinned,
+          settings,
           fumola_open: [],
           fumola_focused: None,
         },
-      }
-      |> return_quiet
+      };
     | FumolaRefresh(instance) =>
       Language.FumolaRun.refresh_remote(instance);
       model |> Updated.return_quiet;

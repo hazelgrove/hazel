@@ -135,10 +135,6 @@ module Model = {
        reader opens several rows and is looking at one of them. Cleared when a
        row is opened by hand, so only following scrolls. */
     fumola_focused: option(string),
-    /* The instance the Fumola panel shows instead of the cursor's, chosen
-       from its list of instances. Not persisted: an instance is the page's
-       until it reloads. */
-    fumola_pinned: option((string, Language.FumolaRun.place)),
     /* The documentation slide showing, when one is: what a copied link names,
        and the only deck `?slide=` can address. Assembled per frame in
        `Page.main_view`, which is the first place that knows both the mode and
@@ -173,7 +169,6 @@ module Model = {
     visible_rows: None,
     fumola_open: [],
     fumola_focused: None,
-    fumola_pinned: None,
     slide_name: None,
     apps: AppStore.empty,
     color_highlights: None,
