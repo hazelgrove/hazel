@@ -1844,9 +1844,9 @@ module FumolaWip: BuiltinLivelit = {
         Node.span(
           ~attrs=[
             Attr.class_("fumola-wip-badge"),
-            Attr.title("a work in progress, and slow to edit"),
+            Attr.title("Fumola: a work in progress, and slow to edit"),
           ],
-          [Node.text("wip")],
+          [Node.text("fumola")],
         ),
         text_field(~label="instance", m.instance, instance =>
           send_action(
@@ -2266,12 +2266,11 @@ module FumolaWip: BuiltinLivelit = {
      rows; change both together. */
   let shape: Util.ProjectorShape.t = {
     vertical: Tab(14),
-    /* Room for the whole head row: badge, instance, editor | archivist
-       with its name, page | canister, tiles and the run readout. Measured
-       at 65 columns (662px at 10.3px a column) once page | canister was
-       compacted like editor | archivist; 84 pushed the line far past the
-       code around it, and the full-width pane with it. */
-    horizontal: 65,
+    /* Room for the whole head row: the fumola badge, instance, editor |
+       archivist with its name, page | canister, tiles and the run readout.
+       Measured at 680px, 66 columns at 10.3px a column; 84 pushed the line
+       far past the code around it, and the full-width pane with it. */
+    horizontal: 67,
   };
 };
 
