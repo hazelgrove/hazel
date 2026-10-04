@@ -60,6 +60,38 @@ module Backend = {
 
   let on = Option.is_some(address);
 
+  /* The key prefixes this page keeps in its space (window.hazelSpaceKeys,
+     ic-backend.js); None: every key. The rest stay in IndexedDB. */
+  let prefixes: option(list(string)) = {
+    let a: Js.Opt.t(Js.t(Js.js_array(Js.t(Js.js_string)))) =
+      Js.Unsafe.js_expr(
+        "(typeof window !== 'undefined' && Array.isArray(window.hazelSpaceKeys)) ? window.hazelSpaceKeys : null",
+      );
+    Js.Opt.to_option(a)
+    |> Option.map(arr =>
+         Array.to_list(Js.to_array(arr)) |> List.map(Js.to_string)
+       );
+  };
+
+  /* Some keys in the canister, the others in IndexedDB. */
+  let partial = on && Option.is_some(prefixes);
+
+  /* Whether [key] lives in the canister. */
+  let routes = (key: string): bool =>
+    on
+    && (
+      switch (prefixes) {
+      | None => true
+      | Some(ps) =>
+        List.exists(
+          p =>
+            String.length(key) >= String.length(p)
+            && String.sub(key, 0, String.length(p)) == p,
+          ps,
+        )
+      }
+    );
+
   let call =
       (method: string, path: string, body: option(string), k: string => unit)
       : unit =>
@@ -116,13 +148,33 @@ let writes_json = (writes: list(write)): string =>
     ),
   );
 
-let commit = (writes: list(write)): unit =>
+let key_of =
+  fun
+  | Put(key, _)
+  | Delete(key) => key;
+
+/* Each write goes where its key lives: the canister's space for the keys
+   this page keeps there (Backend.routes), IndexedDB for the rest. */
+let rec commit = (writes: list(write)): unit =>
   if (resetting^) {
     ();
-  } else if (writes != [] && Backend.on) {
+  } else if (Backend.partial) {
+    let (remote, local) =
+      List.partition(w => Backend.routes(key_of(w)), writes);
+    commit_remote(remote);
+    commit_local(local);
+  } else if (Backend.on) {
+    commit_remote(writes);
+  } else {
+    commit_local(writes);
+  }
+and commit_remote = (writes: list(write)): unit =>
+  if (writes != []) {
     incr(write_transactions);
     Backend.call("POST", "/kv", Some(writes_json(writes)), _ => ());
-  } else if (writes != []) {
+  }
+and commit_local = (writes: list(write)): unit =>
+  if (writes != []) {
     incr(write_transactions);
     with_db(db => {
       let store = kv_store(db);
@@ -204,7 +256,19 @@ let kv_rekey = (rekey: string => option(string)): unit =>
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
-  if (Backend.on) {
+  if (Backend.partial) {
+    /* both halves; [callback] once both are empty */
+    let left = ref(2);
+    let one = () => {
+      decr(left);
+      if (left^ == 0) {
+        callback();
+      };
+    };
+    Backend.call("POST", "/kv/clear", None, _ => one());
+    let error = _ => print_endline("ERROR: HazelDB.kv_clear");
+    with_db(db => IDBStore.clear(~error, ~callback=one, kv_store(db)));
+  } else if (Backend.on) {
     Backend.call("POST", "/kv/clear", None, _ => callback());
   } else {
     let error = _ => print_endline("ERROR: HazelDB.kv_clear");
@@ -223,6 +287,23 @@ let fill_cache = (pairs: list((string, string))): unit =>
     );
 
 let rec kv_load_all = (callback: list((string, string)) => unit): unit =>
+  if (Backend.partial) {
+    /* this browser's keys, then the space's: each key from where it lives */
+    kv_load_all_idb(local =>
+      kv_load_all_remote(remote => {
+        let pairs =
+          List.filter(((k, _)) => !Backend.routes(k), local)
+          @ List.filter(((k, _)) => Backend.routes(k), remote);
+        fill_cache(pairs);
+        callback(pairs);
+      })
+    );
+  } else if (Backend.on) {
+    kv_load_all_remote(callback);
+  } else {
+    kv_load_all_idb(callback);
+  }
+and kv_load_all_remote = (callback: list((string, string)) => unit): unit =>
   if (Backend.on) {
     Backend.call(
       "GET",

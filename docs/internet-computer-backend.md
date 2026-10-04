@@ -80,6 +80,31 @@ is `<name>.local.localhost`, and `js_of_ocaml`'s URL parser, which Hazel reads
 `?slide=` links through, refuses an underscore in a host name: the page loads,
 but every query parameter is lost.
 
+## Spaces: several front ends, one canister
+
+The canister keeps its keys and log in **spaces** (`fumola_canister`,
+`/s/<space>/kv` and so on). Paths without `/s/` are the space `hazel`, which
+this front end uses by default, so nothing changes until a page opts in.
+
+A page opts in by naming a space, and optionally the key prefixes it keeps
+there; every other key stays in the browser's IndexedDB. `ic-backend.js` reads
+both from `window` or, for trying it out, from the page's URL:
+
+    window.hazelSpace = "team";
+    window.hazelSpaceKeys = ["doc:", "scratch:"];
+
+    http://hazel.local.localhost:8000/?space=team&spaceKeys=doc:,scratch:
+
+`HazelDB` routes each write by its key (`Backend.routes`) and, at startup,
+loads each key from where it lives. With a space but no prefixes, every key
+goes to the space. Checked with two browser profiles on that URL: what one
+typed into its scratchpad, the other loaded, while each kept its own `MODE` and
+`SETTINGS`, and the `hazel` space was untouched. `GET /spaces` lists the
+spaces with their key counts.
+
+Not yet: who may write a space (every call is anonymous through the gateway),
+and two pages writing the same key at once (the last write wins).
+
 ## Not handled yet
 
 - A write that fails is logged to the console and not retried.
