@@ -780,6 +780,90 @@ def c_eye_live_params(d, log):
     assert "^mood(40" in pane, f"a free x was committed: {pane[:80]!r}"
     return {}
 
+
+def type_into(d, selector, text):
+    """Click the end of the input [selector], clear it, and type [text]."""
+    for _ in range(2):
+        at = d.js("""
+          const i = document.querySelector(arguments[0]);
+          i.scrollIntoView({block: 'center'});
+          const r = i.getBoundingClientRect();
+          return [Math.round(r.right - 6), Math.round(r.top + r.height / 2)];
+        """, [selector])
+        time.sleep(0.5)
+    click_at(d, *at)
+    time.sleep(0.3)
+    d.keys(["\ue010"] + ["\ue003"] * 80 + list(text))
+
+
+@case("eye: the head line swaps the livelit, changes its arguments, or unprojects")
+def c_eye_head(d, log):
+    # The revealed syntax's editable line is the use's head, `^percent`:
+    # name another livelit to swap it (from its init), change a direct
+    # use's arguments to keep its model, or Enter anything else to turn
+    # the use back into code. A half-typed name changes nothing.
+    d.goto("/fresh?slide=livelits-parameters&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
+    time.sleep(3)
+    first = "document.querySelectorAll('.livelit-syntax-toggle')[0]"
+    d.js("%s.scrollIntoView({block: 'center'}); return 1;" % first)
+    time.sleep(1)
+    eye = d.js("const r = %s.getBoundingClientRect();"
+               " return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];" % first)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-head-input')", 20), "no head line"
+    model = ("const p = document.querySelector('.livelit-syntax'); return p && p.innerText"
+             ".replace(/\\s+/g, ' ').replace('livelit', '').replace('model', '').trim();")
+    head = "return document.querySelector('.livelit-head-input').value;"
+    assert d.js(head) == "^percent", f"head reads {d.js(head)!r}"
+    steps = [("^die", "^die(3)"), ("^sl", "^die(3)"),
+             ("^slider(0, 50)", "^slider(0, 50)(25)"),
+             ("^slider(0, 80)", "^slider(0, 80)(25)")]
+    for typed, want in steps:
+        type_into(d, ".livelit-head-input", typed)
+        time.sleep(5)
+        got = d.js(model)
+        log({typed: got})
+        assert got == want, f"after {typed!r} the model reads {got!r}, not {want!r}"
+    type_into(d, ".livelit-head-input", "zzz")
+    time.sleep(1)
+    d.keys(["\ue007"])
+    time.sleep(5)
+    code = d.js("return [...document.querySelectorAll('.code-text, .code')]"
+                ".map(e => e.innerText).join('\\n');")
+    log({"after Enter": bool(d.js("return !!document.querySelector('.livelit-head-input')"))})
+    assert not d.js("return !!document.querySelector('.livelit-head-input')"), "the use is still a livelit"
+    assert "25 +" in code, "the use did not turn into its model, 25"
+    return {}
+
+
+@case("eye: Kids' Choice's params line edits live and keeps the face's cells")
+def c_eye_kids_params(d, log):
+    # params_from_model with cells: init_from_params gets the old model too
+    # and keeps every cell, so a params edit leaves the client's code alone.
+    d.goto(KIDS_FRESH)
+    assert wait_for(d, "return !!" + FACE_SVG, 120), "the face never drew"
+    time.sleep(4)
+    open_eye_of(d, FACE_SVG)
+    assert wait_for(d, "return !!document.querySelector('.livelit-params-input')", 20), "no params line"
+    type_into(d, ".livelit-params-input", "(smile=85, brow=30, sickness=50)")
+    time.sleep(5)
+    got = d.js("""
+      const p = document.querySelector('.livelit-syntax').innerText.replace(/\\s+/g, ' ');
+      const s = (%s);
+      return [(p.match(/sickness = (\\d+)/) || [])[1], /color = \\(head/.test(p),
+              s.getAttribute('viewBox')];
+    """ % FACE_SVG)
+    log({"sickness, cell kept, viewBox": got})
+    assert got[0] == "50", f"sickness is {got[0]!r}"
+    assert got[1], "the color cell (head) was not kept"
+    # the face redraws once the run comes back: slow on this slide
+    grew = wait_for(d, "const s = (%s); return s && s.getAttribute('viewBox') !== '0 -80 200 300'"
+                       " ? s.getAttribute('viewBox') : null;" % FACE_SVG, 30)
+    log({"grew to": grew})
+    assert grew, "the face did not grow"
+    return {}
+
 @case("eye: a right-click menu in the open syntax is not clipped")
 def c_eye_menu(d, log):
     # Found by hand: the pane under an open eye clipped the menu to its own
@@ -893,7 +977,8 @@ def c_eye_no_parens(d, log):
     """ % flag)
     click_at(d, *eye)
     pane = wait_for(d, "const p = document.querySelector('.livelit-syntax');"
-                       " return p && p.innerText.replace(/\\s+/g, ' ').replace('model', '').trim();", 20)
+                       " return p && p.innerText.replace(/\\s+/g, ' ').replace('livelit', '')"
+                       ".replace('model', '').trim();", 20)
     log({"pane": pane})
     assert pane == "^flag(false)", f"the use came back as {pane!r}"
     return {"pane": pane}

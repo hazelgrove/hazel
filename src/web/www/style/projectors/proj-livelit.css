@@ -280,7 +280,8 @@
     padding-right: 4px;
     border-bottom: 1px dotted var(--border-soft);
 }
-.livelit-params-input {
+.livelit-params-input,
+.livelit-head-input {
     flex: 1;
     min-width: 0;
     height: 100%;
