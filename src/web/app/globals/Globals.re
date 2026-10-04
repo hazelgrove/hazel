@@ -76,7 +76,13 @@ module Action = {
     | FumolaFocus(string)
     /* Put an instance back to nothing and run the program again, so the graph
        is rebuilt rather than remembered. */
-    | FumolaReset(string, Language.FumolaRun.mode)
+    | FumolaReset(string, Language.FumolaRun.place, Language.FumolaRun.mode)
+    /* Show this instance in the Fumola panel, wherever the cursor is, or
+       (None) go back to following the cursor. The place is part of what is
+       pinned: a page and the canister can each have an instance of a name. */
+    | FumolaPin(option((string, Language.FumolaRun.place)))
+    /* Ask a canister instance's history and outline again. */
+    | FumolaRefresh(string)
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(
@@ -129,6 +135,10 @@ module Model = {
        reader opens several rows and is looking at one of them. Cleared when a
        row is opened by hand, so only following scrolls. */
     fumola_focused: option(string),
+    /* The instance the Fumola panel shows instead of the cursor's, chosen
+       from its list of instances. Not persisted: an instance is the page's
+       until it reloads. */
+    fumola_pinned: option((string, Language.FumolaRun.place)),
     /* The documentation slide showing, when one is: what a copied link names,
        and the only deck `?slide=` can address. Assembled per frame in
        `Page.main_view`, which is the first place that knows both the mode and
@@ -163,6 +173,7 @@ module Model = {
     visible_rows: None,
     fumola_open: [],
     fumola_focused: None,
+    fumola_pinned: None,
     slide_name: None,
     apps: AppStore.empty,
     color_highlights: None,

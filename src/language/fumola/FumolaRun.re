@@ -617,6 +617,21 @@ let set_remote = (instance: string, remote: bool): unit =>
 let is_remote = (instance: string): bool =>
   Hashtbl.mem(remote_instances, instance);
 
+/* Where an instance is read from. A name says nothing about it -- a page
+   and the canister can each hold an instance of the same name -- so a
+   reader that knows (the Fumola panel's list) says; one that does not
+   takes where this page's programs run it. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type place =
+  | Page
+  | Canister;
+
+let place_of = (~place: option(place)=?, instance: string): place =>
+  switch (place) {
+  | Some(p) => p
+  | None => is_remote(instance) ? Canister : Page
+  };
+
 /* A run here is synchronous and a call to the canister is not, so the reply
    is kept by what was asked -- the instance, its declared mode, and the
    program as printed, before its moment is added, which changes every
@@ -840,8 +855,8 @@ let canister_stats = (~max_age_ms=3000., ()): option(Yojson.Safe.t) => {
 /* The two reads a watch pane makes of an instance besides its history,
    wherever the instance lives. A remote one is asked on the side
    (remote_query), and until it answers the pane says so. */
-let mode_of_instance = (name: string): option(mode) =>
-  if (is_remote(name)) {
+let mode_of_instance = (~place=?, name: string): option(mode) =>
+  if (place_of(~place?, name) == Canister) {
     switch (remote_query(~instance=name, ~op="mode", "")) {
     | Some(`Assoc(fields)) =>
       switch (List.assoc_opt("mode", fields)) {
@@ -858,8 +873,8 @@ let mode_of_instance = (name: string): option(mode) =>
     mode_of_instance_local(name);
   };
 
-let outlines = (name: string): result(list(Yojson.Safe.t), string) =>
-  if (is_remote(name)) {
+let outlines = (~place=?, name: string): result(list(Yojson.Safe.t), string) =>
+  if (place_of(~place?, name) == Canister) {
     switch (
       remote_query(
         ~instance=name,
@@ -890,6 +905,12 @@ let outlines = (name: string): result(list(Yojson.Safe.t), string) =>
   } else {
     outlines_local(name);
   };
+
+/* Ask a canister instance's side questions afresh: what it holds can
+   change with no reply here to say so (another page ran it), and a reader
+   looking at it can say when to look again. */
+let refresh_remote = (instance: string): unit =>
+  Hashtbl.replace(remote_generation, instance, generation_of(instance) + 1);
 
 /* The instances this page's runtime holds, by name, with their stats
    (window.fumola.instances, prebundle.js). None without a runtime. */

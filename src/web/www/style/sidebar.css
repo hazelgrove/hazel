@@ -1083,3 +1083,23 @@
     font-size: 0.85em;
     opacity: 0.8;
 }
+/* Instance names in the list are links that show the instance here. */
+.fumola-list-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+.fumola-list-link:hover {
+    text-decoration-style: solid;
+}
+.fumola-list-shown td {
+    background: var(--sidebar-selected, rgba(127, 127, 127, 0.18));
+}
+.fumola-pinned-bar {
+    font-size: 0.85em;
+    margin-bottom: 0.4em;
+}
+.fumola-place-key {
+    opacity: 0.7;
+    font-weight: normal;
+}

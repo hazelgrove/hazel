@@ -495,10 +495,15 @@ let of_reply =
   | _ => Error("could not read the Fumola runtime's response")
   };
 
-let history_program = "prim \"adaptonPeekHistory\" ()";
+/* The history with every value past 200 characters, printed, cut to its
+   start and its length (History::brief): the shape the pane draws is all
+   kept, and a store holding documents -- the canister's, holding Hazel's
+   saved data -- stays small enough to send and to draw. A cut value shows
+   as text ending "... (N chars)". */
+let history_program = "prim \"adaptonPeekHistoryBrief\" (200)";
 
-let of_instance = (name: string): result(t, string) =>
-  if (FumolaRun.is_remote(name)) {
+let of_instance = (~place=?, name: string): result(t, string) =>
+  if (FumolaRun.place_of(~place?, name) == FumolaRun.Canister) {
     /* On the canister: ask it, on the side, with a run that keeps nothing;
        answered again after each of the instance's program replies. */
     switch (
@@ -512,11 +517,9 @@ let of_instance = (name: string): result(t, string) =>
     ) {
     | None => Error("asking the canister for this instance's history...")
     | Some(reply) =>
-      let instance_id =
-        try(FumolaRun.instance_of_name(name)) {
-        | FumolaRun.No_runtime => 0
-        };
-      of_reply(~instance_id, ~eval=_ => `Null, reply);
+      /* No page instance: claiming the name here would create an empty one
+         beside the canister's, listed under "In this page". */
+      of_reply(~instance_id=0, ~eval=_ => `Null, reply)
     };
   } else {
     switch (FumolaRun.instance_of_name(name)) {
