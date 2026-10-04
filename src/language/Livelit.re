@@ -2267,10 +2267,11 @@ module FumolaWip: BuiltinLivelit = {
   let shape: Util.ProjectorShape.t = {
     vertical: Tab(14),
     /* Room for the whole head row: badge, instance, editor | archivist
-       with its name, tiles and the run readout. Measured at 57 columns once
-       the checkboxes stopped taking a text field's 9em; 84 pushed the line
-       far past the code around it, and the full-width pane with it. */
-    horizontal: 58,
+       with its name, page | canister, tiles and the run readout. Measured
+       at 65 columns (662px at 10.3px a column) once page | canister was
+       compacted like editor | archivist; 84 pushed the line far past the
+       code around it, and the full-width pane with it. */
+    horizontal: 65,
   };
 };
 
