@@ -104,11 +104,12 @@ select {
 
 /* TEXT SELECTION
  * Text is selectable unless it belongs to a control (a selection there is
- * only ever accidental) or to code, where Hazel draws its own selection. */
+ * only ever accidental) or to code, where Hazel draws its own selection.
+ * Clickable text (rows, section headers) stays selectable: a press that
+ * selects text doesn't also click (JsUtil.install_text_selection_guards). */
 
 button,
 select,
-summary,
 label,
 [role="button"],
 .icon,
@@ -124,6 +125,8 @@ label,
   user-select: none;
 }
 
+/* read-only code (lesson examples, docs) has no Hazel selection */
+.code-editor.read-only,
 input,
 textarea {
   -webkit-user-select: text;
@@ -233,7 +236,6 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  user-select: none;
   outline: none;
 }
 

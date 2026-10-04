@@ -29,7 +29,6 @@
   gap: 1em;
   padding: 0.3em;
   cursor: pointer;
-  user-select: none;
 }
 
 .test-report + .test-report {

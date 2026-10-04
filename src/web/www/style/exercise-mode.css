@@ -8,8 +8,7 @@
 
 #main.Exercises .context-entry {
   max-width: fit-content;
-  /* Correct implementation type sigs; a click jumps to the binding */
-  user-select: none;
+  /* Correct implementation type sigs */
 }
 
 /* DERIVATION */

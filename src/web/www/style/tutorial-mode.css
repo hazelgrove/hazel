@@ -82,7 +82,6 @@
   color: var(--text-warning);
   font-size: 15px;
   cursor: pointer;
-  user-select: none;
   list-style: none;
   display: flex;
   align-items: center;
@@ -133,7 +132,6 @@
   color: var(--text-strong);
   font-size: 15px;
   cursor: pointer;
-  user-select: none;
   list-style: none;
   display: flex;
   align-items: center;

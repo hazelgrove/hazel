@@ -144,7 +144,6 @@
   font-weight: bold;
   cursor: pointer;
   padding: 0.5em;
-  user-select: none;
 }
 
 .problem-editor-group {
@@ -160,7 +159,6 @@
   margin-top: 0.25em;
   border-top: 1px solid var(--border-default);
   color: var(--text-accent);
-  user-select: none;
   cursor: pointer;
 }
 
@@ -192,7 +190,6 @@
   border-left: 3px solid color-mix(in srgb, var(--border-error) 40%, transparent);
   background-color: color-mix(in srgb, var(--surface-error-soft) 50%, transparent);
   cursor: pointer;
-  user-select: none;
   transition: background-color 0.15s ease;
   color: var(--text-default);
 }

@@ -111,19 +111,44 @@ let focus_page = () =>
   | None => ()
   };
 
-/* A press in code hands selection over to the editor, so drop any page text
-   selection: the browser keeps it when the press lands on unselectable
-   content. Capture phase, since projectors stop pointerdown propagation. */
-let install_text_selection_handoff = (): unit =>
+/* Page text selection vs. presses, in the capture phase (projectors stop
+   pointerdown propagation):
+   - A press in an editable code editor hands selection over to the editor,
+     so drop any page selection (the browser keeps it when the press lands
+     on unselectable content).
+   - A press that selected text (a drag, a double-click) doesn't also click,
+     so selecting a row or section header doesn't jump or toggle.
+   - Code views pad lines with U+200B; keep it out of copied text. */
+let install_text_selection_guards = (): unit =>
   Js.Unsafe.fun_call(
     Js.Unsafe.pure_js_expr(
       {|(function(){
+        var sig = function(s){
+          return s.rangeCount ? [s.anchorNode, s.anchorOffset, s.focusNode, s.focusOffset] : [];
+        };
+        var at_press = [];
+        var in_field = function(t){ return t.closest('input, textarea, [contenteditable]'); };
         document.addEventListener('pointerdown', function(e){
-          var t = e.target;
-          if (!(t instanceof Element) || !t.closest('.code-editor')
-              || t.closest('input, textarea, [contenteditable]')) return;
-          var s = window.getSelection();
-          if (s && !s.isCollapsed) s.removeAllRanges();
+          var t = e.target, s = window.getSelection();
+          if (t instanceof Element && !in_field(t)
+              && t.closest('.code-editor:not(.read-only)') && !s.isCollapsed)
+            s.removeAllRanges();
+          at_press = sig(s);
+        }, true);
+        document.addEventListener('click', function(e){
+          var t = e.target, s = window.getSelection();
+          if (!(t instanceof Element) || in_field(t) || s.isCollapsed
+              || !s.containsNode(t, true)) return;
+          var now = sig(s);
+          if (now.every(function(x, i){ return x === at_press[i]; })) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
+        document.addEventListener('copy', function(e){
+          var text = String(window.getSelection());
+          if (!e.clipboardData || text.indexOf('\u200b') < 0) return;
+          e.clipboardData.setData('text/plain', text.replace(/\u200b/g, ''));
+          e.preventDefault();
         }, true);
       })|},
     ),

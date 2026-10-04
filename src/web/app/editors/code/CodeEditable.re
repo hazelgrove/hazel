@@ -1086,6 +1086,12 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */
