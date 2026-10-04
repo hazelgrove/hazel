@@ -260,9 +260,20 @@ let rec commit = (writes: list(write)): unit =>
     let at = (p, w) => Backend.place(key_of(w)) == p;
     commit_local(List.filter(at(Local), writes));
     commit_remote(List.filter(at(Page), writes));
+    /* A put of what the space already holds, as this page last knew it,
+       is not sent. Saves fire without an edit (on load, on a slide
+       switch), and such a re-send would undo whatever another page wrote
+       to that key since this one read it. */
+    let news =
+      fun
+      | Put(key, value) => Hashtbl.find_opt(synced, key) != Some(value)
+      | Delete(_) => true;
     List.iter(
       space =>
-        commit_remote(~space, List.filter(at(Shared(space)), writes)),
+        commit_remote(
+          ~space,
+          List.filter(w => at(Shared(space), w) && news(w), writes),
+        ),
       Backend.shared_spaces,
     );
   } else {

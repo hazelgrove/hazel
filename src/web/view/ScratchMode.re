@@ -198,6 +198,23 @@ module Persist = {
 
   /* Load a slide blob. Tries the new schema first; on parse failure,
      falls back to legacy CellEditor-only blobs and wraps them as a Code kind. */
+  /* The agent stub a code slide's blob carries (the real conversation
+     is under :agent), as it was read, keyed by slide key. A save writes
+     the same stub back, so re-saving an unedited slide gives the bytes it
+     was read from, and a shared space is not sent a write that would undo
+     another page's edit (HazelDB.commit). A fresh stub each save would
+     differ in its ids and timestamp every time. */
+  let embedded_agent: Hashtbl.t(string, Agent.Persistent.t) =
+    Hashtbl.create(8);
+  let embedded_agent_for = (key: string): Agent.Persistent.t =>
+    switch (Hashtbl.find_opt(embedded_agent, key)) {
+    | Some(a) => a
+    | None =>
+      let a = Agent.Persistent.persist(Agent.Utils.init());
+      Hashtbl.replace(embedded_agent, key, a);
+      a;
+    };
+
   let load_slide_kind =
       (prefix: string, name: string): option(Scratchpad.kind_persistent) =>
     switch (HazelDB.kv_get(slide_key(prefix, name))) {
@@ -205,6 +222,9 @@ module Persist = {
     | Some(data) =>
       let sexp = Sexplib.Sexp.of_string(data);
       switch (Scratchpad.kind_persistent_of_sexp(sexp)) {
+      | CodePersist({agent, _}) as k =>
+        Hashtbl.replace(embedded_agent, slide_key(prefix, name), agent);
+        Some(k);
       | k => Some(k)
       | exception _ =>
         switch (CellEditor.Model.persistent_of_sexp(sexp)) {
@@ -275,7 +295,7 @@ module Persist = {
           sp.name,
           CodePersist({
             editor: Some(e),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
+            agent: embedded_agent_for(slide_key(prefix, sp.name)),
           }),
         )
       };
@@ -1048,6 +1068,14 @@ module Update = {
               },
             names,
           );
+        /* A slide read in fresh has no statics yet, and a non-edit does
+           not recompute them, so its result would stay stale. Force them
+           when the open slide is not the one that was showing. */
+        let cur_name = List.nth(names, current);
+        if (List.mem(cur_name, changed)
+            || List.nth_opt(old_names, model.current) != Some(cur_name)) {
+          CodeWithStatics.StaticsDebounce.force_on_next := true;
+        };
         Persist.hydrate_current(
           ~settings=settings.core,
           prefix,
