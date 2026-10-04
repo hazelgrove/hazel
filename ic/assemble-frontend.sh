@@ -14,6 +14,18 @@ rm -rf "$IC_DIR/dist" && mkdir "$IC_DIR/dist"
 BUILT="$REPO/_build/default/src/web/www"
 cp "$BUILT/hazel.js" "$BUILT/worker.js" "$BUILT/bundled.js" "$IC_DIR/dist/"
 chmod u+w "$IC_DIR/dist"/*.js
+# Fumola's browser runtime, which prebundle.js looks for at ./fumola/ before
+# fumola.org -- and the CSP allows script only from 'self', so here it has
+# to be. wasm-bindgen output of fumola_wasm_browser (--out-name fumola_wasm);
+# the README of the fumola checkout says how to build it.
+FUMOLA_DIR="${FUMOLA_DIR:-$HOME/fumola-canister}"
+BINDINGS="${FUMOLA_BINDINGS:-$FUMOLA_DIR/bindings}"
+if [ -f "$BINDINGS/fumola_wasm.js" ] && [ -f "$BINDINGS/fumola_wasm_bg.wasm" ]; then
+  mkdir -p "$IC_DIR/dist/fumola"
+  cp "$BINDINGS/fumola_wasm.js" "$BINDINGS/fumola_wasm_bg.wasm" "$IC_DIR/dist/fumola/"
+else
+  echo "warning: no Fumola runtime in $BINDINGS; ^fumola_wip will say it has none" >&2
+fi
 # The CSP (www/_headers, copied above) allows script only from 'self', so
 # each inline <script> in index.html gets its own hash as a script source.
 python3 - "$IC_DIR/dist" <<'PY2'

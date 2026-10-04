@@ -596,6 +596,104 @@ let owner_of = (body: FumolaTermBase.t): string =>
 let last_run_of = (~instance: string, ~name: string): option(last_run) =>
   Hashtbl.find_opt(last_runs, (instance, name));
 
+/* REMOTE INSTANCES: an instance may live on the Internet Computer instead of
+   in the page -- the canister of docs/internet-computer-backend.md, which
+   runs the same Fumola runtime (fumola_wasm_common) behind
+   `POST /i/<instance>/<op>`. The program travels as the text this page would
+   have run, the canister runs it, and the reply is the same JSON a local run
+   answers, so it becomes a Hazel value the same way.
+
+   Where an instance lives is the instance's, not a use's: ^fumola_wip's
+   `remote` box says it, at expansion, for its instance. Two uses of one
+   instance that disagree are settled by the later one, since every
+   expansion happens before any run. */
+let remote_instances: Hashtbl.t(string, unit) = Hashtbl.create(4);
+
+let set_remote = (instance: string, remote: bool): unit =>
+  remote
+    ? Hashtbl.replace(remote_instances, instance, ())
+    : Hashtbl.remove(remote_instances, instance);
+
+let is_remote = (instance: string): bool =>
+  Hashtbl.mem(remote_instances, instance);
+
+/* A run here is synchronous and a call to the canister is not, so the reply
+   is kept by what was asked -- the instance, its declared mode, and the
+   program as printed, before its moment is added, which changes every
+   run -- and a run that finds no reply yet asks for one and says so. The
+   reply's arrival is announced as `fumola-remote-reply`, which Main.re
+   treats as the runtime arriving: the program is run again, and this time
+   the reply is here. */
+let remote_replies: Hashtbl.t((string, string), Yojson.Safe.t) =
+  Hashtbl.create(16);
+let remote_asked: Hashtbl.t((string, string), unit) = Hashtbl.create(16);
+
+let remote_reply =
+    (~instance: string, ~mode: option(mode), ~at: int, program: string)
+    : option(Yojson.Safe.t) => {
+  let mode_text = Option.fold(~none="", ~some=mode_source, mode);
+  let key = (instance, mode_text ++ "\n" ++ program);
+  switch (Hashtbl.find_opt(remote_replies, key)) {
+  | Some(reply) => Some(reply)
+  | None =>
+    if (!Hashtbl.mem(remote_asked, key)) {
+      Hashtbl.replace(remote_asked, key, ());
+      let on_reply = (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+        let reply =
+          switch (Yojson.Safe.from_string(Js_of_ocaml.Js.to_string(text))) {
+          | exception _ =>
+            `Assoc([
+              ("ok", `Bool(false)),
+              ("error", `String("the canister's reply was not JSON")),
+            ])
+          | json => json
+          };
+        Hashtbl.replace(remote_replies, key, reply);
+        Hashtbl.remove(remote_asked, key);
+      };
+      switch (
+        Js_of_ocaml.Js.Optdef.to_option(
+          Js_of_ocaml.Js.Unsafe.get(
+            Js_of_ocaml.Js.Unsafe.global,
+            "hazelFumolaRemote",
+          ),
+        )
+      ) {
+      | exception _
+      | None =>
+        Hashtbl.replace(
+          remote_replies,
+          key,
+          `Assoc([
+            ("ok", `Bool(false)),
+            (
+              "error",
+              `String(
+                "this build has no canister to run on: remote runs need the Internet Computer build",
+              ),
+            ),
+          ]),
+        )
+      | Some(call) =>
+        ignore(
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            call,
+            [|
+              js_string(instance),
+              js_string(mode_text),
+              js_string(at_moment(at, program)),
+              Js_of_ocaml.Js.Unsafe.inject(
+                Js_of_ocaml.Js.wrap_callback(on_reply),
+              ),
+            |],
+          ),
+        )
+      };
+    };
+    Hashtbl.find_opt(remote_replies, key);
+  };
+};
+
 let run =
     (
       ~ana: TermBase.Typ.t,
@@ -645,16 +743,28 @@ let run =
            the instance has not already been told, and saying it anyway would
            overrule whoever spoke last -- which, after a reset, is the
            reader. Leaving the mode slot a hole still says nothing at all. */
+        let remote = is_remote(instance_name);
         Option.iter(
           mode =>
-            if (Hashtbl.find_opt(last_declared, instance_id) != Some(mode)) {
+            if (!remote
+                && Hashtbl.find_opt(last_declared, instance_id) != Some(mode)) {
               ensure_mode(instance_id, mode);
               Hashtbl.replace(last_declared, instance_id, mode);
             },
           mode,
         );
         note_run(instance_name);
-        let reply = eval_at(instance_id, at_moment(at, program));
+        /* A remote instance's mode travels with each program, and the
+           canister's ensure_mode is the same no-op for an unchanged one. */
+        let reply =
+          remote
+            ? switch (
+                remote_reply(~instance=instance_name, ~mode, ~at, program)
+              ) {
+              | Some(reply) => reply
+              | None => `String("pending")
+              }
+            : eval_at(instance_id, at_moment(at, program));
         note_printed(instance_name, reply);
         let outcome =
           switch (reply) {
@@ -663,13 +773,21 @@ let run =
               syntax: false,
               message: "no Fumola runtime available",
             })
+          | `String("pending") =>
+            Error({
+              syntax: false,
+              message: "running on the canister...",
+            })
           | `Assoc(obj) as json =>
             switch (List.assoc_opt("ok", obj)) {
             | Some(`Bool(true)) =>
               switch (
                 FumolaValue.exp_of_json(
                   ~instance_id,
-                  ~eval=eval_in(instance_id),
+                  /* What a remote value points at is on the canister, and
+                     this read is synchronous: a pointer arrives as its
+                     name, unread. */
+                  ~eval=remote ? _ => `Null : eval_in(instance_id),
                   ~ana,
                   ~tools,
                   json,

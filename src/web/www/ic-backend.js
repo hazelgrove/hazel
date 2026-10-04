@@ -37,3 +37,36 @@ window.hazelBackendCall = function (method, path, body, onText) {
       console.error("hazel backend: " + method + " " + path + " failed:", e);
     });
 };
+
+// A Fumola instance that lives on the canister (FumolaRun.remote_reply):
+// declare its mode if the program declares one, run the program there, and
+// hand back the canister's reply, the same JSON a run in the page answers.
+// Every reply -- an error included -- is announced as fumola-remote-reply,
+// which re-runs the page's programs, so the one that asked now finds it.
+window.hazelFumolaRemote = function (instance, mode, program, onText) {
+  var post = function (op, body) {
+    return fetch(
+      window.hazelBackend + "/i/" + encodeURIComponent(instance) + "/" + op,
+      { method: "POST", headers: { "Content-Type": "text/plain" }, body: body }
+    ).then(function (r) {
+      if (!r.ok) throw new Error(r.status + " " + r.statusText);
+      return r.text();
+    });
+  };
+  var answer = function (text) {
+    onText(text);
+    window.dispatchEvent(new Event("fumola-remote-reply"));
+  };
+  if (!window.hazelBackend) {
+    answer(JSON.stringify({ ok: false, error: "no canister is configured for this page" }));
+    return;
+  }
+  (mode ? post("ensure_mode", mode) : Promise.resolve())
+    .then(function () {
+      return post("eval_top", program);
+    })
+    .then(answer)
+    .catch(function (e) {
+      answer(JSON.stringify({ ok: false, error: "the canister did not answer: " + e.message }));
+    });
+};

@@ -237,7 +237,7 @@ let start = default_model => {
      * makes the next calculate pass StaticsForce, and Refresh is what makes
      * a calculate pass happen. Setting the flag here rather than sending one
      * mode's action keeps this working whichever mode is open. */
-    JsUtil.on_fumola_ready(() => {
+    let rerun_fumola = () => {
       /* Three things have to happen, and each is necessary: the elaboration
        * memo has to be told its answers may have changed (it is keyed on the
        * term, which did not change), the next calculate pass has to be told
@@ -246,7 +246,11 @@ let start = default_model => {
       Language.Statics.invalidate();
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       schedule_action(Page.Update.Refresh);
-    });
+    };
+    JsUtil.on_fumola_ready(rerun_fumola);
+    /* A remote instance's reply is the same news: a program that ran before
+       it arrived said so, and runs again to show it. */
+    JsUtil.on_fumola_remote_reply(rerun_fumola);
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
     /* A deep link's slide and panel are settled before Bonsai starts, but its
