@@ -1176,8 +1176,25 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
     );
 
   let instance_body =
-      (instance: string, panes: option(Language.FumolaWatch.panes)) =>
-    switch (FumolaHistory.of_instance(instance)) {
+      (instance: string, panes: option(Language.FumolaWatch.panes)) => {
+    /* A livelit's pane tab, where no livelit supplied the panes -- the
+       sidebar, following the cursor -- reads as Events. */
+    let tab: SidebarModel.Settings.fumola_tab =
+      switch (globals.settings.sidebar.fumola_tab, panes) {
+      | (Program | Outline | Printed, None) => Events
+      | (tab, _) => tab
+      };
+    /* The history is read only for a tab that shows it. Reading it is a
+       run in the instance and a translation of every node's value into
+       Hazel -- for a canister instance, a request too, and for hazelStore
+       all of Hazel's saved data -- so a pane showing its program, outline
+       or printout does not pay for it on every draw. */
+    let history =
+      switch (tab, panes) {
+      | (Program | Outline | Printed, Some(_)) => Ok(FumolaHistory.empty)
+      | _ => FumolaHistory.of_instance(instance)
+      };
+    switch (history) {
     | Error(message) =>
       section(
         "fumola-unavailable",
@@ -1188,13 +1205,6 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
       )
     | Ok(history) =>
-      /* A livelit's pane tab, where no livelit supplied the panes -- the
-         sidebar, following the cursor -- reads as Events. */
-      let tab: SidebarModel.Settings.fumola_tab =
-        switch (globals.settings.sidebar.fumola_tab, panes) {
-        | (Program | Outline | Printed, None) => Events
-        | (tab, _) => tab
-        };
       /* Asked once and read twice -- the header spells it out, the strip
          marks the button that would keep it -- so that the two cannot
          disagree about the same instance in the same render. */
@@ -1311,6 +1321,7 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         ),
       );
     };
+  };
 
   let body =
     switch (target) {

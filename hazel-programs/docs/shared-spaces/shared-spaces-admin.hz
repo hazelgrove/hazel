@@ -1,0 +1,68 @@
+# Admin Controls #
+
+# The inside of the canister's store. Every key every page saves, #
+# in every space, is a cell of one Adapton DCG on the canister. #
+# This slide reads that DCG through the instance named hazelStore, #
+# which IS the store: what a program does there is thrown away, so #
+# looking cannot change anyone's data. #
+
+# The counts first. They are tallies the DCG keeps as it runs, so #
+# asking for them walks nothing, however big the store gets. A #
+# POINTER is a name, a space and a time, counted once however many #
+# versions it has; a VERSION is one write to one. #
+
+# The sidebar's Fumola panel lists the same counts for every #
+# instance, the page's and the canister's. #
+
+# A button that counts its clicks, for asking again: each click #
+# changes the program sent, and a changed program is asked anew. #
+
+# Each cell below is an ARCHIVIST of hazelStore with its own name, #
+# so the three keep their runs apart; what an archivist puts there is #
+# thrown away with the rest. #
+let ^load = {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = Int;
+  let init = Pure(0);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let view = fun m : Model -> Pure(
+    Html.button(
+      [Attr.on_click(m + 1),
+       Attr.style([("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.text(if m == 0 then "load" else "again (" ++ string_of_int(m) ++ ")")]));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(12)
+} in
+
+let refresh = ^^livelit(^load(0)) in
+let stats = ^^livelit(^fumola_wip((instance = "hazelStore", name = "stats", editor = false, bind_input = true, remote = true, tiles = true, input = (refresh), code = (fumola $graphical as hazelStore in
+  prim "adaptonStats"()
+end)))) in
+let ^^probe(pointers) = stats.pointers in
+let ^^probe(versions) = stats.versions in
+let ^^probe(edges) = stats.edges in
+
+# THE FULL LISTS, ON DEMAND #
+
+# Every pointer, one row each: its space and time, how many versions #
+# it has, whether its newest is a thunk or a value, and how many #
+# edges read it. Nothing is asked until load is clicked. With #
+# Project Tables on (the settings menu), the list is drawn as a #
+# table. It includes this cell's own input and compute: the run makes #
+# them, sees them, and is thrown away with them. #
+let ask_pointers = ^^livelit(^load(0)) in
+let all_pointers = ^^livelit(^fumola_wip((instance = "hazelStore", name = "pointers", editor = false, bind_input = true, remote = true, tiles = true, input = (ask_pointers), code = (fumola $graphical as hazelStore in
+  if input == 0 then "not asked yet" else prim "adaptonPointers"()
+end)))) in
+
+# Every event, node and edge the store has recorded: the whole #
+# history, each saved value in it. The heaviest thing on the slide, #
+# so it waits for its own click. #
+let ask_history = ^^livelit(^load(0)) in
+let history = ^^livelit(^fumola_wip((instance = "hazelStore", name = "history", editor = false, bind_input = true, remote = true, tiles = true, input = (ask_history), code = (fumola $graphical as hazelStore in
+  if input == 0 then "not asked yet" else prim "adaptonPeekHistory"()
+end)))) in
+
+(all_pointers, history)

@@ -67,6 +67,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
        `shared` space (HazelDB.Backend.shared_decks), so anyone can add
        one and everyone sees it (hazel-programs/docs/shared-spaces). */
     ("Shared Spaces / About", [%blob "shared-spaces-about.hz"]),
+    ("Shared Spaces / Admin Controls", [%blob "shared-spaces-admin.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
