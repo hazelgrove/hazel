@@ -873,17 +873,64 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         ],
         [text(label)],
       );
-    div(
-      ~attrs=[clss(["fumola-resets"])],
-      [
-        span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
-        /* Graphical first: it is Fumola's default and the mode that records,
-           so it is the one a reader of this panel is usually coming back to.
-           Simple is the narrowing. */
-        into(Language.FumolaRun.Graphical, "G", "recording as it forces"),
-        into(Language.FumolaRun.Simple, "S", "keeping no graph"),
-      ],
-    );
+    /* A canister reset is a round trip, and one that works rebuilds the
+       same graph: without saying where it has got to, it is
+       indistinguishable from a button that did nothing. */
+    let status =
+      switch (place) {
+      | Page => []
+      | Canister =>
+        switch (Language.FumolaRun.reset_status(instance)) {
+        | None => []
+        | Some(s) =>
+          let (words, failed) =
+            switch (s) {
+            | Resetting => ("resetting...", false)
+            | Rerunning
+            | Asked => ("reset; running again...", false)
+            | Ran => ("reset; ran again", false)
+            | Not_run => ("reset; nothing on this slide runs it", false)
+            | Failed(why) => ("reset failed: " ++ why, true)
+            };
+          [
+            span(
+              ~attrs=[
+                clss(
+                  ["fumola-reset-status"]
+                  @ (failed ? ["fumola-reset-failed"] : []),
+                ),
+              ],
+              [text(words)],
+            ),
+          ];
+        }
+      };
+    if (place == Canister && instance == Language.FumolaRun.store_instance) {
+      /* The store is Hazel's saved data: the canister reads it as an
+         instance and never empties it, so there is nothing to press. */
+      div(
+        ~attrs=[clss(["fumola-resets"])],
+        [
+          span(
+            ~attrs=[clss(["fumola-strip-label"])],
+            [text("no reset: this is Hazel's saved data")],
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[clss(["fumola-resets"])],
+        [
+          span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
+          /* Graphical first: it is Fumola's default and the mode that
+             records, so it is the one a reader of this panel is usually
+             coming back to. Simple is the narrowing. */
+          into(Language.FumolaRun.Graphical, "G", "recording as it forces"),
+          into(Language.FumolaRun.Simple, "S", "keeping no graph"),
+        ]
+        @ status,
+      );
+    };
   };
 
   let tab_strip = (~panes: bool, current: SidebarModel.Settings.fumola_tab) => {

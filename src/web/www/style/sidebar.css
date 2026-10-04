@@ -1047,6 +1047,20 @@
   background: color-mix(in srgb, var(--text-default) 5%, transparent);
 }
 
+/* Where a canister reset has got to: a round trip, and one that works
+   rebuilds the same graph, so it has to say so. */
+.fumola-reset-status {
+  font-size: 0.85em;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.fumola-reset-failed {
+  font-style: normal;
+  opacity: 1;
+  color: var(--text-error-strong);
+}
+
 /* An edge the editor made, marked whatever the editor setting is: the
    colour says whose edge it is before anyone opens the record inside. A
    deeper mustard than the panel's ground, so it reads as the same family as

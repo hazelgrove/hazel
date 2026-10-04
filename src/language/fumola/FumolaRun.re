@@ -650,6 +650,57 @@ let generation_of = (instance: string): int =>
   Option.value(Hashtbl.find_opt(remote_generation, instance), ~default=0);
 let remote_asked: Hashtbl.t((string, string), unit) = Hashtbl.create(16);
 
+/* The canister's store, read as an instance: Hazel's saved data, which the
+   canister evaluates against but never empties, so it has no reset. */
+let store_instance = "hazelStore";
+
+/* Where a canister instance's last reset has got to, for the panel to say.
+   A reset that works rebuilds the same graph, so without this it looks
+   exactly like a button that did nothing. Ran and Not_run are cleared after
+   a few seconds; the others last until the next step. */
+type reset_status =
+  | Resetting
+  | Rerunning
+  | Asked
+  | Ran
+  | Not_run
+  | Failed(string);
+let remote_resets: Hashtbl.t(string, reset_status) = Hashtbl.create(4);
+let reset_status = (instance: string): option(reset_status) =>
+  Hashtbl.find_opt(remote_resets, instance);
+
+/* A redraw and nothing more, as a side query's answer asks for. */
+let redraw = () =>
+  ignore(
+    Js_of_ocaml.Js.Unsafe.js_expr(
+      "window.dispatchEvent(new Event('fumola-remote-query'))",
+    ),
+  );
+let after = (ms: int, f: unit => unit) =>
+  ignore(
+    Js_of_ocaml.Js.Unsafe.fun_call(
+      Js_of_ocaml.Js.Unsafe.js_expr("setTimeout"),
+      [|
+        Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.wrap_callback(f)),
+        Js_of_ocaml.Js.Unsafe.inject(ms),
+      |],
+    ),
+  );
+let set_reset_status = (instance: string, status: option(reset_status)) => {
+  switch (status) {
+  | Some(s) => Hashtbl.replace(remote_resets, instance, s)
+  | None => Hashtbl.remove(remote_resets, instance)
+  };
+  redraw();
+};
+/* Clear a status after a while, unless a later step has replaced it. */
+let clear_later = (instance: string, status: reset_status) =>
+  after(6000, () =>
+    if (reset_status(instance) == Some(status)) {
+      set_reset_status(instance, None);
+    }
+  );
+
 let remote_reply =
     (~instance: string, ~mode: option(mode), ~at: int, program: string)
     : option(Yojson.Safe.t) => {
@@ -660,6 +711,9 @@ let remote_reply =
   | None =>
     if (!Hashtbl.mem(remote_asked, key)) {
       Hashtbl.replace(remote_asked, key, ());
+      if (reset_status(instance) == Some(Rerunning)) {
+        Hashtbl.replace(remote_resets, instance, Asked);
+      };
       let on_reply = (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
         let reply =
           switch (Yojson.Safe.from_string(Js_of_ocaml.Js.to_string(text))) {
@@ -672,6 +726,10 @@ let remote_reply =
           };
         Hashtbl.replace(remote_replies, key, reply);
         Hashtbl.remove(remote_asked, key);
+        if (reset_status(instance) == Some(Asked)) {
+          Hashtbl.replace(remote_resets, instance, Ran);
+          clear_later(instance, Ran);
+        };
         Hashtbl.replace(
           remote_generation,
           instance,
@@ -932,11 +990,27 @@ let local_instances = (): option(Yojson.Safe.t) =>
    empty it on the canister, give it the mode asked for, forget the replies
    kept for it, and announce a reply so the page's programs run again --
    asking the canister afresh, now that nothing is kept. In that order, each
-   step on the last one's answer, so the re-run cannot overtake the reset. */
+   step on the last one's answer, so the re-run cannot overtake the reset.
+
+   Each step's answer is read: a refusal (the store's reset is a 404) stops
+   the reset and says why, rather than carrying on as if it had worked. If
+   no program here asks within a few seconds of the re-run, nothing on this
+   page runs the instance, and the panel says that instead of waiting. */
 let reset_remote = (~mode: option(mode)=?, name: string): unit =>
   switch (js_global("hazelFumolaRemoteQuery")) {
   | None => ()
   | Some(call) =>
+    let refusal = (text: string): option(string) =>
+      switch (Yojson.Safe.from_string(text)) {
+      | exception _ => Some("the canister's reply was not JSON")
+      | `Assoc(fields)
+          when List.assoc_opt("ok", fields) == Some(`Bool(false)) =>
+        switch (List.assoc_opt("error", fields)) {
+        | Some(`String(e)) => Some(e)
+        | _ => Some("the canister refused")
+        }
+      | _ => None
+      };
     let ask = (op, body, k) =>
       ignore(
         Js_of_ocaml.Js.Unsafe.fun_call(
@@ -946,7 +1020,13 @@ let reset_remote = (~mode: option(mode)=?, name: string): unit =>
             js_string(op),
             js_string(body),
             Js_of_ocaml.Js.Unsafe.inject(
-              Js_of_ocaml.Js.wrap_callback(_ => k()),
+              Js_of_ocaml.Js.wrap_callback(
+                (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) =>
+                switch (refusal(Js_of_ocaml.Js.to_string(text))) {
+                | Some(why) => set_reset_status(name, Some(Failed(why)))
+                | None => k()
+                }
+              ),
             ),
           |],
         ),
@@ -960,12 +1040,20 @@ let reset_remote = (~mode: option(mode)=?, name: string): unit =>
         );
       List.iter(Hashtbl.remove(remote_replies), keys);
       Hashtbl.replace(remote_generation, name, generation_of(name) + 1);
+      Hashtbl.replace(remote_resets, name, Rerunning);
+      after(3000, () =>
+        if (reset_status(name) == Some(Rerunning)) {
+          set_reset_status(name, Some(Not_run));
+          clear_later(name, Not_run);
+        }
+      );
       ignore(
         Js_of_ocaml.Js.Unsafe.js_expr(
           "window.dispatchEvent(new Event('fumola-remote-reply'))",
         ),
       );
     };
+    set_reset_status(name, Some(Resetting));
     ask("reset", "", () =>
       switch (mode) {
       | Some(mode) =>
