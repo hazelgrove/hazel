@@ -196,6 +196,155 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
       ],
     );
 
+  /* Every instance there is, here and on the canister, with what each
+     store holds: shown with nothing in focus. The counts are tallies each
+     DCG keeps as it runs (State::stats), so drawing this walks no graph.
+     A local copy of a remote instance's name is left out: the page claims
+     one, and never runs anything in it. */
+  let instance_list = () => {
+    let field = (name, json) =>
+      switch (json) {
+      | `Assoc(fields) => List.assoc_opt(name, fields)
+      | _ => None
+      };
+    let num = (name, stats) =>
+      switch (field(name, stats)) {
+      | Some(`Int(n)) => string_of_int(n)
+      | Some(`Intlit(n)) => n
+      | _ => ""
+      };
+    let str = (name, json) =>
+      switch (field(name, json)) {
+      | Some(`String(s)) => s
+      | _ => ""
+      };
+    let mb = json =>
+      switch (field("heap_bytes", json)) {
+      | Some(`Int(n)) =>
+        Printf.sprintf("%.1f MB", float_of_int(n) /. 1048576.)
+      | _ => "?"
+      };
+    let columns = [
+      ("pointers", "pointers"),
+      ("versions", "versions"),
+      ("edges", "edges"),
+      ("history_events", "events"),
+    ];
+    let steps = info =>
+      switch (field("steps", info)) {
+      | Some(`Int(n)) => string_of_int(n) ++ " VM steps so far"
+      | _ => ""
+      };
+    let row = (~name, info) => {
+      let stats = Option.value(field("stats", info), ~default=`Null);
+      tr(
+        [
+          td(
+            ~attrs=[clss(["fumola-list-name"]), Attr.title(steps(info))],
+            [text(name)],
+          ),
+          td(
+            ~attrs=[Attr.title(str("mode", info))],
+            [
+              text(
+                switch (str("mode", info)) {
+                | "graphical" => "G"
+                | "simple" => "S"
+                | other => other
+                },
+              ),
+            ],
+          ),
+        ]
+        @ List.map(((key, _)) => td([text(num(key, stats))]), columns),
+      );
+    };
+    /* One table a side, its heap in its heading: the heap is the side's,
+       shared by every instance on it. */
+    let table_of = (heading, rows, notes) =>
+      [
+        div(~attrs=[clss(["fumola-list-heading"])], [text(heading)]),
+        rows == []
+          ? div(~attrs=[clss(["fumola-blurb"])], [text("none")])
+          : table(
+              ~attrs=[clss(["fumola-list"])],
+              [
+                thead([
+                  tr(
+                    List.map(
+                      h => th([text(h)]),
+                      ["instance", "G/S"] @ List.map(snd, columns),
+                    ),
+                  ),
+                ]),
+                tbody(rows),
+              ],
+            ),
+      ]
+      @ List.map(
+          n => div(~attrs=[clss(["fumola-blurb"])], [text(n)]),
+          notes,
+        );
+    let local =
+      switch (FumolaRun.local_instances()) {
+      | Some(`Assoc(_) as json) when field("ok", json) == Some(`Bool(true)) =>
+        let rows =
+          switch (field("instances", json)) {
+          | Some(`List(items)) =>
+            List.filter_map(
+              item => {
+                let name = str("name", item);
+                FumolaRun.is_remote(name)
+                  ? None
+                  : Some(
+                      row(
+                        ~name,
+                        Option.value(field("stats", item), ~default=`Null),
+                      ),
+                    );
+              },
+              items,
+            )
+          | _ => []
+          };
+        table_of("In this page · heap " ++ mb(json), rows, []);
+      | _ => []
+      };
+    let remote =
+      if (HazelDB.Backend.on) {
+        switch (FumolaRun.canister_stats()) {
+        | None => table_of("On the canister", [], ["asking the canister..."])
+        | Some(json) =>
+          switch (field("store", json)) {
+          | Some(store) =>
+            let named =
+              switch (field("instances", json)) {
+              | Some(`Assoc(instances)) =>
+                List.map(((name, info)) => row(~name, info), instances)
+              | _ => []
+              };
+            table_of(
+              "On the canister · heap " ++ mb(json),
+              [row(~name="hazelStore", store)] @ named,
+              [
+                "hazelStore is Hazel's saved data: "
+                ++ num("keys", store)
+                ++ " keys, each a cell of its DCG",
+              ],
+            );
+          | None => table_of("On the canister", [], [str("error", json)])
+          }
+        };
+      } else {
+        [];
+      };
+    section(
+      "fumola-instance-list",
+      [text("Fumola instances")],
+      local @ remote,
+    );
+  };
+
   /* Spelled once, because it is spelled in two places -- the events and the
      "runtime is not loaded" branch -- and a rename that reached only one of
      them would leave the error state naming the panel something the rest of
@@ -1176,11 +1325,15 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
           ).
             term;
         let cursor_id = Option.map(Info.id_of, cursor.info);
+        /* The sidebar lists every instance under the one it shows: the
+           list is the way to see the others, the canister's included. A
+           livelit's own pane (Instance) shows its instance alone. */
         switch (instance_to_show(~cursor_id, term)) {
-        | None => how_to_make_one
-        | Some(instance) => instance_body(instance, None)
+        | None => div([how_to_make_one, instance_list()])
+        | Some(instance) =>
+          div([instance_body(instance, None), instance_list()])
         };
-      | None => how_to_make_one
+      | None => div([how_to_make_one, instance_list()])
       }
     };
 

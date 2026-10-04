@@ -447,10 +447,36 @@ window.fumola = (() => {
     }
   };
 
+  // Every instance this page has named, with what its store holds
+  // (fumola_stats: tallies the DCG keeps, so this walks nothing), as JSON:
+  // {"heap_bytes", "instances": [{"name", "id", "stats"...}]}. The heap is
+  // the module's, which every instance shares. An older runtime without
+  // fumola_stats lists the names alone.
+  const instances = () => {
+    if (!ready()) return JSON.stringify({ ok: false, error: "the Fumola runtime is not loaded" });
+    const list = [];
+    let heap = null;
+    for (const [name, id] of claimedByOwner) {
+      if (!wasm.fumola_has(id)) continue;
+      let stats = null;
+      if (wasm.fumola_stats) {
+        try {
+          stats = JSON.parse(wasm.fumola_stats(id));
+          if (stats.heap_bytes != null) heap = stats.heap_bytes;
+        } catch (e) {
+          stats = null;
+        }
+      }
+      list.push({ name: String(name), id, stats });
+    }
+    return JSON.stringify({ ok: true, heap_bytes: heap, instances: list });
+  };
+
   return {
     ready,
     source,
     claim,
+    instances,
     ensureMode,
     evalSync,
     evalTop,

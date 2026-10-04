@@ -891,6 +891,22 @@ let outlines = (name: string): result(list(Yojson.Safe.t), string) =>
     outlines_local(name);
   };
 
+/* The instances this page's runtime holds, by name, with their stats
+   (window.fumola.instances, prebundle.js). None without a runtime. */
+let local_instances = (): option(Yojson.Safe.t) =>
+  switch (shim("instances", [||])) {
+  | exception _ => None
+  | r =>
+    switch (
+      Yojson.Safe.from_string(
+        r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string,
+      )
+    ) {
+    | exception _ => None
+    | json => Some(json)
+    }
+  };
+
 /* Reset a remote instance, as the watch pane's G and S do a local one:
    empty it on the canister, give it the mode asked for, forget the replies
    kept for it, and announce a reply so the page's programs run again --

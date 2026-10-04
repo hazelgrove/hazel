@@ -1058,3 +1058,28 @@
 .fumola-row.fumola-editor .fumola-row-key {
   color: var(--text-warning);
 }
+
+/* The instance list, shown with no Fumola instance in focus. */
+.fumola-list {
+    border-collapse: collapse;
+    font-size: 0.8em;
+    margin: 0.4em 0;
+}
+.fumola-list th,
+.fumola-list td {
+    padding: 0.15em 0.3em;
+    text-align: right;
+    border-bottom: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.25));
+}
+.fumola-list th:nth-child(-n + 2),
+.fumola-list td:nth-child(-n + 2) {
+    text-align: left;
+}
+.fumola-list-name {
+    font-family: var(--code-font);
+}
+.fumola-list-heading {
+    margin-top: 0.6em;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
