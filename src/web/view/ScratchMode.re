@@ -452,6 +452,81 @@ module Persist = {
     };
   };
 
+  /* The slides of a shared deck (HazelDB.Backend.shared_decks) are the
+     space's, not this browser's: anyone may have added one since this
+     browser last looked, or deleted one it still lists. So the names are
+     taken from the space -- loaded into the cache at startup -- and each
+     new one goes after the last of its deck this browser already has.
+     A shipped slide is kept though the space lacks it: no one has saved
+     it yet. [current] follows its slide by name. */
+  let merge_shared_names =
+      (
+        ~shared: string => bool,
+        ~in_space: list(string),
+        ~default_names: list(string),
+        (current, names): (int, list(string)),
+      )
+      : (int, list(string)) => {
+    let original = names;
+    let kept =
+      List.filter(
+        n =>
+          !shared(n) || List.mem(n, in_space) || List.mem(n, default_names),
+        names,
+      );
+    let fresh = List.filter(n => !List.mem(n, kept), in_space);
+    let names =
+      if (fresh == []) {
+        kept;
+      } else {
+        switch (List.rev(kept) |> List.find_opt(shared)) {
+        | None => kept @ fresh
+        | Some(last) =>
+          List.concat_map(n => n == last ? [n, ...fresh] : [n], kept)
+        };
+      };
+    (
+      switch (
+        Option.bind(List.nth_opt(original, current), n => index_of(n, names))
+      ) {
+      | Some(i) => i
+      | None => min(current, max(List.length(names) - 1, 0))
+      },
+      names,
+    );
+  };
+
+  let with_shared_decks =
+      (prefix: string, ~default_names, (current, names))
+      : (int, list(string)) =>
+    if (!HazelDB.Backend.on) {
+      (current, names);
+    } else {
+      let key_prefix = prefix ++ ":";
+      let in_space =
+        HazelDB.kv_keys()
+        |> List.filter_map(k =>
+             HazelDB.Backend.has_prefix(key_prefix, k)
+             && HazelDB.Backend.shared_space(k) != None
+               ? Some(
+                   String.sub(
+                     k,
+                     String.length(key_prefix),
+                     String.length(k) - String.length(key_prefix),
+                   ),
+                 )
+               : None
+           );
+      merge_shared_names(
+        ~shared=
+          name =>
+            HazelDB.Backend.shared_space(slide_key(prefix, name)) != None,
+        ~in_space,
+        ~default_names,
+        (current, names),
+      );
+    };
+
   let load_all =
       (
         prefix: string,
@@ -462,29 +537,32 @@ module Persist = {
       )
       : Model.t => {
     let (current, names) =
-      switch (load_meta(prefix)) {
-      | Some(meta) when reconcile =>
-        let reconciled = reconcile_names(~default_names, meta);
-        if (reconciled != meta) {
-          save_meta(prefix, reconciled);
-        };
-        (reconciled.current, reconciled.names);
-      | Some(meta) => (meta.current, meta.names)
-      | None =>
-        /* Record the shipped list as offered now, so a slide deleted
-           later is not read back as one this browser never saw. */
-        if (reconcile) {
-          save_meta(
-            prefix,
-            {
-              current: default_current,
-              names: default_names,
-              known_defaults: default_names,
-            },
-          );
-        };
-        (default_current, default_names);
-      };
+      (
+        switch (load_meta(prefix)) {
+        | Some(meta) when reconcile =>
+          let reconciled = reconcile_names(~default_names, meta);
+          if (reconciled != meta) {
+            save_meta(prefix, reconciled);
+          };
+          (reconciled.current, reconciled.names);
+        | Some(meta) => (meta.current, meta.names)
+        | None =>
+          /* Record the shipped list as offered now, so a slide deleted
+             later is not read back as one this browser never saw. */
+          if (reconcile) {
+            save_meta(
+              prefix,
+              {
+                current: default_current,
+                names: default_names,
+                known_defaults: default_names,
+              },
+            );
+          };
+          (default_current, default_names);
+        }
+      )
+      |> with_shared_decks(prefix, ~default_names);
     Model.{
       current,
       scratchpads:
@@ -698,6 +776,16 @@ module Update = {
     | Drv(_) => ()
     };
   };
+  /* Where the last " / " in a slide name starts: what precedes it is the
+     slide's deck. */
+  let last_folder_sep = (name: string): option(int) => {
+    let sep = " / ";
+    let n = String.length(sep);
+    let rec go = i =>
+      i < 0 ? None : String.sub(name, i, n) == sep ? Some(i) : go(i - 1);
+    go(String.length(name) - n);
+  };
+
   let rec prompt_slide_name =
           (
             ~error: option(string)=?,
@@ -782,7 +870,18 @@ module Update = {
             model.scratchpads
             |> List.to_seq
             |> Seq.map((s: Scratchpad.t) => s.name),
-          "New Slide Name",
+          /* In the current slide's deck: a slide's deck is the folder its
+             name starts with, and adding one is mostly adding to the deck
+             at hand -- Shared Spaces especially, whose slides are shared
+             because of the folder they are in. */
+          switch (List.nth_opt(model.scratchpads, model.current)) {
+          | Some(sp) =>
+            switch (last_folder_sep(sp.name)) {
+            | Some(i) => String.sub(sp.name, 0, i) ++ " / New Slide Name"
+            | None => "New Slide Name"
+            }
+          | None => "New Slide Name"
+          },
         );
       switch (new_name) {
       | None => model // Prompt cancelled so no new scratchpad created

@@ -19,12 +19,14 @@
     });
 })();
 
-window.hazelBackendCall = function (method, path, body, onText) {
+// `space`, when given, names the space outright: a shared deck's
+// (HazelDB.Backend.shared_decks), which every page uses whatever its own.
+window.hazelBackendCall = function (method, path, body, onText, space) {
   var init = { method: method, headers: { "Content-Type": "text/plain" } };
   if (body !== null && body !== undefined) init.body = body;
+  var named = typeof space === "string" ? space : window.hazelSpace;
   var base =
-    window.hazelBackend +
-    (window.hazelSpace ? "/s/" + encodeURIComponent(window.hazelSpace) : "");
+    window.hazelBackend + (named ? "/s/" + encodeURIComponent(named) : "");
   fetch(base + path, init)
     .then(function (r) {
       if (!r.ok) throw new Error(r.status + " " + r.statusText);

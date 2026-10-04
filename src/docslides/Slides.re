@@ -54,9 +54,19 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Fumola, Local and Remote / About", [%blob "0-about.hz"]),
     ("Fumola, Local and Remote / 1. Local", [%blob "1-local.hz"]),
     ("Fumola, Local and Remote / 2. Remote", [%blob "2-remote.hz"]),
-    ("Fumola, Local and Remote / 3. Side by side", [%blob "3-side-by-side.hz"]),
-    ("Fumola, Local and Remote / 4. Shared spaces", [%blob "4-shared-spaces.hz"]),
+    (
+      "Fumola, Local and Remote / 3. Side by side",
+      [%blob "3-side-by-side.hz"],
+    ),
+    (
+      "Fumola, Local and Remote / 4. Shared spaces",
+      [%blob "4-shared-spaces.hz"],
+    ),
     ("Fumola, Local and Remote / 5. Mainnet", [%blob "5-mainnet.hz"]),
+    /* Shared Spaces: the deck whose slides live in the canister's
+       `shared` space (HazelDB.Backend.shared_decks), so anyone can add
+       one and everyone sees it (hazel-programs/docs/shared-spaces). */
+    ("Shared Spaces / About", [%blob "shared-spaces-about.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

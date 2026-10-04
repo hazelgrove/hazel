@@ -6,6 +6,8 @@
 
 (copy_files ../../hazel-programs/docs/fumola-local-remote/*.hz)
 
+(copy_files ../../hazel-programs/docs/shared-spaces/*.hz)
+
 (library
  (name docslides)
  (libraries haz3lcore)

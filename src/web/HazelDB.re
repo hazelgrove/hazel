@@ -92,8 +92,65 @@ module Backend = {
       }
     );
 
+  let has_prefix = (p: string, key: string): bool =>
+    String.length(key) >= String.length(p)
+    && String.sub(key, 0, String.length(p)) == p;
+
+  /* SHARED DECKS: a documentation deck whose slides every page keeps in
+     one space, whatever its own space and keys -- so anyone can add a
+     slide, and everyone sees everyone's. A deck is a folder of slide
+     names, so a slide is in it when its key starts with the folder.
+
+     A slide's agent chat stays in the page's own place: it is one
+     person's conversation, not the slide. */
+  let shared_decks: list((string, string)) = [
+    ("doc:Shared Spaces / ", "shared"),
+  ];
+
+  let shared_spaces: list(string) =
+    List.sort_uniq(compare, List.map(snd, shared_decks));
+
+  let ends_with_agent = (key: string): bool => {
+    let s = ":agent";
+    let n = String.length(key) - String.length(s);
+    n >= 0 && String.sub(key, n, String.length(s)) == s;
+  };
+
+  /* The space of the shared deck [key] belongs to, if any. Only with a
+     canister: without one, a shared deck's slides stay in IndexedDB like
+     any other. */
+  let shared_space = (key: string): option(string) =>
+    if (!on || ends_with_agent(key)) {
+      None;
+    } else {
+      List.find_map(
+        ((p, space)) => has_prefix(p, key) ? Some(space) : None,
+        shared_decks,
+      );
+    };
+
+  /* Where a key lives: this browser's IndexedDB, the page's own space on
+     the canister, or a shared deck's space. */
+  type place =
+    | Local
+    | Page
+    | Shared(string);
+
+  let place = (key: string): place =>
+    switch (shared_space(key)) {
+    | Some(space) => Shared(space)
+    | None => routes(key) ? Page : Local
+    };
+
+  /* [space]: a shared space by name; absent, the page's own. */
   let call =
-      (method: string, path: string, body: option(string), k: string => unit)
+      (
+        ~space: option(string)=?,
+        method: string,
+        path: string,
+        body: option(string),
+        k: string => unit,
+      )
       : unit =>
     Js.Unsafe.fun_call(
       Js.Unsafe.get(Js.Unsafe.global, "hazelBackendCall"),
@@ -105,6 +162,10 @@ module Backend = {
         | None => Js.Unsafe.inject(Js.null)
         },
         Js.Unsafe.inject(Js.wrap_callback(t => k(Js.to_string(t)))),
+        switch (space) {
+        | Some(s) => Js.Unsafe.inject(Js.string(s))
+        | None => Js.Unsafe.inject(Js.null)
+        },
       |],
     );
 };
@@ -153,25 +214,27 @@ let key_of =
   | Put(key, _)
   | Delete(key) => key;
 
-/* Each write goes where its key lives: the canister's space for the keys
-   this page keeps there (Backend.routes), IndexedDB for the rest. */
+/* Each write goes where its key lives (Backend.place): IndexedDB, the
+   page's space on the canister, or a shared deck's space. */
 let rec commit = (writes: list(write)): unit =>
   if (resetting^) {
     ();
-  } else if (Backend.partial) {
-    let (remote, local) =
-      List.partition(w => Backend.routes(key_of(w)), writes);
-    commit_remote(remote);
-    commit_local(local);
   } else if (Backend.on) {
-    commit_remote(writes);
+    let at = (p, w) => Backend.place(key_of(w)) == p;
+    commit_local(List.filter(at(Local), writes));
+    commit_remote(List.filter(at(Page), writes));
+    List.iter(
+      space =>
+        commit_remote(~space, List.filter(at(Shared(space)), writes)),
+      Backend.shared_spaces,
+    );
   } else {
     commit_local(writes);
   }
-and commit_remote = (writes: list(write)): unit =>
+and commit_remote = (~space=?, writes: list(write)): unit =>
   if (writes != []) {
     incr(write_transactions);
-    Backend.call("POST", "/kv", Some(writes_json(writes)), _ => ());
+    Backend.call(~space?, "POST", "/kv", Some(writes_json(writes)), _ => ());
   }
 and commit_local = (writes: list(write)): unit =>
   if (writes != []) {
@@ -221,6 +284,10 @@ let kv_save = (key: string, value: string): unit => {
 
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
+
+/* every stored key */
+let kv_keys = (): list(string) =>
+  Util.Maps.StringMap.fold((k, _, ks) => [k, ...ks], cache^, []) |> List.rev;
 
 let kv_remove = (key: string): unit => {
   cache := Util.Maps.StringMap.remove(key, cache^);
@@ -287,25 +354,48 @@ let fill_cache = (pairs: list((string, string))): unit =>
     );
 
 let rec kv_load_all = (callback: list((string, string)) => unit): unit =>
-  if (Backend.partial) {
-    /* this browser's keys, then the space's: each key from where it lives */
-    kv_load_all_idb(local =>
-      kv_load_all_remote(remote => {
-        let pairs =
-          List.filter(((k, _)) => !Backend.routes(k), local)
-          @ List.filter(((k, _)) => Backend.routes(k), remote);
-        fill_cache(pairs);
-        callback(pairs);
-      })
+  if (Backend.on) {
+    /* each key from where it lives: this browser's IndexedDB (only when
+       the page keeps some keys here), the page's space, each shared
+       deck's space */
+    let local = k => Backend.partial ? kv_load_all_idb(k) : k([]);
+    let rec shared = (spaces, acc, k) =>
+      switch (spaces) {
+      | [] => k(acc)
+      | [space, ...rest] =>
+        kv_load_all_remote(~space, pairs => shared(rest, acc @ pairs, k))
+      };
+    local(local_pairs =>
+      kv_load_all_remote(page_pairs =>
+        shared(
+          Backend.shared_spaces,
+          [],
+          shared_pairs => {
+            let at = (p, (k, _)) =>
+              switch (Backend.place(k), p) {
+              | (Local, `Local)
+              | (Page, `Page)
+              | (Shared(_), `Shared) => true
+              | _ => false
+              };
+            let pairs =
+              List.filter(at(`Local), local_pairs)
+              @ List.filter(at(`Page), page_pairs)
+              @ List.filter(at(`Shared), shared_pairs);
+            fill_cache(pairs);
+            callback(pairs);
+          },
+        )
+      )
     );
-  } else if (Backend.on) {
-    kv_load_all_remote(callback);
   } else {
     kv_load_all_idb(callback);
   }
-and kv_load_all_remote = (callback: list((string, string)) => unit): unit =>
+and kv_load_all_remote =
+    (~space=?, callback: list((string, string)) => unit): unit =>
   if (Backend.on) {
     Backend.call(
+      ~space?,
       "GET",
       "/kv",
       None,
@@ -324,7 +414,6 @@ and kv_load_all_remote = (callback: list((string, string)) => unit): unit =>
             print_endline("ERROR: HazelDB.kv_load_all: backend sent no JSON");
             [];
           };
-        fill_cache(pairs);
         callback(pairs);
       },
     );
