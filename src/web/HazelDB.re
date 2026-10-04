@@ -605,9 +605,14 @@ let log_clear = (~callback=() => (), ()): unit =>
 
 /* === Database-level operations === */
 
-/* Clear all data from all tables and legacy localStorage.
-   Used by "Reset Hazel". */
-let clear_all = (~callback=() => (), ()): unit => {
+/* The two halves of a reset. Each sets [resetting] first: until the
+   page reloads, a save would put back what the clear removed (Hazel saves
+   on events), so writes are dropped. [callback] runs once every clear it
+   started is done. */
+
+/* This browser's copy: legacy localStorage and both IndexedDB tables.
+   With a canister, the keys it holds are read again from it on reload. */
+let clear_local = (~callback=() => (), ()): unit => {
   resetting := true;
   /* Clear legacy localStorage (safe to remove once all users upgraded) */
   try({
@@ -626,15 +631,40 @@ let clear_all = (~callback=() => (), ()): unit => {
       callback();
     };
   };
-  kv_clear(~callback=on_done, ());
-  log_clear(~callback=on_done, ());
+  let error = _ => print_endline("ERROR: HazelDB.clear_local");
+  with_db(db => {
+    IDBStore.clear(~error, ~callback=on_done, kv_store(db));
+    IDBStore.clear(~error, ~callback=on_done, log_store(db));
+  });
 };
 
-/* Reset Hazel: clear everything, then reload once both clears are done.
-   Reloading sooner can cancel them: a canister clear is an update call,
-   a second or two, and a reload drops requests still in flight. */
+/* The canister's copy: the page's space, its tables and its log. Shared
+   decks' spaces are other people's too and are left alone. Nothing to do
+   without a canister. */
+let clear_remote = (~callback=() => (), ()): unit =>
+  if (Backend.on) {
+    resetting := true;
+    cache := Util.Maps.StringMap.empty;
+    let remaining = ref(2);
+    let on_done = () => {
+      decr(remaining);
+      if (remaining^ == 0) {
+        callback();
+      };
+    };
+    Backend.call("POST", "/kv/clear", None, _ => on_done());
+    Backend.call("POST", "/log/clear", None, _ => on_done());
+  } else {
+    callback();
+  };
+
+/* Reload once the clears are done. Reloading sooner can cancel them: a
+   canister clear is an update call, a second or two, and a reload drops
+   requests still in flight. */
+let reload = () => Js_of_ocaml.Dom_html.window##.location##reload;
+let clear_local_and_reload = (): unit => clear_local(~callback=reload, ());
+let clear_remote_and_reload = (): unit => clear_remote(~callback=reload, ());
+
+/* Both copies. */
 let clear_all_and_reload = (): unit =>
-  clear_all(
-    ~callback=() => Js_of_ocaml.Dom_html.window##.location##reload,
-    (),
-  );
+  clear_local(~callback=() => clear_remote(~callback=reload, ()), ());

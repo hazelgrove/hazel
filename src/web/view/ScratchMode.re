@@ -1573,24 +1573,11 @@ module View = {
         ~tooltip="Reparse Editor",
       );
 
-    let reset_hazel =
-      Widgets.button_named(
-        Icons.bomb,
-        _ => {
-          let confirmed =
-            JsUtil.confirm(
-              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
-            );
-          if (confirmed) {
-            HazelDB.clear_all_and_reload();
-          };
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Reset Hazel (LOSE ALL DATA)",
-      );
-
     let reset_group_scratch =
-      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
+      NutMenu.item_group(
+        "Reset",
+        [reset_button, reparse, ...Widgets.reset_hazel_items()],
+      );
 
     [file_group_scratch, reset_group_scratch];
   };

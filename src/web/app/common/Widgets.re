@@ -92,3 +92,36 @@ let file_select_button_named =
       ),
     ],
   );
+
+/* The Reset menu's two data resets, one above the other: this browser's
+   copy, and the canister's (shown only when the page has a canister). */
+let reset_hazel_items = (): list(Node.t) => {
+  let reset = (~tooltip, ~question, clear) =>
+    button_named(
+      Icons.bomb,
+      _ => {
+        if (Util.JsUtil.confirm(question)) {
+          clear();
+        };
+        Effect.Ignore;
+      },
+      ~tooltip,
+    );
+  let local =
+    reset(
+      ~tooltip="Reset Local Hazel (browser cache)",
+      ~question=
+        HazelDB.Backend.on
+          ? "Reset this browser's copy of Hazel? Its cache and anything kept only here are cleared. What the IC canister holds is kept, and loads again."
+          : "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+      HazelDB.clear_local_and_reload,
+    );
+  let remote =
+    reset(
+      ~tooltip="Reset Remote Hazel (IC canister memory)",
+      ~question=
+        "Are you SURE you want to reset the IC canister's copy of Hazel? Every page using it loses the code and settings it keeps there. Shared decks are kept.",
+      HazelDB.clear_remote_and_reload,
+    );
+  HazelDB.Backend.on ? [local, remote] : [local];
+};
