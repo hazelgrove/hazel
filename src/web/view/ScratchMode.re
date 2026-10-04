@@ -744,7 +744,10 @@ module Update = {
     | AddSlide
     | AddDrvSlide
     | RenameSlide
-    | DeleteSlide;
+    | DeleteSlide
+    /* A shared deck's keys changed in its space (HazelDB.poll_shared):
+       the deck takes in slides added, changed or removed elsewhere. */
+    | SharedChanged(list(string));
 
   let export_scratch_slide = (model: Model.t): unit => {
     let scratchpad = List.nth(model.scratchpads, model.current);
@@ -982,6 +985,87 @@ module Update = {
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
+    | SharedChanged(_) when !is_documentation => model |> return_quiet
+    | SharedChanged(keys) =>
+      let prefix = "doc";
+      let key_prefix = prefix ++ ":";
+      let changed =
+        List.filter_map(
+          k =>
+            HazelDB.Backend.has_prefix(key_prefix, k)
+              ? Some(
+                  String.sub(
+                    k,
+                    String.length(key_prefix),
+                    String.length(k) - String.length(key_prefix),
+                  ),
+                )
+              : None,
+          keys,
+        );
+      let key = n => Persist.slide_key(prefix, n);
+      let present = n => HazelDB.kv_get(key(n)) != None;
+      let shared = n => HazelDB.Backend.shared_space(key(n)) != None;
+      let old_names = Model.scratchpad_names(model);
+      let removed = List.filter(n => !present(n), changed);
+      let added =
+        List.filter(n => present(n) && !List.mem(n, old_names), changed);
+      let (current, names) =
+        Persist.merge_shared_names(
+          ~shared,
+          ~in_space=
+            List.filter(n => shared(n) && !List.mem(n, removed), old_names)
+            @ added,
+          ~default_names=[],
+          (model.current, old_names),
+        );
+      if (names == []) {
+        model |> return_quiet;
+      } else {
+        /* A changed slide is read again: now if it is the one open, on
+           the way to it otherwise. Every other slide is left as it is. */
+        let scratchpads =
+          List.mapi(
+            (i, n) =>
+              if (List.mem(n, changed)) {
+                i == current
+                  ? Persist.load_scratchpad(
+                      ~settings=settings.core,
+                      prefix,
+                      n,
+                    )
+                  : Scratchpad.dormant_code(n);
+              } else {
+                switch (
+                  List.find_opt(
+                    (sp: Scratchpad.t) => sp.name == n,
+                    model.scratchpads,
+                  )
+                ) {
+                | Some(sp) => sp
+                | None => Scratchpad.dormant_code(n)
+                };
+              },
+            names,
+          );
+        Persist.hydrate_current(
+          ~settings=settings.core,
+          prefix,
+          {
+            current,
+            scratchpads,
+          },
+        )
+        /* Not saved: what changed came from the space, and writing it
+           back would race whoever wrote it. */
+        |> Updated.return(
+             ~is_edit=false,
+             ~save=false,
+             ~scroll_active=false,
+             ~logged=false,
+             ~historic=false,
+           );
+      };
     | SwitchSlide(i) =>
       WorkerClient.cancel();
       let* current = i |> Updated.return(~historic=false);

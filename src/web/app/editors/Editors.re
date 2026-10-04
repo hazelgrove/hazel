@@ -329,6 +329,9 @@ module Update = {
           m,
         );
       Model.Exercises(m');
+    /* The shared-deck poll runs whatever the mode; outside Scratch and
+       Documentation there is no deck to refresh. */
+    | (Scratch(SharedChanged(_)), _) => model |> return_quiet
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))

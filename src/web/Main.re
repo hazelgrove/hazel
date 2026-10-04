@@ -251,6 +251,23 @@ let start = default_model => {
     /* A remote instance's reply is the same news: a program that ran before
        it arrived said so, and runs again to show it. */
     JsUtil.on_fumola_remote_reply(rerun_fumola);
+    /* Shared decks, kept live: every few seconds, take in what others
+       added, changed or removed (HazelDB.poll_shared). Only with a
+       canister; the deck applies it only in Documentation mode. */
+    if (HazelDB.Backend.on) {
+      let _: Js_of_ocaml.Dom_html.interval_id =
+        Js_of_ocaml.Dom_html.window##setInterval(
+          Js_of_ocaml.Js.wrap_callback(() =>
+            HazelDB.poll_shared(keys =>
+              schedule_action(
+                Page.Update.Editors(Scratch(SharedChanged(keys))),
+              )
+            )
+          ),
+          Js_of_ocaml.Js.float(4000.),
+        );
+      ();
+    };
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
     /* A deep link's slide and panel are settled before Bonsai starts, but its

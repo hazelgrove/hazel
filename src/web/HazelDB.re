@@ -214,6 +214,43 @@ let key_of =
   | Put(key, _)
   | Delete(key) => key;
 
+/* === Shared decks, kept live ===
+
+   A shared deck's keys change under this page, so it polls their spaces
+   (poll_shared) and takes in what changed. What it compares against is
+   [synced]: each key's value as this page last knew the space to hold it,
+   from the load, a poll, or its own write. A key with a write of this
+   page's still in flight, or one written after a poll was sent, is left
+   alone by that poll: the poll's answer may predate the write, and taking
+   it would undo the user's own edit. */
+let synced: Hashtbl.t(string, string) = Hashtbl.create(16);
+let write_seq = ref(0);
+let last_write: Hashtbl.t(string, int) = Hashtbl.create(16);
+let in_flight: Hashtbl.t(string, int) = Hashtbl.create(16);
+
+let note_shared_write = (w: write): unit => {
+  let key = key_of(w);
+  incr(write_seq);
+  Hashtbl.replace(last_write, key, write_seq^);
+  Hashtbl.replace(
+    in_flight,
+    key,
+    Option.value(Hashtbl.find_opt(in_flight, key), ~default=0) + 1,
+  );
+  switch (w) {
+  | Put(_, value) => Hashtbl.replace(synced, key, value)
+  | Delete(_) => Hashtbl.remove(synced, key)
+  };
+};
+
+let note_shared_landed = (w: write): unit => {
+  let key = key_of(w);
+  switch (Hashtbl.find_opt(in_flight, key)) {
+  | Some(n) when n > 1 => Hashtbl.replace(in_flight, key, n - 1)
+  | _ => Hashtbl.remove(in_flight, key)
+  };
+};
+
 /* Each write goes where its key lives (Backend.place): IndexedDB, the
    page's space on the canister, or a shared deck's space. */
 let rec commit = (writes: list(write)): unit =>
@@ -234,7 +271,15 @@ let rec commit = (writes: list(write)): unit =>
 and commit_remote = (~space=?, writes: list(write)): unit =>
   if (writes != []) {
     incr(write_transactions);
-    Backend.call(~space?, "POST", "/kv", Some(writes_json(writes)), _ => ());
+    let shared = Option.is_some(space);
+    if (shared) {
+      List.iter(note_shared_write, writes);
+    };
+    Backend.call(~space?, "POST", "/kv", Some(writes_json(writes)), _ =>
+      if (shared) {
+        List.iter(note_shared_landed, writes);
+      }
+    );
   }
 and commit_local = (writes: list(write)): unit =>
   if (writes != []) {
@@ -378,10 +423,15 @@ let rec kv_load_all = (callback: list((string, string)) => unit): unit =>
               | (Shared(_), `Shared) => true
               | _ => false
               };
+            let shared_pairs = List.filter(at(`Shared), shared_pairs);
+            List.iter(
+              ((k, v)) => Hashtbl.replace(synced, k, v),
+              shared_pairs,
+            );
             let pairs =
               List.filter(at(`Local), local_pairs)
               @ List.filter(at(`Page), page_pairs)
-              @ List.filter(at(`Shared), shared_pairs);
+              @ shared_pairs;
             fill_cache(pairs);
             callback(pairs);
           },
@@ -439,6 +489,57 @@ and kv_load_all_idb = (callback: list((string, string)) => unit): unit =>
       },
     );
   });
+
+/* Ask each shared deck's space for its keys, take in what changed since
+   this page last knew it, and hand [k] the keys that did -- added,
+   changed or removed -- if any. Answers come back one space at a time. */
+let poll_shared = (k: list(string) => unit): unit =>
+  if (Backend.on) {
+    let sent = write_seq^;
+    let quiet = key =>
+      !Hashtbl.mem(in_flight, key)
+      && Option.value(Hashtbl.find_opt(last_write, key), ~default=0) <= sent;
+    List.iter(
+      space =>
+        kv_load_all_remote(
+          ~space,
+          pairs => {
+            let here = key => Backend.place(key) == Shared(space);
+            let pairs = List.filter(((key, _)) => here(key), pairs);
+            let changed = ref([]);
+            List.iter(
+              ((key, v)) =>
+                if (quiet(key) && Hashtbl.find_opt(synced, key) != Some(v)) {
+                  Hashtbl.replace(synced, key, v);
+                  cache := Util.Maps.StringMap.add(key, v, cache^);
+                  changed := [key, ...changed^];
+                },
+              pairs,
+            );
+            let gone =
+              Hashtbl.fold(
+                (key, _, acc) =>
+                  here(key) && quiet(key) && !List.mem_assoc(key, pairs)
+                    ? [key, ...acc] : acc,
+                synced,
+                [],
+              );
+            List.iter(
+              key => {
+                Hashtbl.remove(synced, key);
+                cache := Util.Maps.StringMap.remove(key, cache^);
+                changed := [key, ...changed^];
+              },
+              gone,
+            );
+            if (changed^ != []) {
+              k(List.rev(changed^));
+            };
+          },
+        ),
+      Backend.shared_spaces,
+    );
+  };
 
 /* === Log operations === */
 

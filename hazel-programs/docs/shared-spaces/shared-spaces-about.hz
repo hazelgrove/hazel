@@ -12,8 +12,9 @@
 # How it works: Hazel stores each slide under a key, doc:<name>. A #
 # key that starts doc:Shared Spaces / goes to the canister's shared #
 # space, whatever space the rest of the page uses, and the deck's #
-# slides are read from that space when the page loads. So reload to #
-# see slides added since. #
+# slides are read from that space when the page loads, and again #
+# every few seconds: a slide someone adds, edits or deletes shows up #
+# here without a reload, the one you have open included. #
 
 # For the demo, anyone may write: add, edit, rename or delete. Two #
 # people editing one slide at once is last write wins. A slide's #
