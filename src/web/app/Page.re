@@ -276,6 +276,9 @@ module Update = {
     | FumolaRefresh(instance) =>
       Language.FumolaRun.refresh_remote(instance);
       model |> Updated.return_quiet;
+    | FumolaReinitStore =>
+      Language.FumolaRun.reinit_store();
+      model |> Updated.return_quiet;
     | FumolaReset(instance, Page, mode) =>
       if (Language.FumolaRun.reset_instance(~mode, instance)) {
         let* editors =

@@ -83,6 +83,8 @@ module Action = {
     | FumolaPin(option((string, Language.FumolaRun.place)))
     /* Ask a canister instance's history and outline again. */
     | FumolaRefresh(string)
+    /* Rebuild the canister's store from its values, dropping its history. */
+    | FumolaReinitStore
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(

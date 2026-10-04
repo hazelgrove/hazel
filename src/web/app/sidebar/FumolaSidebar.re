@@ -885,12 +885,21 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         | Some(s) =>
           let (words, failed) =
             switch (s) {
+            | Resetting when instance == Language.FumolaRun.store_instance => (
+                "re-initing...",
+                false,
+              )
             | Resetting => ("resetting...", false)
             | Rerunning
             | Asked => ("reset; running again...", false)
             | Ran => ("reset; ran again", false)
             | Not_run => ("reset; nothing on this slide runs it", false)
+            | Failed(why) when instance == Language.FumolaRun.store_instance => (
+                "re-init failed: " ++ why,
+                true,
+              )
             | Failed(why) => ("reset failed: " ++ why, true)
+            | Reinited(words) => (words, false)
             };
           [
             span(
@@ -906,16 +915,27 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         }
       };
     if (place == Canister && instance == Language.FumolaRun.store_instance) {
-      /* The store is Hazel's saved data: the canister reads it as an
-         instance and never empties it, so there is nothing to press. */
+      /* The store is Hazel's saved data, which a reset would empty. What it
+         has instead is a re-init: the same values, the history behind them
+         dropped, which is all that grows without bound. */
       div(
         ~attrs=[clss(["fumola-resets"])],
         [
           span(
-            ~attrs=[clss(["fumola-strip-label"])],
-            [text("no reset: this is Hazel's saved data")],
+            ~attrs=[
+              clss(["fumola-reset"]),
+              Attr.title(
+                "Rebuild the store's graph from the values it holds now, as an "
+                ++ "upgrade does. Every saved key keeps its value and its "
+                ++ "number; the earlier versions, edges and events behind "
+                ++ "them are dropped, for good.",
+              ),
+              Attr.on_click(_ => globals.inject_global(FumolaReinitStore)),
+            ],
+            [text("re-init")],
           ),
-        ],
+        ]
+        @ status,
       );
     } else {
       div(

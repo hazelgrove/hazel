@@ -58,11 +58,13 @@ let all_pointers = ^^livelit(^fumola_wip((instance = "hazelStore", name = "point
 end)))) in
 
 # Every event, node and edge the store has recorded: the whole #
-# history, each saved value in it. The heaviest thing on the slide, #
-# so it waits for its own click. #
+# history, each saved value cut to its first 200 characters and its #
+# length. Whole, the values are all of Hazel's saved data, more than #
+# the Internet Computer carries in one reply (2 MB). Still the #
+# heaviest thing on the slide, so it waits for its own click. #
 let ask_history = ^^livelit(^load(0)) in
 let history = ^^livelit(^fumola_wip((instance = "hazelStore", name = "history", editor = false, bind_input = true, remote = true, tiles = true, input = (ask_history), code = (fumola $graphical as hazelStore in
-  if input == 0 then "not asked yet" else prim "adaptonPeekHistory"()
+  if input == 0 then "not asked yet" else prim "adaptonPeekHistoryBrief"(200)
 end)))) in
 
 (all_pointers, history)

@@ -664,7 +664,10 @@ type reset_status =
   | Asked
   | Ran
   | Not_run
-  | Failed(string);
+  | Failed(string)
+  /* The store's own: rebuilt from its values (reinit_store), with what
+     the rebuild dropped, said in words. */
+  | Reinited(string);
 let remote_resets: Hashtbl.t(string, reset_status) = Hashtbl.create(4);
 let reset_status = (instance: string): option(reset_status) =>
   Hashtbl.find_opt(remote_resets, instance);
@@ -1060,6 +1063,99 @@ let reset_remote = (~mode: option(mode)=?, name: string): unit =>
         ask("ensure_mode", mode_source(mode), forget_and_rerun)
       | None => forget_and_rerun()
       }
+    );
+  };
+
+/* Re-init the canister's store: rebuild its DCG from the values it holds,
+   keeping every key, its value and its number, and dropping the history
+   behind them (Store::reinit). The store's counterpart of a reset, which it
+   cannot have: emptying it would lose Hazel's saved data. Its replies kept
+   here are forgotten and the page's programs run again, so a slide reading
+   the store reads the rebuilt one. */
+let reinit_store = (): unit =>
+  switch (js_global("hazelFumolaRemoteQuery")) {
+  | None => ()
+  | Some(call) =>
+    let name = store_instance;
+    let count = (json, part, field) =>
+      switch (json) {
+      | `Assoc(top) =>
+        switch (List.assoc_opt(part, top)) {
+        | Some(`Assoc(p)) =>
+          switch (List.assoc_opt("stats", p)) {
+          | Some(`Assoc(st)) =>
+            switch (List.assoc_opt(field, st)) {
+            | Some(`Int(n)) => Some(n)
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ => None
+        }
+      | _ => None
+      };
+    let summary = json => {
+      let change = field =>
+        switch (count(json, "before", field), count(json, "after", field)) {
+        | (Some(b), Some(a)) =>
+          Some(
+            string_of_int(b) ++ " " ++ field ++ " to " ++ string_of_int(a),
+          )
+        | _ => None
+        };
+      switch (List.filter_map(change, ["versions", "edges"])) {
+      | [] => "re-inited"
+      | changes => "re-inited: " ++ String.concat(", ", changes)
+      };
+    };
+    let on_reply = (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+      let status =
+        switch (Yojson.Safe.from_string(Js_of_ocaml.Js.to_string(text))) {
+        | exception _ => Failed("the canister's reply was not JSON")
+        | `Assoc(fields) as json =>
+          switch (List.assoc_opt("ok", fields)) {
+          | Some(`Bool(true)) => Reinited(summary(json))
+          | _ =>
+            switch (List.assoc_opt("error", fields)) {
+            | Some(`String(e)) => Failed(e)
+            | _ => Failed("the canister refused")
+            }
+          }
+        | _ => Failed("the canister refused")
+        };
+      switch (status) {
+      | Reinited(_) =>
+        let keys =
+          Hashtbl.fold(
+            ((i, _) as key, _, acc) => i == name ? [key, ...acc] : acc,
+            remote_replies,
+            [],
+          );
+        List.iter(Hashtbl.remove(remote_replies), keys);
+        Hashtbl.replace(remote_generation, name, generation_of(name) + 1);
+        Hashtbl.replace(remote_resets, name, status);
+        clear_later(name, status);
+        ignore(
+          Js_of_ocaml.Js.Unsafe.js_expr(
+            "window.dispatchEvent(new Event('fumola-remote-reply'))",
+          ),
+        );
+      | _ => set_reset_status(name, Some(status))
+      };
+    };
+    set_reset_status(name, Some(Resetting));
+    ignore(
+      Js_of_ocaml.Js.Unsafe.fun_call(
+        call,
+        [|
+          js_string(name),
+          js_string("reinit"),
+          js_string(""),
+          Js_of_ocaml.Js.Unsafe.inject(
+            Js_of_ocaml.Js.wrap_callback(on_reply),
+          ),
+        |],
+      ),
     );
   };
 
