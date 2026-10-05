@@ -129,6 +129,7 @@ let (suite, exit_with_test_status) =
       Test_RichProbeRegistry.tests,
     ]
     @ Test_UserLivelits.tests
+    @ [Test_LivelitMembers.tests]
     @ [Test_CtxIndex.tests]
     @ [Test_ExpansionErrors.tests]
     @ [Test_TreeCare.tests]

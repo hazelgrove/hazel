@@ -1117,6 +1117,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
+            /* A livelit that is a module member, `Lib.^flag`: kept as the
+               name it is, so it prints back as written and a use's head
+               can be resolved by its qualified key (UserLivelit.head_key). */
+            | LivelitName(_) => Dot(l, r)
             | _ =>
               /* See the TupLabel case above */
               Dot(

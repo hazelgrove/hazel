@@ -78,8 +78,11 @@ let compute_targets =
     switch (e.term) {
     | Parens(e)
     | Splice(e) => livelit_model(e)
-    | Ap(_, {term: LivelitName(_), _}, model)
-    | Ap(_, {term: Ap(_, {term: LivelitName(_), _}, _), _}, model) =>
+    /* the head a bare `^f` or a module member `Lib.^f` */
+    | Ap(_, head, model)
+        when
+          Language.UserLivelit.head_key(head) != None
+          || Language.UserLivelit.ap_head_key(head) != None =>
       Some(Exp.rep_id(model))
     | _ => None
     };

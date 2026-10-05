@@ -247,6 +247,8 @@ module rec Exp: {
       | Label(s)
       | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
       | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
+      /* A livelit module member, `Lib.^flag`, as MakeTerm keeps it. */
+      | LivelitName(_) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
       | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
       }
     | Let(p, e1, e2) =>

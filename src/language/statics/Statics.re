@@ -21,6 +21,15 @@ let quote_depth = ref(0);
    abbreviation, and anywhere else it is a use missing them. */
 let livelit_abbrev_site: ref(option(Id.t)) = ref(None);
 
+/* The livelits a module body binds, by the module expression's id: its
+   `let ^f`s, and its sub-modules' members already qualified (`Inner.f`).
+   The Module case fills it from the context at the end of the body's
+   lowering; the `let` that binds the module reads it, and puts each in
+   its body's context as `M.f` (UserLivelit.requalify). Without it they
+   never leave the body: a module's type carries values, not livelits. */
+let module_livelits: Hashtbl.t(Id.t, list(LivelitCtx.raw_livelit)) =
+  Hashtbl.create(8);
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -1524,6 +1533,64 @@ and uexp_to_info_map =
           ]),
         m,
       );
+    /* A livelit that is a module member, `Lib.^f`: the livelit keyed
+       `Lib.f` (UserLivelit.head_key), at run time the member itself,
+       `Lib."^f"`, of the type Lib's signature gives it -- which is what an
+       abbreviation `let ^b = Lib.^a@<T> in` takes as its definition's. As
+       a bare `^f`, a livelit taking no parameters means its expansion. */
+    | Dot(e1, {term: LivelitName(member), _} as e2)
+        when
+          Option.bind(UserLivelit.head_key(uexp), Ctx.lookup_livelit(ctx))
+          != None =>
+      let ll =
+        Option.get(
+          Option.bind(UserLivelit.head_key(uexp), Ctx.lookup_livelit(ctx)),
+        );
+      let e1 =
+        switch (Exp.term_of(e1)) {
+        | Constructor(name, _) => {
+            ...e1,
+            term: (Var(name): Exp.term),
+          }
+        | _ => e1
+        };
+      let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let (_, elab_e2, m) =
+        add(
+          ~user_term=e2,
+          ~elab_term={
+            ...e2,
+            term: Label("^" ++ member),
+          },
+          ~ancestors=ancestors_inclusive,
+          ~ctx,
+          ~ana=syn,
+          ~elab_syn_ty=SynTy.unknown_internal(),
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          ~label_inference=None,
+          ~inferred_label=None,
+          ~dot_labels=[],
+          ~label_sort=true,
+          ~warnings=[],
+          m,
+        );
+      let def_ty =
+        switch (Typ.as_sig(~rec_counter=0, ctx, info_e1.ty)) {
+        | Some(items) =>
+          Typ.sig_project_value(items, "^" ++ member)
+          |> Option.value(~default=SynTy.unknown_internal())
+        | None => SynTy.unknown_internal()
+        };
+      let parameterized = ll.tparam != None || ll.vparam;
+      add(
+        ~elab_term=Dot(e1_elab, elab_e2) |> rewrap,
+        ~elab_syn_ty=parameterized ? def_ty : ll.expansion_t,
+        ~marks=[],
+        ~co_ctx=info_e1.co_ctx,
+        ~probe_targets=info_e1.probe_targets,
+        m,
+      );
     | Dot(e1, e2) =>
       let dot_case = (e1: Exp.t, e2: Exp.t) => {
         /* A capitalized module name parses as a constructor, so a projection
@@ -2450,14 +2517,18 @@ and uexp_to_info_map =
             }
           };
         };
-        switch (fn.term) {
+        switch (
+          fn.term,
+          UserLivelit.head_key(fn),
+          UserLivelit.ap_head_key(fn),
+        ) {
         /* A direct use with parameters, `^a(args)(model)`: the paper's
            `$slider 0 100`, beside the abbreviation `let ^b = ^a(args) in`.
            `^a(args)` is analyzed as an abbreviation's definition is, its
            arguments closed, and the use is then a use of `^a` applied to
            them. At run time the applied livelit is `^a(args)` itself, as no
            `let` names it (apply_args's `runtime`). */
-        | Ap(_, {term: LivelitName(s), _}, _)
+        | (Ap(_), _, Some(s))
             when
               switch (Ctx.lookup_livelit(ctx, s)) {
               | Some({vparam: true, user_def: Some(_), _}) => true
@@ -2495,7 +2566,7 @@ and uexp_to_info_map =
         /* A type-parameterized livelit cannot be used until it has its
            type argument: the paper's "missing livelit parameter" (Sec.
            2.4.1). The argument is still checked, and the use means a hole. */
-        | LivelitName(s)
+        | (_, Some(s), _)
             when
               switch (Ctx.lookup_livelit(ctx, s)) {
               | Some({tparam: Some(_), _}) => true
@@ -2518,7 +2589,7 @@ and uexp_to_info_map =
            run there, so an argument naming a client binding is reported
            where it is written. Anywhere else the application is a use
            missing its parameters, and means a hole. */
-        | LivelitName(s)
+        | (_, Some(s), _)
             when
               switch (Ctx.lookup_livelit(ctx, s)) {
               | Some({vparam: true, _}) => true
@@ -2544,7 +2615,7 @@ and uexp_to_info_map =
             ~co_ctx=fn.co_ctx,
             m,
           );
-        | LivelitName(s) =>
+        | (_, Some(s), _) =>
           // refer to livelit context to find types
           switch (Ctx.lookup_livelit(ctx, s)) {
           | Some(ll) =>
@@ -3157,7 +3228,8 @@ and uexp_to_info_map =
              is_rec, and so the elaboration (requires_fixf below), is unchanged. */
           let outer_abbrev_site = livelit_abbrev_site^;
           switch (UserLivelit.binder_name(p), UserLivelit.strip_parens(def)) {
-          | (Some(_), {term: Ap(_, {term: LivelitName(_), _}, _), _} as ap) =>
+          | (Some(_), {term: Ap(_, head, _), _} as ap)
+              when UserLivelit.head_key(head) != None =>
             livelit_abbrev_site := Some(Exp.rep_id(ap))
           | _ => ()
           };
@@ -3318,7 +3390,8 @@ and uexp_to_info_map =
             ) {
             | (Some(ll_name), Ap(_, fn, _)) =>
               switch (UserLivelit.strip_parens(fn).term) {
-              | LivelitName(a) =>
+              | _ when UserLivelit.head_key(fn) != None =>
+                let a = Option.get(UserLivelit.head_key(fn));
                 Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
                   Option.bind(UserLivelit.ap_arg(def_elab), args =>
                     UserLivelit.apply_args(
@@ -3328,13 +3401,14 @@ and uexp_to_info_map =
                       ll,
                     )
                   )
-                )
+                );
               /* Both: `let ^b = ^a@<T>(args) in`, where ^a takes a type
                  and then values (`typfun A -> fun x -> {...}`): ^a at T,
                  applied to them. */
               | TypAp(tfn, ty) =>
                 switch (UserLivelit.strip_parens(tfn).term) {
-                | LivelitName(a) =>
+                | _ when UserLivelit.head_key(tfn) != None =>
+                  let a = Option.get(UserLivelit.head_key(tfn));
                   Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
                     Option.bind(
                       UserLivelit.instantiate(
@@ -3353,14 +3427,15 @@ and uexp_to_info_map =
                         )
                       )
                     )
-                  )
+                  );
                 | _ => None
                 }
               | _ => None
               }
             | (Some(ll_name), TypAp(fn, ty)) =>
               switch (UserLivelit.strip_parens(fn).term) {
-              | LivelitName(a) =>
+              | _ when UserLivelit.head_key(fn) != None =>
+                let a = Option.get(UserLivelit.head_key(fn));
                 Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
                   UserLivelit.instantiate(
                     ~name=ll_name,
@@ -3368,7 +3443,7 @@ and uexp_to_info_map =
                     ~ty=Typ.normalize(ctx, ty),
                     ll,
                   )
-                )
+                );
               | _ => None
               }
             | _ => None
@@ -3400,6 +3475,57 @@ and uexp_to_info_map =
               };
             | (None, _) => (p_ana_ctx, [])
             };
+          /* Binding a module, `module Lib = { let ^f = ... }`: its livelits
+             are usable outside it as `Lib.^f`. Under an annotation (a
+             signature, or a parent module's expectation) only a member the
+             signature declares gets out, as sealing keeps only those. */
+          let p_ana_ctx = {
+            let rec binder = (p: Pat.t) =>
+              switch (p.term) {
+              | Parens(p) => binder(p)
+              | Var(x) => Some((x, None))
+              | Asc({term: Var(x), _}, ty) => Some((x, Some(ty)))
+              | _ => None
+              };
+            switch (
+              binder(p),
+              Hashtbl.find_opt(
+                module_livelits,
+                Exp.rep_id(UserLivelit.strip_parens(def.user_term)),
+              ),
+            ) {
+            | (Some((module_name, sealed)), Some(lls)) =>
+              let declared = (ll: LivelitCtx.raw_livelit) =>
+                switch (sealed) {
+                | None => true
+                | Some(ty) =>
+                  let member =
+                    switch (String.index_opt(ll.name, '.')) {
+                    | Some(i) => String.sub(ll.name, 0, i)
+                    | None => "^" ++ ll.name
+                    };
+                  switch (Typ.as_sig(~rec_counter=0, ctx, ty)) {
+                  | Some(items) =>
+                    Typ.sig_project_value(items, member) != None
+                  | None => false
+                  };
+                };
+              List.fold_left(
+                (c, ll) =>
+                  declared(ll)
+                    ? Ctx.extend(
+                        c,
+                        Ctx.LivelitEntry(
+                          UserLivelit.requalify(~module_name, ll),
+                        ),
+                      )
+                    : c,
+                p_ana_ctx,
+                List.rev(lls),
+              );
+            | _ => p_ana_ctx
+            };
+          };
           (
             p_syn,
             def,
@@ -4029,6 +4155,42 @@ and uexp_to_info_map =
           };
         let expanded = ModuleHelpers.lower(~ana_items, items);
         let (expanded_info, expanded_elab, m) = go(expanded, m);
+        /* The livelits the body binds: the LivelitEntries its lowering
+           added in front of this context, newest first, the first of a
+           name being the one in scope at the end. */
+        let rec tail = (e: Exp.t) =>
+          switch (e.term) {
+          | Let(_, _, body)
+          | TyAlias(_, _, body) => tail(body)
+          | _ => e
+          };
+        let rec take = (n, xs) =>
+          switch (xs) {
+          | [x, ...rest] when n > 0 => [x, ...take(n - 1, rest)]
+          | _ => []
+          };
+        switch (Id.Map.find_opt(Exp.rep_id(tail(expanded)), m)) {
+        | Some(Info.InfoExp({ctx: body_ctx, _})) =>
+          let lls =
+            take(body_ctx.size - ctx.size, body_ctx.entries)
+            |> List.fold_left(
+                 (acc: list(LivelitCtx.raw_livelit), entry: Ctx.entry) =>
+                   switch (entry) {
+                   | LivelitEntry(ll)
+                       when
+                         !
+                           List.exists(
+                             (k: LivelitCtx.raw_livelit) => k.name == ll.name,
+                             acc,
+                           ) =>
+                     acc @ [ll]
+                   | _ => acc
+                   },
+                 [],
+               );
+          Hashtbl.replace(module_livelits, Exp.rep_id(uexp), lls);
+        | _ => Hashtbl.remove(module_livelits, Exp.rep_id(uexp))
+        };
         let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
         let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
         let (m, mismatched_types) =
