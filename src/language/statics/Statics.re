@@ -4132,7 +4132,10 @@ and uexp_to_info_map =
         switch (Id.Map.find_opt(Exp.rep_id(tail(expanded)), m)) {
         | Some(Info.InfoExp({ctx: body_ctx, _})) =>
           let lls =
-            take(body_ctx.size - ctx.size, body_ctx.entries)
+            take(
+              List.length(body_ctx.entries) - List.length(ctx.entries),
+              body_ctx.entries,
+            )
             |> List.fold_left(
                  (acc: list(LivelitCtx.raw_livelit), entry: Ctx.entry) =>
                    switch (entry) {
