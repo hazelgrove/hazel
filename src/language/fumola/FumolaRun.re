@@ -227,7 +227,7 @@ let peek_cell =
    `mode_source` rather than written out again: `adaptonReset` takes these
    words and `adaptonMode` answers with them, and a second copy here could
    drift from both. */
-let mode_of_instance = (name: string): option(mode) =>
+let mode_of_instance_local = (name: string): option(mode) =>
   switch (eval_in(instance_of_name(name), "prim \"adaptonMode\" ()")) {
   | `Assoc(fields) =>
     switch (List.assoc_opt("ok", fields), List.assoc_opt("value", fields)) {
@@ -515,7 +515,7 @@ let printed_of = (name: string): list(string) =>
    into the store; and at the latest moment, as every read is (see at_now):
    at Now the runs' thunks are invisible and Outline's peekInfo finds null.
    A $simple instance keeps no graph, so its forest is always empty. */
-let outlines = (name: string): result(list(Yojson.Safe.t), string) =>
+let outlines_local = (name: string): result(list(Yojson.Safe.t), string) =>
   switch (
     shim(
       "evalScratch",
@@ -596,6 +596,569 @@ let owner_of = (body: FumolaTermBase.t): string =>
 let last_run_of = (~instance: string, ~name: string): option(last_run) =>
   Hashtbl.find_opt(last_runs, (instance, name));
 
+/* REMOTE INSTANCES: an instance may live on the Internet Computer instead of
+   in the page -- the canister of docs/internet-computer-backend.md, which
+   runs the same Fumola runtime (fumola_wasm_common) behind
+   `POST /i/<instance>/<op>`. The program travels as the text this page would
+   have run, the canister runs it, and the reply is the same JSON a local run
+   answers, so it becomes a Hazel value the same way.
+
+   Where an instance lives is the instance's, not a use's: ^fumola_wip's
+   `remote` box says it, at expansion, for its instance. Two uses of one
+   instance that disagree are settled by the later one, since every
+   expansion happens before any run. */
+let remote_instances: Hashtbl.t(string, unit) = Hashtbl.create(4);
+
+let set_remote = (instance: string, remote: bool): unit =>
+  remote
+    ? Hashtbl.replace(remote_instances, instance, ())
+    : Hashtbl.remove(remote_instances, instance);
+
+let is_remote = (instance: string): bool =>
+  Hashtbl.mem(remote_instances, instance);
+
+/* Where an instance is read from. A name says nothing about it -- a page
+   and the canister can each hold an instance of the same name -- so a
+   reader that knows (the Fumola panel's list) says; one that does not
+   takes where this page's programs run it. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type place =
+  | Page
+  | Canister;
+
+let place_of = (~place: option(place)=?, instance: string): place =>
+  switch (place) {
+  | Some(p) => p
+  | None => is_remote(instance) ? Canister : Page
+  };
+
+/* A run here is synchronous and a call to the canister is not, so the reply
+   is kept by what was asked -- the instance, its declared mode, and the
+   program as printed, before its moment is added, which changes every
+   run -- and a run that finds no reply yet asks for one and says so. The
+   reply's arrival is announced as `fumola-remote-reply`, which Main.re
+   treats as the runtime arriving: the program is run again, and this time
+   the reply is here. */
+let remote_replies: Hashtbl.t((string, string), Yojson.Safe.t) =
+  Hashtbl.create(16);
+
+/* How many program replies each remote instance has given: what the
+   instance holds changes only with one, so a side query of it
+   (remote_query) is good until the next. */
+let remote_generation: Hashtbl.t(string, int) = Hashtbl.create(4);
+let generation_of = (instance: string): int =>
+  Option.value(Hashtbl.find_opt(remote_generation, instance), ~default=0);
+let remote_asked: Hashtbl.t((string, string), unit) = Hashtbl.create(16);
+
+/* The canister's store, read as an instance: Hazel's saved data, which the
+   canister evaluates against but never empties, so it has no reset. */
+let store_instance = "hazelStore";
+
+/* Where a canister instance's last reset has got to, for the panel to say.
+   A reset that works rebuilds the same graph, so without this it looks
+   exactly like a button that did nothing. Ran and Not_run are cleared after
+   a few seconds; the others last until the next step. */
+type reset_status =
+  | Resetting
+  | Rerunning
+  | Asked
+  | Ran
+  | Not_run
+  | Failed(string)
+  /* The store's own: rebuilt from its values (reinit_store), with what
+     the rebuild dropped, said in words. */
+  | Reinited(string);
+let remote_resets: Hashtbl.t(string, reset_status) = Hashtbl.create(4);
+let reset_status = (instance: string): option(reset_status) =>
+  Hashtbl.find_opt(remote_resets, instance);
+
+/* A redraw and nothing more, as a side query's answer asks for. */
+let redraw = () =>
+  ignore(
+    Js_of_ocaml.Js.Unsafe.js_expr(
+      "window.dispatchEvent(new Event('fumola-remote-query'))",
+    ),
+  );
+let after = (ms: int, f: unit => unit) =>
+  ignore(
+    Js_of_ocaml.Js.Unsafe.fun_call(
+      Js_of_ocaml.Js.Unsafe.js_expr("setTimeout"),
+      [|
+        Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.wrap_callback(f)),
+        Js_of_ocaml.Js.Unsafe.inject(ms),
+      |],
+    ),
+  );
+let set_reset_status = (instance: string, status: option(reset_status)) => {
+  switch (status) {
+  | Some(s) => Hashtbl.replace(remote_resets, instance, s)
+  | None => Hashtbl.remove(remote_resets, instance)
+  };
+  redraw();
+};
+/* Clear a status after a while, unless a later step has replaced it. */
+let clear_later = (instance: string, status: reset_status) =>
+  after(6000, () =>
+    if (reset_status(instance) == Some(status)) {
+      set_reset_status(instance, None);
+    }
+  );
+
+let remote_reply =
+    (~instance: string, ~mode: option(mode), ~at: int, program: string)
+    : option(Yojson.Safe.t) => {
+  let mode_text = Option.fold(~none="", ~some=mode_source, mode);
+  let key = (instance, mode_text ++ "\n" ++ program);
+  switch (Hashtbl.find_opt(remote_replies, key)) {
+  | Some(reply) => Some(reply)
+  | None =>
+    if (!Hashtbl.mem(remote_asked, key)) {
+      Hashtbl.replace(remote_asked, key, ());
+      if (reset_status(instance) == Some(Rerunning)) {
+        Hashtbl.replace(remote_resets, instance, Asked);
+      };
+      let on_reply = (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+        let reply =
+          switch (Yojson.Safe.from_string(Js_of_ocaml.Js.to_string(text))) {
+          | exception _ =>
+            `Assoc([
+              ("ok", `Bool(false)),
+              ("error", `String("the canister's reply was not JSON")),
+            ])
+          | json => json
+          };
+        Hashtbl.replace(remote_replies, key, reply);
+        Hashtbl.remove(remote_asked, key);
+        if (reset_status(instance) == Some(Asked)) {
+          Hashtbl.replace(remote_resets, instance, Ran);
+          clear_later(instance, Ran);
+        };
+        Hashtbl.replace(
+          remote_generation,
+          instance,
+          generation_of(instance) + 1,
+        );
+      };
+      switch (
+        Js_of_ocaml.Js.Optdef.to_option(
+          Js_of_ocaml.Js.Unsafe.get(
+            Js_of_ocaml.Js.Unsafe.global,
+            "hazelFumolaRemote",
+          ),
+        )
+      ) {
+      | exception _
+      | None =>
+        Hashtbl.replace(
+          remote_replies,
+          key,
+          `Assoc([
+            ("ok", `Bool(false)),
+            (
+              "error",
+              `String(
+                "this build has no canister to run on: remote runs need the Internet Computer build",
+              ),
+            ),
+          ]),
+        )
+      | Some(call) =>
+        ignore(
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            call,
+            [|
+              js_string(instance),
+              js_string(mode_text),
+              js_string(at_moment(at, program)),
+              Js_of_ocaml.Js.Unsafe.inject(
+                Js_of_ocaml.Js.wrap_callback(on_reply),
+              ),
+            |],
+          ),
+        )
+      };
+    };
+    Hashtbl.find_opt(remote_replies, key);
+  };
+};
+
+/* Asked of a remote instance on the side, not run as its program: a watch
+   pane's history (`prim "adaptonPeekHistory" ()` through eval_scratch, which
+   keeps nothing), its mode, its stats. The answer is kept until the
+   instance's next program reply (remote_generation); until a fresh one
+   arrives, the last one stands in, so a pane redrawn mid-question shows
+   what it showed rather than flickering to empty. None: never answered. */
+let remote_queries:
+  Hashtbl.t((string, string, string), (int, Yojson.Safe.t)) =
+  Hashtbl.create(8);
+let remote_querying: Hashtbl.t((string, string, string), unit) =
+  Hashtbl.create(8);
+
+let js_global = (name: string) =>
+  switch (
+    Js_of_ocaml.Js.Optdef.to_option(
+      Js_of_ocaml.Js.Unsafe.get(Js_of_ocaml.Js.Unsafe.global, name),
+    )
+  ) {
+  | exception _ => None
+  | f => f
+  };
+
+let json_of_reply = (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) =>
+  switch (Yojson.Safe.from_string(Js_of_ocaml.Js.to_string(text))) {
+  | exception _ =>
+    `Assoc([
+      ("ok", `Bool(false)),
+      ("error", `String("the canister's reply was not JSON")),
+    ])
+  | json => json
+  };
+
+let no_canister =
+  `Assoc([
+    ("ok", `Bool(false)),
+    (
+      "error",
+      `String(
+        "this build has no canister: remote instances need the Internet Computer build",
+      ),
+    ),
+  ]);
+
+let remote_query =
+    (~instance: string, ~op: string, ~name: option(string)=?, body: string)
+    : option(Yojson.Safe.t) => {
+  /* Kept by [name] when the body changes from run to run (a read at the
+     latest moment) but the question does not. */
+  let key = (instance, op, Option.value(name, ~default=body));
+  let generation = generation_of(instance);
+  let cached = Hashtbl.find_opt(remote_queries, key);
+  switch (cached) {
+  | Some((g, reply)) when g == generation => Some(reply)
+  | _ =>
+    if (!Hashtbl.mem(remote_querying, key)) {
+      Hashtbl.replace(remote_querying, key, ());
+      let on_reply = text => {
+        Hashtbl.replace(
+          remote_queries,
+          key,
+          (generation, json_of_reply(text)),
+        );
+        Hashtbl.remove(remote_querying, key);
+      };
+      switch (js_global("hazelFumolaRemoteQuery")) {
+      | None =>
+        Hashtbl.replace(remote_queries, key, (generation, no_canister));
+        Hashtbl.remove(remote_querying, key);
+      | Some(call) =>
+        ignore(
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            call,
+            [|
+              js_string(instance),
+              js_string(op),
+              js_string(body),
+              Js_of_ocaml.Js.Unsafe.inject(
+                Js_of_ocaml.Js.wrap_callback(on_reply),
+              ),
+            |],
+          ),
+        )
+      };
+    };
+    Option.map(snd, Hashtbl.find_opt(remote_queries, key));
+  };
+};
+
+/* The canister's GET /stats: its heap, its store's DCG, each instance. Its
+   store changes with every save from any page, which no reply here says, so
+   it is asked again when the last answer is over [max_age_ms] old -- on a
+   redraw, which is when anyone is looking. */
+let now_ms = (): float =>
+  Js_of_ocaml.Js.float_of_number(
+    Js_of_ocaml.Js.Unsafe.js_expr("Date.now()"),
+  );
+
+let canister_stats_cache: ref(option((float, Yojson.Safe.t))) = ref(None);
+let canister_stats_asking = ref(false);
+
+let canister_stats = (~max_age_ms=3000., ()): option(Yojson.Safe.t) => {
+  let now = now_ms();
+  let fresh =
+    switch (canister_stats_cache^) {
+    | Some((at, _)) => now -. at < max_age_ms
+    | None => false
+    };
+  if (!fresh && ! canister_stats_asking^) {
+    switch (js_global("hazelBackendStats")) {
+    | None => canister_stats_cache := Some((now, no_canister))
+    | Some(call) =>
+      canister_stats_asking := true;
+      let on_reply = text => {
+        canister_stats_cache := Some((now_ms(), json_of_reply(text)));
+        canister_stats_asking := false;
+      };
+      ignore(
+        Js_of_ocaml.Js.Unsafe.fun_call(
+          call,
+          [|
+            Js_of_ocaml.Js.Unsafe.inject(
+              Js_of_ocaml.Js.wrap_callback(on_reply),
+            ),
+          |],
+        ),
+      );
+    };
+  };
+  Option.map(snd, canister_stats_cache^);
+};
+
+/* The two reads a watch pane makes of an instance besides its history,
+   wherever the instance lives. A remote one is asked on the side
+   (remote_query), and until it answers the pane says so. */
+let mode_of_instance = (~place=?, name: string): option(mode) =>
+  if (place_of(~place?, name) == Canister) {
+    switch (remote_query(~instance=name, ~op="mode", "")) {
+    | Some(`Assoc(fields)) =>
+      switch (List.assoc_opt("mode", fields)) {
+      | Some(`String(spelled)) =>
+        List.find_opt(
+          mode => mode_source(mode) == spelled,
+          [Simple, Graphical],
+        )
+      | _ => None
+      }
+    | _ => None
+    };
+  } else {
+    mode_of_instance_local(name);
+  };
+
+let outlines = (~place=?, name: string): result(list(Yojson.Safe.t), string) =>
+  if (place_of(~place?, name) == Canister) {
+    switch (
+      remote_query(
+        ~instance=name,
+        ~op="eval_scratch",
+        ~name="outlines",
+        at_now("Adapton.Outline.outlines()"),
+      )
+    ) {
+    | None => Error("asking the canister for this instance's outline...")
+    | Some(`Assoc(obj)) =>
+      switch (
+        List.assoc_opt("ok", obj),
+        List.assoc_opt("tag", obj),
+        List.assoc_opt("value", obj),
+      ) {
+      | (Some(`Bool(true)), Some(`String("List")), Some(`List(trees))) =>
+        Ok(trees)
+      | _ =>
+        Error(
+          switch (List.assoc_opt("error", obj)) {
+          | Some(`String(message)) => message
+          | _ => "the outline did not come back as a list"
+          },
+        )
+      }
+    | Some(_) => Error("could not read the canister's response")
+    };
+  } else {
+    outlines_local(name);
+  };
+
+/* Ask a canister instance's side questions afresh: what it holds can
+   change with no reply here to say so (another page ran it), and a reader
+   looking at it can say when to look again. */
+let refresh_remote = (instance: string): unit =>
+  Hashtbl.replace(remote_generation, instance, generation_of(instance) + 1);
+
+/* The instances this page's runtime holds, by name, with their stats
+   (window.fumola.instances, prebundle.js). None without a runtime. */
+let local_instances = (): option(Yojson.Safe.t) =>
+  switch (shim("instances", [||])) {
+  | exception _ => None
+  | r =>
+    switch (
+      Yojson.Safe.from_string(
+        r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string,
+      )
+    ) {
+    | exception _ => None
+    | json => Some(json)
+    }
+  };
+
+/* Reset a remote instance, as the watch pane's G and S do a local one:
+   empty it on the canister, give it the mode asked for, forget the replies
+   kept for it, and announce a reply so the page's programs run again --
+   asking the canister afresh, now that nothing is kept. In that order, each
+   step on the last one's answer, so the re-run cannot overtake the reset.
+
+   Each step's answer is read: a refusal (the store's reset is a 404) stops
+   the reset and says why, rather than carrying on as if it had worked. If
+   no program here asks within a few seconds of the re-run, nothing on this
+   page runs the instance, and the panel says that instead of waiting. */
+let reset_remote = (~mode: option(mode)=?, name: string): unit =>
+  switch (js_global("hazelFumolaRemoteQuery")) {
+  | None => ()
+  | Some(call) =>
+    let refusal = (text: string): option(string) =>
+      switch (Yojson.Safe.from_string(text)) {
+      | exception _ => Some("the canister's reply was not JSON")
+      | `Assoc(fields)
+          when List.assoc_opt("ok", fields) == Some(`Bool(false)) =>
+        switch (List.assoc_opt("error", fields)) {
+        | Some(`String(e)) => Some(e)
+        | _ => Some("the canister refused")
+        }
+      | _ => None
+      };
+    let ask = (op, body, k) =>
+      ignore(
+        Js_of_ocaml.Js.Unsafe.fun_call(
+          call,
+          [|
+            js_string(name),
+            js_string(op),
+            js_string(body),
+            Js_of_ocaml.Js.Unsafe.inject(
+              Js_of_ocaml.Js.wrap_callback(
+                (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) =>
+                switch (refusal(Js_of_ocaml.Js.to_string(text))) {
+                | Some(why) => set_reset_status(name, Some(Failed(why)))
+                | None => k()
+                }
+              ),
+            ),
+          |],
+        ),
+      );
+    let forget_and_rerun = () => {
+      let keys =
+        Hashtbl.fold(
+          ((i, _) as key, _, acc) => i == name ? [key, ...acc] : acc,
+          remote_replies,
+          [],
+        );
+      List.iter(Hashtbl.remove(remote_replies), keys);
+      Hashtbl.replace(remote_generation, name, generation_of(name) + 1);
+      Hashtbl.replace(remote_resets, name, Rerunning);
+      after(3000, () =>
+        if (reset_status(name) == Some(Rerunning)) {
+          set_reset_status(name, Some(Not_run));
+          clear_later(name, Not_run);
+        }
+      );
+      ignore(
+        Js_of_ocaml.Js.Unsafe.js_expr(
+          "window.dispatchEvent(new Event('fumola-remote-reply'))",
+        ),
+      );
+    };
+    set_reset_status(name, Some(Resetting));
+    ask("reset", "", () =>
+      switch (mode) {
+      | Some(mode) =>
+        ask("ensure_mode", mode_source(mode), forget_and_rerun)
+      | None => forget_and_rerun()
+      }
+    );
+  };
+
+/* Re-init the canister's store: rebuild its DCG from the values it holds,
+   keeping every key, its value and its number, and dropping the history
+   behind them (Store::reinit). The store's counterpart of a reset, which it
+   cannot have: emptying it would lose Hazel's saved data. Its replies kept
+   here are forgotten and the page's programs run again, so a slide reading
+   the store reads the rebuilt one. */
+let reinit_store = (): unit =>
+  switch (js_global("hazelFumolaRemoteQuery")) {
+  | None => ()
+  | Some(call) =>
+    let name = store_instance;
+    let count = (json, part, field) =>
+      switch (json) {
+      | `Assoc(top) =>
+        switch (List.assoc_opt(part, top)) {
+        | Some(`Assoc(p)) =>
+          switch (List.assoc_opt("stats", p)) {
+          | Some(`Assoc(st)) =>
+            switch (List.assoc_opt(field, st)) {
+            | Some(`Int(n)) => Some(n)
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ => None
+        }
+      | _ => None
+      };
+    let summary = json => {
+      let change = field =>
+        switch (count(json, "before", field), count(json, "after", field)) {
+        | (Some(b), Some(a)) =>
+          Some(
+            string_of_int(b) ++ " " ++ field ++ " to " ++ string_of_int(a),
+          )
+        | _ => None
+        };
+      switch (List.filter_map(change, ["versions", "edges"])) {
+      | [] => "re-inited"
+      | changes => "re-inited: " ++ String.concat(", ", changes)
+      };
+    };
+    let on_reply = (text: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+      let status =
+        switch (Yojson.Safe.from_string(Js_of_ocaml.Js.to_string(text))) {
+        | exception _ => Failed("the canister's reply was not JSON")
+        | `Assoc(fields) as json =>
+          switch (List.assoc_opt("ok", fields)) {
+          | Some(`Bool(true)) => Reinited(summary(json))
+          | _ =>
+            switch (List.assoc_opt("error", fields)) {
+            | Some(`String(e)) => Failed(e)
+            | _ => Failed("the canister refused")
+            }
+          }
+        | _ => Failed("the canister refused")
+        };
+      switch (status) {
+      | Reinited(_) =>
+        let keys =
+          Hashtbl.fold(
+            ((i, _) as key, _, acc) => i == name ? [key, ...acc] : acc,
+            remote_replies,
+            [],
+          );
+        List.iter(Hashtbl.remove(remote_replies), keys);
+        Hashtbl.replace(remote_generation, name, generation_of(name) + 1);
+        Hashtbl.replace(remote_resets, name, status);
+        clear_later(name, status);
+        ignore(
+          Js_of_ocaml.Js.Unsafe.js_expr(
+            "window.dispatchEvent(new Event('fumola-remote-reply'))",
+          ),
+        );
+      | _ => set_reset_status(name, Some(status))
+      };
+    };
+    set_reset_status(name, Some(Resetting));
+    ignore(
+      Js_of_ocaml.Js.Unsafe.fun_call(
+        call,
+        [|
+          js_string(name),
+          js_string("reinit"),
+          js_string(""),
+          Js_of_ocaml.Js.Unsafe.inject(
+            Js_of_ocaml.Js.wrap_callback(on_reply),
+          ),
+        |],
+      ),
+    );
+  };
+
 let run =
     (
       ~ana: TermBase.Typ.t,
@@ -645,16 +1208,28 @@ let run =
            the instance has not already been told, and saying it anyway would
            overrule whoever spoke last -- which, after a reset, is the
            reader. Leaving the mode slot a hole still says nothing at all. */
+        let remote = is_remote(instance_name);
         Option.iter(
           mode =>
-            if (Hashtbl.find_opt(last_declared, instance_id) != Some(mode)) {
+            if (!remote
+                && Hashtbl.find_opt(last_declared, instance_id) != Some(mode)) {
               ensure_mode(instance_id, mode);
               Hashtbl.replace(last_declared, instance_id, mode);
             },
           mode,
         );
         note_run(instance_name);
-        let reply = eval_at(instance_id, at_moment(at, program));
+        /* A remote instance's mode travels with each program, and the
+           canister's ensure_mode is the same no-op for an unchanged one. */
+        let reply =
+          remote
+            ? switch (
+                remote_reply(~instance=instance_name, ~mode, ~at, program)
+              ) {
+              | Some(reply) => reply
+              | None => `String("pending")
+              }
+            : eval_at(instance_id, at_moment(at, program));
         note_printed(instance_name, reply);
         let outcome =
           switch (reply) {
@@ -663,13 +1238,21 @@ let run =
               syntax: false,
               message: "no Fumola runtime available",
             })
+          | `String("pending") =>
+            Error({
+              syntax: false,
+              message: "running on the canister...",
+            })
           | `Assoc(obj) as json =>
             switch (List.assoc_opt("ok", obj)) {
             | Some(`Bool(true)) =>
               switch (
                 FumolaValue.exp_of_json(
                   ~instance_id,
-                  ~eval=eval_in(instance_id),
+                  /* What a remote value points at is on the canister, and
+                     this read is synchronous: a pointer arrives as its
+                     name, unread. */
+                  ~eval=remote ? _ => `Null : eval_in(instance_id),
                   ~ana,
                   ~tools,
                   json,

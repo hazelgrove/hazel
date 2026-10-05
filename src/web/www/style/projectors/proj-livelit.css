@@ -278,11 +278,16 @@
     align-items: center;
     gap: 0.4em;
 }
-.fumola-wip-roles.problem-view-toggle {
+/* The two switches in the head row, editor | archivist and page |
+   canister, borrow the problem pane's toggle; compacted to sit in one
+   code row, which the head row is. */
+.fumola-wip-roles.problem-view-toggle,
+.fumola-wip-place.problem-view-toggle {
     padding: 0;
     border-bottom: none;
 }
-.fumola-wip-roles .toggle-option {
+.fumola-wip-roles .toggle-option,
+.fumola-wip-place .toggle-option {
     min-width: 0;
     padding: 0 0.5em;
     line-height: 1.4;

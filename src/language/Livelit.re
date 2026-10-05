@@ -1151,6 +1151,11 @@ module FumolaWip: BuiltinLivelit = {
     /* Whether the editor's code has an input at all; off, `input` is not
        bound. The archivist always has one: its input cell. */
     bind_input: bool,
+    /* Where the instance lives: in this page, or on the Internet Computer
+       canister, which runs the same Fumola runtime and sends the result
+       back (FumolaRun.remote_reply). The instance's, not this use's: every
+       use of the instance runs where the last one to say so put it. */
+    remote: bool,
     /* The code as tiles -- a `fumola … end` splice -- or as a string
        literal holding the body's Fumola text. */
     tiles: bool,
@@ -1174,6 +1179,7 @@ module FumolaWip: BuiltinLivelit = {
         field_t("name", Typ.temp(Atom(String))),
         field_t("editor", Typ.temp(Atom(Bool))),
         field_t("bind_input", Typ.temp(Atom(Bool))),
+        field_t("remote", Typ.temp(Atom(Bool))),
         field_t("tiles", Typ.temp(Atom(Bool))),
         field_t("input", Typ.temp(Unknown(Internal))),
         field_t("code", Typ.temp(Unknown(Internal))),
@@ -1190,6 +1196,7 @@ module FumolaWip: BuiltinLivelit = {
         field("name", DHExp.fresh(Atom(String(m.name)))),
         field("editor", DHExp.fresh(Atom(Bool(m.editor)))),
         field("bind_input", DHExp.fresh(Atom(Bool(m.bind_input)))),
+        field("remote", DHExp.fresh(Atom(Bool(m.remote)))),
         field("tiles", DHExp.fresh(Atom(Bool(m.tiles)))),
         field("input", m.input),
         field("code", m.code),
@@ -1245,6 +1252,12 @@ module FumolaWip: BuiltinLivelit = {
             | Some({term: Atom(Bool(b)), _}) => b
             | _ => true
             },
+          /* Absent before instances could live on the canister: here. */
+          remote:
+            switch (Option.map(unparen, get("remote"))) {
+            | Some({term: Atom(Bool(b)), _}) => b
+            | _ => false
+            },
           tiles,
           input,
           code,
@@ -1293,6 +1306,7 @@ module FumolaWip: BuiltinLivelit = {
     name: "",
     editor: false,
     bind_input: true,
+    remote: false,
     tiles: true,
     input: DHExp.fresh(Parens(DHExp.fresh(Atom(Int(Bigint.of_int(3)))))),
     code:
@@ -1373,6 +1387,27 @@ module FumolaWip: BuiltinLivelit = {
     | _ => None
     };
 
+  /* The code with its `fumola … as <name> in` naming [name]. The model's
+     instance is what runs, and the tile's name is otherwise only shown;
+     renaming the instance renames it too, so the two cannot disagree.
+     A string-form code has no name to rename. */
+  let rec rename_code = (name: string, e: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (e.term) {
+    | Parens(inner) => {
+        ...e,
+        term: Parens(rename_code(name, inner)),
+      }
+    /* A fresh Splice node, as flip makes: a splice's editor keeps its own
+       text by its id, so the same id would come back with the old name.
+       The code's editor starts over -- caret and undo -- on a rename. */
+    | Splice(inner) => DHExp.fresh(Splice(rename_code(name, inner)))
+    | FumolaQuote(_, mode, body) => {
+        ...e,
+        term: FumolaQuote(f(FumolaGrammar.Var(name)), mode, body),
+      }
+    | _ => e
+    };
+
   /* The mode and declarations the code stands for, in either form. A
      string that does not parse is a program being typed, and expands to a
      hole rather than to an error on every keystroke. */
@@ -1397,6 +1432,7 @@ module FumolaWip: BuiltinLivelit = {
 
   let expand = (~id, ~ana as _, ~tools as _, m: model_t): expansion_t => {
     let m = named(~id, m);
+    FumolaRun.set_remote(m.instance, m.remote);
     switch (code_decs(m)) {
     | Error(None) => DHExp.fresh(EmptyHole)
     | Error(Some(message)) => DHExp.fresh(Invalid(message))
@@ -1622,6 +1658,46 @@ module FumolaWip: BuiltinLivelit = {
     );
   };
 
+  /* page | canister: where the instance runs. */
+  let place_switch = (m: model_t, send_action) => {
+    let option = (on, label, title, remote) =>
+      Node.span(
+        ~attrs=[
+          Attr.classes(["toggle-option"] @ (on ? ["active"] : [])),
+          Attr.title(title),
+          Attr.on_click(_ =>
+            on
+              ? Virtual_dom.Vdom.Effect.Ignore
+              : send_action(
+                  SetModel({
+                    ...m,
+                    remote,
+                  }),
+                )
+          ),
+        ],
+        [Node.text(label)],
+      );
+    Node.div(
+      ~attrs=[Attr.classes(["problem-view-toggle", "fumola-wip-place"])],
+      [
+        option(
+          !m.remote,
+          "page",
+          m.instance ++ " lives in this page, in Fumola's browser runtime",
+          false,
+        ),
+        option(
+          m.remote,
+          "canister",
+          m.instance
+          ++ " lives on the Internet Computer canister: the code is sent there, run, and its result sent back",
+          true,
+        ),
+      ],
+    );
+  };
+
   /* editor | archivist [name]: exactly one is on, and the archivist's name
      shows only while it is. The field shows the name in use, the default
      included; clearing it goes back to the default. */
@@ -1789,19 +1865,21 @@ module FumolaWip: BuiltinLivelit = {
         Node.span(
           ~attrs=[
             Attr.class_("fumola-wip-badge"),
-            Attr.title("a work in progress, and slow to edit"),
+            Attr.title("Fumola: a work in progress, and slow to edit"),
           ],
-          [Node.text("wip")],
+          [Node.text("fumola")],
         ),
         text_field(~label="instance", m.instance, instance =>
           send_action(
             SetModel({
               ...m,
               instance,
+              code: rename_code(instance, m.code),
             }),
           )
         ),
         role_switch(~id, m, send_action),
+        place_switch(m, send_action),
         toggle(m, send_action),
         {
           /* Debug: "runs" moves as runs happen, straight from FumolaRun;
@@ -2210,11 +2288,11 @@ module FumolaWip: BuiltinLivelit = {
      rows; change both together. */
   let shape: Util.ProjectorShape.t = {
     vertical: Tab(14),
-    /* Room for the whole head row: badge, instance, editor | archivist
-       with its name, tiles and the run readout. Measured at 57 columns once
-       the checkboxes stopped taking a text field's 9em; 84 pushed the line
+    /* Room for the whole head row: the fumola badge, instance, editor |
+       archivist with its name, page | canister, tiles and the run readout.
+       Measured at 680px, 66 columns at 10.3px a column; 84 pushed the line
        far past the code around it, and the full-width pane with it. */
-    horizontal: 58,
+    horizontal: 67,
   };
 };
 

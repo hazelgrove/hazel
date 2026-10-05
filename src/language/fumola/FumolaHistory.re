@@ -128,6 +128,7 @@ let meta_times_of = (edge: Yojson.Safe.t): (string, string) =>
 let rows =
     (
       ~instance_id: int,
+      ~eval: string => Yojson.Safe.t,
       ~ana: TermBase.Typ.t,
       ~key: (Yojson.Safe.t, TermBase.Exp.t) => option('a),
       json: Yojson.Safe.t,
@@ -140,7 +141,7 @@ let rows =
         switch (
           FumolaValue.exp_of_json(
             ~instance_id,
-            ~eval=FumolaRun.eval_in(instance_id),
+            ~eval,
             ~ana,
             ~tools=FumolaAdapton.tools,
             item,
@@ -191,10 +192,11 @@ let trace_of = (node: option(Yojson.Safe.t)): list(string) =>
   };
 
 let node_rows =
-    (~instance_id: int, json: Yojson.Safe.t)
+    (~instance_id: int, ~eval, json: Yojson.Safe.t)
     : (list(node_row), list(string)) =>
   rows(
     ~instance_id,
+    ~eval,
     ~ana=FumolaAdapton.node_row(),
     ~key=
       (item, value) =>
@@ -227,10 +229,11 @@ let node_rows =
   );
 
 let edge_rows =
-    (~instance_id: int, json: Yojson.Safe.t)
+    (~instance_id: int, ~eval, json: Yojson.Safe.t)
     : (list(edge_row), list(string)) =>
   rows(
     ~instance_id,
+    ~eval,
     ~ana=FumolaAdapton.edge_row(),
     ~key=
       (item, value) =>
@@ -430,64 +433,103 @@ let rec accept_either_status = (json: Yojson.Safe.t): Yojson.Safe.t =>
   | other => other
   };
 
-let of_instance = (name: string): result(t, string) =>
-  switch (FumolaRun.instance_of_name(name)) {
-  | exception FumolaRun.No_runtime =>
-    Error("the Fumola runtime is not loaded")
-  | instance_id =>
-    switch (FumolaRun.eval_in(instance_id, "prim \"adaptonPeekHistory\" ()")) {
-    | `Null => Error("the Fumola runtime is not loaded")
-    | `Assoc(obj) as json =>
-      switch (List.assoc_opt("ok", obj)) {
-      | Some(`Bool(true)) =>
-        switch (FumolaEvents.field("value", json)) {
-        | Some(history) =>
-          let history = accept_either_status(history);
-          let list_at = name =>
-            switch (FumolaEvents.field(name, history)) {
-            | Some(list) => Some(list)
-            /* A simple instance keeps no graph, so its history has no such
-               field rather than an empty one. */
-            | None => None
-            };
-          /* Translated once each, since translating is the expensive part
-             and the misses have to come back with the rows they are about. */
-          let (nodes, nodes_missed) =
-            switch (list_at("nodes")) {
-            | Some(nodes) => node_rows(~instance_id, nodes)
-            | None => ([], [])
-            };
-          let (edges, edges_missed) =
+/* A history reply, local or remote, read into rows. [eval] reads what a
+   pointer in a row points at: the page's own runtime for a local
+   instance; nothing for a remote one, whose pointers are on the canister
+   and arrive as their names, unread (as FumolaRun.run reads them). */
+let of_reply =
+    (~instance_id: int, ~eval, reply: Yojson.Safe.t): result(t, string) =>
+  switch (reply) {
+  | `Null => Error("the Fumola runtime is not loaded")
+  | `Assoc(obj) as json =>
+    switch (List.assoc_opt("ok", obj)) {
+    | Some(`Bool(true)) =>
+      switch (FumolaEvents.field("value", json)) {
+      | Some(history) =>
+        let history = accept_either_status(history);
+        let list_at = name =>
+          switch (FumolaEvents.field(name, history)) {
+          | Some(list) => Some(list)
+          /* A simple instance keeps no graph, so its history has no such
+             field rather than an empty one. */
+          | None => None
+          };
+        /* Translated once each, since translating is the expensive part
+           and the misses have to come back with the rows they are about. */
+        let (nodes, nodes_missed) =
+          switch (list_at("nodes")) {
+          | Some(nodes) => node_rows(~instance_id, ~eval, nodes)
+          | None => ([], [])
+          };
+        let (edges, edges_missed) =
+          switch (list_at("edges")) {
+          | Some(edges) => edge_rows(~instance_id, ~eval, edges)
+          | None => ([], [])
+          };
+        Ok({
+          events:
+            switch (list_at("events")) {
+            | Some(events) => FumolaEvents.of_json(events)
+            | None => []
+            },
+          nodes,
+          nodes_missed,
+          edges,
+          edges_missed,
+          passes:
             switch (list_at("edges")) {
-            | Some(edges) => edge_rows(~instance_id, edges)
-            | None => ([], [])
-            };
-          Ok({
-            events:
-              switch (list_at("events")) {
-              | Some(events) => FumolaEvents.of_json(events)
-              | None => []
-              },
-            nodes,
-            nodes_missed,
-            edges,
-            edges_missed,
-            passes:
-              switch (list_at("edges")) {
-              | Some(edges) => pass_boundaries(edges)
-              | None => []
-              },
-          });
-        | None => Ok(empty)
-        }
-      | _ =>
-        Error(
-          switch (List.assoc_opt("error", obj)) {
-          | Some(`String(message)) => message
-          | _ => "the instance would not report its history"
-          },
-        )
+            | Some(edges) => pass_boundaries(edges)
+            | None => []
+            },
+        });
+      | None => Ok(empty)
       }
-    | _ => Error("could not read the Fumola runtime's response")
+    | _ =>
+      Error(
+        switch (List.assoc_opt("error", obj)) {
+        | Some(`String(message)) => message
+        | _ => "the instance would not report its history"
+        },
+      )
     }
+  | _ => Error("could not read the Fumola runtime's response")
+  };
+
+/* The history with every value past 200 characters, printed, cut to its
+   start and its length (History::brief): the shape the pane draws is all
+   kept, and a store holding documents -- the canister's, holding Hazel's
+   saved data -- stays small enough to send and to draw. A cut value shows
+   as text ending "... (N chars)". */
+let history_program = "prim \"adaptonPeekHistoryBrief\" (200)";
+
+let of_instance = (~place=?, name: string): result(t, string) =>
+  if (FumolaRun.place_of(~place?, name) == FumolaRun.Canister) {
+    /* On the canister: ask it, on the side, with a run that keeps nothing;
+       answered again after each of the instance's program replies. */
+    switch (
+      FumolaRun.remote_query(
+        ~instance=name,
+        ~op="eval_scratch",
+        ~name="history",
+        /* At the latest moment, as eval_in reads a local one. */
+        FumolaRun.at_now(history_program),
+      )
+    ) {
+    | None => Error("asking the canister for this instance's history...")
+    | Some(reply) =>
+      /* No page instance: claiming the name here would create an empty one
+         beside the canister's, listed under "In this page". */
+      of_reply(~instance_id=0, ~eval=_ => `Null, reply)
+    };
+  } else {
+    switch (FumolaRun.instance_of_name(name)) {
+    | exception FumolaRun.No_runtime =>
+      Error("the Fumola runtime is not loaded")
+    | instance_id =>
+      of_reply(
+        ~instance_id,
+        ~eval=FumolaRun.eval_in(instance_id),
+        FumolaRun.eval_in(instance_id, history_program),
+      )
+    };
   };

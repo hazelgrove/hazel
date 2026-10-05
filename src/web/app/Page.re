@@ -252,7 +252,34 @@ module Update = {
        every test evaluation makes before reusing a cached value still passes
        and the panel would go on showing the graph that is no longer there.
        ForceReeval is what makes evaluation forget. */
-    | FumolaReset(instance, mode) =>
+    | FumolaReset(instance, Canister, mode) =>
+      /* On the canister: the page's programs run again once it answers. */
+      Language.FumolaRun.reset_remote(~mode, instance);
+      model |> Updated.return_quiet;
+    | FumolaPin(pinned) =>
+      /* The pin is a setting, so it is saved and a reload keeps it; the open
+         rows are not, and belong to the instance shown before. */
+      let* settings =
+        Settings.Update.update(
+          ~action=Sidebar(PinFumola(pinned)),
+          ~settings=model.globals.settings,
+        );
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings,
+          fumola_open: [],
+          fumola_focused: None,
+        },
+      };
+    | FumolaRefresh(instance) =>
+      Language.FumolaRun.refresh_remote(instance);
+      model |> Updated.return_quiet;
+    | FumolaReinitStore =>
+      Language.FumolaRun.reinit_store();
+      model |> Updated.return_quiet;
+    | FumolaReset(instance, Page, mode) =>
       if (Language.FumolaRun.reset_instance(~mode, instance)) {
         let* editors =
           Editors.Update.update(

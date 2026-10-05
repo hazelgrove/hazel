@@ -1,0 +1,27 @@
+# Shared Spaces #
+
+# Every slide in this deck is shared. Its text lives on the Internet #
+# Computer canister, in the space named shared, not in your browser: #
+# a slide anyone adds here, everyone who opens the deck sees. #
+
+# To add one: the + (Add New Slide) in the slide controls. The name #
+# it offers starts with Shared Spaces /, and that prefix is what puts #
+# a slide here -- keep it, and the slide is shared. Rename it out of #
+# the deck, and it is yours alone again. #
+
+# How it works: Hazel stores each slide under a key, doc:<name>. A #
+# key that starts doc:Shared Spaces / goes to the canister's shared #
+# space, whatever space the rest of the page uses, and the deck's #
+# slides are read from that space when the page loads, and again #
+# every few seconds: a slide someone adds, edits or deletes shows up #
+# here without a reload, the one you have open included. #
+
+# For the demo, anyone may write: add, edit, rename or delete. Two #
+# people editing one slide at once is last write wins. A slide's #
+# agent chat is not shared; it stays with whoever had it. #
+
+# Opened outside the canister build, this deck is an ordinary one, #
+# kept in your browser like any other. #
+
+# This slide is shared too: edit it, and everyone sees the edit. #
+()

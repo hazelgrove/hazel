@@ -76,7 +76,15 @@ module Action = {
     | FumolaFocus(string)
     /* Put an instance back to nothing and run the program again, so the graph
        is rebuilt rather than remembered. */
-    | FumolaReset(string, Language.FumolaRun.mode)
+    | FumolaReset(string, Language.FumolaRun.place, Language.FumolaRun.mode)
+    /* Show this instance in the Fumola panel, wherever the cursor is, or
+       (None) go back to following the cursor. The place is part of what is
+       pinned: a page and the canister can each have an instance of a name. */
+    | FumolaPin(option((string, Language.FumolaRun.place)))
+    /* Ask a canister instance's history and outline again. */
+    | FumolaRefresh(string)
+    /* Rebuild the canister's store from its values, dropping its history. */
+    | FumolaReinitStore
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(

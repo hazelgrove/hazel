@@ -1047,6 +1047,20 @@
   background: color-mix(in srgb, var(--text-default) 5%, transparent);
 }
 
+/* Where a canister reset has got to: a round trip, and one that works
+   rebuilds the same graph, so it has to say so. */
+.fumola-reset-status {
+  font-size: 0.85em;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.fumola-reset-failed {
+  font-style: normal;
+  opacity: 1;
+  color: var(--text-error-strong);
+}
+
 /* An edge the editor made, marked whatever the editor setting is: the
    colour says whose edge it is before anyone opens the record inside. A
    deeper mustard than the panel's ground, so it reads as the same family as
@@ -1057,4 +1071,49 @@
 
 .fumola-row.fumola-editor .fumola-row-key {
   color: var(--text-warning);
+}
+
+/* The instance list, shown with no Fumola instance in focus. */
+.fumola-list {
+    border-collapse: collapse;
+    font-size: 0.8em;
+    margin: 0.4em 0;
+}
+.fumola-list th,
+.fumola-list td {
+    padding: 0.15em 0.3em;
+    text-align: right;
+    border-bottom: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.25));
+}
+.fumola-list th:nth-child(-n + 2),
+.fumola-list td:nth-child(-n + 2) {
+    text-align: left;
+}
+.fumola-list-name {
+    font-family: var(--code-font);
+}
+.fumola-list-heading {
+    margin-top: 0.6em;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+/* Instance names in the list are links that show the instance here. */
+.fumola-list-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+.fumola-list-link:hover {
+    text-decoration-style: solid;
+}
+.fumola-list-shown td {
+    background: var(--sidebar-selected, rgba(127, 127, 127, 0.18));
+}
+.fumola-pinned-bar {
+    font-size: 0.85em;
+    margin-bottom: 0.4em;
+}
+.fumola-place-key {
+    opacity: 0.7;
+    font-weight: normal;
 }

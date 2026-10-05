@@ -198,6 +198,23 @@ module Persist = {
 
   /* Load a slide blob. Tries the new schema first; on parse failure,
      falls back to legacy CellEditor-only blobs and wraps them as a Code kind. */
+  /* The agent stub a code slide's blob carries (the real conversation
+     is under :agent), as it was read, keyed by slide key. A save writes
+     the same stub back, so re-saving an unedited slide gives the bytes it
+     was read from, and a shared space is not sent a write that would undo
+     another page's edit (HazelDB.commit). A fresh stub each save would
+     differ in its ids and timestamp every time. */
+  let embedded_agent: Hashtbl.t(string, Agent.Persistent.t) =
+    Hashtbl.create(8);
+  let embedded_agent_for = (key: string): Agent.Persistent.t =>
+    switch (Hashtbl.find_opt(embedded_agent, key)) {
+    | Some(a) => a
+    | None =>
+      let a = Agent.Persistent.persist(Agent.Utils.init());
+      Hashtbl.replace(embedded_agent, key, a);
+      a;
+    };
+
   let load_slide_kind =
       (prefix: string, name: string): option(Scratchpad.kind_persistent) =>
     switch (HazelDB.kv_get(slide_key(prefix, name))) {
@@ -205,6 +222,9 @@ module Persist = {
     | Some(data) =>
       let sexp = Sexplib.Sexp.of_string(data);
       switch (Scratchpad.kind_persistent_of_sexp(sexp)) {
+      | CodePersist({agent, _}) as k =>
+        Hashtbl.replace(embedded_agent, slide_key(prefix, name), agent);
+        Some(k);
       | k => Some(k)
       | exception _ =>
         switch (CellEditor.Model.persistent_of_sexp(sexp)) {
@@ -275,7 +295,7 @@ module Persist = {
           sp.name,
           CodePersist({
             editor: Some(e),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
+            agent: embedded_agent_for(slide_key(prefix, sp.name)),
           }),
         )
       };
@@ -452,6 +472,81 @@ module Persist = {
     };
   };
 
+  /* The slides of a shared deck (HazelDB.Backend.shared_decks) are the
+     space's, not this browser's: anyone may have added one since this
+     browser last looked, or deleted one it still lists. So the names are
+     taken from the space -- loaded into the cache at startup -- and each
+     new one goes after the last of its deck this browser already has.
+     A shipped slide is kept though the space lacks it: no one has saved
+     it yet. [current] follows its slide by name. */
+  let merge_shared_names =
+      (
+        ~shared: string => bool,
+        ~in_space: list(string),
+        ~default_names: list(string),
+        (current, names): (int, list(string)),
+      )
+      : (int, list(string)) => {
+    let original = names;
+    let kept =
+      List.filter(
+        n =>
+          !shared(n) || List.mem(n, in_space) || List.mem(n, default_names),
+        names,
+      );
+    let fresh = List.filter(n => !List.mem(n, kept), in_space);
+    let names =
+      if (fresh == []) {
+        kept;
+      } else {
+        switch (List.rev(kept) |> List.find_opt(shared)) {
+        | None => kept @ fresh
+        | Some(last) =>
+          List.concat_map(n => n == last ? [n, ...fresh] : [n], kept)
+        };
+      };
+    (
+      switch (
+        Option.bind(List.nth_opt(original, current), n => index_of(n, names))
+      ) {
+      | Some(i) => i
+      | None => min(current, max(List.length(names) - 1, 0))
+      },
+      names,
+    );
+  };
+
+  let with_shared_decks =
+      (prefix: string, ~default_names, (current, names))
+      : (int, list(string)) =>
+    if (!HazelDB.Backend.on) {
+      (current, names);
+    } else {
+      let key_prefix = prefix ++ ":";
+      let in_space =
+        HazelDB.kv_keys()
+        |> List.filter_map(k =>
+             HazelDB.Backend.has_prefix(key_prefix, k)
+             && HazelDB.Backend.shared_space(k) != None
+               ? Some(
+                   String.sub(
+                     k,
+                     String.length(key_prefix),
+                     String.length(k) - String.length(key_prefix),
+                   ),
+                 )
+               : None
+           );
+      merge_shared_names(
+        ~shared=
+          name =>
+            HazelDB.Backend.shared_space(slide_key(prefix, name)) != None,
+        ~in_space,
+        ~default_names,
+        (current, names),
+      );
+    };
+
   let load_all =
       (
         prefix: string,
@@ -462,29 +557,32 @@ module Persist = {
       )
       : Model.t => {
     let (current, names) =
-      switch (load_meta(prefix)) {
-      | Some(meta) when reconcile =>
-        let reconciled = reconcile_names(~default_names, meta);
-        if (reconciled != meta) {
-          save_meta(prefix, reconciled);
-        };
-        (reconciled.current, reconciled.names);
-      | Some(meta) => (meta.current, meta.names)
-      | None =>
-        /* Record the shipped list as offered now, so a slide deleted
-           later is not read back as one this browser never saw. */
-        if (reconcile) {
-          save_meta(
-            prefix,
-            {
-              current: default_current,
-              names: default_names,
-              known_defaults: default_names,
-            },
-          );
-        };
-        (default_current, default_names);
-      };
+      (
+        switch (load_meta(prefix)) {
+        | Some(meta) when reconcile =>
+          let reconciled = reconcile_names(~default_names, meta);
+          if (reconciled != meta) {
+            save_meta(prefix, reconciled);
+          };
+          (reconciled.current, reconciled.names);
+        | Some(meta) => (meta.current, meta.names)
+        | None =>
+          /* Record the shipped list as offered now, so a slide deleted
+             later is not read back as one this browser never saw. */
+          if (reconcile) {
+            save_meta(
+              prefix,
+              {
+                current: default_current,
+                names: default_names,
+                known_defaults: default_names,
+              },
+            );
+          };
+          (default_current, default_names);
+        }
+      )
+      |> with_shared_decks(prefix, ~default_names);
     Model.{
       current,
       scratchpads:
@@ -666,7 +764,10 @@ module Update = {
     | AddSlide
     | AddDrvSlide
     | RenameSlide
-    | DeleteSlide;
+    | DeleteSlide
+    /* A shared deck's keys changed in its space (HazelDB.poll_shared):
+       the deck takes in slides added, changed or removed elsewhere. */
+    | SharedChanged(list(string));
 
   let export_scratch_slide = (model: Model.t): unit => {
     let scratchpad = List.nth(model.scratchpads, model.current);
@@ -698,6 +799,16 @@ module Update = {
     | Drv(_) => ()
     };
   };
+  /* Where the last " / " in a slide name starts: what precedes it is the
+     slide's deck. */
+  let last_folder_sep = (name: string): option(int) => {
+    let sep = " / ";
+    let n = String.length(sep);
+    let rec go = i =>
+      i < 0 ? None : String.sub(name, i, n) == sep ? Some(i) : go(i - 1);
+    go(String.length(name) - n);
+  };
+
   let rec prompt_slide_name =
           (
             ~error: option(string)=?,
@@ -782,7 +893,18 @@ module Update = {
             model.scratchpads
             |> List.to_seq
             |> Seq.map((s: Scratchpad.t) => s.name),
-          "New Slide Name",
+          /* In the current slide's deck: a slide's deck is the folder its
+             name starts with, and adding one is mostly adding to the deck
+             at hand -- Shared Spaces especially, whose slides are shared
+             because of the folder they are in. */
+          switch (List.nth_opt(model.scratchpads, model.current)) {
+          | Some(sp) =>
+            switch (last_folder_sep(sp.name)) {
+            | Some(i) => String.sub(sp.name, 0, i) ++ " / New Slide Name"
+            | None => "New Slide Name"
+            }
+          | None => "New Slide Name"
+          },
         );
       switch (new_name) {
       | None => model // Prompt cancelled so no new scratchpad created
@@ -883,6 +1005,95 @@ module Update = {
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
+    | SharedChanged(_) when !is_documentation => model |> return_quiet
+    | SharedChanged(keys) =>
+      let prefix = "doc";
+      let key_prefix = prefix ++ ":";
+      let changed =
+        List.filter_map(
+          k =>
+            HazelDB.Backend.has_prefix(key_prefix, k)
+              ? Some(
+                  String.sub(
+                    k,
+                    String.length(key_prefix),
+                    String.length(k) - String.length(key_prefix),
+                  ),
+                )
+              : None,
+          keys,
+        );
+      let key = n => Persist.slide_key(prefix, n);
+      let present = n => HazelDB.kv_get(key(n)) != None;
+      let shared = n => HazelDB.Backend.shared_space(key(n)) != None;
+      let old_names = Model.scratchpad_names(model);
+      let removed = List.filter(n => !present(n), changed);
+      let added =
+        List.filter(n => present(n) && !List.mem(n, old_names), changed);
+      let (current, names) =
+        Persist.merge_shared_names(
+          ~shared,
+          ~in_space=
+            List.filter(n => shared(n) && !List.mem(n, removed), old_names)
+            @ added,
+          ~default_names=[],
+          (model.current, old_names),
+        );
+      if (names == []) {
+        model |> return_quiet;
+      } else {
+        /* A changed slide is read again: now if it is the one open, on
+           the way to it otherwise. Every other slide is left as it is. */
+        let scratchpads =
+          List.mapi(
+            (i, n) =>
+              if (List.mem(n, changed)) {
+                i == current
+                  ? Persist.load_scratchpad(
+                      ~settings=settings.core,
+                      prefix,
+                      n,
+                    )
+                  : Scratchpad.dormant_code(n);
+              } else {
+                switch (
+                  List.find_opt(
+                    (sp: Scratchpad.t) => sp.name == n,
+                    model.scratchpads,
+                  )
+                ) {
+                | Some(sp) => sp
+                | None => Scratchpad.dormant_code(n)
+                };
+              },
+            names,
+          );
+        /* A slide read in fresh has no statics yet, and a non-edit does
+           not recompute them, so its result would stay stale. Force them
+           when the open slide is not the one that was showing. */
+        let cur_name = List.nth(names, current);
+        if (List.mem(cur_name, changed)
+            || List.nth_opt(old_names, model.current) != Some(cur_name)) {
+          CodeWithStatics.StaticsDebounce.force_on_next := true;
+        };
+        Persist.hydrate_current(
+          ~settings=settings.core,
+          prefix,
+          {
+            current,
+            scratchpads,
+          },
+        )
+        /* Not saved: what changed came from the space, and writing it
+           back would race whoever wrote it. */
+        |> Updated.return(
+             ~is_edit=false,
+             ~save=false,
+             ~scroll_active=false,
+             ~logged=false,
+             ~historic=false,
+           );
+      };
     | SwitchSlide(i) =>
       WorkerClient.cancel();
       let* current = i |> Updated.return(~historic=false);
@@ -1362,25 +1573,11 @@ module View = {
         ~tooltip="Reparse Editor",
       );
 
-    let reset_hazel =
-      Widgets.button_named(
-        Icons.bomb,
-        _ => {
-          let confirmed =
-            JsUtil.confirm(
-              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
-            );
-          if (confirmed) {
-            HazelDB.clear_all();
-            Js_of_ocaml.Dom_html.window##.location##reload;
-          };
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Reset Hazel (LOSE ALL DATA)",
-      );
-
     let reset_group_scratch =
-      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
+      NutMenu.item_group(
+        "Reset",
+        [reset_button, reparse, ...Widgets.reset_hazel_items()],
+      );
 
     [file_group_scratch, reset_group_scratch];
   };

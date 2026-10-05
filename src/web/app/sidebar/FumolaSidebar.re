@@ -155,7 +155,16 @@ type target('update) =
   | AtCursor(Cursor.cursor('update))
   | Instance(string, option(Language.FumolaWatch.panes));
 
-let render = (~globals: Globals.t, target: target('update)): Node.t => {
+/* [canister]: whether this page has a canister to list instances on. It is
+   HazelDB.Backend.on, fixed when the page loads; a test has none then, and
+   says so here instead. */
+let render =
+    (
+      ~canister: bool=HazelDB.Backend.on,
+      ~globals: Globals.t,
+      target: target('update),
+    )
+    : Node.t => {
   let section = (cls, header, body) =>
     div(
       ~attrs=[clss(["fumola-section", cls])],
@@ -196,6 +205,187 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
       ],
     );
 
+  let place_words = (place: Language.FumolaRun.place) =>
+    switch (place) {
+    | Page => "in this page"
+    | Canister => "on the canister"
+    };
+
+  /* Every instance there is, here and on the canister, with what each
+     store holds: shown with nothing in focus. The counts are tallies each
+     DCG keeps as it runs (State::stats), so drawing this walks no graph.
+     A local copy of a remote instance's name is left out: the page claims
+     one, and never runs anything in it. */
+  let instance_list = (~shown: option((string, Language.FumolaRun.place))) => {
+    let field = (name, json) =>
+      switch (json) {
+      | `Assoc(fields) => List.assoc_opt(name, fields)
+      | _ => None
+      };
+    let num = (name, stats) =>
+      switch (field(name, stats)) {
+      | Some(`Int(n)) => string_of_int(n)
+      | Some(`Intlit(n)) => n
+      | _ => ""
+      };
+    let str = (name, json) =>
+      switch (field(name, json)) {
+      | Some(`String(s)) => s
+      | _ => ""
+      };
+    let mb = json =>
+      switch (field("heap_bytes", json)) {
+      | Some(`Int(n)) =>
+        Printf.sprintf("%.1f MB", float_of_int(n) /. 1048576.)
+      | _ => "?"
+      };
+    let columns = [
+      ("pointers", "pointers"),
+      ("versions", "versions"),
+      ("edges", "edges"),
+      ("history_events", "events"),
+    ];
+    let steps = info =>
+      switch (field("steps", info)) {
+      | Some(`Int(n)) => string_of_int(n) ++ " VM steps so far"
+      | _ => ""
+      };
+    /* Each name is a link: it shows that instance in this panel, the
+       place with it, so a page's and the canister's of one name stay
+       apart. The one showing is marked. */
+    let row = (~name, ~place: Language.FumolaRun.place, info) => {
+      let stats = Option.value(field("stats", info), ~default=`Null);
+      let here = shown == Some((name, place));
+      tr(
+        ~attrs=here ? [clss(["fumola-list-shown"])] : [],
+        [
+          td(
+            ~attrs=[clss(["fumola-list-name"]), Attr.title(steps(info))],
+            [
+              span(
+                ~attrs=[
+                  clss(["fumola-list-link"]),
+                  Attr.title(
+                    "show "
+                    ++ name
+                    ++ " "
+                    ++ place_words(place)
+                    ++ " here: its events, nodes and edges",
+                  ),
+                  Attr.on_click(_ =>
+                    globals.inject_global(FumolaPin(Some((name, place))))
+                  ),
+                ],
+                [text(name)],
+              ),
+            ],
+          ),
+          td(
+            ~attrs=[Attr.title(str("mode", info))],
+            [
+              text(
+                switch (str("mode", info)) {
+                | "graphical" => "G"
+                | "simple" => "S"
+                | other => other
+                },
+              ),
+            ],
+          ),
+        ]
+        @ List.map(((key, _)) => td([text(num(key, stats))]), columns),
+      );
+    };
+    /* One table a side, its heap in its heading: the heap is the side's,
+       shared by every instance on it. */
+    let table_of = (heading, rows, notes) =>
+      [
+        div(~attrs=[clss(["fumola-list-heading"])], [text(heading)]),
+        rows == []
+          ? div(~attrs=[clss(["fumola-blurb"])], [text("none")])
+          : table(
+              ~attrs=[clss(["fumola-list"])],
+              [
+                thead([
+                  tr(
+                    List.map(
+                      h => th([text(h)]),
+                      ["instance", "G/S"] @ List.map(snd, columns),
+                    ),
+                  ),
+                ]),
+                tbody(rows),
+              ],
+            ),
+      ]
+      @ List.map(
+          n => div(~attrs=[clss(["fumola-blurb"])], [text(n)]),
+          notes,
+        );
+    let local =
+      switch (FumolaRun.local_instances()) {
+      | Some(`Assoc(_) as json) when field("ok", json) == Some(`Bool(true)) =>
+        let rows =
+          switch (field("instances", json)) {
+          | Some(`List(items)) =>
+            List.filter_map(
+              item => {
+                let name = str("name", item);
+                FumolaRun.is_remote(name)
+                  ? None
+                  : Some(
+                      row(
+                        ~name,
+                        ~place=Page,
+                        Option.value(field("stats", item), ~default=`Null),
+                      ),
+                    );
+              },
+              items,
+            )
+          | _ => []
+          };
+        table_of("In this page · heap " ++ mb(json), rows, []);
+      | _ => []
+      };
+    let remote =
+      if (canister) {
+        switch (FumolaRun.canister_stats()) {
+        | None => table_of("On the canister", [], ["asking the canister..."])
+        | Some(json) =>
+          switch (field("store", json)) {
+          | Some(store) =>
+            let named =
+              switch (field("instances", json)) {
+              | Some(`Assoc(instances)) =>
+                List.map(
+                  ((name, info)) => row(~name, ~place=Canister, info),
+                  instances,
+                )
+              | _ => []
+              };
+            table_of(
+              "On the canister · heap " ++ mb(json),
+              [row(~name="hazelStore", ~place=Canister, store)] @ named,
+              [
+                "hazelStore is Hazel's saved data: "
+                ++ num("keys", store)
+                ++ " keys, each a cell of its DCG",
+              ],
+            );
+          | None => table_of("On the canister", [], [str("error", json)])
+          }
+        };
+      } else {
+        [];
+      };
+    section(
+      "fumola-instance-list",
+      [text("Fumola instances")],
+      local @ remote,
+    );
+  };
+
   /* Spelled once, because it is spelled in two places -- the events and the
      "runtime is not loaded" branch -- and a rename that reached only one of
      them would leave the error state naming the panel something the rest of
@@ -218,8 +408,23 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
      says nothing, since the guess would be wrong in exactly the case a reader
      is looking -- just after a reset into the other mode. */
   let panel_title =
-      (~mode: option(Language.FumolaRun.mode)=?, instance: string) =>
+      (
+        ~mode: option(Language.FumolaRun.mode)=?,
+        ~place: option(Language.FumolaRun.place)=?,
+        instance: string,
+      ) =>
     [text(panel_name ++ instance)]
+    @ (
+      switch (place) {
+      | None => []
+      | Some(place) => [
+          span(
+            ~attrs=[clss(["fumola-place-key"])],
+            [text(" " ++ place_words(place))],
+          ),
+        ]
+      }
+    )
     @ (
       switch (mode) {
       | None => []
@@ -652,7 +857,11 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
      when the mode could not be asked, which is the same silence the header
      keeps. */
   let reset_button =
-      (~mode: option(Language.FumolaRun.mode)=?, instance: string) => {
+      (
+        ~mode: option(Language.FumolaRun.mode)=?,
+        ~place: Language.FumolaRun.place,
+        instance: string,
+      ) => {
     let into = (into_mode, label, what) =>
       span(
         ~attrs=[
@@ -668,22 +877,89 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
             ++ "own mode is edited.",
           ),
           Attr.on_click(_ =>
-            globals.inject_global(FumolaReset(instance, into_mode))
+            globals.inject_global(FumolaReset(instance, place, into_mode))
           ),
         ],
         [text(label)],
       );
-    div(
-      ~attrs=[clss(["fumola-resets"])],
-      [
-        span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
-        /* Graphical first: it is Fumola's default and the mode that records,
-           so it is the one a reader of this panel is usually coming back to.
-           Simple is the narrowing. */
-        into(Language.FumolaRun.Graphical, "G", "recording as it forces"),
-        into(Language.FumolaRun.Simple, "S", "keeping no graph"),
-      ],
-    );
+    /* A canister reset is a round trip, and one that works rebuilds the
+       same graph: without saying where it has got to, it is
+       indistinguishable from a button that did nothing. */
+    let status =
+      switch (place) {
+      | Page => []
+      | Canister =>
+        switch (Language.FumolaRun.reset_status(instance)) {
+        | None => []
+        | Some(s) =>
+          let (words, failed) =
+            switch (s) {
+            | Resetting when instance == Language.FumolaRun.store_instance => (
+                "re-initing...",
+                false,
+              )
+            | Resetting => ("resetting...", false)
+            | Rerunning
+            | Asked => ("reset; running again...", false)
+            | Ran => ("reset; ran again", false)
+            | Not_run => ("reset; nothing on this slide runs it", false)
+            | Failed(why) when instance == Language.FumolaRun.store_instance => (
+                "re-init failed: " ++ why,
+                true,
+              )
+            | Failed(why) => ("reset failed: " ++ why, true)
+            | Reinited(words) => (words, false)
+            };
+          [
+            span(
+              ~attrs=[
+                clss(
+                  ["fumola-reset-status"]
+                  @ (failed ? ["fumola-reset-failed"] : []),
+                ),
+              ],
+              [text(words)],
+            ),
+          ];
+        }
+      };
+    if (place == Canister && instance == Language.FumolaRun.store_instance) {
+      /* The store is Hazel's saved data, which a reset would empty. What it
+         has instead is a re-init: the same values, the history behind them
+         dropped, which is all that grows without bound. */
+      div(
+        ~attrs=[clss(["fumola-resets"])],
+        [
+          span(
+            ~attrs=[
+              clss(["fumola-reset"]),
+              Attr.title(
+                "Rebuild the store's graph from the values it holds now, as an "
+                ++ "upgrade does. Every saved key keeps its value and its "
+                ++ "number; the earlier versions, edges and events behind "
+                ++ "them are dropped, for good.",
+              ),
+              Attr.on_click(_ => globals.inject_global(FumolaReinitStore)),
+            ],
+            [text("re-init")],
+          ),
+        ]
+        @ status,
+      );
+    } else {
+      div(
+        ~attrs=[clss(["fumola-resets"])],
+        [
+          span(~attrs=[clss(["fumola-strip-label"])], [text("reset:")]),
+          /* Graphical first: it is Fumola's default and the mode that
+             records, so it is the one a reader of this panel is usually
+             coming back to. Simple is the narrowing. */
+          into(Language.FumolaRun.Graphical, "G", "recording as it forces"),
+          into(Language.FumolaRun.Simple, "S", "keeping no graph"),
+        ]
+        @ status,
+      );
+    };
   };
 
   let tab_strip = (~panes: bool, current: SidebarModel.Settings.fumola_tab) => {
@@ -1027,38 +1303,53 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
     );
 
   let instance_body =
-      (instance: string, panes: option(Language.FumolaWatch.panes)) =>
-    switch (FumolaHistory.of_instance(instance)) {
+      (
+        ~place: option(Language.FumolaRun.place)=?,
+        instance: string,
+        panes: option(Language.FumolaWatch.panes),
+      ) => {
+    let place = Language.FumolaRun.place_of(~place?, instance);
+    /* A livelit's pane tab, where no livelit supplied the panes -- the
+       sidebar, following the cursor -- reads as Events. */
+    let tab: SidebarModel.Settings.fumola_tab =
+      switch (globals.settings.sidebar.fumola_tab, panes) {
+      | (Program | Outline | Printed, None) => Events
+      | (tab, _) => tab
+      };
+    /* The history is read only for a tab that shows it. Reading it is a
+       run in the instance and a translation of every node's value into
+       Hazel -- for a canister instance, a request too, and for hazelStore
+       all of Hazel's saved data -- so a pane showing its program, outline
+       or printout does not pay for it on every draw. */
+    let history =
+      switch (tab, panes) {
+      | (Program | Outline | Printed, Some(_)) => Ok(FumolaHistory.empty)
+      | _ => FumolaHistory.of_instance(~place, instance)
+      };
+    switch (history) {
     | Error(message) =>
       section(
         "fumola-unavailable",
         /* No mode beside the name here: the branch a reader reaches
            when the runtime could not be asked anything is not the place
            to claim to know what it answered. */
-        panel_title(instance),
+        panel_title(~place, instance),
         [div(~attrs=[clss(["fumola-blurb"])], [text(message)])],
       )
     | Ok(history) =>
-      /* A livelit's pane tab, where no livelit supplied the panes -- the
-         sidebar, following the cursor -- reads as Events. */
-      let tab: SidebarModel.Settings.fumola_tab =
-        switch (globals.settings.sidebar.fumola_tab, panes) {
-        | (Program | Outline | Printed, None) => Events
-        | (tab, _) => tab
-        };
       /* Asked once and read twice -- the header spells it out, the strip
          marks the button that would keep it -- so that the two cannot
          disagree about the same instance in the same render. */
-      let mode = Language.FumolaRun.mode_of_instance(instance);
+      let mode = Language.FumolaRun.mode_of_instance(~place, instance);
       section(
         "fumola-events",
-        panel_title(~mode?, instance),
+        panel_title(~mode?, ~place, instance),
         [
           div(
             ~attrs=[clss(["fumola-controls"])],
             [
               tab_strip(~panes=panes != None, tab),
-              reset_button(~mode?, instance),
+              reset_button(~mode?, ~place, instance),
             ],
           ),
         ]
@@ -1162,12 +1453,56 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
         ),
       );
     };
+  };
 
   let body =
     switch (target) {
     | Instance(instance, panes) => instance_body(instance, panes)
     | AtCursor(cursor) =>
       switch (cursor.editor) {
+      | _ when globals.settings.sidebar.fumola_pinned != None =>
+        switch (globals.settings.sidebar.fumola_pinned) {
+        | Some((name, place)) =>
+          /* Chosen from the list: shown until the reader goes back to the
+             cursor. A canister instance nothing here runs has no reply to
+             say it changed, so it is asked again by hand. */
+          let link = (label, title, action) =>
+            span(
+              ~attrs=[
+                clss(["fumola-list-link"]),
+                Attr.title(title),
+                Attr.on_click(_ => globals.inject_global(action)),
+              ],
+              [text(label)],
+            );
+          div([
+            div(
+              ~attrs=[clss(["fumola-pinned-bar"])],
+              [
+                link(
+                  "← follow the cursor",
+                  "show the instance at the cursor again",
+                  FumolaPin(None),
+                ),
+              ]
+              @ (
+                place == Canister
+                  ? [
+                    text(" · "),
+                    link(
+                      "ask the canister again",
+                      "read this instance's history and outline afresh",
+                      FumolaRefresh(name),
+                    ),
+                  ]
+                  : []
+              ),
+            ),
+            instance_body(~place, name, None),
+            instance_list(~shown=Some((name, place))),
+          ]);
+        | None => how_to_make_one
+        }
       | Some(editor) =>
         let term =
           Haz3lcore.MakeTerm.from_zip_for_sem(
@@ -1176,11 +1511,20 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
           ).
             term;
         let cursor_id = Option.map(Info.id_of, cursor.info);
+        /* The sidebar lists every instance under the one it shows: the
+           list is the way to see the others, the canister's included. A
+           livelit's own pane (Instance) shows its instance alone. */
         switch (instance_to_show(~cursor_id, term)) {
-        | None => how_to_make_one
-        | Some(instance) => instance_body(instance, None)
+        | None => div([how_to_make_one, instance_list(~shown=None)])
+        | Some(instance) =>
+          div([
+            instance_body(instance, None),
+            instance_list(
+              ~shown=Some((instance, Language.FumolaRun.place_of(instance))),
+            ),
+          ])
         };
-      | None => how_to_make_one
+      | None => div([how_to_make_one, instance_list(~shown=None)])
       }
     };
 

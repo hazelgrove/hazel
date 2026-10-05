@@ -37,6 +37,139 @@ let with_db = (f): unit => {
   openDB(~upgrade, ~error, ~version=1, db_name, db => f(db));
 };
 
+/* === Backend canister (optional) ===
+
+   When the page sets window.hazelBackend (config.js; a canister deploy
+   writes it), the tables live in that canister instead of IndexedDB, and
+   these operations reach it over HTTP through ic-backend.js. The cache and
+   every caller stay as they are: reads come from the cache, filled at
+   startup from GET /kv, and writes go through without waiting. Stage 1 of
+   the canister demo: a failed write is logged, not retried, and two tabs
+   writing at once means the last write wins. */
+module Backend = {
+  open Js_of_ocaml;
+
+  /* A string, or null when config.js is missing or leaves it unset. */
+  let address: option(string) = {
+    let a: Js.opt(Js.t(Js.js_string)) =
+      Js.Unsafe.js_expr(
+        "(typeof window !== 'undefined' && typeof window.hazelBackend === 'string') ? window.hazelBackend : null",
+      );
+    Js.Opt.to_option(a) |> Option.map(Js.to_string);
+  };
+
+  let on = Option.is_some(address);
+
+  /* The key prefixes this page keeps in its space (window.hazelSpaceKeys,
+     ic-backend.js); None: every key. The rest stay in IndexedDB. */
+  let prefixes: option(list(string)) = {
+    let a: Js.Opt.t(Js.t(Js.js_array(Js.t(Js.js_string)))) =
+      Js.Unsafe.js_expr(
+        "(typeof window !== 'undefined' && Array.isArray(window.hazelSpaceKeys)) ? window.hazelSpaceKeys : null",
+      );
+    Js.Opt.to_option(a)
+    |> Option.map(arr =>
+         Array.to_list(Js.to_array(arr)) |> List.map(Js.to_string)
+       );
+  };
+
+  /* Some keys in the canister, the others in IndexedDB. */
+  let partial = on && Option.is_some(prefixes);
+
+  /* Whether [key] lives in the canister. */
+  let routes = (key: string): bool =>
+    on
+    && (
+      switch (prefixes) {
+      | None => true
+      | Some(ps) =>
+        List.exists(
+          p =>
+            String.length(key) >= String.length(p)
+            && String.sub(key, 0, String.length(p)) == p,
+          ps,
+        )
+      }
+    );
+
+  let has_prefix = (p: string, key: string): bool =>
+    String.length(key) >= String.length(p)
+    && String.sub(key, 0, String.length(p)) == p;
+
+  /* SHARED DECKS: a documentation deck whose slides every page keeps in
+     one space, whatever its own space and keys -- so anyone can add a
+     slide, and everyone sees everyone's. A deck is a folder of slide
+     names, so a slide is in it when its key starts with the folder.
+
+     A slide's agent chat stays in the page's own place: it is one
+     person's conversation, not the slide. */
+  let shared_decks: list((string, string)) = [
+    ("doc:Shared Spaces / ", "shared"),
+  ];
+
+  let shared_spaces: list(string) =
+    List.sort_uniq(compare, List.map(snd, shared_decks));
+
+  let ends_with_agent = (key: string): bool => {
+    let s = ":agent";
+    let n = String.length(key) - String.length(s);
+    n >= 0 && String.sub(key, n, String.length(s)) == s;
+  };
+
+  /* The space of the shared deck [key] belongs to, if any. Only with a
+     canister: without one, a shared deck's slides stay in IndexedDB like
+     any other. */
+  let shared_space = (key: string): option(string) =>
+    if (!on || ends_with_agent(key)) {
+      None;
+    } else {
+      List.find_map(
+        ((p, space)) => has_prefix(p, key) ? Some(space) : None,
+        shared_decks,
+      );
+    };
+
+  /* Where a key lives: this browser's IndexedDB, the page's own space on
+     the canister, or a shared deck's space. */
+  type place =
+    | Local
+    | Page
+    | Shared(string);
+
+  let place = (key: string): place =>
+    switch (shared_space(key)) {
+    | Some(space) => Shared(space)
+    | None => routes(key) ? Page : Local
+    };
+
+  /* [space]: a shared space by name; absent, the page's own. */
+  let call =
+      (
+        ~space: option(string)=?,
+        method: string,
+        path: string,
+        body: option(string),
+        k: string => unit,
+      )
+      : unit =>
+    Js.Unsafe.fun_call(
+      Js.Unsafe.get(Js.Unsafe.global, "hazelBackendCall"),
+      [|
+        Js.Unsafe.inject(Js.string(method)),
+        Js.Unsafe.inject(Js.string(path)),
+        switch (body) {
+        | Some(b) => Js.Unsafe.inject(Js.string(b))
+        | None => Js.Unsafe.inject(Js.null)
+        },
+        Js.Unsafe.inject(Js.wrap_callback(t => k(Js.to_string(t)))),
+        switch (space) {
+        | Some(s) => Js.Unsafe.inject(Js.string(s))
+        | None => Js.Unsafe.inject(Js.null)
+        },
+      |],
+    );
+};
+
 /* === In-memory cache (private) === */
 
 let cache: ref(Util.Maps.StringMap.t(string)) =
@@ -44,23 +177,311 @@ let cache: ref(Util.Maps.StringMap.t(string)) =
 
 /* === KV operations === */
 
+type write =
+  | Put(string, string)
+  | Delete(string);
+
+/* writes queued by kv_batch, newest first */
+let batched: ref(option(list(write))) = ref(None);
+let write_transactions = ref(0); /* observability for tests */
+
+/* set once Reset Hazel starts clearing: until the page reloads, a save
+   would put back what the clear removed (Hazel saves on events), so
+   writes are dropped */
+let resetting = ref(false);
+
+/* one transaction for all of [writes]: it commits whole or not at all */
+let writes_json = (writes: list(write)): string =>
+  Yojson.Safe.to_string(
+    `List(
+      List.map(
+        fun
+        | Put(key, value) =>
+          `Assoc([
+            ("op", `String("put")),
+            ("key", `String(key)),
+            ("value", `String(value)),
+          ])
+        | Delete(key) =>
+          `Assoc([("op", `String("remove")), ("key", `String(key))]),
+        writes,
+      ),
+    ),
+  );
+
+let key_of =
+  fun
+  | Put(key, _)
+  | Delete(key) => key;
+
+/* === Shared decks, kept live ===
+
+   A shared deck's keys change under this page, so it polls their spaces
+   (poll_shared) and takes in what changed. What it compares against is
+   [synced]: each key's value as this page last knew the space to hold it,
+   from the load, a poll, or its own write. A key with a write of this
+   page's still in flight, or one written after a poll was sent, is left
+   alone by that poll: the poll's answer may predate the write, and taking
+   it would undo the user's own edit. */
+let synced: Hashtbl.t(string, string) = Hashtbl.create(16);
+let write_seq = ref(0);
+let last_write: Hashtbl.t(string, int) = Hashtbl.create(16);
+let in_flight: Hashtbl.t(string, int) = Hashtbl.create(16);
+
+let note_shared_write = (w: write): unit => {
+  let key = key_of(w);
+  incr(write_seq);
+  Hashtbl.replace(last_write, key, write_seq^);
+  Hashtbl.replace(
+    in_flight,
+    key,
+    Option.value(Hashtbl.find_opt(in_flight, key), ~default=0) + 1,
+  );
+  switch (w) {
+  | Put(_, value) => Hashtbl.replace(synced, key, value)
+  | Delete(_) => Hashtbl.remove(synced, key)
+  };
+};
+
+let note_shared_landed = (w: write): unit => {
+  let key = key_of(w);
+  switch (Hashtbl.find_opt(in_flight, key)) {
+  | Some(n) when n > 1 => Hashtbl.replace(in_flight, key, n - 1)
+  | _ => Hashtbl.remove(in_flight, key)
+  };
+};
+
+/* Each write goes where its key lives (Backend.place): IndexedDB, the
+   page's space on the canister, or a shared deck's space. */
+let rec commit = (writes: list(write)): unit =>
+  if (resetting^) {
+    ();
+  } else if (Backend.on) {
+    let at = (p, w) => Backend.place(key_of(w)) == p;
+    commit_local(List.filter(at(Local), writes));
+    commit_remote(List.filter(at(Page), writes));
+    /* A put of what the space already holds, as this page last knew it,
+       is not sent. Saves fire without an edit (on load, on a slide
+       switch), and such a re-send would undo whatever another page wrote
+       to that key since this one read it. */
+    let news =
+      fun
+      | Put(key, value) => Hashtbl.find_opt(synced, key) != Some(value)
+      | Delete(_) => true;
+    List.iter(
+      space =>
+        commit_remote(
+          ~space,
+          List.filter(w => at(Shared(space), w) && news(w), writes),
+        ),
+      Backend.shared_spaces,
+    );
+  } else {
+    commit_local(writes);
+  }
+and commit_remote = (~space=?, writes: list(write)): unit =>
+  if (writes != []) {
+    incr(write_transactions);
+    let shared = Option.is_some(space);
+    if (shared) {
+      List.iter(note_shared_write, writes);
+    };
+    Backend.call(~space?, "POST", "/kv", Some(writes_json(writes)), _ =>
+      if (shared) {
+        List.iter(note_shared_landed, writes);
+      }
+    );
+  }
+and commit_local = (writes: list(write)): unit =>
+  if (writes != []) {
+    incr(write_transactions);
+    with_db(db => {
+      let store = kv_store(db);
+      List.iter(
+        fun
+        | Put(key, value) =>
+          IDBStore.put(~key, ~callback=_ => (), store, value)
+        | Delete(key) =>
+          IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
+        writes,
+      );
+    });
+  };
+
+let write = (w: write): unit =>
+  switch (batched^) {
+  | Some(ws) => batched := Some([w, ...ws])
+  | None => commit([w])
+  };
+
+/* [f]'s writes land together, so an interrupted save can't leave half
+   of them (a rename's new definition beside its old use). nested calls
+   join the outer batch */
+let kv_batch = (f: unit => 'a): 'a =>
+  switch (batched^) {
+  | Some(_) => f()
+  | None =>
+    batched := Some([]);
+    Fun.protect(
+      ~finally=
+        () => {
+          let ws = Option.value(batched^, ~default=[]);
+          batched := None;
+          commit(List.rev(ws));
+        },
+      f,
+    );
+  };
+
 let kv_save = (key: string, value: string): unit => {
   cache := Util.Maps.StringMap.add(key, value, cache^);
-  with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
+  write(Put(key, value));
 };
 
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
 
+/* every stored key */
+let kv_keys = (): list(string) =>
+  Util.Maps.StringMap.fold((k, _, ks) => [k, ...ks], cache^, []) |> List.rev;
+
+let kv_remove = (key: string): unit => {
+  cache := Util.Maps.StringMap.remove(key, cache^);
+  write(Delete(key));
+};
+
+/* every stored key [owned] claims */
+let kv_remove_where = (owned: string => bool): unit =>
+  kv_batch(() =>
+    Util.Maps.StringMap.iter(
+      (k, _) =>
+        if (owned(k)) {
+          kv_remove(k);
+        },
+      cache^,
+    )
+  );
+
+/* every stored key [rekey] maps to a different key, saved there instead */
+let kv_rekey = (rekey: string => option(string)): unit =>
+  kv_batch(() =>
+    Util.Maps.StringMap.iter(
+      (k, v) =>
+        switch (rekey(k)) {
+        | Some(k') when k' != k =>
+          kv_save(k', v);
+          kv_remove(k);
+        | _ => ()
+        },
+      cache^,
+    )
+  );
+
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
-  let error = _ => print_endline("ERROR: HazelDB.kv_clear");
-  with_db(db => IDBStore.clear(~error, ~callback, kv_store(db)));
+  if (Backend.partial) {
+    /* both halves; [callback] once both are empty */
+    let left = ref(2);
+    let one = () => {
+      decr(left);
+      if (left^ == 0) {
+        callback();
+      };
+    };
+    Backend.call("POST", "/kv/clear", None, _ => one());
+    let error = _ => print_endline("ERROR: HazelDB.kv_clear");
+    with_db(db => IDBStore.clear(~error, ~callback=one, kv_store(db)));
+  } else if (Backend.on) {
+    Backend.call("POST", "/kv/clear", None, _ => callback());
+  } else {
+    let error = _ => print_endline("ERROR: HazelDB.kv_clear");
+    with_db(db => IDBStore.clear(~error, ~callback, kv_store(db)));
+  };
 };
 
 /* Load all KV entries at once via cursor fold. Populates the cache
    and returns the pairs to the callback. Called once at startup. */
-let kv_load_all = (callback: list((string, string)) => unit): unit =>
+let fill_cache = (pairs: list((string, string))): unit =>
+  cache :=
+    List.fold_left(
+      (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
+      Util.Maps.StringMap.empty,
+      pairs,
+    );
+
+let rec kv_load_all = (callback: list((string, string)) => unit): unit =>
+  if (Backend.on) {
+    /* each key from where it lives: this browser's IndexedDB (only when
+       the page keeps some keys here), the page's space, each shared
+       deck's space */
+    let local = k => Backend.partial ? kv_load_all_idb(k) : k([]);
+    let rec shared = (spaces, acc, k) =>
+      switch (spaces) {
+      | [] => k(acc)
+      | [space, ...rest] =>
+        kv_load_all_remote(~space, pairs => shared(rest, acc @ pairs, k))
+      };
+    local(local_pairs =>
+      kv_load_all_remote(page_pairs =>
+        shared(
+          Backend.shared_spaces,
+          [],
+          shared_pairs => {
+            let at = (p, (k, _)) =>
+              switch (Backend.place(k), p) {
+              | (Local, `Local)
+              | (Page, `Page)
+              | (Shared(_), `Shared) => true
+              | _ => false
+              };
+            let shared_pairs = List.filter(at(`Shared), shared_pairs);
+            List.iter(
+              ((k, v)) => Hashtbl.replace(synced, k, v),
+              shared_pairs,
+            );
+            let pairs =
+              List.filter(at(`Local), local_pairs)
+              @ List.filter(at(`Page), page_pairs)
+              @ shared_pairs;
+            fill_cache(pairs);
+            callback(pairs);
+          },
+        )
+      )
+    );
+  } else {
+    kv_load_all_idb(callback);
+  }
+and kv_load_all_remote =
+    (~space=?, callback: list((string, string)) => unit): unit =>
+  if (Backend.on) {
+    Backend.call(
+      ~space?,
+      "GET",
+      "/kv",
+      None,
+      text => {
+        let pairs =
+          switch (Yojson.Safe.from_string(text)) {
+          | `Assoc(fields) =>
+            List.filter_map(
+              fun
+              | (k, `String(v)) => Some((k, v))
+              | _ => None,
+              fields,
+            )
+          | _ => []
+          | exception _ =>
+            print_endline("ERROR: HazelDB.kv_load_all: backend sent no JSON");
+            [];
+          };
+        callback(pairs);
+      },
+    );
+  } else {
+    kv_load_all_idb(callback);
+  }
+and kv_load_all_idb = (callback: list((string, string)) => unit): unit =>
   with_db(db => {
     let error = _ => print_endline("ERROR: HazelDB.kv_load_all");
     IDBStore.fold(
@@ -80,26 +501,119 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
     );
   });
 
+/* Ask each shared deck's space for its keys, take in what changed since
+   this page last knew it, and hand [k] the keys that did -- added,
+   changed or removed -- if any. Answers come back one space at a time. */
+let poll_shared = (k: list(string) => unit): unit =>
+  if (Backend.on) {
+    let sent = write_seq^;
+    let quiet = key =>
+      !Hashtbl.mem(in_flight, key)
+      && Option.value(Hashtbl.find_opt(last_write, key), ~default=0) <= sent;
+    List.iter(
+      space =>
+        kv_load_all_remote(
+          ~space,
+          pairs => {
+            let here = key => Backend.place(key) == Shared(space);
+            let pairs = List.filter(((key, _)) => here(key), pairs);
+            let changed = ref([]);
+            List.iter(
+              ((key, v)) =>
+                if (quiet(key) && Hashtbl.find_opt(synced, key) != Some(v)) {
+                  Hashtbl.replace(synced, key, v);
+                  cache := Util.Maps.StringMap.add(key, v, cache^);
+                  changed := [key, ...changed^];
+                },
+              pairs,
+            );
+            let gone =
+              Hashtbl.fold(
+                (key, _, acc) =>
+                  here(key) && quiet(key) && !List.mem_assoc(key, pairs)
+                    ? [key, ...acc] : acc,
+                synced,
+                [],
+              );
+            List.iter(
+              key => {
+                Hashtbl.remove(synced, key);
+                cache := Util.Maps.StringMap.remove(key, cache^);
+                changed := [key, ...changed^];
+              },
+              gone,
+            );
+            if (changed^ != []) {
+              k(List.rev(changed^));
+            };
+          },
+        ),
+      Backend.shared_spaces,
+    );
+  };
+
 /* === Log operations === */
 
 let log_add = (key: string, value: string): unit =>
-  with_db(db => IDBStore.add(~key, ~callback=_ => (), log_store(db), value));
+  if (Backend.on) {
+    Backend.call(
+      "POST",
+      "/log",
+      Some(
+        Yojson.Safe.to_string(
+          `Assoc([("key", `String(key)), ("value", `String(value))]),
+        ),
+      ),
+      _ =>
+      ()
+    );
+  } else {
+    with_db(db =>
+      IDBStore.add(~key, ~callback=_ => (), log_store(db), value)
+    );
+  };
 
-let log_get_all = (f: list(string) => unit): unit => {
-  let error = _ => print_endline("ERROR: HazelDB.log_get_all");
-  with_db(db => IDBStore.get_all(~error, log_store(db), f));
-};
+let log_get_all = (f: list(string) => unit): unit =>
+  if (Backend.on) {
+    Backend.call("GET", "/log", None, text =>
+      f(
+        switch (Yojson.Safe.from_string(text)) {
+        | `List(items) =>
+          List.filter_map(
+            fun
+            | `String(v) => Some(v)
+            | _ => None,
+            items,
+          )
+        | _ => []
+        | exception _ => []
+        },
+      )
+    );
+  } else {
+    let error = _ => print_endline("ERROR: HazelDB.log_get_all");
+    with_db(db => IDBStore.get_all(~error, log_store(db), f));
+  };
 
-let log_clear = (~callback=() => (), ()): unit => {
-  let error = _ => print_endline("ERROR: HazelDB.log_clear");
-  with_db(db => IDBStore.clear(~error, ~callback, log_store(db)));
-};
+let log_clear = (~callback=() => (), ()): unit =>
+  if (Backend.on) {
+    Backend.call("POST", "/log/clear", None, _ => callback());
+  } else {
+    let error = _ => print_endline("ERROR: HazelDB.log_clear");
+    with_db(db => IDBStore.clear(~error, ~callback, log_store(db)));
+  };
 
 /* === Database-level operations === */
 
-/* Clear all data from all tables and legacy localStorage.
-   Used by "Reset Hazel". */
-let clear_all = (~callback=() => (), ()): unit => {
+/* The two halves of a reset. Each sets [resetting] first: until the
+   page reloads, a save would put back what the clear removed (Hazel saves
+   on events), so writes are dropped. [callback] runs once every clear it
+   started is done. */
+
+/* This browser's copy: legacy localStorage and both IndexedDB tables.
+   With a canister, the keys it holds are read again from it on reload. */
+let clear_local = (~callback=() => (), ()): unit => {
+  resetting := true;
   /* Clear legacy localStorage (safe to remove once all users upgraded) */
   try({
     let local_store =
@@ -117,6 +631,40 @@ let clear_all = (~callback=() => (), ()): unit => {
       callback();
     };
   };
-  kv_clear(~callback=on_done, ());
-  log_clear(~callback=on_done, ());
+  let error = _ => print_endline("ERROR: HazelDB.clear_local");
+  with_db(db => {
+    IDBStore.clear(~error, ~callback=on_done, kv_store(db));
+    IDBStore.clear(~error, ~callback=on_done, log_store(db));
+  });
 };
+
+/* The canister's copy: the page's space, its tables and its log. Shared
+   decks' spaces are other people's too and are left alone. Nothing to do
+   without a canister. */
+let clear_remote = (~callback=() => (), ()): unit =>
+  if (Backend.on) {
+    resetting := true;
+    cache := Util.Maps.StringMap.empty;
+    let remaining = ref(2);
+    let on_done = () => {
+      decr(remaining);
+      if (remaining^ == 0) {
+        callback();
+      };
+    };
+    Backend.call("POST", "/kv/clear", None, _ => on_done());
+    Backend.call("POST", "/log/clear", None, _ => on_done());
+  } else {
+    callback();
+  };
+
+/* Reload once the clears are done. Reloading sooner can cancel them: a
+   canister clear is an update call, a second or two, and a reload drops
+   requests still in flight. */
+let reload = () => Js_of_ocaml.Dom_html.window##.location##reload;
+let clear_local_and_reload = (): unit => clear_local(~callback=reload, ());
+let clear_remote_and_reload = (): unit => clear_remote(~callback=reload, ());
+
+/* Both copies. */
+let clear_all_and_reload = (): unit =>
+  clear_local(~callback=() => clear_remote(~callback=reload, ()), ());

@@ -88,6 +88,7 @@ module Model = {
       worker_encodings: [WorkerServer.Marshal],
       fumola_tab: Events,
       fumola_editor: Dim,
+      fumola_pinned: None,
     },
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
@@ -393,6 +394,13 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             fumola_editor: mode,
+          },
+        }
+      | Sidebar(PinFumola(pinned)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            fumola_pinned: pinned,
           },
         }
       | Sidebar(ToggleWorkerEncoding(e)) => {

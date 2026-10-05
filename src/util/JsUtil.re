@@ -667,17 +667,29 @@ let font_metrics_from_specimen = (): (float, float) =>
  * would revisit that on its own -- so the shim announces itself and the
  * editor recalculates. Dispatched once, after the outcome is settled, and on
  * failure as well as success, so the message can settle too. */
-let on_fumola_ready = (callback: unit => unit): unit =>
+let on_window_event = (event: string, callback: unit => unit): unit =>
   ignore(
     Js.Unsafe.meth_call(
       Dom_html.window,
       "addEventListener",
       [|
-        Js.Unsafe.inject(Js.string("fumola-runtime-ready")),
+        Js.Unsafe.inject(Js.string(event)),
         Js.Unsafe.inject(Js.wrap_callback((_: Js.t({..})) => callback())),
       |],
     ),
   );
+
+let on_fumola_ready = (callback: unit => unit): unit =>
+  on_window_event("fumola-runtime-ready", callback);
+
+/* A remote Fumola run answered (FumolaRun.remote_reply, ic-backend.js). */
+let on_fumola_remote_reply = (callback: unit => unit): unit =>
+  on_window_event("fumola-remote-reply", callback);
+
+/* A side query of a canister instance answered (FumolaRun.remote_query,
+   ic-backend.js): only a redraw is wanted. */
+let on_fumola_remote_query = (callback: unit => unit): unit =>
+  on_window_event("fumola-remote-query", callback);
 
 /* Listen for devicePixelRatio changes (triggered by browser zoom).
  * Uses matchMedia to detect when the current DPR no longer matches,
