@@ -41,6 +41,10 @@ type raw_livelit = {
      supplies them, `let ^b = ^a(args) in`, whose arguments are closed.
      false for an ordinary livelit, and for an abbreviation. */
   vparam: bool,
+  /* What the livelit is at run time, where its expansion reaches its
+     definition: None is the variable `^name` its `let` binds; a module
+     member's is its projection, `Lib."^name"` (UserLivelit.requalify). */
+  runtime: option(TermBase.Exp.t),
 };
 
 // referenced in docs/livelits.md
@@ -99,4 +103,5 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   user_def: None,
   tparam: None,
   vparam: false,
+  runtime: None,
 };

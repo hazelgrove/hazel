@@ -329,13 +329,15 @@ module M: Projector = {
   let get_use = (info: info) =>
     switch (info.statics) {
     | Some(InfoExp({user_term, _})) =>
+      /* The name is the head's key: `^f` is "f", a module member
+         `Lib.^f` is "Lib.f" (UserLivelit.head_key). */
       switch (strip_wrappers(user_term.term)) {
-      | Ap(_dir, {term: LivelitName(llname), _}, model) =>
-        Some((llname, None, model))
+      | Ap(_dir, head, model) when UserLivelit.head_key(head) != None =>
+        Some((Option.get(UserLivelit.head_key(head)), None, model))
       | Ap(_dir, fn, model) =>
         switch (strip_wrappers(fn.term)) {
-        | Ap(_, {term: LivelitName(llname), _}, args) =>
-          Some((llname, Some(args), model))
+        | Ap(_, head, args) when UserLivelit.head_key(head) != None =>
+          Some((Option.get(UserLivelit.head_key(head)), Some(args), model))
         | _ => None
         }
       | _ => None
@@ -358,7 +360,7 @@ module M: Projector = {
         ~runtime=
           IdTagged.FreshGrammar.Exp.ap(
             Operators.Forward,
-            IdTagged.FreshGrammar.Exp.var("^" ++ llname),
+            UserLivelit.runtime_ref(ll),
             args,
           ),
         ll,
@@ -366,29 +368,23 @@ module M: Projector = {
     | (None, _) => None
     };
 
-  let init = (any: Language.Any.t, seg: Base.segment) =>
+  let init = (any: Language.Any.t, seg: Base.segment) => {
+    /* A use, `^f(model)` or `Lib.^f(model)`, or a direct use with
+       parameters, `^a(args)(model)`, possibly parenthesized. */
+    let rec is_use = (e: Exp.t) =>
+      switch (e.term) {
+      | Parens(e) => is_use(e)
+      | Ap(_, head, _) =>
+        UserLivelit.head_key(head) != None
+        || UserLivelit.ap_head_key(head) != None
+      | _ => false
+      };
     switch (any) {
-    | Exp({term: Ap(_, {term: LivelitName(_), _}, _), _})
-    | Exp({
-        term: Parens({term: Ap(_, {term: LivelitName(_), _}, _), _}),
-        _,
-      })
-    /* A direct use with parameters, `^a(args)(model)`. */
-    | Exp({
-        term: Ap(_, {term: Ap(_, {term: LivelitName(_), _}, _), _}, _),
-        _,
-      })
-    | Exp({
-        term:
-          Parens({
-            term: Ap(_, {term: Ap(_, {term: LivelitName(_), _}, _), _}, _),
-            _,
-          }),
-        _,
-      }) =>
+    | Exp(e) when is_use(e) =>
       Some(((), splice_marked_fields(seg) |> Option.map(s => Syntax(s))))
     | _ => None
     };
+  };
 
   /* Shape analogue of last_good_view: if statics info or the livelit
      entry is transiently unavailable (mid-commit), falling back to the
@@ -1392,6 +1388,10 @@ module M: Projector = {
      - On Enter, anything else: the use is turned back into code, its model
        left in its place (Unproject), as removing the projector would leave
        the whole use. */
+  /* A livelit's name as a CSS class: a module member's key, "Lib.f",
+     would be two classes' worth of selector, so its dots become dashes. */
+  let css_name = (name: string) => String.map(c => c == '.' ? '-' : c, name);
+
   let use_head_panel =
       (
         ~info: ProjectorBase.info,
@@ -1404,14 +1404,40 @@ module M: Projector = {
       )
       : Node.t => {
     module F = IdTagged.FreshGrammar;
+    /* A name is a key (UserLivelit.head_key): "f" is `^f`, and a module
+       member's "Lib.Inner.f" is `Lib.Inner.^f`, its path kept on a swap. */
+    let head_of = (name: string) =>
+      switch (String.split_on_char('.', name) |> List.rev) {
+      | [base, ...rev_path] when rev_path != [] =>
+        switch (List.rev(rev_path)) {
+        | [first, ...rest] =>
+          F.Exp.dot(
+            List.fold_left(
+              (acc, m) => F.Exp.dot(acc, F.Exp.label(m)),
+              F.Exp.var(first),
+              rest,
+            ),
+            F.Exp.livelit_name(base),
+          )
+        | [] => F.Exp.livelit_name(name)
+        }
+      | _ => F.Exp.livelit_name(name)
+      };
+    let head_text = (name: string) =>
+      switch (String.rindex_opt(name, '.')) {
+      | Some(i) =>
+        String.sub(name, 0, i + 1)
+        ++ "^"
+        ++ String.sub(name, i + 1, String.length(name) - i - 1)
+      | None => "^" ++ name
+      };
     let head_term = (name, args) =>
       switch (args) {
-      | None => F.Exp.livelit_name(name)
-      | Some(a) => F.Exp.ap(Operators.Forward, F.Exp.livelit_name(name), a)
+      | None => head_of(name)
+      | Some(a) => F.Exp.ap(Operators.Forward, head_of(name), a)
       };
     let text =
-      "^"
-      ++ ll_name
+      head_text(ll_name)
       ++ (
         switch (args) {
         | None => ""
@@ -1422,9 +1448,10 @@ module M: Projector = {
       );
     let parse = (typed: string) =>
       switch (info.utility.string_to_exp(String.trim(typed))) {
-      | Some({term: LivelitName(n), _}) => Some((n, None))
-      | Some({term: Ap(_, {term: LivelitName(n), _}, a), _}) =>
-        Some((n, Some(a)))
+      | Some(e) when UserLivelit.head_key(e) != None =>
+        Some((Option.get(UserLivelit.head_key(e)), None))
+      | Some({term: Ap(_, h, a), _}) when UserLivelit.head_key(h) != None =>
+        Some((Option.get(UserLivelit.head_key(h)), Some(a)))
       | _ => None
       };
     let revealed = seg => [Piece.mk_splice(seg)];
@@ -1767,7 +1794,7 @@ module M: Projector = {
           };
           Node.div(
             ~attrs=[
-              Attr.classes([ll_name, "user-livelit"]),
+              Attr.classes([css_name(ll_name), "user-livelit"]),
               Attr.id(Id.cls(info.id)),
             ],
             [
@@ -1804,7 +1831,10 @@ module M: Projector = {
 
           let list_contents = ll.view(model, action_callback);
           Node.div(
-            ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
+            ~attrs=[
+              Attr.class_(css_name(ll_name)),
+              Attr.id(Id.cls(info.id)),
+            ],
             [list_contents],
           );
         | None =>
