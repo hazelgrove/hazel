@@ -3234,20 +3234,12 @@ and uexp_to_info_map =
             };
           let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
             if (!is_rec) {
-              let def_syntax = def;
-              let (def, def_elab, m) =
-                reuse_probe
-                  ? Lazy.force(probe)
-                  : go(~ana=p_syn.ty, ~coercible=true, def, m);
-              /* A livelit definition gets a SECOND pass, analyzed against the
-                 `Livelit` signature with its own Model, Action and Expansion
-                 made manifest (UserLivelit.livelit_ana_ty).
-
-                 The first pass is what tells us those three types, so the
-                 realized signature cannot be built before it. The second pass
-                 is the authoritative one: analyzing rather than synthesizing
-                 puts every member where the ordinary type machinery can check
-                 it, which is what makes a mismatched member an ordinary
+              /* A livelit definition is analyzed ONCE, against the `Livelit`
+                 signature with its own Model, Action and Expansion made
+                 manifest (UserLivelit.livelit_ana_ty). That pass is the
+                 authoritative one: analyzing rather than synthesizing puts
+                 every member where the ordinary type machinery can check it,
+                 which is what makes a mismatched member an ordinary
                  inconsistency at the expression rather than a livelit-specific
                  mark on the whole definition -- and what puts the `expand`
                  sum's constructors in scope, so a definition needs no type
@@ -3256,16 +3248,31 @@ and uexp_to_info_map =
                  Realized rather than as-written because the signature declares
                  those three ABSTRACT, and analyzing against it directly would
                  seal them: a use of ^name must keep synthesizing Expansion
-                 concretely for clients to reason about. */
-              let (def, def_elab, m) =
+                 concretely for clients to reason about.
+
+                 The signature is read from the definition's SYNTAX: its type
+                 members are normalized in ctx (ModuleHelpers.module_sig_type
+                 never reads the statics map for them), and whether it is a
+                 livelit at all is a matter of its shape and member names. So
+                 it is the same before any pass as after one, and there is no
+                 synthesizing first pass to learn it from. That first pass
+                 used to run anyway, doubling the cost of every livelit
+                 definition -- ~1.3 s of a playground slide's ~4 s (profiled,
+                 2026-10-05). A definition too broken to realize still gets
+                 the ordinary synthesizing pass, whose marks are then what the
+                 author gets. */
+              let livelit_sig =
                 switch (UserLivelit.binder_name(p)) {
-                | None => (def, def_elab, m)
-                | Some(_) =>
-                  switch (UserLivelit.livelit_ana_ty(~ctx, ~m, def.user_term)) {
-                  | None => (def, def_elab, m)
-                  | Some(ana_sig) =>
-                    go(~ana=ana_sig, ~coercible=true, def_syntax, m)
-                  }
+                | None => None
+                | Some(_) => UserLivelit.livelit_ana_ty(~ctx, ~m, def)
+                };
+              let (def, def_elab, m) =
+                switch (livelit_sig) {
+                | Some(ana_sig) => go(~ana=ana_sig, ~coercible=true, def, m)
+                | None =>
+                  reuse_probe
+                    ? Lazy.force(probe)
+                    : go(~ana=p_syn.ty, ~coercible=true, def, m)
                 };
               let ty_p_ana = def.ty;
               let (p_ana', _, _) =
