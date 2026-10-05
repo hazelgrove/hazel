@@ -11,7 +11,7 @@ let tests = (
       "the slide checks, and means its census",
       `Quick,
       () => {
-        let (m, elab) = Test_Quote.slide("tree-care.hz");
+        let (m, elab) = Test_Quote.slide("playground/tree-care.hz");
         check(
           list(string),
           "no errors",

@@ -15,6 +15,7 @@ let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
     ((n, z)) => (n, Sort.Exp, z),
     Docslides.Slides.all_slides
     @ Livelitdemos.Slides.all_slides
+    @ Livelitdemos.Slides.playground_slides
     @ Mvu.Slides.all_slides
     @ B2t2.Slides.all_slides,
   )
