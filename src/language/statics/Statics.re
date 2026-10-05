@@ -4264,13 +4264,24 @@ and uexp_to_info_map =
             )
           | _ => m
           };
-        let def_ana =
-          switch (pat.term) {
-          | Asc(_, typ) => typ
-          | _ => syn
+        /* The definition's own elaboration, without what the Let wraps it
+           in: read back from the info the expanded Let just recorded for it,
+           not analyzed a second time. Analyzing it again here doubled the
+           cost of every module binding -- a module of livelits, the most
+           expensive thing a slide holds, spent ~45% of a slide's statics
+           checking its body twice (profiled, Shirt and Pants, 2026-10-05). */
+        let (def_elab_direct, m) =
+          switch (Id.Map.find_opt(Exp.rep_id(def), m)) {
+          | Some(Info.InfoExp({elab_term, _})) => (elab_term, m)
+          | _ =>
+            let def_ana =
+              switch (pat.term) {
+              | Asc(_, typ) => typ
+              | _ => syn
+              };
+            let (_, elab, m) = go(~ana=def_ana, ~coercible=true, def, m);
+            (elab, m);
           };
-        let (_, def_elab_direct, m) =
-          go(~ana=def_ana, ~coercible=true, def, m);
         let moduleexp_elab =
           ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
         add(
