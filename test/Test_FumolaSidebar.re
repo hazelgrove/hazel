@@ -53,9 +53,9 @@ let globals = (~pinned=None, ()) => {
 
 /* Rendered twice: the first render is what asks the stand-in, which
    answers at once, so the second has the history and the mode. */
-let render = (g, target) => {
-  ignore(FumolaSidebar.render(~globals=g, target));
-  H.unsafe_convert_exn(FumolaSidebar.render(~globals=g, target));
+let render = (~canister=false, g, target) => {
+  ignore(FumolaSidebar.render(~canister, ~globals=g, target));
+  H.unsafe_convert_exn(FumolaSidebar.render(~canister, ~globals=g, target));
 };
 
 let texts = (tree, selector) =>
@@ -92,6 +92,82 @@ let canister_instance = name => {
   FumolaRun.set_remote(name, true);
   FumolaSidebar.Instance(name, None);
 };
+
+/* The instance list's two sources. The canister's: a stand-in
+   `hazelBackendStats` (ic-backend.js, GET /stats) answering at once with
+   [reply], or never when None. The page's: a stand-in runtime `fumola`
+   with only the `instances` method, removed again by [without_page]. */
+let install_stats = (reply: option(string)) => {
+  FumolaRun.canister_stats_cache := None;
+  FumolaRun.canister_stats_asking := false;
+  Js.Unsafe.set(
+    Js.Unsafe.global,
+    "hazelBackendStats",
+    Js.wrap_callback(on_text =>
+      switch (reply) {
+      | Some(text) =>
+        ignore(
+          Js.Unsafe.fun_call(
+            on_text,
+            [|Js.Unsafe.inject(Js.string(text))|],
+          ),
+        )
+      | None => ()
+      }
+    ),
+  );
+};
+
+let stats = (names: list(string)) =>
+  Printf.sprintf(
+    {|{"ok":true,"heap_bytes":3460000,
+       "store":{"keys":38,"mode":"graphical",
+                "stats":{"pointers":38,"versions":38,"edges":38,"history_events":76}},
+       "instances":{%s}}|},
+    String.concat(
+      ",",
+      List.map(
+        n =>
+          Printf.sprintf(
+            {|"%s":{"mode":"graphical","stats":{"pointers":1,"versions":1,"edges":2,"history_events":3}}|},
+            n,
+          ),
+        names,
+      ),
+    ),
+  );
+
+let with_page = (names: list(string), f) => {
+  let reply =
+    Printf.sprintf(
+      {|{"ok":true,"heap_bytes":9400000,"instances":[%s]}|},
+      String.concat(
+        ",",
+        List.map(
+          n => Printf.sprintf({|{"name":"%s","stats":{"pointers":1}}|}, n),
+          names,
+        ),
+      ),
+    );
+  Js.Unsafe.set(
+    Js.Unsafe.global,
+    "fumola",
+    Js.Unsafe.obj([|
+      (
+        "instances",
+        Js.Unsafe.inject(Js.wrap_callback(() => Js.string(reply))),
+      ),
+    |]),
+  );
+  Fun.protect(
+    ~finally=() => Js.Unsafe.set(Js.Unsafe.global, "fumola", Js.undefined),
+    f,
+  );
+};
+
+let list_links = tree => texts(tree, ".fumola-list .fumola-list-link");
+let pin_of = (name, place) =>
+  Globals.Action.show(FumolaPin(Some((name, place))));
 
 let tests = (
   "FumolaSidebar",
@@ -302,6 +378,150 @@ let tests = (
           "no bar",
           0,
           List.length(H.select(tree, ~selector=".fumola-pinned-bar")),
+        );
+      },
+    ),
+    test_case(
+      "each name in the list pins its instance, and its place with it",
+      `Quick,
+      () => {
+        install_stats(Some(stats(["listRemote", "listOther"])));
+        let (g, sent) = globals();
+        with_page(
+          ["listPage"],
+          () => {
+            let tree = render(~canister=true, g, AtCursor(Cursor.empty));
+            check(
+              list(string),
+              "the page's, then the store, then the canister's",
+              ["listPage", "hazelStore", "listRemote", "listOther"],
+              list_links(tree),
+            );
+            List.iter(
+              name => click(tree, ".fumola-list .fumola-list-link", name),
+              ["listPage", "hazelStore", "listRemote"],
+            );
+          },
+        );
+        check(
+          list(string),
+          "each click pins one, the place with it",
+          [
+            pin_of("listPage", Page),
+            pin_of("hazelStore", Canister),
+            pin_of("listRemote", Canister),
+          ],
+          sent_shows(sent),
+        );
+      },
+    ),
+    test_case(
+      "one name in the page and on the canister pins two instances",
+      `Quick,
+      () => {
+        install_stats(Some(stats(["twin"])));
+        let (g, sent) = globals();
+        with_page(
+          ["twin"],
+          () => {
+            let tree = render(~canister=true, g, AtCursor(Cursor.empty));
+            let twins =
+              List.filter(
+                n => H.inner_text(n) == "twin",
+                H.select(tree, ~selector=".fumola-list .fumola-list-link"),
+              );
+            check(int, "listed twice", 2, List.length(twins));
+            List.iter(H.User_actions.click_on, twins);
+          },
+        );
+        check(
+          list(string),
+          "the page's, then the canister's",
+          [pin_of("twin", Page), pin_of("twin", Canister)],
+          sent_shows(sent),
+        );
+      },
+    ),
+    test_case(
+      "the pinned instance is marked in the list, and only on its side",
+      `Quick,
+      () => {
+        install_canister();
+        install_stats(Some(stats(["shownTwin"])));
+        let (g, _) =
+          globals(~pinned=Some(("shownTwin", FumolaRun.Canister)), ());
+        with_page(
+          ["shownTwin"],
+          () => {
+            let tree = render(~canister=true, g, AtCursor(Cursor.empty));
+            check(
+              int,
+              "one row marked",
+              1,
+              List.length(H.select(tree, ~selector=".fumola-list-shown")),
+            );
+            check(
+              list(string),
+              "and it is the canister's",
+              ["shownTwin"],
+              texts(tree, ".fumola-list-shown .fumola-list-link"),
+            );
+            let twin_rows =
+              H.select(tree, ~selector=".fumola-list tr")
+              |> List.filter(r => H.inner_text(r) |> contains("shownTwin"));
+            check(int, "both twins are listed", 2, List.length(twin_rows));
+            check(
+              list(bool),
+              "the second, the canister's, is the marked one",
+              [false, true],
+              List.map(H.has_class(~cls="fumola-list-shown"), twin_rows),
+            );
+          },
+        );
+      },
+    ),
+    test_case(
+      "the canister's table says it is asking until the canister answers",
+      `Quick,
+      () => {
+        install_stats(None);
+        let (g, _) = globals();
+        let tree = render(~canister=true, g, AtCursor(Cursor.empty));
+        check(
+          bool,
+          "asking",
+          true,
+          List.mem("asking the canister...", texts(tree, ".fumola-blurb")),
+        );
+        check(list(string), "and no links", [], list_links(tree));
+      },
+    ),
+    test_case(
+      "with no canister, only the page's instances are listed",
+      `Quick,
+      () => {
+        install_stats(Some(stats(["unseen"])));
+        let (g, _) = globals();
+        with_page(
+          ["alone"],
+          () => {
+            let tree = render(~canister=false, g, AtCursor(Cursor.empty));
+            check(
+              list(string),
+              "the page's only",
+              ["alone"],
+              list_links(tree),
+            );
+            check(
+              bool,
+              "no canister heading",
+              false,
+              List.exists(
+                contains("canister"),
+                texts(tree, ".fumola-list-heading"),
+              ),
+            );
+          },
         );
       },
     ),

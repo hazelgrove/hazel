@@ -155,7 +155,16 @@ type target('update) =
   | AtCursor(Cursor.cursor('update))
   | Instance(string, option(Language.FumolaWatch.panes));
 
-let render = (~globals: Globals.t, target: target('update)): Node.t => {
+/* [canister]: whether this page has a canister to list instances on. It is
+   HazelDB.Backend.on, fixed when the page loads; a test has none then, and
+   says so here instead. */
+let render =
+    (
+      ~canister: bool=HazelDB.Backend.on,
+      ~globals: Globals.t,
+      target: target('update),
+    )
+    : Node.t => {
   let section = (cls, header, body) =>
     div(
       ~attrs=[clss(["fumola-section", cls])],
@@ -340,7 +349,7 @@ let render = (~globals: Globals.t, target: target('update)): Node.t => {
       | _ => []
       };
     let remote =
-      if (HazelDB.Backend.on) {
+      if (canister) {
         switch (FumolaRun.canister_stats()) {
         | None => table_of("On the canister", [], ["asking the canister..."])
         | Some(json) =>
