@@ -178,7 +178,7 @@ let higher_order_expansion = () => {
 /* Emotion (Kids' Choice): the slide means how its face reads, and its
    view draws candy only as far as the head is exploded. */
 let kids_emotion = () => {
-  let text = read(Filename.concat(root(), "emotion-kids.hz"));
+  let text = read(Filename.concat(root(), "playground/emotion-kids.hz"));
   let (m, elab) = load(~source="emotion-kids", text);
   check(list(string), "no errors", [], messages(m));
   check(
@@ -306,7 +306,7 @@ let lockable_cell = () => {
 /* 1990s Face: the slide means its caption, for the stamp its slider
    picks. */
 let nineties_face = () => {
-  let text = read(Filename.concat(root(), "nineties-face.hz"));
+  let text = read(Filename.concat(root(), "playground/nineties-face.hz"));
   let (m, elab) = load(~source="nineties-face", text);
   check(list(string), "no errors", [], messages(m));
   check(
