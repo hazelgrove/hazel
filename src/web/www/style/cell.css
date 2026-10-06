@@ -33,6 +33,9 @@
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+  /* Double-tap selects a term; keep the browser from zooming on it.
+     Panning stays with the browser, so a touch drag still scrolls. */
+  touch-action: manipulation;
   flex-direction: row;
   padding-left: 1em;
   /* Suppress browser focus outline — editors use tabindex for keyboard
