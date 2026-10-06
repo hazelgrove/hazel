@@ -16,6 +16,6 @@ let view:
     ~problem_editors:
       list((option(string), list(CodeWithStatics.Model.t))),
     ~signal: Editors.View.signal => Ui_effect.t(unit),
-    ~task_reference: option(string)
+    ~tutorial_reference: option(TutorialReferencePanel.context)
   ) =>
   Virtual_dom.Vdom.Node.t;
