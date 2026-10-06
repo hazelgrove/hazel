@@ -62,9 +62,9 @@ let with_statics = (s: CachedStatics.t, d: t): t => {
 let document = (d: t): Segment.t =>
   List.fold_left((seg, e) => Focus.splice_entry(e, seg), d.base, d.cells);
 
+/* in program coordinates: the indentation the cell cut is its own too */
 let cell_ids = (e: Cell.t): list(Id.t) =>
-  Segment.ids(Focus.zip_of_cell(e.e_header))
-  @ Segment.ids(Focus.zip_of_cell(e.e_body));
+  Segment.ids(Focus.header_text(e)) @ Segment.ids(Focus.body_text(e));
 
 /* the open cell covering [id]: its own item, a run member, or any
    piece inside its text */
@@ -501,13 +501,13 @@ let resplit =
     switch (Focus.cell_content(e, base)) {
     | None => false
     | Some(slice) =>
-      same(slice, Focus.zip_of_cell(e.e_body))
+      same(slice, Focus.body_text(e))
       && (
         e.e_run
         || e.e_sym != None
         || (
           switch (Focus.find_pat(e.e_id, base)) {
-          | Some(pat) => same(pat, Focus.zip_of_cell(e.e_header))
+          | Some(pat) => same(pat, Focus.header_text(e))
           | None => false
           }
         )

@@ -1,5 +1,22 @@
 open Util;
 
+/* how a cell's text sat in the program: [base] columns of indentation
+   were cut from every line after the first, and [cut]/[orig] are the
+   text as cut and as it was, so a splice hands back the program's own
+   pieces wherever the cell left them alone */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type indent = {
+  base: int,
+  cut: Haz3lcore.Segment.t,
+  orig: Haz3lcore.Segment.t,
+};
+
+let no_indent: indent = {
+  base: 0,
+  cut: [],
+  orig: [],
+};
+
 /* One open cell of a divided program: an item's header (pattern) and
    body (definition). The cell owns that text; the rest of the program
    stays in Divided's base. */
@@ -24,6 +41,9 @@ type t = {
   e_inner: bool,
   /* body: the definition RHS, EXP- (or TYP-)rooted */
   e_body: CellEditor.Model.t,
+  /* each one's text relative to its own left edge */
+  e_header_indent: indent,
+  e_body_indent: indent,
   e_ctx: Language.Ctx.t /* outer ctx at the definition */
 };
 

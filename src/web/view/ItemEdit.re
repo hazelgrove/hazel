@@ -158,46 +158,6 @@ let spacing = (trail: Segment.t): Segment.t =>
   | lbs => List.map(_ => linebreak(), lbs)
   };
 
-exception Indent(int);
-
-/* the indentation of the line the piece [id] is on */
-let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
-  let ind = ref(0);
-  let lead = ref(true);
-  let rec go = (ps: Segment.t) =>
-    List.iter(
-      (p: Piece.t) => {
-        if (Piece.id(p) == id) {
-          raise(Indent(ind^));
-        };
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          ind := 0;
-          lead := true;
-        | Secondary(w) when Secondary.is_space(w) =>
-          if (lead^) {
-            ind := ind^ + 1;
-          }
-        | Tile(t) =>
-          lead := false;
-          List.iter(
-            ch => {
-              go(ch);
-              lead := false;
-            },
-            t.children,
-          );
-        | _ => lead := false
-        };
-      },
-      ps,
-    );
-  switch (go(seg)) {
-  | () => None
-  | exception (Indent(n)) => Some(n)
-  };
-};
-
 /* an item's place in its block, by line. It owns its first line's
    indentation, the comment lines directly above it (no blank line
    between), and what follows it through its last linebreak. In a member
@@ -885,7 +845,7 @@ let into_empty =
       | Tile(t) => Tile.label(t) == ["{}"]
       | _ => false
       };
-    let outer = Option.value(line_indent(m, seg), ~default=0);
+    let outer = Option.value(Focus.line_indent(m, seg), ~default=0);
     let inner = outer + 2;
     let item =
       switch (src_indent) {
@@ -1063,7 +1023,7 @@ let move =
     let removed = () => Option.map(fst, apply(~mod_root, Delete, fid, seg));
     let src_indent =
       switch (s.s_item) {
-      | [p, ..._] => line_indent(Piece.id(p), seg)
+      | [p, ..._] => Focus.line_indent(Piece.id(p), seg)
       | [] => None
       };
     let step = () =>

@@ -52,6 +52,46 @@ let rewrap_ws =
   | None => content
   };
 
+exception Indent(int);
+
+/* the indentation of the line the piece [id] is on */
+let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
+  let ind = ref(0);
+  let lead = ref(true);
+  let rec go = (ps: Segment.t) =>
+    List.iter(
+      (p: Piece.t) => {
+        if (Piece.id(p) == id) {
+          raise(Indent(ind^));
+        };
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) =>
+          ind := 0;
+          lead := true;
+        | Secondary(w) when Secondary.is_space(w) =>
+          if (lead^) {
+            ind := ind^ + 1;
+          }
+        | Tile(t) =>
+          lead := false;
+          List.iter(
+            ch => {
+              go(ch);
+              lead := false;
+            },
+            t.children,
+          );
+        | _ => lead := false
+        };
+      },
+      ps,
+    );
+  switch (go(seg)) {
+  | () => None
+  | exception (Indent(n)) => Some(n)
+  };
+};
+
 let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
   List.exists(
     (p: Piece.t) =>
@@ -352,13 +392,225 @@ let tile_sharing =
         children,
       });
 
+/* A cell shows its item from its own left edge: the indentation every
+   line after the first has in the program (the [base] of the line the
+   cell's text starts on) is cut on the way in and put back on the way
+   out. Putting back hands over the program's own pieces wherever the
+   cell left them alone (the incremental parse and layout check identity),
+   and a line new to the cell gets [base] spaces made once for its line
+   break. */
+
+let is_space_piece = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(w) => Secondary.is_space(w)
+  | _ => false
+  };
+
+let is_linebreak_piece = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(w) => Secondary.is_linebreak(w)
+  | _ => false
+  };
+
+/* up to [n] of the spaces that open [ps] */
+let rec drop_spaces = (n: int, ps: Segment.t): Segment.t =>
+  switch (ps) {
+  | [p, ...rest] when n > 0 && is_space_piece(p) => drop_spaces(n - 1, rest)
+  | _ => ps
+  };
+
+let dedent = (base: int, seg: Segment.t): Segment.t =>
+  if (base == 0) {
+    seg;
+  } else {
+    let rec go = (seg: Segment.t): Segment.t => {
+      let rec walk = (ps: Segment.t): Segment.t =>
+        switch (ps) {
+        | [] => []
+        | [p, ...rest] when is_linebreak_piece(p) => [
+            p,
+            ...walk(drop_spaces(base, rest)),
+          ]
+        | [Tile(t) as p, ...rest] => [
+            tile_sharing(p, t, map_sharing(go, t.children)),
+            ...walk(rest),
+          ]
+        | [p, ...rest] => [p, ...walk(rest)]
+        };
+      let out = walk(seg);
+      Segment.ptr_eq(out, seg) ? seg : out;
+    };
+    go(seg);
+  };
+
+/* a cell's text from [content], cut from [master] */
+let cut_indent =
+    (master: Segment.t, content: Segment.t): (Segment.t, ScratchCell.indent) => {
+  let base =
+    switch (content) {
+    | [p, ..._] =>
+      Option.value(line_indent(Piece.id(p), master), ~default=0)
+    | [] => 0
+    };
+  let cut = dedent(base, content);
+  (
+    cut,
+    {
+      base,
+      cut,
+      orig: content,
+    },
+  );
+};
+
+/* what the cut took, by id: each tile as cut with its original piece,
+   and the very spaces cut after each line break ([] where none) */
+type cut_pairs = {
+  tiles: Id.Map.t((Tile.t, Piece.t)),
+  after: Id.Map.t(Segment.t),
+};
+
+let rec split_spaces = (ps: Segment.t): (Segment.t, Segment.t) =>
+  switch (ps) {
+  | [p, ...rest] when is_space_piece(p) =>
+    let (sp, rest) = split_spaces(rest);
+    ([p, ...sp], rest);
+  | _ => ([], ps)
+  };
+
+let pairs_of = (ind: ScratchCell.indent): cut_pairs => {
+  let tiles = ref(Id.Map.empty);
+  let after = ref(Id.Map.empty);
+  /* [o] and [c] match piece for piece but for the spaces cut after line
+     breaks, which lead the rest of [o] only */
+  let rec pair = (o: Segment.t, c: Segment.t) =>
+    switch (o, c) {
+    | ([lb, ...o_rest], [_, ...c_rest]) when is_linebreak_piece(lb) =>
+      let (o_sp, o_rest) = split_spaces(o_rest);
+      let (c_sp, c_rest) = split_spaces(c_rest);
+      let removed =
+        Util.ListUtil.take(List.length(o_sp) - List.length(c_sp), o_sp);
+      after := Id.Map.add(Piece.id(lb), removed, after^);
+      pair(o_rest, c_rest);
+    | ([Tile(ot) as op, ...o_rest], [Tile(ct), ...c_rest]) =>
+      /* tiles the cut shared too: a zip re-assembles the caret's
+         ancestors, and those should come back as the program's */
+      tiles := Id.Map.add(ct.id, (ct, op), tiles^);
+      if (List.length(ot.children) == List.length(ct.children)) {
+        List.iter2(pair, ot.children, ct.children);
+      };
+      pair(o_rest, c_rest);
+    | ([_, ...o_rest], [_, ...c_rest]) => pair(o_rest, c_rest)
+    | _ => ()
+    };
+  pair(ind.orig, ind.cut);
+  {
+    tiles: tiles^,
+    after: after^,
+  };
+};
+
+/* pairs per cut, held while the cut is (cells re-cut on structural
+   change, so a short list covers the open ones) */
+let pairs_memo: ref(list((Segment.t, cut_pairs))) = ref([]);
+let pairs = (ind: ScratchCell.indent): cut_pairs =>
+  switch (List.find_opt(((c, _)) => c === ind.cut, pairs_memo^)) {
+  | Some((_, p)) => p
+  | None =>
+    let p = pairs_of(ind);
+    pairs_memo := [(ind.cut, p), ...Util.ListUtil.take(31, pairs_memo^)];
+    p;
+  };
+
+/* [base] spaces after a line break new to its cell, made once */
+let fresh_memo: Hashtbl.t((Id.t, int), Segment.t) = Hashtbl.create(64);
+let fresh_indent = (lb: Id.t, base: int): Segment.t =>
+  switch (Hashtbl.find_opt(fresh_memo, (lb, base))) {
+  | Some(sp) => sp
+  | None =>
+    if (Hashtbl.length(fresh_memo) > 4096) {
+      Hashtbl.reset(fresh_memo);
+    };
+    let sp =
+      List.init(base, i =>
+        Piece.Secondary(
+          Secondary.mk_space(
+            Id.derive(~salt="cell-indent-" ++ string_of_int(i), lb),
+          ),
+        )
+      );
+    Hashtbl.replace(fresh_memo, (lb, base), sp);
+    sp;
+  };
+
+/* the cell's text [cur] in program coordinates */
+let restore = (ind: ScratchCell.indent, cur: Segment.t): Segment.t =>
+  if (ind.base == 0) {
+    cur;
+  } else if (Segment.ptr_eq(cur, ind.cut)) {
+    ind.orig;
+  } else {
+    let {tiles, after} = pairs(ind);
+    /* t is c, maybe re-assembled by a zip: same shape, same children */
+    let as_cut = (t: Tile.t, c: Tile.t) =>
+      t === c
+      || t.form == c.form
+      && t.sort == c.sort
+      && t.shards == c.shards
+      && List.length(t.children) == List.length(c.children)
+      && List.for_all2(Segment.ptr_eq, t.children, c.children);
+    let rec go = (seg: Segment.t): Segment.t => {
+      let rec walk = (ps: Segment.t): Segment.t =>
+        switch (ps) {
+        | [] => []
+        | [lb, ...rest] when is_linebreak_piece(lb) =>
+          let back =
+            switch (Id.Map.find_opt(Piece.id(lb), after)) {
+            | Some(sp) => sp
+            | None =>
+              switch (rest) {
+              | [next, ..._] when is_linebreak_piece(next) => []
+              | _ => fresh_indent(Piece.id(lb), ind.base)
+              }
+            };
+          [lb, ...back @ walk(rest)];
+        | [Tile(t) as p, ...rest] =>
+          let p =
+            switch (Id.Map.find_opt(t.id, tiles)) {
+            | Some((c, orig)) when as_cut(t, c) => orig
+            | Some((c, Tile(o)))
+                when List.length(c.children) == List.length(t.children) =>
+              /* children the cell left alone are the program's own */
+              tile_sharing(
+                p,
+                t,
+                List.mapi(
+                  (i, kid) =>
+                    Segment.ptr_eq(kid, List.nth(c.children, i))
+                      ? List.nth(o.children, i) : go(kid),
+                  t.children,
+                ),
+              )
+            | _ => tile_sharing(p, t, map_sharing(go, t.children))
+            };
+          [p, ...walk(rest)];
+        | [p, ...rest] => [p, ...walk(rest)]
+        };
+      let out = walk(seg);
+      Segment.ptr_eq(out, seg) ? seg : out;
+    };
+    let out = go(cur);
+    Segment.ptr_eq(out, ind.orig) ? ind.orig : out;
+  };
+
 let splice_headless_deep =
     (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
   let rec go = (~top: bool, seg: Segment.t): Segment.t =>
     switch (headless_span(~divided_only_tail=!top, fid, seg)) {
     | Some((start, stop, _)) =>
       let (pre, _, suf) = trim_ws(slice(start, stop, seg));
-      take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      let out = take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      Segment.ptr_eq(out, seg) ? seg : out;
     | None =>
       map_sharing(
         (p: Piece.t) =>
@@ -506,7 +758,8 @@ let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
     switch (test_run(~module_body, fid, seg)) {
     | Some((start, stop, _, _)) =>
       let (pre, _, suf) = trim_ws(slice(start, stop, seg));
-      take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      let out = take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      Segment.ptr_eq(out, seg) ? seg : out;
     | None =>
       map_sharing(
         (p: Piece.t) =>
@@ -564,20 +817,23 @@ let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => 
   let rec scan = (ps: list(Piece.t)): list(Piece.t) =>
     switch (ps) {
     | [] => []
-    | [Piece.Tile(t), ...rest] when t.id == fid =>
+    | [Piece.Tile(t) as p, ...rest] when t.id == fid =>
+      /* the program's own tile when the text is its own */
       if (ends_with_in(t)) {
-        let t' =
-          switch (List.rev(t.children)) {
-          | [_, ...rev_rest] => {
+        switch (List.rev(t.children)) {
+        | [last, ..._] when Segment.ptr_eq(repl, last) => [p, ...rest]
+        | [_, ...rev_rest] => [
+            Piece.Tile({
               ...t,
               children: List.rev([repl, ...rev_rest]),
-            }
-          | [] => t
-          };
-        [Piece.Tile(t'), ...rest];
+            }),
+            ...rest,
+          ]
+        | [] => [p, ...rest]
+        };
       } else {
         let (_, tail) = split_at_semi(rest);
-        [Piece.Tile(t), ...repl] @ tail;
+        [p, ...repl] @ tail;
       }
     | [Piece.Tile(t) as p, ...rest] => [
         tile_sharing(p, t, map_sharing(splice_def(fid, repl), t.children)),
@@ -683,6 +939,7 @@ let rec splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
       switch (p) {
       | Tile(t) when t.id == fid =>
         switch (t.children) {
+        | [first, ..._] when Segment.ptr_eq(repl, first) => p
         | [_, ...rest] =>
           Piece.Tile({
             ...t,
@@ -767,6 +1024,7 @@ let rec mk_entry =
       | Some((raw, span_sym)) =>
         let sym = Option.value(sym, ~default=span_sym);
         let content = core_ws(raw);
+        let (cut, body_indent) = cut_indent(master_seg, content);
         let e_ctx =
           switch (captured_ctx(~info_map, fid, content)) {
           | Some(ctx) => ctx
@@ -782,7 +1040,9 @@ let rec mk_entry =
             e_members: [],
             e_inner: false,
             e_header: empty_header_cell(),
-            e_body: cell_of_seg(content),
+            e_body: cell_of_seg(cut),
+            e_header_indent: ScratchCell.no_indent,
+            e_body_indent: body_indent,
             e_ctx,
           },
         );
@@ -796,6 +1056,12 @@ and mk_def_entry =
   | None => None
   | Some(def_seg) =>
     let is_type = is_type_item(fid, master_seg);
+    let (header, header_indent) =
+      cut_indent(
+        master_seg,
+        core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
+      );
+    let (body, body_indent) = cut_indent(master_seg, core_ws(def_seg));
     let e_ctx =
       switch (captured_ctx(~info_map, fid, def_seg)) {
       | Some(ctx) => ctx
@@ -810,14 +1076,10 @@ and mk_def_entry =
         e_run: false,
         e_members: [],
         e_inner: false,
-        e_header:
-          (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
-            core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
-          ),
-        e_body:
-          is_type
-            ? typ_cell_of_seg(core_ws(def_seg))
-            : cell_of_seg(core_ws(def_seg)),
+        e_header: (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(header),
+        e_body: is_type ? typ_cell_of_seg(body) : cell_of_seg(body),
+        e_header_indent: header_indent,
+        e_body_indent: body_indent,
         e_ctx,
       },
     );
@@ -839,15 +1101,17 @@ let brace_child = (def_seg: Segment.t): option(Segment.t) =>
   );
 
 let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
-  List.map(
+  map_sharing(
     (p: Piece.t) =>
       switch (p) {
       | Tile(t)
           when Tile.label(t) == ["{", "}"] && List.length(t.children) == 1 =>
-        Piece.Tile({
-          ...t,
-          children: [kid],
-        })
+        Segment.ptr_eq(kid, List.hd(t.children))
+          ? p
+          : Piece.Tile({
+              ...t,
+              children: [kid],
+            })
       | p => p
       },
     def_seg,
@@ -862,6 +1126,12 @@ let mk_members_entry =
       switch (Option.bind(find_def(fid, master_seg), brace_child)) {
       | None => None
       | Some(members) =>
+        let (header, header_indent) =
+          cut_indent(
+            master_seg,
+            core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
+          );
+        let (body, body_indent) = cut_indent(master_seg, core_ws(members));
         let e_ctx =
           switch (captured_ctx(~info_map, fid, members)) {
           | Some(ctx) => ctx
@@ -876,13 +1146,10 @@ let mk_members_entry =
             e_run: false,
             e_members: [],
             e_inner: true,
-            e_header:
-              pat_cell_of_seg(
-                core_ws(
-                  Option.value(find_pat(fid, master_seg), ~default=[]),
-                ),
-              ),
-            e_body: cell_of_seg(~root=Sort.Mod, core_ws(members)),
+            e_header: pat_cell_of_seg(header),
+            e_body: cell_of_seg(~root=Sort.Mod, body),
+            e_header_indent: header_indent,
+            e_body_indent: body_indent,
             e_ctx,
           },
         );
@@ -898,7 +1165,8 @@ let mk_run_entry =
       switch (test_run_deep(fid, master_seg)) {
       | None => mk_entry(~info_map, fid, master_seg)
       | Some((run_slice, members)) =>
-        let content = core_ws(run_slice);
+        let (content, body_indent) =
+          cut_indent(master_seg, core_ws(run_slice));
         let e_ctx =
           switch (captured_ctx(~info_map, fid, content)) {
           | Some(ctx) => ctx
@@ -915,13 +1183,22 @@ let mk_run_entry =
             e_inner: false,
             e_header: empty_header_cell(),
             e_body: cell_of_seg(content),
+            e_header_indent: ScratchCell.no_indent,
+            e_body_indent: body_indent,
             e_ctx,
           },
         );
       }
     );
 
+/* a cell's header and body text in program coordinates */
+let body_text = (e: ScratchCell.t): Segment.t =>
+  restore(e.e_body_indent, zip_of_cell(e.e_body));
+let header_text = (e: ScratchCell.t): Segment.t =>
+  restore(e.e_header_indent, zip_of_cell(e.e_header));
+
 /* splice a cell's text back into [seg], keeping [seg]'s edge whitespace */
+
 let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
   switch (e.e_sym) {
   | None when e.e_inner =>
@@ -932,24 +1209,16 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
           (id, seg) => Option.bind(find_def(id, seg), brace_child),
           e.e_id,
           seg,
-          zip_of_cell(e.e_body),
+          body_text(e),
         );
       splice_def(e.e_id, with_brace_child(def_seg, members), seg);
     | None => seg
     }
-  | Some(_) when e.e_run =>
-    splice_run_deep(e.e_id, zip_of_cell(e.e_body), seg)
-  | Some(_) => splice_headless_deep(e.e_id, zip_of_cell(e.e_body), seg)
+  | Some(_) when e.e_run => splice_run_deep(e.e_id, body_text(e), seg)
+  | Some(_) => splice_headless_deep(e.e_id, body_text(e), seg)
   | None =>
-    splice_def(
-      e.e_id,
-      rewrap_ws(find_def, e.e_id, seg, zip_of_cell(e.e_body)),
-      seg,
-    )
-    |> splice_pat(
-         e.e_id,
-         rewrap_ws(find_pat, e.e_id, seg, zip_of_cell(e.e_header)),
-       )
+    splice_def(e.e_id, rewrap_ws(find_def, e.e_id, seg, body_text(e)), seg)
+    |> splice_pat(e.e_id, rewrap_ws(find_pat, e.e_id, seg, header_text(e)))
   };
 
 let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>

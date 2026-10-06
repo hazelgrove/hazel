@@ -726,6 +726,93 @@ let resplit_folds = () => {
   };
 };
 
+/* cells show their item from its own left edge: the indentation every
+   line after the first has in the program is cut on the way in and put
+   back, as the program's own pieces, on the way out */
+let nested_src = "module M = {\n  let f = fun x ->\n    let y = x + 1 in\n    y * 2;\n  let g = 2\n} in\nM.g";
+
+let relative_cells = () => {
+  let seg = parse(nested_src);
+  let d = split(seg, row(term_of(seg), "f"));
+  check(
+    string,
+    "a member's body",
+    "fun x ->\n  let y = x + 1 in\n  y * 2",
+    text_of(seg_of(body_cell(d).e_body)),
+  );
+  let src = "module Outer = {\n  module Inner = {\n    let v = 1;\n    let w =\n      v + 1\n  };\n  let u = Inner.w\n};\nlet top = Outer.u";
+  let seg = parse(~root=Sort.Mod, src);
+  let d =
+    split(~root=Sort.Mod, seg, row(term_of(~root=Sort.Mod, seg), "Inner"));
+  check(
+    string,
+    "a nested module, its closing brace included",
+    "{\n  let v = 1;\n  let w =\n    v + 1\n}",
+    text_of(seg_of(body_cell(d).e_body)),
+  );
+};
+
+let indent_round_trip = () => {
+  let seg = parse(nested_src);
+  let d = split(seg, row(term_of(seg), "f"));
+  check(
+    bool,
+    "an untouched cell splices back the program's own pieces",
+    true,
+    Segment.ptr_eq(Divided.document(d), seg),
+  );
+  let d = set_body(editor_of(parse("fun x ->\n  x * 3")), d);
+  let doc = Divided.document(d);
+  check(
+    string,
+    "a line typed in the cell lands at the program's depth",
+    "module M = {\n  let f = fun x ->\n    x * 3;\n  let g = 2\n} in\nM.g",
+    text_of(doc),
+  );
+  check(
+    bool,
+    "and its indentation is the same from one assembly to the next",
+    true,
+    Segment.ids(doc) == Segment.ids(Divided.document(d)),
+  );
+};
+
+/* every row, every kind of cell, untouched: the program's own pieces */
+let kinds_src = "module M = {\n  module N = {\n    let a = 1;\n    test a == 1 end;\n    test a > 0 end\n  };\n  let f = fun x ->\n    let y = x + 1 in\n    y * 2;\n  let g = 2\n} in\nM.g";
+
+let own_pieces = () => {
+  let seg = parse(kinds_src);
+  let info_map = info_map_of(seg);
+  let kinds = [
+    ("def", id => Focus.mk_entry(~info_map, id, seg)),
+    ("members", id => Focus.mk_members_entry(~info_map, id, seg)),
+    ("run", id => Focus.mk_run_entry(~info_map, id, seg)),
+  ];
+  let opened =
+    List.fold_left(
+      (opened, id) =>
+        List.fold_left(
+          (opened, (kind, mk)) =>
+            switch (mk(id)) {
+            | None => opened
+            | Some(e) =>
+              check(
+                bool,
+                kind ++ " " ++ Id.show(id),
+                true,
+                Segment.ptr_eq(Focus.splice_entry(e, seg), seg),
+              );
+              opened + 1;
+            },
+          opened,
+          kinds,
+        ),
+      0,
+      rows(term_of(seg)),
+    );
+  check(bool, "cells opened", true, opened >= 8);
+};
+
 /* every row of mega-1k: its modules and their members */
 let mega = () =>
   switch (CorpusUtil.corpus_seg("mega-1k.hz")) {
@@ -758,6 +845,13 @@ let tests = (
     test_case("no overlap", `Quick, no_overlap),
     test_case("closing the last cell splices once", `Quick, close_once),
     test_case("an edit into an open module folds", `Quick, resplit_folds),
+    test_case("cells are relative to their item", `Quick, relative_cells),
+    test_case("indentation round-trips", `Quick, indent_round_trip),
+    test_case(
+      "untouched cells keep the program's pieces",
+      `Quick,
+      own_pieces,
+    ),
     test_case("mega-1k rows", `Slow, mega),
   ],
 );
