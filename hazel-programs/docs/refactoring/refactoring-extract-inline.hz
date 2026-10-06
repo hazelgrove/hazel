@@ -1,0 +1,130 @@
+# REFACTORING: EXTRACT AND INLINE #
+# Naming a subexpression and dissolving a name are inverses. #
+# Put the caret on a token, then: #
+#   cmd+ctrl+Up        Extract (ctrl+alt+Up on PC) #
+#   cmd+ctrl+Down      Inline next use #
+#   shift+cmd+ctrl+Up / Down   Explode / Implode #
+# or right-click for the menu: Extract, Inline, Inline next use, #
+# Remove unused, Rename. Examples are independent; cmd+z undoes. #
+
+# ===== EXTRACT: cmd+ctrl+Up ===== #
+# The expression under the caret gets a fresh name on a new #
+# line above; the caret lands on the name, ready to rename. #
+
+# E1 an operator extracts the expression it heads: #
+# caret on the first + (or on the -) #
+let length = 12 in
+let width = 7 in
+let area = (length + 2) * (width - 2) in
+
+# E2 strings: caret on the second ++ #
+let first = "Ada" in
+let banner = "Hello, " ++ first ++ "!" in
+
+# E3 a call extracts whole: caret on string_length #
+let shout = string_length(banner) * 2 in
+
+# E4 a condition: caret on the > #
+let verdict = if area > 100 then "big" else "small" in
+
+# E5 a literal (name the magic number): caret on 13 #
+let price = 250 in
+let tax = price * 13 / 100 in
+
+# E6 a list: caret on the first [ #
+let digits = [3, 1, 4] @ [1, 5] in
+
+# E7 a function: caret on the inner fun #
+let apply_twice = fun (f, x) -> f(f(x)) in
+let sixteen = apply_twice(fun n -> n * 4, 1) in
+
+# E8 inside a function body: caret on the -. The binding #
+# stays inside the fun because it mentions the parameter. #
+let inset = fun side -> (side - 4) * (side - 4) in
+
+# E9 inside a case arm: caret on the * (lands in the arm) #
+let describe = fun n ->
+  case n
+  | 0 => 0
+  | _ => n * 10 + 1
+  end
+in
+
+# E10 dead press: a bare variable is already a name, and #
+# so is an application's head. caret on area: nothing #
+let echo = area in
+
+# ===== EXPLODE / IMPLODE: shift+cmd+ctrl+Up / Down ===== #
+# Explode names EVERY intermediate computation in a definition; #
+# Implode folds single-use bindings back in. Caret on the let. #
+
+# X1 caret on let recipe, Explode; then Implode it back #
+let recipe = (2 + 3) * (10 - 4) in
+
+# X2 nested calls unpack inside out #
+let nested = string_length(string_uppercase(string_trim("  hazel  "))) in
+
+# X3 Implode folds the chain above into let pad_total #
+let pad = 3 in
+let padded = width + pad in
+let pad_total = padded * 2 in
+
+# ===== INLINE: right-click, Inline ===== #
+# Every use is replaced by the definition, and the let goes. #
+# Works with the caret on the binder or on any use. #
+
+# I1 single use: right-click base #
+let base = 4 in
+let big = base * 10 in
+
+# I2 fan-out: right-click rate, all three copies fly out #
+let rate = 15 in
+let fees = rate + 100 + rate * 2 + rate * 3 in
+
+# I3 from a use: right-click either step below #
+let step = 5 in
+let walked = step + step in
+
+# I4 a function inlines as a literal: right-click double, #
+# then Beta-reduce each call (cmd+ctrl+Enter on the fun) #
+let double = fun d -> d * 2 in
+let doubled = double(5) + double(6) in
+
+# ===== INLINE NEXT USE: cmd+ctrl+Down ===== #
+# One use at a time: on the let, the nearest use gets a copy; #
+# on a use, exactly that use does. The last feed consumes the #
+# binding. #
+
+# F1 caret on let hours, press Down three times #
+let hours = 24 in
+let day_total = hours * 60 + hours + hours / 2 in
+
+# F2 caret on the SECOND unit below, Down: only that one #
+let unit = 100 in
+let units = (unit, unit, unit) in
+
+# F3 feeding crosses lines: caret on let gap, Down twice #
+let gap = 8 in
+let left = gap + 1 in
+let right = gap - 1 in
+
+# ===== REMOVE UNUSED and RENAME (right-click) ===== #
+
+# R1 scrap is never used (orange): right-click it, Remove #
+# unused #
+let scrap = 99 in
+
+# R2 a typo leaves a free variable: wieght is unbound (red). #
+# right-click the weight parameter: Rename wieght to weight #
+# binds every wieght there #
+let bmi = fun (weight, height) -> wieght / (height * height) in
+
+# R3 the same at a let: right-click let cost: Rename coast to #
+# cost #
+let cost = 40 in
+let budget = coast * 3 in
+
+(area, shout, verdict, tax, digits, sixteen, inset(10),
+ describe(4), echo, recipe, nested, pad_total, big, fees,
+ walked, doubled, day_total, units, left + right, bmi(70, 2),
+ budget)

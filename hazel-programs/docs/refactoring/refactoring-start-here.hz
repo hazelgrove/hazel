@@ -1,0 +1,62 @@
+# REFACTORING: START HERE #
+# Hazel can restructure your program for you, keeping it well #
+# formed and meaning the same thing. Three ways to fire one: #
+#   MENU     right-click a token: everything that applies there, #
+#            with tooltips #
+#   KEYS     caret on a token, cmd+ctrl+arrows (ctrl+alt+arrows #
+#            on PC) move the construct spatially #
+#   DRAG     Settings > Drag Refactoring, then grab a token with #
+#            the mouse and pull: the same moves, continuously #
+# A press that does not apply does nothing (refusals turn the #
+# blocking tokens red). Undo (cmd+z) reverses any refactoring. #
+
+# ===== CHEAT SHEET (cmd+ctrl on Mac, ctrl+alt on PC) ===== #
+#   Up      extract the expression; hoist a let; move an arm up #
+#   Down    sink a let, or feed its next use; unfold a call; #
+#           move an arm down; on a case's end, add an arm #
+#   Left / Right   swap parameters, arguments, tuple parts; #
+#           after the params' ), add / drop a parameter; #
+#           Right on a wildcard _ expands it #
+#   Down on then / Up on else   flip an if #
+#   Enter   take an evaluation step (beta, arm, branch, eval) #
+#   =       take the step as a let binding instead #
+#   shift + Up / Down   explode / implode a definition #
+#   Up, Up  a refused hoist, pressed again: carry or lift #
+
+# ===== THE OTHER SLIDES IN THIS FOLDER ===== #
+#   Extract + Inline     naming and un-naming expressions #
+#   Moving Definitions   hoist, sink, carry, merge, lift #
+#   Cases + Ifs          arms, wildcards, flips, if/case #
+#   Functions + Tuples   signatures and destructuring #
+#   Evaluation Steps     computing by hand, in the buffer #
+#   Types                annotations and type aliases #
+#   Drag Tour            the same moves with the mouse #
+
+# ===== WARMUP ===== #
+
+# 1 extract and inline are one-press inverses: caret on the + #
+# of 2 + 3, Up (the caret lands on the new name); Down puts it #
+# right back #
+let warmup = 1 * (2 + 3) in
+
+# 2 the ladder: caret on any let below, Up or Down: it swaps #
+# with its neighbor. Nothing depends on anything, so every #
+# rung moves both ways #
+let ladder =
+  let alpha = 100 in
+  let bravo = 250 in
+  let gamma = 425 in
+  alpha + bravo + gamma
+in
+
+# 3 feeding: caret on let rate, Down: the nearest use becomes #
+# 365. The let stays while other uses remain; the last feed #
+# consumes it. Or caret on a use of rate, Down: just that one #
+let rate = 365 in
+let budget = rate * 24 in
+let spending = budget + rate in
+
+# 4 a step of evaluation: caret on the fun, Enter #
+let stepped = (fun x -> x * 10)(4) in
+
+(warmup, ladder, spending, stepped)

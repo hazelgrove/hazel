@@ -1,0 +1,82 @@
+# DRAG TOUR: Settings > Drag Refactoring, then pull tokens. #
+# cmd+ctrl+arrows fires the same gestures from the keyboard; #
+# right-click still lists everything at the caret. Undo works. #
+
+# 1 HOIST / SINK: grab a let (its let, =, in, or binder) and pull #
+# vertically. The ladder has no capture conflicts, so every rung #
+# moves both ways. #
+let alpha = 100 in
+let bravo = 250 in
+let gamma = 425 in
+let ladder = alpha + bravo + gamma in
+
+# 2 FEED (inline next use): grab the DEFINITION - by its root, the #
+# *, or by the 24 - and pull DOWN. A full-size copy splits off and #
+# flies to the nearest use; the original stays while other uses #
+# remain, and the LAST feed moves the definition itself. Feed #
+# budget three times and watch it consume. (Grabbing rate instead #
+# targets rate's own binding - occurrences mean themselves.) #
+let rate = 365 in
+let budget = rate * 24 in
+let spending = budget + budget + budget in
+
+# 3 EXTRACT: grab the + inside the first parens and pull UP - the #
+# subexpression gets its own binding on a fresh line above. #
+let volume = (alpha + 55) * (bravo - 45) in
+
+# sub-slot extract: the same pull inside a body slot lands the #
+# binding where the displaced body sits, indented under the fun. #
+let scale = fun factor ->
+  factor * (gamma + 40) in
+
+# 4 CASE: grab an arm's |, =>, or pattern and pull vertically to #
+# REORDER the arms. Push RIGHT on the wildcard _ to expand it into #
+# the missing constructors. #
+type Meal = Soup + Salad + Combo(Int) in
+let lunch : Meal = Combo(12) in
+let dinner : Meal = Salad in
+let price = case lunch
+  | Soup => 400
+  | Combo(size) => size * 100
+  | _ => 700
+end in
+
+# grab end and pull DOWN, repeatedly: the missing constructors #
+# arrive one by one; on the int case below it wildifies instead. #
+# (These two start inexhaustive on purpose - that is the fuel.) #
+let stamp = case dinner | Soup => 111 end in
+let ticket = case gamma | 425 => true end in
+
+# 5 IF: pull DOWN on then (or UP on else) to negate the guard and #
+# swap the branches; doing it twice unwraps the negation. #
+let cheap = if price < 900 then price else 900 in
+
+# 6 PARAMETERS: pull a param LEFT/RIGHT to swap neighbors (the call #
+# sites follow). Pull the closing ) RIGHT to append a parameter; #
+# pull it LEFT to shed the last one when unused (spare below). #
+let blend = fun (redx, greenx, bluex) -> redx + greenx * bluex in
+let mixture = blend(10, 20, 30) in
+let carry = fun (load, spare) -> load * 2 in
+let hauled = carry(45, 99) in
+
+# 7 TUPLE PATTERN: pull low or high sideways - the components and #
+# their definition values rotate together. #
+let (low, high) = (100, 900) in
+let span = high - low in
+
+# 8 PASS-THROUGH: sink prize step by step into the fun and onward; #
+# hoist it back out. Watch the line breaks settle at each landing. #
+# Once inside, feeding it splits a copy into the nearest arm. #
+let prize = 900 in
+let award = fun place ->
+  case place
+  | 1 => prize
+  | _ => prize - 800
+  end in
+
+# 9 TINY TARGETS: deliberately small handles, for feel. #
+let a = 1 in
+let b = a + a + a in
+
+(ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
+ mixture, hauled, span, award(1), b)
