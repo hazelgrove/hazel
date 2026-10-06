@@ -493,7 +493,7 @@ svg.shard.selected.buffer-parsed > path {
   visibility: hidden;
 }
 
-.code-editor:focus > * > * > #caret {
+.code-editor:focus-within > * > * > #caret {
   visibility: visible;
 }
 

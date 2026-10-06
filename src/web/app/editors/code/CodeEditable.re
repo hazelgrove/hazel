@@ -396,6 +396,21 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  /* The hidden text input every editable editor types through. Keystrokes
+   * and `input` events originate here (see InputEvent), and it is what a
+   * phone raises its keyboard for. Focused with preventScroll: the editor
+   * scrolls the caret into view itself. */
+  let input_class = "code-editor-input";
+
+  let focus_input = (editor: Js.t(Dom_html.element)): unit =>
+    JsUtil.get_child_with_class(editor, input_class)
+    |> Option.iter(FocusEffect.focus_no_scroll);
+
+  /* The input text already dispatched to the editor, which the next `input`
+   * event is diffed against. Reset when the caret moves or the input loses
+   * focus: the IME's word in progress no longer applies. */
+  let composed: ref(string) = ref("");
+
   /* Toggle an `is-resizing` class on the editor's code-container
    * for the duration of a drag gesture. Used by CSS to suppress
    * caret-tracking decorations (e.g. variable highlights) while the
@@ -519,6 +534,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~edit_mode: EditMode.t(Update.t, unit),
+        ~read_only: bool=false,
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~cull: bool=false,
@@ -817,7 +833,9 @@ module View = {
       };
     };
 
-    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
+    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) => {
+      Js.Opt.iter(mouse.current_target, focus_input);
+      composed := "";
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
         /* Shift+click extends (or starts) a selection and arms a
@@ -875,6 +893,7 @@ module View = {
         };
       | _ => Effect.Ignore
       };
+    };
 
     let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
       MouseState.pointerup(loc(e));
@@ -1071,6 +1090,48 @@ module View = {
           }
         });
       };
+    let handle_input = (evt: Js.t(Dom_html.event), value: string) => {
+      let is_composing =
+        Js.Optdef.case(
+          Js.Unsafe.coerce(evt)##.isComposing,
+          () => false,
+          Js.to_bool,
+        );
+      let actions = InputEvent.actions_of_input(~composed=composed^, value);
+      if (is_composing) {
+        composed := value;
+      } else {
+        composed := "";
+        Js.Opt.iter(evt##.target, target =>
+          Js.Unsafe.coerce(target)##.value := Js.string("")
+        );
+      };
+      Effect.Many(List.map(a => inject(Perform(a)), actions));
+    };
+    /* Read-only editors (CodeSelectable) take keys on the div itself: no
+       input, so a phone does not raise a keyboard for them. */
+    let input =
+      switch (edit_mode) {
+      | Editable(_) when !read_only => [
+          Node.textarea(
+            ~attrs=[
+              Attr.classes([input_class]),
+              Attr.tabindex(-1),
+              Attr.create("aria-hidden", "true"),
+              Attr.create("autocomplete", "off"),
+              Attr.create("autocorrect", "off"),
+              Attr.create("autocapitalize", "off"),
+              Attr.on_input(handle_input),
+              Attr.on_blur(_ => {
+                composed := "";
+                Effect.Ignore;
+              }),
+            ],
+            [],
+          ),
+        ]
+      | _ => []
+      };
     Node.div(
       ~attrs=[
         Attr.classes(
@@ -1078,12 +1139,17 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
-        /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */
+        /* always focusable so a click gives DOM focus, which on_focus hands to
+           the hidden input (caret/accent gated on :focus-within) */
         Attr.tabindex(0),
         /* Tag the active cell so a sidebar jump can move DOM focus to it
            (see JsUtil.active_cell_id / FocusEffect). */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
+        Attr.on_focus(evt => {
+          Js.Opt.iter(evt##.currentTarget, focus_input);
+          Effect.Ignore;
+        }),
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
           | {button: Right, ctrl: Up, _} =>
@@ -1101,14 +1167,17 @@ module View = {
           drag_select_or_hover(Pointer.Event.mk(evt))
         ),
       ],
-      display_line_numbers
-        ? LineNumbers.View.view(
-            model,
-            globals.settings.relative_line_numbers,
-            selected,
-          )
-          @ [code_view]
-        : [code_view],
+      input
+      @ (
+        display_line_numbers
+          ? LineNumbers.View.view(
+              model,
+              globals.settings.relative_line_numbers,
+              selected,
+            )
+            @ [code_view]
+          : [code_view]
+      ),
     );
   };
 };
