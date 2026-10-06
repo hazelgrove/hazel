@@ -91,9 +91,12 @@ select {
 
 #page {
   position: fixed;
-  top: 0;
   left: 0;
-  height: 100vh;
+  /* The visual viewport where JsUtil.follow_visual_viewport runs (a phone:
+     its keyboard shrinks it); otherwise dvh, not vh, since a phone browser's
+     toolbar collapses and uncovers the bottom bar. */
+  height: var(--visual-viewport-height, 100dvh);
+  top: var(--visual-viewport-top, 0);
   width: 100vw;
   display: grid;
   /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar */
@@ -129,6 +132,29 @@ select {
   width: 400px;
   scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
   scrollbar-width: thin;
+}
+
+/* A phone has no room for a panel beside the editor: it overlays the editor
+   between the bars instead, leaving the tab strip in its column so the tab
+   that opened it still closes it. */
+@media (max-width: 600px) {
+  #side-bar {
+    position: fixed;
+    top: 2em;
+    bottom: 2em;
+    left: 0;
+    right: 2em;
+    width: auto;
+    min-width: 0;
+    z-index: var(--sidebar-overlay-z);
+  }
+
+  /* Flex items deep in #main carry their own z-index (the slide nav
+     arrows: 1000); as a stacking context of its own, all of #main stays
+     under the panel. */
+  #main {
+    isolation: isolate;
+  }
 }
 
 #sidebars {
@@ -510,6 +536,13 @@ select {
   align-items: stretch;
   background-color: var(--ui-bkg);
   outline: 0.6px solid var(--border-default);
+}
+
+/* Narrower than its contents on a phone: scroll rather than clip. */
+@media (max-width: 600px) {
+  #bottom-bar {
+    overflow-x: auto;
+  }
 }
 
 ninja-keys {

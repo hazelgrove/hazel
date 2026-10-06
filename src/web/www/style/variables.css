@@ -46,6 +46,7 @@
   /* TOP LEVEL UI */
   --context-menu-z: 30; /* must be over num-samples badge */
   --context-inspector-z: 30; /* keep below bottom bar */
+  --sidebar-overlay-z: 30; /* a phone's sidebar panel over the editor, below the bars */
   --bottom-bar-z: 31;
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
