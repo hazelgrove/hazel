@@ -133,7 +133,7 @@ let sort_plate(c) =
       `type` = sort_plate(p.`type`),
       `type-pattern` = sort_plate(p.`type-pattern`),
       `derivation` = wash(p.`success`, 0.04, 0.25),
-      `module` = wash(p.`label`, 0.04, 0.25),
+      `module` = wash(p.`ink`, 0.04, 0.25),
       `signature` = wash(p.`type`, 0.04, 0.25),
       `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
     ),
