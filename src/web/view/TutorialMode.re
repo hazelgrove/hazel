@@ -312,6 +312,7 @@ module Update = {
             ),
           hints: model.editors.hidden_tests.hints,
         },
+        solution: model.editors.solution,
         wrapper: model.editors.wrapper,
         show_report: model.editors.show_report,
         // syntax_tests: model.editors.syntax_tests,
