@@ -4,3 +4,9 @@
    fixes the order they reach the model in. */
 
 let self: list(string);
+
+/* Sections of `self` that the compaction prompt quotes on their own. */
+let identity: list(string);
+let session_modes: list(string);
+let hazel_language_guide: list(string);
+let program_model: list(string);
