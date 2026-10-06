@@ -49,6 +49,9 @@ type p('code) = {
   task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
+  /* A known-good replacement for your_impl that passes every hidden test;
+     never shown to the student, only checked by Test_Tutorial. */
+  solution: option('code),
   wrapper: bool,
   show_report: bool,
 };
@@ -103,6 +106,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
       tests: f_hidden(p.hidden_tests.tests),
       hints: p.hidden_tests.hints,
     },
+    solution: Option.map(f, p.solution),
     wrapper: p.wrapper,
     show_report: p.show_report,
   };
@@ -338,5 +342,6 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
       tests: hidden_tests_tests,
       hints: spec.hidden_tests.hints,
     },
+    solution: spec.solution,
   };
 };
