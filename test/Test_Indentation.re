@@ -965,7 +965,37 @@ if true then 1|});
   //   ),
 ];
 
+/* a module-rooted editor (a module's cell) has its members at the top,
+   with no braces to step inside */
+let mod_root_indent = (~name, ~init, ~goal): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(
+      string,
+      name,
+      goal,
+      switch (FastParse.of_text(~root=Sort.Mod, init)) {
+      | Some(seg) =>
+        seg
+        |> Indentation.reindent_segment
+        |> Zipper.unzip
+        |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char)
+      | None => fail("parse")
+      },
+    )
+  );
+
 let module_indentation_tests = [
+  mod_root_indent(
+    ~name="Mod root: members after a multi-line member stay at the top",
+    ~init={|let f = fun x ->
+x + 1;
+let g = 2;
+let h = 3|},
+    ~goal={|let f = fun x ->
+  x + 1;
+let g = 2;
+let h = 3|},
+  ),
   test_indent(
     ~name="Members after a multi-line member stay at member level",
     ~init={|let m = {
