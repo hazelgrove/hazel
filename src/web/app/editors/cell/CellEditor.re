@@ -115,9 +115,8 @@ module Update = {
         {editor, result}: Model.t,
       )
       : Model.t => {
-    /* Cell dynamics = own evaluation's samples, plus (for stack cells)
-       the WHOLE-PROGRAM samples flowing in from the master's stacked
-       eval — the master's win on conflicts (it saw real call sites) */
+    /* own samples plus, for stack cells, the master's whole-program
+       samples, which win on conflict (they saw real call sites) */
     let mk_dynamics = result => {
       let own = EvalResult.Model.dynamics(result);
       switch (extra_dynamics) {
@@ -245,10 +244,8 @@ module View = {
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
-        /* stack cells: the MASTER's whole-program result feeds this
-           cell's dynamic decorations — samples,
-           pending/active-eval indicators (the cell's own result never
-           evaluates while stacked) */
+        /* stack cells: the master's whole-program result supplies this
+           cell's samples (its own result never evaluates while stacked) */
         ~master_result: option(EvalResult.Model.t)=?,
         /* arrow-key at the buffer's edge: hosts (e.g. the editor
            stack) route the caret to a neighboring pane */
@@ -311,12 +308,24 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=
+            switch (master_result) {
+            /* a cell's tests ran in the whole program: its markers too */
+            | Some(mr) when globals.settings.core.dynamics =>
+              switch (EvalResult.Model.test_results(mr)) {
+              | Some(results) => [
+                  EvalResult.View.test_result_layer(
+                    ~font_metrics=globals.font_metrics,
+                    ~measured=model.editor.editor.syntax.measured,
+                    results,
+                  ),
+                ]
+              | None => []
+              }
+            | _ => overlays(model.editor.editor)
+            },
           ~lines,
           ~cull,
-          /* stack cells: whole-program SAMPLES flow in from the master's
-             stacked eval (upstream removed the frozen tint, so samples
-             are the only master-derived decoration left) */
           ~dynamics={
             let own = EvalResult.Model.dynamics(model.result);
             switch (master_result) {

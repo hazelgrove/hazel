@@ -55,28 +55,20 @@ let highlight_of_id =
   };
 };
 
-/* var_highlight_ids scans the info_map for the binding's references,
-   and this view runs on every frame — during eval-stream bursts and
-   caret holds that walk repeated per frame with unchanged inputs.
-   Single-slot memo on (info_map identity, indicated id, selection
-   emptiness); the slot pins one info_map generation, which current
-   statics retains anyway. */
+/* var_highlight_ids scans info_map, and this view reruns every frame with
+   unchanged inputs (eval-stream bursts, caret holds). the one slot pins
+   only the info_map generation current statics already holds */
 let caret_ids_memo:
-  ref(option((Language.Statics.Map.t, option(Id.t), bool, list(Id.t)))) =
-  ref(None);
+  Util.Slot.t((Language.Statics.Map.t, option(Id.t), bool), list(Id.t)) =
+  Util.Slot.mk();
 let compute_caret_ids_cached =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(Id.t) => {
-  let sel_empty = Selection.is_empty(z.selection);
-  let indicated = Indicated.index(z);
-  switch (caret_ids_memo^) {
-  | Some((m, i, se, ids))
-      when m === info_map && i == indicated && se == sel_empty => ids
-  | _ =>
-    let ids = compute_caret_ids(~info_map, z);
-    caret_ids_memo := Some((info_map, indicated, sel_empty, ids));
-    ids;
-  };
-};
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(Id.t) =>
+  Util.Slot.get(
+    ~same=((m, i, se), (m', i', se')) => m === m' && i == i' && se == se',
+    caret_ids_memo,
+    (info_map, Indicated.index(z), Selection.is_empty(z.selection)),
+    () => compute_caret_ids(~info_map, z),
+  );
 
 /* Main view function: renders variable highlight overlays. */
 let view =

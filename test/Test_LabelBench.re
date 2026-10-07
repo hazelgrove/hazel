@@ -3,10 +3,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Microbench: statics cost of a labeled-tuple-heavy module (the
-   measured hot item class at mega scale) vs an unlabeled control.
-   Prints per-iteration Statics.mk wall time; run under node
-   --cpu-prof for attribution. */
+/* statics cost of a labeled-tuple-heavy module vs an unlabeled control;
+   run node with --cpu-prof for attribution */
 
 let slice_lines = (src: string, lo: int, hi: int): string =>
   String.split_on_char('\n', src)
@@ -41,8 +39,7 @@ let rec mentions = (tok: string, seg: Segment.t): bool =>
     seg,
   );
 
-/* the real in-situ path: DefStatics.calc incremental cost for a
-   one-item edit on full mega-4k */
+/* a one-item edit on mega-4k re-analyzes one item and one member */
 let insitu = () => {
   let path = "hazel-programs/mega/mega-4k.hz";
   let path = Sys.file_exists(path) ? path : "../" ++ path;
@@ -67,9 +64,7 @@ let insitu = () => {
       (Sys.time() -. t0) *. 1000.0,
       DefStatics.last_analyzed^,
     );
-    /* a SURGICAL one-item edit: rewrite the "16" literal inside
-       SmithWorks in place (the literal recurs in other items, which
-       stay untouched); ids elsewhere preserved */
+    /* only SmithWorks' "16": the literal recurs in other items */
     let edited =
       Segment.top_items(seg)
       |> List.map(item =>
@@ -87,12 +82,9 @@ let insitu = () => {
       (Sys.time() -. t1) *. 1000.0,
       DefStatics.last_analyzed^,
     );
-    /* the module item plus its one edited member */
     check(int, "incr calc: item + 1 member", 2, DefStatics.last_analyzed^);
     ignore(ds1);
-    /* the FULL init_compositional path (what the browser Force frame
-       runs): whole_elab graft + error/warning folds + targets on top
-       of calc */
+    /* the full path the browser runs: calc plus graft, folds and targets */
     let t2 = Sys.time();
     let cs0 =
       CachedStatics.init_compositional_term(
@@ -133,7 +125,7 @@ let case = () => {
   switch (CorpusUtil.read_file(path)) {
   | None => fail("corpus unreadable")
   | Some(src) =>
-    /* SmithWorks: labeled-tuple Model, the hot class */
+    /* SmithWorks: a labeled-tuple Model */
     let smith = slice_lines(src, 1906, 1945) ++ "\n1";
     /* Text: comparable-size module with NO labeled tuples */
     let text = slice_lines(src, 4, 30) ++ "\n1";

@@ -30,13 +30,15 @@ let of_text = (text: string): t => {
   backup_text: text,
 };
 
-/* Slide-source ingestion: committed .hz text keeps human indentation,
-   but Hazel computes indentation at layout time and renders literal
-   leading spaces ON TOP of it (doubled, drifting) — so slide text is
-   flattened here. The strip is blind per-line; slide sources must not
-   contain multi-line string literals. */
+/* Slide-source ingestion: indentation is the text's own spaces (the
+   editor no longer computes it at layout), so a committed .hz file keeps
+   its indentation; only line endings are normalized */
 let of_slide_text = (text: string): t =>
-  of_text(StringUtil.trim_leading(text));
+  of_text(
+    text
+    |> StringUtil.replace(StringUtil.regexp("\r\n"), _, "\n")
+    |> StringUtil.replace(StringUtil.regexp("\r"), _, "\n"),
+  );
 
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the
@@ -75,24 +77,6 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path
        bails land here). Console-visible: every slow parse names itself. */
-    /* echo the offending line when the failure names one — grout
-       markers and incomplete tiles are expected there (menhir parses
-       complete terms only), but anything ELSE is a fast-parse gap
-       worth a report */
-    let failing_line =
-      switch (StringUtil.first_int_after(~marker="line ", why)) {
-      | Some(n) =>
-        switch (List.nth_opt(String.split_on_char('\n', text), n - 1)) {
-        | Some(l) =>
-          Printf.sprintf(
-            " | line %d: %s",
-            n,
-            String.sub(l, 0, min(80, String.length(l))),
-          )
-        | None => ""
-        }
-      | None => ""
-      };
     print_endline(
       "SLOW PARSE ("
       ++ source
@@ -100,7 +84,6 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       ++ string_of_int(String.length(text))
       ++ " chars): "
       ++ why
-      ++ failing_line
       ++ " | head: "
       ++ String.sub(text, 0, min(60, String.length(text))),
     );

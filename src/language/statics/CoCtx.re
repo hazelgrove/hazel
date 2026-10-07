@@ -33,18 +33,15 @@ type entry = {
   expected_ty: Typ.t,
 };
 
-/* Each co-context entry is a list of the uses of a variable within
-   some scope, including their type demands. Consume the
-   representation only through the accessor API below. NOTE a
-   name-keyed map representation was tried and reverted — no measured
-   benefit; see plans/perf-ledger.md §5/§7 before re-proposing. */
+/* Each co-context entry is a list of the uses of a variable
+   within some scope, including their type demands (use the
+   accessors below, not the representation) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(list(entry));
 
 let empty: t = VarMap.empty;
 
 let to_list = (co_ctx: t): list((Var.t, list(entry))) => co_ctx;
-let of_list = (l: list((Var.t, list(entry)))): t => l;
 
 let lookup = (co_ctx: t, name: Var.t): option(list(entry)) =>
   VarMap.lookup(co_ctx, name);

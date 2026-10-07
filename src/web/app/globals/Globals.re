@@ -14,10 +14,8 @@ module VisibleRows = {
   };
 
   /* Compute visible row range from scroll container properties.
-   * buffer: extra rows above/below to prevent popping. Wide buffer +
-   * wide change threshold below: every visible-rows change re-renders
-   * the page, so culling must recompute per scrolled SCREEN, not per
-   * scrolled row. */
+   * buffer: extra rows above/below to prevent popping. Wide, like the
+   * change threshold below: each visible-rows change re-renders the page. */
   let compute =
       (
         ~scroll_top: float,
@@ -36,13 +34,20 @@ module VisibleRows = {
     };
   };
 
-  /* Re-render only once scrolled well into the buffer */
+  /* kept only while something culls by it (auto-probe's probes, the
+     eval-progress highlight): a range kept untracked goes stale */
+  let tracked = (settings: Settings.t): bool =>
+    settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    || settings.show_incremental_deco;
+
+  /* Re-render only once scrolled well into the buffer. [last] moves with
+     [first] (fixed span) except on resize, so both share the threshold. */
   let changed = (old: option(t), new_rows: t): bool =>
     switch (old) {
     | None => true
     | Some(old) =>
       abs(old.first - new_rows.first) > 16
-      || abs(old.last - new_rows.last) > 2
+      || abs(old.last - new_rows.last) > 16
     };
 };
 

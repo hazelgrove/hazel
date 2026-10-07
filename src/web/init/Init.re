@@ -9,8 +9,7 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-/* each slide carries its editor ROOT sort: the mega-mod corpus is a
-   module body (root Mod, plans/mod-root.md); everything else is Exp */
+/* each slide's root sort: mod_slides are module bodies, the rest Exp */
 let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
   List.map(
     ((n, z)) => (n, Sort.Exp, z),
@@ -41,13 +40,6 @@ let startup: Lazy.t(PersistentData.t) =
          ),
     ),
   });
-
-/* canonical ROOT sort for a documentation slide (mega-mod slides are
-   Mod-rooted): persisted blobs are repaired against this on load */
-let documentation_slide_root = (name: string): option(Sort.t) =>
-  documentation_slides
-  |> List.find_opt(((n, _, _)) => n == name)
-  |> Option.map(((_, root, _)) => root);
 
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation

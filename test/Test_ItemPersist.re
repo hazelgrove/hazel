@@ -1,11 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 
-/* ItemPersist: per-item persistence core. The decisive gates:
-   EXACT restore (incomplete tiles and grout included — the reason
-   this exists: text persistence cannot express them fast-parseably),
-   dirty-only writes, GC ordering, and fallback (None) on any
-   inconsistency. */
+/* per-item persistence: exact restore (incomplete tiles and grout
+   included), dirty-only writes, GC ordering, None on any inconsistency */
 
 let mem_store = (): (ItemPersist.store, ref(list((string, string)))) => {
   let tbl: Hashtbl.t(string, string) = Hashtbl.create(16);
@@ -62,8 +59,6 @@ let cases = [
     "incomplete tile and infix hole restore exactly",
     `Quick,
     () => {
-      /* the driver for serialized persistence: these are the states the
-         text fast parse cannot express (pre-completion-provenance) */
       let (store, _) = mem_store();
       let seg =
         seg_of_text(
@@ -96,9 +91,7 @@ let cases = [
       let (store, log) = mem_store();
       let seg = seg_of_text(doc);
       let saved = ItemPersist.save(~store, ~prev=[], seg);
-      /* mutate the SECOND item only (append a space), preserving its
-         leading piece and the other items' physical identity, as the
-         editing discipline does */
+      /* append a space to the second item; the others stay physically shared */
       let items = ItemPersist.items_of(seg);
       let seg' =
         List.concat(
@@ -127,7 +120,6 @@ let cases = [
       let ops = List.rev(log^);
       let removed = List.filter(((op, _)) => op == "remove", ops);
       check(int, "one key removed", 1, List.length(removed));
-      /* the remove comes after the last set (roster-last ordering) */
       let rec last_set_before_remove = (ops, seen_remove) =>
         switch (ops) {
         | [] => true
@@ -179,15 +171,13 @@ let cases = [
     "interrupted save: newer item under old roster still loads",
     `Quick,
     () => {
-      /* crash between an item write and the roster write: the old
-         roster + a newer same-id same-count item is a benign view */
+      /* a crash between item and roster writes leaves a benign view */
       let (store, _) = mem_store();
       let seg = seg_of_text(doc);
       let _ = ItemPersist.save(~store, ~prev=[], seg);
       let items = ItemPersist.items_of(seg);
       switch (items) {
       | [(id, s0), ..._] =>
-        /* same piece count, different content */
         let replacement = seg_of_text("let a : Int = 2 in");
         if (List.length(replacement) == List.length(s0)) {
           store.set(

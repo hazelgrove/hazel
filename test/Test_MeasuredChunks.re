@@ -1,16 +1,12 @@
 open Alcotest;
 open Haz3lcore;
 
-/* Exact-parity gate for chunked measurement (Measured.Incr): for the
-   mega corpus and a set of layout edge cases, the incremental
-   chunk-composed measurement must agree with the monolithic
-   measurement on every map, and the memo must localize rebuilds.
-     bash test/run_node.sh test 'MeasuredChunks' */
+/* chunked measurement (Measured.Incr) matches the monolithic one on every
+   map, and rebuilds only changed chunks */
 
 let corpus_seg = (name: string): option(Segment.t) => {
   let path = "hazel-programs/mega/" ++ name;
   let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-  /* FastParse: the typing parser costs tens of seconds at this size */
   Option.bind(CorpusUtil.read_file(path), src =>
     FastParse.of_text(
       ~materialize=Triggers.invoked_projector,
@@ -23,12 +19,61 @@ let corpus_seg = (name: string): option(Segment.t) => {
 
 let empty_shapes: Id.Map.t(ProjectorCore.Shape.t) = Id.Map.empty;
 
-let mono = (seg: Segment.t): Measured.flat =>
-  Measured.flatten(Measured.of_segment(seg, empty_shapes, Id.Map.empty));
+/* the chunks as one flat measurement */
+let flatten = (m: Measured.t): Measured.flat =>
+  Array.fold_left(
+    (acc: Measured.flat, ch: Measured.chunk): Measured.flat => {
+      let s = ch.c_start;
+      let f = ch.c_flat;
+      {
+        tiles:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.tiles,
+            Id.Map.map(
+              List.map(((i, ms)) => (i, Measured.shift_m(s, ms))),
+              f.tiles,
+            ),
+          ),
+        grout:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.grout,
+            Id.Map.map(Measured.shift_m(s), f.grout),
+          ),
+        secondary:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.secondary,
+            Id.Map.map(Measured.shift_m(s), f.secondary),
+          ),
+        projectors:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.projectors,
+            Id.Map.map(Measured.shift_m(s), f.projectors),
+          ),
+        rows:
+          Measured.Rows.union(
+            (_, _, y) => Some(y),
+            acc.rows,
+            f.rows
+            |> Measured.Rows.bindings
+            |> List.map(((r, sh)) => (r + s, sh))
+            |> List.to_seq
+            |> Measured.Rows.of_seq,
+          ),
+        piece_rows: f.piece_rows @ acc.piece_rows,
+      };
+    },
+    Measured.empty_flat,
+    m.chunks,
+  );
 
-/* piece_rows rows contain phantom linebreak secondaries minted with
-   fresh ids at flush time; canonicalize rows to their non-linebreak
-   piece ids */
+let mono = (seg: Segment.t): Measured.flat =>
+  flatten(Measured.of_segment(seg, empty_shapes, Id.Map.empty));
+
+/* piece_rows' linebreaks get fresh ids at flush time, so compare the rest */
 let canon_rows = (rows: list(list(Piece.t))): list(list(Id.t)) =>
   List.map(
     row =>
@@ -104,7 +149,7 @@ let check_parity = (name: string, seg: Segment.t): Measured.Incr.cache => {
   let cache = Measured.Incr.mk_cache();
   let chunked =
     Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
-  flats_agree(name, mono(seg), Measured.flatten(chunked));
+  flats_agree(name, mono(seg), flatten(chunked));
   /* spot-check the query path (translation), not just flatten */
   let m_t = Measured.of_segment(seg, empty_shapes, Id.Map.empty);
   check(
@@ -151,7 +196,6 @@ let corpus_case = (file: string, min_chunks: int, ()) =>
       true,
       Array.length(chunked.chunks) >= min_chunks,
     );
-    /* full reuse on an identical rebuild */
     let b0 = Measured.Incr.built^;
     let _ = Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
     check(
@@ -160,8 +204,7 @@ let corpus_case = (file: string, min_chunks: int, ()) =>
       b0,
       Measured.Incr.built^,
     );
-    /* a localized change (one top-level piece copied, breaking ===)
-       rebuilds ~one chunk and stays exact */
+    /* copying one top-level piece (breaking ===) rebuilds about one chunk */
     let n = List.length(seg);
     let seg' =
       List.mapi(
@@ -204,15 +247,9 @@ let corpus_case = (file: string, min_chunks: int, ()) =>
       true,
       Measured.Incr.built^ - b1 <= 2,
     );
-    flats_agree(
-      file ++ ":after edit",
-      mono(seg'),
-      Measured.flatten(chunked'),
-    );
+    flats_agree(file ++ ":after edit", mono(seg'), flatten(chunked'));
   };
 
-/* layout edge cases: continuation lines, same-line items, blank
-   lines, comments, case rules, multiline tuples, trailing blanks */
 let edge_programs = [
   ("two defs", "let a = 1 in\nlet b = 2 in\na + b"),
   ("blank lines", "let a = 1 in\n\n\nlet b = 2 in\na + b"),
@@ -232,12 +269,27 @@ let edge_case = ((name, src), ()) =>
   | Some(seg) => ignore(check_parity(name, seg))
   };
 
+let incomplete_case = ((name, src), ()) =>
+  switch (CorpusUtil.typed_seg(src)) {
+  | None => fail("untypeable program: " ++ name)
+  | Some(seg) => ignore(check_parity(name, seg))
+  };
+
 let tests = (
   "MeasuredChunks",
   List.map(
     ((name, src)) => test_case(name, `Quick, edge_case((name, src))),
     edge_programs,
   )
+  @ List.map(
+      ((name, src)) =>
+        test_case(
+          "incomplete: " ++ name,
+          `Quick,
+          incomplete_case((name, src)),
+        ),
+      CorpusUtil.incomplete_programs,
+    )
   @ [
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz", 20)),
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz", 20)),

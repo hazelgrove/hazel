@@ -62,10 +62,8 @@ let remold = (z: t, ~root): t => {
   };
 };
 
-/* remold/regrout rebuild every piece object even when nothing about it
-   changed; restoring identity afterwards keeps the ZIPPER holding the
-   pre-action objects for unchanged pieces, so every downstream
-   pointer-keyed incremental layer localizes to the actual change. */
+/* keep the old objects for pieces remold/regrout rebuilt unchanged, so
+   pointer-keyed layers downstream see only the actual change */
 let restore_sibs = (o: Siblings.t, n: Siblings.t): Siblings.t => (
   Segment.restore_identity(fst(o), fst(n)),
   Segment.restore_identity(snd(o), snd(n)),
@@ -87,23 +85,10 @@ let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
         ),
     };
 
-/* ===== sparse normalization (plans/editing-cycle-streamline.md) =====
- * remold stays a global walk (measured cheap; remold_tile returns
- * ORIGINAL tiles on same-mold) and regrout runs only on a caret
- * WINDOW. The window's dirty set has two sources: the remold diff
- * (restore_identity_dirty) and a read-only NORMAL-FORM scan
- * (Segment.stale_affix_ids) that finds junction work the diff can't
- * see — normalization is caret-relative, so caret movement and
- * splices (put_down, selection moves) leave stale runs behind. The
- * window spans from the caret through the last dirty piece to the
- * next clean solid; runs beyond it are checker-verified normal, and
- * clean tiles inside it keep their innards (~skip_clean). Falls back
- * to the global pass when ancestors changed or hold stale runs.
- * [normalize_parity] makes every call ALSO run the global pass and
- * assert equivalence (enabled in the test runner, so the whole
- * editing suite gates parity). */
-let sparse_normalize: ref(bool) = ref(true);
-let normalize_parity: ref(bool) = ref(false);
+/* sparse normalization: remold stays global (same-mold tiles come back
+   as-is) but regrout runs only on a caret window spanning the remold
+   diff and any stale runs, falling back to the global pass when
+   ancestors changed or are stale */
 let sparse_hits: ref(int) = ref(0);
 let sparse_fallbacks: ref(int) = ref(0);
 
@@ -163,15 +148,11 @@ let shape_complement: Nib.Shape.t => Nib.Shape.t =
   | Convex => Nib.Shape.concave()
   | Concave(_) => Convex;
 
-/* the regrout bound at a window's outer edge: a shape FITTING the
-   boundary solid's outer face, so the run beyond the window —
-   guaranteed normal by the stale-run scan — is left untouched.
-   (Passing the far solid's TRUE shape would re-decide that run with
-   its trim content out of scope, adding duplicate grout.) None when
-   the window spans the whole affix: the level-edge concave default
-   then matches the global pass. [outer] = which side of the window
-   faces away from the caret; [mini] is caret-nearest-first, so the
-   boundary solid is its last element. */
+/* the regrout bound at a window's outer edge: a shape fitting the
+   boundary solid's outer face, so the (normal) run beyond is left
+   alone; the far solid's true shape would re-decide that run without
+   its trim, duplicating grout. [mini] is caret-nearest-first, ending at
+   the boundary solid; [outer] is the side facing away from the caret */
 let window_bound =
     (outer: Direction.t, mini: list(Piece.t)): option(Nib.Shape.t) =>
   switch (ListUtil.last_opt(mini)) {
@@ -185,12 +166,10 @@ let window_bound =
   | None => None
   };
 
-/* split an affix (given caret-nearest-FIRST) into the regrout window
-   and the untouched remainder: the window spans from the caret
-   through the LAST dirty piece, then extends through trim to the
-   next clean solid (the threading anchor). Dirt reaching the affix
-   end makes the window the whole affix (boundary shape then falls
-   back to the level-edge concave, same as the global pass). */
+/* split a caret-nearest-first affix into the regrout window (through
+   the last dirty piece, then on to the next clean solid) and the
+   untouched rest. with dirt at the affix end the window is the whole
+   affix, bounded by the level-edge concave as in the global pass */
 let split_window =
     (~dirty: Id.Set.t, ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
   let in_dirty = p => Id.Set.mem(Piece.id(p), dirty);
@@ -210,12 +189,9 @@ let split_window =
   take(0, [], ps);
 };
 
-/* ancestor-level staleness: the global pass renormalizes every
-   generation's sibling runs (against the ancestor's nibs on the
-   inner side; cf. Ancestors.regrout) and descends their tiles'
-   children, while the sparse pass reuses ancestors verbatim — so any
-   stale ancestor run forces the global fallback. Arises when the
-   caret DESCENDS past a caret-relatively-normalized junction. */
+/* the sparse pass reuses ancestors verbatim while the global pass
+   renormalizes them, so any stale ancestor run (e.g. after the caret
+   descends past a caret-relative junction) forces the global pass */
 let ancestors_stale = (ancs: Ancestors.t): bool =>
   List.exists(
     ((a, (pre, suf)): Ancestors.generation) => {
@@ -228,14 +204,6 @@ let ancestors_stale = (ancs: Ancestors.t): bool =>
     },
     ancs,
   );
-
-let remold_regrout_global = (d: Direction.t, z: t, ~root): t => {
-  let z' = z |> remold(~root) |> regrout(d);
-  {
-    ...z',
-    relatives: restore_relatives(z.relatives, z'.relatives),
-  };
-};
 
 let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
   let z1 = remold(z, ~root);
@@ -258,14 +226,13 @@ let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
   } else {
     incr(sparse_hits);
     let (pre, suf) = relatives.siblings;
-    /* stale runs the remold diff can't see (caret history, splice
-       seams) become dirty so the window spans them */
+    /* stale runs the remold diff can't see join the window */
     let dirty =
       dirty
       |> Id.Set.union(Segment.stale_affix_ids(Left, pre))
       |> Id.Set.union(Segment.stale_affix_ids(Right, suf));
     let clean = p => !Id.Set.mem(Piece.id(p), dirty);
-    /* pre is in document order: the caret side is its END */
+    /* pre is in document order: the caret side is its end */
     let (mini_pre_rev, far_pre_rev) = split_window(~dirty, List.rev(pre));
     let (mini_suf, far_suf) = split_window(~dirty, suf);
     let l_shape = far_pre_rev == [] ? None : window_bound(Left, mini_pre_rev);
@@ -291,139 +258,14 @@ let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
   };
 };
 
-/* grout ids (and redeemed-space secondary ids) are minted fresh per
-   pass, so parity compares modulo grout/secondary ids, recursively
-   through tile children */
-let rec scrub_grout_ids = (seg: Segment.t): Segment.t =>
-  List.map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Grout(g) =>
-        Piece.Grout({
-          ...g,
-          id: Id.invalid,
-        })
-      | Secondary(w) =>
-        Piece.Secondary({
-          ...w,
-          id: Id.invalid,
-        })
-      | Tile(t) =>
-        Piece.Tile({
-          ...t,
-          children: List.map(scrub_grout_ids, t.children),
-        })
-      | Projector(_) => p
-      },
-    seg,
-  );
-
-let relatives_equiv = (a: Relatives.t, b: Relatives.t): bool => {
-  let sibs_equiv = ((p1, s1): Siblings.t, (p2, s2): Siblings.t) =>
-    compare(scrub_grout_ids(p1), scrub_grout_ids(p2)) == 0
-    && compare(scrub_grout_ids(s1), scrub_grout_ids(s2)) == 0;
-  sibs_equiv(a.siblings, b.siblings)
-  && List.length(a.ancestors) == List.length(b.ancestors)
-  && List.for_all2(
-       ((aa, asibs): Ancestors.generation, (ba, bsibs)) =>
-         compare(aa, ba) == 0 && sibs_equiv(asibs, bsibs),
-       a.ancestors,
-       b.ancestors,
-     );
-};
+/* the test runner swaps in a check that also runs the global pass and
+   asserts they agree */
+let normalize_check: ref(option((Direction.t, t, Sort.t) => t)) = ref(None);
 
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
-  if (! sparse_normalize^) {
-    remold_regrout_global(d, z, ~root);
-  } else if (normalize_parity^) {
-    /* the owed-space ref is consumed by the first pass; replay it so
-       the global pass sees the same state the sparse pass did */
-    let owed = Grout.suppressed_space^;
-    let zs = remold_regrout_sparse(d, z, ~root);
-    Grout.suppressed_space := owed;
-    let zg = remold_regrout_global(d, z, ~root);
-    if (!relatives_equiv(zs.relatives, zg.relatives)) {
-      let diff = (tag, a: Segment.t, b: Segment.t) => {
-        let (a, b) = (scrub_grout_ids(a), scrub_grout_ids(b));
-        if (compare(a, b) != 0) {
-          let rec first = (i, xs, ys) =>
-            switch (xs, ys) {
-            | ([x, ...xs], [y, ...ys]) when compare(x, y) == 0 =>
-              first(i + 1, xs, ys)
-            | _ => i
-            };
-          let i = first(0, a, b);
-          let at = (seg, i) =>
-            switch (List.nth_opt(seg, i)) {
-            | Some(p) =>
-              String.sub(
-                Piece.show(p) ++ "",
-                0,
-                min(200, String.length(Piece.show(p))),
-              )
-            | None => "<end>"
-            };
-          print_endline(
-            Printf.sprintf(
-              "[parity] %s differs at %d (lens %d vs %d)\n  sparse: %s\n  global: %s",
-              tag,
-              i,
-              List.length(a),
-              List.length(b),
-              at(a, i),
-              at(b, i),
-            ),
-          );
-        };
-      };
-      diff("pre", fst(zs.relatives.siblings), fst(zg.relatives.siblings));
-      diff("suf", snd(zs.relatives.siblings), snd(zg.relatives.siblings));
-      /* temp diagnostics: compact affix dumps + dirty/stale sets */
-      let brief = (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          Printf.sprintf(
-            "T(%s)",
-            String.concat("", Tile.effective_label(t)),
-          )
-        | Grout(g) =>
-          Printf.sprintf(
-            "G(%s)",
-            switch (g.shape) {
-            | Convex => "cvx"
-            | Concave => "ccv"
-            },
-          )
-        | Secondary(w) => Secondary.is_linebreak(w) ? "LB" : "ws"
-        | Projector(_) => "Proj"
-        };
-      let dump = (tag, seg: Segment.t) =>
-        print_endline(
-          Printf.sprintf(
-            "[parity] %s: [%s]",
-            tag,
-            String.concat(" ", List.map(brief, seg)),
-          ),
-        );
-      dump("z.pre     ", fst(z.relatives.siblings));
-      dump("z.suf     ", snd(z.relatives.siblings));
-      dump("sparse.pre", fst(zs.relatives.siblings));
-      dump("global.pre", fst(zg.relatives.siblings));
-      dump("sparse.suf", snd(zs.relatives.siblings));
-      dump("global.suf", snd(zg.relatives.siblings));
-      print_endline(
-        Printf.sprintf(
-          "[parity] sel=%d anc=%d d=%s",
-          List.length(z.selection.content),
-          List.length(z.relatives.ancestors),
-          d == Left ? "L" : "R",
-        ),
-      );
-      failwith("sparse normalize PARITY MISMATCH");
-    };
-    zs;
-  } else {
-    remold_regrout_sparse(d, z, ~root);
+  switch (normalize_check^) {
+  | Some(check) => check(d, z, root)
+  | None => remold_regrout_sparse(d, z, ~root)
   };
 
 /* Rescan ancestor-level siblings: converts standalone monotiles that
@@ -1587,15 +1429,23 @@ let do_towards_point =
 
   let init = caret_point(z);
   let d_to_goal = direction_to_from(goal, init);
-  /* Backstop against non-advancing loops only (the guard below already
-     stops zero-progress steps). Long walks legitimately outgrow any
-     fixed budget on large programs — a cross-file click at 4k lines is
-     >100k ByChar steps — so hitting the cap is NOT an error: stop
-     where we are, strictly closer to the goal. The former failwith
-     crashed the click action. */
+  /* a backstop only (the guard below stops zero-progress steps): reaching
+     it is a runaway walk, so log it and stop here rather than fail the
+     action */
   let max_iter = 1_000_000;
   let rec go = (iter: int, prev: t, curr: t) =>
     if (iter > max_iter) {
+      print_endline(
+        "WARN: do_towards_point: exceeded "
+        ++ string_of_int(max_iter)
+        ++ " iterations (goal="
+        ++ Point.show(goal)
+        ++ ", init="
+        ++ Point.show(init)
+        ++ ", curr="
+        ++ Point.show(caret_point(curr))
+        ++ ")",
+      );
       curr;
     } else {
       go_body(iter, prev, curr);

@@ -79,11 +79,8 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      /* Rapid input snaps instead of gliding: every qualifying action
-         starts a fresh 125ms caret translate, so under key repeat the
-         caret is perpetually mid-glide, visibly trailing the text.
-         Animate only when the previous glide has had time to finish —
-         discrete jumps keep the animation, bursts stay tight. */
+      /* rapid input snaps: under key repeat a glide per key leaves the
+         caret trailing the text */
       settings.core.flip_animations
       && Action.should_animate(action)
       && Animation.caret_glide_available()
@@ -751,7 +748,9 @@ module View = {
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
-                ~visible?,
+                /* not gated on auto-probe: the range is tracked
+                   whenever this highlight shows */
+                ~visible=?cull ? globals.visible_rows : None,
                 ~pending_eval_ids,
                 ~show_active_eval,
                 (),
@@ -954,9 +953,8 @@ module View = {
         Attr.empty;
       } else {
         let z = model.editor.state.zipper;
-        /* row-edge detection for escape_vertical: hosts that stack
-           editors (see EditMode) get Up-on-first-row / Down-on-last-row
-           BEFORE the core move snaps the caret to line start/end */
+        /* escape_vertical fires on Up at the first row / Down at the last,
+           before the core move snaps the caret to line start/end */
         let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
           switch (escape_vertical) {
           | None => None

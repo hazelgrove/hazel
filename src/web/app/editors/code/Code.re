@@ -215,10 +215,8 @@ let view =
     );
 
   let nodes = of_segment(segment);
-  /* a TRAILING linebreak produces no final line box in pre flow, so
-     the editor came up one row short and the caret hung below it
-     (worst in stacked cells, where the next cell sits right there):
-     a zero-width space reserves the last row */
+  /* a trailing linebreak gets no final line box in pre flow, leaving the
+     editor a row short: a zero-width space reserves the last row */
   switch (List.rev(segment)) {
   | [Secondary(s), ..._]
       when reserve_trailing_row && Secondary.is_linebreak(s) =>
@@ -227,31 +225,30 @@ let view =
   };
 };
 
-/* ===== PER-CHUNK CODE TEXT (plans/subeditor-dataflow.md paragraph 5a)
-   One inline span per measured chunk, memoized by anchor: unchanged
-   chunks return the SAME vdom node, so the virtual-dom diff skips
-   them by reference and an edit re-renders one chunk's tokens.
-   Inline spans in pre flow reproduce the flat render exactly (the
-   text, with its embedded linebreaks, flows identically).
-
-   The memo key is CONTENT-based where identity churns per frame:
-   term_data/info_map are rebuilt wholesale each parse/statics pass,
-   so we key on the per-tile RENDER-RELEVANT projection (the refined
-   sort and the term-data sort actually consulted by of_delim) and
-   compare structurally. c_flat identity covers pieces + projector/
-   refractor shape slices (Measured.Incr guarantees slice equality
-   on reuse). Eviction: tick sweep (view-side cache discipline). */
+/* one inline span per measured chunk, memoized by anchor: an unchanged
+   chunk returns the same vdom node, so the diff skips it by reference
+   (inline spans in pre flow render exactly like the flat text).
+   term_data and info_map are rebuilt every pass, so tiles compare by the
+   sorts of_delim reads; c_flat identity covers pieces and projector/
+   refractor shapes */
 module ChunkViews = {
   type entry = {
     mutable cv_flat: Obj.t, /* Measured.flat identity */
     mutable cv_final: bool,
     mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
     mutable cv_sorts: array((Sort.t, option(Sort.t))),
-    /* info_map identity at the last sort probe: when it matches, the
-       probe is skipped entirely — for unchanged pieces go_incr shares
-       term_data values, so sorts can only change via new statics */
+    /* info_map and term_data identities at the last sort probe; a match
+       skips the probe. under the same info_map, only top-level sorts can
+       move (record_top_frame reads context), so a new term_data probes
+       just the chunk's top-level tiles */
     mutable cv_info: Obj.t,
-    mutable cv_buffer: Obj.t, /* buffer_ids identity (usually []) */
+    mutable cv_td: Obj.t,
+    mutable cv_top: list(Tile.t),
+    mutable cv_top_sorts: array((Sort.t, option(Sort.t))),
+    /* whether the chunk held buffer pieces: only then can buffer_ids
+       change it (new buffer text is new pieces, so a new c_flat) */
+    mutable cv_buffered: bool,
+    mutable cv_buffer: Obj.t, /* buffer_ids identity */
     mutable cv_fm: Obj.t,
     mutable cv_settings: Obj.t,
     mutable cv_node: Node.t,
@@ -341,19 +338,36 @@ let view_chunked =
        let stable = (e: ChunkViews.entry) =>
          e.cv_flat === Obj.repr(ch.c_flat)
          && e.cv_final == final
-         && e.cv_buffer === Obj.repr(buffer_ids)
+         && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
          && e.cv_fm === Obj.repr(font_metrics)
          && e.cv_settings === Obj.repr(settings);
        switch (Hashtbl.find_opt(ChunkViews.cache, ch.c_anchor)) {
-       | Some(e) when stable(e) && e.cv_info === statics_ident =>
+       | Some(e)
+           when
+             stable(e)
+             && e.cv_info === statics_ident
+             && (
+               e.cv_td === Obj.repr(term_data)
+               || e.cv_top_sorts == sorts_of(e.cv_top)
+             ) =>
+         e.cv_td = Obj.repr(term_data);
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
          e.cv_info = statics_ident;
+         e.cv_td = Obj.repr(term_data);
+         e.cv_top_sorts = sorts_of(e.cv_top);
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
          let tiles = chunk_tiles(ch.c_pieces, []);
+         let top =
+           List.filter_map(
+             fun
+             | Piece.Tile(t) => Some(t)
+             | _ => None,
+             ch.c_pieces,
+           );
          let node = render(ch, final);
          let e = {
            ChunkViews.cv_flat: Obj.repr(ch.c_flat),
@@ -361,6 +375,15 @@ let view_chunked =
            cv_tiles: tiles,
            cv_sorts: sorts_of(tiles),
            cv_info: statics_ident,
+           cv_td: Obj.repr(term_data),
+           cv_top: top,
+           cv_top_sorts: sorts_of(top),
+           cv_buffered:
+             buffer_ids != []
+             && List.exists(
+                  id => List.mem(id, buffer_ids),
+                  Segment.ids(ch.c_pieces),
+                ),
            cv_buffer: Obj.repr(buffer_ids),
            cv_fm: Obj.repr(font_metrics),
            cv_settings: Obj.repr(settings),

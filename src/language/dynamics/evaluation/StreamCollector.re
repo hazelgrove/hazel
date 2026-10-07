@@ -70,31 +70,22 @@ let collect_stream_state =
   };
 };
 
-/* INCREMENTAL collector. The walk above re-traverses the WHOLE
-   elaboration on every stream message (~0.6-1s per chunk on mega-2k,
-   on the main thread). But the merged state it produces is determined
-   by the OUTERMOST completed regions in program order (an entry's
-   state slice subsumes its subtree's inner entries — that's what
-   reuse replays), plus the in-flight partial. So: number the elab's
-   nodes once (DFS enter/exit intervals), keep the FRONTIER of
-   outermost completed entries as disjoint intervals, and per chunk
-   fold only the frontier — O(chunk + frontier) instead of
-   O(program). The in-flight region is appended last: mid-run it is
-   always program-after every completed region (outer spine entries
-   only complete at the very end, when there is no in-flight). */
+/* incremental collector: the merged state depends only on the outermost
+   completed regions (an entry's slice subsumes its subtree's entries)
+   plus the in-flight partial, so index the elab once (DFS enter/exit)
+   and fold only the frontier of outermost entries per chunk. in-flight
+   goes last: mid-run it follows every completed region, as outer spine
+   entries complete only at the end */
 module Inc = {
   type t = {
     inc_elab: DHExp.t, /* identity key: new elab = new evaluation */
     enter: Id.Map.t(int),
     exit_: Id.Map.t(int),
     processed: Id.Map.t(unit),
-    /* outermost completed entries ordered by pos_seq — the entry's
-       record-time step count (monotone in evaluation order, i.e. the
-       order the full walk appends slices). Same-chunk regions order
-       correctly because seq is stamped worker-side per entry.
-       Intervals are used only for coverage tests; a covering entry
-       inherits the position of the first entry it subsumes.
-       Node: (pos_seq, enter, exit, entry). */
+    /* (pos_seq, enter, exit, entry) of outermost completed entries,
+       ordered by record-time step count (the full walk's append order);
+       intervals only serve coverage tests, and a covering entry takes
+       the first subsumed entry's position */
     frontier: list((int, int, int, IncrEval.entry(EvaluatorState.t))),
   };
 
@@ -104,8 +95,8 @@ module Inc = {
     let c = ref(0);
     let f_exp = (continue, e: Exp.t): Exp.t => {
       let id = Exp.rep_id(e);
-      /* first occurrence wins: temp/invalid ids repeat — only the
-         outermost occurrence can carry a cache entry we care about */
+      /* first occurrence wins: temp/invalid ids repeat, and only the
+         outermost can carry a relevant cache entry */
       if (!Id.Map.mem(id, enter^)) {
         enter := Id.Map.add(id, c^, enter^);
         incr(c);
@@ -134,8 +125,8 @@ module Inc = {
     };
   };
 
-  /* returns None when an entry id is unknown to the index — the elab
-     and the stream disagree; caller falls back to the full walk */
+  /* None when the stream names an id the index lacks; the caller then
+     falls back to the full walk */
   let absorb =
       (inc: t, stream: IncrEval.outbox(EvaluatorState.t)): option(t) =>
     Id.Map.fold(
@@ -165,9 +156,8 @@ module Inc = {
                 let covers = ((_, fe, fx, _)) => en <= fe && fx <= ex;
                 let frontier =
                   if (List.exists(covers, inc.frontier)) {
-                    /* the covering entry takes the FIRST subsumed
-                       node's position (the walk appends the outer
-                       slice where the region began); rest drop */
+                    /* take the first subsumed node's position (where
+                       the walk appends the outer slice); drop the rest */
                     let rec go = (replaced, l) =>
                       switch (l) {
                       | [] =>
@@ -180,8 +170,7 @@ module Inc = {
                       };
                     go(false, inc.frontier);
                   } else {
-                    /* fresh disjoint region: insert by record-time
-                       seq — the walk's append order */
+                    /* fresh disjoint region: insert by seq */
                     let sq = entry.IncrEval.seq;
                     let rec ins = l =>
                       switch (l) {
@@ -242,9 +231,6 @@ module Inc = {
   };
 };
 
-/* Drop-in incremental version of [collect_stream_state]: thread the
-   returned Inc.t back in on the next chunk. Falls back to the full
-   walk when the stream references ids the elab doesn't have. */
 let collect_stream_state_inc =
     (
       ~prev: option(Inc.t),

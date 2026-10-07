@@ -1,25 +1,15 @@
 open Util;
 
-/* Per-item persistence: a document's top-level item slices are stored
-   as individual sexp values plus an ordered ROSTER, so autosave
-   writes only the items an edit touched (~3-10ms measured, vs
-   0.1-1.5s for the whole zipper) and reload restores the segment
-   EXACTLY — incomplete tiles, grout and all — with no text parse,
-   which removes the quadratic-recovery reload class structurally.
-   The whole-doc text blob remains the fallback and migration path
-   (no roster ⟹ the old text load), owned by the caller
-   (ScratchPersist), as is the HazelDB glue: this module is pure over
-   an abstract string store.
+/* per-item persistence: top-level item slices stored as separate sexp
+   values plus an ordered roster, so autosave writes only touched items
+   and reload restores the segment exactly (grout and all) with no text
+   parse. pure over an abstract string store; the caller owns the
+   text-blob fallback for when there's no roster.
 
-   Write order is items → roster → GC of orphans, so an interrupted
-   save leaves either the previous consistent view or benignly newer
-   content under unchanged ids — never a roster naming a missing key.
-
-   Item slicing reuses the incremental parser's top-level slices
-   (identical boundaries and ids as the rest of the system); slices
-   partition the piece list, so concatenating the stored items
-   reproduces the segment verbatim. Item identity = the slice's first
-   piece (nonempty partition ⟹ unique). */
+   write order is items → roster → GC, so an interrupted save never
+   leaves a roster naming a missing key (the web store also commits a
+   whole save in one transaction). slices partition the piece list; an
+   item is keyed by its first piece's id. */
 
 type store = {
   get: string => option(string),
@@ -49,9 +39,8 @@ let items_of = (seg: Segment.t): list((Id.t, Segment.t)) =>
        }
      );
 
-/* the previously-saved slices, held as the actual segments: pieces
-   are shared across ticks when unchanged (the identity-preservation
-   discipline), so dirtiness is a per-item pointer walk */
+/* the previously saved slices, kept as segments: unchanged pieces
+   keep their identity, so dirtiness is a per-item pointer walk */
 type saved = list((Id.t, Segment.t));
 
 let save = (~store: store, ~prev: saved, seg: Segment.t): saved => {
@@ -92,8 +81,7 @@ let save = (~store: store, ~prev: saved, seg: Segment.t): saved => {
   items;
 };
 
-/* None on ANY inconsistency (missing roster/key, undecodable value,
-   stamp mismatch): the caller falls back to the text blob */
+/* None on any inconsistency; the caller falls back to the text blob */
 let load = (~store: store): option(Segment.t) => {
   let decode_roster = (r: string): option(roster) =>
     switch (roster_of_sexp(Sexplib.Sexp.of_string(r))) {

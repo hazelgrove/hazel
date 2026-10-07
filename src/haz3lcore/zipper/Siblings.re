@@ -78,12 +78,9 @@ let rescan = ((pre, suf): t): t => {
   ListUtil.split_n(n, combined);
 };
 
-/* None when the rescan re-associated nothing: the presplit alone makes
-   the result structurally different from the input, so a caller
-   comparing the two would otherwise reassemble/remold/regrout the whole
-   level after every edit near an incomplete tile (and the reassembly of
-   an unconverted presplit is the identity: the shards it split are
-   merged straight back). */
+/* None when the rescan re-associated nothing (reassembling a bare
+   presplit is the identity). the presplit alone makes the result differ
+   structurally, so callers can't just compare input and output */
 let rescan_opt = ((pre, suf): t): option(t) => {
   let pre = Segment.presplit_orphans(pre);
   let suf = Segment.presplit_orphans(suf);
@@ -99,9 +96,8 @@ let regrout =
       ~skip_clean: option(Piece.t => bool)=?,
       (pre, suf): t,
     ) => {
-  /* boundary shapes default to the segment-edge convention (concave);
-     WINDOWED runs (sparse regrout) pass the true shapes at the window
-     boundaries instead */
+  /* boundary shapes default to concave (segment edges); sparse regrout
+     passes the true shapes at its window's edges */
   let s = Nib.Shape.concave();
   let suf =
     Segment.regrout_affix(

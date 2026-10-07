@@ -2,11 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Stack-focus slicing (modular-editors): find_pat/find_def carve the
-   header/body cells out of the master, mk_entry captures the frozen
-   ctx, and splice_entry restores the master byte-identically — across
-   the def shapes: fun-style, funlet sugar, module members, type
-   aliases. Run: bash test/run_node.sh test 'StackFocus' */
+/* focus slicing: mk_entry carves header/body cells with a frozen ctx out of
+   the program, and splice_entry restores it byte-identically */
 
 module Focus = Web.ScratchMode.Focus;
 module SModel = Web.ScratchMode.Model;
@@ -22,8 +19,7 @@ let parse = (src: string): Segment.t =>
   ) {
   | Some(seg) => seg
   | None =>
-    /* FastParse's linear path bails on some shapes — recover like
-       persistence load does */
+    /* the fast path bails on some shapes; recover like persistence */
     switch (MarkerParse.of_text(~root=Exp, src)) {
     | Some(z) => Zipper.unselect_and_zip(z)
     | None => failwith("parse failed: " ++ src)
@@ -61,9 +57,7 @@ let outline_id = (term, label: string): Id.t => {
   };
 };
 
-/* focus [label] in [src]: check the header/body cell text, that the
-   frozen ctx binds [bound], and that an unedited splice restores the
-   master exactly */
+/* focus [label]: header/body text, [bound] in the frozen ctx, exact splice */
 let check_focus =
     (
       ~src: string,
@@ -111,8 +105,7 @@ let check_focus =
   };
 };
 
-/* headerless items (tests, nested trailing bodies): symbol chip,
-   content, and splice round-trip */
+/* headerless items (tests, trailing bodies): symbol chip, body, splice */
 let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   let master = parse(src);
   let (term, info_map) = statics_of(master);
@@ -137,7 +130,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
       bool,
       label ++ ": outline sym",
       true,
-      Web.ScratchMode.outline_sym(fid, term) == Some(sym),
+      Web.SlideView.sym_of(fid, term) == Some(sym),
     );
   };
 };
@@ -148,7 +141,7 @@ let check_restructure =
   let master = parse(src);
   let (term, _) = statics_of(master);
   let fid = outline_id(term, label);
-  switch (Web.ScratchMode.Restructure.apply(op, fid, master)) {
+  switch (Web.ItemEdit.apply(op, fid, master)) {
   | None => failwith("apply failed: " ++ desc)
   | Some((seg', _)) =>
     let txt = text_of(seg');
@@ -225,6 +218,85 @@ let member_restructure = (): unit => {
   );
 };
 
+/* a let without its `in` can't open as a cell */
+let unfinished_let = () => {
+  let first_tile_id = (seg: Segment.t): Id.t =>
+    switch (
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) => Some(t.id)
+          | _ => None
+          },
+        seg,
+      )
+    ) {
+    | Some(id) => id
+    | None => failwith("no tile")
+    };
+  let open_at = (typed: string): bool => {
+    let seg =
+      switch (Parser.to_zipper(typed, ~root=Exp)) {
+      | Some(z) => Zipper.unselect_and_zip(z)
+      | None => failwith("typing failed: " ++ typed)
+      };
+    let (_, info_map) = statics_of(seg);
+    Focus.mk_entry(~info_map, first_tile_id(seg), seg) != None;
+  };
+  check(bool, "unfinished let stays closed", false, open_at("let x = 1"));
+  check(bool, "finished let opens", true, open_at("let x = 1 in x"));
+};
+
+/* review fixes: a typed-function header is named by its function, a run
+   counts its tests, and a slide owns only its own keys */
+let names_and_keys = () => {
+  let master = parse("let add(x: Int, y: Int): Int = x + y in add(1, 2)");
+  let (term, info_map) = statics_of(master);
+  switch (Focus.mk_entry(~info_map, outline_id(term, "add"), master)) {
+  | None => fail("no cell for add")
+  | Some(e) =>
+    check(
+      option(string),
+      "named by its function",
+      Some("add"),
+      Web.ScratchCell.header_name(e),
+    )
+  };
+  let run = parse("test 1 == 1 end;\ntest 2 == 2 end;\ntest 3 == 3 end;\n0");
+  let (rterm, _) = statics_of(run);
+  check(
+    option(int),
+    "three tests",
+    Some(3),
+    Focus.test_run_size_deep(outline_id(rterm, "1"), run),
+  );
+  let own = Web.ScratchPersist.slide_suffix("scratch:Week 1");
+  check(
+    option(string),
+    "its side key",
+    Some(":agent"),
+    own("scratch:Week 1:agent"),
+  );
+  check(
+    option(string),
+    "its items",
+    Some(":items:roster"),
+    own("scratch:Week 1:items:roster"),
+  );
+  check(
+    option(string),
+    "another slide",
+    None,
+    own("scratch:Week 1: Lists"),
+  );
+  check(
+    option(string),
+    "another slide's key",
+    None,
+    own("scratch:Week 1: Lists:agent"),
+  );
+};
+
 let tests = (
   "StackFocus",
   [
@@ -275,7 +347,19 @@ let tests = (
         (),
       )
     ),
+    test_case("member fn-body trailing expression", `Quick, () =>
+      check_headless(
+        ~src=
+          "module M = {\n  let f = fun x -> let y = x + 1 in y * 2;\n  let g = 0\n} in M.f(1)",
+        ~label="",
+        ~sym="\xe2\x87\x92",
+        ~body="y * 2",
+        (),
+      )
+    ),
     test_case("member restructure", `Quick, member_restructure),
+    test_case("names, run sizes and slide keys", `Quick, names_and_keys),
+    test_case("unfinished let stays closed", `Quick, unfinished_let),
     test_case("type alias", `Quick, () =>
       check_focus(
         ~src="type T = Int in let x: T = 1 in x",

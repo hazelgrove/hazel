@@ -296,22 +296,12 @@ type problem_collection = {
   counts: list((problem_category, int)),
 };
 
-/* Collect problems across several sidebar groups into a single coherent
-   payload. De-duplicates by `(id, category)` in caller-provided order
-   (groups in order, sources within each group in order) — the first
-   source to claim a given (id, category) keeps it. This handles editors
-   that share an underlying zipper (e.g. exercise `user_tests` and
-   `test_validation` share `your_tests.tests`, so hole/syntax ids
-   coincide): shared structural problems land in exactly one group while
-   any context-specific static error still surfaces in the group where it
-   actually occurs. */
-/* single-slot memo: the sidebar rebuilds this on EVERY page render
-   (the tab badge reads counts even with the panel collapsed), and a
-   source costs a full holes walk + measured positions — O(program)
-   for the master. Sources are pointer-stable between edits, so
-   idle/chunk frames collapse to identity compares. */
-let memo: ref(option((bool, list(editor_group_input), problem_collection))) =
-  ref(None);
+/* single-slot memo: the sidebar rebuilds this every render (the tab
+   badge reads counts even when collapsed) at O(program) per source;
+   sources are pointer-stable between edits, so repeats are identity
+   compares */
+let memo: Slot.t((bool, list(editor_group_input)), problem_collection) =
+  Slot.mk();
 
 let same_inputs =
     (a: list(editor_group_input), b: list(editor_group_input)): bool => {
@@ -335,19 +325,16 @@ let same_inputs =
   go(a, b);
 };
 
-let rec make =
-        (~display_warnings: bool, inputs: list(editor_group_input))
-        : problem_collection =>
-  switch (memo^) {
-  | Some((dw, prev, out))
-      when dw == display_warnings && same_inputs(prev, inputs) => out
-  | _ =>
-    let out = make_uncached(~display_warnings, inputs);
-    memo := Some((display_warnings, inputs, out));
-    out;
-  }
-
-and make_uncached =
+/* Collect problems across several sidebar groups into a single coherent
+   payload. De-duplicates by `(id, category)` in caller-provided order
+   (groups in order, sources within each group in order) — the first
+   source to claim a given (id, category) keeps it. This handles editors
+   that share an underlying zipper (e.g. exercise `user_tests` and
+   `test_validation` share `your_tests.tests`, so hole/syntax ids
+   coincide): shared structural problems land in exactly one group while
+   any context-specific static error still surfaces in the group where it
+   actually occurs. */
+let make_uncached =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
   let seen: Hashtbl.t((Id.t, problem_category), unit) = Hashtbl.create(64);
@@ -446,3 +433,15 @@ and make_uncached =
     counts,
   };
 };
+
+let make =
+    (~display_warnings: bool, inputs: list(editor_group_input))
+    : problem_collection =>
+  Slot.get(
+    ~same=
+      ((dw, prev), (dw', inputs')) =>
+        dw == dw' && same_inputs(prev, inputs'),
+    memo,
+    (display_warnings, inputs),
+    () => make_uncached(~display_warnings, inputs),
+  );

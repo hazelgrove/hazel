@@ -157,10 +157,8 @@ module Update = {
         ~statics_mode: StaticsMode.t=Normal,
         ~compositional=false,
         ~ctx=?,
-        /* PROJECTED statics (stack cells): the whole-program item
-           analysis scoped to this cell — replaces the private init_*
-           run on recompute frames (one statics run per item; cells
-           read it) */
+        /* stack cells: the whole-program item analysis scoped to this
+           cell, used instead of a private init on recompute frames */
         ~projected: option(CachedStatics.t)=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -169,17 +167,11 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate for a full statics recompute. When we reuse, `statics`
-     * keeps its ref — CachedSyntax.calculate then skips the shape pass via
-     * phys-eq on info_map/elaborated.
-     * PROBE EXCEPTION: probe ids are an ANALYSIS input (per-node
-     * probe_targets witnesses) — deferring the recompute lets this
-     * frame's eval request go out with fresh targets but a stale map,
-     * and the worker's incremental cache then replays sampleless until
-     * the next edit. A probe change recomputes NOW (cheap: DefStatics
-     * probe-aware dirtying re-analyzes only the probed item).
-     * Compared against `targets` (not probe_ids): `with_targets` refreshes
-     * only targets, so probe_ids would keep reporting a difference. */
+    /* Throttle gate for a full statics recompute. Reuse keeps the `statics`
+     * ref, so CachedSyntax.calculate skips the shape pass (phys-eq).
+     * Probe ids are an analysis input: deferring would send this frame's
+     * eval a stale map and leave the probe sampleless, so a probe change
+     * recomputes now. */
     let probes_differ = (z, statics: CachedStatics.t) =>
       !
         Language.Id.Map.equal(
@@ -223,10 +215,9 @@ module Update = {
                         editor.state.zipper,
                       )
                     : compositional
-                        /* whole-program editors: per-item statics (DefStatics) —
-                           only the dirty items re-analyze, and no monolithic
-                           whole-program recursion runs (browser stack overflow on
-                           large programs) */
+                        /* whole-program editors: per-item statics re-analyze
+                           only dirty items and skip the monolithic recursion
+                           (a stack overflow on large programs) */
                         ? CachedStatics.init_compositional(
                             ~settings,
                             ~stitch,
@@ -306,14 +297,11 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  /* Memo for the code text + error/warning arms — by far the most
-     expensive vdom in the app (of_tile/shard walks over the whole
-     program). None of it depends on DYNAMICS, yet every streamed
-     result chunk re-renders the page and was rebuilding it (~1s per
-     chunk on mega-2k). Keyed on the physical identities of every
-     input (as Obj.t, compared with ===); identical nodes also
-     short-circuit the virtual-dom diff by reference equality. LRU so
-     a stack of cells + master all stay resident. */
+  /* memo for the code text + error/warning arms, the costliest vdom in the
+     app: none of it depends on dynamics, but every streamed result chunk
+     re-renders the page. keyed on the physical identity of each input; a
+     hit also lets the vdom diff skip by reference. LRU so a stack's cells
+     and master all stay resident */
   type memo_entry = {
     m_key: array(Obj.t),
     /* piece count of the keyed segment, for same-editor eviction */
@@ -321,12 +309,10 @@ module View = {
     m_nodes: list(Node.t),
   };
   let view_memo: ref(list(memo_entry)) = ref([]);
-  /* SMALL cap, and same-length entries evict each other: every key
-     pins a whole GENERATION of segment/measured/info_map — on mega
-     programs a deep LRU pinned hundreds of MB of superseded
-     generations (heap death after a few edits). Same piece-count is
-     a cheap same-editor-previous-generation proxy; a false hit just
-     costs a recompute. */
+  /* small cap, and same-length entries evict each other: each key pins a
+     whole generation of segment/measured/info_map. equal piece count is a
+     cheap "same editor, older generation" proxy; a misfire costs a
+     recompute */
   let view_memo_max = 4;
   let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
     let n = Array.length(a);
@@ -383,7 +369,6 @@ module View = {
     let nodes =
       switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
       | Some(entry) =>
-        /* refresh LRU position */
         view_memo := [entry, ...List.filter(e => !(e === entry), view_memo^)];
         entry.m_nodes;
       | None =>

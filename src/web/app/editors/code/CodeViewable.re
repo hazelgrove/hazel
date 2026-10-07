@@ -31,8 +31,7 @@ let view =
   div_c("code", [span_c("code-text", code)]);
 };
 
-/* chunked variant: one memoized span per measured chunk, so edits
-   re-render (and re-diff) only the chunk that changed */
+/* one memoized span per measured chunk: an edit re-renders only its chunk */
 let view_chunked =
     (
       ~globals: Globals.t,

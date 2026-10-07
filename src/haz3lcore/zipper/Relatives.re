@@ -152,9 +152,8 @@ let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
   };
 };
 
-/* the sibling half of regrout, factored so the SPARSE path can run it
-   on a caret WINDOW with true boundary shapes; Direction is the side
-   of the grout the caret will end up on */
+/* regrout's sibling half, which the sparse path runs on a caret window
+   with true boundary shapes; d is the caret's side of the grout */
 let regrout_siblings =
     (
       d: Direction.t,

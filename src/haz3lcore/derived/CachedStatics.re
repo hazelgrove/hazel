@@ -9,12 +9,7 @@ type t = {
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
   completion: option(MakeTerm.completion_snapshot),
-  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
-  /* the probe ids the info_map was ANALYZED with (per-node probe_targets
-     witnesses depend on them). with_targets deliberately does NOT update
-     this: it refreshes only `targets`, so a mismatch against the zipper's
-     current probes means the map itself is stale for probing. */
-  probe_ids: Id.Map.t(unit),
+  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
 
 let empty: t = {
@@ -31,7 +26,6 @@ let empty: t = {
   warning_ids: [],
   completion: None,
   targets: Sample.no_targets,
-  probe_ids: Id.Map.empty,
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -137,7 +131,6 @@ let init_from_term =
     warning_ids,
     completion: None,
     targets,
-    probe_ids,
   };
 };
 
@@ -246,12 +239,9 @@ let init =
     ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
     : empty;
 
-/* Typ-rooted cells (type-alias bodies in the editor stack): wrap the
-   type in a TyAlias under the frozen ctx so the info map carries real
-   InfoTyp entries — cursor inspector, sort refinement, type errors.
-   Wrapper node ids are fresh and never rendered in the cell, so their
-   marks stay invisible there (and the Problems panel filters to ids
-   present in each editor's own term). */
+/* Typ-rooted cells (type-alias bodies): wrap in a TyAlias so the info
+   map gets real InfoTyp entries; the wrapper's fresh ids never render,
+   so its marks stay invisible */
 let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
   if (!settings.statics) {
     empty;
@@ -264,7 +254,7 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
     let ty = MakeTerm.from_zip_for_typ(z);
     let term: Exp.t =
       Exp.fresh(TyAlias(TPat.fresh(EmptyHole), ty, Exp.fresh(Tuple([]))));
-    let (info_map, _) = Statics.mk(settings, ctx, term);
+    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
       elaborated: dh_err("Type cell: no dynamics"),
@@ -273,14 +263,11 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
-      probe_ids: Id.Map.empty,
     };
   };
 
-/* Pat-rooted cells (`name : T` header editors): wrap the pattern as a
-   function parameter so it types under the frozen ctx — InfoPat
-   entries for the inspector + sort styling. The hole body keeps the
-   binders from reading as unused. */
+/* Pat-rooted cells (`name : T` headers): type the pattern as a function
+   parameter; the hole body keeps its binders from reading as unused */
 let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
   if (!settings.statics) {
     empty;
@@ -292,7 +279,7 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       );
     let p = MakeTerm.from_zip_for_pat(z);
     let term: Exp.t = Exp.fresh(Fun(p, Exp.fresh(EmptyHole), None, None));
-    let (info_map, _) = Statics.mk(settings, ctx, term);
+    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
       elaborated: dh_err("Header cell: no dynamics"),
@@ -301,12 +288,10 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
-      probe_ids: Id.Map.empty,
     };
   };
 
-/* TPat-rooted cells (type-alias header editors): wrap as the alias
-   binder of an unknown type. */
+/* TPat-rooted cells (type-alias headers): the binder of an unknown type */
 let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
   if (!settings.statics) {
     empty;
@@ -325,7 +310,7 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
           Exp.fresh(Tuple([])),
         ),
       );
-    let (info_map, _) = Statics.mk(settings, ctx, term);
+    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
       elaborated: dh_err("Header cell: no dynamics"),
@@ -334,21 +319,12 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       completion: None,
-      probe_ids: Id.Map.empty,
     };
   };
 
-/* COMPOSITIONAL init for whole-program (Exp-rooted, top-level) editors:
-   statics via DefStatics — per top-level item with chained ctxs — so
-   an edit re-analyzes only the dirty set, and no monolithic
-   whole-program statics/elaboration recursion runs (which STACK
-   OVERFLOWS in the browser on some large programs, e.g. mega-2k).
-   The whole-program elaboration is grafted from the per-item elabs;
-   if a graft boundary has an unexpected shape we degrade to a
-   no-eval error term instead of crashing. Falls back to the
-   monolithic path for non-Exp roots or custom ctx/ana. */
-/* compositional statics from an already-made TERM: callers that hold
-   a plain segment (restructure ops) skip the zipper round-trip */
+/* per-item statics via DefStatics: an edit re-analyzes only the dirty
+   set, and no whole-program recursion runs (it can overflow the browser
+   stack). takes a term so callers holding a segment skip the zipper */
 /* TEMP instrumentation (strip after the statics-tick decomposition):
    window.__staticsProf(true) prints per-phase ms for each tick */
 let prof: ref(bool) = ref(false);
@@ -405,7 +381,6 @@ let init_compositional_term =
         compute_targets(~settings, ~info_map, ~probe_ids)
       ),
     completion: None,
-    probe_ids,
   };
 };
 
@@ -416,22 +391,26 @@ let init_compositional =
   } else if (root != Sort.Exp && root != Sort.Mod) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
-    /* semantics reads the canonical completion of the visible segment
-       (caret-independent); the per-item incremental parse replaces the
-       monolithic one (it falls back internally, incl. go_mod_root for
-       Mod roots) */
-    let (seg, masks) =
-      MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+    /* semantics reads the caret-independent canonical completion */
+    let source = MakeTerm.semantic_source(z);
+    let (seg, masks) = MakeTerm.semantic_segment(~root, source);
     let term =
       ptime("term_of+stitch", () =>
         MakeTerm.Incr.term_of_root(~masks, ~root, seg) |> stitch
       );
-    /* callers with probes living in OTHER zippers (stacked cells)
-       pass the union; default = this zipper's own */
+    /* stacked cells pass the union of their zippers' probes */
     let probe_ids =
       switch (probe_ids) {
       | Some(p) => p
       | None => ptime("probe_ids_of_zipper", () => probe_ids_of_zipper(z))
       };
-    init_compositional_term(~settings, ~probe_ids, term);
+    {
+      ...init_compositional_term(~settings, ~probe_ids, term),
+      /* what was typechecked, for the inspector's implied hole */
+      completion:
+        Some({
+          source,
+          completed: seg,
+        }),
+    };
   };

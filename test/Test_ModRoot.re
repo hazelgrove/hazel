@@ -2,9 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Stage C (plans/mod-root.md): Mod-as-root incrementality.
-   Phase 1 gates: go_incr(~root=Mod) ≡ go_mod_root (term + maps), and
-   an identity-preserving one-item edit re-parses exactly one slice. */
+/* Mod-root incrementality: go_incr(~root=Mod) ≡ go_mod_root, and a
+   one-item edit re-parses one slice */
 
 let mod_src = "let x = 1;
 type T = Int;
@@ -30,8 +29,6 @@ let probe = () => {
   };
 };
 
-/* is_semi from Incr is not exposed piecemeal; top-level `;` ids are
-   the tile ids with label [";"] at the top level of the segment */
 let semi_ids = (seg: Segment.t): list(Id.t) =>
   List.filter_map(
     (p: Piece.t) =>
@@ -44,11 +41,9 @@ let semi_ids = (seg: Segment.t): list(Id.t) =>
 
 let check_parity = (~allow_semi_diff=true, seg: Segment.t, incr: MakeTerm.t) => {
   let mono = MakeTerm.go_mod_root(seg);
-  /* term: exact */
   if (compare(incr.term, mono.term) != 0) {
     fail("term mismatch incr vs mono");
   };
-  /* term_data: exact */
   let td_diff =
     Id.Map.merge(
       (_, a, b) =>
@@ -70,9 +65,8 @@ let check_parity = (~allow_semi_diff=true, seg: Segment.t, incr: MakeTerm.t) => 
       Printf.sprintf("term_data mismatch: %d ids", Id.Map.cardinal(td_diff)),
     );
   };
-  /* terms: exact except (documented) the top-level `;` entries — the
-     per-slice parse records a partial MultiHole([item, synthetic
-     hole]) there, the monolithic one the full item list */
+  /* terms: top-level `;` entries may differ (the per-slice parse records a
+     partial MultiHole there, the monolithic one the full item list) */
   let semis = semi_ids(seg);
   let tm_diff =
     Id.Map.merge(
@@ -104,8 +98,9 @@ let check_parity = (~allow_semi_diff=true, seg: Segment.t, incr: MakeTerm.t) => 
 let full_parity = () => {
   let seg = parse_mod(mod_src);
   let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
   let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
-  check(int, "no fallback", 0, MakeTerm.Incr.fell_back^);
+  check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg, incr);
 };
 
@@ -119,9 +114,10 @@ let incremental_edit = () => {
   let (seg2, edited) = edit_seg(seg);
   check(bool, "edit found the literal", true, edited);
   MakeTerm.Incr.full_analyzed := 0;
+  let fb = MakeTerm.Incr.fell_back^;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
   check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
-  check(int, "no fallback", 0, MakeTerm.Incr.fell_back^);
+  check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
 
@@ -132,8 +128,31 @@ let term_of_mod_matches = () => {
   check(bool, "term_of_mod ≡ mono term", true, compare(t, mono.term) == 0);
 };
 
-/* Incr's last-result slot is shared by the Exp and Mod paths: the same
-   segment read at Exp and then at Mod must get the Mod reading. */
+/* a stray line typed above a member: that slice's `;` parses inside the
+   member's definition, so slices can't simply concatenate */
+let stray_line = () => {
+  let src = "let x = 1;\nfoo\nlet y = 2;\nx";
+  switch (CorpusUtil.typed_seg(~root=Mod, src)) {
+  | None => fail("untypeable mod program")
+  | Some(seg) =>
+    let incr =
+      MakeTerm.Incr.go_incr(~root=Mod, ~cache=MakeTerm.Incr.mk_cache(), seg);
+    check_parity(seg, incr);
+    MakeTerm.Incr.last := None;
+    check(
+      bool,
+      "term_of_mod ≡ mono term",
+      true,
+      compare(
+        MakeTerm.Incr.term_of_root(~root=Mod, seg),
+        MakeTerm.go_mod_root(seg).term,
+      )
+      == 0,
+    );
+  };
+};
+
+/* Incr's last-result slot serves both roots: each gets its own reading */
 let last_slot_keyed_by_root = () => {
   let seg = parse_mod(mod_src);
   let mono = MakeTerm.go_mod_root(seg).term;
@@ -156,15 +175,14 @@ let last_slot_keyed_by_root = () => {
   );
 };
 
-/* ---- Phase 2: DefStatics over a Module root ---- */
+/* ---- DefStatics over a Module root ---- */
 
 let settings = CoreSettings.on;
 let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
 
 let sorted_ids = CorpusUtil.sorted_ids;
 
-/* an error-bearing, richer program: labels, module member using an
-   earlier binding, a type error, a trailing member expression */
+/* with a type error and a member using an earlier binding */
 let mod_src2 = "let x = 1;
 type T = Int;
 let bad : String = 42;
@@ -206,18 +224,31 @@ let statics_incremental = () => {
   let n_items = List.length(ds0.items);
   /* 5 mod items + the exports tail */
   check(int, "6 items", 6, n_items);
-  /* body edit inside module M: only that item re-analyzes */
   let (seg2, edited) = edit_seg(seg);
   check(bool, "edit found the literal", true, edited);
   let term2 = MakeTerm.go_mod_root(seg2).term;
   let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
-  /* member granularity: the module ITEM re-analyzes (cheap surrogate)
-     plus the ONE edited member */
+  /* the module item (a cheap surrogate) plus the one edited member */
   check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
-  /* second calc on the SAME term: everything clean */
   let ds2 = DefStatics.calc(~settings, ~prev=ds1, term2);
   check(int, "0 items re-analyzed", 0, DefStatics.last_analyzed^);
   ignore(ds2);
+};
+
+/* a recursive type export gets a fresh Rec binder per analysis: a member
+   edit that keeps the exports must not re-analyze the module's users */
+let recursive_type_export = () => {
+  let seg =
+    parse_mod(
+      "module A = {\n  type L = Nil + Cons(Int, L);\n  let x = 180\n};\nlet u = A.x;\nu",
+    );
+  let ds0 = DefStatics.calc(~settings, MakeTerm.go_mod_root(seg).term);
+  let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
+  check(bool, "edit found the literal", true, edited);
+  ignore(
+    DefStatics.calc(~settings, ~prev=ds0, MakeTerm.go_mod_root(seg2).term),
+  );
+  check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
 };
 
 /* ---- corpus scale: mega-mod-1k (build_mega.py compose_mod_root) ---- */
@@ -228,8 +259,9 @@ let corpus = () => {
   | Some(src) =>
     let seg = parse_mod(src);
     let cache = MakeTerm.Incr.mk_cache();
+    let fb = MakeTerm.Incr.fell_back^;
     let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
-    check(int, "no fallback", 0, MakeTerm.Incr.fell_back^);
+    check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
     check_parity(seg, incr);
     let term = incr.term;
     let n_items =
@@ -239,7 +271,6 @@ let corpus = () => {
       };
     Printf.printf("CORPUS mod items: %d\n", n_items);
     check(bool, "many items", true, n_items > 20);
-    /* compositional vs monolithic statics at corpus scale */
     let t0 = Sys.time();
     let ds0 = DefStatics.calc(~settings, term);
     Printf.printf(
@@ -266,7 +297,6 @@ let corpus = () => {
       sorted_ids(Statics.Map.error_ids(mono_map)),
       sorted_ids(DefStatics.all_error_ids(ds0)),
     );
-    /* one-member body edit: 180 -> 181 deep inside a module member */
     let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
     check(bool, "edit found the literal", true, edited);
     MakeTerm.Incr.full_analyzed := 0;
@@ -278,9 +308,8 @@ let corpus = () => {
   };
 };
 
-/* ---- Stage D: ONE BIG MODULE (the shape member granularity is for):
-   the whole corpus inside a single `module App = {...}` — a member
-   edit must cost ~one member, not the whole module ---- */
+/* ---- the whole corpus in one `module App = {...}`: a member edit costs
+   about one member, not the whole module ---- */
 let big_module = () => {
   switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
   | None => fail("mega-mod-1k.hz unreadable")
@@ -292,7 +321,6 @@ let big_module = () => {
     let t0 = Sys.time();
     let ds0 = DefStatics.calc(~settings, term);
     let cold = (Sys.time() -. t0) *. 1000.0;
-    /* statics parity vs monolithic on the nested shape */
     let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
     check(
       Alcotest.list(string),
@@ -300,7 +328,6 @@ let big_module = () => {
       sorted_ids(Statics.Map.error_ids(mono_map)),
       sorted_ids(DefStatics.all_error_ids(ds0)),
     );
-    /* deep member edit: 180 -> 181 inside App.WateringTimer.format */
     let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
     check(bool, "edit found the literal", true, edited);
     let inner2 = MakeTerm.go_mod_root(seg2).term;
@@ -340,11 +367,8 @@ let big_module = () => {
   };
 };
 
-/* The spine root's elab_term in the merged map must be the WHOLE
-   suffix: the incremental evaluator gates reuse of a node on its
-   elab_term being unchanged, and a hollow root (body = hole) read as
-   unchanged whatever happened downstream — editing any item but the
-   first was never re-evaluated. */
+/* the spine root's elab_term is the whole suffix: incremental eval reuses
+   a node whose elab_term is unchanged, so a hollow root would hide edits */
 let spine_elab_is_whole_suffix = () => {
   let parse_exp = (src: string): Exp.t =>
     switch (FastParse.of_text(~root=Exp, src)) {
@@ -388,6 +412,7 @@ let tests = (
     test_case("full parity", `Quick, full_parity),
     test_case("incremental edit", `Quick, incremental_edit),
     test_case("term_of_mod", `Quick, term_of_mod_matches),
+    test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
     test_case("statics parity", `Quick, statics_parity),
     test_case("statics incremental", `Quick, statics_incremental),
@@ -398,5 +423,6 @@ let tests = (
     ),
     test_case("corpus mega-mod-1k", `Quick, corpus),
     test_case("big module (stage D)", `Quick, big_module),
+    test_case("recursive type export", `Quick, recursive_type_export),
   ],
 );

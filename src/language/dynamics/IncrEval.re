@@ -42,8 +42,8 @@ type entry('state) = {
   prev_probe_targets: EvalInfo.probe_targets,
   value: DHExp.t,
   state: 'state,
-  /* step count at RECORD time: monotone in this run's evaluation
-     order — the stream collector orders same-chunk regions by it */
+  /* step count when recorded, monotone in evaluation order; the stream
+     collector orders same-chunk regions by it */
   seq: int,
 };
 
@@ -140,26 +140,6 @@ let copy_descendant_entries =
   let _ = TermBase.Exp.map_term(~f_exp, root);
   acc^;
 };
-
-/* Surface ids covered by cache entries: each entry short-circuits a subtree,
- * so expand via prev_elab rather than using only the map keys. Used by the
- * pending-eval worklist to drop settled ids. */
-let visible_id_set = (incr: t('state)): Id.Set.t => {
-  let acc = ref(Id.Set.empty);
-  let collect_subtree = (root: Exp.t): unit => {
-    let f_exp = (continue, e: Exp.t): Exp.t => {
-      acc := Id.Set.add(Exp.rep_id(e), acc^);
-      continue(e);
-    };
-    let _ = TermBase.Exp.map_term(~f_exp, root);
-    ();
-  };
-  Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
-  acc^;
-};
-
-let visible_ids = (incr: t('state)): list(Id.t) =>
-  visible_id_set(incr) |> Id.Set.elements;
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;

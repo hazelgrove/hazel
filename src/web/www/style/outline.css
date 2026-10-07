@@ -1,4 +1,4 @@
-/* Outline sidebar (modular-editors phase 1): a REAL grid panel in
+/* Outline sidebar: a real grid panel in
    column 1, spanning the focus-bar + main rows — it takes space from
    the editor rather than hovering over it. Collapsed, it is just its
    thin vertical tab (fit-content column). */
@@ -24,6 +24,22 @@
   width: var(--outline-w, 210px);
 }
 
+/* the row holding the editor's caret: a dim edge bar (OutlineFollow) */
+#outline-sidebar {
+  --ol-mark: color-mix(in srgb, var(--caret-color, #d33) 45%, transparent);
+}
+
+/* keyboard focus: the cursor row gets the caret's full color (the
+   editor-caret mark hides meanwhile), no browser focus ring */
+#outline-sidebar .outline-body:focus {
+  outline: none;
+}
+#outline-sidebar .outline-body:focus .outline-label.outline-cursor,
+#outline-sidebar:has(.outline-body:focus) > summary.outline-cursor {
+  box-shadow: inset 2px 0 0 var(--caret-color, #d33);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 70%, transparent);
+}
+
 /* Chrome slots details content into an internal ::details-content
    box; without this the flex sizing never reaches .outline-body and
    the sidebar can't scroll */
@@ -32,6 +48,29 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Browsers older than ::details-content (Chrome < 131, Firefox < 143)
+   lay the content out as a plain block, so .outline-body grows to its
+   full height, is clipped by the sidebar, and never scrolls. There the
+   body is pinned between the title row and the sidebar's bottom
+   instead; the title row gets a fixed height so the body knows where
+   to start */
+@supports not selector(::details-content) {
+  #outline-sidebar {
+    --outline-title-h: 25px;
+  }
+  #outline-sidebar[open] > summary.outline-title {
+    box-sizing: border-box;
+    height: var(--outline-title-h);
+  }
+  #outline-sidebar[open] .outline-body {
+    position: absolute;
+    top: var(--outline-title-h);
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
 }
 
 /* the resize handle is an invisible grab strip with the resize
@@ -72,6 +111,77 @@
   opacity: 1;
   padding: 4px 10px;
   border-bottom: 0.6px solid var(--border-default, #b5a377);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* header row: ☰ collapses the sidebar; open, the rest is a breadcrumb
+   (the program, then each zoomed module) */
+#outline-sidebar > summary .outline-crumbs {
+  display: none;
+}
+#outline-sidebar[open] > summary .outline-crumbs {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+#outline-sidebar[open] > summary .outline-word {
+  display: none;
+}
+#outline-sidebar .outline-menu-glyph {
+  opacity: 0.7;
+}
+#outline-sidebar .outline-crumb {
+  cursor: pointer;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+  min-width: 2ch;
+}
+#outline-sidebar .outline-crumb-sep,
+#outline-sidebar .outline-crumb-count,
+#outline-sidebar .outline-crumb-btn,
+#outline-sidebar .outline-crumb-chip,
+#outline-sidebar .outline-crumb.outline-crumb-here {
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-crumb:hover {
+  opacity: 1;
+}
+#outline-sidebar .outline-crumb.outline-crumb-here {
+  opacity: 1;
+  font-weight: bold;
+}
+#outline-sidebar .outline-crumb-sep {
+  opacity: 0.4;
+}
+#outline-sidebar .outline-crumb-count {
+  opacity: 0.6;
+}
+#outline-sidebar .outline-crumb-btn {
+  cursor: pointer;
+  opacity: 0.55;
+}
+#outline-sidebar .outline-crumb-btn:hover {
+  opacity: 1;
+}
+#outline-sidebar .outline-crumb-chip {
+  cursor: pointer;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 55%, transparent);
+  opacity: 0.8;
+}
+#outline-sidebar .outline-crumb-chip:hover {
+  opacity: 1;
 }
 
 #outline-sidebar .outline-body {
@@ -81,16 +191,23 @@
   padding: 6px 8px 12px 8px;
 }
 
+/* a row's tint starts at its entry and runs out through the body's
+   right padding to the panel edge */
 #outline-sidebar .outline-label {
   cursor: pointer;
   padding: 1px 4px;
-  border-radius: 3px;
+  margin-right: -8px;
+  border-radius: 3px 0 0 3px;
   white-space: nowrap;
-  display: inline-block;
+  display: block;
+  min-width: max-content;
+  /* the body's padding: the first and last rows scroll fully home */
+  scroll-margin-block: 6px 12px;
 }
 
+/* tints, lightest to strongest: hover, open as a cell, keyboard cursor */
 #outline-sidebar .outline-label:hover {
-  background: var(--surface-shard, #d8c9a3);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 28%, transparent);
 }
 
 #outline-sidebar .outline-glyph {
@@ -109,25 +226,37 @@
 #outline-sidebar summary.outline-summary {
   cursor: pointer;
   list-style: none;
+  display: flex;
+  align-items: center;
+}
+
+#outline-sidebar summary.outline-summary > .outline-label {
+  flex: 1 0 auto;
 }
 
 #outline-sidebar summary.outline-summary::-webkit-details-marker {
   display: none;
 }
 
-/* taller chevrons, close to icon height (andrew, tentative) */
+/* one drawn chevron, turned: open and folded match exactly (a font's
+   arrow rotated off its own center did not) */
 #outline-sidebar summary.outline-summary::before {
-  content: "\276f";
+  content: "";
   display: inline-block;
-  width: 9px;
-  font-size: 10.5px;
+  box-sizing: border-box;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  margin: 0 4px 1px 1px;
+  border-right: 1.3px solid currentColor;
+  border-bottom: 1.3px solid currentColor;
   opacity: 0.55;
-  transform-origin: 40% 55%;
+  transform: rotate(-45deg);
+  transition: transform 0.12s ease-out;
 }
 
 #outline-sidebar details[open] > summary.outline-summary::before {
-  content: "\276f";
-  transform: rotate(90deg);
+  transform: translateY(-1px) rotate(45deg);
 }
 
 #outline-sidebar .ol-module {
@@ -154,6 +283,18 @@
   font-style: italic;
 }
 
+/* words standing in for a name ("result", "tests"): lighter, italic */
+#outline-sidebar .outline-synthetic {
+  font-style: italic;
+  color: var(--text-muted, #a08f6a);
+}
+
+#main .focus-header.focus-header-sym .focus-sym-word {
+  margin-left: 0.5em;
+  font-weight: normal;
+  font-style: italic;
+}
+
 /* live test status: glyph carries the ✓/✗/? */
 #outline-sidebar .ol-pass .outline-glyph {
   color: var(--test-pass, #2a9d3a);
@@ -169,47 +310,52 @@
   color: var(--text-accent, #6a5a3a);
 }
 
-#outline-sidebar .outline-unfocus.outline-hidden {
-  display: none;
-}
-
 #outline-sidebar .outline-empty {
   opacity: 0.6;
   padding: 6px;
 }
 
-/* focus affordances (phase 2) */
+/* the cell button: a tiny cell, empty to open (on hover), filled
+   while open, dashed while pinned but not shown (parked, or outside
+   the zoom) */
 #outline-sidebar .outline-focus-btn {
   display: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 8px;
   margin-left: 6px;
-  opacity: 0.55;
+  vertical-align: -1px;
+  border: 1.2px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.5;
   cursor: pointer;
 }
 
 #outline-sidebar .outline-label:hover .outline-focus-btn {
-  display: inline;
+  display: inline-block;
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-parked {
+  display: inline-block;
+  border-style: dashed;
+  opacity: 0.45;
 }
 
 #outline-sidebar .outline-focus-btn:hover {
   opacity: 1;
 }
 
+#outline-sidebar .outline-focus-btn.outline-btn-disabled,
+#outline-sidebar .outline-focus-btn.outline-btn-disabled:hover {
+  opacity: 0.25;
+  cursor: default;
+}
+
+/* open as a cell: a light tint from the entry itself, not the
+   column's edge */
 #outline-sidebar .outline-label.outline-focused {
-  background: var(--surface-shard, #d8c9a3);
+  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 45%, transparent);
   font-weight: bold;
-}
-
-#outline-sidebar .outline-unfocus {
-  cursor: pointer;
-  padding: 3px 6px;
-  margin-bottom: 6px;
-  border: 0.6px solid var(--border-default, #b5a377);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 45%, white);
-}
-
-#outline-sidebar .outline-unfocus:hover {
-  background: var(--surface-shard, #d8c9a3);
 }
 
 /* editor panes carry no borders in outline modes — the outline
@@ -243,8 +389,7 @@
 
 /* stacked body cells keep the master editor's lighter surface: the
    generic cell-background rule matches `#main > * > .code-editor`,
-   but stack cells sit one wrapper deeper (`.focus-body > .cell`).
-   (The frozen-tint deco used to paper over this; removed upstream.) */
+   but stack cells sit one wrapper deeper (`.focus-body > .cell`). */
 :is(#main.Scratch, #main.Documentation)
   > .focus-body
   > .cell
@@ -269,7 +414,7 @@
 }
 
 /* the standard cell inset is 16px all around; the header keeps only
-   the horizontal share (andrew: no vertical padding) */
+   the horizontal share */
 #main .focus-header .cell-item {
   padding: 0 16px;
 }
@@ -286,8 +431,9 @@
 }
 
 #outline-sidebar .outline-focus-btn.outline-btn-on {
-  display: inline;
-  opacity: 0.9;
+  display: inline-block;
+  background: currentColor;
+  opacity: 0.6;
 }
 
 /* error badge on outline rows whose definition carries type errors */
@@ -299,7 +445,7 @@
   opacity: 0.85;
 }
 
-/* erroring rows also tint the name itself (keep the dot; andrew) */
+/* erroring rows also tint the name itself (the dot stays) */
 #outline-sidebar .outline-label.outline-has-err {
   color: var(--text-error, #c33);
 }
@@ -313,30 +459,18 @@
   display: inline;
 }
 
-/* right-click def menu: new-below / duplicate / move / delete */
+/* the right-click menu is the editor's .context-menu; it keeps the
+   editor menu's type, over the backdrop */
 .outline-menu-backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
 }
-.outline-def-menu {
-  position: fixed;
+#outline-sidebar .outline-menu {
   z-index: 41;
-  min-width: 12em;
-  background: var(--T0, #fff);
-  border: 1px solid var(--border-sunken, #ccc);
-  border-radius: 4px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
-  font-size: 12px;
-  padding: 3px 0;
-}
-.outline-def-menu-item {
-  padding: 4px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.outline-def-menu-item:hover {
-  background: var(--surface-raised, #eee);
+  font-family: var(--ui-font);
+  font-size: 1rem;
+  font-weight: normal;
 }
 
 /* slide-loading frame (SwitchSlide paints this before hydration) */
@@ -398,4 +532,88 @@
 #main .stack-result {
   border-top: 0.6px solid var(--border-default, #b5a377);
   background: var(--surface-raised, #f1e9d2);
+}
+
+/* a name typed in place: no bar, a soft rounded tint behind the name
+   and the caret's own red caret */
+#outline-sidebar .outline-body:focus .outline-label.outline-editing,
+#outline-sidebar
+  .outline-body:focus:has(.outline-editing)
+  .outline-label.outline-cursor {
+  box-shadow: none;
+  background: transparent;
+}
+#outline-sidebar .outline-edit-text {
+  display: inline-block;
+  min-width: 3ch;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--caret-color, #d33) 10%, transparent);
+  white-space: pre;
+}
+#outline-sidebar .outline-edit-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.1em;
+  margin: 0 -0.75px;
+  vertical-align: -0.2em;
+  background: var(--caret-color, #d33);
+}
+/* the editor caret's blink */
+@media (prefers-reduced-motion: no-preference) {
+  #outline-sidebar .outline-edit-caret {
+    animation: 1s blink step-end infinite;
+  }
+}
+#outline-sidebar .outline-edit-kw {
+  font-weight: bold;
+  opacity: 0.7;
+}
+#outline-sidebar .outline-edit-hint {
+  margin-left: 22px;
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--text-error, #c33);
+  white-space: normal;
+}
+
+/* the keyword that made a new definition a type or module leaves */
+#outline-sidebar .outline-kw-leaving {
+  display: inline-block;
+  overflow: hidden;
+  white-space: pre;
+  vertical-align: bottom;
+  font-weight: bold;
+  opacity: 0;
+  max-width: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #outline-sidebar .outline-kw-leaving {
+    animation: ol-kw-leave 220ms ease-in;
+  }
+}
+@keyframes ol-kw-leave {
+  from {
+    max-width: 8ch;
+    opacity: 0.7;
+  }
+  to {
+    max-width: 0;
+    opacity: 0;
+  }
+}
+
+/* rows a change leaves in error turn red over a moment */
+#outline-sidebar .outline-label {
+  transition: color 0.4s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #outline-sidebar .outline-err-badge {
+    animation: ol-fade-in 0.4s ease-out;
+  }
+}
+@keyframes ol-fade-in {
+  from {
+    opacity: 0;
+  }
 }

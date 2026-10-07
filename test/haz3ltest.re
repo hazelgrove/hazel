@@ -4,13 +4,19 @@ Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
+  | DefStaticsCheck.Divergence(ds) =>
+    Some("DefStatics diverges: " ++ String.concat("; ", ds))
   | _ => None
   }
 });
 
-/* every editing action in the suite asserts sparse-normalize parity
-   (Zipper.remold_regrout runs BOTH pipelines and compares) */
-Haz3lcore.Zipper.normalize_parity := true;
+/* every edit checks sparse normalization against the global pass */
+NormalizeCheck.install();
+
+/* and statics against a monolithic analysis, except when benchmarking */
+if (!CorpusUtil.bench_enabled) {
+  DefStaticsCheck.install();
+};
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
@@ -47,12 +53,22 @@ let (suite, exit_with_test_status) =
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
-      Test_PieceIdentity.tests,
+      Test_EditLocality.tests,
+      Test_DefStaticsParity.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_LabelBench.tests,
       Test_ModRoot.tests,
+      Test_ModuleEval.tests,
+      Test_ProbePersist.tests,
+      Test_DividedLaws.tests,
+      Test_TermPrune.tests,
+      Test_SlideView.tests,
+      Test_OutlineRename.tests,
+      Test_ClosedJump.tests,
       Test_TypeDeps.tests,
+      Test_StaticsMemo.tests,
+      Test_CaretReveal.tests,
       Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
@@ -142,8 +158,7 @@ let (suite, exit_with_test_status) =
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
     @ [Test_CompletionItems.tests]
-    /* last: the keystroke benchmark leaves the process with less stack
-       headroom for tests registered after it */
+    /* last: the keystroke benchmark leaves less stack for later tests */
     @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

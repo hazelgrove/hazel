@@ -8,11 +8,7 @@ let scroll_to_caret = ref(true);
 /* W2a: route worker statics summaries to the shadow comparator */
 let () = WorkerClient.on_summary := ShadowResidency.on_summary;
 
-/* console: window.__incrCounters() — MakeTerm.Incr observability
-   (fell_back should stay 0; analyzed ~1 per stacked edit) */
-/* console: window.__normCounters() — sparse remold/regrout regime
-   observability (fallbacks fire on structure-entering edits; a hot
-   fallback rate is the "forgotten spike" signal, ledger §17) */
+/* console: window.__staticsProf(true) — per-phase statics-tick timings */
 let () =
   Js_of_ocaml.Js.Unsafe.set(
     Js_of_ocaml.Js.Unsafe.global,
@@ -21,53 +17,6 @@ let () =
       Haz3lcore.CachedStatics.prof := Js_of_ocaml.Js.to_bool(b);
       Haz3lcore.DefStatics.prof := Js_of_ocaml.Js.to_bool(b);
     }),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__normCounters",
-    Js_of_ocaml.Js.wrap_callback(() =>
-      Js_of_ocaml.Js.string(
-        Printf.sprintf(
-          "sparse_hits=%d sparse_fallbacks=%d",
-          Haz3lcore.Zipper.sparse_hits^,
-          Haz3lcore.Zipper.sparse_fallbacks^,
-        ),
-      )
-    ),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__incrCountersReset",
-    Js_of_ocaml.Js.wrap_callback(() => {
-      Haz3lcore.MakeTerm.Incr.fell_back := 0;
-      Haz3lcore.MakeTerm.Incr.full_analyzed := 0;
-      Haz3lcore.MakeTerm.Incr.analyzed := 0;
-      Haz3lcore.MakeTerm.Incr.incr_calls := 0;
-      Haz3lcore.MakeTerm.Incr.incr_hits := 0;
-      Haz3lcore.MakeTerm.Incr.incr_misses := 0;
-    }),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__incrCounters",
-    Js_of_ocaml.Js.wrap_callback(() =>
-      Js_of_ocaml.Js.string(
-        Printf.sprintf(
-          "fell_back=%d full_analyzed=%d analyzed=%d calls=%d hits=%d misses=%d neq=%d nokey=%d",
-          Haz3lcore.MakeTerm.Incr.fell_back^,
-          Haz3lcore.MakeTerm.Incr.full_analyzed^,
-          Haz3lcore.MakeTerm.Incr.analyzed^,
-          Haz3lcore.MakeTerm.Incr.incr_calls^,
-          Haz3lcore.MakeTerm.Incr.incr_hits^,
-          Haz3lcore.MakeTerm.Incr.incr_misses^,
-          Haz3lcore.MakeTerm.Incr.incr_miss_neq^,
-          Haz3lcore.MakeTerm.Incr.incr_miss_nokey^,
-        ),
-      )
-    ),
   );
 
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
@@ -103,7 +52,7 @@ let seed_visible_rows =
   let page = model.model.current.current;
   let needed =
     Editors.Model.supports_viewport_culling(page.editors)
-    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Globals.VisibleRows.tracked(page.globals.settings)
     && Option.is_none(page.globals.visible_rows);
   if (needed) {
     switch (JsUtil.code_viewport_geometry()) {
@@ -390,6 +339,7 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        OutlineFollow.update();
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
