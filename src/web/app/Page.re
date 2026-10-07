@@ -122,8 +122,10 @@ module Update = {
                 Some(
                   Option.value(ScratchCell.header_name(e), ~default="cell"),
                 ),
-                /* header too: binder and signature errors live there */
-                [e.e_header.editor, e.e_body.editor],
+                /* header too: binder and signature errors live there.
+                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+                (Option.is_none(e.e_sym) ? [e.e_header.editor] : [])
+                @ [e.e_body.editor],
               ),
             cells,
           );
