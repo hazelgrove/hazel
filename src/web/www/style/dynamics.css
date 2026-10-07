@@ -121,7 +121,7 @@
 }
 
 /* the slide program's dynamics, at the bottom bar's right end
-   (EvalResult.View.dynamics): the mirror of the inspector's gamma */
+   (EvalResult.View.dynamics), across from the inspector's gamma */
 /* its own width, up to 45%: the caret's half gives way first */
 #dynamics {
   display: flex;
@@ -148,15 +148,12 @@
   align-self: stretch;
   width: 2em;
   flex-shrink: 0;
-  font-family: math;
-  font-size: 1.1rem;
-  background-color: var(--ci-icon-bkg);
-  color: var(--light-page-color);
-  border-radius: 1.1em 0 0 0;
-}
-
-#dynamics.fail .dyn-glyph {
-  background-color: var(--eval-exception-stroke);
+  font-family: var(--ui-font);
+  font-size: 1.35rem;
+  background-color: var(--ci-dynamics-bkg);
+  color: var(--ci-status-text);
+  border-left: 0.6px solid var(--border-default);
+  border-right: 0.6px solid var(--border-default);
 }
 
 #dynamics .status {

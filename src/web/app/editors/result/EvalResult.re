@@ -796,7 +796,7 @@ module View = {
             Attr.classes(["dyn-glyph"]),
             Attr.title("Dynamics: how the program ran"),
           ],
-          [text({js|Δ|js})],
+          [text({js|⇓|js})],
         ),
         div(
           ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],

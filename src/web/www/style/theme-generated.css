@@ -48,6 +48,7 @@
   --cell-result-hidden: oklch(85% 0.07 90);
   --cell-result-text: oklch(50% 0.07 90);
   --cell-selected-accent: oklch(60% 0.3 30);
+  --ci-dynamics-bkg: oklch(91% 0.11 95);
   --ci-icon-bkg: oklch(60% 0.07 90);
   --ci-status-error-bkg: oklch(85% 0.1 30);
   --ci-status-error-text: oklch(40% 0.3 30);
