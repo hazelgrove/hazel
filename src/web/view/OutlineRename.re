@@ -139,6 +139,25 @@ let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
           }
         | _ => acc
         }
+      /* a type member used qualified: `U.Meters` */
+      | (
+          _,
+          Some(owner),
+          InfoTyp({user_term: {term: ProdProjection(t1, t2), _}, _}),
+        ) =>
+        switch (t2.term) {
+        | Label(l) when l == it.old =>
+          switch (
+            Option.bind(
+              Id.Map.find_opt(Typ.rep_id(t1), info_map),
+              Info.get_binding_site,
+            )
+          ) {
+          | Some(b) when b == owner => [Typ.rep_id(t2), ...acc]
+          | _ => acc
+          }
+        | _ => acc
+        }
       | _ => acc
       },
     info_map,
@@ -185,51 +204,24 @@ let capture =
     : None;
 };
 
-let is_ident = (s: string): bool => {
-  let ok = c =>
-    c == '_'
-    || c == '\''
-    || c >= 'a'
-    && c <= 'z'
-    || c >= 'A'
-    && c <= 'Z'
-    || c >= '0'
-    && c <= '9';
-  String.length(s) > 0
-  && s.[0] != '\''
-  && !(s.[0] >= '0' && s.[0] <= '9')
-  && String.for_all(ok, s);
-};
-
-let keywords = [
-  "let",
-  "in",
-  "fun",
-  "type",
-  "module",
-  "case",
-  "end",
-  "if",
-  "then",
-  "else",
-  "test",
-  "true",
-  "false",
-];
-
-let check_name = (kind, name: string): option(string) =>
-  if (!is_ident(name) || List.mem(name, keywords)) {
-    Some("a name is one identifier");
-  } else {
-    let upper = name.[0] >= 'A' && name.[0] <= 'Z';
-    switch (kind) {
-    | KValue when upper => Some("value names start lowercase")
-    | KType
-    | KModule when !upper =>
-      Some("type and module names start with a capital")
-    | _ => None
-    };
+/* a plain name as the language reads one: not `_`, a literal, any
+   form's keyword, `$`-prefixed or qualified */
+let check_name = (kind, name: string): option(string) => {
+  let plain =
+    name != ""
+    && name.[0] != '$'
+    && !String.contains(name, '.')
+    && !Token.is_keyword(name)
+    && !List.mem(name, FormId.delims);
+  let (value, upper) = (Token.is_var(name), Token.is_ctr(name));
+  switch (kind) {
+  | _ when !plain || !value && !upper => Some("a name is one identifier")
+  | KValue when !value => Some("value names start lowercase")
+  | KType
+  | KModule when !upper => Some("type and module names start with a capital")
+  | _ => None
   };
+};
 
 /* each tile in [ids] now reads [name]; untouched subtrees stay the
    same values (the parse caches compare by identity) */
@@ -257,6 +249,16 @@ let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t => 
               children: kids_same ? t.children : kids,
             });
           };
+        | Projector(pr) =>
+          switch (relabel(ids, name, [pr.syntax])) {
+          | [syntax] when syntax !== pr.syntax =>
+            changed := true;
+            Piece.Projector({
+              ...pr,
+              syntax,
+            });
+          | _ => p
+          }
         | p => p
         },
       seg,
