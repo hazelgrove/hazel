@@ -85,6 +85,7 @@ type t =
   | Fold
   | Probe
   | Statics
+  | Player
   | Livelit
   | Introduce
   | ReIndent
@@ -229,6 +230,12 @@ let meta = (a: t): action_meta =>
       section: Projection,
       mdIcon: "camera",
       default_binding: Bound([Alt], "t"),
+    }
+  | Player => {
+      label: "Player",
+      section: Projection,
+      mdIcon: "play_circle",
+      default_binding: Bound([Alt], "p"),
     }
   | Livelit => {
       label: "Livelit",

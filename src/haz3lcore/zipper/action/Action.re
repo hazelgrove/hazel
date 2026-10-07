@@ -130,6 +130,7 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
+  | TogglePlayer
   | StepInto(Language.CallStack.t, Language.CallStack.frame)
   | Pin(Language.CallStack.t, Id.t)
   | RemoveAll;
