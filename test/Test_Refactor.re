@@ -5879,6 +5879,11 @@ let scope_check_tests = {
       "let f = fun x -> x * 2 in\nlet (f, k) = (fun n -> ¦f(n) + 1, 3) in\nf(k)",
     ),
     case(
+      "a literal can't move into a use scope that retypes it",
+      FeedLet,
+      "let ¦k = 3 in\nlet v = use Nat in k + 1 in\nv",
+    ),
+    case(
       "hoist out of a recursive fun would unbind its self-call",
       HoistLet,
       "let fact = fun n ->\n  ¦let one = 1 in\n  if n < 2 then one else n * fact(n - 1)\nin\nfact(3)",

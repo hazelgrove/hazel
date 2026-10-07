@@ -79,13 +79,38 @@ let preserves =
           },
         resolutions(info'),
       );
+    /* a literal's meaning can depend on scope too (`use Nat in` makes
+       2 a Nat): every literal that survives keeps the type it had */
+    let literal_types = (m: Statics.Map.t) =>
+      Id.Map.fold(
+        (id, info: Info.t, acc) =>
+          switch (info) {
+          | InfoExp({user_term: {term: Atom(_), _}, ty, ctx, _})
+              when id == Info.id_of(info) =>
+            /* normalized: an alias and what it names are one type */
+            Id.Map.add(id, Typ.normalize(ctx, ty), acc)
+          | _ => acc
+          },
+        m,
+        Id.Map.empty,
+      );
+    let old_lits = literal_types(info_map);
+    let literals_same =
+      Id.Map.for_all(
+        (id, ty') =>
+          switch (Id.Map.find_opt(origin(id), old_lits)) {
+          | Some(ty) => Typ.fast_equal(ty, ty')
+          | None => true
+          },
+        literal_types(info'),
+      );
     let old_errors =
       Statics.Map.error_ids(info_map)
       |> List.fold_left((s, id) => Id.Map.add(id, (), s), Id.Map.empty);
     let no_new_errors =
       Statics.Map.error_ids(info')
       |> List.for_all(id => Id.Map.mem(origin(id), old_errors));
-    bound_same && no_new_errors;
+    bound_same && literals_same && no_new_errors;
   /* no statics to consult (disabled, or no root info): cheap tier only */
   | _ => true
   };
