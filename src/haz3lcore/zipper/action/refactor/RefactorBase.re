@@ -167,6 +167,21 @@ let is_comment_piece = (w: Secondary.t): bool =>
   | _ => false
   };
 
+/* an end-of-line comment belongs to the content before it, not to the
+   slot its run sits in: the part of a run before its first line break,
+   when that part holds a comment. (eol, rest); ([], run) when none. */
+let split_eol =
+    (run: list(Secondary.t)): (list(Secondary.t), list(Secondary.t)) => {
+  let rec go = (acc, rest: list(Secondary.t)) =>
+    switch (rest) {
+    | [] => (List.rev(acc), [])
+    | [{content: Whitespace("\n"), _}, ..._] => (List.rev(acc), rest)
+    | [w, ...tl] => go([w, ...acc], tl)
+    };
+  let (eol, rest) = go([], run);
+  List.exists(is_comment_piece, eol) ? (eol, rest) : ([], run);
+};
+
 /* strip only the WHITESPACE pieces of a run, leaving comments where
    they live (P4: prose is content with a place, not spacing) */
 let ws_of_slot = (s: Slot.t): Slot.t => {

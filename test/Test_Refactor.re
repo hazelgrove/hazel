@@ -5644,6 +5644,27 @@ let review_fix_tests = {
       UnfoldCall,
       "let (a, b) = (3, 4) in",
     ),
+    /* end-of-line comments travel with their line */
+    has(
+      "let b = 2 in\n¦let c = 3 in # c note #\nb + c",
+      HoistLet,
+      "let c = 3 in # c note #\nlet b = 2 in\nb + c",
+    ),
+    has(
+      "¦let b = 2 in\nlet c = 3 in # c note #\nb + c",
+      SinkLet,
+      "let c = 3 in # c note #\nlet b = 2 in\nb + c",
+    ),
+    has(
+      "type Dir = North + South in\nfun (d : Dir) ->\n  case d\n  | ¦North => 1 # north #\n  | South => 2\n  end",
+      SwapArms(0),
+      "| South => 2\n  | North => 1 # north #\n  end",
+    ),
+    has(
+      "fun (n : Int) ->\n  if n < 0 ¦then 1 # then note #\n  else 2",
+      NegateIf,
+      "then 2\n  else 1 # then note #",
+    ),
     /* nothing offered that then does nothing */
     test_case(
       "no dead offers",

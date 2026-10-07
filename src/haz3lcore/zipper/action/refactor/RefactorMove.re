@@ -142,14 +142,29 @@ let negate_if_impl: impl = {
                   };
                 };
               let boundary = Slot.trail_of(t);
+              /* the then-arm's end-of-line comment goes where the arm
+                 goes */
+              let (eol, rest) = split_eol(boundary.trail);
               Some((
                 {
                   ...e,
                   term:
                     If(
                       cond,
-                      Slot.give(boundary, alt),
-                      Slot.drop(boundary, t),
+                      Slot.give(
+                        {
+                          ...boundary,
+                          trail: rest,
+                        },
+                        alt,
+                      ),
+                      Slot.give(
+                        {
+                          lead: [],
+                          trail: eol,
+                        },
+                        Slot.drop(boundary, t),
+                      ),
                     ),
                 },
                 Exp.rep_id(cond),
@@ -772,8 +787,33 @@ let hoist_step =
         /* chain swap; the two lines exchange line slots (attached
            doc blocks are re-homed by carry_attached_docs, from the
            textual pre-image — holders of a line's lead vary) */
+        /* end-of-line comments (after a line's `in`) travel with
+           their line: the upper line's sits at the start of l's lead,
+           the moving line's at the start of lbody's (invocation only:
+           finding lbody's lead prints) */
+        let (lbody, l_lead) =
+          if (fixup) {
+            let (eol_p, rest_l) = split_eol(fst(l.annotation.secondary));
+            let (eol_l, _) = split_eol(Slot.lead_of(lbody).lead);
+            let lbody =
+              lbody
+              |> Slot.drop({
+                   lead: eol_l,
+                   trail: [],
+                 })
+              |> Slot.give({
+                   lead: eol_p,
+                   trail: [],
+                 });
+            (lbody, eol_l @ rest_l);
+          } else {
+            (lbody, fst(l.annotation.secondary));
+          };
         let m': Exp.t =
-          with_secondary(l.annotation.secondary, def_line_rebuild(p, lbody));
+          with_secondary(
+            (l_lead, snd(l.annotation.secondary)),
+            def_line_rebuild(p, lbody),
+          );
         let l': Exp.t =
           with_secondary(p.annotation.secondary, def_line_rebuild(l, m'));
         Some((p, l', Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(p)]));
@@ -1182,9 +1222,31 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
     | Some((bl, lbody)) =>
       switch (def_line_of(lbody)) {
       | Some((bm, mbody)) when lines_swappable(bl, bm) =>
+        /* end-of-line comments travel with their line (as in the
+           hoist swap): l's sits at the start of lbody's lead, the
+           next line's at the start of mbody's */
+        let (mbody, m_lead) =
+          if (fixup) {
+            let (eol_l, rest_m) =
+              split_eol(fst(lbody.annotation.secondary));
+            let (eol_m, _) = split_eol(Slot.lead_of(mbody).lead);
+            let mbody =
+              mbody
+              |> Slot.drop({
+                   lead: eol_m,
+                   trail: [],
+                 })
+              |> Slot.give({
+                   lead: eol_l,
+                   trail: [],
+                 });
+            (mbody, eol_m @ rest_m);
+          } else {
+            (mbody, fst(lbody.annotation.secondary));
+          };
         let l': Exp.t =
           with_secondary(
-            lbody.annotation.secondary,
+            (m_lead, snd(lbody.annotation.secondary)),
             def_line_rebuild(l, mbody),
           );
         let m': Exp.t =
@@ -2211,9 +2273,25 @@ let swap_arms_rewrite =
         if (fixup) {
           let sa = Slot.of_exp(ba);
           let sb = Slot.of_exp(bb);
+          /* ... except an end-of-line comment, which travels with the
+             arm it trails */
+          let (ea, ra) = split_eol(sa.trail);
+          let (eb, rb) = split_eol(sb.trail);
           (
-            Slot.give(sa, Slot.drop(sb, bb)),
-            Slot.give(sb, Slot.drop(sa, ba)),
+            Slot.give(
+              {
+                ...sa,
+                trail: eb @ ra,
+              },
+              Slot.drop(sb, bb),
+            ),
+            Slot.give(
+              {
+                ...sb,
+                trail: ea @ rb,
+              },
+              Slot.drop(sa, ba),
+            ),
           );
         } else {
           (
