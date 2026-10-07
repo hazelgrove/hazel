@@ -25,7 +25,7 @@
   border-top: 1px dotted var(--cell-result-border);
 }
 
-.cell-result .status {
+:is(.cell-result, #dynamics) .status {
   position: relative;
   display: flex;
   align-items: center;
@@ -36,7 +36,7 @@
   font-family: var(--code-font);
 }
 
-.cell-result .status .spinner {
+:is(.cell-result, #dynamics) .status .spinner {
   height: 50%;
   width: 60%;
   background: url("../img/loading.gif");
@@ -46,23 +46,23 @@
   transition: opacity 0.2s linear;
 }
 
-.cell-result .status.pending .spinner {
+:is(.cell-result, #dynamics) .status.pending .spinner {
   opacity: 0.5;
   transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
 }
 
-.cell-result .status.pending-ack .spinner {
+:is(.cell-result, #dynamics) .status.pending-ack .spinner {
   animation: eval-spinner-spin 1.6s linear var(--eval-recalc-visual-delay)
     infinite reverse;
 }
 
-.cell-result .status .eq {
+:is(.cell-result, #dynamics) .status .eq {
   position: absolute;
   opacity: 1;
   transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-.cell-result .status.pending .eq {
+:is(.cell-result, #dynamics) .status.pending .eq {
   opacity: 0;
   transition: opacity 0.2s cubic-bezier(0.65, 0, 0.35, 1)
     var(--eval-recalc-visual-delay);
@@ -120,67 +120,88 @@
   background-color: var(--eval-exception);
 }
 
-/* the decks' results: one quiet status line (EvalResult.status_line) */
-.cell-result.status-line {
+/* the slide program's dynamics, at the bottom bar's right end
+   (EvalResult.View.dynamics): the mirror of the inspector's gamma */
+/* its own width, up to 45%: the caret's half gives way first */
+#dynamics {
+  display: flex;
   align-items: center;
+  gap: 0.5em;
+  flex-shrink: 0;
+  max-width: 45%;
+  padding-right: 0.6em;
   font-family: var(--ui-font);
   font-size: 0.9rem;
-  padding: 0.3em 0.6em 0.3em 1.2em;
+  color: var(--cell-result-text);
+  background-color: var(--cell-result);
 }
 
-.cell-result.status-line .status {
+#dynamics.fail {
+  background-color: var(--eval-exception);
+  color: var(--eval-exception-stroke);
+}
+
+#dynamics .dyn-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 2em;
+  flex-shrink: 0;
+  font-family: math;
+  font-size: 1.1rem;
+  background-color: var(--ci-icon-bkg);
+  color: var(--light-page-color);
+  border-radius: 1.1em 0 0 0;
+}
+
+#dynamics.fail .dyn-glyph {
+  background-color: var(--eval-exception-stroke);
+}
+
+#dynamics .status {
   width: 1.2em;
   height: 1.2em;
+  flex-shrink: 0;
 }
 
-.cell-result.status-line .eq.ok {
+#dynamics.ok .eq {
   color: var(--test-pass);
 }
 
-.cell-result.status-line .eq.fail {
-  color: var(--eval-exception-stroke);
-}
-
-.cell-result.status-line .status-msg {
+#dynamics .dyn-msg {
   min-width: 0;
-  color: var(--cell-result-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: opacity 0.2s linear;
 }
 
-.cell-result.status-line .status-msg.fail {
-  color: var(--eval-exception-stroke);
-}
-
-/* a run under way dims the last one's line, after the usual delay */
-.cell-result.status-line .status-msg.running {
+/* a run under way dims the last one's message, after the usual delay */
+#dynamics.running .dyn-msg {
   opacity: 0.5;
   transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
 }
 
-.cell-result.status-line .status-grow {
-  flex-grow: 1;
-}
-
-.cell-result.status-line .status-actions {
-  display: flex;
-  gap: 0.3em;
-  position: sticky;
-  right: 0.6em;
-}
-
-.cell-result.status-line .status-chip {
+#dynamics .dyn-chip {
+  flex-shrink: 0;
   padding: 0.05em 0.6em;
   border-radius: 0.7em;
-  color: var(--cell-result-text);
   white-space: nowrap;
 }
 
-.cell-result.status-line .status-step {
+#dynamics .dyn-step {
   cursor: pointer;
 }
 
-.cell-result.status-line .status-step:hover {
+#dynamics .dyn-step:hover,
+#dynamics .dyn-step.on {
   background-color: var(--cell-result-hidden);
+}
+
+#dynamics.fail .dyn-step:hover,
+#dynamics.fail .dyn-step.on {
+  background-color: var(--test-fail-active);
 }
 
 .cell-item.cell-result .error-msg {

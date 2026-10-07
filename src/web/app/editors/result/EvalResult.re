@@ -751,15 +751,15 @@ module View = {
     );
   };
 
-  /* one quiet line instead of the value row: whether the program ran,
-     the error if not, the stepper and the proofs; a value shows through
-     a probe on the program's last expression. While a run goes, it keeps
-     the last finished one's line, dimmed */
-  let status_line = (~inject, ~locked, model: Model.t) => {
+  /* the program's dynamics, at the cursor inspector's right end:
+     whether it ran, the error if not, the stepper (it steps from the
+     elaboration, so a failed run can still be stepped) and, after a
+     finished run, the proofs. A run under way keeps the last finished
+     one, dimmed */
+  let dynamics = (~inject, model: Model.t): Node.t => {
     let result = Calc.get_value(model.result);
-    let shown = Model.settle(model.settled, result);
     let (mark, msg, outcome) =
-      switch (shown) {
+      switch (Model.settle(model.settled, result)) {
       | None => ("", {js|Running…|js}, "pending")
       | Some(None) => ({js|✓|js}, "Ran", "ok")
       | Some(Some(err)) => ({js|✗|js}, error_msg(err), "fail")
@@ -769,47 +769,58 @@ module View = {
       | ResultPending(_) => ["running"]
       | _ => []
       };
+    let stepping =
+      switch (model.display) {
+      | Stepper(_) => ["on"]
+      | Evaluation(_) => []
+      };
     let proofs =
-      switch (Theorems.Model.proof_count(model.theorems)) {
-      | (_, 0) => []
-      | (proven, all) => [
+      switch (outcome, Theorems.Model.proof_count(model.theorems)) {
+      | ("fail", _)
+      | (_, (_, 0)) => []
+      | (_, (proven, all)) => [
           div(
-            ~attrs=[Attr.classes(["status-chip", "status-proofs"])],
+            ~attrs=[
+              Attr.classes(["dyn-chip"]),
+              Attr.title("Theorems proven, of all the program's theorems"),
+            ],
             [text(Printf.sprintf("Proofs %d of %d", proven, all))],
           ),
         ]
       };
-    let step =
-      locked
-        ? []
-        : [
-          div(
-            ~attrs=[
-              Attr.classes(["status-chip", "status-step"]),
-              Attr.title("Step through the evaluation"),
-              Attr.on_mousedown(_ => Effect.Prevent_default),
-              Attr.on_click(_ => inject(Update.ToggleStepper)),
-            ],
-            [text("Step")],
-          ),
-        ];
     div(
-      ~attrs=[Attr.classes(["cell-item", "cell-result", "status-line"])],
+      ~attrs=[Attr.id("dynamics"), Attr.classes([outcome] @ running)],
       [
+        div(
+          ~attrs=[
+            Attr.classes(["dyn-glyph"]),
+            Attr.title("Dynamics: how the program ran"),
+          ],
+          [text({js|Δ|js})],
+        ),
         div(
           ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],
           [
             div(~attrs=[Attr.classes(["spinner"])], []),
-            div(~attrs=[Attr.classes(["eq", outcome])], [text(mark)]),
+            div(~attrs=[Attr.classes(["eq"])], [text(mark)]),
           ],
         ),
         div(
-          ~attrs=[Attr.classes(["status-msg", outcome] @ running)],
+          ~attrs=[Attr.classes(["dyn-msg"]), Attr.title(msg)],
           [text(msg)],
         ),
-        div(~attrs=[Attr.classes(["status-grow"])], []),
-        /* sticky: wide code scrolls the line sideways */
-        div(~attrs=[Attr.classes(["status-actions"])], proofs @ step),
+      ]
+      @ proofs
+      @ [
+        div(
+          ~attrs=[
+            Attr.classes(["dyn-chip", "dyn-step"] @ stepping),
+            Attr.title("Step through the evaluation"),
+            Attr.on_mousedown(_ => Effect.Prevent_default),
+            Attr.on_click(_ => inject(Update.ToggleStepper)),
+          ],
+          [text("Step")],
+        ),
       ],
     );
   };
@@ -826,7 +837,9 @@ module View = {
       ) =>
     switch (model.display) {
     | _ when !globals.settings.core.dynamics => []
-    | Evaluation(_) when status => [status_line(~inject, ~locked, model)]
+    /* the status is the inspector's (dynamics); the stepper still opens
+       here */
+    | Evaluation(_) when status => []
     | Evaluation(editor) => [
         live_eval(
           ~globals,
@@ -897,7 +910,8 @@ module View = {
            | `TestSigilsOnly
            | `TestResults
            | `EvalResults
-           /* the decks' results: a status line, no value row */
+           /* the decks' results: the status in the inspector, no value
+              row; the stepper and proofs below */
            | `StatusLine
            | `NoTheorems
            | `JustTheorems
