@@ -337,7 +337,12 @@ let tests = [
             );
           switch (DefStatics.cached(whole)) {
           | Some(t) =>
-            check(bool, "graft visible in the cache entry", true, has_fake(t))
+            check(
+              bool,
+              "graft visible in the cache entry",
+              true,
+              has_fake(t),
+            )
           | None => Alcotest.fail("no cache entry after graft")
           };
           let t' = DefStatics.calc_auto(~settings, whole);
