@@ -812,20 +812,7 @@ let rec map_unshadowed =
         )
         : Exp.t => {
   let go = map_unshadowed(~skip, ~f_var, ~f_ap);
-  let descend = e =>
-    Exp.map_term(
-      ~f_exp={
-        let entered = ref(false);
-        (cont, e': Exp.t) =>
-          if (entered^) {
-            go(e');
-          } else {
-            entered := true;
-            cont(e');
-          };
-      },
-      e,
-    );
+  let descend = map_children_in_order(go);
   let (term, rewrap) = Exp.unwrap(e);
   switch (term) {
   | Var(_) => f_var(e) |> Option.value(~default=e)
@@ -836,24 +823,20 @@ let rec map_unshadowed =
     }
   | Let(p, d, body) =>
     let (in_def, in_body, _) = let_scopes(p, d);
-    rewrap(
-      Let(
-        p,
-        List.mem(skip, in_def) ? d : go(d),
-        List.mem(skip, in_body) ? body : go(body),
-      ),
-    );
+    /* sequenced: constructor arguments evaluate right-to-left, and go's
+       effects must run in source order */
+    let d' = List.mem(skip, in_def) ? d : go(d);
+    let body' = List.mem(skip, in_body) ? body : go(body);
+    rewrap(Let(p, d', body'));
   | Module(items) => rewrap(Module(map_mod_items(~x=skip, ~go, items)))
   | Fun(p, body, t, n) when binds(skip, p) => rewrap(Fun(p, body, t, n))
   | FixF(p, body, env) when binds(skip, p) => rewrap(FixF(p, body, env))
   | Match(scrut, rules) =>
-    rewrap(
-      Match(
-        go(scrut),
-        rules
-        |> List.map(((p, body)) => (p, binds(skip, p) ? body : go(body))),
-      ),
-    )
+    let scrut' = go(scrut);
+    let rules' =
+      rules
+      |> List.map(((p, body)) => (p, binds(skip, p) ? body : go(body)));
+    rewrap(Match(scrut', rules'));
   | _ => descend(e)
   };
 };
@@ -954,13 +937,9 @@ let rec subst =
     if (sugar) {
       /* params scope over d only; a capture here is refused by
          RefactorCheck rather than freshened */
-      rewrap(
-        Let(
-          p,
-          List.mem(x, in_def) ? d : go(d),
-          List.mem(x, in_body) ? body : go(body),
-        ),
-      );
+      let d' = List.mem(x, in_def) ? d : go(d);
+      let body' = List.mem(x, in_body) ? body : go(body);
+      rewrap(Let(p, d', body'));
     } else if (List.mem(x, in_body)) {
       /* x shadowed in body; also in a recursive def */
       rewrap(
@@ -968,8 +947,14 @@ let rec subst =
       );
     } else {
       switch (freshen(p, recursive ? [d, body] : [body])) {
-      | (p', [d', body']) => rewrap(Let(p', go(d'), go(body')))
-      | (p', [body']) => rewrap(Let(p', go(d), go(body')))
+      | (p', [d', body']) =>
+        let d'' = go(d');
+        let body'' = go(body');
+        rewrap(Let(p', d'', body''));
+      | (p', [body']) =>
+        let d' = go(d);
+        let body'' = go(body');
+        rewrap(Let(p', d', body''));
       | _ => e
       };
     };
@@ -987,39 +972,23 @@ let rec subst =
     | _ => e
     }
   | Match(scrut, rules) =>
-    rewrap(
-      Match(
-        go(scrut),
-        rules
-        |> List.map(((p, body)) =>
-             if (binds(x, p)) {
-               (p, body);
-             } else {
-               switch (freshen(p, [body])) {
-               | (p', [body']) => (p', go(body'))
-               | _ => (p, body)
-               };
-             }
-           ),
-      ),
-    )
-  | _ =>
-    /* one level of generic descent: map each direct child, without
-       re-entering this node (map_term's f is called on the node
-       itself first, so guard on identity once) */
-    Exp.map_term(
-      ~f_exp={
-        let entered = ref(false);
-        (cont, e': Exp.t) =>
-          if (entered^) {
-            go(e');
-          } else {
-            entered := true;
-            cont(e');
-          };
-      },
-      e,
-    )
+    let scrut' = go(scrut);
+    let rules' =
+      rules
+      |> List.map(((p, body)) =>
+           if (binds(x, p)) {
+             (p, body);
+           } else {
+             switch (freshen(p, [body])) {
+             | (p', [body']) => (p', go(body'))
+             | _ => (p, body)
+             };
+           }
+         );
+    rewrap(Match(scrut', rules'));
+  /* one level of generic descent, children in source order (the
+     FIRST copy is the leftmost occurrence) */
+  | _ => map_children_in_order(go, e)
   };
 };
 

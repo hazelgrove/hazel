@@ -112,7 +112,11 @@ let binds = (x: string, p: Pat.t): bool => {
   found^;
 };
 
-let children_of = (e: Exp.t): list(Exp.t) => {
+/* immediate expression children via map_term — which visits
+   constructor arguments right-to-left but list elements left-to-right,
+   so its order is NOT source order (kept as the fallback for forms
+   children_of doesn't list) */
+let children_via_map_term = (e: Exp.t): list(Exp.t) => {
   let acc = ref([]);
   let entered = ref(false);
   let _ =
@@ -129,6 +133,91 @@ let children_of = (e: Exp.t): list(Exp.t) => {
       e,
     );
   acc^;
+};
+
+/* immediate expression children in SOURCE order: "first" and "nearest"
+   (feed's next use, inline's traveling copy, search order) mean
+   leftmost-then-topmost */
+let children_of = (e: Exp.t): list(Exp.t) =>
+  switch (IdTagged.term_of(e)) {
+  | Invalid(_)
+  | EmptyHole
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | Constructor(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | LivelitName(_)
+  | Var(_)
+  | BuiltinFun(_) => []
+  | ListLit(xs)
+  | Tuple(xs) => xs
+  | Fun(_, b, _, _)
+  | TypFun(_, b, _)
+  | FixF(_, b, _)
+  | Forall(_, b)
+  | ProofObject(b)
+  | Use(_, b)
+  | TyAlias(_, _, b)
+  | TypAp(b, _)
+  | Test(b)
+  | Filter(_, b)
+  | Closure(_, b)
+  | Parens(b)
+  | Projector(_, b)
+  | UnOp(_, b)
+  | Asc(b, _)
+  | DynamicErrorHole(b, _) => [b]
+  | TupLabel(a, b)
+  | Dot(a, b)
+  | Let(_, a, b)
+  | Theorem(_, a, b)
+  | Ap(_, a, b)
+  | Seq(a, b)
+  | HintedTest(a, b)
+  | Cons(a, b)
+  | ListConcat(a, b)
+  | BinOp(_, a, b)
+  | TupleExtension(a, b)
+  | ModuleExp(_, a, b) => [a, b]
+  | If(c, t, f) => [c, t, f]
+  | DeferredAp(f, args) => [f, ...args]
+  | Match(scrut, rules) => [scrut, ...List.map(snd, rules)]
+  | Module(items) =>
+    items
+    |> List.filter_map((it: Mod.t) =>
+         switch (IdTagged.term_of(it)) {
+         | ModLet(_, d) => Some(d)
+         | ModExp(x)
+         | ModuleMod(_, x) => Some(x)
+         | _ => None
+         }
+       )
+  | MultiHole(_)
+  | DrvQuote(_) => children_via_map_term(e)
+  };
+
+/* rebuild e with f applied to each child, f's side effects running in
+   source order */
+let map_children_in_order = (f: Exp.t => Exp.t, e: Exp.t): Exp.t => {
+  let done_ =
+    List.fold_left((acc, c) => [(c, f(c)), ...acc], [], children_of(e));
+  let entered = ref(false);
+  Exp.map_term(
+    ~f_exp=
+      (cont, e': Exp.t) =>
+        if (entered^) {
+          switch (List.assq_opt(e', done_)) {
+          | Some(r) => r
+          | None => e'
+          };
+        } else {
+          entered := true;
+          cont(e');
+        },
+    e,
+  );
 };
 
 /* does x occur FREE in e (an occurrence under a rebinding of x

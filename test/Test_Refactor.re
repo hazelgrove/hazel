@@ -4199,7 +4199,8 @@ let comment_tests = [
       check(
         string,
         "inline",
-        "(fun x ->\nx + 1)(1) + (fun x ->\n# helper #\nx + 1)(2)",
+        /* the FIRST (leftmost) copy travels with the def's ids and prose */
+        "(fun x ->\n# helper #\nx + 1)(1) + (fun x ->\nx + 1)(2)",
         z,
       );
     },
@@ -5580,6 +5581,43 @@ let review_fix_tests = {
     ),
     has("¦case (q=2, p=1) | (p=x, q=y) => x - y end", ReduceCase, "1 - 2"),
     has("(¦fun (p=a, q=b) -> a - b)(q=2, p=1)", BetaReduce, "1 - 2"),
+    /* source order: "first" and "nearest" are leftmost */
+    test_case("feed goes to the nearest use inside a tuple", `Quick, () =>
+      check(
+        string,
+        "first element",
+        "let k = 1 in (1 + 10, k + 20)",
+        inline(~kind=FeedLet, "let ¦k = 1 in (k + 10, k + 20)") |> text_of,
+      )
+    ),
+    test_case("inline's caret lands on the first copy", `Quick, () =>
+      check(
+        string,
+        "first",
+        "¦15 + 15 * 2",
+        inline(~kind=InlineLet, "let ¦r = 15 in r + r * 2") |> caret_text,
+      )
+    ),
+    test_case(
+      "explode names in evaluation order",
+      `Quick,
+      () => {
+        let got =
+          inline(~kind=Explode, "let ¦n = (2 + 3) * (10 - 4) in n")
+          |> text_of;
+        let at = needle =>
+          switch (Util.StringUtil.plain_split(got, needle)) {
+          | [before, _, ..._] => String.length(before)
+          | _ => max_int
+          };
+        check(
+          bool,
+          "left operand first: " ++ got,
+          true,
+          at("2 + 3") < at("10 - 4"),
+        );
+      },
+    ),
     /* regressions caught after the statics check landed */
     has(
       "let ¦id = typfun A -> fun (x : A) -> x in id",

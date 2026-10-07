@@ -1673,18 +1673,30 @@ let explode_impl: impl = {
             and ensure_atom = (x: Exp.t): Exp.t => x_atomic(x) ? x : lift(x)
             and op_rebuild = (x: Exp.t): Exp.t =>
               switch (IdTagged.term_of(x)) {
-              | BinOp(op, a, b) => {
+              /* operands sequenced left first: constructor arguments
+                 evaluate right-to-left, and lifting order is emission
+                 order */
+              | BinOp(op, a, b) =>
+                let a' = ensure_atom(a);
+                let b' = ensure_atom(b);
+                {
                   ...x,
-                  term: BinOp(op, ensure_atom(a), ensure_atom(b)),
-                }
-              | Cons(a, b) => {
+                  term: BinOp(op, a', b'),
+                };
+              | Cons(a, b) =>
+                let a' = ensure_atom(a);
+                let b' = ensure_atom(b);
+                {
                   ...x,
-                  term: Cons(ensure_atom(a), ensure_atom(b)),
-                }
-              | ListConcat(a, b) => {
+                  term: Cons(a', b'),
+                };
+              | ListConcat(a, b) =>
+                let a' = ensure_atom(a);
+                let b' = ensure_atom(b);
+                {
                   ...x,
-                  term: ListConcat(ensure_atom(a), ensure_atom(b)),
-                }
+                  term: ListConcat(a', b'),
+                };
               | Dot(a, b) => {
                   ...x,
                   term: Dot(ensure_atom(a), b),
@@ -1697,10 +1709,13 @@ let explode_impl: impl = {
                   ...x,
                   term: TypAp(ensure_atom(a), t),
                 }
-              | Ap(dir, f, arg) => {
+              | Ap(dir, f, arg) =>
+                let f' = ensure_atom(f);
+                let arg' = args_rebuild(arg);
+                {
                   ...x,
-                  term: Ap(dir, ensure_atom(f), args_rebuild(arg)),
-                }
+                  term: Ap(dir, f', arg'),
+                };
               | _ => x
               }
             and args_rebuild = (arg: Exp.t): Exp.t =>
