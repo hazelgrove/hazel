@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Confidence intervals for bench-incr results.
  *
- *   node bench/ci.js bench/results/paper-six.bench.json
+ *   node bench/ci.js bench/results/paper-six-r25-closure-reuse.bench.json
  *   node bench/ci.js --target=0.95 results.json
  *
  * Why this exists. `latex-table.js` reports the median total re-evaluation

@@ -5,10 +5,14 @@
  *
  * Node's built-in runner, no dependencies, same as the bench scripts.
  *
- * The weight here is deliberately on sameSideExtreme. Running the generator
- * against bench/results/paper-six.bench.json already reproduces the paper's
- * table byte for byte, but that check is blind to the per-side shading rule:
- * all six current rows sit entirely on one side of 1x, so `onSide` always
+ * The input is bench/fixtures/six-scenarios-r5.bench.json: a frozen 5-rep run,
+ * kept deliberately outside bench/results so that re-running the benchmark
+ * never churns the tests, and so nobody regenerating the paper mistakes it for
+ * the current numbers. It is a shape fixture -- nothing here asserts its
+ * values, and any valid six-scenario run would serve.
+ *
+ * The weight is deliberately on sameSideExtreme, because the real data cannot
+ * exercise it: all six rows sit entirely on one side of 1x, so `onSide` always
  * has four members and the interesting branches never execute. Only a
  * synthetic row can reach them, and a mixed row is the expected shape once
  * real agent traces land.
@@ -30,7 +34,7 @@ const {
 } = require('./latex-table.js');
 
 const SCRIPT = path.join(__dirname, 'latex-table.js');
-const PAPER_SIX = path.join(__dirname, 'results', 'paper-six.bench.json');
+const PAPER_SIX = path.join(__dirname, 'fixtures', 'six-scenarios-r5.bench.json');
 
 /* What the macro does with the two printed numbers, so the tests can assert
  * on rendered intensity rather than just on arg3. Mirrors

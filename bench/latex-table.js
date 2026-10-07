@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Generate the paper's benchmark table from bench-incr JSON.
  *
- *   node bench/latex-table.js bench/results/paper-six.bench.json
+ *   node bench/latex-table.js bench/results/paper-six-r25-closure-reuse.bench.json
  *   node bench/latex-table.js --rows-only bench/results/*.bench.json
  *
  * Emits the `tab:hazel-benchmarks` table in
@@ -191,7 +191,7 @@ function sameSideExtreme(speedup, siblings) {
 const traceName = t => path.basename(t).replace(/\.json$/, '');
 
 /* trace name -> { samples, file }. Later files win on a collision, so that
- * re-recording one trace is `latex-table.js paper-six.bench.json
+ * re-recording one trace is `latex-table.js paper-six-r25-closure-reuse.bench.json
  * that-trace.bench.json`. That override is deliberate and the stderr note is
  * the thing to watch for: a silent override is how a stale number gets
  * published. */
@@ -377,7 +377,7 @@ function main(args) {
   }
 
   /* One id policy per table, since the table has one row per scenario and no
-   * room for a policy dimension. paper-six carries only "default". */
+   * room for a policy dimension. The paper-six runs carry only "default". */
   let policy = policyFlag;
   if (policy === undefined) {
     if (policies.length === 1) {

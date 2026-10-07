@@ -12,22 +12,44 @@ We published a stale number that way once.
 
 ```sh
 # 1. Re-run the benchmark, writing JSON (not just the .txt summary).
-./hazel bench-incr --json=bench/results/paper-six.bench.json
+./hazel bench-incr --json=bench/results/paper-six-r25-closure-reuse.bench.json
 
 # 2. Regenerate the table.
-node bench/latex-table.js bench/results/paper-six.bench.json
+node bench/latex-table.js bench/results/paper-six-r25-closure-reuse.bench.json
 ```
 
 That prints the whole `table` environment — preamble, rows, caption, label —
-ready to replace the existing one in `21_hazel_benchmarking.tex`. As of the
-commit that added this script, the output is **byte-for-byte identical** to the
-hand-written table, so the first regeneration should be a no-op diff.
+ready to replace the existing one in `21_hazel_benchmarking.tex`. Everything
+except the six data lines is byte-stable, so a regeneration diff should touch
+only `\hazelresult` lines; anything else moving means the prose in `SCENARIOS`
+has drifted from the paper (see Known hazards).
+
+## Which result file is which
+
+`bench/results` holds several six-scenario runs. They are **not**
+interchangeable, and the differences are not visible from the numbers alone:
+
+- `paper-six-r25-closure-reuse.bench.json` — **canonical**; the one the
+  paper's current table was generated from. 25 reps, measured after closures
+  began carrying their own re-use map.
+- `paper-six-r25-pre-closure-reuse.bench.json` — the same six traces, 25 reps,
+  measured *before* that change, when a2 and aStar still paid
+  `transport_across_env` at every call. Kept as the before/after evidence; do
+  not publish from it.
+- `bench/fixtures/six-scenarios-r5.bench.json` — a frozen 5-rep run used only
+  as a test fixture. Outside `bench/results` on purpose, so re-running the
+  benchmark never churns the tests and nobody regenerates the paper from it.
+
+Absolute times are not comparable between runs: the pre-change run was taken
+on a throttled machine and reads 2-3x slower throughout, including for `a0`,
+which holds no cache and so cannot be affected by any calculus. Compare the
+speedup columns.
 
 `--rows-only` prints just the row bodies, for when you have edited the
 preamble or caption by hand and only want the numbers:
 
 ```sh
-node bench/latex-table.js --rows-only bench/results/paper-six.bench.json
+node bench/latex-table.js --rows-only bench/results/paper-six-r25-closure-reuse.bench.json
 ```
 
 You can pass several files. **Later files deliberately win** on a trace they
@@ -35,7 +57,7 @@ share with an earlier one, which is the intended way to splice in a single
 re-recorded trace without re-running everything:
 
 ```sh
-node bench/latex-table.js bench/results/paper-six.bench.json \
+node bench/latex-table.js bench/results/paper-six-r25-closure-reuse.bench.json \
                           bench/results/tariff-tune.bench.json
 ```
 
@@ -44,7 +66,7 @@ for** — it is the only signal distinguishing "I meant to replace that trace"
 from "I passed the wrong file and half my numbers just changed":
 
 ```
-note: tariff-tune appears in both bench/results/paper-six.bench.json and bench/results/tariff-tune.bench.json; using bench/results/tariff-tune.bench.json
+note: tariff-tune appears in both bench/results/paper-six-r25-closure-reuse.bench.json and bench/results/tariff-tune.bench.json; using bench/results/tariff-tune.bench.json
 ```
 
 `--policy=NAME` picks an id policy if a run carries more than one. With a
@@ -87,10 +109,13 @@ the colour of the second.
    purpose — taking medians per step and summing those would report a total no
    single rep ever ran.
 
-   Median rather than mean is load-bearing, not incidental: with five reps, one
-   slow rep moves a mean a long way. Switching to the mean changes all thirty
-   published cells, one of them by 76%, and pushes two of scenario 1's cells
-   across 1x, inverting that row's shading from brown to blue.
+   Median rather than mean is load-bearing, not incidental: one slow rep moves
+   a mean a long way. Measured on the 5-rep run, switching to the mean changed
+   all thirty cells, one of them by 76%, and pushed two of scenario 1's cells
+   across 1x, inverting that row's shading from brown to blue. Those figures
+   have not been re-measured against the 25-rep runs, where more reps should
+   damp the effect; the skew table in `bench/ci.js` reports the per-cell
+   mean/median ratio if you want the current picture.
 
 2. **`speedup`** — `a0_time / this_time`, from the same run. Above 1 is faster
    than non-incremental evaluation, below 1 is slower. `a0`'s own cell is
