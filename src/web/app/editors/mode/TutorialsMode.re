@@ -400,7 +400,8 @@ module View = {
           };
           Virtual_dom.Vdom.Effect.Ignore;
         },
-        ~tooltip="Reset Hazel (erase editor data; keep API keys)",
+        ~tooltip="Reset Hazel",
+        ~description="Erases editor data; keeps API keys.",
       );
     let reparse =
       button_named(

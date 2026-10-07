@@ -12,10 +12,32 @@ let button = (~clss=[], ~tooltip="", icon, action) =>
     [icon],
   );
 
-let button_named = (~tooltip="", icon, action) =>
+let button_named = (~tooltip="", ~description=?, icon, action) =>
   div(
-    ~attrs=[clss(["named-menu-item"]), Attr.on_click(action)],
-    [button(icon, _ => Effect.Ignore), div([text(tooltip)])],
+    ~attrs=[
+      clss(
+        ["named-menu-item"]
+        @ (Option.is_some(description) ? ["described-menu-item"] : []),
+      ),
+      Attr.on_click(action),
+    ],
+    [
+      button(icon, _ => Effect.Ignore),
+      switch (description) {
+      | None => div([text(tooltip)])
+      | Some(description) =>
+        div(
+          ~attrs=[clss(["menu-item-copy"])],
+          [
+            div([text(tooltip)]),
+            div(
+              ~attrs=[clss(["menu-item-description"])],
+              [text(description)],
+            ),
+          ],
+        )
+      },
+    ],
   );
 
 let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
