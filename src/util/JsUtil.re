@@ -652,6 +652,60 @@ let on_dpr_change = (callback: unit => unit): unit => {
   listen();
 };
 
+/* Whether the primary pointer can hover, as CSS `(hover: hover)` sees it:
+   false on a phone or tablet. True under node, which has no matchMedia. */
+let can_hover = (): bool =>
+  switch (Js.Optdef.to_option(Js.Unsafe.get(Dom_html.window, "matchMedia"))) {
+  | None => true
+  | Some(_) =>
+    Js.Unsafe.meth_call(
+      Dom_html.window,
+      "matchMedia",
+      [|Js.Unsafe.inject(Js.string("(hover: hover)"))|],
+    )##.matches
+    |> Js.to_bool
+  };
+
+/* Follow the visual viewport, which is what an on-screen keyboard shrinks
+   (iOS leaves the layout viewport alone): --visual-viewport-height and
+   --visual-viewport-top on the document, which #page is sized from. A no-op
+   where the API is missing. */
+let follow_visual_viewport = (): unit =>
+  switch (
+    Js.Optdef.to_option(Js.Unsafe.get(Dom_html.window, "visualViewport"))
+  ) {
+  | None => ()
+  | Some(viewport) =>
+    let px = (prop: string): string =>
+      Printf.sprintf(
+        "%fpx",
+        Js.Unsafe.get(viewport, prop) |> Js.float_of_number |> Js.to_float,
+      );
+    let apply = () => {
+      set_css_variable("--visual-viewport-height", px("height"));
+      set_css_variable("--visual-viewport-top", px("offsetTop"));
+    };
+    let listen = (event: string, f: unit => unit): unit =>
+      ignore(
+        Js.Unsafe.meth_call(
+          viewport,
+          "addEventListener",
+          [|
+            Js.Unsafe.inject(Js.string(event)),
+            Js.Unsafe.inject(Js.wrap_callback((_: Js.t({..})) => f())),
+          |],
+        ),
+      );
+    /* A resize is the keyboard coming or going: keep the caret in the space
+       that is left. Not on scroll, which is the user's own panning. */
+    listen("resize", () => {
+      apply();
+      scroll_cursor_into_view_if_needed();
+    });
+    listen("scroll", apply);
+    apply();
+  };
+
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>
     switch (url) {
