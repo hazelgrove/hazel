@@ -827,6 +827,36 @@ let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
   | _ => None
   };
 
+/* an annotation spelled from a statics type can't tell a poly/rec
+   binder from an in-scope type of the same name (`poly A -> A -> A ->
+   Int` where the last A is an outer alias): annotate only when no such
+   binder shadows a type name in scope at the def */
+let annotation_unambiguous =
+    (~info_map: Statics.Map.t, def: Exp.t, ty: Typ.t): bool => {
+  let ctx =
+    Id.Map.find_opt(Exp.rep_id(def), info_map) |> Option.map(Info.ctx_of);
+  let clash = ref(false);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          switch (IdTagged.term_of(t), ctx) {
+          | (Poly(tp, _) | Rec(tp, _), Some(c)) =>
+            if (List.exists(
+                  n => Ctx.lookup_tvar(c, n) != None,
+                  tpat_names(tp),
+                )) {
+              clash := true;
+            }
+          | _ => ()
+          };
+          cont(t);
+        },
+      ty,
+    );
+  ! clash^;
+};
+
 /* statics types carry no Parens nodes: `(Int -> Int) -> Int` would
    print as a different type. Delimited or arrow types go bare in the
    annotation; anything wider (a Prod's comma breaks the let) is
@@ -903,7 +933,9 @@ let add_annotation_impl: impl = {
           switch (IdTagged.term_of(e)) {
           | Let(p, def, body) when var_pat_name(p) != None =>
             switch (exp_ty(~info_map, def)) {
-            | Some(ty) when typ_known(ty) =>
+            | Some(ty)
+                when
+                  typ_known(ty) && annotation_unambiguous(~info_map, def, ty) =>
               let ty = pad(annotation_typ(ty));
               /* p keeps its runs: its old pre-`=` space now sits
                  before the `:` */

@@ -5708,6 +5708,18 @@ let review_fix_tests = {
       )
     ),
     has("let x = 3 in\n(¦fun x -> x + 1)(x * 2)", BetaReduce, "x * 2 + 1"),
+    test_case(
+      "annotate won't spell a type a poly binder would capture", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(
+          AddTypeAnnotation,
+          "type A = Int in\nlet inc = fun (v : A) -> v + 1 in\nlet ¦g = typfun A -> fun (x : A) -> inc in g",
+        ),
+      )
+    ),
     /* regressions caught after the statics check landed */
     has(
       "let ¦id = typfun A -> fun (x : A) -> x in id",

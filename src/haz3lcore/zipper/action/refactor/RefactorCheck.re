@@ -79,30 +79,34 @@ let preserves =
           },
         resolutions(info'),
       );
-    /* a literal's meaning can depend on scope too (`use Nat in` makes
-       2 a Nat): every literal that survives keeps the type it had */
-    let literal_types = (m: Statics.Map.t) =>
+    /* a number literal's meaning can depend on scope too (`use Nat in`
+       makes 2 a Nat, no binder involved): a surviving number literal
+       keeps its numeric kind. Only the kind — other type differences
+       (an inferred type that moved) aren't the literal's meaning. */
+    let numeric_kinds = (m: Statics.Map.t) =>
       Id.Map.fold(
         (id, info: Info.t, acc) =>
           switch (info) {
           | InfoExp({user_term: {term: Atom(_), _}, ty, ctx, _})
               when id == Info.id_of(info) =>
-            /* normalized: an alias and what it names are one type */
-            Id.Map.add(id, Typ.normalize(ctx, ty), acc)
+            switch (IdTagged.term_of(Typ.normalize(ctx, ty))) {
+            | Atom((Int | SInt | Nat | Float) as k) => Id.Map.add(id, k, acc)
+            | _ => acc
+            }
           | _ => acc
           },
         m,
         Id.Map.empty,
       );
-    let old_lits = literal_types(info_map);
+    let old_kinds = numeric_kinds(info_map);
     let literals_same =
       Id.Map.for_all(
-        (id, ty') =>
-          switch (Id.Map.find_opt(origin(id), old_lits)) {
-          | Some(ty) => Typ.fast_equal(ty, ty')
+        (id, k') =>
+          switch (Id.Map.find_opt(origin(id), old_kinds)) {
+          | Some(k) => k == k'
           | None => true
           },
-        literal_types(info'),
+        numeric_kinds(info'),
       );
     let old_errors =
       Statics.Map.error_ids(info_map)

@@ -180,7 +180,8 @@ let applies =
           var_pat_name(p) != None
           && (
             switch (exp_ty(~info_map, def)) {
-            | Some(ty) => typ_known(ty)
+            | Some(ty) =>
+              typ_known(ty) && annotation_unambiguous(~info_map, def, ty)
             | None => false
             }
           ),
