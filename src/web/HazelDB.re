@@ -27,8 +27,7 @@ let log_store = (db: db): IDBStore.store =>
 let kv_store = (db: db): IDBStore.store =>
   IDBStore.store(~mode=READWRITE, db, kv_table);
 
-let with_db = (f): unit => {
-  let error = _: unit => print_endline("ERROR: HazelDB.open");
+let with_db = (~error=_ => print_endline("ERROR: HazelDB.open"), f): unit => {
   let upgrade = (db: db, e: db_upgrade): unit =>
     if (e.new_version >= 1 && e.old_version == 0) {
       ignore(IDBStore.create(db, log_table));
@@ -88,6 +87,37 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
     );
   });
 
+/* Complete a single transaction containing current editor data before leaving
+   the page for authorization. The cache includes the just-requested save. */
+let flush = (~callback: bool => unit, ()): unit => {
+  let finished = ref(false);
+  let finish = ok =>
+    if (! finished^) {
+      finished := true;
+      callback(ok);
+    };
+  with_db(
+    ~error=_ => finish(false),
+    db => {
+      let store = kv_store(db);
+      let transaction = store##.transaction;
+      transaction##.oncomplete :=
+        Ezjs_min.AOpt.option(
+          Some(Ezjs_min.wrap_callback(_ => finish(true))),
+        );
+      transaction##.onabort :=
+        Ezjs_min.AOpt.option(
+          Some(Ezjs_min.wrap_callback(_ => finish(false))),
+        );
+      Util.Maps.StringMap.iter(
+        (key, value) =>
+          IDBStore.put(~key, ~error=_ => finish(false), store, value),
+        cache^,
+      );
+    },
+  );
+};
+
 /* === Log operations === */
 
 let log_add = (key: string, value: string): unit =>
@@ -105,18 +135,10 @@ let log_clear = (~callback=() => (), ()): unit => {
 
 /* === Database-level operations === */
 
-/* Clear all data from all tables and legacy localStorage.
-   Used by "Reset Hazel". */
+/* Reset editor state while preserving the dedicated browser credential.
+   Credentials are removed only through the agent's settings. */
 let clear_all = (~callback=() => (), ()): unit => {
-  /* Clear legacy localStorage (safe to remove once all users upgraded) */
-  try({
-    let local_store =
-      Js_of_ocaml.Dom_html.window##.localStorage
-      |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
-    local_store##clear;
-  }) {
-  | _ => ()
-  };
+  AgentAuth.clear_editor_storage();
   cache := Util.Maps.StringMap.empty;
   let remaining = ref(2);
   let on_done = () => {
@@ -125,6 +147,19 @@ let clear_all = (~callback=() => (), ()): unit => {
       callback();
     };
   };
-  kv_clear(~callback=on_done, ());
-  log_clear(~callback=on_done, ());
+  with_db(db =>
+    List.iter(
+      make_store => {
+        let store = make_store(db);
+        let transaction = store##.transaction;
+        transaction##.oncomplete :=
+          Ezjs_min.AOpt.option(Some(Ezjs_min.wrap_callback(_ => on_done())));
+        IDBStore.clear(
+          ~error=_ => print_endline("ERROR: HazelDB.clear_all"),
+          store,
+        );
+      },
+      [kv_store, log_store],
+    )
+  );
 };

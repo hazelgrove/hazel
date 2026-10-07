@@ -83,12 +83,38 @@ let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
 
 let compact = (m: Page.Model.t): Page.Model.t => {
   ...m,
+  globals: {
+    ...m.globals,
+    settings: {
+      ...m.globals.settings,
+      agent_globals:
+        AgentGlobals.Model.without_credentials(
+          m.globals.settings.agent_globals,
+        ),
+    },
+  },
   editors:
     switch (m.editors) {
     | Scratch(sm) => Scratch(compact_scratch(sm))
     | Documentation(sm) => Documentation(compact_scratch(sm))
     | (Tutorial(_) | Exercises(_) | Config(_)) as e => e
     },
+};
+
+/* Editor undo/redo never changes the current credential or storage choices. */
+let restore = (~current: Page.Model.t, snapshot: Page.Model.t): Page.Model.t => {
+  ...snapshot,
+  globals: {
+    ...snapshot.globals,
+    settings: {
+      ...snapshot.globals.settings,
+      agent_globals:
+        AgentGlobals.Model.with_credentials(
+          ~from=current.globals.settings.agent_globals,
+          snapshot.globals.settings.agent_globals,
+        ),
+    },
+  },
 };
 
 module Model = {
@@ -145,7 +171,7 @@ module Update = {
           is_edit: true,
           recalculate: true,
           model: {
-            current: x.model,
+            current: restore(~current=model.current, x.model),
             undo_stack: rest,
             redo_stack: [
               {
@@ -167,7 +193,7 @@ module Update = {
           is_edit: true,
           recalculate: true,
           model: {
-            current: x.model,
+            current: restore(~current=model.current, x.model),
             undo_stack: [
               {
                 ...x,

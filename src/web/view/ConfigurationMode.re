@@ -635,15 +635,17 @@ module View = {
         _ => {
           let confirmed =
             JsUtil.confirm(
-              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it! Saved API keys are kept; remove them in the agent settings.",
             );
           if (confirmed) {
-            HazelDB.clear_all();
-            Js_of_ocaml.Dom_html.window##.location##reload;
+            HazelDB.clear_all(
+              ~callback=() => Js_of_ocaml.Dom_html.window##.location##reload,
+              (),
+            );
           };
           Virtual_dom.Vdom.Effect.Ignore;
         },
-        ~tooltip="Reset Hazel (LOSE ALL DATA)",
+        ~tooltip="Reset Hazel (erase editor data; keep API keys)",
       );
 
     let reset_group_scratch =

@@ -317,7 +317,7 @@ let start = default_model => {
   let on_startup = (schedule_action, ()): unit => {
     schedule_action(
       Page.Update.Globals(
-        SetAgentGlobals(AgentGlobals.Update.LoadLocalApiKey),
+        SetAgentGlobals(AgentGlobals.Update.LoadBrowserApiKey),
       ),
     );
     Os.is_mac :=

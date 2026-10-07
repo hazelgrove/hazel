@@ -1,7 +1,7 @@
 open Js_of_ocaml;
 
 /* This endpoint exists only in Vite. Static/hosted builds keep using the
-   browser's settings. Never log the response or the request body. */
+   dedicated browser credential store. Never log the response or the request body. */
 let request =
     (~method: string, ~body="", handler: option(Yojson.Safe.t) => unit) => {
   let local =

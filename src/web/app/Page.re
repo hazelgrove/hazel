@@ -251,6 +251,9 @@ module Update = {
         },
       };
     | SetAgentGlobals(agent_globals_action) =>
+      if (agent_globals_action == AgentGlobals.Update.ConnectOpenRouter) {
+        Store.save(model);
+      };
       let agent_globals =
         AgentGlobals.Update.update(
           agent_globals_action, model.globals.settings.agent_globals, action =>
@@ -266,7 +269,13 @@ module Update = {
           },
         },
       }
-      |> Updated.return(~scroll_active=false);
+      |> Updated.return(
+           ~scroll_active=false,
+           ~logged=
+             !AgentGlobals.Update.is_credential_action(agent_globals_action),
+           ~historic=
+             !AgentGlobals.Update.is_credential_action(agent_globals_action),
+         );
     | JumpToTile(id)
     | SelectTile(id) =>
       let jump =

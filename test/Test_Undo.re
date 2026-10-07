@@ -113,6 +113,66 @@ let tests = (
   "Undo",
   [
     test_case(
+      "credentials stay outside undo and redo",
+      `Quick,
+      () => {
+        let event = action => Page.Update.Globals(SetAgentGlobals(action));
+        let m0 =
+          apply(
+            mk_model(),
+            event(
+              RestoreBrowserApiKey({
+                key: Some("test-key"),
+                remember: true,
+                error: false,
+              }),
+            ),
+          );
+        let m1 = apply(m0, insert("1"));
+        let snapshot =
+          List.hd(m1.undo_stack).model.globals.settings.agent_globals;
+        check(
+          option(string),
+          "snapshots contain no key",
+          None,
+          snapshot.api_key,
+        );
+        let m2 = apply(m1, event(LocalKeyForgotten(true)));
+        check(int, "forget adds no undo entry", undo_len(m1), undo_len(m2));
+        let m3 = apply(m2, undo);
+        check(
+          option(string),
+          "undo cannot resurrect a key",
+          None,
+          m3.current.globals.settings.agent_globals.api_key,
+        );
+        let m4 =
+          apply(
+            m3,
+            event(
+              RestoreBrowserApiKey({
+                key: Some("new-key"),
+                remember: true,
+                error: false,
+              }),
+            ),
+          );
+        let m5 = apply(m4, redo);
+        check(
+          option(string),
+          "redo preserves current key",
+          Some("new-key"),
+          m5.current.globals.settings.agent_globals.api_key,
+        );
+        check(
+          bool,
+          "redo preserves storage preference",
+          true,
+          m5.current.globals.settings.agent_globals.remember_browser_key,
+        );
+      },
+    ),
+    test_case(
       "Canvas deletion undo survives selection and render ticks",
       `Quick,
       () => {

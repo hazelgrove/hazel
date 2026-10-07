@@ -43,6 +43,14 @@
   accent-color: var(--text-accent);
 }
 
+.agent-local-key-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding-top: 0.75em;
+  border-top: 1px solid var(--border-soft);
+}
+
 /* Force text selection/copy everywhere inside the agent main menu, overriding
    any per-element `user-select: none` declarations. */
 .agent-main-menu,

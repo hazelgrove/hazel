@@ -11,7 +11,8 @@
   "homepage": "https://hazel.org",
   "scripts": {
     "canvas": "vite --host localhost --port 8687 --strictPort",
-    "test:local-key": "node --test scripts/dev/local-agent-key.test.mjs"
+    "test:local-key": "node --test scripts/dev/local-agent-key.test.mjs",
+    "test:agent-auth": "node --test scripts/dev/agent-auth.test.mjs"
   },
   "dependencies": {
     "algebrite": "^1.4.0",

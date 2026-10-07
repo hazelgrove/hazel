@@ -69,21 +69,35 @@ press Send when ready. It includes the original Constellation and ARIA prompts,
 quick starts, and follow-ups that assume an existing program. Edit the catalog in
 [`src/web/demo-prompts.json`](src/web/demo-prompts.json), then rebuild.
 
-On a local Vite server, **Remember on this computer** opts into storing your
-OpenRouter key in `~/.config/hazel/openrouter-api-key.json`, outside the checkout,
-with owner-only file permissions. This is a local plaintext credential file,
-resolved from the server user's home directory (no developer-specific path).
-The option starts off for new users. Enabling it remembers the current saved key;
-if no key has been entered yet, enter one and press **Save key**. Unchecking it
-immediately removes the local file while retaining the current browser's key.
-**Forget saved key** removes the file and clears the current browser's key.
-Other browsers may still have their own saved copies.
+In the agent settings, **Connect OpenRouter** opens OpenRouter's authorization
+page and returns to the same Hazel URL. The flow uses PKCE (S256), a random
+state check, and a short-lived verifier kept in session storage. You can also
+paste a key manually. Connecting does not send a model request or run a prompt.
 
-Future local Vite servers with this feature can restore a remembered key even
-on a different port or browser. Existing browser keys take precedence; startup
-never writes them to the local store. An already-remembered matching key shows
-the option checked. Hosted/static builds keep using browser settings. The local
-endpoint only accepts same-origin requests from loopback connections, and
+**Remember in this browser** opts into a dedicated localStorage entry,
+`hazel.openrouter.credential.v1`, separate from editor settings and exports.
+New users start with this off; an existing browser-saved key is migrated once.
+With it off, the active key lasts for this page only. With it on, it survives
+reloads and **Reset Hazel**. Unchecking removes the remembered browser copy
+while leaving the current page connected. Browser data clearing can still
+remove it. Like other browser storage, this entry is readable by site scripts.
+Credentials are stripped from settings/snapshots and credential actions are
+excluded from logs and undo; imported credential actions are ignored.
+
+On a local Vite server, **Share across local servers and browsers** is an
+additional, independent opt-in. It stores an unencrypted copy in
+`~/.config/hazel/openrouter-api-key.json`, outside the checkout, with owner-only
+permissions and a path resolved from the server user's home directory. This
+copy survives browser/editor resets and can initialize other local ports and
+browser profiles. It is not automatically copied into browser storage.
+Unchecking deletes the shared file while keeping the active page connected.
+Startup reads existing remembered keys without writing them back to disk.
+
+**Forget API key** in agent settings clears the browser copy and, when available,
+the shared local copy, then disconnects the page. Already-open pages and other
+browsers may still have their own copies. This does not revoke the key at
+OpenRouter. Hosted/static builds only show the browser option. The local
+endpoint accepts same-origin requests from loopback connections only;
 credentials are never included in the build.
 
 ### Build Server
