@@ -5731,11 +5731,6 @@ let scope_check_tests = {
       "let fact = fun n ->\n  ¦let one = 1 in\n  if n < 2 then one else n * fact(n - 1)\nin\nfact(3)",
     ),
     case(
-      "inline doesn't substitute into a sugar param's scope",
-      InlineLet,
-      "let ¦x = 1 in\nlet g(x) = x + 1 in\ng(5) + x",
-    ),
-    case(
       "extract doesn't escape the typfun binding its type var",
       ExtractLet,
       "let id = typfun A -> ¦fun x : A -> x in\nid@<Int>(1)",
@@ -5765,6 +5760,31 @@ let scope_check_tests = {
         "not offered",
         false,
         offers(MergeUp, "let a = ? in\n¦let b = ? in\n(a, b)"),
+      )
+    ),
+    test_case("inline leaves a sugar param's scope alone", `Quick, () =>
+      check(
+        string,
+        "outer x only",
+        "let g(x) = x + 1 in\ng(5) + 1",
+        inline(
+          ~kind=InlineLet,
+          "let ¦x = 1 in\nlet g(x) = x + 1 in\ng(5) + x",
+        )
+        |> text_of,
+      )
+    ),
+    test_case(
+      "param swap leaves a same-named inner recursive fn alone", `Quick, () =>
+      check(
+        string,
+        "inner calls untouched",
+        "let sub = fun (b, a) -> a - b in\nlet walk = fun (x, y) ->\n  let sub = fun (p, q) -> if p <= 0 then q else sub(p - 1, q + 1) in\n  sub(x, y)\nin\nwalk(3, 4) + sub(1, 5)",
+        inline(
+          ~kind=SwapParams(0),
+          "let sub = fun (¦a, b) -> a - b in\nlet walk = fun (x, y) ->\n  let sub = fun (p, q) -> if p <= 0 then q else sub(p - 1, q + 1) in\n  sub(x, y)\nin\nwalk(3, 4) + sub(5, 1)",
+        )
+        |> text_of,
       )
     ),
     test_case("moving a type definition isn't a rebinding", `Quick, () =>

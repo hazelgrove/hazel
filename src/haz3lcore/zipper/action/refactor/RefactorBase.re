@@ -701,6 +701,37 @@ let rename_pat_var = (y: string, y': string, p: Pat.t): Pat.t =>
     p,
   );
 
+/* how a let's binders scope, as statics assigns them: (names scoped
+ * over the def, names scoped over the body, is sugar). Sugar `f(a) = d`:
+ * the params over d only, f over the body and d (sugar fns recurse).
+ * Otherwise the pattern's vars over the body, and over d too when the
+ * let is recursive by Hazel's rule (Statics.is_recursive's syntactic
+ * core: as many pattern vars as function literals in d). */
+let let_scopes = (p: Pat.t, d: Exp.t): (list(string), list(string), bool) => {
+  let rec sugar = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Ap(fv, args) => Some((fv, args))
+    | Asc(inner, _)
+    | Parens(inner) => sugar(inner)
+    | _ => None
+    };
+  switch (sugar(p)) {
+  | Some((fv, args)) => (
+      pat_var_names(fv) @ pat_var_names(args),
+      pat_var_names(fv),
+      true,
+    )
+  | None =>
+    let names = pat_var_names(p);
+    let recursive =
+      switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(d)) {
+      | (Some(n), Some(m)) => n > 0 && n == m
+      | _ => false
+      };
+    (recursive ? names : [], names, false);
+  };
+};
+
 /* One shadow-aware traversal: descends everything except scopes that
  * rebind ~skip; ~f_var fires on every Var node (hook filters names),
  * ~f_ap on forward applications before generic descent (None falls
@@ -744,7 +775,14 @@ let rec map_unshadowed =
     | None => descend(e)
     }
   | Let(p, d, body) =>
-    rewrap(Let(p, go(d), binds(skip, p) ? body : go(body)))
+    let (in_def, in_body, _) = let_scopes(p, d);
+    rewrap(
+      Let(
+        p,
+        List.mem(skip, in_def) ? d : go(d),
+        List.mem(skip, in_body) ? body : go(body),
+      ),
+    );
   | Fun(p, body, t, n) when binds(skip, p) => rewrap(Fun(p, body, t, n))
   | FixF(p, body, env) when binds(skip, p) => rewrap(FixF(p, body, env))
   | Match(scrut, rules) =>
@@ -850,12 +888,19 @@ let rec subst =
     let d = is_first ? def : strip_comments(refresh_ids(def));
     inserted(~parens=parens_for(e), ~keep_ids=true, d, e);
   | Let(p, d, body) =>
-    let recursive =
-      switch (IdTagged.term_of(d)) {
-      | Fun(_) => true
-      | _ => false
-      };
-    if (binds(x, p)) {
+    let (in_def, in_body, sugar) = let_scopes(p, d);
+    let recursive = in_def != [];
+    if (sugar) {
+      /* params scope over d only; a capture here is refused by
+         RefactorCheck rather than freshened */
+      rewrap(
+        Let(
+          p,
+          List.mem(x, in_def) ? d : go(d),
+          List.mem(x, in_body) ? body : go(body),
+        ),
+      );
+    } else if (List.mem(x, in_body)) {
       /* x shadowed in body; also in a recursive def */
       rewrap(
         Let(p, recursive ? d : go(d), body),
