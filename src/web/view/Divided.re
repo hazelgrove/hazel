@@ -710,6 +710,47 @@ let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
     ),
 };
 
+let editors = (d: t): list(CellEditor.Model.t) => [
+  d.shell,
+  ...List.concat_map((e: Cell.t) => [e.e_header, e.e_body], d.cells),
+];
+
+let stepping = (d: t): option(ProjectorBase.stepping) =>
+  List.find_map(
+    (c: CellEditor.Model.t) =>
+      c.editor.editor.state.zipper.refractors.stepping,
+    editors(d),
+  );
+
+let keep_stepping = (span: Language.Sample.span_ref, d: t): t =>
+  List.exists(
+    (c: CellEditor.Model.t) =>
+      switch (c.editor.editor.state.zipper.refractors.stepping) {
+      | Some(st) => st.span != span
+      | None => false
+      },
+    editors(d),
+  )
+    ? map_editors(
+        (c: CellEditor.Model.t) =>
+          switch (c.editor.editor.state.zipper.refractors.stepping) {
+          | Some(st) when st.span != span =>
+            CellEditor.Model.map_zipper(
+              z =>
+                Zipper.update_refractors(z, r =>
+                  {
+                    ...r,
+                    stepping: None,
+                  }
+                ),
+              c,
+            )
+          | _ => c
+          },
+        d,
+      )
+    : d;
+
 /* an undo snapshot: the whole-program statics recompute on restore */
 let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...map_editors(f, d),

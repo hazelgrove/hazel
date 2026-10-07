@@ -202,6 +202,11 @@ module Settings = {
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
+  /* Set by the web layer each render: the stepper a stepping drawer
+   * shows for a probe id, once its sample is ready. */
+  let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
   let set_sticky = (b: bool) => {
     sticky := b;
     version := version^ + 1;
@@ -1019,6 +1024,21 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
+let show_steps_action = (ctx: probe_ctx, sample: Sample.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "show-steps-action"]),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          ctx.local(SetDropdown(None)),
+          ctx.parent(Probe(ShowSteps(Sample.ref_of_sample(sample)))),
+        ])
+      ),
+    ],
+    [text("Show steps")],
+  );
+
 let rich_probe_action =
     (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
   let is_active = ctx.active_renderer_id == Some(r.id);
@@ -1059,6 +1079,15 @@ let sample_primary_actions =
     )
     : list(Node.t) => {
   let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
+  /* a variable's or pattern's steps are just its value */
+  let steps =
+    switch (ctx.statics) {
+    | InfoExp({user_term: {term: Var(_), _}, _}) => false
+    | InfoExp(_) => true
+    | _ => false
+    };
+  let rich_items =
+    steps ? rich_items @ [show_steps_action(ctx, sample)] : rich_items;
   switch (ctx.ap_id) {
   | Some(ap_id) =>
     [pin_action(ctx, sample)]
@@ -1698,6 +1727,8 @@ let key_handler =
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
+  | D("Escape") when ctx.p_info.stepping != None =>
+    Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
   | D("Escape") when drawer_mode_active =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
@@ -2189,6 +2220,36 @@ let rich_drawer_view =
     @ [content],
   );
 
+/* A stepping drawer: the stepper in place of the samples. */
+let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
+  div(
+    ~attrs=[
+      Attr.classes(["steps-drawer"] @ (overflowing ? ["overflowing"] : [])),
+      /* the stepper's own clicks: the editor below would take the
+         pointer (and the caret) before the stepper saw them */
+      Attr.on_pointerdown(_ => Effect.Stop_propagation),
+      Attr.on_mousedown(_ => Effect.Stop_propagation),
+    ],
+    [
+      div(
+        ~attrs=[
+          Attr.classes(["rich-drawer-close"]),
+          Attr.title("Close steps (Esc)"),
+          Attr.on_click(_ => parent(Probe(HideSteps))),
+        ],
+        [text("×")],
+      ),
+      switch (Settings.steps_view^(info.id)) {
+      | Some(stepper) => stepper
+      | None =>
+        div(
+          ~attrs=[Attr.classes(["steps-pending"])],
+          [text("Stepping…")],
+        )
+      },
+    ],
+  );
+
 /* Rows the active rich renderer wants in the drawer, when it applies to
  * the indicated value. */
 let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
@@ -2281,7 +2342,7 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (model: model, info) =>
+  let placeholder_samples = (model: model, info) =>
     if (model.drawer_mode) {
       let rows =
         switch (rich_drawer_rows(model, info)) {
@@ -2294,6 +2355,16 @@ module M: Projector = {
       };
     } else {
       ProjectorCore.Shape.default;
+    };
+
+  let placeholder = (model: model, info: info) =>
+    switch (info.stepping) {
+    | Some(st) =>
+      ProjectorCore.Shape.{
+        horizontal: 0,
+        vertical: Tab(min(DrawerHeight.max_rows, max(1, st.rows))),
+      }
+    | None => placeholder_samples(model, info)
     };
 
   let update = (model: model, info: info, a: action): model => {
@@ -2447,7 +2518,8 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let drawer = model.drawer_mode;
+    let stepping = info.stepping != None;
+    let drawer = model.drawer_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
@@ -2468,44 +2540,52 @@ module M: Projector = {
     /* Content taller than the drawer cap → the drawer scrolls; gates the
      * wrapper's scroll-affordance fade and the rich view's overflow clip. */
     let drawer_overflow =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > DrawerHeight.max_rows
-        | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
-        }
-      );
+      switch (info.stepping) {
+      | Some(st) => st.rows > DrawerHeight.max_rows
+      | None =>
+        drawer
+        && (
+          switch (rich_drawer_rows(model, info)) {
+          | Some(n) => n > DrawerHeight.max_rows
+          | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
+          }
+        )
+      };
     /* In drawer mode an active rich renderer replaces the sample view in
      * the drawer itself; the anchored modal overlay is inline-mode only
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
-        ? rich_content(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
+      stepping
+        ? Some(
+            steps_drawer_view(~parent, ~overflowing=drawer_overflow, info),
           )
-          |> Option.map(content =>
-               rich_drawer_view(
-                 ~local,
-                 ~overflowing=drawer_overflow,
-                 /* auto-rich (no explicit renderer) has nothing to close:
-                    dismissal would just re-trigger */
-                 ~closable=model.active_renderer != None,
-                 content,
-               )
-             )
-        : None;
+        : drawer
+          && (
+            switch (rich_drawer_rows(model, info)) {
+            | Some(n) => n > inline_rows_cap
+            | None => false
+            }
+          )
+            ? rich_content(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+                ~sort,
+              )
+              |> Option.map(content =>
+                   rich_drawer_view(
+                     ~local,
+                     ~overflowing=drawer_overflow,
+                     /* auto-rich (no explicit renderer) has nothing to close:
+                        dismissal would just re-trigger */
+                     ~closable=model.active_renderer != None,
+                     content,
+                   )
+                 )
+            : None;
     /* the anchored modal is retired: small rich views replace the
        offside row, big ones live in the drawer */
     let modal_nodes = [];

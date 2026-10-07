@@ -48,6 +48,7 @@ let mk_data =
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
       ~sample_focus: Language.Sample.Focus.t,
+      ~stepping: option(ProjectorBase.stepping)=None,
       ~editor_active: bool,
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
@@ -87,6 +88,7 @@ let mk_data =
            ~statics,
            ~dynamics,
            ~elaborated=None,
+           ~stepping,
          );
        ProjectorView.Model.{
          p,

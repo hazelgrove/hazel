@@ -382,7 +382,7 @@ let probe_capture_parity = (): unit => {
     let probe_ids = Id.Map.singleton(q_id, ());
     let capture_count = (info_map, elab) => {
       let targets =
-        CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids);
+        CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids, ());
       let ei = EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
       let (_, state) =
         Evaluator.evaluate(~eval_info=ei, ~env=Builtins.env_init, elab);

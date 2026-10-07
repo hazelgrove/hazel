@@ -732,6 +732,53 @@ let go =
          }
        )
     |> SampleFocusPerform.reset
+    |> Zipper.update_refractors(_, r =>
+         {
+           ...r,
+           stepping: None,
+         }
+       )
+  | ShowSteps(span) =>
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping:
+          Some({
+            span,
+            rows: 1,
+          }),
+      }
+    )
+  | HideSteps =>
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping: None,
+      }
+    )
+  };
+
+/* an edit to the program closes a stepping drawer, as does losing its
+   probe; probe actions on other probes leave it open */
+let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.stepping) {
+  | Some(st)
+      when
+        !has_probe(st.span.probe_id, z)
+        || Action.is_edit(a)
+        && (
+          switch (a) {
+          | Probe(_) => false
+          | _ => true
+          }
+        ) =>
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping: None,
+      }
+    )
+  | _ => z
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {

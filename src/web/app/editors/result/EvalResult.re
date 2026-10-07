@@ -36,6 +36,8 @@ module Model = {
     settled: option(option(ProgramResult.error)),
     display,
     theorems: Theorems.Model.t,
+    /* a probe drawer's stepper over one of its samples */
+    probe_steps: option(ProbeSteps.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,6 +61,7 @@ module Model = {
     settled: None,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
+    probe_steps: None,
   };
 
   /* what a run's result leaves for the status line: a finished run
@@ -102,6 +105,7 @@ module Model = {
         settled: None,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
+        probe_steps: None,
       }
     | None => {
         ...init,
@@ -192,6 +196,7 @@ module Update = {
   type t =
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
+    | ProbeStepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
@@ -220,6 +225,13 @@ module Update = {
         display: Stepper(stepper),
       };
     | (StepperAction(_), _) => model |> Updated.raise_invalid_action
+    | (ProbeStepperAction(a), {probe_steps: Some(ps), _}) =>
+      let* ps = ProbeSteps.update(~settings, a, ps);
+      {
+        ...model,
+        probe_steps: Some(ps),
+      };
+    | (ProbeStepperAction(_), _) => model |> Updated.raise_invalid_action
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -284,6 +296,8 @@ module Update = {
            an open stack): skips the O(program) pending-eval worklist */
         ~compute_pending=true,
         ~is_edited: bool,
+        /* the sample a probe drawer steps, if any */
+        ~stepping: option(Sample.span_ref)=None,
         statics: Haz3lcore.CachedStatics.t,
         {
           cached_settings,
@@ -300,6 +314,7 @@ module Update = {
           settled,
           display,
           theorems,
+          probe_steps,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -562,32 +577,42 @@ module Update = {
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
         : theorems;
 
-    (
-      {
-        cached_settings: settings |> Calc.save,
-        elab: elab |> Calc.save,
-        cached_targets: targets |> Calc.save,
-        result: result |> Calc.make_old,
-        dynamics: dynamics |> Calc.save,
-        incr_eval: incr_eval |> Calc.save,
-        streaming_outbox: streaming_outbox |> Calc.save,
-        streaming_state: streaming_state |> Calc.save,
-        pending_eval_ids,
-        has_result:
-          has_result
-          || (
-            switch (Calc.get_value(result)) {
-            | ProgramResult.ResultOk(_)
-            | ProgramResult.ResultFail(_) => true
-            | ProgramResult.ResultPending(_) => false
-            }
-          ),
-        edited_since_load: edited_since_load || is_edited && has_result,
-        settled: Model.settle(settled, Calc.get_value(result)),
-        display,
-        theorems,
-      }: Model.t
-    );
+    let model: Model.t = {
+      cached_settings: settings |> Calc.save,
+      elab: elab |> Calc.save,
+      cached_targets: targets |> Calc.save,
+      result: result |> Calc.make_old,
+      dynamics: dynamics |> Calc.save,
+      incr_eval: incr_eval |> Calc.save,
+      streaming_outbox: streaming_outbox |> Calc.save,
+      streaming_state: streaming_state |> Calc.save,
+      pending_eval_ids,
+      has_result:
+        has_result
+        || (
+          switch (Calc.get_value(result)) {
+          | ProgramResult.ResultOk(_)
+          | ProgramResult.ResultFail(_) => true
+          | ProgramResult.ResultPending(_) => false
+          }
+        ),
+      edited_since_load: edited_since_load || is_edited && has_result,
+      settled: Model.settle(settled, Calc.get_value(result)),
+      display,
+      theorems,
+      probe_steps,
+    };
+    {
+      ...model,
+      probe_steps:
+        ProbeSteps.calculate(
+          ~settings,
+          ~info_map=Calc.get_value(statics).info_map,
+          ~dynamics=Model.dynamics(model),
+          ~stepping,
+          probe_steps,
+        ),
+    };
   };
 };
 

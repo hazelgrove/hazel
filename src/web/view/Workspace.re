@@ -72,6 +72,7 @@ let project_cell_statics =
           Haz3lcore.CachedStatics.probe_ids_of_zipper(
             cell.editor.editor.state.zipper,
           ),
+        (),
       ),
     completion: None,
     pins:
@@ -274,6 +275,11 @@ let update =
                  }
              )
           |> Divided.set_active(id, side);
+        let d =
+          switch (ed.editor.editor.state.zipper.refractors.stepping) {
+          | Some(st) => Divided.keep_stepping(st.span, d)
+          | None => d
+          };
         {
           ...code,
           program: Divided(d),
@@ -598,6 +604,7 @@ let calculate =
                   ~settings,
                   ~info_map=ds.merged,
                   ~probe_ids,
+                  (),
                 ),
               completion: None,
               /* the cells' own pins (probe_ids adds the projectors') */
@@ -639,6 +646,37 @@ let calculate =
         } else {
           (d, None);
         };
+      /* a stepping drawer's probe keeps its function values, in the
+         program's run as in a whole editor's */
+      let stepping = Divided.stepping(d);
+      let d = {
+        let st = Divided.statics(d);
+        let full = id =>
+          switch (stepping) {
+          | Some(s) => s.span.probe_id == id
+          | None => false
+          };
+        Id.Map.exists(
+          (id, spec: Language.Sample.capture_spec) => spec.full != full(id),
+          st.targets,
+        )
+          ? Divided.with_statics(
+              {
+                ...st,
+                targets:
+                  Id.Map.mapi(
+                    (id, spec: Language.Sample.capture_spec) =>
+                      {
+                        ...spec,
+                        full: full(id),
+                      },
+                    st.targets,
+                  ),
+              },
+              d,
+            )
+          : d;
+      };
       /* the whole program's result keeps evaluating the assembled
          document; requests fire only when its elaboration changed */
       let d =
@@ -651,6 +689,11 @@ let calculate =
             ~queue_worker,
             ~compute_pending=false,
             ~is_edited,
+            ~stepping=
+              Option.map(
+                (st: Haz3lcore.ProjectorBase.stepping) => st.span,
+                stepping,
+              ),
             Divided.statics(d),
             Divided.result(d),
           ),
@@ -667,6 +710,31 @@ let calculate =
           |> Option.value(~default=[])
         );
       let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
+        /* the stepping drawer's rows follow the program's stepper */
+        let fit = (c: CellEditor.Model.t) =>
+          switch (
+            CellEditor.Update.fit_steps(
+              ~settings,
+              Divided.result(d),
+              c.editor,
+            )
+          ) {
+          | (editor, true) => {
+              ...c,
+              editor,
+            }
+          | (_, false) => c
+          };
+        let (h, b) = (fit(e.e_header), fit(e.e_body));
+        /* identity kept when nothing moved: the memo below keys on it */
+        let e =
+          h === e.e_header && b === e.e_body
+            ? e
+            : {
+              ...e,
+              e_header: h,
+              e_body: b,
+            };
         let reuse =
           statics_mode != StaticsMode.Force
             ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {

@@ -175,6 +175,7 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+    let zipper = ProbePerform.settle_stepping(a, zipper);
 
     Model.{
       root,

@@ -31,6 +31,7 @@ type t = {
    * compared by physical eq in `calculate` to skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
+  cached_stepping: option(ProjectorBase.stepping),
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   missing_shards: list(Tile.t),
@@ -94,6 +95,7 @@ let mk_refractor_rows =
           ~statics=info_map,
           ~dynamics=dyn_map,
           ~elaborated,
+          ~stepping=z.refractors.stepping,
         );
       let (module P) = ProjectorInit.to_module(entry.kind);
       let shape = P.placeholder(entry.model, info);
@@ -171,6 +173,7 @@ let mk =
     refractor_rows,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_stepping: z.refractors.stepping,
     projector_errors,
     missing_shards: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
@@ -227,6 +230,7 @@ let refresh_shapes =
     measured,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_stepping: z.refractors.stepping,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -249,7 +253,8 @@ let calculate =
     (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
-    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
+    || z.refractors.multis.ephemerals !== old.cached_ephemerals
+    || z.refractors.stepping != old.cached_stepping;
   if (old.old) {
     /* [old] marks caret moves too; an unchanged segment keeps its
        measured/terms/term_data */

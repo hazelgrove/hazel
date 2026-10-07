@@ -803,7 +803,7 @@
   top: 0;
 }
 
-.below-wrapper .rich-drawer .rich-drawer-close {
+.below-wrapper :is(.rich-drawer, .steps-drawer) .rich-drawer-close {
   position: absolute;
   top: 0;
   right: -18px;
@@ -819,8 +819,43 @@
   z-index: calc(var(--projector-z) + 10);
 }
 
-.below-wrapper .rich-drawer .rich-drawer-close:hover {
+.below-wrapper :is(.rich-drawer, .steps-drawer) .rich-drawer-close:hover {
   color: var(--text-error);
+}
+
+/* --- A stepper replacing the drawer's sample view --- */
+
+/* as wide as its widest step, so the close sits just past it */
+.below-wrapper .steps-drawer {
+  position: relative;
+  width: max-content;
+}
+
+/* each step is its code's rows and nothing more, so the drawer's
+   reserved rows (ProbeSteps.rows) fit the stepper exactly */
+.below-wrapper .steps-drawer .stepper {
+  background: none;
+  padding: 0;
+}
+
+.below-wrapper .steps-drawer .step-border {
+  padding: 0;
+  border: none;
+  gap: 0;
+}
+
+/* the rule name follows its step */
+.below-wrapper .steps-drawer .step-output {
+  flex-grow: 0;
+}
+
+.below-wrapper .steps-drawer .stepper-justification {
+  width: auto;
+  color: var(--text-muted);
+}
+
+.below-wrapper .steps-drawer .steps-pending {
+  color: var(--text-muted);
 }
 
 /* line-numbers zero .code-editor padding-left, so keep the stripe at col 0 */
