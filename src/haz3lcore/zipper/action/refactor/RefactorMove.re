@@ -2,6 +2,7 @@
  * crossings, merges, convoy carry, swaps, param add/remove. */
 open Language;
 open RefactorBase;
+open RefactorParens;
 
 let bool_pat = (p: Pat.t): option(bool) =>
   switch (IdTagged.term_of(p)) {
@@ -63,19 +64,28 @@ let case_to_if_impl: impl = {
         e =>
           switch (IdTagged.term_of(e)) {
           | Match(scrut, [(p1, e1), (p2, e2)]) =>
+            /* case..end is closed on the right; an if is not
+               (`case … end + 1` must not become `if … else 2 + 1`) */
+            let wrap = (r: Exp.t) =>
+              splice_parens_needed(~program, ~at=Exp.rep_id(e), r)
+                ? fresh(Parens(r)) : r;
             switch (bool_pat(p1), bool_pat(p2)) {
             | (Some(true), Some(false)) =>
               Some((
-                fresh(If(scrut, e1, strip_trailing_keep_comments(e2))),
+                wrap(
+                  fresh(If(scrut, e1, strip_trailing_keep_comments(e2))),
+                ),
                 Exp.rep_id(scrut),
               ))
             | (Some(false), Some(true)) =>
               Some((
-                fresh(If(scrut, e2, strip_trailing_keep_comments(e1))),
+                wrap(
+                  fresh(If(scrut, e2, strip_trailing_keep_comments(e1))),
+                ),
                 Exp.rep_id(scrut),
               ))
             | _ => None
-            }
+            };
           | _ => None
           },
       program,
@@ -566,18 +576,24 @@ let absorb_lines =
     switch (let_head_name(sp), let_head_name(dissolved_head)) {
     | (Some(sn), Some(dn)) when !binds_somewhere(sn, scope) =>
       let scope' = sn == dn ? scope : rename_syntactic(dn, sn, scope);
+      switch (head_var_pat(dissolved_head), head_var_pat(sp)) {
+      | (Some(d), Some(s)) =>
+        binder_redirect :=
+          Id.Map.add(Pat.rep_id(d), Pat.rep_id(s), binder_redirect^)
+      | _ => ()
+      };
       Some((scope', Pat.rep_id(sp)));
     | _ => None
     }
   | _ => None
   };
 
-let absorbable = (upper: Exp.t, lower: Exp.t): bool =>
+let absorbable = (~info_map, upper: Exp.t, lower: Exp.t): bool =>
   switch (IdTagged.term_of(upper), IdTagged.term_of(lower)) {
   | (Let(up, ud, _), Let(lp, ld, _)) =>
     Option.is_some(let_head_name(up))
     && Option.is_some(let_head_name(lp))
-    && eq_defs(ud, ld)
+    && same_meaning_defs(~info_map, ud, ld)
   | _ => false
   };
 
@@ -1252,7 +1268,7 @@ let survivor_name_free = (survivor: Exp.t, scope: Exp.t): bool =>
   | _ => false
   };
 
-let merge_site_up = (~target, program): option((Exp.t, Exp.t)) =>
+let merge_site_up = (~info_map, ~target, program): option((Exp.t, Exp.t)) =>
   /* (parent twin = survivor, this line) — the parent's body is l */
   switch (find_path(~hit=hit_def_line(target), program)) {
   | Some(path) when List.length(path) >= 2 =>
@@ -1263,7 +1279,7 @@ let merge_site_up = (~target, program): option((Exp.t, Exp.t)) =>
     | (Some((_, pbody)), Some((_, lbody)))
         when
           same_node(pbody, l)
-          && absorbable(p, l)
+          && absorbable(~info_map, p, l)
           && survivor_name_free(p, lbody) =>
       Some((p, l))
     | _ => None
@@ -1271,11 +1287,11 @@ let merge_site_up = (~target, program): option((Exp.t, Exp.t)) =>
   | _ => None
   };
 
-let merge_site_down = (~target, program): option(Exp.t) =>
+let merge_site_down = (~info_map, ~target, program): option(Exp.t) =>
   switch (find_hit(~hit=hit_def_line(target), program)) {
   | Some(l) =>
     switch (def_line_of(l)) {
-    | Some((_, lbody)) when absorbable(l, lbody) =>
+    | Some((_, lbody)) when absorbable(~info_map, l, lbody) =>
       switch (IdTagged.term_of(lbody)) {
       | Let(_, _, mbody) when survivor_name_free(lbody, mbody) => Some(l)
       | _ => None
@@ -1288,8 +1304,8 @@ let merge_site_down = (~target, program): option(Exp.t) =>
 let merge_up_impl: impl = {
   label: "Merge up",
   tooltip: "Dissolve this definition into its identical twin above",
-  prepare: (~info_map as _, ~target, program) =>
-    switch (merge_site_up(~target, program)) {
+  prepare: (~info_map, ~target, program) =>
+    switch (merge_site_up(~info_map, ~target, program)) {
     | Some((p, l)) =>
       switch (IdTagged.term_of(l)) {
       | Let(lp, _, lbody) =>
@@ -1311,8 +1327,8 @@ let merge_up_impl: impl = {
 let merge_down_impl: impl = {
   label: "Merge down",
   tooltip: "Dissolve this definition into its identical twin below",
-  prepare: (~info_map as _, ~target, program) =>
-    switch (merge_site_down(~target, program)) {
+  prepare: (~info_map, ~target, program) =>
+    switch (merge_site_down(~info_map, ~target, program)) {
     | Some(l) =>
       switch (IdTagged.term_of(l)) {
       | Let(lp, _, lbody) =>

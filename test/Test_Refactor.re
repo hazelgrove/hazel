@@ -482,7 +482,7 @@ let annotation_tests = [
       check(
         string,
         "parenthesized prod",
-        "let p : (Int,Bool) = (1, true) in p",
+        "let p : (Int, Bool) = (1, true) in p",
         got,
       );
     },
@@ -542,7 +542,7 @@ let wave_tests = [
       check(
         string,
         "expanded",
-        "let f : Int -> Int = fun y -> y in (fun treeb -> f(treeb))",
+        "let f : Int -> Int = fun y -> y in fun treeb -> f(treeb)",
         got,
       );
     },
@@ -560,7 +560,7 @@ let wave_tests = [
       check(
         string,
         "two params",
-        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (bloop, zoob) -> f(bloop, zoob))",
+        "let f : (Int, Bool) -> Int = fun (a, b) -> a in fun (bloop, zoob) -> f(bloop, zoob)",
         got,
       );
     },
@@ -5493,10 +5493,187 @@ let landing_block_tests = [
   ),
 ];
 
+/* === Splice parenthesization (review 2026-10-06) === */
+let splice_paren_tests = {
+  let case = (name, kind, marked, want) =>
+    test_case(name, `Quick, () =>
+      check(string, name, want, inline(~kind, marked) |> text_of)
+    );
+  [
+    case(
+      "beta in an operand keeps its parens",
+      BetaReduce,
+      "2 * (¦fun x -> x + 1)(3)",
+      "2 * (3 + 1)",
+    ),
+    case(
+      "take arm in an operand keeps its parens",
+      ReduceCase,
+      "3 * ¦case 1 | n => n + 1 end",
+      "3 * (1 + 1)",
+    ),
+    case(
+      "inline under unary minus",
+      InlineLet,
+      "let ¦a = 1 + 2 in -a",
+      "-(1 + 2)",
+    ),
+    case(
+      "inline under not",
+      InlineLet,
+      "let ¦b = true && false in !b",
+      "!(true && false)",
+    ),
+    case(
+      "a tuple spliced into a list stays one element",
+      BetaReduce,
+      "(¦fun t -> [t])(1, 2)",
+      "[(1, 2)]",
+    ),
+    case(
+      "to if in a left operand",
+      CaseToIf,
+      "¦case 1 > 3 | true => 1 | false => 2 end + 1",
+      "(if 1 > 3 then 1 else 2) + 1",
+    ),
+    case(
+      "annotate a higher-order fn type",
+      AddTypeAnnotation,
+      "let ¦k = fun (g : Int -> Int) -> g(1) in k",
+      "let k : (Int -> Int) -> Int = fun (g : Int -> Int) -> g(1) in k",
+    ),
+    case(
+      "annotate a fn on a pair",
+      AddTypeAnnotation,
+      "let ¦add = fun (p : Int, q : Int) -> p + q in add",
+      "let add : (Int, Int) -> Int = fun (p : Int, q : Int) -> p + q in add",
+    ),
+    test_case("eta expand at a call head", `Quick, () =>
+      check(
+        bool,
+        "parenthesized lambda",
+        true,
+        {
+          let got =
+            inline(~kind=EtaExpand, "let f = fun (k : Int) -> k in ¦f(3)")
+            |> text_of;
+          String.length(got) > 0
+          && Util.StringUtil.plain_split(got, ")(3)")
+          |> List.length == 2
+          && String.sub(
+               got,
+               String.length("let f = fun (k : Int) -> k in "),
+               5,
+             )
+          == "(fun ";
+        },
+      )
+    ),
+    case(
+      "unrelated string junctions keep their spacing",
+      InlineLet,
+      "let k=\"s\" in\nlet ¦a = 1 in\n(k, a)",
+      "let k=\"s\" in\n(k, 1)",
+    ),
+  ];
+};
+
+/* === Statics as the scope authority (RefactorCheck) ===
+   Each case: the transform itself prepares (so the test isn't vacuous),
+   and go refuses it because a surviving reference would rebind or a
+   new static error would appear. */
+let check_refuses = (kind: Action.refactor, marked: string): bool => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let prepared =
+    switch (Indicated.index(z)) {
+    | Some(target) =>
+      Refactor.impl(kind).prepare(~info_map=info_map_of(z), ~target, term)
+      != None
+    | None => false
+    };
+  let refused =
+    switch (Test_Editing.perform(z, [Action.Refactor(kind)])) {
+    | exception _ => true
+    | _ => false
+    };
+  prepared && refused;
+};
+
+let scope_check_tests = {
+  let case = (name, kind, marked) =>
+    test_case(name, `Quick, () =>
+      check(bool, name, true, check_refuses(kind, marked))
+    );
+  [
+    case(
+      "hoist out of a recursive fun would unbind its self-call",
+      HoistLet,
+      "let fact = fun n ->\n  ¦let one = 1 in\n  if n < 2 then one else n * fact(n - 1)\nin\nfact(3)",
+    ),
+    case(
+      "inline doesn't substitute into a sugar param's scope",
+      InlineLet,
+      "let ¦x = 1 in\nlet g(x) = x + 1 in\ng(5) + x",
+    ),
+    case(
+      "extract doesn't escape the typfun binding its type var",
+      ExtractLet,
+      "let id = typfun A -> ¦fun x : A -> x in\nid@<Int>(1)",
+    ),
+    case(
+      "extract doesn't escape a module's local type",
+      ExtractLet,
+      "module G = {\n  type Point = (Int, Int);\n  let m =\n    ¦fun (x, y) : Point -> x + y\n} in\nG.m((3, 4))",
+    ),
+    case(
+      "add param refuses a call it would mis-shape",
+      AddParameter,
+      "let ¦first = fun p -> p in\nfirst(1, 2)",
+    ),
+    /* statics answers twin-ness up front (same shape AND same binders),
+       so these never reach the check */
+    test_case(
+      "twins whose free names resolve differently don't merge", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(
+          MergeUp,
+          "let a = 1 in\nlet a = a + 1 in\n¦let b = a + 1 in\n(a, b)",
+        ),
+      )
+    ),
+    test_case("two holes are not twins", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(MergeUp, "let a = ? in\n¦let b = ? in\n(a, b)"),
+      )
+    ),
+    test_case("real twins still merge", `Quick, () =>
+      check(
+        string,
+        "merged",
+        "let price = 800 in\nlet tax = price / 10 in\nprice + tax + tax",
+        inline(
+          ~kind=MergeUp,
+          "let price = 800 in\nlet tax = price / 10 in\n¦let fee = price / 10 in\nprice + tax + fee",
+        )
+        |> text_of,
+      )
+    ),
+  ];
+};
+
 let tests = [
   (
     "Refactor",
     refactor_tests
+    @ scope_check_tests
+    @ splice_paren_tests
     @ gating_tests
     @ case_tests
     @ annotation_tests

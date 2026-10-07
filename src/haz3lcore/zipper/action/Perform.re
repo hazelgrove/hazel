@@ -568,7 +568,13 @@ let rec go =
     )
     |> return(Cant_insert)
   | Refactor(k) =>
-    Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+    Refactor.go(
+      ~settings,
+      ~info_map=statics.info_map,
+      ~term=statics.term,
+      k,
+      z,
+    )
     |> Option.map(
          LocalReformat.go_refactor(~enabled=settings.auto_reindent),
        )
@@ -587,7 +593,13 @@ let rec go =
           Some((tile, 3 - shard))
         | _ => None
         };
-      Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+      Refactor.go(
+        ~settings,
+        ~info_map=statics.info_map,
+        ~term=statics.term,
+        k,
+        z,
+      )
       |> Option.map(z' =>
            switch (toggle) {
            | Some((tile, shard)) =>

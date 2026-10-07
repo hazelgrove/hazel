@@ -421,6 +421,19 @@ let fresh_pat = (term): Pat.t => {
   term,
 };
 
+/* copy -> original for ids minted by refresh_annotation, so RefactorCheck
+   can follow a copied reference back to the one it duplicates; and the
+   binders a transform deliberately rebinds to (merge: absorbed twin ->
+   survivor). Both reset per invocation by go. */
+let id_origin: ref(Id.Map.t(Id.t)) = ref(Id.Map.empty);
+let binder_redirect: ref(Id.Map.t(Id.t)) = ref(Id.Map.empty);
+
+let fresh_from = (id: Id.t): Id.t => {
+  let n = Id.mk();
+  id_origin := Id.Map.add(n, id, id_origin^);
+  n;
+};
+
 /* fresh ids for a statics-derived type before it enters the buffer */
 let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
   let refresh_sec = (ws: list(Secondary.t)) =>
@@ -439,7 +452,7 @@ let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
        base-independent — every starved case in the program got THE
        SAME derived ids (duplicate |=> tiles: glommed indication,
        caret jumping to the wrong twin) */
-    ids: a.ids == [] ? [Id.mk()] : a.ids |> List.map(_ => Id.mk()),
+    ids: a.ids == [] ? [Id.mk()] : a.ids |> List.map(fresh_from),
     secondary: (refresh_sec(before), refresh_sec(after)),
     incomplete: [],
     lexeme: a.lexeme,
@@ -1121,8 +1134,12 @@ let hit_match_pat = (target: Id.t, e: Exp.t): bool =>
   };
 
 /* Replace a Let with a rewrite of its parts */
+/* ~parens_at: does the result, standing where the let stood, need
+   wrapping? (a let in an operand slot, `2 * let x = 3 in x + 1`,
+   dissolves into a body the operator would otherwise steal from) */
 let rewrite_let =
     (
+      ~parens_at: (Id.t, Exp.t) => bool=(_, _) => false,
       ~target: Id.t,
       ~matches: (Pat.t, Exp.t, Exp.t) => bool,
       ~rewrite: (Pat.t, Exp.t, Exp.t) => (Exp.t, Id.t),
@@ -1136,7 +1153,12 @@ let rewrite_let =
         switch (IdTagged.term_of(e)) {
         | Let(p, def, body) when matches(p, def, body) =>
           let (result, f) = rewrite(p, def, body);
-          Some((strip_leading_ws(result), f));
+          let result = strip_leading_ws(result);
+          Some((
+            parens_at(Exp.rep_id(e), result)
+              ? fresh(Parens(result)) : result,
+            f,
+          ));
         | _ => None
         },
     program,
@@ -1523,6 +1545,60 @@ let eq_defs = (a: Exp.t, b: Exp.t): bool =>
     strip_all_secondary(unparens(a)),
     strip_all_secondary(unparens(b)),
   );
+
+/* what statics says a reference resolves to: Some(Some(binder)),
+   Some(None) when unbound; None when the node isn't a reference */
+let resolution_of = (info: Info.t): option(option(Id.t)) => {
+  let entry = (e: option(Ctx.var_entry)) =>
+    Some(Option.map((e: Ctx.var_entry) => e.id, e));
+  switch (info) {
+  | InfoExp({user_term, ctx, _}) =>
+    switch (IdTagged.term_of(user_term)) {
+    | Var(x) => entry(Ctx.lookup_var(ctx, x))
+    | Constructor(c, _) => entry(Ctx.lookup_ctr(ctx, c))
+    | _ => None
+    }
+  | InfoPat({user_term, ctx, _}) =>
+    switch (IdTagged.term_of(user_term)) {
+    | Constructor(c, _) => entry(Ctx.lookup_ctr(ctx, c))
+    | _ => None
+    }
+  | InfoTyp({user_term, ctx, _}) =>
+    switch (IdTagged.term_of(user_term)) {
+    | Var(t) => Some(Ctx.lookup_tvar_id(ctx, t))
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/* twins that also MEAN the same: equal shape, each reference resolving
+   to the same binder, and no holes (two holes are two unknowns) */
+let same_meaning_defs = (~info_map: Statics.Map.t, a: Exp.t, b: Exp.t): bool => {
+  let refs = (e: Exp.t) =>
+    e
+    |> collect_exp(e' =>
+         switch (IdTagged.term_of(e')) {
+         | Var(_)
+         | Constructor(_) => [
+             Id.Map.find_opt(Exp.rep_id(e'), info_map)
+             |> Option.map(resolution_of),
+           ]
+         | _ => []
+         }
+       );
+  let has_hole = (e: Exp.t) =>
+    e
+    |> collect_exp(e' =>
+         switch (IdTagged.term_of(e')) {
+         | EmptyHole
+         | MultiHole(_) => [()]
+         | _ => []
+         }
+       )
+    != [];
+  eq_defs(a, b) && !has_hole(a) && refs(a) == refs(b);
+};
 
 /* does anything in e BIND this name? (conservative capture guard
    for absorption's use-repointing) */

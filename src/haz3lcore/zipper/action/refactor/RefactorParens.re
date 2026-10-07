@@ -259,14 +259,28 @@ let sp_bounds = (~side: Util.Direction.t, path: list(Exp.t)): list(sp_bound) => 
         | (Match(scrut, rules), _) =>
           is(scrut) || List.exists(((_, b)) => is(b), rules)
             ? `Delim : `Opaque
+        /* list elements are separated by commas, so an element's own
+           top-level comma would read as a separator */
+        | (ListLit(items), _) =>
+          List.exists(is, items) ? op(Precedence.comma) : `Delim
         | (Parens(_), _)
-        | (ListLit(_), _)
         | (Test(_), _)
         | (HintedTest(_), _) => `Delim
         | (TupLabel(_, x), _) =>
           is(x) ? side == Left ? `Delim : `Fringe : `Delim
-        | (UnOp(_, x), _) =>
-          is(x) ? side == Left ? `Delim : `Fringe : `Opaque
+        /* the prefix operator binds its operand at its own level:
+           `-a` with a = 1 + 2 reads `(-1) + 2` */
+        | (UnOp(o, x), _) =>
+          is(x)
+            ? side == Left
+                ? op(
+                    switch (o) {
+                    | Bool(Not) => Precedence.not_
+                    | _ => Precedence.neg
+                    },
+                  )
+                : `Fringe
+            : `Opaque
         | _ => `Opaque
         };
       };

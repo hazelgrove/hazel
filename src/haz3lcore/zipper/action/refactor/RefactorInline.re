@@ -31,6 +31,7 @@ let inline_let_impl: impl = {
   prepare: (~info_map, ~target, program) => {
     let attempt = target =>
       rewrite_let(
+        ~parens_at=(at, d) => splice_parens_needed(~program, ~at, d),
         ~target,
         /* self-recursive defs are gated on BOTH paths: consuming
            the binding would orphan the copied body's self-
@@ -762,6 +763,7 @@ let remove_unused_let_impl: impl = {
   prepare: (~info_map, ~target, program) => {
     let as_let =
       rewrite_let(
+        ~parens_at=(at, d) => splice_parens_needed(~program, ~at, d),
         ~target,
         ~matches=
           (p, _, _) =>
@@ -802,70 +804,92 @@ let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
   | _ => None
   };
 
+/* statics types carry no Parens nodes: `(Int -> Int) -> Int` would
+   print as a different type. Delimited or arrow types go bare in the
+   annotation; anything wider (a Prod's comma breaks the let) is
+   wrapped. */
+/* a statics type keeps whatever spacing its source spelling had, and
+   synthesized joins have none: respace arrows and commas from scratch */
+let rec space_typ = (t: Typ.t): Typ.t => {
+  let t = with_secondary_typ(([], []), t);
+  let after = x => with_secondary_typ(([], space()), x);
+  let before = x => with_secondary_typ((space(), []), x);
+  switch (IdTagged.term_of(t)) {
+  | Arrow(a, b) => {
+      ...t,
+      term: Arrow(after(space_typ(a)), before(space_typ(b))),
+    }
+  | Prod(xs) => {
+      ...t,
+      term:
+        Prod(
+          List.mapi(
+            (i, x) => i == 0 ? space_typ(x) : before(space_typ(x)),
+            xs,
+          ),
+        ),
+    }
+  | Parens(x) => {
+      ...t,
+      term: Parens(space_typ(x)),
+    }
+  | List(x) => {
+      ...t,
+      term: List(space_typ(x)),
+    }
+  | _ => t
+  };
+};
+
+let annotation_typ = (ty: Typ.t): Typ.t => {
+  let ty =
+    refresh_typ_ids(ty)
+    |> ExpToSegment.parenthesize_typ(
+         ~parenthesization=Defensive,
+         ~show_filters=false,
+         ~show_ascriptions=true,
+       )
+    |> space_typ;
+  switch (IdTagged.term_of(ty)) {
+  | Unknown(_)
+  | Atom(_)
+  | Var(_)
+  | List(_)
+  | Parens(_)
+  | Arrow(_) => ty
+  | _ => fresh_typ(Parens(with_secondary_typ(([], []), ty)))
+  };
+};
+
 let add_annotation_impl: impl = {
   label: "Annotate",
   tooltip: "Annotate this binding with its inferred type",
-  prepare: (~info_map, ~target, program) => {
-    /* a bare spliced type can change the reparse (a Prod's comma
-       breaks the let: `let p : Int,Bool = ...`) — oracle-gated parens
-       like inline/extract */
-    let attempt = (~parens: bool) =>
-      rewrite_node(
-        ~hit=hit_let(target),
-        ~rewrite=
-          e =>
-            switch (IdTagged.term_of(e)) {
-            | Let(p, def, body) when var_pat_name(p) != None =>
-              switch (exp_ty(~info_map, def)) {
-              | Some(ty) when typ_known(ty) =>
-                let bare = refresh_typ_ids(ty);
-                let ty =
-                  pad(
-                    parens
-                      ? fresh_typ(
-                          Parens(with_secondary_typ(([], []), bare)),
-                        )
-                      : bare,
-                  );
-                /* p keeps its runs: its old pre-`=` space now sits
-                   before the `:` */
-                let p' = fresh_pat(Asc(p, ty));
-                Some((
-                  {
-                    ...e,
-                    term: Let(p', def, body),
-                  },
-                  Typ.rep_id(ty),
-                ));
-              | _ => None
-              }
+  prepare: (~info_map, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body) when var_pat_name(p) != None =>
+            switch (exp_ty(~info_map, def)) {
+            | Some(ty) when typ_known(ty) =>
+              let ty = pad(annotation_typ(ty));
+              /* p keeps its runs: its old pre-`=` space now sits
+                 before the `:` */
+              let p' = fresh_pat(Asc(p, ty));
+              Some((
+                {
+                  ...e,
+                  term: Let(p', def, body),
+                },
+                Typ.rep_id(ty),
+              ));
             | _ => None
-            },
-        program,
-      );
-    /* static: single-token types go bare; anything wider (Prod's
-       comma especially breaks the let) takes parens */
-    let simple =
-      switch (find_hit(~hit=hit_let(target), program)) {
-      | Some(e) =>
-        switch (IdTagged.term_of(e)) {
-        | Let(_, def, _) =>
-          switch (exp_ty(~info_map, def)) {
-          | Some(ty) =>
-            switch (IdTagged.term_of(ty)) {
-            | Unknown(_)
-            | Atom(_)
-            | Var(_) => true
-            | _ => false
             }
-          | None => false
-          }
-        | _ => false
-        }
-      | None => false
-      };
-    attempt(~parens=!simple);
-  },
+          | _ => None
+          },
+      program,
+    ),
 };
 
 let extractable = (e: Exp.t): bool =>

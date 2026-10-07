@@ -106,15 +106,20 @@ let eta_expand_impl: impl = {
             },
         program,
       );
-    /* static: bare iff the node sits in a delimiter-bounded slot
-       (the lambda can't leak past its region); otherwise parens */
-    let bounded =
+    /* a lambda is open on the right: ask the splice table whether
+       anything at this position would extend its body (`f(3)` at a
+       call head must become `(fun x -> f(x))(3)`) */
+    let parens =
       switch (find_hit(~hit=hit_node(target), program)) {
       | Some(e) =>
-        !same_node(bounded_region(Exp.rep_id(e), program), program)
-      | None => false
+        splice_parens_needed(
+          ~program,
+          ~at=Exp.rep_id(e),
+          fresh(Fun(fresh_pat(Wild), fresh(EmptyHole), None, None)),
+        )
+      | None => true
       };
-    attempt(~parens=!bounded);
+    attempt(~parens);
   },
 };
 

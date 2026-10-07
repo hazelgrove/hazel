@@ -238,8 +238,8 @@ let applies =
     | Some(l) => Option.is_some(sink_step(~fixup=false, l))
     | None => false
     }
-  | MergeUp => Option.is_some(merge_site_up(~target, program))
-  | MergeDown => Option.is_some(merge_site_down(~target, program))
+  | MergeUp => Option.is_some(merge_site_up(~info_map, ~target, program))
+  | MergeDown => Option.is_some(merge_site_down(~info_map, ~target, program))
   | Explode =>
     switch (find_hit(~hit=hit_let(target), program)) {
     | Some(e) =>
@@ -438,6 +438,7 @@ let applies =
 
 let go =
     (
+      ~settings: CoreSettings.t,
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
       kind: Action.refactor,
@@ -447,8 +448,14 @@ let go =
   switch (Indicated.index(z)) {
   | None => None
   | Some(target) =>
+    id_origin := Id.Map.empty;
+    binder_redirect := Id.Map.empty;
     switch (impl(kind).prepare(~info_map, ~target, term)) {
     | None => None
+    | Some((term', _))
+        when
+          !RefactorCheck.preserves(~settings, ~info_map, ~before=term, term') =>
+      None
     | Some((term', focus)) =>
       let seg =
         ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
@@ -494,5 +501,5 @@ let go =
           },
         );
       };
-    }
+    };
   };

@@ -19,7 +19,7 @@ let label_override =
     : option(string) =>
   switch (kind) {
   | MergeUp =>
-    switch (merge_site_up(~target, term)) {
+    switch (merge_site_up(~info_map, ~target, term)) {
     | Some((p, _)) =>
       switch (IdTagged.term_of(p)) {
       | Let(sp, _, _) =>
@@ -29,7 +29,7 @@ let label_override =
     | None => None
     }
   | MergeDown =>
-    switch (merge_site_down(~target, term)) {
+    switch (merge_site_down(~info_map, ~target, term)) {
     | Some(l) =>
       switch (IdTagged.term_of(l)) {
       | Let(_, _, lbody) =>

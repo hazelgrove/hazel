@@ -58,7 +58,7 @@ let emerge_source =
    identical existing def), the dissolved window's ids + the
    surviving window's ids — staged for the convergence flight. */
 let merge_target =
-    (~info_map as _, ~target, kind: Action.refactor, term)
+    (~info_map, ~target, kind: Action.refactor, term)
     : (list(Id.t), list(Id.t)) => {
   let line_ids = (e: Exp.t): list(Id.t) =>
     switch (IdTagged.term_of(e)) {
@@ -68,12 +68,12 @@ let merge_target =
     };
   switch (kind) {
   | MergeUp =>
-    switch (merge_site_up(~target, term)) {
+    switch (merge_site_up(~info_map, ~target, term)) {
     | Some((p, l)) => (line_ids(l), line_ids(p))
     | None => ([], [])
     }
   | MergeDown =>
-    switch (merge_site_down(~target, term)) {
+    switch (merge_site_down(~info_map, ~target, term)) {
     | Some(l) =>
       switch (def_line_of(l)) {
       | Some((_, lbody)) => (line_ids(l), line_ids(lbody))

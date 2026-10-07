@@ -200,7 +200,7 @@ let lift_wall_blockers = (~target: Id.t, program: Exp.t): list(Id.t) => {
 let lift_function_impl: impl = {
   label: "Lift to helper",
   tooltip: "Move this definition (and the ones it depends on) out of the function, taking the parameters it uses as arguments",
-  prepare: (~info_map as _, ~target, program) =>
+  prepare: (~info_map, ~target, program) =>
     switch (lift_site(~target, program)) {
     | None => None
     | Some(site) =>
@@ -268,13 +268,26 @@ let lift_function_impl: impl = {
               ),
             )
           };
+        /* a helper param is a copy of the outer binder it abstracts
+           (what statics says x means at the lifted def), so the check
+           sees references rebinding to it as preserved */
+        let outer_binder = x =>
+          Id.Map.find_opt(Exp.rep_id(cdef), info_map)
+          |> Option.bind(_, i => Ctx.lookup_var(Info.ctx_of(i), x))
+          |> Option.map((e: Ctx.var_entry) => e.id);
         let var_pats = () =>
           site.ls_crossed
           |> List.mapi((i, x) =>
                {
                  ...fresh_pat(Var(x)),
                  annotation: {
-                   ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                   ...
+                     IdTagged.IdTag.mk_internal([
+                       switch (outer_binder(x)) {
+                       | Some(b) => fresh_from(b)
+                       | None => Id.mk()
+                       },
+                     ]),
                    secondary: sep_lead(i),
                  },
                }
