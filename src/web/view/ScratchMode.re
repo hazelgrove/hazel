@@ -963,6 +963,7 @@ module View = {
                 | _ => None
                 },
               ~locked=false,
+              ~result_kind=`StatusLine,
               Divided.result(d),
             );
           List.concat_map(((_, c)) => c.c_nodes, rendered)
@@ -1001,6 +1002,7 @@ module View = {
                 },
               ~locked=false,
               ~lines=true,
+              ~result_kind=`StatusLine,
               editor,
             ),
           ]

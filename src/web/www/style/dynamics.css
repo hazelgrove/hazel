@@ -120,6 +120,69 @@
   background-color: var(--eval-exception);
 }
 
+/* the decks' results: one quiet status line (EvalResult.status_line) */
+.cell-result.status-line {
+  align-items: center;
+  font-family: var(--ui-font);
+  font-size: 0.9rem;
+  padding: 0.3em 0.6em 0.3em 1.2em;
+}
+
+.cell-result.status-line .status {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.cell-result.status-line .eq.ok {
+  color: var(--test-pass);
+}
+
+.cell-result.status-line .eq.fail {
+  color: var(--eval-exception-stroke);
+}
+
+.cell-result.status-line .status-msg {
+  min-width: 0;
+  color: var(--cell-result-text);
+  transition: opacity 0.2s linear;
+}
+
+.cell-result.status-line .status-msg.fail {
+  color: var(--eval-exception-stroke);
+}
+
+/* a run under way dims the last one's line, after the usual delay */
+.cell-result.status-line .status-msg.running {
+  opacity: 0.5;
+  transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
+}
+
+.cell-result.status-line .status-grow {
+  flex-grow: 1;
+}
+
+.cell-result.status-line .status-actions {
+  display: flex;
+  gap: 0.3em;
+  position: sticky;
+  right: 0.6em;
+}
+
+.cell-result.status-line .status-chip {
+  padding: 0.05em 0.6em;
+  border-radius: 0.7em;
+  color: var(--cell-result-text);
+  white-space: nowrap;
+}
+
+.cell-result.status-line .status-step {
+  cursor: pointer;
+}
+
+.cell-result.status-line .status-step:hover {
+  background-color: var(--cell-result-hidden);
+}
+
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
   color: var(--text-black);

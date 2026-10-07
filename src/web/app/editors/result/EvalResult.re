@@ -31,6 +31,9 @@ module Model = {
        also claim is_edited, so an edit counts only once a result exists */
     has_result: bool,
     edited_since_load: bool,
+    /* the last finished run (Some(None): it ran, Some(Some(e)): it
+       failed), which the status line keeps while the next one runs */
+    settled: option(option(ProgramResult.error)),
     display,
     theorems: Theorems.Model.t,
   };
@@ -53,9 +56,24 @@ module Model = {
     pending_eval_ids: [],
     has_result: false,
     edited_since_load: false,
+    settled: None,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
+
+  /* what a run's result leaves for the status line: a finished run
+     replaces the last one, a pending one keeps it */
+  let settle =
+      (
+        settled: option(option(ProgramResult.error)),
+        r: ProgramResult.t('a),
+      )
+      : option(option(ProgramResult.error)) =>
+    switch (r) {
+    | ResultOk(_) => Some(None)
+    | ResultFail(err) => Some(Some(err))
+    | ResultPending(_) => settled
+    };
 
   let persist = (model: t): persistent => {
     stepper:
@@ -81,6 +99,7 @@ module Model = {
         pending_eval_ids: [],
         has_result: false,
         edited_since_load: false,
+        settled: None,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -278,6 +297,7 @@ module Update = {
           pending_eval_ids,
           has_result,
           edited_since_load,
+          settled,
           display,
           theorems,
         }: Model.t,
@@ -563,6 +583,7 @@ module Update = {
             }
           ),
         edited_since_load: edited_since_load || is_edited && has_result,
+        settled: Model.settle(settled, Calc.get_value(result)),
         display,
         theorems,
       }: Model.t
@@ -730,6 +751,69 @@ module View = {
     );
   };
 
+  /* one quiet line instead of the value row: whether the program ran,
+     the error if not, the stepper and the proofs; a value shows through
+     a probe on the program's last expression. While a run goes, it keeps
+     the last finished one's line, dimmed */
+  let status_line = (~inject, ~locked, model: Model.t) => {
+    let result = Calc.get_value(model.result);
+    let shown = Model.settle(model.settled, result);
+    let (mark, msg, outcome) =
+      switch (shown) {
+      | None => ("", {js|Running…|js}, "pending")
+      | Some(None) => ({js|✓|js}, "Ran", "ok")
+      | Some(Some(err)) => ({js|✗|js}, error_msg(err), "fail")
+      };
+    let running =
+      switch (result) {
+      | ResultPending(_) => ["running"]
+      | _ => []
+      };
+    let proofs =
+      switch (Theorems.Model.proof_count(model.theorems)) {
+      | (_, 0) => []
+      | (proven, all) => [
+          div(
+            ~attrs=[Attr.classes(["status-chip", "status-proofs"])],
+            [text(Printf.sprintf("Proofs %d of %d", proven, all))],
+          ),
+        ]
+      };
+    let step =
+      locked
+        ? []
+        : [
+          div(
+            ~attrs=[
+              Attr.classes(["status-chip", "status-step"]),
+              Attr.title("Step through the evaluation"),
+              Attr.on_mousedown(_ => Effect.Prevent_default),
+              Attr.on_click(_ => inject(Update.ToggleStepper)),
+            ],
+            [text("Step")],
+          ),
+        ];
+    div(
+      ~attrs=[Attr.classes(["cell-item", "cell-result", "status-line"])],
+      [
+        div(
+          ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],
+          [
+            div(~attrs=[Attr.classes(["spinner"])], []),
+            div(~attrs=[Attr.classes(["eq", outcome])], [text(mark)]),
+          ],
+        ),
+        div(
+          ~attrs=[Attr.classes(["status-msg", outcome] @ running)],
+          [text(msg)],
+        ),
+        div(~attrs=[Attr.classes(["status-grow"])], []),
+        /* sticky: wide code scrolls the line sideways */
+        div(~attrs=[Attr.classes(["status-actions"])], proofs @ step),
+      ],
+    );
+  };
+
   let footer =
       (
         ~globals: Globals.t,
@@ -737,10 +821,12 @@ module View = {
         ~inject,
         ~selected: option(Selection.t),
         ~locked,
+        ~status=false,
         model: Model.t,
       ) =>
     switch (model.display) {
     | _ when !globals.settings.core.dynamics => []
+    | Evaluation(_) when status => [status_line(~inject, ~locked, model)]
     | Evaluation(editor) => [
         live_eval(
           ~globals,
@@ -811,6 +897,8 @@ module View = {
            | `TestSigilsOnly
            | `TestResults
            | `EvalResults
+           /* the decks' results: a status line, no value row */
+           | `StatusLine
            | `NoTheorems
            | `JustTheorems
            | `Custom(Node.t)
@@ -821,11 +909,21 @@ module View = {
     switch (result_kind) {
     // Normal case:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems
     | `JustTheorems when globals.settings.core.dynamics =>
       let result =
         result_kind == `JustTheorems
-          ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
+          ? []
+          : footer(
+              ~globals,
+              ~signal,
+              ~inject,
+              ~selected,
+              ~locked,
+              ~status=result_kind == `StatusLine,
+              model,
+            );
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
@@ -858,6 +956,7 @@ module View = {
 
     // Just showing elaboration because evaluation is off:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems when globals.settings.core.elaborate =>
       let result = [
         text("Evaluation disabled, showing elaboration:"),
@@ -894,6 +993,7 @@ module View = {
 
     // Not showing any results:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems
     | `JustTheorems
     | `TestSigilsOnly

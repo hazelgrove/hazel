@@ -39,6 +39,22 @@ module Model = {
     thms: Calc.Pending,
   };
 
+  /* (proven, all), for the results' status line */
+  let proof_count = (model: t): (int, int) => {
+    let ids = Calc.get_saved([], model.thms);
+    let proven =
+      List.filter(
+        id =>
+          switch (Id.Map.find_opt(id, model.thm_map)) {
+          | Some(th: theorem) =>
+            StepperView.Model.get_validity(th.stepper_view) == Some(true)
+          | None => false
+          },
+        ids,
+      );
+    (List.length(proven), List.length(ids));
+  };
+
   let persist = (model: t): persistent => {
     thm_map:
       Id.Map.map(
