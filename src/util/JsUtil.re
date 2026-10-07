@@ -1043,3 +1043,32 @@ let observe_drawer_width = (~report: int => unit): unit =>
       Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(main)|]);
     };
   };
+
+/* proof drawers whose rendered height differs from the rows reserved for
+   them: (theorem id, rows needed). Read after display. */
+let proof_drawer_rows = (~row_height: float): list((string, int)) =>
+  if (row_height <= 0.) {
+    [];
+  } else {
+    let nodes =
+      Dom_html.document##querySelectorAll(Js.string(".proof-drawer"));
+    List.filter_map(
+      i =>
+        switch (Js.Opt.to_option(nodes##item(i))) {
+        | None => None
+        | Some(el) =>
+          switch (
+            Js.Opt.to_option(el##getAttribute(Js.string("data-proof-id")))
+          ) {
+          | None => None
+          | Some(id) =>
+            let h: float = Js.Unsafe.get(el, "offsetHeight");
+            Some((
+              Js.to_string(id),
+              max(1, int_of_float(Float.ceil(h /. row_height -. 0.05))),
+            ));
+          }
+        },
+      List.init(nodes##.length, Fun.id),
+    );
+  };

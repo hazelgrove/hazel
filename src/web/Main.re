@@ -320,6 +320,23 @@ let start = default_model => {
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );
+        /* proofs the computed rows missed (induction cases): fit to
+           what rendered */
+        let resized =
+          List.fold_left(
+            (changed, (id, n)) =>
+              switch (Haz3lcore.Id.of_string(id)) {
+              | Some(id) =>
+                Haz3lcore.ProofProj.Settings.set_measured(id, n) || changed
+              | None => changed
+              },
+            false,
+            JsUtil.proof_drawer_rows(~row_height=font_metrics.row_height),
+          );
+        if (resized) {
+          app_inject(Page.Update.Globals(RelayoutDrawers))
+          |> Bonsai.Effect.Expert.handle;
+        };
         JsUtil.observe_drawer_width(~report=cols =>
           if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
             app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))

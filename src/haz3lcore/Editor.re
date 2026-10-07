@@ -193,6 +193,8 @@ module Update = {
         ~autoprobe_mode: AutoProbe.t,
         /* the ⇓ toggle's probe on the program's last expression */
         ~tail_probe=false,
+        /* a drawer under each theorem holding its proof */
+        ~proof_drawers=false,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -276,7 +278,8 @@ module Update = {
         ~syntax,
         ~info_map=statics.info_map,
         zipper,
-      );
+      )
+      |> AutoProbePerform.update_proofs(~on=proof_drawers, ~syntax);
 
     Model.{
       root,

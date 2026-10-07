@@ -160,6 +160,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~tail_probe=false,
+        ~proof_drawers=false,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~compositional=false,
@@ -187,6 +188,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode,
         ~tail_probe,
+        ~proof_drawers,
         ~is_edited,
         ~statics_mode,
         ~compositional,
@@ -214,6 +216,10 @@ module Update = {
         result,
       );
     let (editor, steps_resized) = fit_steps(~settings, result, editor);
+    let proofs_resized =
+      proof_drawers
+      && !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
+      && Theorems.fit(~settings, result.theorems);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
     let probes_after = EvalResult.Model.probe_results(result);
@@ -233,7 +239,8 @@ module Update = {
       has_pending_focus
       || has_pending_cursor
       || dynamics_changed
-      || steps_resized;
+      || steps_resized
+      || proofs_resized;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
@@ -243,6 +250,7 @@ module Update = {
           ~settings,
           ~autoprobe_mode,
           ~tail_probe,
+          ~proof_drawers,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~compositional,
           ~ctx?,
@@ -377,6 +385,16 @@ module View = {
             )
           | _ => None
           }
+      );
+    Haz3lcore.ProofProj.Settings.view :=
+      (
+        id =>
+          Theorems.View.view_one(
+            ~globals,
+            ~inject=a => steps_inject(TheoremsAction(a)),
+            steps_result.theorems,
+            id,
+          )
       );
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],

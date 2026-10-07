@@ -858,6 +858,61 @@
   color: var(--text-muted);
 }
 
+/* --- A theorem's proof (ProofProj) --- */
+
+/* a header row, then one code block per step, so the reserved rows
+   (Theorems.rows) fit it */
+.below-wrapper .proof-drawer {
+  width: max-content;
+}
+
+/* the drawer is the proof's one surface: no card inside it */
+.below-wrapper .proof-drawer .theorem {
+  padding: 0;
+  gap: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+
+.below-wrapper .proof-drawer .theorem > * {
+  padding: 0;
+}
+
+.below-wrapper .proof-drawer .theorem-header {
+  display: flex;
+  gap: 1ch;
+  align-items: center;
+  height: calc(var(--line-height) * 1em);
+  padding: 0;
+  font-family: var(--ui-font);
+  color: var(--text-muted);
+}
+
+.below-wrapper .proof-drawer .theorem-status.true {
+  color: var(--text-success, var(--text-muted));
+}
+
+.below-wrapper .proof-drawer .stepper {
+  background: none;
+  padding: 0;
+}
+
+.below-wrapper .proof-drawer .step-border {
+  padding: 0;
+  border: none;
+  gap: 0;
+}
+
+.below-wrapper .proof-drawer .step-output {
+  flex-grow: 0;
+}
+
+.below-wrapper .proof-drawer .stepper-justification {
+  width: auto;
+  color: var(--text-muted);
+}
+
 /* line-numbers zero .code-editor padding-left, so keep the stripe at col 0 */
 .has-line-numbers .below-wrapper {
   margin-left: 0;

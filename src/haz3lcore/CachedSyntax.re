@@ -34,6 +34,7 @@ type t = {
   cached_stepping: option(ProjectorBase.stepping),
   /* ProbeProj.Settings.layout when the rows were computed */
   cached_layout: int,
+  cached_proofs: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   missing_shards: list(Tile.t),
@@ -85,7 +86,8 @@ let mk_refractor_rows =
       (_, _, b) => Some(b),
       z.refractors.manuals |> Id.Map.of_list,
       z.refractors.multis.ephemerals,
-    );
+    )
+    |> Id.Map.union((_, a, _) => Some(a), _, z.refractors.proofs);
   Id.Map.filter_map(
     (id, entry: Refractors.entry) => {
       let syntax_piece = refractor_syntax_piece(id, term_data);
@@ -177,6 +179,7 @@ let mk =
     cached_ephemerals: z.refractors.multis.ephemerals,
     cached_stepping: z.refractors.stepping,
     cached_layout: ProbeProj.Settings.layout^,
+    cached_proofs: z.refractors.proofs,
     projector_errors,
     missing_shards: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
@@ -235,6 +238,7 @@ let refresh_shapes =
     cached_ephemerals: z.refractors.multis.ephemerals,
     cached_stepping: z.refractors.stepping,
     cached_layout: ProbeProj.Settings.layout^,
+    cached_proofs: z.refractors.proofs,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -259,7 +263,8 @@ let calculate =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals
     || z.refractors.stepping != old.cached_stepping
-    || ProbeProj.Settings.layout^ != old.cached_layout;
+    || ProbeProj.Settings.layout^ != old.cached_layout
+    || z.refractors.proofs !== old.cached_proofs;
   if (old.old) {
     /* [old] marks caret moves too; an unchanged segment keeps its
        measured/terms/term_data */

@@ -386,3 +386,59 @@ let update_tail =
     );
   };
 };
+
+/* the theorems along the program's top level, in order */
+let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) => {
+  let rec go = (acc, e: Exp.t) =>
+    switch (e.term) {
+    | Theorem(_, _, body) => go([Exp.rep_id(e), ...acc], body)
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body)
+    | Use(_, body)
+    | Seq(_, body) => go(acc, body)
+    | _ => acc
+    };
+  switch (
+    Option.bind(program_root_id(syntax), id =>
+      Id.Map.find_opt(id, syntax.terms)
+    )
+  ) {
+  | Some(Exp(e)) => List.rev(go([], e))
+  | _ => []
+  };
+};
+
+/* a proof drawer under each theorem; an entry stays while its theorem
+   does */
+let update_proofs =
+    (~on: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
+  let ids = on ? theorem_ids(syntax) : [];
+  let current = z.refractors.proofs;
+  if (List.length(ids) == Id.Map.cardinal(current)
+      && List.for_all(id => Id.Map.mem(id, current), ids)) {
+    z;
+  } else {
+    let proofs =
+      List.fold_left(
+        (m, id) =>
+          Id.Map.add(
+            id,
+            switch (Id.Map.find_opt(id, current)) {
+            | Some(e) => e
+            | None =>
+              Refractors.mk_entry(~model=ProofProj.model_string, Proof)
+            },
+            m,
+          ),
+        Id.Map.empty,
+        ids,
+      );
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        proofs,
+      }
+    );
+  };
+};

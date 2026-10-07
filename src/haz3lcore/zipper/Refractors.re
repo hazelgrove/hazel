@@ -14,6 +14,7 @@ open Util;
  * | Sample focus    | Refractors.sample_focus       | Per-editor | No         |
  * | Stepping drawer  | Refractors.stepping            | Per-editor | No         |
  * | Tail probe anchor| Refractors.tail_target         | Per-editor | No         |
+ * | Proof drawers    | Refractors.proofs              | Per-editor | No         |
  * | Display settings | ProbeProj.Settings.s           | Global     | No         |
  * | Window offsets   | ProbeProj.Settings.offset      | Per-probe  | No         |
  * | Sample lengths   | ProbeProj.SampleLength.lengths | Per-sample | No         |
@@ -81,6 +82,9 @@ type t = {
      re-anchored as that expression changes */
   [@default None]
   tail_target: option(Id.t),
+  /* theorems' proof drawers, by theorem id */
+  [@default Id.Map.empty]
+  proofs: Map.t,
 };
 
 let init = {
@@ -91,6 +95,7 @@ let init = {
   pending_probe_cursor: None,
   stepping: None,
   tail_target: None,
+  proofs: Id.Map.empty,
 };
 
 let persist = (refractors: t): string =>

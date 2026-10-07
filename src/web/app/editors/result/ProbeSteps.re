@@ -155,32 +155,35 @@ let shown_settings = (s: CoreSettings.t): CoreSettings.t => {
   },
 };
 
-/* rows the stepper takes: one code block per step shown */
+/* rows a stepper's trace takes: one code block per step shown */
+let stepper_rows = (~settings: CoreSettings.t, s: StepperView.Model.t): int => {
+  let rec go = (m: StepperBase.step_model) => {
+    let shown =
+      StepperBase.StepKind.is_missing_step(m.step_kind)
+      || m.hidden != Calc.Calculated(true)
+      || settings.evaluation.show_hidden_steps;
+    let here =
+      switch (m.editor) {
+      | _ when !shown => 0
+      | Calc.Calculated(ed) =>
+        Haz3lcore.Measured.num_rows(ed.editor.syntax.measured)
+      | Calc.Pending => 1
+      };
+    here
+    + (
+      switch (m.next_step) {
+      | Some(n) => go(n)
+      | None => 0
+      }
+    );
+  };
+  max(1, go(s.root));
+};
+
 let rows = (~settings: CoreSettings.t, ps: t): int =>
   switch (ps.exp) {
   | None => 1
-  | Some(_) =>
-    let rec go = (m: StepperBase.step_model) => {
-      let shown =
-        StepperBase.StepKind.is_missing_step(m.step_kind)
-        || m.hidden != Calc.Calculated(true)
-        || settings.evaluation.show_hidden_steps;
-      let here =
-        switch (m.editor) {
-        | _ when !shown => 0
-        | Calc.Calculated(ed) =>
-          Haz3lcore.Measured.num_rows(ed.editor.syntax.measured)
-        | Calc.Pending => 1
-        };
-      here
-      + (
-        switch (m.next_step) {
-        | Some(n) => go(n)
-        | None => 0
-        }
-      );
-    };
-    max(1, go(ps.stepper.root));
+  | Some(_) => stepper_rows(~settings, ps.stepper)
   };
 
 let view =

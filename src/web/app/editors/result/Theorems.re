@@ -124,6 +124,9 @@ module Update = {
           },
         },
       };
+    /* a proof drawer's cached view shows the old stepper until this moves */
+    Haz3lcore.ProbeProj.Settings.version :=
+      Haz3lcore.ProbeProj.Settings.version^ + 1;
     switch (action) {
     | TheoremUpdate(n, action) =>
       let id_and_thm = {
@@ -313,8 +316,105 @@ module Focus = {
   };
 };
 
+/* a proof drawer: its header row, then the proof's trace */
+let rows = (~settings: CoreSettings.t, model: Model.t, id: Id.t): option(int) =>
+  Id.Map.find_opt(id, model.thm_map)
+  |> Option.map((thm: Model.theorem) =>
+       1
+       + ProbeSteps.stepper_rows(
+           ~settings={
+             ...settings,
+             evaluation: {
+               ...settings.evaluation,
+               enable_proof: true,
+               stepper_history: true,
+             },
+           },
+           thm.stepper_view,
+         )
+     );
+
+/* fit every theorem's proof drawer; true when one changed */
+let fit = (~settings: CoreSettings.t, model: Model.t): bool =>
+  Id.Map.fold(
+    (id, _, changed) =>
+      switch (rows(~settings, model, id)) {
+      | Some(n) => Haz3lcore.ProofProj.Settings.set_computed(id, n) || changed
+      | None => changed
+      },
+    model.thm_map,
+    false,
+  );
+
 module View = {
   open WebUtil;
+
+  let proof_globals = (globals: Globals.t): Globals.t => {
+    ...globals,
+    settings: {
+      ...globals.settings,
+      core: {
+        ...globals.settings.core,
+        evaluation: {
+          ...globals.settings.core.evaluation,
+          enable_proof: true,
+          stepper_history: true,
+        },
+      },
+    },
+  };
+
+  /* one theorem's proof, for its drawer */
+  let view_one =
+      (
+        ~globals: Globals.t,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+        id: Id.t,
+      )
+      : option(Node.t) => {
+    let globals = proof_globals(globals);
+    let thms = model.thms |> Calc.get_saved([]);
+    switch (
+      List.find_index(x => x == id, thms),
+      Id.Map.find_opt(id, model.thm_map),
+    ) {
+    | (Some(idx), Some(thm)) =>
+      let proven =
+        StepperView.Model.get_validity(thm.stepper_view) == Some(true);
+      Some(
+        div_c(
+          "theorem",
+          [
+            div_c(
+              "theorem-header",
+              [
+                Node.text("Proof of " ++ thm.name),
+                Node.div(
+                  ~attrs=[
+                    Attr.classes([
+                      "theorem-status",
+                      proven ? "true" : "unknown",
+                    ]),
+                  ],
+                  [Node.text(proven ? "proven" : "incomplete")],
+                ),
+              ],
+            ),
+          ]
+          @ StepperView.View.view(
+              ~globals,
+              ~signal=_ => Ui_effect.Ignore,
+              ~inject=a => inject(Update.TheoremUpdate(idx, a)),
+              ~selected=None,
+              ~is_toplevel=false,
+              thm.stepper_view,
+            ),
+        ),
+      );
+    | _ => None
+    };
+  };
 
   let view =
       (
@@ -324,20 +424,7 @@ module View = {
         ~selected: option(Focus.t),
         model: Model.t,
       ) => {
-    let globals = {
-      ...globals,
-      settings: {
-        ...globals.settings,
-        core: {
-          ...globals.settings.core,
-          evaluation: {
-            ...globals.settings.core.evaluation,
-            enable_proof: true,
-            stepper_history: true,
-          },
-        },
-      },
-    };
+    let globals = proof_globals(globals);
     switch (model.thms |> Calc.get_saved([])) {
     | [] => []
     | xs =>

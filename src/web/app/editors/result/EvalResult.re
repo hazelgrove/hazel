@@ -988,8 +988,9 @@ module View = {
           ]
         | None => []
         };
+      /* the decks' proofs live in drawers under their theorems */
       let theorems =
-        result_kind == `NoTheorems
+        result_kind == `NoTheorems || result_kind == `StatusLine
           ? []
           : Theorems.View.view(
               ~globals,

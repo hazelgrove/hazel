@@ -698,7 +698,8 @@ module View = {
             (_, _, b) => Some(b),
             zipper.refractors.manuals |> Id.Map.of_list,
             zipper.refractors.multis.ephemerals,
-          ),
+          )
+          |> Id.Map.union((_, a, _) => Some(a), _, zipper.refractors.proofs),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
@@ -720,7 +721,8 @@ module View = {
         ~refractor_rows=model.editor.syntax.refractor_rows,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals))
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.proofs)),
       );
     let projectors =
       ProjectorView.all(

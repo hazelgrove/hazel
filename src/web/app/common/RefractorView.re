@@ -23,6 +23,27 @@ let measurement_of_term =
     )
   };
 
+/* A proof drawer sits under its theorem's own line (the end of the
+   tile's last shard, `in`), where Measured reserves its rows; the
+   theorem term itself runs on to the program's end */
+let measurement_of_tile =
+    (id: Id.t, measured: Measured.t): option(Measured.measurement) =>
+  switch (Measured.find_shards_by_id(id, measured)) {
+  | Some([_, ..._] as shards) =>
+    let last =
+      List.fold_left(
+        (acc: Util.Point.t, (_, m: Measured.measurement)) =>
+          Util.Point.compare(m.last, acc) > 0 ? m.last : acc,
+        Util.Point.zero,
+        shards,
+      );
+    Some({
+      origin: last,
+      last,
+    });
+  | _ => None
+  };
+
 /* Build refractor data from editor state.
  * This is analogous to ProjectorView.Model.mk but specialized for refractors.
  */
@@ -59,8 +80,12 @@ let mk_data =
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   Id.Map.bindings(refractors)
-  |> List.filter_map(((id, entry)) =>
-       measurement_of_term(id, term_data, measured)
+  |> List.filter_map(((id, entry: Refractors.entry)) =>
+       (
+         entry.kind == Proof
+           ? measurement_of_tile(id, measured)
+           : measurement_of_term(id, term_data, measured)
+       )
        |> Option.map(measurement => (id, entry, measurement))
      )
   |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>

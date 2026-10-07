@@ -564,6 +564,7 @@ let calculate =
           ~settings,
           ~autoprobe_mode,
           ~tail_probe,
+          ~proof_drawers=true,
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
@@ -721,6 +722,13 @@ let calculate =
           ),
           d,
         );
+      /* the proofs' drawers take the rows their steppers need; a change
+         re-lays out the cells (the memo keys on the layout) */
+      let _: bool =
+        Theorems.fit(
+          ~settings,
+          (Divided.result(d): EvalResult.Model.t).theorems,
+        );
       /* whole-program samples flow into every cell (probes with
          out-of-cell call sites); the memo gates on the dynamics
          map's identity so cells re-render when new samples land */
@@ -852,6 +860,7 @@ let calculate =
                 CellEditor.Update.calculate(
                   ~settings=body_settings,
                   ~tail_probe=is_tail_cell(e),
+                  ~proof_drawers=true,
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
