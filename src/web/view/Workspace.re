@@ -499,7 +499,12 @@ let update =
 let calc_entry_memo:
   Hashtbl.t(
     Haz3lcore.Id.t,
-    (Language.CoreSettings.t, Language.Dynamics.Map.t, bool, ScratchCell.t),
+    (
+      Language.CoreSettings.t,
+      Language.Dynamics.Map.t,
+      (bool, int),
+      ScratchCell.t,
+    ),
   ) =
   Hashtbl.create(8);
 
@@ -760,7 +765,7 @@ let calculate =
                     prev === e
                     && s' === settings
                     && d' === extra_dyn
-                    && t' == is_tail_cell(e) =>
+                    && t' == (is_tail_cell(e), ProbeProj.Settings.layout^) =>
                 Some(prev)
               | _ => None
               }
@@ -860,7 +865,12 @@ let calculate =
           Hashtbl.replace(
             calc_entry_memo,
             e.e_id,
-            (settings, extra_dyn, is_tail_cell(e), e'),
+            (
+              settings,
+              extra_dyn,
+              (is_tail_cell(e), ProbeProj.Settings.layout^),
+              e',
+            ),
           );
           e';
         };

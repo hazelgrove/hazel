@@ -1001,3 +1001,45 @@ let navigate_probes =
   | None => None
   };
 };
+
+/* Drawers print values at the editor's visible width: once #main exists,
+   report its width in columns (from the main code's left edge, less a
+   two-column margin) whenever it resizes, sidebars included. */
+let width_observed = ref(false);
+let observe_drawer_width = (~report: int => unit): unit =>
+  if (! width_observed^) {
+    switch (
+      Js.Opt.to_option(Dom_html.document##getElementById(Js.string("main")))
+    ) {
+    | None => ()
+    | Some(main) =>
+      width_observed := true;
+      let rect = (el, prop): float =>
+        Js.Unsafe.get(
+          Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+          prop,
+        );
+      let callback =
+        Js.wrap_callback(_entries =>
+          switch (
+            Js.Opt.to_option(
+              Dom_html.document##querySelector(Js.string(".code-container")),
+            )
+          ) {
+          | None => ()
+          | Some(code) =>
+            let (col_width, _) = font_metrics_from_specimen();
+            if (col_width > 0.) {
+              let px = rect(main, "right") -. rect(code, "left");
+              report(max(20, int_of_float(px /. col_width) - 2));
+            };
+          }
+        );
+      let observer =
+        Js.Unsafe.new_obj(
+          Js.Unsafe.global##._ResizeObserver,
+          [|Js.Unsafe.inject(callback)|],
+        );
+      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(main)|]);
+    };
+  };

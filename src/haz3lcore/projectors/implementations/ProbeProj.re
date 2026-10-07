@@ -220,6 +220,24 @@ module Settings = {
   let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
+  /* Bumped when drawers must re-lay out (their print width changed):
+   * CachedSyntax recomputes drawer rows when it moves. */
+  let layout = ref(0);
+
+  /* drawers print values at the editor's visible width */
+  let set_drawer_width = (width: int) =>
+    if (width != s^.drawer.width) {
+      s :=
+        {
+          ...s^,
+          drawer: {
+            width: width,
+          },
+        };
+      version := version^ + 1;
+      layout := layout^ + 1;
+    };
+
   let set_sticky = (b: bool) => {
     sticky := b;
     version := version^ + 1;

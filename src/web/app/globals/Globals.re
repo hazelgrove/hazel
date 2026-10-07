@@ -76,6 +76,8 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    /* the editor's visible width in columns, which drawers print at */
+    | UpdateDrawerWidth(int)
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;

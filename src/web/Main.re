@@ -320,6 +320,12 @@ let start = default_model => {
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );
+        JsUtil.observe_drawer_width(~report=cols =>
+          if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
+            app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
+            |> Bonsai.Effect.Expert.handle;
+          }
+        );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },
