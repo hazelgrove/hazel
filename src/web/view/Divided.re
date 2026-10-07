@@ -638,6 +638,7 @@ let follow_headless =
     (~rows: Id.Map.t(unit), ~headless: Id.Map.t(unit), d: t)
     : (t, list((Id.t, Id.t))) => {
   let moves = ref([]);
+  let base = ref(d.base);
   let cells =
     List.map(
       (e: Cell.t) =>
@@ -661,6 +662,10 @@ let follow_headless =
           ) {
           | Some(id) =>
             moves := [(e.e_id, id), ...moves^];
+            /* the base takes the cell's text first, so its slot holds
+               the new root: splices by that id must find it, or the
+               cell's later edits never reach the program */
+            base := Focus.splice_entry(e, base^);
             {
               ...e,
               e_id: id,
@@ -675,6 +680,7 @@ let follow_headless =
   (
     {
       ...d,
+      base: base^,
       cells,
       active: Option.map(((id, side)) => (moved(id), side), d.active),
     },
