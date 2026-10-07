@@ -42,6 +42,9 @@ let rec origin = (id: Id.t): Id.t =>
   | _ => id
   };
 
+/* off only for measurement */
+let enabled = ref(true);
+
 let preserves =
     (
       ~settings: CoreSettings.t,
@@ -51,7 +54,7 @@ let preserves =
     )
     : bool =>
   switch (Id.Map.find_opt(Exp.rep_id(before), info_map)) {
-  | Some(root) when settings.statics =>
+  | Some(root) when settings.statics && enabled^ =>
     let (info', _) = Statics.mk(settings, Info.ctx_of(root), after);
     let old = resolutions(info_map);
     let bound_same =

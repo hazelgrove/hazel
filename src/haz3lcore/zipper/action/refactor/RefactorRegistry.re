@@ -490,9 +490,12 @@ let go =
        (a let extending over a comma) is refused, then statics checks
        the read-back program */
     let lands = (term', seg) => {
-      let read = MakeTerm.go(seg).term;
-      Exp.fast_equal(read, term')
-      && RefactorCheck.preserves(~settings, ~info_map, ~before=term, read);
+      ! RefactorCheck.enabled^
+      || {
+        let read = MakeTerm.go(seg).term;
+        Exp.fast_equal(read, term')
+        && RefactorCheck.preserves(~settings, ~info_map, ~before=term, read);
+      };
     };
     switch (
       impl(kind).prepare(~info_map, ~target, term)
