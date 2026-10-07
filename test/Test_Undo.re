@@ -56,6 +56,38 @@ let text_of = (model: History.Model.t): string =>
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
+/* the outline shows in every mode; outside the decks a click still
+   moves its cursor, where it used to be refused as an invalid action */
+let outline_click_outside_decks = () => {
+  let model = mk_model();
+  let globals = model.current.globals;
+  let editors: Editors.Model.t =
+    Config(Editors.Store.load_config(~settings=globals.settings.core));
+  let model = {
+    ...model,
+    current: {
+      ...model.current,
+      editors,
+      selection: Editors.Selection.default_selection(editors),
+    },
+  };
+  let path =
+    Some([
+      OutlineTree.{
+        s_label: "x",
+        s_occ: 0,
+      },
+    ]);
+  OutlineControl.cursor := None;
+  let _ = apply(model, Editors(Scratch(Outline(Cursor(path)))));
+  Alcotest.(check(bool))(
+    "the cursor moved",
+    true,
+    OutlineControl.cursor^ == path,
+  );
+  OutlineControl.cursor := None;
+};
+
 let tests = (
   "Undo",
   [
@@ -167,6 +199,11 @@ let tests = (
           text_of(m4),
         );
       },
+    ),
+    test_case(
+      "an outline click outside the decks moves its cursor",
+      `Quick,
+      outline_click_outside_decks,
     ),
   ],
 );
