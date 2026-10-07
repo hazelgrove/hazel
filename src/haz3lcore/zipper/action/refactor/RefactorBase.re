@@ -459,6 +459,8 @@ let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
   };
 };
 
+/* (type patterns too: a statics Poly/Rec carries the SOURCE binder's
+   TPat node, ids and all) */
 let refresh_typ_ids = (t: Typ.t): Typ.t =>
   Typ.map_term(
     ~f_typ=
@@ -466,6 +468,12 @@ let refresh_typ_ids = (t: Typ.t): Typ.t =>
         cont({
           ...t,
           annotation: refresh_annotation(t.annotation),
+        }),
+    ~f_tpat=
+      (cont, tp: TPat.t) =>
+        cont({
+          ...tp,
+          annotation: refresh_annotation(tp.annotation),
         }),
     t,
   );

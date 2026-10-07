@@ -1012,7 +1012,17 @@ let hoist_step =
                     )
                   )
              )
+            /* and the body takes the let's place: a tuple body in a
+               list slot keeps its parens (`[let y = 2 in y + 1, x]`
+               holds one pair) */
             ? {
+              let lbody =
+                splice_parens_needed(
+                  ~program=List.hd(path),
+                  ~at=Exp.rep_id(l),
+                  lbody,
+                )
+                  ? fresh(Parens(strip_leading_ws(lbody))) : lbody;
               let p' =
                 replace_node(
                   ~at=Exp.rep_id(l),
@@ -1027,6 +1037,17 @@ let hoist_step =
                     term: Let(lp, ldef, p'),
                   },
                 );
+              /* one rung up, the let stands where its parent stood:
+                 in an operand slot it needs parens or its body would
+                 run on (`g(let w = 4 in w) - 1` must give
+                 `(let w = 4 in g(w)) - 1`) */
+              let l' =
+                splice_parens_needed(
+                  ~program=List.hd(path),
+                  ~at=Exp.rep_id(p),
+                  l',
+                )
+                  ? fresh(Parens(l')) : l';
               Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
             }
             : None

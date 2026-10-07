@@ -837,6 +837,14 @@ let rec space_typ = (t: Typ.t): Typ.t => {
       ...t,
       term: List(space_typ(x)),
     }
+  | Poly(tp, body) => {
+      ...t,
+      term: Poly(tp, before(space_typ(body))),
+    }
+  | Rec(tp, body) => {
+      ...t,
+      term: Rec(tp, before(space_typ(body))),
+    }
   | _ => t
   };
 };

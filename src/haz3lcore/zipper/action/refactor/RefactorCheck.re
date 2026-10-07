@@ -7,28 +7,34 @@
 open Language;
 open RefactorBase;
 
-/* reference id -> (binder id or None when unbound, lexical?). Lexical
-   references are the ones the check holds to their binder: expression
-   variables, and type variables bound by typfun/poly (Abstract).
-   Constructor and alias entries are ids inside a particular type
-   definition, so moving that definition (inline/feed/rename an alias)
-   changes them without changing meaning — those stay with the
-   new-error rule, where a lost name shows up unbound. */
-let resolutions = (info_map: Statics.Map.t): Id.Map.t((option(Id.t), bool)) =>
+/* how the check holds a reference: an expression variable to its exact
+   binder; a type variable bound by typfun/poly (Abstract) to staying
+   bound by one — analysis against an annotation may legitimately hand
+   it the annotation's own poly binder, but it must never come unbound;
+   constructor and alias references not at all (their entries are ids
+   inside a type definition that inline/feed/rename may move) — the
+   new-error rule covers those */
+type held =
+  | Exact
+  | AbstractTVar
+  | Free;
+
+let resolutions = (info_map: Statics.Map.t): Id.Map.t((option(Id.t), held)) =>
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       if (id != Info.id_of(info)) {
         acc;
       } else {
-        let lexical =
+        let held =
           switch (info) {
-          | InfoExp({user_term: {term: Var(_), _}, _}) => true
-          | InfoTyp({user_term: {term: Var(t), _}, ctx, _}) =>
-            Ctx.lookup_tvar(ctx, t) == Some(Abstract)
-          | _ => false
+          | InfoExp({user_term: {term: Var(_), _}, _}) => Exact
+          | InfoTyp({user_term: {term: Var(t), _}, ctx, _})
+              when Ctx.lookup_tvar(ctx, t) == Some(Abstract) =>
+            AbstractTVar
+          | _ => Free
           };
         switch (resolution_of(info)) {
-        | Some(b) => Id.Map.add(id, (b, lexical), acc)
+        | Some(b) => Id.Map.add(id, (b, held), acc)
         | None => acc
         };
       },
@@ -59,14 +65,16 @@ let preserves =
     let old = resolutions(info_map);
     let bound_same =
       Id.Map.for_all(
-        (ref', (binder', _)) =>
+        (ref', (binder', held')) =>
           switch (Id.Map.find_opt(origin(ref'), old)) {
-          | Some((Some(b), true)) =>
+          | Some((Some(b), Exact)) =>
             let expected =
               Id.Map.find_opt(b, binder_redirect^)
               |> Option.value(~default=b);
             Option.map(origin, binder') == Some(expected);
-          /* was unbound, isn't lexical, or is new */
+          | Some((Some(_), AbstractTVar)) =>
+            binder' != None && held' == AbstractTVar
+          /* was unbound, isn't held, or is new */
           | _ => true
           },
         resolutions(info'),

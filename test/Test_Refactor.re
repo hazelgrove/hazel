@@ -5496,14 +5496,18 @@ let landing_block_tests = [
 /* === Cases, evaluation, call sites (review 2026-10-06) === */
 let review_fix_tests = {
   let has = (marked, kind, needle) =>
-    test_case(Action.show_refactor(kind) ++ ": " ++ needle, `Quick, () =>
-      check(
-        bool,
-        needle,
-        true,
-        Util.StringUtil.plain_split(inline(~kind, marked) |> text_of, needle)
-        |> List.length > 1,
-      )
+    test_case(
+      Action.show_refactor(kind) ++ ": " ++ needle,
+      `Quick,
+      () => {
+        let got = inline(~kind, marked) |> text_of;
+        check(
+          bool,
+          needle ++ " in: " ++ got,
+          true,
+          Util.StringUtil.plain_split(got, needle) |> List.length > 1,
+        );
+      },
     );
   let w = "type W = Sun + Rain + Snow in\n";
   [
@@ -5576,6 +5580,27 @@ let review_fix_tests = {
     ),
     has("¦case (q=2, p=1) | (p=x, q=y) => x - y end", ReduceCase, "1 - 2"),
     has("(¦fun (p=a, q=b) -> a - b)(q=2, p=1)", BetaReduce, "1 - 2"),
+    /* regressions caught after the statics check landed */
+    has(
+      "let ¦id = typfun A -> fun (x : A) -> x in id",
+      AddTypeAnnotation,
+      "let id : (poly A -> A -> A) = typfun",
+    ),
+    has(
+      "let x = 10 in\nlet g = fun a -> a in\ng(¦let w = 4 in w) - 1",
+      HoistLet,
+      "(let w = 4 in g(w)) - 1",
+    ),
+    has(
+      "let x = 10 in\nlet g = fun a -> a in\ng(¦let x = 1 in x) + x",
+      HoistLet,
+      "(let x = 1 in g(x)) + x",
+    ),
+    has(
+      "let x = 10 in\n[¦let y = 2 in y + 1, x]",
+      HoistLet,
+      "let y = 2 in [(y + 1, x)]",
+    ),
     has(
       "let mood = ¦if 1 < 2 then \"up\" else \"down\" in mood",
       IfToCase,
