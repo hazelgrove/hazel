@@ -994,12 +994,16 @@ module View = {
               Divided.result(d),
             );
           List.concat_map(((_, c)) => c.c_nodes, rendered)
-          @ [
-            Virtual_dom.Vdom.Node.div(
-              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
-              result_footer,
-            ),
-          ]
+          @ (
+            List.is_empty(result_footer)
+              ? []
+              : [
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
+                  result_footer,
+                ),
+              ]
+          )
           @ [
             /* slack, so even the last cell can scroll to the viewport top */
             Virtual_dom.Vdom.Node.div(

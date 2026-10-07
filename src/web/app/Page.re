@@ -964,13 +964,6 @@ module View = {
                | _ => []
                };
              EvalResult.View.dynamics(
-               ~inject=
-                 a =>
-                   inject(
-                     Editors(
-                       Scratch(Workspace(CellAction(ResultAction(a)))),
-                     ),
-                   ),
                ~tail,
                ~toggle_tail=
                  Effect.Many(

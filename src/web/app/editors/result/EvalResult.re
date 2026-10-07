@@ -776,20 +776,13 @@ module View = {
     );
   };
 
-  /* the program's dynamics, at the cursor inspector's right end:
-     whether it ran, the error if not, the stepper (it steps from the
-     elaboration, so a failed run can still be stepped) and, after a
-     finished run, the proofs. A run under way keeps the last finished
-     one, dimmed */
+  /* the program's dynamics, at the cursor inspector's right end: the ⇓
+     toggle (the value in a drawer below the last line), whether it ran,
+     the error if not and, after a finished run, the proofs. A run under
+     way keeps the last finished one, dimmed */
   let dynamics =
-      (
-        ~inject,
-        /* the ⇓ toggle: the last expression's value in a drawer below it */
-        ~tail=false,
-        ~toggle_tail=Effect.Ignore,
-        model: Model.t,
-      )
-      : Node.t => {
+      /* the ⇓ toggle: the last expression's value in a drawer below it */
+      (~tail=false, ~toggle_tail=Effect.Ignore, model: Model.t): Node.t => {
     let result = Calc.get_value(model.result);
     let (mark, msg, outcome) =
       switch (Model.settle(model.settled, result)) {
@@ -801,11 +794,6 @@ module View = {
       switch (result) {
       | ResultPending(_) => ["running"]
       | _ => []
-      };
-    let stepping =
-      switch (model.display) {
-      | Stepper(_) => ["on"]
-      | Evaluation(_) => []
       };
     let proofs =
       switch (outcome, Theorems.Model.proof_count(model.theorems)) {
@@ -849,18 +837,7 @@ module View = {
           [text(msg)],
         ),
       ]
-      @ proofs
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes(["dyn-chip", "dyn-step"] @ stepping),
-            Attr.title("Step through the evaluation"),
-            Attr.on_mousedown(_ => Effect.Prevent_default),
-            Attr.on_click(_ => inject(Update.ToggleStepper)),
-          ],
-          [text("Step")],
-        ),
-      ],
+      @ proofs,
     );
   };
 
@@ -876,9 +853,8 @@ module View = {
       ) =>
     switch (model.display) {
     | _ when !globals.settings.core.dynamics => []
-    /* the status is the inspector's (dynamics); the stepper still opens
-       here */
-    | Evaluation(_) when status => []
+    /* the status is the inspector's (dynamics); steps are a probe's */
+    | _ when status => []
     | Evaluation(editor) => [
         live_eval(
           ~globals,

@@ -197,20 +197,6 @@
   white-space: nowrap;
 }
 
-#dynamics .dyn-step {
-  cursor: pointer;
-}
-
-#dynamics .dyn-step:hover,
-#dynamics .dyn-step.on {
-  background-color: var(--cell-result-hidden);
-}
-
-#dynamics.fail .dyn-step:hover,
-#dynamics.fail .dyn-step.on {
-  background-color: var(--test-fail-active);
-}
-
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
   color: var(--text-black);
