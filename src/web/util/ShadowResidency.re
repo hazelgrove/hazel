@@ -8,9 +8,9 @@ open Util;
  * logs. Consumers flip (W2b) only after the counter stays zero across
  * the corpus + fuzz.
  *
- * Coherence: shipping is gated on the DefStatics slot changing
- * IDENTITY, which happens on Force frames — the one moment the
- * editor's segment and the slot's statics describe the same program
+ * Coherence: shipping is gated on the document's DefStatics result
+ * changing IDENTITY, which happens on Force frames — the one moment the
+ * editor's segment and its statics describe the same program
  * (between Force frames the segment runs ahead of the debounced
  * statics, and shipping there would manufacture false mismatches). */
 
@@ -82,10 +82,10 @@ let counters = (): (int, int, int) => (oks^, mismatches^, resyncs^);
 /* ===== W2b FLIP ===== when on: main clamps statics propagation to
    the edited item (DefStatics.clamp), evals run from the worker's
    resident program, and worker summaries GRAFT fresh cross-item
-   error/warning ids into the main slot (stale info elsewhere, per the
+   error/warning ids into main's cache (stale info elsewhere, per the
    staleness contract). The shadow COMPARISON is off while flipped
    (main's summary is stale-by-design). Turning the flip off busts the
-   DefStatics slot — a clamped chain cannot be caught up incrementally
+   DefStatics caches — a clamped chain cannot be caught up incrementally
    (Test_PropagateClamp). */
 let flip_enabled: ref(bool) = ref(false);
 let set_flip = (b: bool): unit =>
@@ -95,8 +95,7 @@ let set_flip = (b: bool): unit =>
       enabled := true; /* the flip consumes the residency sync */
     };
     Haz3lcore.DefStatics.clamp := b;
-    /* fresh baseline either way — and EVERY cache calc_auto reads:
-       clearing only the active slot left clamped chains in the
+    /* fresh baseline either way: clamped chains must not stay in the
        per-document table, reusable after toggle-off */
     Haz3lcore.DefStatics.reset_caches();
     print_endline("[w2-shadow] flip " ++ (b ? "ON" : "OFF"));
@@ -157,9 +156,9 @@ let schedule_recalc: ref(unit => unit) = ref(() => ());
 
 /* FLIP mode: the worker's per-item error/warning ids are the truth
    for cross-item display. Grafting must be DURABLE and OBSERVABLE:
-   both DefStatics caches update (the active slot AND the per-document
-   keyed entry — else the next calc_auto rebuilds from the ungrafted
-   entry and silently reverts), and a recalculate is scheduled so the
+   the document's keyed DefStatics entry updates (else the next
+   calc_auto rebuilds from the ungrafted entry and silently reverts),
+   and a recalculate is scheduled so the
    ids actually reach the rendered view. Superseded generations are
    dropped. Piece-anchored ids refresh from the worker; synthetic ids
    (derivation-local, filtered out of summaries) survive from main's
@@ -172,7 +171,9 @@ let graft_summary =
     )
     : unit =>
   if (msg.generation == generation^) {
-    switch (Haz3lcore.DefStatics.slot^) {
+    /* the shipped document's cache entry (DefStatics keeps no
+       "last calculated" slot): what its next calc_auto reuses */
+    switch (Option.bind(last_ds^, ds => Haz3lcore.DefStatics.cached(ds.term))) {
     | None => ()
     | Some(t) =>
       let synthetic = ids =>
@@ -199,7 +200,6 @@ let graft_summary =
         ...t,
         Haz3lcore.DefStatics.items,
       };
-      Haz3lcore.DefStatics.slot := Some(t');
       Haz3lcore.DefStatics.replace_slot_entry(t');
       schedule_recalc^();
     };

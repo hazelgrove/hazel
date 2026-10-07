@@ -318,6 +318,8 @@ let tests = [
               ],
             };
           Web.ShadowResidency.generation := 5;
+          /* the graft targets the shipped document's cache entry */
+          Web.ShadowResidency.last_ds := Some(t);
           Web.ShadowResidency.last_piece_ids := ResidentProgram.piece_ids(seg);
           Web.ShadowResidency.graft_summary(
             {
@@ -333,10 +335,10 @@ let tests = [
               (it: DefStatics.item) => List.mem(fake_err, it.d_error_ids),
               t.items,
             );
-          switch (DefStatics.current()) {
+          switch (DefStatics.cached(whole)) {
           | Some(t) =>
-            check(bool, "graft visible in slot", true, has_fake(t))
-          | None => Alcotest.fail("no slot after graft")
+            check(bool, "graft visible in the cache entry", true, has_fake(t))
+          | None => Alcotest.fail("no cache entry after graft")
           };
           let t' = DefStatics.calc_auto(~settings, whole);
           check(int, "recalc is warm", 0, DefStatics.last_analyzed^);
