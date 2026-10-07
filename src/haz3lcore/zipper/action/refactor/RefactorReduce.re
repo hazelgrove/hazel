@@ -5,6 +5,52 @@ open RefactorBase;
 open RefactorParens;
 open RefactorInline;
 
+/* `fun x -> f(x)` / `fun (a, b) -> f(a, b)`: the forwarded function,
+   when the params (one var or a tuple of vars — what Eta-Expand emits,
+   so the two stay inverses) reappear as the argument, in order, and f
+   doesn't mention them */
+let eta_reducible = (e: Exp.t): option(Exp.t) => {
+  let rec param_names = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Parens(inner) => param_names(inner)
+    | Tuple(items) =>
+      let ns = List.map(var_pat_name, items);
+      List.for_all(Option.is_some, ns)
+        ? Some(List.map(Option.get, ns)) : None;
+    | _ => var_pat_name(p) |> Option.map(x => [x])
+    };
+  let rec arg_names = (a: Exp.t) =>
+    switch (IdTagged.term_of(a)) {
+    | Parens(inner) => arg_names(inner)
+    | Tuple(items) =>
+      let ns =
+        List.map(
+          (it: Exp.t) =>
+            switch (IdTagged.term_of(it)) {
+            | Var(y) => Some(y)
+            | _ => None
+            },
+          items,
+        );
+      List.for_all(Option.is_some, ns)
+        ? Some(List.map(Option.get, ns)) : None;
+    | Var(y) => Some([y])
+    | _ => None
+    };
+  switch (IdTagged.term_of(e)) {
+  | Fun(p, body, _, _) =>
+    switch (param_names(p), IdTagged.term_of(body)) {
+    | (Some(xs), Ap(Forward, f, arg))
+        when
+          arg_names(arg) == Some(xs)
+          && !List.exists(x => mentions(x, f), xs) =>
+      Some(f)
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
 let eta_reduce_impl: impl = {
   label: "Eta-Reduce",
   tooltip: "Simplify `fun x -> f(x)` to `f`",
@@ -13,20 +59,11 @@ let eta_reduce_impl: impl = {
       ~hit=hit_node(target),
       ~rewrite=
         e =>
-          switch (IdTagged.term_of(e)) {
-          | Fun(p, body, _, _) =>
-            switch (var_pat_name(p), IdTagged.term_of(body)) {
-            | (Some(x), Ap(Forward, f, arg)) =>
-              switch (IdTagged.term_of(arg)) {
-              | Var(y) when y == x && !mentions(x, f) =>
-                let f = f |> strip_leading |> strip_trailing;
-                Some((f, Exp.rep_id(f)));
-              | _ => None
-              }
-            | _ => None
-            }
-          | _ => None
-          },
+          eta_reducible(e)
+          |> Option.map(f => {
+               let f = f |> strip_leading |> strip_trailing;
+               (f, Exp.rep_id(f));
+             }),
       program,
     ),
 };
@@ -217,28 +254,20 @@ let exact_float_lexeme = (f: float): option(string) =>
     None;
   } else {
     let exact = s => Token.is_float(s) && float_of_string_opt(s) == Some(f);
-    let canonical = Atom.to_literal(Float(f));
-    if (exact(canonical)) {
-      Some(canonical);
-    } else {
-      let rec go = p =>
-        if (p > 17) {
-          None;
-        } else {
-          let s =
-            Printf.sprintf("%.*g", p, f)
-            |> Util.StringUtil.replace(
-                 Util.StringUtil.regexp("e\\+"),
-                 _,
-                 "e",
-               );
-          let s =
-            String.contains(s, '.') || String.contains(s, 'e')
-              ? s : s ++ ".0";
-          exact(s) ? Some(s) : go(p + 1);
-        };
-      go(1);
-    };
+    /* the shortest exact spelling (2.5, not 2.500000) */
+
+    let rec go = p =>
+      if (p > 17) {
+        None;
+      } else {
+        let s =
+          Printf.sprintf("%.*g", p, f)
+          |> Util.StringUtil.replace(Util.StringUtil.regexp("e\\+"), _, "e");
+        let s =
+          String.contains(s, '.') || String.contains(s, 'e') ? s : s ++ ".0";
+        exact(s) ? Some(s) : go(p + 1);
+      };
+    go(1);
   };
 
 let with_exact_floats = (v: Exp.t): option(Exp.t) => {

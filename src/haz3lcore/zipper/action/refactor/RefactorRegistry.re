@@ -204,7 +204,7 @@ let applies =
     | None => false
     }
   | RenameTypFree(x, t) =>
-    rename_typ_pairs(~target, program) |> List.mem((x, t))
+    rename_typ_pairs(~info_map, ~target, program) |> List.mem((x, t))
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
     | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
@@ -372,19 +372,7 @@ let applies =
     }
   | EtaReduce =>
     switch (find_hit(~hit=hit_node(target), program)) {
-    | Some(e) =>
-      switch (IdTagged.term_of(e)) {
-      | Fun(p, body, _, _) =>
-        switch (var_pat_name(p), IdTagged.term_of(body)) {
-        | (Some(x), Ap(Forward, f, arg)) =>
-          switch (IdTagged.term_of(arg)) {
-          | Var(y) => y == x && !mentions(x, f)
-          | _ => false
-          }
-        | _ => false
-        }
-      | _ => false
-      }
+    | Some(e) => Option.is_some(eta_reducible(e))
     | None => false
     }
   | IfToCase

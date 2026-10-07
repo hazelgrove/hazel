@@ -26,16 +26,18 @@ let if_to_case_impl: impl = {
               has_newline(Slot.trail_of(t).trail)
               || has_newline(Slot.lead_of(t).lead)
               || has_newline(Slot.lead_of(alt).lead);
+            /* `end` needs a separator after the last arm either way:
+               its own line when multiline, else one space. (Any run
+               already trailing alt is the if's own boundary, which the
+               node takeover moves past `end`.) */
             let alt =
-              multiline
-                ? Slot.give(
-                    {
-                      Slot.lead: [],
-                      trail: newline(),
-                    },
-                    alt,
-                  )
-                : alt;
+              Slot.give(
+                {
+                  Slot.lead: [],
+                  trail: multiline ? newline() : space(),
+                },
+                alt,
+              );
             Some((
               fresh(
                 Match(

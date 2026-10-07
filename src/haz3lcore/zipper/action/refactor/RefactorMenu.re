@@ -63,7 +63,7 @@ let label_override =
       param_items(l)
       |> List.find_opt((it: Pat.t) => List.mem(target, IdTagged.ids(it)))
       |> Option.map((it: Pat.t) =>
-           "Remove Parameter"
+           "Remove param"
            ++ (
              switch (var_pat_name(it)) {
              | Some(n) => " " ++ n
@@ -113,7 +113,7 @@ let rename_items =
     | None => []
     };
   let typ_items =
-    rename_typ_pairs(~target, term)
+    rename_typ_pairs(~info_map, ~target, term)
     |> List.map(((x, t)) =>
          (
            Action.RenameTypFree(x, t),

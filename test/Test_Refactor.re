@@ -746,7 +746,7 @@ let remove_param_tests = [
       "named",
       true,
       List.mem(
-        "Remove Parameter b",
+        "Remove param b",
         labels_at("let f = fun (a, ¦b) -> a in f(1, 2)"),
       ),
     )
@@ -5576,6 +5576,28 @@ let review_fix_tests = {
     ),
     has("¦case (q=2, p=1) | (p=x, q=y) => x - y end", ReduceCase, "1 - 2"),
     has("(¦fun (p=a, q=b) -> a - b)(q=2, p=1)", BetaReduce, "1 - 2"),
+    has(
+      "let mood = ¦if 1 < 2 then \"up\" else \"down\" in mood",
+      IfToCase,
+      "| false => \"down\" end in",
+    ),
+    has(
+      "let add = fun (a, b) -> a + b in\nlet wrap = ¦fun (x, y) -> add(x, y) in wrap",
+      EtaReduce,
+      "let wrap = add in",
+    ),
+    has("1.0 ¦+. 1.5", EvaluateInPlace, "2.5"),
+    test_case("constructors aren't type-rename candidates", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(
+          RenameTypFree("E", "C"),
+          "type ¦C = A + B in\ntype D = E + F in\nlet x : D = E in x",
+        ),
+      )
+    ),
     test_case("no extraction out of a short-circuit's right side", `Quick, () =>
       check(
         bool,

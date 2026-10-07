@@ -1900,7 +1900,24 @@ let implode_impl: impl = {
     },
 };
 let rename_typ_pairs =
-    (~target: Id.t, program: Exp.t): list((string, string)) =>
+    (~info_map: Statics.Map.t, ~target: Id.t, program: Exp.t)
+    : list((string, string)) => {
+  /* names statics reports as unbound type references: a constructor
+     inside a sum definition is not a type mention */
+  let unbound =
+    Id.Map.fold(
+      (_, info: Info.t, acc) =>
+        switch (info) {
+        | InfoTyp({user_term: {term: Var(x), _}, ctx, _})
+            when Ctx.lookup_tvar(ctx, x) == None && Info.is_error(info) => [
+            x,
+            ...acc,
+          ]
+        | _ => acc
+        },
+      info_map,
+      [],
+    );
   switch (find_hit(~hit=hit_tyalias(target), program)) {
   | Some(e) =>
     switch (IdTagged.term_of(e)) {
@@ -1922,7 +1939,10 @@ let rename_typ_pairs =
           };
         typ_names_mentioned(body)
         |> List.filter(x =>
-             x != t && !List.mem(x, enclosing) && mentions_typ_free(x, body)
+             x != t
+             && !List.mem(x, enclosing)
+             && mentions_typ_free(x, body)
+             && List.mem(x, unbound)
            )
         |> List.map(x => (x, t));
       | _ => []
@@ -1931,6 +1951,7 @@ let rename_typ_pairs =
     }
   | None => []
   };
+};
 
 let rename_typ_free_impl = (x: string, t: string): impl => {
   label: "Rename " ++ x ++ " to " ++ t,
