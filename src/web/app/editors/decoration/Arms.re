@@ -776,6 +776,8 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
+      /* the ⇓ toggle's probe shows only its drawer */
+      |> List.filter(((id, _)) => z.refractors.tail_target != Some(id))
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,

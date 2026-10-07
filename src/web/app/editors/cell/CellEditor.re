@@ -159,6 +159,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~compositional=false,
@@ -185,6 +186,7 @@ module Update = {
       CodeEditable.Update.calculate(
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe,
         ~is_edited,
         ~statics_mode,
         ~compositional,
@@ -240,6 +242,7 @@ module Update = {
         CodeEditable.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~compositional,
           ~ctx?,

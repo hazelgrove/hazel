@@ -374,7 +374,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model) => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~tail_probe=false,
+        ~is_edited,
+        ~schedule_action,
+        model,
+      ) => {
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
@@ -382,6 +389,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited,
           ~is_documentation=false,
           m,
@@ -393,6 +401,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited,
           ~is_documentation=true,
           m,

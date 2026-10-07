@@ -153,6 +153,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
         ~is_edited,
         ~statics_mode: StaticsMode.t=Normal,
         ~compositional=false,
@@ -265,6 +266,7 @@ module Update = {
         Editor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited,
           statics,
           dynamics,

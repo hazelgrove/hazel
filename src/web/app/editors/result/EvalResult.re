@@ -781,7 +781,15 @@ module View = {
      elaboration, so a failed run can still be stepped) and, after a
      finished run, the proofs. A run under way keeps the last finished
      one, dimmed */
-  let dynamics = (~inject, model: Model.t): Node.t => {
+  let dynamics =
+      (
+        ~inject,
+        /* the ⇓ toggle: the last expression's value in a drawer below it */
+        ~tail=false,
+        ~toggle_tail=Effect.Ignore,
+        model: Model.t,
+      )
+      : Node.t => {
     let result = Calc.get_value(model.result);
     let (mark, msg, outcome) =
       switch (Model.settle(model.settled, result)) {
@@ -818,8 +826,14 @@ module View = {
       [
         div(
           ~attrs=[
-            Attr.classes(["dyn-glyph"]),
-            Attr.title("Dynamics: how the program ran"),
+            Attr.classes(["dyn-glyph"] @ (tail ? ["on"] : [])),
+            Attr.title(
+              tail
+                ? "Hide the program's value"
+                : "Show the program's value below its last line",
+            ),
+            Attr.on_mousedown(_ => Effect.Prevent_default),
+            Attr.on_click(_ => toggle_tail),
           ],
           [text({js|⇓|js})],
         ),

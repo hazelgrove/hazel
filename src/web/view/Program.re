@@ -109,3 +109,10 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
       Divided.probes(d),
     )
   };
+
+/* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
+let tail_row = (p: t): option(Id.t) =>
+  OutlineTree.of_term(statics(p).term)
+  |> List.find_opt((n: OutlineTree.node) => n.o_kind == KTrail)
+  |> Option.map((n: OutlineTree.node) => n.o_id)
+  |> Option.join;

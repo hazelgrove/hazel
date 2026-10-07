@@ -39,6 +39,12 @@
   background-color: var(--cell-active);
 }
 
+/* room after the whole program's last line, so a drawer there (the ⇓
+   toggle's value) clears the bottom bar */
+:is(#main.Scratch, #main.Documentation) > .cell > .code-editor {
+  padding-bottom: 6em;
+}
+
 :is(#main.Scratch,
 #main.Documentation,
 #main.Configuration):not(.Derivations) .cell {

@@ -154,6 +154,16 @@
   color: var(--ci-status-text);
   border-left: 0.6px solid var(--border-default);
   border-right: 0.6px solid var(--border-default);
+  cursor: pointer;
+}
+
+/* on: the program's value shows in a drawer below its last line */
+#dynamics .dyn-glyph.on {
+  background-color: color-mix(
+    in oklch,
+    var(--ci-dynamics-bkg),
+    var(--ci-status-text) 18%
+  );
 }
 
 #dynamics .status {

@@ -569,6 +569,7 @@ module Update = {
                 dynamics: false,
               },
           ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -946,7 +947,16 @@ module View = {
       | Scratch(m)
       | Documentation(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
-        |> Option.map(p =>
+        |> Option.map(p => {
+             let tail = globals.settings.tail_probe;
+             /* in a stack, the value shows in the ⇒ cell: open it */
+             let open_tail =
+               switch (p, Program.tail_row(p)) {
+               | (Program.Divided(_), Some(id)) when !tail => [
+                   inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
+                 ]
+               | _ => []
+               };
              EvalResult.View.dynamics(
                ~inject=
                  a =>
@@ -955,9 +965,14 @@ module View = {
                        Scratch(Workspace(CellAction(ResultAction(a)))),
                      ),
                    ),
+               ~tail,
+               ~toggle_tail=
+                 Effect.Many(
+                   [inject(Globals(Set(TailProbe)))] @ open_tail,
+                 ),
                Program.result(p),
-             )
-           )
+             );
+           })
       | _ => None
       };
     let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);

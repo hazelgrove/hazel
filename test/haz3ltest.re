@@ -65,6 +65,7 @@ let (suite, exit_with_test_status) =
       Test_TermPrune.tests,
       Test_ResultLine.tests,
       Test_ProbeSteps.tests,
+      Test_TailProbe.tests,
       Test_SlideView.tests,
       Test_OutlineRename.tests,
       Test_ClosedJump.tests,

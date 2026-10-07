@@ -308,3 +308,81 @@ let update_autoprobe =
     );
   };
 };
+
+/* the program's last expression: past its lets, type aliases, module
+   lets and `;` statements (the outline's ⇒ row) */
+let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
+  let rec tail_of = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body)
+    | Use(_, body)
+    | Theorem(_, _, body)
+    | Seq(_, body) => tail_of(body)
+    | _ => e
+    };
+  switch (
+    Option.bind(program_root_id(syntax), id =>
+      Id.Map.find_opt(id, syntax.terms)
+    )
+  ) {
+  | Some(Exp(e)) => Some(Exp.rep_id(tail_of(e)))
+  | _ => None
+  };
+};
+
+/* the ⇓ toggle: one probe on the last expression, an open drawer with no
+   marks on the code. it follows the expression as it changes; a previous
+   anchor the auto-probe still holds goes back to a plain probe */
+let update_tail =
+    (
+      ~on: bool,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : Zipper.t => {
+  let target = on ? tail_id(syntax) : None;
+  let prev = z.refractors.tail_target;
+  /* its entry keeps the drawer's own state (a menu, a rich view) */
+  let placed =
+    switch (target) {
+    | Some(id) =>
+      Id.Map.mem(id, z.refractors.multis.ephemerals)
+      || List.mem_assoc(id, z.refractors.manuals)
+    | None => true
+    };
+  if (target == prev && placed) {
+    z;
+  } else {
+    let z =
+      Zipper.update_refractors(z, r =>
+        {
+          ...r,
+          tail_target: target,
+        }
+      )
+      |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
+    Zipper.update_ephemerals(
+      eph => {
+        let eph =
+          switch (prev) {
+          | Some(old) when Some(old) != target && Id.Map.mem(old, eph) =>
+            Id.Map.add(old, Refractors.mk_entry(Probe), eph)
+          | _ => eph
+          };
+        switch (target) {
+        | Some(id) when Id.Map.mem(id, eph) =>
+          Id.Map.add(
+            id,
+            Refractors.mk_entry(~model=ProbeProj.tail_model, Probe),
+            eph,
+          )
+        | _ => eph
+        };
+      },
+      z,
+    );
+  };
+};

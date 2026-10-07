@@ -137,6 +137,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe=false,
         ~schedule_action,
         ~is_edited,
         ~is_documentation: bool,
@@ -156,6 +157,7 @@ module Update = {
         Workspace.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~schedule_action=a => schedule_action(Workspace(a)),
           ~is_edited,
           ~statics_mode,

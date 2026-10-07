@@ -191,6 +191,8 @@ module Update = {
       (
         ~settings: Language.CoreSettings.t,
         ~autoprobe_mode: AutoProbe.t,
+        /* the ⇓ toggle's probe on the program's last expression */
+        ~tail_probe=false,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -268,6 +270,13 @@ module Update = {
           z,
         );
       };
+    let zipper =
+      AutoProbePerform.update_tail(
+        ~on=tail_probe,
+        ~syntax,
+        ~info_map=statics.info_map,
+        zipper,
+      );
 
     Model.{
       root,

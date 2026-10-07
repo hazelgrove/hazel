@@ -499,7 +499,7 @@ let update =
 let calc_entry_memo:
   Hashtbl.t(
     Haz3lcore.Id.t,
-    (Language.CoreSettings.t, Language.Dynamics.Map.t, ScratchCell.t),
+    (Language.CoreSettings.t, Language.Dynamics.Map.t, bool, ScratchCell.t),
   ) =
   Hashtbl.create(8);
 
@@ -507,6 +507,9 @@ let calculate =
     (
       ~settings,
       ~autoprobe_mode,
+      /* the ⇓ toggle: the whole program's last expression, or the ⇒
+         cell's, probed as an open drawer */
+      ~tail_probe=false,
       ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,
@@ -555,6 +558,7 @@ let calculate =
         CellEditor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
@@ -567,8 +571,22 @@ let calculate =
       /* on statics frames, compositional statics of the assembled
          document, re-analyzing only dirty items: a rename in one cell
          errors its users in others; changed items' cells recapture ctx */
+      /* a ⇒ cell is keyed by its expression's root, which its tail probe
+         anchors: counted before the cell calculates, so this frame's run
+         samples it */
+      let is_tail_cell = (e: ScratchCell.t) =>
+        tail_probe && e.e_sym == Some({js|⇒|js});
+      let probe_ids =
+        List.fold_left(
+          (acc, e: ScratchCell.t) =>
+            is_tail_cell(e) ? Id.Map.add(e.e_id, (), acc) : acc,
+          Program.probe_ids(Divided(d)),
+          Divided.cells(d),
+        );
       let (d, ds) =
-        if (statics_mode == StaticsMode.Force || !Divided.has_fresh_statics(d)) {
+        if (statics_mode == StaticsMode.Force
+            || !Divided.has_fresh_statics(d)
+            || !Id.Map.equal((==), probe_ids, Divided.statics(d).pins)) {
           let spliced = Divided.document(d);
           let term =
             Haz3lcore.MakeTerm.Incr.go_incr(
@@ -582,7 +600,6 @@ let calculate =
             | Some(p) => p.items
             | None => []
             };
-          let probe_ids = Program.probe_ids(Divided(d));
           let ds =
             Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
           let statics =
@@ -608,7 +625,7 @@ let calculate =
                 ),
               completion: None,
               /* the cells' own pins (probe_ids adds the projectors') */
-              pins: Program.probe_ids(Divided(d)),
+              pins: probe_ids,
             };
           let fresh = it => !List.exists(p => p === it, prev_items);
           (
@@ -738,8 +755,12 @@ let calculate =
         let reuse =
           statics_mode != StaticsMode.Force
             ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
-              | Some((s', d', prev))
-                  when prev === e && s' === settings && d' === extra_dyn =>
+              | Some((s', d', t', prev))
+                  when
+                    prev === e
+                    && s' === settings
+                    && d' === extra_dyn
+                    && t' == is_tail_cell(e) =>
                 Some(prev)
               | _ => None
               }
@@ -825,6 +846,7 @@ let calculate =
               e_body:
                 CellEditor.Update.calculate(
                   ~settings=body_settings,
+                  ~tail_probe=is_tail_cell(e),
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
@@ -838,7 +860,7 @@ let calculate =
           Hashtbl.replace(
             calc_entry_memo,
             e.e_id,
-            (settings, extra_dyn, e'),
+            (settings, extra_dyn, is_tail_cell(e), e'),
           );
           e';
         };
