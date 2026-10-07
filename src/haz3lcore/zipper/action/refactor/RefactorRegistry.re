@@ -333,8 +333,33 @@ let applies =
              | _ => false
              }
            );
+      /* a label isn't an expression; a value containing a function
+         can't be spelled back as a literal */
+      let is_label =
+        switch (IdTagged.term_of(e)) {
+        | Label(_)
+        | TupLabel(_) => true
+        | _ => false
+        };
+      let rec has_arrow = (t: Typ.t) =>
+        switch (IdTagged.term_of(t)) {
+        | Arrow(_)
+        | Poly(_) => true
+        | Prod(ts) => List.exists(has_arrow, ts)
+        | List(t)
+        | Parens(t)
+        | TupLabel(_, t) => has_arrow(t)
+        | _ => false
+        };
+      let fn_valued =
+        switch (exp_ty(~info_map, e)) {
+        | Some(ty) => has_arrow(ty)
+        | None => false
+        };
       !is_fun(e)
       && !is_form
+      && !is_label
+      && !fn_valued
       && !has_test
       && !is_value_literal(e)
       && (
@@ -399,7 +424,14 @@ let applies =
     | None => false
     }
   | BindArgument => Option.is_some(find_hit(~hit=hit_beta(target), program))
-  | UnfoldCall => Option.is_some(unfold_site(~info_map, ~target, program))
+  | UnfoldCall =>
+    /* unfolding is a feed of the callee: offered only where that feed
+       can happen (not at a recursive self-call, not when capture-gated) */
+    switch (unfold_site(~info_map, ~target, program)) {
+    | Some(f_use) =>
+      Option.is_some(feed_plan(~info_map, ~target=f_use, program))
+    | None => false
+    }
   | HoistCarry => Option.is_some(hoist_carry_site(~target, program))
   | LiftFunction => Option.is_some(lift_site(~target, program))
   | BetaReduce =>

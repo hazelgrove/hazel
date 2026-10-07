@@ -457,13 +457,17 @@ let unfold_site = (~info_map, ~target, program): option(Id.t) =>
         }
       | _ => None
       };
-    /* the caret may sit on the ap tile or the fn var itself */
+    /* the caret may sit on the ap tile or the fn var itself — not on
+       an argument (Down there feeds that variable instead) */
     switch (ap_of(e)) {
     | Some(fid) => Some(fid)
     | None =>
       switch (find_path(~hit=hit_node(target), program)) {
       | Some(path) when List.length(path) >= 2 =>
-        ap_of(List.nth(path, List.length(path) - 2))
+        switch (ap_of(List.nth(path, List.length(path) - 2))) {
+        | Some(fid) when fid == Exp.rep_id(e) => Some(fid)
+        | _ => None
+        }
       | _ => None
       }
     };

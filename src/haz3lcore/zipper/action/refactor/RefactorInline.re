@@ -6,8 +6,12 @@ open RefactorParens;
 
 let inline_matches = (p: Pat.t, def: Exp.t, body: Exp.t): bool => {
   let moved: Exp.t = fresh(Let(p, def, fresh(EmptyHole)));
+  /* self-referencing only if f both scopes over the def (Hazel's
+     recursion rule, sugar) and occurs there: `let x = x * 2` reads the
+     OUTER x and inlines fine */
+  let (in_def, _, _) = let_scopes(p, def);
   let ok = f =>
-    !free_in(f, def)
+    !(List.mem(f, in_def) && free_in(f, def))
     && occurrences_of(f, body)
     |> List.for_all(o => !typ_captured_by_use_at(Exp.rep_id(o), moved, body));
   (
@@ -1624,7 +1628,17 @@ let rec x_reduced = (e: Exp.t): bool =>
     | TypFun(_) => true
     | Match(scrut, _) => x_atomic(scrut)
     | If(c, _, _) => x_atomic(c)
-    | _ => false
+    /* operator forms with compound operands still have work */
+    | BinOp(_)
+    | Cons(_)
+    | ListConcat(_)
+    | Dot(_)
+    | UnOp(_)
+    | TypAp(_)
+    | Ap(_) => false
+    /* forms explode doesn't decompose (ascriptions, lets, modules,
+       sequences, tests, use ...): nothing to do, so not offered */
+    | _ => true
     }
   )
 and x_component_reduced = (e: Exp.t): bool =>
@@ -1869,8 +1883,13 @@ let implode_parent = (~y_id: Id.t, program: Exp.t): option(Id.t) =>
     let y = List.nth(path, n - 1);
     let parent = List.nth(path, n - 2);
     switch (IdTagged.term_of(parent), IdTagged.term_of(y)) {
-    | (Let(pp, _, pbody), Let(_, _, ybody))
-        when same_node(pbody, y) && sugar_fn_name(pp) == None =>
+    | (Let(pp, pdef, pbody), Let(_, _, ybody))
+        when
+          same_node(pbody, y)
+          && sugar_fn_name(pp) == None
+          /* the step is an inline: a parent inline refuses (recursive)
+             can't be folded */
+          && inline_matches(pp, pdef, pbody) =>
       switch (let_head_name(pp)) {
       | Some(x) =>
         switch (occurrences_of(x, pbody)) {

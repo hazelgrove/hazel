@@ -5618,6 +5618,44 @@ let review_fix_tests = {
         );
       },
     ),
+    /* nothing offered that then does nothing */
+    test_case(
+      "no dead offers",
+      `Quick,
+      () => {
+        let none = (kind, marked) => !offers(kind, marked);
+        check(
+          bool,
+          "explode/implode/unfold/evaluate gates",
+          true,
+          none(Explode, "let ¦v = (1 : Int) in v")
+          && none(Explode, "let ¦y = let x = 2 in x + 1 in y")
+          && none(
+               Implode,
+               "let f = fun n -> if n < 1 then 0 else f(n - 1) in\nlet ¦r = f(3) in r",
+             )
+          && none(
+               UnfoldCall,
+               "let go = fun k -> if k < 1 then 0 else ¦go(k - 1) in go(2)",
+             )
+          && none(EvaluateInPlace, "(¦q=2, p=1)")
+          && none(EvaluateInPlace, "¦(1, fun z -> z)"),
+        );
+      },
+    ),
+    test_case("down on an argument feeds it", `Quick, () =>
+      check(
+        bool,
+        "feed",
+        true,
+        gesture_kind(
+          Down,
+          "let gg = 5 in\nlet hh = fun n -> n + 1 in\nhh(¦gg)",
+        )
+        == Some(FeedLet),
+      )
+    ),
+    has("let x = 3 in\n(¦fun x -> x + 1)(x * 2)", BetaReduce, "x * 2 + 1"),
     /* regressions caught after the statics check landed */
     has(
       "let ¦id = typfun A -> fun (x : A) -> x in id",
