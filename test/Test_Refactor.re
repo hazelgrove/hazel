@@ -5745,6 +5745,15 @@ let scope_check_tests = {
         offers(MergeUp, "let a = ? in\n¦let b = ? in\n(a, b)"),
       )
     ),
+    test_case("moving a type definition isn't a rebinding", `Quick, () =>
+      check(
+        string,
+        "inlined",
+        "let x : ( E + F ) = E in\nx",
+        inline(~kind=InlineAlias, "type ¦D = E + F in\nlet x : D = E in\nx")
+        |> text_of,
+      )
+    ),
     test_case("real twins still merge", `Quick, () =>
       check(
         string,
