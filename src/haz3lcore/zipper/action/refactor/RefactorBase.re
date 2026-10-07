@@ -732,6 +732,58 @@ let let_scopes = (p: Pat.t, d: Exp.t): (list(string), list(string), bool) => {
   };
 };
 
+/* a module's items bind in order: map `go` over them until an item
+   rebinds x (that item's own def follows the let rule; later items see
+   the rebinding and are left alone) */
+let map_mod_items =
+    (~x: string, ~go: Exp.t => Exp.t, items: list(Mod.t)): list(Mod.t) =>
+  List.fold_left(
+    ((acc, shadowed), item: Mod.t) =>
+      if (shadowed) {
+        ([item, ...acc], true);
+      } else {
+        switch (IdTagged.term_of(item)) {
+        | ModLet(p, d) =>
+          let (in_def, in_body, _) = let_scopes(p, d);
+          (
+            [
+              {
+                ...item,
+                term: ModLet(p, List.mem(x, in_def) ? d : go(d)),
+              },
+              ...acc,
+            ],
+            List.mem(x, in_body),
+          );
+        | ModExp(e) => (
+            [
+              {
+                ...item,
+                term: ModExp(go(e)),
+              },
+              ...acc,
+            ],
+            false,
+          )
+        | ModuleMod(mp, e) => (
+            [
+              {
+                ...item,
+                term: ModuleMod(mp, go(e)),
+              },
+              ...acc,
+            ],
+            false,
+          )
+        | _ => ([item, ...acc], false)
+        };
+      },
+    ([], false),
+    items,
+  )
+  |> fst
+  |> List.rev;
+
 /* One shadow-aware traversal: descends everything except scopes that
  * rebind ~skip; ~f_var fires on every Var node (hook filters names),
  * ~f_ap on forward applications before generic descent (None falls
@@ -783,6 +835,7 @@ let rec map_unshadowed =
         List.mem(skip, in_body) ? body : go(body),
       ),
     );
+  | Module(items) => rewrap(Module(map_mod_items(~x=skip, ~go, items)))
   | Fun(p, body, t, n) when binds(skip, p) => rewrap(Fun(p, body, t, n))
   | FixF(p, body, env) when binds(skip, p) => rewrap(FixF(p, body, env))
   | Match(scrut, rules) =>
@@ -912,6 +965,7 @@ let rec subst =
       | _ => e
       };
     };
+  | Module(items) => rewrap(Module(map_mod_items(~x, ~go, items)))
   | Fun(p, body, t, n) when binds(x, p) => rewrap(Fun(p, body, t, n))
   | Fun(p, body, t, n) =>
     switch (freshen(p, [body])) {

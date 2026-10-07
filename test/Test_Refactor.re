@@ -5792,6 +5792,18 @@ let scope_check_tests = {
         |> text_of,
       )
     ),
+    test_case("a module item that rebinds the name shadows it", `Quick, () =>
+      check(
+        string,
+        "outer use only",
+        "module M = {\n  let x = 2;\n  let y = x + 3\n} in\n(1, M.y)",
+        inline(
+          ~kind=InlineLet,
+          "let ¦x = 1 in\nmodule M = {\n  let x = 2;\n  let y = x + 3\n} in\n(x, M.y)",
+        )
+        |> text_of,
+      )
+    ),
     test_case("moving a type definition isn't a rebinding", `Quick, () =>
       check(
         string,
